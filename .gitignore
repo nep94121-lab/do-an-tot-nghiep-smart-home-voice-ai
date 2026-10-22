@@ -1,0 +1,18 @@
+# Bảo mật tuyệt đối API Keys & biến môi trường
+.env
+.env.*
+
+# Python cache & môi trường ảo
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# File tạm của hệ điều hành / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

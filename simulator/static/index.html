@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mô Phỏng 3D Smart Home Voice AI — Gemini 3.8 Live & ESP32-S3</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- TOPBAR GỌN GÀNG -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">🏠</div>
+      <div>
+        <h1>3D SMART HOME VOICE AI — GEMINI 3.8 LIVE</h1>
+        <p class="subtitle">Hẹn giờ (Giây/Phút/Giờ & AM/PM) • Đổi Từ • Đổi Lệnh ("Vừng ơi mở ra") • Quan hệ IF-ELSE Trạng Thái</p>
+      </div>
+    </div>
+
+    <div class="topbar-controls">
+      <div class="vn-clock-badge" title="Đồng hồ Giờ Việt Nam (GMT+7) dùng cho hẹn giờ AM/PM">
+        🕒 Giờ VN: <strong id="vnClockText">--:--:-- AM</strong>
+      </div>
+
+      <button id="btnTogglePromptModal" class="btn btn-accent" title="Xem System Prompt động đang nạp vào Gemini 3.8 Live">
+        📋 System Prompt
+      </button>
+
+      <div class="role-selector-box">
+        <label for="roleSelect">🛡️ Phân Quyền 3 Tầng:</label>
+        <select id="roleSelect">
+          <option value="tuan_anh" selected>👑 Tầng 1: Nguyễn Tuấn Anh (Admin / Bố)</option>
+          <option value="thanh_vien_a">👨‍👩‍👧 Tầng 2: Thành viên A (Bể lệnh riêng)</option>
+          <option value="thanh_vien_b">👨‍👩‍👧 Tầng 2: Thành viên B (Bể lệnh riêng)</option>
+          <option value="khach_c">🧒 Tầng 3: Khách C (T1 cấp - Cố định)</option>
+          <option value="khach_d">🧒 Tầng 3: Khách D (T2 cấp - Cố định)</option>
+          <option value="UNKNOWN">🚫 Đã hủy quyền / Người lạ (Chặn)</option>
+        </select>
+      </div>
+
+      <button id="btnFactoryReset" class="btn btn-danger">🔄 Reset Gốc</button>
+
+      <div id="geminiStatusBadge" class="status-badge connecting">
+        <span class="dot"></span>
+        <span id="geminiStatusText">Đang kết nối...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MODAL HIỂN THỊ SYSTEM PROMPT ĐỘNG -->
+  <div id="promptModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <strong>🧠 System Prompt Động Đang Nạp Trong Gemini 3.8 Live (Tự cập nhật khi Đổi từ / Đổi lệnh / Thêm IF-ELSE)</strong>
+        <button id="btnClosePromptModal" class="btn-tiny">✖ Đóng</button>
+      </div>
+      <pre id="systemPromptPre" class="prompt-pre">Đang tải System Prompt...</pre>
+    </div>
+  </div>
+
+  <!-- DASHBOARD 2 CỘT VỪA KHÍT MÀN HÌNH -->
+  <main class="dashboard-layout">
+    <!-- CỘT TRÁI: MÔ HÌNH NGÔI NHÀ 3D TƯƠNG TÁC + DẢI 6 CÔNG TẮC GỌN -->
+    <section class="left-col">
+      <div class="viewport-card">
+        <div class="viewport-toolbar">
+          <div class="cam-title">🎮 Mô Hình Nhà Thông Minh 3D (Kéo chuột để xoay • Cuộn để Zoom)</div>
+          <div class="cam-btns">
+            <button class="btn-cam active" data-cam="overview">🏠 Toàn cảnh</button>
+            <button class="btn-cam" data-cam="living">🛋️ Phòng khách</button>
+            <button class="btn-cam" data-cam="bedroom">🛏️ Phòng ngủ</button>
+            <button class="btn-cam" data-cam="door">🚪 Cửa chính</button>
+            <button class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
+          </div>
+        </div>
+
+        <div class="viewport-wrap">
+          <div id="house3dViewport" class="house3d-canvas"></div>
+          <div id="house3dLabels" class="house3d-labels"></div>
+
+          <div class="oled-hud" id="oledScreen">
+            <div class="oled-top-row">
+              <span id="oledMode">ESP32-S3 OLED: ONLINE</span>
+              <span id="oledRole">ADMIN</span>
+            </div>
+            <div class="oled-main-line" id="oledMainLine">SẴN SÀNG NHẬN LỆNH...</div>
+            <div class="oled-sub-line" id="oledSubLine">GPIO: Tất cả thiết bị đang đóng/tắt</div>
+          </div>
+        </div>
+
+        <div class="devices-strip" id="devicesGrid"></div>
+      </div>
+    </section>
+
+    <!-- CỘT PHẢI: ĐIỀU KHIỂN GIỌNG NÓI + ĐỘ TRỄ + KỊCH BẢN NÂNG CAO -->
+    <section class="right-col">
+      <!-- Khối 1: Mic + Độ trễ + Phiên âm + Nhập lệnh -->
+      <div class="card compact-card">
+        <div class="voice-top-row">
+          <button id="btnMicToggle" class="btn-mic">
+            <span id="micIcon">🎙️</span>
+            <span id="micBtnText">BẬT MIC NÓI CHUYỆN</span>
+          </button>
+
+          <button id="btnManualEndTurn" class="btn btn-accent" disabled title="Bấm khi vừa dứt câu">
+            ⚡ Ngắt Câu
+          </button>
+
+          <div class="mic-meter-compact">
+            <div class="mic-meter-label">Mic: <strong id="micStateLabel">Tắt</strong></div>
+            <div class="mic-meter-bar-bg">
+              <div id="micMeterBar" class="mic-meter-bar"></div>
+            </div>
+          </div>
+
+          <label class="checkbox-label" title="Bật/tắt tiếng trả lời của Gemini">
+            <input type="checkbox" id="chkPlayAiVoice" checked />
+            🔊 Giọng AI
+          </label>
+        </div>
+
+        <div class="metrics-strip">
+          <div class="m-pill">
+            <span class="m-lbl">1. Bật công tắc (Tool):</span>
+            <strong class="m-val" id="metricToolMs">-- ms</strong>
+          </div>
+          <div class="m-pill">
+            <span class="m-lbl">2. AI cất tiếng (Audio):</span>
+            <strong class="m-val" id="metricAudioMs">-- ms</strong>
+          </div>
+          <div class="m-pill highlight">
+            <span class="m-lbl" id="metricOrderBadge">3. Bật TRƯỚC khi nói:</span>
+            <strong class="m-val" id="metricLeadMs">-- ms</strong>
+          </div>
+        </div>
+
+        <div class="live-transcript-box">
+          <div class="tx-row">
+            <span class="tx-badge">👤 Bạn nói:</span>
+            <span id="liveUserTranscript" class="tx-content"><em>(Bật Mic nói hoặc bấm kịch bản bên dưới...)</em></span>
+          </div>
+          <div class="tx-row">
+            <span class="tx-badge">⚙️ Phần cứng:</span>
+            <span id="liveToolCall" class="tx-content highlight-tool"><em>(Chưa kích hoạt)</em></span>
+          </div>
+          <div class="tx-row">
+            <span class="tx-badge">🤖 AI trả lời:</span>
+            <span id="liveAiTranscript" class="tx-content"><em>(Đang chờ câu lệnh...)</em></span>
+          </div>
+        </div>
+
+        <form id="textCmdForm" class="text-cmd-form">
+          <input
+            type="text"
+            id="textCmdInput"
+            placeholder="Gõ lệnh bất kỳ: Sửa hẹn giờ, Đổi từ, Đổi lệnh 'Vừng ơi mở ra', Luật IF-ELSE..."
+            autocomplete="off"
+          />
+          <button type="submit" id="btnSendText" class="btn btn-primary">Gửi ➡️</button>
+        </form>
+      </div>
+
+      <!-- Khối 2: Phân Tích Giọng Nói (2 Giọng Test + Chặn 2 Lần Rồi Im Lặng + Thu Âm 8s) & Kịch Bản -->
+      <div class="card compact-card">
+        <div class="section-mini-title">
+          <span>🧬 Phân Tích Giọng Nói: <strong id="voiceAuthBadge" style="color:#4ade80;">✅ Giọng 1 — Chủ nhà (F0: 212 Hz)</strong></span>
+          <button id="btnEnroll8s" class="btn-tiny" style="background:#0284c7;color:#fff;border:none;">🎙️ Thu Âm 8s Đăng Ký Giọng</button>
+        </div>
+
+        <div class="section-mini-title" style="margin-top:2px;">
+          <span>✨ Kịch Bản Test: Hỏi Ngắn Gọn • Thu Âm Cấp Quyền (3-2-1 Nháy Đèn) • Phân Quyền Hỏi 3 Cấp</span>
+        </div>
+        <div class="scenarios-grid-compact">
+          <button class="btn-scenario" data-cmd="Cái còi báo động ở đây nghĩa là gì đấy?">
+            1️⃣ Hỏi: "Còi báo động nghĩa là gì?" (Trả lời đúng 1 câu)
+          </button>
+          <button class="btn-scenario" data-cmd="Tôi cần thêm người mới Cấp 2, bật ghi âm để tôi thu âm cấp quyền">
+            2️⃣ Thu âm cấp quyền Cấp 2 (Đếm 3-2-1 ➡️ Nháy đèn ➡️ Thu 5s)
+          </button>
+          <button class="btn-scenario" data-cmd="Người ấy tên là Minh">
+            3️⃣ Đặt tên: "Người ấy tên là Minh" (Lưu giọng &amp; tạo User)
+          </button>
+          <button class="btn-scenario" data-cmd="Chỉnh tất cả ai cũng có thể hỏi, bạn có thể trả lời tất cả những cái gì mà bạn biết">
+            4️⃣ Cấp 1 mở quyền hỏi: "Tất cả ai cũng có thể hỏi"
+          </button>
+          <button class="btn-scenario" data-cmd="Từng tầng chỉ được hỏi của quyền của tầng đấy thôi">
+            5️⃣ Cấp 1 khóa quyền hỏi: "Từng tầng hỏi theo quyền tầng đấy"
+          </button>
+          <button class="btn-scenario" data-cmd="Trong bể hẹn giờ và bể luật đang có bao nhiêu mục và những cái đấy là gì?">
+            6️⃣ Hỏi 2 Bể: Đang có bao nhiêu &amp; là gì? (Xét theo Cấp)
+          </button>
+          <button class="btn-scenario" data-cmd="Nếu bật đèn phòng khách thì mở điều hòa">
+            7️⃣ Xét luật: Bật đèn khách ➡️ mở ĐH (AI hỏi xác nhận)
+          </button>
+          <button class="btn-scenario" data-cmd="Reset hệ thống">
+            8️⃣ Bảo: "Reset hệ thống" (AI hỏi xác nhận)
+          </button>
+        </div>
+
+        <div class="section-mini-title" style="margin-top:4px;">
+          <span>🔊 Phát Âm Giọng 1 (Được phép) vs Giọng 2 (Không phép: Chặn 2 lần ➡️ Lần 3 Im lặng!)</span>
+        </div>
+        <div id="voiceSamplesGrid" class="samples-grid-compact"></div>
+      </div>
+
+      <!-- Khối 3: 2 Bể (Bể Hẹn Giờ & Bể Luật Động) + Nhật ký sự kiện -->
+      <div class="bottom-split">
+        <div class="card compact-card">
+          <div class="section-mini-title">
+            <span>🪣 Bể 1: Hẹn Giờ (<span id="timerCount">0</span>) &amp; 🪣 Bể 2: Luật Động (<span id="rulesCount">0</span>)</span>
+          </div>
+          <div id="timersList" class="mini-scroll-list"></div>
+          <div id="rulesList" class="mini-scroll-list" style="margin-top:2px;"></div>
+        </div>
+
+        <div class="card compact-card">
+          <div class="section-mini-title">
+            <span>📜 Nhật Ký Thực Thi & Sự Kiện</span>
+            <button id="btnClearLog" class="btn-tiny">Xóa</button>
+          </div>
+          <div id="eventLog" class="event-log-compact"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/vendor/three.min.js"></script>
+  <script src="/static/house3d.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{
+  "word_mappings": {},
+  "aliases": {},
+  "if_else_rules": [],
+  "chains": [],
+  "users": {
+    "tuan_anh": {
+      "id": "tuan_anh",
+      "name": "Nguyễn Tuấn Anh",
+      "tier": 1,
+      "role": "ADMIN",
+      "granted_by": "SYSTEM_ROOT",
+      "granted_by_name": "Hệ thống gốc",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "thanh_vien_a": {
+      "id": "thanh_vien_a",
+      "name": "Thành viên A",
+      "tier": 2,
+      "role": "MEMBER",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "thanh_vien_b": {
+      "id": "thanh_vien_b",
+      "name": "Thành viên B",
+      "tier": 2,
+      "role": "MEMBER",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "khach_c": {
+      "id": "khach_c",
+      "name": "Khách C",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "khach_d": {
+      "id": "khach_d",
+      "name": "Khách D",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "thanh_vien_a",
+      "granted_by_name": "Thành viên A (Tầng 2)",
+      "granted_by_tier": 2,
+      "active": true
+    }
+  },
+  "user_pools": {
+    "tuan_anh": {
+      "word_mappings": {},
+      "aliases": {},
+      "if_else_rules": []
+    },
+    "thanh_vien_a": {
+      "word_mappings": {},
+      "aliases": {},
+      "if_else_rules": []
+    },
+    "thanh_vien_b": {
+      "word_mappings": {},
+      "aliases": {},
+      "if_else_rules": []
+    }
+  }
+}

@@ -1,0 +1,218 @@
+[
+  {
+    "mode": "server_vad",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1315,
+    "audio_ms": 1855,
+    "tool": "control_device({\"action\": \"open\", \"device_id\": \"main_door\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "server_vad",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1189,
+    "audio_ms": 2194,
+    "tool": "control_device({\"device_id\": \"living_room_light\", \"action\": \"turn_on\"})",
+    "heard": "bật đèn phòng khách",
+    "said": "Tôi đã bật đèn phòng khách cho bạn rồi."
+  },
+  {
+    "mode": "server_vad",
+    "phrase": "tat_quat",
+    "tool_ms": 1026,
+    "audio_ms": 1483,
+    "tool": "control_device({\"device_id\": \"fan\", \"action\": \"turn_off\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "server_vad",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1173,
+    "audio_ms": 2289,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "server_vad",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1161,
+    "audio_ms": 2083,
+    "tool": "control_device({\"device_id\": \"living_room_light\", \"action\": \"turn_on\"})",
+    "heard": "bật đèn phòng khách",
+    "said": "Tôi đã bật đèn phòng khách cho bạn rồi."
+  },
+  {
+    "mode": "server_vad",
+    "phrase": "tat_quat",
+    "tool_ms": 1009,
+    "audio_ms": 2006,
+    "tool": "control_device({\"device_id\": \"fan\", \"action\": \"turn_off\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1307,
+    "audio_ms": 2287,
+    "tool": "control_device({\"action\": \"open\", \"device_id\": \"main_door\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1123,
+    "audio_ms": 2249,
+    "tool": "control_device({\"action\": \"turn_on\", \"device_id\": \"living_room_light\"})",
+    "heard": "Bật đèn phòng khách.",
+    "said": "Tôi đã bật đèn phòng khách cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "tat_quat",
+    "tool_ms": 1509,
+    "audio_ms": 2370,
+    "tool": "control_device({\"action\": \"turn_off\", \"device_id\": \"fan\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1617,
+    "audio_ms": 2366,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1315,
+    "audio_ms": 2130,
+    "tool": "control_device({\"action\": \"turn_on\", \"device_id\": \"living_room_light\"})",
+    "heard": "bật đèn phòng khách",
+    "said": "Tôi đã bật đèn phòng khách cho bạn."
+  },
+  {
+    "mode": "server_vad500",
+    "phrase": "tat_quat",
+    "tool_ms": 1009,
+    "audio_ms": 1691,
+    "tool": "control_device({\"device_id\": \"fan\", \"action\": \"turn_off\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1049,
+    "audio_ms": 1553,
+    "tool": "control_device({\"action\": \"open\", \"device_id\": \"main_door\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1067,
+    "audio_ms": 1697,
+    "tool": "control_device({\"action\": \"turn_on\", \"device_id\": \"living_room_light\"})",
+    "heard": "bật đèn phòng khách",
+    "said": "Tôi đã bật đèn phòng khách cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "tat_quat",
+    "tool_ms": 1124,
+    "audio_ms": 1632,
+    "tool": "control_device({\"action\": \"turn_off\", \"device_id\": \"fan\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1132,
+    "audio_ms": 1619,
+    "tool": "control_device({\"action\": \"open\", \"device_id\": \"main_door\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn rồi."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 1239,
+    "audio_ms": 1762,
+    "tool": "control_device({\"device_id\": \"living_room_light\", \"action\": \"turn_on\"})",
+    "heard": "bật đèn phòng khách",
+    "said": "Tôi đã bật đèn phòng khách cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "tat_quat",
+    "tool_ms": 1285,
+    "audio_ms": 1771,
+    "tool": "control_device({\"device_id\": \"fan\", \"action\": \"turn_off\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 643,
+    "audio_ms": 1217,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa",
+    "said": "Tôi đã mở cửa chính cho bạn rồi."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 589,
+    "audio_ms": 1024,
+    "tool": "control_device({\"device_id\": \"living_room_light\", \"action\": \"turn_on\"})",
+    "heard": "bật đèn phòng",
+    "said": "Tôi đã bật đèn phòng khách cho bạn rồi."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "tat_quat",
+    "tool_ms": 622,
+    "audio_ms": 1115,
+    "tool": "control_device({\"action\": \"turn_off\", \"device_id\": \"fan\"})",
+    "heard": "tắt quạt",
+    "said": "Tôi đã tắt quạt cho bạn rồi."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1711,
+    "audio_ms": 2310,
+    "tool": "control_device({\"action\": \"open\", \"device_id\": \"main_door\"})",
+    "heard": "mở cửa",
+    "said": "Tôi đã mở cửa chính cho bạn rồi."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "bat_den_phong_khach",
+    "tool_ms": 515,
+    "audio_ms": 1091,
+    "tool": "control_device({\"device_id\": \"living_room_light\", \"action\": \"turn_on\"})",
+    "heard": "bật đèn phòng",
+    "said": "Đèn phòng khách đã được bật."
+  },
+  {
+    "mode": "manual0",
+    "phrase": "tat_quat",
+    "tool_ms": 575,
+    "audio_ms": 1105,
+    "tool": "control_device({\"device_id\": \"fan\", \"action\": \"turn_off\"})",
+    "heard": "tắt quạt",
+    "said": "Quạt đã được tắt."
+  }
+]

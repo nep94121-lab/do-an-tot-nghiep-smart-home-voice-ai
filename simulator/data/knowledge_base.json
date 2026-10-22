@@ -1,0 +1,47 @@
+{
+  "version": "3.0-CONCISE-QA-AND-TIER-POLICY",
+  "items": [
+    {
+      "id": "identity_and_creator",
+      "min_tier": "3",
+      "topic": "Bạn là ai / Ai tạo ra bạn",
+      "keywords": "bạn là ai, tên gì, giới thiệu, ai tạo ra, ai làm ra, ai lập trình, tác giả, người tạo, chủ nhân, nguyễn tuấn anh",
+      "content": "Tôi là trợ lý ảo điều khiển nhà thông minh do Nguyễn Tuấn Anh tạo ra."
+    },
+    {
+      "id": "capabilities_what_can_you_do",
+      "min_tier": "3",
+      "topic": "Bạn được làm những gì và có thể làm những gì",
+      "keywords": "làm được gì, có thể làm những gì, được làm những gì, chức năng, khả năng, nhiệm vụ, công dụng",
+      "content": "Tôi là trợ lý ảo do Nguyễn Tuấn Anh tạo ra, có thể làm 5 việc chính: 1) Điều khiển 6 thiết bị gồm cửa chính, đèn khách, đèn ngủ, quạt, điều hòa, còi báo động. 2) Hẹn giờ 1 lần hoặc lặp hàng ngày, hàng tuần theo giây, phút, giờ, AM/PM và ngày tháng. 3) Học đổi từ, đổi lệnh và đặt luật IF-ELSE theo bể riêng của từng thành viên. 4) Thu âm phân tích giọng nói và quản lý phân quyền 3 tầng. 5) Truy vấn bể lệnh, bể hẹn giờ và thực hiện 4 chế độ reset theo đúng cấp quyền."
+    },
+    {
+      "id": "alarm_siren_meaning",
+      "min_tier": "3",
+      "topic": "Còi báo động ở đây nghĩa là gì / dùng để làm gì",
+      "keywords": "còi báo động, coi bao dong, báo động, còi hú, siren, nghĩa là gì, dùng làm gì",
+      "content": "Còi báo động là thiết bị phát âm thanh cảnh báo an ninh hoặc báo động khẩn cấp trong nhà."
+    },
+    {
+      "id": "voice_enrollment_flow",
+      "min_tier": "2",
+      "topic": "Cách thêm người mới / thu âm giọng nói để cấp quyền cấp 2, cấp 3",
+      "keywords": "thêm người mới, bật ghi âm, thu âm, ghi âm, cấp quyền giọng nói, đăng ký giọng",
+      "content": "Khi bạn yêu cầu thu âm cấp quyền, tôi sẽ đếm 3, 2, 1 và nháy đèn báo hiệu bắt đầu, thu âm trong 5 giây, báo đã thu âm đủ, phân tích tần số giọng nói rồi hỏi tên người được cấp quyền."
+    },
+    {
+      "id": "three_tier_rules",
+      "min_tier": "2",
+      "topic": "Quy định phân quyền 3 tầng (Tầng 1 Admin Nguyễn Tuấn Anh, Tầng 2 Thành viên, Tầng 3 Khách)",
+      "keywords": "quy định, phân quyền, 3 tầng, ba tầng, cấp quyền, hủy quyền, tầng 1, tầng 2, tầng 3, cấp 1, cấp 2, cấp 3, admin, thành viên, khách",
+      "content": "Hệ thống có 3 tầng quyền hạn: Tầng 1 là Admin tối cao Nguyễn Tuấn Anh: toàn quyền, được hỏi mọi thông tin, luật IF áp dụng toàn nhà, không ai được hủy người do Tầng 1 cấp, và không ai được đè hay vướng hẹn giờ của Tầng 1. Tầng 2 là Thành viên gia đình: mỗi người có bể lệnh và hẹn giờ riêng, chỉ được reset bể của chính mình, được thu âm cấp và hủy quyền cho Tầng 3 (trừ người do Tầng 1 cấp), không được hủy cùng cấp. Tầng 3 là Khách: chỉ được gọi lệnh đóng mở cố định, không được đổi lệnh, không được đặt luật IF, không được hẹn giờ và không được cấp hay hủy quyền của ai."
+    },
+    {
+      "id": "hardware_devices_gpio",
+      "min_tier": "1",
+      "topic": "Danh sách thiết bị và sơ đồ chân phần cứng GPIO ESP32-S3 của hệ thống",
+      "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị",
+      "content": "Nhà gồm 6 thiết bị: Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa và Còi báo động."
+    }
+  ]
+}

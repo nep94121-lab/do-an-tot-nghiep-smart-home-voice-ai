@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "server_vad500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1259,
+    "audio_ms": 2118,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn."
+  },
+  {
+    "mode": "manual500",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1089,
+    "audio_ms": 1796,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính."
+  }
+]

@@ -1,0 +1,11 @@
+[
+  {
+    "mode": "server_vad",
+    "phrase": "mo_cua_chinh",
+    "tool_ms": 1313,
+    "audio_ms": 1766,
+    "tool": "control_device({\"device_id\": \"main_door\", \"action\": \"open\"})",
+    "heard": "mở cửa chính",
+    "said": "Tôi đã mở cửa chính cho bạn rồi."
+  }
+]
