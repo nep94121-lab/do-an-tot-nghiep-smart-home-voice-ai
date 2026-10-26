@@ -1,0 +1,32 @@
+{
+  "synced_at": 1793030176.11,
+  "timers_count": 1,
+  "timers": [
+    {
+      "id": "timer_6",
+      "device_id": "living_room_light",
+      "action": "turn_on",
+      "remaining_seconds": 30.0,
+      "target_vn_time": ""
+    }
+  ],
+  "if_else_rules_count": 1,
+  "if_else_rules": [
+    {
+      "when_device_id": "main_door",
+      "when_state": "OPEN",
+      "then_device_id": "living_room_light",
+      "then_action": "turn_on",
+      "else_device_id": "",
+      "else_action": ""
+    }
+  ],
+  "device_min_tiers": {
+    "main_door": 3,
+    "living_room_light": 3,
+    "bedroom_light": 3,
+    "fan": 3,
+    "ac": 3,
+    "alarm_siren": 3
+  }
+}

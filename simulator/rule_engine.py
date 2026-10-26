@@ -25,6 +25,8 @@ import re
 import time
 from typing import Any, Callable, Coroutine
 
+from simulator.mqtt_bridge import SmartHomeMQTTBridge
+
 DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +49,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "main_door": {
         "id": "main_door",
         "name": "Cửa chính",
-        "gpio": "GPIO4 (Servo/Lock)",
+        "gpio": "D1 / GPIO5 (Servo PWM)",
         "type": "door",
         "state": "CLOSED",
         "min_role": "CHILD_GUEST",
@@ -56,7 +58,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "living_room_light": {
         "id": "living_room_light",
         "name": "Đèn phòng khách",
-        "gpio": "GPIO5 (Relay 1)",
+        "gpio": "D2 / GPIO4 (Relay 1)",
         "type": "light",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -65,7 +67,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "bedroom_light": {
         "id": "bedroom_light",
         "name": "Đèn phòng ngủ",
-        "gpio": "GPIO6 (Relay 2)",
+        "gpio": "D7 / GPIO13 (Relay 2)",
         "type": "light",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -74,7 +76,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "fan": {
         "id": "fan",
         "name": "Quạt trần",
-        "gpio": "GPIO7 (Relay 3)",
+        "gpio": "D6 / GPIO12 (Relay 3)",
         "type": "fan",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -83,7 +85,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "ac": {
         "id": "ac",
         "name": "Điều hòa",
-        "gpio": "GPIO15 (IR/Relay 4)",
+        "gpio": "D2 / GPIO4 (IR 38kHz)",
         "type": "ac",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -92,7 +94,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "alarm_siren": {
         "id": "alarm_siren",
         "name": "Còi báo động",
-        "gpio": "GPIO16 (Buzzer/Siren)",
+        "gpio": "D8 / GPIO15 (Buzzer 5V)",
         "type": "siren",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -489,6 +491,7 @@ class SmartHomeEngine:
         self.pending_reset_scope: str = "all"
         self.pending_rule: dict[str, Any] | None = None
         self.pending_voice_enrollment: dict[str, Any] | None = None
+        self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
 
     @property
     def system_policies(self) -> dict[str, Any]:
@@ -1170,6 +1173,7 @@ class SmartHomeEngine:
             "t1_global_if_else_rules": list(t1_pool.get("if_else_rules", [])),
             "chains": list(cur_pool.get("if_else_rules", [])),
             "timers": timers_list,
+            "mqtt": self.mqtt_bridge.get_summary(),
         }
 
     def check_permission(self, required_role: str) -> tuple[bool, str]:
@@ -1278,6 +1282,7 @@ class SmartHomeEngine:
         dev = self.devices.get(device_id)
         if not dev:
             return
+        await self.mqtt_bridge.publish_enrollment_blink(device_id=device_id, pulse_ms=int(pulse_sec * 1000))
         orig_state = dev["state"]
         flash_state = "OFF" if orig_state == "ON" else "ON"
 
@@ -1726,6 +1731,15 @@ class SmartHomeEngine:
             dev["state"] = new_state
             dev["updated_at"] = time.time()
 
+            await self.mqtt_bridge.publish_actuate_command(
+                device_id=dev_id,
+                state=new_state,
+                action=act,
+                source=source,
+                user_name=self.get_current_user_name(),
+                tier=self.current_tier,
+            )
+
             await self.emit({
                 "type": "device_updated",
                 "device_id": dev_id,
@@ -1760,6 +1774,57 @@ class SmartHomeEngine:
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'",
             "summary": concise_reply,
         }
+
+    async def sync_edge_flash(self) -> dict[str, Any]:
+        """Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266."""
+        snap = self.get_snapshot()
+        combined_rules = list(snap.get("t1_global_if_else_rules", []))
+        if self._current_user_id != "tuan_anh":
+            combined_rules.extend(snap.get("if_else_rules", []))
+        return await self.mqtt_bridge.sync_pools_to_esp8266_flash(
+            timers=snap.get("timers", []),
+            if_else_rules=combined_rules,
+            system_policies=self.system_policies,
+        )
+
+    async def update_sensor_telemetry(self, temp_c: float, humidity_pct: float, wifi_rssi_dbm: int = -52) -> dict[str, Any]:
+        """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
+        pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
+        triggered: list[dict[str, Any]] = []
+        # Kiểm tra xem có chỉ thị hoặc luật tự động theo ngưỡng nhiệt độ/độ ẩm không
+        for raw_dir in self.system_policies.get("custom_system_directives", []):
+            d_low = str(raw_dir).lower()
+            m_temp = re.search(r"nhiệt độ\s*(?:trên|>|lớn hơn|vượt)\s*(\d+(?:\.\d+)?)", d_low)
+            if m_temp and float(temp_c) > float(m_temp.group(1)):
+                if any(k in d_low for k in ("mở điều hòa", "bật điều hòa", "ac")):
+                    res = await self.execute_device_action("ac", "open", source=f"DHT11 ({temp_c}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
+                    triggered.extend(res.get("results", []))
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        spoken = f"Nhiệt độ phòng là {temp_c:.1f} độ C, độ ẩm {humidity_pct:.0f}%."
+        return {
+            "ok": True,
+            "telemetry": self.mqtt_bridge.dht11_telemetry,
+            "mqtt_packet": pkt,
+            "triggered_actions": triggered,
+            "exact_spoken_reply": spoken,
+        }
+
+    async def learn_ir_remote_command(
+        self,
+        device_name: str,
+        command_action: str = "open",
+        protocol: str = "COOLIX_38KHZ",
+        hex_code: str = "0xB2BF40",
+    ) -> dict[str, Any]:
+        """Chiếm quyền / Học lệnh Remote Hồng ngoại 38kHz (VS1838B D5 -> Lưu Write-Through -> Phát IR LED D2)."""
+        if self.current_tier >= 3 and not self.system_policies.get("tier3_can_custom_rules", False):
+            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền học lệnh điều khiển hồng ngoại mới."
+            await self.emit({"type": "rbac_blocked", "action": "learn_ir_remote_command", "role": self.current_role, "reason": msg})
+            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+        await self.mqtt_bridge.start_ir_learning(device_name=device_name, command_action=command_action)
+        res = await self.mqtt_bridge.complete_ir_learning(protocol=protocol, hex_code=hex_code)
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        return res
 
     async def _evaluate_reactive_if_else(self, changed_dev_id: str, new_state: str) -> list[dict[str, Any]]:
         """Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`.

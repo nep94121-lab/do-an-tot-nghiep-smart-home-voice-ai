@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>📱 Smart Home Mobile App — ESP8266 &amp; MQTT</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card: #152036;
+      --border: #253554;
+      --accent: #38bdf8;
+      --green: #4ade80;
+      --red: #f87171;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); max-width: 460px; margin: 0 auto; min-height: 100vh; padding: 14px; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 1.05rem; color: var(--accent); }
+    .badge { font-size: 0.75rem; padding: 4px 8px; border-radius: 999px; background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid var(--green); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-top: 12px; }
+    .card-title { font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .sensor-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
+    .sensor-box { background: rgba(15,23,42,0.7); padding: 10px 6px; border-radius: 10px; border: 1px solid var(--border); }
+    .sensor-val { font-size: 1.25rem; font-weight: 800; color: var(--green); }
+    .sensor-lbl { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .voice-form { display: flex; gap: 6px; margin-top: 8px; }
+    .voice-input { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: #fff; font-size: 0.88rem; }
+    .btn { padding: 10px 14px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; font-size: 0.84rem; }
+    .btn-primary { background: var(--accent); color: #0f172a; }
+    .btn-ir { background: #a855f7; color: #fff; width: 100%; margin-top: 8px; }
+    .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dev-btn { background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 10px; color: var(--text); text-align: left; cursor: pointer; }
+    .dev-btn.active { border-color: var(--green); background: rgba(74,222,128,0.12); }
+    .dev-name { font-weight: 700; font-size: 0.86rem; }
+    .dev-sub { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+    .mqtt-box { font-family: monospace; font-size: 0.73rem; max-height: 150px; overflow-y: auto; background: #090d16; padding: 8px; border-radius: 8px; color: #cbd5e1; }
+    .mqtt-item { margin-bottom: 5px; border-bottom: 1px dashed #1e293b; padding-bottom: 4px; }
+    .reply-banner { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(56,189,248,0.12); font-size: 0.83rem; color: #e0f2fe; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>📱 SMART HOME MOBILE APP</h1>
+      <div style="font-size:0.74rem;color:var(--muted);">NodeMCU ESP8266 • MQTT • 3-Tier Voice AI</div>
+    </div>
+    <span class="badge" id="espBadge">ESP8266: ONLINE</span>
+  </div>
+
+  <!-- CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (CHÂN D6) -->
+  <div class="card">
+    <div class="card-title">
+      <span>🌡️ Cảm biến Môi trường DHT11 (Chân D6)</span>
+      <span id="rssiText" style="color:var(--muted);">Wi-Fi: -52 dBm</span>
+    </div>
+    <div class="sensor-row">
+      <div class="sensor-box">
+        <div class="sensor-val" id="tempVal">28.5°C</div>
+        <div class="sensor-lbl">Nhiệt độ phòng</div>
+      </div>
+      <div class="sensor-box">
+        <div class="sensor-val" id="humVal">65%</div>
+        <div class="sensor-lbl">Độ ẩm (RH)</div>
+      </div>
+      <div class="sensor-box">
+        <div class="sensor-val" id="irCountVal">1</div>
+        <div class="sensor-lbl">Remote IR 38kHz</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RA LỆNH GIỌNG NÓI / TEXT TỪ ĐIỆN THOẠI -->
+  <div class="card">
+    <div class="card-title">
+      <span>🎙️ Ra lệnh Trợ lý Ảo AI (Cấp 1: Nguyễn Tuấn Anh)</span>
+    </div>
+    <form class="voice-form" id="cmdForm">
+      <input class="voice-input" id="cmdInput" placeholder="Nói hoặc nhập: Mở cửa chính, Vừng ơi mở ra..." />
+      <button class="btn btn-primary" type="submit">Gửi</button>
+    </form>
+    <div class="reply-banner" id="aiReply">Sẵn sàng nhận lệnh từ Điện thoại...</div>
+    <button class="btn btn-ir" id="btnLearnIr">📡 Học lệnh Chiếm quyền Remote Hồng ngoại (D5 VS1838B)</button>
+  </div>
+
+  <!-- 6 THIẾT BỊ TRÊN NODEMCU ESP8266 -->
+  <div class="card">
+    <div class="card-title">
+      <span>⚡ Điều khiển nhanh 6 chân NodeMCU ESP8266</span>
+    </div>
+    <div class="dev-grid" id="devGrid"></div>
+  </div>
+
+  <!-- GIÁM SÁT GÓI TIN MQTT THỜI GIAN THỰC -->
+  <div class="card">
+    <div class="card-title">
+      <span>📡 Dòng gói tin MQTT Thời gian thực (Pub/Sub)</span>
+    </div>
+    <div class="mqtt-box" id="mqttLog"></div>
+  </div>
+
+  <script>
+    async function refreshState() {
+      const res = await fetch('/api/state');
+      const data = await res.json();
+      const mqtt = data.mqtt || {};
+      const dht = mqtt.dht11_telemetry || {};
+      document.getElementById('tempVal').textContent = (dht.temp_c || 28.5) + '°C';
+      document.getElementById('humVal').textContent = (dht.humidity_pct || 65) + '%';
+      document.getElementById('irCountVal').textContent = mqtt.ir_devices_count || 1;
+      if (mqtt.esp8266_status) {
+        document.getElementById('rssiText').textContent = 'Wi-Fi: ' + mqtt.esp8266_status.wifi_rssi_dbm + ' dBm';
+      }
+
+      const grid = document.getElementById('devGrid');
+      grid.innerHTML = '';
+      (data.devices || []).forEach(d => {
+        const isOn = d.state === 'ON' || d.state === 'OPEN';
+        const btn = document.createElement('button');
+        btn.className = 'dev-btn' + (isOn ? ' active' : '');
+        btn.innerHTML = `<div class="dev-name">${d.name} (${d.state})</div><div class="dev-sub">${d.gpio}</div>`;
+        btn.onclick = async () => {
+          const act = d.type === 'door' ? (isOn ? 'close' : 'open') : (isOn ? 'turn_off' : 'turn_on');
+          const r = await fetch('/api/device', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device_id: d.id, action: act})
+          });
+          const j = await r.json();
+          document.getElementById('aiReply').textContent = j.exact_spoken_reply || j.summary || 'Đã thực thi.';
+          refreshState();
+        };
+        grid.appendChild(btn);
+      });
+
+      const logBox = document.getElementById('mqttLog');
+      const pkts = (mqtt.recent_mqtt_packets || []).slice().reverse();
+      logBox.innerHTML = pkts.map(p =>
+        `<div class="mqtt-item"><strong style="color:#38bdf8">[${p.direction}]</strong> <code>${p.topic}</code> (QoS ${p.qos})<br/>${JSON.stringify(p.payload)}</div>`
+      ).join('') || 'Chưa có bản tin MQTT...';
+    }
+
+    document.getElementById('cmdForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const inp = document.getElementById('cmdInput');
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      const r = await fetch('/api/text_command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text})
+      });
+      const j = await r.json();
+      document.getElementById('aiReply').textContent = j.reply || j.exact_spoken_reply || 'Đã xử lý.';
+      refreshState();
+    };
+
+    document.getElementById('btnLearnIr').onclick = async () => {
+      const name = prompt('Nhập tên thiết bị Remote cần chiếm quyền (VD: Điều hòa Casper, Tivi Sony, Quạt Mitsubishi):', 'Điều hòa Casper');
+      if (!name) return;
+      const r = await fetch('/api/ir_learn', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device_name: name, command_action: 'open'})
+      });
+      const j = await r.json();
+      document.getElementById('aiReply').textContent = j.exact_spoken_reply || j.message;
+      refreshState();
+    };
+
+    refreshState();
+    setInterval(refreshState, 2500);
+  </script>
+</body>
+</html>

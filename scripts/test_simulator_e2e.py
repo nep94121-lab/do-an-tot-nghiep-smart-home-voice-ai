@@ -452,6 +452,35 @@ async def test_unit_all_new_features() -> None:
     rag.reset_custom_knowledge()
     await eng3.factory_reset()
 
+    # 15. KIỂM THỬ KIẾN TRÚC SYSTEM DESIGN PRIMER: MQTT PUB/SUB, BACKPRESSURE, CAP FAILOVER FLASH, DHT11 & IR 38KHZ
+    print("\n=== [5] KIỂM THỬ SYSTEM DESIGN PRIMER: MQTT PUB/SUB, CAP EDGE SYNC, CẢM BIẾN DHT11 & HỌC LỆNH IR 38KHZ ===", flush=True)
+    await eng3.execute_device_action("ac", "open")
+    mqtt_sum = eng3.mqtt_bridge.get_summary()
+    topics_seen = [p["topic"] for p in mqtt_sum["recent_mqtt_packets"]]
+    assert "smarthome/cmd/actuate" in topics_seen and "smarthome/ir/blast" in topics_seen and "smarthome/state/report" in topics_seen
+    print(f"  [PASS] 10.1 MQTT Pub/Sub & IR Blast 38kHz khi bật Điều hòa -> Topics: {topics_seen[-3:]}")
+
+    # 15.2 CAP Theorem (AP Edge Failover): Đồng bộ 2 Bể xuống bộ nhớ Flash LittleFS của ESP8266
+    await eng3.schedule_timer_flexible("living_room_light", "turn_on", seconds=30)
+    await eng3.set_if_else_rule("main_door", "OPEN", "living_room_light", "turn_on", require_confirmation=False)
+    sync_pkt = await eng3.sync_edge_flash()
+    assert sync_pkt["topic"] == "smarthome/sync/pools" and sync_pkt["retain"] is True
+    assert sync_pkt["payload"]["timers_count"] == 1 and sync_pkt["payload"]["if_else_rules_count"] == 1
+    print("  [PASS] 10.2 CAP Theorem (AP Failover): Đồng bộ Bể 1 & Bể 2 xuống Flash LittleFS ESP8266 (Retain=True) OK!")
+
+    # 15.3 Cảm biến DHT11 (Chân D6) + Tự động kích hoạt Điều hòa khi vượt ngưỡng nhiệt độ
+    await eng3.execute_device_action("ac", "close")
+    await eng3.admin_update_system_policy("custom_directive_add", "Nếu nhiệt độ trên 30 độ thì mở điều hòa")
+    tele_res = await eng3.update_sensor_telemetry(temp_c=31.5, humidity_pct=72.0)
+    assert tele_res["ok"] and eng3.devices["ac"]["state"] == "ON"
+    print(f"  [PASS] 10.3 Telemetry DHT11 (31.5°C > 30°C) tự động kích hoạt mở Điều hòa -> '{tele_res['exact_spoken_reply']}'")
+
+    # 15.4 Học lệnh Chiếm quyền Remote Hồng ngoại 38kHz (VS1838B Chân D5 -> Write-Through Cache)
+    ir_res = await eng3.learn_ir_remote_command("Quạt Mitsubishi", "open", protocol="MITSUBISHI_38KHZ", hex_code="0xE240A1")
+    assert ir_res["ok"] and ir_res["hex_code"] == "0xE240A1"
+    print(f"  [PASS] 10.4 Học lệnh Remote IR 38kHz (Write-Through Cache): '{ir_res['exact_spoken_reply']}'")
+
+    await eng3.factory_reset()
     print("\n🎉 TẤT CẢ CÁC BÀI KIỂM THỬ ĐỀU ĐẠT 100% (EXIT CODE 0)!", flush=True)
 
 

@@ -768,11 +768,67 @@ def make_live_config(engine: SmartHomeEngine) -> types.LiveConnectConfig:
 app = FastAPI(title="Smart Home Voice AI Simulator - Gemini 3.8 Live")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/test_audio", StaticFiles(directory=str(AUDIO_DIR)), name="test_audio")
+MOBILE_APP_DIR = ROOT / "mobile_app"
+_REST_ENGINE = SmartHomeEngine()
 
 
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/app")
+async def mobile_app_index() -> FileResponse:
+    return FileResponse(MOBILE_APP_DIR / "index.html")
+
+
+@app.get("/api/state")
+async def api_get_state() -> JSONResponse:
+    return JSONResponse(_REST_ENGINE.get_snapshot())
+
+
+@app.post("/api/device")
+async def api_control_device(payload: dict[str, Any]) -> JSONResponse:
+    dev_id = str(payload.get("device_id", "main_door"))
+    act = str(payload.get("action", "open"))
+    res = await _REST_ENGINE.execute_device_action(dev_id, act, source="mobile_app")
+    return JSONResponse(res)
+
+
+@app.post("/api/ir_learn")
+async def api_ir_learn(payload: dict[str, Any]) -> JSONResponse:
+    dev_name = str(payload.get("device_name", "Điều hòa Casper"))
+    act = str(payload.get("command_action", "open"))
+    res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
+    return JSONResponse(res)
+
+
+@app.post("/api/dht11")
+async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
+    temp_c = float(payload.get("temp_c", 28.5))
+    hum_pct = float(payload.get("humidity_pct", 65.0))
+    rssi = int(payload.get("wifi_rssi_dbm", -52))
+    res = await _REST_ENGINE.update_sensor_telemetry(temp_c, hum_pct, rssi)
+    return JSONResponse(res)
+
+
+@app.post("/api/text_command")
+async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
+    text = str(payload.get("text", "")).strip()
+    t_low = text.lower()
+    if "nhiệt độ" in t_low or "độ ẩm" in t_low:
+        dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
+        spoken = f"Nhiệt độ phòng là {dht['temp_c']}°C, độ ẩm {dht['humidity_pct']}%."
+        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
+    if "học lệnh" in t_low or "remote" in t_low:
+        res = await _REST_ENGINE.learn_ir_remote_command("Điều hòa", "open")
+        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+    # Kiểm tra khẩu lệnh alias trước
+    for phrase in _REST_ENGINE.get_merged_aliases():
+        if phrase in t_low:
+            res = await _REST_ENGINE.execute_alias_rule(phrase)
+            return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+    return JSONResponse({"ok": True, "reply": f"Đã nhận lệnh: {text}", "exact_spoken_reply": f"Đã nhận lệnh: {text}"})
 
 
 @app.get("/api/voice_samples")
