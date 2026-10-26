@@ -37,10 +37,12 @@ const char* NODE_ID       = "esp8266_node_01";
 // ---------------- SƠ ĐỒ CHÂN CHUẨN TRÊN NODEMCU ESP8266 ------------
 #define PIN_MAIN_DOOR_SERVO  5   // D1 (GPIO 5)  - Servo SG90 Cửa chính
 #define PIN_LIVING_LIGHT_IR  4   // D2 (GPIO 4)  - Đèn khách & Phát IR 38kHz
+#define PIN_GARDEN_PUMP      0   // D3 (GPIO 0)  - Relay 5V Máy bơm tưới cây + Diode 1N4007
 #define PIN_IR_RECEIVER      14  // D5 (GPIO 14) - Mắt thu hồng ngoại VS1838B 38kHz
 #define PIN_DHT_AND_FAN      12  // D6 (GPIO 12) - Cảm biến DHT11 & Quạt
 #define PIN_BEDROOM_LIGHT    13  // D7 (GPIO 13) - Đèn phòng ngủ
 #define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi báo động Buzzer 5V
+#define PIN_SOIL_MOISTURE    A0  // A0 (ADC0)    - Cảm biến độ ẩm đất YL-69 + LM393
 
 #define DHTTYPE DHT11
 
@@ -92,6 +94,8 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
         digitalWrite(PIN_BEDROOM_LIGHT, isOn ? HIGH : LOW);
       } else if (devId == "alarm_siren") {
         digitalWrite(PIN_ALARM_SIREN, isOn ? HIGH : LOW);
+      } else if (devId == "garden_pump") {
+        digitalWrite(PIN_GARDEN_PUMP, isOn ? HIGH : LOW);
       }
     }
   }
@@ -143,6 +147,8 @@ void setup() {
   pinMode(PIN_LIVING_LIGHT_IR, OUTPUT);
   pinMode(PIN_BEDROOM_LIGHT, OUTPUT);
   pinMode(PIN_ALARM_SIREN, OUTPUT);
+  pinMode(PIN_GARDEN_PUMP, OUTPUT);
+  digitalWrite(PIN_GARDEN_PUMP, LOW);
   doorServo.attach(PIN_MAIN_DOOR_SERVO);
   doorServo.write(0);
 
@@ -191,6 +197,24 @@ void loop() {
       String out;
       serializeJson(teleDoc, out);
       mqtt.publish("smarthome/telemetry/dht11", out.c_str(), false);
+    }
+
+    // Đọc cảm biến Độ ẩm Đất YL-69 + LM393 (Chân A0) & Tự động bật Máy bơm tưới cây (Chân D3)
+    int adcSoil = analogRead(PIN_SOIL_MOISTURE);
+    float soilPct = constrain(map(adcSoil, 1024, 300, 0, 100), 0, 100);
+    if (soilPct < 40.0f) {
+      digitalWrite(PIN_GARDEN_PUMP, HIGH); // Đất khô < 40% -> Tự bật máy bơm
+    } else if (soilPct >= 70.0f) {
+      digitalWrite(PIN_GARDEN_PUMP, LOW);  // Đất đủ ẩm >= 70% -> Tự tắt máy bơm
+    }
+    if (mqtt.connected()) {
+      StaticJsonDocument<256> soilDoc;
+      soilDoc["node_id"] = NODE_ID;
+      soilDoc["soil_moisture_pct"] = soilPct;
+      soilDoc["adc_raw"] = adcSoil;
+      String soilOut;
+      serializeJson(soilDoc, soilOut);
+      mqtt.publish("smarthome/telemetry/soil_moisture", soilOut.c_str(), false);
     }
   }
 }

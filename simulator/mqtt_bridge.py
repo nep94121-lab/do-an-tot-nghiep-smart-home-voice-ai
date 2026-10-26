@@ -32,6 +32,7 @@ ESP8266_PIN_MAP: dict[str, dict[str, Any]] = {
     "fan": {"pin": "D6", "gpio": 12, "mode": "DIGITAL_OUT"},
     "ac": {"pin": "D2", "gpio": 4, "mode": "IR_BLAST_38KHZ"},
     "alarm_siren": {"pin": "D8", "gpio": 15, "mode": "DIGITAL_OUT"},
+    "garden_pump": {"pin": "D3", "gpio": 0, "mode": "RELAY_PUMP_5V_DIODE_1N4007"},
 }
 
 DEFAULT_IR_DEVICES: dict[str, Any] = {
@@ -112,6 +113,14 @@ class SmartHomeMQTTBridge:
             "humidity_pct": 65.0,
             "heat_index_c": 29.8,
             "sensor_pin": "D6 (GPIO 12)",
+            "updated_at": time.time(),
+        }
+        self.soil_moisture_telemetry: dict[str, Any] = {
+            "soil_moisture_pct": 62.0,
+            "adc_raw": 420,
+            "status_label": "Đủ ẩm",
+            "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+            "auto_pump_below_pct": 40.0,
             "updated_at": time.time(),
         }
         self.pending_ir_learning: dict[str, Any] | None = None
@@ -340,6 +349,35 @@ class SmartHomeMQTTBridge:
             direction="ESP8266 -> SERVER",
         )
 
+    async def update_soil_moisture_telemetry(self, soil_moisture_pct: float, adc_raw: int | None = None) -> dict[str, Any]:
+        """Nhận bản tin cảm biến Độ ẩm Đất `smarthome/telemetry/soil_moisture` từ chân A0 (YL-69 + LM393)."""
+        pct = max(0.0, min(100.0, round(float(soil_moisture_pct), 1)))
+        raw = adc_raw if adc_raw is not None else int(1024 - (pct / 100.0) * 700)
+        status_lbl = "Khô - Cần tưới" if pct < 40.0 else ("Đủ ẩm" if pct < 75.0 else "Ẩm ướt")
+        self.soil_moisture_telemetry = {
+            "soil_moisture_pct": pct,
+            "adc_raw": raw,
+            "status_label": status_lbl,
+            "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+            "auto_pump_below_pct": 40.0,
+            "updated_at": time.time(),
+        }
+        self.esp8266_status["last_seen"] = time.time()
+        self.esp8266_status["online"] = True
+        return await self.publish(
+            topic="smarthome/telemetry/soil_moisture",
+            payload={
+                "node_id": self.esp8266_status["node_id"],
+                "soil_moisture_pct": pct,
+                "adc_raw": raw,
+                "status_label": status_lbl,
+                "sensor_pin": "A0",
+            },
+            qos=0,
+            retain=False,
+            direction="ESP8266 (YL-69 A0) -> SERVER",
+        )
+
     async def start_ir_learning(self, device_name: str, command_action: str = "open") -> dict[str, Any]:
         """Bật chế độ Học lệnh chiếm quyền Remote (`smarthome/ir/learn_start`) trên chân D5 (`VS1838B`)."""
         slug = "".join(c if c.isalnum() else "_" for c in device_name.strip().lower()).strip("_") or "ir_device"
@@ -436,6 +474,7 @@ class SmartHomeMQTTBridge:
         return {
             "esp8266_status": self.esp8266_status,
             "dht11_telemetry": self.dht11_telemetry,
+            "soil_moisture_telemetry": self.soil_moisture_telemetry,
             "pending_ir_learning": self.pending_ir_learning,
             "ir_devices_count": len(self.ir_devices),
             "ir_devices": list(self.ir_devices.values()),

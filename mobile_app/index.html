@@ -63,11 +63,11 @@
       </div>
       <div class="sensor-box">
         <div class="sensor-val" id="humVal">65%</div>
-        <div class="sensor-lbl">Độ ẩm (RH)</div>
+        <div class="sensor-lbl">Độ ẩm phòng (D6)</div>
       </div>
       <div class="sensor-box">
-        <div class="sensor-val" id="irCountVal">1</div>
-        <div class="sensor-lbl">Remote IR 38kHz</div>
+        <div class="sensor-val" id="soilVal">62%</div>
+        <div class="sensor-lbl">Độ ẩm đất (YL-69 A0)</div>
       </div>
     </div>
   </div>
@@ -78,17 +78,18 @@
       <span>🎙️ Ra lệnh Trợ lý Ảo AI (Cấp 1: Nguyễn Tuấn Anh)</span>
     </div>
     <form class="voice-form" id="cmdForm">
-      <input class="voice-input" id="cmdInput" placeholder="Nói hoặc nhập: Mở cửa chính, Vừng ơi mở ra..." />
+      <input class="voice-input" id="cmdInput" placeholder="Nói/nhập: Bật máy bơm, Tưới cây, Độ ẩm đất..." />
       <button class="btn btn-primary" type="submit">Gửi</button>
     </form>
     <div class="reply-banner" id="aiReply">Sẵn sàng nhận lệnh từ Điện thoại...</div>
     <button class="btn btn-ir" id="btnLearnIr">📡 Học lệnh Chiếm quyền Remote Hồng ngoại (D5 VS1838B)</button>
+    <button class="btn btn-ir" id="btnTestDrySoil" style="margin-top:6px;background:linear-gradient(135deg,#059669,#10b981);">🌱 Mô phỏng Đất Khô (25% trên chân A0) ➡️ Tự bật Máy bơm D3</button>
   </div>
 
-  <!-- 6 THIẾT BỊ TRÊN NODEMCU ESP8266 -->
+  <!-- 7 THIẾT BỊ TRÊN NODEMCU ESP8266 -->
   <div class="card">
     <div class="card-title">
-      <span>⚡ Điều khiển nhanh 6 chân NodeMCU ESP8266</span>
+      <span>⚡ Điều khiển 7 Thiết bị trên NodeMCU ESP8266</span>
     </div>
     <div class="dev-grid" id="devGrid"></div>
   </div>
@@ -107,9 +108,10 @@
       const data = await res.json();
       const mqtt = data.mqtt || {};
       const dht = mqtt.dht11_telemetry || {};
+      const soil = mqtt.soil_moisture_telemetry || {};
       document.getElementById('tempVal').textContent = (dht.temp_c || 28.5) + '°C';
       document.getElementById('humVal').textContent = (dht.humidity_pct || 65) + '%';
-      document.getElementById('irCountVal').textContent = mqtt.ir_devices_count || 1;
+      document.getElementById('soilVal').textContent = (soil.soil_moisture_pct !== undefined ? soil.soil_moisture_pct : 62) + '%';
       if (mqtt.esp8266_status) {
         document.getElementById('rssiText').textContent = 'Wi-Fi: ' + mqtt.esp8266_status.wifi_rssi_dbm + ' dBm';
       }
@@ -168,6 +170,17 @@
       });
       const j = await r.json();
       document.getElementById('aiReply').textContent = j.exact_spoken_reply || j.message;
+      refreshState();
+    };
+
+    document.getElementById('btnTestDrySoil').onclick = async () => {
+      const r = await fetch('/api/soil_moisture', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({soil_moisture_pct: 25.0})
+      });
+      const j = await r.json();
+      document.getElementById('aiReply').textContent = j.exact_spoken_reply || 'Đã cập nhật cảm biến độ ẩm đất.';
       refreshState();
     };
 

@@ -100,6 +100,15 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
         "min_role": "CHILD_GUEST",
         "updated_at": 0.0,
     },
+    "garden_pump": {
+        "id": "garden_pump",
+        "name": "Máy bơm tưới cây",
+        "gpio": "D3 / GPIO0 (Relay 5V + Diode 1N4007)",
+        "type": "pump",
+        "state": "OFF",
+        "min_role": "CHILD_GUEST",
+        "updated_at": 0.0,
+    },
 }
 
 ROLE_LEVELS: dict[str, int] = {
@@ -513,6 +522,7 @@ class SmartHomeEngine:
                 "fan": 3,
                 "ac": 3,
                 "alarm_siren": 3,
+                "garden_pump": 3,
             },
             "custom_system_directives": [],
         }
@@ -1208,6 +1218,7 @@ class SmartHomeEngine:
             "fan": ("quạt", "fan"),
             "ac": ("điều hòa", "máy lạnh", "ac"),
             "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
+            "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm nước", "tưới cây", "garden_pump"),
         }.get(dev_id, (dname_low, dev_id))
 
         cur_hour = now_vn().hour
@@ -1620,6 +1631,7 @@ class SmartHomeEngine:
                     ("fan", "turn_off"),
                     ("ac", "turn_off"),
                     ("alarm_siren", "turn_off"),
+                    ("garden_pump", "turn_off"),
                     ("main_door", "close"),
                 ]
             return [
@@ -1804,6 +1816,45 @@ class SmartHomeEngine:
         return {
             "ok": True,
             "telemetry": self.mqtt_bridge.dht11_telemetry,
+            "mqtt_packet": pkt,
+            "triggered_actions": triggered,
+            "exact_spoken_reply": spoken,
+        }
+
+    async def update_soil_moisture_telemetry(
+        self,
+        soil_moisture_pct: float,
+        auto_pump_below_pct: float = 40.0,
+        auto_stop_above_pct: float = 70.0,
+    ) -> dict[str, Any]:
+        """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
+        pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
+        pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
+        triggered: list[dict[str, Any]] = []
+        if pct < float(auto_pump_below_pct):
+            res = await self.execute_device_action(
+                "garden_pump",
+                "turn_on",
+                source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% < {auto_pump_below_pct:.0f}%)",
+                bypass_rbac=True,
+            )
+            triggered.extend(res.get("results", []))
+            spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), máy bơm tưới cây đã tự động bật."
+        elif pct >= float(auto_stop_above_pct) and self.devices.get("garden_pump", {}).get("state") == "ON":
+            res = await self.execute_device_action(
+                "garden_pump",
+                "turn_off",
+                source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% >= {auto_stop_above_pct:.0f}%)",
+                bypass_rbac=True,
+            )
+            triggered.extend(res.get("results", []))
+            spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
+        else:
+            spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        return {
+            "ok": True,
+            "telemetry": self.mqtt_bridge.soil_moisture_telemetry,
             "mqtt_packet": pkt,
             "triggered_actions": triggered,
             "exact_spoken_reply": spoken,

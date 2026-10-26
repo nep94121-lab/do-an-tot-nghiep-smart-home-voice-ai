@@ -480,6 +480,13 @@ async def test_unit_all_new_features() -> None:
     assert ir_res["ok"] and ir_res["hex_code"] == "0xE240A1"
     print(f"  [PASS] 10.4 Học lệnh Remote IR 38kHz (Write-Through Cache): '{ir_res['exact_spoken_reply']}'")
 
+    # 15.5 Cảm biến Độ ẩm Đất YL-69 (Chân A0) + Máy bơm nước mini 5V (Chân D3 + Relay + Diode 1N4007)
+    soil_dry = await eng3.update_soil_moisture_telemetry(soil_moisture_pct=25.0)
+    assert soil_dry["ok"] and eng3.devices["garden_pump"]["state"] == "ON"
+    soil_wet = await eng3.update_soil_moisture_telemetry(soil_moisture_pct=78.0)
+    assert soil_wet["ok"] and eng3.devices["garden_pump"]["state"] == "OFF"
+    print(f"  [PASS] 10.5 Cảm biến Độ ẩm Đất YL-69 (A0) & Máy bơm tưới cây (D3): Đất khô 25% -> '{soil_dry['exact_spoken_reply']}' | Đủ ẩm 78% -> '{soil_wet['exact_spoken_reply']}'")
+
     await eng3.factory_reset()
     print("\n🎉 TẤT CẢ CÁC BÀI KIỂM THỬ ĐỀU ĐẠT 100% (EXIT CODE 0)!", flush=True)
 

@@ -91,6 +91,7 @@ DEVICE_ENUM = [
     "fan",
     "ac",
     "alarm_siren",
+    "garden_pump",
     "all_lights",
     "all_devices",
 ]
@@ -113,7 +114,8 @@ fn_control_device = types.FunctionDeclaration(
                 "description": (
                     "Mã thiết bị: main_door (cửa chính), living_room_light (đèn phòng khách), "
                     "bedroom_light (đèn phòng ngủ), fan (quạt trần), ac (điều hòa), "
-                    "alarm_siren (còi báo động), all_lights (tất cả đèn), all_devices (tất cả thiết bị)."
+                    "alarm_siren (còi báo động), garden_pump (máy bơm tưới cây), "
+                    "all_lights (tất cả đèn), all_devices (tất cả thiết bị)."
                 ),
             },
             "action": {
@@ -286,13 +288,13 @@ fn_set_if_else_rule = types.FunctionDeclaration(
     parameters={
         "type": "OBJECT",
         "properties": {
-            "when_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
+            "when_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
             "when_state": {
                 "type": "STRING",
                 "enum": ["ON", "OFF", "OPEN", "CLOSED"],
                 "description": "Trạng thái điều kiện IF của thiết bị nguồn (ON, OFF, OPEN, CLOSED).",
             },
-            "then_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
+            "then_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
             "then_action": {"type": "STRING", "enum": ACTION_ENUM},
             "delay_seconds": {
                 "type": "NUMBER",
@@ -812,10 +814,27 @@ async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
     return JSONResponse(res)
 
 
+@app.post("/api/soil_moisture")
+async def api_update_soil_moisture(payload: dict[str, Any]) -> JSONResponse:
+    pct = float(payload.get("soil_moisture_pct", 62.0))
+    res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
+    return JSONResponse(res)
+
+
 @app.post("/api/text_command")
 async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
     text = str(payload.get("text", "")).strip()
     t_low = text.lower()
+    if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
+        soil = _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry
+        spoken = f"Độ ẩm đất hiện tại là {soil['soil_moisture_pct']}% ({soil['status_label']})."
+        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
+    if "tưới cây" in t_low or "bật máy bơm" in t_low:
+        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_on", source="mobile_app")
+        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+    if "tắt máy bơm" in t_low:
+        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_off", source="mobile_app")
+        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
         dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
         spoken = f"Nhiệt độ phòng là {dht['temp_c']}°C, độ ẩm {dht['humidity_pct']}%."
