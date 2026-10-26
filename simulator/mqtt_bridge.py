@@ -99,6 +99,14 @@ class SmartHomeMQTTBridge:
             "flash_synced": True,
             "last_seen": time.time(),
         }
+        self.retained_topics["smarthome/status/esp8266"] = {
+            "topic": "smarthome/status/esp8266",
+            "payload": self.esp8266_status,
+            "qos": 1,
+            "retain": True,
+            "direction": "ESP8266 -> SERVER (LWT/Birth)",
+            "timestamp": round(time.time(), 3),
+        }
         self.dht11_telemetry: dict[str, Any] = {
             "temp_c": 28.5,
             "humidity_pct": 65.0,
