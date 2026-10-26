@@ -16,3 +16,7 @@ env/
 Thumbs.db
 .vscode/
 .idea/
+
+# Kho tài liệu System Design Primer clone về máy để tham khảo
+docs/tai_lieu_tham_khao/system-design-primer/
+
