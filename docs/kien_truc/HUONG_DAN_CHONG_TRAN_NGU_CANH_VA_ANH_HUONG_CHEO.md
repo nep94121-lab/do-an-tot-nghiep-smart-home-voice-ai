@@ -43,5 +43,8 @@
    - Liệt kê **Top 15 Hàm Tâm Chấn (High Blast-Radius)** và chỉ mục `#Lstart-Lend` của toàn bộ 127 Class/Hàm trong dự án.
 3. **Đồ thị Quan hệ Mã nguồn Chi tiết (JSON):** [`docs/kien_truc/CODEBASE_GRAPH.json`](file:///c:/Users/LENOVO/Desktop/%C4%91%E1%BB%93%20%C3%A1n%20t%E1%BB%91t%20nghi%E1%BB%87p/docs/kien_truc/CODEBASE_GRAPH.json)
    - Lưu toàn bộ mạng lưới `callers` $\leftrightarrow$ `callees`, điểm `pagerank`, `blast_score` và hợp đồng 4 tầng.
-4. **Skill Tự động kích hoạt cho AI Agent:** [`C:\Users\LENOVO\.gemini\config\skills\codebase-context-guard\SKILL.md`](file:///C:/Users/LENOVO/.gemini/config/skills/codebase-context-guard/SKILL.md)
-   - Đảm bảo AI tự động tuân thủ quy trình 3 bước (**Đọc `REPO_MAP.md` $\rightarrow$ Chạy `--impact` trước khi sửa $\rightarrow$ Chạy `--verify` + `test_simulator_e2e.py` sau khi sửa**) mà người dùng không cần nhắc lại.
+4. **Skill & Rule Nội bộ Riêng cho Thư mục Đồ án (`.agents/` — Không ảnh hưởng ra ngoài Antigravity Global):**
+   - **Rule nội bộ dự án:** [`.agents/rules/smart-home-do-an.md`](file:///c:/Users/LENOVO/Desktop/%C4%91%E1%BB%93%20%C3%A1n%20t%E1%BB%91t%20nghi%E1%BB%87p/.agents/rules/smart-home-do-an.md)
+   - **Skill Quản trị ngữ cảnh & Bán kính ảnh hưởng:** [`.agents/skills/codebase-context-guard/SKILL.md`](file:///c:/Users/LENOVO/Desktop/%C4%91%E1%BB%93%20%C3%A1n%20t%E1%BB%91t%20nghi%E1%BB%87p/.agents/skills/codebase-context-guard/SKILL.md)
+   - **Skill Thiết kế hệ thống (`System Design Primer`):** [`.agents/skills/system-design-primer/SKILL.md`](file:///c:/Users/LENOVO/Desktop/%C4%91%E1%BB%93%20%C3%A1n%20t%E1%BB%91t%20nghi%E1%BB%87p/.agents/skills/system-design-primer/SKILL.md)
+   - Đảm bảo AI chỉ kích hoạt các quy tắc này **khi làm việc trong đúng thư mục đồ án này**, không làm vướng các dự án khác trên máy của bạn.
