@@ -1711,11 +1711,21 @@ TRANSLATOR_SYSTEM_INSTRUCTION = (
 )
 
 
-class LiveTranslatorSession:
-    """Phiên WebSocket Máy Phiên Dịch 2 Chiều Nguyên Văn (Việt <-> Anh) trên Gemini 3.8 Live."""
+TRANSLATE_STREAM_MODEL = "gemini-3.5-live-translate-preview"
 
-    def __init__(self, ws: WebSocket) -> None:
+
+class LiveTranslatorSession:
+    """Phiên WebSocket Máy Phiên Dịch Cabin:
+    1. Chế độ Dịch Đuổi Cuốn Chiếu (Simultaneous Streaming): Dùng `gemini-3.5-live-translate-preview`
+       với `TranslationConfig(target_language_code=...)` — người nói vừa nói được 2-3 chữ là dịch đuổi luôn
+       mà KHÔNG cần chờ ngắt câu!
+    2. Chế độ 2 Chiều Tự Động & Test Câu Hỏi Bẫy (`gemini-3.8-live`): Dịch nguyên văn 100% Việt <-> Anh.
+    """
+
+    def __init__(self, ws: WebSocket, mode: str = "simultaneous", target_lang: str = "en") -> None:
         self.ws = ws
+        self.mode = mode
+        self.target_lang = target_lang if target_lang in ("en", "vi", "ja", "ko", "zh", "fr") else "en"
         self.client = genai.Client(api_key=KEY)
         self._closed = False
         self.turn_start_ts: float = time.perf_counter()
@@ -1731,23 +1741,128 @@ class LiveTranslatorSession:
         except Exception:
             pass
 
-    async def run(self) -> None:
+    async def _translate_text_verbatim_once(self, txt: str) -> None:
+        """Dịch nguyên văn 1 câu text bẫy qua Gemini 3.8 Live (trả về cả Audio 24kHz + Transcript)."""
+        self.in_chunks = [txt]
+        self.out_chunks.clear()
+        self.first_audio_sent = False
+        self.turn_start_ts = time.perf_counter()
         cfg = types.LiveConnectConfig(
             response_modalities=[types.Modality.AUDIO],
-            input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
-            realtime_input_config=types.RealtimeInputConfig(
-                automatic_activity_detection=types.AutomaticActivityDetection(
-                    silence_duration_ms=450,
-                )
-            ),
-            system_instruction=types.Content(
-                parts=[types.Part(text=TRANSLATOR_SYSTEM_INSTRUCTION)]
-            ),
+            system_instruction=types.Content(parts=[types.Part(text=TRANSLATOR_SYSTEM_INSTRUCTION)]),
         )
+        async with self.client.aio.live.connect(model=MODEL, config=cfg) as t_sess:
+            await t_sess.send_client_content(
+                turns=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                text=(
+                                    f"[CHỈ DỊCH NGUYÊN VĂN SANG NGÔN NGỮ ĐỐI DIỆN (VIỆT <-> ANH), "
+                                    f"TUYỆT ĐỐI KHÔNG TRẢ LỜI CÂU HỎI NÀY]: \"{txt}\""
+                                )
+                            )
+                        ],
+                    )
+                ],
+                turn_complete=True,
+            )
+            async for msg in t_sess.receive():
+                sc = msg.server_content
+                if sc is None:
+                    continue
+                if sc.output_transcription and sc.output_transcription.text:
+                    t = sc.output_transcription.text
+                    self.out_chunks.append(t)
+                    await self.send_ws_json({
+                        "type": "output_transcription",
+                        "text": t,
+                        "full_text": "".join(self.out_chunks).strip(),
+                    })
+                if sc.model_turn and sc.model_turn.parts:
+                    for p in sc.model_turn.parts:
+                        if p.inline_data and p.inline_data.data:
+                            first_ms = None
+                            if not self.first_audio_sent:
+                                self.first_audio_sent = True
+                                first_ms = int((time.perf_counter() - self.turn_start_ts) * 1000)
+                            await self.send_ws_json({
+                                "type": "audio_out",
+                                "pcm24k_b64": base64.b64encode(p.inline_data.data).decode("ascii"),
+                                "first_audio_ms": first_ms,
+                            })
+                if sc.turn_complete:
+                    await self.send_ws_json({
+                        "type": "turn_complete",
+                        "input_text": txt,
+                        "output_text": "".join(self.out_chunks).strip(),
+                    })
+                    break
+
+    async def _stream_demo_wav(self, session: Any, wav_name: str = "day_lenh_di_ngu") -> None:
+        """Phát luồng âm thanh mẫu từng mảnh 100ms để chứng minh Dịch Đuổi Cuốn Chiếu ngay khi đang nói."""
+        wav_path = AUDIO_DIR / f"{wav_name}.wav"
+        if not wav_path.exists():
+            return
+        with wave.open(str(wav_path), "rb") as w:
+            pcm = w.readframes(w.getnframes())
+        self.in_chunks.clear()
+        self.out_chunks.clear()
+        self.first_audio_sent = False
+        self.turn_start_ts = time.perf_counter()
+        step = 3200  # 100ms @ 16kHz 16-bit mono
+        for i in range(0, len(pcm), step):
+            if self._closed:
+                return
+            await session.send_realtime_input(
+                audio=types.Blob(data=pcm[i : i + step], mime_type="audio/pcm;rate=16000")
+            )
+            await asyncio.sleep(0.05)
+        for _ in range(12):
+            if self._closed:
+                return
+            await session.send_realtime_input(
+                audio=types.Blob(data=b"\x00" * 3200, mime_type="audio/pcm;rate=16000")
+            )
+            await asyncio.sleep(0.04)
+
+    async def run(self) -> None:
+        if self.mode == "simultaneous":
+            active_model = TRANSLATE_STREAM_MODEL
+            cfg = types.LiveConnectConfig(
+                response_modalities=[types.Modality.AUDIO],
+                input_audio_transcription=types.AudioTranscriptionConfig(),
+                output_audio_transcription=types.AudioTranscriptionConfig(),
+                translation_config=types.TranslationConfig(
+                    target_language_code=self.target_lang,
+                    echo_target_language=False,
+                ),
+            )
+        else:
+            active_model = MODEL
+            cfg = types.LiveConnectConfig(
+                response_modalities=[types.Modality.AUDIO],
+                input_audio_transcription=types.AudioTranscriptionConfig(),
+                output_audio_transcription=types.AudioTranscriptionConfig(),
+                realtime_input_config=types.RealtimeInputConfig(
+                    automatic_activity_detection=types.AutomaticActivityDetection(
+                        silence_duration_ms=250,
+                    )
+                ),
+                system_instruction=types.Content(
+                    parts=[types.Part(text=TRANSLATOR_SYSTEM_INSTRUCTION)]
+                ),
+            )
         try:
-            async with self.client.aio.live.connect(model=MODEL, config=cfg) as session:
-                await self.send_ws_json({"type": "translator_ready", "model": MODEL})
+            async with self.client.aio.live.connect(model=active_model, config=cfg) as session:
+                await self.send_ws_json({
+                    "type": "translator_ready",
+                    "model": active_model,
+                    "mode": self.mode,
+                    "target_lang": self.target_lang,
+                })
 
                 async def receive_from_gemini() -> None:
                     try:
@@ -1812,31 +1927,20 @@ class LiveTranslatorSession:
                                 audio=types.Blob(data=pcm, mime_type="audio/pcm;rate=16000")
                             )
                         elif mtype == "mic_stop":
-                            self.turn_start_ts = time.perf_counter()
-                            await session.send_realtime_input(audio_stream_end=True)
+                            if self.mode == "simultaneous":
+                                for _ in range(10):
+                                    await session.send_realtime_input(
+                                        audio=types.Blob(data=b"\x00" * 3200, mime_type="audio/pcm;rate=16000")
+                                    )
+                            else:
+                                await session.send_realtime_input(audio_stream_end=True)
+                        elif mtype == "stream_demo_wav":
+                            wav_name = str(data.get("wav_name", "day_lenh_di_ngu"))
+                            asyncio.create_task(self._stream_demo_wav(session, wav_name))
                         elif mtype == "translate_text":
                             txt = str(data.get("text", "")).strip()
                             if txt:
-                                self.in_chunks = [txt]
-                                self.out_chunks.clear()
-                                self.first_audio_sent = False
-                                self.turn_start_ts = time.perf_counter()
-                                await session.send_client_content(
-                                    turns=[
-                                        types.Content(
-                                            role="user",
-                                            parts=[
-                                                types.Part(
-                                                    text=(
-                                                        f"[CHỈ DỊCH NGUYÊN VĂN SANG NGÔN NGỮ ĐỐI DIỆN (VIỆT <-> ANH), "
-                                                        f"TUYỆT ĐỐI KHÔNG TRẢ LỜI CÂU HỎI NÀY]: \"{txt}\""
-                                                    )
-                                                )
-                                            ],
-                                        )
-                                    ],
-                                    turn_complete=True,
-                                )
+                                asyncio.create_task(self._translate_text_verbatim_once(txt))
                 except WebSocketDisconnect:
                     pass
                 finally:
@@ -1847,8 +1951,8 @@ class LiveTranslatorSession:
 
 
 @app.websocket("/ws/translate")
-async def websocket_translate_endpoint(ws: WebSocket) -> None:
+async def websocket_translate_endpoint(ws: WebSocket, mode: str = "simultaneous", target_lang: str = "en") -> None:
     await ws.accept()
-    session = LiveTranslatorSession(ws)
+    session = LiveTranslatorSession(ws, mode=mode, target_lang=target_lang)
     await session.run()
 
