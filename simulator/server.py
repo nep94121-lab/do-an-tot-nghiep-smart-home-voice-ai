@@ -800,6 +800,14 @@ async def wokwi_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "wokwi.html")
 
 
+@app.get("/api/wokwi_files")
+async def api_get_wokwi_files() -> JSONResponse:
+    wokwi_dir = ROOT / "firmware_esp8266" / "wokwi"
+    diag = (wokwi_dir / "diagram.json").read_text(encoding="utf-8") if (wokwi_dir / "diagram.json").exists() else "{}"
+    sketch = (wokwi_dir / "sketch.ino").read_text(encoding="utf-8") if (wokwi_dir / "sketch.ino").exists() else ""
+    return JSONResponse({"diagram_json": diag, "sketch_ino": sketch})
+
+
 @app.get("/translate")
 async def translate_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "translate.html")
