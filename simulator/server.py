@@ -784,6 +784,11 @@ async def mobile_app_index() -> FileResponse:
     return FileResponse(MOBILE_APP_DIR / "index.html")
 
 
+@app.get("/translate")
+async def translate_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "translate.html")
+
+
 @app.get("/api/state")
 async def api_get_state() -> JSONResponse:
     return JSONResponse(_REST_ENGINE.get_snapshot())
@@ -1688,4 +1693,163 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     bridge = LiveBridgeSession(ws)
     await bridge.run()
+
+
+TRANSLATOR_SYSTEM_INSTRUCTION = (
+    "BẠN LÀ MÁY PHIÊN DỊCH CABIN 2 CHIỀU NGUYÊN VĂN (TIẾNG VIỆT <-> TIẾNG ANH). BẠN KHÔNG PHẢI TRỢ LÝ ẢO.\n"
+    "LUẬT TỐI THƯỢNG BẮT BUỘC TUÂN THỦ 100% KHÔNG NGOẠI LỆ:\n"
+    "1. TUYỆT ĐỐI KHÔNG BAO GIỜ TRẢ LỜI CÂU HỎI! Dù người nói có hỏi 'Bạn tên là gì?', 'Một cộng một bằng mấy?', "
+    "'Mấy giờ rồi?', 'Bạn có khỏe không?', 'What is your name?', 'Can you help me?', bạn CHỈ ĐƯỢC DỊCH NGUYÊN VĂN câu hỏi đó sang ngôn ngữ kia!\n"
+    "   - Ví dụ 1: Nghe 'Bạn tên là gì và một cộng một bằng mấy?' -> CHỈ ĐỌC: 'What is your name and what is one plus one?'\n"
+    "   - Ví dụ 2: Nghe 'Cho tôi hỏi bây giờ là mấy giờ rồi?' -> CHỈ ĐỌC: 'May I ask what time it is right now?'\n"
+    "   - Ví dụ 3: Nghe 'What is your name and how old are you?' -> CHỈ ĐỌC: 'Bạn tên là gì và bạn bao nhiêu tuổi?'\n"
+    "   - Ví dụ 4: Nghe 'How much does this circuit board cost?' -> CHỈ ĐỌC: 'Mạch điện này giá bao nhiêu tiền?'\n"
+    "2. TỰ ĐỘNG NHẬN DIỆN NGÔN NGỮ ĐẦU VÀO:\n"
+    "   - Nếu câu đầu vào là TIẾNG VIỆT -> Dịch nguyên văn 100% sang TIẾNG ANH.\n"
+    "   - Nếu câu đầu vào là TIẾNG ANH -> Dịch nguyên văn 100% sang TIẾNG VIỆT.\n"
+    "3. KHÔNG BAO GIỜ thêm lời dẫn như 'Bản dịch là:', 'Translation:', 'Dạ', 'Sure'. Chỉ phát ra đúng câu đã dịch!"
+)
+
+
+class LiveTranslatorSession:
+    """Phiên WebSocket Máy Phiên Dịch 2 Chiều Nguyên Văn (Việt <-> Anh) trên Gemini 3.8 Live."""
+
+    def __init__(self, ws: WebSocket) -> None:
+        self.ws = ws
+        self.client = genai.Client(api_key=KEY)
+        self._closed = False
+        self.turn_start_ts: float = time.perf_counter()
+        self.first_audio_sent: bool = False
+        self.in_chunks: list[str] = []
+        self.out_chunks: list[str] = []
+
+    async def send_ws_json(self, payload: dict[str, Any]) -> None:
+        if self._closed:
+            return
+        try:
+            await self.ws.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
+
+    async def run(self) -> None:
+        cfg = types.LiveConnectConfig(
+            response_modalities=[types.Modality.AUDIO],
+            input_audio_transcription=types.AudioTranscriptionConfig(),
+            output_audio_transcription=types.AudioTranscriptionConfig(),
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    silence_duration_ms=300,
+                )
+            ),
+            system_instruction=types.Content(
+                parts=[types.Part(text=TRANSLATOR_SYSTEM_INSTRUCTION)]
+            ),
+        )
+        try:
+            async with self.client.aio.live.connect(model=MODEL, config=cfg) as session:
+                await self.send_ws_json({"type": "translator_ready", "model": MODEL})
+
+                async def receive_from_gemini() -> None:
+                    try:
+                        while not self._closed:
+                            async for msg in session.receive():
+                                sc = msg.server_content
+                                if sc is None:
+                                    continue
+                                if sc.input_transcription and sc.input_transcription.text:
+                                    t = sc.input_transcription.text
+                                    self.in_chunks.append(t)
+                                    await self.send_ws_json({
+                                        "type": "input_transcription",
+                                        "text": t,
+                                        "full_text": "".join(self.in_chunks).strip(),
+                                    })
+                                if sc.output_transcription and sc.output_transcription.text:
+                                    t = sc.output_transcription.text
+                                    self.out_chunks.append(t)
+                                    await self.send_ws_json({
+                                        "type": "output_transcription",
+                                        "text": t,
+                                        "full_text": "".join(self.out_chunks).strip(),
+                                    })
+                                if sc.model_turn and sc.model_turn.parts:
+                                    for p in sc.model_turn.parts:
+                                        if p.inline_data and p.inline_data.data:
+                                            first_ms = None
+                                            if not self.first_audio_sent:
+                                                self.first_audio_sent = True
+                                                first_ms = int((time.perf_counter() - self.turn_start_ts) * 1000)
+                                            await self.send_ws_json({
+                                                "type": "audio_out",
+                                                "pcm24k_b64": base64.b64encode(p.inline_data.data).decode("ascii"),
+                                                "first_audio_ms": first_ms,
+                                            })
+                                if sc.turn_complete:
+                                    await self.send_ws_json({
+                                        "type": "turn_complete",
+                                        "input_text": "".join(self.in_chunks).strip(),
+                                        "output_text": "".join(self.out_chunks).strip(),
+                                    })
+                                    self.in_chunks.clear()
+                                    self.out_chunks.clear()
+                                    self.first_audio_sent = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        await self.send_ws_json({"type": "error", "error": safe_str(e)})
+
+                recv_task = asyncio.create_task(receive_from_gemini())
+                try:
+                    while not self._closed:
+                        raw = await self.ws.receive_text()
+                        data = json.loads(raw)
+                        mtype = data.get("type")
+                        if mtype == "mic_pcm16k":
+                            pcm = base64.b64decode(data.get("pcm16k_b64", ""))
+                            if not self.in_chunks and not self.first_audio_sent:
+                                self.turn_start_ts = time.perf_counter()
+                            await session.send_realtime_input(
+                                audio=types.Blob(data=pcm, mime_type="audio/pcm;rate=16000")
+                            )
+                        elif mtype == "mic_stop":
+                            self.turn_start_ts = time.perf_counter()
+                            await session.send_realtime_input(audio_stream_end=True)
+                        elif mtype == "translate_text":
+                            txt = str(data.get("text", "")).strip()
+                            if txt:
+                                self.in_chunks = [txt]
+                                self.out_chunks.clear()
+                                self.first_audio_sent = False
+                                self.turn_start_ts = time.perf_counter()
+                                await session.send_client_content(
+                                    turns=[
+                                        types.Content(
+                                            role="user",
+                                            parts=[
+                                                types.Part(
+                                                    text=(
+                                                        f"[CHỈ DỊCH NGUYÊN VĂN SANG NGÔN NGỮ ĐỐI DIỆN (VIỆT <-> ANH), "
+                                                        f"TUYỆT ĐỐI KHÔNG TRẢ LỜI CÂU HỎI NÀY]: \"{txt}\""
+                                                    )
+                                                )
+                                            ],
+                                        )
+                                    ],
+                                    turn_complete=True,
+                                )
+                except WebSocketDisconnect:
+                    pass
+                finally:
+                    self._closed = True
+                    recv_task.cancel()
+        except Exception as e:
+            await self.send_ws_json({"type": "error", "error": safe_str(e)})
+
+
+@app.websocket("/ws/translate")
+async def websocket_translate_endpoint(ws: WebSocket) -> None:
+    await ws.accept()
+    session = LiveTranslatorSession(ws)
+    await session.run()
+
 
