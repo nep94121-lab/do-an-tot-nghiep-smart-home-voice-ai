@@ -772,6 +772,17 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/test_audio", StaticFiles(directory=str(AUDIO_DIR)), name="test_audio")
 MOBILE_APP_DIR = ROOT / "mobile_app"
 _REST_ENGINE = SmartHomeEngine()
+_ACTIVE_BRIDGES: list[Any] = []
+
+
+async def _broadcast_rest_state_to_bridges() -> None:
+    snap = _REST_ENGINE.get_snapshot()
+    for br in list(_ACTIVE_BRIDGES):
+        try:
+            br.engine.devices = copy.deepcopy(_REST_ENGINE.devices)
+            await br.send_ws_json({"type": "state_snapshot", "snapshot": snap})
+        except Exception:
+            pass
 
 
 @app.get("/")
@@ -782,6 +793,11 @@ async def index() -> FileResponse:
 @app.get("/app")
 async def mobile_app_index() -> FileResponse:
     return FileResponse(MOBILE_APP_DIR / "index.html")
+
+
+@app.get("/wokwi")
+async def wokwi_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "wokwi.html")
 
 
 @app.get("/translate")
@@ -799,6 +815,7 @@ async def api_control_device(payload: dict[str, Any]) -> JSONResponse:
     dev_id = str(payload.get("device_id", "main_door"))
     act = str(payload.get("action", "open"))
     res = await _REST_ENGINE.execute_device_action(dev_id, act, source="mobile_app")
+    await _broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
 
@@ -807,6 +824,7 @@ async def api_ir_learn(payload: dict[str, Any]) -> JSONResponse:
     dev_name = str(payload.get("device_name", "Điều hòa Casper"))
     act = str(payload.get("command_action", "open"))
     res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
+    await _broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
 
@@ -816,6 +834,7 @@ async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
     hum_pct = float(payload.get("humidity_pct", 65.0))
     rssi = int(payload.get("wifi_rssi_dbm", -52))
     res = await _REST_ENGINE.update_sensor_telemetry(temp_c, hum_pct, rssi)
+    await _broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
 
@@ -823,6 +842,7 @@ async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
 async def api_update_soil_moisture(payload: dict[str, Any]) -> JSONResponse:
     pct = float(payload.get("soil_moisture_pct", 62.0))
     res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
+    await _broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
 
@@ -888,10 +908,15 @@ class LiveBridgeSession:
         self.turn_tools_called: list[str] = []
         self._wav_streaming_task: asyncio.Task | None = None
         self._closed = False
+        _ACTIVE_BRIDGES.append(self)
 
     async def send_ws_json(self, payload: dict[str, Any]) -> None:
         if self._closed:
+            if self in _ACTIVE_BRIDGES:
+                _ACTIVE_BRIDGES.remove(self)
             return
+        if payload.get("type") in ("device_actuated", "state_snapshot"):
+            _REST_ENGINE.devices = copy.deepcopy(self.engine.devices)
         try:
             await self.ws.send_text(json.dumps(payload, ensure_ascii=False))
         except Exception:

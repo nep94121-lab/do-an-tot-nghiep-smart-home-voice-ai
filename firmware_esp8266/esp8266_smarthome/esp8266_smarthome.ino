@@ -55,7 +55,16 @@ IRsend irSend(PIN_LIVING_LIGHT_IR);
 decode_results irResults;
 
 bool isIrLearningMode = false;
+bool livingLightState = false;   // Lưu trạng thái Đèn phòng khách để khôi phục sau khi phát xung IR 38kHz trên chân D2
+bool pumpAutoTriggered = false;  // Chống ghi đè lặp lại mỗi 3s khi người dùng bật/tắt Máy bơm bằng giọng nói
 unsigned long lastTelemetryMs = 0;
+
+// Phát xung hồng ngoại 38kHz trên chân D2 và khôi phục ngay trạng thái Đèn phòng khách
+void blastIrAndRestoreLight(uint64_t code) {
+  irSend.sendCOOLIX(code, 24);
+  pinMode(PIN_LIVING_LIGHT_IR, OUTPUT);
+  digitalWrite(PIN_LIVING_LIGHT_IR, livingLightState ? HIGH : LOW);
+}
 
 // ---------------- LƯU BẢN SAO 2 BỂ VÀO FLASH LITTLEFS --------------
 void savePoolsReplicaToFlash(const String& jsonPayload) {
@@ -89,6 +98,7 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
       if (devId == "main_door") {
         doorServo.write(isOn ? 90 : 0);
       } else if (devId == "living_room_light") {
+        livingLightState = isOn;
         digitalWrite(PIN_LIVING_LIGHT_IR, isOn ? HIGH : LOW);
       } else if (devId == "bedroom_light") {
         digitalWrite(PIN_BEDROOM_LIGHT, isOn ? HIGH : LOW);
@@ -96,16 +106,17 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
         digitalWrite(PIN_ALARM_SIREN, isOn ? HIGH : LOW);
       } else if (devId == "garden_pump") {
         digitalWrite(PIN_GARDEN_PUMP, isOn ? HIGH : LOW);
+      } else if (devId == "ac" || devId == "fan") {
+        blastIrAndRestoreLight(isOn ? 0xB2BF40 : 0xB27BE0);
       }
     }
   }
   // 2. Lệnh nháy đèn báo hiệu bắt đầu thu âm 3-2-1 (smarthome/cmd/enroll_blink)
   else if (topicStr == "smarthome/cmd/enroll_blink") {
     int pulseMs = doc["pulse_ms"] | 350;
-    int oldState = digitalRead(PIN_LIVING_LIGHT_IR);
-    digitalWrite(PIN_LIVING_LIGHT_IR, !oldState);
+    digitalWrite(PIN_LIVING_LIGHT_IR, !livingLightState);
     delay(pulseMs);
-    digitalWrite(PIN_LIVING_LIGHT_IR, oldState);
+    digitalWrite(PIN_LIVING_LIGHT_IR, livingLightState ? HIGH : LOW);
   }
   // 3. Bật chế độ Học lệnh chiếm quyền Remote (smarthome/ir/learn_start)
   else if (topicStr == "smarthome/ir/learn_start") {
@@ -116,7 +127,7 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   else if (topicStr == "smarthome/ir/blast") {
     String hexStr = doc["hex_code"] | "0xB2BF40";
     uint64_t code = strtoull(hexStr.c_str(), nullptr, 16);
-    irSend.sendCOOLIX(code, 24);
+    blastIrAndRestoreLight(code);
   }
   // 5. Đồng bộ 2 Bể xuống bộ nhớ Flash LittleFS (smarthome/sync/pools)
   else if (topicStr == "smarthome/sync/pools") {
@@ -200,12 +211,15 @@ void loop() {
     }
 
     // Đọc cảm biến Độ ẩm Đất YL-69 + LM393 (Chân A0) & Tự động bật Máy bơm tưới cây (Chân D3)
+    // Dùng ngưỡng trễ Hysteresis theo sườn chuyển trạng thái để không ghi đè lệnh bật/tắt bằng giọng nói
     int adcSoil = analogRead(PIN_SOIL_MOISTURE);
     float soilPct = constrain(map(adcSoil, 1024, 300, 0, 100), 0, 100);
-    if (soilPct < 40.0f) {
-      digitalWrite(PIN_GARDEN_PUMP, HIGH); // Đất khô < 40% -> Tự bật máy bơm
-    } else if (soilPct >= 70.0f) {
-      digitalWrite(PIN_GARDEN_PUMP, LOW);  // Đất đủ ẩm >= 70% -> Tự tắt máy bơm
+    if (soilPct < 40.0f && !pumpAutoTriggered) {
+      pumpAutoTriggered = true;
+      digitalWrite(PIN_GARDEN_PUMP, HIGH); // Đất chuyển sang khô < 40% -> Tự bật máy bơm
+    } else if (soilPct >= 70.0f && pumpAutoTriggered) {
+      pumpAutoTriggered = false;
+      digitalWrite(PIN_GARDEN_PUMP, LOW);  // Đất đã tưới đủ ẩm >= 70% -> Tự tắt máy bơm
     }
     if (mqtt.connected()) {
       StaticJsonDocument<256> soilDoc;

@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wokwi Hardware & Breadboard Simulator — NodeMCU ESP8266 Smart Home</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131b31;
+      --panel-2: #192340;
+      --border: #2a3966;
+      --text: #eef3ff;
+      --muted: #97a8d1;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: linear-gradient(90deg, #0f172a, #1e293b);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .brand p {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .nav-links {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn-link {
+      text-decoration: none;
+      padding: 7px 13px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn-link:hover { border-color: var(--cyan); color: #fff; }
+    .btn-link.primary { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--green);
+      color: #6ee7b7;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    /* STEP FILTER BAR */
+    .filter-bar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow-x: auto;
+    }
+    .filter-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #93c5fd;
+      white-space: nowrap;
+      margin-right: 4px;
+    }
+    .step-btn {
+      padding: 6px 11px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: 0.15s;
+    }
+    .step-btn:hover { border-color: #60a5fa; }
+    .step-btn.active {
+      background: linear-gradient(135deg, #2563eb, #0891b2);
+      border-color: #67e8f9;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+    }
+
+    /* MAIN GRID */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 410px;
+      gap: 14px;
+      padding: 14px 20px;
+      flex: 1;
+    }
+    @media (max-width: 1280px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    .canvas-card {
+      background: #0d1426;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .canvas-header {
+      padding: 10px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .canvas-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .wire-legend {
+      display: flex;
+      gap: 12px;
+      font-size: 11.5px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .wire-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .swatch {
+      width: 14px;
+      height: 4px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .svg-wrap {
+      width: 100%;
+      overflow: auto;
+      padding: 8px;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.12) 1px, transparent 0);
+      background-size: 20px 20px;
+    }
+    svg#wokwiSvg {
+      width: 100%;
+      min-width: 960px;
+      height: auto;
+      display: block;
+    }
+
+    /* WIRE ANIMATIONS & FILTERING */
+    .wire-group {
+      transition: opacity 0.25s ease, filter 0.25s ease;
+    }
+    .wire-group.dimmed {
+      opacity: 0.10;
+    }
+    .wire-group.highlighted {
+      opacity: 1;
+      filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.75));
+    }
+    .wire-flow {
+      stroke-dasharray: 7 5;
+      animation: dashFlow 0.8s linear infinite;
+    }
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -24; }
+    }
+    .part-box {
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .part-box:hover {
+      filter: brightness(1.12);
+    }
+
+    /* STEP INSTRUCTION BAR BELOW SVG */
+    .step-guide-box {
+      background: #111c35;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+    }
+    .step-guide-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .step-guide-list {
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #dbeafe;
+      padding-left: 18px;
+    }
+    .step-guide-list li { margin-bottom: 3px; }
+    .pin-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-weight: 700;
+      font-size: 11.5px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #f8fafc;
+    }
+
+    /* RIGHT SIDEBAR */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 15px;
+    }
+    .card h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .control-row {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(148, 163, 184, 0.18);
+    }
+    .control-row:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    .control-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+    .dev-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 7px;
+    }
+    .dev-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: 0.15s;
+    }
+    .dev-btn.on {
+      background: rgba(16, 185, 129, 0.22);
+      border-color: var(--green);
+      color: #a7f3d0;
+    }
+    .badge-state {
+      font-size: 10.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    /* DRC BUG AUDIT LIST */
+    .audit-item {
+      font-size: 12px;
+      line-height: 1.45;
+      padding: 7px 9px;
+      border-radius: 7px;
+      background: rgba(16, 185, 129, 0.09);
+      border-left: 3px solid var(--green);
+      margin-bottom: 7px;
+      color: #d1fae5;
+    }
+    .audit-item strong { color: #34d399; }
+
+    /* SERIAL MONITOR */
+    .serial-box {
+      background: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 9px 11px;
+      height: 165px;
+      overflow-y: auto;
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #34d399;
+    }
+    .serial-line.warn { color: #fbbf24; }
+    .serial-line.cmd { color: #38bdf8; }
+    .serial-line.ir { color: #c084fc; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span style="font-size: 24px;">🔌</span>
+      <div>
+        <h1>MÔ PHỎNG MẠCH WOKWI & SƠ ĐỒ CẮM BREADBOARD 400 LỖ (TƯƠNG TÁC 1:1)</h1>
+        <p>Đã kết nối Live 2 chiều với Hệ thống Smart Home (`server.py` + `mqtt_bridge.py` + `esp8266_smarthome.ino`)</p>
+      </div>
+    </div>
+    <div class="nav-links">
+      <span class="status-pill" id="connPill"><span class="dot"></span> MQTT & WebSocket: ĐÃ KẾT NỐI LIVE</span>
+      <a href="/" class="btn-link">🏠 Mở Nhà 3D (/)</a>
+      <a href="/app" class="btn-link">📱 Mở Mobile App (/app)</a>
+      <a href="/translate" class="btn-link">🌐 Máy Phiên Dịch (/translate)</a>
+    </div>
+  </header>
+
+  <!-- BỘ LỌC TỪNG BƯỚC CẮM DÂY VẬT LÝ -->
+  <div class="filter-bar">
+    <span class="filter-label">👉 Bấm để soi từng bước cắm dây:</span>
+    <button class="step-btn active" onclick="selectStep('all', this)">🔍 Toàn bộ mạch (Tất cả)</button>
+    <button class="step-btn" onclick="selectStep('power', this)">⚡ B0: Nguồn Breadboard (3.3V & 5V)</button>
+    <button class="step-btn" onclick="selectStep('d1_servo', this)">🚪 B1: Cửa Servo SG90 (D1)</button>
+    <button class="step-btn" onclick="selectStep('d2_light_ir', this)">💡 B2: Đèn Khách + IR 940nm (D2)</button>
+    <button class="step-btn" onclick="selectStep('d3_pump', this)">💧 B3: Relay + Máy Bơm + Diode (D3)</button>
+    <button class="step-btn" onclick="selectStep('a0_soil', this)">🌱 B4: Độ Ẩm Đất YL-69 (A0)</button>
+    <button class="step-btn" onclick="selectStep('d5_ir_rx', this)">📡 B5: Mắt Thu IR VS1838B (D5)</button>
+    <button class="step-btn" onclick="selectStep('d6_dht11', this)">🌡️ B6: Cảm Biến DHT11 (D6)</button>
+    <button class="step-btn" onclick="selectStep('d7_bed', this)">🛏️ B7: Đèn Ngủ LED (D7)</button>
+    <button class="step-btn" onclick="selectStep('d8_buzzer', this)">🚨 B8: Còi Buzzer 5V (D8)</button>
+  </div>
+
+  <div class="workspace">
+    <!-- BẢNG VẼ MẠCH WOKWI & BREADBOARD -->
+    <div class="canvas-card">
+      <div class="canvas-header">
+        <h2>📐 Sơ Đồ Đi Dây Vuông Góc Chuẩn Kỹ Thuật (Bấm vào linh kiện trên hình để bật/tắt hoặc xem hướng dẫn cắm)</h2>
+        <div class="wire-legend">
+          <span><i class="swatch" style="background:#ef4444"></i> Đỏ: Nguồn +5V (VIN)</span>
+          <span><i class="swatch" style="background:#fb923c"></i> Cam: Nguồn +3.3V</span>
+          <span><i class="swatch" style="background:#94a3b8"></i> Xám/Đen: Mass (GND)</span>
+          <span><i class="swatch" style="background:#facc15"></i> Vàng: PWM / Analog (D1, A0)</span>
+          <span><i class="swatch" style="background:#22c55e"></i> Xanh lá: Đèn & Relay (D2, D3, D7)</span>
+          <span><i class="swatch" style="background:#38bdf8"></i> Xanh dương: Cảm biến (D5, D6)</span>
+        </div>
+      </div>
+
+      <div class="svg-wrap">
+        <svg id="wokwiSvg" viewBox="0 0 1120 670" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="glowRed" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glowYellow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- ==================== 1. MẠCH NODEMCU ESP8266 (BÊN TRÁI) ==================== -->
+          <g id="part_esp8266" transform="translate(30, 120)">
+            <rect x="0" y="0" width="190" height="410" rx="12" fill="#172033" stroke="#475569" stroke-width="2.5"/>
+            <!-- Cổng Micro USB -->
+            <rect x="68" y="-10" width="54" height="20" rx="4" fill="#94a3b8" stroke="#cbd5e1" stroke-width="1.5"/>
+            <text x="95" y="4" font-size="9" text-anchor="middle" fill="#0f172a" font-weight="bold">USB 5V</text>
+            <!-- Chip ESP-12E -->
+            <rect x="38" y="245" width="114" height="125" rx="6" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+            <text x="95" y="295" font-size="13" text-anchor="middle" fill="#f8fafc" font-weight="bold">NodeMCU</text>
+            <text x="95" y="314" font-size="12" text-anchor="middle" fill="#38bdf8" font-weight="bold">ESP8266</text>
+            <text x="95" y="332" font-size="10" text-anchor="middle" fill="#cbd5e1">ESP-12E WiFi</text>
+            <circle id="esp_led_status" cx="138" cy="260" r="4.5" fill="#38bdf8"/>
+
+            <!-- Hàng chân Trái (A0, GND, VU/5V) -->
+            <g font-family="Consolas, monospace" font-size="11" font-weight="bold" fill="#fde047">
+              <circle cx="14" cy="45" r="5" fill="#facc15"/><text x="25" y="49">A0 (ADC0)</text>
+              <circle cx="14" cy="95" r="5" fill="#94a3b8"/><text x="25" y="99" fill="#cbd5e1">GND</text>
+              <circle cx="14" cy="135" r="5" fill="#ef4444"/><text x="25" y="139" fill="#fca5a5">VIN / 5V</text>
+              <circle cx="14" cy="175" r="5" fill="#fb923c"/><text x="25" y="179" fill="#fdba74">3V3</text>
+            </g>
+
+            <!-- Hàng chân Phải (D1 -> D8, 3V3, GND) -->
+            <g font-family="Consolas, monospace" font-size="11" font-weight="bold" fill="#f8fafc" text-anchor="end">
+              <circle cx="176" cy="45" r="5" fill="#facc15"/><text x="164" y="49" fill="#fde047">D1 (GPIO5)</text>
+              <circle cx="176" cy="80" r="5" fill="#22c55e"/><text x="164" y="84" fill="#86efac">D2 (GPIO4)</text>
+              <circle cx="176" cy="115" r="5" fill="#38bdf8"/><text x="164" y="119" fill="#7dd3fc">D3 (GPIO0)</text>
+              <circle cx="176" cy="150" r="5" fill="#fb923c"/><text x="164" y="154" fill="#fdba74">3V3</text>
+              <circle cx="176" cy="185" r="5" fill="#94a3b8"/><text x="164" y="189" fill="#cbd5e1">GND</text>
+              <circle cx="176" cy="220" r="5" fill="#c084fc"/><text x="164" y="224" fill="#e9d5ff">D5 (GPIO14)</text>
+              <circle cx="176" cy="255" r="5" fill="#06b6d4"/><text x="164" y="259" fill="#67e8f9">D6 (GPIO12)</text>
+              <circle cx="176" cy="290" r="5" fill="#facc15"/><text x="164" y="294" fill="#fef08a">D7 (GPIO13)</text>
+              <circle cx="176" cy="325" r="5" fill="#f43f5e"/><text x="164" y="329" fill="#fda4af">D8 (GPIO15)</text>
+            </g>
+          </g>
+
+          <!-- ==================== 2. BREADBOARD 400 LỖ TRẮNG (Ở GIỮA) ==================== -->
+          <g id="part_breadboard" transform="translate(310, 115)">
+            <rect x="0" y="0" width="440" height="420" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2.5"/>
+            <text x="220" y="22" font-size="13" text-anchor="middle" fill="#1e293b" font-weight="bold">BẢNG CẮM BREADBOARD 400 LỖ (CHIA 2 RÃNH NGUỒN RÕ RÀNG)</text>
+
+            <!-- Rãnh Nguồn Trên: +3.3V (Cam) và GND (Xanh) cho Cảm Biến -->
+            <rect x="18" y="32" width="404" height="34" rx="5" fill="#f1f5f9" stroke="#cbd5e1"/>
+            <line x1="28" y1="41" x2="412" y2="41" stroke="#fb923c" stroke-width="2.5"/>
+            <text x="220" y="39" font-size="10" text-anchor="middle" fill="#ea580c" font-weight="bold">RÃNH DƯƠNG TRÊN (+): CẤP 3.3V CHO CẢM BIẾN (YL-69, DHT11, VS1838B)</text>
+            <line x1="28" y1="57" x2="412" y2="57" stroke="#2563eb" stroke-width="2.5"/>
+            <text x="220" y="64" font-size="10" text-anchor="middle" fill="#1d4ed8" font-weight="bold">RÃNH ÂM TRÊN (-): MASS CHUNG (GND)</text>
+
+            <!-- Khu vực cắm linh kiện giữa Breadboard -->
+            <rect x="18" y="75" width="404" height="265" rx="6" fill="#e2e8f0" stroke="#cbd5e1"/>
+            <rect x="18" y="198" width="404" height="18" fill="#cbd5e1"/>
+            <text x="220" y="211" font-size="10" text-anchor="middle" fill="#475569" font-weight="bold">RÃNH GIỮA BREADBOARD</text>
+
+            <!-- Linh kiện cắm trực tiếp trên Breadboard: Đèn Khách LED Đỏ + Trở 220Ω + Transistor + IR LED + Đèn Ngủ LED Vàng -->
+            <!-- Cụm 1 trên Breadboard: Đèn Phòng Khách LED Đỏ + Điện trở 220Ω (Hàng cột 10) -->
+            <g class="part-box" onclick="toggleDevice('living_room_light')" transform="translate(45, 92)">
+              <rect x="0" y="0" width="110" height="95" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="55" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Đèn Khách (D2)</text>
+              <!-- Điện trở xanh 220Ω -->
+              <rect x="18" y="28" width="38" height="12" rx="4" fill="#38bdf8" stroke="#0284c7"/>
+              <text x="37" y="37" font-size="8.5" text-anchor="middle" fill="#fff" font-weight="bold">220Ω</text>
+              <!-- Bóng LED Đỏ 5mm -->
+              <circle id="svg_led_living" cx="80" cy="45" r="15" fill="#450a0a" stroke="#dc2626" stroke-width="2"/>
+              <text id="svg_led_living_txt" x="80" y="49" font-size="9" text-anchor="middle" fill="#fca5a5" font-weight="bold">OFF</text>
+              <text x="55" y="84" font-size="9.5" text-anchor="middle" fill="#475569">Chân dài (+) qua trở 220Ω</text>
+            </g>
+
+            <!-- Cụm 2 trên Breadboard: Transistor TO-92 + Trở 1kΩ + Bóng Phát Hồng Ngoại IR 940nm (D2) -->
+            <g class="part-box" onclick="toggleDevice('ac')" transform="translate(170, 92)">
+              <rect x="0" y="0" width="125" height="95" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="62" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Phát IR 38kHz (D2)</text>
+              <!-- Điện trở 1kΩ -->
+              <rect x="10" y="28" width="34" height="12" rx="4" fill="#38bdf8" stroke="#0284c7"/>
+              <text x="27" y="37" font-size="8.5" text-anchor="middle" fill="#fff" font-weight="bold">1kΩ</text>
+              <!-- Transistor đen TO-92 -->
+              <path d="M52,25 L72,25 L72,48 L52,48 Z" fill="#1e293b"/>
+              <text x="62" y="39" font-size="8" text-anchor="middle" fill="#fff">S8050</text>
+              <text x="62" y="58" font-size="8" text-anchor="middle" fill="#334155">E - B - C</text>
+              <!-- Bóng LED Hồng ngoại -->
+              <circle id="svg_led_ir" cx="100" cy="40" r="13" fill="#2e1065" stroke="#9333ea" stroke-width="2"/>
+              <text x="100" y="43" font-size="8.5" text-anchor="middle" fill="#e9d5ff" font-weight="bold">IR TX</text>
+              <text x="62" y="84" font-size="9.5" text-anchor="middle" fill="#475569">Kích Điều hòa / Quạt</text>
+            </g>
+
+            <!-- Cụm 3 trên Breadboard: Đèn Phòng Ngủ LED Vàng + Trở 220Ω (D7) -->
+            <g class="part-box" onclick="toggleDevice('bedroom_light')" transform="translate(308, 92)">
+              <rect x="0" y="0" width="102" height="95" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="51" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Đèn Ngủ (D7)</text>
+              <rect x="12" y="28" width="36" height="12" rx="4" fill="#38bdf8" stroke="#0284c7"/>
+              <text x="30" y="37" font-size="8.5" text-anchor="middle" fill="#fff" font-weight="bold">220Ω</text>
+              <circle id="svg_led_bedroom" cx="72" cy="45" r="15" fill="#422006" stroke="#eab308" stroke-width="2"/>
+              <text id="svg_led_bedroom_txt" x="72" y="49" font-size="9" text-anchor="middle" fill="#fde047" font-weight="bold">OFF</text>
+              <text x="51" y="84" font-size="9.5" text-anchor="middle" fill="#475569">LED 5mm + Trở 220Ω</text>
+            </g>
+
+            <!-- Cụm 4 nửa dưới Breadboard: Mắt thu VS1838B (D5) + Cảm biến DHT11 (D6) + Còi Buzzer (D8) -->
+            <!-- VS1838B (D5) -->
+            <g class="part-box" onclick="triggerIrLearnDemo()" transform="translate(45, 226)">
+              <rect x="0" y="0" width="115" height="98" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="57" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Mắt Thu IR (D5)</text>
+              <rect x="37" y="24" width="40" height="34" rx="6" fill="#1e293b"/>
+              <circle id="svg_ir_rx_dome" cx="57" cy="41" r="11" fill="#334155" stroke="#94a3b8"/>
+              <text x="57" y="72" font-size="9" text-anchor="middle" fill="#0f172a" font-weight="bold">OUT | GND | VCC</text>
+              <text x="57" y="86" font-size="9" text-anchor="middle" fill="#7c3aed">VS1838B (38kHz)</text>
+            </g>
+
+            <!-- DHT11 (D6) -->
+            <g class="part-box" onclick="selectStep('d6_dht11')" transform="translate(175, 226)">
+              <rect x="0" y="0" width="115" height="98" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="57" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Cảm Biến DHT11 (D6)</text>
+              <rect x="28" y="22" width="58" height="40" rx="5" fill="#0284c7" stroke="#0369a1" stroke-width="1.5"/>
+              <text id="svg_dht_val" x="57" y="45" font-size="10" text-anchor="middle" fill="#fff" font-weight="bold">28.5°C | 65%</text>
+              <text x="57" y="75" font-size="9" text-anchor="middle" fill="#0f172a" font-weight="bold">VCC | DATA | GND</text>
+              <text x="57" y="88" font-size="9" text-anchor="middle" fill="#0369a1">Có sẵn trở 10kΩ</text>
+            </g>
+
+            <!-- Buzzer 5V (D8) -->
+            <g class="part-box" onclick="toggleDevice('alarm_siren')" transform="translate(305, 226)">
+              <rect x="0" y="0" width="105" height="98" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+              <text x="52" y="15" font-size="10.5" text-anchor="middle" fill="#0f172a" font-weight="bold">Còi Báo Động (D8)</text>
+              <circle id="svg_buzzer" cx="52" cy="46" r="20" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+              <circle cx="52" cy="46" r="6" fill="#94a3b8"/>
+              <text id="svg_buzzer_txt" x="52" y="82" font-size="9.5" text-anchor="middle" fill="#e11d48" font-weight="bold">Buzzer 5V: OFF</text>
+            </g>
+
+            <!-- Rãnh Nguồn Dưới: +5V (Đỏ) và GND (Xanh) cho Tải Công Suất -->
+            <rect x="18" y="348" width="404" height="36" rx="5" fill="#f1f5f9" stroke="#cbd5e1"/>
+            <line x1="28" y1="358" x2="412" y2="358" stroke="#ef4444" stroke-width="2.5"/>
+            <text x="220" y="355" font-size="10" text-anchor="middle" fill="#dc2626" font-weight="bold">RÃNH DƯƠNG DƯỚI (+): CẤP 5V (VIN) CHO SERVO SG90, RELAY & MÁY BƠM</text>
+            <line x1="28" y1="375" x2="412" y2="375" stroke="#2563eb" stroke-width="2.5"/>
+            <text x="220" y="382" font-size="10" text-anchor="middle" fill="#1d4ed8" font-weight="bold">RÃNH ÂM DƯỚI (-): MASS CHUNG (GND)</text>
+          </g>
+
+          <!-- ==================== 3. CÁC THIẾT BỊ NGOẠI VI BÊN PHẢI & PHÍA DƯỚI ==================== -->
+
+          <!-- 3.1. Động cơ Servo SG90 — Cửa chính (Chân D1) -->
+          <g id="part_servo" class="part-box" onclick="toggleDevice('main_door')" transform="translate(820, 45)">
+            <rect x="0" y="0" width="260" height="125" rx="10" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+            <text x="130" y="22" font-size="13" text-anchor="middle" fill="#93c5fd" font-weight="bold">🚪 Động Cơ Servo SG90 — Cửa Chính (D1)</text>
+            <!-- Thân Servo xanh -->
+            <rect x="35" y="40" width="95" height="58" rx="6" fill="#2563eb" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="82" y="72" font-size="11" text-anchor="middle" fill="#fef08a" font-weight="bold">SG90 9g</text>
+            <!-- Trục & Tay quay Servo -->
+            <circle cx="112" cy="69" r="14" fill="#e2e8f0"/>
+            <g id="svg_servo_horn" transform="rotate(0, 112, 69)" style="transition: transform 0.35s ease;">
+              <rect x="108" y="32" width="8" height="42" rx="4" fill="#ffffff" stroke="#475569"/>
+            </g>
+            <!-- Chú thích 3 dây Servo -->
+            <text x="155" y="54" font-size="11" fill="#fde047" font-weight="bold">● Dây Cam: Chân D1</text>
+            <text x="155" y="74" font-size="11" fill="#fca5a5" font-weight="bold">● Dây Đỏ: Rãnh +5V</text>
+            <text x="155" y="94" font-size="11" fill="#cbd5e1" font-weight="bold">● Dây Nâu: Rãnh -GND</text>
+            <text id="svg_servo_status" x="130" y="114" font-size="11.5" text-anchor="middle" fill="#34d399" font-weight="bold">Trạng thái: ĐÓNG (Góc 0°)</text>
+          </g>
+
+          <!-- 3.2. Module Relay Đỏ 5V + Máy Bơm Nước Mini Trắng + Diode 1N4007 (Chân D3) -->
+          <g id="part_pump_relay" class="part-box" onclick="toggleDevice('garden_pump')" transform="translate(820, 195)">
+            <rect x="0" y="0" width="260" height="235" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
+            <text x="130" y="22" font-size="12.5" text-anchor="middle" fill="#c7d2fe" font-weight="bold">💧 Relay 5V + Máy Bơm + Diode 1N4007 (D3)</text>
+
+            <!-- Bo Relay Đỏ -->
+            <rect x="18" y="36" width="110" height="90" rx="6" fill="#991b1b" stroke="#f87171" stroke-width="1.5"/>
+            <rect x="32" y="48" width="60" height="44" rx="4" fill="#1d4ed8" stroke="#60a5fa"/>
+            <text x="62" y="73" font-size="10" text-anchor="middle" fill="#fff" font-weight="bold">RELAY 5V</text>
+            <circle id="svg_relay_led" cx="110" cy="55" r="5" fill="#450a0a" stroke="#fca5a5"/>
+            <text x="73" y="115" font-size="9.5" text-anchor="middle" fill="#fecaca" font-weight="bold">DC+ | DC- | IN(D3)</text>
+
+            <!-- Con Diode 1N4007 chống dòng ngược -->
+            <rect x="148" y="48" width="52" height="16" rx="3" fill="#0f172a" stroke="#94a3b8"/>
+            <rect x="188" y="48" width="6" height="16" fill="#e2e8f0"/>
+            <text x="174" y="42" font-size="9.5" text-anchor="middle" fill="#fde047" font-weight="bold">Diode 1N4007</text>
+            <text x="174" y="76" font-size="8.5" text-anchor="middle" fill="#cbd5e1">(Vạch trắng về cực +)</text>
+
+            <!-- Máy bơm nước mini trắng -->
+            <g transform="translate(30, 142)">
+              <rect x="0" y="0" width="130" height="58" rx="22" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+              <circle cx="105" cy="29" r="18" fill="#e2e8f0" stroke="#475569"/>
+              <g id="svg_pump_impeller" transform="rotate(0, 105, 29)">
+                <line x1="92" y1="29" x2="118" y2="29" stroke="#0284c7" stroke-width="3.5"/>
+                <line x1="105" y1="16" x2="105" y2="42" stroke="#0284c7" stroke-width="3.5"/>
+              </g>
+              <text x="48" y="27" font-size="11" text-anchor="middle" fill="#0f172a" font-weight="bold">MÁY BƠM</text>
+              <text x="48" y="42" font-size="9.5" text-anchor="middle" fill="#0284c7" font-weight="bold">MINI 5V DC</text>
+            </g>
+            <text id="svg_pump_status" x="130" y="220" font-size="11.5" text-anchor="middle" fill="#94a3b8" font-weight="bold">Máy bơm: ĐANG TẮT (OFF)</text>
+          </g>
+
+          <!-- 3.3. Cảm biến Độ ẩm Đất YL-69 + LM393 (Chân A0) -->
+          <g id="part_soil_yl69" class="part-box" onclick="selectStep('a0_soil')" transform="translate(820, 455)">
+            <rect x="0" y="0" width="260" height="190" rx="10" fill="#14261c" stroke="#10b981" stroke-width="2"/>
+            <text x="130" y="22" font-size="12.5" text-anchor="middle" fill="#6ee7b7" font-weight="bold">🌱 Độ Ẩm Đất YL-69 + Mạch LM393 (Chân A0)</text>
+
+            <!-- Mạch so sánh LM393 xanh -->
+            <rect x="22" y="42" width="85" height="65" rx="5" fill="#1d4ed8" stroke="#60a5fa" stroke-width="1.5"/>
+            <rect x="52" y="55" width="22" height="22" rx="3" fill="#2563eb" stroke="#93c5fd"/>
+            <text x="64" y="40" font-size="9.5" text-anchor="middle" fill="#93c5fd" font-weight="bold">Mạch LM393</text>
+            <text x="64" y="96" font-size="9" text-anchor="middle" fill="#fff" font-weight="bold">AO | DO | GND | VCC</text>
+
+            <!-- Đầu dò 2 nhánh YL-69 -->
+            <path d="M150,42 L215,42 L215,75 L198,145 L190,145 L190,78 L175,78 L175,145 L167,145 L150,75 Z" fill="#ca8a04" stroke="#fde047" stroke-width="1.5"/>
+            <text x="182" y="62" font-size="9.5" text-anchor="middle" fill="#0f172a" font-weight="bold">YL-69</text>
+
+            <text id="svg_soil_status" x="130" y="168" font-size="12" text-anchor="middle" fill="#fde047" font-weight="bold">Độ ẩm đất hiện tại: 55% (Bình thường)</text>
+          </g>
+
+          <!-- ==================== 4. HỆ THỐNG DÂY NỐI VUÔNG GÓC (ORTHOGONAL WIRES) ==================== -->
+
+          <!-- BƯỚC 0: DÂY CẤP NGUỒN GỐC TỪ ESP8266 SANG 2 RÃNH BREADBOARD -->
+          <g id="wire_power" class="wire-group">
+            <!-- 3V3 (Chân phải ESP8266 y=270) -> Rãnh Dương Trên Breadboard (y=156) -->
+            <path d="M 206 270 L 250 270 L 250 156 L 338 156" fill="none" stroke="#fb923c" stroke-width="3.5" stroke-linecap="round"/>
+            <!-- GND (Chân phải ESP8266 y=305) -> Rãnh Âm Trên Breadboard (y=172) & Rãnh Âm Dưới (y=490) -->
+            <path d="M 206 305 L 265 305 L 265 172 L 338 172" fill="none" stroke="#94a3b8" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M 265 305 L 265 490 L 338 490" fill="none" stroke="#94a3b8" stroke-width="3.5" stroke-linecap="round"/>
+            <!-- VIN 5V (Chân trái ESP8266 x=44, y=255) -> Vòng xuống Rãnh Dương Dưới Breadboard (y=473) -->
+            <path d="M 44 255 L 15 255 L 15 585 L 285 585 L 285 473 L 338 473" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+          </g>
+
+          <!-- BƯỚC 1: CỬA CHÍNH SERVO SG90 (CHÂN D1) -->
+          <g id="wire_d1_servo" class="wire-group">
+            <!-- D1 (x=206, y=165) -> Đi lên trên Breadboard -> Servo PWM -->
+            <path id="flow_d1" d="M 206 165 L 235 165 L 235 65 L 820 65" fill="none" stroke="#facc15" stroke-width="3.2" stroke-linecap="round"/>
+            <!-- 5V từ Rãnh Dưới Breadboard -> Servo VCC -->
+            <path d="M 722 473 L 775 473 L 775 85 L 820 85" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="4 2"/>
+            <!-- GND từ Rãnh Dưới Breadboard -> Servo GND -->
+            <path d="M 722 490 L 790 490 L 790 105 L 820 105" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="4 2"/>
+          </g>
+
+          <!-- BƯỚC 2: ĐÈN PHÒNG KHÁCH LED ĐỎ + PHÁT IR 940NM (CHÂN D2) -->
+          <g id="wire_d2_light_ir" class="wire-group">
+            <!-- D2 (x=206, y=200) -> Cụm Đèn Khách & Cụm IR trên Breadboard -->
+            <path id="flow_d2" d="M 206 200 L 280 200 L 280 235 L 355 235" fill="none" stroke="#22c55e" stroke-width="3.2" stroke-linecap="round"/>
+            <path d="M 355 235 L 480 235" fill="none" stroke="#a855f7" stroke-width="2.8" stroke-linecap="round"/>
+          </g>
+
+          <!-- BƯỚC 3: RELAY ĐỎ + MÁY BƠM NƯỚC MINI + DIODE 1N4007 (CHÂN D3) -->
+          <g id="wire_d3_pump" class="wire-group">
+            <!-- D3 (x=206, y=235) -> Vòng xuống dưới -> Relay IN -->
+            <path id="flow_d3" d="M 206 235 L 222 235 L 222 555 L 785 555 L 785 265 L 820 265" fill="none" stroke="#38bdf8" stroke-width="3.4" stroke-linecap="round"/>
+            <!-- 5V & GND từ Rãnh Dưới Breadboard -> Relay & Máy bơm -->
+            <path d="M 722 473 L 800 473 L 800 295 L 820 295" fill="none" stroke="#ef4444" stroke-width="2.8"/>
+            <path d="M 722 490 L 808 490 L 808 320 L 820 320" fill="none" stroke="#94a3b8" stroke-width="2.8"/>
+          </g>
+
+          <!-- BƯỚC 4: CẢM BIẾN ĐỘ ẨM ĐẤT YL-69 + LM393 (CHÂN A0) -->
+          <g id="wire_a0_soil" class="wire-group">
+            <!-- Chân A0 (x=44, y=165) -> Đi vòng dưới cùng sang Mạch LM393 (x=820, y=545) -->
+            <path id="flow_a0" d="M 44 165 L 10 165 L 10 620 L 795 620 L 795 545 L 820 545" fill="none" stroke="#eab308" stroke-width="3.2" class="wire-flow"/>
+            <!-- Nguồn 3.3V từ Rãnh Trên Breadboard -> LM393 -->
+            <path d="M 722 156 L 760 156 L 760 570 L 820 570" fill="none" stroke="#fb923c" stroke-width="2.4" stroke-dasharray="4 2"/>
+          </g>
+
+          <!-- BƯỚC 5: MẮT THU HỒNG NGOẠI VS1838B (CHÂN D5) -->
+          <g id="wire_d5_ir_rx" class="wire-group">
+            <path d="M 206 340 L 295 340 L 295 385 L 355 385" fill="none" stroke="#c084fc" stroke-width="3" stroke-linecap="round"/>
+          </g>
+
+          <!-- BƯỚC 6: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (CHÂN D6) -->
+          <g id="wire_d6_dht11" class="wire-group">
+            <path d="M 206 375 L 285 375 L 285 405 L 485 405" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" class="wire-flow"/>
+          </g>
+
+          <!-- BƯỚC 7: ĐÈN PHÒNG NGỦ LED VÀNG (CHÂN D7) -->
+          <g id="wire_d7_bed" class="wire-group">
+            <path id="flow_d7" d="M 206 410 L 275 410 L 275 95 L 655 95 L 655 207" fill="none" stroke="#facc15" stroke-width="3" stroke-linecap="round"/>
+          </g>
+
+          <!-- BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V (CHÂN D8) -->
+          <g id="wire_d8_buzzer" class="wire-group">
+            <path id="flow_d8" d="M 206 445 L 300 445 L 300 425 L 615 425" fill="none" stroke="#f43f5e" stroke-width="3" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+
+      <!-- HƯỚNG DẪN CẮM TAY VẬT LÝ CHI TIẾT CHO TỪNG BƯỚC -->
+      <div class="step-guide-box">
+        <div class="step-guide-title">
+          <span id="guideTitle">📌 Hướng dẫn cắm mạch vật lý: Toàn bộ hệ thống (8 Bước chuẩn không chồng chéo dây)</span>
+          <span style="font-size: 11.5px; color: #fde047;">Mẹo: Bấm các nút B0 -> B8 ở thanh trên cùng để làm sáng riêng từng cụm dây!</span>
+        </div>
+        <ol class="step-guide-list" id="guideList">
+          <li><strong>Quy tắc cắm không bao giờ nhầm:</strong> Luôn cắm <strong>Bước 0 (Nguồn 3.3V & 5V & GND)</strong> trước tiên, sau đó cắm lần lượt từng linh kiện từ <span class="pin-tag">D1</span> đến <span class="pin-tag">D8</span> và <span class="pin-tag">A0</span>.</li>
+          <li><strong>Tách biệt 2 rãnh nguồn Breadboard:</strong> Rãnh ngang phía trên cấp <span class="pin-tag">3.3V</span> cho 3 cảm biến (Độ ẩm đất, DHT11, Mắt thu IR); Rãnh ngang phía dưới cấp <span class="pin-tag">5V (VIN)</span> cho tải nặng (Servo SG90, Relay Máy bơm, Còi). Nối 1 dây Đen thông 2 rãnh âm <span class="pin-tag">(-)</span> với nhau.</li>
+          <li><strong>Tương tác trực tiếp:</strong> Bấm thẳng vào từng linh kiện trên bản vẽ hoặc kéo thanh trượt cảm biến bên phải để xem mạch chạy thật và kiểm tra phản hồi trên Nhà 3D!</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: ĐIỀU KHIỂN CẢM BIẾN LIVE, KIỂM ĐỊNH LỖI MẠCH & SERIAL MONITOR -->
+    <div class="sidebar">
+
+      <!-- 1. GIẢ LẬP CẢM BIẾN VẬT LÝ & REMOTE HỒNG NGOẠI -->
+      <div class="card">
+        <h3>
+          <span>🎛️ Giả Lập Tác Động Vật Lý Lên Linh Kiện</span>
+          <span style="font-size:11px; color:#38bdf8;">Live MQTT</span>
+        </h3>
+
+        <!-- Độ ẩm đất YL-69 (A0) -->
+        <div class="control-row">
+          <div class="control-top">
+            <span>🌱 Độ ẩm đất `YL-69` (<span class="pin-tag">Chân A0</span>):</span>
+            <span id="lblSoil" style="color:#6ee7b7;">55% (ADC: 615)</span>
+          </div>
+          <input type="range" id="rngSoil" min="5" max="95" value="55" oninput="onSoilInput(this.value)" onchange="sendSoilUpdate(this.value)" />
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px;">
+            <span>Khô &lt; 40% → Tự bật Bơm (D3)</span>
+            <span>Ẩm ≥ 70% → Tự tắt Bơm</span>
+          </div>
+        </div>
+
+        <!-- Nhiệt độ & Độ ẩm DHT11 (D6) -->
+        <div class="control-row">
+          <div class="control-top">
+            <span>🌡️ Cảm biến `DHT11` (<span class="pin-tag">Chân D6</span>):</span>
+            <span id="lblDht" style="color:#38bdf8;">28.5°C | 65%</span>
+          </div>
+          <input type="range" id="rngTemp" min="18" max="42" step="0.5" value="28.5" oninput="onDhtInput()" onchange="sendDhtUpdate()" />
+        </div>
+
+        <!-- Bấm Remote Hồng ngoại chĩa vào mắt thu VS1838B (D5) -->
+        <div class="control-row">
+          <div class="control-top">
+            <span>📡 Bấm Remote thật vào mắt thu `VS1838B` (<span class="pin-tag">D5</span>):</span>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            <button class="btn-link primary" style="flex:1; font-size:11.5px;" onclick="triggerIrLearnDemo('Điều hòa Casper', 'open')">❄️ Thu mã Bật ĐH (38kHz)</button>
+            <button class="btn-link" style="flex:1; font-size:11.5px;" onclick="triggerIrLearnDemo('Quạt cây', 'open')">🌀 Thu mã Bật Quạt</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. BẢNG BẬT/TẮT TRỰC TIẾP 7 THIẾT BỊ TRÊN CHÂN ESP8266 -->
+      <div class="card">
+        <h3>⚡ Kích Thử Trực Tiếp Từng Chân GPIO ESP8266</h3>
+        <div class="dev-grid">
+          <button class="dev-btn" id="btn_main_door" onclick="toggleDevice('main_door')">
+            <span>🚪 Cửa Servo (D1)</span>
+            <span class="badge-state" id="st_main_door">CLOSED</span>
+          </button>
+          <button class="dev-btn" id="btn_living_room_light" onclick="toggleDevice('living_room_light')">
+            <span>💡 Đèn Khách (D2)</span>
+            <span class="badge-state" id="st_living_room_light">OFF</span>
+          </button>
+          <button class="dev-btn" id="btn_garden_pump" onclick="toggleDevice('garden_pump')">
+            <span>💧 Máy Bơm (D3)</span>
+            <span class="badge-state" id="st_garden_pump">OFF</span>
+          </button>
+          <button class="dev-btn" id="btn_ac" onclick="toggleDevice('ac')">
+            <span>❄️ Điều Hòa IR (D2)</span>
+            <span class="badge-state" id="st_ac">OFF</span>
+          </button>
+          <button class="dev-btn" id="btn_fan" onclick="toggleDevice('fan')">
+            <span>🌀 Quạt Trần (D6/IR)</span>
+            <span class="badge-state" id="st_fan">OFF</span>
+          </button>
+          <button class="dev-btn" id="btn_bedroom_light" onclick="toggleDevice('bedroom_light')">
+            <span>🛏️ Đèn Ngủ (D7)</span>
+            <span class="badge-state" id="st_bedroom_light">OFF</span>
+          </button>
+          <button class="dev-btn" id="btn_alarm_siren" onclick="toggleDevice('alarm_siren')" style="grid-column: span 2;">
+            <span>🚨 Còi Báo Động Buzzer 5V (Chân D8)</span>
+            <span class="badge-state" id="st_alarm_siren">OFF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. BÁO CÁO PHÁT HIỆN & KHẮC PHỤC LỖI MẠCH KHI DỰNG WOKWI -->
+      <div class="card">
+        <h3>🛡️ 4 Lỗi Phần Cứng Đã Phát Hiện & Tự Khắc Phục</h3>
+        <div class="audit-item">
+          <strong>1. Lỗi mất trạng thái Đèn Khách (D2) khi phát IR 38kHz:</strong> Chân <code>D2</code> dùng chung cho Đèn LED Đỏ và LED phát Hồng ngoại. Đã vá hàm <code>blastIrAndRestoreLight()</code> trong Firmware để tự khôi phục trạng thái sáng/tắt của Đèn Khách ngay sau 50ms bắn tia IR.
+        </div>
+        <div class="audit-item">
+          <strong>2. Lỗi xung đột ghi đè Máy bơm (D3) mỗi 3 giây:</strong> Trước đây vòng lặp đọc <code>A0</code> mỗi 3 giây tự tắt bơm nếu đất đang ẩm, làm vô hiệu hóa lệnh bật bơm bằng giọng nói. Đã nâng cấp lên <strong>Hysteresis theo sườn (<code>pumpAutoTriggered</code>)</strong>.
+        </div>
+        <div class="audit-item">
+          <strong>3. Bảo vệ chân Boot <code>D3 (GPIO0)</code> & <code>D8 (GPIO15)</code>:</strong> Trên Module Relay Đỏ có sẵn trên bàn bạn, hãy để Jumper ở mức <strong>HIGH trigger</strong> (hoặc nối vào <code>D3</code> sau khi cấp nguồn) để không kéo <code>D3</code> xuống Mass lúc khởi động.
+        </div>
+        <div class="audit-item" style="margin-bottom:0;">
+          <strong>4. Chống sụt áp 3.3V:</strong> Đã tách riêng <code>Servo SG90</code> và <code>Máy bơm 5V</code> sang <strong>Rãnh +5V (VIN)</strong> phía dưới Breadboard + bắt buộc gắn <strong>Diode 1N4007</strong> ngược cực ở 2 dây Máy bơm.
+        </div>
+      </div>
+
+      <!-- 4. SERIAL MONITOR (115200 BAUD) -->
+      <div class="card">
+        <h3>
+          <span>🖥️ ESP8266 Serial Monitor (115200 baud)</span>
+          <button class="btn-link" style="padding:2px 8px; font-size:11px;" onclick="clearSerial()">Xóa log</button>
+        </h3>
+        <div class="serial-box" id="serialBox">
+          <div class="serial-line">[00:00.010] NodeMCU ESP8266 Booting... LittleFS mounted OK.</div>
+          <div class="serial-line">[00:00.120] PinMap: D1=Servo, D2=Light+IR, D3=PumpRelay, D5=IR_RX, D6=DHT11, D7=BedLight, D8=Buzzer, A0=YL69.</div>
+          <div class="serial-line">[00:00.350] WiFi connected! MQTT Broker Subscribed (10 Topics).</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const STEP_GUIDES = {
+      all: {
+        title: "📌 Hướng dẫn cắm mạch vật lý: Toàn bộ hệ thống (8 Bước chuẩn không chồng chéo dây)",
+        items: [
+          "<strong>Quy tắc cắm không bao giờ nhầm:</strong> Luôn cắm <strong>Bước 0 (Nguồn 3.3V & 5V & GND)</strong> trước tiên, sau đó bấm từng nút <strong>B1 → B8</strong> trên thanh công cụ để làm sáng riêng dây của từng linh kiện.",
+          "<strong>Tách biệt 2 rãnh nguồn trên Breadboard 400 lỗ:</strong> Rãnh ngang phía trên cấp <span class='pin-tag'>3.3V</span> cho 3 cảm biến; Rãnh ngang phía dưới cấp <span class='pin-tag'>5V (VIN)</span> cho Servo SG90, Relay và Máy bơm nước.",
+          "<strong>Thử nghiệm trực tiếp:</strong> Bấm vào bất kỳ linh kiện nào trên hình vẽ hoặc kéo thanh trượt Độ ẩm đất / Nhiệt độ ở cột phải để xem mạch hoạt động!"
+        ]
+      },
+      power: {
+        title: "⚡ BƯỚC 0 (Cắm đầu tiên): Cấp nguồn từ NodeMCU ESP8266 sang 2 rãnh Breadboard",
+        items: [
+          "<strong>Dây 1 (Màu Cam — Nguồn 3.3V cho Cảm biến):</strong> Cắm từ chân <span class='pin-tag">3V3</span> của ESP8266 sang <strong>Rãnh Dương (+) phía TRÊN</strong> của Breadboard.",
+          "<strong>Dây 2 (Màu Đỏ — Nguồn 5V cho Servo & Bơm):</strong> Cắm từ chân <span class='pin-tag'>VIN</span> (hoặc <span class='pin-tag'>VU</span>) của ESP8266 sang <strong>Rãnh Dương (+) phía DƯỚI</strong> của Breadboard.",
+          "<strong>Dây 3 & 4 (Màu Đen — Mass chung GND):</strong> Cắm từ chân <span class='pin-tag'>GND</span> của ESP8266 sang <strong>Rãnh Âm (-) phía TRÊN</strong>, rồi lấy thêm 1 sợi dây Đen nối thông từ <strong>Rãnh Âm (-) TRÊN</strong> xuống <strong>Rãnh Âm (-) DƯỚI</strong>."
+        ]
+      },
+      d1_servo: {
+        title: "🚪 BƯỚC 1: Cắm Động cơ Servo SG90 (Cửa chính — Chân D1)",
+        items: [
+          "<strong>Dây Cam/Vàng của Servo (Chân xung PWM):</strong> Cắm thẳng vào chân <span class='pin-tag'>D1</span> trên mạch NodeMCU ESP8266.",
+          "<strong>Dây Đỏ của Servo (Nguồn +5V):</strong> Cắm vào <strong>Rãnh Dương (+) 5V phía DƯỚI</strong> của Breadboard.",
+          "<strong>Dây Nâu/Đen của Servo (Mass GND):</strong> Cắm vào <strong>Rãnh Âm (-) GND phía DƯỚI</strong> của Breadboard."
+        ]
+      },
+      d2_light_ir: {
+        title: "💡 BƯỚC 2: Cắm Đèn Phòng Khách LED Đỏ + Mạch Phát Hồng Ngoại IR 940nm (Chân D2)",
+        items: [
+          "<strong>Đèn Phòng Khách (LED Đỏ trên bàn bạn):</strong> Cắm 1 con <strong>Điện trở 220Ω</strong> nối từ chân <span class='pin-tag'>D2</span> vào <strong>chân dài (+)</strong> của bóng LED Đỏ; <strong>chân ngắn (-)</strong> của LED Đỏ cắm vào <strong>Rãnh Âm (-) GND</strong>.",
+          "<strong>Mạch phát Hồng ngoại điều khiển Điều hòa (Transistor đen trên bàn bạn):</strong> Cắm 1 con <strong>Điện trở 1kΩ</strong> từ chân <span class='pin-tag'>D2</span> vào <strong>chân giữa (Base)</strong> của Transistor; chân trái (Emitter) nối <strong>GND</strong>; chân phải (Collector) nối vào cực âm bóng <strong>IR LED 940nm</strong> (cực dương IR LED qua trở 220Ω lên 5V)."
+        ]
+      },
+      d3_pump: {
+        title: "💧 BƯỚC 3: Cắm Module Relay Đỏ + Máy Bơm Nước Mini + Diode 1N4007 (Chân D3)",
+        items: [
+          "<strong>3 chân điều khiển của Module Relay Đỏ:</strong> Chân <span class='pin-tag'>IN</span> nối vào chân <span class='pin-tag'>D3</span> của ESP8266; Chân <span class='pin-tag'>DC+</span> nối vào <strong>Rãnh +5V DƯỚI</strong>; Chân <span class='pin-tag'>DC-</span> nối vào <strong>Rãnh -GND DƯỚI</strong>.",
+          "<strong>Đấu dây Máy bơm nước mini trắng qua Domino vặn vít của Relay:</strong> Cổng giữa <span class='pin-tag'>COM</span> của Relay nối vào <strong>Rãnh +5V</strong>; Cổng thường mở <span class='pin-tag'>NO</span> nối vào <strong>dây Đỏ (+) của Máy bơm</strong>; <strong>Dây Đen (-) của Máy bơm</strong> nối về <strong>Rãnh -GND</strong>.",
+          "<strong>QUAN TRỌNG — Gắn con Diode đen 1N4007 (trên bàn bạn):</strong> Cắm 2 chân con Diode 1N4007 song song với 2 dây của Máy bơm, sao cho <strong>đầu có vạch trắng bạc quay về phía dây Đỏ (+) của Máy bơm</strong> để triệt xung ngược chống treo ESP8266!"
+        ]
+      },
+      a0_soil: {
+        title: "🌱 BƯỚC 4: Cắm Cảm biến Độ ẩm Đất YL-69 + Mạch so sánh LM393 (Chân A0)",
+        items: [
+          "<strong>2 chân đầu dò (dây vàng đang nối sẵn trên bàn bạn):</strong> Giữ nguyên nối vào 2 chân đầu vào của mạch nhỏ màu xanh <code>LM393</code>.",
+          "<strong>Chân AO (Analog Output) trên mạch LM393:</strong> Cắm dây về chân <span class='pin-tag'>A0</span> (nằm ở góc trên bên trái của NodeMCU ESP8266).",
+          "<strong>Chân VCC & GND trên mạch LM393:</strong> Cắm <span class='pin-tag'>VCC</span> vào <strong>Rãnh +3.3V TRÊN</strong> và <span class='pin-tag'>GND</span> vào <strong>Rãnh -GND TRÊN</strong> (Chân <code>DO</code> bỏ trống không cần dùng)."
+        ]
+      },
+      d5_ir_rx: {
+        title: "📡 BƯỚC 5: Cắm Mắt thu Hồng ngoại VS1838B 38kHz để Học lệnh Remote (Chân D5)",
+        items: [
+          "<strong>Nhìn mặt lồi (có khung sắt chữ X) của mắt thu VS1838B hướng về phía bạn, 3 chân từ trái sang phải là:</strong>",
+          "<strong>Chân 1 (Bên trái — OUT):</strong> Cắm dây về chân <span class='pin-tag'>D5</span> của NodeMCU ESP8266.",
+          "<strong>Chân 2 (Ở giữa — GND):</strong> Cắm vào <strong>Rãnh Âm (-) GND TRÊN</strong>. | <strong>Chân 3 (Bên phải — VCC):</strong> Cắm vào <strong>Rãnh Dương (+) 3.3V TRÊN</strong>."
+        ]
+      },
+      d6_dht11: {
+        title: "🌡️ BƯỚC 6: Cắm Cảm biến Nhiệt độ & Độ ẩm Không khí DHT11 (Chân D6)",
+        items: [
+          "<strong>Chân DATA (hoặc OUT ở giữa):</strong> Cắm dây về chân <span class='pin-tag'>D6</span> của NodeMCU ESP8266.",
+          "<strong>Chân VCC (+):</strong> Cắm vào <strong>Rãnh +3.3V TRÊN</strong>. | <strong>Chân GND (-):</strong> Cắm vào <strong>Rãnh -GND TRÊN</strong>."
+        ]
+      },
+      d7_bed: {
+        title: "🛏️ BƯỚC 7: Cắm Đèn Phòng Ngủ LED 5mm + Điện trở 220Ω (Chân D7)",
+        items: [
+          "<strong>Chân D7 của ESP8266:</strong> Cắm qua 1 con <strong>Điện trở 220Ω</strong> (lấy trong dải điện trở xanh trên bàn) nối vào <strong>chân dài (+)</strong> của bóng LED.",
+          "<strong>Chân ngắn (-) của bóng LED:</strong> Cắm xuống <strong>Rãnh Âm (-) GND</strong> trên Breadboard."
+        ]
+      },
+      d8_buzzer: {
+        title: "🚨 BƯỚC 8: Cắm Còi Báo Động Buzzer 5V Active (Chân D8)",
+        items: [
+          "<strong>Chân dài (+) của Còi Buzzer 5V:</strong> Nối vào chân <span class='pin-tag'>D8</span> của NodeMCU ESP8266 (hoặc qua Transistor S8050 nếu muốn kêu to tối đa).",
+          "<strong>Chân ngắn (-) của Còi Buzzer 5V:</strong> Cắm xuống <strong>Rãnh Âm (-) GND</strong> (Lưu ý: Tuyệt đối không gắn trở kéo lên 3.3V ở chân D8 để ESP8266 khởi động chuẩn)."
+        ]
+      }
+    };
+
+    let deviceStates = {
+      main_door: "CLOSED",
+      living_room_light: "OFF",
+      bedroom_light: "OFF",
+      ac: "OFF",
+      fan: "OFF",
+      alarm_siren: "OFF",
+      garden_pump: "OFF"
+    };
+    let pumpSpinTimer = null;
+    let pumpAngle = 0;
+
+    function selectStep(stepKey, btnEl) {
+      document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+
+      const groups = document.querySelectorAll('.wire-group');
+      if (stepKey === 'all') {
+        groups.forEach(g => {
+          g.classList.remove('dimmed', 'highlighted');
+        });
+      } else {
+        groups.forEach(g => {
+          if (g.id === 'wire_' + stepKey) {
+            g.classList.remove('dimmed');
+            g.classList.add('highlighted');
+          } else {
+            g.classList.remove('highlighted');
+            g.classList.add('dimmed');
+          }
+        });
+      }
+
+      const info = STEP_GUIDES[stepKey] || STEP_GUIDES.all;
+      document.getElementById('guideTitle').innerHTML = info.title;
+      document.getElementById('guideList').innerHTML = info.items.map(i => `<li>${i}</li>`).join('');
+    }
+
+    function appendSerial(msg, cls = '') {
+      const box = document.getElementById('serialBox');
+      const now = new Date();
+      const ts = now.toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = 'serial-line ' + cls;
+      div.textContent = `[${ts}] ${msg}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function clearSerial() {
+      document.getElementById('serialBox').innerHTML = '';
+    }
+
+    function renderHardwareState(snapshot) {
+      if (!snapshot || !snapshot.devices) return;
+      const devs = snapshot.devices;
+      for (const k of Object.keys(deviceStates)) {
+        if (devs[k]) {
+          deviceStates[k] = devs[k].state;
+        }
+      }
+
+      // Update right panel buttons
+      for (const [id, st] of Object.entries(deviceStates)) {
+        const btn = document.getElementById('btn_' + id);
+        const badge = document.getElementById('st_' + id);
+        const isOn = (st === 'OPEN' || st === 'ON');
+        if (btn) btn.classList.toggle('on', isOn);
+        if (badge) badge.textContent = st;
+      }
+
+      // 1. Update Servo SG90 (D1)
+      const doorOpen = deviceStates.main_door === 'OPEN';
+      const horn = document.getElementById('svg_servo_horn');
+      const servoTxt = document.getElementById('svg_servo_status');
+      if (horn) horn.setAttribute('transform', `rotate(${doorOpen ? 90 : 0}, 112, 69)`);
+      if (servoTxt) {
+        servoTxt.textContent = doorOpen ? 'Trạng thái: ĐANG MỞ (Góc 90°)' : 'Trạng thái: ĐÓNG (Góc 0°)';
+        servoTxt.setAttribute('fill', doorOpen ? '#fde047' : '#34d399');
+      }
+
+      // 2. Update Living Room Light LED Red (D2)
+      const livOn = deviceStates.living_room_light === 'ON';
+      const ledLiv = document.getElementById('svg_led_living');
+      const ledLivTxt = document.getElementById('svg_led_living_txt');
+      if (ledLiv) {
+        ledLiv.setAttribute('fill', livOn ? '#ef4444' : '#450a0a');
+        if (livOn) ledLiv.setAttribute('filter', 'url(#glowRed)');
+        else ledLiv.removeAttribute('filter');
+      }
+      if (ledLivTxt) ledLivTxt.textContent = livOn ? 'SÁNG' : 'OFF';
+
+      // 3. Update Bedroom Light LED Yellow (D7)
+      const bedOn = deviceStates.bedroom_light === 'ON';
+      const ledBed = document.getElementById('svg_led_bedroom');
+      const ledBedTxt = document.getElementById('svg_led_bedroom_txt');
+      if (ledBed) {
+        ledBed.setAttribute('fill', bedOn ? '#facc15' : '#422006');
+        if (bedOn) ledBed.setAttribute('filter', 'url(#glowYellow)');
+        else ledBed.removeAttribute('filter');
+      }
+      if (ledBedTxt) {
+        ledBedTxt.textContent = bedOn ? 'SÁNG' : 'OFF';
+        ledBedTxt.setAttribute('fill', bedOn ? '#0f172a' : '#fde047');
+      }
+
+      // 4. Update Relay & Water Pump (D3)
+      const pumpOn = deviceStates.garden_pump === 'ON';
+      const relayLed = document.getElementById('svg_relay_led');
+      const pumpTxt = document.getElementById('svg_pump_status');
+      if (relayLed) relayLed.setAttribute('fill', pumpOn ? '#22c55e' : '#450a0a');
+      if (pumpTxt) {
+        pumpTxt.textContent = pumpOn ? '💦 Máy bơm: ĐANG BƠM NƯỚC (ON)' : 'Máy bơm: ĐANG TẮT (OFF)';
+        pumpTxt.setAttribute('fill', pumpOn ? '#38bdf8' : '#94a3b8');
+      }
+      if (pumpOn && !pumpSpinTimer) {
+        pumpSpinTimer = setInterval(() => {
+          pumpAngle = (pumpAngle + 35) % 360;
+          const imp = document.getElementById('svg_pump_impeller');
+          if (imp) imp.setAttribute('transform', `rotate(${pumpAngle}, 105, 29)`);
+        }, 60);
+      } else if (!pumpOn && pumpSpinTimer) {
+        clearInterval(pumpSpinTimer);
+        pumpSpinTimer = null;
+      }
+
+      // 5. Update Buzzer (D8)
+      const sirenOn = deviceStates.alarm_siren === 'ON';
+      const buz = document.getElementById('svg_buzzer');
+      const buzTxt = document.getElementById('svg_buzzer_txt');
+      if (buz) buz.setAttribute('stroke', sirenOn ? '#f43f5e' : '#475569');
+      if (buzTxt) buzTxt.textContent = sirenOn ? '🔊 Buzzer 5V: ĐANG HÚ CÒI!' : 'Buzzer 5V: OFF';
+
+      // 6. Update Telemetry (DHT11 + Soil Moisture)
+      if (snapshot.mqtt_hardware && snapshot.mqtt_hardware.esp8266_status) {
+        const hw = snapshot.mqtt_hardware.esp8266_status;
+        if (typeof hw.temp_c === 'number') {
+          const dhtStr = `${hw.temp_c.toFixed(1)}°C | ${hw.humidity_pct.toFixed(0)}%`;
+          document.getElementById('lblDht').textContent = dhtStr;
+          document.getElementById('svg_dht_val').textContent = dhtStr;
+        }
+        if (typeof hw.soil_moisture_pct === 'number') {
+          const sPct = hw.soil_moisture_pct;
+          const adc = Math.round(1024 - (sPct / 100) * 724);
+          document.getElementById('lblSoil').textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;
+          const stTxt = sPct < 40 ? 'ĐẤT KHÔ (<40%) → ĐÃ BẬT BƠM!' : (sPct >= 70 ? 'ĐẤT ĐỦ ẨM (≥70%)' : 'Bình thường');
+          document.getElementById('svg_soil_status').textContent = `Độ ẩm đất: ${sPct.toFixed(0)}% (${stTxt})`;
+        }
+      }
+    }
+
+    async function fetchState() {
+      try {
+        const r = await fetch('/api/state');
+        const snap = await r.json();
+        renderHardwareState(snap);
+      } catch (e) {}
+    }
+
+    async function toggleDevice(devId) {
+      const cur = deviceStates[devId] || 'OFF';
+      const isCurrentlyOn = (cur === 'OPEN' || cur === 'ON');
+      const nextAction = isCurrentlyOn ? 'close' : 'open';
+
+      if (devId === 'ac' || devId === 'fan') {
+        const irLed = document.getElementById('svg_led_ir');
+        if (irLed) {
+          irLed.setAttribute('fill', '#d8b4fe');
+          setTimeout(() => irLed.setAttribute('fill', '#2e1065'), 400);
+        }
+        appendSerial(`[MQTT RX] smarthome/ir/blast -> Phát tia IR 38kHz trên chân D2 (${devId.toUpperCase()} -> ${nextAction.toUpperCase()}) & khôi phục Đèn Khách`, 'ir');
+      } else {
+        appendSerial(`[MQTT RX] smarthome/cmd/actuate -> Thiết bị ${devId} chuyển sang ${nextAction.toUpperCase()}`, 'cmd');
+      }
+
+      const r = await fetch('/api/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: devId, action: nextAction })
+      });
+      const data = await r.json();
+      if (data.snapshot) renderHardwareState(data.snapshot);
+      else fetchState();
+    }
+
+    function onSoilInput(val) {
+      const sPct = parseFloat(val);
+      const adc = Math.round(1024 - (sPct / 100) * 724);
+      document.getElementById('lblSoil').textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;
+    }
+
+    async function sendSoilUpdate(val) {
+      const sPct = parseFloat(val);
+      appendSerial(`[ADC A0] YL-69 đọc độ ẩm đất = ${sPct.toFixed(0)}% -> Publish smarthome/telemetry/soil_moisture`, 'warn');
+      const r = await fetch('/api/soil_moisture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ soil_moisture_pct: sPct })
+      });
+      const data = await r.json();
+      if (data.auto_action === 'AUTO_PUMP_ON') {
+        appendSerial(`[AUTO-IRRIGATION] Độ ẩm đất ${sPct}% < 40% -> Kích chân D3 = HIGH (Tự động BẬT Máy bơm nước!)`, 'cmd');
+      } else if (data.auto_action === 'AUTO_PUMP_OFF') {
+        appendSerial(`[AUTO-IRRIGATION] Độ ẩm đất ${sPct}% >= 70% -> Kích chân D3 = LOW (Tự động TẮT Máy bơm nước!)`, 'cmd');
+      }
+      fetchState();
+    }
+
+    function onDhtInput() {
+      const t = parseFloat(document.getElementById('rngTemp').value);
+      document.getElementById('lblDht').textContent = `${t.toFixed(1)}°C | 65%`;
+    }
+
+    async function sendDhtUpdate() {
+      const t = parseFloat(document.getElementById('rngTemp').value);
+      appendSerial(`[GPIO12 / D6] DHT11 đọc Nhiệt độ = ${t.toFixed(1)}°C, Độ ẩm = 65% -> Publish smarthome/telemetry/dht11`);
+      await fetch('/api/dht11', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ temp_c: t, humidity_pct: 65 })
+      });
+      fetchState();
+    }
+
+    async function triggerIrLearnDemo(devName = 'Điều hòa Casper', act = 'open') {
+      const dome = document.getElementById('svg_ir_rx_dome');
+      if (dome) {
+        dome.setAttribute('fill', '#c084fc');
+        setTimeout(() => dome.setAttribute('fill', '#334155'), 500);
+      }
+      appendSerial(`[GPIO14 / D5] Mắt thu VS1838B đang thu sóng 38kHz cho "${devName}" (${act})...`, 'ir');
+      const r = await fetch('/api/ir_learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_name: devName, command_action: act })
+      });
+      const data = await r.json();
+      if (data.learned) {
+        appendSerial(`[IR LEARNED OK] Đã giải mã giao thức ${data.learned.protocol} (${data.learned.freq_khz}kHz) -> Mã HEX: ${data.learned.hex_code}`, 'ir');
+      }
+      fetchState();
+    }
+
+    // Kết nối WebSocket với Server để tự động nhảy trạng thái khi bạn ra lệnh bên trang Nhà 3D (/) hoặc Mobile App (/app)
+    function connectLiveWs() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${location.host}/ws`);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'state_snapshot' && msg.snapshot) {
+            renderHardwareState(msg.snapshot);
+          } else if (msg.type === 'device_actuated') {
+            appendSerial(`[LIVE SYNC] Thiết bị ${msg.device_id} -> ${msg.new_state}`, 'cmd');
+            fetchState();
+          }
+        } catch (e) {}
+      };
+      ws.onclose = () => setTimeout(connectLiveWs, 2500);
+    }
+
+    fetchState();
+    connectLiveWs();
+    setInterval(fetchState, 2000);
+  </script>
+</body>
+</html>
