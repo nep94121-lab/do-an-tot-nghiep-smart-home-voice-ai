@@ -380,55 +380,81 @@
       <div class="workbench-scroll">
         <div class="circuit-stage" id="circuitStage">
 
-          <!-- 1. VI ĐIỀU KHIỂN WOKWI THẬT (<wokwi-esp32-devkit-v1>) + NHÃN CHÂN NODEMCU ESP8266 -->
-          <div class="comp-tag" style="left: 25px; top: 14px; border-color:#38bdf8; color:#7dd3fc;">
-            Mạch Vi Điều Khiển Wi-Fi (NodeMCU ESP8266 / ESP)
+          <!-- 1. MẠCH NODEMCU ESP8266 (ESP-12E, CP2102) THỰC TẾ GIỐNG HỆT TRÊN BÀN CỦA BẠN (ĐỦ 30 CHÂN CHUẨN THỨ TỰ) -->
+          <div class="comp-tag" style="left: 18px; top: 12px; border-color:#38bdf8; color:#7dd3fc;">
+            Mạch NodeMCU ESP8266 (ESP-12E) — Đúng chiều &amp; đúng thứ tự 15 chân Trái / 15 chân Phải trên bàn bạn
           </div>
-          <div class="hw-comp" id="box_mcu" style="left: 55px; top: 55px;">
-            <wokwi-esp32-devkit-v1 id="w_mcu"></wokwi-esp32-devkit-v1>
+          <div class="hw-comp" id="box_mcu" style="left: 28px; top: 42px;">
+            <svg id="nodemcuSvg" width="210" height="336" viewBox="0 0 210 336">
+              <!-- Bo mạch PCB đen nhám của NodeMCU V2 CP2102 -->
+              <rect x="28" y="8" width="154" height="320" rx="10" fill="#151922" stroke="#475569" stroke-width="2.2"/>
+              <rect x="33" y="13" width="144" height="310" rx="7" fill="#1c2230" stroke="#334155" stroke-width="1"/>
+              <!-- 4 lỗ bắt vít ở 4 góc mạch -->
+              <circle cx="42" cy="22" r="4.5" fill="#0f172a" stroke="#eab308" stroke-width="1.5"/>
+              <circle cx="168" cy="22" r="4.5" fill="#0f172a" stroke="#eab308" stroke-width="1.5"/>
+              <circle cx="42" cy="314" r="4.5" fill="#0f172a" stroke="#eab308" stroke-width="1.5"/>
+              <circle cx="168" cy="314" r="4.5" fill="#0f172a" stroke="#eab308" stroke-width="1.5"/>
+
+              <!-- Cổng cắm cáp Micro-USB ở ĐỈNH TRÊN CÙNG (giống hệt mạch trên bàn của bạn) -->
+              <rect x="83" y="0" width="44" height="18" rx="3" fill="#cbd5e1" stroke="#64748b" stroke-width="1.5"/>
+              <rect x="91" y="4" width="28" height="8" rx="1.5" fill="#475569"/>
+              <text x="105" y="27" font-size="7.5" text-anchor="middle" fill="#94a3b8" font-weight="bold">MICRO USB</text>
+
+              <!-- 2 Nút nhấn RST (trái) và FLASH (phải) ở cạnh cổng USB -->
+              <rect x="55" y="16" width="16" height="11" rx="2" fill="#e2e8f0" stroke="#475569"/>
+              <circle cx="63" cy="21.5" r="3" fill="#1e293b"/>
+              <text x="63" y="35" font-size="7" text-anchor="middle" fill="#cbd5e1" font-weight="bold">RST</text>
+
+              <rect x="139" y="16" width="16" height="11" rx="2" fill="#e2e8f0" stroke="#475569"/>
+              <circle cx="147" cy="21.5" r="3" fill="#1e293b"/>
+              <text x="147" y="35" font-size="7" text-anchor="middle" fill="#cbd5e1" font-weight="bold">FLASH</text>
+
+              <!-- Chip nạp CP2102 vuông & IC nguồn AMS1117-3.3 -->
+              <rect x="93" y="36" width="24" height="24" rx="2" fill="#0f172a" stroke="#475569"/>
+              <text x="105" y="50" font-size="6.5" text-anchor="middle" fill="#94a3b8">CP2102</text>
+              <rect x="90" y="68" width="30" height="15" rx="2" fill="#0f172a" stroke="#475569"/>
+              <text x="105" y="78" font-size="6" text-anchor="middle" fill="#94a3b8">AMS1117</text>
+
+              <!-- Module Wi-Fi ESP-12E (Nắp kim loại bạc + Anten chữ Z ở đáy dưới cùng) -->
+              <rect x="64" y="162" width="82" height="102" rx="4" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+              <rect x="68" y="166" width="74" height="68" rx="3" fill="#cbd5e1" stroke="#64748b"/>
+              <text x="105" y="184" font-size="10" text-anchor="middle" fill="#0f172a" font-weight="900">ESP8266MOD</text>
+              <text x="105" y="197" font-size="8" text-anchor="middle" fill="#1e293b" font-weight="bold">NodeMCU ESP-12E</text>
+              <text x="105" y="210" font-size="7.5" text-anchor="middle" fill="#0284c7" font-weight="bold">Wi-Fi 2.4GHz</text>
+              <text x="105" y="224" font-size="7" text-anchor="middle" fill="#334155">AI-Thinker V2</text>
+              <!-- Đèn LED xanh dương trên module ESP-12E -->
+              <circle cx="136" cy="172" r="3" fill="#38bdf8"/>
+              <!-- Đường mạch Anten Wi-Fi hình chữ Z màu vàng đồng ở đáy -->
+              <path d="M 72 258 L 72 240 L 82 240 L 82 256 L 92 256 L 92 240 L 102 240 L 102 256 L 112 256 L 112 240 L 122 240 L 122 256 L 136 256" fill="none" stroke="#eab308" stroke-width="2.2"/>
+
+              <!-- 2 HÀNG CHÂN MẠ VÀNG (15 CHÂN TRÁI & 15 CHÂN PHẢI) ĐƯỢC VẼ TỰ ĐỘNG BẰNG JS ĐỂ KHỚP 100% TỌA ĐỘ DÂY -->
+              <g id="nodemcuPinsGroup"></g>
+            </svg>
           </div>
-
-          <!-- Nhãn đối chiếu chân NodeMCU ESP8266 nằm khớp chính xác theo tọa độ y của pinInfo (55 + y) -->
-          <!-- Hàng chân Trái (x=5): D34(y=53)->A0, D14(y=120)->D5, D12(y=130)->D6, D13(y=139.5)->D7, GND.2(y=149), VIN(y=158.5) -->
-          <div class="pin-callout" style="left: 2px; top: 100px; color:#facc15;">A0 (ADC)</div>
-          <div class="pin-callout" style="left: 2px; top: 166px; color:#c084fc;">D5 (GPIO14)</div>
-          <div class="pin-callout" style="left: 2px; top: 185px; color:#67e8f9;">D6 (GPIO12)</div>
-          <div class="pin-callout" style="left: 2px; top: 204px; color:#fef08a;">D7 (GPIO13)</div>
-          <div class="pin-callout" style="left: 2px; top: 223px; color:#ef4444;">VIN (5V)</div>
-
-          <!-- Hàng chân Phải (x=101.3): D5(y=91.3)->D1, D4(y=120)->D2, D2(y=130.4)->D3, D15(y=139.5)->D8, GND.1(y=149), 3V3(y=158.5) -->
-          <div class="pin-callout" style="left: 170px; top: 138px; color:#fde047;">D1 (GPIO5)</div>
-          <div class="pin-callout" style="left: 170px; top: 166px; color:#86efac;">D2 (GPIO4)</div>
-          <div class="pin-callout" style="left: 170px; top: 185px; color:#38bdf8;">D3 (GPIO0)</div>
-          <div class="pin-callout" style="left: 170px; top: 204px; color:#fda4af;">D8 (GPIO15)</div>
-          <div class="pin-callout" style="left: 170px; top: 223px; color:#cbd5e1;">GND / 3V3</div>
 
           <!-- 2. BẢNG CẮM MẠCH BREADBOARD 400 LỖ THỰC TẾ (CÓ ĐỦ 400 LỖ CẮM A1..J30 & 2 RÃNH NGUỒN) -->
-          <div class="comp-tag" style="left: 390px; top: 14px; border-color:#cbd5e1;">
-            Bảng cắm Breadboard 400 lỗ (Trên bàn của bạn) — Cột 1 → 30, Hàng a–e &amp; f–j
+          <div class="comp-tag" style="left: 390px; top: 12px; border-color:#cbd5e1;">
+            Bảng cắm Breadboard 400 lỗ (Trên bàn của bạn) — Cột 1 → 30, Hàng a–e (trên) &amp; f–j (dưới)
           </div>
           <div class="hw-comp" id="box_breadboard" style="left: 295px; top: 45px;">
             <svg id="bbSvg" width="490" height="310" viewBox="0 0 490 310"></svg>
           </div>
 
-          <!-- 3. CÁC LINH KIỆN WOKWI THẬT CẮM TRỰC TIẾP LÊN LỖ BREADBOARD -->
+          <!-- 3. CÁC LINH KIỆN WOKWI THẬT CẮM TRỰC TIẾP LÊN LỖ BREADBOARD (TÁCH RÕ NỬA TRÊN & NỬA DƯỚI KHÔNG ĐÈ NHAU) -->
 
-          <!-- 3.1. Đèn Phòng Khách: Điện trở 220Ω (cắm lỗ d4 -> d8) + LED Đỏ 5mm (chân cắm đúng lỗ c8, c9) -->
-          <div class="comp-tag" style="left: 325px; top: 362px; font-size:10px;">Đèn Khách (D2): LED Đỏ + 220Ω</div>
-          <div class="hw-comp" id="box_r_liv" style="left: 376px; top: 154px; pointer-events:none;">
+          <!-- 3.1. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Khách LED Đỏ + Điện trở 220Ω (Cột 4 → 9) -->
+          <div class="hw-comp" id="box_r_liv" style="left: 376px; top: 140px; pointer-events:none;">
             <wokwi-resistor id="w_r_liv" value="220"></wokwi-resistor>
           </div>
-          <div class="hw-comp" id="box_led_liv" style="left: 416px; top: 103px; cursor:pointer;" onclick="toggleDevice('living_room_light')" title="Bấm để Bật/Tắt Đèn Phòng Khách (D2)">
+          <div class="hw-comp" id="box_led_liv" style="left: 416px; top: 75px; cursor:pointer;" onclick="toggleDevice('living_room_light')" title="Bấm để Bật/Tắt Đèn Phòng Khách (D2)">
             <wokwi-led id="w_led_living" color="red" flip="true"></wokwi-led>
           </div>
 
-          <!-- 3.2. Mạch Phát Hồng Ngoại 38kHz (D2): Điện trở 1kΩ + Transistor đen TO-92 + LED Hồng ngoại 940nm -->
-          <div class="comp-tag" style="left: 465px; top: 362px; font-size:10px;">Phát IR 38kHz (D2): 1kΩ + S8050 + IR LED</div>
-          <div class="hw-comp" id="box_r_ir" style="left: 492px; top: 154px; pointer-events:none;">
+          <!-- 3.2. NỬA TRÊN BREADBOARD (Hàng a..e): Phát IR 38kHz (D2): Điện trở 1kΩ + Transistor TO-92 + IR LED (Cột 12 → 18) -->
+          <div class="hw-comp" id="box_r_ir" style="left: 492px; top: 140px; pointer-events:none;">
             <wokwi-resistor id="w_r_ir" value="1000"></wokwi-resistor>
           </div>
-          <!-- Transistor đen TO-92 3 chân cắm vào lỗ c16, c17, c18 -->
-          <div class="hw-comp" style="left: 536px; top: 99px; cursor:pointer;" onclick="toggleDevice('ac')" title="Transistor S8050 khuếch đại dòng phát IR 38kHz">
+          <div class="hw-comp" style="left: 536px; top: 85px; cursor:pointer;" onclick="toggleDevice('ac')" title="Transistor S8050 khuếch đại dòng phát IR 38kHz">
             <svg width="36" height="48" viewBox="0 0 36 48">
               <path d="M4,18 C4,4 32,4 32,18 L32,28 L4,28 Z" fill="#111827" stroke="#475569" stroke-width="1.5"/>
               <text x="18" y="21" font-size="7.5" text-anchor="middle" fill="#f8fafc" font-weight="bold">S8050</text>
@@ -437,33 +463,35 @@
               <line x1="31" y1="28" x2="31" y2="46" stroke="#94a3b8" stroke-width="2.2"/>
             </svg>
           </div>
-          <div class="hw-comp" id="box_led_ir" style="left: 560px; top: 89px; cursor:pointer;" onclick="toggleDevice('ac')" title="Bóng LED phát Hồng ngoại 940nm điều khiển Điều hòa/Quạt">
+          <div class="hw-comp" id="box_led_ir" style="left: 560px; top: 75px; cursor:pointer;" onclick="toggleDevice('ac')" title="Bóng LED phát Hồng ngoại 940nm điều khiển Điều hòa/Quạt">
             <wokwi-led id="w_led_ir" color="purple" flip="true"></wokwi-led>
           </div>
 
-          <!-- 3.3. Đèn Phòng Ngủ (D7): Điện trở 220Ω + LED Vàng 5mm (cắm cột 22-26) -->
-          <div class="comp-tag" style="left: 632px; top: 362px; font-size:10px;">Đèn Ngủ (D7): LED Vàng + 220Ω</div>
-          <div class="hw-comp" id="box_r_bed" style="left: 637px; top: 154px; pointer-events:none;">
+          <!-- 3.3. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Phòng Ngủ (D7): Điện trở 220Ω + LED Vàng 5mm (Cột 22 → 26) -->
+          <div class="hw-comp" id="box_r_bed" style="left: 637px; top: 140px; pointer-events:none;">
             <wokwi-resistor id="w_r_bed" value="220"></wokwi-resistor>
           </div>
-          <div class="hw-comp" id="box_led_bed" style="left: 677px; top: 103px; cursor:pointer;" onclick="toggleDevice('bedroom_light')" title="Bấm để Bật/Tắt Đèn Phòng Ngủ (D7)">
+          <div class="hw-comp" id="box_led_bed" style="left: 677px; top: 75px; cursor:pointer;" onclick="toggleDevice('bedroom_light')" title="Bấm để Bật/Tắt Đèn Phòng Ngủ (D7)">
             <wokwi-led id="w_led_bedroom" color="yellow" flip="true"></wokwi-led>
           </div>
 
-          <!-- 3.4. Mắt thu Hồng ngoại VS1838B thật (<wokwi-ir-receiver>) cắm chân vào hàng g (cột 6, 7, 8) -->
-          <div class="hw-comp" id="box_ir_rx" style="left: 384px; top: 152px; cursor:pointer;" onclick="triggerIrLearnDemo('Điều hòa Casper', 'open')" title="Mắt thu hồng ngoại VS1838B 38kHz (Chân D5)">
+          <!-- 3.4. NỬA DƯỚI BREADBOARD (Hàng f..j): Mắt thu VS1838B (<wokwi-ir-receiver>) cắm vào hàng j (Cột 6, 7, 8) -->
+          <div class="hw-comp" id="box_ir_rx" style="left: 382px; top: 215px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="triggerIrLearnDemo('Điều hòa Casper', 'open')" title="Mắt thu hồng ngoại VS1838B 38kHz (Chân D5)">
             <wokwi-ir-receiver id="w_ir_rx"></wokwi-ir-receiver>
           </div>
+          <div class="comp-tag" style="left: 350px; top: 360px; font-size:10px; border-color:#c084fc;">Mắt thu VS1838B (Chân D5)</div>
 
-          <!-- 3.5. Cảm biến Nhiệt độ & Độ ẩm thật (<wokwi-dht22>) cắm chân vào hàng g (cột 15, 16, 17, 18) -->
-          <div class="hw-comp" id="box_dht" style="left: 521px; top: 124px; cursor:pointer;" onclick="filterStep('d6_dht11')" title="Cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D6)">
+          <!-- 3.5. NỬA DƯỚI BREADBOARD (Hàng f..j): Cảm biến DHT11 (<wokwi-dht22>) cắm vào hàng j (Cột 15 → 18) -->
+          <div class="hw-comp" id="box_dht" style="left: 518px; top: 202px; transform: scale(0.66); transform-origin: top left; cursor:pointer;" onclick="filterStep('d6_dht11')" title="Cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D6)">
             <wokwi-dht22 id="w_dht" temperature="28.5" humidity="65"></wokwi-dht22>
           </div>
+          <div class="comp-tag" style="left: 500px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D6)</div>
 
-          <!-- 3.6. Còi báo động Buzzer 5V thật (<wokwi-buzzer>) cắm chân vào hàng g (cột 24, 25) -->
-          <div class="hw-comp" id="box_buzzer" style="left: 639px; top: 155px; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8)">
+          <!-- 3.6. NỬA DƯỚI BREADBOARD (Hàng f..j): Còi báo động Buzzer 5V (<wokwi-buzzer>) cắm vào hàng j (Cột 24, 25) -->
+          <div class="hw-comp" id="box_buzzer" style="left: 642px; top: 216px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8)">
             <wokwi-buzzer id="w_buzzer"></wokwi-buzzer>
           </div>
+          <div class="comp-tag" style="left: 632px; top: 360px; font-size:10px; border-color:#f43f5e;">Còi Buzzer 5V (Chân D8)</div>
 
           <!-- 4. CÁC THIẾT BỊ NGOẠI VI BÊN PHẢI & PHÍA DƯỚI (ĐÚNG NHƯ TRÊN BÀN CỦA BẠN) -->
 
@@ -775,11 +803,90 @@
     }
 
     function showHole(id, desc) {
-      document.getElementById('hoverHoleInfo').textContent = `📍 Đang trỏ vào lỗ cắm Breadboard: [${id.toUpperCase()}] — ${desc}`;
+      document.getElementById('hoverHoleInfo').textContent = `📍 Đang trỏ vào: [${id.toUpperCase()}] — ${desc}`;
     }
 
     // =========================================================================
-    // 2. VẼ HỆ THỐNG DÂY JUMPER WOKWI TỌA ĐỘ CHÍNH XÁC (ĐỌC TRỰC TIẾP TỪ .pinInfo CỦA @WOKWI/ELEMENTS)
+    // 1.5. VẼ 30 CHÂN MẠ VÀNG CỦA MẠCH NODEMCU ESP8266 (15 TRÁI + 15 PHẢI ĐÚNG THỨ TỰ THỰC TẾ)
+    // =========================================================================
+    const NODEMCU_ORIGIN = { x: 28, y: 42 };
+    const NODEMCU_PIN_MAP = {};
+
+    function buildNodeMCUPins() {
+      const g = document.getElementById('nodemcuPinsGroup');
+      if (!g) return;
+
+      // Thứ tự 15 chân bên TRÁI từ trên xuống dưới (nhìn mặt trên NodeMCU cổng USB hướng lên):
+      const leftPins = [
+        { key: 'A0',    label: 'A0',  active: '#facc15', desc: 'Chân số 1 Trái: A0 (ADC0) — Cảm biến Độ ẩm Đất YL-69' },
+        { key: 'RSV1',  label: 'RSV', active: null,      desc: 'Chân số 2 Trái: RSV (Không dùng)' },
+        { key: 'RSV2',  label: 'RSV', active: null,      desc: 'Chân số 3 Trái: RSV (Không dùng)' },
+        { key: 'SD3',   label: 'SD3', active: null,      desc: 'Chân số 4 Trái: SD3' },
+        { key: 'SD2',   label: 'SD2', active: null,      desc: 'Chân số 5 Trái: SD2' },
+        { key: 'SD1',   label: 'SD1', active: null,      desc: 'Chân số 6 Trái: SD1' },
+        { key: 'CMD',   label: 'CMD', active: null,      desc: 'Chân số 7 Trái: CMD' },
+        { key: 'SD0',   label: 'SD0', active: null,      desc: 'Chân số 8 Trái: SD0' },
+        { key: 'CLK',   label: 'CLK', active: null,      desc: 'Chân số 9 Trái: CLK' },
+        { key: 'GND_L1',label: 'GND', active: null,      desc: 'Chân số 10 Trái: GND' },
+        { key: 'V33_L', label: '3V3', active: null,      desc: 'Chân số 11 Trái: 3V3' },
+        { key: 'EN',    label: 'EN',  active: null,      desc: 'Chân số 12 Trái: EN' },
+        { key: 'RST',   label: 'RST', active: null,      desc: 'Chân số 13 Trái: RST' },
+        { key: 'GND_L2',label: 'GND', active: '#94a3b8', desc: 'Chân số 14 Trái: GND (Mass)' },
+        { key: 'VIN',   label: 'VIN', active: '#ef4444', desc: 'Chân số 15 Cuối Trái: VIN (+5V cấp xuống Rãnh Dưới Breadboard)' }
+      ];
+
+      // Thứ tự 15 chân bên PHẢI từ trên xuống dưới (D0 -> D8, RX, TX, GND, 3V3):
+      const rightPins = [
+        { key: 'D0',    label: 'D0',  active: null,      desc: 'Chân số 1 Phải: D0 (GPIO16)' },
+        { key: 'D1',    label: 'D1',  active: '#facc15', desc: 'Chân số 2 Phải: D1 (GPIO5) — Cửa chính Servo SG90' },
+        { key: 'D2',    label: 'D2',  active: '#22c55e', desc: 'Chân số 3 Phải: D2 (GPIO4) — Đèn Khách LED Đỏ + Phát IR 38kHz' },
+        { key: 'D3',    label: 'D3',  active: '#38bdf8', desc: 'Chân số 4 Phải: D3 (GPIO0) — Relay Đỏ + Máy Bơm Nước Mini' },
+        { key: 'D4',    label: 'D4',  active: null,      desc: 'Chân số 5 Phải: D4 (GPIO2)' },
+        { key: 'V33',   label: '3V3', active: '#fb923c', desc: 'Chân số 6 Phải: 3V3 — Cấp nguồn +3.3V sang Rãnh Trên Breadboard' },
+        { key: 'GND_R', label: 'GND', active: '#94a3b8', desc: 'Chân số 7 Phải: GND — Cấp Mass chung sang Breadboard' },
+        { key: 'D5',    label: 'D5',  active: '#c084fc', desc: 'Chân số 8 Phải: D5 (GPIO14) — Mắt thu hồng ngoại VS1838B' },
+        { key: 'D6',    label: 'D6',  active: '#06b6d4', desc: 'Chân số 9 Phải: D6 (GPIO12) — Cảm biến Nhiệt độ & Độ ẩm DHT11' },
+        { key: 'D7',    label: 'D7',  active: '#fde047', desc: 'Chân số 10 Phải: D7 (GPIO13) — Đèn Phòng Ngủ LED Vàng' },
+        { key: 'D8',    label: 'D8',  active: '#f43f5e', desc: 'Chân số 11 Phải: D8 (GPIO15) — Còi báo động Buzzer 5V' },
+        { key: 'RX',    label: 'RX',  active: null,      desc: 'Chân số 12 Phải: RX' },
+        { key: 'TX',    label: 'TX',  active: null,      desc: 'Chân số 13 Phải: TX' },
+        { key: 'GND_R2',label: 'GND', active: null,      desc: 'Chân số 14 Phải: GND' },
+        { key: 'V33_R2',label: '3V3', active: null,      desc: 'Chân số 15 Phải: 3V3' }
+      ];
+
+      let html = '';
+      for (let i = 0; i < 15; i++) {
+        const y = 44 + i * 18.2;
+
+        // Chân Trái (localX = 36)
+        const pL = leftPins[i];
+        NODEMCU_PIN_MAP[pL.key] = { x: NODEMCU_ORIGIN.x + 36, y: NODEMCU_ORIGIN.y + y };
+        const fillL = pL.active || '#eab308';
+        const txtFillL = pL.active || '#94a3b8';
+        html += `<g style="cursor:pointer" onmouseenter="showHole('ESP8266:${pL.label}', '${pL.desc}')">
+          <rect x="31" y="${y - 4}" width="10" height="8" rx="1.5" fill="#0f172a" stroke="#475569" stroke-width="0.8"/>
+          <circle cx="36" cy="${y}" r="${pL.active ? 3.6 : 2.5}" fill="${fillL}"/>
+          <text x="45" y="${y + 3.2}" font-family="Consolas,monospace" font-size="${pL.active ? 9.5 : 8}" font-weight="${pL.active ? '900' : '600'}" fill="${txtFillL}">${pL.label}</text>
+          ${pL.active ? `<rect x="0" y="${y - 6.5}" width="26" height="13" rx="3" fill="#0f172a" stroke="${pL.active}" stroke-width="1"/><text x="13" y="${y + 3}" font-family="Consolas,monospace" font-size="8.5" text-anchor="middle" font-weight="bold" fill="${pL.active}">${pL.label}</text>` : ''}
+        </g>`;
+
+        // Chân Phải (localX = 174)
+        const pR = rightPins[i];
+        NODEMCU_PIN_MAP[pR.key] = { x: NODEMCU_ORIGIN.x + 174, y: NODEMCU_ORIGIN.y + y };
+        const fillR = pR.active || '#eab308';
+        const txtFillR = pR.active || '#94a3b8';
+        html += `<g style="cursor:pointer" onmouseenter="showHole('ESP8266:${pR.label}', '${pR.desc}')">
+          <rect x="169" y="${y - 4}" width="10" height="8" rx="1.5" fill="#0f172a" stroke="#475569" stroke-width="0.8"/>
+          <circle cx="174" cy="${y}" r="${pR.active ? 3.6 : 2.5}" fill="${fillR}"/>
+          <text x="165" y="${y + 3.2}" font-family="Consolas,monospace" font-size="${pR.active ? 9.5 : 8}" text-anchor="end" font-weight="${pR.active ? '900' : '600'}" fill="${txtFillR}">${pR.label}</text>
+          ${pR.active ? `<rect x="184" y="${y - 6.5}" width="26" height="13" rx="3" fill="#0f172a" stroke="${pR.active}" stroke-width="1"/><text x="197" y="${y + 3}" font-family="Consolas,monospace" font-size="8.5" text-anchor="middle" font-weight="bold" fill="${pR.active}">${pR.label}</text>` : ''}
+        </g>`;
+      }
+      g.innerHTML = html;
+    }
+
+    // =========================================================================
+    // 2. VẼ HỆ THỐNG DÂY JUMPER WOKWI TỌA ĐỘ CHÍNH XÁC (TỪ CHÂN THẬT NODEMCU ESP8266 -> LỖ BREADBOARD)
     // =========================================================================
     function getElementPinXY(elId, pinName, fallbackX, fallbackY) {
       const el = document.getElementById(elId);
@@ -798,22 +905,7 @@
     function drawWires() {
       const svg = document.getElementById('wireLayer');
       const H = (holeId) => HOLE_MAP[holeId] || { x: 300, y: 100 };
-
-      // Lấy tọa độ chính xác 0.1px của từng chân vàng trên <wokwi-esp32-devkit-v1 id="w_mcu">
-      const MCU_PINS = {
-        A0:    getElementPinXY('w_mcu', 'D34',   60, 108.1),
-        D5:    getElementPinXY('w_mcu', 'D14',   60, 175.0),
-        D6:    getElementPinXY('w_mcu', 'D12',   60, 185.4),
-        D7:    getElementPinXY('w_mcu', 'D13',   60, 194.5),
-        GND_L: getElementPinXY('w_mcu', 'GND.2', 60, 204.0),
-        VIN:   getElementPinXY('w_mcu', 'VIN',   60, 213.5),
-        D1:    getElementPinXY('w_mcu', 'D5',    156.3, 146.3),
-        D2:    getElementPinXY('w_mcu', 'D4',    156.3, 175.0),
-        D3:    getElementPinXY('w_mcu', 'D2',    156.3, 185.4),
-        D8:    getElementPinXY('w_mcu', 'D15',   156.3, 194.5),
-        GND_R: getElementPinXY('w_mcu', 'GND.1', 156.3, 204.0),
-        V33:   getElementPinXY('w_mcu', '3V3',   156.3, 213.5)
-      };
+      const P = (pinKey) => NODEMCU_PIN_MAP[pinKey] || { x: 200, y: 100 };
 
       const SERVO_PINS = {
         GND: getElementPinXY('w_servo', 'GND', 880, 92.0),
@@ -821,7 +913,6 @@
         PWM: getElementPinXY('w_servo', 'PWM', 880, 111.0)
       };
 
-      // Hàm tạo đường dây vuông góc gọn gàng kèm 2 đầu cắm nhựa đen DuPont ở 2 đầu mút
       function wirePath(points, color, dashed = false) {
         const d = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
         const p0 = points[0];
@@ -838,80 +929,67 @@
       const groups = {
         // BƯỚC 0: CẤP NGUỒN 3.3V (Rãnh trên), 5V (Rãnh dưới) & GND CHUNG
         power: [
-          // 3V3 -> lỗ tp1 (Rãnh Dương Trên +3.3V)
-          wirePath([MCU_PINS.V33, { x: 242, y: MCU_PINS.V33.y }, { x: 242, y: H('tp1').y }, H('tp1')], '#fb923c'),
-          // VIN (5V) -> lỗ bp1 (Rãnh Dương Dưới +5V)
-          wirePath([MCU_PINS.VIN, { x: 34, y: MCU_PINS.VIN.y }, { x: 34, y: H('bp1').y }, H('bp1')], '#ef4444'),
-          // GND_R -> lỗ bn1 (Rãnh Âm Dưới GND) & nối thông lên lỗ tn25 (Rãnh Âm Trên GND)
-          wirePath([MCU_PINS.GND_R, { x: 252, y: MCU_PINS.GND_R.y }, { x: 252, y: H('bn1').y }, H('bn1')], '#64748b'),
-          wirePath([H('bn25'), { x: 775, y: H('bn25').y }, { x: 775, y: H('tn25').y }, H('tn25')], '#64748b')
+          // Chân 3V3 (Chân số 6 bên phải NodeMCU) -> lỗ tp1 (Rãnh Dương Trên +3.3V)
+          wirePath([P('V33'), { x: 246, y: P('V33').y }, { x: 246, y: H('tp1').y }, H('tp1')], '#fb923c'),
+          // Chân VIN (Chân số 15 cuối bên trái NodeMCU) -> lỗ bp1 (Rãnh Dương Dưới +5V)
+          wirePath([P('VIN'), { x: 18, y: P('VIN').y }, { x: 18, y: 390 }, { x: H('bp1').x, y: 390 }, H('bp1')], '#ef4444'),
+          // Chân GND (Chân số 7 bên phải NodeMCU) -> lỗ tn1 (Rãnh Âm Trên GND) & nối thông xuống bn25
+          wirePath([P('GND_R'), { x: 254, y: P('GND_R').y }, { x: 254, y: H('tn1').y }, H('tn1')], '#64748b'),
+          wirePath([H('tn25'), { x: 775, y: H('tn25').y }, { x: 775, y: H('bn25').y }, H('bn25')], '#64748b')
         ],
 
-        // BƯỚC 1: CỬA CHÍNH SERVO SG90 (CHÂN D1)
+        // BƯỚC 1: CỬA CHÍNH SERVO SG90 (Chân D1 — Chân số 2 bên phải NodeMCU)
         d1_servo: [
-          // D1 -> Đi lên rãnh trên cùng -> Chân PWM (Cam) của Servo SG90
-          wirePath([MCU_PINS.D1, { x: 232, y: MCU_PINS.D1.y }, { x: 232, y: 34 }, { x: 845, y: 34 }, { x: 845, y: SERVO_PINS.PWM.y }, SERVO_PINS.PWM], '#facc15'),
-          // Rãnh +5V Dưới (bp24) -> Chân V+ (Đỏ) của Servo SG90
+          wirePath([P('D1'), { x: 238, y: P('D1').y }, { x: 238, y: 34 }, { x: 845, y: 34 }, { x: 845, y: SERVO_PINS.PWM.y }, SERVO_PINS.PWM], '#facc15'),
           wirePath([H('bp24'), { x: H('bp24').x, y: 348 }, { x: 798, y: 348 }, { x: 798, y: SERVO_PINS.VCC.y }, SERVO_PINS.VCC], '#ef4444'),
-          // Rãnh GND Dưới (bn24) -> Chân GND (Nâu) của Servo SG90
           wirePath([H('bn24'), { x: H('bn24').x, y: 356 }, { x: 808, y: 356 }, { x: 808, y: SERVO_PINS.GND.y }, SERVO_PINS.GND], '#78350f')
         ],
 
-        // BƯỚC 2: ĐÈN PHÒNG KHÁCH LED ĐỎ + PHÁT IR 940NM (CHÂN D2 -> LỖ e4 & e12)
+        // BƯỚC 2: ĐÈN PHÒNG KHÁCH LED ĐỎ + PHÁT IR 940NM (Chân D2 — Chân số 3 bên phải NodeMCU)
         d2_light_ir: [
-          // Chân D2 -> lỗ e4 (đầu vào Điện trở 220Ω của Đèn Khách)
-          wirePath([MCU_PINS.D2, { x: 262, y: MCU_PINS.D2.y }, { x: 262, y: H('e4').y }, H('e4')], '#22c55e'),
-          // Nhánh từ lỗ d4 -> lỗ e12 (đầu vào Điện trở 1kΩ kích Transistor phát Hồng ngoại IR)
-          wirePath([H('d4'), { x: H('d4').x, y: H('b4').y }, { x: H('e12').x, y: H('b4').y }, H('e12')], '#a855f7'),
-          // Chân âm LED Đỏ (a9) -> Rãnh Âm Trên (tn6)
+          wirePath([P('D2'), { x: 262, y: P('D2').y }, { x: 262, y: H('c4').y }, H('c4')], '#22c55e'),
+          wirePath([H('b4'), { x: H('b4').x, y: H('b12').y }, H('c12')], '#a855f7'),
           wirePath([H('a9'), H('tn6')], '#64748b'),
-          // Chân Emitter Transistor (a16) -> Rãnh Âm Trên (tn11)
           wirePath([H('a16'), H('tn11')], '#64748b')
         ],
 
-        // BƯỚC 3: MODULE RELAY ĐỎ + MÁY BƠM NƯỚC MINI + DIODE 1N4007 (CHÂN D3)
+        // BƯỚC 3: MODULE RELAY ĐỎ + MÁY BƠM NƯỚC MINI + DIODE 1N4007 (Chân D3 — Chân số 4 bên phải NodeMCU)
         d3_pump: [
-          // Chân D3 -> đi theo rãnh ngang y=388 -> Chân IN của Relay Đỏ
-          wirePath([MCU_PINS.D3, { x: 270, y: MCU_PINS.D3.y }, { x: 270, y: 388 }, { x: 815, y: 388 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8'),
-          // Rãnh +5V Dưới (bp22) -> Chân DC+ của Relay Đỏ
-          wirePath([H('bp22'), { x: H('bp22').x, y: 398 }, { x: 825, y: 398 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444'),
-          // Rãnh GND Dưới (bn22) -> Chân DC- của Relay Đỏ
-          wirePath([H('bn22'), { x: H('bn22').x, y: 408 }, { x: 832, y: 408 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b')
+          wirePath([P('D3'), { x: 270, y: P('D3').y }, { x: 270, y: 382 }, { x: 815, y: 382 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8'),
+          wirePath([H('bp22'), { x: H('bp22').x, y: 392 }, { x: 825, y: 392 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444'),
+          wirePath([H('bn22'), { x: H('bn22').x, y: 402 }, { x: 832, y: 402 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b')
         ],
 
-        // BƯỚC 4: CẢM BIẾN ĐỘ ẨM ĐẤT YL-69 + MẠCH LM393 (CHÂN A0)
+        // BƯỚC 4: CẢM BIẾN ĐỘ ẨM ĐẤT YL-69 + MẠCH LM393 (Chân A0 — Chân số 1 trên cùng bên trái NodeMCU)
         a0_soil: [
-          // Chân A0 (bên trái ESP8266) -> vòng xuống dưới cùng y=665 -> Chân AO của mạch LM393
-          wirePath([MCU_PINS.A0, { x: 18, y: MCU_PINS.A0.y }, { x: 18, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308'),
-          // Nguồn +3.3V từ Rãnh Trên (tp24) -> Chân VCC của mạch LM393
+          wirePath([P('A0'), { x: 10, y: P('A0').y }, { x: 10, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308'),
           wirePath([H('tp24'), { x: 785, y: H('tp24').y }, { x: 785, y: 595 }, { x: 922, y: 595 }, { x: 922, y: 575 }], '#fb923c'),
-          // GND từ Rãnh Dưới (bn20) -> Chân GND của mạch LM393
           wirePath([H('bn20'), { x: H('bn20').x, y: 645 }, { x: 906, y: 645 }, { x: 906, y: 575 }], '#64748b')
         ],
 
-        // BƯỚC 5: MẮT THU HỒNG NGOẠI VS1838B 38KHZ (CHÂN D5 -> LỖ j6)
+        // BƯỚC 5: MẮT THU HỒNG NGOẠI VS1838B 38KHZ (Chân D5 — Chân số 8 bên phải NodeMCU)
         d5_ir_rx: [
-          wirePath([MCU_PINS.D5, { x: 44, y: MCU_PINS.D5.y }, { x: 44, y: 376 }, { x: H('j6').x, y: 376 }, H('j6')], '#c084fc'),
+          wirePath([P('D5'), { x: 260, y: P('D5').y }, { x: 260, y: H('j6').y }, H('j6')], '#c084fc'),
           wirePath([H('j7'), H('bn5')], '#64748b'),
           wirePath([H('f8'), H('tp6')], '#fb923c')
         ],
 
-        // BƯỚC 6: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (CHÂN D6 -> LỖ j15)
+        // BƯỚC 6: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (Chân D6 — Chân số 9 bên phải NodeMCU)
         d6_dht11: [
-          wirePath([MCU_PINS.D6, { x: 38, y: MCU_PINS.D6.y }, { x: 38, y: 384 }, { x: H('j15').x, y: 384 }, H('j15')], '#06b6d4'),
+          wirePath([P('D6'), { x: 268, y: P('D6').y }, { x: 268, y: H('j15').y }, H('j15')], '#06b6d4'),
           wirePath([H('f14'), H('tp12')], '#fb923c'),
           wirePath([H('j17'), H('bn12')], '#64748b')
         ],
 
-        // BƯỚC 7: ĐÈN PHÒNG NGỦ LED VÀNG + TRỞ 220Ω (CHÂN D7 -> LỖ e22)
+        // BƯỚC 7: ĐÈN PHÒNG NGỦ LED VÀNG + TRỞ 220Ω (Chân D7 — Chân số 10 bên phải NodeMCU)
         d7_bed: [
-          wirePath([MCU_PINS.D7, { x: 26, y: MCU_PINS.D7.y }, { x: 26, y: 26 }, { x: H('e22').x, y: 26 }, H('e22')], '#facc15'),
+          wirePath([P('D7'), { x: 276, y: P('D7').y }, { x: 276, y: H('c22').y }, H('c22')], '#facc15'),
           wirePath([H('a26'), H('tn20')], '#64748b')
         ],
 
-        // BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V (CHÂN D8 -> LỖ j26)
+        // BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V (Chân D8 — Chân số 11 bên phải NodeMCU)
         d8_buzzer: [
-          wirePath([MCU_PINS.D8, { x: 280, y: MCU_PINS.D8.y }, { x: 280, y: H('j26').y }, H('j26')], '#f43f5e'),
+          wirePath([P('D8'), { x: 284, y: P('D8').y }, { x: 284, y: H('j25').y }, H('j25')], '#f43f5e'),
           wirePath([H('j24'), H('bn19')], '#64748b')
         ]
       };
@@ -1181,6 +1259,7 @@
 
     // Lắng nghe sự kiện xoay chiết áp <wokwi-potentiometer id="w_soil_pot">
     window.addEventListener('DOMContentLoaded', () => {
+      buildNodeMCUPins();
       buildBreadboard400();
       drawWires();
       setTimeout(drawWires, 250);
