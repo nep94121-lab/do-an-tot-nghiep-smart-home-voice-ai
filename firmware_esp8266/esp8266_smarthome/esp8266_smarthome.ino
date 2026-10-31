@@ -16,6 +16,8 @@
  */
 
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -27,9 +29,12 @@
 #include <IRutils.h>
 #include <time.h>
 
-// ---------------- CẤU HÌNH MẠNG WI-FI & MQTT BROKER ----------------
+// ---------------- CẤU HÌNH MẠNG WI-FI & SERVER LAPTOP ----------------
+// LƯU Ý KHI NẠP MẠCH THẬT: Chỉ cần điền đúng tên Wi-Fi, mật khẩu Wi-Fi và IP máy Laptop chạy cổng 8088
 const char* WIFI_SSID     = "SmartHome_WiFi";
 const char* WIFI_PASSWORD = "password123";
+const char* SERVER_IP     = "192.168.1.100";  // IP máy Laptop đang chạy Server (cổng 8088)
+const int   SERVER_PORT   = 8088;             // Cổng FastAPI Server trên Laptop
 const char* MQTT_SERVER   = "192.168.1.100";
 const int   MQTT_PORT     = 1883;
 const char* NODE_ID       = "esp8266_node_01";
@@ -47,6 +52,7 @@ const char* NODE_ID       = "esp8266_node_01";
 #define DHTTYPE DHT11
 
 WiFiClient espClient;
+WiFiClient httpWifiClient;
 PubSubClient mqtt(espClient);
 Servo doorServo;
 DHT dht(PIN_DHT_AND_FAN, DHTTYPE);
@@ -56,9 +62,20 @@ decode_results irResults;
 
 bool isIrLearningMode = false;
 bool livingLightState = false;   // Lưu trạng thái Đèn phòng khách để khôi phục sau khi phát xung IR 38kHz trên chân D2
+bool lastAcState = false;
+bool lastFanState = false;
 bool pumpAutoTriggered = false;  // Chống ghi đè lặp lại mỗi 3s khi người dùng bật/tắt Máy bơm bằng giọng nói
 bool wasServerConnected = false; // Theo dõi trạng thái kết nối Server Laptop để tự động khóa Cửa chính khi đứt kết nối
+bool httpServerReachable = false;
 unsigned long lastTelemetryMs = 0;
+unsigned long lastHttpPollMs = 0;
+
+// Phát xung hồng ngoại 38kHz trên chân D2 và khôi phục ngay trạng thái Đèn phòng khách
+void blastIrAndRestoreLight(uint64_t code) {
+  irSend.sendCOOLIX(code, 24);
+  pinMode(PIN_LIVING_LIGHT_IR, OUTPUT);
+  digitalWrite(PIN_LIVING_LIGHT_IR, livingLightState ? HIGH : LOW);
+}
 
 // ----------------------------------------------------------------------------
 // CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE DEFAULT FALLBACK - KHI KHÔNG KẾT NỐI SERVER):
@@ -112,13 +129,6 @@ void processOfflineDefaultCommand(String rawCmd) {
     digitalWrite(PIN_GARDEN_PUMP, stateOn ? HIGH : LOW);
     Serial.println(stateOn ? "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> ON" : "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> OFF");
   }
-}
-
-// Phát xung hồng ngoại 38kHz trên chân D2 và khôi phục ngay trạng thái Đèn phòng khách
-void blastIrAndRestoreLight(uint64_t code) {
-  irSend.sendCOOLIX(code, 24);
-  pinMode(PIN_LIVING_LIGHT_IR, OUTPUT);
-  digitalWrite(PIN_LIVING_LIGHT_IR, livingLightState ? HIGH : LOW);
 }
 
 // ---------------- LƯU BẢN SAO 2 BỂ VÀO FLASH LITTLEFS --------------
@@ -226,15 +236,74 @@ void setup() {
   mqtt.setCallback(onMqttMessage);
 }
 
+// Đồng bộ trực tiếp qua HTTP với Server Laptop (:8088/api/state) để cắm mạch thật chạy ngay không cần cài thêm MQTT Broker rời
+void pollLaptopHttpState() {
+  if (WiFi.status() != WL_CONNECTED) {
+    httpServerReachable = false;
+    return;
+  }
+  HTTPClient http;
+  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/state";
+  http.setTimeout(600);
+  if (http.begin(httpWifiClient, url)) {
+    int code = http.GET();
+    if (code == 200) {
+      String payload = http.getString();
+      DynamicJsonDocument doc(4096);
+      if (!deserializeJson(doc, payload)) {
+        bool srvMode = doc["server_connected"] | true;
+        httpServerReachable = srvMode;
+        if (srvMode) {
+          JsonArray devs = doc["devices"].as<JsonArray>();
+          for (JsonObject d : devs) {
+            String id = d["id"] | "";
+            String st = d["state"] | "OFF";
+            bool on = (st == "OPEN" || st == "ON");
+            if (id == "main_door") {
+              doorServo.write(on ? 90 : 0);
+            } else if (id == "living_room_light") {
+              livingLightState = on;
+              digitalWrite(PIN_LIVING_LIGHT_IR, on ? HIGH : LOW);
+            } else if (id == "bedroom_light") {
+              digitalWrite(PIN_BEDROOM_LIGHT, on ? HIGH : LOW);
+            } else if (id == "alarm_siren") {
+              digitalWrite(PIN_ALARM_SIREN, on ? HIGH : LOW);
+            } else if (id == "garden_pump") {
+              digitalWrite(PIN_GARDEN_PUMP, on ? HIGH : LOW);
+            } else if (id == "ac" && on != lastAcState) {
+              lastAcState = on;
+              blastIrAndRestoreLight(on ? 0xB2BF40 : 0xB27BE0);
+            } else if (id == "fan" && on != lastFanState) {
+              lastFanState = on;
+              blastIrAndRestoreLight(on ? 0xB2BF40 : 0xB27BE0);
+            }
+          }
+        }
+      }
+    } else {
+      httpServerReachable = false;
+    }
+    http.end();
+  } else {
+    httpServerReachable = false;
+  }
+}
+
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!mqtt.connected()) {
       reconnectMqtt();
     }
     mqtt.loop();
+    if (millis() - lastHttpPollMs >= 450) {
+      lastHttpPollMs = millis();
+      pollLaptopHttpState();
+    }
+  } else {
+    httpServerReachable = false;
   }
 
-  bool isOnlineNow = (WiFi.status() == WL_CONNECTED && mqtt.connected());
+  bool isOnlineNow = (WiFi.status() == WL_CONNECTED && (mqtt.connected() || httpServerReachable));
   if (wasServerConnected && !isOnlineNow) {
     // Vừa mất kết nối với Server Laptop -> Tự động đóng khóa Cửa chính (Fail-Safe Lockout)
     doorServo.write(0);
@@ -268,7 +337,7 @@ void loop() {
     lastTelemetryMs = now;
     float h = dht.readHumidity();
     float t = dht.readTemperature();
-    if (!isnan(h) && !isnan(t) && mqtt.connected()) {
+    if (!isnan(h) && !isnan(t)) {
       StaticJsonDocument<256> teleDoc;
       teleDoc["node_id"] = NODE_ID;
       teleDoc["temp_c"] = t;
@@ -276,7 +345,16 @@ void loop() {
       teleDoc["wifi_rssi_dbm"] = WiFi.RSSI();
       String out;
       serializeJson(teleDoc, out);
-      mqtt.publish("smarthome/telemetry/dht11", out.c_str(), false);
+      if (mqtt.connected()) {
+        mqtt.publish("smarthome/telemetry/dht11", out.c_str(), false);
+      } else if (httpServerReachable) {
+        HTTPClient http;
+        if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/dht11")) {
+          http.addHeader("Content-Type", "application/json");
+          http.POST(out);
+          http.end();
+        }
+      }
     }
 
     // Đọc cảm biến Độ ẩm Đất YL-69 + LM393 (Chân A0) & Tự động bật Máy bơm tưới cây (Chân D3)
@@ -290,14 +368,21 @@ void loop() {
       pumpAutoTriggered = false;
       digitalWrite(PIN_GARDEN_PUMP, LOW);  // Đất đã tưới đủ ẩm >= 70% -> Tự tắt máy bơm
     }
+    StaticJsonDocument<256> soilDoc;
+    soilDoc["node_id"] = NODE_ID;
+    soilDoc["soil_moisture_pct"] = soilPct;
+    soilDoc["adc_raw"] = adcSoil;
+    String soilOut;
+    serializeJson(soilDoc, soilOut);
     if (mqtt.connected()) {
-      StaticJsonDocument<256> soilDoc;
-      soilDoc["node_id"] = NODE_ID;
-      soilDoc["soil_moisture_pct"] = soilPct;
-      soilDoc["adc_raw"] = adcSoil;
-      String soilOut;
-      serializeJson(soilDoc, soilOut);
       mqtt.publish("smarthome/telemetry/soil_moisture", soilOut.c_str(), false);
+    } else if (httpServerReachable) {
+      HTTPClient http;
+      if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/soil_moisture")) {
+        http.addHeader("Content-Type", "application/json");
+        http.POST(soilOut);
+        http.end();
+      }
     }
   }
 }
