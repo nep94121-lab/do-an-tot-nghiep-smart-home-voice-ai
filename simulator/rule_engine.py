@@ -500,6 +500,7 @@ class SmartHomeEngine:
         self.pending_reset_scope: str = "all"
         self.pending_rule: dict[str, Any] | None = None
         self.pending_voice_enrollment: dict[str, Any] | None = None
+        self.server_connected: bool = True
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
 
     @property
@@ -1164,6 +1165,8 @@ class SmartHomeEngine:
         t1_pool = self._get_user_pool("tuan_anh")
         return {
             "vn_time_now": format_vn_time_ampm(),
+            "server_connected": self.server_connected,
+            "offline_locked_devices": ["main_door", "alarm_siren"],
             "current_user_id": self._current_user_id,
             "current_user_name": self.get_current_user_name(),
             "current_tier": self.current_tier,
@@ -1221,7 +1224,7 @@ class SmartHomeEngine:
             "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm nước", "tưới cây", "garden_pump"),
         }.get(dev_id, (dname_low, dev_id))
 
-        cur_hour = now_vn().hour
+        cur_hour = get_vn_now().hour
         for raw_dir in directives:
             d_low = str(raw_dir).lower()
             if not any(kw in d_low for kw in dev_keywords):
@@ -1702,7 +1705,46 @@ class SmartHomeEngine:
                 results.append({"ok": False, "device_id": dev_id, "error": f"Thiết bị '{dev_id}' không tồn tại."})
                 continue
             dev = self.devices[dev_id]
-            if not bypass_rbac:
+
+            # -----------------------------------------------------------------
+            # CHẾ ĐỘ OFFLINE (MẠCH KHÔNG KẾT NỐI SERVER LAPTOP):
+            # - Khóa cứng Cửa chính (không cho mở) và Còi báo động (không cho tắt/can thiệp)
+            # - Chỉ cho phép bật/tắt mặc định 5 thiết bị sinh hoạt (Đèn khách, Đèn ngủ, Điều hòa, Quạt, Máy bơm)
+            # - Vô hiệu hóa chuỗi luật custom (trigger_chains = False)
+            # -----------------------------------------------------------------
+            if not self.server_connected:
+                if dev_id == "main_door" and act in ("open", "turn_on"):
+                    lock_reason = (
+                        "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> "
+                        "Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!"
+                    )
+                    await self.emit({
+                        "type": "rbac_blocked",
+                        "device_id": dev_id,
+                        "device_name": dev["name"],
+                        "action": act,
+                        "role": "OFFLINE_DEFAULT",
+                        "reason": lock_reason,
+                    })
+                    results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
+                    continue
+                if dev_id == "alarm_siren":
+                    lock_reason = (
+                        "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực -> "
+                        "Còi báo động bị khóa bảo vệ, chỉ cho phép điều khiển Đèn, Điều hòa, Quạt, Máy bơm!"
+                    )
+                    await self.emit({
+                        "type": "rbac_blocked",
+                        "device_id": dev_id,
+                        "device_name": dev["name"],
+                        "action": act,
+                        "role": "OFFLINE_DEFAULT",
+                        "reason": lock_reason,
+                    })
+                    results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
+                    continue
+
+            if not bypass_rbac and self.server_connected:
                 allowed, reason = self.check_device_permission(dev_id)
                 if not allowed:
                     await self.emit({
@@ -1771,8 +1813,8 @@ class SmartHomeEngine:
                 "already_in_state": False,
             })
 
-            # Kiểm tra các luật quan hệ IF theo trạng thái thiết bị (Ưu tiên Tầng 1 trước, sau đó Bể riêng Tầng 2)
-            if trigger_chains:
+            # Kiểm tra các luật quan hệ IF theo trạng thái thiết bị (CHỈ chạy khi đang kết nối Server Online)
+            if trigger_chains and self.server_connected:
                 triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                 results.extend(triggered_fx)
 
@@ -2421,7 +2463,187 @@ class SmartHomeEngine:
             "message": f"Đã lưu vào Bể lệnh của {self.get_current_user_name()}: '{phrase_clean}' -> {steps}.",
         }
 
+    async def set_server_connection_mode(self, connected: bool) -> dict[str, Any]:
+        """Chuyển đổi giữa Chế độ Kết nối Server Laptop (Online) và Chế độ Mạch Độc Lập (Offline Default):
+        - Online (True): Đầy đủ AI Gemini Live + Xác thực Giọng nói 3 Tầng + Khẩu lệnh Custom ('Vừng ơi mở ra') + Mở cửa.
+        - Offline (False): Về Mặc Định Cơ Bản (vô hiệu hóa lệnh custom/đổi từ), chỉ bật/tắt 5 thiết bị sinh hoạt
+          (Đèn khách, Đèn ngủ, Điều hòa, Quạt, Máy bơm) và KHÓA CỨNG Cửa chính + Còi báo động.
+        """
+        self.server_connected = bool(connected)
+        self.mqtt_bridge.esp8266_status["online"] = self.server_connected
+        self.mqtt_bridge.esp8266_status["power_mode"] = (
+            "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
+        )
+        # Nếu mất kết nối Server trong lúc Cửa chính đang mở -> Tự động đóng khóa cửa ngay lập tức để bảo vệ an ninh
+        auto_closed_door = False
+        if not self.server_connected and self.devices.get("main_door", {}).get("state") == "OPEN":
+            self.devices["main_door"]["state"] = "CLOSED"
+            self.devices["main_door"]["updated_at"] = time.time()
+            auto_closed_door = True
+            await self.emit({
+                "type": "device_updated",
+                "device_id": "main_door",
+                "device_name": self.devices["main_door"]["name"],
+                "gpio": self.devices["main_door"]["gpio"],
+                "old_state": "OPEN",
+                "new_state": "CLOSED",
+                "source": "Tự động khóa cửa khi mất kết nối Server (Offline Fail-Safe)",
+                "timestamp": self.devices["main_door"]["updated_at"],
+            })
+
+        if self.server_connected:
+            msg = "🟢 Đã kết nối Server Laptop: Khôi phục đầy đủ AI Giọng nói, Khẩu lệnh tùy chỉnh và quyền mở Cửa chính."
+        else:
+            door_note = " (Đã tự động đóng khóa Cửa chính!)" if auto_closed_door else ""
+            msg = (
+                f"🟠 Chế độ Mạch Độc Lập (Offline - Không kết nối Server): Đã đưa về Lệnh Mặc Định Cơ Bản, "
+                f"vô hiệu hóa khẩu lệnh custom và KHÓA CỨNG Cửa chính + Còi báo động{door_note}."
+            )
+
+        await self.emit({
+            "type": "server_mode_changed",
+            "server_connected": self.server_connected,
+            "auto_closed_door": auto_closed_door,
+            "message": msg,
+        })
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        return {
+            "ok": True,
+            "server_connected": self.server_connected,
+            "auto_closed_door": auto_closed_door,
+            "message": msg,
+            "exact_spoken_reply": msg,
+        }
+
+    async def execute_offline_default_command(self, text: str, source: str = "offline_default") -> dict[str, Any]:
+        """Bộ giải mã Lệnh Mặc Định Cơ Bản khi Mạch chạy Độc Lập không kết nối Server (Offline Mode):
+        - KHÔNG nhận khẩu lệnh custom (VD: 'Vừng ơi mở ra', 'Chế độ đi ngủ') và KHÔNG nhận từ đổi.
+        - TUYỆT ĐỐI CHẶN lệnh Mở Cửa Chính (main_door) và Còi Báo Động (alarm_siren).
+        - Chỉ thực thi lệnh bật/tắt mặc định cho 5 thiết bị sinh hoạt: Đèn khách, Đèn ngủ, Điều hòa, Quạt trần, Máy bơm.
+        """
+        t_clean = (text or "").strip()
+        t_low = t_clean.lower()
+
+        # 1. Kiểm tra nếu người dùng gọi khẩu lệnh custom đã lưu (VD: 'vừng ơi mở ra')
+        t1_aliases = dict(self._get_user_pool("tuan_anh").get("aliases", {}))
+        cur_aliases = dict(self._get_user_pool(self._current_user_id).get("aliases", {}))
+        all_custom_phrases = set(t1_aliases.keys()) | set(cur_aliases.keys())
+        for phrase in all_custom_phrases:
+            if phrase and phrase in t_low:
+                warn_msg = (
+                    f"⚠️ [CHẾ ĐỘ OFFLINE - VỀ MẶC ĐỊNH]: Mạch đang không kết nối Server nên khẩu lệnh tùy chỉnh "
+                    f"'{phrase}' đã bị vô hiệu hóa! Chỉ nhận lệnh mặc định cơ bản cho Đèn, Điều hòa, Quạt, Máy bơm (Cửa chính bị khóa)."
+                )
+                await self.emit({
+                    "type": "rbac_blocked",
+                    "action": "offline_custom_blocked",
+                    "role": "OFFLINE_DEFAULT",
+                    "reason": warn_msg,
+                })
+                return {"ok": False, "error": warn_msg, "exact_spoken_reply": warn_msg, "reply": warn_msg}
+
+        # 2. Kiểm tra nếu cố tình điều khiển Cửa chính hoặc Còi báo động
+        if any(k in t_low for k in ("cửa chính", "mở cửa", "cửa nhà", "khóa cửa", "đóng cửa")):
+            if any(v in t_low for v in ("đóng", "khóa")) and "mở" not in t_low:
+                return await self.execute_device_action(
+                    "main_door", "close", source=source, bypass_rbac=True, trigger_chains=False
+                )
+            lock_msg = (
+                "🔒 [KHÓA AN NINH OFFLINE]: Khi không kết nối Server xác thực giọng nói, "
+                "Cửa chính bị khóa cứng tuyệt đối! Không ai được phép mở cửa khi mất kết nối Server."
+            )
+            await self.emit({
+                "type": "rbac_blocked",
+                "device_id": "main_door",
+                "device_name": "Cửa chính",
+                "action": "open",
+                "role": "OFFLINE_DEFAULT",
+                "reason": lock_msg,
+            })
+            return {"ok": False, "error": lock_msg, "exact_spoken_reply": lock_msg, "reply": lock_msg}
+
+        if any(k in t_low for k in ("còi", "báo động", "hú")):
+            lock_msg = (
+                "🔒 [KHÓA AN NINH OFFLINE]: Khi không kết nối Server, Còi báo động bị khóa bảo vệ, "
+                "không cho phép bật/tắt tự do!"
+            )
+            await self.emit({
+                "type": "rbac_blocked",
+                "device_id": "alarm_siren",
+                "device_name": "Còi báo động",
+                "action": "turn_off",
+                "role": "OFFLINE_DEFAULT",
+                "reason": lock_msg,
+            })
+            return {"ok": False, "error": lock_msg, "exact_spoken_reply": lock_msg, "reply": lock_msg}
+
+        # 3. Nhận diện lệnh mặc định cơ bản (Bật/Mở vs Tắt/Đóng) cho 5 thiết bị sinh hoạt
+        is_off = any(w in t_low for w in ("tắt", "đóng", "ngắt", "dừng"))
+        is_on = any(w in t_low for w in ("bật", "mở", "tưới"))
+        if not is_on and not is_off:
+            msg = (
+                "⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Chỉ nhận các câu lệnh mặc định rõ ràng như: "
+                "'Bật đèn phòng khách', 'Tắt đèn phòng ngủ', 'Bật điều hòa', 'Bật quạt', 'Bật máy bơm' (Cửa chính bị khóa)."
+            )
+            return {"ok": False, "error": msg, "exact_spoken_reply": msg, "reply": msg}
+
+        act_std = "turn_off" if is_off else "turn_on"
+        matched_devs: list[tuple[str, str]] = []
+
+        if any(k in t_low for k in ("tất cả đèn", "hai đèn", "2 đèn", "cả hai đèn")):
+            matched_devs.append(("living_room_light", act_std))
+            matched_devs.append(("bedroom_light", act_std))
+        else:
+            if any(k in t_low for k in ("đèn phòng khách", "đèn khách")):
+                matched_devs.append(("living_room_light", act_std))
+            if any(k in t_low for k in ("đèn phòng ngủ", "đèn ngủ")):
+                matched_devs.append(("bedroom_light", act_std))
+            if "đèn" in t_low and not matched_devs:
+                matched_devs.append(("living_room_light", act_std))
+
+        if "điều hòa" in t_low:
+            matched_devs.append(("ac", "close" if is_off else "open"))
+        if "quạt" in t_low:
+            matched_devs.append(("fan", act_std))
+        if any(k in t_low for k in ("máy bơm", "bơm nước", "tưới cây")):
+            matched_devs.append(("garden_pump", act_std))
+
+        if not matched_devs:
+            msg = (
+                "⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Không nhận diện được tên thiết bị mặc định (hoặc bạn đang dùng từ đã đổi). "
+                "Khi mất Server, chỉ nhận tên gốc: Đèn phòng khách, Đèn phòng ngủ, Điều hòa, Quạt, Máy bơm."
+            )
+            return {"ok": False, "error": msg, "exact_spoken_reply": msg, "reply": msg}
+
+        combined_results: list[dict[str, Any]] = []
+        for d_id, d_act in matched_devs:
+            r = await self.execute_device_action(
+                device_id=d_id,
+                action=d_act,
+                source=source,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            combined_results.extend(r.get("results", []))
+
+        spoken = self._build_concise_spoken_reply(combined_results)
+        return {
+            "ok": True,
+            "results": combined_results,
+            "exact_spoken_reply": spoken,
+            "reply": spoken,
+            "summary": spoken,
+        }
+
     async def execute_alias_rule(self, phrase: str) -> dict[str, Any]:
+        if not self.server_connected:
+            msg = (
+                f"⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Khi không kết nối Server, khẩu lệnh tùy chỉnh '{phrase}' "
+                "bị vô hiệu hóa! Hệ thống đã về lệnh mặc định và khóa cứng Cửa chính."
+            )
+            await self.emit({"type": "rbac_blocked", "action": "execute_alias_rule", "role": "OFFLINE_DEFAULT", "reason": msg})
+            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+
         if self.current_tier >= 3 and not self.system_policies.get("tier3_can_custom_rules", False):
             msg = "Từ chối truy cập! Cấp khách (Tầng 3) chỉ được gọi các lệnh đóng mở cố định, không sử dụng khẩu lệnh tùy chỉnh."
             await self.emit({"type": "rbac_blocked", "action": "execute_alias_rule", "role": self.current_role, "reason": msg})

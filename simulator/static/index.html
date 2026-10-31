@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mô Phỏng 3D Smart Home Voice AI — Gemini 3.8 Live & ESP32-S3</title>
+  <title>Mô Phỏng 3D Smart Home Voice AI — Gemini 3.8 Live &amp; NodeMCU ESP8266</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
@@ -13,8 +13,8 @@
     <div class="brand">
       <div class="brand-logo">🏠</div>
       <div>
-        <h1>3D SMART HOME VOICE AI — GEMINI 3.8 LIVE</h1>
-        <p class="subtitle">Hẹn giờ (Giây/Phút/Giờ & AM/PM) • Đổi Từ • Đổi Lệnh ("Vừng ơi mở ra") • Quan hệ IF-ELSE Trạng Thái</p>
+        <h1>3D SMART HOME VOICE AI — GEMINI 3.8 LIVE &amp; NODEMCU ESP8266</h1>
+        <p class="subtitle">7 Thiết bị (Cửa SG90 D1 • Đèn D2/D7 • Quạt D6 • ĐH IR D2 • Còi D8 • Bơm 5V D3) + 3 Cảm biến (YL-69 A0 • DHT11 D6 • IR VS1838B D5)</p>
       </div>
     </div>
 
@@ -26,6 +26,10 @@
       <a href="/wokwi" class="btn btn-accent" style="text-decoration:none; background:#0284c7; border-color:#38bdf8;" title="Mở Sơ đồ Mạch Wokwi & Hướng dẫn cắm Breadboard 400 lỗ tương tác trực tiếp">
         🔌 Mạch Wokwi &amp; Breadboard
       </a>
+
+      <button id="btnServerModeToggle" class="btn btn-accent" style="background:#059669; border-color:#34d399; color:#fff;" title="Bấm để chuyển đổi: Kết nối Server Laptop (Full AI + Custom) ⇄ Mạch Độc Lập Offline (Lệnh Mặc Định + Khóa Cửa An Ninh)">
+        🟢 Server Laptop: ONLINE
+      </button>
 
       <button id="btnTogglePromptModal" class="btn btn-accent" title="Xem System Prompt động đang nạp vào Gemini 3.8 Live">
         📋 System Prompt
@@ -74,7 +78,9 @@
             <button class="btn-cam active" data-cam="overview">🏠 Toàn cảnh</button>
             <button class="btn-cam" data-cam="living">🛋️ Phòng khách</button>
             <button class="btn-cam" data-cam="bedroom">🛏️ Phòng ngủ</button>
-            <button class="btn-cam" data-cam="door">🚪 Cửa chính</button>
+            <button class="btn-cam" data-cam="door">🚪 Cửa &amp; Servo</button>
+            <button class="btn-cam" data-cam="garden">🌱 Vườn &amp; Bơm D3</button>
+            <button class="btn-cam" data-cam="board">🔌 Mạch ESP8266</button>
             <button class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
           </div>
         </div>
@@ -85,7 +91,7 @@
 
           <div class="oled-hud" id="oledScreen">
             <div class="oled-top-row">
-              <span id="oledMode">ESP32-S3 OLED: ONLINE</span>
+              <span id="oledMode">NodeMCU ESP8266: ONLINE</span>
               <span id="oledRole">ADMIN</span>
             </div>
             <div class="oled-main-line" id="oledMainLine">SẴN SÀNG NHẬN LỆNH...</div>
@@ -94,6 +100,46 @@
         </div>
 
         <div class="devices-strip" id="devicesGrid"></div>
+
+        <div class="sensors-strip" id="sensorsStrip">
+          <!-- Ô 1: Độ ẩm đất YL-69 (A0) — Slider kéo thử -->
+          <div class="sensor-box-3d">
+            <div class="sensor-box-top">
+              <span>🌱 Độ ẩm đất YL-69 (A0)</span>
+              <span class="sensor-box-val" id="sensorSoilVal">62%</span>
+            </div>
+            <input type="range" min="0" max="100" value="62" class="sensor-slider-3d" id="sensorSoilSlider" title="Kéo để thay đổi độ ẩm đất mô phỏng (A0)">
+            <div class="sensor-sub-row">
+              <span>Khô &lt; 40%</span><span>Ẩm 40-75%</span><span>&gt;75% Ướt</span>
+            </div>
+          </div>
+          <!-- Ô 2: Nhiệt độ & Độ ẩm DHT11 (D6) -->
+          <div class="sensor-box-3d">
+            <div class="sensor-box-top">
+              <span>🌡️ DHT11 (D6)</span>
+              <span class="sensor-box-val" id="sensorDhtVal">28.5°C | 65%</span>
+            </div>
+            <input type="range" min="15" max="45" value="28" step="0.5" class="sensor-slider-3d" id="sensorTempSlider" title="Kéo để thay đổi nhiệt độ mô phỏng (DHT11 D6)">
+            <div class="sensor-sub-row">
+              <span>Nhiệt: <span id="sensorTempLabel">28.5°C</span></span>
+              <span>Ẩm: <span id="sensorHumLabel">65%</span></span>
+            </div>
+          </div>
+          <!-- Ô 3: Học lệnh IR Remote VS1838B (D5) + Phát IR (D2) — Đồng bộ 1:1 với Wokwi -->
+          <div class="sensor-box-3d">
+            <div class="sensor-box-top">
+              <span>📡 IR Remote 38kHz (D5/D2)</span>
+              <span class="sensor-box-val" id="sensorIrVal">38kHz READY</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button id="btnIrLearn3d" class="btn btn-accent" style="font-size:10px;padding:3px 6px;flex:1;">❄️ Thu mã ĐH</button>
+              <button id="btnIrLearnFan3d" class="btn btn-accent" style="font-size:10px;padding:3px 6px;flex:1;background:#334155;">🌀 Thu mã Quạt</button>
+            </div>
+            <div class="sensor-sub-row">
+              <span>VS1838B (D5) → S8050 → IR 940nm (D2)</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 

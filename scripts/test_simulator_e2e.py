@@ -487,6 +487,41 @@ async def test_unit_all_new_features() -> None:
     assert soil_wet["ok"] and eng3.devices["garden_pump"]["state"] == "OFF"
     print(f"  [PASS] 10.5 Cảm biến Độ ẩm Đất YL-69 (A0) & Máy bơm tưới cây (D3): Đất khô 25% -> '{soil_dry['exact_spoken_reply']}' | Đủ ẩm 78% -> '{soil_wet['exact_spoken_reply']}'")
 
+    # 16. KIỂM THỬ CHẾ ĐỘ MẠCH ĐỘC LẬP / OFFLINE (KHÔNG KẾT NỐI SERVER: VỀ MẶC ĐỊNH & KHÓA CỨNG CỬA CHÍNH + CÒI BÁO ĐỘNG)
+    await eng3.factory_reset()
+    print("\n=== [6] KIỂM THỬ CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE: VỀ MẶC ĐỊNH CƠ BẢN + KHÓA AN NINH CỬA CHÍNH) ===", flush=True)
+    await eng3.execute_device_action("main_door", "open")
+    assert eng3.devices["main_door"]["state"] == "OPEN"
+    await eng3.create_alias_rule("vừng ơi mở ra", "living_room_light", "turn_on", require_confirmation=False)
+    off_mode = await eng3.set_server_connection_mode(False)
+    assert off_mode["ok"] and eng3.server_connected is False
+    assert eng3.devices["main_door"]["state"] == "CLOSED", "Khi mất kết nối Server, Cửa chính đang mở phải tự động đóng khóa về 0°!"
+    print(f"  [PASS] 11.1 Mất kết nối Server -> Tự động đóng khóa Cửa chính (CLOSED): '{off_mode['exact_spoken_reply']}'")
+
+    blk_door_off = await eng3.execute_offline_default_command("mở cửa chính")
+    assert not blk_door_off["ok"] and eng3.devices["main_door"]["state"] == "CLOSED"
+    blk_door_btn = await eng3.execute_device_action("main_door", "open")
+    assert not blk_door_btn["ok"] and eng3.devices["main_door"]["state"] == "CLOSED"
+    blk_siren_btn = await eng3.execute_device_action("alarm_siren", "turn_on")
+    assert not blk_siren_btn["ok"] and eng3.devices["alarm_siren"]["state"] == "OFF"
+    print(f"  [PASS] 11.2 Khóa cứng Cửa chính & Còi báo động khi Offline: '{blk_door_off['exact_spoken_reply']}'")
+
+    blk_custom_off = await eng3.execute_offline_default_command("vừng ơi mở ra")
+    assert not blk_custom_off["ok"] and eng3.devices["living_room_light"]["state"] == "OFF"
+    print(f"  [PASS] 11.3 Vô hiệu hóa khẩu lệnh custom ('vừng ơi mở ra') khi Offline: '{blk_custom_off['exact_spoken_reply']}'")
+
+    ok_ac_off = await eng3.execute_offline_default_command("mở điều hòa")
+    assert ok_ac_off["ok"] and eng3.devices["ac"]["state"] == "ON"
+    ok_light_off = await eng3.execute_offline_default_command("bật đèn phòng khách")
+    assert ok_light_off["ok"] and eng3.devices["living_room_light"]["state"] == "ON"
+    print(f"  [PASS] 11.4 Cho phép lệnh mặc định cơ bản (Điều hòa, Đèn, Quạt, Máy bơm) khi Offline: '{ok_ac_off['exact_spoken_reply']}' | '{ok_light_off['exact_spoken_reply']}'")
+
+    on_mode = await eng3.set_server_connection_mode(True)
+    assert on_mode["ok"] and eng3.server_connected is True
+    ok_door_online = await eng3.execute_device_action("main_door", "open")
+    assert ok_door_online["ok"] and eng3.devices["main_door"]["state"] == "OPEN"
+    print(f"  [PASS] 11.5 Kết nối lại Server Laptop (Online) -> Mở lại toàn bộ AI + Custom + Cửa chính: '{on_mode['exact_spoken_reply']}'")
+
     await eng3.factory_reset()
     print("\n🎉 TẤT CẢ CÁC BÀI KIỂM THỬ ĐỀU ĐẠT 100% (EXIT CODE 0)!", flush=True)
 

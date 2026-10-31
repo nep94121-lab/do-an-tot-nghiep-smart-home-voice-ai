@@ -13,21 +13,21 @@
 
 | Hạng | Hàm / Phương thức | Vị trí (`#Lstart-Lend`) | Số nơi gọi (Callers) | Gọi xuống (Callees) | Điểm ảnh hưởng |
 | :---: | :--- | :--- | :---: | :---: | :---: |
-| 1 | `get_snapshot()` | [`simulator/rule_engine.py#L1137-L1187`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1137-L1187) | 27 | 5 | **86** |
-| 2 | `emit()` | [`simulator/rule_engine.py#L886-L888`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L886-L888) | 23 | 0 | **69** |
-| 3 | `get_current_user_name()` | [`simulator/rule_engine.py#L769-L773`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L769-L773) | 14 | 0 | **42** |
-| 4 | `execute_device_action()` | [`simulator/rule_engine.py#L1690-L1788`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1690-L1788) | 11 | 9 | **42** |
-| 5 | `_get_user_pool()` | [`simulator/rule_engine.py#L867-L875`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L867-L875) | 13 | 0 | **39** |
-| 6 | `_save_overlay()` | [`simulator/rule_engine.py#L877-L884`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L877-L884) | 10 | 1 | **31** |
-| 7 | `send_ws_json()` | [`simulator/server.py#L921-L931`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L921-L931) | 10 | 0 | **30** |
-| 8 | `send_ws_json()` | [`simulator/server.py#L1759-L1765`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1759-L1765) | 10 | 0 | **30** |
-| 9 | `handle_tool_call()` | [`simulator/server.py#L1073-L1322`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1073-L1322) | 1 | 24 | **27** |
-| 10 | `run()` | [`simulator/server.py#L1561-L1709`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1561-L1709) | 2 | 18 | **24** |
+| 1 | `get_snapshot()` | [`simulator/rule_engine.py#L1138-L1190`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1138-L1190) | 28 | 5 | **89** |
+| 2 | `emit()` | [`simulator/rule_engine.py#L887-L889`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L887-L889) | 25 | 0 | **75** |
+| 3 | `execute_device_action()` | [`simulator/rule_engine.py#L1693-L1830`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1693-L1830) | 12 | 9 | **45** |
+| 4 | `_get_user_pool()` | [`simulator/rule_engine.py#L868-L876`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L868-L876) | 14 | 0 | **42** |
+| 5 | `get_current_user_name()` | [`simulator/rule_engine.py#L770-L774`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L770-L774) | 14 | 0 | **42** |
+| 6 | `_save_overlay()` | [`simulator/rule_engine.py#L878-L885`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L878-L885) | 10 | 1 | **31** |
+| 7 | `send_ws_json()` | [`simulator/server.py#L945-L960`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L945-L960) | 9 | 0 | **27** |
+| 8 | `_broadcast_rest_state_to_bridges()` | [`simulator/server.py#L779-L791`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L779-L791) | 8 | 2 | **26** |
+| 9 | `handle_tool_call()` | [`simulator/server.py#L1102-L1351`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1102-L1351) | 1 | 23 | **26** |
+| 10 | `run()` | [`simulator/server.py#L1616-L1799`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1616-L1799) | 1 | 20 | **23** |
 | 11 | `publish()` | [`simulator/mqtt_bridge.py#L145-L180`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/mqtt_bridge.py#L145-L180) | 7 | 0 | **21** |
-| 12 | `factory_reset()` | [`simulator/rule_engine.py#L2777-L2908`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2777-L2908) | 4 | 7 | **19** |
-| 13 | `get_if_else_rules()` | [`simulator/rule_engine.py#L905-L909`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L905-L909) | 5 | 1 | **16** |
-| 14 | `check_permission()` | [`simulator/rule_engine.py#L1189-L1203`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1189-L1203) | 5 | 1 | **16** |
-| 15 | `get_merged_aliases()` | [`simulator/rule_engine.py#L890-L897`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L890-L897) | 5 | 1 | **16** |
+| 12 | `factory_reset()` | [`simulator/rule_engine.py#L2999-L3130`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2999-L3130) | 4 | 7 | **19** |
+| 13 | `get_if_else_rules()` | [`simulator/rule_engine.py#L906-L910`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L906-L910) | 5 | 1 | **16** |
+| 14 | `check_permission()` | [`simulator/rule_engine.py#L1192-L1206`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1192-L1206) | 5 | 1 | **16** |
+| 15 | `get_merged_aliases()` | [`simulator/rule_engine.py#L891-L898`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L891-L898) | 5 | 1 | **16** |
 
 ---
 
@@ -40,7 +40,7 @@
 - Danh sách: `smarthome/cmd/actuate`, `smarthome/cmd/enroll_blink`, `smarthome/ir/blast`, `smarthome/ir/learn_start`, `smarthome/ir/learned_result`, `smarthome/state/report`, `smarthome/status/esp8266`, `smarthome/sync/pools`, `smarthome/telemetry/dht11`, `smarthome/telemetry/soil_moisture`
 
 ### 2.3. Các cổng HTTP REST API (`server.py` <-> `mobile_app/index.html` & `app.js`)
-- Danh sách: `/`, `/api/device`, `/api/dht11`, `/api/ir_learn`, `/api/soil_moisture`, `/api/state`, `/api/text_command`, `/api/voice_samples`, `/api/wokwi_files`, `/app`, `/translate`, `/wokwi`
+- Danh sách: `/`, `/api/device`, `/api/dht11`, `/api/ir_learn`, `/api/server_mode`, `/api/soil_moisture`, `/api/state`, `/api/text_command`, `/api/voice_samples`, `/api/wokwi_files`, `/app`, `/wokwi`
 
 ### 2.4. 6 Chân Phần cứng NodeMCU ESP8266 (`rule_engine.py` <-> `esp8266_smarthome.ino`)
 - Danh sách: `D1`, `D2`, `D3`, `D5`, `D6`, `D7`, `D8`
@@ -50,42 +50,37 @@
 ## 3. CHỈ MỤC HÀM & CLASS THEO TỪNG FILE (ĐỂ AI ĐỌC ĐÚNG DÒNG `#Lstart-Lend`)
 
 ### 📄 [`simulator/server.py`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py)
-- [`L44-L48`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L44-L48) `def get_knowledge_rag()`
-- [`L68-L74`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L68-L74) `def load_key()`
-- [`L80-L81`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L80-L81) `def safe_str(msg)`
-- [`L650-L752`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L650-L752) `def build_system_instruction(engine)`
-- [`L755-L767`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L755-L767) `def make_live_config(engine)`
-- [`L778-L785`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L778-L785) `async def _broadcast_rest_state_to_bridges()`
-- [`L789-L790`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L789-L790) `async def index()`
-- [`L794-L795`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L794-L795) `async def mobile_app_index()`
-- [`L799-L800`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L799-L800) `async def wokwi_page()`
-- [`L804-L808`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L804-L808) `async def api_get_wokwi_files()`
-- [`L812-L813`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L812-L813) `async def translate_page()`
-- [`L817-L818`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L817-L818) `async def api_get_state()`
-- [`L822-L827`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L822-L827) `async def api_control_device(payload)`
-- [`L831-L836`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L831-L836) `async def api_ir_learn(payload)`
-- [`L840-L846`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L840-L846) `async def api_update_dht11(payload)`
-- [`L850-L854`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L850-L854) `async def api_update_soil_moisture(payload)`
-- [`L858-L883`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L858-L883) `async def api_text_command(payload)`
-- [`L887-L895`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L887-L895) `async def list_voice_samples()`
-- [`L898-L1721`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L898-L1721) `class LiveBridgeSession` — *Quản lý kết nối giữa 1 tab trình duyệt và phiên Gemini 3.8 Live.*
-  - [`L901-L919`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L901-L919) `def __init__(ws)`
-  - [`L921-L931`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L921-L931) `async def send_ws_json(payload)`
-  - [`L933-L939`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L933-L939) `def _reset_turn_metrics(anchor_ts)`
-  - [`L941-L967`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L941-L967) `async def _sync_rules_context_to_gemini(event_note, send_to_model)` — *Cập nhật tức thì bảng Từ, Khẩu lệnh, Luật IF-ELSE và 2 Bể lên giao diện (và Gemini nếu cần).*
-  - [`L969-L1002`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L969-L1002) `async def _run_voice_enrollment_sequence(duration_seconds, target_tier, target_name)` — *Thực thi chuỗi tín hiệu phần cứng khi bắt đầu thu âm cấp quyền:*
-  - [`L1004-L1071`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1004-L1071) `async def _process_completed_voice_enrollment(pcm_bytes)` — *Xử lý sau khi thu âm đủ: Nháy đèn báo kết thúc -> Báo thu âm đủ -> Phân tích tần số -> Báo phân tích xong & hỏi tên.*
-  - [`L1073-L1322`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1073-L1322) `async def handle_tool_call(fc)`
-  - [`L1324-L1453`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1324-L1453) `async def gemini_receive_loop()` — *Nhận liên tục các sự kiện từ Gemini 3.8 Live và đẩy về giao diện.*
-  - [`L1455-L1559`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1455-L1559) `async def stream_wav_sample(sample_id)`
-  - [`L1561-L1709`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1561-L1709) `async def run()`
-  - [`L1711-L1721`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1711-L1721) `async def _periodic_timer_sync()`
-- [`L1725-L1728`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1725-L1728) `async def websocket_endpoint(ws)`
-- [`L1747-L1879`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1747-L1879) `class LiveTranslatorSession` — *Phiên WebSocket Máy Phiên Dịch 2 Chiều Nguyên Văn (Việt <-> Anh) trên Gemini 3.8 Live.*
-  - [`L1750-L1757`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1750-L1757) `def __init__(ws)`
-  - [`L1759-L1765`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1759-L1765) `async def send_ws_json(payload)`
-  - [`L1767-L1879`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1767-L1879) `async def run()`
-- [`L1883-L1886`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1883-L1886) `async def websocket_translate_endpoint(ws)`
+- [`L45-L49`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L45-L49) `def get_knowledge_rag()`
+- [`L69-L75`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L69-L75) `def load_key()`
+- [`L81-L82`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L81-L82) `def safe_str(msg)`
+- [`L651-L753`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L651-L753) `def build_system_instruction(engine)`
+- [`L756-L768`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L756-L768) `def make_live_config(engine)`
+- [`L779-L791`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L779-L791) `async def _broadcast_rest_state_to_bridges()`
+- [`L795-L796`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L795-L796) `async def index()`
+- [`L800-L801`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L800-L801) `async def mobile_app_index()`
+- [`L805-L806`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L805-L806) `async def wokwi_page()`
+- [`L810-L814`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L810-L814) `async def api_get_wokwi_files()`
+- [`L818-L819`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L818-L819) `async def api_get_state()`
+- [`L823-L828`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L823-L828) `async def api_control_device(payload)`
+- [`L832-L837`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L832-L837) `async def api_ir_learn(payload)`
+- [`L841-L847`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L841-L847) `async def api_update_dht11(payload)`
+- [`L851-L855`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L851-L855) `async def api_update_soil_moisture(payload)`
+- [`L859-L868`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L859-L868) `async def api_set_server_mode(payload)`
+- [`L872-L901`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L872-L901) `async def api_text_command(payload)`
+- [`L905-L913`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L905-L913) `async def list_voice_samples()`
+- [`L916-L1811`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L916-L1811) `class LiveBridgeSession` — *Quản lý kết nối giữa 1 tab trình duyệt và phiên Gemini 3.8 Live.*
+  - [`L919-L943`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L919-L943) `def __init__(ws)`
+  - [`L945-L960`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L945-L960) `async def send_ws_json(payload)`
+  - [`L962-L968`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L962-L968) `def _reset_turn_metrics(anchor_ts)`
+  - [`L970-L996`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L970-L996) `async def _sync_rules_context_to_gemini(event_note, send_to_model)` — *Cập nhật tức thì bảng Từ, Khẩu lệnh, Luật IF-ELSE và 2 Bể lên giao diện (và Gemini nếu cần).*
+  - [`L998-L1031`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L998-L1031) `async def _run_voice_enrollment_sequence(duration_seconds, target_tier, target_name)` — *Thực thi chuỗi tín hiệu phần cứng khi bắt đầu thu âm cấp quyền:*
+  - [`L1033-L1100`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1033-L1100) `async def _process_completed_voice_enrollment(pcm_bytes)` — *Xử lý sau khi thu âm đủ: Nháy đèn báo kết thúc -> Báo thu âm đủ -> Phân tích tần số -> Báo phân tích xong & hỏi tên.*
+  - [`L1102-L1351`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1102-L1351) `async def handle_tool_call(fc)`
+  - [`L1353-L1482`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1353-L1482) `async def gemini_receive_loop()` — *Nhận liên tục các sự kiện từ Gemini 3.8 Live và đẩy về giao diện.*
+  - [`L1484-L1614`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1484-L1614) `async def stream_wav_sample(sample_id)`
+  - [`L1616-L1799`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1616-L1799) `async def run()`
+  - [`L1801-L1811`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1801-L1811) `async def _periodic_timer_sync()`
+- [`L1815-L1818`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1815-L1818) `async def websocket_endpoint(ws)`
 
 ### 📄 [`simulator/rule_engine.py`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py)
 - [`L39-L40`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L39-L40) `def get_vn_now()`
@@ -97,65 +92,67 @@
 - [`L367-L455`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L367-L455) `def parse_vn_clock_and_date(time_str, date_str, repeat, now_vn)` — *Phân tích chuỗi giờ Việt Nam theo đúng 4 quy tắc của Sếp + chu kỳ lặp (1 lần vs hàng ngày/tuần):*
 - [`L458-L464`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L458-L464) `def parse_vn_time_string(time_str)` — *Hàm tương thích ngược trả về (hh, mm, ss) của mốc đầu tiên.*
 - [`L467-L477`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L467-L477) `def ensure_factory_file()` — *Mặc định gốc hoàn toàn nguyên bản: mở cửa chỉ mở cửa, bật đèn chỉ bật đèn (không có luật phụ).*
-- [`L480-L2908`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L480-L2908) `class SmartHomeEngine`
-  - [`L481-L503`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L481-L503) `def __init__(on_event, on_voice_reset)`
-  - [`L506-L543`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L506-L543) `def system_policies()`
-  - [`L546-L547`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L546-L547) `def query_permission_mode()`
-  - [`L549-L581`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L549-L581) `async def set_query_permission_policy(mode)` — *Thay đổi quy tắc phân quyền hỏi đáp (CHỈ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi):*
-  - [`L583-L734`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L583-L734) `async def admin_update_system_policy(policy_key, policy_value, target_device_id)` — *Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) sửa BẤT KỲ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3,*
-  - [`L736-L746`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L736-L746) `def _init_users()`
-  - [`L749-L750`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L749-L750) `def current_user_id()`
-  - [`L753-L767`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L753-L767) `def current_tier()`
-  - [`L769-L773`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L769-L773) `def get_current_user_name()`
-  - [`L780-L808`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L780-L808) `def current_role(val)`
-  - [`L810-L826`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L810-L826) `def set_active_user(user_or_role)`
-  - [`L828-L840`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L828-L840) `def _default_overlay()`
-  - [`L842-L865`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L842-L865) `def _load_overlay()`
-  - [`L867-L875`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L867-L875) `def _get_user_pool(user_id)`
-  - [`L877-L884`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L877-L884) `def _save_overlay()`
-  - [`L886-L888`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L886-L888) `async def emit(event)`
-  - [`L890-L897`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L890-L897) `def get_merged_aliases(user_id)`
-  - [`L899-L903`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L899-L903) `def get_word_mappings(user_id)`
-  - [`L905-L909`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L905-L909) `def get_if_else_rules(user_id)`
-  - [`L911-L912`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L911-L912) `def get_chains()`
-  - [`L914-L926`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L914-L926) `def format_duration_vi(total_sec)`
-  - [`L928-L944`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L928-L944) `def _action_device_phrase_vi(device_id, action)`
-  - [`L946-L987`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L946-L987) `def describe_device_command(device_id)` — *Trả lời ngắn gọn lệnh điều khiển hiện tại của một thiết bị (gồm mặc định, từ đổi, khẩu lệnh đổi và luật IF).*
-  - [`L989-L1135`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L989-L1135) `def get_pools_summary(query_type, target_device_id)` — *Trả về thông tin chi tiết của 2 Bể (Bể Hẹn Giờ & Bể Luật Động) hoặc lệnh của 1 thiết bị.*
-  - [`L1137-L1187`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1137-L1187) `def get_snapshot()`
-  - [`L1189-L1203`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1189-L1203) `def check_permission(required_role)`
-  - [`L1205-L1251`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1205-L1251) `def _check_custom_directive_device_lock(dev_id)` — *Kiểm tra xem có quy định tự nhiên nào của Admin Cấp 1 (trong custom_system_directives)*
-  - [`L1253-L1271`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1253-L1271) `def check_device_permission(dev_id)`
-  - [`L1276-L1289`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1276-L1289) `def _find_or_slug_user(target_name)`
-  - [`L1291-L1328`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1291-L1328) `async def blink_signal_light(device_id, pulse_sec)` — *Nháy đèn 1 phát (Bật -> Tắt hoặc Tắt -> Bật) để làm tín hiệu bắt đầu/kết thúc thu âm cấp quyền.*
-  - [`L1330-L1393`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1330-L1393) `async def start_voice_enrollment(target_tier, target_name, duration_seconds, duration_sec)` — *Bước 1 của Thu âm cấp quyền giọng nói:*
-  - [`L1395-L1445`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1395-L1445) `async def stage_voice_enrollment_analysis(f0_hz, centroid_hz, embedding, duration_sec)` — *Bước 2 của Thu âm cấp quyền: Sau khi thu âm đủ -> Báo đã thu âm đủ, đã phân tích xong -> Hỏi tên (hoặc lưu luôn nếu đã có tên).*
-  - [`L1447-L1493`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1447-L1493) `async def finalize_voice_enrollment(target_name, target_tier)` — *Bước 3 của Thu âm cấp quyền: Gán tên cho người vừa thu âm phân tích xong và lưu quyền chính thức.*
-  - [`L1495-L1565`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1495-L1565) `async def grant_user_permission(target_name, target_tier)` — *Cấp quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).*
-  - [`L1567-L1620`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1567-L1620) `async def revoke_user_permission(target_name)` — *Hủy quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).*
-  - [`L1622-L1643`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1622-L1643) `def _expand_targets(device_id, action)`
-  - [`L1645-L1651`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1645-L1651) `def _state_verb_vi(dev_type, state, already)`
-  - [`L1653-L1688`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1653-L1688) `def _build_concise_spoken_reply(results)`
-  - [`L1690-L1788`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1690-L1788) `async def execute_device_action(device_id, action, source, bypass_rbac, trigger_chains)`
-  - [`L1790-L1800`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1790-L1800) `async def sync_edge_flash()` — *Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266.*
-  - [`L1802-L1822`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1802-L1822) `async def update_sensor_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)` — *Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm.*
-  - [`L1824-L1861`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1824-L1861) `async def update_soil_moisture_telemetry(soil_moisture_pct, auto_pump_below_pct, auto_stop_above_pct)` — *Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3).*
-  - [`L1863-L1878`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1863-L1878) `async def learn_ir_remote_command(device_name, command_action, protocol, hex_code)` — *Chiếm quyền / Học lệnh Remote Hồng ngoại 38kHz (VS1838B D5 -> Lưu Write-Through -> Phát IR LED D2).*
-  - [`L1880-L1959`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1880-L1959) `async def _evaluate_reactive_if_else(changed_dev_id, new_state)` — *Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`.*
-  - [`L1964-L1984`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1964-L1984) `def _check_t1_timer_conflict(device_id, new_fire_at)` — *Kiểm tra xem cấp dưới có đặt lệnh vướng vào khung giờ hẹn giờ của Tầng 1 Nguyễn Tuấn Anh hay không.*
-  - [`L1986-L2080`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1986-L2080) `async def schedule_timer_flexible(device_id, action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat, reason)`
-  - [`L2082-L2201`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2082-L2201) `async def schedule_action(device_id, action, delay_seconds, reason, bypass_rbac, trigger_chains, target_vn_time, repeat)`
-  - [`L2203-L2292`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2203-L2292) `async def update_or_cancel_timer(device_id, operation, new_action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat)`
-  - [`L2297-L2347`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2297-L2347) `async def set_word_mapping(custom_word, target_meaning, require_confirmation)`
-  - [`L2349-L2422`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2349-L2422) `async def create_alias_rule(phrase, target_devices_csv, target_actions_csv, require_confirmation)`
-  - [`L2424-L2458`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2424-L2458) `async def execute_alias_rule(phrase)`
-  - [`L2460-L2487`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2460-L2487) `def _has_cycle(rules)`
-  - [`L2489-L2504`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2489-L2504) `def _check_t1_rule_conflict(new_rule)` — *Kiểm tra xem luật IF-ELSE của Tầng 2 có mâu thuẫn hoặc vướng luật ưu tiên của Tầng 1 Nguyễn Tuấn Anh hay không.*
-  - [`L2506-L2639`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2506-L2639) `async def set_if_else_rule(when_device_id, when_state, then_device_id, then_action, delay_seconds, else_device_id, else_action, evaluate_now, require_confirmation)`
-  - [`L2641-L2692`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2641-L2692) `async def confirm_pending_action(confirmed)` — *Xác nhận hoặc hủy hành động đang chờ (bao gồm cả Xét Luật mới lẫn Reset Hệ Thống).*
-  - [`L2701-L2751`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2701-L2751) `async def request_factory_reset(scope)` — *Bước 1: Khi người dùng nói 'Reset ...', chưa xóa ngay mà bật cờ chờ xác nhận đúng theo loại reset và tầng.*
-  - [`L2753-L2775`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2753-L2775) `async def confirm_factory_reset(confirmed)` — *Bước 2: Thực thi hoặc hủy Reset (hoặc Luật đang chờ) sau khi người dùng trả lời câu hỏi xác nhận.*
-  - [`L2777-L2908`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2777-L2908) `async def factory_reset(scope)`
+- [`L480-L3130`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L480-L3130) `class SmartHomeEngine`
+  - [`L481-L504`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L481-L504) `def __init__(on_event, on_voice_reset)`
+  - [`L507-L544`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L507-L544) `def system_policies()`
+  - [`L547-L548`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L547-L548) `def query_permission_mode()`
+  - [`L550-L582`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L550-L582) `async def set_query_permission_policy(mode)` — *Thay đổi quy tắc phân quyền hỏi đáp (CHỈ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi):*
+  - [`L584-L735`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L584-L735) `async def admin_update_system_policy(policy_key, policy_value, target_device_id)` — *Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) sửa BẤT KỲ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3,*
+  - [`L737-L747`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L737-L747) `def _init_users()`
+  - [`L750-L751`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L750-L751) `def current_user_id()`
+  - [`L754-L768`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L754-L768) `def current_tier()`
+  - [`L770-L774`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L770-L774) `def get_current_user_name()`
+  - [`L781-L809`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L781-L809) `def current_role(val)`
+  - [`L811-L827`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L811-L827) `def set_active_user(user_or_role)`
+  - [`L829-L841`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L829-L841) `def _default_overlay()`
+  - [`L843-L866`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L843-L866) `def _load_overlay()`
+  - [`L868-L876`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L868-L876) `def _get_user_pool(user_id)`
+  - [`L878-L885`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L878-L885) `def _save_overlay()`
+  - [`L887-L889`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L887-L889) `async def emit(event)`
+  - [`L891-L898`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L891-L898) `def get_merged_aliases(user_id)`
+  - [`L900-L904`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L900-L904) `def get_word_mappings(user_id)`
+  - [`L906-L910`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L906-L910) `def get_if_else_rules(user_id)`
+  - [`L912-L913`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L912-L913) `def get_chains()`
+  - [`L915-L927`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L915-L927) `def format_duration_vi(total_sec)`
+  - [`L929-L945`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L929-L945) `def _action_device_phrase_vi(device_id, action)`
+  - [`L947-L988`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L947-L988) `def describe_device_command(device_id)` — *Trả lời ngắn gọn lệnh điều khiển hiện tại của một thiết bị (gồm mặc định, từ đổi, khẩu lệnh đổi và luật IF).*
+  - [`L990-L1136`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L990-L1136) `def get_pools_summary(query_type, target_device_id)` — *Trả về thông tin chi tiết của 2 Bể (Bể Hẹn Giờ & Bể Luật Động) hoặc lệnh của 1 thiết bị.*
+  - [`L1138-L1190`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1138-L1190) `def get_snapshot()`
+  - [`L1192-L1206`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1192-L1206) `def check_permission(required_role)`
+  - [`L1208-L1254`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1208-L1254) `def _check_custom_directive_device_lock(dev_id)` — *Kiểm tra xem có quy định tự nhiên nào của Admin Cấp 1 (trong custom_system_directives)*
+  - [`L1256-L1274`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1256-L1274) `def check_device_permission(dev_id)`
+  - [`L1279-L1292`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1279-L1292) `def _find_or_slug_user(target_name)`
+  - [`L1294-L1331`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1294-L1331) `async def blink_signal_light(device_id, pulse_sec)` — *Nháy đèn 1 phát (Bật -> Tắt hoặc Tắt -> Bật) để làm tín hiệu bắt đầu/kết thúc thu âm cấp quyền.*
+  - [`L1333-L1396`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1333-L1396) `async def start_voice_enrollment(target_tier, target_name, duration_seconds, duration_sec)` — *Bước 1 của Thu âm cấp quyền giọng nói:*
+  - [`L1398-L1448`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1398-L1448) `async def stage_voice_enrollment_analysis(f0_hz, centroid_hz, embedding, duration_sec)` — *Bước 2 của Thu âm cấp quyền: Sau khi thu âm đủ -> Báo đã thu âm đủ, đã phân tích xong -> Hỏi tên (hoặc lưu luôn nếu đã có tên).*
+  - [`L1450-L1496`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1450-L1496) `async def finalize_voice_enrollment(target_name, target_tier)` — *Bước 3 của Thu âm cấp quyền: Gán tên cho người vừa thu âm phân tích xong và lưu quyền chính thức.*
+  - [`L1498-L1568`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1498-L1568) `async def grant_user_permission(target_name, target_tier)` — *Cấp quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).*
+  - [`L1570-L1623`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1570-L1623) `async def revoke_user_permission(target_name)` — *Hủy quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).*
+  - [`L1625-L1646`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1625-L1646) `def _expand_targets(device_id, action)`
+  - [`L1648-L1654`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1648-L1654) `def _state_verb_vi(dev_type, state, already)`
+  - [`L1656-L1691`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1656-L1691) `def _build_concise_spoken_reply(results)`
+  - [`L1693-L1830`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1693-L1830) `async def execute_device_action(device_id, action, source, bypass_rbac, trigger_chains)`
+  - [`L1832-L1842`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1832-L1842) `async def sync_edge_flash()` — *Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266.*
+  - [`L1844-L1864`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1844-L1864) `async def update_sensor_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)` — *Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm.*
+  - [`L1866-L1903`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1866-L1903) `async def update_soil_moisture_telemetry(soil_moisture_pct, auto_pump_below_pct, auto_stop_above_pct)` — *Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3).*
+  - [`L1905-L1920`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1905-L1920) `async def learn_ir_remote_command(device_name, command_action, protocol, hex_code)` — *Chiếm quyền / Học lệnh Remote Hồng ngoại 38kHz (VS1838B D5 -> Lưu Write-Through -> Phát IR LED D2).*
+  - [`L1922-L2001`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L1922-L2001) `async def _evaluate_reactive_if_else(changed_dev_id, new_state)` — *Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`.*
+  - [`L2006-L2026`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2006-L2026) `def _check_t1_timer_conflict(device_id, new_fire_at)` — *Kiểm tra xem cấp dưới có đặt lệnh vướng vào khung giờ hẹn giờ của Tầng 1 Nguyễn Tuấn Anh hay không.*
+  - [`L2028-L2122`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2028-L2122) `async def schedule_timer_flexible(device_id, action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat, reason)`
+  - [`L2124-L2243`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2124-L2243) `async def schedule_action(device_id, action, delay_seconds, reason, bypass_rbac, trigger_chains, target_vn_time, repeat)`
+  - [`L2245-L2334`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2245-L2334) `async def update_or_cancel_timer(device_id, operation, new_action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat)`
+  - [`L2339-L2389`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2339-L2389) `async def set_word_mapping(custom_word, target_meaning, require_confirmation)`
+  - [`L2391-L2464`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2391-L2464) `async def create_alias_rule(phrase, target_devices_csv, target_actions_csv, require_confirmation)`
+  - [`L2466-L2516`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2466-L2516) `async def set_server_connection_mode(connected)` — *Chuyển đổi giữa Chế độ Kết nối Server Laptop (Online) và Chế độ Mạch Độc Lập (Offline Default):*
+  - [`L2518-L2636`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2518-L2636) `async def execute_offline_default_command(text, source)` — *Bộ giải mã Lệnh Mặc Định Cơ Bản khi Mạch chạy Độc Lập không kết nối Server (Offline Mode):*
+  - [`L2638-L2680`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2638-L2680) `async def execute_alias_rule(phrase)`
+  - [`L2682-L2709`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2682-L2709) `def _has_cycle(rules)`
+  - [`L2711-L2726`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2711-L2726) `def _check_t1_rule_conflict(new_rule)` — *Kiểm tra xem luật IF-ELSE của Tầng 2 có mâu thuẫn hoặc vướng luật ưu tiên của Tầng 1 Nguyễn Tuấn Anh hay không.*
+  - [`L2728-L2861`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2728-L2861) `async def set_if_else_rule(when_device_id, when_state, then_device_id, then_action, delay_seconds, else_device_id, else_action, evaluate_now, require_confirmation)`
+  - [`L2863-L2914`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2863-L2914) `async def confirm_pending_action(confirmed)` — *Xác nhận hoặc hủy hành động đang chờ (bao gồm cả Xét Luật mới lẫn Reset Hệ Thống).*
+  - [`L2923-L2973`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2923-L2973) `async def request_factory_reset(scope)` — *Bước 1: Khi người dùng nói 'Reset ...', chưa xóa ngay mà bật cờ chờ xác nhận đúng theo loại reset và tầng.*
+  - [`L2975-L2997`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2975-L2997) `async def confirm_factory_reset(confirmed)` — *Bước 2: Thực thi hoặc hủy Reset (hoặc Luật đang chờ) sau khi người dùng trả lời câu hỏi xác nhận.*
+  - [`L2999-L3130`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L2999-L3130) `async def factory_reset(scope)`
 
 ### 📄 [`simulator/mqtt_bridge.py`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/mqtt_bridge.py)
 - [`L74-L486`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/mqtt_bridge.py#L74-L486) `class SmartHomeMQTTBridge` — *Bộ điều phối bản tin MQTT chuẩn System Design Primer:*

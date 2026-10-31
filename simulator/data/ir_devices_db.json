@@ -86,7 +86,7 @@
           560,
           1690
         ],
-        "learned_at": 1793030176.1
+        "learned_at": 1793464211.8
       },
       "turn_on": {
         "protocol": "MITSUBISHI_38KHZ",
@@ -101,7 +101,45 @@
           560,
           1690
         ],
-        "learned_at": 1793030176.1
+        "learned_at": 1793464211.8
+      }
+    }
+  },
+  "điều_hòa_casper": {
+    "device_id": "điều_hòa_casper",
+    "device_name": "Điều hòa Casper",
+    "brand": "Cloned Remote (COOLIX_38KHZ)",
+    "carrier_khz": 38,
+    "commands": {
+      "open": {
+        "protocol": "COOLIX_38KHZ",
+        "hex_code": "0xB2BF40",
+        "raw_timings_us": [
+          9000,
+          4500,
+          560,
+          1690,
+          560,
+          560,
+          560,
+          1690
+        ],
+        "learned_at": 1793205098.1
+      },
+      "turn_on": {
+        "protocol": "COOLIX_38KHZ",
+        "hex_code": "0xB2BF40",
+        "raw_timings_us": [
+          9000,
+          4500,
+          560,
+          1690,
+          560,
+          560,
+          560,
+          1690
+        ],
+        "learned_at": 1793205098.1
       }
     }
   }

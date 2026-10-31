@@ -217,26 +217,39 @@
       } else if (dev.type === "siren") {
         icon = isOn ? "🚨" : "🔔";
         activeClass = isOn ? "active-siren" : "";
+      } else if (dev.type === "pump") {
+        icon = isOn ? "💧" : "🚰";
+        activeClass = isOn ? "active-on" : "";
       }
 
+      const isOfflineLocked =
+        window._serverConnected === false &&
+        (dev.id === "main_door" || dev.id === "alarm_siren");
+      const stateLabel = isOfflineLocked ? "🔒 KHÓA" : dev.state;
       const chip = document.createElement("button");
       chip.className = `dev-chip ${activeClass}`;
+      if (isOfflineLocked) {
+        chip.style.borderColor = "#f59e0b";
+        chip.style.opacity = "0.88";
+      }
       chip.id = `dev-card-${dev.id}`;
-      chip.title = `Bấm để bật/tắt ${dev.name} (${dev.gpio})`;
+      chip.title = isOfflineLocked
+        ? `🔒 Đang ở chế độ Mạch Độc Lập (Offline): Khóa an ninh ${dev.name}`
+        : `Bấm để bật/tắt ${dev.name} (${dev.gpio})`;
       chip.innerHTML = `
         <div class="dev-chip-top">
-          <span class="dev-chip-icon">${icon}</span>
-          <span class="dev-chip-state dev-state-pill ${isOn ? "on" : ""}">${dev.state}</span>
+          <span class="dev-chip-icon">${isOfflineLocked ? "🔒" : icon}</span>
+          <span class="dev-chip-state dev-state-pill ${isOn ? "on" : ""}">${stateLabel}</span>
         </div>
         <div class="dev-chip-name">${escapeHtml(dev.name)}</div>
-        <div class="dev-chip-gpio">${escapeHtml(dev.gpio.split(" ")[0])} • ≥${escapeHtml(dev.min_role)}</div>
+        <div class="dev-chip-gpio">${escapeHtml(dev.gpio.split(" ")[0])} • ${isOfflineLocked ? "KHÓA OFFLINE" : "≥" + escapeHtml(dev.min_role)}</div>
       `;
       chip.addEventListener("click", () => toggleDeviceById(dev.id));
       devicesGrid.appendChild(chip);
     });
 
     if (window.SmartHome3D) {
-      window.SmartHome3D.updateDevices(devices);
+      window.SmartHome3D.updateDevices(devices, window._latestMqtt, window._serverConnected !== false);
     }
   }
 
@@ -365,10 +378,53 @@
     } else if (snap.role && Array.from(roleSelect.options).some((o) => o.value === snap.role)) {
       roleSelect.value = snap.role;
     }
+    window._serverConnected = snap.server_connected !== false;
+    const btnServerToggle = document.getElementById("btnServerModeToggle");
+    if (btnServerToggle) {
+      if (window._serverConnected) {
+        btnServerToggle.textContent = "🟢 Server Laptop: ONLINE";
+        btnServerToggle.style.background = "linear-gradient(135deg,#059669,#0284c7)";
+        btnServerToggle.style.borderColor = "#34d399";
+        oledMode.textContent = "NodeMCU ESP8266: ONLINE";
+      } else {
+        btnServerToggle.textContent = "🟠 Mạch Độc Lập: OFFLINE (Mặc Định + Khóa Cửa)";
+        btnServerToggle.style.background = "linear-gradient(135deg,#d97706,#b45309)";
+        btnServerToggle.style.borderColor = "#fbbf24";
+        oledMode.textContent = "ESP8266: OFFLINE (MẶC ĐỊNH)";
+      }
+    }
+
     oledRole.textContent = snap.current_user_name
       ? `T${snap.current_tier || 1}: ${snap.current_user_name}`
       : snap.role;
     renderDevices(snap.devices || []);
+
+    // Cập nhật dữ liệu cảm biến từ MQTT snapshot
+    if (snap.mqtt) {
+      window._latestMqtt = snap.mqtt;
+      if (window.SmartHome3D && window.SmartHome3D.updateSensors) {
+        window.SmartHome3D.updateSensors(snap.mqtt, window._serverConnected);
+      }
+      const soil = snap.mqtt.soil_moisture_telemetry || {};
+      const dht = snap.mqtt.dht11_telemetry || {};
+      const soilVal = document.getElementById("sensorSoilVal");
+      const soilSlider = document.getElementById("sensorSoilSlider");
+      if (soilVal && soil.soil_moisture_pct !== undefined) {
+        soilVal.textContent = Math.round(soil.soil_moisture_pct) + "% (" + (soil.status_label || "") + ")";
+        if (soilSlider) soilSlider.value = Math.round(soil.soil_moisture_pct);
+      }
+      const dhtVal = document.getElementById("sensorDhtVal");
+      const tempSlider = document.getElementById("sensorTempSlider");
+      const tempLabel = document.getElementById("sensorTempLabel");
+      const humLabel = document.getElementById("sensorHumLabel");
+      if (dhtVal && dht.temp_c !== undefined) {
+        dhtVal.textContent = Number(dht.temp_c).toFixed(1) + "°C | " + Math.round(dht.humidity_pct || 65) + "%";
+        if (tempSlider) tempSlider.value = Number(dht.temp_c);
+        if (tempLabel) tempLabel.textContent = Number(dht.temp_c).toFixed(1) + "°C";
+        if (humLabel) humLabel.textContent = Math.round(dht.humidity_pct || 65) + "%";
+      }
+    }
+
     renderTimers(snap.timers || []);
     renderRules(
       snap.word_mappings,
@@ -450,14 +506,14 @@
           if (msg.connected) {
             geminiStatusBadge.className = "status-badge online";
             geminiStatusText.textContent = msg.message || "Đã kết nối Gemini 3.8 Live";
-            oledMode.textContent = "ESP32-S3 OLED: ONLINE";
+            oledMode.textContent = "NodeMCU ESP8266: ONLINE";
             logEvent(msg.message || "Đã kết nối Gemini 3.8 Live", "tool");
           } else {
             geminiStatusBadge.className = "status-badge connecting";
             geminiStatusText.textContent = msg.error || msg.message || "Đang kết nối...";
             if (msg.error) {
               geminiStatusBadge.className = "status-badge offline";
-              oledMode.textContent = "ESP32-S3: STANDALONE";
+              oledMode.textContent = "ESP8266: STANDALONE";
               logEvent(msg.error, "err");
             }
           }
@@ -471,6 +527,15 @@
 
         case "state_snapshot":
           applySnapshot(msg.snapshot);
+          break;
+
+        case "server_mode_changed":
+          window._serverConnected = msg.server_connected !== false;
+          oledMainLine.textContent = window._serverConnected
+            ? "🟢 SERVER LAPTOP: ONLINE (AI + CUSTOM + MỞ CỬA)"
+            : "🟠 MẠCH OFFLINE: VỀ MẶC ĐỊNH & KHÓA CỬA CHÍNH";
+          oledSubLine.textContent = msg.message || "";
+          logEvent(msg.message || "Đã chuyển chế độ kết nối Server", window._serverConnected ? "tool" : "warn");
           break;
 
         case "device_updated":
@@ -693,7 +758,7 @@
     ws.onclose = () => {
       geminiStatusBadge.className = "status-badge offline";
       geminiStatusText.textContent = "Mất kết nối — Đang kết nối lại...";
-      oledMode.textContent = "ESP32-S3: STANDALONE";
+      oledMode.textContent = "ESP8266: STANDALONE";
       setTimeout(connectWebSocket, 2000);
     };
   }
@@ -960,6 +1025,22 @@
     eventLog.innerHTML = "";
   });
 
+  // Nút chuyển chế độ Kết nối Server Laptop (Online) <-> Mạch Độc Lập (Offline Mặc Định)
+  const btnServerModeToggle = document.getElementById("btnServerModeToggle");
+  if (btnServerModeToggle) {
+    btnServerModeToggle.addEventListener("click", async () => {
+      const nextConnected = window._serverConnected === false ? true : false;
+      sendWs({ type: "set_server_mode", server_connected: nextConnected });
+      try {
+        await fetch("/api/server_mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ server_connected: nextConnected }),
+        });
+      } catch (_) {}
+    });
+  }
+
   // Nút thu âm tự do 8 giây để lấy Tần số Giọng Chủ Nhà
   const btnEnroll8s = document.getElementById("btnEnroll8s");
   if (btnEnroll8s) {
@@ -1015,6 +1096,95 @@
         btnEnroll8s.textContent = "🎙️ Thu Âm 8s Đăng Ký Giọng";
         btnEnroll8s.disabled = false;
       }
+    });
+  }
+
+  // ──────── Thanh Slider / Nút Cảm biến 3D (Đồng bộ 1:1 với Wokwi) ────────
+  const sensorSoilSlider = document.getElementById("sensorSoilSlider");
+  if (sensorSoilSlider) {
+    sensorSoilSlider.addEventListener("input", async () => {
+      const pct = parseFloat(sensorSoilSlider.value);
+      const soilVal = document.getElementById("sensorSoilVal");
+      if (soilVal) soilVal.textContent = pct + "%";
+      try {
+        await fetch("/api/soil_moisture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ soil_moisture_pct: pct }),
+        });
+      } catch (_) {}
+    });
+  }
+
+  const sensorTempSlider = document.getElementById("sensorTempSlider");
+  if (sensorTempSlider) {
+    sensorTempSlider.addEventListener("input", async () => {
+      const t = parseFloat(sensorTempSlider.value);
+      const tempLabel = document.getElementById("sensorTempLabel");
+      if (tempLabel) tempLabel.textContent = t.toFixed(1) + "°C";
+      const dhtVal = document.getElementById("sensorDhtVal");
+      const humLabel = document.getElementById("sensorHumLabel");
+      const hum = humLabel ? parseInt(humLabel.textContent) || 65 : 65;
+      if (dhtVal) dhtVal.textContent = t.toFixed(1) + "°C | " + hum + "%";
+      try {
+        await fetch("/api/dht11", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ temp_c: t, humidity_pct: hum }),
+        });
+      } catch (_) {}
+    });
+  }
+
+  const btnIrLearn = document.getElementById("btnIrLearn3d");
+  if (btnIrLearn) {
+    btnIrLearn.addEventListener("click", async () => {
+      btnIrLearn.textContent = "📡 Đang thu ĐH...";
+      try {
+        const res = await fetch("/api/ir_learn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_name: "Điều hòa Casper", command_action: "open" }),
+        });
+        const data = await res.json();
+        const irVal = document.getElementById("sensorIrVal");
+        if (irVal) irVal.textContent = (data.learned && data.learned.hex_code) || data.hex_code || "0x20DF10EF";
+        btnIrLearn.textContent = "✅ Đã thu ĐH";
+        if (window.SmartHome3D && window.SmartHome3D.triggerIr38kHzVisualBlast) {
+          window.SmartHome3D.triggerIr38kHzVisualBlast();
+        }
+      } catch (_) {
+        btnIrLearn.textContent = "⚠️ Lỗi IR";
+      }
+      setTimeout(() => {
+        btnIrLearn.textContent = "❄️ Thu mã ĐH";
+      }, 2500);
+    });
+  }
+
+  const btnIrLearnFan = document.getElementById("btnIrLearnFan3d");
+  if (btnIrLearnFan) {
+    btnIrLearnFan.addEventListener("click", async () => {
+      btnIrLearnFan.textContent = "📡 Đang thu Quạt...";
+      try {
+        const res = await fetch("/api/ir_learn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_name: "Quạt trần", command_action: "open" }),
+        });
+        const data = await res.json();
+        const irVal = document.getElementById("sensorIrVal");
+        if (irVal) irVal.textContent = (data.learned && data.learned.hex_code) || data.hex_code || "0xA90";
+        btnIrLearnFan.textContent = "✅ Đã thu Quạt";
+        if (window.SmartHome3D && window.SmartHome3D.triggerIr38kHzVisualBlast) {
+          window.SmartHome3D.triggerIr38kHzVisualBlast();
+        }
+      } catch (_) {
+        btnIrLearnFan.textContent = "⚠️ Lỗi IR";
+      }
+      setTimeout(() => {
+        btnIrLearnFan.textContent = "🌀 Thu mã Quạt";
+      }, 2500);
     });
   }
 

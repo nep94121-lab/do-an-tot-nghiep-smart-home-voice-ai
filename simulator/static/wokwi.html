@@ -339,6 +339,7 @@
       </div>
     </div>
     <div class="top-actions">
+      <button id="btnWokwiServerMode" class="btn" onclick="toggleWokwiServerMode()" style="background:linear-gradient(135deg,#059669,#0284c7);border-color:#34d399;color:#fff;font-weight:700;" title="Bấm để mô phỏng rút/ngắt kết nối Server Laptop: Mạch về chế độ Mặc Định và Khóa Cửa Chính">🟢 Server Laptop: ONLINE</button>
       <button class="btn green" onclick="copyWokwiFile('diagram')">📋 Copy diagram.json</button>
       <button class="btn green" onclick="copyWokwiFile('sketch')">📋 Copy sketch.ino</button>
       <a href="https://wokwi.com/projects/new/esp32" target="_blank" class="btn primary">🚀 Mở Wokwi.com Online</a>
@@ -1092,10 +1093,35 @@
       box.scrollTop = box.scrollHeight;
     }
 
+    window._wokwiServerConnected = true;
+
     function syncWokwiComponents(snap) {
       if (!snap || !snap.devices) return;
-      for (const k of Object.keys(devState)) {
-        if (snap.devices[k]) devState[k] = snap.devices[k].state;
+      window._wokwiServerConnected = snap.server_connected !== false;
+
+      const btnSrv = document.getElementById('btnWokwiServerMode');
+      if (btnSrv) {
+        if (window._wokwiServerConnected) {
+          btnSrv.textContent = '🟢 Server Laptop: ONLINE';
+          btnSrv.style.background = 'linear-gradient(135deg,#059669,#0284c7)';
+          btnSrv.style.borderColor = '#34d399';
+        } else {
+          btnSrv.textContent = '🟠 Mạch Độc Lập: OFFLINE (Mặc Định + Khóa Cửa)';
+          btnSrv.style.background = 'linear-gradient(135deg,#d97706,#b45309)';
+          btnSrv.style.borderColor = '#fbbf24';
+        }
+      }
+
+      if (Array.isArray(snap.devices)) {
+        for (const d of snap.devices) {
+          if (d && d.id && devState.hasOwnProperty(d.id)) {
+            devState[d.id] = d.state;
+          }
+        }
+      } else {
+        for (const k of Object.keys(devState)) {
+          if (snap.devices[k]) devState[k] = snap.devices[k].state;
+        }
       }
 
       // Cập nhật nút bên phải
@@ -1103,8 +1129,9 @@
         const btn = document.getElementById('btn_' + id);
         const lb = document.getElementById('st_' + id);
         const on = (st === 'OPEN' || st === 'ON');
+        const isLockedOffline = !window._wokwiServerConnected && (id === 'main_door' || id === 'alarm_siren');
         if (btn) btn.classList.toggle('on', on);
-        if (lb) lb.textContent = st;
+        if (lb) lb.textContent = isLockedOffline ? '🔒 LOCKED' : st;
       }
 
       // 1. <wokwi-servo id="w_servo"> (Chân D1)
@@ -1143,26 +1170,44 @@
         pumpTimer = null;
       }
 
-      // 6. Telemetry (DHT11 + Độ ẩm đất YL-69)
-      if (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) {
-        const hw = snap.mqtt_hardware.esp8266_status;
-        if (typeof hw.temp_c === 'number') {
-          document.getElementById('lblDht').textContent = `${hw.temp_c.toFixed(1)}°C | ${hw.humidity_pct.toFixed(0)}%`;
-          const dhtEl = document.getElementById('w_dht');
-          if (dhtEl) {
-            dhtEl.temperature = hw.temp_c;
-            dhtEl.humidity = hw.humidity_pct;
-          }
-        }
-        if (typeof hw.soil_moisture_pct === 'number') {
-          const sPct = hw.soil_moisture_pct;
-          const adc = Math.round(1024 - (sPct / 100) * 724);
-          document.getElementById('lblSoil').textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;
-          document.getElementById('soil_svg_label').textContent = `Độ ẩm đất: ${sPct.toFixed(0)}% (${sPct < 40 ? 'ĐẤT KHÔ!' : (sPct >= 70 ? 'ĐỦ ẨM' : 'Bình thường')})`;
-          const doLed = document.getElementById('lm393_do_led');
-          if (doLed) doLed.setAttribute('fill', sPct < 40 ? '#ef4444' : '#450a0a');
+      // 6. Telemetry (DHT11 + Độ ẩm đất YL-69) từ snap.mqtt hoặc snap.mqtt_hardware
+      const dht = (snap.mqtt && snap.mqtt.dht11_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
+      const soil = (snap.mqtt && snap.mqtt.soil_moisture_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
+      if (dht && typeof dht.temp_c === 'number') {
+        const hum = typeof dht.humidity_pct === 'number' ? dht.humidity_pct : 65;
+        document.getElementById('lblDht').textContent = `${dht.temp_c.toFixed(1)}°C | ${hum.toFixed(0)}%`;
+        const dhtEl = document.getElementById('w_dht');
+        if (dhtEl) {
+          dhtEl.temperature = dht.temp_c;
+          dhtEl.humidity = hum;
         }
       }
+      if (soil && typeof soil.soil_moisture_pct === 'number') {
+        const sPct = soil.soil_moisture_pct;
+        const adc = Math.round(1024 - (sPct / 100) * 724);
+        document.getElementById('lblSoil').textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;
+        document.getElementById('soil_svg_label').textContent = `Độ ẩm đất: ${sPct.toFixed(0)}% (${sPct < 40 ? 'ĐẤT KHÔ!' : (sPct >= 70 ? 'ĐỦ ẨM' : 'Bình thường')})`;
+        const doLed = document.getElementById('lm393_do_led');
+        if (doLed) doLed.setAttribute('fill', sPct < 40 ? '#ef4444' : '#450a0a');
+      }
+    }
+
+    async function toggleWokwiServerMode() {
+      const nextConnected = !window._wokwiServerConnected;
+      const r = await fetch('/api/server_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server_connected: nextConnected })
+      });
+      const data = await r.json();
+      logSerial(
+        nextConnected
+          ? '[SERVER ONLINE] Đã kết nối lại Server Laptop -> Khôi phục AI + Khẩu lệnh Custom + Cho phép mở Cửa chính.'
+          : '[OFFLINE FALLBACK] Mất kết nối Server -> Mạch về chế độ Mặc Định cơ bản + KHÓA CỨNG Cửa chính (D1) & Còi báo động (D8)!',
+        nextConnected ? 'cmd' : 'warn'
+      );
+      if (data.snapshot) syncWokwiComponents(data.snapshot);
+      else fetchState();
     }
 
     async function fetchState() {
@@ -1176,7 +1221,9 @@
     async function toggleDevice(devId) {
       const cur = devState[devId] || 'OFF';
       const nextAct = (cur === 'OPEN' || cur === 'ON') ? 'close' : 'open';
-      if (devId === 'ac' || devId === 'fan') {
+      if (!window._wokwiServerConnected && (devId === 'main_door' || devId === 'alarm_siren')) {
+        logSerial(`[AN NINH OFFLINE] 🚫 Chặn lệnh ${devId.toUpperCase()}: Mạch đang ở chế độ Độc Lập (Không kết nối Server), cấm mở Cửa chính / Còi báo động!`, 'warn');
+      } else if (devId === 'ac' || devId === 'fan') {
         const irLed = document.getElementById('w_led_ir');
         if (irLed) {
           irLed.value = true;
@@ -1192,6 +1239,9 @@
         body: JSON.stringify({ device_id: devId, action: nextAct })
       });
       const data = await r.json();
+      if (data.ok === false && data.error) {
+        logSerial(`[CHẶN] ${data.error}`, 'warn');
+      }
       if (data.snapshot) syncWokwiComponents(data.snapshot);
       else fetchState();
     }

@@ -57,7 +57,62 @@ decode_results irResults;
 bool isIrLearningMode = false;
 bool livingLightState = false;   // Lưu trạng thái Đèn phòng khách để khôi phục sau khi phát xung IR 38kHz trên chân D2
 bool pumpAutoTriggered = false;  // Chống ghi đè lặp lại mỗi 3s khi người dùng bật/tắt Máy bơm bằng giọng nói
+bool wasServerConnected = false; // Theo dõi trạng thái kết nối Server Laptop để tự động khóa Cửa chính khi đứt kết nối
 unsigned long lastTelemetryMs = 0;
+
+// ----------------------------------------------------------------------------
+// CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE DEFAULT FALLBACK - KHI KHÔNG KẾT NỐI SERVER):
+// - Chỉ nhận lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt (Đèn khách, Đèn ngủ,
+//   Điều hòa, Quạt, Máy bơm).
+// - Vô hiệu hóa mọi khẩu lệnh custom (VD: "vừng ơi mở ra").
+// - KHÓA CỨNG Cửa chính (D1) và Còi báo động (D8) để đảm bảo an ninh tuyệt đối!
+// ----------------------------------------------------------------------------
+void processOfflineDefaultCommand(String rawCmd) {
+  rawCmd.trim();
+  rawCmd.toLowerCase();
+  if (rawCmd.length() == 0) return;
+
+  // 1. Chặn tuyệt đối lệnh Mở Cửa Chính & Còi Báo Động khi không có Server xác thực giọng nói
+  if (rawCmd.indexOf("mo cua") >= 0 || rawCmd.indexOf("mở cửa") >= 0 || rawCmd.indexOf("cua chinh") >= 0 || rawCmd.indexOf("cửa chính") >= 0) {
+    if (rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0) {
+      doorServo.write(0);
+      Serial.println("[OFFLINE SAFE] Da dong khoa Cua chinh (D1 = 0 deg).");
+      return;
+    }
+    doorServo.write(0);
+    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI MO CUA CHINH (D1)!");
+    return;
+  }
+  if (rawCmd.indexOf("coi") >= 0 || rawCmd.indexOf("còi") >= 0 || rawCmd.indexOf("bao dong") >= 0 || rawCmd.indexOf("báo động") >= 0) {
+    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI CAN THIEP COI BAO DONG (D8)!");
+    return;
+  }
+  if (rawCmd.indexOf("vung oi") >= 0 || rawCmd.indexOf("vừng ơi") >= 0) {
+    Serial.println("[OFFLINE DEFAULT] Khau lenh tuy chinh bi vo hieu hoa khi mat ket noi Server!");
+    return;
+  }
+
+  // 2. Thực thi lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt
+  bool turnOn = (rawCmd.indexOf("bat") >= 0 || rawCmd.indexOf("bật") >= 0 || rawCmd.indexOf("mo") >= 0 || rawCmd.indexOf("mở") >= 0);
+  bool turnOff = (rawCmd.indexOf("tat") >= 0 || rawCmd.indexOf("tắt") >= 0 || rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0);
+  if (!turnOn && !turnOff) return;
+  bool stateOn = turnOn && !turnOff;
+
+  if (rawCmd.indexOf("den khach") >= 0 || rawCmd.indexOf("đèn khách") >= 0 || rawCmd.indexOf("den phong khach") >= 0 || rawCmd.indexOf("đèn phòng khách") >= 0) {
+    livingLightState = stateOn;
+    digitalWrite(PIN_LIVING_LIGHT_IR, stateOn ? HIGH : LOW);
+    Serial.println(stateOn ? "[OFFLINE DEFAULT] Den phong khach (D2) -> ON" : "[OFFLINE DEFAULT] Den phong khach (D2) -> OFF");
+  } else if (rawCmd.indexOf("den ngu") >= 0 || rawCmd.indexOf("đèn ngủ") >= 0 || rawCmd.indexOf("den phong ngu") >= 0 || rawCmd.indexOf("đèn phòng ngủ") >= 0) {
+    digitalWrite(PIN_BEDROOM_LIGHT, stateOn ? HIGH : LOW);
+    Serial.println(stateOn ? "[OFFLINE DEFAULT] Den phong ngu (D7) -> ON" : "[OFFLINE DEFAULT] Den phong ngu (D7) -> OFF");
+  } else if (rawCmd.indexOf("dieu hoa") >= 0 || rawCmd.indexOf("điều hòa") >= 0 || rawCmd.indexOf("quat") >= 0 || rawCmd.indexOf("quạt") >= 0) {
+    blastIrAndRestoreLight(stateOn ? 0xB2BF40 : 0xB27BE0);
+    Serial.println(stateOn ? "[OFFLINE DEFAULT] Phat IR 38kHz (D2) -> ON" : "[OFFLINE DEFAULT] Phat IR 38kHz (D2) -> OFF");
+  } else if (rawCmd.indexOf("may bom") >= 0 || rawCmd.indexOf("máy bơm") >= 0 || rawCmd.indexOf("tuoi cay") >= 0 || rawCmd.indexOf("tưới cây") >= 0) {
+    digitalWrite(PIN_GARDEN_PUMP, stateOn ? HIGH : LOW);
+    Serial.println(stateOn ? "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> ON" : "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> OFF");
+  }
+}
 
 // Phát xung hồng ngoại 38kHz trên chân D2 và khôi phục ngay trạng thái Đèn phòng khách
 void blastIrAndRestoreLight(uint64_t code) {
@@ -177,6 +232,20 @@ void loop() {
       reconnectMqtt();
     }
     mqtt.loop();
+  }
+
+  bool isOnlineNow = (WiFi.status() == WL_CONNECTED && mqtt.connected());
+  if (wasServerConnected && !isOnlineNow) {
+    // Vừa mất kết nối với Server Laptop -> Tự động đóng khóa Cửa chính (Fail-Safe Lockout)
+    doorServo.write(0);
+    Serial.println("[OFFLINE FAIL-SAFE] Mat ket noi Server -> Tu dong DONG KHOA Cua chinh (D1 = 0 deg)!");
+  }
+  wasServerConnected = isOnlineNow;
+
+  // Khi không kết nối Server, nhận lệnh mặc định cơ bản qua Serial (chặn mở cửa & lệnh custom)
+  if (!isOnlineNow && Serial.available() > 0) {
+    String localCmd = Serial.readStringUntil('\n');
+    processOfflineDefaultCommand(localCmd);
   }
 
   // Kiểm tra mắt thu VS1838B (Chân D5) khi đang ở chế độ Học lệnh Remote 38kHz

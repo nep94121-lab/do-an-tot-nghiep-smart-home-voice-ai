@@ -49,8 +49,8 @@ void setup() {
   digitalWrite(PIN_BEDROOM_LIGHT, HIGH);
   delay(600);
 
-  Serial.println("[TEST 2] Xoay Cua Chinh Servo SG90 (D1) -> Goc 90 do (MO CUA)...");
-  doorServo.write(90);
+  Serial.println("[TEST 2] Che do Offline Default (Khong ket noi Server): KHOA CUNG Cua Chinh Servo SG90 (D1 = 0 do)...");
+  doorServo.write(0);
   delay(800);
 }
 

@@ -1,5 +1,5 @@
 {
-  "synced_at": 1793030176.11,
+  "synced_at": 1793464211.82,
   "timers_count": 1,
   "timers": [
     {
@@ -27,6 +27,7 @@
     "bedroom_light": 3,
     "fan": 3,
     "ac": 3,
-    "alarm_siren": 3
+    "alarm_siren": 3,
+    "garden_pump": 3
   }
 }
