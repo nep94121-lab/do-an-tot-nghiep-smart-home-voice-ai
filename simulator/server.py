@@ -621,6 +621,39 @@ fn_admin_upsert_knowledge_rag = types.FunctionDeclaration(
     },
 )
 
+fn_set_or_query_sensors = types.FunctionDeclaration(
+    name="set_or_query_sensors",
+    description=(
+        "ĐỌC HOẶC TỰ SET (GIẢ LẬP) NHIỆT ĐỘ PHÒNG, ĐỘ ẨM KHÔNG KHÍ (CẢM BIẾN DHT11 - CHÂN D6) VÀ ĐỘ ẨM ĐẤT (CẢM BIẾN YL-69 - CHÂN A0) BẰNG GIỌNG NÓI:\n"
+        "- Khi người dùng hỏi nhiệt độ, độ ẩm phòng, hoặc độ ẩm đất hiện tại (VD: 'Nhiệt độ phòng bao nhiêu?', 'Độ ẩm đất thế nào?') -> gọi với `operation='query'`.\n"
+        "- Khi người dùng ra lệnh chỉnh/set nhiệt độ hoặc độ ẩm không khí DHT11 (VD: 'Chỉnh nhiệt độ lên 32 độ', 'Set nhiệt độ 26 độ, độ ẩm 60%') -> gọi với `operation='set'`, truyền `temp_c` và/hoặc `humidity_pct`.\n"
+        "- Khi người dùng ra lệnh chỉnh/set độ ẩm đất YL-69 (VD: 'Set độ ẩm đất xuống 25%', 'Chỉnh độ ẩm đất 80%') -> gọi với `operation='set'`, truyền `soil_moisture_pct`. Nếu đất khô < 40% máy bơm (D3) sẽ tự bật, đủ ẩm >= 70% máy bơm tự tắt!"
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "operation": {
+                "type": "STRING",
+                "enum": ["query", "set"],
+                "description": "'query' để hỏi thông số hiện tại; 'set' để chỉnh/giả lập nhiệt độ, độ ẩm không khí hoặc độ ẩm đất.",
+            },
+            "temp_c": {
+                "type": "NUMBER",
+                "description": "Nhiệt độ phòng (°C) muốn set cho cảm biến DHT11 (chân D6), ví dụ 32.0.",
+            },
+            "humidity_pct": {
+                "type": "NUMBER",
+                "description": "Độ ẩm không khí (%) muốn set cho cảm biến DHT11 (chân D6), ví dụ 65.0.",
+            },
+            "soil_moisture_pct": {
+                "type": "NUMBER",
+                "description": "Độ ẩm đất (%) muốn set cho cảm biến YL-69 (chân A0), ví dụ 25.0 (khô < 40% tự bật bơm, >= 70% tự tắt bơm).",
+            },
+        },
+        "required": ["operation"],
+    },
+)
+
 ALL_TOOLS = [
     types.Tool(
         function_declarations=[
@@ -640,6 +673,7 @@ ALL_TOOLS = [
             fn_set_query_permission_policy,
             fn_admin_update_system_policy,
             fn_admin_upsert_knowledge_rag,
+            fn_set_or_query_sensors,
             fn_request_factory_reset,
             fn_confirm_factory_reset,
             fn_confirm_pending_action,
@@ -877,16 +911,32 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
         return JSONResponse(res)
     t_low = text.lower()
     if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
+        m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
+        if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+            res_soil = await _REST_ENGINE.update_soil_moisture_telemetry(float(m_soil.group(1)))
+            await _broadcast_rest_state_to_bridges()
+            return JSONResponse({"ok": True, "reply": res_soil["exact_spoken_reply"], "exact_spoken_reply": res_soil["exact_spoken_reply"]})
         soil = _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry
         spoken = f"Độ ẩm đất hiện tại là {soil['soil_moisture_pct']}% ({soil['status_label']})."
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
     if "tưới cây" in t_low or "bật máy bơm" in t_low:
         res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_on", source="mobile_app")
+        await _broadcast_rest_state_to_bridges()
         return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
     if "tắt máy bơm" in t_low:
         res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_off", source="mobile_app")
+        await _broadcast_rest_state_to_bridges()
         return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
+        if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+            cur_dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
+            m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_low)
+            m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_low)
+            t_val = float(m_t.group(1)) if m_t else float(cur_dht.get("temp_c", 28.5))
+            h_val = float(m_h.group(1)) if m_h else float(cur_dht.get("humidity_pct", 65.0))
+            res_dht = await _REST_ENGINE.update_sensor_telemetry(t_val, h_val)
+            await _broadcast_rest_state_to_bridges()
+            return JSONResponse({"ok": True, "reply": res_dht["exact_spoken_reply"], "exact_spoken_reply": res_dht["exact_spoken_reply"]})
         dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
         spoken = f"Nhiệt độ phòng là {dht['temp_c']}°C, độ ẩm {dht['humidity_pct']}%."
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
@@ -1329,6 +1379,48 @@ class LiveBridgeSession:
                 })
                 await self._sync_rules_context_to_gemini(res.get("message", "Đã cập nhật tri thức RAG."))
             return res
+
+        if name == "set_or_query_sensors":
+            op = str(args.get("operation", "query") or "query").lower()
+            temp_c = args.get("temp_c")
+            humidity_pct = args.get("humidity_pct")
+            soil_pct = args.get("soil_moisture_pct")
+            replies: list[str] = []
+            if op == "set" or temp_c is not None or humidity_pct is not None or soil_pct is not None:
+                if temp_c is not None or humidity_pct is not None:
+                    cur_dht = self.engine.mqtt_bridge.dht11_telemetry
+                    t_val = float(temp_c) if temp_c is not None else float(cur_dht.get("temp_c", 28.5))
+                    h_val = float(humidity_pct) if humidity_pct is not None else float(cur_dht.get("humidity_pct", 65.0))
+                    r_dht = await self.engine.update_sensor_telemetry(temp_c=t_val, humidity_pct=h_val)
+                    _REST_ENGINE.mqtt_bridge.dht11_telemetry = copy.deepcopy(self.engine.mqtt_bridge.dht11_telemetry)
+                    replies.append(str(r_dht.get("exact_spoken_reply", "")))
+                if soil_pct is not None:
+                    r_soil = await self.engine.update_soil_moisture_telemetry(soil_moisture_pct=float(soil_pct))
+                    _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(self.engine.mqtt_bridge.soil_moisture_telemetry)
+                    replies.append(str(r_soil.get("exact_spoken_reply", "")))
+                await _broadcast_rest_state_to_bridges()
+                spoken = " ".join(r for r in replies if r).strip() or "Đã cập nhật thông số cảm biến."
+                return {
+                    "ok": True,
+                    "exact_spoken_reply": spoken,
+                    "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
+                    "message": spoken,
+                }
+            cur_dht = self.engine.mqtt_bridge.dht11_telemetry
+            cur_soil = self.engine.mqtt_bridge.soil_moisture_telemetry
+            spoken = (
+                f"Nhiệt độ phòng đang là {float(cur_dht.get('temp_c', 28.5)):.1f} độ C, "
+                f"độ ẩm không khí {float(cur_dht.get('humidity_pct', 65.0)):.0f}%, "
+                f"độ ẩm đất {float(cur_soil.get('soil_moisture_pct', 55.0)):.0f}%."
+            )
+            return {
+                "ok": True,
+                "dht11": cur_dht,
+                "soil": cur_soil,
+                "exact_spoken_reply": spoken,
+                "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
+                "message": spoken,
+            }
 
         if name == "request_factory_reset":
             scope = str(args.get("scope", "all") or "all")

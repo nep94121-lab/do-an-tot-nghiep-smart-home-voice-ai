@@ -51,33 +51,33 @@
       "blast_score": 31
     },
     {
+      "qname": "simulator/server.py::LiveBridgeSession.handle_tool_call",
+      "file": "simulator/server.py",
+      "lines": "L1152-L1443",
+      "callers_count": 1,
+      "callees_count": 27,
+      "blast_score": 30
+    },
+    {
+      "qname": "simulator/server.py::_broadcast_rest_state_to_bridges",
+      "file": "simulator/server.py",
+      "lines": "L813-L825",
+      "callers_count": 9,
+      "callees_count": 2,
+      "blast_score": 29
+    },
+    {
       "qname": "simulator/server.py::LiveBridgeSession.send_ws_json",
       "file": "simulator/server.py",
-      "lines": "L945-L960",
+      "lines": "L995-L1010",
       "callers_count": 9,
       "callees_count": 0,
       "blast_score": 27
     },
     {
-      "qname": "simulator/server.py::_broadcast_rest_state_to_bridges",
-      "file": "simulator/server.py",
-      "lines": "L779-L791",
-      "callers_count": 8,
-      "callees_count": 2,
-      "blast_score": 26
-    },
-    {
-      "qname": "simulator/server.py::LiveBridgeSession.handle_tool_call",
-      "file": "simulator/server.py",
-      "lines": "L1102-L1351",
-      "callers_count": 1,
-      "callees_count": 23,
-      "blast_score": 26
-    },
-    {
       "qname": "simulator/server.py::LiveBridgeSession.run",
       "file": "simulator/server.py",
-      "lines": "L1616-L1799",
+      "lines": "L1708-L1891",
       "callers_count": 1,
       "callees_count": 20,
       "blast_score": 23
@@ -123,6 +123,30 @@
       "blast_score": 16
     },
     {
+      "qname": "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry",
+      "file": "simulator/mqtt_bridge.py",
+      "lines": "L352-L379",
+      "callers_count": 5,
+      "callees_count": 1,
+      "blast_score": 16
+    },
+    {
+      "qname": "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
+      "file": "simulator/rule_engine.py",
+      "lines": "L1844-L1864",
+      "callers_count": 4,
+      "callees_count": 4,
+      "blast_score": 16
+    },
+    {
+      "qname": "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
+      "file": "simulator/rule_engine.py",
+      "lines": "L1866-L1903",
+      "callers_count": 4,
+      "callees_count": 4,
+      "blast_score": 16
+    },
+    {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command",
       "file": "simulator/rule_engine.py",
       "lines": "L2518-L2636",
@@ -137,30 +161,6 @@
       "callers_count": 2,
       "callees_count": 10,
       "blast_score": 16
-    },
-    {
-      "qname": "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible",
-      "file": "simulator/rule_engine.py",
-      "lines": "L2028-L2122",
-      "callers_count": 3,
-      "callees_count": 6,
-      "blast_score": 15
-    },
-    {
-      "qname": "simulator/rule_engine.py::SmartHomeEngine.grant_user_permission",
-      "file": "simulator/rule_engine.py",
-      "lines": "L1498-L1568",
-      "callers_count": 3,
-      "callees_count": 6,
-      "blast_score": 15
-    },
-    {
-      "qname": "simulator/server.py::build_system_instruction",
-      "file": "simulator/server.py",
-      "lines": "L651-L753",
-      "callers_count": 3,
-      "callees_count": 5,
-      "blast_score": 14
     }
   ],
   "cross_layer_contracts": {
@@ -184,7 +184,8 @@
         "revoke_user_permission",
         "set_query_permission_policy",
         "admin_update_system_policy",
-        "admin_upsert_knowledge_rag"
+        "admin_upsert_knowledge_rag",
+        "set_or_query_sensors"
       ],
       "handled_in_server": [
         "admin_update_system_policy",
@@ -204,6 +205,7 @@
         "revoke_user_permission",
         "schedule_action",
         "set_if_else_rule",
+        "set_or_query_sensors",
         "set_query_permission_policy",
         "set_word_mapping",
         "start_voice_enrollment",
@@ -382,7 +384,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.156,
+      "pagerank": 1.148,
       "blast_score": 4
     },
     "simulator/server.py::load_key": {
@@ -421,8 +423,8 @@
       "name": "build_system_instruction",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 651,
-      "end_line": 753,
+      "start_line": 685,
+      "end_line": 787,
       "signature": "def build_system_instruction(engine)",
       "doc": "",
       "callees": [
@@ -437,7 +439,7 @@
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::make_live_config"
       ],
-      "pagerank": 2.562,
+      "pagerank": 2.56,
       "blast_score": 14
     },
     "simulator/server.py::make_live_config": {
@@ -445,8 +447,8 @@
       "name": "make_live_config",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 756,
-      "end_line": 768,
+      "start_line": 790,
+      "end_line": 802,
       "signature": "def make_live_config(engine)",
       "doc": "",
       "callees": [
@@ -463,8 +465,8 @@
       "name": "_broadcast_rest_state_to_bridges",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 779,
-      "end_line": 791,
+      "start_line": 813,
+      "end_line": 825,
       "signature": "async def _broadcast_rest_state_to_bridges()",
       "doc": "",
       "callees": [
@@ -472,6 +474,7 @@
         "simulator/server.py::LiveBridgeSession.send_ws_json"
       ],
       "callers": [
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::LiveBridgeSession.stream_wav_sample",
         "simulator/server.py::api_control_device",
@@ -481,16 +484,16 @@
         "simulator/server.py::api_update_dht11",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 3.712,
-      "blast_score": 26
+      "pagerank": 3.705,
+      "blast_score": 29
     },
     "simulator/server.py::index": {
       "qname": "simulator/server.py::index",
       "name": "index",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 795,
-      "end_line": 796,
+      "start_line": 829,
+      "end_line": 830,
       "signature": "async def index()",
       "doc": "",
       "callees": [],
@@ -503,8 +506,8 @@
       "name": "mobile_app_index",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 800,
-      "end_line": 801,
+      "start_line": 834,
+      "end_line": 835,
       "signature": "async def mobile_app_index()",
       "doc": "",
       "callees": [],
@@ -517,8 +520,8 @@
       "name": "wokwi_page",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 805,
-      "end_line": 806,
+      "start_line": 839,
+      "end_line": 840,
       "signature": "async def wokwi_page()",
       "doc": "",
       "callees": [],
@@ -531,8 +534,8 @@
       "name": "api_get_wokwi_files",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 810,
-      "end_line": 814,
+      "start_line": 844,
+      "end_line": 848,
       "signature": "async def api_get_wokwi_files()",
       "doc": "",
       "callees": [],
@@ -545,8 +548,8 @@
       "name": "api_get_state",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 818,
-      "end_line": 819,
+      "start_line": 852,
+      "end_line": 853,
       "signature": "async def api_get_state()",
       "doc": "",
       "callees": [
@@ -561,8 +564,8 @@
       "name": "api_control_device",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 823,
-      "end_line": 828,
+      "start_line": 857,
+      "end_line": 862,
       "signature": "async def api_control_device(payload)",
       "doc": "",
       "callees": [
@@ -578,8 +581,8 @@
       "name": "api_ir_learn",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 832,
-      "end_line": 837,
+      "start_line": 866,
+      "end_line": 871,
       "signature": "async def api_ir_learn(payload)",
       "doc": "",
       "callees": [
@@ -595,8 +598,8 @@
       "name": "api_update_dht11",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 841,
-      "end_line": 847,
+      "start_line": 875,
+      "end_line": 881,
       "signature": "async def api_update_dht11(payload)",
       "doc": "",
       "callees": [
@@ -612,8 +615,8 @@
       "name": "api_update_soil_moisture",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 851,
-      "end_line": 855,
+      "start_line": 885,
+      "end_line": 889,
       "signature": "async def api_update_soil_moisture(payload)",
       "doc": "",
       "callees": [
@@ -630,8 +633,8 @@
       "name": "api_set_server_mode",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 859,
-      "end_line": 868,
+      "start_line": 893,
+      "end_line": 902,
       "signature": "async def api_set_server_mode(payload)",
       "doc": "",
       "callees": [
@@ -647,29 +650,32 @@
       "name": "api_text_command",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 872,
-      "end_line": 901,
+      "start_line": 906,
+      "end_line": 951,
       "signature": "async def api_text_command(payload)",
       "doc": "",
       "callees": [
+        "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry",
         "simulator/rule_engine.py::SmartHomeEngine.execute_alias_rule",
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action",
         "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command",
         "simulator/rule_engine.py::SmartHomeEngine.get_merged_aliases",
         "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command",
+        "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
+        "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
       "pagerank": 1.103,
-      "blast_score": 6
+      "blast_score": 9
     },
     "simulator/server.py::list_voice_samples": {
       "qname": "simulator/server.py::list_voice_samples",
       "name": "list_voice_samples",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 905,
-      "end_line": 913,
+      "start_line": 955,
+      "end_line": 963,
       "signature": "async def list_voice_samples()",
       "doc": "",
       "callees": [],
@@ -682,8 +688,8 @@
       "name": "LiveBridgeSession",
       "kind": "class",
       "file": "simulator/server.py",
-      "start_line": 916,
-      "end_line": 1811,
+      "start_line": 966,
+      "end_line": 1903,
       "signature": "class LiveBridgeSession",
       "doc": "Quản lý kết nối giữa 1 tab trình duyệt và phiên Gemini 3.8 Live.",
       "methods": [
@@ -712,8 +718,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 919,
-      "end_line": 943,
+      "start_line": 969,
+      "end_line": 993,
       "signature": "def __init__(ws)",
       "doc": "",
       "callees": [
@@ -730,8 +736,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 945,
-      "end_line": 960,
+      "start_line": 995,
+      "end_line": 1010,
       "signature": "async def send_ws_json(payload)",
       "doc": "",
       "callees": [],
@@ -746,7 +752,7 @@
         "simulator/server.py::LiveBridgeSession.stream_wav_sample",
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
-      "pagerank": 4.735,
+      "pagerank": 4.72,
       "blast_score": 27
     },
     "simulator/server.py::LiveBridgeSession._reset_turn_metrics": {
@@ -755,8 +761,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 962,
-      "end_line": 968,
+      "start_line": 1012,
+      "end_line": 1018,
       "signature": "def _reset_turn_metrics(anchor_ts)",
       "doc": "",
       "callees": [],
@@ -774,8 +780,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 970,
-      "end_line": 996,
+      "start_line": 1020,
+      "end_line": 1046,
       "signature": "async def _sync_rules_context_to_gemini(event_note, send_to_model)",
       "doc": "Cập nhật tức thì bảng Từ, Khẩu lệnh, Luật IF-ELSE và 2 Bể lên giao diện (và Gemini nếu cần).",
       "callees": [
@@ -788,7 +794,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.405,
+      "pagerank": 1.396,
       "blast_score": 12
     },
     "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence": {
@@ -797,8 +803,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 998,
-      "end_line": 1031,
+      "start_line": 1048,
+      "end_line": 1081,
       "signature": "async def _run_voice_enrollment_sequence(duration_seconds, target_tier, target_name)",
       "doc": "Thực thi chuỗi tín hiệu phần cứng khi bắt đầu thu âm cấp quyền:",
       "callees": [
@@ -809,7 +815,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.156,
+      "pagerank": 1.148,
       "blast_score": 6
     },
     "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment": {
@@ -818,8 +824,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1033,
-      "end_line": 1100,
+      "start_line": 1083,
+      "end_line": 1150,
       "signature": "async def _process_completed_voice_enrollment(pcm_bytes)",
       "doc": "Xử lý sau khi thu âm đủ: Nháy đèn báo kết thúc -> Báo thu âm đủ -> Phân tích tần số -> Báo phân tích xong & hỏi tên.",
       "callees": [
@@ -835,7 +841,7 @@
         "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.497,
+      "pagerank": 1.495,
       "blast_score": 13
     },
     "simulator/server.py::LiveBridgeSession.handle_tool_call": {
@@ -844,13 +850,14 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1102,
-      "end_line": 1351,
+      "start_line": 1152,
+      "end_line": 1443,
       "signature": "async def handle_tool_call(fc)",
       "doc": "",
       "callees": [
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.retrieve",
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item",
+        "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry",
         "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy",
         "simulator/rule_engine.py::SmartHomeEngine.confirm_pending_action",
         "simulator/rule_engine.py::SmartHomeEngine.create_alias_rule",
@@ -867,9 +874,12 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping",
         "simulator/rule_engine.py::SmartHomeEngine.start_voice_enrollment",
         "simulator/rule_engine.py::SmartHomeEngine.update_or_cancel_timer",
+        "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
+        "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
         "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence",
         "simulator/server.py::LiveBridgeSession._sync_rules_context_to_gemini",
         "simulator/server.py::LiveBridgeSession.send_ws_json",
+        "simulator/server.py::_broadcast_rest_state_to_bridges",
         "simulator/server.py::get_knowledge_rag",
         "simulator/voice_auth.py::VoiceAuthManager.register_enrolled_user_profile"
       ],
@@ -877,7 +887,7 @@
         "simulator/server.py::LiveBridgeSession.gemini_receive_loop"
       ],
       "pagerank": 1.434,
-      "blast_score": 26
+      "blast_score": 30
     },
     "simulator/server.py::LiveBridgeSession.gemini_receive_loop": {
       "qname": "simulator/server.py::LiveBridgeSession.gemini_receive_loop",
@@ -885,8 +895,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1353,
-      "end_line": 1482,
+      "start_line": 1445,
+      "end_line": 1574,
       "signature": "async def gemini_receive_loop()",
       "doc": "Nhận liên tục các sự kiện từ Gemini 3.8 Live và đẩy về giao diện.",
       "callees": [
@@ -906,8 +916,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1484,
-      "end_line": 1614,
+      "start_line": 1576,
+      "end_line": 1706,
       "signature": "async def stream_wav_sample(sample_id)",
       "doc": "",
       "callees": [
@@ -929,8 +939,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1616,
-      "end_line": 1799,
+      "start_line": 1708,
+      "end_line": 1891,
       "signature": "async def run()",
       "doc": "",
       "callees": [
@@ -967,8 +977,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1801,
-      "end_line": 1811,
+      "start_line": 1893,
+      "end_line": 1903,
       "signature": "async def _periodic_timer_sync()",
       "doc": "",
       "callees": [
@@ -986,8 +996,8 @@
       "name": "websocket_endpoint",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 1815,
-      "end_line": 1818,
+      "start_line": 1907,
+      "end_line": 1910,
       "signature": "async def websocket_endpoint(ws)",
       "doc": "",
       "callees": [
@@ -1032,7 +1042,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.get_snapshot",
         "simulator/server.py::LiveBridgeSession._sync_rules_context_to_gemini"
       ],
-      "pagerank": 3.499,
+      "pagerank": 3.501,
       "blast_score": 7
     },
     "simulator/rule_engine.py::_format_clock_12h": {
@@ -1081,7 +1091,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible",
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
-      "pagerank": 1.797,
+      "pagerank": 1.795,
       "blast_score": 6
     },
     "simulator/rule_engine.py::normalize_reset_scope": {
@@ -1098,7 +1108,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset",
         "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset"
       ],
-      "pagerank": 1.564,
+      "pagerank": 1.562,
       "blast_score": 6
     },
     "simulator/rule_engine.py::parse_vn_clock_and_date": {
@@ -1120,7 +1130,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible",
         "simulator/rule_engine.py::parse_vn_time_string"
       ],
-      "pagerank": 2.255,
+      "pagerank": 2.254,
       "blast_score": 10
     },
     "simulator/rule_engine.py::parse_vn_time_string": {
@@ -1153,7 +1163,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.__init__",
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset"
       ],
-      "pagerank": 1.548,
+      "pagerank": 1.547,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine": {
@@ -1306,7 +1316,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.431,
+      "pagerank": 1.421,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy": {
@@ -1329,7 +1339,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine._init_users": {
@@ -1406,7 +1416,7 @@
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 8.504,
+      "pagerank": 8.487,
       "blast_score": 42
     },
     "simulator/rule_engine.py::SmartHomeEngine.current_role": {
@@ -1508,7 +1518,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 14.393,
+      "pagerank": 14.312,
       "blast_score": 42
     },
     "simulator/rule_engine.py::SmartHomeEngine._save_overlay": {
@@ -1536,7 +1546,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_query_permission_policy",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 3.448,
+      "pagerank": 3.434,
       "blast_score": 31
     },
     "simulator/rule_engine.py::SmartHomeEngine.emit": {
@@ -1577,7 +1587,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
         "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry"
       ],
-      "pagerank": 8.686,
+      "pagerank": 8.692,
       "blast_score": 75
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_merged_aliases": {
@@ -1600,7 +1610,7 @@
         "simulator/server.py::api_text_command",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 2.235,
+      "pagerank": 2.172,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_word_mappings": {
@@ -1644,7 +1654,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 2.893,
+      "pagerank": 2.892,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_chains": {
@@ -1680,7 +1690,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_action",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 3.499,
+      "pagerank": 3.502,
       "blast_score": 9
     },
     "simulator/rule_engine.py::SmartHomeEngine._action_device_phrase_vi": {
@@ -1700,7 +1710,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_action",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 2.069,
+      "pagerank": 2.065,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.describe_device_command": {
@@ -1722,7 +1732,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.get_pools_summary"
       ],
-      "pagerank": 1.378,
+      "pagerank": 1.376,
       "blast_score": 7
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_pools_summary": {
@@ -1747,7 +1757,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 1.616,
+      "pagerank": 1.607,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_snapshot": {
@@ -1797,7 +1807,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges",
         "simulator/server.py::api_get_state"
       ],
-      "pagerank": 11.752,
+      "pagerank": 11.776,
       "blast_score": 89
     },
     "simulator/rule_engine.py::SmartHomeEngine.check_permission": {
@@ -1820,7 +1830,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 2.341,
+      "pagerank": 2.338,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_custom_directive_device_lock": {
@@ -1839,7 +1849,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.check_device_permission"
       ],
-      "pagerank": 1.723,
+      "pagerank": 1.722,
       "blast_score": 4
     },
     "simulator/rule_engine.py::SmartHomeEngine.check_device_permission": {
@@ -1859,7 +1869,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.459,
+      "pagerank": 1.457,
       "blast_score": 5
     },
     "simulator/rule_engine.py::SmartHomeEngine._find_or_slug_user": {
@@ -1877,7 +1887,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.grant_user_permission",
         "simulator/rule_engine.py::SmartHomeEngine.revoke_user_permission"
       ],
-      "pagerank": 1.568,
+      "pagerank": 1.565,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine.blink_signal_light": {
@@ -1900,7 +1910,7 @@
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment",
         "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence"
       ],
-      "pagerank": 1.636,
+      "pagerank": 1.634,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.start_voice_enrollment": {
@@ -1921,7 +1931,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 8
     },
     "simulator/rule_engine.py::SmartHomeEngine.stage_voice_enrollment_analysis": {
@@ -1967,7 +1977,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.stage_voice_enrollment_analysis",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.551,
+      "pagerank": 1.543,
       "blast_score": 13
     },
     "simulator/rule_engine.py::SmartHomeEngine.grant_user_permission": {
@@ -1993,7 +2003,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.finalize_voice_enrollment",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.51,
+      "pagerank": 1.5,
       "blast_score": 15
     },
     "simulator/rule_engine.py::SmartHomeEngine.revoke_user_permission": {
@@ -2016,7 +2026,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine._expand_targets": {
@@ -2033,7 +2043,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.459,
+      "pagerank": 1.457,
       "blast_score": 3
     },
     "simulator/rule_engine.py::SmartHomeEngine._state_verb_vi": {
@@ -2051,7 +2061,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._build_concise_spoken_reply",
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 3.168,
+      "pagerank": 3.146,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._build_concise_spoken_reply": {
@@ -2072,7 +2082,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action",
         "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command"
       ],
-      "pagerank": 2.011,
+      "pagerank": 1.988,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine.execute_device_action": {
@@ -2110,7 +2120,7 @@
         "simulator/server.py::api_control_device",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 3.766,
+      "pagerank": 3.747,
       "blast_score": 45
     },
     "simulator/rule_engine.py::SmartHomeEngine.sync_edge_flash": {
@@ -2151,10 +2161,12 @@
       ],
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
+        "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_dht11"
       ],
-      "pagerank": 1.596,
-      "blast_score": 10
+      "pagerank": 1.745,
+      "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry": {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
@@ -2174,10 +2186,12 @@
       ],
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
+        "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 1.439,
-      "blast_score": 10
+      "pagerank": 1.589,
+      "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command": {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command",
@@ -2200,7 +2214,7 @@
         "simulator/server.py::api_ir_learn",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.752,
+      "pagerank": 1.7,
       "blast_score": 13
     },
     "simulator/rule_engine.py::SmartHomeEngine._evaluate_reactive_if_else": {
@@ -2221,7 +2235,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.459,
+      "pagerank": 1.457,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_t1_timer_conflict": {
@@ -2264,7 +2278,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.update_or_cancel_timer",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.514,
+      "pagerank": 1.504,
       "blast_score": 15
     },
     "simulator/rule_engine.py::SmartHomeEngine.schedule_action": {
@@ -2291,7 +2305,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._evaluate_reactive_if_else",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 1.731,
+      "pagerank": 1.729,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.update_or_cancel_timer": {
@@ -2313,7 +2327,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 9
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping": {
@@ -2338,7 +2352,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.create_alias_rule": {
@@ -2363,7 +2377,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_server_connection_mode": {
@@ -2410,7 +2424,7 @@
         "simulator/server.py::LiveBridgeSession.stream_wav_sample",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.549,
+      "pagerank": 1.497,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.execute_alias_rule": {
@@ -2434,7 +2448,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.312,
+      "pagerank": 1.252,
       "blast_score": 11
     },
     "simulator/rule_engine.py::SmartHomeEngine._has_cycle": {
@@ -2452,7 +2466,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._check_t1_rule_conflict",
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule"
       ],
-      "pagerank": 1.715,
+      "pagerank": 1.714,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_t1_rule_conflict": {
@@ -2501,7 +2515,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.confirm_pending_action": {
@@ -2526,7 +2540,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.confirm_factory_reset",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.467,
+      "pagerank": 1.459,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset": {
@@ -2549,7 +2563,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine.confirm_factory_reset": {
@@ -2571,7 +2585,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.confirm_pending_action"
       ],
-      "pagerank": 1.352,
+      "pagerank": 1.351,
       "blast_score": 7
     },
     "simulator/rule_engine.py::SmartHomeEngine.factory_reset": {
@@ -2599,7 +2613,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.732,
+      "pagerank": 1.73,
       "blast_score": 19
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge": {
@@ -2680,7 +2694,7 @@
       "callers": [
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.complete_ir_learning"
       ],
-      "pagerank": 1.73,
+      "pagerank": 1.725,
       "blast_score": 3
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish": {
@@ -2703,7 +2717,7 @@
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_dht11_telemetry",
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry"
       ],
-      "pagerank": 9.609,
+      "pagerank": 9.774,
       "blast_score": 21
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish_actuate_command": {
@@ -2722,7 +2736,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.459,
+      "pagerank": 1.457,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish_enrollment_blink": {
@@ -2741,7 +2755,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.blink_signal_light"
       ],
-      "pagerank": 1.567,
+      "pagerank": 1.566,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.sync_pools_to_esp8266_flash": {
@@ -2779,7 +2793,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry"
       ],
-      "pagerank": 1.442,
+      "pagerank": 1.474,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry": {
@@ -2798,10 +2812,12 @@
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
+        "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 1.745,
-      "blast_score": 10
+      "pagerank": 1.926,
+      "blast_score": 16
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.start_ir_learning": {
       "qname": "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.start_ir_learning",
@@ -2819,7 +2835,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command"
       ],
-      "pagerank": 1.475,
+      "pagerank": 1.464,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.complete_ir_learning": {
@@ -2839,7 +2855,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command"
       ],
-      "pagerank": 1.475,
+      "pagerank": 1.464,
       "blast_score": 5
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.get_summary": {
@@ -2857,7 +2873,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/rule_engine.py::SmartHomeEngine.get_snapshot"
       ],
-      "pagerank": 3.125,
+      "pagerank": 3.129,
       "blast_score": 6
     },
     "simulator/voice_auth.py::extract_voice_features": {
@@ -3031,7 +3047,7 @@
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.362,
+      "pagerank": 1.354,
       "blast_score": 9
     },
     "simulator/voice_auth.py::VoiceAuthManager.verify_pcm16k_and_apply_strikes": {
@@ -3129,7 +3145,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::get_knowledge_rag"
       ],
-      "pagerank": 2.11,
+      "pagerank": 2.103,
       "blast_score": 6
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.__init__": {
@@ -3165,7 +3181,7 @@
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings",
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item"
       ],
-      "pagerank": 3.849,
+      "pagerank": 3.842,
       "blast_score": 6
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings": {
@@ -3202,7 +3218,7 @@
       "callers": [
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.retrieve"
       ],
-      "pagerank": 2.106,
+      "pagerank": 2.099,
       "blast_score": 3
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.retrieve": {
@@ -3222,7 +3238,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 7
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item": {
@@ -3242,7 +3258,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.18,
+      "pagerank": 1.172,
       "blast_score": 7
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.reset_custom_knowledge": {
