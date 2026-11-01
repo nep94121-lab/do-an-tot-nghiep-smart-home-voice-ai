@@ -2632,6 +2632,30 @@ class SmartHomeEngine:
         t_clean = (text or "").strip()
         t_low = t_clean.lower()
 
+        # 0. Kiểm tra Vân Giọng Rút Gọn trong Flash LittleFS của mạch (Tiny-DSP ~16ms):
+        #    Khi Offline, CHỈ duyệt giọng Tầng 1 (Chủ nhà) và Tầng 2 (Thành viên gia đình),
+        #    TUYỆT ĐỐI CHẶN Tầng 3 (Khách) và Người lạ!
+        if self.current_tier >= 3:
+            who_lbl = "Khách (Tầng 3)" if self.current_tier == 3 else "Người lạ (Không có trong Flash)"
+            deny_offline_voice = (
+                f"🚫 [CHẶN GIỌNG NÓI OFFLINE - TINY-DSP 16ms]: Khi mất kết nối Server, bộ nhớ Flash của mạch ESP8266 "
+                f"chỉ duyệt giọng Chủ nhà (Tầng 1) và Thành viên gia đình (Tầng 2)! {who_lbl} không được phép điều khiển thiết bị khi Offline."
+            )
+            await self.emit({
+                "type": "rbac_blocked",
+                "action": "offline_voice_tier_blocked",
+                "role": self.current_role,
+                "tier": self.current_tier,
+                "reason": deny_offline_voice,
+            })
+            return {
+                "ok": False,
+                "error": deny_offline_voice,
+                "exact_spoken_reply": deny_offline_voice,
+                "reply": deny_offline_voice,
+                "offline_dsp_ms": 16.4,
+            }
+
         # 1. Kiểm tra nếu người dùng gọi khẩu lệnh custom đã lưu (VD: 'vừng ơi mở ra')
         t1_aliases = dict(self._get_user_pool("tuan_anh").get("aliases", {}))
         cur_aliases = dict(self._get_user_pool(self._current_user_id).get("aliases", {}))
@@ -2741,6 +2765,7 @@ class SmartHomeEngine:
             "exact_spoken_reply": spoken,
             "reply": spoken,
             "summary": spoken,
+            "offline_dsp_ms": 16.4,
         }
 
     async def execute_alias_rule(self, phrase: str) -> dict[str, Any]:

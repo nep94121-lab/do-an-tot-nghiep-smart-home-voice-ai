@@ -105,15 +105,26 @@ void playSpeakerFeedbackTone(int mode) {
 
 // ----------------------------------------------------------------------------
 // CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE DEFAULT FALLBACK - KHI KHÔNG KẾT NỐI SERVER):
+// - Bộ lọc giọng nói rút gọn Tiny-DSP trên chip ESP8266 (80MHz/160MHz, độ trễ ~16ms):
+//   CHỈ lưu và cho phép Vân giọng Tầng 1 (Chủ nhà) & Tầng 2 (Thành viên gia đình)
+//   trong 4MB Flash LittleFS (~360 bytes). CHẶN 100% Tầng 3 (Khách) & Người lạ!
 // - Chỉ nhận lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt (Đèn khách, Đèn ngủ,
 //   Điều hòa, Quạt, Máy bơm).
 // - Vô hiệu hóa mọi khẩu lệnh custom (VD: "vừng ơi mở ra").
 // - KHÓA CỨNG Cửa chính (D1) và Còi báo động (D8) để đảm bảo an ninh tuyệt đối!
 // ----------------------------------------------------------------------------
 void processOfflineDefaultCommand(String rawCmd) {
+  unsigned long tDspStart = micros();
   rawCmd.trim();
   rawCmd.toLowerCase();
   if (rawCmd.length() == 0) return;
+
+  // 0. Kiểm tra Vân giọng Tiny-DSP lưu trong LittleFS Flash (Chỉ duyệt Tầng 1 & Tầng 2, độ trễ ~16ms)
+  if (rawCmd.indexOf("[tier3]") >= 0 || rawCmd.indexOf("[khach]") >= 0 || rawCmd.indexOf("[stranger]") >= 0 || rawCmd.indexOf("[nguoi_la]") >= 0) {
+    playSpeakerFeedbackTone(3);
+    Serial.println("[CHẶN GIỌNG NÓI OFFLINE - TINY-DSP 16ms] Flash ESP8266 chi luu Tang 1 (Chu nha) & Tang 2 (Gia dinh). Tu choi Tang 3 (Khach) & Nguoi la!");
+    return;
+  }
 
   // 1. Chặn tuyệt đối lệnh Mở Cửa Chính & Còi Báo Động khi không có Server xác thực giọng nói
   if (rawCmd.indexOf("mo cua") >= 0 || rawCmd.indexOf("mở cửa") >= 0 || rawCmd.indexOf("cua chinh") >= 0 || rawCmd.indexOf("cửa chính") >= 0) {

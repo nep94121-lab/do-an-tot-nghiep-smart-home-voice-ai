@@ -286,6 +286,12 @@ class SmartHomeMQTTBridge:
         """
         replica_payload = {
             "synced_at": round(time.time(), 2),
+            "offline_voice_policy": "TIER_1_AND_2_ONLY (Chặn Tầng 3 Khách & Người lạ, Tiny-DSP ~16ms)",
+            "offline_voiceprints_t1_t2": [
+                {"user_id": "tuan_anh", "name": "Nguyễn Tuấn Anh", "tier": 1, "f0_hz": 170.2, "centroid_hz": 1271.7, "tolerance_hz": 24.0},
+                {"user_id": "thanh_vien_a", "name": "Thành viên A", "tier": 2, "f0_hz": 182.5, "centroid_hz": 1410.0, "tolerance_hz": 24.0},
+                {"user_id": "thanh_vien_b", "name": "Thành viên B", "tier": 2, "f0_hz": 195.0, "centroid_hz": 1520.0, "tolerance_hz": 24.0},
+            ],
             "timers_count": len(timers),
             "timers": [
                 {

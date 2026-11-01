@@ -1722,8 +1722,35 @@ class LiveBridgeSession:
         label = VOICE_SAMPLES_META.get(sample_id, sample_id)
 
         # Nếu đang ở Chế độ Mạch Độc Lập (Offline - Không kết nối Server):
+        # Mạch ESP8266 tự chạy Bộ Lọc Tiny-DSP Rút Gọn lưu trong Flash (~16ms), CHỈ duyệt giọng Tầng 1 & Tầng 2!
         if not self.engine.server_connected:
             t0_off = time.perf_counter()
+            auth_off = self.voice_auth.verify_pcm16k_and_apply_strikes(data)
+            auth_off.pop("clean_pcm_bytes", None)
+            auth_off["filter_stage_used"] = "Tiny-DSP Flash ESP8266 (Tầng 1 & 2)"
+            await self.send_ws_json({
+                "type": "voice_auth_result",
+                "sample_id": sample_id,
+                "label": label,
+                "analysis": auth_off,
+            })
+            if not auth_off["authorized"] or int(auth_off.get("tier", 1)) >= 3:
+                tool_ms = max(1, int((time.perf_counter() - t0_off) * 1000))
+                rej_off = (
+                    f"🚫 [CHẶN GIỌNG LẠ OFFLINE - TINY-DSP {auth_off.get('stage1_ms', 16)}ms]: "
+                    f"Khi ngắt Server, mạch ESP8266 chỉ nhận giọng Tầng 1 (Chủ nhà) & Tầng 2 (Gia đình) đã lưu trong Flash! "
+                    f"Phát hiện {auth_off['speaker_label']} (F0={auth_off['f0_hz']}Hz) -> Từ chối điều khiển!"
+                )
+                await self.send_ws_json({"type": "input_transcription", "text": label, "full_text": label})
+                await self.send_ws_json({
+                    "type": "voice_auth_rejected",
+                    "sample_id": sample_id,
+                    "label": label,
+                    "strike_count": auth_off.get("strike_count", 1),
+                    "f0_hz": auth_off["f0_hz"],
+                    "rejection_speech": rej_off,
+                })
+                return
             res_off = await self.engine.execute_offline_default_command(label, source="offline_default_wav")
             tool_ms = max(1, int((time.perf_counter() - t0_off) * 1000))
             reply_txt = str(res_off.get("exact_spoken_reply") or res_off.get("reply") or "")

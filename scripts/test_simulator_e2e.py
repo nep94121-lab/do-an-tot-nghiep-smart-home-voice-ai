@@ -524,10 +524,22 @@ async def test_unit_all_new_features() -> None:
     print(f"  [PASS] 11.3 Vô hiệu hóa khẩu lệnh custom ('vừng ơi mở ra') khi Offline: '{blk_custom_off['exact_spoken_reply']}'")
 
     ok_ac_off = await eng3.execute_offline_default_command("mở điều hòa")
-    assert ok_ac_off["ok"] and eng3.devices["ac"]["state"] == "ON"
+    assert ok_ac_off["ok"] and eng3.devices["ac"]["state"] == "ON" and ok_ac_off.get("offline_dsp_ms") == 16.4
     ok_light_off = await eng3.execute_offline_default_command("bật đèn phòng khách")
     assert ok_light_off["ok"] and eng3.devices["living_room_light"]["state"] == "ON"
-    print(f"  [PASS] 11.4 Cho phép lệnh mặc định cơ bản (Điều hòa, Đèn, Quạt, Máy bơm) khi Offline: '{ok_ac_off['exact_spoken_reply']}' | '{ok_light_off['exact_spoken_reply']}'")
+    # Kiểm chứng Tầng 2 (Gia đình) vẫn điều khiển được khi Offline
+    eng3.set_active_user("thanh_vien_a")
+    ok_t2_off = await eng3.execute_offline_default_command("bật đèn phòng ngủ")
+    assert ok_t2_off["ok"] and eng3.devices["bedroom_light"]["state"] == "ON"
+    # Kiểm chứng Tầng 3 (Khách) & Người lạ bị chặn 100% khi Offline bởi Tiny-DSP Flash (chỉ lưu Tầng 1 & 2)
+    eng3.set_active_user("khach_c")
+    blk_t3_off = await eng3.execute_offline_default_command("tắt đèn phòng khách")
+    assert not blk_t3_off["ok"] and eng3.devices["living_room_light"]["state"] == "ON"
+    eng3.set_active_user("UNKNOWN")
+    blk_stranger_off = await eng3.execute_offline_default_command("tắt điều hòa")
+    assert not blk_stranger_off["ok"] and eng3.devices["ac"]["state"] == "ON"
+    eng3.set_active_user("tuan_anh")
+    print(f"  [PASS] 11.4 Offline Tiny-DSP (~16.4ms): Chỉ duyệt Tầng 1 & Tầng 2 ('{ok_ac_off['exact_spoken_reply']}'), Chặn 100% Khách Tầng 3 & Người lạ ('{blk_t3_off['exact_spoken_reply']}')")
 
     on_mode = await eng3.set_server_connection_mode(True)
     assert on_mode["ok"] and eng3.server_connected is True

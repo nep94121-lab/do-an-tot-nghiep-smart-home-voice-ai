@@ -77,7 +77,7 @@
     {
       "qname": "simulator/server.py::LiveBridgeSession.run",
       "file": "simulator/server.py",
-      "lines": "L1847-L2044",
+      "lines": "L1874-L2071",
       "callers_count": 1,
       "callees_count": 21,
       "blast_score": 24
@@ -93,7 +93,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.factory_reset",
       "file": "simulator/rule_engine.py",
-      "lines": "L3107-L3238",
+      "lines": "L3132-L3263",
       "callers_count": 4,
       "callees_count": 7,
       "blast_score": 19
@@ -125,7 +125,7 @@
     {
       "qname": "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry",
       "file": "simulator/mqtt_bridge.py",
-      "lines": "L354-L381",
+      "lines": "L360-L387",
       "callers_count": 5,
       "callees_count": 1,
       "blast_score": 16
@@ -149,7 +149,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command",
       "file": "simulator/rule_engine.py",
-      "lines": "L2626-L2744",
+      "lines": "L2626-L2769",
       "callers_count": 4,
       "callees_count": 4,
       "blast_score": 16
@@ -157,7 +157,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
       "file": "simulator/rule_engine.py",
-      "lines": "L2836-L2969",
+      "lines": "L2861-L2994",
       "callers_count": 2,
       "callees_count": 10,
       "blast_score": 16
@@ -763,7 +763,7 @@
       "kind": "class",
       "file": "simulator/server.py",
       "start_line": 1067,
-      "end_line": 2056,
+      "end_line": 2083,
       "signature": "class LiveBridgeSession",
       "doc": "Quản lý kết nối giữa 1 tab trình duyệt và phiên Gemini 3.8 Live.",
       "methods": [
@@ -994,7 +994,7 @@
       "kind": "method",
       "file": "simulator/server.py",
       "start_line": 1713,
-      "end_line": 1845,
+      "end_line": 1872,
       "signature": "async def stream_wav_sample(sample_id)",
       "doc": "",
       "callees": [
@@ -1016,8 +1016,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1847,
-      "end_line": 2044,
+      "start_line": 1874,
+      "end_line": 2071,
       "signature": "async def run()",
       "doc": "",
       "callees": [
@@ -1055,8 +1055,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 2046,
-      "end_line": 2056,
+      "start_line": 2073,
+      "end_line": 2083,
       "signature": "async def _periodic_timer_sync()",
       "doc": "",
       "callees": [
@@ -1074,8 +1074,8 @@
       "name": "websocket_endpoint",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 2060,
-      "end_line": 2063,
+      "start_line": 2087,
+      "end_line": 2090,
       "signature": "async def websocket_endpoint(ws)",
       "doc": "",
       "callees": [
@@ -1305,7 +1305,7 @@
       "kind": "class",
       "file": "simulator/rule_engine.py",
       "start_line": 542,
-      "end_line": 3238,
+      "end_line": 3263,
       "signature": "class SmartHomeEngine",
       "doc": "",
       "methods": [
@@ -2548,7 +2548,7 @@
       "kind": "method",
       "file": "simulator/rule_engine.py",
       "start_line": 2626,
-      "end_line": 2744,
+      "end_line": 2769,
       "signature": "async def execute_offline_default_command(text, source)",
       "doc": "Bộ giải mã Lệnh Mặc Định Cơ Bản khi Mạch chạy Độc Lập không kết nối Server (Offline Mode):",
       "callees": [
@@ -2572,8 +2572,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2746,
-      "end_line": 2788,
+      "start_line": 2771,
+      "end_line": 2813,
       "signature": "async def execute_alias_rule(phrase)",
       "doc": "",
       "callees": [
@@ -2596,8 +2596,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2790,
-      "end_line": 2817,
+      "start_line": 2815,
+      "end_line": 2842,
       "signature": "def _has_cycle(rules)",
       "doc": "",
       "callees": [],
@@ -2614,8 +2614,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2819,
-      "end_line": 2834,
+      "start_line": 2844,
+      "end_line": 2859,
       "signature": "def _check_t1_rule_conflict(new_rule)",
       "doc": "Kiểm tra xem luật IF-ELSE của Tầng 2 có mâu thuẫn hoặc vướng luật ưu tiên của Tầng 1 Nguyễn Tuấn Anh hay không.",
       "callees": [
@@ -2634,8 +2634,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2836,
-      "end_line": 2969,
+      "start_line": 2861,
+      "end_line": 2994,
       "signature": "async def set_if_else_rule(when_device_id, when_state, then_device_id, then_action, delay_seconds, else_device_id, else_action, evaluate_now, require_confirmation)",
       "doc": "",
       "callees": [
@@ -2663,8 +2663,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2971,
-      "end_line": 3022,
+      "start_line": 2996,
+      "end_line": 3047,
       "signature": "async def confirm_pending_action(confirmed)",
       "doc": "Xác nhận hoặc hủy hành động đang chờ (bao gồm cả Xét Luật mới lẫn Reset Hệ Thống).",
       "callees": [
@@ -2688,8 +2688,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 3031,
-      "end_line": 3081,
+      "start_line": 3056,
+      "end_line": 3106,
       "signature": "async def request_factory_reset(scope)",
       "doc": "Bước 1: Khi người dùng nói 'Reset ...', chưa xóa ngay mà bật cờ chờ xác nhận đúng theo loại reset và tầng.",
       "callees": [
@@ -2711,8 +2711,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 3083,
-      "end_line": 3105,
+      "start_line": 3108,
+      "end_line": 3130,
       "signature": "async def confirm_factory_reset(confirmed)",
       "doc": "Bước 2: Thực thi hoặc hủy Reset (hoặc Luật đang chờ) sau khi người dùng trả lời câu hỏi xác nhận.",
       "callees": [
@@ -2733,8 +2733,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 3107,
-      "end_line": 3238,
+      "start_line": 3132,
+      "end_line": 3263,
       "signature": "async def factory_reset(scope)",
       "doc": "",
       "callees": [
@@ -2761,7 +2761,7 @@
       "kind": "class",
       "file": "simulator/mqtt_bridge.py",
       "start_line": 76,
-      "end_line": 488,
+      "end_line": 494,
       "signature": "class SmartHomeMQTTBridge",
       "doc": "Bộ điều phối bản tin MQTT chuẩn System Design Primer:",
       "methods": [
@@ -2904,7 +2904,7 @@
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
       "start_line": 278,
-      "end_line": 323,
+      "end_line": 329,
       "signature": "async def sync_pools_to_esp8266_flash(timers, if_else_rules, system_policies)",
       "doc": "CAP Theorem (AP Failover): Đồng bộ bản sao Bể 1 (Hẹn giờ) và Bể 2 (Luật IF-ELSE)",
       "callees": [
@@ -2922,8 +2922,8 @@
       "class_name": "SmartHomeMQTTBridge",
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
-      "start_line": 325,
-      "end_line": 352,
+      "start_line": 331,
+      "end_line": 358,
       "signature": "async def update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)",
       "doc": "Nhận bản tin cảm biến `smarthome/telemetry/dht11` từ chân D6 của ESP8266.",
       "callees": [
@@ -2941,8 +2941,8 @@
       "class_name": "SmartHomeMQTTBridge",
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
-      "start_line": 354,
-      "end_line": 381,
+      "start_line": 360,
+      "end_line": 387,
       "signature": "async def update_soil_moisture_telemetry(soil_moisture_pct, adc_raw)",
       "doc": "Nhận bản tin cảm biến Độ ẩm Đất `smarthome/telemetry/soil_moisture` từ chân A0 (YL-69 + LM393).",
       "callees": [
@@ -2964,8 +2964,8 @@
       "class_name": "SmartHomeMQTTBridge",
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
-      "start_line": 383,
-      "end_line": 407,
+      "start_line": 389,
+      "end_line": 413,
       "signature": "async def start_ir_learning(device_name, command_action)",
       "doc": "Bật chế độ Học lệnh chiếm quyền Remote (`smarthome/ir/learn_start`) trên chân D5 (`VS1838B`).",
       "callees": [
@@ -2983,8 +2983,8 @@
       "class_name": "SmartHomeMQTTBridge",
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
-      "start_line": 409,
-      "end_line": 473,
+      "start_line": 415,
+      "end_line": 479,
       "signature": "async def complete_ir_learning(protocol, hex_code, raw_timings_us)",
       "doc": "Nhận kết quả giải mã xung hồng ngoại từ ESP8266 (`smarthome/ir/learned_result`) và lưu Write-Through.",
       "callees": [
@@ -3003,8 +3003,8 @@
       "class_name": "SmartHomeMQTTBridge",
       "kind": "method",
       "file": "simulator/mqtt_bridge.py",
-      "start_line": 475,
-      "end_line": 488,
+      "start_line": 481,
+      "end_line": 494,
       "signature": "def get_summary()",
       "doc": "",
       "callees": [],
@@ -3547,7 +3547,7 @@
       "kind": "function",
       "file": "scripts/test_simulator_e2e.py",
       "start_line": 28,
-      "end_line": 539,
+      "end_line": 551,
       "signature": "async def test_unit_all_new_features()",
       "doc": "",
       "callees": [
