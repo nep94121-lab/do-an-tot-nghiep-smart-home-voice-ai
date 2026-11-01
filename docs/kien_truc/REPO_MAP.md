@@ -40,7 +40,7 @@
 - Danh sách: `smarthome/cmd/actuate`, `smarthome/cmd/enroll_blink`, `smarthome/ir/blast`, `smarthome/ir/learn_start`, `smarthome/ir/learned_result`, `smarthome/state/report`, `smarthome/status/esp8266`, `smarthome/sync/pools`, `smarthome/telemetry/dht11`, `smarthome/telemetry/soil_moisture`
 
 ### 2.3. Các cổng HTTP REST API (`server.py` <-> `mobile_app/index.html` & `app.js`)
-- Danh sách: `/`, `/api/clear_audit_logs`, `/api/device`, `/api/dht11`, `/api/ir_learn`, `/api/kb_upsert`, `/api/server_logs_and_db`, `/api/server_mode`, `/api/soil_moisture`, `/api/state`, `/api/text_command`, `/api/voice_samples`, `/api/wokwi_files`, `/app`, `/logs`, `/wokwi`
+- Danh sách: `/`, `/api/clear_audit_logs`, `/api/device`, `/api/devops/status`, `/api/dht11`, `/api/ir_learn`, `/api/kb_upsert`, `/api/server_logs_and_db`, `/api/server_mode`, `/api/soil_moisture`, `/api/state`, `/api/text_command`, `/api/voice_samples`, `/api/wokwi_files`, `/app`, `/archify`, `/archify/devops`, `/logs`, `/wokwi`
 
 ### 2.4. 6 Chân Phần cứng NodeMCU ESP8266 (`rule_engine.py` <-> `esp8266_smarthome.ino`)
 - Danh sách: `D1`, `D2`, `D3`, `D4`, `D5`, `D6`, `D7`, `D8`
@@ -84,7 +84,10 @@
   - [`L1713-L1872`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1713-L1872) `async def stream_wav_sample(sample_id)`
   - [`L1874-L2071`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L1874-L2071) `async def run()`
   - [`L2073-L2083`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2073-L2083) `async def _periodic_timer_sync()`
-- [`L2087-L2090`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2087-L2090) `async def websocket_endpoint(ws)`
+- [`L2087-L2090`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2087-L2090) `async def serve_archify_architecture()` — *Phục vụ Sơ đồ Kiến trúc Tương tác Archify (Repository-Backed Interactive HTML).*
+- [`L2094-L2097`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2094-L2097) `async def serve_archify_devops_workflow()` — *Phục vụ Sơ đồ Quy trình DevOps & CI/CD 5 Cổng Archify (Workflow Interactive HTML).*
+- [`L2101-L2109`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2101-L2109) `async def get_devops_pipeline_status()` — *Trả về Biên lai Kiểm định DevOps 5 Cổng & Mã băm SHA-256 mới nhất.*
+- [`L2113-L2116`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/server.py#L2113-L2116) `async def websocket_endpoint(ws)`
 
 ### 📄 [`simulator/rule_engine.py`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py)
 - [`L40-L41`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/rule_engine.py#L40-L41) `def get_vn_now()`

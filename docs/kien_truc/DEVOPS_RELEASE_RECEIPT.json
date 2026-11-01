@@ -1,0 +1,172 @@
+{
+  "pipeline": "Smart Home Voice AI - DevOps & CI/CD 5-Gate Pipeline",
+  "standards": [
+    "GokuMohandas/Made-With-ML (38k+ GitHub Stars - Production MLOps & CI/CD)",
+    "SWE-agent/SWE-agent (18k+ GitHub Stars - Automated Patch & Regression Gate)",
+    "tt-a1i/archify (v3.2.0 - Interactive Architecture & SHA-256 Delivery Receipt)"
+  ],
+  "ok": true,
+  "total_elapsed_ms": 13259.42,
+  "generated_at_utc": "2026-11-01T11:25:54.703351+00:00",
+  "gates": [
+    {
+      "gate": "Gate 1: Pre-Commit Hygiene & Zero-Leak (Made-With-ML)",
+      "ok": true,
+      "elapsed_ms": 284.84,
+      "checked_files": 21,
+      "crlf_normalized": [],
+      "secret_leaks": [],
+      "syntax_errors": []
+    },
+    {
+      "gate": "Gate 2: Cross-Layer Contract & GPIO Pin Guard (5/5 Cổng)",
+      "ok": true,
+      "elapsed_ms": 623.62,
+      "exit_code": 0,
+      "summary": "5/5 PASS (Gemini Tools, MQTT Topics, HTTP Endpoints, 8 Chân GPIO + RX/A0, WebSocket Events)"
+    },
+    {
+      "gate": "Gate 3: SWE-agent E2E Voice DSP & Offline Tiny-DSP Regression",
+      "ok": true,
+      "elapsed_ms": 11877.75,
+      "exit_code": 0,
+      "passed_assertions": 64,
+      "summary": "64 kịch bản E2E PASS (Khử ồn Quạt, Lọc 2 Tầng 26d/64d, Tách 2 Giọng, Offline 16.4ms Tầng 1&2)"
+    },
+    {
+      "gate": "Gate 4: Archify Interactive Architecture & Workflow Verification",
+      "ok": true,
+      "elapsed_ms": 292.93,
+      "archify_cli_present": true,
+      "cli_verified": true,
+      "artifacts": {
+        "architecture_html": {
+          "path": "docs/kien_truc/smart-home-voice-ai.architecture.html",
+          "bytes": 862456,
+          "sha256": "94ffdb12a6e732e6f7e1fd4f9192dddb589cf17d836180108d24d81d4443d319"
+        },
+        "workflow_html": {
+          "path": "docs/kien_truc/devops-cicd-pipeline.workflow.html",
+          "bytes": 851022,
+          "sha256": "cef209f1a3c8773b5611ba9ef2343922fdf3c707d11cff857fc837f5ec48fe07"
+        }
+      }
+    },
+    {
+      "gate": "Gate 5: Atomic Release Packaging & SHA-256 Manifest",
+      "ok": true,
+      "elapsed_ms": 176.63,
+      "package_zip": "dist/smarthome-voice-ai-release.zip",
+      "package_bytes": 579264,
+      "package_sha256": "d9e832eed89ee9e0bbb8e69a7792a97b082939b3466be7095fd3148e335edde6",
+      "manifest_count": 21,
+      "manifest": [
+        {
+          "path": "simulator/voice_auth.py",
+          "bytes": 53441,
+          "sha256": "e2d0e87c8269cb00cc477b09ab2b2b2cc7064296f95041b26e56f7365aa15dab"
+        },
+        {
+          "path": "simulator/rule_engine.py",
+          "bytes": 160024,
+          "sha256": "b2fc32bc8c9b588e9549ba9be9ffe210ef616606f11fcfaa99cddf5b4424d2dd"
+        },
+        {
+          "path": "simulator/server.py",
+          "bytes": 110282,
+          "sha256": "6fea992a3657cd9cdd7b1acd0c746e307e93f0b2e3217add5dacb0f5a58b1ca8"
+        },
+        {
+          "path": "simulator/mqtt_bridge.py",
+          "bytes": 20712,
+          "sha256": "b6e15bfa6c0bd87523cd08fa9e538ae2eb9ce68620d81845cf78f598644e23cf"
+        },
+        {
+          "path": "simulator/knowledge_rag.py",
+          "bytes": 15009,
+          "sha256": "23dbdb3b5c138166abc10bd0e123213a203945d1f68df4a5d2d3b8dd38e37793"
+        },
+        {
+          "path": "simulator/static/index.html",
+          "bytes": 16352,
+          "sha256": "195d9a6ba9cee5fbaaf916d4f1ce09d900e1b981923212dd1d097d6d0316a23b"
+        },
+        {
+          "path": "simulator/static/app.js",
+          "bytes": 49794,
+          "sha256": "3a5ebeb2aa940f20d2a17699d5e6db09a2fa9190eafd6bd632d3bc2d21e1a0e7"
+        },
+        {
+          "path": "simulator/static/style.css",
+          "bytes": 14964,
+          "sha256": "376f058becee858551b1306b3519c5f7c2fe515a90accd2df3a3a2511e7a6ee1"
+        },
+        {
+          "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
+          "bytes": 20268,
+          "sha256": "93433ebae83758e562b1514b561acd73661580fb8f19b5f28bda42936ec018bb"
+        },
+        {
+          "path": "mobile_app/index.html",
+          "bytes": 9426,
+          "sha256": "9c4eb3083d8c663993d8a74c806d7cbc130554be0d8ecd480a9078da36a7fdd6"
+        },
+        {
+          "path": "scripts/code_graph_guard.py",
+          "bytes": 23958,
+          "sha256": "46fc724b8e8ff1e8e39fe3978d9eabf4d6302cf7e5ad02a10785564e1741d84d"
+        },
+        {
+          "path": "scripts/test_simulator_e2e.py",
+          "bytes": 38865,
+          "sha256": "d0644144710704a010ad9d41db5d979157037e540667e077f881293cdd7cc0ba"
+        },
+        {
+          "path": "scripts/devops_pipeline.py",
+          "bytes": 11798,
+          "sha256": "2338285f5e65ef6ee80abc757701edc2a8dbb8708251fdd21c37a5f67e4ceae0"
+        },
+        {
+          "path": "docs/kien_truc/smart-home-voice-ai.architecture.json",
+          "bytes": 9939,
+          "sha256": "87f991874407cd9ef656e2a8d54fe615f8837482ec7dc2c27b242def8f0309eb"
+        },
+        {
+          "path": "docs/kien_truc/smart-home-voice-ai.architecture.html",
+          "bytes": 862456,
+          "sha256": "94ffdb12a6e732e6f7e1fd4f9192dddb589cf17d836180108d24d81d4443d319"
+        },
+        {
+          "path": "docs/kien_truc/devops-cicd-pipeline.workflow.json",
+          "bytes": 5530,
+          "sha256": "e75d566c6df7871bccaff51fda363e15972878a40283c14c3821547a7d46cabe"
+        },
+        {
+          "path": "docs/kien_truc/devops-cicd-pipeline.workflow.html",
+          "bytes": 851022,
+          "sha256": "cef209f1a3c8773b5611ba9ef2343922fdf3c707d11cff857fc837f5ec48fe07"
+        },
+        {
+          "path": "docs/kien_truc/ci_cd_pipeline.yml",
+          "bytes": 1452,
+          "sha256": "baa8e59f94b49e3f16c4f196a03a4ced3000861d2c266fc23f0061bfc112f186"
+        },
+        {
+          "path": "Dockerfile",
+          "bytes": 824,
+          "sha256": "462d1232575e6a945d843b3cba9481d86061d82c8590a85e011875b3ca4d328d"
+        },
+        {
+          "path": "docker-compose.yml",
+          "bytes": 295,
+          "sha256": "e3b2d5040d69ad5d38354a536594e0281bc1fcd29dc19ac5a2b25c0d93eb8ee5"
+        },
+        {
+          "path": ".pre-commit-config.yaml",
+          "bytes": 379,
+          "sha256": "455e17e2ada165ff4ee8ac89c83d20dba5f86fe1f91767efd2bb7af992ef826c"
+        }
+      ]
+    }
+  ]
+}

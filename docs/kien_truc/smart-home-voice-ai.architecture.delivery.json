@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "6b77044d-3d59-430f-8402-278d92bf0d6b",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\smart-home-voice-ai.architecture.json",
+  "output": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\smart-home-voice-ai.architecture.html",
+  "specification": {
+    "sha256": "87f991874407cd9ef656e2a8d54fe615f8837482ec7dc2c27b242def8f0309eb",
+    "bytes": 9939
+  },
+  "artifact": {
+    "sha256": "94ffdb12a6e732e6f7e1fd4f9192dddb589cf17d836180108d24d81d4443d319",
+    "bytes": 862456
+  }
+}

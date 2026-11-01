@@ -17,9 +17,17 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Kho tài liệu tham khảo clone về máy (System Design Primer, Serena, Repomix)
+# Kho tài liệu tham khảo clone về máy (System Design Primer, Serena, Repomix, Archify, Made-With-ML, SWE-agent)
 docs/tai_lieu_tham_khao/system-design-primer/
 docs/tai_lieu_tham_khao/serena/
 docs/tai_lieu_tham_khao/repomix/
+docs/tai_lieu_tham_khao/archify/
+docs/tai_lieu_tham_khao/Made-With-ML/
+docs/tai_lieu_tham_khao/SWE-agent/
+
+# Thư mục tạm khi biên dịch Archify & gói ZIP phát hành tạm
+.archify/
+dist/*.zip
+
 
 

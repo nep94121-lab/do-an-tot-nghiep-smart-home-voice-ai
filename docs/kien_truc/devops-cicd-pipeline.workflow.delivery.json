@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "e61e9e90-29ea-4f4d-8345-c98f7a1a1ec1",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\devops-cicd-pipeline.workflow.json",
+  "output": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\devops-cicd-pipeline.workflow.html",
+  "specification": {
+    "sha256": "e75d566c6df7871bccaff51fda363e15972878a40283c14c3821547a7d46cabe",
+    "bytes": 5530
+  },
+  "artifact": {
+    "sha256": "cef209f1a3c8773b5611ba9ef2343922fdf3c707d11cff857fc837f5ec48fe07",
+    "bytes": 851022
+  }
+}

@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  smarthome-voice-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smarthome-voice-ai-server
+    ports:
+      - "8088:8088"
+    env_file:
+      - .env
+    volumes:
+      - ./simulator/data:/app/simulator/data
+    restart: unless-stopped

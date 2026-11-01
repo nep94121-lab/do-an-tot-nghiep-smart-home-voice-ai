@@ -2083,6 +2083,32 @@ class LiveBridgeSession:
             raise
 
 
+@app.get("/archify")
+async def serve_archify_architecture() -> FileResponse:
+    """Phục vụ Sơ đồ Kiến trúc Tương tác Archify (Repository-Backed Interactive HTML)."""
+    arch_file = ROOT / "docs" / "kien_truc" / "smart-home-voice-ai.architecture.html"
+    return FileResponse(str(arch_file), media_type="text/html")
+
+
+@app.get("/archify/devops")
+async def serve_archify_devops_workflow() -> FileResponse:
+    """Phục vụ Sơ đồ Quy trình DevOps & CI/CD 5 Cổng Archify (Workflow Interactive HTML)."""
+    wf_file = ROOT / "docs" / "kien_truc" / "devops-cicd-pipeline.workflow.html"
+    return FileResponse(str(wf_file), media_type="text/html")
+
+
+@app.get("/api/devops/status")
+async def get_devops_pipeline_status() -> dict[str, Any]:
+    """Trả về Biên lai Kiểm định DevOps 5 Cổng & Mã băm SHA-256 mới nhất."""
+    receipt_file = ROOT / "docs" / "kien_truc" / "DEVOPS_RELEASE_RECEIPT.json"
+    if receipt_file.exists():
+        try:
+            return json.loads(receipt_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+    return {"ok": False, "error": "Chưa chạy scripts/devops_pipeline.py"}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()

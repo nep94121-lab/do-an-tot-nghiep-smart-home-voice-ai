@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Quy Trình DevOps, Vá Lỗi & CI/CD 5 Cổng (Made-With-ML × SWE-agent × Archify)",
+    "subtitle": "Chu trình khép kín: Phân tích phạm vi -> Vệ sinh & Bảo mật -> Kiểm định 5 Cổng Liên tầng -> Hồi quy E2E -> Đóng gói SHA-256",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "output": "docs/kien_truc/devops-cicd-pipeline.workflow.html"
+  },
+  "lanes": [
+    { "id": "dev", "label": "Kỹ Sư / AI Agent (SWE-agent)" },
+    { "id": "ci_gates", "label": "5 Cổng Kiểm Định CI/CD (Made-With-ML)" },
+    { "id": "recovery", "label": "Cổng Chặn Lỗi & Tự Sửa (Rollback/Fix)", "variant": "exception" },
+    { "id": "release", "label": "Đóng Gói & Phát Hành (Archify Release)" }
+  ],
+  "phases": [
+    { "id": "p1_scope", "label": "1. Khoanh Vùng & Vá Lỗi", "fromCol": 0, "toCol": 1 },
+    { "id": "p2_verify", "label": "2. Kiểm Thử 5 Cổng Liên Tầng", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "p3_ship", "label": "3. Đóng Gói ZIP SHA-256 & Deploy", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "swe_loop", "label": "SWE-agent Patch Loop", "lane": "dev", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "gate_suite", "label": "Cross-Layer & Voice DSP Suite", "lane": "ci_gates", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "fail_stop", "label": "Fail-Closed Guard", "lane": "recovery", "fromCol": 2, "toCol": 4, "variant": "security" },
+    { "id": "ship_bundle", "label": "Atomic Delivery & Docker", "lane": "release", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["commit_trigger", "scope_guard", "hygiene_gate", "contract_gate", "e2e_voice_gate", "archify_package", "prod_release"],
+  "nodes": [
+    { "id": "commit_trigger", "lane": "dev", "col": 0, "type": "external", "label": "Sửa Code / Vá Lỗi", "sublabel": "Git Push / Hotfix", "width": 168 },
+    { "id": "scope_guard", "lane": "dev", "col": 1, "type": "backend", "label": "1. Phân Tích Phạm Vi", "sublabel": "AST Blast Radius", "tag": "ci-scope", "width": 168 },
+    { "id": "hygiene_gate", "lane": "ci_gates", "col": 1, "type": "security", "label": "2. Quét Bảo Mật", "sublabel": "UTF-8 LF + Zero-Leak", "tag": "pre-commit", "width": 168 },
+    { "id": "contract_gate", "lane": "ci_gates", "col": 2, "type": "security", "label": "3. Cổng Liên Tầng", "sublabel": "Tools/MQTT/GPIO/WS", "tag": "5/5 PASS", "width": 168 },
+    { "id": "e2e_voice_gate", "lane": "ci_gates", "col": 3, "type": "backend", "label": "4. Kiểm Thử E2E", "sublabel": "Lọc 2 Tầng + Offline", "tag": "Exit Code 0", "width": 168 },
+    { "id": "gate_blocked", "lane": "recovery", "col": 3, "type": "security", "label": "Chặn Bản Vá Lỗi", "sublabel": "Báo dòng lỗi", "width": 168 },
+    { "id": "auto_repair", "lane": "recovery", "col": 4, "type": "messagebus", "label": "Khoanh Vùng Sửa", "sublabel": "Tái hiện & Vá lại", "width": 168 },
+    { "id": "archify_package", "lane": "release", "col": 4, "type": "database", "label": "5. Đóng Gói ZIP", "sublabel": "SHA-256 + Archify", "tag": "Immutable Hash", "width": 168 },
+    { "id": "prod_release", "lane": "release", "col": 5, "type": "cloud", "label": "Phát Hành Tự Động", "sublabel": "GitHub CI + Docker", "width": 168 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "commit_trigger", "to": "scope_guard", "variant": "emphasis" },
+    { "id": "e2", "from": "scope_guard", "to": "hygiene_gate", "label": "Xác định file", "variant": "emphasis" },
+    { "id": "e3", "from": "hygiene_gate", "to": "contract_gate", "label": "0 CRLF / 0 Leak", "variant": "emphasis" },
+    { "id": "e4", "from": "contract_gate", "to": "e2e_voice_gate", "label": "5/5 PASS", "variant": "emphasis" },
+    { "id": "e5", "from": "contract_gate", "to": "gate_blocked", "label": "Lệch chân/API", "variant": "security", "role": "error" },
+    { "id": "e6", "from": "e2e_voice_gate", "to": "gate_blocked", "label": "Fail Test", "variant": "security", "role": "error" },
+    { "id": "e7", "from": "gate_blocked", "to": "auto_repair", "variant": "dashed", "role": "branch" },
+    { "id": "e8", "from": "e2e_voice_gate", "to": "archify_package", "label": "100% PASS", "variant": "emphasis" },
+    { "id": "e9", "from": "archify_package", "to": "prod_release", "label": "SHA-256 Verified", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Chuẩn Made-With-ML (38k+ Stars)",
+      "items": [
+        "Tự động hóa kiểm tra Pre-commit (UTF-8 LF, cú pháp AST, Zero-Leak .env)",
+        "Đóng gói Dockerfile & docker-compose.yml kèm Healthcheck tự động"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Chuẩn SWE-agent (18k+ Stars - ĐH Princeton)",
+      "items": [
+        "Quy trình vá lỗi 4 bước: Tái hiện lỗi -> Khoanh vùng Blast Radius -> Vá tối thiểu -> Kiểm thử hồi quy độc lập",
+        "Không bao giờ đẩy code chưa qua kiểm chứng 5 cổng liên tầng"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Chuẩn Archify CI/CD & Atomic Release",
+      "items": [
+        "Phân loại phạm vi ảnh hưởng tự động (ci-scope) để chạy đúng bộ test",
+        "Đóng gói kèm biên lai mã băm SHA-256 (release-receipt.json) & cập nhật sơ đồ HTML"
+      ]
+    }
+  ]
+}

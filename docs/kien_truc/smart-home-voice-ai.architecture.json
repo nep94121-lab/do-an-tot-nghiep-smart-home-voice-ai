@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kiến Trúc Smart Home Voice AI & NodeMCU ESP8266 (Online 2-Tier + Offline Tiny-DSP 16ms)",
+    "subtitle": "Hệ thống Khử Ồn Quạt Trần, Lọc Giọng Kép 2 Tầng (26d/64d), Tách 2 Người Cùng Nói & Mạch Độc Lập LittleFS",
+    "output": "docs/kien_truc/smart-home-voice-ai.architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "repository": {
+      "url": "https://github.com/nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "ffb5da89d6f96cd281451a4cfbfc9b5bce06f96c"
+    },
+    "views": [
+      {
+        "id": "voice_online",
+        "label": "1. Luồng Giọng Nói Online (2 Tầng)",
+        "focus": ["user_voice", "voice_dsp", "fastapi_server", "gemini_live", "rule_engine", "mqtt_bridge", "esp8266_mcu", "iot_actuators"],
+        "note": "Khử tiếng ồn quạt trần (85-3900Hz) -> Lọc Tầng 1 (26d, >=88%) / Tầng 2 (64d Formants) -> Gemini Live & Rule Engine (~7-32ms)"
+      },
+      {
+        "id": "offline_edge",
+        "label": "2. Mạch Độc Lập Offline (16.4ms)",
+        "focus": ["user_voice", "esp8266_mcu", "iot_actuators", "rule_engine", "mqtt_bridge"],
+        "note": "Khi ngắt Server: Flash LittleFS ESP8266 chạy Tiny-DSP (~16.4ms) chỉ duyệt Tầng 1 & Tầng 2, chặn 100% Khách Tầng 3 & Người lạ"
+      },
+      {
+        "id": "audit_storage",
+        "label": "3. Lưu Trữ SQLite KB & Bể Luật",
+        "focus": ["web_3d_ui", "fastapi_server", "rule_engine", "sqlite_kb", "mqtt_bridge"],
+        "note": "Bể 1 (Hẹn giờ), Bể 2 (Luật & Khẩu lệnh) và SQLite WAL (/logs) đồng bộ Write-Through xuống Flash ESP8266"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 5,
+    "gapX": 96,
+    "gapY": 88,
+    "cellW": 190,
+    "cellH": 86
+  },
+  "components": [
+    {
+      "id": "user_voice",
+      "type": "external",
+      "label": "Giọng Nói & Micro RX",
+      "sublabel": "MAX9814 AGC (GPIO3)",
+      "tag": "1-2 người nói",
+      "size": [185, 68],
+      "row": 1,
+      "col": 0,
+      "sources": [
+        { "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino", "line": 44, "end_line": 68, "label": "Sơ đồ chân RX/D4 & GPIO" }
+      ]
+    },
+    {
+      "id": "web_3d_ui",
+      "type": "frontend",
+      "label": "Nhà 3D & Sơ Đồ Mạch",
+      "sublabel": "Three.js + PCB Canvas",
+      "tag": "Web & Mobile",
+      "size": [185, 68],
+      "row": 0,
+      "col": 1,
+      "sources": [
+        { "path": "simulator/static/index.html", "line": 1, "end_line": 90, "label": "Giao diện 3D & Bảng Mạch" },
+        { "path": "mobile_app/index.html", "line": 1, "end_line": 65, "label": "Ứng dụng Di động PWA" }
+      ]
+    },
+    {
+      "id": "voice_dsp",
+      "type": "security",
+      "label": "Lọc Ồn & Xác Thực 2 Tầng",
+      "sublabel": "26d Nhanh -> 64d Sâu",
+      "tag": "Ưu tiên Cấp 1>2>3",
+      "size": [185, 68],
+      "row": 1,
+      "col": 1,
+      "sources": [
+        { "path": "simulator/voice_auth.py", "line": 40, "end_line": 210, "label": "Khử ồn Quạt & Tách 2 giọng" },
+        { "path": "simulator/voice_auth.py", "line": 530, "end_line": 665, "label": "Bộ lọc 2 tầng 26d/64d" }
+      ]
+    },
+    {
+      "id": "fastapi_server",
+      "type": "backend",
+      "label": "FastAPI Server (:8088)",
+      "sublabel": "REST + WebSocket Hub",
+      "tag": "16 Endpoints",
+      "size": [185, 68],
+      "row": 1,
+      "col": 2,
+      "sources": [
+        { "path": "simulator/server.py", "line": 1, "end_line": 120, "label": "Cấu hình Server & Tools" },
+        { "path": "simulator/server.py", "line": 1705, "end_line": 1790, "label": "Xử lý mẫu giọng WAV" }
+      ]
+    },
+    {
+      "id": "gemini_live",
+      "type": "cloud",
+      "label": "Gemini Live Voice AI",
+      "sublabel": "20 Function Tools",
+      "tag": "Audio hai chiều",
+      "size": [185, 68],
+      "row": 0,
+      "col": 2,
+      "sources": [
+        { "path": "simulator/server.py", "line": 58, "end_line": 210, "label": "20 Gemini Function Tools" }
+      ]
+    },
+    {
+      "id": "rule_engine",
+      "type": "backend",
+      "label": "Rule Engine & RBAC 3 Cấp",
+      "sublabel": "Bể 1 Hẹn Giờ + Bể 2 Luật",
+      "tag": "Cấp 1 Admin",
+      "size": [185, 68],
+      "row": 1,
+      "col": 3,
+      "sources": [
+        { "path": "simulator/rule_engine.py", "line": 1, "end_line": 140, "label": "Bể Hẹn Giờ & Bể Luật" },
+        { "path": "simulator/rule_engine.py", "line": 2630, "end_line": 2768, "label": "Chặn Tầng 3 khi Offline" }
+      ]
+    },
+    {
+      "id": "sqlite_kb",
+      "type": "database",
+      "label": "SQLite KB & Audit Log",
+      "sublabel": "WAL Mode + /logs UI",
+      "tag": "Lưu vĩnh viễn",
+      "size": [185, 68],
+      "row": 2,
+      "col": 2,
+      "sources": [
+        { "path": "simulator/knowledge_rag.py", "line": 1, "end_line": 95, "label": "Tri thức RAG & Lưu trữ" },
+        { "path": "simulator/server.py", "line": 125, "end_line": 210, "label": "SQLite Audit & /logs" }
+      ]
+    },
+    {
+      "id": "mqtt_bridge",
+      "type": "messagebus",
+      "label": "MQTT Pub/Sub Bridge",
+      "sublabel": "10 Topics + CAP Sync",
+      "tag": "Retain=True",
+      "size": [185, 68],
+      "row": 2,
+      "col": 3,
+      "sources": [
+        { "path": "simulator/mqtt_bridge.py", "line": 1, "end_line": 120, "label": "10 MQTT Topics IoT" },
+        { "path": "simulator/mqtt_bridge.py", "line": 270, "end_line": 305, "label": "Nạp Flash Tầng 1 & 2" }
+      ]
+    },
+    {
+      "id": "esp8266_mcu",
+      "type": "backend",
+      "label": "NodeMCU ESP8266",
+      "sublabel": "LittleFS Tiny-DSP 16.4ms",
+      "tag": "Offline Tầng 1&2",
+      "size": [185, 68],
+      "row": 1,
+      "col": 4,
+      "sources": [
+        { "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino", "line": 106, "end_line": 175, "label": "Offline Tiny-DSP 16.4ms" },
+        { "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino", "line": 240, "end_line": 350, "label": "MQTT & Phát IR 38kHz" }
+      ]
+    },
+    {
+      "id": "iot_actuators",
+      "type": "external",
+      "label": "6 Thiết Bị + Cảm Biến + Loa",
+      "sublabel": "D1..D8 + A0 + Loa D4",
+      "tag": "Phản hồi âm thanh",
+      "size": [185, 68],
+      "row": 2,
+      "col": 4,
+      "sources": [
+        { "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino", "line": 70, "end_line": 105, "label": "Loa PAM8403 D4 & Relay" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Server AI & Xác Thực Giọng Nói Kép (Online ~7-32ms)",
+      "wraps": ["voice_dsp", "fastapi_server", "rule_engine", "sqlite_kb", "mqtt_bridge"]
+    },
+    {
+      "kind": "region",
+      "label": "Mạch Vi Điều Khiển Edge (Tự Hành Offline Tiny-DSP ~16.4ms)",
+      "wraps": ["esp8266_mcu", "iot_actuators"]
+    }
+  ],
+  "connections": [
+    { "id": "mic-to-dsp", "from": "user_voice", "to": "voice_dsp", "label": "WAV 16kHz", "variant": "emphasis" },
+    { "id": "mic-to-esp-offline", "from": "user_voice", "to": "esp8266_mcu", "label": "Offline Mic RX", "variant": "dashed" },
+    { "id": "ui-to-server", "from": "web_3d_ui", "to": "fastapi_server", "label": "WS / REST" },
+    { "id": "dsp-to-server", "from": "voice_dsp", "to": "fastapi_server", "label": "Tier 1/2/3", "variant": "security" },
+    { "id": "server-to-gemini", "from": "fastapi_server", "to": "gemini_live", "label": "Live Tool Call", "variant": "emphasis" },
+    { "id": "server-to-engine", "from": "fastapi_server", "to": "rule_engine", "label": "Thực thi lệnh", "variant": "emphasis" },
+    { "id": "server-to-sqlite", "from": "fastapi_server", "to": "sqlite_kb", "label": "Ghi Log WAL" },
+    { "id": "engine-to-sqlite", "from": "rule_engine", "to": "sqlite_kb", "label": "Đồng bộ Bể 1&2", "variant": "dashed" },
+    { "id": "engine-to-mqtt", "from": "rule_engine", "to": "mqtt_bridge", "label": "Pub/Sub + Sync", "variant": "emphasis" },
+    { "id": "mqtt-to-esp", "from": "mqtt_bridge", "to": "esp8266_mcu", "label": "MQTT + Flash T1/T2", "variant": "emphasis" },
+    { "id": "esp-to-actuators", "from": "esp8266_mcu", "to": "iot_actuators", "label": "GPIO + IR + Loa D4", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Khử Ồn Quạt & Lọc Giọng Kép 2 Tầng",
+      "items": [
+        "Lọc thông dải tiếng người 85Hz-3900Hz & trừ phổ tiếng quạt trần",
+        "Tầng 1 (26 chiều, ~7ms): Tự tin >=88% duyệt ngay lập tức",
+        "Tầng 2 (64 chiều Formants F1-F4, ~18ms): Phân tích sâu khi nghi ngờ/ồn",
+        "Tách 2 người cùng nói: Ưu tiên Cấp 1 (Chủ nhà) > Cấp 2 > Cấp 3"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Chế Độ Mạch Độc Lập Offline (Tiny-DSP 16.4ms)",
+      "items": [
+        "Lưu 3 vân giọng rút gọn Tầng 1 & Tầng 2 (~360 bytes) trong 4MB LittleFS",
+        "Độ trễ DSP trên chip ESP8266 ~16.4ms (tổng phản xạ ~28-32ms)",
+        "Chỉ cho phép Tầng 1 & Tầng 2 bật/tắt 5 thiết bị sinh hoạt mặc định",
+        "Chặn 100% Khách Tầng 3 & Người lạ; khóa cứng Cửa chính (D1) & Còi (D8)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Sơ Đồ Chân NodeMCU ESP8266 & DevOps 5 Cổng",
+      "items": [
+        "D1: Servo Cửa | D2: Đèn khách + IR 38kHz | D3: Máy bơm | D4: Loa 8Ω 3W",
+        "D5: Thu IR VS1838B | D6: DHT11 | D7: Đèn ngủ | D8: Còi | RX: Mic | A0: Đất",
+        "Bảo vệ bởi 5 cổng CI/CD tự động (Made-With-ML + SWE-agent + Archify)"
+      ]
+    }
+  ]
+}

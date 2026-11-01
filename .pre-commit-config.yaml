@@ -1,0 +1,9 @@
+# Cấu hình Pre-commit Gatekeeper (Chuẩn Made-With-ML & SWE-agent)
+repos:
+  - repo: local
+    hooks:
+      - id: smarthome-devops-5gate
+        name: "Smart Home Voice AI - 5-Gate DevOps Verification (UTF-8 LF, Zero-Leak, 5/5 Cross-Layer, Voice DSP E2E)"
+        entry: python -X utf8 scripts/devops_pipeline.py --check
+        language: system
+        pass_filenames: false
