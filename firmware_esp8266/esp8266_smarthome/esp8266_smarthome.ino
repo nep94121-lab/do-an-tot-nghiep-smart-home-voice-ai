@@ -43,10 +43,12 @@ const char* NODE_ID       = "esp8266_node_01";
 #define PIN_MAIN_DOOR_SERVO  5   // D1 (GPIO 5)  - Servo SG90 Cửa chính
 #define PIN_LIVING_LIGHT_IR  4   // D2 (GPIO 4)  - Đèn khách & Phát IR 38kHz
 #define PIN_GARDEN_PUMP      0   // D3 (GPIO 0)  - Relay 5V Máy bơm tưới cây + Diode 1N4007
+#define PIN_AUDIO_SPK_OUT    2   // D4 (GPIO 2)  - Loa phát phản hồi 8Ω 3W (qua PAM8403 / Audio Amp)
 #define PIN_IR_RECEIVER      14  // D5 (GPIO 14) - Mắt thu hồng ngoại VS1838B 38kHz
 #define PIN_DHT_AND_FAN      12  // D6 (GPIO 12) - Cảm biến DHT11 & Quạt
 #define PIN_BEDROOM_LIGHT    13  // D7 (GPIO 13) - Đèn phòng ngủ
 #define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi báo động Buzzer 5V
+#define PIN_VOICE_MIC_RX     3   // RX (GPIO 3)  - Module Micro thu âm & nhận diện giọng nói (VC-02 / MAX9814)
 #define PIN_SOIL_MOISTURE    A0  // A0 (ADC0)    - Cảm biến độ ẩm đất YL-69 + LM393
 
 #define DHTTYPE DHT11
@@ -77,6 +79,30 @@ void blastIrAndRestoreLight(uint64_t code) {
   digitalWrite(PIN_LIVING_LIGHT_IR, livingLightState ? HIGH : LOW);
 }
 
+// Phát âm thanh phản hồi trực tiếp ra Loa 8Ω 3W (Chân D4 - GPIO2) trên mạch
+// mode = 1: Bật/Mở thành công | mode = 2: Tắt/Đóng thành công | mode = 3: Cảnh báo từ chối (Khóa an ninh)
+void playSpeakerFeedbackTone(int mode) {
+  pinMode(PIN_AUDIO_SPK_OUT, OUTPUT);
+  if (mode == 1) {
+    tone(PIN_AUDIO_SPK_OUT, 1180, 90);
+    delay(100);
+    tone(PIN_AUDIO_SPK_OUT, 1560, 130);
+    delay(140);
+  } else if (mode == 2) {
+    tone(PIN_AUDIO_SPK_OUT, 1350, 90);
+    delay(100);
+    tone(PIN_AUDIO_SPK_OUT, 920, 130);
+    delay(140);
+  } else if (mode == 3) {
+    for (int i = 0; i < 3; i++) {
+      tone(PIN_AUDIO_SPK_OUT, 440, 110);
+      delay(145);
+    }
+  }
+  noTone(PIN_AUDIO_SPK_OUT);
+  digitalWrite(PIN_AUDIO_SPK_OUT, HIGH); // Kéo lên HIGH để tắt LED onboard nối chung GPIO2
+}
+
 // ----------------------------------------------------------------------------
 // CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE DEFAULT FALLBACK - KHI KHÔNG KẾT NỐI SERVER):
 // - Chỉ nhận lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt (Đèn khách, Đèn ngủ,
@@ -93,23 +119,27 @@ void processOfflineDefaultCommand(String rawCmd) {
   if (rawCmd.indexOf("mo cua") >= 0 || rawCmd.indexOf("mở cửa") >= 0 || rawCmd.indexOf("cua chinh") >= 0 || rawCmd.indexOf("cửa chính") >= 0) {
     if (rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0) {
       doorServo.write(0);
-      Serial.println("[OFFLINE SAFE] Da dong khoa Cua chinh (D1 = 0 deg).");
+      playSpeakerFeedbackTone(2);
+      Serial.println("[OFFLINE SAFE] Da dong khoa Cua chinh (D1 = 0 deg) & phat Loa (D4).");
       return;
     }
     doorServo.write(0);
-    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI MO CUA CHINH (D1)!");
+    playSpeakerFeedbackTone(3);
+    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI MO CUA CHINH (D1) & phat Loa canh bao (D4)!");
     return;
   }
   if (rawCmd.indexOf("coi") >= 0 || rawCmd.indexOf("còi") >= 0 || rawCmd.indexOf("bao dong") >= 0 || rawCmd.indexOf("báo động") >= 0) {
+    playSpeakerFeedbackTone(3);
     Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI CAN THIEP COI BAO DONG (D8)!");
     return;
   }
   if (rawCmd.indexOf("vung oi") >= 0 || rawCmd.indexOf("vừng ơi") >= 0) {
+    playSpeakerFeedbackTone(3);
     Serial.println("[OFFLINE DEFAULT] Khau lenh tuy chinh bi vo hieu hoa khi mat ket noi Server!");
     return;
   }
 
-  // 2. Thực thi lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt
+  // 2. Thực thi lệnh mặc định cơ bản cho 5 thiết bị sinh hoạt & phát phản hồi ra Loa 8Ω 3W (D4)
   bool turnOn = (rawCmd.indexOf("bat") >= 0 || rawCmd.indexOf("bật") >= 0 || rawCmd.indexOf("mo") >= 0 || rawCmd.indexOf("mở") >= 0);
   bool turnOff = (rawCmd.indexOf("tat") >= 0 || rawCmd.indexOf("tắt") >= 0 || rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0);
   if (!turnOn && !turnOff) return;
@@ -118,16 +148,20 @@ void processOfflineDefaultCommand(String rawCmd) {
   if (rawCmd.indexOf("den khach") >= 0 || rawCmd.indexOf("đèn khách") >= 0 || rawCmd.indexOf("den phong khach") >= 0 || rawCmd.indexOf("đèn phòng khách") >= 0) {
     livingLightState = stateOn;
     digitalWrite(PIN_LIVING_LIGHT_IR, stateOn ? HIGH : LOW);
-    Serial.println(stateOn ? "[OFFLINE DEFAULT] Den phong khach (D2) -> ON" : "[OFFLINE DEFAULT] Den phong khach (D2) -> OFF");
+    playSpeakerFeedbackTone(stateOn ? 1 : 2);
+    Serial.println(stateOn ? "[OFFLINE MIC->SPK] Den phong khach (D2) -> ON" : "[OFFLINE MIC->SPK] Den phong khach (D2) -> OFF");
   } else if (rawCmd.indexOf("den ngu") >= 0 || rawCmd.indexOf("đèn ngủ") >= 0 || rawCmd.indexOf("den phong ngu") >= 0 || rawCmd.indexOf("đèn phòng ngủ") >= 0) {
     digitalWrite(PIN_BEDROOM_LIGHT, stateOn ? HIGH : LOW);
-    Serial.println(stateOn ? "[OFFLINE DEFAULT] Den phong ngu (D7) -> ON" : "[OFFLINE DEFAULT] Den phong ngu (D7) -> OFF");
+    playSpeakerFeedbackTone(stateOn ? 1 : 2);
+    Serial.println(stateOn ? "[OFFLINE MIC->SPK] Den phong ngu (D7) -> ON" : "[OFFLINE MIC->SPK] Den phong ngu (D7) -> OFF");
   } else if (rawCmd.indexOf("dieu hoa") >= 0 || rawCmd.indexOf("điều hòa") >= 0 || rawCmd.indexOf("quat") >= 0 || rawCmd.indexOf("quạt") >= 0) {
     blastIrAndRestoreLight(stateOn ? 0xB2BF40 : 0xB27BE0);
-    Serial.println(stateOn ? "[OFFLINE DEFAULT] Phat IR 38kHz (D2) -> ON" : "[OFFLINE DEFAULT] Phat IR 38kHz (D2) -> OFF");
+    playSpeakerFeedbackTone(stateOn ? 1 : 2);
+    Serial.println(stateOn ? "[OFFLINE MIC->SPK] Phat IR 38kHz (D2) -> ON" : "[OFFLINE MIC->SPK] Phat IR 38kHz (D2) -> OFF");
   } else if (rawCmd.indexOf("may bom") >= 0 || rawCmd.indexOf("máy bơm") >= 0 || rawCmd.indexOf("tuoi cay") >= 0 || rawCmd.indexOf("tưới cây") >= 0) {
     digitalWrite(PIN_GARDEN_PUMP, stateOn ? HIGH : LOW);
-    Serial.println(stateOn ? "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> ON" : "[OFFLINE DEFAULT] May bom tuoi cay (D3) -> OFF");
+    playSpeakerFeedbackTone(stateOn ? 1 : 2);
+    Serial.println(stateOn ? "[OFFLINE MIC->SPK] May bom tuoi cay (D3) -> ON" : "[OFFLINE MIC->SPK] May bom tuoi cay (D3) -> OFF");
   }
 }
 
@@ -311,10 +345,29 @@ void loop() {
   }
   wasServerConnected = isOnlineNow;
 
-  // Khi không kết nối Server, nhận lệnh mặc định cơ bản qua Serial (chặn mở cửa & lệnh custom)
-  if (!isOnlineNow && Serial.available() > 0) {
+  // Khi người dùng nói vào Module Micro trên mạch (Chân RX - GPIO3):
+  // - Nếu ĐANG ONLINE với Server: Gửi câu lệnh vừa thu từ Mic lên Server (/api/text_command) & phát Loa (D4)
+  // - Nếu ĐANG OFFLINE (không có Laptop): Chạy thẳng hàm mặc định cơ bản trên mạch & phát Loa (D4)
+  if (Serial.available() > 0) {
     String localCmd = Serial.readStringUntil('\n');
-    processOfflineDefaultCommand(localCmd);
+    localCmd.trim();
+    if (localCmd.length() > 0) {
+      if (isOnlineNow && httpServerReachable) {
+        HTTPClient http;
+        if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/text_command")) {
+          http.addHeader("Content-Type", "application/json");
+          String body = String("{\"text\":\"") + localCmd + "\"}";
+          int code = http.POST(body);
+          if (code == 200) {
+            playSpeakerFeedbackTone(1);
+            pollLaptopHttpState();
+          }
+          http.end();
+        }
+      } else {
+        processOfflineDefaultCommand(localCmd);
+      }
+    }
   }
 
   // Kiểm tra mắt thu VS1838B (Chân D5) khi đang ở chế độ Học lệnh Remote 38kHz

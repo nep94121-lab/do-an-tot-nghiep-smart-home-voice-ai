@@ -99,6 +99,26 @@ window.SmartHome3D = (() => {
   let irTxLedMat = null;
   let irBlastTimer = 0;
 
+  // Vòng sóng âm 3D tỏa ra từ Cụm Micro Thu Âm (RX) & Loa Phát 8Ω 3W (D4) trên Hộp Mạch Chính
+  let audioWaveRings = [];
+  let audioWaveTimer = 0;
+  let micLedMat = null;
+  let spkLedMat = null;
+
+  // Hệ thống Đường Dây Điện 3D nối từ Hộp Mạch Chính tới toàn bộ thiết bị trong nhà
+  let wireConduitGroup = null;
+  const wireMats = {
+    d1_door: null,
+    d2_living: null,
+    d2_d5_ir: null,
+    d6_dht_fan: null,
+    d7_bed: null,
+    d8_siren: null,
+    d3_pump: null,
+    a0_soil: null,
+    rx_d4_audio: null,
+  };
+
   // Đèn LED báo trạng thái trực tiếp trên Bảng mạch 3D (Breadboard + NodeMCU + 2 Relay)
   const boardLedMats = {
     esp_onboard: null,
@@ -114,7 +134,7 @@ window.SmartHome3D = (() => {
   const pinAnchors = {};
   const pinElements = {};
 
-  // 7 Nhãn Thiết bị (Bấm để Bật/Tắt) + 3 Nhãn Cảm biến gắn trong nhà/vườn (Bộ mạch tách riêng sang /wokwi)
+  // 7 Nhãn Thiết bị + 3 Nhãn Cảm biến + Hộp Mạch Chính & Cụm Mic/Loa (RX/D4) gắn ngay trong nhà 3D
   const PIN_META = [
     { id: "main_door", kind: "device", icon: "🚪", shortName: "Cửa chính (D1)", pos: [-1.85, 2.55, 3.65] },
     { id: "living_room_light", kind: "device", icon: "💡", shortName: "Đèn khách (D2)", pos: [-2.6, 3.18, -0.2] },
@@ -126,6 +146,8 @@ window.SmartHome3D = (() => {
     { id: "sensor_soil_a0", kind: "sensor", cam: "garden", icon: "🌱", shortName: "Độ ẩm đất (A0)", pos: [1.55, 1.25, 4.35] },
     { id: "sensor_dht11_d6", kind: "sensor", cam: "living", icon: "🌡️", shortName: "Nhiệt/Ẩm (D6)", pos: [0.1, 2.15, -1.1] },
     { id: "sensor_ir_d5", kind: "sensor", cam: "living", icon: "📡", shortName: "Thu/Phát IR (D5/D2)", pos: [-2.6, 0.92, -0.75] },
+    { id: "board_esp8266", kind: "sensor", cam: "board", icon: "🔌", shortName: "Mạch Chính ESP8266", pos: [-0.25, 1.65, 2.45] },
+    { id: "mic_speaker_unit", kind: "sensor", cam: "board", icon: "🎙️🔊", shortName: "Mic & Loa Mạch (RX/D4)", pos: [-0.25, 2.02, 2.45] },
   ];
 
   function init(canvasContainerId, overlayLabelsId, onToggleDevice) {
@@ -899,6 +921,261 @@ window.SmartHome3D = (() => {
       scene.add(ring);
       irBeamRings.push({ mesh: ring, mat: ringMat, phase: i * 0.25 });
     }
+
+    // =========================================================================
+    // D. HỘP MẠCH ĐIỀU KHIỂN TRUNG TÂM + MICRO THU ÂM (RX) + LOA PHÁT 8Ω 3W (D4)
+    // Đặt ngay tại vách trung tâm lối vào Phòng khách (-0.25, 1.18, 2.45)
+    // =========================================================================
+    const centralHubGroup = new THREE.Group();
+    centralHubGroup.position.set(-0.25, 1.18, 2.45);
+
+    // Đế tủ mạch trung tâm gắn trên vách ngăn
+    const hubCabinet = new THREE.Mesh(
+      new THREE.BoxGeometry(0.88, 0.26, 0.64),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.4 })
+    );
+    hubCabinet.castShadow = true;
+    centralHubGroup.add(hubCabinet);
+
+    // Mặt bảng Breadboard 400 lỗ màu trắng nằm trên mặt tủ mạch
+    const bbMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.04, 0.36),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
+    );
+    bbMesh.position.set(0.06, 0.15, 0.02);
+    centralHubGroup.add(bbMesh);
+
+    // Bo mạch NodeMCU ESP8266 (ESP-12E) màu đen nhám + nắp Wi-Fi bạc
+    const espPcb = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.05, 0.38),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 })
+    );
+    espPcb.position.set(-0.26, 0.155, 0.02);
+    centralHubGroup.add(espPcb);
+    const espShield = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.025, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.2 })
+    );
+    espShield.position.set(-0.26, 0.19, 0.04);
+    centralHubGroup.add(espShield);
+    boardLedMats.esp_onboard = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const espLed = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), boardLedMats.esp_onboard);
+    espLed.position.set(-0.26, 0.21, -0.06);
+    centralHubGroup.add(espLed);
+
+    // Các bóng LED báo trạng thái chân GPIO trên Breadboard (D2 Đỏ, D7 Vàng, D8 Còi, D2 IR)
+    boardLedMats.d2_living = new THREE.MeshBasicMaterial({ color: 0x450a0a });
+    const ledD2 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), boardLedMats.d2_living);
+    ledD2.position.set(-0.08, 0.19, -0.06);
+    centralHubGroup.add(ledD2);
+
+    boardLedMats.d2_ir = new THREE.MeshBasicMaterial({ color: 0x581c87 });
+    const ledIr = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), boardLedMats.d2_ir);
+    ledIr.position.set(0.04, 0.19, -0.06);
+    centralHubGroup.add(ledIr);
+
+    boardLedMats.d7_bed = new THREE.MeshBasicMaterial({ color: 0x422006 });
+    const ledD7 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), boardLedMats.d7_bed);
+    ledD7.position.set(0.16, 0.19, -0.06);
+    centralHubGroup.add(ledD7);
+
+    boardLedMats.d8_buzzer = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
+    const buzOnBb = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.04, 12), boardLedMats.d8_buzzer);
+    buzOnBb.position.set(0.24, 0.19, 0.06);
+    centralHubGroup.add(buzOnBb);
+
+    // Module Relay Đỏ 5V (Chân D3 - Máy bơm) & Relay Xanh 5V (Chân D6 - Quạt)
+    const relayRed = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.08, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.4 })
+    );
+    relayRed.position.set(0.26, 0.16, -0.18);
+    centralHubGroup.add(relayRed);
+    boardLedMats.d3_relay_red = new THREE.MeshBasicMaterial({ color: 0x450a0a });
+    const rLedRed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), boardLedMats.d3_relay_red);
+    rLedRed.position.set(0.26, 0.21, -0.18);
+    centralHubGroup.add(rLedRed);
+
+    const relayBlue = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.08, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4 })
+    );
+    relayBlue.position.set(0.04, 0.16, -0.18);
+    centralHubGroup.add(relayBlue);
+    boardLedMats.d6_relay_blue = new THREE.MeshBasicMaterial({ color: 0x172554 });
+    const rLedBlue = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), boardLedMats.d6_relay_blue);
+    rLedBlue.position.set(0.04, 0.21, -0.18);
+    centralHubGroup.add(rLedBlue);
+
+    // -------------------------------------------------------------------------
+    // CỤM MICRO THU ÂM GIỌNG NÓI (Chân RX / GPIO3) + LOA PHÁT 8Ω 3W (Chân D4 / GPIO2)
+    // Giúp đứng nói trực tiếp với Mạch (cả khi có Server và khi rút Server chạy độc lập!)
+    // -------------------------------------------------------------------------
+    const voiceUnitStand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.04, 0.24, 12),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7 })
+    );
+    voiceUnitStand.position.set(-0.22, 0.28, -0.18);
+    centralHubGroup.add(voiceUnitStand);
+
+    const voiceBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.18, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.25, metalness: 0.5 })
+    );
+    voiceBox.position.set(-0.22, 0.42, -0.18);
+    centralHubGroup.add(voiceBox);
+
+    // Đầu Micro thu âm bọc lưới bạc (bên trái cụm) — Nối chân RX (GPIO3)
+    const micCapsule = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.042, 0.042, 0.08, 16),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.2 })
+    );
+    micCapsule.rotation.x = Math.PI / 2;
+    micCapsule.position.set(-0.33, 0.42, -0.11);
+    centralHubGroup.add(micCapsule);
+    micLedMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+    const micLed = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 10), micLedMat);
+    micLed.position.set(-0.33, 0.49, -0.12);
+    centralHubGroup.add(micLed);
+
+    // Màng Loa phát phản hồi 8Ω 3W viền đồng (bên phải cụm) — Nối chân D4 (GPIO2)
+    const spkRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.062, 0.012, 12, 24),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 })
+    );
+    spkRing.position.set(-0.12, 0.42, -0.105);
+    centralHubGroup.add(spkRing);
+    const spkCone = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.058, 0.025, 0.04, 20),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 })
+    );
+    spkCone.rotation.x = Math.PI / 2;
+    spkCone.position.set(-0.12, 0.42, -0.11);
+    centralHubGroup.add(spkCone);
+    spkLedMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const spkLed = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 10), spkLedMat);
+    spkLed.position.set(-0.12, 0.49, -0.12);
+    centralHubGroup.add(spkLed);
+
+    scene.add(centralHubGroup);
+
+    // Vòng sóng âm 3D tỏa ra từ Cụm Micro & Loa trên mạch (-0.47, 1.6, 2.35) khi thu âm hoặc phát tiếng
+    for (let i = 0; i < 3; i++) {
+      const wRingGeo = new THREE.RingGeometry(0.08, 0.13, 24);
+      const wRingMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.0,
+      });
+      const wRing = new THREE.Mesh(wRingGeo, wRingMat);
+      wRing.visible = false;
+      scene.add(wRing);
+      audioWaveRings.push({ mesh: wRing, mat: wRingMat, phase: i * 0.33 });
+    }
+
+    // =========================================================================
+    // E. HỆ THỐNG ĐI DÂY ĐIỆN 3D (3D WIRING CONDUITS) TỪ HỘP MẠCH CHÍNH TỚI MỌI THIẾT BỊ
+    // Giúp nhìn rõ kết cấu đường dây từ từng chân ESP8266 đi trong ngôi nhà 3D!
+    // =========================================================================
+    wireConduitGroup = new THREE.Group();
+
+    function add3DWireConduit(key, hexColor, pointsArray, radius = 0.022) {
+      const vecs = pointsArray.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+      const curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.08);
+      const geo = new THREE.TubeGeometry(curve, Math.max(24, vecs.length * 10), radius, 8, false);
+      const mat = new THREE.MeshStandardMaterial({
+        color: hexColor,
+        emissive: hexColor,
+        emissiveIntensity: 0.28,
+        roughness: 0.35,
+        metalness: 0.2,
+      });
+      wireMats[key] = mat;
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = false;
+      wireConduitGroup.add(mesh);
+    }
+
+    // 1. Dây Vàng (Chân D1 - GPIO5) -> Motor Servo SG90 Cửa chính
+    add3DWireConduit("d1_door", 0xfacc15, [
+      [-0.42, 1.32, 2.45],
+      [-0.42, 1.32, 3.55],
+      [-0.95, 1.32, 3.58],
+      [-0.95, 2.32, 3.58],
+    ]);
+
+    // 2. Dây Xanh lá (Chân D2 - GPIO4) -> Đèn Phòng Khách trên trần
+    add3DWireConduit("d2_living", 0x22c55e, [
+      [-0.25, 1.35, 2.45],
+      [0.18, 1.35, 2.45],
+      [0.18, 3.32, 2.45],
+      [0.18, 3.32, -0.2],
+      [-2.6, 3.26, -0.2],
+    ]);
+
+    // 3. Dây Tím (Chân D2 Phát IR & Chân D5 Thu IR VS1838B) -> Cụm Hồng ngoại trên Bàn trà
+    add3DWireConduit("d2_d5_ir", 0xc084fc, [
+      [-0.35, 1.15, 2.45],
+      [-0.35, 0.09, 2.45],
+      [-2.6, 0.09, 2.45],
+      [-2.6, 0.09, -0.75],
+      [-2.6, 0.51, -0.75],
+    ]);
+
+    // 4. Dây Xanh lơ (Chân D6 - GPIO12) -> Cảm biến DHT11 trên tường & Quạt trần
+    add3DWireConduit("d6_dht_fan", 0x06b6d4, [
+      [-0.15, 1.35, 2.45],
+      [0.2, 1.82, 2.45],
+      [0.2, 1.82, -1.1],
+      [0.2, 3.34, -1.1],
+      [0.2, 3.34, -1.8],
+      [-2.6, 3.32, -1.8],
+    ]);
+
+    // 5. Dây Vàng nhạt (Chân D7 - GPIO13) -> Xuyên vách ngăn sang Đèn Phòng Ngủ
+    add3DWireConduit("d7_bed", 0xfde047, [
+      [-0.05, 1.35, 2.45],
+      [0.42, 1.35, 2.45],
+      [0.42, 3.32, 2.45],
+      [0.42, 3.32, -0.3],
+      [2.9, 3.24, -0.3],
+    ]);
+
+    // 6. Dây Đỏ hồng (Chân D8 - GPIO15) -> Còi Báo Động Buzzer 5V & Đèn chớp mặt tiền
+    add3DWireConduit("d8_siren", 0xf43f5e, [
+      [-0.3, 1.36, 2.45],
+      [-0.3, 1.36, 3.66],
+      [-0.3, 2.85, 3.66],
+      [-0.12, 2.85, 3.74],
+    ]);
+
+    // 7. Dây Xanh dương (Chân D3 - GPIO0 qua Relay Đỏ + Diode 1N4007) -> Máy Bơm Nước Mini 5V sân vườn
+    add3DWireConduit("d3_pump", 0x38bdf8, [
+      [0.02, 1.25, 2.45],
+      [0.28, 0.12, 2.45],
+      [0.28, 0.12, 4.35],
+      [3.58, 0.12, 4.35],
+      [3.58, 0.26, 4.35],
+    ]);
+
+    // 8. Dây Cam Vàng (Chân A0 - ADC0) -> Mạch LM393 & Cảm biến Độ ẩm Đất YL-69 trong bồn cây
+    add3DWireConduit("a0_soil", 0xfb923c, [
+      [-0.08, 1.22, 2.45],
+      [0.22, 0.09, 2.45],
+      [0.22, 0.09, 4.65],
+      [1.55, 0.09, 4.65],
+      [1.55, 0.54, 4.65],
+    ]);
+
+    // 9. Dây Trắng/Xanh (Chân RX/GPIO3 & D4/GPIO2) -> Cụm Micro Thu Âm & Loa Phát Phản Hồi 8Ω 3W
+    add3DWireConduit("rx_d4_audio", 0x34d399, [
+      [-0.26, 1.36, 2.45],
+      [-0.22, 1.36, 2.27],
+      [-0.22, 1.6, 2.27],
+    ], 0.018);
+
+    scene.add(wireConduitGroup);
   }
 
   function buildFloatingPins() {
@@ -916,10 +1193,14 @@ window.SmartHome3D = (() => {
         if (m.id === "sensor_soil_a0") initVal = `${sensorState.soil_moisture_pct}%`;
         else if (m.id === "sensor_dht11_d6") initVal = `${sensorState.temp_c}°C | ${sensorState.humidity_pct}%`;
         else if (m.id === "sensor_ir_d5") initVal = "38kHz READY";
-        else if (m.id === "board_esp8266") initVal = "9 GPIO OK";
+        else if (m.id === "board_esp8266") initVal = "9 DÂY ĐI TRONG NHÀ";
+        else if (m.id === "mic_speaker_unit") initVal = "MIC RX + LOA D4 READY";
         el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state" style="color:#38bdf8;">${initVal}</strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
+          if (m.id === "mic_speaker_unit") {
+            triggerHardwareVoiceWave(75);
+          }
           if (m.cam) setCameraView(m.cam);
         });
       } else {
@@ -1003,11 +1284,23 @@ window.SmartHome3D = (() => {
     } else if (preset === "garden") {
       Object.assign(camGoal, { theta: -0.28, phi: 1.05, radius: 6.2, targetX: 2.4, targetY: 0.65, targetZ: 4.35 });
     } else if (preset === "board") {
-      Object.assign(camGoal, { theta: 0.22, phi: 0.96, radius: 5.4, targetX: -4.2, targetY: 0.78, targetZ: 4.35 });
+      Object.assign(camGoal, { theta: -0.45, phi: 0.98, radius: 4.6, targetX: -0.25, targetY: 1.38, targetZ: 2.45 });
+    } else if (preset === "wires") {
+      toggleWiringConduits();
     } else if (preset === "rotate") {
       camGoal.autoRotate = !camState.autoRotate;
       camState.autoRotate = camGoal.autoRotate;
     }
+  }
+
+  function toggleWiringConduits() {
+    if (!wireConduitGroup) return true;
+    wireConduitGroup.visible = !wireConduitGroup.visible;
+    return wireConduitGroup.visible;
+  }
+
+  function triggerHardwareVoiceWave(frames = 70) {
+    audioWaveTimer = frames;
   }
 
   function triggerIr38kHzVisualBlast() {
@@ -1188,6 +1481,17 @@ window.SmartHome3D = (() => {
       if (pumpPointLight) pumpPointLight.intensity = 0;
       if (boardLedMats.d3_relay_red) boardLedMats.d3_relay_red.color.setHex(0x450a0a);
     }
+
+    // 8. Làm sáng Đường Dây Điện 3D tương ứng khi thiết bị đang BẬT / MỞ
+    if (wireMats.d1_door) wireMats.d1_door.emissiveIntensity = deviceStates.main_door ? 1.45 : 0.28;
+    if (wireMats.d2_living) wireMats.d2_living.emissiveIntensity = deviceStates.living_room_light ? 1.45 : 0.28;
+    if (wireMats.d2_d5_ir) wireMats.d2_d5_ir.emissiveIntensity = deviceStates.ac ? 1.45 : 0.28;
+    if (wireMats.d6_dht_fan) wireMats.d6_dht_fan.emissiveIntensity = deviceStates.fan ? 1.45 : 0.35;
+    if (wireMats.d7_bed) wireMats.d7_bed.emissiveIntensity = deviceStates.bedroom_light ? 1.45 : 0.28;
+    if (wireMats.d8_siren) wireMats.d8_siren.emissiveIntensity = deviceStates.alarm_siren ? 1.65 : 0.28;
+    if (wireMats.d3_pump) wireMats.d3_pump.emissiveIntensity = deviceStates.garden_pump ? 1.55 : 0.28;
+
+    triggerHardwareVoiceWave(45);
   }
 
   function animate(timeMs) {
@@ -1282,6 +1586,27 @@ window.SmartHome3D = (() => {
       });
     }
 
+    // 6.5. Vòng sóng âm 3D tỏa ra từ Cụm Micro Thu Âm (RX) & Loa Phát 8Ω 3W (D4) trên Hộp Mạch Chính
+    if (audioWaveTimer > 0) {
+      audioWaveTimer--;
+      if (wireMats.rx_d4_audio) wireMats.rx_d4_audio.emissiveIntensity = 1.6;
+      audioWaveRings.forEach((w) => {
+        w.mesh.visible = true;
+        w.phase = (w.phase + 0.04) % 1.0;
+        const t = w.phase;
+        w.mesh.position.set(-0.47, 1.6 + t * 0.35, 2.27 - t * 0.85);
+        w.mesh.lookAt(-1.2, 1.6, 0.5);
+        const s = 0.7 + t * 2.6;
+        w.mesh.scale.set(s, s, s);
+        w.mat.opacity = (1.0 - t) * 0.88;
+      });
+    } else {
+      if (wireMats.rx_d4_audio) wireMats.rx_d4_audio.emissiveIntensity = 0.35;
+      audioWaveRings.forEach((w) => {
+        if (w.mesh.visible) w.mesh.visible = false;
+      });
+    }
+
     // 7. Cập nhật Camera mượt mà
     if (camGoal.autoRotate) {
       camGoal.theta += 0.0035;
@@ -1318,6 +1643,8 @@ window.SmartHome3D = (() => {
     updateDevices,
     updateSensors,
     triggerIr38kHzVisualBlast,
+    triggerHardwareVoiceWave,
+    toggleWiringConduits,
     setCameraView,
     onResize,
   };
