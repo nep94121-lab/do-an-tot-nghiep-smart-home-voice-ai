@@ -1,27 +1,35 @@
 {
   "project": "Đồ án Tốt nghiệp Smart Home Voice AI (SEEE - HUST)",
-  "total_symbols": 136,
+  "total_symbols": 143,
   "top_high_impact_symbols": [
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.get_snapshot",
       "file": "simulator/rule_engine.py",
-      "lines": "L1138-L1190",
-      "callers_count": 28,
+      "lines": "L1241-L1293",
+      "callers_count": 29,
       "callees_count": 5,
-      "blast_score": 89
+      "blast_score": 92
     },
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.emit",
       "file": "simulator/rule_engine.py",
-      "lines": "L887-L889",
+      "lines": "L944-L992",
       "callers_count": 25,
+      "callees_count": 2,
+      "blast_score": 77
+    },
+    {
+      "qname": "simulator/rule_engine.py::SmartHomeEngine.get_current_user_name",
+      "file": "simulator/rule_engine.py",
+      "lines": "L827-L831",
+      "callers_count": 16,
       "callees_count": 0,
-      "blast_score": 75
+      "blast_score": 48
     },
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.execute_device_action",
       "file": "simulator/rule_engine.py",
-      "lines": "L1693-L1830",
+      "lines": "L1796-L1933",
       "callers_count": 12,
       "callees_count": 9,
       "blast_score": 45
@@ -29,15 +37,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine._get_user_pool",
       "file": "simulator/rule_engine.py",
-      "lines": "L868-L876",
-      "callers_count": 14,
-      "callees_count": 0,
-      "blast_score": 42
-    },
-    {
-      "qname": "simulator/rule_engine.py::SmartHomeEngine.get_current_user_name",
-      "file": "simulator/rule_engine.py",
-      "lines": "L770-L774",
+      "lines": "L925-L933",
       "callers_count": 14,
       "callees_count": 0,
       "blast_score": 42
@@ -45,7 +45,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine._save_overlay",
       "file": "simulator/rule_engine.py",
-      "lines": "L878-L885",
+      "lines": "L935-L942",
       "callers_count": 10,
       "callees_count": 1,
       "blast_score": 31
@@ -53,31 +53,31 @@
     {
       "qname": "simulator/server.py::LiveBridgeSession.handle_tool_call",
       "file": "simulator/server.py",
-      "lines": "L1158-L1449",
+      "lines": "L1287-L1578",
       "callers_count": 1,
       "callees_count": 27,
       "blast_score": 30
     },
     {
-      "qname": "simulator/server.py::_broadcast_rest_state_to_bridges",
+      "qname": "simulator/server.py::LiveBridgeSession.send_ws_json",
       "file": "simulator/server.py",
-      "lines": "L813-L825",
+      "lines": "L1094-L1145",
       "callers_count": 9,
       "callees_count": 2,
       "blast_score": 29
     },
     {
-      "qname": "simulator/server.py::LiveBridgeSession.send_ws_json",
+      "qname": "simulator/server.py::_broadcast_rest_state_to_bridges",
       "file": "simulator/server.py",
-      "lines": "L1001-L1016",
+      "lines": "L820-L832",
       "callers_count": 9,
-      "callees_count": 0,
-      "blast_score": 27
+      "callees_count": 2,
+      "blast_score": 29
     },
     {
       "qname": "simulator/server.py::LiveBridgeSession.run",
       "file": "simulator/server.py",
-      "lines": "L1714-L1897",
+      "lines": "L1843-L2026",
       "callers_count": 1,
       "callees_count": 20,
       "blast_score": 23
@@ -93,7 +93,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.factory_reset",
       "file": "simulator/rule_engine.py",
-      "lines": "L2999-L3130",
+      "lines": "L3102-L3233",
       "callers_count": 4,
       "callees_count": 7,
       "blast_score": 19
@@ -101,7 +101,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.get_if_else_rules",
       "file": "simulator/rule_engine.py",
-      "lines": "L906-L910",
+      "lines": "L1009-L1013",
       "callers_count": 5,
       "callees_count": 1,
       "blast_score": 16
@@ -109,7 +109,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.check_permission",
       "file": "simulator/rule_engine.py",
-      "lines": "L1192-L1206",
+      "lines": "L1295-L1309",
       "callers_count": 5,
       "callees_count": 1,
       "blast_score": 16
@@ -117,7 +117,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.get_merged_aliases",
       "file": "simulator/rule_engine.py",
-      "lines": "L891-L898",
+      "lines": "L994-L1001",
       "callers_count": 5,
       "callees_count": 1,
       "blast_score": 16
@@ -133,7 +133,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
       "file": "simulator/rule_engine.py",
-      "lines": "L1844-L1864",
+      "lines": "L1947-L1967",
       "callers_count": 4,
       "callees_count": 4,
       "blast_score": 16
@@ -141,7 +141,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry",
       "file": "simulator/rule_engine.py",
-      "lines": "L1866-L1903",
+      "lines": "L1969-L2006",
       "callers_count": 4,
       "callees_count": 4,
       "blast_score": 16
@@ -149,7 +149,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command",
       "file": "simulator/rule_engine.py",
-      "lines": "L2518-L2636",
+      "lines": "L2621-L2739",
       "callers_count": 4,
       "callees_count": 4,
       "blast_score": 16
@@ -157,7 +157,7 @@
     {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
       "file": "simulator/rule_engine.py",
-      "lines": "L2728-L2861",
+      "lines": "L2831-L2964",
       "callers_count": 2,
       "callees_count": 10,
       "blast_score": 16
@@ -242,9 +242,12 @@
     "rest_endpoints": {
       "server_routes": [
         "/",
+        "/api/clear_audit_logs",
         "/api/device",
         "/api/dht11",
         "/api/ir_learn",
+        "/api/kb_upsert",
+        "/api/server_logs_and_db",
         "/api/server_mode",
         "/api/soil_moisture",
         "/api/state",
@@ -252,6 +255,7 @@
         "/api/voice_samples",
         "/api/wokwi_files",
         "/app",
+        "/logs",
         "/wokwi"
       ],
       "mobile_app_calls": [
@@ -374,31 +378,32 @@
       "name": "get_knowledge_rag",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 45,
-      "end_line": 49,
+      "start_line": 52,
+      "end_line": 56,
       "signature": "def get_knowledge_rag()",
       "doc": "",
       "callees": [
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG"
       ],
       "callers": [
-        "simulator/server.py::LiveBridgeSession.handle_tool_call"
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
+        "simulator/server.py::api_kb_upsert"
       ],
-      "pagerank": 1.148,
-      "blast_score": 4
+      "pagerank": 1.389,
+      "blast_score": 7
     },
     "simulator/server.py::load_key": {
       "qname": "simulator/server.py::load_key",
       "name": "load_key",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 69,
-      "end_line": 75,
+      "start_line": 76,
+      "end_line": 82,
       "signature": "def load_key()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/server.py::safe_str": {
@@ -406,8 +411,8 @@
       "name": "safe_str",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 81,
-      "end_line": 82,
+      "start_line": 88,
+      "end_line": 89,
       "signature": "def safe_str(msg)",
       "doc": "",
       "callees": [],
@@ -415,7 +420,7 @@
         "simulator/server.py::LiveBridgeSession.gemini_receive_loop",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.501,
+      "pagerank": 1.428,
       "blast_score": 6
     },
     "simulator/server.py::build_system_instruction": {
@@ -423,8 +428,8 @@
       "name": "build_system_instruction",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 685,
-      "end_line": 787,
+      "start_line": 692,
+      "end_line": 794,
       "signature": "def build_system_instruction(engine)",
       "doc": "",
       "callees": [
@@ -439,7 +444,7 @@
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::make_live_config"
       ],
-      "pagerank": 2.56,
+      "pagerank": 2.434,
       "blast_score": 14
     },
     "simulator/server.py::make_live_config": {
@@ -447,8 +452,8 @@
       "name": "make_live_config",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 790,
-      "end_line": 802,
+      "start_line": 797,
+      "end_line": 809,
       "signature": "def make_live_config(engine)",
       "doc": "",
       "callees": [
@@ -457,7 +462,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 4
     },
     "simulator/server.py::_broadcast_rest_state_to_bridges": {
@@ -465,8 +470,8 @@
       "name": "_broadcast_rest_state_to_bridges",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 813,
-      "end_line": 825,
+      "start_line": 820,
+      "end_line": 832,
       "signature": "async def _broadcast_rest_state_to_bridges()",
       "doc": "",
       "callees": [
@@ -484,7 +489,7 @@
         "simulator/server.py::api_update_dht11",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 3.705,
+      "pagerank": 3.524,
       "blast_score": 29
     },
     "simulator/server.py::index": {
@@ -492,13 +497,13 @@
       "name": "index",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 829,
-      "end_line": 830,
+      "start_line": 836,
+      "end_line": 837,
       "signature": "async def index()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/server.py::mobile_app_index": {
@@ -506,13 +511,13 @@
       "name": "mobile_app_index",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 834,
-      "end_line": 835,
+      "start_line": 841,
+      "end_line": 842,
       "signature": "async def mobile_app_index()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/server.py::wokwi_page": {
@@ -520,27 +525,94 @@
       "name": "wokwi_page",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 839,
-      "end_line": 840,
+      "start_line": 846,
+      "end_line": 847,
       "signature": "async def wokwi_page()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
+    },
+    "simulator/server.py::logs_page": {
+      "qname": "simulator/server.py::logs_page",
+      "name": "logs_page",
+      "kind": "function",
+      "file": "simulator/server.py",
+      "start_line": 851,
+      "end_line": 852,
+      "signature": "async def logs_page()",
+      "doc": "",
+      "callees": [],
+      "callers": [],
+      "pagerank": 1.049,
+      "blast_score": 0
+    },
+    "simulator/server.py::api_get_server_logs_and_db": {
+      "qname": "simulator/server.py::api_get_server_logs_and_db",
+      "name": "api_get_server_logs_and_db",
+      "kind": "function",
+      "file": "simulator/server.py",
+      "start_line": 856,
+      "end_line": 895,
+      "signature": "async def api_get_server_logs_and_db()",
+      "doc": "",
+      "callees": [
+        "simulator/rule_engine.py::SmartHomeEngine.get_snapshot",
+        "simulator/rule_engine.py::format_vn_time_ampm",
+        "simulator/rule_engine.py::read_audit_logs"
+      ],
+      "callers": [],
+      "pagerank": 1.049,
+      "blast_score": 3
+    },
+    "simulator/server.py::api_kb_upsert": {
+      "qname": "simulator/server.py::api_kb_upsert",
+      "name": "api_kb_upsert",
+      "kind": "function",
+      "file": "simulator/server.py",
+      "start_line": 899,
+      "end_line": 920,
+      "signature": "async def api_kb_upsert(payload)",
+      "doc": "",
+      "callees": [
+        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item",
+        "simulator/rule_engine.py::append_audit_log",
+        "simulator/server.py::get_knowledge_rag"
+      ],
+      "callers": [],
+      "pagerank": 1.049,
+      "blast_score": 3
+    },
+    "simulator/server.py::api_clear_audit_logs": {
+      "qname": "simulator/server.py::api_clear_audit_logs",
+      "name": "api_clear_audit_logs",
+      "kind": "function",
+      "file": "simulator/server.py",
+      "start_line": 924,
+      "end_line": 933,
+      "signature": "async def api_clear_audit_logs()",
+      "doc": "",
+      "callees": [
+        "simulator/rule_engine.py::append_audit_log",
+        "simulator/rule_engine.py::clear_audit_logs"
+      ],
+      "callers": [],
+      "pagerank": 1.049,
+      "blast_score": 2
     },
     "simulator/server.py::api_get_wokwi_files": {
       "qname": "simulator/server.py::api_get_wokwi_files",
       "name": "api_get_wokwi_files",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 844,
-      "end_line": 854,
+      "start_line": 937,
+      "end_line": 947,
       "signature": "async def api_get_wokwi_files()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/server.py::api_get_state": {
@@ -548,15 +620,15 @@
       "name": "api_get_state",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 858,
-      "end_line": 859,
+      "start_line": 951,
+      "end_line": 952,
       "signature": "async def api_get_state()",
       "doc": "",
       "callees": [
         "simulator/rule_engine.py::SmartHomeEngine.get_snapshot"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/server.py::api_control_device": {
@@ -564,8 +636,8 @@
       "name": "api_control_device",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 863,
-      "end_line": 868,
+      "start_line": 956,
+      "end_line": 961,
       "signature": "async def api_control_device(payload)",
       "doc": "",
       "callees": [
@@ -573,7 +645,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/server.py::api_ir_learn": {
@@ -581,8 +653,8 @@
       "name": "api_ir_learn",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 872,
-      "end_line": 877,
+      "start_line": 965,
+      "end_line": 970,
       "signature": "async def api_ir_learn(payload)",
       "doc": "",
       "callees": [
@@ -590,7 +662,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/server.py::api_update_dht11": {
@@ -598,8 +670,8 @@
       "name": "api_update_dht11",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 881,
-      "end_line": 887,
+      "start_line": 974,
+      "end_line": 980,
       "signature": "async def api_update_dht11(payload)",
       "doc": "",
       "callees": [
@@ -607,7 +679,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/server.py::api_update_soil_moisture": {
@@ -615,8 +687,8 @@
       "name": "api_update_soil_moisture",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 891,
-      "end_line": 895,
+      "start_line": 984,
+      "end_line": 988,
       "signature": "async def api_update_soil_moisture(payload)",
       "doc": "",
       "callees": [
@@ -625,7 +697,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 3
     },
     "simulator/server.py::api_set_server_mode": {
@@ -633,8 +705,8 @@
       "name": "api_set_server_mode",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 899,
-      "end_line": 908,
+      "start_line": 992,
+      "end_line": 1001,
       "signature": "async def api_set_server_mode(payload)",
       "doc": "",
       "callees": [
@@ -642,7 +714,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/server.py::api_text_command": {
@@ -650,8 +722,8 @@
       "name": "api_text_command",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 912,
-      "end_line": 957,
+      "start_line": 1005,
+      "end_line": 1050,
       "signature": "async def api_text_command(payload)",
       "doc": "",
       "callees": [
@@ -666,7 +738,7 @@
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 9
     },
     "simulator/server.py::list_voice_samples": {
@@ -674,13 +746,13 @@
       "name": "list_voice_samples",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 961,
-      "end_line": 969,
+      "start_line": 1054,
+      "end_line": 1062,
       "signature": "async def list_voice_samples()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/server.py::LiveBridgeSession": {
@@ -688,8 +760,8 @@
       "name": "LiveBridgeSession",
       "kind": "class",
       "file": "simulator/server.py",
-      "start_line": 972,
-      "end_line": 1909,
+      "start_line": 1065,
+      "end_line": 2038,
       "signature": "class LiveBridgeSession",
       "doc": "Quản lý kết nối giữa 1 tab trình duyệt và phiên Gemini 3.8 Live.",
       "methods": [
@@ -709,7 +781,7 @@
       "callers": [
         "simulator/server.py::websocket_endpoint"
       ],
-      "pagerank": 1.572,
+      "pagerank": 1.495,
       "blast_score": 3
     },
     "simulator/server.py::LiveBridgeSession.__init__": {
@@ -718,8 +790,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 975,
-      "end_line": 999,
+      "start_line": 1068,
+      "end_line": 1092,
       "signature": "def __init__(ws)",
       "doc": "",
       "callees": [
@@ -727,7 +799,7 @@
         "simulator/voice_auth.py::VoiceAuthManager"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/server.py::LiveBridgeSession.send_ws_json": {
@@ -736,11 +808,14 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1001,
-      "end_line": 1016,
+      "start_line": 1094,
+      "end_line": 1145,
       "signature": "async def send_ws_json(payload)",
       "doc": "",
-      "callees": [],
+      "callees": [
+        "simulator/rule_engine.py::SmartHomeEngine.get_current_user_name",
+        "simulator/rule_engine.py::append_audit_log"
+      ],
       "callers": [
         "simulator/server.py::LiveBridgeSession._periodic_timer_sync",
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment",
@@ -752,8 +827,8 @@
         "simulator/server.py::LiveBridgeSession.stream_wav_sample",
         "simulator/server.py::_broadcast_rest_state_to_bridges"
       ],
-      "pagerank": 4.72,
-      "blast_score": 27
+      "pagerank": 4.489,
+      "blast_score": 29
     },
     "simulator/server.py::LiveBridgeSession._reset_turn_metrics": {
       "qname": "simulator/server.py::LiveBridgeSession._reset_turn_metrics",
@@ -761,8 +836,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1018,
-      "end_line": 1024,
+      "start_line": 1147,
+      "end_line": 1153,
       "signature": "def _reset_turn_metrics(anchor_ts)",
       "doc": "",
       "callees": [],
@@ -771,7 +846,7 @@
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::LiveBridgeSession.stream_wav_sample"
       ],
-      "pagerank": 1.55,
+      "pagerank": 1.474,
       "blast_score": 9
     },
     "simulator/server.py::LiveBridgeSession._sync_rules_context_to_gemini": {
@@ -780,8 +855,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1026,
-      "end_line": 1052,
+      "start_line": 1155,
+      "end_line": 1181,
       "signature": "async def _sync_rules_context_to_gemini(event_note, send_to_model)",
       "doc": "Cập nhật tức thì bảng Từ, Khẩu lệnh, Luật IF-ELSE và 2 Bể lên giao diện (và Gemini nếu cần).",
       "callees": [
@@ -794,7 +869,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.396,
+      "pagerank": 1.328,
       "blast_score": 12
     },
     "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence": {
@@ -803,8 +878,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1054,
-      "end_line": 1087,
+      "start_line": 1183,
+      "end_line": 1216,
       "signature": "async def _run_voice_enrollment_sequence(duration_seconds, target_tier, target_name)",
       "doc": "Thực thi chuỗi tín hiệu phần cứng khi bắt đầu thu âm cấp quyền:",
       "callees": [
@@ -815,7 +890,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.148,
+      "pagerank": 1.092,
       "blast_score": 6
     },
     "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment": {
@@ -824,8 +899,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1089,
-      "end_line": 1156,
+      "start_line": 1218,
+      "end_line": 1285,
       "signature": "async def _process_completed_voice_enrollment(pcm_bytes)",
       "doc": "Xử lý sau khi thu âm đủ: Nháy đèn báo kết thúc -> Báo thu âm đủ -> Phân tích tần số -> Báo phân tích xong & hỏi tên.",
       "callees": [
@@ -841,7 +916,7 @@
         "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.495,
+      "pagerank": 1.422,
       "blast_score": 13
     },
     "simulator/server.py::LiveBridgeSession.handle_tool_call": {
@@ -850,8 +925,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1158,
-      "end_line": 1449,
+      "start_line": 1287,
+      "end_line": 1578,
       "signature": "async def handle_tool_call(fc)",
       "doc": "",
       "callees": [
@@ -886,7 +961,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.gemini_receive_loop"
       ],
-      "pagerank": 1.434,
+      "pagerank": 1.364,
       "blast_score": 30
     },
     "simulator/server.py::LiveBridgeSession.gemini_receive_loop": {
@@ -895,8 +970,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1451,
-      "end_line": 1580,
+      "start_line": 1580,
+      "end_line": 1709,
       "signature": "async def gemini_receive_loop()",
       "doc": "Nhận liên tục các sự kiện từ Gemini 3.8 Live và đẩy về giao diện.",
       "callees": [
@@ -907,7 +982,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 6
     },
     "simulator/server.py::LiveBridgeSession.stream_wav_sample": {
@@ -916,8 +991,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1582,
-      "end_line": 1712,
+      "start_line": 1711,
+      "end_line": 1841,
       "signature": "async def stream_wav_sample(sample_id)",
       "doc": "",
       "callees": [
@@ -930,7 +1005,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 8
     },
     "simulator/server.py::LiveBridgeSession.run": {
@@ -939,8 +1014,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1714,
-      "end_line": 1897,
+      "start_line": 1843,
+      "end_line": 2026,
       "signature": "async def run()",
       "doc": "",
       "callees": [
@@ -968,7 +1043,7 @@
       "callers": [
         "simulator/server.py::websocket_endpoint"
       ],
-      "pagerank": 1.572,
+      "pagerank": 1.495,
       "blast_score": 23
     },
     "simulator/server.py::LiveBridgeSession._periodic_timer_sync": {
@@ -977,8 +1052,8 @@
       "class_name": "LiveBridgeSession",
       "kind": "method",
       "file": "simulator/server.py",
-      "start_line": 1899,
-      "end_line": 1909,
+      "start_line": 2028,
+      "end_line": 2038,
       "signature": "async def _periodic_timer_sync()",
       "doc": "",
       "callees": [
@@ -988,7 +1063,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 5
     },
     "simulator/server.py::websocket_endpoint": {
@@ -996,8 +1071,8 @@
       "name": "websocket_endpoint",
       "kind": "function",
       "file": "simulator/server.py",
-      "start_line": 1913,
-      "end_line": 1916,
+      "start_line": 2042,
+      "end_line": 2045,
       "signature": "async def websocket_endpoint(ws)",
       "doc": "",
       "callees": [
@@ -1005,7 +1080,7 @@
         "simulator/server.py::LiveBridgeSession.run"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/rule_engine.py::get_vn_now": {
@@ -1013,26 +1088,27 @@
       "name": "get_vn_now",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 39,
-      "end_line": 40,
+      "start_line": 40,
+      "end_line": 41,
       "signature": "def get_vn_now()",
       "doc": "",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine._check_custom_directive_device_lock",
+        "simulator/rule_engine.py::append_audit_log",
         "simulator/rule_engine.py::format_vn_time_ampm",
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
-      "pagerank": 6.021,
-      "blast_score": 9
+      "pagerank": 12.153,
+      "blast_score": 12
     },
     "simulator/rule_engine.py::format_vn_time_ampm": {
       "qname": "simulator/rule_engine.py::format_vn_time_ampm",
       "name": "format_vn_time_ampm",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 43,
-      "end_line": 45,
+      "start_line": 44,
+      "end_line": 46,
       "signature": "def format_vn_time_ampm(dt)",
       "doc": "",
       "callees": [
@@ -1040,25 +1116,79 @@
       ],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.get_snapshot",
-        "simulator/server.py::LiveBridgeSession._sync_rules_context_to_gemini"
+        "simulator/server.py::LiveBridgeSession._sync_rules_context_to_gemini",
+        "simulator/server.py::api_get_server_logs_and_db"
       ],
-      "pagerank": 3.501,
-      "blast_score": 7
+      "pagerank": 3.677,
+      "blast_score": 10
+    },
+    "simulator/rule_engine.py::append_audit_log": {
+      "qname": "simulator/rule_engine.py::append_audit_log",
+      "name": "append_audit_log",
+      "kind": "function",
+      "file": "simulator/rule_engine.py",
+      "start_line": 49,
+      "end_line": 75,
+      "signature": "def append_audit_log(category, event_type, summary, user_name, tier, details)",
+      "doc": "Ghi nhật ký bền vững (Persistent Audit Log) xuống đĩa tại simulator/data/system_audit_logs.jsonl.",
+      "callees": [
+        "simulator/rule_engine.py::get_vn_now"
+      ],
+      "callers": [
+        "simulator/rule_engine.py::SmartHomeEngine.emit",
+        "simulator/server.py::LiveBridgeSession.send_ws_json",
+        "simulator/server.py::api_clear_audit_logs",
+        "simulator/server.py::api_kb_upsert"
+      ],
+      "pagerank": 7.213,
+      "blast_score": 13
+    },
+    "simulator/rule_engine.py::read_audit_logs": {
+      "qname": "simulator/rule_engine.py::read_audit_logs",
+      "name": "read_audit_logs",
+      "kind": "function",
+      "file": "simulator/rule_engine.py",
+      "start_line": 78,
+      "end_line": 94,
+      "signature": "def read_audit_logs(limit)",
+      "doc": "Đọc danh sách log mới nhất từ simulator/data/system_audit_logs.jsonl.",
+      "callees": [],
+      "callers": [
+        "simulator/server.py::api_get_server_logs_and_db"
+      ],
+      "pagerank": 1.346,
+      "blast_score": 3
+    },
+    "simulator/rule_engine.py::clear_audit_logs": {
+      "qname": "simulator/rule_engine.py::clear_audit_logs",
+      "name": "clear_audit_logs",
+      "kind": "function",
+      "file": "simulator/rule_engine.py",
+      "start_line": 97,
+      "end_line": 102,
+      "signature": "def clear_audit_logs()",
+      "doc": "Xóa toàn bộ log trong simulator/data/system_audit_logs.jsonl.",
+      "callees": [],
+      "callers": [
+        "simulator/server.py::api_clear_audit_logs"
+      ],
+      "pagerank": 1.495,
+      "blast_score": 3
     },
     "simulator/rule_engine.py::_format_clock_12h": {
       "qname": "simulator/rule_engine.py::_format_clock_12h",
       "name": "_format_clock_12h",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 203,
-      "end_line": 210,
+      "start_line": 260,
+      "end_line": 267,
       "signature": "def _format_clock_12h(hour_24, minute, second)",
       "doc": "",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
-      "pagerank": 1.582,
+      "pagerank": 1.504,
       "blast_score": 3
     },
     "simulator/rule_engine.py::_extract_vn_date": {
@@ -1066,15 +1196,15 @@
       "name": "_extract_vn_date",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 213,
-      "end_line": 299,
+      "start_line": 270,
+      "end_line": 356,
       "signature": "def _extract_vn_date(time_str, date_str, now_vn)",
       "doc": "Tách thông tin ngày/tháng (nếu người dùng có nói rõ) ra khỏi chuỗi giờ.",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
-      "pagerank": 1.582,
+      "pagerank": 1.504,
       "blast_score": 3
     },
     "simulator/rule_engine.py::detect_repeat_mode": {
@@ -1082,8 +1212,8 @@
       "name": "detect_repeat_mode",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 318,
-      "end_line": 341,
+      "start_line": 375,
+      "end_line": 398,
       "signature": "def detect_repeat_mode(text, explicit_repeat)",
       "doc": "Tự động nhận diện chu kỳ lặp nếu người dùng nói 'hàng ngày', 'hàng tuần', 'hàng giờ', 'hàng tháng'.",
       "callees": [],
@@ -1091,7 +1221,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible",
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
-      "pagerank": 1.795,
+      "pagerank": 1.707,
       "blast_score": 6
     },
     "simulator/rule_engine.py::normalize_reset_scope": {
@@ -1099,8 +1229,8 @@
       "name": "normalize_reset_scope",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 344,
-      "end_line": 364,
+      "start_line": 401,
+      "end_line": 421,
       "signature": "def normalize_reset_scope(raw_scope)",
       "doc": "Chuẩn hóa 4 loại Reset:",
       "callees": [],
@@ -1108,7 +1238,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset",
         "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset"
       ],
-      "pagerank": 1.562,
+      "pagerank": 1.486,
       "blast_score": 6
     },
     "simulator/rule_engine.py::parse_vn_clock_and_date": {
@@ -1116,8 +1246,8 @@
       "name": "parse_vn_clock_and_date",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 367,
-      "end_line": 455,
+      "start_line": 424,
+      "end_line": 512,
       "signature": "def parse_vn_clock_and_date(time_str, date_str, repeat, now_vn)",
       "doc": "Phân tích chuỗi giờ Việt Nam theo đúng 4 quy tắc của Sếp + chu kỳ lặp (1 lần vs hàng ngày/tuần):",
       "callees": [
@@ -1130,7 +1260,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible",
         "simulator/rule_engine.py::parse_vn_time_string"
       ],
-      "pagerank": 2.254,
+      "pagerank": 2.143,
       "blast_score": 10
     },
     "simulator/rule_engine.py::parse_vn_time_string": {
@@ -1138,15 +1268,15 @@
       "name": "parse_vn_time_string",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 458,
-      "end_line": 464,
+      "start_line": 515,
+      "end_line": 521,
       "signature": "def parse_vn_time_string(time_str)",
       "doc": "Hàm tương thích ngược trả về (hh, mm, ss) của mốc đầu tiên.",
       "callees": [
         "simulator/rule_engine.py::parse_vn_clock_and_date"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/rule_engine.py::ensure_factory_file": {
@@ -1154,8 +1284,8 @@
       "name": "ensure_factory_file",
       "kind": "function",
       "file": "simulator/rule_engine.py",
-      "start_line": 467,
-      "end_line": 477,
+      "start_line": 524,
+      "end_line": 534,
       "signature": "def ensure_factory_file()",
       "doc": "Mặc định gốc hoàn toàn nguyên bản: mở cửa chỉ mở cửa, bật đèn chỉ bật đèn (không có luật phụ).",
       "callees": [],
@@ -1163,7 +1293,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.__init__",
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset"
       ],
-      "pagerank": 1.547,
+      "pagerank": 1.472,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine": {
@@ -1171,8 +1301,8 @@
       "name": "SmartHomeEngine",
       "kind": "class",
       "file": "simulator/rule_engine.py",
-      "start_line": 480,
-      "end_line": 3130,
+      "start_line": 537,
+      "end_line": 3233,
       "signature": "class SmartHomeEngine",
       "doc": "",
       "methods": [
@@ -1243,7 +1373,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.__init__"
       ],
-      "pagerank": 1.596,
+      "pagerank": 1.518,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine.__init__": {
@@ -1252,8 +1382,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 481,
-      "end_line": 504,
+      "start_line": 538,
+      "end_line": 561,
       "signature": "def __init__(on_event, on_voice_reset)",
       "doc": "",
       "callees": [
@@ -1263,7 +1393,7 @@
         "simulator/rule_engine.py::ensure_factory_file"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 4
     },
     "simulator/rule_engine.py::SmartHomeEngine.system_policies": {
@@ -1272,13 +1402,13 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 507,
-      "end_line": 544,
+      "start_line": 564,
+      "end_line": 601,
       "signature": "def system_policies()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/rule_engine.py::SmartHomeEngine.query_permission_mode": {
@@ -1287,13 +1417,13 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 547,
-      "end_line": 548,
+      "start_line": 604,
+      "end_line": 605,
       "signature": "def query_permission_mode()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_query_permission_policy": {
@@ -1302,8 +1432,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 550,
-      "end_line": 582,
+      "start_line": 607,
+      "end_line": 639,
       "signature": "async def set_query_permission_policy(mode)",
       "doc": "Thay đổi quy tắc phân quyền hỏi đáp (CHỈ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi):",
       "callees": [
@@ -1316,7 +1446,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.421,
+      "pagerank": 1.352,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy": {
@@ -1325,8 +1455,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 584,
-      "end_line": 735,
+      "start_line": 641,
+      "end_line": 792,
       "signature": "async def admin_update_system_policy(policy_key, policy_value, target_device_id)",
       "doc": "Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) sửa BẤT KỲ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3,",
       "callees": [
@@ -1339,7 +1469,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine._init_users": {
@@ -1348,15 +1478,15 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 737,
-      "end_line": 747,
+      "start_line": 794,
+      "end_line": 804,
       "signature": "def _init_users()",
       "doc": "",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.__init__"
       ],
-      "pagerank": 1.337,
+      "pagerank": 1.272,
       "blast_score": 3
     },
     "simulator/rule_engine.py::SmartHomeEngine.current_user_id": {
@@ -1365,13 +1495,13 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 750,
-      "end_line": 751,
+      "start_line": 807,
+      "end_line": 808,
       "signature": "def current_user_id()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/rule_engine.py::SmartHomeEngine.current_tier": {
@@ -1380,13 +1510,13 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 754,
-      "end_line": 768,
+      "start_line": 811,
+      "end_line": 825,
       "signature": "def current_tier()",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_current_user_name": {
@@ -1395,14 +1525,15 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 770,
-      "end_line": 774,
+      "start_line": 827,
+      "end_line": 831,
       "signature": "def get_current_user_name()",
       "doc": "",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.check_permission",
         "simulator/rule_engine.py::SmartHomeEngine.create_alias_rule",
+        "simulator/rule_engine.py::SmartHomeEngine.emit",
         "simulator/rule_engine.py::SmartHomeEngine.execute_alias_rule",
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action",
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset",
@@ -1414,10 +1545,11 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping",
         "simulator/server.py::LiveBridgeSession.run",
+        "simulator/server.py::LiveBridgeSession.send_ws_json",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 8.487,
-      "blast_score": 42
+      "pagerank": 13.543,
+      "blast_score": 48
     },
     "simulator/rule_engine.py::SmartHomeEngine.current_role": {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.current_role",
@@ -1425,13 +1557,13 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 781,
-      "end_line": 809,
+      "start_line": 838,
+      "end_line": 866,
       "signature": "def current_role(val)",
       "doc": "",
       "callees": [],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 0
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_active_user": {
@@ -1440,8 +1572,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 811,
-      "end_line": 827,
+      "start_line": 868,
+      "end_line": 884,
       "signature": "def set_active_user(user_or_role)",
       "doc": "",
       "callees": [
@@ -1451,7 +1583,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.194,
+      "pagerank": 1.135,
       "blast_score": 7
     },
     "simulator/rule_engine.py::SmartHomeEngine._default_overlay": {
@@ -1460,8 +1592,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 829,
-      "end_line": 841,
+      "start_line": 886,
+      "end_line": 898,
       "signature": "def _default_overlay()",
       "doc": "",
       "callees": [],
@@ -1469,7 +1601,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._load_overlay",
         "simulator/rule_engine.py::SmartHomeEngine.factory_reset"
       ],
-      "pagerank": 2.45,
+      "pagerank": 2.33,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._load_overlay": {
@@ -1478,8 +1610,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 843,
-      "end_line": 866,
+      "start_line": 900,
+      "end_line": 923,
       "signature": "def _load_overlay()",
       "doc": "",
       "callees": [
@@ -1488,7 +1620,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.__init__"
       ],
-      "pagerank": 1.337,
+      "pagerank": 1.272,
       "blast_score": 4
     },
     "simulator/rule_engine.py::SmartHomeEngine._get_user_pool": {
@@ -1497,8 +1629,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 868,
-      "end_line": 876,
+      "start_line": 925,
+      "end_line": 933,
       "signature": "def _get_user_pool(user_id)",
       "doc": "",
       "callees": [],
@@ -1518,7 +1650,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 14.312,
+      "pagerank": 13.661,
       "blast_score": 42
     },
     "simulator/rule_engine.py::SmartHomeEngine._save_overlay": {
@@ -1527,8 +1659,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 878,
-      "end_line": 885,
+      "start_line": 935,
+      "end_line": 942,
       "signature": "def _save_overlay()",
       "doc": "",
       "callees": [
@@ -1546,7 +1678,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_query_permission_policy",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 3.434,
+      "pagerank": 3.266,
       "blast_score": 31
     },
     "simulator/rule_engine.py::SmartHomeEngine.emit": {
@@ -1555,11 +1687,14 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 887,
-      "end_line": 889,
+      "start_line": 944,
+      "end_line": 992,
       "signature": "async def emit(event)",
       "doc": "",
-      "callees": [],
+      "callees": [
+        "simulator/rule_engine.py::SmartHomeEngine.get_current_user_name",
+        "simulator/rule_engine.py::append_audit_log"
+      ],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.admin_update_system_policy",
         "simulator/rule_engine.py::SmartHomeEngine.blink_signal_light",
@@ -1587,8 +1722,8 @@
         "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry",
         "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry"
       ],
-      "pagerank": 8.692,
-      "blast_score": 75
+      "pagerank": 8.267,
+      "blast_score": 77
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_merged_aliases": {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.get_merged_aliases",
@@ -1596,8 +1731,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 891,
-      "end_line": 898,
+      "start_line": 994,
+      "end_line": 1001,
       "signature": "def get_merged_aliases(user_id)",
       "doc": "",
       "callees": [
@@ -1610,7 +1745,7 @@
         "simulator/server.py::api_text_command",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 2.172,
+      "pagerank": 2.065,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_word_mappings": {
@@ -1619,8 +1754,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 900,
-      "end_line": 904,
+      "start_line": 1003,
+      "end_line": 1007,
       "signature": "def get_word_mappings(user_id)",
       "doc": "",
       "callees": [
@@ -1631,7 +1766,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.describe_device_command",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 1.855,
+      "pagerank": 1.764,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_if_else_rules": {
@@ -1640,8 +1775,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 906,
-      "end_line": 910,
+      "start_line": 1009,
+      "end_line": 1013,
       "signature": "def get_if_else_rules(user_id)",
       "doc": "",
       "callees": [
@@ -1654,7 +1789,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 2.892,
+      "pagerank": 2.75,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_chains": {
@@ -1663,15 +1798,15 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 912,
-      "end_line": 913,
+      "start_line": 1015,
+      "end_line": 1016,
       "signature": "def get_chains()",
       "doc": "",
       "callees": [
         "simulator/rule_engine.py::SmartHomeEngine.get_if_else_rules"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/rule_engine.py::SmartHomeEngine.format_duration_vi": {
@@ -1680,8 +1815,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 915,
-      "end_line": 927,
+      "start_line": 1018,
+      "end_line": 1030,
       "signature": "def format_duration_vi(total_sec)",
       "doc": "",
       "callees": [],
@@ -1690,7 +1825,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_action",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 3.502,
+      "pagerank": 3.381,
       "blast_score": 9
     },
     "simulator/rule_engine.py::SmartHomeEngine._action_device_phrase_vi": {
@@ -1699,8 +1834,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 929,
-      "end_line": 945,
+      "start_line": 1032,
+      "end_line": 1048,
       "signature": "def _action_device_phrase_vi(device_id, action)",
       "doc": "",
       "callees": [],
@@ -1710,7 +1845,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.schedule_action",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 2.065,
+      "pagerank": 1.964,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.describe_device_command": {
@@ -1719,8 +1854,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 947,
-      "end_line": 988,
+      "start_line": 1050,
+      "end_line": 1091,
       "signature": "def describe_device_command(device_id)",
       "doc": "Trả lời ngắn gọn lệnh điều khiển hiện tại của một thiết bị (gồm mặc định, từ đổi, khẩu lệnh đổi và luật IF).",
       "callees": [
@@ -1732,7 +1867,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.get_pools_summary"
       ],
-      "pagerank": 1.376,
+      "pagerank": 1.309,
       "blast_score": 7
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_pools_summary": {
@@ -1741,8 +1876,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 990,
-      "end_line": 1136,
+      "start_line": 1093,
+      "end_line": 1239,
       "signature": "def get_pools_summary(query_type, target_device_id)",
       "doc": "Trả về thông tin chi tiết của 2 Bể (Bể Hẹn Giờ & Bể Luật Động) hoặc lệnh của 1 thiết bị.",
       "callees": [
@@ -1757,7 +1892,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::build_system_instruction"
       ],
-      "pagerank": 1.607,
+      "pagerank": 1.529,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.get_snapshot": {
@@ -1766,8 +1901,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1138,
-      "end_line": 1190,
+      "start_line": 1241,
+      "end_line": 1293,
       "signature": "def get_snapshot()",
       "doc": "",
       "callees": [
@@ -1805,10 +1940,11 @@
         "simulator/server.py::LiveBridgeSession._periodic_timer_sync",
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::_broadcast_rest_state_to_bridges",
+        "simulator/server.py::api_get_server_logs_and_db",
         "simulator/server.py::api_get_state"
       ],
-      "pagerank": 11.776,
-      "blast_score": 89
+      "pagerank": 11.497,
+      "blast_score": 92
     },
     "simulator/rule_engine.py::SmartHomeEngine.check_permission": {
       "qname": "simulator/rule_engine.py::SmartHomeEngine.check_permission",
@@ -1816,8 +1952,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1192,
-      "end_line": 1206,
+      "start_line": 1295,
+      "end_line": 1309,
       "signature": "def check_permission(required_role)",
       "doc": "",
       "callees": [
@@ -1830,7 +1966,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule",
         "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping"
       ],
-      "pagerank": 2.338,
+      "pagerank": 2.223,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_custom_directive_device_lock": {
@@ -1839,8 +1975,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1208,
-      "end_line": 1254,
+      "start_line": 1311,
+      "end_line": 1357,
       "signature": "def _check_custom_directive_device_lock(dev_id)",
       "doc": "Kiểm tra xem có quy định tự nhiên nào của Admin Cấp 1 (trong custom_system_directives)",
       "callees": [
@@ -1849,7 +1985,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.check_device_permission"
       ],
-      "pagerank": 1.722,
+      "pagerank": 1.638,
       "blast_score": 4
     },
     "simulator/rule_engine.py::SmartHomeEngine.check_device_permission": {
@@ -1858,8 +1994,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1256,
-      "end_line": 1274,
+      "start_line": 1359,
+      "end_line": 1377,
       "signature": "def check_device_permission(dev_id)",
       "doc": "",
       "callees": [
@@ -1869,7 +2005,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.457,
+      "pagerank": 1.386,
       "blast_score": 5
     },
     "simulator/rule_engine.py::SmartHomeEngine._find_or_slug_user": {
@@ -1878,8 +2014,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1279,
-      "end_line": 1292,
+      "start_line": 1382,
+      "end_line": 1395,
       "signature": "def _find_or_slug_user(target_name)",
       "doc": "",
       "callees": [],
@@ -1887,7 +2023,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.grant_user_permission",
         "simulator/rule_engine.py::SmartHomeEngine.revoke_user_permission"
       ],
-      "pagerank": 1.565,
+      "pagerank": 1.488,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine.blink_signal_light": {
@@ -1896,8 +2032,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1294,
-      "end_line": 1331,
+      "start_line": 1397,
+      "end_line": 1434,
       "signature": "async def blink_signal_light(device_id, pulse_sec)",
       "doc": "Nháy đèn 1 phát (Bật -> Tắt hoặc Tắt -> Bật) để làm tín hiệu bắt đầu/kết thúc thu âm cấp quyền.",
       "callees": [
@@ -1910,7 +2046,7 @@
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment",
         "simulator/server.py::LiveBridgeSession._run_voice_enrollment_sequence"
       ],
-      "pagerank": 1.634,
+      "pagerank": 1.554,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.start_voice_enrollment": {
@@ -1919,8 +2055,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1333,
-      "end_line": 1396,
+      "start_line": 1436,
+      "end_line": 1499,
       "signature": "async def start_voice_enrollment(target_tier, target_name, duration_seconds, duration_sec)",
       "doc": "Bước 1 của Thu âm cấp quyền giọng nói:",
       "callees": [
@@ -1931,7 +2067,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 8
     },
     "simulator/rule_engine.py::SmartHomeEngine.stage_voice_enrollment_analysis": {
@@ -1940,8 +2076,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1398,
-      "end_line": 1448,
+      "start_line": 1501,
+      "end_line": 1551,
       "signature": "async def stage_voice_enrollment_analysis(f0_hz, centroid_hz, embedding, duration_sec)",
       "doc": "Bước 2 của Thu âm cấp quyền: Sau khi thu âm đủ -> Báo đã thu âm đủ, đã phân tích xong -> Hỏi tên (hoặc lưu luôn nếu đã có tên).",
       "callees": [
@@ -1953,7 +2089,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment"
       ],
-      "pagerank": 1.309,
+      "pagerank": 1.244,
       "blast_score": 9
     },
     "simulator/rule_engine.py::SmartHomeEngine.finalize_voice_enrollment": {
@@ -1962,8 +2098,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1450,
-      "end_line": 1496,
+      "start_line": 1553,
+      "end_line": 1599,
       "signature": "async def finalize_voice_enrollment(target_name, target_tier)",
       "doc": "Bước 3 của Thu âm cấp quyền: Gán tên cho người vừa thu âm phân tích xong và lưu quyền chính thức.",
       "callees": [
@@ -1977,7 +2113,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.stage_voice_enrollment_analysis",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.543,
+      "pagerank": 1.467,
       "blast_score": 13
     },
     "simulator/rule_engine.py::SmartHomeEngine.grant_user_permission": {
@@ -1986,8 +2122,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1498,
-      "end_line": 1568,
+      "start_line": 1601,
+      "end_line": 1671,
       "signature": "async def grant_user_permission(target_name, target_tier)",
       "doc": "Cấp quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).",
       "callees": [
@@ -2003,7 +2139,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.finalize_voice_enrollment",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.5,
+      "pagerank": 1.427,
       "blast_score": 15
     },
     "simulator/rule_engine.py::SmartHomeEngine.revoke_user_permission": {
@@ -2012,8 +2148,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1570,
-      "end_line": 1623,
+      "start_line": 1673,
+      "end_line": 1726,
       "signature": "async def revoke_user_permission(target_name)",
       "doc": "Hủy quyền theo 3 Tầng (Tôn trọng cấu hình động `system_policies` do Admin Cấp 1 thiết lập).",
       "callees": [
@@ -2026,7 +2162,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine._expand_targets": {
@@ -2035,15 +2171,15 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1625,
-      "end_line": 1646,
+      "start_line": 1728,
+      "end_line": 1749,
       "signature": "def _expand_targets(device_id, action)",
       "doc": "",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.457,
+      "pagerank": 1.386,
       "blast_score": 3
     },
     "simulator/rule_engine.py::SmartHomeEngine._state_verb_vi": {
@@ -2052,8 +2188,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1648,
-      "end_line": 1654,
+      "start_line": 1751,
+      "end_line": 1757,
       "signature": "def _state_verb_vi(dev_type, state, already)",
       "doc": "",
       "callees": [],
@@ -2061,7 +2197,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._build_concise_spoken_reply",
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 3.146,
+      "pagerank": 2.992,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._build_concise_spoken_reply": {
@@ -2070,8 +2206,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1656,
-      "end_line": 1691,
+      "start_line": 1759,
+      "end_line": 1794,
       "signature": "def _build_concise_spoken_reply(results)",
       "doc": "",
       "callees": [
@@ -2082,7 +2218,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action",
         "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command"
       ],
-      "pagerank": 1.988,
+      "pagerank": 1.891,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine.execute_device_action": {
@@ -2091,8 +2227,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1693,
-      "end_line": 1830,
+      "start_line": 1796,
+      "end_line": 1933,
       "signature": "async def execute_device_action(device_id, action, source, bypass_rbac, trigger_chains)",
       "doc": "",
       "callees": [
@@ -2120,7 +2256,7 @@
         "simulator/server.py::api_control_device",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 3.747,
+      "pagerank": 3.564,
       "blast_score": 45
     },
     "simulator/rule_engine.py::SmartHomeEngine.sync_edge_flash": {
@@ -2129,8 +2265,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1832,
-      "end_line": 1842,
+      "start_line": 1935,
+      "end_line": 1945,
       "signature": "async def sync_edge_flash()",
       "doc": "Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266.",
       "callees": [
@@ -2140,7 +2276,7 @@
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features"
       ],
-      "pagerank": 1.127,
+      "pagerank": 1.072,
       "blast_score": 5
     },
     "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry": {
@@ -2149,8 +2285,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1844,
-      "end_line": 1864,
+      "start_line": 1947,
+      "end_line": 1967,
       "signature": "async def update_sensor_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)",
       "doc": "Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm.",
       "callees": [
@@ -2165,7 +2301,7 @@
         "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_dht11"
       ],
-      "pagerank": 1.745,
+      "pagerank": 1.66,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.update_soil_moisture_telemetry": {
@@ -2174,8 +2310,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1866,
-      "end_line": 1903,
+      "start_line": 1969,
+      "end_line": 2006,
       "signature": "async def update_soil_moisture_telemetry(soil_moisture_pct, auto_pump_below_pct, auto_stop_above_pct)",
       "doc": "Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3).",
       "callees": [
@@ -2190,7 +2326,7 @@
         "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 1.589,
+      "pagerank": 1.511,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command": {
@@ -2199,8 +2335,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1905,
-      "end_line": 1920,
+      "start_line": 2008,
+      "end_line": 2023,
       "signature": "async def learn_ir_remote_command(device_name, command_action, protocol, hex_code)",
       "doc": "Chiếm quyền / Học lệnh Remote Hồng ngoại 38kHz (VS1838B D5 -> Lưu Write-Through -> Phát IR LED D2).",
       "callees": [
@@ -2214,7 +2350,7 @@
         "simulator/server.py::api_ir_learn",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.7,
+      "pagerank": 1.617,
       "blast_score": 13
     },
     "simulator/rule_engine.py::SmartHomeEngine._evaluate_reactive_if_else": {
@@ -2223,8 +2359,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 1922,
-      "end_line": 2001,
+      "start_line": 2025,
+      "end_line": 2104,
       "signature": "async def _evaluate_reactive_if_else(changed_dev_id, new_state)",
       "doc": "Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`.",
       "callees": [
@@ -2235,7 +2371,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.457,
+      "pagerank": 1.386,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_t1_timer_conflict": {
@@ -2244,15 +2380,15 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2006,
-      "end_line": 2026,
+      "start_line": 2109,
+      "end_line": 2129,
       "signature": "def _check_t1_timer_conflict(device_id, new_fire_at)",
       "doc": "Kiểm tra xem cấp dưới có đặt lệnh vướng vào khung giờ hẹn giờ của Tầng 1 Nguyễn Tuấn Anh hay không.",
       "callees": [],
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.schedule_action"
       ],
-      "pagerank": 1.287,
+      "pagerank": 1.224,
       "blast_score": 3
     },
     "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible": {
@@ -2261,8 +2397,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2028,
-      "end_line": 2122,
+      "start_line": 2131,
+      "end_line": 2225,
       "signature": "async def schedule_timer_flexible(device_id, action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat, reason)",
       "doc": "",
       "callees": [
@@ -2278,7 +2414,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.update_or_cancel_timer",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.504,
+      "pagerank": 1.431,
       "blast_score": 15
     },
     "simulator/rule_engine.py::SmartHomeEngine.schedule_action": {
@@ -2287,8 +2423,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2124,
-      "end_line": 2243,
+      "start_line": 2227,
+      "end_line": 2346,
       "signature": "async def schedule_action(device_id, action, delay_seconds, reason, bypass_rbac, trigger_chains, target_vn_time, repeat)",
       "doc": "",
       "callees": [
@@ -2305,7 +2441,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._evaluate_reactive_if_else",
         "simulator/rule_engine.py::SmartHomeEngine.schedule_timer_flexible"
       ],
-      "pagerank": 1.729,
+      "pagerank": 1.644,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.update_or_cancel_timer": {
@@ -2314,8 +2450,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2245,
-      "end_line": 2334,
+      "start_line": 2348,
+      "end_line": 2437,
       "signature": "async def update_or_cancel_timer(device_id, operation, new_action, hours, minutes, seconds, vn_time_ampm, vn_date, repeat)",
       "doc": "",
       "callees": [
@@ -2327,7 +2463,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 9
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_word_mapping": {
@@ -2336,8 +2472,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2339,
-      "end_line": 2389,
+      "start_line": 2442,
+      "end_line": 2492,
       "signature": "async def set_word_mapping(custom_word, target_meaning, require_confirmation)",
       "doc": "",
       "callees": [
@@ -2352,7 +2488,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.create_alias_rule": {
@@ -2361,8 +2497,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2391,
-      "end_line": 2464,
+      "start_line": 2494,
+      "end_line": 2567,
       "signature": "async def create_alias_rule(phrase, target_devices_csv, target_actions_csv, require_confirmation)",
       "doc": "",
       "callees": [
@@ -2377,7 +2513,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 12
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_server_connection_mode": {
@@ -2386,8 +2522,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2466,
-      "end_line": 2516,
+      "start_line": 2569,
+      "end_line": 2619,
       "signature": "async def set_server_connection_mode(connected)",
       "doc": "Chuyển đổi giữa Chế độ Kết nối Server Laptop (Online) và Chế độ Mạch Độc Lập (Offline Default):",
       "callees": [
@@ -2399,7 +2535,7 @@
         "simulator/server.py::LiveBridgeSession.run",
         "simulator/server.py::api_set_server_mode"
       ],
-      "pagerank": 1.663,
+      "pagerank": 1.581,
       "blast_score": 11
     },
     "simulator/rule_engine.py::SmartHomeEngine.execute_offline_default_command": {
@@ -2408,8 +2544,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2518,
-      "end_line": 2636,
+      "start_line": 2621,
+      "end_line": 2739,
       "signature": "async def execute_offline_default_command(text, source)",
       "doc": "Bộ giải mã Lệnh Mặc Định Cơ Bản khi Mạch chạy Độc Lập không kết nối Server (Offline Mode):",
       "callees": [
@@ -2424,7 +2560,7 @@
         "simulator/server.py::LiveBridgeSession.stream_wav_sample",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.497,
+      "pagerank": 1.424,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.execute_alias_rule": {
@@ -2433,8 +2569,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2638,
-      "end_line": 2680,
+      "start_line": 2741,
+      "end_line": 2783,
       "signature": "async def execute_alias_rule(phrase)",
       "doc": "",
       "callees": [
@@ -2448,7 +2584,7 @@
         "simulator/server.py::LiveBridgeSession.handle_tool_call",
         "simulator/server.py::api_text_command"
       ],
-      "pagerank": 1.252,
+      "pagerank": 1.191,
       "blast_score": 11
     },
     "simulator/rule_engine.py::SmartHomeEngine._has_cycle": {
@@ -2457,8 +2593,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2682,
-      "end_line": 2709,
+      "start_line": 2785,
+      "end_line": 2812,
       "signature": "def _has_cycle(rules)",
       "doc": "",
       "callees": [],
@@ -2466,7 +2602,7 @@
         "simulator/rule_engine.py::SmartHomeEngine._check_t1_rule_conflict",
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule"
       ],
-      "pagerank": 1.714,
+      "pagerank": 1.63,
       "blast_score": 6
     },
     "simulator/rule_engine.py::SmartHomeEngine._check_t1_rule_conflict": {
@@ -2475,8 +2611,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2711,
-      "end_line": 2726,
+      "start_line": 2814,
+      "end_line": 2829,
       "signature": "def _check_t1_rule_conflict(new_rule)",
       "doc": "Kiểm tra xem luật IF-ELSE của Tầng 2 có mâu thuẫn hoặc vướng luật ưu tiên của Tầng 1 Nguyễn Tuấn Anh hay không.",
       "callees": [
@@ -2486,7 +2622,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule"
       ],
-      "pagerank": 1.203,
+      "pagerank": 1.144,
       "blast_score": 5
     },
     "simulator/rule_engine.py::SmartHomeEngine.set_if_else_rule": {
@@ -2495,8 +2631,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2728,
-      "end_line": 2861,
+      "start_line": 2831,
+      "end_line": 2964,
       "signature": "async def set_if_else_rule(when_device_id, when_state, then_device_id, then_action, delay_seconds, else_device_id, else_action, evaluate_now, require_confirmation)",
       "doc": "",
       "callees": [
@@ -2515,7 +2651,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 16
     },
     "simulator/rule_engine.py::SmartHomeEngine.confirm_pending_action": {
@@ -2524,8 +2660,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2863,
-      "end_line": 2914,
+      "start_line": 2966,
+      "end_line": 3017,
       "signature": "async def confirm_pending_action(confirmed)",
       "doc": "Xác nhận hoặc hủy hành động đang chờ (bao gồm cả Xét Luật mới lẫn Reset Hệ Thống).",
       "callees": [
@@ -2540,7 +2676,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.confirm_factory_reset",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.459,
+      "pagerank": 1.388,
       "blast_score": 14
     },
     "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset": {
@@ -2549,8 +2685,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2923,
-      "end_line": 2973,
+      "start_line": 3026,
+      "end_line": 3076,
       "signature": "async def request_factory_reset(scope)",
       "doc": "Bước 1: Khi người dùng nói 'Reset ...', chưa xóa ngay mà bật cờ chờ xác nhận đúng theo loại reset và tầng.",
       "callees": [
@@ -2563,7 +2699,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 10
     },
     "simulator/rule_engine.py::SmartHomeEngine.confirm_factory_reset": {
@@ -2572,8 +2708,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2975,
-      "end_line": 2997,
+      "start_line": 3078,
+      "end_line": 3100,
       "signature": "async def confirm_factory_reset(confirmed)",
       "doc": "Bước 2: Thực thi hoặc hủy Reset (hoặc Luật đang chờ) sau khi người dùng trả lời câu hỏi xác nhận.",
       "callees": [
@@ -2585,7 +2721,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.confirm_pending_action"
       ],
-      "pagerank": 1.351,
+      "pagerank": 1.285,
       "blast_score": 7
     },
     "simulator/rule_engine.py::SmartHomeEngine.factory_reset": {
@@ -2594,8 +2730,8 @@
       "class_name": "SmartHomeEngine",
       "kind": "method",
       "file": "simulator/rule_engine.py",
-      "start_line": 2999,
-      "end_line": 3130,
+      "start_line": 3102,
+      "end_line": 3233,
       "signature": "async def factory_reset(scope)",
       "doc": "",
       "callees": [
@@ -2613,7 +2749,7 @@
         "simulator/rule_engine.py::SmartHomeEngine.request_factory_reset",
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.73,
+      "pagerank": 1.645,
       "blast_score": 19
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge": {
@@ -2643,7 +2779,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.__init__"
       ],
-      "pagerank": 1.337,
+      "pagerank": 1.272,
       "blast_score": 3
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.__init__": {
@@ -2660,7 +2796,7 @@
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge._load_ir_db"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge._load_ir_db": {
@@ -2677,7 +2813,7 @@
       "callers": [
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.__init__"
       ],
-      "pagerank": 2.04,
+      "pagerank": 1.941,
       "blast_score": 3
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge._save_ir_db_write_through": {
@@ -2694,7 +2830,7 @@
       "callers": [
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.complete_ir_learning"
       ],
-      "pagerank": 1.725,
+      "pagerank": 1.641,
       "blast_score": 3
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish": {
@@ -2717,7 +2853,7 @@
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_dht11_telemetry",
         "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry"
       ],
-      "pagerank": 9.774,
+      "pagerank": 9.295,
       "blast_score": 21
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish_actuate_command": {
@@ -2736,7 +2872,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.execute_device_action"
       ],
-      "pagerank": 1.457,
+      "pagerank": 1.386,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.publish_enrollment_blink": {
@@ -2755,7 +2891,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.blink_signal_light"
       ],
-      "pagerank": 1.566,
+      "pagerank": 1.489,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.sync_pools_to_esp8266_flash": {
@@ -2774,7 +2910,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.sync_edge_flash"
       ],
-      "pagerank": 1.582,
+      "pagerank": 1.504,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_dht11_telemetry": {
@@ -2793,7 +2929,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.update_sensor_telemetry"
       ],
-      "pagerank": 1.474,
+      "pagerank": 1.402,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.update_soil_moisture_telemetry": {
@@ -2816,7 +2952,7 @@
         "simulator/server.py::api_text_command",
         "simulator/server.py::api_update_soil_moisture"
       ],
-      "pagerank": 1.926,
+      "pagerank": 1.832,
       "blast_score": 16
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.start_ir_learning": {
@@ -2835,7 +2971,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command"
       ],
-      "pagerank": 1.464,
+      "pagerank": 1.392,
       "blast_score": 4
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.complete_ir_learning": {
@@ -2855,7 +2991,7 @@
       "callers": [
         "simulator/rule_engine.py::SmartHomeEngine.learn_ir_remote_command"
       ],
-      "pagerank": 1.464,
+      "pagerank": 1.392,
       "blast_score": 5
     },
     "simulator/mqtt_bridge.py::SmartHomeMQTTBridge.get_summary": {
@@ -2873,7 +3009,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/rule_engine.py::SmartHomeEngine.get_snapshot"
       ],
-      "pagerank": 3.129,
+      "pagerank": 3.026,
       "blast_score": 6
     },
     "simulator/voice_auth.py::extract_voice_features": {
@@ -2892,7 +3028,7 @@
         "simulator/voice_auth.py::VoiceAuthManager.enroll_owner_from_pcm16k",
         "simulator/voice_auth.py::VoiceAuthManager.verify_pcm16k_and_apply_strikes"
       ],
-      "pagerank": 5.039,
+      "pagerank": 4.792,
       "blast_score": 12
     },
     "simulator/voice_auth.py::cosine_sim": {
@@ -2908,7 +3044,7 @@
       "callers": [
         "simulator/voice_auth.py::VoiceAuthManager.verify_pcm16k_and_apply_strikes"
       ],
-      "pagerank": 1.666,
+      "pagerank": 1.585,
       "blast_score": 3
     },
     "simulator/voice_auth.py::transform_pcm_to_intruder_voice": {
@@ -2924,7 +3060,7 @@
       "callers": [
         "simulator/voice_auth.py::VoiceAuthManager._init_or_load_profiles"
       ],
-      "pagerank": 2.369,
+      "pagerank": 2.253,
       "blast_score": 3
     },
     "simulator/voice_auth.py::VoiceAuthManager": {
@@ -2951,7 +3087,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.__init__"
       ],
-      "pagerank": 1.596,
+      "pagerank": 1.518,
       "blast_score": 6
     },
     "simulator/voice_auth.py::VoiceAuthManager.__init__": {
@@ -2968,7 +3104,7 @@
         "simulator/voice_auth.py::VoiceAuthManager._init_or_load_profiles"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/voice_auth.py::VoiceAuthManager._init_or_load_profiles": {
@@ -2989,7 +3125,7 @@
         "simulator/voice_auth.py::VoiceAuthManager.__init__",
         "simulator/voice_auth.py::VoiceAuthManager.reset_to_owner_only"
       ],
-      "pagerank": 2.978,
+      "pagerank": 2.832,
       "blast_score": 8
     },
     "simulator/voice_auth.py::VoiceAuthManager.enroll_owner_from_pcm16k": {
@@ -3008,7 +3144,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 4
     },
     "simulator/voice_auth.py::VoiceAuthManager.analyze_voice_pcm16k": {
@@ -3028,7 +3164,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment"
       ],
-      "pagerank": 1.309,
+      "pagerank": 1.244,
       "blast_score": 7
     },
     "simulator/voice_auth.py::VoiceAuthManager.register_enrolled_user_profile": {
@@ -3047,7 +3183,7 @@
         "simulator/server.py::LiveBridgeSession._process_completed_voice_enrollment",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.354,
+      "pagerank": 1.287,
       "blast_score": 9
     },
     "simulator/voice_auth.py::VoiceAuthManager.verify_pcm16k_and_apply_strikes": {
@@ -3068,7 +3204,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.stream_wav_sample"
       ],
-      "pagerank": 1.326,
+      "pagerank": 1.261,
       "blast_score": 8
     },
     "simulator/voice_auth.py::VoiceAuthManager.reset_strikes": {
@@ -3085,7 +3221,7 @@
       "callers": [
         "simulator/server.py::LiveBridgeSession.run"
       ],
-      "pagerank": 1.17,
+      "pagerank": 1.112,
       "blast_score": 3
     },
     "simulator/voice_auth.py::VoiceAuthManager.reset_to_owner_only": {
@@ -3102,7 +3238,7 @@
         "simulator/voice_auth.py::VoiceAuthManager._init_or_load_profiles"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 1
     },
     "simulator/knowledge_rag.py::ensure_kb_file": {
@@ -3116,11 +3252,10 @@
       "doc": "",
       "callees": [],
       "callers": [
-        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.__init__",
-        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.reset_custom_knowledge"
+        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.__init__"
       ],
-      "pagerank": 2.051,
-      "blast_score": 6
+      "pagerank": 1.495,
+      "blast_score": 3
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG": {
       "qname": "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG",
@@ -3128,7 +3263,7 @@
       "kind": "class",
       "file": "simulator/knowledge_rag.py",
       "start_line": 115,
-      "end_line": 317,
+      "end_line": 327,
       "signature": "class SmartHomeKnowledgeRAG",
       "doc": "Bộ RAG sử dụng Google Embedding (`gemini-embedding-001`) để trả lời ngắn gọn về trợ lý ảo và quy định 3 tầng.",
       "methods": [
@@ -3145,7 +3280,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::get_knowledge_rag"
       ],
-      "pagerank": 2.103,
+      "pagerank": 2.253,
       "blast_score": 6
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.__init__": {
@@ -3163,7 +3298,7 @@
         "simulator/knowledge_rag.py::ensure_kb_file"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 2
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._doc_text_for_embedding": {
@@ -3181,7 +3316,7 @@
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings",
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item"
       ],
-      "pagerank": 3.842,
+      "pagerank": 4.294,
       "blast_score": 6
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings": {
@@ -3201,7 +3336,7 @@
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.__init__",
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.reset_custom_knowledge"
       ],
-      "pagerank": 2.051,
+      "pagerank": 2.406,
       "blast_score": 7
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._cosine": {
@@ -3218,7 +3353,7 @@
       "callers": [
         "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.retrieve"
       ],
-      "pagerank": 2.099,
+      "pagerank": 1.996,
       "blast_score": 3
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.retrieve": {
@@ -3238,7 +3373,7 @@
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
         "simulator/server.py::LiveBridgeSession.handle_tool_call"
       ],
-      "pagerank": 1.172,
+      "pagerank": 1.115,
       "blast_score": 7
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.upsert_knowledge_item": {
@@ -3248,7 +3383,7 @@
       "kind": "method",
       "file": "simulator/knowledge_rag.py",
       "start_line": 258,
-      "end_line": 313,
+      "end_line": 321,
       "signature": "def upsert_knowledge_item(topic, content, keywords, min_tier, current_tier)",
       "doc": "Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) dạy thêm hoặc sửa nội dung RAG bằng giọng nói và nhúng vector ngay.",
       "callees": [
@@ -3256,10 +3391,11 @@
       ],
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features",
-        "simulator/server.py::LiveBridgeSession.handle_tool_call"
+        "simulator/server.py::LiveBridgeSession.handle_tool_call",
+        "simulator/server.py::api_kb_upsert"
       ],
-      "pagerank": 1.172,
-      "blast_score": 7
+      "pagerank": 1.412,
+      "blast_score": 10
     },
     "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.reset_custom_knowledge": {
       "qname": "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG.reset_custom_knowledge",
@@ -3267,19 +3403,18 @@
       "class_name": "SmartHomeKnowledgeRAG",
       "kind": "method",
       "file": "simulator/knowledge_rag.py",
-      "start_line": 315,
-      "end_line": 317,
+      "start_line": 323,
+      "end_line": 327,
       "signature": "def reset_custom_knowledge()",
       "doc": "",
       "callees": [
-        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings",
-        "simulator/knowledge_rag.py::ensure_kb_file"
+        "simulator/knowledge_rag.py::SmartHomeKnowledgeRAG._load_or_build_embeddings"
       ],
       "callers": [
         "scripts/test_simulator_e2e.py::test_unit_all_new_features"
       ],
-      "pagerank": 1.127,
-      "blast_score": 5
+      "pagerank": 1.072,
+      "blast_score": 4
     },
     "scripts/test_simulator_e2e.py::test_unit_all_new_features": {
       "qname": "scripts/test_simulator_e2e.py::test_unit_all_new_features",
@@ -3332,7 +3467,7 @@
         "simulator/voice_auth.py::VoiceAuthManager.verify_pcm16k_and_apply_strikes"
       ],
       "callers": [],
-      "pagerank": 1.103,
+      "pagerank": 1.049,
       "blast_score": 39
     }
   }

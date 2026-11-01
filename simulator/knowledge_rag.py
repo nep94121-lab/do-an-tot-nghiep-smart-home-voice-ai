@@ -294,6 +294,14 @@ class SmartHomeKnowledgeRAG:
         if not replaced:
             self.items.append(new_item)
 
+        try:
+            KB_FILE.write_text(
+                json.dumps({"version": KB_VERSION, "items": self.items}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
         if self.client:
             try:
                 resp = self.client.models.embed_content(
@@ -313,5 +321,7 @@ class SmartHomeKnowledgeRAG:
         }
 
     def reset_custom_knowledge(self) -> None:
-        self.items = ensure_kb_file()
+        payload = {"version": KB_VERSION, "items": DEFAULT_KNOWLEDGE_ITEMS}
+        KB_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.items = [dict(x) for x in DEFAULT_KNOWLEDGE_ITEMS]
         self._load_or_build_embeddings()

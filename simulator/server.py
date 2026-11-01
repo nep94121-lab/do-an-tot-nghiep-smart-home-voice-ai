@@ -28,7 +28,14 @@ from google import genai
 from google.genai import types
 
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
-from simulator.rule_engine import SmartHomeEngine, format_vn_time_ampm
+from simulator.rule_engine import (
+    DATA_DIR,
+    SmartHomeEngine,
+    append_audit_log,
+    clear_audit_logs,
+    format_vn_time_ampm,
+    read_audit_logs,
+)
 from simulator.voice_auth import VoiceAuthManager, extract_voice_features
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -840,6 +847,92 @@ async def wokwi_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "wokwi.html")
 
 
+@app.get("/logs")
+async def logs_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "logs.html")
+
+
+@app.get("/api/server_logs_and_db")
+async def api_get_server_logs_and_db() -> JSONResponse:
+    active_eng = _ACTIVE_BRIDGES[-1].engine if _ACTIVE_BRIDGES else _REST_ENGINE
+    snap = active_eng.get_snapshot()
+
+    def _safe_json(filename: str) -> Any:
+        fp = DATA_DIR / filename
+        if fp.exists():
+            try:
+                return json.loads(fp.read_text(encoding="utf-8"))
+            except Exception:
+                return {}
+        return {}
+
+    storage_files = []
+    for fp in sorted(DATA_DIR.glob("*")):
+        if fp.is_file():
+            st = fp.stat()
+            storage_files.append({
+                "name": fp.name,
+                "path": f"simulator/data/{fp.name}",
+                "size_bytes": st.st_size,
+                "size_kb": round(st.st_size / 1024.0, 2),
+                "modified_vn": time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(st.st_mtime)),
+            })
+
+    kb_data = _safe_json("knowledge_base.json")
+    kb_items = kb_data.get("items", []) if isinstance(kb_data, dict) else []
+
+    return JSONResponse({
+        "ok": True,
+        "server_time_vn": format_vn_time_ampm(),
+        "audit_logs": read_audit_logs(limit=300),
+        "snapshot": snap,
+        "all_user_pools": active_eng.overlay_rules.get("user_pools", {}),
+        "knowledge_base": kb_items,
+        "voiceprints": _safe_json("voiceprints.json"),
+        "ir_devices_db": _safe_json("ir_devices_db.json"),
+        "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
+        "storage_files": storage_files,
+    })
+
+
+@app.post("/api/kb_upsert")
+async def api_kb_upsert(payload: dict[str, Any]) -> JSONResponse:
+    topic = str(payload.get("topic", "")).strip()
+    content = str(payload.get("content", "")).strip()
+    keywords = str(payload.get("keywords", "")).strip()
+    min_tier = int(payload.get("min_tier", 3) or 3)
+    res = get_knowledge_rag().upsert_knowledge_item(
+        topic=topic,
+        content=content,
+        keywords=keywords,
+        min_tier=min_tier,
+        current_tier=1,
+    )
+    if res.get("ok"):
+        append_audit_log(
+            category="KNOWLEDGE_BASE",
+            event_type="kb_upserted",
+            summary=f"Đã lưu mục KB '{topic}': {content}",
+            user_name="Nguyễn Tuấn Anh (Admin Cấp 1)",
+            tier=1,
+            details=res.get("item", {}),
+        )
+    return JSONResponse(res)
+
+
+@app.post("/api/clear_audit_logs")
+async def api_clear_audit_logs() -> JSONResponse:
+    clear_audit_logs()
+    append_audit_log(
+        category="SYSTEM_EVENT",
+        event_type="logs_cleared",
+        summary="Đã làm sạch nhật ký hệ thống theo yêu cầu của Admin.",
+        user_name="Nguyễn Tuấn Anh (Admin Cấp 1)",
+        tier=1,
+    )
+    return JSONResponse({"ok": True})
+
+
 @app.get("/api/wokwi_files")
 async def api_get_wokwi_files() -> JSONResponse:
     wokwi_dir = ROOT / "firmware_esp8266" / "wokwi"
@@ -1003,13 +1096,49 @@ class LiveBridgeSession:
             if self in _ACTIVE_BRIDGES:
                 _ACTIVE_BRIDGES.remove(self)
             return
-        if payload.get("type") in ("device_updated", "device_actuated", "state_snapshot", "server_mode_changed"):
+        ptype = str(payload.get("type", ""))
+        if ptype in ("device_updated", "device_actuated", "state_snapshot", "server_mode_changed"):
             _REST_ENGINE.server_connected = self.engine.server_connected
             _REST_ENGINE.devices = copy.deepcopy(self.engine.devices)
             _REST_ENGINE.mqtt_bridge.esp8266_status = copy.deepcopy(self.engine.mqtt_bridge.esp8266_status)
             _REST_ENGINE.mqtt_bridge.dht11_telemetry = copy.deepcopy(self.engine.mqtt_bridge.dht11_telemetry)
             _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(self.engine.mqtt_bridge.soil_moisture_telemetry)
             _REST_ENGINE.mqtt_bridge.ir_devices = copy.deepcopy(self.engine.mqtt_bridge.ir_devices)
+        if ptype == "turn_complete":
+            heard = str(payload.get("heard", "")).strip()
+            said = str(payload.get("said", "")).strip()
+            t_ms = payload.get("tool_ms")
+            a_ms = payload.get("audio_ms")
+            append_audit_log(
+                category="VOICE_CMD",
+                event_type="turn_complete",
+                summary=f"👤 Nói: '{heard}' ➔ 🤖 AI đáp: '{said}' (Tool: {t_ms or '--'}ms, Audio: {a_ms or '--'}ms)",
+                user_name=self.engine.get_current_user_name(),
+                tier=self.engine.current_tier,
+                details=payload,
+            )
+        elif ptype == "tool_call_executed":
+            tname = str(payload.get("name", ""))
+            targs = payload.get("args", {})
+            t_ms = payload.get("tool_ms")
+            cat = "KNOWLEDGE_BASE" if "knowledge_rag" in tname else "VOICE_CMD"
+            append_audit_log(
+                category=cat,
+                event_type="tool_call_executed",
+                summary=f"⚙️ Gọi Tool `{tname}`({json.dumps(targs, ensure_ascii=False)}) trong {t_ms or '--'}ms",
+                user_name=self.engine.get_current_user_name(),
+                tier=self.engine.current_tier,
+                details=payload,
+            )
+        elif ptype in ("voice_auth_rejected", "voice_auth_silent_ignored"):
+            append_audit_log(
+                category="VOICE_AUTH",
+                event_type=ptype,
+                summary=f"🚫 Chặn Giọng Lạ (Lần {payload.get('strike_count', 1)}, F0={payload.get('f0_hz')}Hz): {payload.get('rejection_speech') or payload.get('message')}",
+                user_name="Người lạ (Unauthorized)",
+                tier=99,
+                details=payload,
+            )
         try:
             await self.ws.send_text(json.dumps(payload, ensure_ascii=False))
         except Exception:

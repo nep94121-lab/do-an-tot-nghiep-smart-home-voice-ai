@@ -32,6 +32,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 FACTORY_FILE = DATA_DIR / "factory_default_rules.json"
 OVERLAY_FILE = DATA_DIR / "custom_rules_overlay.json"
+AUDIT_LOG_FILE = DATA_DIR / "system_audit_logs.jsonl"
 
 VN_TZ = datetime.timezone(datetime.timedelta(hours=7), name="ICT")
 
@@ -43,6 +44,62 @@ def get_vn_now() -> datetime.datetime:
 def format_vn_time_ampm(dt: datetime.datetime | None = None) -> str:
     dt = dt or get_vn_now()
     return dt.strftime("%I:%M:%S %p (GMT+7)")
+
+
+def append_audit_log(
+    category: str,
+    event_type: str,
+    summary: str,
+    user_name: str = "Hệ thống",
+    tier: int = 1,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Ghi nhật ký bền vững (Persistent Audit Log) xuống đĩa tại simulator/data/system_audit_logs.jsonl."""
+    now_dt = get_vn_now()
+    entry = {
+        "ts_iso": now_dt.isoformat(),
+        "time_vn": now_dt.strftime("%d/%m/%Y %I:%M:%S %p"),
+        "category": category,
+        "event_type": event_type,
+        "user": user_name,
+        "tier": tier,
+        "summary": summary,
+        "details": details or {},
+    }
+    try:
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+    return entry
+
+
+def read_audit_logs(limit: int = 250) -> list[dict[str, Any]]:
+    """Đọc danh sách log mới nhất từ simulator/data/system_audit_logs.jsonl."""
+    if not AUDIT_LOG_FILE.exists():
+        return []
+    try:
+        lines = AUDIT_LOG_FILE.read_text(encoding="utf-8").splitlines()
+        out: list[dict[str, Any]] = []
+        for ln in reversed(lines[-limit:]):
+            ln_s = ln.strip()
+            if ln_s:
+                try:
+                    out.append(json.loads(ln_s))
+                except Exception:
+                    pass
+        return out
+    except Exception:
+        return []
+
+
+def clear_audit_logs() -> None:
+    """Xóa toàn bộ log trong simulator/data/system_audit_logs.jsonl."""
+    try:
+        AUDIT_LOG_FILE.write_text("", encoding="utf-8")
+    except Exception:
+        pass
 
 
 DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
@@ -885,6 +942,52 @@ class SmartHomeEngine:
         OVERLAY_FILE.write_text(json.dumps(self.overlay_rules, ensure_ascii=False, indent=2), encoding="utf-8")
 
     async def emit(self, event: dict[str, Any]) -> None:
+        ev_type = str(event.get("type", ""))
+        if ev_type and ev_type not in ("state_snapshot", "mqtt_message"):
+            cat_map = {
+                "device_updated": "DEVICE_GPIO",
+                "device_actuated": "DEVICE_GPIO",
+                "timer_scheduled": "TIMER_POOL",
+                "timer_fired": "TIMER_POOL",
+                "timer_cancelled": "TIMER_POOL",
+                "timer_updated": "TIMER_POOL",
+                "word_mapping_added": "RULE_POOL",
+                "alias_created": "RULE_POOL",
+                "if_else_rule_added": "RULE_POOL",
+                "chain_rule_created": "RULE_POOL",
+                "pending_confirmation_requested": "RULE_POOL",
+                "system_policy_updated": "RULE_POOL",
+                "factory_reset_completed": "RULE_POOL",
+                "sensor_telemetry_updated": "SENSOR_IOT",
+                "soil_moisture_updated": "SENSOR_IOT",
+                "ir_code_learned": "SENSOR_IOT",
+                "server_mode_changed": "SECURITY_MODE",
+                "offline_command_blocked": "SECURITY_MODE",
+                "offline_default_executed": "SECURITY_MODE",
+                "user_permission_granted": "VOICE_AUTH",
+                "user_permission_revoked": "VOICE_AUTH",
+                "voice_enrollment_started": "VOICE_AUTH",
+                "voice_enrollment_completed": "VOICE_AUTH",
+            }
+            cat = cat_map.get(ev_type, "SYSTEM_EVENT")
+            msg = str(
+                event.get("message")
+                or event.get("spoken_reply")
+                or event.get("exact_spoken_reply")
+                or (
+                    f"Thiết bị {event['device']['name']} ({event['device'].get('gpio','')}) -> {event['device']['state']} (Nguồn: {event.get('source','')})"
+                    if isinstance(event.get("device"), dict)
+                    else ev_type
+                )
+            )
+            append_audit_log(
+                category=cat,
+                event_type=ev_type,
+                summary=msg,
+                user_name=self.get_current_user_name(),
+                tier=self.current_tier,
+                details={k: v for k, v in event.items() if k != "snapshot"},
+            )
         if self.on_event is not None:
             await self.on_event(event)
 

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Trị Server: Nhật Ký Lệnh, Hẹn Giờ, Luật &amp; Kho Tri Thức KB — Smart Home Voice AI</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --bg: #0b101b;
+      --panel: #131b2e;
+      --panel-2: #1c2742;
+      --border: #2d3d63;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --cyan: #38bdf8;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #c084fc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      background: #101726;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      font-weight: 900;
+      font-size: 14px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid #60a5fa;
+    }
+    .brand h1 { font-size: 16px; font-weight: 800; color: #fff; }
+    .brand p { font-size: 12px; color: var(--muted); }
+    .nav-btns {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: 0.15s;
+    }
+    .btn:hover { border-color: var(--cyan); color: #fff; }
+    .btn.primary { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    .btn.green { background: #059669; border-color: #34d399; color: #fff; }
+    .btn.danger { background: #991b1b; border-color: #f87171; color: #fff; }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 14px 20px 32px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 1200px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .kpi-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .kpi-lbl { font-size: 11.5px; color: var(--muted); }
+    .kpi-val { font-size: 19px; font-weight: 800; color: #fff; margin-top: 3px; }
+    .kpi-sub { font-size: 11px; color: var(--cyan); margin-top: 2px; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 14px 16px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .card-header h2 {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .pill {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+    .pill.active {
+      background: #2563eb;
+      border-color: #60a5fa;
+      color: #fff;
+    }
+    .search-input {
+      padding: 6px 11px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: #090d16;
+      color: #fff;
+      font-size: 12px;
+      min-width: 280px;
+    }
+    .table-wrap {
+      max-height: 410px;
+      overflow: auto;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      background: #090d16;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #162038;
+      color: #93c5fd;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      z-index: 5;
+    }
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #1a243b;
+      vertical-align: top;
+      line-height: 1.45;
+    }
+    tr:hover td { background: rgba(56, 189, 248, 0.05); }
+    .cat-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      font-family: Consolas, monospace;
+      white-space: nowrap;
+    }
+    .cat-VOICE_CMD { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid #0284c7; }
+    .cat-DEVICE_GPIO { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid #059669; }
+    .cat-TIMER_POOL { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid #d97706; }
+    .cat-RULE_POOL { background: rgba(192, 132, 252, 0.18); color: #d8b4fe; border: 1px solid #9333ea; }
+    .cat-KNOWLEDGE_BASE { background: rgba(96, 165, 250, 0.18); color: #93c5fd; border: 1px solid #2563eb; }
+    .cat-SENSOR_IOT { background: rgba(45, 212, 191, 0.18); color: #5eead4; border: 1px solid #0d9488; }
+    .cat-VOICE_AUTH, .cat-SECURITY_MODE { background: rgba(244, 63, 94, 0.18); color: #fda4af; border: 1px solid #e11d48; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 1100px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .kb-form {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 0.6fr auto;
+      gap: 8px;
+      margin-bottom: 10px;
+      background: #0d1424;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #233152;
+    }
+    .kb-form input, .kb-form select {
+      padding: 6px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #090d16;
+      color: #fff;
+      font-size: 12px;
+    }
+    pre.json-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: Consolas, monospace;
+      font-size: 11.5px;
+      color: #a7f3d0;
+      max-height: 280px;
+      overflow: auto;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-badge">SERVER DB &amp; LOGS</div>
+      <div>
+        <h1>TRUNG TÂM QUẢN TRỊ SERVER: NHẬT KÝ CÂU LỆNH, HẸN GIỜ, BỂ LUẬT &amp; KHO TRI THỨC (KB)</h1>
+        <p>Lưu trữ bền vững trên đĩa tại <code>simulator/data/</code> • Tự động ghi lại mọi câu lệnh giọng nói, thời gian, chân GPIO, luật IF-ELSE và KB</p>
+      </div>
+    </div>
+    <div class="nav-btns">
+      <button class="btn green" onclick="fetchAllServerData()">🔄 Làm mới ngay</button>
+      <button class="btn primary" onclick="exportLogsJsonl()">⬇️ Tải File Log (.jsonl)</button>
+      <a href="/" class="btn">🏠 Nhà 3D Blender (/)</a>
+      <a href="/wokwi" class="btn">🔌 Mạch &amp; Code ESP8266 (/wokwi)</a>
+      <a href="/app" class="btn">📱 Mobile App (/app)</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- DẢI 6 CHỈ SỐ TỔNG QUAN SERVER -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-lbl">Trạng Thái Server Laptop</div>
+        <div class="kpi-val" id="kpiServerState" style="color:#34d399;">🟢 ONLINE</div>
+        <div class="kpi-sub" id="kpiServerClock">--:--:--</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">Tổng Nhật Ký Lệnh Đã Lưu</div>
+        <div class="kpi-val" id="kpiLogCount">0</div>
+        <div class="kpi-sub">system_audit_logs.jsonl</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">Bể 1: Hẹn Giờ Thời Gian</div>
+        <div class="kpi-val" id="kpiTimerCount" style="color:#fbbf24;">0</div>
+        <div class="kpi-sub">Đang đếm ngược thời gian thực</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">Bể 2: Luật IF / Alias / Đổi Từ</div>
+        <div class="kpi-val" id="kpiRuleCount" style="color:#c084fc;">0</div>
+        <div class="kpi-sub">custom_rules_overlay.json</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">Kho Tri Thức KB (RAG)</div>
+        <div class="kpi-val" id="kpiKbCount" style="color:#38bdf8;">0</div>
+        <div class="kpi-sub">knowledge_base.json (3072-dim)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">Tổng Dung Lượng DB Server</div>
+        <div class="kpi-val" id="kpiStorageKb">0 KB</div>
+        <div class="kpi-sub">8 tệp trong simulator/data/</div>
+      </div>
+    </section>
+
+    <!-- KHỐI 1: BẢNG NHẬT KÝ TOÀN BỘ LỆNH, THỜI GIAN & SỰ KIỆN (PERSISTENT AUDIT LOGS) -->
+    <section class="card">
+      <div class="card-header">
+        <h2>📜 1. Nhật Ký Toàn Bộ Câu Lệnh, Thời Gian, Thiết Bị &amp; Sự Kiện (<code>simulator/data/system_audit_logs.jsonl</code>)</h2>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="text" id="logSearchInput" class="search-input" placeholder="🔍 Tìm câu lệnh, tên thiết bị, giờ, người dùng..." oninput="renderAuditLogs()" />
+          <button class="btn danger" onclick="clearServerLogs()">🗑️ Xóa Log</button>
+        </div>
+      </div>
+
+      <div class="filter-pills">
+        <button class="pill active" onclick="setLogCategory('ALL', this)">Tất cả</button>
+        <button class="pill" onclick="setLogCategory('VOICE_CMD', this)">🎙️ Câu lệnh Giọng nói &amp; AI</button>
+        <button class="pill" onclick="setLogCategory('DEVICE_GPIO', this)">⚡ Đóng/Mở Thiết bị GPIO</button>
+        <button class="pill" onclick="setLogCategory('TIMER_POOL', this)">⏱️ Bể 1: Hẹn Giờ Thời Gian</button>
+        <button class="pill" onclick="setLogCategory('RULE_POOL', this)">🔗 Bể 2: Luật IF &amp; Đổi Lệnh</button>
+        <button class="pill" onclick="setLogCategory('KNOWLEDGE_BASE', this)">📚 Kho Tri Thức KB (RAG)</button>
+        <button class="pill" onclick="setLogCategory('SENSOR_IOT', this)">🌡️ Cảm Biến &amp; Hồng Ngoại</button>
+        <button class="pill" onclick="setLogCategory('SECURITY_MODE', this)">🛡️ An Ninh &amp; Offline</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:165px;">Thời Gian (Giờ VN)</th>
+              <th style="width:135px;">Phân Loại</th>
+              <th style="width:170px;">Người Thực Hiện</th>
+              <th>Nội Dung Câu Lệnh / Hành Động / Kết Quả</th>
+              <th style="width:240px;">Chi Tiết Kỹ Thuật (JSON)</th>
+            </tr>
+          </thead>
+          <tbody id="auditLogsTbody">
+            <tr><td colspan="5" style="text-align:center; color:#94a3b8;">Đang tải nhật ký từ Server...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- KHỐI 2: BỂ 1 (HẸN GIỜ) & BỂ 2 (LUẬT, KHẨU LỆNH, ĐỔI TỪ CỦA TỪNG TẦNG) + KHO TRI THỨC KB -->
+    <div class="grid-2">
+      <!-- BỂ 1 & BỂ 2 -->
+      <section class="card">
+        <div class="card-header">
+          <h2>🪣 2. Bể Hẹn Giờ Thời Gian (Bể 1) &amp; Bể Luật Từng Thành Viên (Bể 2)</h2>
+          <span style="font-size:11.5px; color:#34d399;">Đồng bộ xuống <code>custom_rules_overlay.json</code> &amp; <code>esp8266_flash_replica.json</code></span>
+        </div>
+        <div id="poolsContainer" style="display:flex; flex-direction:column; gap:10px; font-size:12.5px;"></div>
+      </section>
+
+      <!-- KHO TRI THỨC KB (KNOWLEDGE BASE / RAG) -->
+      <section class="card">
+        <div class="card-header">
+          <h2>📚 3. Kho Tri Thức KB / RAG (<code>simulator/data/knowledge_base.json</code>)</h2>
+          <span style="font-size:11.5px; color:#38bdf8;">Vector 3072 chiều (<code>gemini-embedding-001</code>)</span>
+        </div>
+
+        <form class="kb-form" onsubmit="submitNewKbItem(event)">
+          <input type="text" id="kbTopic" placeholder="Chủ đề / Câu hỏi (VD: Mật khẩu Wifi)" required />
+          <input type="text" id="kbKeywords" placeholder="Từ khóa (cách nhau dấu phẩy)" />
+          <select id="kbTier">
+            <option value="3">Tất cả (Cấp 1-3)</option>
+            <option value="2">Từ Cấp 2 trở lên</option>
+            <option value="1">Chỉ Admin Cấp 1</option>
+          </select>
+          <button type="submit" class="btn green">💾 Lưu vào KB</button>
+          <input type="text" id="kbContent" placeholder="Câu trả lời chuẩn để AI đọc khi được hỏi..." required style="grid-column: span 4;" />
+        </form>
+
+        <div class="table-wrap" style="max-height: 290px;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:140px;">Chủ Đề</th>
+                <th style="width:65px;">Quyền</th>
+                <th>Câu Trả Lời Chuẩn Trong KB</th>
+              </tr>
+            </thead>
+            <tbody id="kbTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- KHỐI 3: TỆP LƯU TRỮ TRÊN ĐĨA + HỒ SƠ GIỌNG NÓI & MÃ HỒNG NGOẠI IR -->
+    <div class="grid-2">
+      <section class="card">
+        <div class="card-header">
+          <h2>💾 4. Các Tệp Cơ Sở Dữ Liệu Đang Lưu Trữ Trên Server (<code>simulator/data/</code>)</h2>
+        </div>
+        <div class="table-wrap" style="max-height: 280px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Tên Tệp Lưu Trữ</th>
+                <th>Dung Lượng</th>
+                <th>Cập Nhật Lúc</th>
+              </tr>
+            </thead>
+            <tbody id="storageFilesTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>🧬 5. Hồ Sơ Giọng Nói (<code>voiceprints.json</code>), Mã IR (<code>ir_devices_db.json</code>) &amp; Flash ESP8266</h2>
+        </div>
+        <pre class="json-box" id="hardwareDbPre">Đang tải dữ liệu...</pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    let SERVER_DATA = null;
+    let ACTIVE_CATEGORY = 'ALL';
+
+    function setLogCategory(cat, btnEl) {
+      ACTIVE_CATEGORY = cat;
+      document.querySelectorAll('.filter-pills .pill').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      renderAuditLogs();
+    }
+
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function renderAuditLogs() {
+      const tbody = document.getElementById('auditLogsTbody');
+      if (!SERVER_DATA || !Array.isArray(SERVER_DATA.audit_logs)) return;
+      const q = (document.getElementById('logSearchInput')?.value || '').trim().toLowerCase();
+
+      const filtered = SERVER_DATA.audit_logs.filter(item => {
+        if (ACTIVE_CATEGORY !== 'ALL' && item.category !== ACTIVE_CATEGORY) return false;
+        if (!q) return true;
+        const blob = `${item.time_vn} ${item.category} ${item.event_type} ${item.user} ${item.summary} ${JSON.stringify(item.details || {})}`.toLowerCase();
+        return blob.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:18px;">Chưa có dòng nhật ký nào khớp bộ lọc. Hãy thử bấm lệnh bên trang 3D hoặc trang Mạch!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const dStr = JSON.stringify(item.details || {});
+        const shortDetails = dStr.length > 95 ? dStr.slice(0, 95) + '...' : dStr;
+        return `
+          <tr>
+            <td style="font-family:Consolas,monospace; color:#cbd5e1; white-space:nowrap;">${esc(item.time_vn)}</td>
+            <td><span class="cat-badge cat-${esc(item.category)}">${esc(item.category)}</span></td>
+            <td><strong>${esc(item.user)}</strong> <span style="color:#94a3b8;">(Tầng ${esc(item.tier)})</span></td>
+            <td style="color:#f8fafc; font-weight:500;">${esc(item.summary)}</td>
+            <td style="font-family:Consolas,monospace; font-size:11px; color:#94a3b8;" title="${esc(dStr)}">${esc(shortDetails)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPoolsAndKb() {
+      if (!SERVER_DATA) return;
+      const snap = SERVER_DATA.snapshot || {};
+      const pools = snap.pools || {};
+      const allUserPools = SERVER_DATA.all_user_pools || {};
+
+      // KPIs
+      const srvConn = snap.server_connected !== false;
+      const kpiSrv = document.getElementById('kpiServerState');
+      kpiSrv.textContent = srvConn ? '🟢 ONLINE' : '🟠 OFFLINE (Mặc Định)';
+      kpiSrv.style.color = srvConn ? '#34d399' : '#fbbf24';
+      document.getElementById('kpiServerClock').textContent = SERVER_DATA.server_time_vn || '';
+      document.getElementById('kpiLogCount').textContent = (SERVER_DATA.audit_logs || []).length;
+      document.getElementById('kpiTimerCount').textContent = pools.timer_pool_count || 0;
+      document.getElementById('kpiRuleCount').textContent = pools.rule_pool_count || 0;
+      document.getElementById('kpiKbCount').textContent = (SERVER_DATA.knowledge_base || []).length;
+
+      const totalKb = (SERVER_DATA.storage_files || []).reduce((acc, f) => acc + (f.size_kb || 0), 0);
+      document.getElementById('kpiStorageKb').textContent = `${totalKb.toFixed(1)} KB`;
+
+      // Bể 1 & Bể 2
+      const timers = pools.timer_pool || [];
+      let poolsHtml = `
+        <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
+          <strong style="color:#fbbf24;">⏱️ Bể 1 — Lịch Hẹn Giờ Đang Hoạt Động (${timers.length} mục):</strong>
+          <ul style="padding-left:18px; margin-top:5px; color:#e2e8f0;">
+            ${timers.length ? timers.map(t => `<li><code>#${esc(t.id)}</code>: <strong>${esc(t.action_vi)} ${esc(t.device_name)}</strong> — Còn <strong>${esc(t.remaining_seconds)}s</strong> (Mốc: ${esc(t.target_vn_time || 'Đếm ngược')}, Lặp: ${esc(t.repeat || 'once')}) — Tạo bởi: <em>${esc(t.owner_name)}</em></li>`).join('') : '<li style="color:#64748b;">Đang trống (0 lịch hẹn)</li>'}
+          </ul>
+        </div>
+      `;
+
+      for (const [uid, upool] of Object.entries(allUserPools)) {
+        const words = Object.entries(upool.word_mappings || {});
+        const aliases = Object.entries(upool.aliases || {});
+        const rules = upool.if_else_rules || [];
+        poolsHtml += `
+          <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
+            <strong style="color:#c084fc;">🔗 Bể 2 của [${esc(uid.toUpperCase())}] — Từ đổi (${words.length}) • Khẩu lệnh (${aliases.length}) • Luật IF (${rules.length}):</strong>
+            <div style="margin-top:5px; color:#cbd5e1; line-height:1.5;">
+              <div>• <strong>Từ đã đổi:</strong> ${words.length ? words.map(([k,v]) => `<code>"${esc(k)}" ➔ "${esc(v)}"</code>`).join(', ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
+              <div>• <strong>Khẩu lệnh Alias:</strong> ${aliases.length ? aliases.map(([p, acts]) => `<code>"${esc(p)}" ➔ ${esc(JSON.stringify(acts))}</code>`).join(' | ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
+              <div>• <strong>Luật IF-ELSE:</strong> ${rules.length ? rules.map(r => `<code>NẾU ${esc(r.when_device_id)}=${esc(r.when_state)} THÌ ${esc(r.then_device_id)}➔${esc(r.then_action)}</code>`).join(' ; ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
+            </div>
+          </div>
+        `;
+      }
+      document.getElementById('poolsContainer').innerHTML = poolsHtml;
+
+      // Kho Tri Thức KB
+      const kbTbody = document.getElementById('kbTbody');
+      kbTbody.innerHTML = (SERVER_DATA.knowledge_base || []).map(it => `
+        <tr>
+          <td><strong style="color:#93c5fd;">${esc(it.topic)}</strong><br/><span style="font-size:10.5px; color:#64748b;">Từ khóa: ${esc(it.keywords)}</span></td>
+          <td><span class="cat-badge cat-KNOWLEDGE_BASE">Cấp &le; ${esc(it.min_tier || 3)}</span></td>
+          <td style="color:#e2e8f0;">${esc(it.content)}</td>
+        </tr>
+      `).join('');
+
+      // Danh sách tệp lưu trữ
+      const sfTbody = document.getElementById('storageFilesTbody');
+      sfTbody.innerHTML = (SERVER_DATA.storage_files || []).map(f => `
+        <tr>
+          <td><code style="color:#38bdf8; font-weight:700;">${esc(f.path)}</code></td>
+          <td style="font-family:Consolas,monospace; color:#34d399;">${esc(f.size_kb)} KB (${esc(f.size_bytes)} B)</td>
+          <td style="font-family:Consolas,monospace; color:#cbd5e1;">${esc(f.modified_vn)}</td>
+        </tr>
+      `).join('');
+
+      // Hồ sơ giọng nói + IR + Flash Replica
+      document.getElementById('hardwareDbPre').textContent = JSON.stringify({
+        voiceprints: SERVER_DATA.voiceprints,
+        ir_devices_db: SERVER_DATA.ir_devices_db,
+        esp8266_flash_replica: SERVER_DATA.esp8266_flash_replica,
+      }, null, 2);
+    }
+
+    async function fetchAllServerData() {
+      try {
+        const res = await fetch('/api/server_logs_and_db');
+        SERVER_DATA = await res.json();
+        renderAuditLogs();
+        renderPoolsAndKb();
+      } catch (e) {}
+    }
+
+    async function submitNewKbItem(ev) {
+      ev.preventDefault();
+      const topic = document.getElementById('kbTopic').value.trim();
+      const keywords = document.getElementById('kbKeywords').value.trim();
+      const min_tier = parseInt(document.getElementById('kbTier').value, 10);
+      const content = document.getElementById('kbContent').value.trim();
+      if (!topic || !content) return;
+
+      await fetch('/api/kb_upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, keywords, min_tier, content })
+      });
+      document.getElementById('kbTopic').value = '';
+      document.getElementById('kbKeywords').value = '';
+      document.getElementById('kbContent').value = '';
+      await fetchAllServerData();
+    }
+
+    async function clearServerLogs() {
+      if (!confirm('Bạn có chắc muốn làm sạch nhật ký system_audit_logs.jsonl?')) return;
+      await fetch('/api/clear_audit_logs', { method: 'POST' });
+      await fetchAllServerData();
+    }
+
+    function exportLogsJsonl() {
+      if (!SERVER_DATA || !SERVER_DATA.audit_logs) return;
+      const lines = SERVER_DATA.audit_logs.map(x => JSON.stringify(x)).join('\n');
+      const blob = new Blob([lines], { type: 'application/jsonl;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'system_audit_logs.jsonl';
+      a.click();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchAllServerData();
+      setInterval(fetchAllServerData, 3000);
+    });
+  </script>
+</body>
+</html>
