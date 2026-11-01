@@ -627,6 +627,42 @@
               badge.textContent = `🚫 ${a.speaker_label} (F0: ${a.f0_hz} Hz • ${stTxt})`;
             }
           }
+          const vfNoiseDb = document.getElementById("vfNoiseDb");
+          const vfStageUsed = document.getElementById("vfStageUsed");
+          const vfSpeakerCount = document.getElementById("vfSpeakerCount");
+          const vfTotalMs = document.getElementById("vfTotalMs");
+          if (vfNoiseDb) {
+            const fanTag = a.fan_noise_detected ? " (Có tiếng quạt)" : "";
+            vfNoiseDb.textContent = `-${a.noise_removed_db ?? 15.0} dB${fanTag}`;
+          }
+          if (vfStageUsed) {
+            const s1Pct = Math.round((a.stage1_confidence || a.similarity || 0.9) * 100);
+            if (a.stage2_triggered && a.stage2_confidence !== null && a.stage2_confidence !== undefined) {
+              const s2Pct = Math.round(a.stage2_confidence * 100);
+              vfStageUsed.textContent = `T1 (${s1Pct}%) ➡️ T2 Sâu (${s2Pct}%)`;
+              vfStageUsed.style.color = "#38bdf8";
+            } else {
+              vfStageUsed.textContent = `Tầng 1 Nhanh (${s1Pct}%)`;
+              vfStageUsed.style.color = "#4ade80";
+            }
+          }
+          if (vfSpeakerCount) {
+            if (a.multi_speaker_detected) {
+              vfSpeakerCount.textContent = `${a.speaker_count || 2} người ➡️ Ưu tiên Cấp ${a.tier || 1}`;
+              vfSpeakerCount.style.color = "#f59e0b";
+              logEvent(`👥 [TÁCH 2 GIỌNG NÓI] ${a.priority_reason}`, "tool");
+            } else {
+              vfSpeakerCount.textContent = "1 người (Rõ)";
+              vfSpeakerCount.style.color = "#4ade80";
+            }
+          }
+          if (vfTotalMs) {
+            const dMs = a.denoise_ms ?? 1.5;
+            const s1Ms = a.stage1_ms ?? 1.2;
+            const s2Ms = a.stage2_ms ?? 0;
+            const totMs = a.total_ms ?? (dMs + s1Ms + s2Ms);
+            vfTotalMs.textContent = `${totMs} ms (Ồn:${dMs}ms•T1:${s1Ms}ms${s2Ms ? "•T2:" + s2Ms + "ms" : ""})`;
+          }
           break;
         }
 
@@ -1041,14 +1077,20 @@
     });
   }
 
-  // Nút thu âm tự do 8 giây để lấy Tần số Giọng Chủ Nhà
+  // Nút thu âm tự do 5 giây để lấy Tần số Giọng Chủ Nhà (kèm lọc tiếng ồn quạt + lưu vân giọng 2 tầng)
   const btnEnroll8s = document.getElementById("btnEnroll8s");
   if (btnEnroll8s) {
     btnEnroll8s.addEventListener("click", async () => {
       try {
         btnEnroll8s.disabled = true;
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, sampleRate: 16000 },
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
         const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         const src = ctx.createMediaStreamSource(stream);
@@ -1066,9 +1108,9 @@
         src.connect(proc);
         proc.connect(ctx.destination);
 
-        for (let sec = 8; sec >= 1; sec--) {
-          btnEnroll8s.textContent = `🔴 Đang thu tần số (${sec}s)... Hãy nói tự do!`;
-          oledMainLine.textContent = `🎙️ ĐANG THU VÂN GIỌNG (${sec}s)...`;
+        for (let sec = 5; sec >= 1; sec--) {
+          btnEnroll8s.textContent = `🔴 Đang thu giọng (${sec}s)... Hãy nói tự nhiên!`;
+          oledMainLine.textContent = `🎙️ ĐANG THU VÂN GIỌNG 2 TẦNG (${sec}s)...`;
           await new Promise((r) => setTimeout(r, 1000));
         }
 
@@ -1089,11 +1131,11 @@
           binary += String.fromCharCode(merged[i]);
         }
         sendWs({ type: "enroll_owner_voice", pcm16k_b64: btoa(binary) });
-        btnEnroll8s.textContent = "✅ Đã Thu Xong 8s (Bấm để thu lại)";
+        btnEnroll8s.textContent = "✅ Đã Thu Xong 5s (Bấm để thu lại)";
         btnEnroll8s.disabled = false;
       } catch (e) {
-        logEvent(`Không thể thu âm 8s: ${e.message}`, "err");
-        btnEnroll8s.textContent = "🎙️ Thu Âm 8s Đăng Ký Giọng";
+        logEvent(`Không thể thu âm 5s: ${e.message}`, "err");
+        btnEnroll8s.textContent = "🎙️ Thu Âm 5s Giọng Bạn";
         btnEnroll8s.disabled = false;
       }
     });

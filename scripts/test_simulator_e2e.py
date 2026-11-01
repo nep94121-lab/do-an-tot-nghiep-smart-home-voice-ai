@@ -72,7 +72,20 @@ async def test_unit_all_new_features() -> None:
 
     v1_res = vm.verify_pcm16k_and_apply_strikes(pcm_v1)
     assert v1_res["authorized"] is True
-    print(f"  [PASS] 1.6 Giọng 1 (Chủ nhà): F0={v1_res['f0_hz']}Hz -> Được phép (Authorized=True)")
+    assert v1_res["stage2_triggered"] is False
+    print(f"  [PASS] 1.6a Giọng 1 sạch (Chủ nhà): F0={v1_res['f0_hz']}Hz -> Duyệt ngay ở {v1_res['filter_stage_used']} ({v1_res['total_ms']} ms)")
+
+    with wave.open(str(AUDIO_DIR / "giong_1_kem_tieng_on_quat.wav"), "rb") as wn:
+        pcm_noisy = wn.readframes(wn.getnframes())
+    vn_res = vm.verify_pcm16k_and_apply_strikes(pcm_noisy)
+    assert vn_res["authorized"] is True and vn_res["fan_noise_detected"] is True and vn_res["stage2_triggered"] is True
+    print(f"  [PASS] 1.6b Giọng 1 + Tiếng ồn quạt (-{vn_res['noise_removed_db']}dB) -> Tự động bật {vn_res['filter_stage_used']} ({vn_res['total_ms']} ms)")
+
+    with wave.open(str(AUDIO_DIR / "hai_nguoi_cung_noi_cap1_va_nguoi_la.wav"), "rb") as wd:
+        pcm_dual = wd.readframes(wd.getnframes())
+    vd_res = vm.verify_pcm16k_and_apply_strikes(pcm_dual)
+    assert vd_res["authorized"] is True and vd_res["multi_speaker_detected"] is True and vd_res["speaker_count"] == 2
+    print(f"  [PASS] 1.6c 2 Người cùng nói -> {vd_res['priority_reason']} ({vd_res['total_ms']} ms)")
 
     s1 = vm.verify_pcm16k_and_apply_strikes(pcm_v2)
     assert not s1["authorized"] and s1["strike_count"] == 1 and s1["should_reply"] is True

@@ -60,8 +60,10 @@ CHUNK_SAMPLES = 16000 * CHUNK_MS // 1000
 SILENCE = b"\x00\x00" * CHUNK_SAMPLES
 
 VOICE_SAMPLES_META: dict[str, str] = {
-    "giong_1_chu_nha_mo_cua": "✅ Giọng 1 (Được phép): Mở cửa chính",
-    "giong_2_nguoi_la_mo_cua": "🚫 Giọng 2 (Không phép): Mở cửa chính",
+    "giong_1_chu_nha_mo_cua": "✅ Giọng 1 (Được phép - Lọc Tầng 1): Mở cửa chính",
+    "giong_1_kem_tieng_on_quat": "🌀 Giọng 1 + Ồn Quạt (-24dB ➡️ Lọc Tầng 2): Mở cửa chính",
+    "hai_nguoi_cung_noi_cap1_va_nguoi_la": "👥 2 Người Cùng Nói (Chủ nhà C1 + Người lạ ➡️ Ưu tiên C1): Mở cửa chính",
+    "giong_2_nguoi_la_mo_cua": "🚫 Giọng 2 (Không phép - Chặn 2 lần ➡️ Im lặng): Mở cửa chính",
     "mo_cua_chinh": "Mở cửa chính",
     "bat_den_phong_khach": "Bật đèn phòng khách",
     "tat_quat": "Tắt quạt",
@@ -1745,8 +1747,9 @@ class LiveBridgeSession:
             await _broadcast_rest_state_to_bridges()
             return
 
-        # 1. Phân tích Tần số Giọng nói (Speaker ID) trên luồng PCM 16kHz
+        # 1. Khử tiếng ồn quạt + Tách 2 người nói + Phân tích Giọng nói Kép 2 Tầng trên luồng PCM 16kHz
         auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(data)
+        clean_pcm_bytes = auth_res.pop("clean_pcm_bytes", data)
         await self.send_ws_json({
             "type": "voice_auth_result",
             "sample_id": sample_id,
@@ -1802,7 +1805,8 @@ class LiveBridgeSession:
             return
 
         step = CHUNK_SAMPLES * 2
-        chunks = [data[i : i + step] for i in range(0, len(data), step)]
+        stream_data = clean_pcm_bytes if len(clean_pcm_bytes) >= step else data
+        chunks = [stream_data[i : i + step] for i in range(0, len(stream_data), step)]
         if chunks:
             chunks[-1] = chunks[-1].ljust(step, b"\x00")
 
@@ -1884,12 +1888,26 @@ class LiveBridgeSession:
                                 self.speech_end_ts = time.perf_counter()
                                 self.turn_first_tool_ts = None
                                 self.turn_first_audio_ts = None
+                                self.mic_utterance_pcm.extend(pcm_bytes)
                             await session.send_realtime_input(
                                 audio=types.Blob(data=pcm_bytes, mime_type="audio/pcm;rate=16000")
                             )
 
                         elif mtype == "mic_speech_ended":
                             self._reset_turn_metrics(anchor_ts=time.perf_counter())
+                            if len(self.mic_utterance_pcm) >= 3200:
+                                raw_utt = bytes(self.mic_utterance_pcm)
+                                self.mic_utterance_pcm.clear()
+                                auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(raw_utt)
+                                auth_res.pop("clean_pcm_bytes", None)
+                                await self.send_ws_json({
+                                    "type": "voice_auth_result",
+                                    "sample_id": "live_mic",
+                                    "label": "Giọng nói trực tiếp qua Mic",
+                                    "analysis": auth_res,
+                                })
+                            else:
+                                self.mic_utterance_pcm.clear()
                             await self.send_ws_json({
                                 "type": "speech_ended_marker",
                                 "source": "live_mic",

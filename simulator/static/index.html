@@ -216,11 +216,18 @@
         </form>
       </div>
 
-      <!-- Khối 2: Phân Tích Giọng Nói (2 Giọng Test + Chặn 2 Lần Rồi Im Lặng + Thu Âm 8s) & Kịch Bản -->
+      <!-- Khối 2: Phân Tích Giọng Nói Kép 2 Tầng + Khử Tiếng Ồn Quạt + Tách 2 Người Nói & Kịch Bản -->
       <div class="card compact-card">
         <div class="section-mini-title">
-          <span>🧬 Phân Tích Giọng Nói: <strong id="voiceAuthBadge" style="color:#4ade80;">✅ Giọng 1 — Chủ nhà (F0: 212 Hz)</strong></span>
-          <button id="btnEnroll8s" class="btn-tiny" style="background:#0284c7;color:#fff;border:none;">🎙️ Thu Âm 8s Đăng Ký Giọng</button>
+          <span>🧬 Phân Tích Giọng: <strong id="voiceAuthBadge" style="color:#4ade80;">✅ Giọng 1 — Chủ nhà (F0: 175.8 Hz • 93%)</strong></span>
+          <button id="btnEnroll8s" class="btn-tiny" style="background:#0284c7;color:#fff;border:none;">🎙️ Thu Âm 5s Giọng Bạn</button>
+        </div>
+
+        <div id="voiceFilterDetailBox" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:2px 0 4px 0;font-size:10.5px;background:rgba(15,23,42,0.75);border:1px solid #1e293b;border-radius:6px;padding:4px 6px;">
+          <div>🔇 Khử ồn quạt: <strong id="vfNoiseDb" style="color:#38bdf8;">-15.2 dB</strong></div>
+          <div>🔬 Bộ lọc: <strong id="vfStageUsed" style="color:#4ade80;">Tầng 1 (93%)</strong></div>
+          <div>👥 Người nói: <strong id="vfSpeakerCount" style="color:#fbbf24;">1 người</strong></div>
+          <div>⚡ Phản xạ lọc: <strong id="vfTotalMs" style="color:#a855f7;">6.6 ms</strong></div>
         </div>
 
         <div class="section-mini-title" style="margin-top:2px;">
