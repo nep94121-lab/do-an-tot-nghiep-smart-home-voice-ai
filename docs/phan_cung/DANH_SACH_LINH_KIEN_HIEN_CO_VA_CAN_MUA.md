@@ -56,16 +56,47 @@ Dưới đây là bảng mua hàng chính xác **9 món đang thiếu** trên b�
 
 ---
 
-## 3.1. TOP 4 SHOP UY TÍN TRÊN SHOPEE BÁN ĐẦY ĐỦ 100% CÁC MÓN TRÊN TRONG 1 ĐƠN HÀNG
+## 3.1. BẢNG GOM ĐƠN 100% TRONG 1 SHOP DUY NHẤT (TÊN SẢN PHẨM CHUẨN TỪNG CHỮ ĐỂ KHÔNG BỊ LẺ TẺ)
 
-Để **không bị tách lẻ thành nhiều đơn** và chỉ tốn **1 lần phí ship duy nhất** (hoặc áp mã Freeship), bạn chỉ cần vào **1 trong 4 kho linh kiện lớn nhất Việt Nam trên Shopee** dưới đây — cả 4 shop này đều có sẵn **100% toàn bộ 9 món ở Bảng 3** cũng như toàn bộ linh kiện hàn mạch PCB ở Bảng 4:
+Sở dĩ khi tìm trên Shopee bạn thấy bị lẻ tẻ nhiều shop là vì **mỗi shop đặt tên tiếng Việt khác nhau** (ví dụ: dây Jumper thì shop gọi là *"Dây nối 7 màu"*, ống nước máy bơm thì shop gọi là *"Ống Ti Ô 0.8cm"*, còi Buzzer thì gọi là *"Còi chíp 5V"*).
 
-| STT | Tên Shop trên Shopee | Khu vực kho hàng | Ưu điểm nổi bật & Cách tìm trên Shopee |
-| :---: | :--- | :---: | :--- |
-| **1** | **Banlinhkien - MinhHaGroup**<br>*(Gian hàng Shopee Mall / Yêu thích+)* | **Hà Nội**<br>*(Hai Bà Trưng / Thanh Xuân — ngay gần ĐH Bách Khoa HN)* | - **Khuyên dùng số 1 nếu bạn ở Hà Nội / Miền Bắc:** Kho cực lớn ngay khu Bách Khoa (Lê Thanh Nghị / Tạ Quang Bửu), giao hỏa tốc hoặc nhận hàng trong 1 ngày.<br>- Có đủ 100%: `Jumper`, `DHT11`, `VS1838B`, `LED IR 940nm`, `Buzzer 5V`, `MAX9814`, `PAM8403 + Loa 3W`, `Ống bơm mini`, `Domino KF301`, `Tụ 470uF`. |
-| **2** | **Linh Kiện Điện Tử TuHu** *(hoặc **Linh Kiện Điện Tử 3M / Caka**)* | **Hà Nội & TP.HCM** | - Giá lẻ từng con trở, bóng LED, mắt hồng ngoại, dây Jumper và ống nước máy bơm **rẻ nhất Shopee** (chỉ từ 1.000đ – 5.000đ/món).<br>- Chuyên bán đồ án sinh viên nên phân loại rất dễ chọn trong cùng 1 giỏ hàng. |
-| **3** | **Điện tử NShop (NShop.vn)**<br>*(Gian hàng Shopee Mall)* | **TP.HCM**<br>*(Tân Phú / Quận 9)* | - **Khuyên dùng số 1 nếu bạn ở TP.HCM / Miền Nam:** Đóng gói hộp cứng cực kỳ chuyên nghiệp, linh kiện loại 1 (đặc biệt là module âm thanh `MAX9814`, `PAM8403`, `Loa 3W` và `DHT11` chuẩn xịn). |
-| **4** | **HShop.vn - Điện Tử & Robot** *(hoặc **IC ĐÂY RỒI**)* | **TP.HCM** | - Kho linh kiện IoT & Vi điều khiển lớn nhất miền Nam, có đầy đủ từ cảm biến, module âm thanh, rào cắm PCB đến phụ kiện máy bơm tưới cây. |
+Dưới đây là **Tên sản phẩm chuẩn từng chữ** đã kiểm tra khớp **10/10 món trong CÙNG 1 SHOP DUY NHẤT** (bạn chỉ cần vào đúng 1 trong 2 Shop này, bấm vào thanh **"Tìm trong Shop"** và copy đúng tên bên dưới là bỏ hết vào **1 giỏ hàng duy nhất**):
+
+### 🛒 LỰA CHỌN A (HÀ NỘI — NGAY BÁCH KHOA): Shop **`Linh Kiện Điện Tử 3M`** (`chotroihn.vn`)
+- **Tìm Shop trên Shopee:** Gõ **`Linh Kiện Điện Tử 3M`** hoặc **`chotroihn`** (Địa chỉ kho: *Số 9 Ngõ 40/2 Tạ Quang Bửu, Bách Khoa, Hai Bà Trưng, Hà Nội* — ngay sát trường, đặt Shopee Hỏa tốc hoặc ra lấy trực tiếp trong 15 phút).
+- **10 Tên sản phẩm chuẩn 100% trong Shop `Linh Kiện Điện Tử 3M`:**
+
+| STT | Copy đúng tên này gõ vào ô "Tìm trong Shop" của `Linh Kiện Điện Tử 3M` | Phân loại chọn mua | Giá tại Shop 3M |
+| :---: | :--- | :--- | :---: |
+| **1** | **`Bộ 40 Sợi Dây Nối 7 Màu`** | Chọn đủ 3 loại: `20cm Đực-Đực`, `20cm Đực-Cái`, `20cm Cái-Cái` | `~24.000đ` (3 tép) |
+| **2** | **`Dây Cáp USB Type-A Xanh Dương 30cm Micro USB`** *(hoặc `Cáp Micro USB`)* | Loại có truyền dữ liệu nạp code | `~12.000đ` |
+| **3** | **`Module Cảm Biến Nhiệt Độ Độ Ẩm DHT11`** | Loại module 3 chân có sẵn mạch PCB | `~16.000đ` |
+| **4** | **`Module Thu Hồng Ngoại IR1838`** + **`LED Phát Hồng Ngoại 5mm`** | `01` Module thu (`VS1838B`) + `02` bóng phát `940nm` | `~16.000đ` |
+| **5** | **`Còi Chíp 5V 9.5x12mm`** *(hoặc **`Module Còi Chíp 5V`**)* | `01` cái (cấp 5V là kêu liên tục) | `3.500đ – 9.900đ` |
+| **6** | **`LED 5mm`** | Gói bóng LED Vàng / Trắng / Xanh lá | `~3.000đ` |
+| **7** | **`Ống Ti Ô 0.8cm dài 1m`** *(Dùng cho máy bơm nước và tản nhiệt sò)* | `01` mét (vừa khít vòi máy bơm mini trắng của bạn) | `7.000đ` |
+| **8** | **`Module Cảm Biến Âm Thanh Tích Hợp AGC MAX9814`** | `01` module thu âm chống ồn tự động | `~35.000đ` |
+| **9** | **`Module Khuếch Đại Audio PAM8403`** + **`Loa 8 Ôm 1W`** *(hoặc `Loa 3W`)* | `01` mạch không chiết áp (`12.000đ`) + `01` Loa (`15.000đ`) | `~27.000đ` |
+| **10** | **`Tụ Hóa 470uF 16V`** | `03 – 05` con (lọc nguồn chống sụt áp cho Servo & Bơm) | `~2.000đ` |
+
+---
+
+### 🛒 LỰA CHỌN B (TP.HCM / SHOPEE MALL TOÀN QUỐC): Shop **`Điện tử NShop`** (`shopee.vn/dientunshop`)
+- **Link gian hàng Shopee Mall:** [https://shopee.vn/dientunshop](https://shopee.vn/dientunshop) *(Website đồng bộ: [https://nshopvn.com](https://nshopvn.com))*
+- **10 Tên sản phẩm chuẩn 100% trong Shop `dientunshop`:**
+
+| STT | Copy đúng tên này gõ vào ô "Tìm trong Shop" của `dientunshop` | Phân loại chọn mua | Giá tại NShop |
+| :---: | :--- | :--- | :---: |
+| **1** | **`Dây bus 40P 20cm`** *(hoặc **`Hộp dây cắm breadboard 140 dây`**)* | Đực-Đực, Đực-Cái, Cái-Cái | `~25.000đ` |
+| **2** | **`Cáp sạc & truyền dữ liệu Micro USB 1m`** | Bản `1A` hoặc `2A` truyền Data | `15.000đ` |
+| **3** | **`Module Cảm Biến Độ Ẩm, Nhiệt Độ DHT11`** | Loại module 3 chân có sẵn trở kéo | `22.000đ` |
+| **4** | **`Module Cảm Biến Thu Hồng Ngoại VS1838B (HX1838B)`** + **`Cặp LED Thu Phát Hồng Ngoại 5mm`** | `01` module thu + `01` cặp bóng thu phát | `9.000đ` |
+| **5** | **`Còi Buzz chủ động 5V`** | `01` cái (Active Buzzer 5V) | `3.000đ` |
+| **6** | **`Led trong 5mm`** *(hoặc **`Led đục 5mm`**)* | Gói 10 bóng (Vàng / Trắng / Xanh lá) | `3.000đ` |
+| **7** | **`Ống nước 6/8`** | `01` mét (ống nhựa mềm dùng cho máy bơm mini) | `~6.000đ` |
+| **8** | **`Cảm Biến Âm Thanh MAX9814 Tích Hợp AGC`** | `01` module thu âm MAX9814 | `47.000đ` |
+| **9** | **`Mạch khuếch đại âm thanh PAM8403 6W hifi 2.0 class D`** + **`Loa 3W 4Ohm 40mm`** | `01` mạch (`8.000đ`) + `01` loa (`22.000đ`) | `30.000đ` |
+| **10** | **`Tụ hóa 470uF`** | `03 – 05` con lọc nguồn 5V | `~2.000đ` |
 
 ---
 
