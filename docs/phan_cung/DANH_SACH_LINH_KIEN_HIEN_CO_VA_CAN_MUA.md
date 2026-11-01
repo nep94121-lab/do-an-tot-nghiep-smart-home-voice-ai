@@ -38,20 +38,34 @@ Nếu thầy hướng dẫn muốn nhìn thấy 1 cụm Mic + Loa rời trên m�
 
 ---
 
-## 3. DANH SÁCH LINH KIỆN CẦN MUA THÊM ĐỂ ĐỦ 100% BỘ ĐỒ ÁN (TỔNG CHỈ ~85.000Đ)
+## 3. DANH SÁCH LINH KIỆN CẦN MUA THÊM ĐỂ ĐỦ 100% BỘ ĐỒ ÁN (TỔNG CHỈ ~115.000Đ – 135.000Đ)
 
-Dưới đây là bảng mua hàng chính xác những món đang thiếu trên bàn của bạn (có thể mua tại cửa hàng linh kiện điện tử Bách Khoa ở phố Lê Thanh Nghị / Tạ Quang Bửu hoặc Shopee):
+Dưới đây là bảng mua hàng chính xác **9 món đang thiếu** trên bàn của bạn kèm **Từ khóa tìm kiếm chuẩn trên Shopee** (gõ đúng cụm từ trong cột 2 vào thanh tìm kiếm *"Trong Shop"* của 1 trong các Shop bên dưới là gom đủ 100% trong **1 đơn hàng duy nhất**):
 
-| STT | Tên linh kiện cần mua thêm | Số lượng | Giá tham khảo | Dùng để làm gì trong Đồ án? |
+| STT | Tên linh kiện cần mua thêm & Từ khóa tìm trên Shopee | Số lượng | Giá tham khảo | Dùng để làm gì & Cắm vào chân nào trên `ESP8266`? |
 | :---: | :--- | :---: | :---: | :--- |
-| **1** | **Bộ dây cắm `Jumper 20cm` (3 loại: Đực-Đực, Đực-Cái, Cái-Cái)** | **1 bó (40 sợi/loại)** | ~25.000đ | **Bắt buộc số 1:** Trên bàn bạn mới có 3 sợi dây ở Relay đỏ, cần dây để nối ESP8266 ra Breadboard, Servo, Cảm biến đất, Máy bơm. |
-| **2** | **Cáp `Micro-USB` có truyền dữ liệu (Data Cable) + Củ nguồn 5V-2A** | **01 sợi** | ~15.000đ | Để nạp code lần đầu từ máy tính vào `NodeMCU ESP8266` và cấp nguồn độc lập 5V (lưu ý: tránh dùng cáp sạc chỉ có 2 lõi nguồn không nhận cổng COM). |
-| **3** | **Còi báo động `Buzzer 5V Active` (Loại có sẵn mạch tạo dao động, cấp 5V là kêu)** | **01 cái** | ~5.000đ | Cho thiết bị **Còi báo động (`alarm_siren` — Chân `D8`)** khi có người lạ đột nhập hoặc sai giọng nói. |
-| **4** | **Mắt thu hồng ngoại `VS1838B (38kHz)` + Bóng LED phát hồng ngoại `IR LED 5mm 940nm`** | **1 cặp (1 thu + 2 phát)** | ~8.000đ | Để thực hiện tính năng **Học lệnh & Chiếm quyền điều khiển Remote Điều hòa / Quạt / TV** (chân `D5` thu sóng, chân `D2` phát sóng). |
-| **5** | **Cảm biến Nhiệt độ & Độ ẩm không khí `DHT11` (loại 3 chân có sẵn mạch PCB)** | **01 cái** | ~18.000đ | Đo nhiệt độ (°C) và độ ẩm không khí (%) trong phòng tại **Chân `D6`** (khác với cảm biến độ ẩm đất YL-69 đang có trên bàn). |
-| **6** | **Bóng `Đèn LED 5mm` (Màu Vàng / Trắng / Xanh lá)** | **5 bóng** | ~3.000đ | Trên bàn mới có **1 bóng LED đỏ** (Đèn phòng khách `D2`), mua thêm để làm **Đèn phòng ngủ (`bedroom_light` — Chân `D7`)** và đèn báo dự phòng. |
-| **7** | **Ống nhựa silicon mềm trong suốt (đường kính trong 6mm - 8mm, dài 0.5m)** | **0.5 mét** | ~8.000đ | Cắm vào đầu ra của **Máy bơm nước mini trắng** trên bàn để bơm nước từ cốc sang chậu cây thật khi thuyết trình trước hội đồng! |
-| **8** | *(Tùy chọn)* **Mic + Loa USB mini** *(hoặc `INMP441` + `MAX98357A`)* | **01 bộ** | ~80.000đ | Chỉ cần mua nếu bạn muốn đặt Mic & Loa rời ngay trong mô hình nhà thay vì nói qua Mic Điện thoại/Laptop. |
+| **1** | **Bộ dây cắm `Jumper 20cm` (3 loại: Đực-Đực, Đực-Cái, Cái-Cái)**<br>*(Từ khóa Shopee: `dây bus 20cm` hoặc `dây jumper`)* | **3 tép (40 sợi/loại)** | ~24.000đ | **Bắt buộc số 1:** Trên bàn bạn mới có 3 sợi dây ở Relay đỏ, cần đủ 3 loại dây để nối `NodeMCU ESP8266` ra Breadboard, Servo, Cảm biến đất, Máy bơm, Mic, Loa. |
+| **2** | **Cáp `Micro-USB` có truyền dữ liệu (Data Cable) + Củ nguồn 5V-2A**<br>*(Từ khóa Shopee: `cáp micro usb nạp code`)* | **01 sợi** | ~12.000đ | Nạp firmware từ Laptop vào `NodeMCU ESP8266 (CP2102)` và cấp nguồn 5V độc lập (lưu ý: chọn loại có truyền Data, tránh cáp sạc 2 lõi không nhận cổng COM). |
+| **3** | **Cảm biến Nhiệt độ & Độ ẩm không khí `DHT11` (loại module 3 chân có sẵn PCB)**<br>*(Từ khóa Shopee: `module DHT11`)* | **01 cái** | ~16.000đ | Đo nhiệt độ (°C) và độ ẩm không khí (%) trong phòng tại **Chân `D6 (GPIO12)`** (đã có sẵn điện trở kéo lên trên module). |
+| **4** | **Mắt thu hồng ngoại `VS1838B (38kHz)` + Bóng LED phát hồng ngoại `IR LED 5mm 940nm`**<br>*(Từ khóa Shopee: `VS1838B` và `led thu phát hồng ngoại 5mm`)* | **01 thu + 02 phát** | ~6.000đ | Thực hiện tính năng **Học lệnh & Chiếm quyền điều khiển Remote Điều hòa / Quạt / TV** (**Chân `D5 / GPIO14`** thu sóng, **Chân `D2 / GPIO4`** phát sóng). |
+| **5** | **Còi báo động `Buzzer 5V Active` (Loại còi chủ động, cấp 5V là kêu)**<br>*(Từ khóa Shopee: `còi chip 5V chủ động` hoặc `buzzer 5V active`)* | **01 cái** | ~4.000đ | Cho thiết bị **Còi báo động (`alarm_siren` — Chân `D8 / GPIO15`)** hú còi khi có người lạ đột nhập hoặc sai giọng nói. |
+| **6** | **Bóng `Đèn LED 5mm` (Màu Vàng / Trắng / Xanh lá)**<br>*(Từ khóa Shopee: `led 5mm`)* | **5 – 10 bóng** | ~3.000đ | Trên bàn mới có **1 bóng LED đỏ** (Đèn phòng khách `D2`), mua thêm để làm **Đèn phòng ngủ (`bedroom_light` — Chân `D7 / GPIO13`)** và đèn báo trạng thái. |
+| **7** | **Ống nhựa silicon mềm dẫn nước máy bơm (đường kính trong 6mm–8mm, dài 1m)**<br>*(Từ khóa Shopee: `ống nước máy bơm mini`)* | **1 mét** | ~7.000đ | Cắm vào đầu ra của **Máy bơm nước mini trắng** trên bàn để bơm nước thật từ cốc sang chậu cây khi bảo vệ đồ án! |
+| **8** | **Module Micro thu âm khuếch đại tự động `MAX9814` (hoặc module nhận diện giọng nói `VC-02`)**<br>*(Từ khóa Shopee: `MAX9814`)* | **01 mạch** | ~28.000đ | Thu âm giọng nói trực tiếp trên mạch tại **Chân `RX (GPIO3)`** kèm chống ồn tự động AGC (hoạt động cả khi rút cáp khỏi Laptop). |
+| **9** | **Mạch khuếch đại âm thanh `PAM8403` (5V) + `Loa 8Ω 3W` (hoặc `4Ω 3W`)**<br>*(Từ khóa Shopee: `PAM8403` và `loa 3W`)* | **01 mạch + 01 loa** | ~22.000đ | Phát âm thanh phản hồi/báo hiệu trực tiếp từ mạch tại **Chân `D4 (GPIO2)`** khi đóng/mở thiết bị hoặc cảnh báo từ chối người lạ. |
+
+---
+
+## 3.1. TOP 4 SHOP UY TÍN TRÊN SHOPEE BÁN ĐẦY ĐỦ 100% CÁC MÓN TRÊN TRONG 1 ĐƠN HÀNG
+
+Để **không bị tách lẻ thành nhiều đơn** và chỉ tốn **1 lần phí ship duy nhất** (hoặc áp mã Freeship), bạn chỉ cần vào **1 trong 4 kho linh kiện lớn nhất Việt Nam trên Shopee** dưới đây — cả 4 shop này đều có sẵn **100% toàn bộ 9 món ở Bảng 3** cũng như toàn bộ linh kiện hàn mạch PCB ở Bảng 4:
+
+| STT | Tên Shop trên Shopee | Khu vực kho hàng | Ưu điểm nổi bật & Cách tìm trên Shopee |
+| :---: | :--- | :---: | :--- |
+| **1** | **Banlinhkien - MinhHaGroup**<br>*(Gian hàng Shopee Mall / Yêu thích+)* | **Hà Nội**<br>*(Hai Bà Trưng / Thanh Xuân — ngay gần ĐH Bách Khoa HN)* | - **Khuyên dùng số 1 nếu bạn ở Hà Nội / Miền Bắc:** Kho cực lớn ngay khu Bách Khoa (Lê Thanh Nghị / Tạ Quang Bửu), giao hỏa tốc hoặc nhận hàng trong 1 ngày.<br>- Có đủ 100%: `Jumper`, `DHT11`, `VS1838B`, `LED IR 940nm`, `Buzzer 5V`, `MAX9814`, `PAM8403 + Loa 3W`, `Ống bơm mini`, `Domino KF301`, `Tụ 470uF`. |
+| **2** | **Linh Kiện Điện Tử TuHu** *(hoặc **Linh Kiện Điện Tử 3M / Caka**)* | **Hà Nội & TP.HCM** | - Giá lẻ từng con trở, bóng LED, mắt hồng ngoại, dây Jumper và ống nước máy bơm **rẻ nhất Shopee** (chỉ từ 1.000đ – 5.000đ/món).<br>- Chuyên bán đồ án sinh viên nên phân loại rất dễ chọn trong cùng 1 giỏ hàng. |
+| **3** | **Điện tử NShop (NShop.vn)**<br>*(Gian hàng Shopee Mall)* | **TP.HCM**<br>*(Tân Phú / Quận 9)* | - **Khuyên dùng số 1 nếu bạn ở TP.HCM / Miền Nam:** Đóng gói hộp cứng cực kỳ chuyên nghiệp, linh kiện loại 1 (đặc biệt là module âm thanh `MAX9814`, `PAM8403`, `Loa 3W` và `DHT11` chuẩn xịn). |
+| **4** | **HShop.vn - Điện Tử & Robot** *(hoặc **IC ĐÂY RỒI**)* | **TP.HCM** | - Kho linh kiện IoT & Vi điều khiển lớn nhất miền Nam, có đầy đủ từ cảm biến, module âm thanh, rào cắm PCB đến phụ kiện máy bơm tưới cây. |
 
 ---
 
@@ -95,10 +109,12 @@ Khi bạn vẽ sơ đồ nguyên lý (Schematic) trên **EasyEDA / Altium / KiCa
 | **`D1`** | `GPIO5` | Chân **`PWM` (Dây Cam/Vàng)** của Header 3P cắm **`Servo SG90` (Cửa chính)** | Đường nguồn `5V` của Header Servo có tụ hóa **`470µF/16V`** sát chân. |
 | **`D2`** | `GPIO4` | **Đèn Phòng Khách (`LED Đỏ 5mm`)** + **Mạch phát Hồng ngoại (`IR LED 940nm`)** | Qua điện trở `220Ω` tới LED Đỏ; qua trở `1kΩ` kích Base Transistor `S8050` kéo `IR LED 940nm` (trở hạn dòng `100Ω` lên `5V`). |
 | **`D3`** | `GPIO0` | Kênh **Relay 1 — Máy bơm nước tưới cây (`garden_pump`)** | Qua trở `1kΩ` *(lưu ý không kéo xuống GND lúc khởi động để ESP8266 boot bình thường)* kích Transistor `S8050` + Diode `1N4007` + Relay 5V $\rightarrow$ Domino `KF301-2P` (Máy bơm). |
+| **`D4`** | `GPIO2` | Chân **`IN+`** của mạch khuếch đại **`PAM8403` + `Loa 8Ω 3W`** | Qua tụ ghép âm thanh `100nF` (hoặc trở `1kΩ`) vào ngõ vào `PAM8403` để phát âm thanh phản hồi/báo hiệu trực tiếp từ mạch. |
 | **`D5`** | `GPIO14` | Chân **`OUT`** của mắt thu hồng ngoại **`VS1838B (38kHz)`** | Điện trở kéo lên `10kΩ` lên `3.3V` + Tụ lọc nguồn `100nF` sát chân `VCC (3.3V)` của mắt thu. |
 | **`D6`** | `GPIO12` | Chân **`DATA`** của cảm biến **`DHT11`** *(hoặc Kênh Relay 2 — Quạt trần)* | Điện trở kéo lên (`Pull-up`) `4.7kΩ` nối lên `3.3V`. |
 | **`D7`** | `GPIO13` | **Đèn Phòng Ngủ (`LED Vàng/Trắng 5mm`)** | Nối tiếp qua điện trở hạn dòng `220Ω` xuống `GND`. |
 | **`D8`** | `GPIO15` | **Còi Báo Động (`Buzzer 5V Active`)** | Qua điện trở `1kΩ` vào cực Base Transistor `S8050` kích Còi `Buzzer 5V` *(tuyệt đối không dùng điện trở Pull-up trên chân D8 vì GPIO15 cần mức LOW khi boot)*. |
+| **`RX`** | `GPIO3` | Chân **`OUT`** của module Micro thu âm **`MAX9814` (hoặc `VC-02`)** | Cấp nguồn `3.3V` cho `MAX9814` kèm tụ lọc `100nF`; ngắt jumper chân `RX` khi nạp code qua cổng USB nếu cần. |
 | **`VIN (5V)`** | `5V Bus` | Đường nguồn công suất **`+5V_PWR`** từ Giắc `DC-005 (5V-2A)` qua Công tắc nguồn | Nuôi `Servo SG90`, cuộn hút `2 Relay 5V`, `Máy bơm nước 5V`, `Còi Buzzer 5V` và cấp ngược vào chân `VIN` của `NodeMCU`. |
 | **`3V3`** | `3.3V Bus` | Đường nguồn logic **`+3V3`** | Nuôi `DHT11`, mắt thu `VS1838B` và mạch so sánh `LM393 (YL-69)`. |
 | **`GND`** | `GND Plane` | **Phủ đồng toàn bộ mặt dưới/mặt trên (`GND Copper Pour`)** | Nối chung Mass (`GND`) của toàn bộ Nguồn 5V, ESP8266, Cảm biến và Chấp hành. |
