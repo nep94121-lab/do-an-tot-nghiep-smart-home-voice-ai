@@ -332,18 +332,17 @@
 
   <header>
     <div class="brand">
-      <div class="wokwi-logo">WOKWI</div>
+      <div class="wokwi-logo">ESP8266</div>
       <div>
-        <h1>MẠCH PHẦN CỨNG THỰC TẾ WOKWI & BREADBOARD 400 LỖ (ĐỒNG BỘ LIVE VỚI HỆ THỐNG)</h1>
-        <p>Sử dụng bộ linh kiện chính thức <code>@wokwi/elements</code> + Breadboard 400 lỗ tọa độ thật (Cột 1–30, Hàng a–j)</p>
+        <h1>BỘ MẠCH RIÊNG: NODEMCU ESP8266 (ESP-12E) &amp; BREADBOARD 400 LỖ + CODE NẠP ARDUINO IDE</h1>
+        <p>Tách riêng khỏi 3D để nhìn thật rõ: Mạch nào cắm như nào • Dây màu gì vào lỗ nào • Đúng Code C++ (<code>esp8266_smarthome.ino</code>) nạp vào mạch</p>
       </div>
     </div>
     <div class="top-actions">
       <button id="btnWokwiServerMode" class="btn" onclick="toggleWokwiServerMode()" style="background:linear-gradient(135deg,#059669,#0284c7);border-color:#34d399;color:#fff;font-weight:700;" title="Bấm để mô phỏng rút/ngắt kết nối Server Laptop: Mạch về chế độ Mặc Định và Khóa Cửa Chính">🟢 Server Laptop: ONLINE</button>
-      <button class="btn green" onclick="copyWokwiFile('diagram')">📋 Copy diagram.json</button>
-      <button class="btn green" onclick="copyWokwiFile('sketch')">📋 Copy sketch.ino</button>
-      <a href="https://wokwi.com/projects/new/esp32" target="_blank" class="btn primary">🚀 Mở Wokwi.com Online</a>
-      <a href="/" class="btn">🏠 Nhà 3D (/)</a>
+      <a href="#pinoutAndCodeSection" class="btn primary">📌 Xem Bảng Cắm Dây &amp; Code Nạp Mạch</a>
+      <button class="btn green" onclick="copyWokwiFile('sketch')">📋 Copy Code Nạp Mạch (esp8266_smarthome.ino)</button>
+      <a href="/" class="btn" style="border-color:#38bdf8; color:#7dd3fc;">🏠 Sang Nhà 3D Blender (/)</a>
       <a href="/app" class="btn">📱 Mobile App (/app)</a>
     </div>
   </header>
@@ -719,6 +718,130 @@
       </div>
     </div>
   </div>
+
+  <!-- KHU VỰC BẢNG TỔNG HỢP DÂY CẮM THỰC TẾ & TOÀN BỘ MÃ NGUỒN NẠP MẠCH ESP8266 -->
+  <section id="pinoutAndCodeSection" style="padding: 4px 18px 24px 18px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 14px;">
+    <!-- BẢNG 1: SƠ ĐỒ CẮM DÂY CHI TIẾT TỪNG CHÂN & TỪNG LỖ BREADBOARD -->
+    <div class="card" style="overflow-x:auto;">
+      <h3>
+        <span>📌 Bảng Sơ Đồ Cắm Dây Thực Tế Từng Chân (NodeMCU ESP8266 ⇄ Breadboard 400 Lỗ)</span>
+        <span style="font-size:11px; color:#fde047;">Khớp 100% với hình mạch bên trên &amp; Code bên phải</span>
+      </h3>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; line-height:1.45;">
+        <thead>
+          <tr style="background:#161b26; color:#93c5fd; text-align:left; border-bottom:1px solid #333d58;">
+            <th style="padding:7px 8px;">Chân ESP8266</th>
+            <th style="padding:7px 8px;">Màu Dây</th>
+            <th style="padding:7px 8px;">Lỗ Breadboard 400 Lỗ</th>
+            <th style="padding:7px 8px;">Qua Linh Kiện Phụ</th>
+            <th style="padding:7px 8px;">Thiết Bị &amp; Chế Độ Offline</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">3V3</span> (Phải #6)</td>
+            <td style="padding:6px 8px; color:#fb923c; font-weight:700;">🟠 Dây Cam</td>
+            <td style="padding:6px 8px;"><span class="hole-badge">TP1</span> (Rãnh Dương + Trên)</td>
+            <td style="padding:6px 8px;">Cấp nguồn +3.3V</td>
+            <td style="padding:6px 8px;">Nuôi cảm biến <code>YL-69</code>, <code>DHT11</code>, <code>VS1838B</code></td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">VIN</span> (Trái #15)</td>
+            <td style="padding:6px 8px; color:#ef4444; font-weight:700;">🔴 Dây Đỏ</td>
+            <td style="padding:6px 8px;"><span class="hole-badge">BP1</span> (Rãnh Dương + Dưới)</td>
+            <td style="padding:6px 8px;">Cấp nguồn +5V USB</td>
+            <td style="padding:6px 8px;">Nuôi <code>Servo SG90</code>, <code>Relay Đỏ</code> &amp; <code>Máy Bơm 5V</code></td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">GND</span> (Phải #7)</td>
+            <td style="padding:6px 8px; color:#94a3b8; font-weight:700;">⚫ Dây Đen</td>
+            <td style="padding:6px 8px;"><span class="hole-badge">TN1</span> &amp; cầu sang <span class="hole-badge">BN25</span></td>
+            <td style="padding:6px 8px;">Mass chung (0V)</td>
+            <td style="padding:6px 8px;">Nối thông Rãnh Âm (-) Trên và Dưới</td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D1 (GPIO5)</span> (Phải #2)</td>
+            <td style="padding:6px 8px; color:#facc15; font-weight:700;">🟡 Dây Vàng</td>
+            <td style="padding:6px 8px;">Dây Cam Servo (Đỏ vào <span class="hole-badge">BP24</span>, Nâu vào <span class="hole-badge">BN24</span>)</td>
+            <td style="padding:6px 8px;">Trực tiếp PWM 50Hz</td>
+            <td style="padding:6px 8px;">🚪 <strong>Cửa chính Servo SG90</strong> (🔒 <em>Khóa cứng khi mất Server</em>)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D2 (GPIO4)</span> (Phải #3)</td>
+            <td style="padding:6px 8px; color:#22c55e; font-weight:700;">🟢 Dây Xanh lá</td>
+            <td style="padding:6px 8px;">Lỗ <span class="hole-badge">C4</span> → Trở 220Ω sang <span class="hole-badge">C8</span> (LED Đỏ ở <span class="hole-badge">C8-C9</span>)</td>
+            <td style="padding:6px 8px;">Trở <strong>220Ω</strong> + nhánh Trở <strong>1kΩ</strong> → <strong>S8050</strong> (<span class="hole-badge">C14-16</span>)</td>
+            <td style="padding:6px 8px;">💡 <strong>Đèn Khách LED Đỏ</strong> + ❄️ <strong>Phát IR 940nm (Điều hòa/Quạt)</strong></td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D3 (GPIO0)</span> (Phải #4)</td>
+            <td style="padding:6px 8px; color:#38bdf8; font-weight:700;">🔵 Dây Xanh dương</td>
+            <td style="padding:6px 8px;">Chân <span class="hole-badge">IN</span> Relay Đỏ (DC+ vào <span class="hole-badge">BP22</span>, DC- vào <span class="hole-badge">BN22</span>)</td>
+            <td style="padding:6px 8px;">Module <strong>Relay 5V</strong> + <strong>Diode 1N4007</strong> chống xung</td>
+            <td style="padding:6px 8px;">💧 <strong>Máy Bơm Nước Mini 5V</strong> (Tự bật khi đất &lt;40%, tắt ≥70%)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">A0 (ADC0)</span> (Trái #1)</td>
+            <td style="padding:6px 8px; color:#eab308; font-weight:700;">🟡 Dây Vàng</td>
+            <td style="padding:6px 8px;">Chân <span class="hole-badge">AO</span> mạch xanh LM393 (VCC vào <span class="hole-badge">TP24</span>, GND vào <span class="hole-badge">BN20</span>)</td>
+            <td style="padding:6px 8px;">Mạch so sánh <strong>LM393</strong> + Đầu dò 2 nhánh vàng</td>
+            <td style="padding:6px 8px;">🌱 <strong>Cảm biến Độ ẩm Đất YL-69</strong> (Đọc Analog 0–1024)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D5 (GPIO14)</span> (Phải #8)</td>
+            <td style="padding:6px 8px; color:#c084fc; font-weight:700;">🟣 Dây Tím</td>
+            <td style="padding:6px 8px;">Lỗ <span class="hole-badge">J6</span> (VS1838B cắm ở <span class="hole-badge">F6: OUT</span>, <span class="hole-badge">F7: GND</span>, <span class="hole-badge">F8: VCC</span>)</td>
+            <td style="padding:6px 8px;">Mắt thu bọc sắt 38kHz</td>
+            <td style="padding:6px 8px;">📡 <strong>Mắt Thu Hồng Ngoại VS1838B</strong> (Thu mã Remote ĐH/Quạt)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D6 (GPIO12)</span> (Phải #9)</td>
+            <td style="padding:6px 8px; color:#06b6d4; font-weight:700;">🩵 Dây Xanh lơ</td>
+            <td style="padding:6px 8px;">Lỗ <span class="hole-badge">J15</span> (DHT11 cắm ở <span class="hole-badge">F14: VCC</span>, <span class="hole-badge">F15: DATA</span>, <span class="hole-badge">F17: GND</span>)</td>
+            <td style="padding:6px 8px;">Cảm biến xanh 4 chân / 3 chân</td>
+            <td style="padding:6px 8px;">🌡️ <strong>Cảm Biến Nhiệt Độ &amp; Độ Ẩm DHT11</strong></td>
+          </tr>
+          <tr style="border-bottom:1px solid #262f45;">
+            <td style="padding:6px 8px;"><span class="hole-badge">D7 (GPIO13)</span> (Phải #10)</td>
+            <td style="padding:6px 8px; color:#fde047; font-weight:700;">🟡 Dây Vàng nhạt</td>
+            <td style="padding:6px 8px;">Lỗ <span class="hole-badge">C22</span> → Trở 220Ω sang <span class="hole-badge">C25</span> (LED Vàng ở <span class="hole-badge">C25-C26</span>)</td>
+            <td style="padding:6px 8px;">Điện trở <strong>220Ω</strong> hạn dòng</td>
+            <td style="padding:6px 8px;">🛏️ <strong>Đèn Phòng Ngủ LED Vàng 5mm</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;"><span class="hole-badge">D8 (GPIO15)</span> (Phải #11)</td>
+            <td style="padding:6px 8px; color:#f43f5e; font-weight:700;">🔴 Dây Đỏ hồng</td>
+            <td style="padding:6px 8px;">Lỗ <span class="hole-badge">J25 (+)</span>, chân âm ở <span class="hole-badge">J24 (-)</span> nối xuống <span class="hole-badge">BN19</span></td>
+            <td style="padding:6px 8px;">Còi Buzzer 5V tròn đen</td>
+            <td style="padding:6px 8px;">🚨 <strong>Còi Báo Động An Ninh Buzzer 5V</strong> (🔒 <em>Khóa khi mất Server</em>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- BẢNG 2: MÃ NGUỒN THỰC TẾ NẠP VÀO MẠCH (esp8266_smarthome.ino) -->
+    <div class="card" style="display:flex; flex-direction:column;">
+      <h3>
+        <span>💻 Mã Nguồn Thực Tế Nạp Vào Mạch (<code>firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino</code>)</span>
+        <button class="btn green" onclick="copyConfiguredInoCode()">📋 Copy Toàn Bộ Code Nạp Arduino IDE</button>
+      </h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:8px; font-size:11.5px;">
+        <div>
+          <label style="color:#94a3b8; display:block; margin-bottom:2px;">📶 Tên Wi-Fi nhà bạn (WIFI_SSID):</label>
+          <input id="inpWifiSsid" type="text" value="TEN_WIFI_NHA_BAN" oninput="refreshInoCodePreview()" style="width:100%; padding:5px 8px; border-radius:6px; border:1px solid #333d58; background:#0f172a; color:#38bdf8; font-family:Consolas,monospace;" />
+        </div>
+        <div>
+          <label style="color:#94a3b8; display:block; margin-bottom:2px;">🔑 Mật khẩu Wi-Fi (WIFI_PASSWORD):</label>
+          <input id="inpWifiPass" type="text" value="MAT_KHAU_WIFI" oninput="refreshInoCodePreview()" style="width:100%; padding:5px 8px; border-radius:6px; border:1px solid #333d58; background:#0f172a; color:#34d399; font-family:Consolas,monospace;" />
+        </div>
+        <div>
+          <label style="color:#94a3b8; display:block; margin-bottom:2px;">🖥️ IP Laptop chạy Server (SERVER_HOST):</label>
+          <input id="inpServerIp" type="text" value="192.168.1.100" oninput="refreshInoCodePreview()" style="width:100%; padding:5px 8px; border-radius:6px; border:1px solid #333d58; background:#0f172a; color:#fde047; font-family:Consolas,monospace;" />
+        </div>
+      </div>
+      <pre id="inoCodePre" style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px 12px; height:365px; overflow:auto; font-family:Consolas,monospace; font-size:11.5px; line-height:1.45; color:#e2e8f0; white-space:pre;">Đang tải mã nguồn esp8266_smarthome.ino...</pre>
+    </div>
+  </section>
 
   <script>
     // =========================================================================
@@ -1298,13 +1421,54 @@
       fetchState();
     }
 
+    let RAW_ESP8266_INO = '';
+
+    async function loadRealInoCode() {
+      try {
+        const res = await fetch('/api/wokwi_files');
+        const data = await res.json();
+        RAW_ESP8266_INO = data.esp8266_ino || data.sketch_ino || '';
+        refreshInoCodePreview();
+      } catch (e) {}
+    }
+
+    function getConfiguredInoText() {
+      if (!RAW_ESP8266_INO) return '';
+      const ssid = (document.getElementById('inpWifiSsid')?.value || 'TEN_WIFI_NHA_BAN').trim();
+      const pass = (document.getElementById('inpWifiPass')?.value || 'MAT_KHAU_WIFI').trim();
+      const host = (document.getElementById('inpServerIp')?.value || '192.168.1.100').trim();
+      return RAW_ESP8266_INO
+        .replace(/#define\s+WIFI_SSID\s+"[^"]*"/, `#define WIFI_SSID           "${ssid}"`)
+        .replace(/#define\s+WIFI_PASSWORD\s+"[^"]*"/, `#define WIFI_PASSWORD       "${pass}"`)
+        .replace(/#define\s+SERVER_HOST\s+"[^"]*"/, `#define SERVER_HOST         "${host}"`)
+        .replace(/#define\s+MQTT_BROKER_HOST\s+"[^"]*"/, `#define MQTT_BROKER_HOST    "${host}"`);
+    }
+
+    function refreshInoCodePreview() {
+      const pre = document.getElementById('inoCodePre');
+      if (pre && RAW_ESP8266_INO) {
+        pre.textContent = getConfiguredInoText();
+      }
+    }
+
+    async function copyConfiguredInoCode() {
+      const txt = getConfiguredInoText();
+      if (!txt) {
+        await copyWokwiFile('sketch');
+        return;
+      }
+      await navigator.clipboard.writeText(txt);
+      logSerial('Đã copy toàn bộ code esp8266_smarthome.ino (kèm cấu hình Wi-Fi & IP Server) vào Clipboard!', 'cmd');
+      alert('Đã copy toàn bộ code esp8266_smarthome.ino! Bạn mở Arduino IDE -> chọn mạch NodeMCU 1.0 (ESP-12E Module) -> Dán (Ctrl+V) và bấm Upload.');
+    }
+
     async function copyWokwiFile(kind) {
       const res = await fetch('/api/wokwi_files');
       const data = await res.json();
-      const txt = kind === 'diagram' ? data.diagram_json : data.sketch_ino;
+      const txt = kind === 'diagram' ? data.diagram_json : (getConfiguredInoText() || data.esp8266_ino || data.sketch_ino);
       await navigator.clipboard.writeText(txt);
-      logSerial(`Đã copy ${kind === 'diagram' ? 'diagram.json' : 'sketch.ino'} vào Clipboard! Bạn có thể dán thẳng vào Wokwi.com.`, 'cmd');
-      alert(`Đã copy ${kind === 'diagram' ? 'diagram.json' : 'sketch.ino'}! Hãy mở tab Wokwi.com và dán (Ctrl+V) vào.`);
+      logSerial(`Đã copy ${kind === 'diagram' ? 'diagram.json' : 'esp8266_smarthome.ino'} vào Clipboard!`, 'cmd');
+      alert(`Đã copy ${kind === 'diagram' ? 'diagram.json' : 'esp8266_smarthome.ino'}! Mở Arduino IDE và dán (Ctrl+V) để nạp vào mạch NodeMCU ESP8266.`);
     }
 
     // Lắng nghe sự kiện xoay chiết áp <wokwi-potentiometer id="w_soil_pot">
@@ -1314,6 +1478,7 @@
       drawWires();
       setTimeout(drawWires, 250);
       fetchState();
+      loadRealInoCode();
 
       const pot = document.getElementById('w_soil_pot');
       if (pot) {

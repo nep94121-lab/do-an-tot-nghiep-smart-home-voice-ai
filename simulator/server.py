@@ -843,9 +843,15 @@ async def wokwi_page() -> FileResponse:
 @app.get("/api/wokwi_files")
 async def api_get_wokwi_files() -> JSONResponse:
     wokwi_dir = ROOT / "firmware_esp8266" / "wokwi"
+    real_ino_path = ROOT / "firmware_esp8266" / "esp8266_smarthome" / "esp8266_smarthome.ino"
     diag = (wokwi_dir / "diagram.json").read_text(encoding="utf-8") if (wokwi_dir / "diagram.json").exists() else "{}"
-    sketch = (wokwi_dir / "sketch.ino").read_text(encoding="utf-8") if (wokwi_dir / "sketch.ino").exists() else ""
-    return JSONResponse({"diagram_json": diag, "sketch_ino": sketch})
+    real_ino = real_ino_path.read_text(encoding="utf-8") if real_ino_path.exists() else ""
+    return JSONResponse({
+        "diagram_json": diag,
+        "sketch_ino": real_ino,
+        "esp8266_ino": real_ino,
+        "ino_path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
+    })
 
 
 @app.get("/api/state")
