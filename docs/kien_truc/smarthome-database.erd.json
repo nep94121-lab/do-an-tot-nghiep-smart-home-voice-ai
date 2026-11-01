@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (smarthome.db)",
+    "subtitle": "8 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys) đồng bộ Write-Through xuống Flash LittleFS ESP8266",
+    "output": "docs/kien_truc/smarthome-database.erd.html",
+    "quality_profile": "standard",
+    "visual_preset": "blueprint",
+    "views": [
+      {
+        "id": "identity_voice",
+        "label": "1. Người Dùng & Vân Giọng (26d/64d)",
+        "focus": ["users", "voiceprints"],
+        "note": "Phân quyền 3 tầng (Chủ nhà T1, Gia đình T2, Khách T3) và vector giọng nói kép 26d/64d"
+      },
+      {
+        "id": "pools_timers_rules",
+        "label": "2. Bể Hẹn Giờ & Bể Luật Động",
+        "focus": ["users", "devices", "timers_pool", "rules_pool"],
+        "note": "Bể 1 (timers_pool) và Bể 2 (rules_pool: IF-ELSE, Khẩu lệnh custom, Đổi từ) gắn khóa ngoại tới users & devices"
+      },
+      {
+        "id": "hardware_audit",
+        "label": "3. Thiết Bị GPIO, IR & Nhật Ký Audit",
+        "focus": ["devices", "ir_remote_codes", "knowledge_rag", "audit_logs"],
+        "note": "Quản lý 8 chân GPIO ESP8266, kho mã hồng ngoại 38kHz, tri thức RAG và bảng audit_logs đánh chỉ mục thời gian"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 78,
+    "gapY": 44
+  },
+  "entities": [
+    {
+      "id": "users",
+      "label": "users",
+      "tag": "Identity & Voice",
+      "row": 0,
+      "col": 0,
+      "width": 258,
+      "attributes": [
+        { "name": "user_id", "type": "TEXT", "key": "pk" },
+        { "name": "full_name", "type": "TEXT NOT NULL" },
+        { "name": "role", "type": "TEXT NOT NULL" },
+        { "name": "tier", "type": "INT CHECK(1..3)" },
+        { "name": "offline_allowed", "type": "INT DEFAULT 0" },
+        { "name": "created_by", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "voiceprints",
+      "label": "voiceprints",
+      "tag": "Identity & Voice",
+      "row": 1,
+      "col": 0,
+      "width": 295,
+      "attributes": [
+        { "name": "voiceprint_id", "type": "TEXT", "key": "pk" },
+        { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "f0_hz", "type": "REAL NOT NULL" },
+        { "name": "centroid_hz", "type": "REAL NOT NULL" },
+        { "name": "embedding_26d_json", "type": "TEXT (26d Fast)" },
+        { "name": "embedding_64d_json", "type": "TEXT (64d Deep)" },
+        { "name": "sample_duration_sec", "type": "REAL DEFAULT 5.0" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "timers_pool",
+      "label": "timers_pool",
+      "tag": "Pools (Bể 1 & Bể 2)",
+      "row": 0,
+      "col": 1,
+      "width": 268,
+      "attributes": [
+        { "name": "timer_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "action", "type": "TEXT NOT NULL" },
+        { "name": "schedule_mode", "type": "TEXT" },
+        { "name": "target_time_vn", "type": "TEXT (AM/PM)" },
+        { "name": "repeat_rule", "type": "TEXT DEFAULT 'once'" },
+        { "name": "label_summary", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "rules_pool",
+      "label": "rules_pool",
+      "tag": "Pools (Bể 1 & Bể 2)",
+      "row": 1,
+      "col": 1,
+      "width": 268,
+      "attributes": [
+        { "name": "rule_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "rule_category", "type": "TEXT (IF/ALIAS)" },
+        { "name": "trigger_expr", "type": "TEXT NOT NULL" },
+        { "name": "target_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "target_action", "type": "TEXT NOT NULL" },
+        { "name": "bidirectional", "type": "INT DEFAULT 0" },
+        { "name": "else_action", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "devices",
+      "label": "devices",
+      "tag": "IoT Hardware & IR",
+      "row": 0,
+      "col": 2,
+      "width": 295,
+      "attributes": [
+        { "name": "device_id", "type": "TEXT", "key": "pk" },
+        { "name": "device_name", "type": "TEXT NOT NULL" },
+        { "name": "gpio_pin", "type": "TEXT (D1..D8)" },
+        { "name": "state", "type": "TEXT (ON/OFF/OPEN)" },
+        { "name": "min_tier_required", "type": "INT DEFAULT 3" },
+        { "name": "offline_controllable", "type": "INT DEFAULT 1" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "ir_remote_codes",
+      "label": "ir_remote_codes",
+      "tag": "IoT Hardware & IR",
+      "row": 1,
+      "col": 2,
+      "width": 260,
+      "attributes": [
+        { "name": "ir_code_id", "type": "TEXT", "key": "pk" },
+        { "name": "device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "appliance_name", "type": "TEXT NOT NULL" },
+        { "name": "command_action", "type": "TEXT NOT NULL" },
+        { "name": "protocol", "type": "TEXT (38kHz)" },
+        { "name": "hex_code", "type": "TEXT NOT NULL" },
+        { "name": "freq_khz", "type": "INT DEFAULT 38" },
+        { "name": "learned_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "knowledge_rag",
+      "label": "knowledge_rag",
+      "tag": "Knowledge & Audit",
+      "row": 0,
+      "col": 3,
+      "width": 260,
+      "attributes": [
+        { "name": "doc_id", "type": "TEXT", "key": "pk" },
+        { "name": "category", "type": "TEXT NOT NULL" },
+        { "name": "title", "type": "TEXT NOT NULL" },
+        { "name": "content", "type": "TEXT NOT NULL" },
+        { "name": "keywords_json", "type": "TEXT" },
+        { "name": "updated_by_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "audit_logs",
+      "label": "audit_logs",
+      "tag": "Knowledge & Audit",
+      "row": 1,
+      "col": 3,
+      "width": 260,
+      "attributes": [
+        { "name": "log_id", "type": "INTEGER", "key": "pk" },
+        { "name": "ts_iso", "type": "TEXT (INDEXED)" },
+        { "name": "time_vn", "type": "TEXT NOT NULL" },
+        { "name": "category", "type": "TEXT NOT NULL" },
+        { "name": "event_type", "type": "TEXT NOT NULL" },
+        { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "user_name", "type": "TEXT NOT NULL" },
+        { "name": "tier", "type": "INT NOT NULL" },
+        { "name": "summary", "type": "TEXT NOT NULL" },
+        { "name": "details_json", "type": "TEXT NOT NULL" }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "vp_user",
+      "from": "voiceprints",
+      "to": "users",
+      "label": "vân giọng của",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "timer_user",
+      "from": "timers_pool",
+      "to": "users",
+      "label": "đặt bởi",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "timer_dev",
+      "from": "timers_pool",
+      "to": "devices",
+      "label": "hẹn thiết bị",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "rule_user",
+      "from": "rules_pool",
+      "to": "users",
+      "label": "sở hữu bởi",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "rule_dev",
+      "from": "rules_pool",
+      "to": "devices",
+      "label": "tác động lên",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "ir_dev",
+      "from": "ir_remote_codes",
+      "to": "devices",
+      "label": "mã IR của",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "kb_user",
+      "from": "knowledge_rag",
+      "to": "users",
+      "label": "cập nhật bởi",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "log_user",
+      "from": "audit_logs",
+      "to": "users",
+      "label": "thực hiện bởi",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Chuẩn Quan Hệ 3NF & ACID (WAL Mode)",
+      "items": [
+        "Lưu trữ tại simulator/data/smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON",
+        "Đánh 5 chỉ mục (INDEX) tăng tốc truy vấn lịch sử câu lệnh và bể hẹn giờ/luật < 1ms"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Kiến Trúc Lai Server SQL <-> Mạch Flash JSON",
+      "items": [
+        "Trên Server: 8 bảng SQLite 3 lưu trữ bền vững toàn bộ lịch sử, vân giọng 26d/64d, Bể 1, Bể 2 và RAG",
+        "Dưới Mạch ESP8266: Tự động kết xuất bản sao nhẹ (~1.4KB) nạp xuống 4MB LittleFS dùng khi Offline"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "An Ninh Phân Quyền Offline Trên Bảng users & devices",
+      "items": [
+        "users.offline_allowed = 1 chỉ áp dụng cho Tầng 1 (Chủ nhà) & Tầng 2 (Gia đình); chặn Tầng 3 (Khách)",
+        "devices.offline_controllable = 0 khóa cứng Cửa chính (D1) và Còi báo động (D8) khi mất Server"
+      ]
+    }
+  ]
+}

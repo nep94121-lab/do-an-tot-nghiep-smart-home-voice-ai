@@ -25,6 +25,11 @@ import re
 import time
 from typing import Any, Callable, Coroutine
 
+from simulator.database_sqlite import (
+    init_sqlite_database,
+    insert_audit_log_sqlite,
+    sync_engine_state_to_sqlite,
+)
 from simulator.mqtt_bridge import SmartHomeMQTTBridge
 
 DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
@@ -70,6 +75,7 @@ def append_audit_log(
         line = json.dumps(entry, ensure_ascii=False) + "\n"
         with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(line)
+        insert_audit_log_sqlite(entry)
     except Exception:
         pass
     return entry
@@ -564,6 +570,11 @@ class SmartHomeEngine:
         self.pending_voice_enrollment: dict[str, Any] | None = None
         self.server_connected: bool = True
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
+        try:
+            init_sqlite_database()
+            sync_engine_state_to_sqlite(self)
+        except Exception:
+            pass
 
     @property
     def system_policies(self) -> dict[str, Any]:
@@ -945,10 +956,18 @@ class SmartHomeEngine:
         self.overlay_rules["if_else_rules"] = list(t1_pool.get("if_else_rules", []))
         self.overlay_rules["users"] = self.users
         OVERLAY_FILE.write_text(json.dumps(self.overlay_rules, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            sync_engine_state_to_sqlite(self)
+        except Exception:
+            pass
 
     async def emit(self, event: dict[str, Any]) -> None:
         ev_type = str(event.get("type", ""))
         if ev_type and ev_type not in ("state_snapshot", "mqtt_message"):
+            try:
+                sync_engine_state_to_sqlite(self)
+            except Exception:
+                pass
             cat_map = {
                 "device_updated": "DEVICE_GPIO",
                 "device_actuated": "DEVICE_GPIO",

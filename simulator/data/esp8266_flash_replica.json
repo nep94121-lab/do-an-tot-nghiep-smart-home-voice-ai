@@ -1,5 +1,5 @@
 {
-  "synced_at": 1793532353.7,
+  "synced_at": 1793546083.17,
   "offline_voice_policy": "TIER_1_AND_2_ONLY (Chặn Tầng 3 Khách & Người lạ, Tiny-DSP ~16ms)",
   "offline_voiceprints_t1_t2": [
     {
@@ -33,7 +33,7 @@
       "id": "timer_6",
       "device_id": "living_room_light",
       "action": "turn_on",
-      "remaining_seconds": 30.0,
+      "remaining_seconds": 29.9,
       "target_vn_time": ""
     }
   ],

@@ -27,6 +27,11 @@ from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
 
+from simulator.database_sqlite import (
+    execute_readonly_sql,
+    get_sqlite_overview,
+    sync_engine_state_to_sqlite,
+)
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
 from simulator.rule_engine import (
     DATA_DIR,
@@ -883,6 +888,12 @@ async def api_get_server_logs_and_db() -> JSONResponse:
     kb_data = _safe_json("knowledge_base.json")
     kb_items = kb_data.get("items", []) if isinstance(kb_data, dict) else []
 
+    try:
+        sync_engine_state_to_sqlite(active_eng)
+        sqlite_ov = get_sqlite_overview()
+    except Exception as exc:
+        sqlite_ov = {"ok": False, "error": str(exc)}
+
     return JSONResponse({
         "ok": True,
         "server_time_vn": format_vn_time_ampm(),
@@ -894,6 +905,7 @@ async def api_get_server_logs_and_db() -> JSONResponse:
         "ir_devices_db": _safe_json("ir_devices_db.json"),
         "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
         "storage_files": storage_files,
+        "sqlite_overview": sqlite_ov,
     })
 
 
@@ -2095,6 +2107,29 @@ async def serve_archify_devops_workflow() -> FileResponse:
     """Phục vụ Sơ đồ Quy trình DevOps & CI/CD 5 Cổng Archify (Workflow Interactive HTML)."""
     wf_file = ROOT / "docs" / "kien_truc" / "devops-cicd-pipeline.workflow.html"
     return FileResponse(str(wf_file), media_type="text/html")
+
+
+@app.get("/archify/erd")
+async def serve_archify_database_erd() -> FileResponse:
+    """Phục vụ Sơ đồ Thực thể Kết hợp (ERD) 8 Bảng SQLite 3 (ERD Interactive HTML)."""
+    erd_file = ROOT / "docs" / "kien_truc" / "smarthome-database.erd.html"
+    return FileResponse(str(erd_file), media_type="text/html")
+
+
+@app.get("/api/sqlite/overview")
+async def api_sqlite_overview() -> JSONResponse:
+    """Trả về thống kê chi tiết 8 bảng SQLite 3 (`smarthome.db`, WAL Mode, Foreign Keys)."""
+    active_eng = _ACTIVE_BRIDGES[-1].engine if _ACTIVE_BRIDGES else _REST_ENGINE
+    sync_engine_state_to_sqlite(active_eng)
+    return JSONResponse(get_sqlite_overview())
+
+
+@app.post("/api/sqlite/query")
+async def api_sqlite_query(payload: dict[str, Any]) -> JSONResponse:
+    """Thực thi câu lệnh SQL chỉ đọc (SELECT / PRAGMA / EXPLAIN) trực tiếp trên `smarthome.db`."""
+    sql_q = str(payload.get("sql", "")).strip()
+    limit_val = int(payload.get("limit", 100) or 100)
+    return JSONResponse(execute_readonly_sql(sql_q, limit=min(500, max(1, limit_val))))
 
 
 @app.get("/api/devops/status")

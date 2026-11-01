@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f234a40d-4c56-4096-91a9-a010161d2cd4",
+  "status": "current",
+  "command": "deliver",
+  "type": "erd",
+  "input": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\smarthome-database.erd.json",
+  "output": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\docs\\kien_truc\\smarthome-database.erd.html",
+  "specification": {
+    "sha256": "a27d43adc52966607fcdd844ebcb578e43ab9a05be799ac36e84ada4e43444d5",
+    "bytes": 10013
+  },
+  "artifact": {
+    "sha256": "72d1c28a46e03f3a54e3f69f87cc615ac3fc32fb0b01aa5d1edaadc97055c9df",
+    "bytes": 883024
+  }
+}
