@@ -33,6 +33,8 @@ ESP8266_PIN_MAP: dict[str, dict[str, Any]] = {
     "ac": {"pin": "D2", "gpio": 4, "mode": "IR_BLAST_38KHZ"},
     "alarm_siren": {"pin": "D8", "gpio": 15, "mode": "DIGITAL_OUT"},
     "garden_pump": {"pin": "D3", "gpio": 0, "mode": "RELAY_PUMP_5V_DIODE_1N4007"},
+    "speaker_out": {"pin": "D4", "gpio": 2, "mode": "AUDIO_PWM_PAM8403_8OHM_3W"},
+    "voice_mic_rx": {"pin": "RX", "gpio": 3, "mode": "UART_MIC_VC02_MAX9814"},
 }
 
 DEFAULT_IR_DEVICES: dict[str, Any] = {

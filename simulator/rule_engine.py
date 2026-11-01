@@ -102,6 +102,11 @@ def clear_audit_logs() -> None:
         pass
 
 
+HARDWARE_AUDIO_PINS: dict[str, str] = {
+    "voice_mic_rx": "RX / GPIO3 (VC-02 / MAX9814 Micro Thu Âm)",
+    "speaker_out": "D4 / GPIO2 (PAM8403 Loa Phát 8Ω 3W)",
+}
+
 DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "main_door": {
         "id": "main_door",
