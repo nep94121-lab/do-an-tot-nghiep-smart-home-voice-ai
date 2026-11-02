@@ -22,7 +22,7 @@ import wave
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
@@ -2093,6 +2093,18 @@ class LiveBridgeSession:
                     })
         except asyncio.CancelledError:
             raise
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon() -> Response:
+    """Phục vụ biểu tượng Favicon SVG cho trình duyệt để triệt tiêu lỗi 404 Not Found."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<rect width="64" height="64" rx="14" fill="#0f172a"/>'
+        '<path d="M12 30L32 14L52 30V50H38V38H26V50H12V30Z" fill="#38bdf8"/>'
+        "</svg>"
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/archify")
