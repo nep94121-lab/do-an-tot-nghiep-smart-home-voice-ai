@@ -31,16 +31,29 @@ Milestone M15: Toàn bộ kiểm thử nghiệm thu 100%, Git Commit/Push master
 - **Interface contracts**: C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\PROJECT.md
 - **Code layout**: Root repo C:\Users\LENOVO\Desktop\đồ án tốt nghiệp
 
+## Key Decisions Made
+- Restored `simulator/data/` runtime modifications to prevent test state pollution in git.
+- Normalized all line endings to POSIX LF (\n) and UTF-8 without BOM across all files.
+- Verified live domain routes with native `curl.exe` avoiding PowerShell `Invoke-WebRequest` alias issues.
+- Fixed token revocation handling in `session_store.py` so revoked tokens fail as invalid/Tier 3 rather than falling through to legacy test engine defaults.
+
 ## Change Tracker
-- **Files modified**: None yet
-- **Build status**: Pending
-- **Pending issues**: None
+- **Files modified**:
+  - `FIX_REPORT_20261104.md`: Updated Section 11 with full metrics, test outcomes, curl table, commit hash, production URLs.
+  - `simulator/auth/session_store.py`: Resolved revoked token fallback issue.
+  - `simulator/rule_engine.py`: Reset `server_connected = True` in factory reset to prevent test leakage.
+  - `tests/test_challenger_m3_security_live.py`: Restored server_connected back to True after WS test.
+  - `tests/test_m8_mobile_screens.py`: Handshake window boundary alignment.
+- **Build status**: 100% PASS (pytest suite + speckit_converge.py + assembleDebug).
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: Pending
-- **Lint status**: Pending
-- **Tests added/modified**: Pending
+- **Build/test result**: 100% PASS (pytest test suites, speckit_converge.py 6 Constitution articles, assembleDebug SUCCESSFUL in 2m 22s).
+- **Lint status**: 0 CRLF, UTF-8 without BOM verified.
+- **Tests added/modified**: `tests/test_m6_web_error_sw.py`, `tests/test_m7_security_modals_banner.py`, `tests/test_m8_mobile_screens.py`, `tests/test_phase1_bugfixes_20261104.py`, `tests/test_qa_p2_live_user_flows.py`, `tests/test_p3_session_rbac_concurrency.py`.
 
 ## Artifact Index
 - C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m15\DISPATCH.md — Dispatch instructions
 - C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m15\progress.md — Progress heartbeat
+- C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m15\handoff.md — 5-component handoff report
+- C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\FIX_REPORT_20261104.md — Comprehensive Phase 1, 2, and 3 Report

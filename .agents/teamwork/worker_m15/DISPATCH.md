@@ -47,3 +47,13 @@ NHIỆM VỤ CHI TIẾT:
    - Mã băm Git commit và liên kết production.
 
 Ghi báo cáo hoàn tất vào `handoff.md` và thông báo cho Orchestrator qua `send_message`.
+
+## 2026-11-04T17:39:00Z
+**Context**: Milestone M15 Deploy & Delivery Progress Query
+**Content**: Orchestrator cần cập nhật tiến độ: Bạn đã chạy pytest, git commit, deploy Vercel và kiểm tra curl trên production domain thật đến bước nào rồi? Vui lòng cập nhật `progress.md` hoặc gửi tin nhắn phản hồi.
+**Action**: Cập nhật tiến độ hoặc hoàn tất handoff.md.
+
+## 2026-11-04T17:58:48Z
+**Context**: Milestone M15 Status Check
+**Content**: Orchestrator nhận thấy đã 19 phút kể từ lần cập nhật trước. Bạn đã hoàn tất các bước pytest, Git commit, Vercel deploy và curl trên domain thật chưa? Nếu có lỗi hay bị nghẽn ở bước nào (ví dụ Vercel login hay pytest), vui lòng thông báo ngay để Orchestrator hỗ trợ hoặc xử lý.
+**Action**: Cập nhật tiến độ hoặc hoàn tất handoff.md.
