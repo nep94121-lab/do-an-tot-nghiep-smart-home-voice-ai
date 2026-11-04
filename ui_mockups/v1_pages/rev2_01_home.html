@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tổng quan | Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--accent:#087d85;--accent-soft:#e6f3f2;--ink:#172b31;--muted:#687a80;--line:#e5ebec;--page:#f5f7f7;--card:#fff;--shadow:0 6px 24px rgba(31,58,62,.045)}
+    *{box-sizing:border-box}[hidden]{display:none!important}html{font-family:'Be Vietnam Pro',sans-serif;color:var(--ink);background:var(--page)}body{margin:0;font-size:13px;line-height:1.5}button,input{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #86c9cc;outline-offset:2px}svg.icon{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.app{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr)}
+    .sidebar{background:#fff;border-right:1px solid var(--line);padding:27px 16px 20px;display:flex;flex-direction:column;gap:36px}.brand{display:flex;align-items:center;gap:10px;padding:0 10px;text-decoration:none;color:var(--ink)}.brand-mark{width:36px;height:36px;display:grid;place-items:center;background:var(--accent);color:#fff;border-radius:11px}.brand strong{font-size:14px;font-weight:600;letter-spacing:-.02em}.nav-section{margin:0 10px 9px;color:var(--muted);font-size:10px;font-weight:500}.nav-list{display:grid;gap:3px}.nav-list a{height:42px;padding:0 12px;display:flex;align-items:center;gap:11px;border-radius:10px;color:#52676d;text-decoration:none;font-weight:500}.nav-list a:hover,.nav-list a.active{background:var(--accent-soft);color:var(--accent)}.nav-secondary{margin-top:25px}.sidebar-bottom{margin-top:auto;padding:16px 10px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-decoration:none}.sidebar-bottom:hover{color:var(--accent)}
+    .content{min-width:0;padding:32px 38px 56px;max-width:1640px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:28px}.eyebrow{color:var(--accent);font-size:11px;font-weight:500;margin:0 0 3px}.top h1{font-size:27px;letter-spacing:-.035em;line-height:1.25;font-weight:600;margin:0 0 6px}.top p{margin:0;color:var(--muted)}.status{display:flex;align-items:center;gap:8px;color:#42636a;background:white;border:1px solid var(--line);border-radius:999px;padding:8px 12px;white-space:nowrap;font-weight:500}.dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+    .layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(340px,.85fr);gap:18px;align-items:start}.stack{display:grid;gap:18px}.panel{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}.panel-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.panel h2{font-size:16px;letter-spacing:-.02em;font-weight:600;line-height:1.35;margin:0}.subtle{font-size:11px;color:var(--muted)}.view-label{font-weight:500;color:var(--accent);background:var(--accent-soft);padding:5px 11px;border-radius:999px}
+    .viewport{height:335px;background:linear-gradient(135deg,#f1f5f4,#e8efee);border:1px solid #dce7e6;border-radius:13px;display:grid;place-items:center;text-align:center;position:relative;overflow:hidden}.viewport-inner{padding:20px}.viewport-title{font-size:17px;font-weight:500;margin:0 0 5px}.viewport-copy{font-size:12px;color:var(--muted);margin:0}.viewport-note{position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.82);padding:6px 9px;border-radius:7px}.measure-row{display:flex;gap:24px;margin-top:16px;padding:0 2px}.measure{display:flex;gap:6px;align-items:baseline}.measure span{color:var(--muted);font-size:12px}.measure strong{font-size:13px;font-weight:500}
+    .device-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.device{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;min-width:0}.device-icon{width:37px;height:37px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}.device-icon.off{background:#f1f3f3;color:#89979b}.device-copy{min-width:0;flex:1}.device-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.device-room{color:var(--muted);font-size:11px}.switch{width:36px;height:22px;padding:2px;border:0;background:#ccd6d7;border-radius:999px;flex:none;transition:background .15s}.switch:after{content:"";display:block;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .15s}.switch[aria-checked=true]{background:var(--accent)}.switch[aria-checked=true]:after{transform:translateX(14px)}
+    .voice-intro{color:var(--muted);font-size:12px;margin:-5px 0 15px}.btn{height:40px;border-radius:10px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:500;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;white-space:nowrap}.btn:hover{border-color:#b8d9d9}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:#096f76}.voice-actions{display:flex;gap:8px}.voice-actions .btn-primary{flex:1}.voice-actions .btn-secondary{flex:1}.voice-state{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 16px;font-size:12px;color:var(--muted)}.voice-state .left{display:flex;align-items:center;gap:7px}.voice-state .dot{background:#a9b6b9}.check{display:flex;align-items:center;gap:7px;cursor:pointer}.check input{accent-color:var(--accent);width:15px;height:15px;margin:0}.conversation{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:13px 0;display:grid;gap:11px}.talk-label{font-size:11px;color:var(--muted);margin-bottom:2px}.talk-text{font-size:12px}.talk-text.muted{color:#839196}.command{display:flex;gap:8px;margin-top:14px}.command input{min-width:0;flex:1;height:40px;border-radius:10px;border:1px solid var(--line);padding:0 11px;background:#fff}.command input::placeholder{color:#8b9a9e}.command .btn{min-width:60px}
+    .quick-list{display:grid;gap:8px}.quick{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;min-height:39px;padding:8px 11px;font-size:12px;color:#3c565c}.quick:hover{background:var(--accent-soft);border-color:#cce5e3}.panel-footer{margin-top:15px;padding-top:13px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}.text-link{color:var(--accent);text-decoration:none;font-weight:500;font-size:12px}.text-link:hover{text-decoration:underline}.empty{color:var(--muted);font-size:12px;margin:0}
+    @media(max-width:1100px){.content{padding:28px 24px 44px}.layout{grid-template-columns:minmax(0,1fr) minmax(310px,.8fr)}}
+    @media(max-width:850px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:22px 16px 88px}.layout{grid-template-columns:1fr}.top{margin-bottom:20px}.top h1{font-size:23px}.viewport{height:270px}.mobile-nav{display:flex!important}}
+    @media(max-width:500px){.top{align-items:center}.top p{font-size:11px}.status{font-size:0;padding:9px}.status .dot{width:8px;height:8px}.panel{padding:16px}.device-grid{gap:8px}.device{padding:9px;gap:7px}.device-icon{width:32px;height:32px}.device-icon .icon{width:16px;height:16px}.device-name{font-size:11px}.device-room{font-size:10px}.measure-row{gap:13px;flex-wrap:wrap}.voice-actions .btn{font-size:12px;padding:0 8px}}
+    .mobile-nav{display:none;position:fixed;z-index:10;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);height:68px;justify-content:space-around;align-items:center}.mobile-nav a{display:grid;justify-items:center;gap:3px;color:var(--muted);text-decoration:none;font-size:10px;font-weight:500;min-width:56px}.mobile-nav a.active{color:var(--accent)}.mobile-nav .icon{width:19px;height:19px}
+  </style>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM19 14h2M19 18h2v3h-4M14 20h2"/></symbol>
+    <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a2 2 0 0 1 4 0l-2 6M14 12h6a2 2 0 0 1 0 4l-6-2M12 14v6a2 2 0 0 1-4 0l2-6M10 12H4a2 2 0 0 1 0-4l6 2"/></symbol>
+    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1 19.1 4.9"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
+  </svg>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="#"><span class="brand-mark"><svg class="icon"><use href="#i-home"/></svg></span><strong>Nhà thông minh</strong></a>
+      <nav aria-label="Điều hướng chính">
+        <div class="nav-section">Điều khiển</div>
+        <div class="nav-list">
+          <a class="active" href="#" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        </div>
+        <div class="nav-section nav-secondary">Truy cập khác</div>
+        <div class="nav-list">
+          <a href="/app"><svg class="icon"><use href="#i-grid"/></svg>Ứng dụng</a>
+          <a href="/guest_enroll"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
+        </div>
+      </nav>
+      <a class="sidebar-bottom" href="/archify">Tài liệu dự án</a>
+    </aside>
+    <div class="content">
+      <header class="top">
+        <div><p class="eyebrow">Nhà thông minh</p><h1>Tổng quan</h1><p>Theo dõi và điều khiển ngôi nhà</p></div>
+        <div class="status" aria-label="Đã kết nối"><span class="dot"></span><span>Đã kết nối</span></div>
+      </header>
+      <main class="layout">
+        <div class="stack">
+          <section class="panel" aria-labelledby="house-title">
+            <div class="panel-header"><h2 id="house-title">Ngôi nhà</h2><span class="view-label">Toàn cảnh</span></div>
+            <div id="house3dViewport" class="viewport" aria-label="Khu vực mô hình 3D toàn cảnh">
+              <div class="viewport-inner"><p class="viewport-title">Mô hình 3D toàn cảnh</p><p class="viewport-copy">Khu vực hiển thị ngôi nhà</p></div>
+              <span class="viewport-note">Kéo để xoay. Cuộn để phóng to.</span>
+            </div>
+            <div class="measure-row"><div class="measure"><span>Nhiệt độ</span><strong>28°C</strong></div><div class="measure"><span>Độ ẩm đất</span><strong>55%</strong></div></div>
+          </section>
+          <section class="panel" aria-labelledby="device-title">
+            <div class="panel-header"><h2 id="device-title">Thiết bị</h2><span class="subtle">3 đang bật</span></div>
+            <div class="device-grid">
+              <div class="device"><span class="device-icon"><svg class="icon"><use href="#i-lamp"/></svg></span><div class="device-copy"><div class="device-name">Đèn phòng khách</div><div class="device-room">Phòng khách</div></div><button class="switch" role="switch" aria-label="Đèn phòng khách" aria-checked="true"></button></div>
+              <div class="device"><span class="device-icon"><svg class="icon"><use href="#i-fan"/></svg></span><div class="device-copy"><div class="device-name">Quạt trần</div><div class="device-room">Phòng khách</div></div><button class="switch" role="switch" aria-label="Quạt trần" aria-checked="true"></button></div>
+              <div class="device"><span class="device-icon off"><svg class="icon"><use href="#i-snow"/></svg></span><div class="device-copy"><div class="device-name">Điều hòa</div><div class="device-room">Phòng ngủ</div></div><button class="switch" role="switch" aria-label="Điều hòa" aria-checked="false"></button></div>
+              <div class="device"><span class="device-icon off"><svg class="icon"><use href="#i-door"/></svg></span><div class="device-copy"><div class="device-name">Cửa chính</div><div class="device-room">Đã khóa</div></div><button class="switch" role="switch" aria-label="Cửa chính" aria-checked="false"></button></div>
+              <div class="device"><span class="device-icon off"><svg class="icon"><use href="#i-drop"/></svg></span><div class="device-copy"><div class="device-name">Máy bơm</div><div class="device-room">Sân vườn</div></div><button class="switch" role="switch" aria-label="Máy bơm" aria-checked="false"></button></div>
+              <div class="device"><span class="device-icon"><svg class="icon"><use href="#i-lamp"/></svg></span><div class="device-copy"><div class="device-name">Đèn sân vườn</div><div class="device-room">Sân vườn</div></div><button class="switch" role="switch" aria-label="Đèn sân vườn" aria-checked="true"></button></div>
+              <div class="device"><span class="device-icon off"><svg class="icon"><use href="#i-bell"/></svg></span><div class="device-copy"><div class="device-name">Còi báo động</div><div class="device-room">Toàn nhà</div></div><button class="switch" role="switch" aria-label="Còi báo động" aria-checked="false"></button></div>
+            </div>
+            <div class="panel-footer"><span class="subtle">Điều khiển từng thiết bị ngay tại đây</span><a class="text-link" href="/auth">Đăng ký giọng nói</a></div>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="panel" aria-labelledby="voice-title">
+            <div class="panel-header"><h2 id="voice-title">Giọng nói</h2></div>
+            <p class="voice-intro">Nói điều bạn muốn làm trong nhà.</p>
+            <div class="voice-actions"><button class="btn btn-primary" type="button" id="voice-button"><svg class="icon"><use href="#i-mic"/></svg><span>Bắt đầu nói</span></button><button class="btn btn-secondary" type="button" id="end-button" hidden>Gửi ngay</button></div>
+            <div class="voice-state"><div class="left"><span class="dot" id="mic-dot"></span><span id="mic-state">Mic tắt</span></div><label class="check"><input type="checkbox" checked>Đọc phản hồi</label></div>
+            <div class="conversation"><div><div class="talk-label">Bạn nói</div><div class="talk-text muted" id="user-speech">Chưa có lệnh</div></div><div><div class="talk-label">Phản hồi</div><div class="talk-text">Sẵn sàng nhận lệnh của bạn.</div></div></div>
+            <form class="command" id="command-form"><input id="command-input" aria-label="Nhập lệnh" placeholder="Nhập lệnh cho ngôi nhà"><button class="btn" type="submit">Gửi</button></form>
+          </section>
+          <section class="panel" aria-labelledby="quick-title"><div class="panel-header"><h2 id="quick-title">Thử nhanh</h2></div><div class="quick-list"><button class="quick" type="button">Bật đèn phòng khách</button><button class="quick" type="button">Bật điều hòa và quạt</button><button class="quick" type="button">Hẹn tưới cây</button></div></section>
+          <section class="panel" aria-labelledby="schedule-title"><div class="panel-header"><h2 id="schedule-title">Lịch và tự động hóa</h2></div><p class="empty">Chưa có lịch hoặc quy tắc</p></section>
+        </div>
+      </main>
+    </div>
+  </div>
+  <nav class="mobile-nav" aria-label="Điều hướng di động"><a class="active" href="#" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Nhà</a><a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a><a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a><a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a></nav>
+  <script>
+    document.querySelectorAll('.switch').forEach(button=>button.addEventListener('click',()=>{const on=button.getAttribute('aria-checked')==='true';button.setAttribute('aria-checked',String(!on));button.closest('.device').querySelector('.device-icon').classList.toggle('off',on)}));
+    const voiceButton=document.getElementById('voice-button'),endButton=document.getElementById('end-button'),micState=document.getElementById('mic-state'),micDot=document.getElementById('mic-dot');let listening=false;
+    function setListening(on){listening=on;voiceButton.querySelector('span').textContent=on?'Dừng nghe':'Bắt đầu nói';endButton.hidden=!on;micState.textContent=on?'Đang nghe':'Mic tắt';micDot.style.background=on?'var(--accent)':'#a9b6b9'}
+    voiceButton.addEventListener('click',()=>setListening(!listening));endButton.addEventListener('click',()=>setListening(false));
+    document.getElementById('command-form').addEventListener('submit',event=>{event.preventDefault();const input=document.getElementById('command-input');if(input.value.trim()){const speech=document.getElementById('user-speech');speech.textContent=input.value.trim();speech.classList.remove('muted');input.value=''}});
+    document.querySelectorAll('.quick').forEach(button=>button.addEventListener('click',()=>{const speech=document.getElementById('user-speech');speech.textContent=button.textContent;speech.classList.remove('muted')}));
+  </script>
+</body>
+</html>

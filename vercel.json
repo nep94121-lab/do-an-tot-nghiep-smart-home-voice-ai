@@ -2,8 +2,23 @@
   "version": 2,
   "framework": null,
   "cleanUrls": false,
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Service-Worker-Allowed", "value": "/" },
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
+  ],
   "routes": [
     { "src": "^/api/(.*)$", "dest": "/api/index.py" },
+    { "src": "^/sw\\.js$", "dest": "/simulator/static/sw.js", "headers": { "Service-Worker-Allowed": "/" } },
+    { "src": "^/offline(\\.(html))?$", "dest": "/simulator/static/offline.html" },
+    { "src": "^/404(\\.(html))?$", "dest": "/simulator/static/404.html" },
+    { "src": "^/500(\\.(html))?$", "dest": "/simulator/static/500.html" },
+    { "src": "^/(qr_expired|qr-expired)(\\.(html))?$", "dest": "/simulator/static/qr_expired.html" },
+    { "src": "^/403(\\.(html))?$", "dest": "/simulator/static/403.html" },
     { "src": "^/static/(.*)$", "dest": "/simulator/static/$1" },
     { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
     { "src": "^/app/?$", "dest": "/mobile_app/index.html" },

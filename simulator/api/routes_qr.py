@@ -162,6 +162,7 @@ async def api_auth3_guest_qr_current(
 
 
 @router.post("/api/auth3/guest_qr_handshake")
+@router.post("/api/auth3/guest_handshake")
 @router.post("/api/auth3/guest/handshake")
 async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
     """Bắt tay xác thực mã QR 10 giây khi khách quét mã mở trang thu âm /guest_enroll."""

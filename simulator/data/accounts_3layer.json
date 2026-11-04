@@ -175,7 +175,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "16:58:14 04/11/2026"
+      "updated_at": "20:44:56 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -210,7 +210,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "16:58:14 04/11/2026"
+      "updated_at": "20:44:56 04/11/2026"
     },
     "permissions": [
       "Chỉ bật/tắt đèn & quạt cơ bản",
@@ -244,7 +244,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "16:58:14 04/11/2026"
+      "updated_at": "20:44:56 04/11/2026"
     },
     "permissions": [
       "Chỉ bật/tắt đèn & quạt cơ bản",
@@ -278,7 +278,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "16:58:20 04/11/2026"
+      "updated_at": "20:45:03 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -313,7 +313,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "16:58:23 04/11/2026"
+      "updated_at": "20:45:07 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -351,7 +351,7 @@
       "centroid_hz": 743.7,
       "reading_prompt_verified": true,
       "source_device": "Microphone Web Audio 16kHz",
-      "updated_at": "17:00:11 04/11/2026",
+      "updated_at": "20:47:05 04/11/2026",
       "embedding": [
         -0.12349,
         -0.24728,
@@ -480,7 +480,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "17:00:11 04/11/2026"
+      "updated_at": "20:47:06 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -517,7 +517,7 @@
       "centroid_hz": 2101.2,
       "reading_prompt_verified": true,
       "source_device": "Trang Đầu (Nhấn & Giữ Thu Âm)",
-      "updated_at": "17:11:45 04/11/2026",
+      "updated_at": "20:49:32 04/11/2026",
       "enrolled_phrase": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
       "hold_duration_sec": 3.5
     },
@@ -557,7 +557,7 @@
       "centroid_hz": 1989.0,
       "reading_prompt_verified": true,
       "source_device": "Samsung Galaxy S9 (App Android)",
-      "updated_at": "17:00:27 04/11/2026"
+      "updated_at": "20:47:30 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa"
@@ -591,7 +591,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "17:00:28 04/11/2026"
+      "updated_at": "20:47:31 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -626,7 +626,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "17:00:28 04/11/2026"
+      "updated_at": "20:47:31 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
@@ -661,7 +661,7 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "17:00:33 04/11/2026"
+      "updated_at": "20:47:36 04/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",

@@ -53,46 +53,6 @@
       "granted_by_name": "Thành viên A (Tầng 2)",
       "granted_by_tier": 2,
       "active": true
-    },
-    "kh_ch_i_h_c_b_ch_khoa": {
-      "id": "kh_ch_i_h_c_b_ch_khoa",
-      "name": "Khách Đại Học Bách Khoa",
-      "tier": 3,
-      "role": "CHILD_GUEST",
-      "granted_by": "tuan_anh",
-      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
-      "granted_by_tier": 1,
-      "active": true
-    },
-    "th_nh_vi_n_m_i": {
-      "id": "th_nh_vi_n_m_i",
-      "name": "Thành viên mới",
-      "tier": 2,
-      "role": "MEMBER",
-      "granted_by": "tuan_anh",
-      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
-      "granted_by_tier": 1,
-      "active": true
-    },
-    "b_n_i_h_c_hust": {
-      "id": "b_n_i_h_c_hust",
-      "name": "Bạn Đại Học HUST",
-      "tier": 3,
-      "role": "CHILD_GUEST",
-      "granted_by": "tuan_anh",
-      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
-      "granted_by_tier": 1,
-      "active": true
-    },
-    "kh_ch_otp_verify": {
-      "id": "kh_ch_otp_verify",
-      "name": "Khách OTP Verify",
-      "tier": 3,
-      "role": "CHILD_GUEST",
-      "granted_by": "tuan_anh",
-      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
-      "granted_by_tier": 1,
-      "active": true
     }
   },
   "user_pools": {
@@ -110,33 +70,6 @@
       "word_mappings": {},
       "aliases": {},
       "if_else_rules": []
-    },
-    "th_nh_vi_n_m_i": {
-      "word_mappings": {},
-      "aliases": {},
-      "if_else_rules": []
     }
-  },
-  "system_policies": {
-    "tier3_can_schedule_timer": false,
-    "tier3_can_custom_rules": false,
-    "tier3_can_grant_revoke": false,
-    "tier2_can_grant_tier2": false,
-    "tier2_can_revoke_same_tier": false,
-    "tier2_can_override_tier1": false,
-    "require_rule_confirmation": true,
-    "require_reset_confirmation": true,
-    "enrollment_signal_device_id": "living_room_light",
-    "enrollment_duration_seconds": 5,
-    "device_min_tiers": {
-      "main_door": 1,
-      "living_room_light": 3,
-      "bedroom_light": 3,
-      "fan": 3,
-      "ac": 2,
-      "alarm_siren": 1,
-      "garden_pump": 2
-    },
-    "custom_system_directives": []
   }
 }

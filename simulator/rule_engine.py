@@ -83,6 +83,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pending_rule: dict[str, Any] | None = None
         self.pending_voice_enrollment: dict[str, Any] | None = None
         self.server_connected: bool = True
+        self.pump_manual_override_off: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
         try:
             init_sqlite_database()
@@ -337,6 +338,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             else:
                 new_state = "ON" if act in ("open", "turn_on") else "OFF"
 
+            if dev_id == "garden_pump" and not str(source).startswith("Cảm biến đất"):
+                self.pump_manual_override_off = (new_state == "OFF")
+
             old_state = dev["state"]
             if old_state == new_state:
                 already_msg = f"{dev['name']} {self._state_verb_vi(dev['type'], new_state, already=True)}."
@@ -414,19 +418,21 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             system_policies=self.system_policies,
         )
 
-    async def update_sensor_telemetry(self, temp_c: float, humidity_pct: float, wifi_rssi_dbm: int = -52) -> dict[str, Any]:
+    async def update_sensor_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
+        t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
+        h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
         triggered: list[dict[str, Any]] = []
         for raw_dir in self.system_policies.get("custom_system_directives", []):
             d_low = str(raw_dir).lower()
             m_temp = re.search(r"nhiệt độ\s*(?:trên|>|lớn hơn|vượt)\s*(\d+(?:\.\d+)?)", d_low)
-            if m_temp and float(temp_c) > float(m_temp.group(1)):
+            if m_temp and t_clamped > float(m_temp.group(1)):
                 if any(k in d_low for k in ("mở điều hòa", "bật điều hòa", "ac")):
-                    res = await self.execute_device_action("ac", "open", source=f"DHT11 ({temp_c}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
+                    res = await self.execute_device_action("ac", "open", source=f"DHT11 ({t_clamped}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
                     triggered.extend(res.get("results", []))
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
-        spoken = f"Nhiệt độ phòng là {temp_c:.1f} độ C, độ ẩm {humidity_pct:.0f}%."
+        spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {
             "ok": True,
             "telemetry": self.mqtt_bridge.dht11_telemetry,
@@ -437,7 +443,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     async def update_soil_moisture_telemetry(
         self,
-        soil_moisture_pct: float,
+        soil_moisture_pct: Any,
         auto_pump_below_pct: float = 40.0,
         auto_stop_above_pct: float = 70.0,
     ) -> dict[str, Any]:
@@ -445,15 +451,23 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
         pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
         triggered: list[dict[str, Any]] = []
+        auto_action = "NONE"
+        if pct >= float(auto_pump_below_pct):
+            self.pump_manual_override_off = False
         if pct < float(auto_pump_below_pct):
-            res = await self.execute_device_action(
-                "garden_pump",
-                "turn_on",
-                source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% < {auto_pump_below_pct:.0f}%)",
-                bypass_rbac=True,
-            )
-            triggered.extend(res.get("results", []))
-            spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), máy bơm tưới cây đã tự động bật."
+            if getattr(self, "pump_manual_override_off", False) and self.devices.get("garden_pump", {}).get("state") == "OFF":
+                auto_action = "MANUAL_OVERRIDE_KEEP_OFF"
+                spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), nhưng máy bơm đang giữ trạng thái tắt do người dùng vừa tắt tay."
+            else:
+                res = await self.execute_device_action(
+                    "garden_pump",
+                    "turn_on",
+                    source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% < {auto_pump_below_pct:.0f}%)",
+                    bypass_rbac=True,
+                )
+                triggered.extend(res.get("results", []))
+                auto_action = "AUTO_PUMP_ON"
+                spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), máy bơm tưới cây đã tự động bật."
         elif pct >= float(auto_stop_above_pct) and self.devices.get("garden_pump", {}).get("state") == "ON":
             res = await self.execute_device_action(
                 "garden_pump",
@@ -462,12 +476,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 bypass_rbac=True,
             )
             triggered.extend(res.get("results", []))
+            auto_action = "AUTO_PUMP_OFF"
             spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
         else:
             spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
+            "auto_action": auto_action,
+            "pump_manual_override_off": bool(getattr(self, "pump_manual_override_off", False)),
             "telemetry": self.mqtt_bridge.soil_moisture_telemetry,
             "mqtt_packet": pkt,
             "triggered_actions": triggered,

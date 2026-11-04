@@ -260,14 +260,19 @@ class AuthTestSuiteMixin:
             "passed": not r14.get("ok", True),
         })
 
+        for c in cases:
+            c.setdefault("id", c.get("test_id", ""))
         passed_count = sum(1 for c in cases if c["passed"])
         self.latest_test_report = {
             "ok": passed_count == len(cases),
             "executed_at": _now_vn(),
+            "total": len(cases),
+            "passed": passed_count,
             "total_cases": len(cases),
             "passed_cases": passed_count,
             "summary": f"Đạt {passed_count}/{len(cases)} kịch bản kiểm thử toàn diện (3 Lớp + Phân cấp Link Mời + OAuth Gmail OTP + Thu âm Trang Đầu + Giọng nói Xóa/Bật Quyền)",
             "cases": cases,
+            "results": cases,
         }
         return self.latest_test_report
 

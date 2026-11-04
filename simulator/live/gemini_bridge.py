@@ -949,6 +949,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     elif mtype == "set_role":
                         new_role = str(msg.get("role", "tuan_anh"))
                         self.engine.set_active_user(new_role)
+                        _REST_ENGINE.set_active_user(new_role)
                         self.last_mic_turn_blocked = (
                             self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4
                         )

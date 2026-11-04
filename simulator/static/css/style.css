@@ -24,6 +24,11 @@
   --amber-soft: #f7efe2;
   --red: #c83e3b;
   --red-soft: #fbeae9;
+  --redsoft: #fdecea;
+  --orange: #d97706;
+  --orangesoft: #fff7ed;
+  --green: #15803d;
+  --greensoft: #ecfdf5;
   --shadow: 0 6px 24px rgba(31, 58, 62, 0.045);
 }
 
@@ -1047,3 +1052,86 @@ h2,
     height: 18px;
   }
 }
+
+/* ================= MILESTONE M7: SECURITY MODALS & WS BANNER ================= */
+.mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent-soft, #e6f3f2);
+  color: var(--accent, #087d85);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+}
+.mark .icon {
+  width: 24px;
+  height: 24px;
+}
+.mark.red {
+  background: var(--redsoft, #fdecea);
+  color: var(--red, #c0392b);
+}
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+.note.red {
+  background: var(--redsoft, #fdecea);
+  color: var(--red, #c0392b);
+  border: 1px solid #f4cbc6;
+}
+
+/* Banner Component */
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #f3d2a6;
+  background: var(--orangesoft, #fff7ed);
+  color: #794607;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.banner.hidden {
+  display: none !important;
+}
+.bannertext {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.banner button {
+  flex: none;
+}
+.banner.banner-restored {
+  background: var(--greensoft, #ecfdf5);
+  border-color: #a7f3d0;
+  color: var(--green, #15803d);
+}
+.banner.banner-sliding-out {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  padding: 0 14px;
+  margin: 0;
+  overflow: hidden;
+}
+@media (max-width: 600px) {
+  .banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .banner button {
+    width: 100%;
+  }
+}
+

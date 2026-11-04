@@ -449,6 +449,10 @@
     updateConnectionUI(snap.server_connected !== false);
     renderDevices(snap.devices || []);
 
+    if ((snap.unauthorized_strikes && snap.unauthorized_strikes >= 3) || snap.security_lockdown) {
+      triggerSecurityLockdown();
+    }
+
     if (snap.mqtt) {
       window._latestMqtt = snap.mqtt;
       if (window.SmartHome3D && window.SmartHome3D.updateSensors) {
@@ -509,6 +513,101 @@
     } catch (_) {}
   }
 
+  // WebSocket Reconnect Banner state (Milestone M7)
+  let wsRetryCount = 0;
+  const WS_MAX_RETRIES = 5;
+  let wsReconnectTimer = null;
+
+  function showWsReconnectBanner(attempt = 1, max = 5) {
+    const banner = byId("wsReconnectBanner");
+    const msg = byId("wsReconnectBannerMsg");
+    const subtext = byId("wsReconnectSubtext");
+    const btn = byId("btnWsReconnectNow");
+    if (!banner) return;
+    banner.classList.remove("hidden", "banner-restored", "banner-sliding-out");
+    if (btn) {
+      btn.style.display = "";
+      btn.disabled = false;
+      btn.textContent = "Kết nối ngay";
+    }
+    const iconContainer = banner.querySelector(".banner-icon");
+    if (iconContainer) {
+      iconContainer.innerHTML = '<path d="M3 3l18 18 M2 9a15 15 0 0 1 17-2 M6 13a9 9 0 0 1 8-1 M10 17a3 3 0 0 1 3 0"/>';
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (msg) msg.innerHTML = "<strong>Mất kết nối mạng.</strong>";
+      if (subtext) subtext.textContent = "Kiểm tra đường truyền Internet của bạn.";
+    } else if (attempt >= max) {
+      if (msg) msg.innerHTML = "<strong>Chưa khôi phục kết nối.</strong>";
+      if (subtext) subtext.textContent = "Thử lại để cập nhật trạng thái.";
+    } else {
+      if (msg) msg.innerHTML = "<strong>Mất kết nối thời gian thực tới ngôi nhà.</strong>";
+      if (subtext) subtext.textContent = `Đang kết nối lại (lần ${attempt}/${max})…`;
+    }
+  }
+
+  function hideWsReconnectBanner() {
+    const banner = byId("wsReconnectBanner");
+    if (banner) banner.classList.add("hidden");
+  }
+
+  function showWsRestoredBanner() {
+    const banner = byId("wsReconnectBanner");
+    const msg = byId("wsReconnectBannerMsg");
+    const subtext = byId("wsReconnectSubtext");
+    const btn = byId("btnWsReconnectNow");
+    if (!banner) return;
+
+    banner.classList.remove("hidden", "banner-sliding-out");
+    banner.classList.add("banner-restored");
+    if (btn) btn.style.display = "none";
+    if (msg) {
+      msg.innerHTML = "<strong>Đã khôi phục kết nối thời gian thực</strong>";
+    }
+    if (subtext) {
+      subtext.textContent = "";
+    }
+    const iconContainer = banner.querySelector(".banner-icon");
+    if (iconContainer) {
+      iconContainer.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
+    }
+
+    setTimeout(() => {
+      banner.classList.add("banner-sliding-out");
+      setTimeout(() => {
+        banner.classList.add("hidden");
+        banner.classList.remove("banner-restored", "banner-sliding-out");
+        if (btn) btn.style.display = "";
+        if (iconContainer) {
+          iconContainer.innerHTML = '<path d="M3 3l18 18 M2 9a15 15 0 0 1 17-2 M6 13a9 9 0 0 1 8-1 M10 17a3 3 0 0 1 3 0"/>';
+        }
+      }, 350);
+    }, 2000);
+  }
+
+  function retryWsConnection() {
+    if (wsReconnectTimer) {
+      clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = null;
+    }
+    const btn = byId("btnWsReconnectNow");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Đang thử...";
+    }
+    const subtext = byId("wsReconnectSubtext");
+    if (subtext) {
+      subtext.textContent = "Đang thử kết nối lại ngay...";
+    }
+    connectWebSocket();
+    setTimeout(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Kết nối ngay";
+      }
+    }, 2500);
+  }
+
   function connectWebSocket() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -516,6 +615,14 @@
     ws.onopen = () => {
       updateConnectionUI(true);
       logEvent("Đã kết nối tới máy chủ.", "info");
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+      if (wsRetryCount > 0) {
+        showWsRestoredBanner();
+      }
+      wsRetryCount = 0;
     };
 
     ws.onmessage = (ev) => {
@@ -610,6 +717,9 @@
               voiceLockoutNotice.hidden = true;
             }
           }
+          if ((a.strike_count && a.strike_count >= 3) || a.silent_ignore) {
+            triggerSecurityLockdown();
+          }
           break;
         }
 
@@ -625,6 +735,9 @@
             voiceLockoutNotice.hidden = false;
             voiceLockoutNotice.textContent = rejSpeech;
           }
+          if (msg.strike_count && msg.strike_count >= 3) {
+            triggerSecurityLockdown();
+          }
           // Server-Side Rejection TTS 24kHz: phát âm thanh server qua Web Audio API (không dùng speechSynthesis)
           if (msg.pcm24k_b64) {
             playPcm24kChunk(msg.pcm24k_b64);
@@ -638,6 +751,7 @@
             setUserTranscriptText(msg.label);
           }
           setAiReplyText("Đã tạm ngưng phản hồi với giọng nói chưa đăng ký.");
+          triggerSecurityLockdown();
           break;
 
         case "voice_enrolled": {
@@ -704,7 +818,14 @@
         .catch(() => {
           updateConnectionUI(false);
         });
-      setTimeout(connectWebSocket, 4000);
+
+      wsRetryCount = Math.min(WS_MAX_RETRIES, wsRetryCount + 1);
+      showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
+
+      if (wsRetryCount < WS_MAX_RETRIES) {
+        if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = setTimeout(connectWebSocket, 4000);
+      }
     };
   }
 
@@ -736,6 +857,10 @@
   }
 
   async function startMic() {
+    if (typeof window !== "undefined" && window.isSecureContext === false && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      showMicPermissionModal("insecure_context");
+      return;
+    }
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -846,6 +971,7 @@
       setMicListeningState(true);
     } catch (err) {
       liveAiTranscript.textContent = "Không thể mở microphone. Vui lòng kiểm tra quyền truy cập.";
+      showMicPermissionModal(err && err.name === "NotAllowedError" ? "permission_denied" : "mic_error");
     }
   }
 
@@ -1587,8 +1713,257 @@
   }
   initCameraToolbar();
 
+  // ================= MILESTONE M7: BẢO MẬT & MODALS =================
+  let isLockdownOtpMode = false;
+
+  function triggerSecurityLockdown(reason = "voice_auth_fail") {
+    const modal = byId("securityLockdownModal");
+    const desc = byId("lockdownDesc");
+    const statusBox = byId("lockdownStatusBox");
+    if (!modal) return;
+
+    const isSirenOn = latestDevicesMap && latestDevicesMap.alarm_siren &&
+      (latestDevicesMap.alarm_siren.state === "ON" || latestDevicesMap.alarm_siren.state === "OPEN");
+
+    if (desc) {
+      desc.textContent = isSirenOn
+        ? "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật."
+        : "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật.";
+    }
+    if (statusBox) {
+      statusBox.textContent = "";
+    }
+    modal.classList.remove("hidden");
+  }
+
+  function closeSecurityLockdownModal() {
+    const modal = byId("securityLockdownModal");
+    if (modal) modal.classList.add("hidden");
+  }
+
+  function toggleLockdownMode() {
+    isLockdownOtpMode = !isLockdownOtpMode;
+    const pwGroup = byId("lockdownPasswordGroup");
+    const otpGroup = byId("lockdownOtpGroup");
+    const toggleBtn = byId("btnLockdownToggleMode");
+    const unlockBtn = byId("btnLockdownUnlock");
+    const statusBox = byId("lockdownStatusBox");
+
+    if (pwGroup) pwGroup.style.display = isLockdownOtpMode ? "none" : "block";
+    if (otpGroup) otpGroup.style.display = isLockdownOtpMode ? "block" : "none";
+    if (toggleBtn) {
+      toggleBtn.textContent = isLockdownOtpMode ? "Dùng Mật khẩu Chủ nhà" : "Dùng mã OTP Gmail";
+    }
+    if (unlockBtn) {
+      unlockBtn.textContent = isLockdownOtpMode ? "Xác minh OTP và mở khóa" : "Xác minh và mở khóa";
+    }
+    if (statusBox) statusBox.textContent = "";
+  }
+
+  async function sendLockdownOtp() {
+    const statusBox = byId("lockdownStatusBox");
+    const sendBtn = byId("btnLockdownSendOtp");
+    if (statusBox) statusBox.textContent = "⏳ Đang gửi mã OTP đến Gmail nep94121@gmail.com...";
+    if (sendBtn) sendBtn.disabled = true;
+    try {
+      const res = await fetch("/api/auth3/forgot_password_send_otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "nep94121@gmail.com" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (statusBox) statusBox.textContent = "✅ Đã gửi mã OTP 6 số đến Gmail nep94121@gmail.com.";
+      } else {
+        if (statusBox) statusBox.textContent = `❌ ${data.error || "Không gửi được OTP."}`;
+      }
+    } catch (_) {
+      if (statusBox) statusBox.textContent = "❌ Lỗi mạng khi gửi OTP.";
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  async function unlockSecurityLockdown() {
+    const statusBox = byId("lockdownStatusBox");
+    const unlockBtn = byId("btnLockdownUnlock");
+    if (unlockBtn) unlockBtn.disabled = true;
+
+    try {
+      let ok = false;
+      let errMessage = "";
+
+      if (!isLockdownOtpMode) {
+        const pwInput = byId("lockdownPassword");
+        const password = pwInput ? pwInput.value.trim() : "";
+        if (!password) {
+          if (statusBox) statusBox.textContent = "❌ Vui lòng nhập mật khẩu Chủ nhà.";
+          if (unlockBtn) unlockBtn.disabled = false;
+          return;
+        }
+        if (statusBox) statusBox.textContent = "⏳ Đang xác minh mật khẩu...";
+        const res = await fetch("/api/auth3/layer1_login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: "nep94121@gmail.com",
+            password: password,
+            source: "SecurityLockdownModal",
+          }),
+        });
+        const data = await res.json();
+        ok = Boolean(data.ok);
+        errMessage = data.error || data.message || "Mật khẩu không chính xác.";
+      } else {
+        const otpInput = byId("lockdownOtp");
+        const otpCode = otpInput ? otpInput.value.trim() : "";
+        if (!otpCode || otpCode.length < 6) {
+          if (statusBox) statusBox.textContent = "❌ Vui lòng nhập đủ 6 chữ số OTP.";
+          if (unlockBtn) unlockBtn.disabled = false;
+          return;
+        }
+        if (statusBox) statusBox.textContent = "⏳ Đang xác minh mã OTP...";
+        const res = await fetch("/api/auth3/layer2_verify_otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: "nep94121@gmail.com",
+            otp_code: otpCode,
+            source: "SecurityLockdownModal",
+          }),
+        });
+        const data = await res.json();
+        ok = Boolean(data.ok);
+        errMessage = data.error || data.message || "Mã OTP không chính xác hoặc đã hết hạn.";
+      }
+
+      if (ok) {
+        sendWs({ type: "reset_voice_strikes" });
+
+        fetch("/api/device/alarm_siren", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state: "OFF" }),
+        }).catch(() => {});
+
+        if (voiceLockoutNotice) {
+          voiceLockoutNotice.hidden = true;
+          voiceLockoutNotice.textContent = "";
+        }
+
+        if (statusBox) statusBox.textContent = "✅ Xác minh thành công. Đang mở khóa...";
+        setTimeout(() => {
+          closeSecurityLockdownModal();
+          logEvent("Khóa an ninh đã được mở khóa thành công.", "info");
+        }, 400);
+      } else {
+        if (statusBox) statusBox.textContent = `❌ ${errMessage}`;
+      }
+    } catch (_) {
+      if (statusBox) statusBox.textContent = "❌ Lỗi mạng khi xác minh mở khóa.";
+    } finally {
+      if (unlockBtn) unlockBtn.disabled = false;
+    }
+  }
+
+  // Micro Permission Modal functions
+  function showMicPermissionModal(reason = "permission_denied") {
+    const modal = byId("micPermissionModal");
+    const desc = byId("micPermissionDesc");
+    const httpNote = byId("micPermissionHttpNote");
+    const httpsBtn = byId("btnMicPermissionHttps");
+    if (!modal) return;
+
+    const isHttp = location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
+    if (httpsBtn) {
+      if (isHttp) {
+        httpsBtn.style.display = "inline-flex";
+        httpsBtn.href = `https://${location.host}${location.pathname}${location.search}`;
+      } else {
+        httpsBtn.style.display = "none";
+      }
+    }
+    if (httpNote) {
+      httpNote.style.display = isHttp ? "block" : "none";
+    }
+
+    if (desc) {
+      if (reason === "insecure_context" || isHttp) {
+        desc.textContent = "Trình duyệt cần kết nối an toàn (HTTPS) để sử dụng microphone. Vui lòng mở trang qua liên kết HTTPS.";
+      } else {
+        desc.textContent = "Bạn đã chặn quyền micro. Mở cài đặt trang trong trình duyệt, chọn Micro → Cho phép, rồi thử lại.";
+      }
+    }
+
+    modal.classList.remove("hidden");
+  }
+
+  function closeMicPermissionModal() {
+    const modal = byId("micPermissionModal");
+    if (modal) modal.classList.add("hidden");
+  }
+
+  function retryMicPermission() {
+    closeMicPermissionModal();
+    startMic();
+  }
+
+  // Chống click ra ngoài và chống phím Escape đóng Lockdown Modal
+  const securityLockdownEl = byId("securityLockdownModal");
+  if (securityLockdownEl) {
+    securityLockdownEl.addEventListener("click", (e) => {
+      if (e.target === securityLockdownEl) {
+        e.stopPropagation();
+      }
+    });
+  }
+
+  // Gán Escape key listener
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const lModal = byId("securityLockdownModal");
+      if (lModal && !lModal.classList.contains("hidden")) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const mModal = byId("micPermissionModal");
+      if (mModal && !mModal.classList.contains("hidden")) {
+        closeMicPermissionModal();
+      }
+    }
+  });
+
+  // Export M7 functions to window
+  window.retryWsConnection = retryWsConnection;
+  window.showWsReconnectBanner = showWsReconnectBanner;
+  window.hideWsReconnectBanner = hideWsReconnectBanner;
+  window.triggerSecurityLockdown = triggerSecurityLockdown;
+  window.openSecurityLockdownModal = triggerSecurityLockdown;
+  window.closeSecurityLockdownModal = closeSecurityLockdownModal;
+  window.unlockSecurityLockdown = unlockSecurityLockdown;
+  window.toggleLockdownMode = toggleLockdownMode;
+  window.sendLockdownOtp = sendLockdownOtp;
+  window.showMicPermissionModal = showMicPermissionModal;
+  window.openMicPermissionModal = showMicPermissionModal;
+  window.closeMicPermissionModal = closeMicPermissionModal;
+  window.retryMicPermission = retryMicPermission;
+
   loadVoiceSamples();
   pollRestStateFallback();
   setInterval(pollRestStateFallback, 4000);
   connectWebSocket();
+
+  // Service Worker Registration (Zero-Inline-Script Compliance)
+  if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+    const registerSw = function() {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function() {});
+    };
+    if (document.readyState === "complete") {
+      registerSw();
+    } else {
+      window.addEventListener("load", registerSw);
+    }
+  }
 })();
+

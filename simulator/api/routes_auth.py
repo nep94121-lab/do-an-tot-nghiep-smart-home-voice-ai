@@ -538,6 +538,14 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         source=source,
         send_gmail=send_gmail,
     )
+    if res.get("ok") and not source.startswith("AutoTest"):
+        acc = res.get("account") or {}
+        tier_val = int(acc.get("tier") or res.get("tier") or 1)
+        acc_id = str(acc.get("account_id") or "")
+        role_map = {1: "tuan_anh", 2: "thanh_vien_a", 3: "khach_c"}
+        active_uid = acc_id if acc_id in _REST_ENGINE.users else role_map.get(tier_val, "khach_c")
+        _REST_ENGINE.set_active_user(active_uid)
+        await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="layer1_login",
@@ -546,7 +554,13 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         tier=int(res.get("account", {}).get("tier", 1)) if res.get("ok") else 99,
         details=res,
     )
-    return JSONResponse(res)
+    resp = JSONResponse(res)
+    if res.get("ok") and not source.startswith("AutoTest"):
+        acc = res.get("account") or {}
+        tier_val = int(acc.get("tier") or res.get("tier") or 1)
+        resp.set_cookie("sh_session_tier", str(tier_val), httponly=True, samesite="lax")
+        resp.set_cookie("sh_session_user", str(acc.get("account_id", "")), httponly=True, samesite="lax")
+    return resp
 
 
 @router.post("/api/auth3/layer2_verify_otp")
@@ -556,6 +570,14 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
     otp_code = str(payload.get("otp_code") or payload.get("otp") or "").strip()
     source = str(payload.get("source", "Web Portal")).strip()
     res = get_auth_3layer_manager().layer2_verify_otp(email=email, otp_input=otp_code, source=source)
+    if res.get("ok") and not source.startswith("AutoTest"):
+        tier_val = int(res.get("tier") or 1)
+        acc_obj = get_auth_3layer_manager().find_account(email) or {}
+        acc_id = str(acc_obj.get("account_id") or "")
+        role_map = {1: "tuan_anh", 2: "thanh_vien_a", 3: "khach_c"}
+        active_uid = acc_id if acc_id in _REST_ENGINE.users else role_map.get(tier_val, "khach_c")
+        _REST_ENGINE.set_active_user(active_uid)
+        await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="layer2_verify_otp",
@@ -564,7 +586,13 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
         tier=int(res.get("tier", 1)) if res.get("ok") else 99,
         details=res,
     )
-    return JSONResponse(res)
+    resp = JSONResponse(res)
+    if res.get("ok") and not source.startswith("AutoTest"):
+        tier_val = int(res.get("tier") or 1)
+        acc_obj = get_auth_3layer_manager().find_account(email) or {}
+        resp.set_cookie("sh_session_tier", str(tier_val), httponly=True, samesite="lax")
+        resp.set_cookie("sh_session_user", str(acc_obj.get("account_id", "")), httponly=True, samesite="lax")
+    return resp
 
 
 @router.post("/api/auth3/register_or_set_password")

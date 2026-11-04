@@ -2,7 +2,7 @@
 
 ## Architecture
 - **Web Frontend**: HTML5/CSS3/Vanilla JS + Three.js r128 (3D House Model) served by FastAPI & deployed to Vercel (`simulator/static/`, `mobile_app/`).
-- **Mobile PWA / View**: Dedicated lightweight mobile web interface (`/app` in `mobile_app/index.html`) optimized for touch and ADB mobile testing.
+- **Mobile PWA / View**: Dedicated lightweight mobile web interface (`/app` in `mobile_app/index.html`) optimized for touch, tab navigation, and ADB mobile testing.
 - **Backend Core**: FastAPI (`0.0.0.0:8088`), WebSocket `/ws`, SQLite WAL database (`simulator/data/smarthome.db`), TOTP Guest Handshake (`simulator/auth/qr_totp_mixin.py`).
 - **Voice Intelligence**: 3-tier Biometric Voice Verification (Wiener filter, Mel filterbank, deep formant & acoustic embeddings), Vietnamese intent parsing (`simulator/voice_auth.py`), real voice audio samples of Sếp Nguyễn Tuấn Anh (`test_audio/`).
 - **Multi-channel Connectivity**:
@@ -31,6 +31,14 @@
 | 15 | Real Voice Biometric Execution | Verify 7 real voice commands of Sếp Tuấn Anh triggering 5 devices (door, 2 lights, fan, AC) | M4 | Survey 3 |
 | 16 | ADB Mobile Testing & Screencap | Execute mobile flows on Samsung S9 via ADB, capture binary screenshots via `cmd /c`, visually verify | M4 | Survey 3 |
 | 17 | Test Suite 100% Pass & E2E Verification | Fix 9 modularization/fixture tests to achieve 570/570 tests PASS (100%) and DOM challenger pass | M5 | Survey 3 |
+| 18 | Web Error Pages & Offline Service Worker | Create `sw.js` (network-first, offline cache), `offline.html`, `404.html`, `500.html`, `qr_expired.html`, `403.html` matching Codex mockups | M6 | Survey P2 Web |
+| 19 | FastAPI Content-Negotiation 404 Handler | Route 404: return `404.html` for browser navigations (`text/html`), retain JSON 404 for `/api/*`, serve `/sw.js` with `Service-Worker-Allowed: /` | M6 | Survey P2 Web |
+| 20 | Security Lockdown Modal | Modal `#securityLockdownModal` on 3-strike voice violation, admin pass/OTP recovery, backdrop unskippable | M7 | Survey P2 Web |
+| 21 | Mic Permission & WS Reconnect Banner | Modal `#micPermissionModal` (retry, HTTPS guidance) & Banner `#wsReconnectBanner` (reconnecting status, retry button, restored toast) | M7 | Survey P2 Web |
+| 22 | Mobile /app 5 Screens & Tab Switcher | 5 screens (M1 Home & Sensors, M2 Account & Tabs, M3 Forgot Pass OTP, M4 Voice Bottom Sheet, M5 QR Camera Scanner) preserving DOM IDs | M8 | Survey P2 Mobile |
+| 23 | Android Compose Freeze Policy | Maintain existing Android Compose code frozen per R3; focus primary mobile testing on Mobile Web PWA | M8 | Survey P2 Mobile |
+| 24 | 3-Role QA Live Test & 100% Pytest Pass | Test live on `http://localhost:8088` for Chủ nhà, Gia đình, Khách (QR handshake); ensure 100% pytest PASS | M9 | Survey P2 QA |
+| 25 | Delivery, Git Push & Vercel Production | Consolidate Phase 1 + 2 in `FIX_REPORT_20261104.md`, git commit & push master, deploy Vercel prod | M10 | Survey P2 QA |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -40,26 +48,43 @@
 | M3 | 3D Model DOM, Controls & Raycaster | house3d.js label preserve, style.css pin icons, camera toolbar, THREE.Raycaster | M2 | DONE |
 | M4 | Real Voice & ADB Mobile Verification | 7 real voice commands to 5 devices, Samsung S9 ADB test flows with visual screenshots | M1, M2, M3 | DONE |
 | M5 | E2E Test Suite & Integrity Audits | 678/678 pytest PASS, DOM challenger 36/36, forensic integrity audit CLEAN | M1, M2, M3, M4 | DONE |
+| M6 | Web Error Pages & Service Worker (Group a) | `sw.js`, `offline.html`, `404.html`, `500.html`, `qr_expired.html`, `403.html`, FastAPI 404 content-negotiation handler, vercel.json | M5 | DONE |
+| M7 | Security Banner & Modals (Group b) | Lockdown modal (`#securityLockdownModal`), mic modal (`#micPermissionModal`), WS reconnect banner (`#wsReconnectBanner`), DOM preservation | M6 | DONE |
+| M8 | Mobile /app 5 Screens (Group c + d) | M1-M5 screens, tab switcher navigation, DOM backward compatibility, Android Compose status | M6, M7 | DONE |
+| M9 | 3-Role QA Live Flow & 100% Pytest (Group e + f) | 3-role live browser testing (Chủ nhà, Gia đình, Khách), 100% pytest PASS, review against DESIGN_NEW_PAGES.md | M6, M7, M8 | DONE |
+| M10 | Delivery, Git Push & Vercel Prod | FIX_REPORT_20261104.md complete, master git commit & push, Vercel deploy | M9 | DONE |
 
 ## Interface Contracts
 ### Web / Mobile ↔ Backend QR TOTP
 - `GET /api/auth3/guest_qr_current?host=<chosen_host>` -> `{ ok: true, qr_svg: "<svg...", full_url: "...", token: "..." }`
 - `POST /api/auth3/guest_handshake` -> payload `{ token: string, duration: string, tier: 3 }` -> response `{ ok: true, session: {...} }` or `{ ok: false, error: string }` (HTTP 200/400/401). Window tolerance: 180s (18 windows).
 
-### Frontend 3D ↔ Device Actuator
-- `SmartHome3D.setCameraView(preset)`: preset in `['overview', 'living', 'bedroom', 'door', 'garden', 'board', 'rotate']`
-- `SmartHome3D.init(canvasContainerId, overlayLabelsId, onToggleDevice)`: `onToggleDevice(deviceId)` invoked either by clicking `.pin-3d` or Raycaster click on 3D meshes.
+### Web Error Pages & Service Worker
+- `GET /sw.js`: returns `simulator/static/sw.js` with header `Service-Worker-Allowed: /`.
+- Service Worker handles `request.mode === 'navigate'`, network-first, fallback to `/offline.html` on network failure. Ignores `/api/*` and non-GET requests.
+- `GET /nonexistent_page`:
+  - If `Accept: text/html` -> HTTP 404 with HTML body `404.html`.
+  - If `/api/*` or `application/json` -> HTTP 404 with JSON body `{"detail": "Not Found"}`.
+- Static error pages: `/offline.html`, `/404.html`, `/500.html`, `/qr_expired.html`, `/403.html` styled with Tailwind-like CSS matching `ui_mockups/v2_new_pages/np_*.html`.
 
-### Voice Engine ↔ State Engine
-- `SmartHomeVoiceAuth.verify_voice_command(wav_bytes)` -> `{ verified: bool, tier: int, speaker: str, intents: [{ device: str, action: str }] }`
-- `SmartHomeEngine.execute_device_action(device_id, action)` -> updates device state, SQLite WAL, broadcasts to WebSocket `/ws`.
+### Modals & Banners Contract
+- Lockdown Modal: `#securityLockdownModal`, triggered when unauthorized strike count >= 3 or security lockdown event received. Unlock via Admin Password (`/api/auth3/layer1_login`) or Gmail OTP (`/api/auth3/forgot_password_send_otp`). Calls `reset_strikes()` on success.
+- Mic Permission Modal: `#micPermissionModal`, displayed when `getUserMedia` throws NotAllowedError or when context is not secure (`isSecureContext === false`).
+- WebSocket Reconnect Banner: `#wsReconnectBanner`, displayed when WS connection is lost/reconnecting. Retry count 1..5. Calls `window.retryWsConnection()` on button click. On reconnect, shows green badge for 2s then slides out.
+
+### Mobile /app Navigation & Screen Contracts
+- 4-tab Navigation bar: `#mobileNavTabHome`, `#mobileNavTabDevices`, `#mobileNavTabVoice`, `#mobileNavTabAccount`.
+- Function `window.switchMobileTab(tabName)` changes active screen and updates tab active indicator.
+- Function `window.scrollToSection(sectionId)` mapped to appropriate tab to maintain 100% backward compatibility with `test_challenger_m4_dom.py`.
+- Forgot password screen accessible from Account / Login Gate modal via `#mobileBtnForgotPassword`.
+- Voice bottom sheet opened via `#mobileBtnVoiceSheet` or mic icon.
 
 ## Code Layout
-- `simulator/static/`: Web frontend (index.html, auth.html, guest_enroll.html, house3d.js, css/style.css, js/app.js, js/auth.js).
-- `mobile_app/`: Mobile PWA frontend (index.html, mobile_app.js).
-- `simulator/api/`: FastAPI route handlers (routes_qr.py, routes_device.py, etc.).
+- `simulator/static/`: Web frontend (index.html, auth.html, guest_enroll.html, house3d.js, css/style.css, js/app.js, js/auth.js, sw.js, offline.html, 404.html, 500.html, qr_expired.html, 403.html).
+- `mobile_app/`: Mobile PWA frontend (index.html, mobile_app.js, style.css).
+- `simulator/api/`: FastAPI route handlers (routes_qr.py, routes_device.py, routes_auth.py, etc.).
 - `simulator/auth/`: Auth & TOTP mixins (qr_totp_mixin.py, auth_3layer.py).
 - `simulator/`: Server core (server.py, voice_auth.py, state_engine.py).
-- `test_audio/`: Real voice audio assets and manifests.
-- `tests/`: Automated test suites (pytest, tests/test_challenger_m4_dom.py, tests/e2e/).
+- `ui_mockups/v2_new_pages/`: Authoritative design mockups (np_*.html, DESIGN_NEW_PAGES.md).
+- `tests/`: Automated test suites (pytest, tests/test_challenger_*.py, tests/e2e/).
 - `vercel.json`: Vercel routing configuration.

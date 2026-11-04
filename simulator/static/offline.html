@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Mất kết nối · Nhà thông minh</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap');
+    :root {
+      --page: #f5f7f7;
+      --card: #ffffff;
+      --ink: #172b31;
+      --muted: #687a80;
+      --line: #e5ebec;
+      --accent: #087d85;
+      --soft: #e6f3f2;
+      --red: #c0392b;
+      --redsoft: #fdecea;
+      --orange: #d97706;
+      --orangesoft: #fff7ed;
+      --green: #15803d;
+      --greensoft: #ecfdf5;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font: 13px/1.5 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+    }
+    button, input { font: inherit; }
+    button, a.btn {
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    button:focus-visible, a:focus-visible, input:focus-visible {
+      outline: 3px solid #86c9cc;
+      outline-offset: 2px;
+    }
+    .primary {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: #ffffff;
+    }
+    .primary:hover {
+      background: #06676e;
+      border-color: #06676e;
+    }
+    .secondary {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+    .secondary:hover {
+      background: var(--soft);
+      border-color: #cbd7d9;
+    }
+    .icon {
+      width: 20px;
+      height: 20px;
+      flex: none;
+    }
+    .stage {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 6px 24px rgba(31, 58, 62, 0.045);
+    }
+    .error {
+      width: min(560px, 100%);
+      padding: 36px;
+    }
+    .brand {
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 24px;
+      font-size: 15px;
+    }
+    .mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--soft);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+      margin-bottom: 20px;
+    }
+    .mark .icon {
+      width: 24px;
+      height: 24px;
+    }
+    .eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin: 0 0 8px;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 26px;
+      line-height: 1.3;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); }
+    .note {
+      background: #fafcfc;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 20px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    @media (max-width: 600px) {
+      .error { padding: 24px 16px; }
+      .actions { display: grid; }
+      .actions > * { width: 100%; }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="error card">
+      <div class="brand">Nhà thông minh</div>
+      <div class="mark">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 3l18 18 M2 9a15 15 0 0 1 17-2 M6 13a9 9 0 0 1 8-1 M10 17a3 3 0 0 1 3 0"/>
+        </svg>
+      </div>
+      <p class="eyebrow">KẾT NỐI</p>
+      <h1>Mất kết nối tới Máy chủ Nhà thông minh</h1>
+      <p class="muted">Không thể cập nhật trạng thái ngôi nhà lúc này.</p>
+      <div class="note">
+        <strong>Trạng thái mạch</strong>
+        <p style="margin:8px 0 0" id="circuitStatusText">Chưa thể xác nhận trạng thái mạch. Kiểm tra trực tiếp tại nhà.</p>
+      </div>
+      <p class="muted" style="margin-top:16px" id="retryCountdownText">Đang thử kết nối lại sau 4 giây…</p>
+      <div class="actions">
+        <button class="primary" type="button" id="btnRetryNow" onclick="checkConnection()">Thử kết nối lại</button>
+        <button class="secondary" type="button" id="btnBackupServer" style="display:none;" onclick="goToBackup()">Chuyển sang Server Dự phòng</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:12px;display:none;" id="backupNote">Chỉ hiện nút dự phòng khi có máy chủ tin cậy đã cấu hình.</p>
+    </section>
+  </main>
+
+  <script>
+    let countdown = 4;
+    let timer = null;
+    let isChecking = false;
+
+    function checkConnection() {
+      if (isChecking) return;
+      isChecking = true;
+      const statusEl = document.getElementById('retryCountdownText');
+      if (statusEl) statusEl.textContent = 'Đang kiểm tra kết nối…';
+
+      fetch('/favicon.ico', { method: 'HEAD', cache: 'no-store' })
+        .then(function(res) {
+          if (res.ok || res.status === 204 || res.status === 200) {
+            if (statusEl) statusEl.textContent = 'Đã khôi phục kết nối! Đang quay lại…';
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get('from') || document.referrer || '/';
+            setTimeout(function() { window.location.href = returnUrl; }, 400);
+          } else {
+            resetTimer(5);
+          }
+        })
+        .catch(function() {
+          resetTimer(Math.min(countdown + 2, 8));
+        })
+        .finally(function() {
+          isChecking = false;
+        });
+    }
+
+    function resetTimer(seconds) {
+      countdown = seconds;
+      const statusEl = document.getElementById('retryCountdownText');
+      if (statusEl) statusEl.textContent = 'Đang thử kết nối lại sau ' + countdown + ' giây…';
+    }
+
+    function tick() {
+      countdown--;
+      const statusEl = document.getElementById('retryCountdownText');
+      if (countdown <= 0) {
+        checkConnection();
+      } else if (statusEl) {
+        statusEl.textContent = 'Đang thử kết nối lại sau ' + countdown + ' giây…';
+      }
+    }
+
+    timer = setInterval(tick, 1000);
+
+    window.addEventListener('online', function() {
+      checkConnection();
+    });
+
+    function goToBackup() {
+      try {
+        const backupUrl = localStorage.getItem('backup_server_url');
+        if (backupUrl) {
+          window.location.href = backupUrl;
+        }
+      } catch (e) {}
+    }
+
+    // Check if backup server is configured
+    try {
+      const backupUrl = localStorage.getItem('backup_server_url');
+      const btnBackup = document.getElementById('btnBackupServer');
+      const backupNote = document.getElementById('backupNote');
+      if (backupUrl && btnBackup) {
+        btnBackup.style.display = 'inline-flex';
+        if (backupNote) backupNote.style.display = 'block';
+      }
+    } catch (e) {}
+  </script>
+</body>
+</html>

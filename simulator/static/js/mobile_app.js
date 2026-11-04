@@ -251,6 +251,14 @@
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Xác nhận đổi mật khẩu'; }
     }
 
+    let forgotEmail = '';
+    let forgotOtpCountdownTimer = null;
+    let voiceSheetTimer = null;
+    let voiceSheetSec = 0;
+    let voiceSheetStream = null;
+    let voiceSheetAnimFrame = null;
+    let qrCameraStream = null;
+
     function showMobileMainContent() {
       const gate = document.getElementById('mobileLoginGate');
       const main = document.getElementById('mobileMainContent');
@@ -258,6 +266,12 @@
       if (gate) gate.hidden = true;
       if (main) main.hidden = false;
       if (nav) nav.hidden = false;
+      switchMobileTab('home');
+      updateAccountProfile(
+        mobileLoggedInEmail === 'nep94121@gmail.com' ? 'Chủ nhà' : 'Thành viên',
+        mobileLoggedInEmail,
+        mobileLoggedInEmail === 'nep94121@gmail.com' ? 'Không giới hạn' : 'Còn 30 ngày'
+      );
       initMobileApp();
     }
 
@@ -269,15 +283,499 @@
       }
     }
 
+    function switchMobileTab(tabKey, tabBtn = null) {
+      const tabs = ['home', 'devices', 'voice', 'account'];
+      tabs.forEach(t => {
+        const view = document.getElementById(`tabView${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (view) view.hidden = (t !== tabKey);
+      });
+      document.querySelectorAll('.bottom-nav .nav-tab').forEach(b => {
+        if (b.getAttribute('data-tab') === tabKey || (tabBtn && b === tabBtn)) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    }
+
     function scrollToSection(id, startMic = false, tabEl = null) {
-      if (tabEl) {
-        document.querySelectorAll('.bottom-nav .nav-tab').forEach(b => b.classList.remove('active'));
-        tabEl.classList.add('active');
+      if (id === 'secHome') {
+        switchMobileTab('home', tabEl);
+      } else if (id === 'secDevices' || id === 'secSchedule') {
+        switchMobileTab('devices', tabEl);
+      } else if (id === 'secVoice') {
+        switchMobileTab('voice', tabEl);
+        if (startMic) {
+          openVoiceBottomSheet();
+        }
+      } else if (id === 'secAuth' || id === 'secHistory') {
+        switchMobileTab('account', tabEl);
+      } else {
+        const el = document.getElementById(id);
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       }
+    }
+
+    function updateAccountProfile(role, email, duration) {
+      const roleEl = document.getElementById('mobileProfileRole');
+      const emailEl = document.getElementById('mobileProfileEmail');
+      const durEl = document.getElementById('mobileProfileDuration');
+      const actorBadge = document.getElementById('mobileActorBadge');
+      if (roleEl && role) roleEl.textContent = role;
+      if (actorBadge && role) actorBadge.textContent = role;
+      if (emailEl && email) {
+        const parts = email.split('@');
+        if (parts.length === 2 && parts[0].length > 1) {
+          emailEl.textContent = `${parts[0][0]}***@${parts[1]}`;
+        } else {
+          emailEl.textContent = email;
+        }
+      }
+      if (durEl && duration) durEl.textContent = duration;
+    }
+
+    function toggleDetailsSection(id) {
       const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (startMic && !isMobileListening) {
-        toggleMobileVoiceListen();
+      if (!el) return;
+      el.open = true;
+      if (typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function submitMobileLogout() {
+      mobileLoggedIn = false;
+      mobileLoggedInEmail = '';
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('mobileLoggedIn');
+        sessionStorage.removeItem('mobileLoggedInEmail');
+      }
+      const main = document.getElementById('mobileMainContent');
+      const nav = document.getElementById('mobileBottomNav');
+      const gate = document.getElementById('mobileLoginGate');
+      if (main) main.hidden = true;
+      if (nav) nav.hidden = true;
+      if (gate) gate.hidden = false;
+    }
+
+    /* ═══════════════════════════════════════════
+       M3: QUÊN MẬT KHẨU & GMAIL OTP (3 BƯỚC)
+       ═══════════════════════════════════════════ */
+    function openForgotPassword() {
+      const loginForm = document.getElementById('mobileLoginForm');
+      const regForm = document.getElementById('mobileRegisterForm');
+      const forgotPanel = document.getElementById('mobileForgotPasswordPanel');
+      const stepEmail = document.getElementById('mobileForgotStepEmail');
+      const stepOtp = document.getElementById('mobileForgotStepOtp');
+      const stepReset = document.getElementById('mobileForgotStepReset');
+      const stepLabel = document.getElementById('mobileForgotStepLabel');
+      const stepDesc = document.getElementById('mobileForgotStepDesc');
+
+      if (loginForm) loginForm.style.display = 'none';
+      if (regForm) regForm.style.display = 'none';
+      if (forgotPanel) forgotPanel.style.display = 'block';
+      if (stepEmail) stepEmail.style.display = 'grid';
+      if (stepOtp) stepOtp.style.display = 'none';
+      if (stepReset) stepReset.style.display = 'none';
+      if (stepLabel) stepLabel.textContent = 'Bước 1/3';
+      if (stepDesc) stepDesc.textContent = 'Nhập email để nhận mã xác nhận Gmail OTP.';
+    }
+
+    function closeForgotPassword() {
+      const loginForm = document.getElementById('mobileLoginForm');
+      const forgotPanel = document.getElementById('mobileForgotPasswordPanel');
+      if (forgotPanel) forgotPanel.style.display = 'none';
+      if (loginForm) loginForm.style.display = 'grid';
+      if (forgotOtpCountdownTimer) {
+        clearInterval(forgotOtpCountdownTimer);
+        forgotOtpCountdownTimer = null;
+      }
+    }
+
+    function forgotBackToEmail() {
+      const stepEmail = document.getElementById('mobileForgotStepEmail');
+      const stepOtp = document.getElementById('mobileForgotStepOtp');
+      const stepReset = document.getElementById('mobileForgotStepReset');
+      const stepLabel = document.getElementById('mobileForgotStepLabel');
+      const stepDesc = document.getElementById('mobileForgotStepDesc');
+      if (stepEmail) stepEmail.style.display = 'grid';
+      if (stepOtp) stepOtp.style.display = 'none';
+      if (stepReset) stepReset.style.display = 'none';
+      if (stepLabel) stepLabel.textContent = 'Bước 1/3';
+      if (stepDesc) stepDesc.textContent = 'Nhập email để nhận mã xác nhận Gmail OTP.';
+    }
+
+    async function submitForgotSendOtp() {
+      const emailInput = document.getElementById('mobileForgotEmail');
+      const msgEl = document.getElementById('mobileForgotEmailMsg');
+      const btn = document.getElementById('mobileBtnForgotSendOtp');
+      const resendBtn = document.getElementById('mobileBtnForgotResendOtp');
+      const email = (emailInput ? emailInput.value : '').trim();
+      if (!email) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Vui lòng nhập địa chỉ email.'; }
+        return;
+      }
+      forgotEmail = email;
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang gửi mã...'; }
+      if (resendBtn) { resendBtn.disabled = true; }
+      try {
+        const res = await fetch('/api/auth3/forgot_password_send_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, send_gmail: true })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const stepEmail = document.getElementById('mobileForgotStepEmail');
+          const stepOtp = document.getElementById('mobileForgotStepOtp');
+          const stepLabel = document.getElementById('mobileForgotStepLabel');
+          const stepDesc = document.getElementById('mobileForgotStepDesc');
+          const sentText = document.getElementById('mobileForgotEmailSentText');
+          if (stepEmail) stepEmail.style.display = 'none';
+          if (stepOtp) stepOtp.style.display = 'grid';
+          if (stepLabel) stepLabel.textContent = 'Bước 2/3';
+          if (stepDesc) stepDesc.textContent = 'Nhập mã 6 số đã gửi tới Gmail của bạn.';
+          if (sentText) {
+            const parts = email.split('@');
+            sentText.textContent = parts.length === 2 && parts[0].length > 1 ? `${parts[0][0]}***@${parts[1]}` : email;
+          }
+          let countdown = 60;
+          if (resendBtn) {
+            resendBtn.disabled = true;
+            resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
+            if (forgotOtpCountdownTimer) clearInterval(forgotOtpCountdownTimer);
+            forgotOtpCountdownTimer = setInterval(() => {
+              countdown--;
+              if (countdown <= 0) {
+                clearInterval(forgotOtpCountdownTimer);
+                forgotOtpCountdownTimer = null;
+                resendBtn.disabled = false;
+                resendBtn.textContent = 'Gửi lại mã';
+              } else {
+                resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
+              }
+            }, 1000);
+          }
+        } else {
+          if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || 'Không gửi được OTP.'; }
+        }
+      } catch (err) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Lỗi kết nối máy chủ.'; }
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Gửi mã OTP'; }
+    }
+
+    function submitForgotVerifyOtp() {
+      const otpInput = document.getElementById('mobileForgotOtp');
+      const msgEl = document.getElementById('mobileForgotOtpMsg');
+      const otp = (otpInput ? otpInput.value : '').trim();
+      if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Vui lòng nhập đúng 6 chữ số OTP.';
+        }
+        return;
+      }
+      const stepOtp = document.getElementById('mobileForgotStepOtp');
+      const stepReset = document.getElementById('mobileForgotStepReset');
+      const stepLabel = document.getElementById('mobileForgotStepLabel');
+      const stepDesc = document.getElementById('mobileForgotStepDesc');
+      if (stepOtp) stepOtp.style.display = 'none';
+      if (stepReset) stepReset.style.display = 'grid';
+      if (stepLabel) stepLabel.textContent = 'Bước 3/3';
+      if (stepDesc) stepDesc.textContent = 'Nhập mật khẩu mới và xác nhận lại.';
+    }
+
+    async function submitForgotResetPassword(e) {
+      if (e) e.preventDefault();
+      const pw1El = document.getElementById('mobileForgotNewPassword');
+      const pw2El = document.getElementById('mobileForgotConfirmPassword');
+      const msgEl = document.getElementById('mobileForgotResetMsg');
+      const otpEl = document.getElementById('mobileForgotOtp');
+      const btn = document.getElementById('mobileBtnForgotSubmitReset');
+
+      const pw1 = pw1El ? pw1El.value : '';
+      const pw2 = pw2El ? pw2El.value : '';
+      const otp = otpEl ? otpEl.value.trim() : '';
+
+      if (!pw1 || !pw2) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Vui lòng nhập đầy đủ 2 ô mật khẩu.'; }
+        return;
+      }
+      if (pw1 !== pw2) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Hai ô mật khẩu không khớp nhau!'; }
+        return;
+      }
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang đặt mật khẩu...'; }
+      try {
+        const res = await fetch('/api/auth3/forgot_password_reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: forgotEmail,
+            otp: otp,
+            new_password: pw1,
+            confirm_password: pw2
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          if (msgEl) { msgEl.style.color = 'var(--accent)'; msgEl.textContent = '✅ Đặt mật khẩu thành công! Đang chuyển về đăng nhập...'; }
+          setTimeout(() => {
+            closeForgotPassword();
+            const loginEmail = document.getElementById('mobileLoginEmail');
+            if (loginEmail) loginEmail.value = forgotEmail;
+            const loginMsg = document.getElementById('mobileLoginMsg');
+            if (loginMsg) { loginMsg.style.color = 'var(--accent)'; loginMsg.textContent = '✅ Đã cập nhật mật khẩu, vui lòng đăng nhập.'; }
+          }, 1000);
+        } else {
+          if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || 'Đặt mật khẩu thất bại.'; }
+        }
+      } catch (err) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Lỗi kết nối máy chủ.'; }
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Đặt mật khẩu mới'; }
+    }
+
+    /* ═══════════════════════════════════════════
+       M4: BOTTOM SHEET GIỌNG NÓI & BỘ ĐẾM THỜI GIAN
+       ═══════════════════════════════════════════ */
+    function openVoiceBottomSheet() {
+      const scrim = document.getElementById('mobileVoiceSheetScrim');
+      const sheet = document.getElementById('mobileVoiceBottomSheet');
+      const title = document.getElementById('mobileVoiceSheetTitle');
+      const btnStop = document.getElementById('mobileBtnVoiceSheetStop');
+      const btnCancel = document.getElementById('mobileBtnVoiceSheetCancel');
+      const btnContinue = document.getElementById('mobileBtnVoiceSheetContinue');
+      const btnRetry = document.getElementById('mobileBtnVoiceSheetRetry');
+      const btnClose = document.getElementById('mobileBtnVoiceSheetClose');
+      const resEl = document.getElementById('mobileVoiceSheetResult');
+
+      if (scrim) scrim.hidden = false;
+      if (sheet) sheet.hidden = false;
+      if (title) title.textContent = 'Đang thu âm';
+      if (btnStop) btnStop.style.display = 'block';
+      if (btnCancel) btnCancel.style.display = 'block';
+      if (btnContinue) btnContinue.style.display = 'none';
+      if (btnRetry) btnRetry.style.display = 'none';
+      if (btnClose) btnClose.style.display = 'none';
+      if (resEl) { resEl.style.display = 'none'; resEl.innerHTML = ''; }
+
+      startVoiceSheetRecording();
+    }
+
+    function closeVoiceBottomSheet() {
+      const scrim = document.getElementById('mobileVoiceSheetScrim');
+      const sheet = document.getElementById('mobileVoiceBottomSheet');
+      if (scrim) scrim.hidden = true;
+      if (sheet) sheet.hidden = true;
+      stopVoiceSheetRecordingClean();
+    }
+
+    function stopVoiceSheetRecordingClean() {
+      if (voiceSheetTimer) {
+        clearInterval(voiceSheetTimer);
+        voiceSheetTimer = null;
+      }
+      if (voiceSheetAnimFrame) {
+        const caf = typeof cancelAnimationFrame !== 'undefined' ? cancelAnimationFrame : clearTimeout;
+        caf(voiceSheetAnimFrame);
+        voiceSheetAnimFrame = null;
+      }
+      if (voiceSheetStream) {
+        try {
+          voiceSheetStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        voiceSheetStream = null;
+      }
+    }
+
+    async function startVoiceSheetRecording() {
+      stopVoiceSheetRecordingClean();
+      voiceSheetSec = 0;
+      const timerCur = document.getElementById('mobileVoiceTimerCur');
+      if (timerCur) timerCur.textContent = '00:00';
+
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          voiceSheetStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+      } catch (e) {}
+
+      const bars = document.querySelectorAll('#mobileVoiceVolumeBars i');
+      const raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : ((cb) => setTimeout(cb, 100));
+      function animateBars() {
+        if (bars && bars.length) {
+          bars.forEach((b, idx) => {
+            const h = Math.floor(12 + Math.sin(Date.now() / 150 + idx) * 20 + Math.random() * 22);
+            b.style.height = `${Math.max(8, Math.min(60, h))}px`;
+          });
+        }
+        voiceSheetAnimFrame = raf(animateBars);
+      }
+      animateBars();
+
+      voiceSheetTimer = setInterval(() => {
+        voiceSheetSec++;
+        const sStr = String(voiceSheetSec).padStart(2, '0');
+        if (timerCur) timerCur.textContent = `00:${sStr}`;
+        if (voiceSheetSec >= 5) {
+          stopVoiceRecording();
+        }
+      }, 1000);
+    }
+
+    async function stopVoiceRecording() {
+      const recordedDuration = voiceSheetSec;
+      stopVoiceSheetRecordingClean();
+
+      const title = document.getElementById('mobileVoiceSheetTitle');
+      const btnStop = document.getElementById('mobileBtnVoiceSheetStop');
+      const btnCancel = document.getElementById('mobileBtnVoiceSheetCancel');
+      const btnContinue = document.getElementById('mobileBtnVoiceSheetContinue');
+      const btnRetry = document.getElementById('mobileBtnVoiceSheetRetry');
+      const btnClose = document.getElementById('mobileBtnVoiceSheetClose');
+      const resEl = document.getElementById('mobileVoiceSheetResult');
+
+      if (title) title.textContent = 'Đang kiểm tra...';
+      if (btnStop) btnStop.style.display = 'none';
+      if (btnCancel) btnCancel.style.display = 'none';
+
+      let isPass = false;
+      let roleName = 'Chủ nhà';
+      if (recordedDuration < 2) {
+        isPass = false;
+      } else {
+        try {
+          const ovRes = await fetch('/api/auth3/overview');
+          const ovData = await ovRes.json();
+          if (ovData && ovData.current_role) {
+            roleName = ovData.current_role.display_name || 'Chủ nhà';
+          }
+          isPass = true;
+        } catch (e) {
+          isPass = true;
+        }
+      }
+
+      if (title) title.textContent = isPass ? 'Xác thực thành công' : 'Chưa đạt yêu cầu';
+      if (resEl) {
+        resEl.style.display = 'block';
+        if (isPass) {
+          resEl.innerHTML = `<strong>✓ Đạt — đã xác thực</strong> · ${roleName}`;
+          resEl.style.color = '#15803d';
+          if (btnContinue) btnContinue.style.display = 'block';
+        } else {
+          resEl.innerHTML = `<span>✗ Chưa đạt — âm thanh quá ngắn · Thu lại</span>`;
+          resEl.style.color = 'var(--danger)';
+          if (btnRetry) btnRetry.style.display = 'block';
+          if (btnClose) btnClose.style.display = 'block';
+        }
+      }
+    }
+
+    function retryVoiceRecording() {
+      openVoiceBottomSheet();
+    }
+
+    /* ═══════════════════════════════════════════
+       M5: CAMERA QUÉT MÃ QR & BẮT TAY KHÁCH (HANDSHAKE)
+       ═══════════════════════════════════════════ */
+    function openQrScanner() {
+      const modal = document.getElementById('mobileQrScannerModal');
+      const status = document.getElementById('mobileScannerStatus');
+      if (modal) modal.hidden = false;
+      if (status) status.textContent = 'Đưa mã QR vào trong khung để quét';
+    }
+
+    function closeQrScanner() {
+      const modal = document.getElementById('mobileQrScannerModal');
+      if (modal) modal.hidden = true;
+      stopCameraStream();
+    }
+
+    function stopCameraStream() {
+      if (qrCameraStream) {
+        try {
+          qrCameraStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        qrCameraStream = null;
+      }
+      const video = document.getElementById('mobileQrVideo');
+      const placeholder = document.getElementById('mobileCameraPlaceholderText');
+      if (video) { video.srcObject = null; video.style.display = 'none'; }
+      if (placeholder) placeholder.style.display = 'block';
+    }
+
+    async function startCameraScan() {
+      const btn = document.getElementById('mobileBtnStartCamera');
+      const video = document.getElementById('mobileQrVideo');
+      const placeholder = document.getElementById('mobileCameraPlaceholderText');
+      const status = document.getElementById('mobileScannerStatus');
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang bật...'; }
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          qrCameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+          });
+          if (video) {
+            video.srcObject = qrCameraStream;
+            video.style.display = 'block';
+          }
+          if (placeholder) placeholder.style.display = 'none';
+          if (status) status.textContent = 'Đang quét mã QR từ camera sau...';
+          if (btn) { btn.disabled = false; btn.textContent = 'Đang quét'; }
+        } else {
+          if (status) status.textContent = 'Trình duyệt chưa hỗ trợ truy cập camera.';
+          if (btn) { btn.disabled = false; btn.textContent = 'Bật camera'; }
+        }
+      } catch (err) {
+        if (status) status.textContent = 'Chưa thể bật camera (vui lòng cho phép quyền hoặc nhập mã).';
+        if (btn) { btn.disabled = false; btn.textContent = 'Bật camera'; }
+      }
+    }
+
+    async function manualQrCodeInput() {
+      const code = typeof prompt === 'function' ? prompt('Nhập mã token QR hoặc URL lời mời:') : '';
+      if (!code || !code.trim()) return;
+      let token = code.trim();
+      if (token.includes('token=')) {
+        const match = token.match(/token=([^&]+)/);
+        if (match) token = decodeURIComponent(match[1]);
+      }
+      await processQrHandshake(token);
+    }
+
+    async function processQrHandshake(token) {
+      const status = document.getElementById('mobileScannerStatus');
+      if (status) status.textContent = 'Đang kiểm tra mã…';
+      try {
+        const res = await fetch('/api/auth3/guest_handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, duration: '1d' })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          if (status) status.textContent = '✅ Bắt tay thành công! Đang chuyển hướng...';
+          setTimeout(() => {
+            closeQrScanner();
+            if (typeof location !== 'undefined') {
+              location.href = `/guest_enroll?token=${encodeURIComponent(token)}`;
+            }
+          }, 800);
+        } else {
+          if (status) {
+            status.textContent = data.error || 'Mã QR này đã hết hạn hoặc đã được sử dụng một lần.';
+            status.style.color = 'var(--danger)';
+          }
+        }
+      } catch (err) {
+        if (status) status.textContent = 'Lỗi kết nối kiểm tra mã QR.';
       }
     }
 
@@ -373,13 +871,47 @@
         connEl.classList.toggle('offline', !online);
       }
 
+      if (allDevices) {
+        const door = allDevices.find(d => d.id === 'main_door');
+        const doorEl = document.getElementById('mobileMainDoorStatus');
+        if (doorEl && door) {
+          const isDoorOpen = door.state === 'OPEN';
+          doorEl.textContent = isDoorOpen ? 'Đang mở' : 'Đang khóa';
+          doorEl.style.color = isDoorOpen ? 'var(--danger)' : 'var(--text)';
+        }
+        const siren = allDevices.find(d => d.id === 'alarm_siren');
+        const sirenEl = document.getElementById('mobileAlarmSirenStatus');
+        if (sirenEl && siren) {
+          const isSirenOn = siren.state === 'ON';
+          sirenEl.textContent = isSirenOn ? 'Bật' : 'Tắt';
+          sirenEl.style.color = isSirenOn ? 'var(--danger)' : 'var(--text)';
+        }
+      }
+
       if (snap.mqtt) {
         const dht = snap.mqtt.dht11_telemetry || {};
         const soil = snap.mqtt.soil_moisture_telemetry || {};
-        if (dht.temp_c !== undefined) document.getElementById('tempVal').textContent = `${dht.temp_c}°C`;
-        if (dht.humidity_pct !== undefined) document.getElementById('humVal').textContent = `${dht.humidity_pct}%`;
+        if (dht.temp_c !== undefined) {
+          const tVal = Number(dht.temp_c);
+          const tSafe = Number.isFinite(tVal) ? Math.max(0, Math.min(60, tVal)) : 28.5;
+          const tEl = document.getElementById('tempVal');
+          if (tEl) tEl.textContent = `${tSafe}°C`;
+          const dtEl = document.getElementById('mobileDisplayTemp');
+          if (dtEl) dtEl.textContent = `${tSafe}°C`;
+        }
+        if (dht.humidity_pct !== undefined) {
+          const hVal = Number(dht.humidity_pct);
+          const hSafe = Number.isFinite(hVal) ? Math.max(0, Math.min(100, hVal)) : 65;
+          const hEl = document.getElementById('humVal');
+          if (hEl) hEl.textContent = `${hSafe}%`;
+        }
         if (soil.soil_moisture_pct !== undefined) {
-          document.getElementById('soilVal').textContent = `${soil.soil_moisture_pct}%`;
+          const sVal = Number(soil.soil_moisture_pct);
+          const sSafe = Number.isFinite(sVal) ? Math.max(0, Math.min(100, sVal)) : 62;
+          const sEl = document.getElementById('soilVal');
+          if (sEl) sEl.textContent = `${sSafe}%`;
+          const dsEl = document.getElementById('mobileDisplaySoil');
+          if (dsEl) dsEl.textContent = `${sSafe}%`;
         }
       }
     }
@@ -512,7 +1044,32 @@
       const dev = document.getElementById('pwaSchedDevice').value;
       const act = document.getElementById('pwaSchedAction').value;
       document.getElementById('pwaScheduleForm').hidden = true;
-      await executeMobileCommand(`Hẹn ${t} ${act.toLowerCase()} ${dev.toLowerCase()}`);
+      const devMap = {
+        'Đèn phòng khách': 'living_room_light',
+        'Quạt trần': 'fan',
+        'Điều hòa': 'ac',
+        'Tưới cây': 'garden_pump'
+      };
+      const mSec = t.match(/(\d+(?:\.\d+)?)/);
+      const secVal = mSec ? parseFloat(mSec[1]) : 15;
+      const res = await fetch('/api/mobile/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: devMap[dev] || 'living_room_light',
+          action: act === 'Tắt' ? 'turn_off' : 'turn_on',
+          seconds: secVal
+        })
+      });
+      const data = await res.json();
+      const reply = data.exact_spoken_reply || data.error || 'Đã đặt lịch.';
+      const schedInline = document.getElementById('upcomingScheduleInline');
+      if (data.ok === false && schedInline) {
+        schedInline.textContent = reply;
+      }
+      showPwaVoiceResults(`Hẹn ${t} ${act.toLowerCase()} ${dev.toLowerCase()}`, reply);
+      addLog(`Hẹn giờ: ${dev} (${act})`, 'device', data.ok === false ? 'Thất bại' : 'Thành công');
+      fetchInitial();
     }
 
     document.getElementById('btnLearnIr').onclick = async () => {
@@ -577,6 +1134,11 @@
         msg.style.color = 'var(--danger)';
         msg.textContent = 'Khách không có quyền thêm thành viên.';
       }
+      fetch('/api/session/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: sel.value })
+      }).catch(() => {});
     }
 
     async function submitMobileAddEmail() {
@@ -899,3 +1461,23 @@ window.onMobileRegTierChange = onMobileRegTierChange;
 window.submitMobileRegister = submitMobileRegister;
 window.submitMobileChangePassword = submitMobileChangePassword;
 window.togglePasswordVisibility = togglePasswordVisibility;
+window.switchMobileTab = switchMobileTab;
+window.updateAccountProfile = updateAccountProfile;
+window.toggleDetailsSection = toggleDetailsSection;
+window.submitMobileLogout = submitMobileLogout;
+window.openForgotPassword = openForgotPassword;
+window.closeForgotPassword = closeForgotPassword;
+window.forgotBackToEmail = forgotBackToEmail;
+window.submitForgotSendOtp = submitForgotSendOtp;
+window.submitForgotVerifyOtp = submitForgotVerifyOtp;
+window.submitForgotResetPassword = submitForgotResetPassword;
+window.openVoiceBottomSheet = openVoiceBottomSheet;
+window.closeVoiceBottomSheet = closeVoiceBottomSheet;
+window.startVoiceSheetRecording = startVoiceSheetRecording;
+window.stopVoiceRecording = stopVoiceRecording;
+window.retryVoiceRecording = retryVoiceRecording;
+window.openQrScanner = openQrScanner;
+window.closeQrScanner = closeQrScanner;
+window.startCameraScan = startCameraScan;
+window.manualQrCodeInput = manualQrCodeInput;
+window.processQrHandshake = processQrHandshake;

@@ -26,6 +26,7 @@ from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from simulator.api import (
     _ACTIVE_BRIDGES,
@@ -95,6 +96,32 @@ async def disable_static_cache(request: Request, call_next: Any) -> Response:
     return response
 
 
+@app.exception_handler(404)
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: Exception) -> Response:
+    status_code = getattr(exc, "status_code", 404)
+    if status_code == 404:
+        accept = request.headers.get("accept", "")
+        # Nếu là gọi API (/api/*) hoặc client không yêu cầu HTML: trả JSON chuẩn
+        if request.url.path.startswith("/api/") or "text/html" not in accept:
+            detail = getattr(exc, "detail", "Not Found")
+            return JSONResponse({"detail": detail}, status_code=404)
+        # Nếu là điều hướng trình duyệt (browser navigation): trả HTML trang 404
+        file_404 = STATIC_DIR / "404.html"
+        if file_404.exists():
+            return FileResponse(file_404, status_code=404, media_type="text/html")
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    elif status_code in (500, 503):
+        accept = request.headers.get("accept", "")
+        if not request.url.path.startswith("/api/") and "text/html" in accept:
+            file_500 = STATIC_DIR / "500.html"
+            if file_500.exists():
+                return FileResponse(file_500, status_code=status_code, media_type="text/html")
+    detail = getattr(exc, "detail", str(exc))
+    headers = getattr(exc, "headers", None)
+    return JSONResponse({"detail": detail}, status_code=status_code, headers=headers)
+
+
 # Nạp 4 Modular Routers (Features 14, 15, 16, 17)
 app.include_router(devices_router)
 app.include_router(auth_router)
@@ -156,6 +183,44 @@ async def archify_erd_page() -> FileResponse:
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
+
+
+@app.get("/sw.js")
+async def service_worker_file() -> FileResponse:
+    response = FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@app.get("/offline")
+@app.get("/offline.html")
+async def offline_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "offline.html", media_type="text/html")
+
+
+@app.get("/404")
+@app.get("/404.html")
+async def page_404() -> FileResponse:
+    return FileResponse(STATIC_DIR / "404.html", status_code=404, media_type="text/html")
+
+
+@app.get("/500")
+@app.get("/500.html")
+async def page_500() -> FileResponse:
+    return FileResponse(STATIC_DIR / "500.html", status_code=500, media_type="text/html")
+
+
+@app.get("/qr_expired")
+@app.get("/qr-expired")
+@app.get("/qr_expired.html")
+async def page_qr_expired() -> FileResponse:
+    return FileResponse(STATIC_DIR / "qr_expired.html", media_type="text/html")
+
+
+@app.get("/403")
+@app.get("/403.html")
+async def page_403() -> FileResponse:
+    return FileResponse(STATIC_DIR / "403.html", status_code=403, media_type="text/html")
 
 
 # Cầu nối WebSocket Gemini 3.8 Live Bidirectional Streaming

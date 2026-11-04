@@ -32,29 +32,109 @@ from simulator.rule_engine import append_audit_log
 router = APIRouter(tags=["devices"])
 
 
+def _parse_text_device_targets(t_low: str) -> list[str]:
+    """Trích xuất danh sách device_id từ câu lệnh tiếng Việt (kể cả từ ánh xạ word_mappings)."""
+    mapped_text = t_low
+    for custom_word, target_val in _REST_ENGINE.get_word_mappings().items():
+        cw_low = str(custom_word).lower().strip()
+        tv_low = str(target_val).lower().strip()
+        if cw_low and cw_low in mapped_text:
+            mapped_text = mapped_text.replace(cw_low, f" {tv_low} ")
+
+    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")):
+        return ["all_devices"]
+    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")):
+        return ["all_lights"]
+
+    targets: list[str] = []
+    if any(k in mapped_text for k in ("cửa chính", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "main_door")) or re.search(r"\bcửa\b", mapped_text):
+        targets.append("main_door")
+    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")):
+        targets.append("living_room_light")
+    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")):
+        targets.append("bedroom_light")
+    if any(k in mapped_text for k in ("quạt trần", "quạt điện", "quạt", "fan")):
+        targets.append("fan")
+    if any(k in mapped_text for k in ("điều hòa", "máy lạnh", "ac")) or re.search(r"\bac\b", mapped_text):
+        targets.append("ac")
+    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or re.search(r"\bcòi\b", mapped_text):
+        targets.append("alarm_siren")
+    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "tưới cây", "tưới vườn", "garden_pump")):
+        targets.append("garden_pump")
+
+    if not targets and "đèn" in mapped_text:
+        targets.append("living_room_light")
+    return targets
+
+
+def _parse_text_action(t_low: str) -> str | None:
+    """Trích xuất hành động bật/mở hoặc tắt/đóng từ câu lệnh tiếng Việt."""
+    mapped_text = t_low
+    for custom_word, target_val in _REST_ENGINE.get_word_mappings().items():
+        cw_low = str(custom_word).lower().strip()
+        tv_low = str(target_val).lower().strip()
+        if cw_low and cw_low in mapped_text:
+            mapped_text = mapped_text.replace(cw_low, f" {tv_low} ")
+
+    off_patterns = ("tắt", "đóng", "khóa", "ngắt", "dừng", "turn_off", "turn off", "close")
+    on_patterns = ("bật", "mở", "khởi động", "chạy", "turn_on", "turn on", "open")
+    for p in off_patterns:
+        if re.search(rf"(?:^|\s){re.escape(p)}(?:\s|$)", mapped_text):
+            return "close" if p in ("đóng", "khóa", "close") else "turn_off"
+    for p in on_patterns:
+        if re.search(rf"(?:^|\s){re.escape(p)}(?:\s|$)", mapped_text):
+            return "open" if p in ("mở", "open") else "turn_on"
+    return None
+
+
 @router.get("/api/state")
 async def api_get_state() -> JSONResponse:
     """Trả về toàn bộ snapshot trạng thái thiết bị, cảm biến và luật hiện tại."""
     return JSONResponse(_REST_ENGINE.get_snapshot())
 
 
+@router.post("/api/session/role")
+async def api_set_session_role(payload: dict[str, Any]) -> JSONResponse:
+    """Đồng bộ vai trò phiên hiện tại trên _REST_ENGINE (dành cho Web/Mobile UI switch)."""
+    role = str((payload or {}).get("role") or (payload or {}).get("user_id") or "tuan_anh").strip()
+    email = str((payload or {}).get("email") or "").strip().lower()
+    if email:
+        if "thanhvien" in email:
+            role = "thanh_vien_a"
+        elif "khach" in email or "guest" in email:
+            role = "khach_c"
+        elif "nep94121" in email:
+            role = "tuan_anh"
+    snap_user = _REST_ENGINE.set_active_user(role)
+    await broadcast_rest_state_to_bridges()
+    return JSONResponse({"ok": True, "active_user": snap_user, "tier": _REST_ENGINE.current_tier})
+
+
 @router.post("/api/device")
 @router.post("/api/device_control")
 async def api_control_device(payload: dict[str, Any]) -> JSONResponse:
-    """Điều khiển bật/tắt hoặc mở/đóng thiết bị từ App Mobile hoặc Web."""
-    dev_id = str(payload.get("device_id", "main_door"))
-    act = str(payload.get("action", "open"))
-    user_name = str(payload.get("user_name", "Nguyễn Tuấn Anh (App Android)"))
-    tier = int(payload.get("tier", 1) or 1)
-    source = str(payload.get("source", "mobile_app"))
-    bypass = bool(payload.get("bypass_rbac", tier == 1))
-    res = await _REST_ENGINE.execute_device_action(dev_id, act, source=source, bypass_rbac=bypass)
+    """Điều khiển bật/tắt hoặc mở/đóng thiết bị từ App Mobile hoặc Web (RBAC lấy từ session đã xác thực)."""
+    body = payload if isinstance(payload, dict) else {}
+    dev_id = str(body.get("device_id") or "main_door").strip() or "main_door"
+    act = str(body.get("action") or "open").strip() or "open"
+    source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
+
+    # SECURITY FIX: Không bao giờ nhận bypass_rbac hoặc tier nâng quyền từ client payload.
+    # Tier và quyền thực thi luôn lấy từ phiên đã xác thực trên _REST_ENGINE và kiểm tra RBAC nghiêm ngặt.
+    session_tier = int(_REST_ENGINE.current_tier)
+    session_user = _REST_ENGINE.get_current_user_name()
+    res = await _REST_ENGINE.execute_device_action(dev_id, act, source=source, bypass_rbac=False)
+    res["tier"] = session_tier
+    res["rbac_blocked"] = not bool(res.get("ok"))
+    if not res.get("ok") and not res.get("error"):
+        res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
+
     append_audit_log(
         category="DEVICE_IO",
         event_type="mobile_device_toggle",
-        summary=f"📱 [App/Web] {user_name} (Tầng {tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
-        user_name=user_name,
-        tier=tier,
+        summary=f"📱 [App/Web] {session_user} (Tầng {session_tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
+        user_name=session_user,
+        tier=session_tier,
         details={"device_id": dev_id, "action": act, "result": res},
     )
     await broadcast_rest_state_to_bridges()
@@ -71,12 +151,57 @@ async def api_control_device_by_path(device_id: str, payload: dict[str, Any] | N
 
 @router.post("/api/mobile/schedule")
 async def api_mobile_schedule(payload: dict[str, Any]) -> JSONResponse:
-    """Tạo hẹn giờ từ ứng dụng di động Android."""
-    dev_id = str(payload.get("device_id", "living_room_light"))
-    act = str(payload.get("action", "turn_on"))
-    sec = float(payload.get("seconds", 15) or 15)
-    user_name = str(payload.get("user_name", "Nguyễn Tuấn Anh (App Android)"))
-    tier = int(payload.get("tier", 1) or 1)
+    """Tạo hẹn giờ từ ứng dụng di động Android / PWA (Chặn Khách Cấp 3 theo RBAC)."""
+    body = payload if isinstance(payload, dict) else {}
+    dev_id = str(body.get("device_id") or "living_room_light").strip() or "living_room_light"
+    act = str(body.get("action") or "turn_on").strip() or "turn_on"
+    sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
+
+    session_tier = int(_REST_ENGINE.current_tier)
+    client_tier_raw = body.get("tier")
+    try:
+        client_tier = int(client_tier_raw) if client_tier_raw is not None else session_tier
+    except (ValueError, TypeError):
+        client_tier = session_tier
+    # Không cho phép client hạ số tier để leo thang đặc quyền; lấy mức hạn chế cao nhất giữa session và client
+    effective_tier = max(session_tier, client_tier)
+    user_name = _REST_ENGINE.get_current_user_name() if effective_tier == session_tier else str(body.get("user_name") or "Khách (Cấp 3)")
+
+    if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
+        msg = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
+        append_audit_log(
+            category="TIMER_RULE",
+            event_type="mobile_schedule_blocked_rbac",
+            summary=f"🚫 [RBAC] Chặn tạo lịch hẹn giờ từ {user_name} (Tầng {effective_tier}): {dev_id} -> {act}",
+            user_name=user_name,
+            tier=effective_tier,
+            details={"device_id": dev_id, "action": act, "seconds": sec, "blocked": True},
+        )
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "tier": effective_tier,
+                "error": msg,
+                "exact_spoken_reply": msg,
+            },
+            status_code=403,
+        )
+
+    if effective_tier >= 2:
+        allowed, reason = _REST_ENGINE.check_device_permission(dev_id)
+        if not allowed:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "tier": effective_tier,
+                    "error": reason,
+                    "exact_spoken_reply": reason,
+                },
+                status_code=403,
+            )
+
     res = await _REST_ENGINE.schedule_timer_flexible(
         device_id=dev_id,
         action=act,
@@ -87,7 +212,7 @@ async def api_mobile_schedule(payload: dict[str, Any]) -> JSONResponse:
         event_type="mobile_schedule_created",
         summary=f"⏰ [App Android] {user_name} đặt hẹn giờ {int(sec)}s: {dev_id} -> {act}",
         user_name=user_name,
-        tier=tier,
+        tier=effective_tier,
         details={"device_id": dev_id, "action": act, "seconds": sec, "result": res},
     )
     await broadcast_rest_state_to_bridges()
@@ -97,8 +222,9 @@ async def api_mobile_schedule(payload: dict[str, Any]) -> JSONResponse:
 @router.post("/api/ir_learn")
 async def api_ir_learn(payload: dict[str, Any]) -> JSONResponse:
     """Học lệnh điều khiển hồng ngoại IR từ xa."""
-    dev_name = str(payload.get("device_name", "Điều hòa Casper"))
-    act = str(payload.get("command_action", "open"))
+    body = payload if isinstance(payload, dict) else {}
+    dev_name = str(body.get("device_name") or "Điều hòa Casper")
+    act = str(body.get("command_action") or "open")
     res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
@@ -107,9 +233,10 @@ async def api_ir_learn(payload: dict[str, Any]) -> JSONResponse:
 @router.post("/api/dht11")
 async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật thông số cảm biến nhiệt độ & độ ẩm không khí DHT11 (chân D6)."""
-    temp_c = float(payload.get("temp_c", 28.5))
-    hum_pct = float(payload.get("humidity_pct", 65.0))
-    rssi = int(payload.get("wifi_rssi_dbm", -52))
+    body = payload if isinstance(payload, dict) else {}
+    temp_c = body.get("temp_c", 28.5)
+    hum_pct = body.get("humidity_pct", 65.0)
+    rssi = body.get("wifi_rssi_dbm", -52)
     res = await _REST_ENGINE.update_sensor_telemetry(temp_c, hum_pct, rssi)
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
@@ -118,7 +245,8 @@ async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
 @router.post("/api/soil_moisture")
 async def api_update_soil_moisture(payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật cảm biến độ ẩm đất YL-69 (A0) và tự động bật/tắt bơm vườn."""
-    pct = float(payload.get("soil_moisture_pct", 62.0))
+    body = payload if isinstance(payload, dict) else {}
+    pct = body.get("soil_moisture_pct", 62.0)
     res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
@@ -181,14 +309,26 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
 
     if "tưới cây" in t_low or "bật máy bơm" in t_low:
-        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_on", source="mobile_app")
+        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_on", source="text_command", bypass_rbac=False)
         await broadcast_rest_state_to_bridges()
-        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+        return JSONResponse({
+            "ok": bool(res.get("ok")),
+            "rbac_blocked": not bool(res.get("ok")),
+            "reply": res["exact_spoken_reply"],
+            "exact_spoken_reply": res["exact_spoken_reply"],
+            "results": res.get("results", []),
+        })
 
     if "tắt máy bơm" in t_low:
-        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_off", source="mobile_app")
+        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_off", source="text_command", bypass_rbac=False)
         await broadcast_rest_state_to_bridges()
-        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+        return JSONResponse({
+            "ok": bool(res.get("ok")),
+            "rbac_blocked": not bool(res.get("ok")),
+            "reply": res["exact_spoken_reply"],
+            "exact_spoken_reply": res["exact_spoken_reply"],
+            "results": res.get("results", []),
+        })
 
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
         if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
@@ -211,7 +351,91 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
     for phrase in _REST_ENGINE.get_merged_aliases():
         if phrase in t_low:
             res = await _REST_ENGINE.execute_alias_rule(phrase)
-            return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+            await broadcast_rest_state_to_bridges()
+            return JSONResponse({
+                "ok": bool(res.get("ok", True)),
+                "reply": res["exact_spoken_reply"],
+                "exact_spoken_reply": res["exact_spoken_reply"],
+                "results": res.get("results", []),
+            })
+
+    # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (예: "Hẹn 10 giây nữa bật đèn phòng khách")
+    if "hẹn" in t_low or "đặt lịch" in t_low:
+        if _REST_ENGINE.current_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
+            msg_sched = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "tier": _REST_ENGINE.current_tier,
+                    "error": msg_sched,
+                    "reply": msg_sched,
+                    "exact_spoken_reply": msg_sched,
+                },
+                status_code=403,
+            )
+        targets = _parse_text_device_targets(t_low)
+        act = _parse_text_action(t_low) or "turn_on"
+        dev_id = targets[0] if targets else "living_room_light"
+        if _REST_ENGINE.current_tier >= 2:
+            allowed, reason = _REST_ENGINE.check_device_permission(dev_id)
+            if not allowed:
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "tier": _REST_ENGINE.current_tier,
+                        "error": reason,
+                        "reply": reason,
+                        "exact_spoken_reply": reason,
+                    },
+                    status_code=403,
+                )
+        m_sec = re.search(r"(\d+(?:\.\d+)?)\s*(?:giây|s\b)", t_low)
+        m_min = re.search(r"(\d+(?:\.\d+)?)\s*(?:phút|p\b|m\b)", t_low)
+        m_hr = re.search(r"(\d+(?:\.\d+)?)\s*(?:giờ|tiếng|h\b)", t_low)
+        seconds = float(m_sec.group(1)) if m_sec else 0.0
+        minutes = float(m_min.group(1)) if m_min else 0.0
+        hours = float(m_hr.group(1)) if m_hr else 0.0
+        if seconds <= 0 and minutes <= 0 and hours <= 0:
+            seconds = 10.0
+        res_timer = await _REST_ENGINE.schedule_timer_flexible(
+            device_id=dev_id,
+            action=act,
+            seconds=seconds,
+            minutes=minutes,
+            hours=hours,
+        )
+        await broadcast_rest_state_to_bridges()
+        spoken_timer = res_timer.get("exact_spoken_reply") or res_timer.get("message") or f"Đã đặt hẹn giờ cho {dev_id}."
+        return JSONResponse({
+            "ok": bool(res_timer.get("ok", True)),
+            "reply": spoken_timer,
+            "exact_spoken_reply": spoken_timer,
+            "timer": res_timer,
+        })
+
+    # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (kể cả word_mappings)
+    targets = _parse_text_device_targets(t_low)
+    act = _parse_text_action(t_low)
+    if targets and act:
+        dev_arg = ",".join(targets)
+        res_dev = await _REST_ENGINE.execute_device_action(
+            device_id=dev_arg,
+            action=act,
+            source="text_command",
+            bypass_rbac=False,
+        )
+        await broadcast_rest_state_to_bridges()
+        spoken_dev = res_dev.get("exact_spoken_reply") or f"Đã xử lý lệnh: {text}"
+        return JSONResponse({
+            "ok": bool(res_dev.get("ok")),
+            "rbac_blocked": not bool(res_dev.get("ok")),
+            "tier": _REST_ENGINE.current_tier,
+            "reply": spoken_dev,
+            "exact_spoken_reply": spoken_dev,
+            "results": res_dev.get("results", []),
+        })
 
     return JSONResponse({"ok": True, "reply": f"Đã nhận lệnh: {text}", "exact_spoken_reply": f"Đã nhận lệnh: {text}"})
 

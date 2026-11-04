@@ -77,6 +77,22 @@
       </header>
 
       <main class="layout">
+        <!-- THANH THÔNG BÁO MẤT KẾT NỐI WEBSOCKET (WS RECONNECT BANNER) -->
+        <div id="wsReconnectBanner" class="banner hidden" role="status" aria-live="polite">
+          <div class="bannertext">
+            <svg class="icon banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 3l18 18 M2 9a15 15 0 0 1 17-2 M6 13a9 9 0 0 1 8-1 M10 17a3 3 0 0 1 3 0"/>
+            </svg>
+            <div id="wsReconnectBannerMsg">
+              <strong>Mất kết nối thời gian thực tới ngôi nhà.</strong><br>
+              <span id="wsReconnectSubtext">Đang kết nối lại (lần 1/5)…</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary secondary" id="btnWsReconnectNow" onclick="window.retryWsConnection()">
+            Kết nối ngay
+          </button>
+        </div>
+
         <div class="stack">
           <section class="panel house" aria-labelledby="house-title">
             <div class="panel-head" style="flex-wrap: wrap; gap: 8px;">
@@ -342,9 +358,86 @@
     </div>
   </div>
 
+  <!-- HỘP THOẠI KHÓA AN NINH (SECURITY LOCKDOWN MODAL) -->
+  <div id="securityLockdownModal" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="locktitle" style="z-index:9999; background:rgba(15,34,38,0.85);">
+    <div class="modal-content lockdown-content" style="max-width:460px; border-color:#eeb9b4; padding:28px;">
+      <div class="mark red">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M12 7v6 M12 17h.01"/>
+        </svg>
+      </div>
+      <p class="eyebrow" style="color:var(--red, #c0392b);">AN NINH</p>
+      <h1 id="locktitle" style="font-size:24px; line-height:1.3; font-weight:600; letter-spacing:-0.02em; margin:0 0 12px; color:var(--ink);">Cảnh báo an ninh</h1>
+      <p id="lockdownDesc" style="margin:0 0 12px; color:var(--ink); font-size:13px; line-height:1.5;">Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật.</p>
+      <div id="lockdownNote" class="note red" style="background:#fdecea; color:#c0392b; border:1px solid #f4cbc6; border-radius:12px; padding:12px 14px; margin:16px 0; font-size:13px;">
+        Xác minh để mở khóa và tắt còi báo động.
+      </div>
+
+      <form id="lockdownForm" onsubmit="event.preventDefault(); window.unlockSecurityLockdown();" style="display:grid; gap:12px;">
+        <div id="lockdownPasswordGroup">
+          <label class="label" for="lockdownPassword" style="display:block; font-weight:500; margin:10px 0 6px; font-size:13px;">Mật khẩu Chủ nhà</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input id="lockdownPassword" class="input-text field" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu (mặc định: 123456)" style="width:100%; height:44px; padding:0 38px 0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
+            <button type="button" class="btn-toggle-pw" onclick="window.togglePasswordVisibility('lockdownPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+
+        <div id="lockdownOtpGroup" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 6px;">
+            <label class="label" for="lockdownOtp" style="font-weight:500; font-size:13px; margin:0;">Mã OTP Gmail</label>
+            <button type="button" id="btnLockdownSendOtp" onclick="window.sendLockdownOtp()" class="text-link" style="font-size:12px; color:var(--accent); background:none; border:none; cursor:pointer; padding:0;">Gửi mã OTP (nep94121@gmail.com)</button>
+          </div>
+          <input id="lockdownOtp" class="input-text field" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="Nhập mã OTP 6 số" style="width:100%; height:44px; padding:0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
+        </div>
+
+        <div id="lockdownStatusBox" class="subtle" style="font-size:12px; color:var(--muted); min-height:18px;"></div>
+
+        <div class="actions" style="display:grid; gap:10px; margin-top:12px;">
+          <button type="submit" id="btnLockdownUnlock" onclick="window.unlockSecurityLockdown()" class="btn btn-primary primary" style="min-height:44px; font-weight:500; width:100%; justify-content:center;">
+            Xác minh và mở khóa
+          </button>
+          <button type="button" id="btnLockdownToggleMode" onclick="window.toggleLockdownMode()" class="btn btn-secondary secondary" style="min-height:44px; font-weight:500; width:100%; justify-content:center;">
+            Dùng mã OTP Gmail
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- HỘP THOẠI QUYỀN MICROPHONE (MIC PERMISSION MODAL) -->
+  <div id="micPermissionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mictitle" style="z-index:9000; background:rgba(15,34,38,0.5);">
+    <div class="modal-content mic-perm-content" style="max-width:440px; padding:28px;">
+      <div class="mark">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 5a3 3 0 0 1 6 0v6 M5 10a7 7 0 0 0 9 6 M12 17v5 M8 22h8 M3 3l18 18"/>
+        </svg>
+      </div>
+      <h1 id="mictitle" style="font-size:24px; line-height:1.3; font-weight:600; letter-spacing:-0.02em; margin:0 0 12px; color:var(--ink);">Chưa thể dùng micro</h1>
+      <p id="micPermissionDesc" class="muted" style="margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.5;">
+        Bạn đã chặn quyền micro. Mở cài đặt trang trong trình duyệt, chọn Micro → Cho phép, rồi thử lại.
+      </p>
+      <div id="micPermissionHttpNote" class="note" style="background:#fafcfc; border:1px solid var(--line); border-radius:12px; padding:14px; margin:16px 0; font-size:13px;">
+        <strong>Nếu đang dùng địa chỉ HTTP</strong>
+        <p style="margin:6px 0 0; color:var(--muted);">Trình duyệt cần kết nối an toàn để dùng micro. Mở ứng dụng qua HTTPS.</p>
+      </div>
+      <div class="actions" style="display:grid; gap:10px; margin-top:20px;">
+        <button type="button" id="btnMicPermissionRetry" onclick="window.retryMicPermission()" class="btn btn-primary primary" style="min-height:44px; width:100%; justify-content:center;">
+          Thử lại
+        </button>
+        <a id="btnMicPermissionHttps" class="btn btn-secondary secondary" href="#" style="min-height:44px; width:100%; justify-content:center; text-decoration:none;">
+          Mở bản HTTPS
+        </a>
+        <button type="button" id="btnMicPermissionClose" onclick="window.closeMicPermissionModal()" class="btn btn-tertiary tertiary" style="min-height:44px; width:100%; justify-content:center; background:none; border:none; color:var(--accent);">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/vendor/three.min.js"></script>
   <script src="/static/vendor/GLTFLoader.js"></script>
   <script src="/static/house3d.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>
+

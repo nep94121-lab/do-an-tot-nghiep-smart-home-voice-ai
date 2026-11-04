@@ -458,11 +458,15 @@
       const dht = snap.mqtt.dht11_telemetry || {};
       const soilLabel = document.getElementById("sensorSoilLabel") || document.getElementById("sensorSoilVal");
       if (soilLabel && soil.soil_moisture_pct !== undefined) {
-        soilLabel.textContent = Math.round(soil.soil_moisture_pct) + "%";
+        const rawSoil = Number(soil.soil_moisture_pct);
+        const clampedSoil = Number.isFinite(rawSoil) ? Math.max(0, Math.min(100, rawSoil)) : 62;
+        soilLabel.textContent = Math.round(clampedSoil) + "%";
       }
       const tempLabel = document.getElementById("sensorTempLabel") || document.getElementById("sensorDhtVal");
       if (tempLabel && dht.temp_c !== undefined) {
-        tempLabel.textContent = Math.round(Number(dht.temp_c)) + "°C";
+        const rawTemp = Number(dht.temp_c);
+        const clampedTemp = Number.isFinite(rawTemp) ? Math.max(0, Math.min(60, rawTemp)) : 28.5;
+        tempLabel.textContent = Math.round(clampedTemp) + "°C";
       }
     }
 

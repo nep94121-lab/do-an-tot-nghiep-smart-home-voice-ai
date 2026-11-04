@@ -18,7 +18,7 @@
           560,
           1690
         ],
-        "learned_at": 1793784954.2
+        "learned_at": 1793793405.5
       },
       "turn_on": {
         "protocol": "NEC_38KHZ",
@@ -33,7 +33,7 @@
           560,
           1690
         ],
-        "learned_at": 1793784954.2
+        "learned_at": 1793793405.5
       },
       "close": {
         "protocol": "COOLIX",
@@ -124,7 +124,7 @@
           560,
           1690
         ],
-        "learned_at": 1793786430.2
+        "learned_at": 1793800053.7
       },
       "turn_on": {
         "protocol": "COOLIX_38KHZ",
@@ -139,7 +139,7 @@
           560,
           1690
         ],
-        "learned_at": 1793786430.2
+        "learned_at": 1793800053.7
       }
     }
   },

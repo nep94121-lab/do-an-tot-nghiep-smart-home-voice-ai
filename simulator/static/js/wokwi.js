@@ -503,20 +503,24 @@
       // 6. Telemetry từ snap.mqtt hoặc snap.mqtt_hardware
       const dht = (snap.mqtt && snap.mqtt.dht11_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
       const soil = (snap.mqtt && snap.mqtt.soil_moisture_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
-      if (dht && typeof dht.temp_c === 'number') {
-        const hum = typeof dht.humidity_pct === 'number' ? dht.humidity_pct : 65;
+      if (dht && dht.temp_c !== undefined) {
+        const rawT = Number(dht.temp_c);
+        const safeT = Number.isFinite(rawT) ? Math.max(0, Math.min(60, rawT)) : 28.5;
+        const rawH = Number(dht.humidity_pct);
+        const hum = Number.isFinite(rawH) ? Math.max(0, Math.min(100, rawH)) : 65;
         const lblDht = document.getElementById('lblDht');
-        if (lblDht) lblDht.textContent = `${dht.temp_c.toFixed(1)}°C | ${hum.toFixed(0)}%`;
+        if (lblDht) lblDht.textContent = `${safeT.toFixed(1)}°C | ${hum.toFixed(0)}%`;
         const mainTemp = document.getElementById('mainTempValue');
-        if (mainTemp) mainTemp.textContent = `${dht.temp_c.toFixed(1)}°C`;
+        if (mainTemp) mainTemp.textContent = `${safeT.toFixed(1)}°C`;
         const dhtEl = document.getElementById('w_dht');
         if (dhtEl) {
-          dhtEl.temperature = dht.temp_c;
+          dhtEl.temperature = safeT;
           dhtEl.humidity = hum;
         }
       }
-      if (soil && typeof soil.soil_moisture_pct === 'number') {
-        const sPct = soil.soil_moisture_pct;
+      if (soil && soil.soil_moisture_pct !== undefined) {
+        const rawS = Number(soil.soil_moisture_pct);
+        const sPct = Number.isFinite(rawS) ? Math.max(0, Math.min(100, rawS)) : 62;
         const adc = Math.round(1024 - (sPct / 100) * 724);
         const lblSoil = document.getElementById('lblSoil');
         if (lblSoil) lblSoil.textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;

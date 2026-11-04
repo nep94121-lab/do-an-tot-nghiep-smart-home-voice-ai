@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import json
+import math
 import pathlib
 import time
 from typing import Any, Callable, Awaitable
@@ -138,12 +139,21 @@ class SmartHomeMQTTBridge:
             except Exception:
                 pass
         default_db = json.loads(json.dumps(DEFAULT_IR_DEVICES))
-        IR_DB_FILE.write_text(json.dumps(default_db, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            IR_DB_FILE.write_text(json.dumps(default_db, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
         return default_db
 
     def _save_ir_db_write_through(self) -> None:
         """Write-Through Cache: Cập nhật RAM đồng thời ghi xuyên suốt xuống đĩa."""
-        IR_DB_FILE.write_text(json.dumps(self.ir_devices, ensure_ascii=False, indent=2), encoding="utf-8")
+        payload = json.dumps(self.ir_devices, ensure_ascii=False, indent=2)
+        for _ in range(3):
+            try:
+                IR_DB_FILE.write_text(payload, encoding="utf-8")
+                return
+            except OSError:
+                time.sleep(0.01)
 
     async def publish(
         self,
@@ -329,19 +339,46 @@ class SmartHomeMQTTBridge:
             direction="SERVER -> ESP8266 (Flash LittleFS)",
         )
 
-    async def update_dht11_telemetry(self, temp_c: float, humidity_pct: float, wifi_rssi_dbm: int = -52) -> dict[str, Any]:
+    @staticmethod
+    def _clamp_sensor_float(val: Any, min_val: float, max_val: float, fallback: float) -> float:
+        """Ép kiểu và giới hạn (clamp) giá trị cảm biến an toàn, chống NaN/Inf biến thành 100%."""
+        fb = fallback if (isinstance(fallback, (int, float)) and math.isfinite(float(fallback))) else min_val
+        fb = round(max(min_val, min(max_val, float(fb))), 1)
+        if val is None or isinstance(val, bool):
+            return fb
+        try:
+            f = float(val)
+        except (ValueError, TypeError):
+            return fb
+        if not math.isfinite(f):
+            return fb
+        return round(max(min_val, min(max_val, f)), 1)
+
+    async def update_dht11_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
         """Nhận bản tin cảm biến `smarthome/telemetry/dht11` từ chân D6 của ESP8266."""
-        t = round(float(temp_c), 1)
-        h = round(float(humidity_pct), 1)
+        prev_t = self.dht11_telemetry.get("temp_c", 28.5)
+        prev_h = self.dht11_telemetry.get("humidity_pct", 65.0)
+        if not isinstance(prev_t, (int, float)) or not math.isfinite(float(prev_t)) or float(prev_t) >= 60.0:
+            prev_t = 28.5
+        if not isinstance(prev_h, (int, float)) or not math.isfinite(float(prev_h)) or float(prev_h) >= 100.0:
+            prev_h = 65.0
+        t = self._clamp_sensor_float(temp_c, 0.0, 60.0, float(prev_t))
+        h = self._clamp_sensor_float(humidity_pct, 0.0, 100.0, float(prev_h))
         hi = round(t + 0.05 * h, 1)
+        try:
+            rssi_f = float(wifi_rssi_dbm)
+            rssi_int = int(max(-100.0, min(0.0, rssi_f))) if math.isfinite(rssi_f) else -52
+        except (ValueError, TypeError):
+            rssi_int = -52
         self.dht11_telemetry = {
             "temp_c": t,
             "humidity_pct": h,
             "heat_index_c": hi,
+            "wifi_rssi_dbm": rssi_int,
             "sensor_pin": "D6 (GPIO 12)",
             "updated_at": time.time(),
         }
-        self.esp8266_status["wifi_rssi_dbm"] = int(wifi_rssi_dbm)
+        self.esp8266_status["wifi_rssi_dbm"] = rssi_int
         self.esp8266_status["last_seen"] = time.time()
         self.esp8266_status["online"] = True
         return await self.publish(
@@ -351,16 +388,19 @@ class SmartHomeMQTTBridge:
                 "temp_c": t,
                 "humidity_pct": h,
                 "heat_index_c": hi,
-                "wifi_rssi_dbm": int(wifi_rssi_dbm),
+                "wifi_rssi_dbm": rssi_int,
             },
             qos=0,
             retain=False,
             direction="ESP8266 -> SERVER",
         )
 
-    async def update_soil_moisture_telemetry(self, soil_moisture_pct: float, adc_raw: int | None = None) -> dict[str, Any]:
+    async def update_soil_moisture_telemetry(self, soil_moisture_pct: Any, adc_raw: int | None = None) -> dict[str, Any]:
         """Nhận bản tin cảm biến Độ ẩm Đất `smarthome/telemetry/soil_moisture` từ chân A0 (YL-69 + LM393)."""
-        pct = max(0.0, min(100.0, round(float(soil_moisture_pct), 1)))
+        prev_pct = self.soil_moisture_telemetry.get("soil_moisture_pct", 62.0)
+        if not isinstance(prev_pct, (int, float)) or not math.isfinite(float(prev_pct)) or float(prev_pct) >= 100.0:
+            prev_pct = 62.0
+        pct = self._clamp_sensor_float(soil_moisture_pct, 0.0, 100.0, float(prev_pct))
         raw = adc_raw if adc_raw is not None else int(1024 - (pct / 100.0) * 700)
         status_lbl = "Khô - Cần tưới" if pct < 40.0 else ("Đủ ẩm" if pct < 75.0 else "Ẩm ướt")
         self.soil_moisture_telemetry = {

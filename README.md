@@ -4,6 +4,15 @@
 
 ---
 
+## 🔗 LIÊN KẾT DỰ ÁN & TRIỂN KHAI (TỔNG HỢP GỌN)
+
+- **GitHub Repository:** https://github.com/nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai (branch: `master`)
+- **Production (Vercel Base URL):** https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/
+  - **Routes chính:** `/` (Web 3D Desktop), `/mobile` hoặc `/app` (Mobile PWA), `/auth` (Xác thực 3 Lớp), `/guest_enroll` (Khách QR), `/wokwi` (Mạch ESP8266), `/logs` (Nhật ký & SQLite), `/architecture` (Kiến trúc), `/api/state` (Snapshot API)
+- **Vercel Dashboard:** https://vercel.com/tuananhs-projects-8aea56ce/do-an-tot-nghiep-smart-home-voice-ai
+
+---
+
 ## 📚 MỤC LỤC TÀI LIỆU KỸ THUẬT TRONG REPO (`docs/`)
 
 | STT | Tài liệu chuyên sâu | Nội dung chính |

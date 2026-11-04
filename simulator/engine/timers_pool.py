@@ -225,8 +225,8 @@ class EngineTimersMixin:
                     else:
                         break
             except asyncio.CancelledError:
-                self.active_timers.pop(tid, None)
-                self._timer_tasks.pop(tid, None)
+                if tid not in self._timer_tasks:
+                    self.active_timers.pop(tid, None)
                 raise
 
         self._timer_tasks[tid] = asyncio.create_task(_runner())

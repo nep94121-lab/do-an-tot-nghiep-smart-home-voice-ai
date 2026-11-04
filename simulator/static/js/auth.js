@@ -569,6 +569,41 @@
         `;
         logBody.appendChild(tr);
       });
+
+      if (data.test_report) {
+        renderTestSuiteReport(data.test_report);
+      }
+    }
+
+    function renderTestSuiteReport(rep) {
+      if (!rep) return;
+      const casesList = rep.results || rep.cases || [];
+      const totalVal = rep.total !== undefined ? rep.total : (rep.total_cases !== undefined ? rep.total_cases : casesList.length);
+      const passedVal = rep.passed !== undefined ? rep.passed : (rep.passed_cases !== undefined ? rep.passed_cases : casesList.filter(c => c.passed).length);
+      const banner = document.getElementById('testSummaryBanner');
+      if (banner) {
+        banner.className = passedVal === totalVal && totalVal > 0 ? 'badge badge-pass' : 'badge badge-fail';
+        banner.textContent = `ĐẠT ${passedVal}/${totalVal}`;
+      }
+      const tbody = document.getElementById('testCasesTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      casesList.forEach(tc => {
+        const tcId = tc.id || tc.test_id || '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${tcId}</td>
+          <td>${tc.layer || ''}</td>
+          <td>${tc.scenario || ''}</td>
+          <td style="color:var(--muted);">${tc.actual || ''}</td>
+          <td>
+            <span class="badge ${tc.passed ? 'badge-pass' : 'badge-fail'}">
+              ${tc.passed ? 'Hoàn tất' : 'Cần thử lại'}
+            </span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     function onAllowlistActorChange() {
@@ -770,7 +805,7 @@
 
     async function runFullTestSuite() {
       const banner = document.getElementById('testSummaryBanner');
-      banner.textContent = 'Đang thực hiện...';
+      if (banner) banner.textContent = 'Đang thực hiện...';
 
       const res = await fetch('/api/auth3/run_test_suite', {
         method: 'POST',
@@ -778,28 +813,7 @@
         body: JSON.stringify({ send_live_email: false })
       });
       const data = await res.json();
-
-      banner.className = data.passed === data.total ? 'badge badge-pass' : 'badge badge-fail';
-      banner.textContent = `Hoàn tất ${data.passed}/${data.total}`;
-
-      const tbody = document.getElementById('testCasesTableBody');
-      tbody.innerHTML = '';
-      (data.results || []).forEach(tc => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${tc.id}</td>
-          <td>${tc.layer}</td>
-          <td>${tc.scenario}</td>
-          <td style="color:var(--muted);">${tc.actual}</td>
-          <td>
-            <span class="badge ${tc.passed ? 'badge-pass' : 'badge-fail'}">
-              ${tc.passed ? 'Hoàn tất' : 'Cần thử lại'}
-            </span>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
+      renderTestSuiteReport(data);
       loadOverview();
     }
 

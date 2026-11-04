@@ -23,6 +23,9 @@
     <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
     <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></symbol>
   </svg>
 
   <!-- LOGIN GATE (hiển thị trước khi vào bảng điều khiển) -->
@@ -51,6 +54,9 @@
             <input type="password" id="mobileLoginPassword" placeholder="Nhập mật khẩu" value="123456" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; margin-top:2px;">
+          <button type="button" id="btnMobileForgotPassword" class="text-link" onclick="openForgotPassword()" style="font-size:12px;">Quên mật khẩu?</button>
         </div>
         <div id="mobileLoginMsg" class="muted" style="min-height:18px;"></div>
         <button type="submit" class="btn primary" id="mobileLoginBtn">Đăng nhập</button>
@@ -91,321 +97,571 @@
         <div id="mobileRegMsg" class="muted" style="min-height:18px;"></div>
         <button type="submit" class="btn primary" id="mobileRegisterBtn">Xác nhận 2 mật khẩu &amp; Đăng nhập</button>
       </form>
+
+      <!-- M3: FORM QUÊN MẬT KHẨU & GMAIL OTP (3 BƯỚC) -->
+      <div id="mobileForgotPasswordPanel" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <button type="button" class="tertiary" onclick="closeForgotPassword()" aria-label="Quay lại" style="padding:4px;min-width:32px;">
+            <svg class="icon"><use href="#i-arrow-left"/></svg>
+          </button>
+          <span class="muted" id="mobileForgotStepLabel" style="font-size:12px;">Bước 1/3</span>
+        </div>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:4px;">Quên mật khẩu</h2>
+        <p class="muted" id="mobileForgotStepDesc" style="font-size:12px;margin-bottom:14px;">Nhập email để nhận mã xác nhận Gmail OTP.</p>
+
+        <!-- BƯỚC 1: EMAIL -->
+        <div id="mobileForgotStepEmail" class="login-form">
+          <div>
+            <label class="muted" for="mobileForgotEmail" style="display:block;margin-bottom:4px;">Email</label>
+            <input type="email" id="mobileForgotEmail" placeholder="Nhập email tài khoản" value="nep94121@gmail.com" required />
+          </div>
+          <div id="mobileForgotEmailMsg" class="muted" style="min-height:18px;"></div>
+          <button type="button" class="btn primary" id="mobileBtnForgotSendOtp" onclick="submitForgotSendOtp()">Gửi mã OTP</button>
+          <button type="button" class="btn secondary" onclick="closeForgotPassword()">Quay lại Đăng nhập</button>
+        </div>
+
+        <!-- BƯỚC 2: OTP (6 SỐ) -->
+        <div id="mobileForgotStepOtp" class="login-form" style="display:none;">
+          <p class="muted" style="font-size:12px;margin:0 0 8px;">Đã gửi tới <strong id="mobileForgotEmailSentText">nep94121@gmail.com</strong></p>
+          <div>
+            <label class="muted" for="mobileForgotOtp" style="display:block;margin-bottom:4px;">Mã xác nhận</label>
+            <input class="field" id="mobileForgotOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="Nhập 6 chữ số" style="letter-spacing:4px;font-size:18px;text-align:center;font-weight:600;" />
+            <small class="muted" style="display:block;margin-top:4px;">Mã có hiệu lực theo thời hạn hệ thống.</small>
+          </div>
+          <div id="mobileForgotOtpMsg" class="muted" style="min-height:18px;"></div>
+          <button type="button" class="btn primary" id="mobileBtnForgotVerifyOtp" onclick="submitForgotVerifyOtp()">Xác nhận mã</button>
+          <button type="button" class="btn secondary" id="mobileBtnForgotResendOtp" onclick="submitForgotSendOtp()">Gửi lại mã</button>
+          <button type="button" class="btn tertiary" id="mobileBtnForgotChangeEmail" onclick="forgotBackToEmail()">Đổi email</button>
+        </div>
+
+        <!-- BƯỚC 3: ĐẶT MẬT KHẨU MỚI (2 Ô) -->
+        <form id="mobileForgotStepReset" class="login-form" style="display:none;" onsubmit="submitForgotResetPassword(event)">
+          <div>
+            <label class="muted" for="mobileForgotNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="mobileForgotNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div>
+            <label class="muted" for="mobileForgotConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận mật khẩu (Ô 2 — phải khớp 100%)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="mobileForgotConfirmPassword" placeholder="Nhập lại mật khẩu" value="123456" required style="width:100%; padding-right:38px;" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div id="mobileForgotResetMsg" class="muted" style="min-height:18px;"></div>
+          <button type="submit" class="btn primary" id="mobileBtnForgotSubmitReset">Đặt mật khẩu mới</button>
+          <button type="button" class="btn secondary" onclick="closeForgotPassword()">Hủy</button>
+        </form>
+      </div>
     </div>
   </div>
 
   <!-- NỘI DUNG CHÍNH (ẩn khi chưa đăng nhập) -->
   <div id="mobileMainContent" hidden>
 
-  <!-- 6. PWA HOME -->
-  <header class="header" id="secHome">
-    <h1>Nhà của bạn</h1>
-    <span class="status-dot" id="espBadge">Đã kết nối</span>
-    <span id="tempVal" hidden>28.5°C</span>
-    <span id="humVal" hidden>65%</span>
-    <span id="soilVal" hidden>55%</span>
-    <span id="rssiText" hidden></span>
-    <span id="mobileStrikeBadge" hidden></span>
-    <span id="mobileCountdownBadge" hidden></span>
-  </header>
-
-  <section class="card" aria-labelledby="pwa-house-title">
-    <div class="card-head">
-      <h2 id="pwa-house-title">Ngôi nhà</h2>
-      <span class="muted">Toàn cảnh</span>
-    </div>
-    <a href="/" class="overview-box" aria-label="Toàn cảnh ngôi nhà">
-      <strong>Toàn cảnh</strong>
-      <span>Chạm để mở mô hình toàn cảnh</span>
-    </a>
-    <button type="button" class="btn primary" onclick="scrollToSection('secVoice', true)">
-      <svg class="icon"><use href="#i-mic"/></svg>
-      <span>Nói để điều khiển</span>
-    </button>
-  </section>
-
-  <!-- 7. PWA THIẾT BỊ -->
-  <section class="card" id="secDevices" aria-labelledby="devices-title">
-    <div class="card-head">
-      <h2 id="devices-title">Thiết bị</h2>
-      <button type="button" class="text-link" id="btnToggleShowAllDevices" onclick="toggleShowAllDevices()">Xem tất cả</button>
-    </div>
-    <div class="filter-pills" id="roomFilterPills">
-      <button type="button" class="pill active" onclick="filterDevicesByRoom('all', this)">Tất cả</button>
-      <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng khách', this)">Phòng khách</button>
-      <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng ngủ', this)">Phòng ngủ</button>
-      <button type="button" class="pill" onclick="filterDevicesByRoom('Lối vào', this)">Lối vào</button>
-      <button type="button" class="pill" onclick="filterDevicesByRoom('Sân vườn', this)">Sân vườn</button>
-    </div>
-    <div class="dev-list" id="devGrid"></div>
-  </section>
-
-  <!-- 10. PWA LỊCH -->
-  <section class="card" id="secSchedule" aria-labelledby="schedule-title">
-    <div class="card-head">
-      <h2 id="schedule-title">Lịch</h2>
-      <button type="button" class="text-link" onclick="document.getElementById('pwaScheduleForm').hidden = !document.getElementById('pwaScheduleForm').hidden">Tạo lịch</button>
-    </div>
-    <div id="upcomingScheduleInline" class="muted">Chưa có lịch</div>
-    <form id="pwaScheduleForm" hidden style="margin-top:12px; display:grid; gap:8px;" onsubmit="submitPwaSchedule(event)">
-      <input type="text" id="pwaSchedTime" placeholder="Giờ (ví dụ: 10 giây nữa)" value="10 giây nữa" />
-      <select id="pwaSchedDevice">
-        <option value="Đèn phòng khách">Đèn phòng khách</option>
-        <option value="Quạt trần">Quạt trần</option>
-        <option value="Điều hòa">Điều hòa</option>
-        <option value="Tưới cây">Tưới cây</option>
-      </select>
-      <select id="pwaSchedAction">
-        <option value="Bật">Bật</option>
-        <option value="Tắt">Tắt</option>
-      </select>
-      <div class="btn-row">
-        <button type="submit" class="btn primary">Lưu</button>
-        <button type="button" class="btn secondary" onclick="document.getElementById('pwaScheduleForm').hidden=true">Hủy</button>
-      </div>
-    </form>
-  </section>
-
-  <!-- 8. PWA GIỌNG NÓI -->
-  <section class="card" id="secVoice" aria-labelledby="voice-title">
-    <div class="card-head">
-      <h2 id="voice-title">Giọng nói</h2>
-      <span class="muted" id="voiceStateBadge">Sẵn sàng</span>
-    </div>
-    <p class="muted" style="margin-bottom:12px;">Nói để điều khiển thiết bị trong nhà.</p>
-
-    <div id="pwaVoiceEmpty" class="muted" style="padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-bottom:12px;">Chưa có lệnh</div>
-
-    <div id="pwaVoiceResults" class="results-box" hidden>
-      <div>
-        <div class="result-label">Bạn nói</div>
-        <div id="userSaidText"></div>
-      </div>
-      <div>
-        <div class="result-label">Phản hồi</div>
-        <div id="aiReply"></div>
-      </div>
-    </div>
-
-    <button type="button" class="btn primary" id="btnMobileMic" onclick="toggleMobileVoiceListen()">
-      <svg class="icon"><use href="#i-mic"/></svg>
-      <span id="btnMobileMicLabel">Bắt đầu nói</span>
-    </button>
-
-    <form class="voice-input-row" id="cmdForm">
-      <input type="text" id="cmdInput" placeholder="Nhập lệnh" autocomplete="off" />
-      <button type="submit" class="btn secondary" style="width:auto; min-width:72px;">Gửi</button>
-    </form>
-
-    <label style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--muted); cursor:pointer;">
-      <span>Đọc phản hồi</span>
-      <input type="checkbox" id="ttsSpeakToggle" checked style="accent-color:var(--accent); width:16px; height:16px;" />
-    </label>
-  </section>
-
-  <!-- 9. PWA TÀI KHOẢN (GIỌNG NÓI CỦA TÔI, KHÁCH, NHẬT KÝ, CÀI ĐẶT) -->
-  <section class="card" id="secAuth" aria-labelledby="auth-title">
-    <div class="card-head">
-      <h2 id="auth-title">Tài khoản</h2>
-      <span class="muted" id="mobileActorBadge">Chủ nhà</span>
-    </div>
-
-    <!-- MỤC 1: GIỌNG NÓI CỦA TÔI (LUỒNG 3 BƯỚC) -->
-    <details class="account-item" id="mobileVoiceModal" open>
-      <summary>
-        <span>Giọng nói của tôi</span>
-        <span class="muted" id="mobileVoiceStepLabel">Bước 1–3</span>
-      </summary>
-      <div class="account-body">
+    <!-- TAB 1: NHÀ VÀ CẢM BIẾN (M1) -->
+    <div id="tabViewHome" class="tab-view">
+      <header class="header" id="secHome">
         <div>
-          <label class="muted" for="mobileActorSelect" style="display:block; margin-bottom:4px;">Bước 1/3 · Chọn tài khoản đăng ký</label>
-          <select id="mobileActorSelect" onchange="onMobileActorChange()">
-            <option value="nep94121@gmail.com" data-tier="1">Chủ nhà · nep94121@gmail.com</option>
-            <option value="thanhviena.hust@gmail.com" data-tier="2">Gia đình · thanhviena.hust@gmail.com</option>
-            <option value="khach.hust@gmail.com" data-tier="3">Khách · khach.hust@gmail.com</option>
+          <h1>Nhà của tôi</h1>
+          <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Theo dõi trạng thái trong nhà</small>
+        </div>
+        <span class="status-dot pill" id="espBadge"><span class="dot"></span>Đã kết nối</span>
+        <!-- Chỉ số ẩn phục vụ kiểm thử hồi quy -->
+        <span id="tempVal" hidden>28.5°C</span>
+        <span id="humVal" hidden>65%</span>
+        <span id="soilVal" hidden>62%</span>
+        <span id="rssiText" hidden></span>
+        <span id="mobileStrikeBadge" hidden></span>
+        <span id="mobileCountdownBadge" hidden></span>
+      </header>
+
+      <!-- Thẻ 1: Ngôi nhà Toàn cảnh 16:9 -->
+      <section class="card" aria-labelledby="pwa-house-title">
+        <div class="card-head">
+          <h2 id="pwa-house-title">Ngôi nhà</h2>
+          <span class="pill">Toàn cảnh</span>
+        </div>
+        <div class="overview-box preview-16-9" id="mobileOverviewBox" aria-label="Toàn cảnh ngôi nhà">
+          <div style="text-align:center;">
+            <div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:4px;">Mô hình Toàn cảnh 3D</div>
+            <span class="muted" style="font-size:12px;">Xem trạng thái thiết bị 3D trong không gian</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Thẻ 2: Cảm biến (Grid 2 ô: Nhiệt độ 28.5°C + Độ ẩm đất 62%) -->
+      <section class="card" aria-labelledby="home-sensors-title">
+        <div class="card-head">
+          <h2 id="home-sensors-title">Cảm biến</h2>
+        </div>
+        <div class="sensorgrid">
+          <div class="sensor">
+            <span class="muted">Nhiệt độ</span>
+            <strong id="mobileDisplayTemp">28.5°C</strong>
+            <small class="muted">Trong nhà</small>
+          </div>
+          <div class="sensor">
+            <span class="muted">Độ ẩm đất</span>
+            <strong id="mobileDisplaySoil">62%</strong>
+            <small class="muted">Sân vườn</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Thẻ 3: Trạng thái an toàn (Cửa chính & Còi báo động) -->
+      <section class="card" aria-labelledby="home-safety-title">
+        <div class="card-head">
+          <h2 id="home-safety-title">Trạng thái an toàn</h2>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Cửa chính</span>
+          <strong id="mobileMainDoorStatus">Đang khóa</strong>
+        </div>
+        <hr class="divider">
+        <div class="row" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Còi báo động</span>
+          <strong id="mobileAlarmSirenStatus">Tắt</strong>
+        </div>
+      </section>
+
+      <!-- Cặp nút hành động nhanh: Nói lệnh / Xem thiết bị -->
+      <div class="actions" style="display:grid;gap:10px;margin-top:16px;">
+        <button type="button" class="btn primary wide" id="mobileBtnVoiceSheet" onclick="openVoiceBottomSheet()">
+          <svg class="icon"><use href="#i-mic"/></svg>
+          <span>Nói lệnh</span>
+        </button>
+        <button type="button" class="btn secondary wide" id="mobileBtnViewDevices" onclick="switchMobileTab('devices')">
+          <span>Xem thiết bị</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 2: THIẾT BỊ (M2) -->
+    <div id="tabViewDevices" class="tab-view" hidden>
+      <header class="header">
+        <div>
+          <h1>Thiết bị</h1>
+          <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Điều khiển thiết bị trong nhà</small>
+        </div>
+        <span class="pill"><span class="dot"></span>Đã kết nối</span>
+      </header>
+
+      <section class="card" id="secDevices" aria-labelledby="devices-title">
+        <div class="card-head">
+          <h2 id="devices-title">Danh sách thiết bị</h2>
+          <button type="button" class="text-link" id="btnToggleShowAllDevices" onclick="toggleShowAllDevices()">Xem tất cả</button>
+        </div>
+        <div class="filter-pills" id="roomFilterPills">
+          <button type="button" class="pill active" onclick="filterDevicesByRoom('all', this)">Tất cả</button>
+          <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng khách', this)">Phòng khách</button>
+          <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng ngủ', this)">Phòng ngủ</button>
+          <button type="button" class="pill" onclick="filterDevicesByRoom('Lối vào', this)">Lối vào</button>
+          <button type="button" class="pill" onclick="filterDevicesByRoom('Sân vườn', this)">Sân vườn</button>
+        </div>
+        <div class="dev-list" id="devGrid"></div>
+      </section>
+
+      <section class="card" id="secSchedule" aria-labelledby="schedule-title">
+        <div class="card-head">
+          <h2 id="schedule-title">Lịch</h2>
+          <button type="button" class="text-link" onclick="document.getElementById('pwaScheduleForm').hidden = !document.getElementById('pwaScheduleForm').hidden">Tạo lịch</button>
+        </div>
+        <div id="upcomingScheduleInline" class="muted">Chưa có lịch</div>
+        <form id="pwaScheduleForm" hidden style="margin-top:12px; display:grid; gap:8px;" onsubmit="submitPwaSchedule(event)">
+          <input type="text" id="pwaSchedTime" placeholder="Giờ (ví dụ: 10 giây nữa)" value="10 giây nữa" />
+          <select id="pwaSchedDevice">
+            <option value="Đèn phòng khách">Đèn phòng khách</option>
+            <option value="Quạt trần">Quạt trần</option>
+            <option value="Điều hòa">Điều hòa</option>
+            <option value="Tưới cây">Tưới cây</option>
           </select>
-          <div id="mobileVoiceTierInfo" class="muted" style="margin-top:4px;font-size:11px;">Cấp 1 — Chủ nhà: toàn quyền điều khiển</div>
+          <select id="pwaSchedAction">
+            <option value="Bật">Bật</option>
+            <option value="Tắt">Tắt</option>
+          </select>
+          <div class="btn-row">
+            <button type="submit" class="btn primary">Lưu</button>
+            <button type="button" class="btn secondary" onclick="document.getElementById('pwaScheduleForm').hidden=true">Hủy</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- TAB 3: GIỌNG NÓI (M2) -->
+    <div id="tabViewVoice" class="tab-view" hidden>
+      <header class="header">
+        <div>
+          <h1>Giọng nói</h1>
+          <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Nói điều bạn muốn làm trong nhà.</small>
+        </div>
+        <span class="pill"><span class="dot"></span>Sẵn sàng</span>
+      </header>
+
+      <section class="card" id="secVoice" aria-labelledby="voice-title">
+        <div class="card-head">
+          <h2 id="voice-title">Trạng thái</h2>
+          <span class="muted" id="voiceStateBadge">Sẵn sàng</span>
+        </div>
+        <p class="muted" style="margin-bottom:12px;">Nói để điều khiển thiết bị trong nhà.</p>
+
+        <div id="pwaVoiceEmpty" class="muted" style="padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-bottom:12px;">Chưa có lệnh</div>
+
+        <div id="pwaVoiceResults" class="results-box" hidden>
+          <div>
+            <div class="result-label">Bạn nói</div>
+            <div id="userSaidText"></div>
+          </div>
+          <div>
+            <div class="result-label">Phản hồi</div>
+            <div id="aiReply"></div>
+          </div>
         </div>
 
+        <button type="button" class="btn primary wide" id="btnMobileMic" onclick="openVoiceBottomSheet()">
+          <svg class="icon"><use href="#i-mic"/></svg>
+          <span id="btnMobileMicLabel">Bắt đầu nói</span>
+        </button>
+
+        <form class="voice-input-row" id="cmdForm" onsubmit="executeMobileCommand(event)">
+          <input type="text" id="cmdInput" placeholder="Nhập lệnh" autocomplete="off" />
+          <button type="submit" class="btn secondary" style="width:auto; min-width:72px;">Gửi</button>
+        </form>
+
+        <label style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--muted); cursor:pointer;">
+          <span>Đọc phản hồi</span>
+          <input type="checkbox" id="ttsSpeakToggle" checked style="accent-color:var(--accent); width:16px; height:16px;" />
+        </label>
+      </section>
+    </div>
+
+    <!-- TAB 4: TÀI KHOẢN (M2) -->
+    <div id="tabViewAccount" class="tab-view" hidden>
+      <header class="header">
         <div>
-          <div class="muted" style="margin-bottom:4px;">Bước 2/3 · Lưu giọng nói</div>
-          <div id="mobileVoiceRegisterInfo" style="background:#f8fafb;border:1px solid var(--line);padding:10px;border-radius:10px;font-size:12px;margin-bottom:8px;">
-            <div style="font-weight:500;margin-bottom:4px;">Người đăng ký: <span id="mobileVoiceRegName" style="color:var(--accent);">Chủ nhà</span></div>
-            <div>Hãy đọc rõ ràng câu sau:</div>
+          <h1>Tài khoản</h1>
+          <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Hồ sơ và quyền truy cập</small>
+        </div>
+        <span class="pill"><span class="dot"></span>Đã kết nối</span>
+      </header>
+
+      <section class="card" id="secAuth" aria-labelledby="auth-title">
+        <span class="muted" id="mobileActorBadge" hidden>Chủ nhà</span>
+        <h2 id="auth-title">Hồ sơ</h2>
+        <div class="row linkrow">
+          <span class="muted">Vai trò</span>
+          <strong id="mobileProfileRole">Chủ nhà</strong>
+        </div>
+        <hr class="divider">
+        <div class="row linkrow">
+          <span class="muted">Email</span>
+          <strong id="mobileProfileEmail">nep94121@gmail.com</strong>
+        </div>
+        <hr class="divider">
+        <div class="row linkrow">
+          <span class="muted">Thời hạn</span>
+          <strong id="mobileProfileDuration">Không giới hạn</strong>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Quản lý</h2>
+        <div class="row linkrow" onclick="toggleDetailsSection('mobileVoiceModal')">
+          <span>Xác thực giọng nói</span>
+          <span>›</span>
+        </div>
+        <hr class="divider">
+        <div class="row linkrow" onclick="toggleDetailsSection('mobileDynamicQrCard')">
+          <span>Lời mời thành viên</span>
+          <span>›</span>
+        </div>
+        <hr class="divider">
+        <div class="row linkrow" onclick="openQrScanner()">
+          <span>Quét mã QR</span>
+          <span>›</span>
+        </div>
+        <hr class="divider">
+        <div class="row linkrow" onclick="toggleDetailsSection('mobileChangePasswordCard')">
+          <span>Cài đặt &amp; Đổi mật khẩu</span>
+          <span>›</span>
+        </div>
+      </section>
+      <p class="muted" style="font-size:12px;margin:12px 0;">Mỗi tab mở một màn riêng, không cuộn tới mục khác.</p>
+
+      <!-- CHI TIẾT TÀI KHOẢN HIỆN HỮU ĐỂ BẢO TOÀN 100% DOM IDS & TÍNH NĂNG -->
+      <!-- MỤC 1: GIỌNG NÓI CỦA TÔI -->
+      <details class="account-item" id="mobileVoiceModal">
+        <summary>
+          <span>Giọng nói của tôi</span>
+          <span class="muted" id="mobileVoiceStepLabel">Bước 1–3</span>
+        </summary>
+        <div class="account-body">
+          <div>
+            <label class="muted" for="mobileActorSelect" style="display:block; margin-bottom:4px;">Bước 1/3 · Chọn tài khoản đăng ký</label>
+            <select id="mobileActorSelect" onchange="onMobileActorChange()">
+              <option value="nep94121@gmail.com" data-tier="1">Chủ nhà · nep94121@gmail.com</option>
+              <option value="thanhviena.hust@gmail.com" data-tier="2">Gia đình · thanhviena.hust@gmail.com</option>
+              <option value="khach.hust@gmail.com" data-tier="3">Khách · khach.hust@gmail.com</option>
+            </select>
+            <div id="mobileVoiceTierInfo" class="muted" style="margin-top:4px;font-size:11px;">Cấp 1 — Chủ nhà: toàn quyền điều khiển</div>
           </div>
-          <div id="mobileReadingPrompt" style="background:#ffffff; border:1px solid var(--line); padding:10px; border-radius:10px; font-size:13px; margin-bottom:8px;">
-            "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+          <div>
+            <div class="muted" style="margin-bottom:4px;">Bước 2/3 · Lưu giọng nói</div>
+            <div id="mobileVoiceRegisterInfo" style="background:#f8fafb;border:1px solid var(--line);padding:10px;border-radius:10px;font-size:12px;margin-bottom:8px;">
+              <div style="font-weight:500;margin-bottom:4px;">Người đăng ký: <span id="mobileVoiceRegName" style="color:var(--accent);">Chủ nhà</span></div>
+              <div>Hãy đọc rõ ràng câu sau:</div>
+            </div>
+            <div id="mobileReadingPrompt" style="background:#ffffff; border:1px solid var(--line); padding:10px; border-radius:10px; font-size:13px; margin-bottom:8px;">
+              "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn primary" onclick="submitMobileVoiceSample(true)">
+                <svg class="icon"><use href="#i-mic"/></svg>
+                <span>Thu âm</span>
+              </button>
+              <button type="button" class="btn secondary" id="mobileVoiceRetryBtn" onclick="submitMobileVoiceSample(false)">Thử lại</button>
+            </div>
+            <div id="mobileVoiceRes" style="font-size:12px; margin-top:6px;"></div>
+            <div id="mobileVoiceMetrics" style="font-size:11px;margin-top:4px;color:var(--muted);display:none;">
+              <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> · 
+              <span>SNR: <strong id="mobileVoiceSNR">—</strong> dB</span>
+            </div>
+          </div>
+          <div id="mobileFamilyCard">
+            <div class="muted" style="margin-bottom:4px;">Bước 3/3 · Xác nhận và cấp quyền</div>
+            <div id="mobileAddEmailForm" style="display:grid; gap:8px;">
+              <select id="mobileTargetTierSelect">
+                <option value="2">Gia đình</option>
+                <option value="3">Khách</option>
+              </select>
+              <input type="email" id="mobileTargetEmail" placeholder="Nhập email thành viên" />
+              <button type="button" id="mobileBtnAddEmail" onclick="submitMobileAddEmail()" class="btn primary">Hoàn tất</button>
+            </div>
+            <div id="mobileAllowlistMsg" class="muted" style="margin-top:6px;">
+              Chủ nhà được thêm Gia đình và Khách.
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR -->
+      <details class="account-item" id="mobileDynamicQrCard">
+        <summary>
+          <span>Mời khách / Thành viên</span>
+          <span id="mobileQrCountdown" class="muted">Đang chờ</span>
+        </summary>
+        <div class="account-body">
+          <div style="margin-bottom:8px;">
+            <label class="muted" for="mobileQrInviteTierSelect" style="display:block;margin-bottom:4px;">Loại lời mời</label>
+            <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
+              <option value="3">Khách (Cấp 3)</option>
+              <option value="2">Thành viên Gia đình (Cấp 2)</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <div id="mobileQrSvgContainer" style="width:104px; height:104px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+              <svg id="mobileDynamicQrSvg" viewBox="0 0 100 100" width="104" height="104" style="background:#fff; padding:4px; border-radius:10px; border:1px solid var(--line); flex-shrink:0;">
+                <rect x="4" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+                <rect x="10" y="10" width="12" height="12" fill="#087d85"/>
+                <rect x="72" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+                <rect x="78" y="10" width="12" height="12" fill="#087d85"/>
+                <rect x="4" y="72" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+                <rect x="10" y="78" width="12" height="12" fill="#087d85"/>
+                <g id="mobileQrDots" fill="#172b31">
+                  <rect x="35" y="35" width="8" height="8" rx="1.5" fill="#087d85"/>
+                  <rect x="55" y="35" width="8" height="8" rx="1.5" fill="#172b31"/>
+                  <rect x="35" y="55" width="8" height="8" rx="1.5" fill="#172b31"/>
+                  <rect x="55" y="55" width="8" height="8" rx="1.5" fill="#087d85"/>
+                </g>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <label class="muted" for="mobileGuestDurSelect" style="display:block; margin-bottom:4px;">Thời hạn truy cập</label>
+              <select id="mobileGuestDurSelect" onchange="refreshMobileQr10s()">
+                <option value="1d">1 ngày</option>
+                <option value="2d">2 ngày</option>
+                <option value="1w">1 tuần</option>
+                <option value="1m">1 tháng</option>
+                <option value="1y">1 năm</option>
+              </select>
+              <span id="mobileQrTokenText" hidden></span>
+              <span id="mobileQrUrlText" hidden></span>
+            </div>
           </div>
           <div class="btn-row">
-            <button type="button" class="btn primary" onclick="submitMobileVoiceSample(true)">
-              <svg class="icon"><use href="#i-mic"/></svg>
-              <span>Thu âm</span>
-            </button>
-            <button type="button" class="btn secondary" id="mobileVoiceRetryBtn" onclick="submitMobileVoiceSample(false)">Thử lại</button>
-          </div>
-          <div id="mobileVoiceRes" style="font-size:12px; margin-top:6px;"></div>
-          <div id="mobileVoiceMetrics" style="font-size:11px;margin-top:4px;color:var(--muted);display:none;">
-            <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> · 
-            <span>SNR: <strong id="mobileVoiceSNR">—</strong> dB</span>
+            <a id="mobileQrOpenLink" href="/guest_enroll" onclick="window.location.href=this.href; return false;" class="btn primary">Tạo lời mời</a>
+            <button type="button" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
           </div>
         </div>
+      </details>
 
-        <div id="mobileFamilyCard">
-          <div class="muted" style="margin-bottom:4px;">Bước 3/3 · Xác nhận và cấp quyền</div>
-          <div id="mobileAddEmailForm" style="display:grid; gap:8px;">
-            <select id="mobileTargetTierSelect">
-              <option value="2">Gia đình</option>
-              <option value="3">Khách</option>
-            </select>
-            <input type="email" id="mobileTargetEmail" placeholder="Nhập email thành viên" />
-            <button type="button" id="mobileBtnAddEmail" onclick="submitMobileAddEmail()" class="btn primary">Hoàn tất</button>
+      <!-- MỤC 3: NHẬT KÝ -->
+      <details class="account-item" id="secHistory">
+        <summary>
+          <span>Nhật ký</span>
+          <span class="muted">Sự kiện gần đây</span>
+        </summary>
+        <div class="account-body">
+          <div class="filter-pills">
+            <button type="button" class="pill active" onclick="filterMobileHistory('all', this)">Tất cả</button>
+            <button type="button" class="pill" onclick="filterMobileHistory('device', this)">Thiết bị</button>
+            <button type="button" class="pill" onclick="filterMobileHistory('voice', this)">Giọng nói</button>
           </div>
-          <div id="mobileAllowlistMsg" class="muted" style="margin-top:6px;">
-            Chủ nhà được thêm Gia đình và Khách.
+          <div class="log-list" id="mqttLog">
+            <div class="log-line"><span>Đồng bộ trạng thái nhà</span><span class="muted">Thành công</span></div>
           </div>
         </div>
-      </div>
-    </details>
+      </details>
 
-    <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR -->
-    <details class="account-item" id="mobileDynamicQrCard" open>
-      <summary>
-        <span>Mời khách / Thành viên</span>
-        <span id="mobileQrCountdown" class="muted">Đang chờ</span>
-      </summary>
-      <div class="account-body">
-        <div style="margin-bottom:8px;">
-          <label class="muted" for="mobileQrInviteTierSelect" style="display:block;margin-bottom:4px;">Loại lời mời</label>
-          <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
-            <option value="3">Khách (Cấp 3)</option>
-            <option value="2">Thành viên Gia đình (Cấp 2)</option>
-          </select>
-        </div>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <div id="mobileQrSvgContainer" style="width:104px; height:104px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-            <svg id="mobileDynamicQrSvg" viewBox="0 0 100 100" width="104" height="104" style="background:#fff; padding:4px; border-radius:10px; border:1px solid var(--line); flex-shrink:0;">
-              <rect x="4" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
-              <rect x="10" y="10" width="12" height="12" fill="#087d85"/>
-              <rect x="72" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
-              <rect x="78" y="10" width="12" height="12" fill="#087d85"/>
-              <rect x="4" y="72" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
-              <rect x="10" y="78" width="12" height="12" fill="#087d85"/>
-              <g id="mobileQrDots" fill="#172b31">
-                <rect x="35" y="35" width="8" height="8" rx="1.5" fill="#087d85"/>
-                <rect x="55" y="35" width="8" height="8" rx="1.5" fill="#172b31"/>
-                <rect x="35" y="55" width="8" height="8" rx="1.5" fill="#172b31"/>
-                <rect x="55" y="55" width="8" height="8" rx="1.5" fill="#087d85"/>
-              </g>
-            </svg>
-          </div>
-          <div style="flex:1;">
-            <label class="muted" for="mobileGuestDurSelect" style="display:block; margin-bottom:4px;">Thời hạn truy cập</label>
-            <select id="mobileGuestDurSelect" onchange="refreshMobileQr10s()">
-              <option value="1d">1 ngày</option>
-              <option value="2d">2 ngày</option>
-              <option value="1w">1 tuần</option>
-              <option value="1m">1 tháng</option>
-              <option value="1y">1 năm</option>
-            </select>
-            <span id="mobileQrTokenText" hidden></span>
-            <span id="mobileQrUrlText" hidden></span>
+      <!-- MỤC 4: CÀI ĐẶT -->
+      <details class="account-item">
+        <summary>
+          <span>Cài đặt hệ thống</span>
+          <span class="muted">Tùy chọn</span>
+        </summary>
+        <div class="account-body">
+          <a href="/logs" class="btn secondary">Mở trang Nhật ký quản trị</a>
+          <div hidden>
+            <button type="button" id="btnLearnIr">Học lệnh hồng ngoại</button>
+            <button type="button" id="btnTestDrySoil">Thử độ ẩm đất</button>
           </div>
         </div>
-        <div class="btn-row">
-          <a id="mobileQrOpenLink" href="/guest_enroll" onclick="window.location.href=this.href; return false;" class="btn primary">Tạo lời mời</a>
-          <button type="button" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
-        </div>
-      </div>
-    </details>
+      </details>
 
-    <!-- MỤC 3: NHẬT KÝ -->
-    <details class="account-item" id="secHistory">
-      <summary>
-        <span>Nhật ký</span>
-        <span class="muted">Sự kiện gần đây</span>
-      </summary>
-      <div class="account-body">
-        <div class="filter-pills">
-          <button type="button" class="pill active" onclick="filterMobileHistory('all', this)">Tất cả</button>
-          <button type="button" class="pill" onclick="filterMobileHistory('device', this)">Thiết bị</button>
-          <button type="button" class="pill" onclick="filterMobileHistory('voice', this)">Giọng nói</button>
-        </div>
-        <div class="log-list" id="mqttLog">
-          <div class="log-line"><span>Đồng bộ trạng thái nhà</span><span class="muted">Thành công</span></div>
-        </div>
-      </div>
-    </details>
-
-    <!-- MỤC 4: CÀI ĐẶT -->
-    <details class="account-item">
-      <summary>
-        <span>Cài đặt</span>
-        <span class="muted">Tùy chọn</span>
-      </summary>
-      <div class="account-body">
-        <a href="/logs" class="btn secondary">Mở trang Nhật ký quản trị</a>
-        <div hidden>
-          <button type="button" id="btnLearnIr">Học lệnh hồng ngoại</button>
-          <button type="button" id="btnTestDrySoil">Thử độ ẩm đất</button>
-        </div>
-      </div>
-    </details>
-
-    <!-- MỤC 5: ĐỔI MẬT KHẨU TÀI KHOẢN (BẮT BUỘC 2 Ô XÁC NHẬN LẠI MẬT KHẨU) -->
-    <details class="account-item" id="mobileChangePasswordCard">
-      <summary>
-        <span>Đổi mật khẩu tài khoản</span>
-        <span class="muted">2 ô xác nhận</span>
-      </summary>
-      <div class="account-body">
-        <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;">
-          <div>
-            <label class="muted" for="mobileChangeEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
-            <input type="email" id="mobileChangeEmail" value="nep94121@gmail.com" required />
-          </div>
-          <div>
-            <label class="muted" for="mobileChangeNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
-            <div style="position:relative; display:flex; align-items:center;">
-              <input type="password" id="mobileChangeNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
-              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+      <!-- MỤC 5: ĐỔI MẬT KHẨU TÀI KHOẢN -->
+      <details class="account-item" id="mobileChangePasswordCard">
+        <summary>
+          <span>Đổi mật khẩu tài khoản</span>
+          <span class="muted">2 ô xác nhận</span>
+        </summary>
+        <div class="account-body">
+          <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;">
+            <div>
+              <label class="muted" for="mobileChangeEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
+              <input type="email" id="mobileChangeEmail" value="nep94121@gmail.com" required />
             </div>
-          </div>
-          <div>
-            <label class="muted" for="mobileChangeConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2 — phải khớp 100%)</label>
-            <div style="position:relative; display:flex; align-items:center;">
-              <input type="password" id="mobileChangeConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
-              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            <div>
+              <label class="muted" for="mobileChangeNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+              <div style="position:relative; display:flex; align-items:center;">
+                <input type="password" id="mobileChangeNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+                <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+              </div>
             </div>
-          </div>
-          <div id="mobileChangePasswordMsg" class="muted" style="min-height:18px;"></div>
-          <button type="submit" class="btn primary" id="mobileChangePasswordBtn">Xác nhận đổi mật khẩu</button>
-        </form>
-      </div>
-    </details>
-  </section>
+            <div>
+              <label class="muted" for="mobileChangeConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2 — phải khớp 100%)</label>
+              <div style="position:relative; display:flex; align-items:center;">
+                <input type="password" id="mobileChangeConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+                <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+              </div>
+            </div>
+            <div id="mobileChangePasswordMsg" class="muted" style="min-height:18px;"></div>
+            <button type="submit" class="btn primary" id="mobileChangePasswordBtn">Xác nhận đổi mật khẩu</button>
+          </form>
+        </div>
+      </details>
+
+      <button type="button" class="btn secondary wide" id="mobileBtnLogout" onclick="submitMobileLogout()" style="margin-top:24px;">Đăng xuất</button>
+    </div>
+
   </div><!-- END mobileMainContent -->
 
-  <!-- BOTTOM NAVIGATION (4 MỤC: NHÀ, THIẾT BỊ, GIỌNG NÓI, TÀI KHOẢN) -->
+  <!-- BOTTOM NAVIGATION (4 MỤC ĐỘC LẬP: NHÀ, THIẾT BỊ, GIỌNG NÓI, TÀI KHOẢN) -->
   <nav class="bottom-nav" id="mobileBottomNav" aria-label="Điều hướng ứng dụng" hidden>
     <div class="bottom-nav-inner">
-      <button type="button" class="nav-tab active" onclick="scrollToSection('secHome', false, this)">
+      <button type="button" class="nav-tab active" id="mobileNavTabHome" data-tab="home" onclick="scrollToSection('secHome', false, this)">
         <svg class="icon"><use href="#i-home"/></svg>
         <span>Nhà</span>
       </button>
-      <button type="button" class="nav-tab" onclick="scrollToSection('secDevices', false, this)">
+      <button type="button" class="nav-tab" id="mobileNavTabDevices" data-tab="devices" onclick="scrollToSection('secDevices', false, this)">
         <svg class="icon"><use href="#i-grid"/></svg>
         <span>Thiết bị</span>
       </button>
-      <button type="button" class="nav-tab" onclick="scrollToSection('secVoice', false, this)">
+      <button type="button" class="nav-tab" id="mobileNavTabVoice" data-tab="voice" onclick="scrollToSection('secVoice', false, this)">
         <svg class="icon"><use href="#i-mic"/></svg>
         <span>Giọng nói</span>
       </button>
-      <button type="button" class="nav-tab" onclick="scrollToSection('secAuth', false, this)">
+      <button type="button" class="nav-tab" id="mobileNavTabAccount" data-tab="account" onclick="scrollToSection('secAuth', false, this)">
         <svg class="icon"><use href="#i-user"/></svg>
         <span>Tài khoản</span>
       </button>
     </div>
   </nav>
+
+  <!-- M4: BOTTOM SHEET GIỌNG NÓI & SCRIM -->
+  <div id="mobileVoiceSheetScrim" class="scrim" hidden onclick="closeVoiceBottomSheet()"></div>
+  <section id="mobileVoiceBottomSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="mobileVoiceSheetTitle" hidden>
+    <div class="handle"></div>
+    <div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h2 id="mobileVoiceSheetTitle" style="margin:0;font-size:18px;">Đang thu âm</h2>
+      <button type="button" class="tertiary" id="mobileBtnCloseVoiceSheet" aria-label="Đóng" onclick="closeVoiceBottomSheet()" style="padding:6px;min-width:40px">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="wavecircle">
+      <svg class="icon" style="width:28px;height:28px;"><use href="#i-mic"/></svg>
+    </div>
+    <div class="bars" id="mobileVoiceVolumeBars" aria-label="Mức âm lượng">
+      <i style="height:16px"></i>
+      <i style="height:28px"></i>
+      <i style="height:42px"></i>
+      <i style="height:24px"></i>
+      <i style="height:52px"></i>
+      <i style="height:36px"></i>
+      <i style="height:58px"></i>
+      <i style="height:30px"></i>
+      <i style="height:45px"></i>
+      <i style="height:20px"></i>
+      <i style="height:34px"></i>
+      <i style="height:16px"></i>
+    </div>
+    <p class="timer" id="mobileVoiceTimer"><span id="mobileVoiceTimerCur">00:03</span> <span id="mobileVoiceTimerTotal">/ 00:05</span></p>
+    <p class="muted" style="text-align:center;font-size:13px;">Đọc câu mẫu để xác nhận giọng nói</p>
+    <div class="phrase" id="mobileVoicePhrase">"Mở cửa chính cho tôi."</div>
+    <div class="actions" id="mobileVoiceSheetActions" style="display:grid;gap:10px;margin-top:16px;">
+      <button type="button" class="btn primary wide" id="mobileBtnVoiceSheetStop" onclick="stopVoiceRecording()">Dừng thu</button>
+      <button type="button" class="btn secondary wide" id="mobileBtnVoiceSheetCancel" onclick="closeVoiceBottomSheet()">Hủy</button>
+      <button type="button" class="btn primary wide" id="mobileBtnVoiceSheetContinue" onclick="closeVoiceBottomSheet()" style="display:none;">Tiếp tục</button>
+      <button type="button" class="btn primary wide" id="mobileBtnVoiceSheetRetry" onclick="retryVoiceRecording()" style="display:none;">Thu lại</button>
+      <button type="button" class="btn secondary wide" id="mobileBtnVoiceSheetClose" onclick="closeVoiceBottomSheet()" style="display:none;">Đóng</button>
+    </div>
+    <p class="result" id="mobileVoiceSheetResult" style="display:none;"></p>
+  </section>
+
+  <!-- M5: CAMERA QUÉT QR MODAL -->
+  <div id="mobileQrScannerModal" class="scanner-modal" hidden>
+    <div class="phone scanner">
+      <header class="top">
+        <div class="toprow" style="display:flex;justify-content:space-between;align-items:center;">
+          <h1 style="font-size:20px;margin:0;">Quét mã QR</h1>
+          <button type="button" class="tertiary" id="mobileBtnCloseScanner" aria-label="Đóng" onclick="closeQrScanner()" style="padding:6px;min-width:40px">
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </div>
+        <small class="muted" style="display:block;margin-top:2px;">Quét lời mời từ Chủ nhà</small>
+      </header>
+      <main class="main scanner-main">
+        <div class="camera" id="mobileScannerCameraView">
+          <video id="mobileQrVideo" playsinline autoplay muted style="width:100%;height:100%;object-fit:cover;border-radius:16px;display:none;"></video>
+          <div class="scanframe" id="mobileScanFrame">
+            <i class="tl"></i>
+            <i class="tr"></i>
+            <i class="bl"></i>
+            <i class="br"></i>
+            <span id="mobileCameraPlaceholderText">Vùng camera sau</span>
+          </div>
+        </div>
+        <p class="instruction" style="text-align:center;font-weight:500;margin:18px 0 4px;">Đưa mã QR vào trong khung để quét</p>
+        <p class="muted" style="text-align:center;font-size:12px;">Quét mã đang hiển thị trên màn hình Chủ nhà.</p>
+        <div class="actions" style="margin-top:auto;padding-top:12px;display:grid;gap:10px;">
+          <button type="button" class="btn primary wide" id="mobileBtnStartCamera" onclick="startCameraScan()">Bật camera</button>
+          <button type="button" class="btn secondary wide" id="mobileBtnManualCodeInput" onclick="manualQrCodeInput()">Nhập mã</button>
+        </div>
+        <p class="muted" id="mobileScannerStatus" style="text-align:center;font-size:12px;margin-top:14px;">Khi quét được mã: Đang kiểm tra mã…</p>
+      </main>
+    </div>
+  </div>
 
   <script src="/static/js/mobile_app.js"></script>
 </body>
