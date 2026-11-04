@@ -36,15 +36,56 @@ REPO_MAP_MD_PATH = ARCH_DIR / "REPO_MAP.md"
 PYTHON_FILES = [
     "simulator/server.py",
     "simulator/rule_engine.py",
+    "simulator/engine/constants_and_time.py",
+    "simulator/engine/audit_logger.py",
+    "simulator/engine/voice_rbac_mixin.py",
+    "simulator/engine/timers_pool.py",
+    "simulator/engine/rules_pool.py",
     "simulator/mqtt_bridge.py",
     "simulator/voice_auth.py",
     "simulator/knowledge_rag.py",
+    "simulator/auth_3layer.py",
+    "simulator/auth/constants_and_crypto.py",
+    "simulator/auth/invite_and_gmail_mixin.py",
+    "simulator/auth/qr_totp_mixin.py",
+    "simulator/auth/test_suite_mixin.py",
+    "simulator/database_sqlite.py",
+    "simulator/voice/biometrics_neural.py",
+    "simulator/voice/vad_vietnamese.py",
+    "simulator/voice/denoiser.py",
+    "simulator/live/gemini_bridge.py",
+    "simulator/live/tool_dispatcher_mixin.py",
+    "simulator/live/prompt_builder.py",
+    "simulator/live/tts_rejection_vi.py",
+    "simulator/api/deps.py",
+    "simulator/api/routes_devices.py",
+    "simulator/api/routes_auth.py",
+    "simulator/api/routes_qr.py",
+    "simulator/api/routes_logs.py",
     "scripts/test_simulator_e2e.py",
 ]
 
 FRONTEND_FILES = [
-    "simulator/static/app.js",
     "simulator/static/index.html",
+    "simulator/static/auth.html",
+    "simulator/static/guest_enroll.html",
+    "simulator/static/wokwi.html",
+    "simulator/static/logs.html",
+    "simulator/static/app.js",
+    "simulator/static/house3d.js",
+    "simulator/static/style.css",
+    "simulator/static/css/style.css",
+    "simulator/static/css/auth.css",
+    "simulator/static/css/guest_enroll.css",
+    "simulator/static/css/wokwi.css",
+    "simulator/static/css/logs.css",
+    "simulator/static/css/mobile_app.css",
+    "simulator/static/js/app.js",
+    "simulator/static/js/auth.js",
+    "simulator/static/js/guest_enroll.js",
+    "simulator/static/js/wokwi.js",
+    "simulator/static/js/logs.js",
+    "simulator/static/js/mobile_app.js",
     "mobile_app/index.html",
 ]
 
@@ -179,16 +220,34 @@ def _extract_python_ast_graph() -> dict[str, Any]:
 def _extract_cross_layer_contracts() -> dict[str, Any]:
     """Trích xuất các hợp đồng giao tiếp liên tầng (Gemini Tools, MQTT Topics, HTTP Endpoints, WS Events, GPIO Pins)."""
     server_src = (ROOT / "simulator/server.py").read_text(encoding="utf-8")
-    engine_src = (ROOT / "simulator/rule_engine.py").read_text(encoding="utf-8")
+    engine_srcs = [(ROOT / "simulator/rule_engine.py").read_text(encoding="utf-8")]
+    engine_dir = ROOT / "simulator" / "engine"
+    if engine_dir.exists():
+        for e_file in sorted(engine_dir.glob("*.py")):
+            engine_srcs.append(e_file.read_text(encoding="utf-8"))
+    engine_src = "\n".join(engine_srcs)
+
     mqtt_src = (ROOT / "simulator/mqtt_bridge.py").read_text(encoding="utf-8")
     app_js_src = (ROOT / "simulator/static/app.js").read_text(encoding="utf-8")
     mobile_src = (ROOT / "mobile_app/index.html").read_text(encoding="utf-8")
     ino_src = (ROOT / "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino").read_text(encoding="utf-8")
 
-    # 1. Gemini Function Declarations trong server.py
-    declared_tools = re.findall(r'types\.FunctionDeclaration\(\s*name="([^"]+)"', server_src)
-    handled_eq = set(re.findall(r'name\s*==\s*"([^"]+)"', server_src))
-    for tup_str in re.findall(r'name\s+in\s*\(([^)]+)\)', server_src):
+    prompt_builder_path = ROOT / "simulator/live/prompt_builder.py"
+    prompt_builder_src = prompt_builder_path.read_text(encoding="utf-8") if prompt_builder_path.exists() else ""
+
+    live_srcs = []
+    for l_name in ("gemini_bridge.py", "tool_dispatcher_mixin.py"):
+        l_path = ROOT / "simulator" / "live" / l_name
+        if l_path.exists():
+            live_srcs.append(l_path.read_text(encoding="utf-8"))
+    gemini_bridge_src = "\n".join(live_srcs)
+
+    # 1. Gemini Function Declarations trong prompt_builder.py & server.py
+    tools_code = server_src + "\n" + prompt_builder_src
+    declared_tools = re.findall(r'types\.FunctionDeclaration\(\s*name="([^"]+)"', tools_code)
+    dispatch_code = server_src + "\n" + gemini_bridge_src
+    handled_eq = set(re.findall(r'name\s*==\s*"([^"]+)"', dispatch_code))
+    for tup_str in re.findall(r'name\s+in\s*\(([^)]+)\)', dispatch_code):
         handled_eq.update(re.findall(r'"([^"]+)"', tup_str))
     handled_tools = sorted(handled_eq)
 
@@ -196,8 +255,14 @@ def _extract_cross_layer_contracts() -> dict[str, Any]:
     mqtt_topics_py = sorted(set(re.findall(r'"(smarthome/[a-z0-9_/]+)"', mqtt_src)))
     mqtt_topics_ino = sorted(set(re.findall(r'"(smarthome/[a-z0-9_/]+)"', ino_src)))
 
-    # 3. REST API Endpoints giữa server.py, mobile_app/index.html và simulator/static/app.js
-    rest_routes_server = sorted(set(re.findall(r'@app\.(?:get|post)\("([^"]+)"\)', server_src)))
+    # 3. REST API Endpoints giữa server.py + simulator/api/routes_*.py, mobile_app/index.html và simulator/static/app.js
+    api_srcs = [server_src]
+    api_dir = ROOT / "simulator" / "api"
+    if api_dir.exists():
+        for r_file in api_dir.glob("routes_*.py"):
+            api_srcs.append(r_file.read_text(encoding="utf-8"))
+    combined_api_code = "\n".join(api_srcs)
+    rest_routes_server = sorted(set(re.findall(r'@(?:app|router)\.(?:get|post)\("([^"]+)"\)', combined_api_code)))
     rest_calls_mobile = sorted(set(re.findall(r"fetch\(['\"](/api/[a-z0-9_]+)['\"]", mobile_src)))
     rest_calls_web = sorted(set(re.findall(r"fetch\(['\"](/api/[a-z0-9_]+)['\"]", app_js_src)))
 
@@ -205,6 +270,7 @@ def _extract_cross_layer_contracts() -> dict[str, Any]:
     ws_emitted_backend = sorted(
         set(re.findall(r'"type":\s*"([a-z0-9_]+)"', server_src))
         | set(re.findall(r'"type":\s*"([a-z0-9_]+)"', engine_src))
+        | set(re.findall(r'"type":\s*"([a-z0-9_]+)"', gemini_bridge_src))
     )
     ws_handled_web = sorted(
         set(re.findall(r'msg\.type\s*===\s*["\']([a-z0-9_]+)["\']', app_js_src))

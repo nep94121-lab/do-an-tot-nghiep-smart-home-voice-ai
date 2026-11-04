@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng ký QR Khách &amp; Thành viên · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/guest_enroll.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+  </svg>
+
+  <header class="guesttop">
+    <a class="brand" href="/">Nhà thông minh</a>
+    <div class="top-links">
+      <a href="/auth" class="text-link">Xác thực</a>
+      <a href="/" class="text-link">Trang chủ</a>
+    </div>
+  </header>
+
+  <main class="guest">
+    <!-- FORM ĐĂNG KÝ QUA MÃ QR ĐƠN GIẢN, TRỰC QUAN -->
+    <section class="card" id="voiceEnrollCard">
+      <div class="header-row">
+        <h1>Đăng ký bằng Mã QR</h1>
+        <span id="handshakeBadge" class="badge badge-ok">Sẵn sàng</span>
+      </div>
+      <p style="color:var(--muted);">
+        Chọn vai trò (Khách Cấp 3 hoặc Thành viên Gia đình Cấp 2), nhập Tên, thu âm giọng nói đạt chuẩn và bấm <strong>OK · Xác nhận &amp; Kích hoạt</strong>.
+      </p>
+
+      <!-- KHUNG HIỂN THỊ MÃ QR SVG ĐỘNG 10S & ĐẾM NGƯỢC -->
+      <div style="margin: 14px 0; padding: 14px; background: var(--page); border: 1px solid var(--line); border-radius: 12px; display: flex; gap: 14px; align-items: center;">
+        <div id="guestQrSvgBox" style="width: 104px; height: 104px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 4px; display: grid; place-items: center; overflow: hidden; flex-shrink: 0;">
+          <span style="font-size: 11px; color: var(--muted);">Đang tạo QR...</span>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+            <span style="font-weight: 600; font-size: 13px;">Mã QR mời truy cập</span>
+            <span id="guestQrCountdownBadge" class="badge badge-ok">10s</span>
+          </div>
+          <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">Quét mã QR này để mở màn hình đăng ký giọng nói trực tiếp.</p>
+          <div id="guestQrTokenBox" style="font-size: 11px; color: var(--accent); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Token: ...</div>
+        </div>
+      </div>
+
+      <!-- BƯỚC 1: CHỌN LOẠI LỜI MỜI & NHẬP TÊN + EMAIL TÙY CHỌN -->
+      <label class="field-label" for="guestTierSelect">1. Chọn đối tượng đăng ký</label>
+      <select id="guestTierSelect" onchange="onGuestTierChange(this.value)">
+        <option value="3">Khách đến chơi nhà (Cấp 3 · Điều khiển đèn, quạt cơ bản)</option>
+        <option value="2">Thành viên gia đình (Cấp 2 · Điều khiển đèn, quạt, điều hòa, rèm)</option>
+      </select>
+
+      <label class="field-label" for="guestDurationSelect">2. Thời hạn sử dụng</label>
+      <select id="guestDurationSelect" onchange="onDurationChange(this.value)">
+        <option value="1d">1 ngày</option>
+        <option value="2d">2 ngày</option>
+        <option value="1w">1 tuần</option>
+        <option value="1m">1 tháng</option>
+        <option value="1y">1 năm</option>
+      </select>
+      <span id="durationBadge" hidden>1 ngày</span>
+
+      <label class="field-label" for="guestNameInput">3. Họ và tên người đăng ký (Bắt buộc)</label>
+      <input type="text" id="guestNameInput" value="Khách Đến Chơi Nhà" placeholder="Nhập tên của bạn (bắt buộc)" oninput="updateGuestPromptByRole()" />
+
+      <label class="field-label" for="guestOptionalEmailInput">4. Email (Tùy chọn — có thể ghi hoặc để trống)</label>
+      <input type="email" id="guestOptionalEmailInput" value="" placeholder="Nhập email của bạn (không bắt buộc)" />
+
+      <!-- BƯỚC 2: THU ÂM GIỌNG NÓI (ĐẠT MỚI ĐƯỢC ẤN OK KÍCH HOẠT) -->
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--line);">
+        <h2>5. Thu âm giọng nói (Bắt buộc)</h2>
+        <p style="font-size:12px; color:var(--muted); margin-top:2px;">
+          Đọc câu mẫu bên dưới. Nếu chưa đạt thì bấm <strong>Thu lại</strong> đến khi đạt chuẩn.
+        </p>
+        <div class="prompt-box" id="readingPromptBox">
+          "Xin chào ngôi nhà, tôi là Khách Đến Chơi Nhà đọc câu mẫu này để nhận quyền điều khiển thiết bị."
+        </div>
+        <div class="actions-row">
+          <button id="btnRecordGuestVoice" type="button" class="btn btn-primary" onclick="toggleGuestMicRecording()">
+            <svg class="icon"><use href="#i-mic"/></svg>
+            <span id="btnRecordGuestVoiceText">🎤 Bấm để Thu âm giọng nói</span>
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="recordAndEnrollGuestVoice(true)">🔄 Thu lại</button>
+          <button type="button" class="btn btn-secondary" onclick="recordAndEnrollGuestVoice(false)">Thử mẫu chưa đạt</button>
+        </div>
+        <div id="voiceEnrollResult" class="status-box">Nhấn "Bấm để Thu âm giọng nói" để bắt đầu kiểm tra giọng của bạn.</div>
+      </div>
+
+      <!-- BƯỚC 3: ẤN OK ĐỂ GỬI LÊN SERVER KÍCH HOẠT -->
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--line);">
+        <h2>6. Xác nhận &amp; Gửi lên Server Kích hoạt</h2>
+        <div class="actions-row">
+          <button id="btnConfirmGuestVoiceOk" type="button" class="btn btn-primary" style="width:100%; min-height:44px; font-weight:600;" disabled onclick="confirmAndActivateGuestVoice()">
+            ✅ OK · Xác nhận giọng nói &amp; Kích hoạt ngay
+          </button>
+        </div>
+        <div id="handshakeStatus" class="status-box">Thu âm giọng nói đạt chuẩn ở mục 5 để mở khóa nút OK kích hoạt.</div>
+      </div>
+
+      <div id="inviteCreatedActions" class="actions-row" style="padding-top:12px; border-top:1px solid var(--line);">
+        <button type="button" class="btn btn-secondary" onclick="recreateInvite()">Làm mới mã QR</button>
+        <button type="button" class="btn btn-secondary" onclick="copyInviteLink()">Sao chép liên kết QR</button>
+        <button type="button" class="btn btn-secondary" onclick="cancelInvite()">Hủy</button>
+        <a href="/" class="text-link" style="margin-left:auto;">Về trang chủ</a>
+      </div>
+
+      <!-- TÙY CHỌN GỬI OTP EMAIL (ẨN GỌN TRONG DETAILS ĐỂ GIỮ TƯƠNG THÍCH DOM) -->
+      <details style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <summary style="cursor:pointer; font-size:12px; color:var(--muted);">Tùy chọn nâng cao: Xác thực bổ sung qua OTP Email</summary>
+        <div style="margin-top:10px;">
+          <label class="field-label" for="guestEmail1">Email</label>
+          <input type="email" id="guestEmail1" value="khach_moi.hust@gmail.com" placeholder="ten_ban@gmail.com" />
+          <label class="field-label" for="guestEmail2">Xác nhận lại email</label>
+          <input type="email" id="guestEmail2" value="khach_moi.hust@gmail.com" placeholder="Nhập lại email" />
+          <div class="actions-row">
+            <button type="button" class="btn btn-primary" onclick="submitDoubleEmailOtp()">Gửi mã OTP</button>
+            <button type="button" class="btn btn-secondary" onclick="cancelInvite()">Hủy</button>
+          </div>
+          <div id="otpVerifyArea" style="display:none; margin-top:12px;">
+            <label class="field-label" for="guestOtpInput">Mã xác nhận 6 số</label>
+            <div class="actions-row">
+              <input type="text" id="guestOtpInput" maxlength="6" placeholder="Nhập mã 6 số" style="flex:1;" />
+              <button type="button" class="btn btn-primary" onclick="verifyGuestEmailOtp()">Xác nhận</button>
+            </div>
+          </div>
+          <div id="emailVerifyResult" class="status-box">Nhập email nếu muốn xác thực kèm mã OTP.</div>
+        </div>
+      </details>
+    </section>
+
+    <!-- DANH SÁCH KHÁCH & THÀNH VIÊN ĐÃ KÍCH HOẠT QUA QR -->
+    <section class="card">
+      <h2>Danh sách đã đăng ký qua QR</h2>
+      <div id="guestListContainer" class="guest-list">
+        <div class="guest-row">
+          <div>
+            <div class="guest-name">Khách C (Cấp 3 · Khách đến chơi)</div>
+            <div class="guest-sub">Thời hạn: 1 ngày · Đã thu mẫu giọng</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge badge-ok">Đã kích hoạt</span>
+            <details class="row-menu">
+              <summary>Tùy chọn</summary>
+              <div class="row-menu-panel">
+                <button type="button" class="btn btn-danger" style="width:100%;" onclick="revokeGuestAccess('Khách C')">Thu hồi quyền</button>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/guest_enroll.js"></script>
+</body>
+</html>

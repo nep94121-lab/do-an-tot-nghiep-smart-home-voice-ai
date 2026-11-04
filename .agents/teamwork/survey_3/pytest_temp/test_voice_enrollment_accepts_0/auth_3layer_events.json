@@ -1,0 +1,54 @@
+[
+  {
+    "id": 797935,
+    "time_vn": "13:13:17 04/11/2026",
+    "layer": "Thu Âm Giọng Chính",
+    "action": "voice_enroll_passed",
+    "email": "thanh_vien_chuan@gmail.com",
+    "status": "PASS",
+    "detail": "Kiểm định giọng thanh_vien_chuan@gmail.com ĐÃ ĐẠT: F0=167.5Hz. Đã lưu hồ sơ giọng chính!",
+    "source": "Voice Enrollment (Audio Upload)",
+    "extra": {
+      "f0_hz": 167.5,
+      "duration_sec": 2.25
+    }
+  },
+  {
+    "id": 797881,
+    "time_vn": "13:13:17 04/11/2026",
+    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
+    "action": "layer1_passed_otp_issued",
+    "email": "thanh_vien_chuan@gmail.com",
+    "status": "PASS",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 300988 — Đã gửi Gmail thật tới thanh_vien_chuan@gmail.com (ID: 1a1a530bfd784ecb)",
+    "source": "Web",
+    "extra": {
+      "otp_code": "300988",
+      "gmail_delivery": {
+        "sent_real_gmail": true,
+        "actual_recipient": "thanh_vien_chuan@gmail.com",
+        "gmail_message_id": "1a1a530bfd784ecb"
+      },
+      "tier": 2
+    }
+  },
+  {
+    "id": 797230,
+    "time_vn": "13:13:17 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "thanh_vien_chuan@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email thanh_vien_chuan@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "thanh_vien_chuan@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "13:13:17 04/11/2026"
+    }
+  }
+]

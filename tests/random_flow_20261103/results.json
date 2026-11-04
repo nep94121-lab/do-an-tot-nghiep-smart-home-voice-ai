@@ -1,0 +1,971 @@
+{
+  "seed": 20261103,
+  "counts": {
+    "PASS": 32,
+    "FAIL": 2,
+    "QUESTIONABLE": 14
+  },
+  "results": [
+    {
+      "id": "S01",
+      "title": "GET /api/state trả về snapshot hợp lệ",
+      "verdict": "PASS",
+      "observed": "HTTP 200; keys=['vn_time_now', 'server_connected', 'offline_locked_devices', 'current_user_id', 'current_user_name', 'current_tier', 'query_permission_mode', 'system_policies']",
+      "expected": "200 + current_tier/devices",
+      "fault": "",
+      "detail": {
+        "tier": 1,
+        "user": "Nguyễn Tuấn Anh"
+      }
+    },
+    {
+      "id": "S02",
+      "title": "Khách giả mạo tier=1 qua /api/device để mở cửa",
+      "verdict": "FAIL",
+      "observed": "Cửa mở được (before=CLOSED, after=OPEN); resp={'ok': True, 'results': [{'ok': True, 'device_id': 'main_door', 'device_name': 'Cửa chính', 'state': 'OPEN', 'already_in_state': False}], 'exact_spoken_reply': 'Cửa chính đã mở.', 'instruction_for_ai'",
+      "expected": "Phải từ chối: API không được tin tier do client gửi; cửa chỉ mở khi session Cấp 1 đã xác thực",
+      "fault": "simulator/server.py:api_control_device (bypass_rbac=(tier==1) từ payload)",
+      "detail": {
+        "http": 200,
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "OPEN",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Cửa chính đã mở.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Cửa chính đã mở.'",
+          "summary": "Cửa chính đã mở."
+        },
+        "after": "OPEN"
+      }
+    },
+    {
+      "id": "S03",
+      "title": "Gọi /api/device mở cửa với payload tier=3 (engine vẫn C1)",
+      "verdict": "FAIL",
+      "observed": "Cửa OPEN dù payload khai tier=3; engine.current_tier không đổi theo payload. resp={'ok': True, 'results': [{'ok': True, 'device_id': 'main_door', 'device_name': 'Cửa chính', 'state': 'OPEN', 'already_in_state': False}], 'exact_spoken_reply': 'Cửa chính đã mở.', ",
+      "expected": "Phải gắn session/user đã xác thực; tier trong payload không được bỏ qua cũng không được dùng để bypass khi engine đang C1 mặc định",
+      "fault": "simulator/server.py:api_control_device + rule_engine.current_tier",
+      "detail": {
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "OPEN",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Cửa chính đã mở.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Cửa chính đã mở.'",
+          "summary": "Cửa chính đã mở."
+        },
+        "after": "OPEN"
+      }
+    },
+    {
+      "id": "S04",
+      "title": "Bật đèn phòng khách qua /api/device (khách được phép theo spec)",
+      "verdict": "QUESTIONABLE",
+      "observed": "Đèn ON (đúng quyền C3 theo catalog) nhưng API không chứng minh session C3 — đang chạy dưới engine C1. resp={'ok': True, 'results': [{'ok': True, 'device_id': 'living_room_light', 'device_name': 'Đèn phòng khách', 'state': 'ON',",
+      "expected": "Cho phép C3 bật đèn khi đã xác thực C3; cần session thật",
+      "fault": "simulator/server.py:api_control_device",
+      "detail": {
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "living_room_light",
+              "device_name": "Đèn phòng khách",
+              "state": "ON",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Đèn phòng khách đã bật.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Đèn phòng khách đã bật.'",
+          "summary": "Đèn phòng khách đã bật."
+        }
+      }
+    },
+    {
+      "id": "S05",
+      "title": "QR single-use: handshake lần 1 OK, reuse bị chặn",
+      "verdict": "PASS",
+      "observed": "1st ok session=guest_sess_1793710338_ddaf99; 2nd blocked={'ok': False, 'error': 'Mã QR này đã được sử dụng một lần (Single-Use Token). Vui lòng quét mã mới trên màn hình!', 'sta",
+      "expected": "Token chỉ dùng 1 lần",
+      "fault": "",
+      "detail": {
+        "d1": {
+          "ok": true,
+          "guest_session_id": "guest_sess_1793710338_ddaf99",
+          "duration_type": "1d",
+          "duration_label": "1 ngày (24 giờ)",
+          "duration_seconds": 86400,
+          "session_expires_at": 1793711238.1591384,
+          "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi xác nhận đăng ký giọng nói khách Cấp 3.",
+          "message": "Bắt tay thành công! Mở phiên thu âm 15 phút (Thời hạn quyền khách: 1 ngày (24 giờ))."
+        },
+        "d2": {
+          "ok": false,
+          "error": "Mã QR này đã được sử dụng một lần (Single-Use Token). Vui lòng quét mã mới trên màn hình!",
+          "status_code": 400
+        }
+      }
+    },
+    {
+      "id": "S06",
+      "title": "Handshake với window cũ (mô phỏng QR >10s)",
+      "verdict": "PASS",
+      "observed": "blocked=True HTTP 401 resp={'ok': False, 'error': 'Mã QR đã hết hạn 10 giây, vui lòng quét lại mã mới trên màn hình!', 'status_code': 401}",
+      "expected": "Từ chối token ngoài cửa sổ TOTP",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Mã QR đã hết hạn 10 giây, vui lòng quét lại mã mới trên màn hình!",
+        "status_code": 401
+      }
+    },
+    {
+      "id": "S07",
+      "title": "Cấp 3 không được sinh QR mời khách",
+      "verdict": "PASS",
+      "observed": "HTTP 403 resp={'ok': False, 'error': 'Chỉ Cấp 1 (Chủ nhà) hoặc Cấp 2 (Thành viên gia đình) mới có quyền tạo mã QR động cho khách!', 'status_code': 403}",
+      "expected": "issuer_tier chỉ 1 hoặc 2",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Chỉ Cấp 1 (Chủ nhà) hoặc Cấp 2 (Thành viên gia đình) mới có quyền tạo mã QR động cho khách!",
+        "status_code": 403
+      }
+    },
+    {
+      "id": "S08",
+      "title": "duration_type không hợp lệ",
+      "verdict": "PASS",
+      "observed": "HTTP 400 {'ok': False, 'error': \"Thời hạn '99z' không hợp lệ (chỉ hỗ trợ: 1d, 2d, 1w, 1m, 1y).\", 'status_code': 400}",
+      "expected": "Chỉ nhận 1d/2d/1w/1m/1y",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Thời hạn '99z' không hợp lệ (chỉ hỗ trợ: 1d, 2d, 1w, 1m, 1y).",
+        "status_code": 400
+      }
+    },
+    {
+      "id": "S09",
+      "title": "Độ ẩm đất 25% tự bật máy bơm",
+      "verdict": "PASS",
+      "observed": "pump=ON; resp={'ok': True, 'telemetry': {'soil_moisture_pct': 25.0, 'adc_raw': 849, 'status_label': 'Khô - Cần tưới', 'sensor_pin': 'A0 (ADC0 - Cảm biến đ",
+      "expected": "soil < 40% => garden_pump ON",
+      "fault": "",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "soil_moisture_pct": 25.0,
+          "adc_raw": 849,
+          "status_label": "Khô - Cần tưới",
+          "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+          "auto_pump_below_pct": 40.0,
+          "updated_at": 1793710339.4703524
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/soil_moisture",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "soil_moisture_pct": 25.0,
+            "adc_raw": 849,
+            "status_label": "Khô - Cần tưới",
+            "sensor_pin": "A0"
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 (YL-69 A0) -> SERVER",
+          "timestamp": 1793710339.47
+        },
+        "triggered_actions": [
+          {
+            "ok": true,
+            "device_id": "garden_pump",
+            "device_name": "Máy bơm tưới cây",
+            "state": "ON",
+            "already_in_state": false
+          }
+        ],
+        "exact_spoken_reply": "Độ ẩm đất đang thấp (25%), máy bơm tưới cây đã tự động bật."
+      }
+    },
+    {
+      "id": "S10",
+      "title": "Độ ẩm đất 85% tự tắt máy bơm",
+      "verdict": "PASS",
+      "observed": "pump=OFF",
+      "expected": "soil > 75% => pump OFF",
+      "fault": "",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "soil_moisture_pct": 85.0,
+          "adc_raw": 429,
+          "status_label": "Ẩm ướt",
+          "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+          "auto_pump_below_pct": 40.0,
+          "updated_at": 1793710340.6677322
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/soil_moisture",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "soil_moisture_pct": 85.0,
+            "adc_raw": 429,
+            "status_label": "Ẩm ướt",
+            "sensor_pin": "A0"
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 (YL-69 A0) -> SERVER",
+          "timestamp": 1793710340.668
+        },
+        "triggered_actions": [
+          {
+            "ok": true,
+            "device_id": "garden_pump",
+            "device_name": "Máy bơm tưới cây",
+            "state": "OFF",
+            "already_in_state": false
+          }
+        ],
+        "exact_spoken_reply": "Độ ẩm đất đã đủ (85%), máy bơm tưới cây đã tự động tắt."
+      }
+    },
+    {
+      "id": "S11",
+      "title": "Xung đột: tắt bơm thủ công khi đất khô — luật tự tưới bật lại",
+      "verdict": "QUESTIONABLE",
+      "observed": "pump=ON (luật sensor thắng lệnh tay ngay khi cập nhật lại soil)",
+      "expected": "Cần chính sách rõ: khóa tạm / cooldown / ưu tiên lệnh tay",
+      "fault": "rule_engine.update_soil_moisture_telemetry vs execute_device_action",
+      "detail": {
+        "pump": "ON"
+      }
+    },
+    {
+      "id": "S12",
+      "title": "DHT11 giá trị vô lý (999°C, -5% RH)",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 accepted=True resp={'ok': True, 'telemetry': {'temp_c': 999.0, 'humidity_pct': -5.0, 'heat_index_c': 998.8, 'sensor_pin': 'D6 (GPIO 12)', 'updated_at': 1793710345.0586228}, 'mqtt_packet': {'topic': 'smarthome/telemetry/",
+      "expected": "Nên validate/clamp (vd temp [-40,85], RH [0,100]) thay vì nuốt số vô lý",
+      "fault": "server.api_update_dht11 / rule_engine.update_sensor_telemetry",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "temp_c": 999.0,
+          "humidity_pct": -5.0,
+          "heat_index_c": 998.8,
+          "sensor_pin": "D6 (GPIO 12)",
+          "updated_at": 1793710345.0586228
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/dht11",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "temp_c": 999.0,
+            "humidity_pct": -5.0,
+            "heat_index_c": 998.8,
+            "wifi_rssi_dbm": -52
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 -> SERVER",
+          "timestamp": 1793710345.059
+        },
+        "triggered_actions": [],
+        "exact_spoken_reply": "Nhiệt độ phòng là 999.0 độ C, độ ẩm -5%."
+      }
+    },
+    {
+      "id": "S13",
+      "title": "soil_moisture_pct = 'NaN' / malformed",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 resp={'ok': True, 'telemetry': {'soil_moisture_pct': 100.0, 'adc_raw': 324, 'status_label': 'Ẩm ướt', 'sensor_pin': 'A0 (ADC0 - Cảm biến đất YL-69 + LM393)', 'auto_p",
+      "expected": "Từ chối hoặc báo lỗi rõ, không đưa NaN vào luật bơm",
+      "fault": "server.api_update_soil_moisture",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "soil_moisture_pct": 100.0,
+          "adc_raw": 324,
+          "status_label": "Ẩm ướt",
+          "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+          "auto_pump_below_pct": 40.0,
+          "updated_at": 1793710345.313004
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/soil_moisture",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "soil_moisture_pct": 100.0,
+            "adc_raw": 324,
+            "status_label": "Ẩm ướt",
+            "sensor_pin": "A0"
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 (YL-69 A0) -> SERVER",
+          "timestamp": 1793710345.313
+        },
+        "triggered_actions": [],
+        "exact_spoken_reply": "Độ ẩm đất hiện tại là 100%."
+      }
+    },
+    {
+      "id": "S14",
+      "title": "Offline: khóa cứng cửa chính kể cả Cấp 1",
+      "verdict": "PASS",
+      "observed": "after=CLOSED resp={'ok': False, 'results': [{'ok': False, 'device_id': 'main_door', 'error': '🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> Cửa chính ",
+      "expected": "Không mở cửa khi server_connected=False",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "results": [
+          {
+            "ok": false,
+            "device_id": "main_door",
+            "error": "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!"
+          }
+        ],
+        "exact_spoken_reply": "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!'",
+        "summary": "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!"
+      }
+    },
+    {
+      "id": "S15",
+      "title": "Offline: vẫn bật được đèn sinh hoạt",
+      "verdict": "PASS",
+      "observed": "light=ON resp={'ok': True, 'results': [{'ok': True, 'device_id': 'living_room_light', 'device_name': 'Đèn phòng khách', 'state': 'ON',",
+      "expected": "Đèn/quạt/ĐH/bơm vẫn điều khiển khi offline",
+      "fault": "",
+      "detail": {
+        "ok": true,
+        "results": [
+          {
+            "ok": true,
+            "device_id": "living_room_light",
+            "device_name": "Đèn phòng khách",
+            "state": "ON",
+            "already_in_state": false
+          }
+        ],
+        "exact_spoken_reply": "Đèn phòng khách đã bật.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Đèn phòng khách đã bật.'",
+        "summary": "Đèn phòng khách đã bật."
+      }
+    },
+    {
+      "id": "S16a",
+      "title": "text_command: 'tắt hết đi'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: tắt hết đi; door=CLOSED light=OFF",
+      "expected": "Tắt all_lights/all_devices hoặc hỏi lại làm rõ",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: tắt hết đi",
+        "exact_spoken_reply": "Đã nhận lệnh: tắt hết đi"
+      }
+    },
+    {
+      "id": "S16b",
+      "title": "text_command: 'mở cửa rồi bật đèn'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: mở cửa rồi bật đèn; door=CLOSED light=OFF",
+      "expected": "Thực thi compound: mở cửa + bật đèn (nếu đã auth)",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: mở cửa rồi bật đèn",
+        "exact_spoken_reply": "Đã nhận lệnh: mở cửa rồi bật đèn"
+      }
+    },
+    {
+      "id": "S16c",
+      "title": "text_command: 'điều hòa 99 độ'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: điều hòa 99 độ; door=CLOSED light=OFF",
+      "expected": "Chặn/clamp setpoint ngoài biên hoặc hỏi lại",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: điều hòa 99 độ",
+        "exact_spoken_reply": "Đã nhận lệnh: điều hòa 99 độ"
+      }
+    },
+    {
+      "id": "S16d",
+      "title": "text_command: 'xyzabc lệnh không tồn tại'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: xyzabc lệnh không tồn tại; door=CLOSED light=OFF",
+      "expected": "Báo không hiểu / không thực thi ngầm",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: xyzabc lệnh không tồn tại",
+        "exact_spoken_reply": "Đã nhận lệnh: xyzabc lệnh không tồn tại"
+      }
+    },
+    {
+      "id": "S16e",
+      "title": "text_command: ''",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: ; door=CLOSED light=OFF",
+      "expected": "Từ chối lệnh rỗng",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: ",
+        "exact_spoken_reply": "Đã nhận lệnh: "
+      }
+    },
+    {
+      "id": "S17",
+      "title": "text_command 'mở cửa chính' không mở cửa (chỉ echo)",
+      "verdict": "QUESTIONABLE",
+      "observed": "Cửa vẫn CLOSED; reply=Đã nhận lệnh: mở cửa chính — endpoint text không map lệnh cửa",
+      "expected": "Hoặc thực thi có auth, hoặc từ chối rõ; không nên im lặng nuốt lệnh an ninh",
+      "fault": "server.api_text_command",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: mở cửa chính",
+        "exact_spoken_reply": "Đã nhận lệnh: mở cửa chính"
+      }
+    },
+    {
+      "id": "S18",
+      "title": "Race/rapid 12 lệnh bật-tắt quạt liên tiếp",
+      "verdict": "PASS",
+      "observed": "final=OFF expected=OFF elapsed=6.32s results_ok=True",
+      "expected": "Trạng thái cuối khớp lệnh cuối, không crash",
+      "fault": "",
+      "detail": {
+        "final": "OFF",
+        "sample": [
+          [
+            200,
+            true,
+            "ON"
+          ],
+          [
+            200,
+            true,
+            "OFF"
+          ],
+          [
+            200,
+            true,
+            "ON"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "S19a",
+      "title": "Malformed /api/device",
+      "verdict": "PASS",
+      "observed": "HTTP 200 {'ok': False, 'results': [{'ok': False, 'device_id': 'no_such_device', 'error': \"Thiết bị 'no_such_device' không tồn tại.\"}], 'exact_spoken_",
+      "expected": "Xử lý an toàn input xấu",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "results": [
+          {
+            "ok": false,
+            "device_id": "no_such_device",
+            "error": "Thiết bị 'no_such_device' không tồn tại."
+          }
+        ],
+        "exact_spoken_reply": "Thiết bị 'no_such_device' không tồn tại.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Thiết bị 'no_such_device' không tồn tại.'",
+        "summary": "Thiết bị 'no_such_device' không tồn tại."
+      }
+    },
+    {
+      "id": "S19b",
+      "title": "Malformed /api/device",
+      "verdict": "PASS",
+      "observed": "HTTP 200 {'ok': True, 'results': [{'ok': True, 'device_id': 'main_door', 'device_name': 'Cửa chính', 'state': 'CLOSED', 'already_in_state': True}], '",
+      "expected": "Xử lý an toàn input xấu",
+      "fault": "",
+      "detail": {
+        "ok": true,
+        "results": [
+          {
+            "ok": true,
+            "device_id": "main_door",
+            "device_name": "Cửa chính",
+            "state": "CLOSED",
+            "already_in_state": true
+          }
+        ],
+        "exact_spoken_reply": "Cửa chính đã đóng sẵn rồi.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Cửa chính đã đóng sẵn rồi.'",
+        "summary": "Cửa chính đã đóng sẵn rồi."
+      }
+    },
+    {
+      "id": "S19c",
+      "title": "Malformed /api/auth3/guest/handshake",
+      "verdict": "PASS",
+      "observed": "HTTP 400 {'ok': False, 'error': 'Thiếu mã token QR động!', 'status_code': 400}",
+      "expected": "Xử lý an toàn input xấu",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Thiếu mã token QR động!",
+        "status_code": 400
+      }
+    },
+    {
+      "id": "S19d",
+      "title": "Malformed /api/auth3/guest/enroll_voice",
+      "verdict": "PASS",
+      "observed": "HTTP 400 {'ok': False, 'verified': False, 'status': 'CHUA_DAT', 'message': 'Giọng thu âm chưa đạt chuẩn (Chưa được)', 'reason': 'Dữ liệu âm thanh rỗn",
+      "expected": "Xử lý an toàn input xấu",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "verified": false,
+        "status": "CHUA_DAT",
+        "message": "Giọng thu âm chưa đạt chuẩn (Chưa được)",
+        "reason": "Dữ liệu âm thanh rỗng",
+        "details": {
+          "duration_sec": 0.0,
+          "rms": 0.0,
+          "voiced_ratio": 0.0,
+          "f0_mean_hz": 0.0,
+          "pitch_std_hz": 0.0,
+          "snr_db": 0.0
+        }
+      }
+    },
+    {
+      "id": "S19e",
+      "title": "Malformed /api/auth3/layer1_login",
+      "verdict": "PASS",
+      "observed": "HTTP 200 {'ok': False, 'layer': 1, 'error': \"Không tìm thấy tài khoản 'not-an-email'!\"}",
+      "expected": "Xử lý an toàn input xấu",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "layer": 1,
+        "error": "Không tìm thấy tài khoản 'not-an-email'!"
+      }
+    },
+    {
+      "id": "S20",
+      "title": "Email xác nhận không khớp",
+      "verdict": "PASS",
+      "observed": "HTTP 400 {'ok': False, 'error': 'Hai ô nhập email không khớp nhau (Email và Xác nhận Email phải giống nhau 100%)!', 'status_code': 400}",
+      "expected": "Từ chối khi 2 ô email khác nhau",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Hai ô nhập email không khớp nhau (Email và Xác nhận Email phải giống nhau 100%)!",
+        "status_code": 400
+      }
+    },
+    {
+      "id": "S21",
+      "title": "DNS MX tên miền giả .invalid",
+      "verdict": "PASS",
+      "observed": "HTTP 400 {'ok': False, 'error': \"Tên miền 'this-domain-should-not-exist-zzz-datn-test.invalid' không có bản ghi MX thực tế (DNS MX Lookup failed)\", 'status_code': 400}",
+      "expected": "validate_dns_mx_record thất bại / ok=false",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "error": "Tên miền 'this-domain-should-not-exist-zzz-datn-test.invalid' không có bản ghi MX thực tế (DNS MX Lookup failed)",
+        "status_code": 400
+      }
+    },
+    {
+      "id": "S22",
+      "title": "Cấp 3 thêm family email (RBAC)",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 401 resp={'ok': False, 'status_code': 401, 'error': 'Thiếu thông tin người thêm (actor_id)'} — cần xác nhận API lấy actor từ đâu",
+      "expected": "C3 bị chặn 100% khi add_family_email",
+      "fault": "server.api + auth_3layer.add_family_email",
+      "detail": {
+        "ok": false,
+        "status_code": 401,
+        "error": "Thiếu thông tin người thêm (actor_id)"
+      }
+    },
+    {
+      "id": "S23",
+      "title": "Bật đèn ngủ khi đã ON (already-in-state)",
+      "verdict": "PASS",
+      "observed": "resp={'ok': True, 'results': [{'ok': True, 'device_id': 'bedroom_light', 'device_name': 'Đèn phòng ngủ', 'state': 'ON', 'already_in_state': True}], 'exact_spoken_reply': 'Đèn phòng ngủ ",
+      "expected": "Báo đã bật sẵn / already_in_state",
+      "fault": "rule_engine.execute_device_action",
+      "detail": {
+        "ok": true,
+        "results": [
+          {
+            "ok": true,
+            "device_id": "bedroom_light",
+            "device_name": "Đèn phòng ngủ",
+            "state": "ON",
+            "already_in_state": true
+          }
+        ],
+        "exact_spoken_reply": "Đèn phòng ngủ đã bật sẵn rồi.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Đèn phòng ngủ đã bật sẵn rồi.'",
+        "summary": "Đèn phòng ngủ đã bật sẵn rồi."
+      }
+    },
+    {
+      "id": "S24",
+      "title": "Khách C3 đặt hẹn giờ qua /api/mobile/schedule",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 {'ok': True, 'timer_id': 'timer_1', 'timer_ids': ['timer_1'], 'both_ampm': False, 'has_date': False, 'repeat': 'once', 'timer_pool_count': 1, 'exact_spoken_repl — API nhận tier từ client, engine có thể vẫn C1",
+      "expected": "C3 bị chặn đặt hẹn giờ (tier3_can_schedule_timer=False) khi session thật là C3",
+      "fault": "server.api_mobile_schedule / rule_engine.schedule_timer_flexible",
+      "detail": {
+        "ok": true,
+        "timer_id": "timer_1",
+        "timer_ids": [
+          "timer_1"
+        ],
+        "both_ampm": false,
+        "has_date": false,
+        "repeat": "once",
+        "timer_pool_count": 1,
+        "exact_spoken_reply": "Đã hẹn 5 giây nữa bật đèn phòng khách.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này (TUYỆT ĐỐI KHÔNG đọc kèm giờ đồng hồ hay ngày): 'Đã hẹn 5 giây nữa bật đèn phòng khách.'",
+        "message": "Đã hẹn 5 giây nữa bật đèn phòng khách."
+      }
+    },
+    {
+      "id": "S39",
+      "title": "HTTP guest enroll bằng giọng chủ nhà → chống trùng",
+      "verdict": "PASS",
+      "observed": "HTTP 400 rejected=True resp={'ok': False, 'status': 'DUPLICATE_VOICE_REJECTED', 'reason': 'TRUNG_GIONG_NGUOI_TRONG_NHA', 'error': 'Trùng giọng người đã có trong nhà - Từ chối lưu', 'message': 'Trùng giọng người đã có trong nhà -",
+      "expected": "400 DUPLICATE_VOICE_REJECTED / không lưu C3",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "status": "DUPLICATE_VOICE_REJECTED",
+        "reason": "TRUNG_GIONG_NGUOI_TRONG_NHA",
+        "error": "Trùng giọng người đã có trong nhà - Từ chối lưu",
+        "message": "Trùng giọng người đã có trong nhà - Từ chối lưu",
+        "matched_tier": 1,
+        "matched_name": "Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà - Toàn quyền)"
+      }
+    },
+    {
+      "id": "S40",
+      "title": "GET /api/voice_auth/profiles có owner_voice_1",
+      "verdict": "PASS",
+      "observed": "HTTP 200 n_profiles=4",
+      "expected": "Có hồ sơ Cấp 1",
+      "fault": "",
+      "detail": [
+        "owner_voice_1",
+        "user_voice_thanh_vien_a",
+        "user_voice_khach_c",
+        "intruder_voice_2"
+      ]
+    },
+    {
+      "id": "S25",
+      "title": "DSP: nhận diện chủ nhà C1",
+      "verdict": "PASS",
+      "observed": "auth=True tier=1 speaker=owner_voice_1 strikes=0",
+      "expected": "authorized=True, tier=1, owner_voice_1",
+      "fault": "",
+      "detail": {
+        "authorized": true,
+        "tier": 1,
+        "speaker_id": "owner_voice_1",
+        "strike_count": 0,
+        "rejection_speech": "",
+        "reason": null
+      }
+    },
+    {
+      "id": "S26",
+      "title": "Replay cùng wav chủ nhà 2 lần",
+      "verdict": "PASS",
+      "observed": "r1=True r2=True strikes=0",
+      "expected": "Vẫn authorized, không tăng strike",
+      "fault": "",
+      "detail": {
+        "r1": "owner_voice_1",
+        "r2": "owner_voice_1"
+      }
+    },
+    {
+      "id": "S27",
+      "title": "Người lạ 3-strike (cảnh báo rồi im lặng)",
+      "verdict": "PASS",
+      "observed": "strikes=[1, 2, 3] silent3=True speech1=Tôi không được phép nhận lệnh từ người lạ.",
+      "expected": "1→cảnh báo, 2→cảnh báo, 3+→silent_ignore",
+      "fault": "",
+      "detail": [
+        {
+          "strike": 1,
+          "silent": false
+        },
+        {
+          "strike": 2,
+          "silent": false
+        },
+        {
+          "strike": 3,
+          "silent": true
+        }
+      ]
+    },
+    {
+      "id": "S28",
+      "title": "Sau 3-strike người lạ, chủ nhà vẫn ra lệnh được",
+      "verdict": "PASS",
+      "observed": "auth=True tier=1 strikes_after=0 vm.strikes=0",
+      "expected": "C1 authorized; ideally reset strikes",
+      "fault": "",
+      "detail": {
+        "authorized": true,
+        "tier": 1,
+        "strike_count": 0,
+        "speaker_id": "owner_voice_1"
+      }
+    },
+    {
+      "id": "S29",
+      "title": "Hai người nói cùng lúc → ưu tiên C1",
+      "verdict": "PASS",
+      "observed": "auth=True tier=1 speaker=owner_voice_1 multi=None",
+      "expected": "authorized C1",
+      "fault": "",
+      "detail": {
+        "authorized": true,
+        "tier": 1,
+        "speaker_id": "owner_voice_1",
+        "filter_stage_used": "Tầng 1 ➡️ Tầng 2 (Sâu 64 chiều)"
+      }
+    },
+    {
+      "id": "S30",
+      "title": "Chủ nhà + tiếng ồn quạt vẫn nhận diện",
+      "verdict": "PASS",
+      "observed": "auth=True tier=1",
+      "expected": "authorized C1 sau denoise",
+      "fault": "",
+      "detail": {
+        "authorized": true,
+        "tier": 1,
+        "speaker_id": "owner_voice_1"
+      }
+    },
+    {
+      "id": "S31",
+      "title": "Cổng chống trùng: thu âm giọng C1 để đăng ký C3",
+      "verdict": "PASS",
+      "observed": "is_duplicate=True reason=TRUNG_GIONG_NGUOI_TRONG_NHA",
+      "expected": "Từ chối TRUNG_GIONG_NGUOI_TRONG_NHA",
+      "fault": "",
+      "detail": "(True, 'TRUNG_GIONG_NGUOI_TRONG_NHA', {'id': 'owner_voice_1', 'user_id': 'tuan_anh', 'name': 'Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà - Toàn quyền)', 'authorized': True, 'role': 'ADMIN', 'tier': 1, 'vo"
+    },
+    {
+      "id": "S32",
+      "title": "Quality gate từ chối PCM quá ngắn",
+      "verdict": "PASS",
+      "observed": "ok=False status=CHUA_DAT reason=Thời lượng mẫu thu âm quá ngắn (0.10s < 2.0s). Vui lòng nhấn giữ và đọc trọn vẹn câu mẫu!",
+      "expected": "ok=False / CHUA_DAT",
+      "fault": "",
+      "detail": {
+        "ok": false,
+        "verified": false,
+        "status": "CHUA_DAT",
+        "message": "Giọng thu âm chưa đạt chuẩn (Chưa được)",
+        "reason": "Thời lượng mẫu thu âm quá ngắn (0.10s < 2.0s). Vui lòng nhấn giữ và đọc trọn vẹn câu mẫu!",
+        "details": {
+          "duration_sec": 0.1,
+          "rms": 0.0,
+          "voiced_ratio": 0.0,
+          "f0_mean_hz": 0.0,
+          "pitch_std_hz": 0.0,
+          "snr_db": 0.0
+        }
+      }
+    },
+    {
+      "id": "S33",
+      "title": "Quality gate trên mẫu khách thật",
+      "verdict": "PASS",
+      "observed": "ok=True status=DA_DAT f0=150.0",
+      "expected": "Trả về kết quả kiểm định hợp lệ (Đạt hoặc Chưa đạt có lý do)",
+      "fault": "voice_auth.validate_voice_enrollment_quality",
+      "detail": {
+        "ok": true,
+        "status": "DA_DAT",
+        "f0_hz": 150.0,
+        "reason": null,
+        "message": "Giọng chính đã đạt chuẩn (Đã được)"
+      }
+    },
+    {
+      "id": "S34",
+      "title": "DSP mẫu thành viên C2",
+      "verdict": "QUESTIONABLE",
+      "observed": "auth=True tier=2 speaker=user_voice_thanh_vien_a reason=None",
+      "expected": "Nếu đã enroll C2: authorized tier=2; nếu chưa: xử lý như người lạ/strike — phụ thuộc data hiện tại",
+      "fault": "voice_auth.verify_pcm16k_and_apply_strikes / voiceprints.json",
+      "detail": {
+        "authorized": true,
+        "tier": 2,
+        "speaker_id": "user_voice_thanh_vien_a",
+        "strike_count": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S35",
+      "title": "DSP mẫu khách C3",
+      "verdict": "QUESTIONABLE",
+      "observed": "auth=True tier=3 speaker=user_voice_khach_c expires=None",
+      "expected": "Nếu profile C3 còn hạn: tier=3 auth; hết hạn: GUEST_EXPIRED",
+      "fault": "voice_auth.verify + expires_at",
+      "detail": {
+        "authorized": true,
+        "tier": 3,
+        "speaker_id": "user_voice_khach_c",
+        "reason": null,
+        "rejection_speech": ""
+      }
+    },
+    {
+      "id": "S36",
+      "title": "5 mốc duration QR (in-process)",
+      "verdict": "PASS",
+      "observed": "fails=0 sample=[]",
+      "expected": "Tất cả 1d/2d/1w/1m/1y OK đúng giây",
+      "fault": "",
+      "detail": []
+    },
+    {
+      "id": "S37",
+      "title": "RBAC engine C3: đèn OK; cửa/còi/ĐH/bơm chặn",
+      "verdict": "PASS",
+      "observed": "tier=3 door_ok=False light_ok=True ac_ok=False siren_ok=False pump_ok=False",
+      "expected": "F13: light/fan OK; door/siren/ac/pump blocked",
+      "fault": "",
+      "detail": {
+        "door": "Từ chối truy cập! Thiết bị Cửa chính chỉ cho phép từ Cấp 1 trở lên điều khiển.",
+        "light": "Đèn phòng khách đã bật.",
+        "ac": null,
+        "siren": null,
+        "pump": null
+      }
+    },
+    {
+      "id": "S38",
+      "title": "RBAC engine C2: ĐH/bơm OK; cửa/còi chặn",
+      "verdict": "PASS",
+      "observed": "tier=2 door=False ac=True pump=True siren=False",
+      "expected": "F17: member controls lights/fan/ac/pump; not door/siren",
+      "fault": "",
+      "detail": {
+        "door": null,
+        "siren": null
+      }
+    }
+  ],
+  "pytest": {
+    "returncode": 0,
+    "tail": "........................................................................ [ 55%]\n..........................................................               [100%]\n============================== warnings summary ===============================\n..\\..\\miniconda3\\Lib\\site-packages\\fastapi\\testclient.py:1\n  C:\\Users\\LENOVO\\miniconda3\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n..\\..\\miniconda3\\Lib\\site-packages\\starlette\\testclient.py:53\n  C:\\Users\\LENOVO\\miniconda3\\Lib\\site-packages\\starlette\\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.\n    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]\n\n..\\..\\miniconda3\\Lib\\site-packages\\google\\genai\\types.py:42\n  C:\\Users\\LENOVO\\miniconda3\\Lib\\site-packages\\google\\genai\\types.py:42: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17\n    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n130 passed, 3 warnings in 68.99s (0:01:08)",
+    "log": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\tests\\random_flow_20261103\\pytest_reference.log"
+  },
+  "restore": {
+    "restored": [
+      "accounts_3layer.json",
+      "auth_3layer_events.json",
+      "custom_rules_overlay.json",
+      "esp8266_flash_replica.json",
+      "factory_default_rules.json",
+      "family_email_allowlist.json",
+      "invite_links_3layer.json",
+      "ir_devices_db.json",
+      "knowledge_base.json",
+      "knowledge_embeddings_cache.json",
+      "smarthome.db",
+      "system_audit_logs.jsonl",
+      "voiceprints.json"
+    ],
+    "mismatch_after": [],
+    "missing_in_backup": [],
+    "verify_ok": true,
+    "verify": {
+      "accounts_3layer.json": {
+        "match": true,
+        "sha256": "f49337c64a583764ab700c914f607b60c34694593db4903169d4d8fb42428786"
+      },
+      "auth_3layer_events.json": {
+        "match": true,
+        "sha256": "a9ba7df79f7969bb6e8126d64e8af6a2dc80b16605b0d5b0cba315c572306c95"
+      },
+      "custom_rules_overlay.json": {
+        "match": true,
+        "sha256": "de5f62ea8600d5f82f9219a94175b6e3aa8c23ac8016bb550ba194361d680c7f"
+      },
+      "esp8266_flash_replica.json": {
+        "match": true,
+        "sha256": "97e4ccbed810191ca4da1f0b584ce00dfa8d43533419a329a3b2c2b5b0f599b1"
+      },
+      "factory_default_rules.json": {
+        "match": true,
+        "sha256": "2527c54ae70e51be275db6664ca7d98f98ef4fa48b213b4ef7c3c2f072c40abd"
+      },
+      "family_email_allowlist.json": {
+        "match": true,
+        "sha256": "96af00879f59649f8a1c58de1e96be16efcbd8fb4fe2c3ec70faa68a68fb9520"
+      },
+      "invite_links_3layer.json": {
+        "match": true,
+        "sha256": "1538ba53862521982f3c0c6ad1f784037823bf8f5825b9762c4c1b1c6c9ad076"
+      },
+      "ir_devices_db.json": {
+        "match": true,
+        "sha256": "aab5f45e0ece04884fecab1ae3112b95d2b31985cb546c2016aafab4990dcfdc"
+      },
+      "knowledge_base.json": {
+        "match": true,
+        "sha256": "a6816073402efde10394f6416d330cff9a9cd6a0fc424e5579488b4becffb6a9"
+      },
+      "knowledge_embeddings_cache.json": {
+        "match": true,
+        "sha256": "771beec2127af6573cd667d9d9bdf80c7ad34d83a805fc30fc45f5686ae2ed1a"
+      },
+      "smarthome.db": {
+        "match": true,
+        "sha256": "39ddf3e120793bf8c630b4bde7a54b4218d243841c8b6e53d3532cc42a9ad853"
+      },
+      "system_audit_logs.jsonl": {
+        "match": true,
+        "sha256": "59ab198aeb17b080abac6e8668bd3842ad8b264ade565161059411c02c470e54"
+      },
+      "voiceprints.json": {
+        "match": true,
+        "sha256": "496d341b2c3f01a4cd3f5a545323259998ed72bb6e86ee16b12d74af83f478aa"
+      }
+    }
+  }
+}

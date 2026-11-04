@@ -106,7 +106,9 @@ async def api_auth3_guest_qr_current(
     tier_label = "Thành viên gia đình (Cấp 2)" if chosen_tier == 2 else "Khách đến chơi nhà (Cấp 3)"
 
     chosen_host = str(host_url or host or data.get("host_url") or data.get("host") or "localhost:8088").strip()
-    if chosen_host.startswith("http://") or chosen_host.startswith("https://"):
+    if chosen_host in ("localhost:8088", "127.0.0.1:8088", "localhost", "127.0.0.1", "0.0.0.0:8088"):
+        base_host = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
+    elif chosen_host.startswith("http://") or chosen_host.startswith("https://"):
         base_host = chosen_host.rstrip("/")
     elif any(t_dom in chosen_host for t_dom in [".lhr.life", ".vercel.app", "trycloudflare.com", ".ngrok", ".loca.lt"]) or ":443" in chosen_host:
         base_host = f"https://{chosen_host.rstrip('/')}"

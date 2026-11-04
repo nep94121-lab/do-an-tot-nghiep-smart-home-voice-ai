@@ -1,0 +1,13 @@
+[
+  {
+    "id": 737226,
+    "time_vn": "13:12:17 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_c1_override",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Tài khoản Thành viên A (Người nhà) (Cấp 2) cố thay đổi tài khoản Chủ nhà Cấp 1 (nep94121@gmail.com) -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  }
+]

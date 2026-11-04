@@ -3,697 +3,252 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quản Trị Server: Nhật Ký Lệnh, Hẹn Giờ, Luật &amp; Kho Tri Thức KB — Smart Home Voice AI</title>
-  <link rel="icon" href="data:," />
-  <style>
-    :root {
-      --bg: #0b101b;
-      --panel: #131b2e;
-      --panel-2: #1c2742;
-      --border: #2d3d63;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --cyan: #38bdf8;
-      --green: #10b981;
-      --amber: #f59e0b;
-      --red: #ef4444;
-      --purple: #c084fc;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-    header {
-      background: #101726;
-      border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .brand-badge {
-      background: linear-gradient(135deg, #0284c7, #2563eb);
-      color: #fff;
-      font-weight: 900;
-      font-size: 14px;
-      padding: 7px 12px;
-      border-radius: 8px;
-      border: 1px solid #60a5fa;
-    }
-    .brand h1 { font-size: 16px; font-weight: 800; color: #fff; }
-    .brand p { font-size: 12px; color: var(--muted); }
-    .nav-btns {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .btn {
-      text-decoration: none;
-      padding: 6px 12px;
-      border-radius: 7px;
-      font-size: 12px;
-      font-weight: 600;
-      border: 1px solid var(--border);
-      background: var(--panel-2);
-      color: var(--text);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      transition: 0.15s;
-    }
-    .btn:hover { border-color: var(--cyan); color: #fff; }
-    .btn.primary { background: #0284c7; border-color: #38bdf8; color: #fff; }
-    .btn.green { background: #059669; border-color: #34d399; color: #fff; }
-    .btn.danger { background: #991b1b; border-color: #f87171; color: #fff; }
-
-    .container {
-      max-width: 1600px;
-      margin: 0 auto;
-      padding: 14px 20px 32px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 10px;
-    }
-    @media (max-width: 1200px) {
-      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-    .kpi-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-    }
-    .kpi-lbl { font-size: 11.5px; color: var(--muted); }
-    .kpi-val { font-size: 19px; font-weight: 800; color: #fff; margin-top: 3px; }
-    .kpi-sub { font-size: 11px; color: var(--cyan); margin-top: 2px; }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 11px;
-      padding: 14px 16px;
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-    }
-    .card-header h2 {
-      font-size: 14.5px;
-      font-weight: 700;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .filter-pills {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .pill {
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 11.5px;
-      font-weight: 600;
-      border: 1px solid var(--border);
-      background: var(--panel-2);
-      color: #cbd5e1;
-      cursor: pointer;
-    }
-    .pill.active {
-      background: #2563eb;
-      border-color: #60a5fa;
-      color: #fff;
-    }
-    .search-input {
-      padding: 6px 11px;
-      border-radius: 7px;
-      border: 1px solid var(--border);
-      background: #090d16;
-      color: #fff;
-      font-size: 12px;
-      min-width: 280px;
-    }
-    .table-wrap {
-      max-height: 410px;
-      overflow: auto;
-      border: 1px solid #1e293b;
-      border-radius: 8px;
-      background: #090d16;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-    th {
-      position: sticky;
-      top: 0;
-      background: #162038;
-      color: #93c5fd;
-      text-align: left;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-      z-index: 5;
-    }
-    td {
-      padding: 7px 10px;
-      border-bottom: 1px solid #1a243b;
-      vertical-align: top;
-      line-height: 1.45;
-    }
-    tr:hover td { background: rgba(56, 189, 248, 0.05); }
-    .cat-badge {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-size: 10.5px;
-      font-weight: 700;
-      font-family: Consolas, monospace;
-      white-space: nowrap;
-    }
-    .cat-VOICE_CMD { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid #0284c7; }
-    .cat-DEVICE_GPIO { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid #059669; }
-    .cat-TIMER_POOL { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid #d97706; }
-    .cat-RULE_POOL { background: rgba(192, 132, 252, 0.18); color: #d8b4fe; border: 1px solid #9333ea; }
-    .cat-KNOWLEDGE_BASE { background: rgba(96, 165, 250, 0.18); color: #93c5fd; border: 1px solid #2563eb; }
-    .cat-SENSOR_IOT { background: rgba(45, 212, 191, 0.18); color: #5eead4; border: 1px solid #0d9488; }
-    .cat-VOICE_AUTH, .cat-SECURITY_MODE { background: rgba(244, 63, 94, 0.18); color: #fda4af; border: 1px solid #e11d48; }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    @media (max-width: 1100px) {
-      .grid-2 { grid-template-columns: 1fr; }
-    }
-    .kb-form {
-      display: grid;
-      grid-template-columns: 1.2fr 1.2fr 0.6fr auto;
-      gap: 8px;
-      margin-bottom: 10px;
-      background: #0d1424;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #233152;
-    }
-    .kb-form input, .kb-form select {
-      padding: 6px 9px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: #090d16;
-      color: #fff;
-      font-size: 12px;
-    }
-    pre.json-box {
-      background: #090d16;
-      border: 1px solid #1e293b;
-      border-radius: 8px;
-      padding: 10px;
-      font-family: Consolas, monospace;
-      font-size: 11.5px;
-      color: #a7f3d0;
-      max-height: 280px;
-      overflow: auto;
-      line-height: 1.45;
-    }
-  </style>
+  <title>Nhật ký · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/logs.css" />
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  </svg>
 
-  <header>
-    <div class="brand">
-      <div class="brand-badge">SERVER DB &amp; LOGS</div>
-      <div>
-        <h1>TRUNG TÂM QUẢN TRỊ SERVER: NHẬT KÝ CÂU LỆNH, HẸN GIỜ, BỂ LUẬT &amp; KHO TRI THỨC (KB)</h1>
-        <p>Lưu trữ bền vững trên đĩa tại <code>simulator/data/</code> • Tự động ghi lại mọi câu lệnh giọng nói, thời gian, chân GPIO, luật IF-ELSE và KB</p>
-      </div>
-    </div>
-    <div class="nav-btns">
-      <button class="btn green" onclick="fetchAllServerData()">🔄 Làm mới ngay</button>
-      <a href="/archify/erd" target="_blank" class="btn primary">🗄️ Sơ Đồ Bảng CSDL ERD (/archify/erd)</a>
-      <a href="/archify" target="_blank" class="btn">🗺️ Kiến Trúc Archify (/archify)</a>
-      <button class="btn" onclick="exportLogsJsonl()">⬇️ Tải File Log (.jsonl)</button>
-      <a href="/" class="btn">🏠 Nhà 3D Blender (/)</a>
-      <a href="/wokwi" class="btn">🔌 Mạch &amp; Code ESP8266 (/wokwi)</a>
-    </div>
-  </header>
-
-  <main class="container">
-    <!-- DẢI 6 CHỈ SỐ TỔNG QUAN SERVER -->
-    <section class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-lbl">Trạng Thái Server &amp; SQLite</div>
-        <div class="kpi-val" id="kpiServerState" style="color:#34d399;">🟢 ONLINE</div>
-        <div class="kpi-sub" id="kpiServerClock">--:--:--</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-lbl">CSDL Quan Hệ SQLite 3</div>
-        <div class="kpi-val" id="kpiSqliteMode" style="color:#38bdf8;">8 Bảng (WAL)</div>
-        <div class="kpi-sub" id="kpiSqliteSize">simulator/data/smarthome.db</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-lbl">Bể 1: Hẹn Giờ (`timers_pool`)</div>
-        <div class="kpi-val" id="kpiTimerCount" style="color:#fbbf24;">0</div>
-        <div class="kpi-sub">Đang đếm ngược thời gian thực</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-lbl">Bể 2: Luật (`rules_pool`)</div>
-        <div class="kpi-val" id="kpiRuleCount" style="color:#c084fc;">0</div>
-        <div class="kpi-sub">IF-ELSE • Alias • Đổi từ</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-lbl">Tri Thức RAG (`knowledge_rag`)</div>
-        <div class="kpi-val" id="kpiKbCount" style="color:#38bdf8;">0</div>
-        <div class="kpi-sub">Vector 3072-dim + SQLite</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-lbl">Nhật Ký (`audit_logs`) &amp; Dung Lượng</div>
-        <div class="kpi-val" id="kpiLogCount">0</div>
-        <div class="kpi-sub" id="kpiStorageKb">0 KB</div>
-      </div>
-    </section>
-
-    <!-- KHỐI 0: HỆ QUẢN TRỊ CSDL QUAN HỆ SQLITE 3 (8 BẢNG CHUẨN 3NF + TRUY VẤN SQL TRỰC TIẾP) -->
-    <section class="card" style="border-color:#38bdf8;">
-      <div class="card-header">
-        <h2>🗄️ 0. Cơ Sở Dữ Liệu Quan Hệ SQLite 3 Chuẩn Đồ Án (<code>simulator/data/smarthome.db</code> — 8 Bảng 3NF • ACID • WAL Mode • Foreign Keys ON)</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <a href="/archify/erd" target="_blank" class="btn primary">📐 Xem Sơ Đồ Bảng ERD Tương Tác (/archify/erd)</a>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list">
+          <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a class="active" href="/logs" aria-current="page"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
         </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a href="/guest_enroll">Khách</a>
+        <a href="/archify">Tài liệu dự án</a>
       </div>
+    </aside>
 
-      <div id="sqliteTablesSummary" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:8px; margin-bottom:12px;"></div>
-
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; background:#090d16; padding:10px; border-radius:8px; border:1px solid #1e293b;">
-        <strong style="font-size:12px; color:#38bdf8;">🔍 Truy vấn SQL trực tiếp:</strong>
-        <input type="text" id="sqlQueryInput" value="SELECT user_id, full_name, role, tier, offline_allowed FROM users ORDER BY tier ASC;" style="flex:1; min-width:320px; padding:7px 10px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#34d399; font-family:Consolas,monospace; font-size:12px;" />
-        <button class="btn green" onclick="runCustomSqlQuery()">▶️ Chạy SQL</button>
-        <button class="btn" onclick="quickSql('SELECT * FROM users ORDER BY tier ASC;')">Bảng users</button>
-        <button class="btn" onclick="quickSql('SELECT voiceprint_id, user_id, f0_hz, centroid_hz, sample_duration_sec, updated_at FROM voiceprints;')">Bảng voiceprints</button>
-        <button class="btn" onclick="quickSql('SELECT * FROM devices;')">Bảng devices</button>
-        <button class="btn" onclick="quickSql('SELECT * FROM timers_pool;')">Bảng timers_pool</button>
-        <button class="btn" onclick="quickSql('SELECT * FROM rules_pool;')">Bảng rules_pool</button>
-        <button class="btn" onclick="quickSql('SELECT * FROM ir_remote_codes;')">Bảng ir_remote_codes</button>
-        <button class="btn" onclick="quickSql('SELECT doc_id, category, title, content FROM knowledge_rag;')">Bảng knowledge_rag</button>
-        <button class="btn" onclick="quickSql('SELECT log_id, time_vn, category, user_name, tier, summary FROM audit_logs ORDER BY log_id DESC LIMIT 25;')">Bảng audit_logs</button>
-      </div>
-
-      <div class="table-wrap" style="max-height:260px;">
-        <table>
-          <thead id="sqlResultThead"></thead>
-          <tbody id="sqlResultTbody">
-            <tr><td style="color:#94a3b8; text-align:center;">Đang tải kết quả truy vấn SQLite...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- KHỐI 1: BẢNG NHẬT KÝ TOÀN BỘ LỆNH, THỜI GIAN & SỰ KIỆN (PERSISTENT AUDIT LOGS) -->
-    <section class="card">
-      <div class="card-header">
-        <h2>📜 1. Nhật Ký Toàn Bộ Câu Lệnh, Thời Gian, Thiết Bị &amp; Sự Kiện (<code>simulator/data/system_audit_logs.jsonl</code>)</h2>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <input type="text" id="logSearchInput" class="search-input" placeholder="🔍 Tìm câu lệnh, tên thiết bị, giờ, người dùng..." oninput="renderAuditLogs()" />
-          <button class="btn danger" onclick="clearServerLogs()">🗑️ Xóa Log</button>
+    <main class="content">
+      <header class="page-header">
+        <h1>Nhật ký</h1>
+        <div class="header-actions">
+          <button class="btn secondary" type="button" onclick="exportLogsCsv()">
+            <svg class="icon" style="width:16px;height:16px;"><use href="#i-download"/></svg>
+            <span>Xuất</span>
+          </button>
+          <details class="menu">
+            <summary class="btn secondary">
+              <span>Quản trị</span>
+              <svg class="icon" style="width:16px;height:16px;"><use href="#i-chevron"/></svg>
+            </summary>
+            <div class="menu-panel">
+              <button class="btn secondary" type="button" onclick="seedDemoLog()">Ghi sự kiện mẫu</button>
+              <button class="btn danger" type="button" onclick="confirmClearLogs()">Xóa nhật ký</button>
+            </div>
+          </details>
         </div>
-      </div>
+      </header>
 
-      <div class="filter-pills">
-        <button class="pill active" onclick="setLogCategory('ALL', this)">Tất cả</button>
-        <button class="pill" onclick="setLogCategory('VOICE_CMD', this)">🎙️ Câu lệnh Giọng nói &amp; AI</button>
-        <button class="pill" onclick="setLogCategory('DEVICE_GPIO', this)">⚡ Đóng/Mở Thiết bị GPIO</button>
-        <button class="pill" onclick="setLogCategory('TIMER_POOL', this)">⏱️ Bể 1: Hẹn Giờ Thời Gian</button>
-        <button class="pill" onclick="setLogCategory('RULE_POOL', this)">🔗 Bể 2: Luật IF &amp; Đổi Lệnh</button>
-        <button class="pill" onclick="setLogCategory('KNOWLEDGE_BASE', this)">📚 Kho Tri Thức KB (RAG)</button>
-        <button class="pill" onclick="setLogCategory('SENSOR_IOT', this)">🌡️ Cảm Biến &amp; Hồng Ngoại</button>
-        <button class="pill" onclick="setLogCategory('SECURITY_MODE', this)">🛡️ An Ninh &amp; Offline</button>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:165px;">Thời Gian (Giờ VN)</th>
-              <th style="width:135px;">Phân Loại</th>
-              <th style="width:170px;">Người Thực Hiện</th>
-              <th>Nội Dung Câu Lệnh / Hành Động / Kết Quả</th>
-              <th style="width:240px;">Chi Tiết Kỹ Thuật (JSON)</th>
-            </tr>
-          </thead>
-          <tbody id="auditLogsTbody">
-            <tr><td colspan="5" style="text-align:center; color:#94a3b8;">Đang tải nhật ký từ Server...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- KHỐI 2: BỂ 1 (HẸN GIỜ) & BỂ 2 (LUẬT, KHẨU LỆNH, ĐỔI TỪ CỦA TỪNG TẦNG) + KHO TRI THỨC KB -->
-    <div class="grid-2">
-      <!-- BỂ 1 & BỂ 2 -->
-      <section class="card">
-        <div class="card-header">
-          <h2>🪣 2. Bể Hẹn Giờ Thời Gian (Bể 1) &amp; Bể Luật Từng Thành Viên (Bể 2)</h2>
-          <span style="font-size:11.5px; color:#34d399;">Đồng bộ xuống <code>custom_rules_overlay.json</code> &amp; <code>esp8266_flash_replica.json</code></span>
+      <section class="kpi-grid" aria-label="Bảng chỉ số chính">
+        <div class="kpi-card">
+          <div class="kpi-title">Tổng nhật ký</div>
+          <div class="kpi-val" id="kpiCardTotalLogs">0</div>
+          <div class="kpi-sub">Bản ghi kiểm toán</div>
         </div>
-        <div id="poolsContainer" style="display:flex; flex-direction:column; gap:10px; font-size:12.5px;"></div>
+        <div class="kpi-card">
+          <div class="kpi-title">Thiết bị</div>
+          <div class="kpi-val" id="kpiCardDevices">--</div>
+          <div class="kpi-sub">Trạng thái phần cứng</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Bảo mật</div>
+          <div class="kpi-val" id="kpiCardSecurity">An toàn</div>
+          <div class="kpi-sub">Xác thực 3 tầng</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Thời gian</div>
+          <div class="kpi-val" id="kpiCardServerTime">--:--:--</div>
+          <div class="kpi-sub">Giờ hệ thống (VN)</div>
+        </div>
       </section>
 
-      <!-- KHO TRI THỨC KB (KNOWLEDGE BASE / RAG) -->
-      <section class="card">
-        <div class="card-header">
-          <h2>📚 3. Kho Tri Thức KB / RAG (<code>simulator/data/knowledge_base.json</code>)</h2>
-          <span style="font-size:11.5px; color:#38bdf8;">Vector 3072 chiều (<code>gemini-embedding-001</code>)</span>
+      <section class="card" aria-label="Bảng nhật ký sự kiện">
+        <div class="filter-pills">
+          <button type="button" class="btn btn-sm filter-pill active" id="btnFilterAll" onclick="setLogCategoryFilter('')">Tất cả</button>
+          <button type="button" class="btn btn-sm filter-pill secondary" id="btnFilterDevice" onclick="setLogCategoryFilter('DEVICE')">Thiết bị</button>
+          <button type="button" class="btn btn-sm filter-pill secondary" id="btnFilterVoice" onclick="setLogCategoryFilter('VOICE')">Giọng nói</button>
+          <button type="button" class="btn btn-sm filter-pill secondary" id="btnFilterSecurity" onclick="setLogCategoryFilter('SECURITY')">Bảo mật</button>
         </div>
 
-        <form class="kb-form" onsubmit="submitNewKbItem(event)">
-          <input type="text" id="kbTopic" placeholder="Chủ đề / Câu hỏi (VD: Mật khẩu Wifi)" required />
-          <input type="text" id="kbKeywords" placeholder="Từ khóa (cách nhau dấu phẩy)" />
-          <select id="kbTier">
-            <option value="3">Tất cả (Cấp 1-3)</option>
-            <option value="2">Từ Cấp 2 trở lên</option>
-            <option value="1">Chỉ Admin Cấp 1</option>
+        <div class="filter-bar">
+          <input type="text" id="logSearchInput" placeholder="Tìm sự kiện, thiết bị, người dùng..." style="flex:1; min-width:200px;" />
+          <select id="logDateRange" aria-label="Khoảng ngày">
+            <option value="all">Mọi thời gian</option>
+            <option value="today">Hôm nay</option>
+            <option value="7d">7 ngày qua</option>
           </select>
-          <button type="submit" class="btn green">💾 Lưu vào KB</button>
-          <input type="text" id="kbContent" placeholder="Câu trả lời chuẩn để AI đọc khi được hỏi..." required style="grid-column: span 4;" />
-        </form>
+          <select id="logCategorySelect" aria-label="Loại sự kiện" onchange="setLogCategoryFilter(this.value)">
+            <option value="">Tất cả sự kiện</option>
+            <option value="DEVICE">Thiết bị</option>
+            <option value="VOICE">Giọng nói</option>
+            <option value="SECURITY">Bảo mật / Xác thực</option>
+          </select>
+          <button class="btn secondary" type="button" onclick="loadDashboard()">Lọc</button>
+        </div>
 
-        <div class="table-wrap" style="max-height: 290px;">
+        <div class="table-wrap main-logs-table">
           <table>
             <thead>
               <tr>
-                <th style="width:140px;">Chủ Đề</th>
-                <th style="width:65px;">Quyền</th>
-                <th>Câu Trả Lời Chuẩn Trong KB</th>
+                <th style="width:130px;">Thời gian</th>
+                <th>Sự kiện</th>
+                <th style="width:180px;">Thiết bị / người dùng</th>
+                <th style="width:130px;">Kết quả</th>
               </tr>
             </thead>
-            <tbody id="kbTbody"></tbody>
+            <tbody id="auditLogsTbody">
+              <tr><td colspan="4" style="color:var(--muted);">Chưa có sự kiện</td></tr>
+            </tbody>
           </table>
         </div>
-      </section>
-    </div>
 
-    <!-- KHỐI 3: TỆP LƯU TRỮ TRÊN ĐĨA + HỒ SƠ GIỌNG NÓI & MÃ HỒNG NGOẠI IR -->
-    <div class="grid-2">
-      <section class="card">
-        <div class="card-header">
-          <h2>💾 4. Các Tệp Cơ Sở Dữ Liệu Đang Lưu Trữ Trên Server (<code>simulator/data/</code>)</h2>
-        </div>
-        <div class="table-wrap" style="max-height: 280px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Tên Tệp Lưu Trữ</th>
-                <th>Dung Lượng</th>
-                <th>Cập Nhật Lúc</th>
-              </tr>
-            </thead>
-            <tbody id="storageFilesTbody"></tbody>
-          </table>
-        </div>
+        <div id="mobileLogCards" class="mobile-log-cards"></div>
       </section>
 
-      <section class="card">
-        <div class="card-header">
-          <h2>🧬 5. Hồ Sơ Giọng Nói (<code>voiceprints.json</code>), Mã IR (<code>ir_devices_db.json</code>) &amp; Flash ESP8266</h2>
+      <!-- CHI TIẾT KỸ THUẬT MẶC ĐỊNH THU GỌN (CHỈ ADMIN) -->
+      <details class="tech-collapse" id="technicalDetailsSection">
+        <summary>
+          <span>Chi tiết kỹ thuật</span>
+          <svg class="icon"><use href="#i-chevron"/></svg>
+        </summary>
+
+        <div class="tech-groups">
+          <div class="tech-group">
+            <h3>Âm thanh</h3>
+            <div class="tech-kv"><span>Định dạng thu</span><code>PCM 16kHz</code></div>
+            <div class="tech-kv"><span>Độ trễ xử lý</span><code id="kpiAudioDsp">18 ms</code></div>
+            <div class="tech-kv"><span>Tỉ số tín hiệu</span><code id="kpiAudioSnr">19.5 dB</code></div>
+          </div>
+          <div class="tech-group">
+            <h3>Xác thực</h3>
+            <div class="tech-kv"><span>Trạng thái khóa</span><code id="kpiAuthLock">Bình thường</code></div>
+            <div class="tech-kv"><span>Cấu hình trợ lý</span><code id="kpiKbCount">0 mục</code></div>
+            <div class="tech-kv"><span>Hẹn giờ &amp; quy tắc</span><code><span id="kpiTimerCount">0</span> / <span id="kpiRuleCount">0</span></code></div>
+          </div>
+          <div class="tech-group">
+            <h3>Hệ thống</h3>
+            <div class="tech-kv"><span>Trạng thái máy chủ</span><code id="kpiServerState">Đã kết nối</code></div>
+            <div class="tech-kv"><span>Thời gian máy chủ</span><code id="kpiServerClock">--:--:--</code></div>
+            <div class="tech-kv"><span>Lưu trữ (<span id="kpiLogCount">0</span> dòng)</span><code id="kpiSqliteMode">WAL</code></div>
+            <span id="kpiSqliteSize" hidden></span>
+            <span id="kpiStorageKb" hidden></span>
+          </div>
         </div>
-        <pre class="json-box" id="hardwareDbPre">Đang tải dữ liệu...</pre>
-      </section>
-    </div>
-  </main>
 
-  <script>
-    let SERVER_DATA = null;
-    let ACTIVE_CATEGORY = 'ALL';
-
-    function setLogCategory(cat, btnEl) {
-      ACTIVE_CATEGORY = cat;
-      document.querySelectorAll('.filter-pills .pill').forEach(b => b.classList.remove('active'));
-      if (btnEl) btnEl.classList.add('active');
-      renderAuditLogs();
-    }
-
-    function esc(s) {
-      return String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
-    function renderAuditLogs() {
-      const tbody = document.getElementById('auditLogsTbody');
-      if (!SERVER_DATA || !Array.isArray(SERVER_DATA.audit_logs)) return;
-      const q = (document.getElementById('logSearchInput')?.value || '').trim().toLowerCase();
-
-      const filtered = SERVER_DATA.audit_logs.filter(item => {
-        if (ACTIVE_CATEGORY !== 'ALL' && item.category !== ACTIVE_CATEGORY) return false;
-        if (!q) return true;
-        const blob = `${item.time_vn} ${item.category} ${item.event_type} ${item.user} ${item.summary} ${JSON.stringify(item.details || {})}`.toLowerCase();
-        return blob.includes(q);
-      });
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:18px;">Chưa có dòng nhật ký nào khớp bộ lọc. Hãy thử bấm lệnh bên trang 3D hoặc trang Mạch!</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(item => {
-        const dStr = JSON.stringify(item.details || {});
-        const shortDetails = dStr.length > 95 ? dStr.slice(0, 95) + '...' : dStr;
-        return `
-          <tr>
-            <td style="font-family:Consolas,monospace; color:#cbd5e1; white-space:nowrap;">${esc(item.time_vn)}</td>
-            <td><span class="cat-badge cat-${esc(item.category)}">${esc(item.category)}</span></td>
-            <td><strong>${esc(item.user)}</strong> <span style="color:#94a3b8;">(Tầng ${esc(item.tier)})</span></td>
-            <td style="color:#f8fafc; font-weight:500;">${esc(item.summary)}</td>
-            <td style="font-family:Consolas,monospace; font-size:11px; color:#94a3b8;" title="${esc(dStr)}">${esc(shortDetails)}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function renderPoolsAndKb() {
-      if (!SERVER_DATA) return;
-      const snap = SERVER_DATA.snapshot || {};
-      const pools = snap.pools || {};
-      const allUserPools = SERVER_DATA.all_user_pools || {};
-
-      // KPIs
-      const srvConn = snap.server_connected !== false;
-      const kpiSrv = document.getElementById('kpiServerState');
-      kpiSrv.textContent = srvConn ? '🟢 ONLINE' : '🟠 OFFLINE (Mặc Định)';
-      kpiSrv.style.color = srvConn ? '#34d399' : '#fbbf24';
-      document.getElementById('kpiServerClock').textContent = SERVER_DATA.server_time_vn || '';
-      document.getElementById('kpiLogCount').textContent = (SERVER_DATA.audit_logs || []).length;
-      document.getElementById('kpiTimerCount').textContent = pools.timer_pool_count || 0;
-      document.getElementById('kpiRuleCount').textContent = pools.rule_pool_count || 0;
-      document.getElementById('kpiKbCount').textContent = (SERVER_DATA.knowledge_base || []).length;
-
-      const totalKb = (SERVER_DATA.storage_files || []).reduce((acc, f) => acc + (f.size_kb || 0), 0);
-      document.getElementById('kpiStorageKb').textContent = `${totalKb.toFixed(1)} KB`;
-
-      // Bể 1 & Bể 2
-      const timers = pools.timer_pool || [];
-      let poolsHtml = `
-        <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
-          <strong style="color:#fbbf24;">⏱️ Bể 1 — Lịch Hẹn Giờ Đang Hoạt Động (${timers.length} mục):</strong>
-          <ul style="padding-left:18px; margin-top:5px; color:#e2e8f0;">
-            ${timers.length ? timers.map(t => `<li><code>#${esc(t.id)}</code>: <strong>${esc(t.action_vi)} ${esc(t.device_name)}</strong> — Còn <strong>${esc(t.remaining_seconds)}s</strong> (Mốc: ${esc(t.target_vn_time || 'Đếm ngược')}, Lặp: ${esc(t.repeat || 'once')}) — Tạo bởi: <em>${esc(t.owner_name)}</em></li>`).join('') : '<li style="color:#64748b;">Đang trống (0 lịch hẹn)</li>'}
-          </ul>
-        </div>
-      `;
-
-      for (const [uid, upool] of Object.entries(allUserPools)) {
-        const words = Object.entries(upool.word_mappings || {});
-        const aliases = Object.entries(upool.aliases || {});
-        const rules = upool.if_else_rules || [];
-        poolsHtml += `
-          <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
-            <strong style="color:#c084fc;">🔗 Bể 2 của [${esc(uid.toUpperCase())}] — Từ đổi (${words.length}) • Khẩu lệnh (${aliases.length}) • Luật IF (${rules.length}):</strong>
-            <div style="margin-top:5px; color:#cbd5e1; line-height:1.5;">
-              <div>• <strong>Từ đã đổi:</strong> ${words.length ? words.map(([k,v]) => `<code>"${esc(k)}" ➔ "${esc(v)}"</code>`).join(', ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
-              <div>• <strong>Khẩu lệnh Alias:</strong> ${aliases.length ? aliases.map(([p, acts]) => `<code>"${esc(p)}" ➔ ${esc(JSON.stringify(acts))}</code>`).join(' | ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
-              <div>• <strong>Luật IF-ELSE:</strong> ${rules.length ? rules.map(r => `<code>NẾU ${esc(r.when_device_id)}=${esc(r.when_state)} THÌ ${esc(r.then_device_id)}➔${esc(r.then_action)}</code>`).join(' ; ') : '<span style="color:#64748b;">Chưa có</span>'}</div>
+        <div class="tech-sections">
+          <div class="subcard">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h3>Truy vấn dữ liệu</h3>
+              <button class="btn secondary btn-sm" type="button" onclick="copyTextValue(document.getElementById('sqlQueryInput').value)">Sao chép mã</button>
+            </div>
+            <div class="filter-row">
+              <button class="btn secondary btn-sm" type="button" onclick="setSqlQuery('SELECT log_id, time_vn, category, event_type, user_name, summary FROM audit_logs ORDER BY log_id DESC LIMIT 12')">audit_logs</button>
+              <button class="btn secondary btn-sm" type="button" onclick="setSqlQuery('SELECT user_id, full_name, role, tier, offline_allowed, created_by FROM users ORDER BY tier ASC')">users</button>
+              <button class="btn secondary btn-sm" type="button" onclick="setSqlQuery('SELECT device_id, device_name, gpio_pin, state, min_tier_required, offline_controllable FROM devices')">devices</button>
+              <button class="btn secondary btn-sm" type="button" onclick="setSqlQuery('SELECT doc_id, category, title, substr(content, 1, 80) AS tom_tat FROM knowledge_rag')">knowledge_rag</button>
+            </div>
+            <div id="sqliteTablesSummary" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;"></div>
+            <div class="filter-row">
+              <input type="text" id="sqlQueryInput" style="flex:1;" value="SELECT log_id, time_vn, category, event_type, user_name, summary FROM audit_logs ORDER BY log_id DESC LIMIT 12" />
+              <button class="btn primary btn-sm" type="button" onclick="executeCustomSql()">Chạy</button>
+            </div>
+            <div class="scroll-box">
+              <table>
+                <thead id="sqlResultThead"></thead>
+                <tbody id="sqlResultTbody">
+                  <tr><td style="color:var(--muted);">Chưa có sự kiện</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
-        `;
-      }
-      document.getElementById('poolsContainer').innerHTML = poolsHtml;
 
-      // Kho Tri Thức KB
-      const kbTbody = document.getElementById('kbTbody');
-      kbTbody.innerHTML = (SERVER_DATA.knowledge_base || []).map(it => `
-        <tr>
-          <td><strong style="color:#93c5fd;">${esc(it.topic)}</strong><br/><span style="font-size:10.5px; color:#64748b;">Từ khóa: ${esc(it.keywords)}</span></td>
-          <td><span class="cat-badge cat-KNOWLEDGE_BASE">Cấp &le; ${esc(it.min_tier || 3)}</span></td>
-          <td style="color:#e2e8f0;">${esc(it.content)}</td>
-        </tr>
-      `).join('');
-
-      // Danh sách tệp lưu trữ
-      const sfTbody = document.getElementById('storageFilesTbody');
-      sfTbody.innerHTML = (SERVER_DATA.storage_files || []).map(f => `
-        <tr>
-          <td><code style="color:#38bdf8; font-weight:700;">${esc(f.path)}</code></td>
-          <td style="font-family:Consolas,monospace; color:#34d399;">${esc(f.size_kb)} KB (${esc(f.size_bytes)} B)</td>
-          <td style="font-family:Consolas,monospace; color:#cbd5e1;">${esc(f.modified_vn)}</td>
-        </tr>
-      `).join('');
-
-      // Hồ sơ giọng nói + IR + Flash Replica
-      document.getElementById('hardwareDbPre').textContent = JSON.stringify({
-        voiceprints: SERVER_DATA.voiceprints,
-        ir_devices_db: SERVER_DATA.ir_devices_db,
-        esp8266_flash_replica: SERVER_DATA.esp8266_flash_replica,
-      }, null, 2);
-
-      // SQLite 3 Overview
-      const sq = SERVER_DATA.sqlite_overview || {};
-      if (sq.ok && Array.isArray(sq.tables)) {
-        const sqKb = ((sq.db_size_bytes || 0) / 1024.0).toFixed(1);
-        document.getElementById('kpiSqliteMode').textContent = `${sq.table_count} Bảng (${sq.journal_mode})`;
-        document.getElementById('kpiSqliteSize').textContent = `smarthome.db (${sqKb} KB • FK=${sq.foreign_keys_enforced ? 'ON' : 'OFF'})`;
-        document.getElementById('sqliteTablesSummary').innerHTML = sq.tables.map(t => {
-          const pkCols = (t.columns || []).filter(c => c.pk).map(c => c.name).join(', ');
-          const fkCount = (t.foreign_keys || []).length;
-          return `
-            <div onclick="quickSql('SELECT * FROM ${esc(t.table_name)} LIMIT 30;')" style="cursor:pointer; background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:8px 10px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <code style="color:#38bdf8; font-weight:800; font-size:12.5px;">${esc(t.table_name)}</code>
-                <span style="background:#064e3b; color:#34d399; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:700;">${t.row_count} dòng</span>
-              </div>
-              <div style="font-size:10.5px; color:#94a3b8; margin-top:4px;">🔑 PK: <code>${esc(pkCols)}</code> • 🔗 FK: ${fkCount}</div>
+          <div class="subcard">
+            <h3>Cấu hình trợ lý</h3>
+            <div class="filter-row">
+              <input type="text" id="kbTopic" placeholder="Chủ đề hướng dẫn..." style="flex:1;" />
+              <input type="text" id="kbKeywords" placeholder="Từ khóa..." style="flex:1;" />
+              <select id="kbTier">
+                <option value="1">Chủ nhà</option>
+                <option value="2">Gia đình</option>
+                <option value="3" selected>Khách</option>
+              </select>
             </div>
-          `;
-        }).join('');
-      }
-    }
+            <div class="filter-row">
+              <textarea id="kbContent" rows="2" placeholder="Nội dung hướng dẫn..." style="flex:1;"></textarea>
+              <button class="btn primary btn-sm" type="button" onclick="addKnowledgeEntry()">Lưu</button>
+            </div>
+            <div class="scroll-box">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã</th>
+                    <th>Chủ đề</th>
+                    <th>Quyền</th>
+                    <th>Nội dung</th>
+                  </tr>
+                </thead>
+                <tbody id="kbTbody"></tbody>
+              </table>
+            </div>
+          </div>
 
-    let INITIAL_SQL_LOADED = false;
-    async function runCustomSqlQuery() {
-      const sqlInput = document.getElementById('sqlQueryInput');
-      const thead = document.getElementById('sqlResultThead');
-      const tbody = document.getElementById('sqlResultTbody');
-      if (!sqlInput || !thead || !tbody) return;
-      const sql = sqlInput.value.trim();
-      if (!sql) return;
-      try {
-        const res = await fetch('/api/sqlite/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql, limit: 50 })
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          thead.innerHTML = '';
-          tbody.innerHTML = `<tr><td style="color:#f87171; padding:12px;">❌ Lỗi SQL: ${esc(data.error)}</td></tr>`;
-          return;
-        }
-        const cols = data.columns || [];
-        const rows = data.rows || [];
-        thead.innerHTML = `<tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>`;
-        if (rows.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="${Math.max(1, cols.length)}" style="color:#94a3b8; text-align:center; padding:12px;">Bảng hiện chưa có bản ghi nào (0 rows).</td></tr>`;
-          return;
-        }
-        tbody.innerHTML = rows.map(r => `
-          <tr>${cols.map(c => {
-            const val = r[c] !== null && typeof r[c] === 'object' ? JSON.stringify(r[c]) : String(r[c] ?? '');
-            const shortVal = val.length > 110 ? val.slice(0, 110) + '...' : val;
-            return `<td style="font-family:Consolas,monospace; font-size:11.5px; color:#e2e8f0;" title="${esc(val)}">${esc(shortVal)}</td>`;
-          }).join('')}</tr>
-        `).join('');
-      } catch (e) {}
-    }
+          <div class="subcard">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h3>Trạng thái hệ thống</h3>
+              <button class="btn secondary btn-sm" type="button" onclick="copyTextValue(document.getElementById('hardwareDbPre').textContent)">Sao chép</button>
+            </div>
+            <div id="poolsContainer" style="margin-bottom:10px;"></div>
+            <pre id="hardwareDbPre">Đang tải...</pre>
+          </div>
 
-    function quickSql(q) {
-      const sqlInput = document.getElementById('sqlQueryInput');
-      if (sqlInput) {
-        sqlInput.value = q;
-        runCustomSqlQuery();
-      }
-    }
+          <div class="subcard">
+            <h3>Tệp lưu trữ</h3>
+            <div class="scroll-box">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tên tệp</th>
+                    <th>Vai trò</th>
+                    <th>Kích thước</th>
+                    <th>Cập nhật</th>
+                  </tr>
+                </thead>
+                <tbody id="storageFilesTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </details>
+    </main>
+  </div>
 
-    async function fetchAllServerData() {
-      try {
-        const res = await fetch('/api/server_logs_and_db');
-        SERVER_DATA = await res.json();
-        renderAuditLogs();
-        renderPoolsAndKb();
-        if (!INITIAL_SQL_LOADED) {
-          INITIAL_SQL_LOADED = true;
-          runCustomSqlQuery();
-        }
-      } catch (e) {}
-    }
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a class="active" href="/logs" aria-current="page"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+  </nav>
 
-    async function submitNewKbItem(ev) {
-      ev.preventDefault();
-      const topic = document.getElementById('kbTopic').value.trim();
-      const keywords = document.getElementById('kbKeywords').value.trim();
-      const min_tier = parseInt(document.getElementById('kbTier').value, 10);
-      const content = document.getElementById('kbContent').value.trim();
-      if (!topic || !content) return;
-
-      await fetch('/api/kb_upsert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, keywords, min_tier, content })
-      });
-      document.getElementById('kbTopic').value = '';
-      document.getElementById('kbKeywords').value = '';
-      document.getElementById('kbContent').value = '';
-      await fetchAllServerData();
-    }
-
-    async function clearServerLogs() {
-      if (!confirm('Bạn có chắc muốn làm sạch nhật ký system_audit_logs.jsonl?')) return;
-      await fetch('/api/clear_audit_logs', { method: 'POST' });
-      await fetchAllServerData();
-    }
-
-    function exportLogsJsonl() {
-      if (!SERVER_DATA || !SERVER_DATA.audit_logs) return;
-      const lines = SERVER_DATA.audit_logs.map(x => JSON.stringify(x)).join('\n');
-      const blob = new Blob([lines], { type: 'application/jsonl;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'system_audit_logs.jsonl';
-      a.click();
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      fetchAllServerData();
-      setInterval(fetchAllServerData, 3000);
-    });
-  </script>
+  <script src="/static/js/logs.js"></script>
 </body>
 </html>

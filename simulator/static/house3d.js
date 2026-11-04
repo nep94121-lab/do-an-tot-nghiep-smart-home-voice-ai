@@ -36,6 +36,34 @@ window.SmartHome3D = (() => {
   let camGoal = { ...camState };
   let isDragging = false;
   let prevMouse = { x: 0, y: 0 };
+  let mouseDownPos = { x: 0, y: 0 };
+  const clickableMeshes = [];
+  const raycaster = new THREE.Raycaster();
+  const mouseVec = new THREE.Vector2();
+
+  function registerClickable(obj, deviceId) {
+    if (!obj) return;
+    if (obj.isMesh) {
+      obj.userData = obj.userData || {};
+      obj.userData.deviceId = deviceId;
+      if (!clickableMeshes.includes(obj)) {
+        clickableMeshes.push(obj);
+      }
+    }
+    if (obj.traverse) {
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          child.userData = child.userData || {};
+          child.userData.deviceId = deviceId;
+          if (!clickableMeshes.includes(child)) {
+            clickableMeshes.push(child);
+          }
+        }
+      });
+    }
+    obj.userData = obj.userData || {};
+    obj.userData.deviceId = deviceId;
+  }
 
   // Trạng thái 7 thiết bị chấp hành (Actuators)
   const deviceStates = {
@@ -136,12 +164,12 @@ window.SmartHome3D = (() => {
 
   // 7 Nhãn Thiết bị + 3 Nhãn Cảm biến + Hộp Mạch Chính & Cụm Mic/Loa (RX/D4) gắn ngay trong nhà 3D
   const PIN_META = [
-    { id: "main_door", kind: "device", icon: "🚪", shortName: "Cửa chính (D1)", pos: [-1.85, 2.55, 3.65] },
-    { id: "living_room_light", kind: "device", icon: "💡", shortName: "Đèn khách (D2)", pos: [-2.6, 3.18, -0.2] },
-    { id: "fan", kind: "device", icon: "🌀", shortName: "Quạt trần (D6)", pos: [-2.6, 3.38, -1.8] },
-    { id: "ac", kind: "device", icon: "❄️", shortName: "Điều hòa (D2 IR)", pos: [-3.2, 2.82, -3.35] },
-    { id: "bedroom_light", kind: "device", icon: "🛏️", shortName: "Đèn ngủ (D7)", pos: [2.9, 3.15, -0.3] },
-    { id: "alarm_siren", kind: "device", icon: "🚨", shortName: "Còi báo động (D8)", pos: [-0.4, 3.05, 3.74] },
+    { id: "main_door", kind: "device", icon: "🚪", shortName: "Cửa chính (D1)", pos: [-2.95, 1.65, 3.95] },
+    { id: "living_room_light", kind: "device", icon: "💡", shortName: "Đèn khách (D2)", pos: [-3.45, 2.35, 0.45] },
+    { id: "fan", kind: "device", icon: "🌀", shortName: "Quạt trần (D6)", pos: [-0.75, 3.65, -2.15] },
+    { id: "ac", kind: "device", icon: "❄️", shortName: "Điều hòa (D2 IR)", pos: [-4.15, 4.15, -3.55] },
+    { id: "bedroom_light", kind: "device", icon: "🛏️", shortName: "Đèn ngủ (D7)", pos: [3.25, 3.15, -0.85] },
+    { id: "alarm_siren", kind: "device", icon: "🚨", shortName: "Còi báo động (D8)", pos: [0.55, 2.95, 3.74] },
     { id: "garden_pump", kind: "device", icon: "💧", shortName: "Máy bơm vườn (D3)", pos: [3.55, 1.15, 4.35] },
     { id: "sensor_soil_a0", kind: "sensor", cam: "garden", icon: "🌱", shortName: "Độ ẩm đất (A0)", pos: [1.55, 1.25, 4.35] },
     { id: "sensor_dht11_d6", kind: "sensor", cam: "living", icon: "🌡️", shortName: "Nhiệt/Ẩm (D6)", pos: [0.1, 2.15, -1.1] },
@@ -176,8 +204,12 @@ window.SmartHome3D = (() => {
     if (THREE.sRGBEncoding !== undefined) {
       renderer.outputEncoding = THREE.sRGBEncoding;
     }
-    container.innerHTML = "";
-    container.appendChild(renderer.domElement);
+    clickableMeshes.length = 0;
+    const existingCanvas = container.querySelector("canvas");
+    if (existingCanvas) {
+      existingCanvas.remove();
+    }
+    container.insertBefore(renderer.domElement, container.firstChild);
 
     buildLighting();
     buildGroundAndLoadBlenderVilla();
@@ -691,6 +723,22 @@ window.SmartHome3D = (() => {
     sirenPointLight = new THREE.PointLight(0xef4444, 0, 14);
     sirenPointLight.position.set(-0.4, 2.85, 4.1);
     scene.add(sirenPointLight);
+
+    // Gán userData.deviceId và đăng ký Raycaster cho các thiết bị trong nhà
+    registerClickable(doorPivot, "main_door");
+    registerClickable(sg90Group, "main_door");
+    registerClickable(lockLed, "main_door");
+    registerClickable(lrBulb, "living_room_light");
+    registerClickable(lrCord, "living_room_light");
+    registerClickable(fanBladesGroup, "fan");
+    registerClickable(fanRod, "fan");
+    registerClickable(acBody, "ac");
+    registerClickable(acLed, "ac");
+    registerClickable(acFlapPivot, "ac");
+    registerClickable(bedCeilingLamp, "bedroom_light");
+    registerClickable(nightLampShade, "bedroom_light");
+    registerClickable(sirenMesh, "alarm_siren");
+    registerClickable(buzzerCylinder, "alarm_siren");
   }
 
   /**
@@ -808,6 +856,15 @@ window.SmartHome3D = (() => {
     gardenGroup.add(nozzle);
 
     scene.add(gardenGroup);
+
+    // Gán userData.deviceId và đăng ký Raycaster cho máy bơm & tưới vườn
+    registerClickable(pumpCylinder, "garden_pump");
+    registerClickable(pumpImpeller, "garden_pump");
+    registerClickable(tankMesh, "garden_pump");
+    registerClickable(soilBed, "garden_pump");
+    registerClickable(pipeVert, "garden_pump");
+    registerClickable(pipeHoriz, "garden_pump");
+    registerClickable(nozzle, "garden_pump");
 
     // Ánh sáng xanh ngọc & Hệ thống Hạt Tia Nước 3D (Water Spray Particle System) khi Máy bơm D3 = ON
     pumpPointLight = new THREE.PointLight(0x00f5d4, 0, 5.5);
@@ -1184,6 +1241,7 @@ window.SmartHome3D = (() => {
     PIN_META.forEach((m) => {
       pinAnchors[m.id] = new THREE.Vector3(m.pos[0], m.pos[1], m.pos[2]);
       const el = document.createElement("button");
+      el.setAttribute("data-id", m.id);
       if (m.kind === "sensor") {
         el.className = "pin-3d on";
         el.style.borderColor = "#38bdf8";
@@ -1227,7 +1285,7 @@ window.SmartHome3D = (() => {
       const el = pinElements[m.id];
       if (!el) return;
       const v = pinAnchors[m.id].clone().project(camera);
-      if (v.z > 1) {
+      if (v.z > 1 || (m.kind === "sensor" && camGoal.radius >= 10.0)) {
         el.style.display = "none";
         return;
       }
@@ -1238,11 +1296,40 @@ window.SmartHome3D = (() => {
     });
   }
 
+  function handleRaycastClick(clientX, clientY) {
+    if (!renderer || !camera || typeof onDeviceClickCallback !== "function") return;
+    const dom = renderer.domElement;
+    const rect = dom.getBoundingClientRect();
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      return;
+    }
+    mouseVec.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouseVec.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouseVec, camera);
+    const intersects = raycaster.intersectObjects(clickableMeshes, true);
+    if (intersects && intersects.length > 0) {
+      let target = intersects[0].object;
+      while (target && (!target.userData || !target.userData.deviceId) && target !== scene) {
+        target = target.parent;
+      }
+      if (target && target.userData && target.userData.deviceId) {
+        onDeviceClickCallback(target.userData.deviceId);
+      }
+    }
+  }
+
   function bindMouseControls() {
     const dom = renderer.domElement;
     dom.addEventListener("mousedown", (e) => {
       isDragging = true;
       camGoal.autoRotate = false;
+      mouseDownPos.x = e.clientX;
+      mouseDownPos.y = e.clientY;
       prevMouse.x = e.clientX;
       prevMouse.y = e.clientY;
     });
@@ -1257,8 +1344,71 @@ window.SmartHome3D = (() => {
       camGoal.phi = Math.max(0.28, Math.min(1.42, camGoal.phi - dy * 0.006));
     });
 
-    window.addEventListener("mouseup", () => {
+    window.addEventListener("mouseup", (e) => {
+      if (!isDragging) return;
       isDragging = false;
+      const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+      if (dist <= 6) {
+        handleRaycastClick(e.clientX, e.clientY);
+      }
+    });
+
+    dom.addEventListener("mousemove", (e) => {
+      if (isDragging) return;
+      const rect = dom.getBoundingClientRect();
+      mouseVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouseVec, camera);
+      const intersects = raycaster.intersectObjects(clickableMeshes, true);
+      if (intersects && intersects.length > 0) {
+        dom.style.cursor = "pointer";
+      } else {
+        dom.style.cursor = "default";
+      }
+    });
+
+    let touchStartPos = { x: 0, y: 0 };
+    dom.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          camGoal.autoRotate = false;
+          const t = e.touches[0];
+          touchStartPos.x = t.clientX;
+          touchStartPos.y = t.clientY;
+          prevMouse.x = t.clientX;
+          prevMouse.y = t.clientY;
+        }
+      },
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        const dx = t.clientX - prevMouse.x;
+        const dy = t.clientY - prevMouse.y;
+        prevMouse.x = t.clientX;
+        prevMouse.y = t.clientY;
+        camGoal.theta -= dx * 0.007;
+        camGoal.phi = Math.max(0.28, Math.min(1.42, camGoal.phi - dy * 0.006));
+      },
+      { passive: true }
+    );
+
+    window.addEventListener("touchend", (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (e.changedTouches.length === 1) {
+        const t = e.changedTouches[0];
+        const dist = Math.hypot(t.clientX - touchStartPos.x, t.clientY - touchStartPos.y);
+        if (dist <= 10) {
+          handleRaycastClick(t.clientX, t.clientY);
+        }
+      }
     });
 
     dom.addEventListener(
@@ -1290,6 +1440,25 @@ window.SmartHome3D = (() => {
     } else if (preset === "rotate") {
       camGoal.autoRotate = !camState.autoRotate;
       camState.autoRotate = camGoal.autoRotate;
+    }
+
+    if (typeof document !== "undefined") {
+      const camToolbar = document.querySelector(".camera-toolbar");
+      if (camToolbar) {
+        const btn = camToolbar.querySelector(`[data-cam="${preset}"]`);
+        if (btn) {
+          if (preset !== "rotate") {
+            camToolbar.querySelectorAll(".btn-cam").forEach((b) => {
+              if (b.getAttribute("data-cam") !== "rotate") b.classList.remove("active");
+            });
+            btn.classList.add("active");
+            const lbl = document.getElementById("lblCurrentCameraView") || document.querySelector(".view-label");
+            if (lbl) lbl.textContent = btn.textContent.trim().replace(/^🔄\s*/, "");
+          } else {
+            btn.classList.toggle("active", Boolean(camGoal.autoRotate));
+          }
+        }
+      }
     }
   }
 

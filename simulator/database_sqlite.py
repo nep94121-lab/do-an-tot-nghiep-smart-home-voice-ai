@@ -143,21 +143,29 @@ def _now_iso() -> str:
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(str(SQLITE_DB_PATH), timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA synchronous = OFF;")
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
+_SCHEMA_INITIALIZED = False
+_WAL_ANCHOR_CONN: sqlite3.Connection | None = None
+_LAST_KB_MTIME: float = -1.0
+_LAST_VP_MTIME: float = -1.0
+_LAST_IR_MTIME: float = -1.0
+
+
 def init_sqlite_database() -> None:
     """Khởi tạo cấu trúc 8 bảng SQL chuẩn 3NF + Indexes và nạp dữ liệu ban đầu nếu bảng rỗng."""
+    global _SCHEMA_INITIALIZED, _WAL_ANCHOR_CONN
     with _DB_LOCK:
+        if _SCHEMA_INITIALIZED and _WAL_ANCHOR_CONN is not None and SQLITE_DB_PATH.exists():
+            return
         conn = get_connection()
-        try:
-            conn.executescript(DDL_SCHEMA_SQL)
-            conn.commit()
-        finally:
-            conn.close()
+        conn.executescript(DDL_SCHEMA_SQL)
+        conn.commit()
+        _WAL_ANCHOR_CONN = conn
+        _SCHEMA_INITIALIZED = True
 
 
 def insert_audit_log_sqlite(entry: dict[str, Any], user_id: str | None = None) -> None:
@@ -196,6 +204,36 @@ def insert_audit_log_sqlite(entry: dict[str, Any], user_id: str | None = None) -
             conn.close()
 
 
+def clear_audit_logs_sqlite() -> None:
+    """Xóa sạch bảng audit_logs trong SQLite và chèn lại 1 bản ghi logs_cleared."""
+    with _DB_LOCK:
+        init_sqlite_database()
+        conn = get_connection()
+        tz = datetime.timezone(datetime.timedelta(hours=7))
+        now_dt = datetime.datetime.now(tz)
+        now_str = now_dt.isoformat()
+        time_vn_str = now_dt.strftime("%H:%M:%S %d/%m/%Y")
+        try:
+            with conn:
+                conn.execute("DELETE FROM audit_logs")
+                conn.execute(
+                    """
+                    INSERT INTO audit_logs (
+                        ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+                    ) VALUES (?, ?, 'SYSTEM_EVENT', 'logs_cleared', NULL, 'Chủ nhà', 1, 'Đã dọn sạch toàn bộ nhật ký hệ thống', ?)
+                    """,
+                    (
+                        now_str,
+                        time_vn_str,
+                        json.dumps({"action": "clear_audit_logs_sqlite"}, ensure_ascii=False),
+                    ),
+                )
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+
 def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
     """Đồng bộ toàn bộ trạng thái từ SmartHomeEngine + Voiceprints + Knowledge RAG + IR DB vào 8 bảng SQLite."""
     with _DB_LOCK:
@@ -207,6 +245,10 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
             with conn:
                 # 1. Bảng `users`
                 users_dict = getattr(engine, "users", {}) or {}
+                valid_uids = [str(u) for u, inf in users_dict.items() if int(inf.get("tier", 3)) in (1, 2, 3)]
+                if valid_uids:
+                    placeholders = ",".join("?" for _ in valid_uids)
+                    conn.execute(f"DELETE FROM users WHERE user_id NOT IN ({placeholders})", valid_uids)
                 for uid, uinfo in users_dict.items():
                     tier_val = int(uinfo.get("tier", 3))
                     if tier_val not in (1, 2, 3):
@@ -374,39 +416,66 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                         )
 
                 # 5. Bảng `voiceprints` (từ simulator/data/voiceprints.json)
+                global _LAST_VP_MTIME, _LAST_IR_MTIME
                 vp_file = DATA_DIR / "voiceprints.json"
                 if vp_file.exists():
                     try:
-                        vp_data = json.loads(vp_file.read_text(encoding="utf-8"))
-                        profiles = vp_data.get("profiles", vp_data) if isinstance(vp_data, dict) else {}
-                        for vkey, vinfo in profiles.items():
-                            if not isinstance(vinfo, dict):
-                                continue
-                            uid = str(vinfo.get("user_id") or vkey)
-                            if uid == "chu_nha_1":
-                                uid = "tuan_anh"
-                            if uid not in users_dict:
-                                uid = "tuan_anh"
-                            emb26 = vinfo.get("embedding") or []
-                            emb64 = vinfo.get("deep_embedding_64d") or emb26
-                            conn.execute(
-                                """
-                                INSERT OR REPLACE INTO voiceprints (
-                                    voiceprint_id, user_id, f0_hz, centroid_hz,
-                                    embedding_26d_json, embedding_64d_json, sample_duration_sec, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    str(vkey),
-                                    uid,
-                                    float(vinfo.get("f0_hz") or 175.0),
-                                    float(vinfo.get("centroid_hz") or 1450.0),
-                                    json.dumps(emb26),
-                                    json.dumps(emb64),
-                                    float(vinfo.get("sample_duration_sec") or 5.0),
-                                    now_str,
-                                ),
-                            )
+                        vp_mtime = vp_file.stat().st_mtime
+                        cur_vp = conn.execute("SELECT COUNT(*) FROM voiceprints").fetchone()[0]
+                        if cur_vp == 0 or vp_mtime != _LAST_VP_MTIME:
+                            conn.execute("DELETE FROM voiceprints")
+                            vp_data = json.loads(vp_file.read_text(encoding="utf-8"))
+                            profiles = vp_data.get("profiles", vp_data) if isinstance(vp_data, dict) else {}
+                            for vkey, vinfo in profiles.items():
+                                if not isinstance(vinfo, dict):
+                                    continue
+                                if not vinfo.get("authorized", True):
+                                    continue
+                                v_tier = int(vinfo.get("tier", 3))
+                                if v_tier not in (1, 2, 3):
+                                    continue
+                                uid = str(vinfo.get("user_id") or vkey)
+                                if uid == "chu_nha_1":
+                                    uid = "tuan_anh"
+                                if uid == "UNKNOWN":
+                                    continue
+                                if uid not in users_dict:
+                                    v_role = "ADMIN" if v_tier == 1 else ("MEMBER" if v_tier == 2 else "CHILD_GUEST")
+                                    conn.execute(
+                                        """
+                                        INSERT OR IGNORE INTO users (user_id, full_name, role, tier, offline_allowed, created_by, updated_at)
+                                        VALUES (?, ?, ?, ?, ?, 'SYSTEM', ?)
+                                        """,
+                                        (
+                                            uid,
+                                            str(vinfo.get("name") or uid),
+                                            v_role,
+                                            v_tier,
+                                            1 if v_tier in (1, 2) else 0,
+                                            now_str,
+                                        ),
+                                    )
+                                emb26 = vinfo.get("embedding") or []
+                                emb64 = vinfo.get("deep_embedding") or vinfo.get("deep_embedding_64d") or emb26
+                                conn.execute(
+                                    """
+                                    INSERT OR REPLACE INTO voiceprints (
+                                        voiceprint_id, user_id, f0_hz, centroid_hz,
+                                        embedding_26d_json, embedding_64d_json, sample_duration_sec, updated_at
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    """,
+                                    (
+                                        str(vkey),
+                                        uid,
+                                        float(vinfo.get("f0_hz") or 175.0),
+                                        float(vinfo.get("centroid_hz") or 1450.0),
+                                        json.dumps(emb26),
+                                        json.dumps(emb64),
+                                        float(vinfo.get("sample_duration_sec") or 5.0),
+                                        now_str,
+                                    ),
+                                )
+                            _LAST_VP_MTIME = vp_mtime
                     except Exception:
                         pass
 
@@ -414,55 +483,64 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                 ir_file = DATA_DIR / "ir_devices_db.json"
                 if ir_file.exists():
                     try:
-                        ir_data = json.loads(ir_file.read_text(encoding="utf-8"))
-                        appliances = ir_data.get("appliances", {}) if isinstance(ir_data, dict) else {}
-                        for app_key, app_info in appliances.items():
-                            app_name = str(app_info.get("name") or app_key)
-                            proto = str(app_info.get("protocol") or "NEC_38KHZ")
-                            dev_ref = "ac" if "ac" in app_key or "dieu_hoa" in app_key else ("fan" if "fan" in app_key or "quat" in app_key else None)
-                            for cmd_act, hex_val in (app_info.get("commands", {}) or {}).items():
-                                ir_id = f"{app_key}_{cmd_act}"
-                                conn.execute(
-                                    """
-                                    INSERT OR REPLACE INTO ir_remote_codes (
-                                        ir_code_id, device_id, appliance_name, command_action,
-                                        protocol, hex_code, freq_khz, learned_at
-                                    ) VALUES (?, ?, ?, ?, ?, ?, 38, ?)
-                                    """,
-                                    (ir_id, dev_ref, app_name, str(cmd_act), proto, str(hex_val), now_str),
-                                )
+                        ir_mtime = ir_file.stat().st_mtime
+                        cur_ir = conn.execute("SELECT COUNT(*) FROM ir_remote_codes").fetchone()[0]
+                        if cur_ir == 0 or ir_mtime != _LAST_IR_MTIME:
+                            ir_data = json.loads(ir_file.read_text(encoding="utf-8"))
+                            appliances = ir_data.get("appliances", {}) if isinstance(ir_data, dict) else {}
+                            for app_key, app_info in appliances.items():
+                                app_name = str(app_info.get("name") or app_key)
+                                proto = str(app_info.get("protocol") or "NEC_38KHZ")
+                                dev_ref = "ac" if "ac" in app_key or "dieu_hoa" in app_key else ("fan" if "fan" in app_key or "quat" in app_key else None)
+                                for cmd_act, hex_val in (app_info.get("commands", {}) or {}).items():
+                                    ir_id = f"{app_key}_{cmd_act}"
+                                    conn.execute(
+                                        """
+                                        INSERT OR REPLACE INTO ir_remote_codes (
+                                            ir_code_id, device_id, appliance_name, command_action,
+                                            protocol, hex_code, freq_khz, learned_at
+                                        ) VALUES (?, ?, ?, ?, ?, ?, 38, ?)
+                                        """,
+                                        (ir_id, dev_ref, app_name, str(cmd_act), proto, str(hex_val), now_str),
+                                    )
+                            _LAST_IR_MTIME = ir_mtime
                     except Exception:
                         pass
 
                 # 7. Bảng `knowledge_rag` (từ simulator/data/knowledge_base.json)
+                global _LAST_KB_MTIME
                 kb_file = DATA_DIR / "knowledge_base.json"
                 if kb_file.exists():
                     try:
-                        kb_raw = json.loads(kb_file.read_text(encoding="utf-8"))
-                        kb_list = kb_raw.get("items", []) if isinstance(kb_raw, dict) else (kb_raw if isinstance(kb_raw, list) else [])
-                        for idx_kb, item in enumerate(kb_list, 1):
-                            if not isinstance(item, dict):
-                                continue
-                            title_val = str(item.get("topic") or item.get("title") or f"kb_{idx_kb}")
-                            doc_id = str(item.get("id") or f"kb_{idx_kb}")
-                            kw_val = item.get("keywords") or []
-                            if isinstance(kw_val, str):
-                                kw_val = [k.strip() for k in kw_val.split(",") if k.strip()]
-                            conn.execute(
-                                """
-                                INSERT OR REPLACE INTO knowledge_rag (
-                                    doc_id, category, title, content, keywords_json, updated_by_user_id, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, 'tuan_anh', ?)
-                                """,
-                                (
-                                    doc_id,
-                                    f"tier_le_{item.get('min_tier', 3)}",
-                                    title_val,
-                                    str(item.get("content") or ""),
-                                    json.dumps(kw_val, ensure_ascii=False),
-                                    now_str,
-                                ),
-                            )
+                        kb_mtime = kb_file.stat().st_mtime
+                        cur_kb = conn.execute("SELECT COUNT(*) FROM knowledge_rag").fetchone()[0]
+                        if cur_kb == 0 or kb_mtime != _LAST_KB_MTIME:
+                            kb_raw = json.loads(kb_file.read_text(encoding="utf-8"))
+                            kb_list = kb_raw.get("items", []) if isinstance(kb_raw, dict) else (kb_raw if isinstance(kb_raw, list) else [])
+                            for idx_kb, item in enumerate(kb_list, 1):
+                                if not isinstance(item, dict):
+                                    continue
+                                title_val = str(item.get("topic") or item.get("title") or f"kb_{idx_kb}")
+                                doc_id = str(item.get("id") or f"kb_{idx_kb}")
+                                kw_val = item.get("keywords") or []
+                                if isinstance(kw_val, str):
+                                    kw_val = [k.strip() for k in kw_val.split(",") if k.strip()]
+                                conn.execute(
+                                    """
+                                    INSERT OR REPLACE INTO knowledge_rag (
+                                        doc_id, category, title, content, keywords_json, updated_by_user_id, updated_at
+                                    ) VALUES (?, ?, ?, ?, ?, 'tuan_anh', ?)
+                                    """,
+                                    (
+                                        doc_id,
+                                        f"tier_le_{item.get('min_tier', 3)}",
+                                        title_val,
+                                        str(item.get("content") or ""),
+                                        json.dumps(kw_val, ensure_ascii=False),
+                                        now_str,
+                                    ),
+                                )
+                            _LAST_KB_MTIME = kb_mtime
                     except Exception:
                         pass
 

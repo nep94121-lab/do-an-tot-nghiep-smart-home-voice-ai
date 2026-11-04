@@ -1,0 +1,20 @@
+{
+  "con_gai@gmail.com": {
+    "email": "con_gai@gmail.com",
+    "target_tier": 2,
+    "target_role_label": "Người nhà (Tầng 2)",
+    "added_by": "nep94121@gmail.com",
+    "added_by_name": "Nguyễn Tuấn Anh",
+    "added_by_tier": 1,
+    "added_at": "13:13:15 04/11/2026"
+  },
+  "ong_ba@gmail.com": {
+    "email": "ong_ba@gmail.com",
+    "target_tier": 3,
+    "target_role_label": "Khách (Tầng 3)",
+    "added_by": "nep94121@gmail.com",
+    "added_by_name": "Nguyễn Tuấn Anh",
+    "added_by_tier": 1,
+    "added_at": "13:13:15 04/11/2026"
+  }
+}

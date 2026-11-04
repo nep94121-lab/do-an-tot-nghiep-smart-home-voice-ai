@@ -6,14 +6,14 @@
     "tt-a1i/archify (v3.2.0 - Interactive Architecture & SHA-256 Delivery Receipt)"
   ],
   "ok": true,
-  "total_elapsed_ms": 20952.86,
-  "generated_at_utc": "2026-11-01T15:14:47.524370+00:00",
+  "total_elapsed_ms": 25349.4,
+  "generated_at_utc": "2026-11-04T00:16:16.796174+00:00",
   "gates": [
     {
       "gate": "Gate 1: Pre-Commit Hygiene & Zero-Leak (Made-With-ML)",
       "ok": true,
-      "elapsed_ms": 1072.88,
-      "checked_files": 25,
+      "elapsed_ms": 524.16,
+      "checked_files": 62,
       "crlf_normalized": [],
       "secret_leaks": [],
       "syntax_errors": []
@@ -21,14 +21,14 @@
     {
       "gate": "Gate 2: Cross-Layer Contract & GPIO Pin Guard (5/5 Cổng)",
       "ok": true,
-      "elapsed_ms": 455.22,
+      "elapsed_ms": 810.19,
       "exit_code": 0,
       "summary": "5/5 PASS (Gemini Tools, MQTT Topics, HTTP Endpoints, 8 Chân GPIO + RX/A0, WebSocket Events)"
     },
     {
       "gate": "Gate 3: SWE-agent E2E Voice DSP & Offline Tiny-DSP Regression",
       "ok": true,
-      "elapsed_ms": 18568.16,
+      "elapsed_ms": 18700.56,
       "exit_code": 0,
       "passed_assertions": 65,
       "summary": "65 kịch bản E2E PASS (Khử ồn Quạt, Lọc 2 Tầng 26d/64d, Tách 2 Giọng, Offline 16.4ms Tầng 1&2)"
@@ -36,7 +36,7 @@
     {
       "gate": "Gate 4: Archify Interactive Architecture & Workflow Verification",
       "ok": true,
-      "elapsed_ms": 443.24,
+      "elapsed_ms": 381.77,
       "archify_cli_present": true,
       "cli_verified": true,
       "artifacts": {
@@ -53,28 +53,41 @@
       }
     },
     {
-      "gate": "Gate 5: Atomic Release Packaging & SHA-256 Manifest",
+      "gate": "Gate 5: GitHub Spec Kit 9-Step Convergence, 14 Auth-3Layer Scenarios & Live Server Audit",
       "ok": true,
-      "elapsed_ms": 406.31,
+      "elapsed_ms": 4565.47,
+      "speckit_exit_code": 0,
+      "auth3_exit_code": 0,
+      "summary": "CONVERGED 100% (9 Lệnh Spec Kit + 6 Điều Hiến Pháp + 14/14 Kịch bản OAuth/Invite + Live HTTP/WS)"
+    },
+    {
+      "gate": "Gate 6: Commercial Release Packaging & SHA-256 Manifest",
+      "ok": true,
+      "elapsed_ms": 363.25,
       "package_zip": "dist/smarthome-voice-ai-release.zip",
-      "package_bytes": 819251,
-      "package_sha256": "3d5c55c306ee2c3e9b29df96fccc95b518d370a7b4b6e5ed22638353e4c2c7bd",
-      "manifest_count": 25,
+      "package_bytes": 1003544,
+      "package_sha256": "ea9369d6a7d3cd65a6a9a8e021e13ac3d8344df92478176da77eb68b81c7ed12",
+      "manifest_count": 62,
       "manifest": [
         {
           "path": "simulator/voice_auth.py",
-          "bytes": 53441,
-          "sha256": "e2d0e87c8269cb00cc477b09ab2b2b2cc7064296f95041b26e56f7365aa15dab"
+          "bytes": 112371,
+          "sha256": "12162928835f46de9164408ccb787496b37a8d9aad3021e60ce8e4a6a777e289"
         },
         {
           "path": "simulator/rule_engine.py",
-          "bytes": 160550,
-          "sha256": "e5004278f5658078ef8f147232d087e175bb11a0f5948a8c343e5f3cc38b6357"
+          "bytes": 161114,
+          "sha256": "4558240abac3e994a78f3e0c33de33e4ea2cd576c0f61ec01a68d250f947dcb2"
+        },
+        {
+          "path": "simulator/auth_3layer.py",
+          "bytes": 136784,
+          "sha256": "2b3e091054068ab66c8987b8b5c07824c312ba95b1ed083974f1149bb2ea644a"
         },
         {
           "path": "simulator/server.py",
-          "bytes": 111720,
-          "sha256": "e7fc81ac7ab1d820dc82dcdb2eed361a2c5e8544b8449f51e75e9a7b52f1fd0c"
+          "bytes": 5761,
+          "sha256": "a21f0ba55cf8aa6ea2805bb1e95dedd0502ef8c90567387faf8709ec74ec233c"
         },
         {
           "path": "simulator/mqtt_bridge.py",
@@ -83,33 +96,168 @@
         },
         {
           "path": "simulator/knowledge_rag.py",
-          "bytes": 15009,
-          "sha256": "23dbdb3b5c138166abc10bd0e123213a203945d1f68df4a5d2d3b8dd38e37793"
+          "bytes": 15803,
+          "sha256": "cf63a137ce1441be16e019bb97240d7b5996d90baa5b04e8729bef1c26ac2388"
         },
         {
           "path": "simulator/database_sqlite.py",
-          "bytes": 29013,
-          "sha256": "0f2a79c69a4c329640933ab40ec467c59271e2b37e16539c743b4a3aefaefbbc"
+          "bytes": 31823,
+          "sha256": "edafd4a23e67d0fcd47b7aa05456e4c0fdec1d48efb5f7678ae2a8518c499217"
+        },
+        {
+          "path": "simulator/voice/biometrics_neural.py",
+          "bytes": 12201,
+          "sha256": "8e652a4d5705386874006dfa7b5df6e1cf9105214a8fcf59d4aa5e69cc48e49c"
+        },
+        {
+          "path": "simulator/voice/vad_vietnamese.py",
+          "bytes": 5892,
+          "sha256": "89881c9b704e0c0ac183ea108c5ced191f9f5c8e944b1388a5ce6e2f4b478a95"
+        },
+        {
+          "path": "simulator/voice/denoiser.py",
+          "bytes": 7107,
+          "sha256": "a6aff97933eb1d901b98b49ca19213a68861c7021edb3be1107b4a066469572c"
+        },
+        {
+          "path": "simulator/live/gemini_bridge.py",
+          "bytes": 73836,
+          "sha256": "59bcffe995346509605227eaabe4cddb4b2f587ba2f2ba6312afc8e24507d687"
+        },
+        {
+          "path": "simulator/live/prompt_builder.py",
+          "bytes": 45215,
+          "sha256": "592ac9ce214937e75a2c8cd6c56064e9ed752663b455aa863436687f9ea27e89"
+        },
+        {
+          "path": "simulator/live/tts_rejection_vi.py",
+          "bytes": 5582,
+          "sha256": "9484556a12ed080bcce76641b044efa45ddddb2fdee5979717e1ffdd66d39fbb"
+        },
+        {
+          "path": "simulator/api/deps.py",
+          "bytes": 3312,
+          "sha256": "f3670d13c9dc5eb73c872aff465c2aa964e87f8e716f76f8b20fb90d1a043699"
+        },
+        {
+          "path": "simulator/api/routes_devices.py",
+          "bytes": 11035,
+          "sha256": "7bbc9861073db4234587770f3f348ab04d96ef393cb46cee40727ae8331f2943"
+        },
+        {
+          "path": "simulator/api/routes_auth.py",
+          "bytes": 25883,
+          "sha256": "ad2633c7566a3a87afa50ee3760f6bc3d4b037acf0b7714bea8d8e0d66d72fa0"
+        },
+        {
+          "path": "simulator/api/routes_qr.py",
+          "bytes": 18308,
+          "sha256": "49873386b7bdde3377bf0e49ce2bdd4c81ab5f7cac3c3a278ed2a9a54ebe635a"
+        },
+        {
+          "path": "simulator/api/routes_logs.py",
+          "bytes": 11978,
+          "sha256": "d0353c44c37d723d88983ff9843cf3d3eb97e1993fe5a54d7699842e85c6ac6f"
         },
         {
           "path": "simulator/static/index.html",
-          "bytes": 16707,
-          "sha256": "5d39b7c6661f90043a7805670af31e9f898d26c8a22cbad891724244cf3d1de6"
+          "bytes": 9278,
+          "sha256": "d2d195a28ad32c2f00cc7ac7351deec4924ab21679ed19a8df54105fbaff3992"
+        },
+        {
+          "path": "simulator/static/auth.html",
+          "bytes": 19313,
+          "sha256": "496faa98b826412c3e1a4343640e3003807b434af831663152c633f8d17027e0"
+        },
+        {
+          "path": "simulator/static/guest_enroll.html",
+          "bytes": 7871,
+          "sha256": "d294196afcb1a738c957a9c53dd2b80d5d214dca1f8334e608479de1c383f408"
+        },
+        {
+          "path": "simulator/static/wokwi.html",
+          "bytes": 43616,
+          "sha256": "b8d7a394e5e5f2400060cc96006bc5fed85ce6256c82a5a1e24cc7684b369bf1"
         },
         {
           "path": "simulator/static/logs.html",
-          "bytes": 30598,
-          "sha256": "a35aea567395ea7e80f9852c2f846d5377cbbb27e1e7885818f18b6077000488"
+          "bytes": 13061,
+          "sha256": "e59cc09a3c4123debf179e9a17ec2b27e17df7b197499c4de7f36beb11497baa"
         },
         {
           "path": "simulator/static/app.js",
-          "bytes": 49794,
-          "sha256": "3a5ebeb2aa940f20d2a17699d5e6db09a2fa9190eafd6bd632d3bc2d21e1a0e7"
+          "bytes": 35196,
+          "sha256": "f20922105f0dbfa297dfdb4c70d5b0711bbdc49376c3327e7e29efc236bd130f"
+        },
+        {
+          "path": "simulator/static/house3d.js",
+          "bytes": 66917,
+          "sha256": "45cedcb28da85e3f0a902712375de606e04d8b99e9e9afd55937512e4889dda6"
         },
         {
           "path": "simulator/static/style.css",
-          "bytes": 14964,
-          "sha256": "376f058becee858551b1306b3519c5f7c2fe515a90accd2df3a3a2511e7a6ee1"
+          "bytes": 15817,
+          "sha256": "c81944e6abe1351f286c6c8dceff613e5bdbd0198e23d7b9022a52008c22e825"
+        },
+        {
+          "path": "simulator/static/css/style.css",
+          "bytes": 15817,
+          "sha256": "c81944e6abe1351f286c6c8dceff613e5bdbd0198e23d7b9022a52008c22e825"
+        },
+        {
+          "path": "simulator/static/css/auth.css",
+          "bytes": 8742,
+          "sha256": "f067541785f3b2e3494aff529171bb48f5ff1b51b945b2d687c15916dc9783e4"
+        },
+        {
+          "path": "simulator/static/css/guest_enroll.css",
+          "bytes": 5953,
+          "sha256": "c7ab7db18f656f5b13b1d57e2aa6423b774bc48ff3df2145c5b7d88b321e36b5"
+        },
+        {
+          "path": "simulator/static/css/wokwi.css",
+          "bytes": 12437,
+          "sha256": "4569b02dd74f89395ced283bd21ab95625cea231df2443c028ecf75f3a52767c"
+        },
+        {
+          "path": "simulator/static/css/logs.css",
+          "bytes": 11082,
+          "sha256": "d9e0cb58b4b26422599f2cbbbca8e3ca4083ccfd67baba0be93488382a433ef2"
+        },
+        {
+          "path": "simulator/static/css/mobile_app.css",
+          "bytes": 8440,
+          "sha256": "63a99b4e63ac61a39499081a23940f24941f3066e0612b5f889aa22dba075972"
+        },
+        {
+          "path": "simulator/static/js/app.js",
+          "bytes": 38759,
+          "sha256": "59bcb9a9bea8ede2509f418535c6b79a6e5bf6270661e2b5afb943a179961ee4"
+        },
+        {
+          "path": "simulator/static/js/auth.js",
+          "bytes": 29881,
+          "sha256": "d88ef09e2c8c173a3390f48c7d0a93b2b6a3054f97eeac487c282def297be212"
+        },
+        {
+          "path": "simulator/static/js/guest_enroll.js",
+          "bytes": 14917,
+          "sha256": "f6b529fd48d61d578465536878eea7a0a673a5831b753a6f265a5f7df6dbdcdb"
+        },
+        {
+          "path": "simulator/static/js/wokwi.js",
+          "bytes": 46758,
+          "sha256": "2e4c50c8d180c4cc80661070c9efba236b74e07330c08b7a0487a34b3a6532bc"
+        },
+        {
+          "path": "simulator/static/js/logs.js",
+          "bytes": 12479,
+          "sha256": "8fb44e9a4ab1233277323edc0a28a6f73fb269aa29623be5a61177d3db53142b"
+        },
+        {
+          "path": "simulator/static/js/mobile_app.js",
+          "bytes": 23474,
+          "sha256": "3736235b24aa1941f5c77ea10013c748f1815c64d0e8f6a56b9a8672a05ad2c7"
         },
         {
           "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
@@ -118,23 +266,68 @@
         },
         {
           "path": "mobile_app/index.html",
-          "bytes": 9426,
-          "sha256": "9c4eb3083d8c663993d8a74c806d7cbc130554be0d8ecd480a9078da36a7fdd6"
+          "bytes": 14968,
+          "sha256": "f89c89f98dc57440e03a6f2ef5906861c310855037ee559cba34c6ccf4d9fbad"
         },
         {
           "path": "scripts/code_graph_guard.py",
-          "bytes": 23958,
-          "sha256": "46fc724b8e8ff1e8e39fe3978d9eabf4d6302cf7e5ad02a10785564e1741d84d"
+          "bytes": 25989,
+          "sha256": "fcbfb7ed14618f18fce350866113b4a7893c1504296da40a343a5f1259128e82"
+        },
+        {
+          "path": "scripts/speckit_converge.py",
+          "bytes": 14586,
+          "sha256": "e693910ce2e84d0bfecab74c9c41c2d108aff3f542eded79f87c3edbcd74a0d8"
+        },
+        {
+          "path": "scripts/test_auth_3layer_and_invite.py",
+          "bytes": 2945,
+          "sha256": "ff0e2bc1a957456fdbefbb5390e8eb7516996cda2216a3588a4f47160c825b68"
         },
         {
           "path": "scripts/test_simulator_e2e.py",
-          "bytes": 39806,
-          "sha256": "4ac0a7cdee9b6b24e5fd46d1988214d8fba4a9f38897082876200f272793de74"
+          "bytes": 41043,
+          "sha256": "035615631bda49adbebd0ca8915ba25ec3f2ac894420a3575c354db5770c971a"
         },
         {
           "path": "scripts/devops_pipeline.py",
-          "bytes": 11968,
-          "sha256": "8379a6cea9cacec866551ead289f89a3bbed5f6624abc2ad6cf91dde86b57744"
+          "bytes": 14672,
+          "sha256": "9a3fcd362f267c8ce88e18b650322bac2c9bb126f2b998ded6734024800a8992"
+        },
+        {
+          "path": ".specify/memory/constitution.md",
+          "bytes": 5550,
+          "sha256": "67187681e4543e2337e0c7f7a1f385acc34ab4ac32aac122564967d229ebe7bc"
+        },
+        {
+          "path": "specs/001-smart-home-voice-ai/spec.md",
+          "bytes": 3115,
+          "sha256": "c1634e3bbb582083a08ca550360ff478ffa09a142181e33839183a885535af67"
+        },
+        {
+          "path": "specs/001-smart-home-voice-ai/plan.md",
+          "bytes": 7741,
+          "sha256": "69268551e15a642e7da13c2d1aa06859e585fe84c29a8a0a5c84e55d8a22f957"
+        },
+        {
+          "path": "specs/001-smart-home-voice-ai/checklist.md",
+          "bytes": 1331,
+          "sha256": "03181ffe02b0d7c902fe5a561cec133fe7dcca2b8b21aa74e6aef83e63fa7d78"
+        },
+        {
+          "path": "specs/001-smart-home-voice-ai/tasks.md",
+          "bytes": 14518,
+          "sha256": "357341826f109eddbbf70b66d12802441f3fcbc913a29e448f4e8275365e8f57"
+        },
+        {
+          "path": ".agents/rules/smart-home-do-an.md",
+          "bytes": 4950,
+          "sha256": "92c61c73e484c0cb9e0dc8af29025d398632d876b06dc8e5021edfb761f66713"
+        },
+        {
+          "path": ".agents/skills/github-spec-kit/SKILL.md",
+          "bytes": 4204,
+          "sha256": "d6f8e56d71cf6485bc52edb7deb065e83b8fd4f8b05b12afe8f543b9c530a83d"
         },
         {
           "path": "docs/kien_truc/smart-home-voice-ai.architecture.json",

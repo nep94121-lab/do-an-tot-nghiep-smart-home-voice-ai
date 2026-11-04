@@ -3,189 +3,410 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>📱 Smart Home Mobile App — ESP8266 &amp; MQTT</title>
-  <style>
-    :root {
-      --bg: #0b1120;
-      --card: #152036;
-      --border: #253554;
-      --accent: #38bdf8;
-      --green: #4ade80;
-      --red: #f87171;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background: var(--bg); color: var(--text); max-width: 460px; margin: 0 auto; min-height: 100vh; padding: 14px; }
-    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-    .header h1 { font-size: 1.05rem; color: var(--accent); }
-    .badge { font-size: 0.75rem; padding: 4px 8px; border-radius: 999px; background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid var(--green); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-top: 12px; }
-    .card-title { font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 8px; display: flex; justify-content: space-between; }
-    .sensor-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
-    .sensor-box { background: rgba(15,23,42,0.7); padding: 10px 6px; border-radius: 10px; border: 1px solid var(--border); }
-    .sensor-val { font-size: 1.25rem; font-weight: 800; color: var(--green); }
-    .sensor-lbl { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-    .voice-form { display: flex; gap: 6px; margin-top: 8px; }
-    .voice-input { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: #fff; font-size: 0.88rem; }
-    .btn { padding: 10px 14px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; font-size: 0.84rem; }
-    .btn-primary { background: var(--accent); color: #0f172a; }
-    .btn-ir { background: #a855f7; color: #fff; width: 100%; margin-top: 8px; }
-    .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .dev-btn { background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 10px; color: var(--text); text-align: left; cursor: pointer; }
-    .dev-btn.active { border-color: var(--green); background: rgba(74,222,128,0.12); }
-    .dev-name { font-weight: 700; font-size: 0.86rem; }
-    .dev-sub { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
-    .mqtt-box { font-family: monospace; font-size: 0.73rem; max-height: 150px; overflow-y: auto; background: #090d16; padding: 8px; border-radius: 8px; color: #cbd5e1; }
-    .mqtt-item { margin-bottom: 5px; border-bottom: 1px dashed #1e293b; padding-bottom: 4px; }
-    .reply-banner { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(56,189,248,0.12); font-size: 0.83rem; color: #e0f2fe; }
-  </style>
+  <meta name="theme-color" content="#f5f7f7" />
+  <title>Nhà của bạn · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/mobile_app.css" />
 </head>
 <body>
-  <div class="header">
-    <div>
-      <h1>📱 SMART HOME MOBILE APP</h1>
-      <div style="font-size:0.74rem;color:var(--muted);">NodeMCU ESP8266 • MQTT • 3-Tier Voice AI</div>
+  <!-- SVG ICON SPRITE (Toàn cục cho cả Login Gate và Main Content) -->
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a2 2 0 0 1 4 0l-2 6M14 12h6a2 2 0 0 1 0 4l-6-2M12 14v6a2 2 0 0 1-4 0l2-6M10 12H4a2 2 0 0 1 0-4l6 2"/></symbol>
+    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1 19.1 4.9"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
+  </svg>
+
+  <!-- LOGIN GATE (hiển thị trước khi vào bảng điều khiển) -->
+  <div id="mobileLoginGate" class="login-gate">
+    <div class="login-card">
+      <div class="login-header">
+        <svg class="icon" style="width:32px;height:32px;color:var(--accent)"><use href="#i-home"/></svg>
+        <h1 style="font-size:20px;margin-top:8px;">Nhà thông minh</h1>
+        <p class="muted" style="margin-top:4px;">Đăng nhập để điều khiển ngôi nhà</p>
+      </div>
+
+      <div style="display:flex; gap:6px; margin:10px 0 14px;">
+        <button type="button" id="btnMobileTabLogin" class="btn primary" onclick="switchMobileLoginTab('login')" style="flex:1; min-height:34px; font-size:12px; padding:6px 8px;">1. Đăng nhập</button>
+        <button type="button" id="btnMobileTabRegister" class="btn secondary" onclick="switchMobileLoginTab('register')" style="flex:1; min-height:34px; font-size:12px; padding:6px 8px;">2. Đặt / Đổi mật khẩu</button>
+      </div>
+
+      <!-- TAB 1: FORM ĐĂNG NHẬP (HỖ TRỢ ENTER, NÚT 👁️) -->
+      <form id="mobileLoginForm" class="login-form" onsubmit="submitMobileLogin(event)">
+        <div>
+          <label class="muted" for="mobileLoginEmail" style="display:block;margin-bottom:4px;">Email</label>
+          <input type="email" id="mobileLoginEmail" placeholder="Nhập email" value="nep94121@gmail.com" required />
+        </div>
+        <div>
+          <label class="muted" for="mobileLoginPassword" style="display:block;margin-bottom:4px;">Mật khẩu</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="mobileLoginPassword" placeholder="Nhập mật khẩu" value="123456" required style="width:100%; padding-right:38px;" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <div id="mobileLoginMsg" class="muted" style="min-height:18px;"></div>
+        <button type="submit" class="btn primary" id="mobileLoginBtn">Đăng nhập</button>
+      </form>
+
+      <!-- TAB 2: FORM ĐẶT / ĐỔI MẬT KHẨU (BẮT BUỘC 2 Ô MẬT KHẨU, HỖ TRỢ ENTER, NÚT 👁️) -->
+      <form id="mobileRegisterForm" class="login-form" style="display:none;" onsubmit="submitMobileRegister(event)">
+        <div>
+          <label class="muted" for="mobileRegTier" style="display:block;margin-bottom:4px;">Cấp độ tài khoản</label>
+          <select id="mobileRegTier" onchange="onMobileRegTierChange()" style="width:100%;">
+            <option value="1">Cấp 1 · Chủ nhà (nep94121@gmail.com)</option>
+            <option value="2">Cấp 2 · Thành viên gia đình</option>
+            <option value="3">Cấp 3 · Khách đến chơi nhà</option>
+          </select>
+        </div>
+        <div>
+          <label class="muted" for="mobileRegName" style="display:block;margin-bottom:4px;">Họ và tên</label>
+          <input type="text" id="mobileRegName" placeholder="Nhập họ và tên" value="Nguyễn Tuấn Anh" required />
+        </div>
+        <div>
+          <label class="muted" for="mobileRegEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
+          <input type="email" id="mobileRegEmail" placeholder="Nhập email" value="nep94121@gmail.com" required />
+        </div>
+        <div>
+          <label class="muted" for="mobileRegPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="mobileRegPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <div>
+          <label class="muted" for="mobileRegConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="mobileRegConfirmPassword" placeholder="Nhập lại mật khẩu để xác nhận" value="123456" required style="width:100%; padding-right:38px;" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <div id="mobileRegMsg" class="muted" style="min-height:18px;"></div>
+        <button type="submit" class="btn primary" id="mobileRegisterBtn">Xác nhận 2 mật khẩu &amp; Đăng nhập</button>
+      </form>
     </div>
-    <span class="badge" id="espBadge">ESP8266: ONLINE</span>
   </div>
 
-  <!-- CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (CHÂN D6) -->
-  <div class="card">
-    <div class="card-title">
-      <span>🌡️ Cảm biến Môi trường DHT11 (Chân D6)</span>
-      <span id="rssiText" style="color:var(--muted);">Wi-Fi: -52 dBm</span>
-    </div>
-    <div class="sensor-row">
-      <div class="sensor-box">
-        <div class="sensor-val" id="tempVal">28.5°C</div>
-        <div class="sensor-lbl">Nhiệt độ phòng</div>
-      </div>
-      <div class="sensor-box">
-        <div class="sensor-val" id="humVal">65%</div>
-        <div class="sensor-lbl">Độ ẩm phòng (D6)</div>
-      </div>
-      <div class="sensor-box">
-        <div class="sensor-val" id="soilVal">62%</div>
-        <div class="sensor-lbl">Độ ẩm đất (YL-69 A0)</div>
-      </div>
-    </div>
-  </div>
+  <!-- NỘI DUNG CHÍNH (ẩn khi chưa đăng nhập) -->
+  <div id="mobileMainContent" hidden>
 
-  <!-- RA LỆNH GIỌNG NÓI / TEXT TỪ ĐIỆN THOẠI -->
-  <div class="card">
-    <div class="card-title">
-      <span>🎙️ Ra lệnh Trợ lý Ảo AI (Cấp 1: Nguyễn Tuấn Anh)</span>
+  <!-- 6. PWA HOME -->
+  <header class="header" id="secHome">
+    <h1>Nhà của bạn</h1>
+    <span class="status-dot" id="espBadge">Đã kết nối</span>
+    <span id="tempVal" hidden>28.5°C</span>
+    <span id="humVal" hidden>65%</span>
+    <span id="soilVal" hidden>55%</span>
+    <span id="rssiText" hidden></span>
+    <span id="mobileStrikeBadge" hidden></span>
+    <span id="mobileCountdownBadge" hidden></span>
+  </header>
+
+  <section class="card" aria-labelledby="pwa-house-title">
+    <div class="card-head">
+      <h2 id="pwa-house-title">Ngôi nhà</h2>
+      <span class="muted">Toàn cảnh</span>
     </div>
-    <form class="voice-form" id="cmdForm">
-      <input class="voice-input" id="cmdInput" placeholder="Nói/nhập: Bật máy bơm, Tưới cây, Độ ẩm đất..." />
-      <button class="btn btn-primary" type="submit">Gửi</button>
+    <a href="/" class="overview-box" aria-label="Toàn cảnh ngôi nhà">
+      <strong>Toàn cảnh</strong>
+      <span>Chạm để mở mô hình toàn cảnh</span>
+    </a>
+    <button type="button" class="btn primary" onclick="scrollToSection('secVoice', true)">
+      <svg class="icon"><use href="#i-mic"/></svg>
+      <span>Nói để điều khiển</span>
+    </button>
+  </section>
+
+  <!-- 7. PWA THIẾT BỊ -->
+  <section class="card" id="secDevices" aria-labelledby="devices-title">
+    <div class="card-head">
+      <h2 id="devices-title">Thiết bị</h2>
+      <button type="button" class="text-link" id="btnToggleShowAllDevices" onclick="toggleShowAllDevices()">Xem tất cả</button>
+    </div>
+    <div class="filter-pills" id="roomFilterPills">
+      <button type="button" class="pill active" onclick="filterDevicesByRoom('all', this)">Tất cả</button>
+      <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng khách', this)">Phòng khách</button>
+      <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng ngủ', this)">Phòng ngủ</button>
+      <button type="button" class="pill" onclick="filterDevicesByRoom('Lối vào', this)">Lối vào</button>
+      <button type="button" class="pill" onclick="filterDevicesByRoom('Sân vườn', this)">Sân vườn</button>
+    </div>
+    <div class="dev-list" id="devGrid"></div>
+  </section>
+
+  <!-- 10. PWA LỊCH -->
+  <section class="card" id="secSchedule" aria-labelledby="schedule-title">
+    <div class="card-head">
+      <h2 id="schedule-title">Lịch</h2>
+      <button type="button" class="text-link" onclick="document.getElementById('pwaScheduleForm').hidden = !document.getElementById('pwaScheduleForm').hidden">Tạo lịch</button>
+    </div>
+    <div id="upcomingScheduleInline" class="muted">Chưa có lịch</div>
+    <form id="pwaScheduleForm" hidden style="margin-top:12px; display:grid; gap:8px;" onsubmit="submitPwaSchedule(event)">
+      <input type="text" id="pwaSchedTime" placeholder="Giờ (ví dụ: 10 giây nữa)" value="10 giây nữa" />
+      <select id="pwaSchedDevice">
+        <option value="Đèn phòng khách">Đèn phòng khách</option>
+        <option value="Quạt trần">Quạt trần</option>
+        <option value="Điều hòa">Điều hòa</option>
+        <option value="Tưới cây">Tưới cây</option>
+      </select>
+      <select id="pwaSchedAction">
+        <option value="Bật">Bật</option>
+        <option value="Tắt">Tắt</option>
+      </select>
+      <div class="btn-row">
+        <button type="submit" class="btn primary">Lưu</button>
+        <button type="button" class="btn secondary" onclick="document.getElementById('pwaScheduleForm').hidden=true">Hủy</button>
+      </div>
     </form>
-    <div class="reply-banner" id="aiReply">Sẵn sàng nhận lệnh từ Điện thoại...</div>
-    <button class="btn btn-ir" id="btnLearnIr">📡 Học lệnh Chiếm quyền Remote Hồng ngoại (D5 VS1838B)</button>
-    <button class="btn btn-ir" id="btnTestDrySoil" style="margin-top:6px;background:linear-gradient(135deg,#059669,#10b981);">🌱 Mô phỏng Đất Khô (25% trên chân A0) ➡️ Tự bật Máy bơm D3</button>
-  </div>
+  </section>
 
-  <!-- 7 THIẾT BỊ TRÊN NODEMCU ESP8266 -->
-  <div class="card">
-    <div class="card-title">
-      <span>⚡ Điều khiển 7 Thiết bị trên NodeMCU ESP8266</span>
+  <!-- 8. PWA GIỌNG NÓI -->
+  <section class="card" id="secVoice" aria-labelledby="voice-title">
+    <div class="card-head">
+      <h2 id="voice-title">Giọng nói</h2>
+      <span class="muted" id="voiceStateBadge">Sẵn sàng</span>
     </div>
-    <div class="dev-grid" id="devGrid"></div>
-  </div>
+    <p class="muted" style="margin-bottom:12px;">Nói để điều khiển thiết bị trong nhà.</p>
 
-  <!-- GIÁM SÁT GÓI TIN MQTT THỜI GIAN THỰC -->
-  <div class="card">
-    <div class="card-title">
-      <span>📡 Dòng gói tin MQTT Thời gian thực (Pub/Sub)</span>
+    <div id="pwaVoiceEmpty" class="muted" style="padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-bottom:12px;">Chưa có lệnh</div>
+
+    <div id="pwaVoiceResults" class="results-box" hidden>
+      <div>
+        <div class="result-label">Bạn nói</div>
+        <div id="userSaidText"></div>
+      </div>
+      <div>
+        <div class="result-label">Phản hồi</div>
+        <div id="aiReply"></div>
+      </div>
     </div>
-    <div class="mqtt-box" id="mqttLog"></div>
-  </div>
 
-  <script>
-    async function refreshState() {
-      const res = await fetch('/api/state');
-      const data = await res.json();
-      const mqtt = data.mqtt || {};
-      const dht = mqtt.dht11_telemetry || {};
-      const soil = mqtt.soil_moisture_telemetry || {};
-      document.getElementById('tempVal').textContent = (dht.temp_c || 28.5) + '°C';
-      document.getElementById('humVal').textContent = (dht.humidity_pct || 65) + '%';
-      document.getElementById('soilVal').textContent = (soil.soil_moisture_pct !== undefined ? soil.soil_moisture_pct : 62) + '%';
-      if (mqtt.esp8266_status) {
-        document.getElementById('rssiText').textContent = 'Wi-Fi: ' + mqtt.esp8266_status.wifi_rssi_dbm + ' dBm';
-      }
+    <button type="button" class="btn primary" id="btnMobileMic" onclick="toggleMobileVoiceListen()">
+      <svg class="icon"><use href="#i-mic"/></svg>
+      <span id="btnMobileMicLabel">Bắt đầu nói</span>
+    </button>
 
-      const grid = document.getElementById('devGrid');
-      grid.innerHTML = '';
-      (data.devices || []).forEach(d => {
-        const isOn = d.state === 'ON' || d.state === 'OPEN';
-        const btn = document.createElement('button');
-        btn.className = 'dev-btn' + (isOn ? ' active' : '');
-        btn.innerHTML = `<div class="dev-name">${d.name} (${d.state})</div><div class="dev-sub">${d.gpio}</div>`;
-        btn.onclick = async () => {
-          const act = d.type === 'door' ? (isOn ? 'close' : 'open') : (isOn ? 'turn_off' : 'turn_on');
-          const r = await fetch('/api/device', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({device_id: d.id, action: act})
-          });
-          const j = await r.json();
-          document.getElementById('aiReply').textContent = j.exact_spoken_reply || j.summary || 'Đã thực thi.';
-          refreshState();
-        };
-        grid.appendChild(btn);
-      });
+    <form class="voice-input-row" id="cmdForm">
+      <input type="text" id="cmdInput" placeholder="Nhập lệnh" autocomplete="off" />
+      <button type="submit" class="btn secondary" style="width:auto; min-width:72px;">Gửi</button>
+    </form>
 
-      const logBox = document.getElementById('mqttLog');
-      const pkts = (mqtt.recent_mqtt_packets || []).slice().reverse();
-      logBox.innerHTML = pkts.map(p =>
-        `<div class="mqtt-item"><strong style="color:#38bdf8">[${p.direction}]</strong> <code>${p.topic}</code> (QoS ${p.qos})<br/>${JSON.stringify(p.payload)}</div>`
-      ).join('') || 'Chưa có bản tin MQTT...';
-    }
+    <label style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--muted); cursor:pointer;">
+      <span>Đọc phản hồi</span>
+      <input type="checkbox" id="ttsSpeakToggle" checked style="accent-color:var(--accent); width:16px; height:16px;" />
+    </label>
+  </section>
 
-    document.getElementById('cmdForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const inp = document.getElementById('cmdInput');
-      const text = inp.value.trim();
-      if (!text) return;
-      inp.value = '';
-      const r = await fetch('/api/text_command', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text})
-      });
-      const j = await r.json();
-      document.getElementById('aiReply').textContent = j.reply || j.exact_spoken_reply || 'Đã xử lý.';
-      refreshState();
-    };
+  <!-- 9. PWA TÀI KHOẢN (GIỌNG NÓI CỦA TÔI, KHÁCH, NHẬT KÝ, CÀI ĐẶT) -->
+  <section class="card" id="secAuth" aria-labelledby="auth-title">
+    <div class="card-head">
+      <h2 id="auth-title">Tài khoản</h2>
+      <span class="muted" id="mobileActorBadge">Chủ nhà</span>
+    </div>
 
-    document.getElementById('btnLearnIr').onclick = async () => {
-      const name = prompt('Nhập tên thiết bị Remote cần chiếm quyền (VD: Điều hòa Casper, Tivi Sony, Quạt Mitsubishi):', 'Điều hòa Casper');
-      if (!name) return;
-      const r = await fetch('/api/ir_learn', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({device_name: name, command_action: 'open'})
-      });
-      const j = await r.json();
-      document.getElementById('aiReply').textContent = j.exact_spoken_reply || j.message;
-      refreshState();
-    };
+    <!-- MỤC 1: GIỌNG NÓI CỦA TÔI (LUỒNG 3 BƯỚC) -->
+    <details class="account-item" id="mobileVoiceModal" open>
+      <summary>
+        <span>Giọng nói của tôi</span>
+        <span class="muted" id="mobileVoiceStepLabel">Bước 1–3</span>
+      </summary>
+      <div class="account-body">
+        <div>
+          <label class="muted" for="mobileActorSelect" style="display:block; margin-bottom:4px;">Bước 1/3 · Chọn tài khoản đăng ký</label>
+          <select id="mobileActorSelect" onchange="onMobileActorChange()">
+            <option value="nep94121@gmail.com" data-tier="1">Chủ nhà · nep94121@gmail.com</option>
+            <option value="thanhviena.hust@gmail.com" data-tier="2">Gia đình · thanhviena.hust@gmail.com</option>
+            <option value="khach.hust@gmail.com" data-tier="3">Khách · khach.hust@gmail.com</option>
+          </select>
+          <div id="mobileVoiceTierInfo" class="muted" style="margin-top:4px;font-size:11px;">Cấp 1 — Chủ nhà: toàn quyền điều khiển</div>
+        </div>
 
-    document.getElementById('btnTestDrySoil').onclick = async () => {
-      const r = await fetch('/api/soil_moisture', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({soil_moisture_pct: 25.0})
-      });
-      const j = await r.json();
-      document.getElementById('aiReply').textContent = j.exact_spoken_reply || 'Đã cập nhật cảm biến độ ẩm đất.';
-      refreshState();
-    };
+        <div>
+          <div class="muted" style="margin-bottom:4px;">Bước 2/3 · Lưu giọng nói</div>
+          <div id="mobileVoiceRegisterInfo" style="background:#f8fafb;border:1px solid var(--line);padding:10px;border-radius:10px;font-size:12px;margin-bottom:8px;">
+            <div style="font-weight:500;margin-bottom:4px;">Người đăng ký: <span id="mobileVoiceRegName" style="color:var(--accent);">Chủ nhà</span></div>
+            <div>Hãy đọc rõ ràng câu sau:</div>
+          </div>
+          <div id="mobileReadingPrompt" style="background:#ffffff; border:1px solid var(--line); padding:10px; border-radius:10px; font-size:13px; margin-bottom:8px;">
+            "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn primary" onclick="submitMobileVoiceSample(true)">
+              <svg class="icon"><use href="#i-mic"/></svg>
+              <span>Thu âm</span>
+            </button>
+            <button type="button" class="btn secondary" id="mobileVoiceRetryBtn" onclick="submitMobileVoiceSample(false)">Thử lại</button>
+          </div>
+          <div id="mobileVoiceRes" style="font-size:12px; margin-top:6px;"></div>
+          <div id="mobileVoiceMetrics" style="font-size:11px;margin-top:4px;color:var(--muted);display:none;">
+            <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> · 
+            <span>SNR: <strong id="mobileVoiceSNR">—</strong> dB</span>
+          </div>
+        </div>
 
-    refreshState();
-    setInterval(refreshState, 2500);
-  </script>
+        <div id="mobileFamilyCard">
+          <div class="muted" style="margin-bottom:4px;">Bước 3/3 · Xác nhận và cấp quyền</div>
+          <div id="mobileAddEmailForm" style="display:grid; gap:8px;">
+            <select id="mobileTargetTierSelect">
+              <option value="2">Gia đình</option>
+              <option value="3">Khách</option>
+            </select>
+            <input type="email" id="mobileTargetEmail" placeholder="Nhập email thành viên" />
+            <button type="button" id="mobileBtnAddEmail" onclick="submitMobileAddEmail()" class="btn primary">Hoàn tất</button>
+          </div>
+          <div id="mobileAllowlistMsg" class="muted" style="margin-top:6px;">
+            Chủ nhà được thêm Gia đình và Khách.
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR -->
+    <details class="account-item" id="mobileDynamicQrCard" open>
+      <summary>
+        <span>Mời khách / Thành viên</span>
+        <span id="mobileQrCountdown" class="muted">Đang chờ</span>
+      </summary>
+      <div class="account-body">
+        <div style="margin-bottom:8px;">
+          <label class="muted" for="mobileQrInviteTierSelect" style="display:block;margin-bottom:4px;">Loại lời mời</label>
+          <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
+            <option value="3">Khách (Cấp 3)</option>
+            <option value="2">Thành viên Gia đình (Cấp 2)</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div id="mobileQrSvgContainer" style="width:104px; height:104px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+            <svg id="mobileDynamicQrSvg" viewBox="0 0 100 100" width="104" height="104" style="background:#fff; padding:4px; border-radius:10px; border:1px solid var(--line); flex-shrink:0;">
+              <rect x="4" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+              <rect x="10" y="10" width="12" height="12" fill="#087d85"/>
+              <rect x="72" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+              <rect x="78" y="10" width="12" height="12" fill="#087d85"/>
+              <rect x="4" y="72" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
+              <rect x="10" y="78" width="12" height="12" fill="#087d85"/>
+              <g id="mobileQrDots" fill="#172b31">
+                <rect x="35" y="35" width="8" height="8" rx="1.5" fill="#087d85"/>
+                <rect x="55" y="35" width="8" height="8" rx="1.5" fill="#172b31"/>
+                <rect x="35" y="55" width="8" height="8" rx="1.5" fill="#172b31"/>
+                <rect x="55" y="55" width="8" height="8" rx="1.5" fill="#087d85"/>
+              </g>
+            </svg>
+          </div>
+          <div style="flex:1;">
+            <label class="muted" for="mobileGuestDurSelect" style="display:block; margin-bottom:4px;">Thời hạn truy cập</label>
+            <select id="mobileGuestDurSelect" onchange="refreshMobileQr10s()">
+              <option value="1d">1 ngày</option>
+              <option value="2d">2 ngày</option>
+              <option value="1w">1 tuần</option>
+              <option value="1m">1 tháng</option>
+              <option value="1y">1 năm</option>
+            </select>
+            <span id="mobileQrTokenText" hidden></span>
+            <span id="mobileQrUrlText" hidden></span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <a id="mobileQrOpenLink" href="/guest_enroll" onclick="window.location.href=this.href; return false;" class="btn primary">Tạo lời mời</a>
+          <button type="button" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- MỤC 3: NHẬT KÝ -->
+    <details class="account-item" id="secHistory">
+      <summary>
+        <span>Nhật ký</span>
+        <span class="muted">Sự kiện gần đây</span>
+      </summary>
+      <div class="account-body">
+        <div class="filter-pills">
+          <button type="button" class="pill active" onclick="filterMobileHistory('all', this)">Tất cả</button>
+          <button type="button" class="pill" onclick="filterMobileHistory('device', this)">Thiết bị</button>
+          <button type="button" class="pill" onclick="filterMobileHistory('voice', this)">Giọng nói</button>
+        </div>
+        <div class="log-list" id="mqttLog">
+          <div class="log-line"><span>Đồng bộ trạng thái nhà</span><span class="muted">Thành công</span></div>
+        </div>
+      </div>
+    </details>
+
+    <!-- MỤC 4: CÀI ĐẶT -->
+    <details class="account-item">
+      <summary>
+        <span>Cài đặt</span>
+        <span class="muted">Tùy chọn</span>
+      </summary>
+      <div class="account-body">
+        <a href="/logs" class="btn secondary">Mở trang Nhật ký quản trị</a>
+        <div hidden>
+          <button type="button" id="btnLearnIr">Học lệnh hồng ngoại</button>
+          <button type="button" id="btnTestDrySoil">Thử độ ẩm đất</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- MỤC 5: ĐỔI MẬT KHẨU TÀI KHOẢN (BẮT BUỘC 2 Ô XÁC NHẬN LẠI MẬT KHẨU) -->
+    <details class="account-item" id="mobileChangePasswordCard">
+      <summary>
+        <span>Đổi mật khẩu tài khoản</span>
+        <span class="muted">2 ô xác nhận</span>
+      </summary>
+      <div class="account-body">
+        <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;">
+          <div>
+            <label class="muted" for="mobileChangeEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
+            <input type="email" id="mobileChangeEmail" value="nep94121@gmail.com" required />
+          </div>
+          <div>
+            <label class="muted" for="mobileChangeNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="mobileChangeNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div>
+            <label class="muted" for="mobileChangeConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2 — phải khớp 100%)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="mobileChangeConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div id="mobileChangePasswordMsg" class="muted" style="min-height:18px;"></div>
+          <button type="submit" class="btn primary" id="mobileChangePasswordBtn">Xác nhận đổi mật khẩu</button>
+        </form>
+      </div>
+    </details>
+  </section>
+  </div><!-- END mobileMainContent -->
+
+  <!-- BOTTOM NAVIGATION (4 MỤC: NHÀ, THIẾT BỊ, GIỌNG NÓI, TÀI KHOẢN) -->
+  <nav class="bottom-nav" id="mobileBottomNav" aria-label="Điều hướng ứng dụng" hidden>
+    <div class="bottom-nav-inner">
+      <button type="button" class="nav-tab active" onclick="scrollToSection('secHome', false, this)">
+        <svg class="icon"><use href="#i-home"/></svg>
+        <span>Nhà</span>
+      </button>
+      <button type="button" class="nav-tab" onclick="scrollToSection('secDevices', false, this)">
+        <svg class="icon"><use href="#i-grid"/></svg>
+        <span>Thiết bị</span>
+      </button>
+      <button type="button" class="nav-tab" onclick="scrollToSection('secVoice', false, this)">
+        <svg class="icon"><use href="#i-mic"/></svg>
+        <span>Giọng nói</span>
+      </button>
+      <button type="button" class="nav-tab" onclick="scrollToSection('secAuth', false, this)">
+        <svg class="icon"><use href="#i-user"/></svg>
+        <span>Tài khoản</span>
+      </button>
+    </div>
+  </nav>
+
+  <script src="/static/js/mobile_app.js"></script>
 </body>
 </html>

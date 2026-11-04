@@ -1,5 +1,5 @@
 {
-  "version": "3.0-CONCISE-QA-AND-TIER-POLICY",
+  "version": "3.2-CONCISE-QA-AND-7-DEVICES",
   "items": [
     {
       "id": "identity_and_creator",
@@ -13,7 +13,7 @@
       "min_tier": "3",
       "topic": "Bạn được làm những gì và có thể làm những gì",
       "keywords": "làm được gì, có thể làm những gì, được làm những gì, chức năng, khả năng, nhiệm vụ, công dụng",
-      "content": "Tôi là trợ lý ảo do Nguyễn Tuấn Anh tạo ra, có thể làm 5 việc chính: 1) Điều khiển 6 thiết bị gồm cửa chính, đèn khách, đèn ngủ, quạt, điều hòa, còi báo động. 2) Hẹn giờ 1 lần hoặc lặp hàng ngày, hàng tuần theo giây, phút, giờ, AM/PM và ngày tháng. 3) Học đổi từ, đổi lệnh và đặt luật IF-ELSE theo bể riêng của từng thành viên. 4) Thu âm phân tích giọng nói và quản lý phân quyền 3 tầng. 5) Truy vấn bể lệnh, bể hẹn giờ và thực hiện 4 chế độ reset theo đúng cấp quyền."
+      "content": "Tôi là trợ lý ảo do Nguyễn Tuấn Anh tạo ra, có thể làm 5 việc chính: 1) Điều khiển 7 thiết bị gồm Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa, Còi báo động và Máy bơm tưới cây. 2) Hẹn giờ 1 lần hoặc lặp hàng ngày, hàng tuần theo giây, phút, giờ, AM/PM và ngày tháng. 3) Học đổi từ, đổi lệnh và đặt luật IF-ELSE theo bể riêng của từng thành viên. 4) Thu âm phân tích giọng nói và quản lý phân quyền 3 tầng. 5) Truy vấn bể lệnh, bể hẹn giờ và thực hiện 4 chế độ reset theo đúng cấp quyền."
     },
     {
       "id": "alarm_siren_meaning",
@@ -21,6 +21,13 @@
       "topic": "Còi báo động ở đây nghĩa là gì / dùng để làm gì",
       "keywords": "còi báo động, coi bao dong, báo động, còi hú, siren, nghĩa là gì, dùng làm gì",
       "content": "Còi báo động là thiết bị phát âm thanh cảnh báo an ninh hoặc báo động khẩn cấp trong nhà."
+    },
+    {
+      "id": "garden_pump_meaning",
+      "min_tier": "3",
+      "topic": "Máy bơm tưới cây ở đây nghĩa là gì / dùng để làm gì",
+      "keywords": "máy bơm, máy bơm tưới cây, tưới cây, bơm nước, garden pump, d3, gpio0, dùng làm gì, nghĩa là gì",
+      "content": "Máy bơm tưới cây là thiết bị điều khiển hệ thống tưới nước tự động cho cây cảnh trong nhà."
     },
     {
       "id": "voice_enrollment_flow",
@@ -38,10 +45,976 @@
     },
     {
       "id": "hardware_devices_gpio",
-      "min_tier": "1",
+      "min_tier": "3",
       "topic": "Danh sách thiết bị và sơ đồ chân phần cứng GPIO ESP32-S3 của hệ thống",
-      "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị",
-      "content": "Nhà gồm 6 thiết bị: Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa và Còi báo động."
+      "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị, bao nhiêu thiết bị, nhà có mấy thiết bị, gồm những thiết bị nào, có những thiết bị nào, có những thiết bị gì, thiết bị gì, những thiết bị gì, 7 thiết bị, các thiết bị",
+      "content": "Nhà gồm 7 thiết bị: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa (D2 IR), Còi báo động (D8) và Máy bơm tưới cây (D3)."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_b465a5",
+      "topic": "orthogonal_test_topic_b465a5",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_92364d",
+      "topic": "orthogonal_test_topic_92364d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_01f897",
+      "topic": "orthogonal_test_topic_01f897",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_875688",
+      "topic": "orthogonal_test_topic_875688",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_c63518",
+      "topic": "orthogonal_test_topic_c63518",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_34f934",
+      "topic": "orthogonal_test_topic_34f934",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9f4c3a",
+      "topic": "orthogonal_test_topic_9f4c3a",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e28d98",
+      "topic": "orthogonal_test_topic_e28d98",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4a0892",
+      "topic": "orthogonal_test_topic_4a0892",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ed5c72",
+      "topic": "orthogonal_test_topic_ed5c72",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0dde9c",
+      "topic": "orthogonal_test_topic_0dde9c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_d61d16",
+      "topic": "orthogonal_test_topic_d61d16",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_cc0e86",
+      "topic": "orthogonal_test_topic_cc0e86",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4bf179",
+      "topic": "orthogonal_test_topic_4bf179",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_a12b66",
+      "topic": "orthogonal_test_topic_a12b66",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_781f80",
+      "topic": "orthogonal_test_topic_781f80",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_484997",
+      "topic": "orthogonal_test_topic_484997",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_alias_kb_1",
+      "topic": "alias_kb_1",
+      "min_tier": "3",
+      "keywords": "rag",
+      "content": "RAG test 1"
+    },
+    {
+      "id": "custom_alias_kb_2",
+      "topic": "alias_kb_2",
+      "min_tier": "3",
+      "keywords": "rag",
+      "content": "RAG test 2"
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9c2ffd",
+      "topic": "orthogonal_test_topic_9c2ffd",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_63e7c9",
+      "topic": "orthogonal_test_topic_63e7c9",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e9d245",
+      "topic": "orthogonal_test_topic_e9d245",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_5b66eb",
+      "topic": "orthogonal_test_topic_5b66eb",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0347c9",
+      "topic": "orthogonal_test_topic_0347c9",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9458be",
+      "topic": "orthogonal_test_topic_9458be",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_de08d5",
+      "topic": "orthogonal_test_topic_de08d5",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e15287",
+      "topic": "orthogonal_test_topic_e15287",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4dc6e1",
+      "topic": "orthogonal_test_topic_4dc6e1",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_886569",
+      "topic": "orthogonal_test_topic_886569",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3f79d7",
+      "topic": "orthogonal_test_topic_3f79d7",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9a6f9d",
+      "topic": "orthogonal_test_topic_9a6f9d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0c1a8c",
+      "topic": "orthogonal_test_topic_0c1a8c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_2a93dc",
+      "topic": "orthogonal_test_topic_2a93dc",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_b93a74",
+      "topic": "orthogonal_test_topic_b93a74",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_88a3fd",
+      "topic": "orthogonal_test_topic_88a3fd",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_5bb004",
+      "topic": "orthogonal_test_topic_5bb004",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ae0eee",
+      "topic": "orthogonal_test_topic_ae0eee",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e62b5b",
+      "topic": "orthogonal_test_topic_e62b5b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_7d2a8b",
+      "topic": "orthogonal_test_topic_7d2a8b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_86cdb8",
+      "topic": "orthogonal_test_topic_86cdb8",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ac5b3b",
+      "topic": "orthogonal_test_topic_ac5b3b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_cc013e",
+      "topic": "orthogonal_test_topic_cc013e",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0c6dec",
+      "topic": "orthogonal_test_topic_0c6dec",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_95e065",
+      "topic": "orthogonal_test_topic_95e065",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_39d5b4",
+      "topic": "orthogonal_test_topic_39d5b4",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_b04511",
+      "topic": "orthogonal_test_topic_b04511",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_2f6148",
+      "topic": "orthogonal_test_topic_2f6148",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_60e2c2",
+      "topic": "orthogonal_test_topic_60e2c2",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_6476a3",
+      "topic": "orthogonal_test_topic_6476a3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_8a3fd3",
+      "topic": "orthogonal_test_topic_8a3fd3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0fa4cc",
+      "topic": "orthogonal_test_topic_0fa4cc",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_b4ba44",
+      "topic": "orthogonal_test_topic_b4ba44",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_d1699b",
+      "topic": "orthogonal_test_topic_d1699b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f36e95",
+      "topic": "orthogonal_test_topic_f36e95",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_56a7ae",
+      "topic": "orthogonal_test_topic_56a7ae",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_57d970",
+      "topic": "orthogonal_test_topic_57d970",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4de7bf",
+      "topic": "orthogonal_test_topic_4de7bf",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_af896e",
+      "topic": "orthogonal_test_topic_af896e",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_1992b3",
+      "topic": "orthogonal_test_topic_1992b3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_173188",
+      "topic": "orthogonal_test_topic_173188",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_19a272",
+      "topic": "orthogonal_test_topic_19a272",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_fd07f2",
+      "topic": "orthogonal_test_topic_fd07f2",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_92de25",
+      "topic": "orthogonal_test_topic_92de25",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ec4d31",
+      "topic": "orthogonal_test_topic_ec4d31",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ddc02b",
+      "topic": "orthogonal_test_topic_ddc02b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_13ecf9",
+      "topic": "orthogonal_test_topic_13ecf9",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_1f90c2",
+      "topic": "orthogonal_test_topic_1f90c2",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_c6ceb9",
+      "topic": "orthogonal_test_topic_c6ceb9",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4bec4d",
+      "topic": "orthogonal_test_topic_4bec4d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_08f5be",
+      "topic": "orthogonal_test_topic_08f5be",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_c63aae",
+      "topic": "orthogonal_test_topic_c63aae",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_342733",
+      "topic": "orthogonal_test_topic_342733",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3ccc9d",
+      "topic": "orthogonal_test_topic_3ccc9d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_844911",
+      "topic": "orthogonal_test_topic_844911",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ce9d79",
+      "topic": "orthogonal_test_topic_ce9d79",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_65929c",
+      "topic": "orthogonal_test_topic_65929c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f2db6a",
+      "topic": "orthogonal_test_topic_f2db6a",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_18751f",
+      "topic": "orthogonal_test_topic_18751f",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_444805",
+      "topic": "orthogonal_test_topic_444805",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_df895c",
+      "topic": "orthogonal_test_topic_df895c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_2d1921",
+      "topic": "orthogonal_test_topic_2d1921",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3fde03",
+      "topic": "orthogonal_test_topic_3fde03",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_304344",
+      "topic": "orthogonal_test_topic_304344",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_6e4217",
+      "topic": "orthogonal_test_topic_6e4217",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3411c7",
+      "topic": "orthogonal_test_topic_3411c7",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_02ee30",
+      "topic": "orthogonal_test_topic_02ee30",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_1b0372",
+      "topic": "orthogonal_test_topic_1b0372",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_5f39a0",
+      "topic": "orthogonal_test_topic_5f39a0",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_c3ef93",
+      "topic": "orthogonal_test_topic_c3ef93",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_dc3771",
+      "topic": "orthogonal_test_topic_dc3771",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_b938fa",
+      "topic": "orthogonal_test_topic_b938fa",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_917621",
+      "topic": "orthogonal_test_topic_917621",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_7afb2c",
+      "topic": "orthogonal_test_topic_7afb2c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_8e02db",
+      "topic": "orthogonal_test_topic_8e02db",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9870e3",
+      "topic": "orthogonal_test_topic_9870e3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4d9854",
+      "topic": "orthogonal_test_topic_4d9854",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3d0e38",
+      "topic": "orthogonal_test_topic_3d0e38",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_2eac3d",
+      "topic": "orthogonal_test_topic_2eac3d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_00458c",
+      "topic": "orthogonal_test_topic_00458c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_a981d4",
+      "topic": "orthogonal_test_topic_a981d4",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ac396a",
+      "topic": "orthogonal_test_topic_ac396a",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9b3dd8",
+      "topic": "orthogonal_test_topic_9b3dd8",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_da4d6a",
+      "topic": "orthogonal_test_topic_da4d6a",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e1d309",
+      "topic": "orthogonal_test_topic_e1d309",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e2f3a7",
+      "topic": "orthogonal_test_topic_e2f3a7",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3e0a4c",
+      "topic": "orthogonal_test_topic_3e0a4c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4986c8",
+      "topic": "orthogonal_test_topic_4986c8",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e91531",
+      "topic": "orthogonal_test_topic_e91531",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_23e24b",
+      "topic": "orthogonal_test_topic_23e24b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f827aa",
+      "topic": "orthogonal_test_topic_f827aa",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_3b0840",
+      "topic": "orthogonal_test_topic_3b0840",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_baebe6",
+      "topic": "orthogonal_test_topic_baebe6",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_83bb3b",
+      "topic": "orthogonal_test_topic_83bb3b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_fbd24b",
+      "topic": "orthogonal_test_topic_fbd24b",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_9e33f3",
+      "topic": "orthogonal_test_topic_9e33f3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_26c20f",
+      "topic": "orthogonal_test_topic_26c20f",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f24db7",
+      "topic": "orthogonal_test_topic_f24db7",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_0a4b1a",
+      "topic": "orthogonal_test_topic_0a4b1a",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_4416e4",
+      "topic": "orthogonal_test_topic_4416e4",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_48be68",
+      "topic": "orthogonal_test_topic_48be68",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_31bbe0",
+      "topic": "orthogonal_test_topic_31bbe0",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_6cdae0",
+      "topic": "orthogonal_test_topic_6cdae0",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_827d01",
+      "topic": "orthogonal_test_topic_827d01",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_6e908c",
+      "topic": "orthogonal_test_topic_6e908c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e306a3",
+      "topic": "orthogonal_test_topic_e306a3",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f44d00",
+      "topic": "orthogonal_test_topic_f44d00",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_067545",
+      "topic": "orthogonal_test_topic_067545",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_491376",
+      "topic": "orthogonal_test_topic_491376",
+      "min_tier": "1",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f4e48d",
+      "topic": "orthogonal_test_topic_f4e48d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e710a7",
+      "topic": "orthogonal_test_topic_e710a7",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_70e149",
+      "topic": "orthogonal_test_topic_70e149",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_f36e6e",
+      "topic": "orthogonal_test_topic_f36e6e",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_da1307",
+      "topic": "orthogonal_test_topic_da1307",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e9991d",
+      "topic": "orthogonal_test_topic_e9991d",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_ce581a",
+      "topic": "orthogonal_test_topic_ce581a",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_acfa4c",
+      "topic": "orthogonal_test_topic_acfa4c",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_a7b8a2",
+      "topic": "orthogonal_test_topic_a7b8a2",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
+    },
+    {
+      "id": "custom_orthogonal_test_topic_e98e73",
+      "topic": "orthogonal_test_topic_e98e73",
+      "min_tier": "3",
+      "keywords": "fuzz, test, security",
+      "content": "Nội dung kiểm thử đối kháng tham số min_tier."
     }
   ]
 }

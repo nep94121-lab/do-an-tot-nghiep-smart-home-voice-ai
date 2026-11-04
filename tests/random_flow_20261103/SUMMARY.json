@@ -1,0 +1,316 @@
+{
+  "seed": 20261103,
+  "counts": {
+    "PASS": 32,
+    "FAIL": 2,
+    "QUESTIONABLE": 14
+  },
+  "report": "C:\\Users\\LENOVO\\Desktop\\đồ án tốt nghiệp\\tests\\random_flow_20261103\\REPORT.md",
+  "restore_ok": true,
+  "fails": [
+    {
+      "id": "S02",
+      "title": "Khách giả mạo tier=1 qua /api/device để mở cửa",
+      "verdict": "FAIL",
+      "observed": "Cửa mở được (before=CLOSED, after=OPEN); resp={'ok': True, 'results': [{'ok': True, 'device_id': 'main_door', 'device_name': 'Cửa chính', 'state': 'OPEN', 'already_in_state': False}], 'exact_spoken_reply': 'Cửa chính đã mở.', 'instruction_for_ai'",
+      "expected": "Phải từ chối: API không được tin tier do client gửi; cửa chỉ mở khi session Cấp 1 đã xác thực",
+      "fault": "simulator/server.py:api_control_device (bypass_rbac=(tier==1) từ payload)",
+      "detail": {
+        "http": 200,
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "OPEN",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Cửa chính đã mở.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Cửa chính đã mở.'",
+          "summary": "Cửa chính đã mở."
+        },
+        "after": "OPEN"
+      }
+    },
+    {
+      "id": "S03",
+      "title": "Gọi /api/device mở cửa với payload tier=3 (engine vẫn C1)",
+      "verdict": "FAIL",
+      "observed": "Cửa OPEN dù payload khai tier=3; engine.current_tier không đổi theo payload. resp={'ok': True, 'results': [{'ok': True, 'device_id': 'main_door', 'device_name': 'Cửa chính', 'state': 'OPEN', 'already_in_state': False}], 'exact_spoken_reply': 'Cửa chính đã mở.', ",
+      "expected": "Phải gắn session/user đã xác thực; tier trong payload không được bỏ qua cũng không được dùng để bypass khi engine đang C1 mặc định",
+      "fault": "simulator/server.py:api_control_device + rule_engine.current_tier",
+      "detail": {
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "OPEN",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Cửa chính đã mở.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Cửa chính đã mở.'",
+          "summary": "Cửa chính đã mở."
+        },
+        "after": "OPEN"
+      }
+    }
+  ],
+  "questionable": [
+    {
+      "id": "S04",
+      "title": "Bật đèn phòng khách qua /api/device (khách được phép theo spec)",
+      "verdict": "QUESTIONABLE",
+      "observed": "Đèn ON (đúng quyền C3 theo catalog) nhưng API không chứng minh session C3 — đang chạy dưới engine C1. resp={'ok': True, 'results': [{'ok': True, 'device_id': 'living_room_light', 'device_name': 'Đèn phòng khách', 'state': 'ON',",
+      "expected": "Cho phép C3 bật đèn khi đã xác thực C3; cần session thật",
+      "fault": "simulator/server.py:api_control_device",
+      "detail": {
+        "resp": {
+          "ok": true,
+          "results": [
+            {
+              "ok": true,
+              "device_id": "living_room_light",
+              "device_name": "Đèn phòng khách",
+              "state": "ON",
+              "already_in_state": false
+            }
+          ],
+          "exact_spoken_reply": "Đèn phòng khách đã bật.",
+          "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: 'Đèn phòng khách đã bật.'",
+          "summary": "Đèn phòng khách đã bật."
+        }
+      }
+    },
+    {
+      "id": "S11",
+      "title": "Xung đột: tắt bơm thủ công khi đất khô — luật tự tưới bật lại",
+      "verdict": "QUESTIONABLE",
+      "observed": "pump=ON (luật sensor thắng lệnh tay ngay khi cập nhật lại soil)",
+      "expected": "Cần chính sách rõ: khóa tạm / cooldown / ưu tiên lệnh tay",
+      "fault": "rule_engine.update_soil_moisture_telemetry vs execute_device_action",
+      "detail": {
+        "pump": "ON"
+      }
+    },
+    {
+      "id": "S12",
+      "title": "DHT11 giá trị vô lý (999°C, -5% RH)",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 accepted=True resp={'ok': True, 'telemetry': {'temp_c': 999.0, 'humidity_pct': -5.0, 'heat_index_c': 998.8, 'sensor_pin': 'D6 (GPIO 12)', 'updated_at': 1793710345.0586228}, 'mqtt_packet': {'topic': 'smarthome/telemetry/",
+      "expected": "Nên validate/clamp (vd temp [-40,85], RH [0,100]) thay vì nuốt số vô lý",
+      "fault": "server.api_update_dht11 / rule_engine.update_sensor_telemetry",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "temp_c": 999.0,
+          "humidity_pct": -5.0,
+          "heat_index_c": 998.8,
+          "sensor_pin": "D6 (GPIO 12)",
+          "updated_at": 1793710345.0586228
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/dht11",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "temp_c": 999.0,
+            "humidity_pct": -5.0,
+            "heat_index_c": 998.8,
+            "wifi_rssi_dbm": -52
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 -> SERVER",
+          "timestamp": 1793710345.059
+        },
+        "triggered_actions": [],
+        "exact_spoken_reply": "Nhiệt độ phòng là 999.0 độ C, độ ẩm -5%."
+      }
+    },
+    {
+      "id": "S13",
+      "title": "soil_moisture_pct = 'NaN' / malformed",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 resp={'ok': True, 'telemetry': {'soil_moisture_pct': 100.0, 'adc_raw': 324, 'status_label': 'Ẩm ướt', 'sensor_pin': 'A0 (ADC0 - Cảm biến đất YL-69 + LM393)', 'auto_p",
+      "expected": "Từ chối hoặc báo lỗi rõ, không đưa NaN vào luật bơm",
+      "fault": "server.api_update_soil_moisture",
+      "detail": {
+        "ok": true,
+        "telemetry": {
+          "soil_moisture_pct": 100.0,
+          "adc_raw": 324,
+          "status_label": "Ẩm ướt",
+          "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+          "auto_pump_below_pct": 40.0,
+          "updated_at": 1793710345.313004
+        },
+        "mqtt_packet": {
+          "topic": "smarthome/telemetry/soil_moisture",
+          "payload": {
+            "node_id": "esp8266_node_01",
+            "soil_moisture_pct": 100.0,
+            "adc_raw": 324,
+            "status_label": "Ẩm ướt",
+            "sensor_pin": "A0"
+          },
+          "qos": 0,
+          "retain": false,
+          "direction": "ESP8266 (YL-69 A0) -> SERVER",
+          "timestamp": 1793710345.313
+        },
+        "triggered_actions": [],
+        "exact_spoken_reply": "Độ ẩm đất hiện tại là 100%."
+      }
+    },
+    {
+      "id": "S16a",
+      "title": "text_command: 'tắt hết đi'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: tắt hết đi; door=CLOSED light=OFF",
+      "expected": "Tắt all_lights/all_devices hoặc hỏi lại làm rõ",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: tắt hết đi",
+        "exact_spoken_reply": "Đã nhận lệnh: tắt hết đi"
+      }
+    },
+    {
+      "id": "S16b",
+      "title": "text_command: 'mở cửa rồi bật đèn'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: mở cửa rồi bật đèn; door=CLOSED light=OFF",
+      "expected": "Thực thi compound: mở cửa + bật đèn (nếu đã auth)",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: mở cửa rồi bật đèn",
+        "exact_spoken_reply": "Đã nhận lệnh: mở cửa rồi bật đèn"
+      }
+    },
+    {
+      "id": "S16c",
+      "title": "text_command: 'điều hòa 99 độ'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: điều hòa 99 độ; door=CLOSED light=OFF",
+      "expected": "Chặn/clamp setpoint ngoài biên hoặc hỏi lại",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: điều hòa 99 độ",
+        "exact_spoken_reply": "Đã nhận lệnh: điều hòa 99 độ"
+      }
+    },
+    {
+      "id": "S16d",
+      "title": "text_command: 'xyzabc lệnh không tồn tại'",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: xyzabc lệnh không tồn tại; door=CLOSED light=OFF",
+      "expected": "Báo không hiểu / không thực thi ngầm",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: xyzabc lệnh không tồn tại",
+        "exact_spoken_reply": "Đã nhận lệnh: xyzabc lệnh không tồn tại"
+      }
+    },
+    {
+      "id": "S16e",
+      "title": "text_command: ''",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 reply=Đã nhận lệnh: ; door=CLOSED light=OFF",
+      "expected": "Từ chối lệnh rỗng",
+      "fault": "server.api_text_command (NLU rất mỏng, nhiều lệnh chỉ echo)",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: ",
+        "exact_spoken_reply": "Đã nhận lệnh: "
+      }
+    },
+    {
+      "id": "S17",
+      "title": "text_command 'mở cửa chính' không mở cửa (chỉ echo)",
+      "verdict": "QUESTIONABLE",
+      "observed": "Cửa vẫn CLOSED; reply=Đã nhận lệnh: mở cửa chính — endpoint text không map lệnh cửa",
+      "expected": "Hoặc thực thi có auth, hoặc từ chối rõ; không nên im lặng nuốt lệnh an ninh",
+      "fault": "server.api_text_command",
+      "detail": {
+        "ok": true,
+        "reply": "Đã nhận lệnh: mở cửa chính",
+        "exact_spoken_reply": "Đã nhận lệnh: mở cửa chính"
+      }
+    },
+    {
+      "id": "S22",
+      "title": "Cấp 3 thêm family email (RBAC)",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 401 resp={'ok': False, 'status_code': 401, 'error': 'Thiếu thông tin người thêm (actor_id)'} — cần xác nhận API lấy actor từ đâu",
+      "expected": "C3 bị chặn 100% khi add_family_email",
+      "fault": "server.api + auth_3layer.add_family_email",
+      "detail": {
+        "ok": false,
+        "status_code": 401,
+        "error": "Thiếu thông tin người thêm (actor_id)"
+      }
+    },
+    {
+      "id": "S24",
+      "title": "Khách C3 đặt hẹn giờ qua /api/mobile/schedule",
+      "verdict": "QUESTIONABLE",
+      "observed": "HTTP 200 {'ok': True, 'timer_id': 'timer_1', 'timer_ids': ['timer_1'], 'both_ampm': False, 'has_date': False, 'repeat': 'once', 'timer_pool_count': 1, 'exact_spoken_repl — API nhận tier từ client, engine có thể vẫn C1",
+      "expected": "C3 bị chặn đặt hẹn giờ (tier3_can_schedule_timer=False) khi session thật là C3",
+      "fault": "server.api_mobile_schedule / rule_engine.schedule_timer_flexible",
+      "detail": {
+        "ok": true,
+        "timer_id": "timer_1",
+        "timer_ids": [
+          "timer_1"
+        ],
+        "both_ampm": false,
+        "has_date": false,
+        "repeat": "once",
+        "timer_pool_count": 1,
+        "exact_spoken_reply": "Đã hẹn 5 giây nữa bật đèn phòng khách.",
+        "instruction_for_ai": "BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này (TUYỆT ĐỐI KHÔNG đọc kèm giờ đồng hồ hay ngày): 'Đã hẹn 5 giây nữa bật đèn phòng khách.'",
+        "message": "Đã hẹn 5 giây nữa bật đèn phòng khách."
+      }
+    },
+    {
+      "id": "S34",
+      "title": "DSP mẫu thành viên C2",
+      "verdict": "QUESTIONABLE",
+      "observed": "auth=True tier=2 speaker=user_voice_thanh_vien_a reason=None",
+      "expected": "Nếu đã enroll C2: authorized tier=2; nếu chưa: xử lý như người lạ/strike — phụ thuộc data hiện tại",
+      "fault": "voice_auth.verify_pcm16k_and_apply_strikes / voiceprints.json",
+      "detail": {
+        "authorized": true,
+        "tier": 2,
+        "speaker_id": "user_voice_thanh_vien_a",
+        "strike_count": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S35",
+      "title": "DSP mẫu khách C3",
+      "verdict": "QUESTIONABLE",
+      "observed": "auth=True tier=3 speaker=user_voice_khach_c expires=None",
+      "expected": "Nếu profile C3 còn hạn: tier=3 auth; hết hạn: GUEST_EXPIRED",
+      "fault": "voice_auth.verify + expires_at",
+      "detail": {
+        "authorized": true,
+        "tier": 3,
+        "speaker_id": "user_voice_khach_c",
+        "reason": null,
+        "rejection_speech": ""
+      }
+    }
+  ],
+  "pytest_rc": 0
+}

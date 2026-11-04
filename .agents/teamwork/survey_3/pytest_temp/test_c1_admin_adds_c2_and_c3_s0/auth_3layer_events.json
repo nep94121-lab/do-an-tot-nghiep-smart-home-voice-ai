@@ -1,0 +1,40 @@
+[
+  {
+    "id": 795537,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "ong_ba@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email ong_ba@gmail.com vào Khách (Tầng 3).",
+    "source": "Test C1->C3",
+    "extra": {
+      "email": "ong_ba@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "13:13:15 04/11/2026"
+    }
+  },
+  {
+    "id": 795478,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "con_gai@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email con_gai@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Test C1->C2",
+    "extra": {
+      "email": "con_gai@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "13:13:15 04/11/2026"
+    }
+  }
+]

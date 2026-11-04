@@ -1,0 +1,58 @@
+[
+  {
+    "id": 797151,
+    "time_vn": "13:13:17 04/11/2026",
+    "layer": "Thu Âm Giọng Chính",
+    "action": "voice_enroll_failed",
+    "email": "hoc_sinh_moi@gmail.com",
+    "status": "FAIL",
+    "detail": "Kiểm định giọng hoc_sinh_moi@gmail.com CHƯA ĐẠT: Âm lượng thu âm quá nhỏ hoặc không có tiếng (RMS = 0.0000 < 0.020). Vui lòng lại gần micro và đọc to, rõ ràng!",
+    "source": "Voice Enrollment (Audio Upload)",
+    "extra": {
+      "duration_sec": 2.0,
+      "rms": 0.0,
+      "voiced_ratio": 0.0,
+      "f0_mean_hz": 0.0,
+      "pitch_std_hz": 0.0,
+      "snr_db": 0.0
+    }
+  },
+  {
+    "id": 797147,
+    "time_vn": "13:13:17 04/11/2026",
+    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
+    "action": "layer1_passed_otp_issued",
+    "email": "hoc_sinh_moi@gmail.com",
+    "status": "PASS",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 373975 — Đã gửi Gmail thật tới hoc_sinh_moi@gmail.com (ID: 1a1a530bcb914dc8)",
+    "source": "Web",
+    "extra": {
+      "otp_code": "373975",
+      "gmail_delivery": {
+        "sent_real_gmail": true,
+        "actual_recipient": "hoc_sinh_moi@gmail.com",
+        "gmail_message_id": "1a1a530bcb914dc8"
+      },
+      "tier": 2
+    }
+  },
+  {
+    "id": 796506,
+    "time_vn": "13:13:16 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "hoc_sinh_moi@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email hoc_sinh_moi@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "hoc_sinh_moi@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "13:13:16 04/11/2026"
+    }
+  }
+]

@@ -1,319 +1,350 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mô Phỏng 3D Smart Home Voice AI — Gemini 3.8 Live &amp; NodeMCU ESP8266</title>
-  <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="/static/style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tổng quan · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <!-- TOPBAR GỌN GÀNG -->
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-logo">🏠</div>
-      <div>
-        <h1>3D SMART HOME VOICE AI — GEMINI 3.8 LIVE &amp; NODEMCU ESP8266</h1>
-        <p class="subtitle">7 Thiết bị (Cửa SG90 D1 • Đèn D2/D7 • Quạt D6 • ĐH IR D2 • Còi D8 • Bơm 5V D3) + 3 Cảm biến (YL-69 A0 • DHT11 D6 • IR VS1838B D5)</p>
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a2 2 0 0 1 4 0l-2 6M14 12h6a2 2 0 0 1 0 4l-6-2M12 14v6a2 2 0 0 1-4 0l2-6M10 12H4a2 2 0 0 1 0-4l6 2"/></symbol>
+    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1 19.1 4.9"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list">
+          <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a href="/guest_enroll">Khách</a>
+        <a href="/archify">Tài liệu dự án</a>
       </div>
-    </div>
+    </aside>
 
-    <div class="topbar-controls">
-      <div class="vn-clock-badge" title="Đồng hồ Giờ Việt Nam (GMT+7) dùng cho hẹn giờ AM/PM">
-        🕒 Giờ VN: <strong id="vnClockText">--:--:-- AM</strong>
-      </div>
+    <div class="content">
+      <header class="top">
+        <h1>Tổng quan</h1>
+        <div class="top-actions">
+          <span class="status" id="homeCurrentAccountBadge" title="Tài khoản đang đăng nhập">
+            👑 Chủ nhà · nep94121@gmail.com
+          </span>
+          <button type="button" class="btn btn-secondary" id="btnLogoutHome" style="min-height:34px; padding:0 12px; font-size:12px;">
+            Đăng nhập / Đổi TK
+          </button>
+          <span class="status" id="btnToggleServer" role="button" tabindex="0" aria-label="Đã kết nối">
+            <span class="dot" id="connDot"></span>
+            <span id="connText">Đã kết nối</span>
+          </span>
+          <details class="menu">
+            <summary>Tùy chọn <svg class="icon"><use href="#i-chevron"/></svg></summary>
+            <div class="menu-panel">
+              <label for="selActiveSpeaker">Vai trò thử</label>
+              <select id="selActiveSpeaker">
+                <option value="tuan_anh" selected>Chủ nhà · Nguyễn Tuấn Anh</option>
+                <option value="thanh_vien_a">Gia đình · Thành viên A</option>
+                <option value="thanh_vien_b">Gia đình · Thành viên B</option>
+                <option value="khach_c">Khách · Khách C</option>
+                <option value="stranger_1">Người lạ</option>
+              </select>
+              <button type="button" id="btnReset">Đặt lại mô phỏng</button>
+            </div>
+          </details>
+        </div>
+      </header>
 
-      <a href="/wokwi" class="btn btn-accent" style="text-decoration:none; background:#0284c7; border-color:#38bdf8; font-weight:700;" title="Mở trang Bộ Mạch Riêng: Xem rõ mạch NodeMCU ESP8266, màu dây, lỗ cắm Breadboard 400 lỗ và Code nạp mạch">
-        🔌 Xem Mạch, Dây Cắm &amp; Code ESP8266 (/wokwi)
-      </a>
+      <main class="layout">
+        <div class="stack">
+          <section class="panel house" aria-labelledby="house-title">
+            <div class="panel-head" style="flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 id="house-title">Ngôi nhà</h2>
+                <span class="view-label" id="lblCurrentCameraView">Toàn cảnh</span>
+              </div>
+              <div class="camera-toolbar" role="toolbar" aria-label="Góc nhìn 3D">
+                <button type="button" class="btn-cam active" data-cam="overview">Toàn cảnh</button>
+                <button type="button" class="btn-cam" data-cam="living">Phòng khách</button>
+                <button type="button" class="btn-cam" data-cam="bedroom">Phòng ngủ</button>
+                <button type="button" class="btn-cam" data-cam="door">Cửa chính</button>
+                <button type="button" class="btn-cam" data-cam="garden">Sân vườn</button>
+                <button type="button" class="btn-cam" data-cam="board">Mạch ESP</button>
+                <button type="button" class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
+              </div>
+            </div>
+            <div id="house3dViewport" class="viewport" role="img" aria-label="Vị trí mô hình 3D Toàn cảnh">
+              <div id="house3dLabels" class="house3d-labels"></div>
+              <span class="viewport-note">
+                <span class="note-desktop">Kéo để xoay · Cuộn để phóng to</span>
+                <span class="note-mobile">Kéo để xoay</span>
+              </span>
+            </div>
+          </section>
 
-      <a href="/logs" class="btn btn-accent" style="text-decoration:none; background:#7c3aed; border-color:#c084fc; color:#fff; font-weight:700;" title="Mở Trung Tâm Quản Trị Server: Xem toàn bộ Nhật ký câu lệnh, Thời gian, Bể Hẹn Giờ, Bể Luật, Kho Tri Thức KB và Dữ liệu lưu trữ">
-        📊 Server Log, Luật &amp; KB (/logs)
-      </a>
+          <section class="panel devices" aria-labelledby="device-title">
+            <div class="panel-head">
+              <h2 id="device-title">Thiết bị</h2>
+            </div>
+            <div id="deviceGrid" class="device-list"></div>
+            <div class="panel-foot">
+              <a class="text-link" id="btnOpenFirstVoiceModal" href="/auth">Đăng ký giọng nói</a>
+            </div>
+          </section>
+        </div>
 
-      <a href="/archify" target="_blank" class="btn btn-accent" style="text-decoration:none; background:#0d9488; border-color:#2dd4bf; color:#fff; font-weight:700;" title="Mở Sơ đồ Kiến trúc Tương tác Archify: Bấm vào từng khối để xem file code, dòng lệnh và truy vết luồng giọng nói Online/Offline">
-        🗺️ Kiến Trúc Archify (/archify)
-      </a>
+        <div class="stack">
+          <section class="panel voice" aria-labelledby="voice-title">
+            <div class="panel-head">
+              <h2 id="voice-title">Giọng nói</h2>
+            </div>
+            <div id="voiceLockoutNotice" class="lockout-note" hidden></div>
+            <div class="voice-actions">
+              <button class="btn btn-primary" type="button" id="btnMicLive">
+                <svg class="icon"><use href="#i-mic"/></svg>
+                <span id="micBtnLabel">Bắt đầu nói</span>
+              </button>
+              <button class="btn btn-secondary" type="button" id="btnMicCommit" hidden>Gửi ngay</button>
+            </div>
+            <label class="setting">
+              <input type="checkbox" id="chkSpeakReply" checked>
+              Đọc phản hồi
+            </label>
+            <p class="empty-line" id="emptyVoice">Chưa có lệnh</p>
+            <div class="results" id="voiceResults">
+              <div>
+                <div class="result-label">Bạn nói</div>
+                <div id="liveTranscript"></div>
+              </div>
+              <div>
+                <div class="result-label">Phản hồi</div>
+                <div id="liveAiReply"></div>
+              </div>
+            </div>
+            <form class="command" id="textCmdForm">
+              <input id="txtCommand" aria-label="Nhập lệnh" placeholder="Nhập lệnh">
+              <button class="btn btn-secondary" type="submit" id="btnSendText">Gửi</button>
+            </form>
+          </section>
 
-      <a href="/archify/erd" target="_blank" class="btn btn-accent" style="text-decoration:none; background:#2563eb; border-color:#60a5fa; color:#fff; font-weight:700;" title="Mở Sơ đồ Thực thể Kết hợp (ERD) 8 Bảng CSDL SQLite 3 (smarthome.db - Chuẩn 3NF, PK/FK, WAL Mode)">
-        🗄️ Sơ Đồ CSDL ERD (/archify/erd)
-      </a>
-
-      <a href="/archify/devops" target="_blank" class="btn btn-accent" style="text-decoration:none; background:#d97706; border-color:#fbbf24; color:#fff; font-weight:700;" title="Mở Sơ đồ Quy trình DevOps, Vá lỗi &amp; CI/CD 5 Cổng (Made-With-ML × SWE-agent × Archify)">
-        ⚙️ CI/CD 5 Cổng (/archify/devops)
-      </a>
-
-      <button id="btnServerModeToggle" class="btn btn-accent" style="background:#059669; border-color:#34d399; color:#fff;" title="Bấm để chuyển đổi: Kết nối Server Laptop (Full AI + Custom) ⇄ Mạch Độc Lập Offline (Lệnh Mặc Định + Khóa Cửa An Ninh)">
-        🟢 Server Laptop: ONLINE
-      </button>
-
-      <button id="btnTogglePromptModal" class="btn btn-accent" title="Xem System Prompt động đang nạp vào Gemini 3.8 Live">
-        📋 System Prompt
-      </button>
-
-      <div class="role-selector-box">
-        <label for="roleSelect">🛡️ Phân Quyền 3 Tầng:</label>
-        <select id="roleSelect">
-          <option value="tuan_anh" selected>👑 Tầng 1: Nguyễn Tuấn Anh (Admin / Bố)</option>
-          <option value="thanh_vien_a">👨‍👩‍👧 Tầng 2: Thành viên A (Bể lệnh riêng)</option>
-          <option value="thanh_vien_b">👨‍👩‍👧 Tầng 2: Thành viên B (Bể lệnh riêng)</option>
-          <option value="khach_c">🧒 Tầng 3: Khách C (T1 cấp - Cố định)</option>
-          <option value="khach_d">🧒 Tầng 3: Khách D (T2 cấp - Cố định)</option>
-          <option value="UNKNOWN">🚫 Đã hủy quyền / Người lạ (Chặn)</option>
-        </select>
-      </div>
-
-      <button id="btnFactoryReset" class="btn btn-danger">🔄 Reset Gốc</button>
-
-      <div id="geminiStatusBadge" class="status-badge connecting">
-        <span class="dot"></span>
-        <span id="geminiStatusText">Đang kết nối...</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- MODAL HIỂN THỊ SYSTEM PROMPT ĐỘNG -->
-  <div id="promptModal" class="modal-backdrop hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <strong>🧠 System Prompt Động Đang Nạp Trong Gemini 3.8 Live (Tự cập nhật khi Đổi từ / Đổi lệnh / Thêm IF-ELSE)</strong>
-        <button id="btnClosePromptModal" class="btn-tiny">✖ Đóng</button>
-      </div>
-      <pre id="systemPromptPre" class="prompt-pre">Đang tải System Prompt...</pre>
+          <section class="panel schedule" aria-labelledby="schedule-title">
+            <div class="panel-head">
+              <h2 id="schedule-title">Lịch</h2>
+            </div>
+            <p class="schedule-empty" id="scheduleEmptyText">Chưa có lịch</p>
+            <div id="timerList" class="schedule-list" hidden></div>
+            <div id="ruleList" class="schedule-list" hidden></div>
+          </section>
+        </div>
+      </main>
     </div>
   </div>
 
-  <!-- DASHBOARD 2 CỘT VỪA KHÍT MÀN HÌNH -->
-  <main class="dashboard-layout">
-    <!-- CỘT TRÁI: MÔ HÌNH NGÔI NHÀ 3D TƯƠNG TÁC + DẢI 6 CÔNG TẮC GỌN -->
-    <section class="left-col">
-      <div class="viewport-card">
-        <div class="viewport-toolbar">
-          <div class="cam-title">🎮 Mô Hình Biệt Thự 3D Blender PBR + Hộp Mạch Chính, Đi Dây &amp; Mic/Loa</div>
-          <div class="cam-btns">
-            <button class="btn-cam active" data-cam="overview">🏠 Toàn cảnh</button>
-            <button class="btn-cam" data-cam="board">🔌 Hộp Mạch &amp; Mic/Loa</button>
-            <button class="btn-cam" data-cam="living">🛋️ Phòng khách</button>
-            <button class="btn-cam" data-cam="bedroom">🛏️ Phòng ngủ</button>
-            <button class="btn-cam" data-cam="door">🚪 Cửa &amp; Servo</button>
-            <button class="btn-cam" data-cam="garden">🌱 Vườn &amp; Bơm D3</button>
-            <button class="btn-cam" data-cam="wires">🧵 Ẩn/Hiện Dây 3D</button>
-            <button class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
-          </div>
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+  </nav>
+
+  <div id="firstPageVoiceModal" class="modal hidden">
+    <div class="modal-content" style="max-width:520px;">
+      <input type="hidden" id="firstVoiceEmailInput" value="nep94121@gmail.com" />
+      <div class="modal-header">
+        <div>
+          <h3>Đăng ký &amp; Kiểm tra Giọng nói</h3>
+          <span id="firstVoiceTierBadge" class="subtle" style="color:var(--accent); font-weight:500;">Đang chọn: Giọng Cấp 1 · Chủ nhà Nguyễn Tuấn Anh</span>
         </div>
-
-        <div class="viewport-wrap">
-          <div id="house3dViewport" class="house3d-canvas"></div>
-          <div id="house3dLabels" class="house3d-labels"></div>
-
-          <div class="oled-hud" id="oledScreen">
-            <div class="oled-top-row">
-              <span id="oledMode">NodeMCU ESP8266: ONLINE</span>
-              <span id="oledRole">ADMIN</span>
-            </div>
-            <div class="oled-main-line" id="oledMainLine">SẴN SÀNG NHẬN LỆNH...</div>
-            <div class="oled-sub-line" id="oledSubLine">GPIO: Tất cả thiết bị đang đóng/tắt</div>
-          </div>
-        </div>
-
-        <div class="devices-strip" id="devicesGrid"></div>
-
-        <div class="sensors-strip" id="sensorsStrip">
-          <!-- Ô 1: Độ ẩm đất YL-69 (A0) — Slider kéo thử -->
-          <div class="sensor-box-3d">
-            <div class="sensor-box-top">
-              <span>🌱 Độ ẩm đất YL-69 (A0)</span>
-              <span class="sensor-box-val" id="sensorSoilVal">62%</span>
-            </div>
-            <input type="range" min="0" max="100" value="62" class="sensor-slider-3d" id="sensorSoilSlider" title="Kéo để thay đổi độ ẩm đất mô phỏng (A0)">
-            <div class="sensor-sub-row">
-              <span>Khô &lt; 40%</span><span>Ẩm 40-75%</span><span>&gt;75% Ướt</span>
-            </div>
-          </div>
-          <!-- Ô 2: Nhiệt độ & Độ ẩm DHT11 (D6) -->
-          <div class="sensor-box-3d">
-            <div class="sensor-box-top">
-              <span>🌡️ DHT11 (D6)</span>
-              <span class="sensor-box-val" id="sensorDhtVal">28.5°C | 65%</span>
-            </div>
-            <input type="range" min="15" max="45" value="28" step="0.5" class="sensor-slider-3d" id="sensorTempSlider" title="Kéo để thay đổi nhiệt độ mô phỏng (DHT11 D6)">
-            <div class="sensor-sub-row">
-              <span>Nhiệt: <span id="sensorTempLabel">28.5°C</span></span>
-              <span>Ẩm: <span id="sensorHumLabel">65%</span></span>
-            </div>
-          </div>
-          <!-- Ô 3: Học lệnh IR Remote VS1838B (D5) + Phát IR (D2) — Đồng bộ 1:1 với Wokwi -->
-          <div class="sensor-box-3d">
-            <div class="sensor-box-top">
-              <span>📡 IR Remote 38kHz (D5/D2)</span>
-              <span class="sensor-box-val" id="sensorIrVal">38kHz READY</span>
-            </div>
-            <div style="display:flex;gap:4px;">
-              <button id="btnIrLearn3d" class="btn btn-accent" style="font-size:10px;padding:3px 6px;flex:1;">❄️ Thu mã ĐH</button>
-              <button id="btnIrLearnFan3d" class="btn btn-accent" style="font-size:10px;padding:3px 6px;flex:1;background:#334155;">🌀 Thu mã Quạt</button>
-            </div>
-            <div class="sensor-sub-row">
-              <span>VS1838B (D5) → S8050 → IR 940nm (D2)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CỘT PHẢI: ĐIỀU KHIỂN GIỌNG NÓI + ĐỘ TRỄ + KỊCH BẢN NÂNG CAO -->
-    <section class="right-col">
-      <!-- Khối 1: Mic + Độ trễ + Phiên âm + Nhập lệnh -->
-      <div class="card compact-card">
-        <div class="voice-top-row">
-          <button id="btnMicToggle" class="btn-mic">
-            <span id="micIcon">🎙️</span>
-            <span id="micBtnText">BẬT MIC NÓI CHUYỆN</span>
-          </button>
-
-          <button id="btnManualEndTurn" class="btn btn-accent" disabled title="Bấm khi vừa dứt câu">
-            ⚡ Ngắt Câu
-          </button>
-
-          <div class="mic-meter-compact">
-            <div class="mic-meter-label">Mic: <strong id="micStateLabel">Tắt</strong></div>
-            <div class="mic-meter-bar-bg">
-              <div id="micMeterBar" class="mic-meter-bar"></div>
-            </div>
-          </div>
-
-          <label class="checkbox-label" title="Bật/tắt tiếng trả lời của Gemini">
-            <input type="checkbox" id="chkPlayAiVoice" checked />
-            🔊 Giọng AI
-          </label>
-        </div>
-
-        <div class="metrics-strip">
-          <div class="m-pill">
-            <span class="m-lbl">1. Bật công tắc (Tool):</span>
-            <strong class="m-val" id="metricToolMs">-- ms</strong>
-          </div>
-          <div class="m-pill">
-            <span class="m-lbl">2. AI cất tiếng (Audio):</span>
-            <strong class="m-val" id="metricAudioMs">-- ms</strong>
-          </div>
-          <div class="m-pill highlight">
-            <span class="m-lbl" id="metricOrderBadge">3. Bật TRƯỚC khi nói:</span>
-            <strong class="m-val" id="metricLeadMs">-- ms</strong>
-          </div>
-        </div>
-
-        <div class="live-transcript-box">
-          <div class="tx-row">
-            <span class="tx-badge">👤 Bạn nói:</span>
-            <span id="liveUserTranscript" class="tx-content"><em>(Bật Mic nói hoặc bấm kịch bản bên dưới...)</em></span>
-          </div>
-          <div class="tx-row">
-            <span class="tx-badge">⚙️ Phần cứng:</span>
-            <span id="liveToolCall" class="tx-content highlight-tool"><em>(Chưa kích hoạt)</em></span>
-          </div>
-          <div class="tx-row">
-            <span class="tx-badge">🤖 AI trả lời:</span>
-            <span id="liveAiTranscript" class="tx-content"><em>(Đang chờ câu lệnh...)</em></span>
-          </div>
-        </div>
-
-        <form id="textCmdForm" class="text-cmd-form">
-          <input
-            type="text"
-            id="textCmdInput"
-            placeholder="Gõ lệnh bất kỳ: Sửa hẹn giờ, Đổi từ, Đổi lệnh 'Vừng ơi mở ra', Luật IF-ELSE..."
-            autocomplete="off"
-          />
-          <button type="submit" id="btnSendText" class="btn btn-primary">Gửi ➡️</button>
-        </form>
+        <button id="btnCloseFirstVoiceModal" type="button" class="btn-close" aria-label="Đóng">
+          <svg class="icon"><use href="#i-x"/></svg>
+        </button>
       </div>
 
-      <!-- Khối 2: Phân Tích Giọng Nói Kép 2 Tầng + Khử Tiếng Ồn Quạt + Tách 2 Người Nói & Kịch Bản -->
-      <div class="card compact-card">
-        <div class="section-mini-title">
-          <span>🧬 Phân Tích Giọng: <strong id="voiceAuthBadge" style="color:#4ade80;">✅ Giọng 1 — Chủ nhà (F0: 175.8 Hz • 93%)</strong></span>
-          <button id="btnEnroll8s" class="btn-tiny" style="background:#0284c7;color:#fff;border:none;">🎙️ Thu Âm 5s Giọng Bạn</button>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+        <div>
+          <label for="firstVoiceTierSelect" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ giọng nói</label>
+          <select id="firstVoiceTierSelect" class="input-text" style="width:100%; min-height:38px;">
+            <option value="1">Giọng Cấp 1 · Chủ nhà (Nguyễn Tuấn Anh)</option>
+            <option value="2">Giọng Cấp 2 · Thành viên gia đình</option>
+            <option value="3">Giọng Cấp 3 · Khách đến chơi nhà</option>
+          </select>
         </div>
-
-        <div id="voiceFilterDetailBox" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:2px 0 4px 0;font-size:10.5px;background:rgba(15,23,42,0.75);border:1px solid #1e293b;border-radius:6px;padding:4px 6px;">
-          <div>🔇 Khử ồn quạt: <strong id="vfNoiseDb" style="color:#38bdf8;">-15.2 dB</strong></div>
-          <div>🔬 Bộ lọc: <strong id="vfStageUsed" style="color:#4ade80;">Tầng 1 (93%)</strong></div>
-          <div>👥 Người nói: <strong id="vfSpeakerCount" style="color:#fbbf24;">1 người</strong></div>
-          <div>⚡ Phản xạ lọc: <strong id="vfTotalMs" style="color:#a855f7;">6.6 ms</strong></div>
-        </div>
-
-        <div class="section-mini-title" style="margin-top:2px;">
-          <span>⚡ Lệnh Nhanh Đơn Giản (Bấm 1 chạm để điều khiển nhà 3D &amp; đồng bộ sang Mạch)</span>
-        </div>
-        <div class="scenarios-grid-compact">
-          <button class="btn-scenario" data-cmd="Mở cửa chính">
-            🚪 Mở cửa chính (Servo D1)
-          </button>
-          <button class="btn-scenario" data-cmd="Đóng cửa chính">
-            🔒 Đóng cửa chính (Servo D1)
-          </button>
-          <button class="btn-scenario" data-cmd="Bật đèn phòng khách">
-            💡 Bật đèn khách (Chân D2)
-          </button>
-          <button class="btn-scenario" data-cmd="Bật đèn phòng ngủ">
-            🛏️ Bật đèn ngủ (Chân D7)
-          </button>
-          <button class="btn-scenario" data-cmd="Mở điều hòa">
-            ❄️ Mở điều hòa (Phát IR D2)
-          </button>
-          <button class="btn-scenario" data-cmd="Bật quạt trần">
-            🌀 Bật quạt trần (Relay D6)
-          </button>
-          <button class="btn-scenario" data-cmd="Bật máy bơm tưới cây">
-            💧 Bật máy bơm (Relay D3)
-          </button>
-          <button class="btn-scenario" data-cmd="Nhiệt độ và độ ẩm hiện tại là bao nhiêu?">
-            🌡️ Hỏi nhiệt độ &amp; độ ẩm (DHT11)
-          </button>
-          <button class="btn-scenario" data-cmd="Set độ ẩm đất xuống 25 phần trăm">
-            🌱 Set đất khô 25% (Tự bật bơm)
-          </button>
-          <button class="btn-scenario" data-cmd="Vừng ơi mở ra">
-            ✨ Khẩu lệnh: "Vừng ơi mở ra"
-          </button>
-          <button class="btn-scenario" data-cmd="Nếu mở cửa chính thì mở điều hòa">
-            🔗 Luật: Mở cửa ➡️ Mở điều hòa
-          </button>
-          <button class="btn-scenario" data-cmd="Reset hệ thống">
-            🔄 Reset tất cả về mặc định
-          </button>
-        </div>
-
-        <div class="section-mini-title" style="margin-top:4px;">
-          <span>🔊 Phát Âm Giọng 1 (Được phép) vs Giọng 2 (Không phép: Chặn 2 lần ➡️ Lần 3 Im lặng!)</span>
-        </div>
-        <div id="voiceSamplesGrid" class="samples-grid-compact"></div>
-      </div>
-
-      <!-- Khối 3: 2 Bể (Bể Hẹn Giờ & Bể Luật Động) + Nhật ký sự kiện -->
-      <div class="bottom-split">
-        <div class="card compact-card">
-          <div class="section-mini-title">
-            <span>🪣 Bể 1: Hẹn Giờ (<span id="timerCount">0</span>) &amp; 🪣 Bể 2: Luật Động (<span id="rulesCount">0</span>)</span>
-          </div>
-          <div id="timersList" class="mini-scroll-list"></div>
-          <div id="rulesList" class="mini-scroll-list" style="margin-top:2px;"></div>
-        </div>
-
-        <div class="card compact-card">
-          <div class="section-mini-title">
-            <span>📜 Nhật Ký Thực Thi & Sự Kiện</span>
-            <button id="btnClearLog" class="btn-tiny">Xóa</button>
-          </div>
-          <div id="eventLog" class="event-log-compact"></div>
+        <div>
+          <label for="firstVoiceSpeakerNameInput" class="subtle" style="display:block; margin-bottom:4px;">Tên người đăng ký giọng</label>
+          <input type="text" id="firstVoiceSpeakerNameInput" class="input-text" style="width:100%; min-height:38px;" value="Nguyễn Tuấn Anh" placeholder="Nhập họ tên người đọc" />
         </div>
       </div>
-    </section>
-  </main>
+
+      <p class="subtle" style="margin-top:10px;">Chọn hoặc đọc các câu mẫu dưới đây để kiểm tra và lưu giọng của bạn:</p>
+      <div id="firstVoicePhraseList" style="display:grid; gap:6px; margin-top:6px;">
+        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
+          1. "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+        </button>
+        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Mở cửa chính và bật đèn phòng khách." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
+          2. "Mở cửa chính và bật đèn phòng khách."
+        </button>
+        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Bật điều hòa phòng ngủ hai mươi sáu độ và bật quạt trần." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
+          3. "Bật điều hòa phòng ngủ hai mươi sáu độ và bật quạt trần."
+        </button>
+        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Tắt toàn bộ đèn trong nhà và đóng rèm cửa." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
+          4. "Tắt toàn bộ đèn trong nhà và đóng rèm cửa."
+        </button>
+      </div>
+
+      <div id="firstVoiceSamplePhrase" class="sample-phrase">
+        "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="btnHoldRecordVoice" class="btn btn-primary" style="flex:1">
+          <svg class="icon"><use href="#i-mic"/></svg>
+          <span>Thu âm</span>
+        </button>
+        <button type="button" id="btnRetryFirstVoiceModal" class="btn btn-secondary">🔄 Thu lại</button>
+        <button type="button" id="btnConfirmFirstVoiceModal" class="btn btn-primary" disabled>✅ Xác nhận</button>
+        <button type="button" id="btnCancelFirstVoiceModal" class="btn btn-secondary">Hủy</button>
+      </div>
+      <div id="firstVoiceResultBox" class="subtle" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
+        Chưa thu âm · Hãy chọn Cấp độ (Cấp 1 / Cấp 2 / Cấp 3) và bấm "Thu âm".
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANG ĐĂNG NHẬP (LOGIN GATE) TRƯỚC KHI VÀO NHÀ THÔNG MINH -->
+  <div id="homeLoginGateModal" class="modal hidden" style="z-index:200; background:rgba(23,43,49,0.55);">
+    <div class="modal-content" style="max-width:460px;">
+      <div class="modal-header">
+        <div>
+          <h3>Đăng nhập · Nhà thông minh</h3>
+          <p class="subtle">Tài khoản chính Chủ nhà: nep94121@gmail.com (Mật khẩu mặc định: 123456)</p>
+        </div>
+        <button id="btnCloseLoginGateModal" type="button" class="btn-close" aria-label="Đóng" hidden>
+          <svg class="icon"><use href="#i-x"/></svg>
+        </button>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 14px;">
+        <button type="button" id="btnTabGateLogin" class="btn btn-primary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">1. Đăng nhập</button>
+        <button type="button" id="btnTabGateRegister" class="btn btn-secondary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">2. Đặt / Đổi mật khẩu</button>
+        <button type="button" id="btnTabGateForgot" class="btn btn-secondary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">3. Quên mật khẩu (OTP)</button>
+      </div>
+
+      <!-- TAB 1: ĐĂNG NHẬP EMAIL + MẬT KHẨU -->
+      <form id="gatePanelLogin" style="display:grid; gap:10px;" onsubmit="event.preventDefault();">
+        <div>
+          <label for="gateLoginEmail" class="subtle" style="display:block; margin-bottom:4px;">Email đăng nhập</label>
+          <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="nep94121@gmail.com" placeholder="Nhập email (VD: nep94121@gmail.com)" />
+        </div>
+        <div>
+          <label for="gateLoginPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu trong phần mềm</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu (mặc định: 123456)" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <button type="submit" id="btnSubmitGateLogin" class="btn btn-primary" style="width:100%;">
+          Đăng nhập vào Nhà thông minh
+        </button>
+      </form>
+
+      <!-- TAB 2: TẠO TÀI KHOẢN / ĐẶT MẬT KHẨU (CÓ 2 Ô MẬT KHẨU XÁC NHẬN LẠI) -->
+      <form id="gatePanelRegister" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
+        <div>
+          <label for="gateRegTier" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ tài khoản</label>
+          <select id="gateRegTier" class="input-text" style="width:100%;">
+            <option value="1">Cấp 1 · Chủ nhà Nguyễn Tuấn Anh (nep94121@gmail.com)</option>
+            <option value="2">Cấp 2 · Thành viên gia đình</option>
+            <option value="3">Cấp 3 · Khách đến chơi nhà</option>
+          </select>
+        </div>
+        <div>
+          <label for="gateRegName" class="subtle" style="display:block; margin-bottom:4px;">Họ và tên người dùng</label>
+          <input type="text" id="gateRegName" class="input-text" style="width:100%;" value="Nguyễn Tuấn Anh" placeholder="Nhập họ tên" />
+        </div>
+        <div>
+          <label for="gateRegEmail" class="subtle" style="display:block; margin-bottom:4px;">Email tài khoản</label>
+          <input type="email" id="gateRegEmail" class="input-text" style="width:100%;" value="nep94121@gmail.com" placeholder="Nhập email tài khoản" />
+        </div>
+        <div>
+          <label for="gateRegPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <div>
+          <label for="gateRegConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập lại mật khẩu để xác nhận" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <button type="submit" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
+          Xác nhận 2 mật khẩu &amp; Lưu tài khoản
+        </button>
+      </form>
+
+      <!-- TAB 3: QUÊN MẬT KHẨU (NHẬN MÃ OTP GMAIL -> ĐẶT LẠI 2 Ô MẬT KHẨU) -->
+      <form id="gatePanelForgot" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
+        <div>
+          <label for="gateForgotEmail" class="subtle" style="display:block; margin-bottom:4px;">Email nhận mã OTP khôi phục</label>
+          <div style="display:flex; gap:6px;">
+            <input type="email" id="gateForgotEmail" class="input-text" style="flex:1;" value="nep94121@gmail.com" placeholder="Nhập email nhận OTP" />
+            <button type="button" id="btnSendForgotOtp" class="btn btn-secondary">Gửi OTP</button>
+          </div>
+        </div>
+        <div>
+          <label for="gateForgotOtpInput" class="subtle" style="display:block; margin-bottom:4px;">Mã OTP 6 số nhận qua Gmail</label>
+          <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" placeholder="Nhập mã OTP 6 số" />
+        </div>
+        <div>
+          <label for="gateForgotNewPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="gateForgotNewPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu mới" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <div>
+          <label for="gateForgotConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2)</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="gateForgotConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập lại mật khẩu mới" />
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+          </div>
+        </div>
+        <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="width:100%;">
+          Xác nhận OTP &amp; Đặt lại mật khẩu
+        </button>
+      </form>
+
+      <div id="gateStatusBox" class="subtle" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
+        Nhập Email + Mật khẩu (mặc định: 123456) để vào bảng điều khiển Nhà thông minh.
+      </div>
+    </div>
+  </div>
 
   <script src="/static/vendor/three.min.js"></script>
   <script src="/static/vendor/GLTFLoader.js"></script>
   <script src="/static/house3d.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/js/app.js"></script>
 </body>
 </html>

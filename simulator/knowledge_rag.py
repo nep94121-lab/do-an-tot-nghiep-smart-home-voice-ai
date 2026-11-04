@@ -31,7 +31,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 KB_FILE = DATA_DIR / "knowledge_base.json"
 CACHE_FILE = DATA_DIR / "knowledge_embeddings_cache.json"
 EMBED_MODEL = "gemini-embedding-001"
-KB_VERSION = "3.0-CONCISE-QA-AND-TIER-POLICY"
+KB_VERSION = "3.2-CONCISE-QA-AND-7-DEVICES"
 
 DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
     {
@@ -50,7 +50,7 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "keywords": "làm được gì, có thể làm những gì, được làm những gì, chức năng, khả năng, nhiệm vụ, công dụng",
         "content": (
             "Tôi là trợ lý ảo do Nguyễn Tuấn Anh tạo ra, có thể làm 5 việc chính: "
-            "1) Điều khiển 6 thiết bị gồm cửa chính, đèn khách, đèn ngủ, quạt, điều hòa, còi báo động. "
+            "1) Điều khiển 7 thiết bị gồm Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa, Còi báo động và Máy bơm tưới cây. "
             "2) Hẹn giờ 1 lần hoặc lặp hàng ngày, hàng tuần theo giây, phút, giờ, AM/PM và ngày tháng. "
             "3) Học đổi từ, đổi lệnh và đặt luật IF-ELSE theo bể riêng của từng thành viên. "
             "4) Thu âm phân tích giọng nói và quản lý phân quyền 3 tầng. "
@@ -64,6 +64,15 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "keywords": "còi báo động, coi bao dong, báo động, còi hú, siren, nghĩa là gì, dùng làm gì",
         "content": (
             "Còi báo động là thiết bị phát âm thanh cảnh báo an ninh hoặc báo động khẩn cấp trong nhà."
+        ),
+    },
+    {
+        "id": "garden_pump_meaning",
+        "min_tier": "3",
+        "topic": "Máy bơm tưới cây ở đây nghĩa là gì / dùng để làm gì",
+        "keywords": "máy bơm, máy bơm tưới cây, tưới cây, bơm nước, garden pump, d3, gpio0, dùng làm gì, nghĩa là gì",
+        "content": (
+            "Máy bơm tưới cây là thiết bị điều khiển hệ thống tưới nước tự động cho cây cảnh trong nhà."
         ),
     },
     {
@@ -89,11 +98,11 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
     },
     {
         "id": "hardware_devices_gpio",
-        "min_tier": "1",
+        "min_tier": "3",
         "topic": "Danh sách thiết bị và sơ đồ chân phần cứng GPIO ESP32-S3 của hệ thống",
-        "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị",
+        "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị, bao nhiêu thiết bị, nhà có mấy thiết bị, gồm những thiết bị nào, có những thiết bị nào, có những thiết bị gì, thiết bị gì, những thiết bị gì, 7 thiết bị, các thiết bị",
         "content": (
-            "Nhà gồm 6 thiết bị: Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa và Còi báo động."
+            "Nhà gồm 7 thiết bị: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa (D2 IR), Còi báo động (D8) và Máy bơm tưới cây (D3)."
         ),
     },
 ]
@@ -246,7 +255,7 @@ class SmartHomeKnowledgeRAG:
             "ok": True,
             "matched_id": best_it["id"],
             "embedding_model": EMBED_MODEL,
-            "vector_dim": len(q_vec) if q_vec else 0,
+            "vector_dim": len(q_vec) if q_vec else (len(next(iter(self.embeddings.values()), [])) or 3072),
             "matches": top_matches,
             "exact_spoken_reply": concise_answer,
             "instruction_for_ai": (

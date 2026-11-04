@@ -6,34 +6,34 @@
     "carrier_khz": 38,
     "commands": {
       "open": {
-        "protocol": "COOLIX",
-        "hex_code": "0xB2BF40",
+        "protocol": "NEC_38KHZ",
+        "hex_code": "0x20DF10EF",
         "raw_timings_us": [
-          4420,
-          4400,
+          9000,
+          4500,
           560,
-          1640,
+          1690,
           560,
-          540,
           560,
-          1640
+          560,
+          1690
         ],
-        "temp_c": 24
+        "learned_at": 1793784954.2
       },
       "turn_on": {
-        "protocol": "COOLIX",
-        "hex_code": "0xB2BF40",
+        "protocol": "NEC_38KHZ",
+        "hex_code": "0x20DF10EF",
         "raw_timings_us": [
-          4420,
-          4400,
+          9000,
+          4500,
           560,
-          1640,
+          1690,
           560,
-          540,
           560,
-          1640
+          560,
+          1690
         ],
-        "temp_c": 24
+        "learned_at": 1793784954.2
       },
       "close": {
         "protocol": "COOLIX",
@@ -86,7 +86,7 @@
           560,
           1690
         ],
-        "learned_at": 1793546083.8
+        "learned_at": 1793768470.0
       },
       "turn_on": {
         "protocol": "MITSUBISHI_38KHZ",
@@ -101,7 +101,7 @@
           560,
           1690
         ],
-        "learned_at": 1793546083.8
+        "learned_at": 1793768470.0
       }
     }
   },
@@ -124,7 +124,7 @@
           560,
           1690
         ],
-        "learned_at": 1793205098.1
+        "learned_at": 1793786430.2
       },
       "turn_on": {
         "protocol": "COOLIX_38KHZ",
@@ -139,7 +139,45 @@
           560,
           1690
         ],
-        "learned_at": 1793205098.1
+        "learned_at": 1793786430.2
+      }
+    }
+  },
+  "điều_hòa": {
+    "device_id": "điều_hòa",
+    "device_name": "Điều hòa",
+    "brand": "Cloned Remote (NEC_38KHZ)",
+    "carrier_khz": 38,
+    "commands": {
+      "open": {
+        "protocol": "NEC_38KHZ",
+        "hex_code": "0x20DF10EF",
+        "raw_timings_us": [
+          9000,
+          4500,
+          560,
+          1690,
+          560,
+          560,
+          560,
+          1690
+        ],
+        "learned_at": 1793698561.5
+      },
+      "turn_on": {
+        "protocol": "NEC_38KHZ",
+        "hex_code": "0x20DF10EF",
+        "raw_timings_us": [
+          9000,
+          4500,
+          560,
+          1690,
+          560,
+          560,
+          560,
+          1690
+        ],
+        "learned_at": 1793698561.5
       }
     }
   }

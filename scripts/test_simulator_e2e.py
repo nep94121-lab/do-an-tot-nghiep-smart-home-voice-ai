@@ -293,20 +293,39 @@ async def test_unit_all_new_features() -> None:
     assert len(eng3.active_timers) == 1  # Lịch 8:00 PM của Tầng 1 vẫn còn nguyên!
     print(f"  [PASS] 7.6 Tầng 2 Reset cô lập: '{cf_t2['exact_spoken_reply']}' (Bể Tầng 1 & lịch hẹn 8:00 PM của Tầng 1 còn nguyên 100%!)")
 
-    # 12.7 Tầng 3 (Khách C): Chỉ được đóng mở cố định, cấm custom lệnh/IF-ELSE/hẹn giờ/cấp quyền
+    # 12.7 Phân cấp Thiết bị 3 Tầng (Cấp 1 / Cấp 2 / Cấp 3 / Người lạ):
+    # - Cấp 3 (Khách C): Bật/tắt được Đèn & Quạt cơ bản; BỊ CHẶN Cửa chính D1, Điều hòa IR, Máy bơm, Còi báo động & CẤM custom lệnh/IF-ELSE/hẹn giờ/cấp quyền
     eng3.set_active_user("khach_c")
     assert eng3.current_tier == 3
-    act_guest = await eng3.execute_device_action("main_door", "open")
-    assert act_guest["ok"]
-    blk_custom = await eng3.create_alias_rule("mở cửa khách", "main_door", "open")
+    act_guest_light = await eng3.execute_device_action("living_room_light", "turn_on")
+    assert act_guest_light["ok"]
+    blk_guest_door = await eng3.execute_device_action("main_door", "open")
+    assert not blk_guest_door["ok"]
+    blk_guest_ac = await eng3.execute_device_action("ac", "turn_on")
+    assert not blk_guest_ac["ok"]
+    blk_custom = await eng3.create_alias_rule("mở cửa khách", "living_room_light", "turn_on")
     assert not blk_custom["ok"]
-    blk_if = await eng3.set_if_else_rule("main_door", "OPEN", "fan", "turn_on")
+    blk_if = await eng3.set_if_else_rule("living_room_light", "ON", "fan", "turn_on")
     assert not blk_if["ok"]
     blk_timer = await eng3.schedule_timer_flexible("fan", "turn_on", seconds=10)
     assert not blk_timer["ok"]
     blk_grant = await eng3.grant_user_permission("Khách X", target_tier=3)
     assert not blk_grant["ok"]
-    print("  [PASS] 7.7 Tầng 3 (Khách C): Mở cửa cố định OK; Chặn 100% custom lệnh, IF-ELSE, hẹn giờ và cấp/hủy quyền!")
+
+    # - Cấp 2 (Thành viên A): Bật/tắt được Điều hòa IR & Máy bơm; BỊ CHẶN Cửa chính D1 & Còi báo động D8
+    eng3.set_active_user("thanh_vien_a")
+    assert eng3.current_tier == 2
+    act_mem_ac = await eng3.execute_device_action("ac", "turn_on")
+    assert act_mem_ac["ok"]
+    blk_mem_door = await eng3.execute_device_action("main_door", "open")
+    assert not blk_mem_door["ok"]
+
+    # - Người lạ (UNKNOWN - Tier 4): BỊ CHẶN 100% mọi thiết bị kể cả Đèn phòng khách
+    eng3.set_active_user("UNKNOWN")
+    assert eng3.current_tier == 4
+    blk_stranger_light = await eng3.execute_device_action("living_room_light", "turn_on")
+    assert not blk_stranger_light["ok"]
+    print("  [PASS] 7.7 Phân cấp Thiết bị 3 Tầng (Cấp 1/2/3/Người lạ): Cấp 3 chỉ bật Đèn/Quạt (Chặn Cửa/Điều hòa); Cấp 2 bật Điều hòa/Bơm (Chặn Cửa chính); Người lạ bị chặn 100%!")
 
     eng3.set_active_user("tuan_anh")
     await eng3.factory_reset()

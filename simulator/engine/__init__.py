@@ -1,0 +1,67 @@
+"""Package simulator.engine: Các phân hệ mô-đun của SmartHomeEngine (Hằng số, Audit Log, Voice RBAC, Bể Hẹn Giờ, Bể Luật Động)."""
+
+from __future__ import annotations
+
+from .audit_logger import append_audit_log, clear_audit_logs, read_audit_logs
+from .constants_and_time import (
+    ACTION_TO_STATE,
+    ACTION_VI_LABEL,
+    AUDIT_LOG_FILE,
+    DATA_DIR,
+    DEFAULT_DEVICES,
+    DEFAULT_USERS,
+    FACTORY_FILE,
+    HARDWARE_AUDIO_PINS,
+    OVERLAY_FILE,
+    REPEAT_INTERVAL_SECONDS,
+    REPEAT_VI_LABELS,
+    ROLE_LEVELS,
+    ROLE_NAMES,
+    STATE_TO_OPPOSITE,
+    VN_TZ,
+    _extract_vn_date,
+    _format_clock_12h,
+    detect_repeat_mode,
+    ensure_factory_file,
+    format_vn_time_ampm,
+    get_vn_now,
+    normalize_reset_scope,
+    parse_vn_clock_and_date,
+    parse_vn_time_string,
+)
+from .rules_pool import EngineRulesMixin
+from .timers_pool import EngineTimersMixin
+from .voice_rbac_mixin import EngineVoiceRbacMixin
+
+__all__ = [
+    "DATA_DIR",
+    "FACTORY_FILE",
+    "OVERLAY_FILE",
+    "AUDIT_LOG_FILE",
+    "VN_TZ",
+    "get_vn_now",
+    "format_vn_time_ampm",
+    "append_audit_log",
+    "read_audit_logs",
+    "clear_audit_logs",
+    "HARDWARE_AUDIO_PINS",
+    "DEFAULT_DEVICES",
+    "ROLE_LEVELS",
+    "ROLE_NAMES",
+    "DEFAULT_USERS",
+    "ACTION_TO_STATE",
+    "ACTION_VI_LABEL",
+    "STATE_TO_OPPOSITE",
+    "_format_clock_12h",
+    "_extract_vn_date",
+    "REPEAT_VI_LABELS",
+    "REPEAT_INTERVAL_SECONDS",
+    "detect_repeat_mode",
+    "normalize_reset_scope",
+    "parse_vn_clock_and_date",
+    "parse_vn_time_string",
+    "ensure_factory_file",
+    "EngineVoiceRbacMixin",
+    "EngineTimersMixin",
+    "EngineRulesMixin",
+]

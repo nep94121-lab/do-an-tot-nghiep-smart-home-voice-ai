@@ -1,0 +1,51 @@
+[
+  {
+    "id": 796399,
+    "time_vn": "13:13:16 04/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verified",
+    "email": "tan_binh_gia_dinh@gmail.com",
+    "status": "PASS",
+    "detail": "Xác nhận đúng mã Gmail OTP (839466) cho Tan_Binh_Gia_Dinh (Tầng 2). Chờ Lớp 3 (Giọng nói).",
+    "source": "Web",
+    "extra": {}
+  },
+  {
+    "id": 796398,
+    "time_vn": "13:13:16 04/11/2026",
+    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
+    "action": "layer1_passed_otp_issued",
+    "email": "tan_binh_gia_dinh@gmail.com",
+    "status": "PASS",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 839466 — Đã gửi Gmail thật tới tan_binh_gia_dinh@gmail.com (ID: 1a1a530b895e955b)",
+    "source": "Web",
+    "extra": {
+      "otp_code": "839466",
+      "gmail_delivery": {
+        "sent_real_gmail": true,
+        "actual_recipient": "tan_binh_gia_dinh@gmail.com",
+        "gmail_message_id": "1a1a530b895e955b"
+      },
+      "tier": 2
+    }
+  },
+  {
+    "id": 795712,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "tan_binh_gia_dinh@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email tan_binh_gia_dinh@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "tan_binh_gia_dinh@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "13:13:15 04/11/2026"
+    }
+  }
+]

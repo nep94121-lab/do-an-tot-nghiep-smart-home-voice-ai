@@ -1,0 +1,38 @@
+{
+  "INV-T1-TO-TIER2": {
+    "invite_code": "INV-T1-TO-TIER2",
+    "issuer_email": "nep94121@gmail.com",
+    "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+    "issuer_tier": 1,
+    "target_tier": 2,
+    "target_role_label": "Người nhà (Tầng 2)",
+    "url_path": "/auth?invite=INV-T1-TO-TIER2",
+    "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
+    "description": "Link do Cấp 1 gửi xuống để đăng ký tài khoản Cấp 2 (Người nhà)",
+    "created_at": "02/11/2026"
+  },
+  "INV-T1-TO-TIER3": {
+    "invite_code": "INV-T1-TO-TIER3",
+    "issuer_email": "nep94121@gmail.com",
+    "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+    "issuer_tier": 1,
+    "target_tier": 3,
+    "target_role_label": "Khách (Tầng 3)",
+    "url_path": "/auth?invite=INV-T1-TO-TIER3",
+    "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
+    "description": "Link do Cấp 1 gửi xuống để đăng ký tài khoản Cấp 3 (Khách)",
+    "created_at": "02/11/2026"
+  },
+  "INV-T2-TO-TIER3": {
+    "invite_code": "INV-T2-TO-TIER3",
+    "issuer_email": "thanhviena.hust@gmail.com",
+    "issuer_name": "Thành viên A (Cấp 2)",
+    "issuer_tier": 2,
+    "target_tier": 3,
+    "target_role_label": "Khách (Tầng 3)",
+    "url_path": "/auth?invite=INV-T2-TO-TIER3",
+    "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
+    "description": "Link do Cấp 2 gửi xuống để đăng ký tài khoản Cấp 3 (Khách)",
+    "created_at": "02/11/2026"
+  }
+}

@@ -41,19 +41,56 @@ DIST_ZIP_PATH = ROOT_DIR / "dist" / "smarthome-voice-ai-release.zip"
 CORE_TRACKED_FILES = [
     "simulator/voice_auth.py",
     "simulator/rule_engine.py",
+    "simulator/auth_3layer.py",
     "simulator/server.py",
     "simulator/mqtt_bridge.py",
     "simulator/knowledge_rag.py",
     "simulator/database_sqlite.py",
+    "simulator/voice/biometrics_neural.py",
+    "simulator/voice/vad_vietnamese.py",
+    "simulator/voice/denoiser.py",
+    "simulator/live/gemini_bridge.py",
+    "simulator/live/prompt_builder.py",
+    "simulator/live/tts_rejection_vi.py",
+    "simulator/api/deps.py",
+    "simulator/api/routes_devices.py",
+    "simulator/api/routes_auth.py",
+    "simulator/api/routes_qr.py",
+    "simulator/api/routes_logs.py",
     "simulator/static/index.html",
+    "simulator/static/auth.html",
+    "simulator/static/guest_enroll.html",
+    "simulator/static/wokwi.html",
     "simulator/static/logs.html",
     "simulator/static/app.js",
+    "simulator/static/house3d.js",
     "simulator/static/style.css",
+    "simulator/static/css/style.css",
+    "simulator/static/css/auth.css",
+    "simulator/static/css/guest_enroll.css",
+    "simulator/static/css/wokwi.css",
+    "simulator/static/css/logs.css",
+    "simulator/static/css/mobile_app.css",
+    "simulator/static/js/app.js",
+    "simulator/static/js/auth.js",
+    "simulator/static/js/guest_enroll.js",
+    "simulator/static/js/wokwi.js",
+    "simulator/static/js/logs.js",
+    "simulator/static/js/mobile_app.js",
     "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
     "mobile_app/index.html",
     "scripts/code_graph_guard.py",
+    "scripts/speckit_converge.py",
+    "scripts/test_auth_3layer_and_invite.py",
     "scripts/test_simulator_e2e.py",
     "scripts/devops_pipeline.py",
+    ".specify/memory/constitution.md",
+    "specs/001-smart-home-voice-ai/spec.md",
+    "specs/001-smart-home-voice-ai/plan.md",
+    "specs/001-smart-home-voice-ai/checklist.md",
+    "specs/001-smart-home-voice-ai/tasks.md",
+    ".agents/rules/smart-home-do-an.md",
+    ".agents/skills/github-spec-kit/SKILL.md",
     "docs/kien_truc/smart-home-voice-ai.architecture.json",
     "docs/kien_truc/smart-home-voice-ai.architecture.html",
     "docs/kien_truc/devops-cicd-pipeline.workflow.json",
@@ -223,6 +260,38 @@ def run_archify_gate() -> dict[str, Any]:
     }
 
 
+def run_speckit_and_auth3_gate() -> dict[str, Any]:
+    t0 = time.perf_counter()
+    p_spec = subprocess.run(
+        [sys.executable, "-X", "utf8", str(ROOT_DIR / "scripts" / "speckit_converge.py")],
+        cwd=str(ROOT_DIR),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    p_auth = subprocess.run(
+        [sys.executable, "-X", "utf8", str(ROOT_DIR / "scripts" / "test_auth_3layer_and_invite.py")],
+        cwd=str(ROOT_DIR),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+    ok = p_spec.returncode == 0 and p_auth.returncode == 0
+    return {
+        "gate": "Gate 5: GitHub Spec Kit 9-Step Convergence, 14 Auth-3Layer Scenarios & Live Server Audit",
+        "ok": ok,
+        "elapsed_ms": elapsed_ms,
+        "speckit_exit_code": p_spec.returncode,
+        "auth3_exit_code": p_auth.returncode,
+        "summary": "CONVERGED 100% (9 Lệnh Spec Kit + 6 Điều Hiến Pháp + 14/14 Kịch bản OAuth/Invite + Live HTTP/WS)"
+        if ok
+        else (p_spec.stdout[-300:] + p_auth.stdout[-300:]),
+    }
+
+
 def build_release_package() -> dict[str, Any]:
     t0 = time.perf_counter()
     DIST_ZIP_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -245,7 +314,7 @@ def build_release_package() -> dict[str, Any]:
     zip_sha256 = sha256_file(DIST_ZIP_PATH)
     elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
     return {
-        "gate": "Gate 5: Atomic Release Packaging & SHA-256 Manifest",
+        "gate": "Gate 6: Commercial Release Packaging & SHA-256 Manifest",
         "ok": True,
         "elapsed_ms": elapsed_ms,
         "package_zip": "dist/smarthome-voice-ai-release.zip",
@@ -257,8 +326,8 @@ def build_release_package() -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Smart Home Voice AI - DevOps & CI/CD 5-Gate Pipeline")
-    parser.add_argument("--check", action="store_true", help="Chạy 4 cổng kiểm định CI/CD & Vá lỗi")
+    parser = argparse.ArgumentParser(description="Smart Home Voice AI - DevOps & CI/CD 6-Gate Commercial Pipeline")
+    parser.add_argument("--check", action="store_true", help="Chạy 5 cổng kiểm định CI/CD & Spec Kit")
     parser.add_argument("--package", action="store_true", help="Đóng gói bản phát hành ZIP & ghi biên lai SHA-256")
     parser.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     args = parser.parse_args()
@@ -268,11 +337,12 @@ def main() -> int:
     g2 = run_cross_layer_gate()
     g3 = run_e2e_regression_gate()
     g4 = run_archify_gate()
-    gates = [g1, g2, g3, g4]
+    g5 = run_speckit_and_auth3_gate()
+    gates = [g1, g2, g3, g4, g5]
 
     if args.package or args.check or not (args.check or args.package):
-        g5 = build_release_package()
-        gates.append(g5)
+        g6 = build_release_package()
+        gates.append(g6)
 
     all_ok = all(g["ok"] for g in gates)
     total_ms = round((time.perf_counter() - t_start) * 1000.0, 2)

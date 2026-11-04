@@ -1,0 +1,382 @@
+{
+  "source_file": "test_audio/giong_chu_nha_cap1_tuan_anh.wav",
+  "source_size_bytes": 633902,
+  "source_sha256": "80b8b455a8adfc6bef4c2a52b3c474315bf37690225beff8116d919bb6bf11c7",
+  "source_duration_sec": 19.81,
+  "sample_rate_hz": 16000,
+  "channels": 1,
+  "sample_width_bytes": 2,
+  "owner_profile": {
+    "speaker_id": "owner_voice_1",
+    "user_id": "tuan_anh",
+    "user_name": "Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà - Toàn quyền)",
+    "tier": 1,
+    "role": "ADMIN",
+    "f0_hz": 103.9,
+    "centroid_hz": 902.9,
+    "formants_hz": [
+      437.5,
+      2046.9,
+      2437.5,
+      3593.8
+    ]
+  },
+  "total_segments": 7,
+  "segments": [
+    {
+      "index": 1,
+      "id": "cau_1_xin_chao_chu_nha_cap1",
+      "filename": "cau_1_xin_chao_chu_nha_cap1.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_1_xin_chao_chu_nha_cap1.wav",
+      "start_sec": 2.12,
+      "end_sec": 5.64,
+      "duration_sec": 3.52,
+      "size_bytes": 112684,
+      "sha256": "351bd25beadf1ea6d6d8431cdae56ee37b7a07b3c4bd057d8ff56fcd30f9713d",
+      "rms": 0.052,
+      "f0_hz": 102.6,
+      "centroid_hz": 858.4,
+      "transcript_vi": "Xin chào ngôi nhà thông minh, tôi là Nguyễn Tuấn Anh, chủ nhà.",
+      "intent_type": "greeting_enroll",
+      "intents": [],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.94,
+        "stage1_confidence": 0.84,
+        "stage2_confidence": 0.99,
+        "filter_stage_used": "Tầng 1 ➡️ Tầng 2 (Sâu 64 chiều)"
+      },
+      "device_execution": []
+    },
+    {
+      "index": 2,
+      "id": "cau_2_mo_cua_chinh",
+      "filename": "cau_2_mo_cua_chinh.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav",
+      "start_sec": 6.1,
+      "end_sec": 7.32,
+      "duration_sec": 1.22,
+      "size_bytes": 39084,
+      "sha256": "29c98f22d29ccc3fc4a5d2f8efb78914b10eeefc7fbf24f5940467824aa9cd2e",
+      "rms": 0.0429,
+      "f0_hz": 109.6,
+      "centroid_hz": 943.4,
+      "transcript_vi": "Mở cửa chính.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "main_door",
+          "action": "open"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.99,
+        "stage1_confidence": 0.99,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "main_door",
+          "action": "open",
+          "ok": true,
+          "exact_spoken_reply": "Cửa chính đã mở.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "OPEN",
+              "already_in_state": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "id": "cau_3_dong_cua_chinh",
+      "filename": "cau_3_dong_cua_chinh.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_3_dong_cua_chinh.wav",
+      "start_sec": 8.16,
+      "end_sec": 9.06,
+      "duration_sec": 0.9,
+      "size_bytes": 28844,
+      "sha256": "5a54aa03a106374aef454c07d1a6a5e2cf22b1751da91fe2ea69acd15c0c821a",
+      "rms": 0.0362,
+      "f0_hz": 107.4,
+      "centroid_hz": 1072.1,
+      "transcript_vi": "Đóng cửa chính.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "main_door",
+          "action": "close"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.99,
+        "stage1_confidence": 0.99,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "main_door",
+          "action": "close",
+          "ok": true,
+          "exact_spoken_reply": "Cửa chính đã đóng.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "CLOSED",
+              "already_in_state": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "id": "cau_4_bat_den_phong_khach",
+      "filename": "cau_4_bat_den_phong_khach.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_4_bat_den_phong_khach.wav",
+      "start_sec": 9.98,
+      "end_sec": 10.94,
+      "duration_sec": 0.96,
+      "size_bytes": 30764,
+      "sha256": "89f658bab4432469c71089ccc5733e43ab1f4c257c369a8a293a7f926944bf0a",
+      "rms": 0.0527,
+      "f0_hz": 103.2,
+      "centroid_hz": 927.3,
+      "transcript_vi": "Bật đèn phòng khách.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "living_room_light",
+          "action": "turn_on"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.99,
+        "stage1_confidence": 0.99,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "living_room_light",
+          "action": "turn_on",
+          "ok": true,
+          "exact_spoken_reply": "Đèn phòng khách đã bật.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "living_room_light",
+              "device_name": "Đèn phòng khách",
+              "state": "ON",
+              "already_in_state": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "id": "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu",
+      "filename": "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
+      "start_sec": 12.16,
+      "end_sec": 15.24,
+      "duration_sec": 3.08,
+      "size_bytes": 98604,
+      "sha256": "e38a9dce1dca22cbf41ab0c3c7e9df85ec137b31c27d2a1711348db5955286fd",
+      "rms": 0.0372,
+      "f0_hz": 94.7,
+      "centroid_hz": 756.2,
+      "transcript_vi": "Bật quạt trần và điều hòa.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "fan",
+          "action": "turn_on"
+        },
+        {
+          "device_id": "ac",
+          "action": "turn_on"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.97,
+        "stage1_confidence": 0.97,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "fan",
+          "action": "turn_on",
+          "ok": true,
+          "exact_spoken_reply": "Quạt trần đã bật.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "fan",
+              "device_name": "Quạt trần",
+              "state": "ON",
+              "already_in_state": false
+            }
+          ]
+        },
+        {
+          "device_id": "ac",
+          "action": "turn_on",
+          "ok": true,
+          "exact_spoken_reply": "Điều hòa đã mở.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "ac",
+              "device_name": "Điều hòa",
+              "state": "ON",
+              "already_in_state": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "id": "cau_6_tat_het_den",
+      "filename": "cau_6_tat_het_den.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_6_tat_het_den.wav",
+      "start_sec": 16.2,
+      "end_sec": 17.12,
+      "duration_sec": 0.92,
+      "size_bytes": 29484,
+      "sha256": "b0e05f165210a0c47d58ba172245846d1737e01560e05d6064f19156d68ea189",
+      "rms": 0.0578,
+      "f0_hz": 98.8,
+      "centroid_hz": 964.6,
+      "transcript_vi": "Tắt hết đèn.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "all_lights",
+          "action": "turn_off"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.99,
+        "stage1_confidence": 0.99,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "all_lights",
+          "action": "turn_off",
+          "ok": true,
+          "exact_spoken_reply": "Đèn phòng khách đã tắt.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "living_room_light",
+              "device_name": "Đèn phòng khách",
+              "state": "OFF",
+              "already_in_state": false
+            },
+            {
+              "ok": true,
+              "device_id": "bedroom_light",
+              "device_name": "Đèn phòng ngủ",
+              "state": "OFF",
+              "already_in_state": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "id": "cau_7_dong_het_cua",
+      "filename": "cau_7_dong_het_cua.wav",
+      "path": "test_audio/cac_cau_lenh_cua_sep/cau_7_dong_het_cua.wav",
+      "start_sec": 17.46,
+      "end_sec": 18.24,
+      "duration_sec": 0.78,
+      "size_bytes": 25004,
+      "sha256": "ace70789206a2e422bbb9e46be5f5ebefff207f57ba56cd476bc13a3f461a1c5",
+      "rms": 0.0329,
+      "f0_hz": 112.7,
+      "centroid_hz": 934.3,
+      "transcript_vi": "Đóng hết cửa.",
+      "intent_type": "device_control",
+      "intents": [
+        {
+          "device_id": "main_door",
+          "action": "close"
+        }
+      ],
+      "auth_result": {
+        "authorized": true,
+        "tier": 1,
+        "user_id": "tuan_anh",
+        "role": "ADMIN",
+        "speaker_id": "owner_voice_1",
+        "similarity": 0.96,
+        "stage1_confidence": 0.96,
+        "stage2_confidence": null,
+        "filter_stage_used": "Tầng 1 (Nhanh 26 chiều)"
+      },
+      "device_execution": [
+        {
+          "device_id": "main_door",
+          "action": "close",
+          "ok": true,
+          "exact_spoken_reply": "Cửa chính đã đóng.",
+          "results": [
+            {
+              "ok": true,
+              "device_id": "main_door",
+              "device_name": "Cửa chính",
+              "state": "CLOSED",
+              "already_in_state": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

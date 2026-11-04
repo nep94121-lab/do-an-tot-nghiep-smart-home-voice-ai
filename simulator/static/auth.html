@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xác thực giọng nói · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/auth.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  </svg>
+
+  <div id="voiceEnrollModal" style="display:none; position:fixed; inset:0; background:rgba(23,43,49,0.4); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:var(--card); border:1px solid var(--line); border-radius:16px; max-width:480px; width:100%; padding:20px; box-shadow:var(--shadow);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h2 style="font-size:16px; font-weight:500;">Đăng ký lại giọng nói</h2>
+        <button type="button" onclick="closeVoiceEnrollModal()" aria-label="Đóng" style="background:var(--card); border:1px solid var(--line); width:36px; height:36px; border-radius:8px; color:var(--muted); display:grid; place-items:center;">
+          <svg class="icon"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <p style="font-size:13px; color:var(--muted);">Đọc câu hiển thị trong 3–5 giây.</p>
+      <div id="modalReadingPrompt" class="sample-box">
+        "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
+      </div>
+      <div class="input-row">
+        <button id="modalBtnRecordPass" class="btn btn-primary" type="button" onclick="submitModalVoiceEnroll(true)">
+          <svg class="icon"><use href="#i-mic"/></svg>
+          <span>Thu âm</span>
+        </button>
+        <button id="modalBtnRecordFail" class="btn btn-secondary" type="button" onclick="submitModalVoiceEnroll(false)">Đóng</button>
+      </div>
+      <div id="modalEnrollResult" class="status-box" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list">
+          <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a class="active" href="/auth" aria-current="page"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a href="/guest_enroll">Khách</a>
+        <a href="/archify">Tài liệu dự án</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="top">
+        <div>
+          <h1>Thiết lập &amp; Xác thực Giọng nói</h1>
+          <p>3 bước đơn giản: Chọn cấp quyền &amp; tên ➔ Thu âm kiểm tra ➔ Xác nhận kích hoạt.</p>
+        </div>
+        <span id="currentSessionBadge" class="badge">Sẵn sàng</span>
+      </header>
+
+      <!-- BANNER TÀI KHOẢN CHÍNH CHỦ NHÀ CỐ ĐỊNH -->
+      <section class="card" style="background:var(--accent-soft); border-color:#cce5e3; padding:14px 18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-weight:600; color:var(--accent); font-size:14px;">
+              👑 Tài khoản Chính cố định (Cấp 1 · Chủ nhà): Nguyễn Tuấn Anh (nep94121@gmail.com)
+            </div>
+            <div style="font-size:12px; color:var(--ink); margin-top:2px;">
+              Cấp 1 là Chủ nhà duy nhất (toàn quyền mở cửa, còi báo động, cấp quyền). Khi thêm người mới chỉ chọn <strong>Cấp 2 (Gia đình)</strong> hoặc <strong>Cấp 3 (Khách)</strong>.
+            </div>
+          </div>
+          <span class="badge badge-tier1">Cấp 1 · Cố định</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="steps-stack">
+          <div id="step1Indicator" hidden></div>
+          <div id="step2Indicator" hidden></div>
+          <div id="step3Indicator" hidden></div>
+
+          <!-- BƯỚC 1/3: CHỌN CẤP ĐỘ & TÀI KHOẢN -->
+          <details id="stepPanel1" class="step-panel" open>
+            <summary>
+              <span class="step-meta">
+                <span class="step-tag">Bước 1/3</span>
+                <span>1. Chọn Cấp quyền &amp; Tên người lưu giọng</span>
+              </span>
+              <span id="step1StateText" class="step-state">Đang thực hiện</span>
+            </summary>
+            <div class="step-body">
+              <div class="form-group">
+                <label for="enrollTierSelect">1. Chọn Cấp độ phân quyền giọng nói (Cấp 1 đã cố định là Chủ nhà)</label>
+                <select id="enrollTierSelect" onchange="onEnrollTierSelectChange(this.value)">
+                  <option value="2">Cấp 2 · Thành viên gia đình (Đèn, quạt, điều hòa, rèm)</option>
+                  <option value="3">Cấp 3 · Khách đến chơi nhà (Đèn, quạt cơ bản)</option>
+                  <option value="1">Cấp 1 · Chủ nhà Nguyễn Tuấn Anh (Cập nhật lại mẫu giọng Chủ nhà)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="enrollSpeakerNameInput">2. Họ và tên người lưu giọng nói</label>
+                <input type="text" id="enrollSpeakerNameInput" value="Thành viên A" placeholder="Nhập họ tên người lưu giọng nói (VD: Nguyễn Văn A)" oninput="syncSpeakerNameInput(this.value)" />
+              </div>
+
+              <div class="form-group">
+                <label for="loginEmail">3. Email tài khoản &amp; Mật khẩu (có xác nhận lại mật khẩu)</label>
+                <div class="input-row" style="margin-bottom:8px;">
+                  <input type="email" id="loginEmail" value="nep94121@gmail.com" placeholder="Email tài khoản (VD: nep94121@gmail.com)" />
+                </div>
+                <div class="input-row" style="margin-bottom:8px;">
+                  <input type="password" id="loginPassword" value="123456" placeholder="Mật khẩu (mặc định: 123456)" />
+                  <input type="password" id="loginPasswordConfirm" value="123456" placeholder="Xác nhận lại mật khẩu" />
+                </div>
+                <div class="input-row">
+                  <button class="btn btn-primary" type="button" onclick="completeStep1AndGoToVoice()">Xác nhận Bước 1 &amp; Sang Bước 2 (Thu giọng) ➔</button>
+                  <button class="btn btn-secondary" type="button" onclick="submitLayer1('password')">Kiểm tra đăng nhập</button>
+                  <a href="/" class="btn-link-sub">Về trang chủ</a>
+                </div>
+              </div>
+
+              <!-- TÙY CHỌN QUÊN MẬT KHẨU (OTP GMAIL) & TÀI KHOẢN THỬ NHANH -->
+              <details style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
+                <summary style="cursor:pointer; font-size:12px; color:var(--muted); font-weight:500;">
+                  Tùy chọn: Quên mật khẩu (Nhận OTP qua Gmail) / Chọn nhanh tài khoản mẫu
+                </summary>
+                <div style="margin-top:10px; display:grid; gap:10px;">
+                  <div class="form-group">
+                    <label for="accountPresetSelect">Điền nhanh tài khoản mẫu</label>
+                    <select id="accountPresetSelect" onchange="applyPresetAccount(this.value)">
+                      <option value="owner">Chủ nhà (Cấp 1) · nep94121@gmail.com (MK: 123456)</option>
+                      <option value="family">Gia đình (Cấp 2) · thanhviena.hust@gmail.com</option>
+                      <option value="guest">Khách (Cấp 3) · khach.hust@gmail.com</option>
+                      <option value="wrong">Thử kịch bản nhập sai mật khẩu</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="otpInput">Mã OTP 6 số (Dùng khi Quên mật khẩu / Xác thực bổ sung)</label>
+                    <div class="input-row">
+                      <input type="text" id="otpInput" maxlength="6" placeholder="Nhập mã OTP 6 số gửi qua Gmail" />
+                      <button class="btn btn-secondary" type="button" onclick="requestForgotPasswordOtpAuthPage()">Gửi mã OTP</button>
+                      <button class="btn btn-primary" type="button" onclick="submitLayer2Otp()">Xác nhận OTP</button>
+                      <button class="btn-link-sub" type="button" onclick="testWrongOtp()">Thử OTP sai</button>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <!-- BƯỚC 2/3: THU ÂM GIỌNG NÓI & KIỂM TRA ĐẠT/KHÔNG ĐẠT -->
+          <details id="stepPanel2" class="step-panel">
+            <summary>
+              <span class="step-meta">
+                <span class="step-tag">Bước 2/3</span>
+                <span>2. Thu âm giọng nói (Đạt mới mở khóa Bước 3)</span>
+              </span>
+              <span id="step2StateText" class="step-state">Chưa bắt đầu</span>
+            </summary>
+            <div class="step-body">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                <div style="font-weight:500;">Bước 2/3 · Thu âm mẫu giọng nói &amp; Kiểm tra chất lượng</div>
+                <span id="step2SpeakerSummaryBadge" class="badge badge-tier1">Đang chọn: Chủ nhà · Nguyễn Tuấn Anh (Cấp 1)</span>
+              </div>
+              <p style="color:var(--muted); margin-bottom:10px;">
+                Chọn đúng người lưu giọng, bấm <strong>Thu âm</strong> và đọc câu mẫu. Nếu báo <strong>ĐẠT CHUẨN</strong> thì bấm sang Bước 3; nếu chưa đạt thì bấm <strong>Thu lại</strong>.
+              </p>
+              <div id="globalStrikeBadge" class="status-box" hidden style="margin-bottom:10px; background:var(--red-soft); border-color:var(--red-border); color:var(--red);"></div>
+
+              <div id="firstPageVoiceBanner">
+                <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                  <div>
+                    <label for="firstPageAccountSelect">Tài khoản &amp; Cấp quyền lưu giọng nói</label>
+                    <select id="firstPageAccountSelect" onchange="updateFirstPageReadingPrompt()">
+                      <option value="nep94121@gmail.com">Cấp 1 (Chủ nhà cố định) · Nguyễn Tuấn Anh</option>
+                      <option value="thanhviena.hust@gmail.com">Cấp 2 (Thành viên gia đình) · Thành viên A</option>
+                      <option value="khach.hust@gmail.com">Cấp 3 (Khách đến chơi) · Khách C</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="step2SpeakerNameInput">Tên người lưu giọng nói</label>
+                    <input type="text" id="step2SpeakerNameInput" value="Nguyễn Tuấn Anh" placeholder="Nhập họ tên người đọc" oninput="onStep2SpeakerNameInput(this.value)" />
+                  </div>
+                </div>
+
+                <div id="firstPageReadingText" class="sample-box">
+                  "Xin chào ngôi nhà, tôi là Nguyễn Tuấn Anh đọc câu này để lưu mẫu giọng nói."
+                </div>
+                <canvas id="waveCanvas" width="420" height="36" hidden></canvas>
+
+                <div class="input-row">
+                  <button id="btnHoldToRecordFirstPage" class="btn btn-primary" type="button"
+                    onmousedown="startHoldRecordingFirstPage()" onmouseup="stopHoldRecordingFirstPage(true)"
+                    ontouchstart="startHoldRecordingFirstPage()" ontouchend="stopHoldRecordingFirstPage(true)"
+                    onclick="quickRecordFirstPage(true)">
+                    <svg class="icon"><use href="#i-mic"/></svg>
+                    <span>Thu âm giọng nói</span>
+                  </button>
+                  <button id="btnRetryVoiceStep2" class="btn btn-secondary" type="button" onclick="quickRecordFirstPage(true)">
+                    🔄 Thu lại
+                  </button>
+                  <button id="btnReplayVoiceSample" class="btn btn-secondary" type="button" hidden onclick="submitLayer3Voice(125.0, document.getElementById('firstPageAccountSelect').value, 'Chủ nhà')">
+                    Nghe / Kiểm tra lại
+                  </button>
+                  <button class="btn-link-sub" type="button" onclick="quickRecordFirstPage(false)">Thử mẫu lỗi (Không đạt)</button>
+                </div>
+
+                <div id="firstPageEnrollStatus" class="status-box" style="display:none;"></div>
+
+                <div class="input-row" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
+                  <button id="btnProceedToStep3" class="btn btn-primary" type="button" disabled onclick="openStepPanel(3)">
+                    Tiếp tục sang Bước 3 (Xác nhận) ➔
+                  </button>
+                  <button class="btn btn-secondary" type="button" onclick="openStepPanel(1)">⬅ Quay lại Bước 1</button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <!-- BƯỚC 3/3: XÁC NHẬN & KÍCH HOẠT -->
+          <details id="stepPanel3" class="step-panel">
+            <summary>
+              <span class="step-meta">
+                <span class="step-tag">Bước 3/3</span>
+                <span>3. Xác nhận &amp; Kích hoạt giọng nói</span>
+              </span>
+              <span id="step3StateText" class="step-state">Chưa bắt đầu</span>
+            </summary>
+            <div class="step-body" id="familyEmailCard">
+              <div id="step3SummaryBox" class="status-box" style="margin-top:0; margin-bottom:14px; background:var(--accent-soft); border-color:#cce5e3;">
+                <strong>Thông tin xác nhận lưu giọng nói:</strong><br/>
+                • Người đăng ký: <strong id="step3SummaryName">Nguyễn Tuấn Anh</strong><br/>
+                • Cấp độ quyền: <strong id="step3SummaryTier">Cấp 1 · Chủ nhà (Cố định)</strong><br/>
+                • Tài khoản Email: <span id="step3SummaryEmail">nep94121@gmail.com</span><br/>
+                • Trạng thái thu âm: <strong id="step3SummaryVoiceStatus">Chờ thu âm ở Bước 2</strong>
+              </div>
+
+              <div class="input-row" style="margin-bottom:14px;">
+                <button id="btnConfirmStep3Voice" class="btn btn-primary" type="button" onclick="submitLayer3Voice(125.0, document.getElementById('firstPageAccountSelect').value, 'Chủ nhà')">
+                  ✅ Xác nhận &amp; Kích hoạt giọng nói ngay
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="openStepPanel(2)">⬅ Thu âm lại (Bước 2)</button>
+              </div>
+
+              <!-- QUẢN LÝ DANH SÁCH THÀNH VIÊN GIA ĐÌNH (GỌN TRONG DETAILS) -->
+              <details style="padding-top:12px; border-top:1px solid var(--line);">
+                <summary style="cursor:pointer; font-weight:500; font-size:13px; color:var(--muted);">
+                  Quản lý danh sách Email Gia đình (Cấp 2) &amp; Khách (Cấp 3)
+                </summary>
+                <div style="margin-top:12px;">
+                  <div class="form-group">
+                    <label for="allowlistActorSelect">Vai trò đang thao tác</label>
+                    <div class="input-row">
+                      <select id="allowlistActorSelect" onchange="onAllowlistActorChange()">
+                        <option value="nep94121@gmail.com" data-tier="1">Chủ nhà · Nguyễn Tuấn Anh</option>
+                        <option value="thanhviena.hust@gmail.com" data-tier="2">Gia đình · Thành viên A</option>
+                        <option value="khach.hust@gmail.com" data-tier="3">Khách</option>
+                      </select>
+                      <span id="allowlistActorBadge" class="badge badge-tier1">Chủ nhà</span>
+                    </div>
+                  </div>
+
+                  <div id="allowlistInputControls" class="form-group">
+                    <label for="allowlistTargetEmail">Thêm thành viên mới vào danh sách cho phép</label>
+                    <div class="input-row">
+                      <select id="allowlistTargetTierSelect" style="max-width:160px;">
+                        <option value="2">Gia đình (Cấp 2)</option>
+                        <option value="3">Khách (Cấp 3)</option>
+                      </select>
+                      <input type="email" id="allowlistTargetEmail" placeholder="Nhập email thành viên" />
+                      <button id="btnSubmitAddFamilyEmail" class="btn btn-secondary" type="button" onclick="submitAddFamilyEmail()">Thêm</button>
+                    </div>
+                  </div>
+
+                  <div id="allowlistStatusBox" class="status-box">Chọn vai trò và nhập email nếu cần cấp thêm quyền.</div>
+
+                  <div class="scroll-table" style="max-height:170px; margin-top:12px;">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Email</th>
+                          <th>Vai trò</th>
+                          <th>Người thêm</th>
+                          <th>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody id="familyAllowlistTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
+
+              <div id="inviteSectionCard" hidden>
+                <span id="issuerTierBadge"></span>
+                <div id="inviteLinksContainer"></div>
+                <div id="inviteRuleNote"></div>
+                <span id="activeInviteBadge"></span>
+                <select id="inviteCodeSelect"><option value="INV-TIER2-FAM2026">Gia đình</option><option value="INV-TIER3-GUEST26">Khách</option></select>
+                <input type="email" id="inviteGoogleEmail" value="thanhvien_moi@gmail.com" />
+                <input type="text" id="inviteDisplayName" value="Nguyễn Văn Em" />
+                <input type="password" id="invitePassword" value="GiaDinhMoi@2026" />
+                <input type="text" id="inviteOtpInput" />
+                <div class="actions" style="display:flex; gap:8px; margin-top:8px;">
+                  <button type="button" class="btn btn-secondary" id="btnStartInviteGoogleOAuth" onclick="startInviteGoogleOAuth()">Liên kết Google OAuth</button>
+                  <button type="button" class="btn btn-primary" id="btnVerifyInviteGoogleOtp" onclick="verifyInviteGoogleOtp()">Xác nhận OTP</button>
+                </div>
+                <div id="inviteOAuthStatusBox"></div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div id="loginStatusBox" class="status-box">Hoàn tất từng bước để kích hoạt điều khiển bằng giọng nói.</div>
+      </section>
+
+      <!-- MÃ QR MỜI KHÁCH (CẤP 3) HOẶC THÀNH VIÊN GIA ĐÌNH (CẤP 2) -->
+      <section class="card" id="dynamicQr10sCard">
+        <div class="card-header">
+          <div>
+            <h2>Mã QR Mời Khách (Cấp 3) / Thành viên Gia đình (Cấp 2)</h2>
+            <p style="font-size:12px; color:var(--muted);">Quét mã QR để mở màn hình ghi Tên + thu âm giọng nói và kích hoạt ngay.</p>
+          </div>
+          <span id="authQrCountdownBadge" class="badge">Đang chờ</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 140px 1fr; gap:16px; align-items:center;">
+          <div style="background:var(--page); border:1px solid var(--line); border-radius:12px; padding:10px; text-align:center;">
+            <svg id="authDynamicQrSvg" viewBox="0 0 120 120" width="116" height="116" style="background:#fff; padding:6px; border-radius:8px; border:1px solid var(--line); display:block; margin:0 auto;">
+              <rect x="6" y="6" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
+              <rect x="14" y="14" width="14" height="14" fill="#087d85"/>
+              <rect x="84" y="6" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
+              <rect x="92" y="14" width="14" height="14" fill="#087d85"/>
+              <rect x="6" y="84" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
+              <rect x="14" y="92" width="14" height="14" fill="#087d85"/>
+              <g id="authQrDotsGroup" fill="#172b31"></g>
+            </svg>
+          </div>
+          <div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label for="authQrTargetTierSelect">Chọn đối tượng mời qua QR</label>
+              <select id="authQrTargetTierSelect" onchange="refreshDynamicGuestQr()">
+                <option value="3">1. Khách đến chơi nhà (Cấp 3 · Đèn, quạt cơ bản)</option>
+                <option value="2">2. Thành viên gia đình (Cấp 2 · Đèn, quạt, điều hòa, rèm)</option>
+              </select>
+            </div>
+            <div class="input-row" style="margin-bottom:8px;">
+              <select id="authQrDurationSelect" onchange="refreshDynamicGuestQr()" style="max-width:160px;">
+                <option value="1d">Thời hạn: 1 ngày</option>
+                <option value="2d">Thời hạn: 2 ngày</option>
+                <option value="1w">Thời hạn: 1 tuần</option>
+                <option value="1m">Thời hạn: 1 tháng</option>
+                <option value="1y">Thời hạn: 1 năm</option>
+              </select>
+              <a id="authQrOpenLink" href="/guest_enroll" class="btn btn-primary">Mở trang đăng ký QR</a>
+              <button class="btn btn-secondary" type="button" onclick="refreshDynamicGuestQr()">Làm mới QR</button>
+            </div>
+            <div id="authQrTokenBox" class="status-box" style="margin-top:0;">Đang chuẩn bị mã QR...</div>
+          </div>
+        </div>
+      </section>
+
+      <details class="card">
+        <summary style="cursor:pointer; font-weight:500; font-size:14px;">Danh sách tài khoản đã lưu giọng &amp; Kịch bản kiểm tra</summary>
+        <div style="margin-top:14px; display:grid; gap:16px;">
+          <div class="scroll-table" style="max-height:200px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vai trò</th>
+                  <th>Người dùng</th>
+                  <th>Tài khoản</th>
+                  <th>Giọng nói</th>
+                </tr>
+              </thead>
+              <tbody id="accountsTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="scroll-table" style="max-height:180px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Sự kiện</th>
+                  <th>Tài khoản</th>
+                  <th>Kết quả</th>
+                </tr>
+              </thead>
+              <tbody id="authLogsTableBody"></tbody>
+            </table>
+          </div>
+
+          <div>
+            <div class="card-header">
+              <h2>Kịch bản xác thực</h2>
+              <div class="input-row">
+                <span id="testSummaryBanner" class="badge">Đang tải...</span>
+                <button class="btn btn-sm btn-secondary" type="button" onclick="runFullTestSuite()">Kiểm tra lại</button>
+              </div>
+            </div>
+            <div class="scroll-table" style="max-height:260px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã</th>
+                    <th>Bước</th>
+                    <th>Kịch bản</th>
+                    <th>Kết quả</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="testCasesTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="input-row">
+            <input type="text" id="voicePermCommandInput" value="Xóa cấp quyền của Thành viên A" placeholder="Lệnh thay đổi quyền" />
+            <button class="btn btn-sm btn-secondary" type="button" onclick="execOwnerVoicePermission(document.getElementById('voicePermCommandInput').value)">Thực hiện</button>
+          </div>
+          <div id="voicePermStatusBox" class="status-box" style="margin-top:0;"></div>
+        </div>
+      </details>
+
+      <span id="globalCountdownBadge" hidden></span>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a class="active" href="/auth" aria-current="page"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+  </nav>
+
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 {
-  "synced_at": 1793546083.17,
+  "synced_at": 1793768469.29,
   "offline_voice_policy": "TIER_1_AND_2_ONLY (Chặn Tầng 3 Khách & Người lạ, Tiny-DSP ~16ms)",
   "offline_voiceprints_t1_t2": [
     {
@@ -33,7 +33,7 @@
       "id": "timer_6",
       "device_id": "living_room_light",
       "action": "turn_on",
-      "remaining_seconds": 29.9,
+      "remaining_seconds": 29.8,
       "target_vn_time": ""
     }
   ],
@@ -49,12 +49,12 @@
     }
   ],
   "device_min_tiers": {
-    "main_door": 3,
+    "main_door": 1,
     "living_room_light": 3,
     "bedroom_light": 3,
     "fan": 3,
-    "ac": 3,
-    "alarm_siren": 3,
-    "garden_pump": 3
+    "ac": 2,
+    "alarm_siren": 1,
+    "garden_pump": 2
   }
 }

@@ -1,0 +1,35 @@
+[
+  {
+    "id": 795637,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email anybody3@gmail.com -> BỊ CHẶN.",
+    "source": "Test C3->C1",
+    "extra": {}
+  },
+  {
+    "id": 795634,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email anybody2@gmail.com -> BỊ CHẶN.",
+    "source": "Test C3->C2",
+    "extra": {}
+  },
+  {
+    "id": 795627,
+    "time_vn": "13:13:15 04/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email anybody1@gmail.com -> BỊ CHẶN.",
+    "source": "Test C3->C3",
+    "extra": {}
+  }
+]
