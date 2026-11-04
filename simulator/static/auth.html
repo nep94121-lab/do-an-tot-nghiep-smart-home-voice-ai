@@ -112,17 +112,17 @@
 
               <div class="form-group">
                 <label for="enrollSpeakerNameInput">2. Họ và tên người lưu giọng nói</label>
-                <input type="text" id="enrollSpeakerNameInput" value="Thành viên A" placeholder="Nhập họ tên người lưu giọng nói (VD: Nguyễn Văn A)" oninput="syncSpeakerNameInput(this.value)" />
+                <input type="text" id="enrollSpeakerNameInput" value="" placeholder="Nhập họ tên người lưu giọng nói (VD: Nguyễn Văn A)" oninput="syncSpeakerNameInput(this.value)" />
               </div>
 
               <div class="form-group">
                 <label for="loginEmail">3. Email tài khoản &amp; Mật khẩu (có xác nhận lại mật khẩu)</label>
                 <div class="input-row" style="margin-bottom:8px;">
-                  <input type="email" id="loginEmail" value="nep94121@gmail.com" placeholder="Email tài khoản (VD: nep94121@gmail.com)" />
+                  <input type="email" id="loginEmail" value="" placeholder="Email tài khoản (VD: nep94121@gmail.com)" />
                 </div>
                 <div class="input-row" style="margin-bottom:8px;">
-                  <input type="password" id="loginPassword" value="123456" placeholder="Mật khẩu (mặc định: 123456)" />
-                  <input type="password" id="loginPasswordConfirm" value="123456" placeholder="Xác nhận lại mật khẩu" />
+                  <input type="password" id="loginPassword" value="" placeholder="Mật khẩu" />
+                  <input type="password" id="loginPasswordConfirm" value="" placeholder="Xác nhận lại mật khẩu" />
                 </div>
                 <div class="input-row">
                   <button class="btn btn-primary" type="button" onclick="completeStep1AndGoToVoice()">Xác nhận Bước 1 &amp; Sang Bước 2 (Thu giọng) ➔</button>
@@ -140,7 +140,7 @@
                   <div class="form-group">
                     <label for="accountPresetSelect">Điền nhanh tài khoản mẫu</label>
                     <select id="accountPresetSelect" onchange="applyPresetAccount(this.value)">
-                      <option value="owner">Chủ nhà (Cấp 1) · nep94121@gmail.com (MK: 123456)</option>
+                      <option value="owner">Chủ nhà (Cấp 1) · nep94121@gmail.com</option>
                       <option value="family">Gia đình (Cấp 2) · thanhviena.hust@gmail.com</option>
                       <option value="guest">Khách (Cấp 3) · khach.hust@gmail.com</option>
                       <option value="wrong">Thử kịch bản nhập sai mật khẩu</option>
@@ -308,9 +308,9 @@
                 <div id="inviteRuleNote"></div>
                 <span id="activeInviteBadge"></span>
                 <select id="inviteCodeSelect"><option value="INV-TIER2-FAM2026">Gia đình</option><option value="INV-TIER3-GUEST26">Khách</option></select>
-                <input type="email" id="inviteGoogleEmail" value="thanhvien_moi@gmail.com" />
-                <input type="text" id="inviteDisplayName" value="Nguyễn Văn Em" />
-                <input type="password" id="invitePassword" value="GiaDinhMoi@2026" />
+                <input type="email" id="inviteGoogleEmail" value="" placeholder="Email Google" />
+                <input type="text" id="inviteDisplayName" value="" placeholder="Họ và tên" />
+                <input type="password" id="invitePassword" value="" placeholder="Mật khẩu cấp phát" />
                 <input type="text" id="inviteOtpInput" />
                 <div class="actions" style="display:flex; gap:8px; margin-top:8px;">
                   <button type="button" class="btn btn-secondary" id="btnStartInviteGoogleOAuth" onclick="startInviteGoogleOAuth()">Liên kết Google OAuth</button>

@@ -9,11 +9,40 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import time
 from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+
+
+SENSITIVE_KEY_PATTERN = re.compile(r"(password|hint|secret|token|otp|mat_khau)", re.IGNORECASE)
+
+
+def mask_sensitive_log_data(text: Any) -> Any:
+    """Che gợi ý mật khẩu và thông tin xác thực nhạy cảm trong log hiển thị (hỗ trợ cả chuỗi và dictionary keys)."""
+    if isinstance(text, str):
+        t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1******", text, flags=re.IGNORECASE)
+        t = re.sub(
+            r"((?:password|password_plain_hint|hint|secret|token|otp|mat_khau)['\"]?\s*[:=]\s*['\"])([^'\"]+)(['\"])",
+            r"\1******\3",
+            t,
+            flags=re.IGNORECASE,
+        )
+        return t
+    if isinstance(text, dict):
+        return {
+            k: (
+                "******"
+                if SENSITIVE_KEY_PATTERN.search(str(k))
+                else mask_sensitive_log_data(v)
+            )
+            for k, v in text.items()
+        }
+    if isinstance(text, list):
+        return [mask_sensitive_log_data(item) for item in text]
+    return text
 
 from simulator.api.deps import (
     ROOT,
@@ -134,20 +163,24 @@ async def api_logs_dashboard(
             ):
                 continue
 
+        masked_ev = mask_sensitive_log_data(ev_str)
+        masked_detail = mask_sensitive_log_data(detail_str)
+        masked_details = mask_sensitive_log_data(raw.get("details") or {})
+
         item = {
             "time": ts_str,
             "time_vn": ts_str,
-            "event": ev_str,
+            "event": masked_ev,
             "event_type": raw.get("event_type") or "event",
             "actor": user_str,
             "user": user_str,
             "user_name": user_str,
-            "detail": detail_str,
-            "summary": detail_str,
+            "detail": masked_detail,
+            "summary": masked_detail,
             "level": lvl,
             "category": cat,
             "tier": int(raw.get("tier", 1) or 1),
-            "details": raw.get("details") or {},
+            "details": masked_details,
         }
         standardized_logs.append(item)
 

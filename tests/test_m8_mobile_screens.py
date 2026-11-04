@@ -279,6 +279,10 @@ class TestM5QrScanner:
         token = res_gen.json().get("token")
         window = res_gen.json().get("window")
         assert token, "Không lấy được token từ /api/auth3/guest_qr_current"
+        from simulator.auth_3layer import get_auth_3layer_manager
+        mgr3 = get_auth_3layer_manager()
+        if hasattr(mgr3, "used_qr_tokens"):
+            mgr3.used_qr_tokens.discard(token)
         res_valid = client.post("/api/auth3/guest_handshake", json={"token": token, "duration": "1d", "window": window})
         assert res_valid.status_code == 200
         data = res_valid.json()

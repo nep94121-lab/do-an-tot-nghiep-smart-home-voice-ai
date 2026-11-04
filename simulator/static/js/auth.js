@@ -2,7 +2,7 @@
     const tierRoleLabel = (t) => t === 1 ? 'Chủ nhà (Cấp 1)' : (t === 2 ? 'Gia đình (Cấp 2)' : 'Khách (Cấp 3)');
 
     let selectedEnrollTier = 2;
-    let selectedSpeakerName = 'Thành viên A';
+    let selectedSpeakerName = '';
     let lastVoiceEnrollPassed = false;
     let lastMeasuredF0Hz = 125.0;
 
@@ -27,10 +27,10 @@
         fillAccount('nep94121@gmail.com', '123456');
         onEnrollTierSelectChange('1');
       } else if (preset === 'family') {
-        fillAccount('thanhviena.hust@gmail.com', 'GiaDinh@123');
+        fillAccount('senat6031@gmail.com', 'GiaDinh@123');
         onEnrollTierSelectChange('2');
       } else if (preset === 'guest') {
-        fillAccount('khach.hust@gmail.com', 'Khach@123');
+        fillAccount('kbanh376@gmail.com', 'Khach@789');
         onEnrollTierSelectChange('3');
       } else if (preset === 'wrong') {
         fillAccount('nep94121@gmail.com', 'SaiMatKhau999');
@@ -49,56 +49,17 @@
       const emailInput = document.getElementById('loginEmail');
       const accSelect = document.getElementById('firstPageAccountSelect');
 
-      if (selectedEnrollTier === 1) {
-        if (nameInput) {
-          nameInput.readOnly = false;
-          if (!nameInput.value || nameInput.value === 'Thành viên A' || nameInput.value === 'Khách C') {
-            nameInput.value = 'Nguyễn Tuấn Anh';
-          }
-          selectedSpeakerName = nameInput.value.trim() || 'Nguyễn Tuấn Anh';
-        } else {
-          selectedSpeakerName = 'Nguyễn Tuấn Anh';
-        }
-        if (emailInput) {
-          emailInput.readOnly = false;
-          if (!emailInput.value || emailInput.value === 'thanhviena.hust@gmail.com' || emailInput.value === 'khach.hust@gmail.com') {
-            emailInput.value = 'nep94121@gmail.com';
-          }
-        }
-        if (accSelect) accSelect.value = 'nep94121@gmail.com';
-      } else if (selectedEnrollTier === 2) {
-        if (nameInput) {
-          nameInput.readOnly = false;
-          if (!nameInput.value || nameInput.value === 'Nguyễn Tuấn Anh' || nameInput.value === 'Khách C') {
-            nameInput.value = 'Thành viên A';
-          }
-          selectedSpeakerName = nameInput.value.trim() || 'Thành viên A';
-        }
-        if (emailInput) {
-          emailInput.readOnly = false;
-          if (emailInput.value === 'nep94121@gmail.com' || emailInput.value === 'khach.hust@gmail.com') {
-            emailInput.value = 'thanhviena.hust@gmail.com';
-          }
-        }
-        if (accSelect) accSelect.value = 'thanhviena.hust@gmail.com';
-      } else {
-        if (nameInput) {
-          nameInput.readOnly = false;
-          if (!nameInput.value || nameInput.value === 'Nguyễn Tuấn Anh' || nameInput.value === 'Thành viên A') {
-            nameInput.value = 'Khách C';
-          }
-          selectedSpeakerName = nameInput.value.trim() || 'Khách C';
-        }
-        if (emailInput) {
-          emailInput.readOnly = false;
-          if (emailInput.value === 'nep94121@gmail.com' || emailInput.value === 'thanhviena.hust@gmail.com') {
-            emailInput.value = 'khach.hust@gmail.com';
-          }
-        }
-        if (accSelect) accSelect.value = 'khach.hust@gmail.com';
+      if (nameInput) {
+        nameInput.readOnly = false;
+        selectedSpeakerName = nameInput.value.trim();
       }
-
       if (step2NameInput) step2NameInput.value = selectedSpeakerName;
+      if (emailInput) {
+        emailInput.readOnly = false;
+      }
+      if (accSelect && emailInput && emailInput.value) {
+        accSelect.value = emailInput.value;
+      }
       updateFirstPageReadingPrompt();
       refreshStepSummaries();
     }
@@ -716,16 +677,14 @@
       const box = document.getElementById('loginStatusBox');
       box.textContent = 'Đang kiểm tra tài khoản...';
 
+      const loginMethod = method || 'password';
       const res = await fetch('/api/auth3/layer1_login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, method, google_id_token: 'GOOGLE_OAUTH_SIM_TOKEN_OK' })
+        body: JSON.stringify({ email, password, login_method: loginMethod, method: loginMethod, google_id_token: 'GOOGLE_OAUTH_SIM_TOKEN_OK' })
       });
       const data = await res.json();
       if (data.ok) {
-        if (data.demo_otp_preview) {
-          document.getElementById('otpInput').value = data.demo_otp_preview;
-        }
         setStepState('done', 'active', '');
         box.style.borderColor = '#cce5e3';
         box.style.background = 'var(--accent-soft)';
@@ -734,7 +693,7 @@
         setStepState('retry', '', '');
         box.style.borderColor = 'var(--red-border)';
         box.style.background = 'var(--red-soft)';
-        box.textContent = '❌ Cần thử lại: Email hoặc Mật khẩu chưa đúng.';
+        box.textContent = `❌ ${data.error || 'Cần thử lại: Email hoặc Mật khẩu chưa đúng.'}`;
       }
       loadOverview();
     }

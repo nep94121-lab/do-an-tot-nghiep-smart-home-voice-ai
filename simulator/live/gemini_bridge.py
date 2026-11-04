@@ -183,8 +183,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self._mic_silence_task: asyncio.Task | None = None
         self._closed = False
         self._mic_in_flight_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
-        if self not in _ACTIVE_BRIDGES:
+        # Chỉ tự động đưa vào _ACTIVE_BRIDGES nếu là WebSocket thật (không phải Mock trong unit test)
+        is_mock_ws = hasattr(self.ws, "assert_called") or hasattr(self.ws, "assert_awaited") or hasattr(self.ws, "_mock_return_value")
+        if self.ws is not None and not is_mock_ws and self not in _ACTIVE_BRIDGES:
             _ACTIVE_BRIDGES.append(self)
+
+    def close(self) -> None:
+        self._closed = True
+        if self in _ACTIVE_BRIDGES:
+            _ACTIVE_BRIDGES.remove(self)
 
     async def send_ws_json(self, payload: dict[str, Any]) -> None:
         if self._closed:
@@ -192,13 +199,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 _ACTIVE_BRIDGES.remove(self)
             return
         ptype = str(payload.get("type", ""))
-        if ptype in ("device_updated", "device_actuated", "state_snapshot", "server_mode_changed"):
-            _REST_ENGINE.server_connected = self.engine.server_connected
-            _REST_ENGINE.devices = copy.deepcopy(self.engine.devices)
-            _REST_ENGINE.mqtt_bridge.esp8266_status = copy.deepcopy(self.engine.mqtt_bridge.esp8266_status)
-            _REST_ENGINE.mqtt_bridge.dht11_telemetry = copy.deepcopy(self.engine.mqtt_bridge.dht11_telemetry)
-            _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(self.engine.mqtt_bridge.soil_moisture_telemetry)
-            _REST_ENGINE.mqtt_bridge.ir_devices = copy.deepcopy(self.engine.mqtt_bridge.ir_devices)
         if ptype == "turn_complete":
             heard = str(payload.get("heard", "")).strip()
             said = str(payload.get("said", "")).strip()

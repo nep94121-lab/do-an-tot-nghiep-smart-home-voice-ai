@@ -238,12 +238,74 @@
     }
   }
 
+  function updateDeviceCardUI(devId, dev, isOn) {
+    const card = document.getElementById(`dev-card-${devId}`);
+    if (!card) return;
+    const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
+    const iconSpan = card.querySelector(".device-icon");
+    if (iconSpan) iconSpan.classList.toggle("off", !isOn);
+    const swInput = card.querySelector(".switch input");
+    if (swInput) {
+      swInput.checked = isOn;
+      swInput.disabled = isOfflineLocked;
+    }
+    const roomSpan = card.querySelector(".device-room");
+    if (roomSpan) {
+      roomSpan.textContent = getDeviceRoomLabel(dev, isOn, isOfflineLocked);
+    }
+  }
+
+  function updateActiveDeviceSummaryCount() {
+    if (!deviceActiveSummary) return;
+    let activeCount = 0;
+    Object.values(latestDevicesMap).forEach((d) => {
+      if (d.state === "ON" || d.state === "OPEN") activeCount++;
+    });
+    deviceActiveSummary.textContent = `${activeCount} đang bật`;
+  }
+
   function toggleDeviceById(devId) {
     const dev = latestDevicesMap[devId];
     if (!dev) return;
-    const isOn = dev.state === "ON" || dev.state === "OPEN";
-    const action = dev.type === "door" ? (isOn ? "close" : "open") : isOn ? "turn_off" : "turn_on";
+    const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
+    if (isOfflineLocked) return;
+
+    const prevIsOn = dev.state === "ON" || dev.state === "OPEN";
+    const nextIsOn = !prevIsOn;
+    const prevState = dev.state;
+    const nextState = dev.type === "door" ? (nextIsOn ? "OPEN" : "CLOSED") : (nextIsOn ? "ON" : "OFF");
+
+    // Optimistic UI: Cập nhật in-memory và DOM tức thì
+    dev.state = nextState;
+    const cardEl = document.getElementById(`dev-card-${devId}`);
+    if (cardEl) {
+      const swInput = cardEl.querySelector(".switch input");
+      if (swInput) swInput.checked = nextIsOn;
+    }
+    updateDeviceCardUI(devId, dev, nextIsOn);
+    updateActiveDeviceSummaryCount();
+    playRelayClick(nextIsOn);
+
+    if (window.SmartHome3D) {
+      window.SmartHome3D.updateDevices(Object.values(latestDevicesMap), window._latestMqtt, window._serverConnected !== false);
+    }
+
+    const action = dev.type === "door" ? (prevIsOn ? "close" : "open") : (prevIsOn ? "turn_off" : "turn_on");
     const roleVal = roleSelect && roleSelect.value ? roleSelect.value : "";
+
+    const rollback = () => {
+      dev.state = prevState;
+      if (cardEl) {
+        const swInput = cardEl.querySelector(".switch input");
+        if (swInput) swInput.checked = prevIsOn;
+      }
+      updateDeviceCardUI(devId, dev, prevIsOn);
+      updateActiveDeviceSummaryCount();
+      if (window.SmartHome3D) {
+        window.SmartHome3D.updateDevices(Object.values(latestDevicesMap), window._latestMqtt, window._serverConnected !== false);
+      }
+    };
+
     if (ws && ws.readyState === WebSocket.OPEN) {
       sendWs({ type: "manual_toggle", device_id: devId, action, role: roleVal });
     } else {
@@ -254,15 +316,22 @@
       })
         .then((r) => r.json())
         .then((data) => {
-          if (data && data.snapshot) applySnapshot(data.snapshot);
+          if (data && (data.ok === false || data.error)) {
+            rollback();
+            if (data.error) setAiReplyText(data.error);
+          } else if (data && data.snapshot) {
+            applySnapshot(data.snapshot);
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          rollback();
+        });
     }
   }
 
   function getDeviceRoomLabel(dev, isOn, isOfflineLocked) {
     if (isOfflineLocked) return "Khóa ngoại tuyến";
-    if (dev.type === "door") return isOn ? "Đang mở" : "Đã khóa";
+    if (dev.type === "door") return isOn ? "Đã mở" : "Đã khóa";
     const roomMap = {
       living_room_light: "Phòng khách",
       fan: "Phòng khách",
@@ -272,13 +341,12 @@
       alarm_siren: "Toàn nhà",
     };
     const room = roomMap[dev.id] || "";
-    const st = isOn ? "Đang bật" : "Đang tắt";
+    const st = isOn ? "Đã bật" : "Đã tắt";
     return room ? `${room} · ${st}` : st;
   }
 
   function renderDevices(devices) {
     if (!devicesGrid || devicesGrid === noopEl) return;
-    devicesGrid.innerHTML = "";
     latestDevicesMap = {};
     let activeCount = 0;
 
@@ -299,42 +367,65 @@
         window._serverConnected === false &&
         (dev.id === "main_door" || dev.id === "alarm_siren");
 
-      const card = document.createElement("div");
-      card.className = "device";
-      card.id = `dev-card-${dev.id}`;
       const roomText = getDeviceRoomLabel(dev, isOn, isOfflineLocked);
+      let card = document.getElementById(`dev-card-${dev.id}`);
 
-      card.innerHTML = `
-        <span class="device-icon ${isOn ? "" : "off"}">
-          <svg class="icon"><use href="#${iconId}"/></svg>
-        </span>
-        <span class="device-copy">
-          <span class="device-name">${escapeHtml(dev.name)}</span><br>
-          <span class="device-room">${escapeHtml(roomText)}</span>
-        </span>
-        <label class="switch" aria-label="${escapeHtml(dev.name)}">
-          <input type="checkbox" ${isOn ? "checked" : ""} ${isOfflineLocked ? "disabled" : ""}>
-          <span></span>
-        </label>
-      `;
+      if (card) {
+        // Cập nhật DOM in-place không xóa trắng node
+        const iconSpan = card.querySelector(".device-icon");
+        if (iconSpan) {
+          iconSpan.className = `device-icon ${isOn ? "" : "off"}`;
+        }
+        const nameSpan = card.querySelector(".device-name");
+        if (nameSpan) {
+          nameSpan.textContent = dev.name;
+        }
+        const roomSpan = card.querySelector(".device-room");
+        if (roomSpan) {
+          roomSpan.textContent = roomText;
+        }
+        const swInput = card.querySelector(".switch input");
+        if (swInput) {
+          swInput.checked = isOn;
+          swInput.disabled = isOfflineLocked;
+        }
+      } else {
+        card = document.createElement("div");
+        card.className = "device";
+        card.id = `dev-card-${dev.id}`;
+        card.innerHTML = `
+          <span class="device-icon ${isOn ? "" : "off"}">
+            <svg class="icon"><use href="#${iconId}"/></svg>
+          </span>
+          <span class="device-copy">
+            <span class="device-name">${escapeHtml(dev.name)}</span><br>
+            <span class="device-room">${escapeHtml(roomText)}</span>
+          </span>
+          <label class="switch" aria-label="${escapeHtml(dev.name)}">
+            <input type="checkbox" ${isOn ? "checked" : ""} ${isOfflineLocked ? "disabled" : ""}>
+            <span></span>
+          </label>
+        `;
 
-      const swInput = card.querySelector(".switch input");
-      const swLabel = card.querySelector(".switch");
-      if (swLabel) {
-        swLabel.addEventListener("click", (e) => {
-          e.stopPropagation();
+        const swInput = card.querySelector(".switch input");
+        const swLabel = card.querySelector(".switch");
+        if (swLabel) {
+          swLabel.addEventListener("click", (e) => {
+            e.stopPropagation();
+          });
+        }
+        if (swInput) {
+          swInput.addEventListener("change", (e) => {
+            e.stopPropagation();
+            toggleDeviceById(dev.id);
+          });
+        }
+        card.addEventListener("click", () => {
+          const locked = window._serverConnected === false && (dev.id === "main_door" || dev.id === "alarm_siren");
+          if (!locked) toggleDeviceById(dev.id);
         });
+        devicesGrid.appendChild(card);
       }
-      if (swInput) {
-        swInput.addEventListener("change", (e) => {
-          e.stopPropagation();
-          toggleDeviceById(dev.id);
-        });
-      }
-      card.addEventListener("click", () => {
-        if (!isOfflineLocked) toggleDeviceById(dev.id);
-      });
-      devicesGrid.appendChild(card);
     });
 
     if (deviceActiveSummary) {
@@ -413,8 +504,14 @@
 
   function updateConnectionUI(connected) {
     window._serverConnected = connected !== false;
-    if (connDot && connDot !== noopEl) {
-      connDot.classList.toggle("offline", !window._serverConnected);
+    if (connDot && connDot !== noopEl && connDot.classList) {
+      if (typeof connDot.classList.toggle === "function") {
+        connDot.classList.toggle("offline", !window._serverConnected);
+      } else if (!window._serverConnected) {
+        if (typeof connDot.classList.add === "function") connDot.classList.add("offline");
+      } else {
+        if (typeof connDot.classList.remove === "function") connDot.classList.remove("offline");
+      }
     }
     if (geminiStatusText && geminiStatusText !== noopEl) {
       geminiStatusText.textContent = window._serverConnected ? "Đã kết nối" : "Mất kết nối";
@@ -460,13 +557,26 @@
       }
       const soil = snap.mqtt.soil_moisture_telemetry || {};
       const dht = snap.mqtt.dht11_telemetry || {};
-      const soilLabel = document.getElementById("sensorSoilLabel") || document.getElementById("sensorSoilVal");
-      if (soilLabel && soil.soil_moisture_pct !== undefined) {
-        soilLabel.textContent = Math.round(soil.soil_moisture_pct) + "%";
-      }
-      const tempLabel = document.getElementById("sensorTempLabel") || document.getElementById("sensorDhtVal");
+
+      const tempLabel = document.getElementById("sensorTempVal") || document.getElementById("sensorTempLabel") || document.getElementById("sensorDhtVal");
       if (tempLabel && dht.temp_c !== undefined) {
-        tempLabel.textContent = Math.round(Number(dht.temp_c)) + "°C";
+        const rawT = Number(dht.temp_c);
+        const safeT = Number.isFinite(rawT) ? Math.max(0, Math.min(60, rawT)) : 28.5;
+        tempLabel.textContent = (Math.round(safeT * 10) / 10) + "°C";
+      }
+
+      const humLabel = document.getElementById("sensorHumVal") || document.getElementById("sensorHumLabel") || document.getElementById("sensorHumidityVal");
+      if (humLabel && dht.humidity_pct !== undefined) {
+        const rawH = Number(dht.humidity_pct);
+        const safeH = Number.isFinite(rawH) ? Math.max(0, Math.min(100, rawH)) : 65;
+        humLabel.textContent = Math.round(safeH) + "%";
+      }
+
+      const soilLabel = document.getElementById("sensorSoilVal") || document.getElementById("sensorSoilLabel");
+      if (soilLabel && soil.soil_moisture_pct !== undefined) {
+        const rawS = Number(soil.soil_moisture_pct);
+        const safeS = Number.isFinite(rawS) ? Math.max(0, Math.min(100, rawS)) : 62;
+        soilLabel.textContent = Math.round(safeS) + "%";
       }
     }
 
@@ -530,7 +640,7 @@
       btn.disabled = false;
       btn.textContent = "Kết nối ngay";
     }
-    const iconContainer = banner.querySelector(".banner-icon");
+    const iconContainer = (banner && typeof banner.querySelector === "function") ? banner.querySelector(".banner-icon") : null;
     if (iconContainer) {
       iconContainer.innerHTML = '<path d="M3 3l18 18 M2 9a15 15 0 0 1 17-2 M6 13a9 9 0 0 1 8-1 M10 17a3 3 0 0 1 3 0"/>';
     }
@@ -567,7 +677,7 @@
     if (subtext) {
       subtext.textContent = "";
     }
-    const iconContainer = banner.querySelector(".banner-icon");
+    const iconContainer = (banner && typeof banner.querySelector === "function") ? banner.querySelector(".banner-icon") : null;
     if (iconContainer) {
       iconContainer.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
     }
@@ -814,13 +924,13 @@
         .then((snap) => {
           updateConnectionUI(true);
           applySnapshot(snap);
+          hideWsReconnectBanner();
         })
         .catch(() => {
           updateConnectionUI(false);
+          wsRetryCount = Math.min(WS_MAX_RETRIES, wsRetryCount + 1);
+          showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
         });
-
-      wsRetryCount = Math.min(WS_MAX_RETRIES, wsRetryCount + 1);
-      showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
 
       if (wsRetryCount < WS_MAX_RETRIES) {
         if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
@@ -836,8 +946,12 @@
       .then((snap) => {
         updateConnectionUI(true);
         applySnapshot(snap);
+        hideWsReconnectBanner();
       })
-      .catch(() => {});
+      .catch(() => {
+        updateConnectionUI(false);
+        showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
+      });
   }
 
   function sendWs(payload) {
@@ -848,12 +962,28 @@
 
   function setMicListeningState(listening) {
     isRecording = listening;
-    btnMicToggle.classList.toggle("recording", listening);
-    micBtnText.textContent = listening ? "Đang nghe…" : "Bắt đầu nói";
+    if (btnMicToggle && btnMicToggle.classList) {
+      if (typeof btnMicToggle.classList.toggle === "function") {
+        btnMicToggle.classList.toggle("recording", listening);
+      } else if (listening) {
+        if (typeof btnMicToggle.classList.add === "function") btnMicToggle.classList.add("recording");
+      } else {
+        if (typeof btnMicToggle.classList.remove === "function") btnMicToggle.classList.remove("recording");
+      }
+    }
+    if (micBtnText) micBtnText.textContent = listening ? "Đang nghe…" : "Bắt đầu nói";
     btnManualEndTurn.hidden = !listening;
     btnManualEndTurn.disabled = !listening;
     micStateLabel.textContent = listening ? "Đang nghe" : "";
-    micDot.classList.toggle("listening", listening);
+    if (micDot && micDot.classList) {
+      if (typeof micDot.classList.toggle === "function") {
+        micDot.classList.toggle("listening", listening);
+      } else if (listening) {
+        if (typeof micDot.classList.add === "function") micDot.classList.add("listening");
+      } else {
+        if (typeof micDot.classList.remove === "function") micDot.classList.remove("listening");
+      }
+    }
   }
 
   async function startMic() {
@@ -1359,6 +1489,15 @@
   const gatePanelForgot = byId("gatePanelForgot");
   const gateStatusBox = byId("gateStatusBox");
 
+  function setForgotStep(stepNum) {
+    const s1 = byId("gateForgotStep1");
+    const s2 = byId("gateForgotStep2");
+    const s3 = byId("gateForgotStep3");
+    if (s1) s1.style.display = stepNum === 1 ? "grid" : "none";
+    if (s2) s2.style.display = stepNum === 2 ? "grid" : "none";
+    if (s3) s3.style.display = stepNum === 3 ? "grid" : "none";
+  }
+
   function switchLoginGateTab(tabName) {
     if (gatePanelLogin) gatePanelLogin.style.display = tabName === "login" ? "grid" : "none";
     if (gatePanelRegister) gatePanelRegister.style.display = tabName === "register" ? "grid" : "none";
@@ -1366,6 +1505,7 @@
     if (btnTabGateLogin) btnTabGateLogin.className = tabName === "login" ? "btn btn-primary" : "btn btn-secondary";
     if (btnTabGateRegister) btnTabGateRegister.className = tabName === "register" ? "btn btn-primary" : "btn btn-secondary";
     if (btnTabGateForgot) btnTabGateForgot.className = tabName === "forgot" ? "btn btn-primary" : "btn btn-secondary";
+    if (tabName === "forgot") setForgotStep(1);
   }
 
   if (btnTabGateLogin) btnTabGateLogin.addEventListener("click", () => switchLoginGateTab("login"));
@@ -1380,7 +1520,67 @@
       homeCurrentAccountBadge.textContent = `${rolePrefix}: ${userObj.display_name || userObj.name || userObj.email}`;
     }
     if (btnLogoutHome) {
+      btnLogoutHome.hidden = false;
+      btnLogoutHome.style.display = "";
       btnLogoutHome.textContent = "Đăng xuất";
+    }
+    const durationBadge = byId("homeSessionDurationBadge");
+    if (durationBadge) {
+      durationBadge.hidden = false;
+      durationBadge.style.display = "";
+      if (tierNum === 1) {
+        durationBadge.textContent = "Không giới hạn";
+      } else if (tierNum === 2) {
+        durationBadge.textContent = "Còn 30 ngày";
+      } else {
+        durationBadge.textContent = userObj.validity || "Hiệu lực 24 giờ";
+      }
+    }
+  }
+
+  function clearAuthState() {
+    try {
+      if (window.localStorage) window.localStorage.removeItem("smarthome_auth_session");
+      if (window.sessionStorage) window.sessionStorage.clear();
+      document.cookie = "smarthome_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    } catch (_) {}
+    if (homeCurrentAccountBadge) {
+      homeCurrentAccountBadge.textContent = "Chưa đăng nhập";
+    }
+    if (btnLogoutHome) {
+      btnLogoutHome.hidden = true;
+      btnLogoutHome.style.display = "none";
+    }
+    const durationBadge = byId("homeSessionDurationBadge");
+    if (durationBadge) {
+      durationBadge.hidden = true;
+      durationBadge.style.display = "none";
+      durationBadge.textContent = "";
+    }
+    const emailEl = byId("gateLoginEmail");
+    const pwEl = byId("gateLoginPassword");
+    if (emailEl) emailEl.value = "";
+    if (pwEl) pwEl.value = "";
+    const regName = byId("gateRegName");
+    const regEmail = byId("gateRegEmail");
+    const regPw = byId("gateRegPassword");
+    const regPwConf = byId("gateRegConfirmPassword");
+    if (regName) regName.value = "";
+    if (regEmail) regEmail.value = "";
+    if (regPw) regPw.value = "";
+    if (regPwConf) regPwConf.value = "";
+    const forgotEmail = byId("gateForgotEmail");
+    const forgotOtp = byId("gateForgotOtpInput");
+    const forgotPw = byId("gateForgotNewPassword");
+    const forgotPwConf = byId("gateForgotConfirmPassword");
+    if (forgotEmail) forgotEmail.value = "";
+    if (forgotOtp) forgotOtp.value = "";
+    if (forgotPw) forgotPw.value = "";
+    if (forgotPwConf) forgotPwConf.value = "";
+    setForgotStep(1);
+    if (gateStatusBox) {
+      gateStatusBox.textContent = "Nhập Email và Mật khẩu để vào bảng điều khiển Nhà thông minh.";
+      gateStatusBox.className = "subtle";
     }
   }
 
@@ -1456,12 +1656,7 @@
 
   if (btnLogoutHome) {
     btnLogoutHome.addEventListener("click", () => {
-      try {
-        if (window.localStorage) window.localStorage.removeItem("smarthome_auth_session");
-      } catch (_) {}
-      if (homeCurrentAccountBadge) {
-        homeCurrentAccountBadge.textContent = "Chưa đăng nhập";
-      }
+      clearAuthState();
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
       switchLoginGateTab("login");
       openLoginGateModal();
@@ -1492,17 +1687,7 @@
   const gateRegEmail = byId("gateRegEmail");
   if (gateRegTier) {
     gateRegTier.addEventListener("change", () => {
-      const t = parseInt(gateRegTier.value || "1", 10);
-      if (t === 1) {
-        if (gateRegName) gateRegName.value = "Nguyễn Tuấn Anh";
-        if (gateRegEmail) gateRegEmail.value = "nep94121@gmail.com";
-      } else if (t === 2) {
-        if (gateRegName && gateRegName.value === "Nguyễn Tuấn Anh") gateRegName.value = "Thành viên A";
-        if (gateRegEmail && gateRegEmail.value === "nep94121@gmail.com") gateRegEmail.value = "thanhviena.hust@gmail.com";
-      } else {
-        if (gateRegName && gateRegName.value === "Nguyễn Tuấn Anh") gateRegName.value = "Khách C";
-        if (gateRegEmail && gateRegEmail.value === "nep94121@gmail.com") gateRegEmail.value = "khach.hust@gmail.com";
-      }
+      // Preserve user input without forcing mock names
     });
   }
 
@@ -1511,21 +1696,25 @@
     btnSubmitGateLogin.addEventListener("click", async () => {
       const emailEl = byId("gateLoginEmail");
       const pwEl = byId("gateLoginPassword");
-      const email = emailEl ? emailEl.value.trim() : "nep94121@gmail.com";
-      const password = pwEl ? pwEl.value : "123456";
+      const email = emailEl ? emailEl.value.trim() : "";
+      const password = pwEl ? pwEl.value : "";
+      if (!email || !password) {
+        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và Mật khẩu!";
+        return;
+      }
       if (gateStatusBox) gateStatusBox.textContent = "Đang kiểm tra đăng nhập...";
       try {
         const res = await fetch("/api/auth3/layer1_login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, method: "password" }),
+          body: JSON.stringify({ email, password, login_method: "password", method: "password" }),
         });
         const data = await res.json();
         if (data.ok) {
           const userSession = {
             email,
-            display_name: data.display_name || (email === "nep94121@gmail.com" ? "Nguyễn Tuấn Anh" : email),
-            tier: data.tier || (email === "nep94121@gmail.com" ? 1 : 2),
+            display_name: data.display_name || email,
+            tier: data.tier || 1,
           };
           try {
             if (window.localStorage) {
@@ -1557,6 +1746,13 @@
       const pwConfirmEl = byId("gateRegConfirmPassword");
       const password = pwEl ? pwEl.value : "";
       const confirmPassword = pwConfirmEl ? pwConfirmEl.value : "";
+
+      if (!email || !password || !confirmPassword) {
+        if (gateStatusBox) {
+          gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và 2 ô Mật khẩu!";
+        }
+        return;
+      }
 
       if (password !== confirmPassword) {
         if (gateStatusBox) {
@@ -1599,26 +1795,52 @@
     });
   }
 
+  // Điều hướng 3 bước trong Quên mật khẩu
+  const btnGoForgotStep2 = byId("btnGoForgotStep2");
+  if (btnGoForgotStep2) btnGoForgotStep2.addEventListener("click", () => setForgotStep(2));
+  const btnBackForgotStep1 = byId("btnBackForgotStep1");
+  if (btnBackForgotStep1) btnBackForgotStep1.addEventListener("click", () => setForgotStep(1));
+  const btnGoForgotStep3 = byId("btnGoForgotStep3");
+  if (btnGoForgotStep3) {
+    btnGoForgotStep3.addEventListener("click", () => {
+      const otpEl = byId("gateForgotOtpInput");
+      const otp = otpEl ? otpEl.value.trim() : "";
+      if (!otp || otp.length < 6) {
+        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đủ mã OTP 6 số nhận qua Gmail!";
+        return;
+      }
+      setForgotStep(3);
+    });
+  }
+  const btnBackForgotStep2 = byId("btnBackForgotStep2");
+  if (btnBackForgotStep2) btnBackForgotStep2.addEventListener("click", () => setForgotStep(2));
+
   const btnSendForgotOtp = byId("btnSendForgotOtp");
   if (btnSendForgotOtp) {
     btnSendForgotOtp.addEventListener("click", async () => {
       const emailEl = byId("gateForgotEmail");
-      const otpEl = byId("gateForgotOtpInput");
-      const email = emailEl ? emailEl.value.trim() : "nep94121@gmail.com";
+      const email = emailEl ? emailEl.value.trim() : "";
+      if (!email) {
+        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập email nhận mã OTP!";
+        return;
+      }
+      if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP về Gmail...";
       try {
         const res = await fetch("/api/auth3/forgot_password_send_otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, send_gmail: false }),
+          body: JSON.stringify({ email, send_gmail: true }),
         });
         const data = await res.json();
         if (data.ok) {
-          if (otpEl && data.demo_otp_preview) otpEl.value = data.demo_otp_preview;
           if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message}`;
+          setForgotStep(2);
         } else if (gateStatusBox) {
           gateStatusBox.textContent = `❌ ${data.error || "Không gửi được OTP."}`;
         }
-      } catch (_) {}
+      } catch (_) {
+        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối khi gửi OTP.";
+      }
     });
   }
 
@@ -1629,10 +1851,17 @@
       const otpEl = byId("gateForgotOtpInput");
       const pw1El = byId("gateForgotNewPassword");
       const pw2El = byId("gateForgotConfirmPassword");
-      const email = emailEl ? emailEl.value.trim() : "nep94121@gmail.com";
+      const email = emailEl ? emailEl.value.trim() : "";
       const otp = otpEl ? otpEl.value.trim() : "";
       const newPassword = pw1El ? pw1El.value : "";
       const confirmPassword = pw2El ? pw2El.value : "";
+
+      if (!email || !otp || !newPassword || !confirmPassword) {
+        if (gateStatusBox) {
+          gateStatusBox.textContent = "❌ Vui lòng điền đầy đủ Email, OTP và 2 ô Mật khẩu mới!";
+        }
+        return;
+      }
 
       if (newPassword !== confirmPassword) {
         if (gateStatusBox) {
@@ -1660,7 +1889,9 @@
         } else if (gateStatusBox) {
           gateStatusBox.textContent = `❌ ${data.error || "Không đặt lại được mật khẩu."}`;
         }
-      } catch (_) {}
+      } catch (_) {
+        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
+      }
     });
   }
 
@@ -1673,10 +1904,12 @@
       applyLoggedInUserBanner(user);
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
     } else {
+      clearAuthState();
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
       openLoginGateModal();
     }
   } catch (_) {
+    clearAuthState();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
     openLoginGateModal();
   }
@@ -1948,6 +2181,9 @@
   window.openMicPermissionModal = showMicPermissionModal;
   window.closeMicPermissionModal = closeMicPermissionModal;
   window.retryMicPermission = retryMicPermission;
+  window.applyLoggedInUserBanner = applyLoggedInUserBanner;
+  window.clearAuthState = clearAuthState;
+  window.setForgotStep = setForgotStep;
 
   loadVoiceSamples();
   pollRestStateFallback();

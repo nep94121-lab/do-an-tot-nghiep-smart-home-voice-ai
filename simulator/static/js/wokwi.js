@@ -80,8 +80,30 @@
       svg.innerHTML = html;
     }
 
+    let liveTelemetryString = 'Nhiệt độ: 28.5°C · Độ ẩm: 65% · Độ ẩm đất: 62%';
+    let isHoleHovered = false;
+
+    function updateLiveTelemetryHeader(temp, hum, soil) {
+      const t = temp !== undefined ? Number(temp).toFixed(1) : '28.5';
+      const h = hum !== undefined ? Number(hum).toFixed(0) : '65';
+      const s = soil !== undefined ? Number(soil).toFixed(0) : '62';
+      liveTelemetryString = `Nhiệt độ: ${t}°C · Độ ẩm: ${h}% · Độ ẩm đất: ${s}%`;
+      const el = document.getElementById('hoverHoleInfo');
+      if (el && !isHoleHovered) {
+        el.textContent = liveTelemetryString;
+      }
+    }
+
     function showHole(id, desc) {
-      document.getElementById('hoverHoleInfo').textContent = `Đang trỏ vào: [${id.toUpperCase()}] — ${desc}`;
+      isHoleHovered = true;
+      const el = document.getElementById('hoverHoleInfo');
+      if (el) el.textContent = `Đang trỏ vào: [${id.toUpperCase()}] — ${desc}`;
+    }
+
+    function clearHoleHover() {
+      isHoleHovered = false;
+      const el = document.getElementById('hoverHoleInfo');
+      if (el) el.textContent = liveTelemetryString;
     }
 
     // =========================================================================
@@ -503,11 +525,16 @@
       // 6. Telemetry từ snap.mqtt hoặc snap.mqtt_hardware
       const dht = (snap.mqtt && snap.mqtt.dht11_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
       const soil = (snap.mqtt && snap.mqtt.soil_moisture_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
+      let curT = 28.5;
+      let curH = 65;
+      let curS = 62;
       if (dht && dht.temp_c !== undefined) {
         const rawT = Number(dht.temp_c);
         const safeT = Number.isFinite(rawT) ? Math.max(0, Math.min(60, rawT)) : 28.5;
         const rawH = Number(dht.humidity_pct);
         const hum = Number.isFinite(rawH) ? Math.max(0, Math.min(100, rawH)) : 65;
+        curT = safeT;
+        curH = hum;
         const lblDht = document.getElementById('lblDht');
         if (lblDht) lblDht.textContent = `${safeT.toFixed(1)}°C | ${hum.toFixed(0)}%`;
         const mainTemp = document.getElementById('mainTempValue');
@@ -521,6 +548,7 @@
       if (soil && soil.soil_moisture_pct !== undefined) {
         const rawS = Number(soil.soil_moisture_pct);
         const sPct = Number.isFinite(rawS) ? Math.max(0, Math.min(100, rawS)) : 62;
+        curS = sPct;
         const adc = Math.round(1024 - (sPct / 100) * 724);
         const lblSoil = document.getElementById('lblSoil');
         if (lblSoil) lblSoil.textContent = `${sPct.toFixed(0)}% (ADC: ${adc})`;
@@ -531,6 +559,7 @@
         const doLed = document.getElementById('lm393_do_led');
         if (doLed) doLed.setAttribute('fill', sPct < 40 ? '#ef4444' : '#450a0a');
       }
+      updateLiveTelemetryHeader(curT, curH, curS);
     }
 
     async function toggleWokwiServerMode() {
@@ -788,6 +817,8 @@
 // Window exports for inline event handlers
 window.buildBreadboard400 = buildBreadboard400;
 window.showHole = showHole;
+window.clearHoleHover = clearHoleHover;
+window.updateLiveTelemetryHeader = updateLiveTelemetryHeader;
 window.buildNodeMCUPins = buildNodeMCUPins;
 window.getElementPinXY = getElementPinXY;
 window.drawWires = drawWires;

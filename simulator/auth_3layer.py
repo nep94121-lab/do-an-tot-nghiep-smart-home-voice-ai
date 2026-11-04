@@ -183,7 +183,7 @@ class ThreeLayerAuthManager(
         payload = json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n"
         for _ in range(3):
             try:
-                ACCOUNTS_FILE.write_text(payload, encoding="utf-8")
+                ACCOUNTS_FILE.write_bytes(payload.encode("utf-8"))
                 return
             except OSError:
                 time.sleep(0.01)
@@ -192,7 +192,7 @@ class ThreeLayerAuthManager(
         payload = json.dumps(self.family_email_allowlist, ensure_ascii=False, indent=2) + "\n"
         for _ in range(3):
             try:
-                FAMILY_ALLOWLIST_FILE.write_text(payload, encoding="utf-8")
+                FAMILY_ALLOWLIST_FILE.write_bytes(payload.encode("utf-8"))
                 return
             except OSError:
                 time.sleep(0.01)
@@ -201,7 +201,7 @@ class ThreeLayerAuthManager(
         payload = json.dumps(self.invite_links, ensure_ascii=False, indent=2) + "\n"
         for _ in range(3):
             try:
-                INVITE_LINKS_FILE.write_text(payload, encoding="utf-8")
+                INVITE_LINKS_FILE.write_bytes(payload.encode("utf-8"))
                 return
             except OSError:
                 time.sleep(0.01)
@@ -230,10 +230,8 @@ class ThreeLayerAuthManager(
         self.verification_logs.insert(0, item)
         self.verification_logs = self.verification_logs[:120]
         try:
-            AUTH_EVENTS_FILE.write_text(
-                json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
+            payload = json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n"
+            AUTH_EVENTS_FILE.write_bytes(payload.encode("utf-8"))
         except Exception:
             pass
         return item
@@ -352,7 +350,7 @@ class ThreeLayerAuthManager(
                 return {
                     "ok": False,
                     "layer": 1,
-                    "error": f"Sai mật khẩu cho tài khoản {acc['email']}! (Mật khẩu gợi ý: {acc['password_plain_hint']})",
+                    "error": f"Sai mật khẩu cho tài khoản {acc['email']}!",
                 }
 
         if not acc.get("permission_active", True):

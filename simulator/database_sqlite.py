@@ -160,12 +160,13 @@ def init_sqlite_database() -> None:
     """Khởi tạo cấu trúc 8 bảng SQL chuẩn 3NF + Indexes và nạp dữ liệu ban đầu nếu bảng rỗng."""
     global _SCHEMA_INITIALIZED, _WAL_ANCHOR_CONN
     with _DB_LOCK:
-        if _SCHEMA_INITIALIZED and _WAL_ANCHOR_CONN is not None and SQLITE_DB_PATH.exists():
+        if _SCHEMA_INITIALIZED and SQLITE_DB_PATH.exists():
             return
         conn = get_connection()
         conn.executescript(DDL_SCHEMA_SQL)
         conn.commit()
-        _WAL_ANCHOR_CONN = conn
+        conn.close()
+        _WAL_ANCHOR_CONN = None
         _SCHEMA_INITIALIZED = True
 
 

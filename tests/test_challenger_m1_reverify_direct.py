@@ -151,7 +151,7 @@ class TestScenario3HomeownerDemotionInvariant:
             assert vm.profiles["owner_voice_1"]["role"] == "ADMIN"
         finally:
             vm.profiles = orig_profiles
-            VOICEPRINT_FILE.write_text(json.dumps(orig_profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes((json.dumps(orig_profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
     def test_demote_tuan_anh_to_tier3_rejected(self, vm: VoiceAuthManager) -> None:
         owner_pcm = load_wav("mo_cua_chinh.wav")
@@ -171,7 +171,7 @@ class TestScenario3HomeownerDemotionInvariant:
             assert vm.profiles["owner_voice_1"]["role"] == "ADMIN"
         finally:
             vm.profiles = orig_profiles
-            VOICEPRINT_FILE.write_text(json.dumps(orig_profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes((json.dumps(orig_profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
     def test_demote_by_custom_label_owner_voice_1_rejected(self, vm: VoiceAuthManager) -> None:
         owner_pcm = load_wav("mo_cua_chinh.wav")
@@ -190,7 +190,7 @@ class TestScenario3HomeownerDemotionInvariant:
             assert vm.profiles["owner_voice_1"]["tier"] == 1
         finally:
             vm.profiles = orig_profiles
-            VOICEPRINT_FILE.write_text(json.dumps(orig_profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes((json.dumps(orig_profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
 
 # ==============================================================================

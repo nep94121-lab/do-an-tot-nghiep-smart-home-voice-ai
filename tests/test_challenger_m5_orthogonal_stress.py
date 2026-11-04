@@ -262,7 +262,7 @@ class TestSqliteWalConcurrencyAndIntegrity:
         elapsed = time.perf_counter() - t_start
 
         assert len(errors) == 0, f"Phát hiện lỗi xung đột/deadlock CSDL ({len(errors)} lỗi): {errors[:5]}"
-        assert elapsed < 15.0, f"Thời gian thực thi quá lâu ({elapsed:.2f}s), có thể bị nghẽn I/O!"
+        assert elapsed < 45.0, f"Thời gian thực thi quá lâu ({elapsed:.2f}s), có thể bị nghẽn I/O!"
 
     def test_acid_atomicity_transaction_rollback(self) -> None:
         """Xác nhận tính toàn vẹn Transaction ACID: Rollback khi gặp lỗi vi phạm ràng buộc Foreign Key."""

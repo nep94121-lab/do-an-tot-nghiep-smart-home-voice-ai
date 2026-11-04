@@ -473,5 +473,5 @@ def ensure_factory_file() -> dict[str, Any]:
         "aliases": {},
         "if_else_rules": [],
     }
-    FACTORY_FILE.write_text(json.dumps(factory_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    FACTORY_FILE.write_bytes((json.dumps(factory_data, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return factory_data

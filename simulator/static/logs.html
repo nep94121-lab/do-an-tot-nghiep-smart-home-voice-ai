@@ -123,6 +123,13 @@
         </div>
 
         <div id="mobileLogCards" class="mobile-log-cards"></div>
+
+        <div class="logs-pagination-bar" id="logsPaginationBar" style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding:12px; background:var(--card-bg, #fff); border:1px solid var(--line, #e2e8f0); border-radius:12px; flex-wrap:wrap; gap:10px;">
+          <div id="logsPaginationInfo" style="font-size:13px; color:var(--muted, #64748b);">Hiển thị 0 / 0 sự kiện</div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-sm secondary" id="btnLogsLoadMore" onclick="loadMoreLogs()">Xem thêm sự kiện</button>
+          </div>
+        </div>
       </section>
 
       <!-- CHI TIẾT KỸ THUẬT MẶC ĐỊNH THU GỌN (CHỈ ADMIN) -->

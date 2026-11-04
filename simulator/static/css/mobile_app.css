@@ -438,6 +438,12 @@
 .tab-view[hidden] {
   display: none !important;
 }
+#tabViewAccount {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+}
+#mobileBtnLogout {
+  margin-bottom: calc(24px + env(safe-area-inset-bottom));
+}
 
 /* M1: TOÀN CẢNH 16:9 PREVIEW */
 .overview-box.preview-16-9 {
@@ -456,6 +462,13 @@
   margin-bottom: 12px;
   position: relative;
   overflow: hidden;
+}
+.overview-box.preview-16-9 canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  object-fit: cover;
+  border-radius: 12px;
 }
 
 /* M1: CẢM BIẾN 2 Ô GRID */

@@ -140,17 +140,17 @@ class SmartHomeMQTTBridge:
                 pass
         default_db = json.loads(json.dumps(DEFAULT_IR_DEVICES))
         try:
-            IR_DB_FILE.write_text(json.dumps(default_db, ensure_ascii=False, indent=2), encoding="utf-8")
+            IR_DB_FILE.write_bytes((json.dumps(default_db, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         except OSError:
             pass
         return default_db
 
     def _save_ir_db_write_through(self) -> None:
         """Write-Through Cache: Cập nhật RAM đồng thời ghi xuyên suốt xuống đĩa."""
-        payload = json.dumps(self.ir_devices, ensure_ascii=False, indent=2)
+        payload = json.dumps(self.ir_devices, ensure_ascii=False, indent=2) + "\n"
         for _ in range(3):
             try:
-                IR_DB_FILE.write_text(payload, encoding="utf-8")
+                IR_DB_FILE.write_bytes(payload.encode("utf-8"))
                 return
             except OSError:
                 time.sleep(0.01)
@@ -328,7 +328,7 @@ class SmartHomeMQTTBridge:
             ],
             "device_min_tiers": system_policies.get("device_min_tiers", {}),
         }
-        EDGE_REPLICA_FILE.write_text(json.dumps(replica_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        EDGE_REPLICA_FILE.write_bytes((json.dumps(replica_payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         self.esp8266_status["flash_synced"] = True
         self.esp8266_status["last_seen"] = time.time()
         return await self.publish(

@@ -17,9 +17,121 @@
       return { label: 'Thành công', cls: '' };
     }
 
+    let currentPage = 1;
+    const pageSize = 20;
+
+    function maskSensitiveLogText(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/(Mật khẩu gợi ý:\s*)([^\s\)]+)/gi, '$1******')
+        .replace(/(Gợi ý mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
+        .replace(/(Mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
+        .replace(/((?:password|password_plain_hint|mat_khau|mk)["']?\s*[:=]\s*["'])([^"']+)(["'])/gi, '$1******$3');
+    }
+
     function toggleLogDetailRow(idx) {
       const row = document.getElementById(`log-detail-${idx}`);
       if (row) row.classList.toggle('open');
+    }
+
+    function getFilteredLogs() {
+      const dateRange = document.getElementById('logDateRange')?.value || 'all';
+      if (dateRange === 'all') return lastLoadedLogs;
+      const now = new Date();
+      return lastLoadedLogs.filter(item => {
+        if (!item.time) return true;
+        const timeStr = String(item.time).replace(' ', 'T');
+        const d = new Date(timeStr);
+        if (isNaN(d.getTime())) return true;
+        if (dateRange === 'today') {
+          return d.toDateString() === now.toDateString();
+        } else if (dateRange === '7d') {
+          const diffMs = now.getTime() - d.getTime();
+          return diffMs <= 7 * 24 * 3600 * 1000 && diffMs >= 0;
+        }
+        return true;
+      });
+    }
+
+    function renderLogsPage() {
+      const logTbody = document.getElementById('auditLogsTbody');
+      const mobileCards = document.getElementById('mobileLogCards');
+      if (!logTbody || !mobileCards) return;
+
+      logTbody.innerHTML = '';
+      mobileCards.innerHTML = '';
+
+      const filtered = getFilteredLogs();
+      const total = filtered.length;
+      const visibleCount = Math.min(currentPage * pageSize, total);
+      const visibleLogs = filtered.slice(0, visibleCount);
+
+      const infoEl = document.getElementById('logsPaginationInfo');
+      if (infoEl) {
+        infoEl.textContent = `Hiển thị ${visibleLogs.length} / ${total} sự kiện`;
+      }
+
+      const btnMore = document.getElementById('btnLogsLoadMore');
+      if (btnMore) {
+        if (visibleLogs.length >= total) {
+          btnMore.disabled = true;
+          btnMore.textContent = 'Đã hiển thị tất cả';
+          btnMore.style.opacity = '0.5';
+        } else {
+          btnMore.disabled = false;
+          btnMore.textContent = `Xem thêm sự kiện (${total - visibleLogs.length} còn lại)`;
+          btnMore.style.opacity = '1';
+        }
+      }
+
+      if (visibleLogs.length === 0) {
+        logTbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);">Chưa có sự kiện</td></tr>';
+        mobileCards.innerHTML = '<div style="color:var(--muted);">Chưa có sự kiện</div>';
+      } else {
+        visibleLogs.forEach((item, idx) => {
+          const status = deriveResultStatus(item);
+          const evText = maskSensitiveLogText(item.event || 'Sự kiện');
+          const detText = maskSensitiveLogText(item.detail || 'Không có mô tả bổ sung.');
+          const tr = document.createElement('tr');
+          tr.className = 'log-row';
+          tr.onclick = () => toggleLogDetailRow(idx);
+          tr.innerHTML = `
+            <td>${item.time || '—'}</td>
+            <td style="font-weight:500;">${evText}</td>
+            <td>${item.actor || 'Hệ thống'}</td>
+            <td><span class="result-text ${status.cls}">${status.label}</span></td>
+          `;
+          const detailTr = document.createElement('tr');
+          detailTr.className = 'log-detail-row';
+          detailTr.id = `log-detail-${idx}`;
+          detailTr.innerHTML = `
+            <td colspan="4">
+              <div>${detText}</div>
+            </td>
+          `;
+          logTbody.appendChild(tr);
+          logTbody.appendChild(detailTr);
+
+          const mCard = document.createElement('div');
+          mCard.className = 'mobile-log-card';
+          mCard.innerHTML = `
+            <div class="mobile-log-line1">
+              <span>${evText}</span>
+              <span class="result-text ${status.cls}">${status.label}</span>
+            </div>
+            <div class="mobile-log-line2">
+              <span>${item.actor || 'Hệ thống'}</span>
+              <span>${item.time || '—'}</span>
+            </div>
+          `;
+          mobileCards.appendChild(mCard);
+        });
+      }
+    }
+
+    function loadMoreLogs() {
+      currentPage++;
+      renderLogsPage();
     }
 
     async function loadDashboard() {
@@ -74,52 +186,9 @@
         });
       }
 
-      const logTbody = document.getElementById('auditLogsTbody');
-      const mobileCards = document.getElementById('mobileLogCards');
-      logTbody.innerHTML = '';
-      mobileCards.innerHTML = '';
       lastLoadedLogs = data.audit_logs || [];
-      if (lastLoadedLogs.length === 0) {
-        logTbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);">Chưa có sự kiện</td></tr>';
-        mobileCards.innerHTML = '<div style="color:var(--muted);">Chưa có sự kiện</div>';
-      } else {
-        lastLoadedLogs.forEach((item, idx) => {
-          const status = deriveResultStatus(item);
-          const tr = document.createElement('tr');
-          tr.className = 'log-row';
-          tr.onclick = () => toggleLogDetailRow(idx);
-          tr.innerHTML = `
-            <td>${item.time || '—'}</td>
-            <td style="font-weight:500;">${item.event || 'Sự kiện'}</td>
-            <td>${item.actor || 'Hệ thống'}</td>
-            <td><span class="result-text ${status.cls}">${status.label}</span></td>
-          `;
-          const detailTr = document.createElement('tr');
-          detailTr.className = 'log-detail-row';
-          detailTr.id = `log-detail-${idx}`;
-          detailTr.innerHTML = `
-            <td colspan="4">
-              <div>${item.detail || 'Không có mô tả bổ sung.'}</div>
-            </td>
-          `;
-          logTbody.appendChild(tr);
-          logTbody.appendChild(detailTr);
-
-          const mCard = document.createElement('div');
-          mCard.className = 'mobile-log-card';
-          mCard.innerHTML = `
-            <div class="mobile-log-line1">
-              <span>${item.event || 'Sự kiện'}</span>
-              <span class="result-text ${status.cls}">${status.label}</span>
-            </div>
-            <div class="mobile-log-line2">
-              <span>${item.actor || 'Hệ thống'}</span>
-              <span>${item.time || '—'}</span>
-            </div>
-          `;
-          mobileCards.appendChild(mCard);
-        });
-      }
+      currentPage = 1;
+      renderLogsPage();
 
       const poolsDiv = document.getElementById('poolsContainer');
       poolsDiv.innerHTML = '';
@@ -295,6 +364,13 @@
           }, 250);
         });
       }
+      const dateRangeSelect = document.getElementById('logDateRange');
+      if (dateRangeSelect) {
+        dateRangeSelect.addEventListener('change', () => {
+          currentPage = 1;
+          renderLogsPage();
+        });
+      }
       loadDashboard();
       executeCustomSql();
     });
@@ -312,3 +388,6 @@ window.exportLogsCsv = exportLogsCsv;
 window.setLogCategoryFilter = setLogCategoryFilter;
 window.setSqlQuery = setSqlQuery;
 window.executeCustomSql = executeCustomSql;
+window.renderLogsPage = renderLogsPage;
+window.loadMoreLogs = loadMoreLogs;
+window.getFilteredLogs = getFilteredLogs;

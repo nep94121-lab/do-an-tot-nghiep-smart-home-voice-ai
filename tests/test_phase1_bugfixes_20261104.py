@@ -54,6 +54,7 @@ def reset_rest_engine_session():
     eng.pump_manual_override_off = False
     if hasattr(eng, "mqtt_bridge") and hasattr(eng.mqtt_bridge, "soil_moisture_telemetry"):
         eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] = 62.0
+    api_deps._ACTIVE_BRIDGES.clear()
     yield
     eng = _eng()
     eng.set_active_user("tuan_anh")
@@ -68,6 +69,7 @@ def reset_rest_engine_session():
     eng.pump_manual_override_off = False
     if hasattr(eng, "mqtt_bridge") and hasattr(eng.mqtt_bridge, "soil_moisture_telemetry"):
         eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] = 62.0
+    api_deps._ACTIVE_BRIDGES.clear()
 
 
 @pytest.fixture

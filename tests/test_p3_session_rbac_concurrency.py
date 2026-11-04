@@ -40,12 +40,14 @@ def client() -> TestClient:
 def clean_sessions_and_reset_devices():
     """Đảm bảo các thiết bị về trạng thái an toàn trước mỗi bài test."""
     eng = routes_devices._REST_ENGINE
+    eng._explicit_test_user_set = False
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"
     eng.devices["ac"]["state"] = "OFF"
     eng.pump_manual_override_off = False
     yield
+    eng._explicit_test_user_set = False
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"

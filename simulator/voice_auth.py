@@ -413,7 +413,7 @@ class VoiceAuthManager:
                 v["baseline_deep_embedding"] = data[k]["deep_embedding"]
                 v["baseline_embedding_256d"] = data[k]["embedding_256d"]
             data[k] = v
-        VOICEPRINT_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        VOICEPRINT_FILE.write_bytes((json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         return data
 
     @staticmethod
@@ -526,7 +526,7 @@ class VoiceAuthManager:
             new_prof["expires_at"] = float(expires_at)
 
         self.profiles[prof_key] = new_prof
-        VOICEPRINT_FILE.write_text(json.dumps(self.profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+        VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         self.unauthorized_strikes = 0
         return {
             "ok": True,
@@ -597,7 +597,7 @@ class VoiceAuthManager:
                 owner_prof["authorized"] = True
                 owner_prof["tier"] = 1
                 owner_prof["role"] = "ADMIN"
-                VOICEPRINT_FILE.write_text(json.dumps(self.profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+                VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
                 return owner_prof
 
         # 2. CỔNG CHỐNG TRÙNG GIỌNG TRONG NHÀ (Duplicate Voiceprint Reject Gate)
@@ -632,7 +632,7 @@ class VoiceAuthManager:
             "embedding_256d": embedding_256d or ([0.0] * 256),
             "custom_enrolled": True,
         }
-        VOICEPRINT_FILE.write_text(json.dumps(self.profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+        VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         self.unauthorized_strikes = 0
         self.last_analysis = {
             "speaker_id": prof_id,
@@ -1285,7 +1285,7 @@ class VoiceAuthManager:
                 "owner_voice_1": owner_prof,
                 "intruder_voice_2": intruder_prof,
             }
-            VOICEPRINT_FILE.write_text(json.dumps(self.profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
         self.unauthorized_strikes = 0
         self.last_analysis = {
@@ -1350,7 +1350,9 @@ class VoiceAuthManager:
                     except RuntimeError:
                         loop = None
                     if loop and loop.is_running():
-                        act_res = {"ok": True, "pending_coroutine": True}
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            act_res = pool.submit(asyncio.run, call_out).result()
                     else:
                         act_res = asyncio.run(call_out)
                 else:

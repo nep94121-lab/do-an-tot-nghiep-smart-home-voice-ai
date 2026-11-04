@@ -118,7 +118,7 @@ def ensure_kb_file() -> list[dict[str, str]]:
         except Exception:
             pass
     payload = {"version": KB_VERSION, "items": DEFAULT_KNOWLEDGE_ITEMS}
-    KB_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    KB_FILE.write_bytes((json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return list(DEFAULT_KNOWLEDGE_ITEMS)
 
 
@@ -161,18 +161,20 @@ class SmartHomeKnowledgeRAG:
             for it, emb in zip(self.items, resp.embeddings):
                 vecs[it["id"]] = list(emb.values)
             self.embeddings = vecs
-            CACHE_FILE.write_text(
-                json.dumps(
-                    {
-                        "version": KB_VERSION,
-                        "model": EMBED_MODEL,
-                        "dimension": len(next(iter(vecs.values()), [])),
-                        "signatures": sig,
-                        "vectors": vecs,
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
+            CACHE_FILE.write_bytes(
+                (
+                    json.dumps(
+                        {
+                            "version": KB_VERSION,
+                            "model": EMBED_MODEL,
+                            "dimension": len(next(iter(vecs.values()), [])),
+                            "signatures": sig,
+                            "vectors": vecs,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                ).encode("utf-8")
             )
         except Exception:
             pass
@@ -305,9 +307,8 @@ class SmartHomeKnowledgeRAG:
             self.items.append(new_item)
 
         try:
-            KB_FILE.write_text(
-                json.dumps({"version": KB_VERSION, "items": self.items}, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+            KB_FILE.write_bytes(
+                (json.dumps({"version": KB_VERSION, "items": self.items}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
             )
         except Exception:
             pass
@@ -332,6 +333,6 @@ class SmartHomeKnowledgeRAG:
 
     def reset_custom_knowledge(self) -> None:
         payload = {"version": KB_VERSION, "items": DEFAULT_KNOWLEDGE_ITEMS}
-        KB_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        KB_FILE.write_bytes((json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         self.items = [dict(x) for x in DEFAULT_KNOWLEDGE_ITEMS]
         self._load_or_build_embeddings()

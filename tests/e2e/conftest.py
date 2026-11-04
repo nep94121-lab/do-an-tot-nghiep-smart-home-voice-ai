@@ -100,7 +100,7 @@ def voice_auth_mgr() -> Generator[VoiceAuthManager, None, None]:
         if "user_voice_khach_c" in vm.profiles:
             del vm.profiles["user_voice_khach_c"]
         if orig_voiceprints is not None:
-            VOICEPRINT_FILE.write_text(orig_voiceprints, encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes(orig_voiceprints.encode("utf-8"))
 
 
 @pytest.fixture

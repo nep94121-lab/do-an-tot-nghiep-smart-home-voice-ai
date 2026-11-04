@@ -127,7 +127,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             except Exception:
                 pass
         default_ov = self._default_overlay()
-        OVERLAY_FILE.write_text(json.dumps(default_ov, ensure_ascii=False, indent=2), encoding="utf-8")
+        OVERLAY_FILE.write_bytes((json.dumps(default_ov, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         return default_ov
 
     def _get_user_pool(self, user_id: str | None = None) -> dict[str, Any]:
@@ -146,7 +146,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.overlay_rules["aliases"] = dict(t1_pool.get("aliases", {}))
         self.overlay_rules["if_else_rules"] = list(t1_pool.get("if_else_rules", []))
         self.overlay_rules["users"] = self.users
-        OVERLAY_FILE.write_text(json.dumps(self.overlay_rules, ensure_ascii=False, indent=2), encoding="utf-8")
+        OVERLAY_FILE.write_bytes((json.dumps(self.overlay_rules, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         try:
             sync_engine_state_to_sqlite(self)
         except Exception:

@@ -46,12 +46,12 @@
       <form id="mobileLoginForm" class="login-form" onsubmit="submitMobileLogin(event)">
         <div>
           <label class="muted" for="mobileLoginEmail" style="display:block;margin-bottom:4px;">Email</label>
-          <input type="email" id="mobileLoginEmail" placeholder="Nhập email" value="nep94121@gmail.com" required />
+          <input type="email" id="mobileLoginEmail" placeholder="Nhập email" value="" required />
         </div>
         <div>
           <label class="muted" for="mobileLoginPassword" style="display:block;margin-bottom:4px;">Mật khẩu</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="mobileLoginPassword" placeholder="Nhập mật khẩu" value="123456" required style="width:100%; padding-right:38px;" />
+            <input type="password" id="mobileLoginPassword" placeholder="Nhập mật khẩu" value="" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
@@ -74,23 +74,23 @@
         </div>
         <div>
           <label class="muted" for="mobileRegName" style="display:block;margin-bottom:4px;">Họ và tên</label>
-          <input type="text" id="mobileRegName" placeholder="Nhập họ và tên" value="Nguyễn Tuấn Anh" required />
+          <input type="text" id="mobileRegName" placeholder="Nhập họ và tên" value="" required />
         </div>
         <div>
           <label class="muted" for="mobileRegEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
-          <input type="email" id="mobileRegEmail" placeholder="Nhập email" value="nep94121@gmail.com" required />
+          <input type="email" id="mobileRegEmail" placeholder="Nhập email" value="" required />
         </div>
         <div>
           <label class="muted" for="mobileRegPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="mobileRegPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+            <input type="password" id="mobileRegPassword" placeholder="Nhập mật khẩu mới" value="" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
         <div>
           <label class="muted" for="mobileRegConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="mobileRegConfirmPassword" placeholder="Nhập lại mật khẩu để xác nhận" value="123456" required style="width:100%; padding-right:38px;" />
+            <input type="password" id="mobileRegConfirmPassword" placeholder="Nhập lại mật khẩu để xác nhận" value="" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
@@ -113,7 +113,7 @@
         <div id="mobileForgotStepEmail" class="login-form">
           <div>
             <label class="muted" for="mobileForgotEmail" style="display:block;margin-bottom:4px;">Email</label>
-            <input type="email" id="mobileForgotEmail" placeholder="Nhập email tài khoản" value="nep94121@gmail.com" required />
+            <input type="email" id="mobileForgotEmail" placeholder="Nhập email tài khoản" value="" required />
           </div>
           <div id="mobileForgotEmailMsg" class="muted" style="min-height:18px;"></div>
           <button type="button" class="btn primary" id="mobileBtnForgotSendOtp" onclick="submitForgotSendOtp()">Gửi mã OTP</button>
@@ -122,7 +122,7 @@
 
         <!-- BƯỚC 2: OTP (6 SỐ) -->
         <div id="mobileForgotStepOtp" class="login-form" style="display:none;">
-          <p class="muted" style="font-size:12px;margin:0 0 8px;">Đã gửi tới <strong id="mobileForgotEmailSentText">nep94121@gmail.com</strong></p>
+          <p class="muted" style="font-size:12px;margin:0 0 8px;">Đã gửi mã xác thực tới Gmail</p>
           <div>
             <label class="muted" for="mobileForgotOtp" style="display:block;margin-bottom:4px;">Mã xác nhận</label>
             <input class="field" id="mobileForgotOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="Nhập 6 chữ số" style="letter-spacing:4px;font-size:18px;text-align:center;font-weight:600;" />
@@ -139,14 +139,14 @@
           <div>
             <label class="muted" for="mobileForgotNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
             <div style="position:relative; display:flex; align-items:center;">
-              <input type="password" id="mobileForgotNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+              <input type="password" id="mobileForgotNewPassword" placeholder="Nhập mật khẩu mới" value="" required style="width:100%; padding-right:38px;" />
               <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
             </div>
           </div>
           <div>
             <label class="muted" for="mobileForgotConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận mật khẩu (Ô 2 — phải khớp 100%)</label>
             <div style="position:relative; display:flex; align-items:center;">
-              <input type="password" id="mobileForgotConfirmPassword" placeholder="Nhập lại mật khẩu" value="123456" required style="width:100%; padding-right:38px;" />
+              <input type="password" id="mobileForgotConfirmPassword" placeholder="Nhập lại mật khẩu" value="" required style="width:100%; padding-right:38px;" />
               <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
             </div>
           </div>
@@ -252,7 +252,7 @@
       <section class="card" id="secDevices" aria-labelledby="devices-title">
         <div class="card-head">
           <h2 id="devices-title">Danh sách thiết bị</h2>
-          <button type="button" class="text-link" id="btnToggleShowAllDevices" onclick="toggleShowAllDevices()">Xem tất cả</button>
+          <button type="button" class="text-link" id="btnToggleShowAllDevices" onclick="toggleShowAllDevices()">Thu gọn</button>
         </div>
         <div class="filter-pills" id="roomFilterPills">
           <button type="button" class="pill active" onclick="filterDevicesByRoom('all', this)">Tất cả</button>
@@ -388,7 +388,6 @@
           <span>›</span>
         </div>
       </section>
-      <p class="muted" style="font-size:12px;margin:12px 0;">Mỗi tab mở một màn riêng, không cuộn tới mục khác.</p>
 
       <!-- CHI TIẾT TÀI KHOẢN HIỆN HỮU ĐỂ BẢO TOÀN 100% DOM IDS & TÍNH NĂNG -->
       <!-- MỤC 1: GIỌNG NÓI CỦA TÔI -->
@@ -540,19 +539,19 @@
           <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;">
             <div>
               <label class="muted" for="mobileChangeEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
-              <input type="email" id="mobileChangeEmail" value="nep94121@gmail.com" required />
+              <input type="email" id="mobileChangeEmail" value="" placeholder="Nhập email" required />
             </div>
             <div>
               <label class="muted" for="mobileChangeNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
               <div style="position:relative; display:flex; align-items:center;">
-                <input type="password" id="mobileChangeNewPassword" placeholder="Nhập mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+                <input type="password" id="mobileChangeNewPassword" placeholder="Nhập mật khẩu mới" value="" required style="width:100%; padding-right:38px;" />
                 <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
               </div>
             </div>
             <div>
               <label class="muted" for="mobileChangeConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2 — phải khớp 100%)</label>
               <div style="position:relative; display:flex; align-items:center;">
-                <input type="password" id="mobileChangeConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="123456" required style="width:100%; padding-right:38px;" />
+                <input type="password" id="mobileChangeConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="" required style="width:100%; padding-right:38px;" />
                 <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileChangeConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
               </div>
             </div>
@@ -594,7 +593,7 @@
   <section id="mobileVoiceBottomSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="mobileVoiceSheetTitle" hidden>
     <div class="handle"></div>
     <div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h2 id="mobileVoiceSheetTitle" style="margin:0;font-size:18px;">Đang thu âm</h2>
+      <h2 id="mobileVoiceSheetTitle" style="margin:0;font-size:18px;">Đang chờ quyền mic</h2>
       <button type="button" class="tertiary" id="mobileBtnCloseVoiceSheet" aria-label="Đóng" onclick="closeVoiceBottomSheet()" style="padding:6px;min-width:40px">
         <svg class="icon"><use href="#i-close"/></svg>
       </button>
@@ -616,7 +615,7 @@
       <i style="height:34px"></i>
       <i style="height:16px"></i>
     </div>
-    <p class="timer" id="mobileVoiceTimer"><span id="mobileVoiceTimerCur">00:03</span> <span id="mobileVoiceTimerTotal">/ 00:05</span></p>
+    <p class="timer" id="mobileVoiceTimer"><span id="mobileVoiceTimerCur">00:00</span> <span id="mobileVoiceTimerTotal">/ 00:05</span></p>
     <p class="muted" style="text-align:center;font-size:13px;">Đọc câu mẫu để xác nhận giọng nói</p>
     <div class="phrase" id="mobileVoicePhrase">"Mở cửa chính cho tôi."</div>
     <div class="actions" id="mobileVoiceSheetActions" style="display:grid;gap:10px;margin-top:16px;">
@@ -661,8 +660,36 @@
         <p class="muted" id="mobileScannerStatus" style="text-align:center;font-size:12px;margin-top:14px;">Khi quét được mã: Đang kiểm tra mã…</p>
       </main>
     </div>
+  <!-- HỘP THOẠI QUYỀN MICROPHONE MOBILE -->
+  <div id="mobileMicPermissionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mobileMictitle" style="position:fixed;inset:0;z-index:9999;background:rgba(15,34,38,0.5);display:none;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-content mic-perm-content" style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:24px;box-shadow:0 12px 36px rgba(0,0,0,0.25);">
+      <div class="mark" style="width:48px;height:48px;border-radius:50%;background:#fee2e2;color:#ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:24px;height:24px;">
+          <path d="M9 5a3 3 0 0 1 6 0v6 M5 10a7 7 0 0 0 9 6 M12 17v5 M8 22h8 M3 3l18 18"/>
+        </svg>
+      </div>
+      <h1 id="mobileMictitle" style="font-size:20px;line-height:1.3;font-weight:600;margin:0 0 10px;color:var(--ink);">Chưa thể dùng micro</h1>
+      <p id="mobileMicPermissionDesc" class="muted" style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.5;">
+        Bạn đã chặn quyền micro. Mở cài đặt trang trong trình duyệt, chọn Micro → Cho phép, rồi thử lại.
+      </p>
+      <div id="mobileMicPermissionHttpNote" class="note" style="background:#fafcfc;border:1px solid var(--line);border-radius:12px;padding:12px;margin:14px 0;font-size:12px;">
+        <strong>Nếu đang dùng địa chỉ HTTP</strong>
+        <p style="margin:4px 0 0;color:var(--muted);">Trình duyệt cần kết nối an toàn để dùng micro. Mở ứng dụng qua HTTPS.</p>
+      </div>
+      <div class="actions" style="display:grid;gap:10px;margin-top:16px;">
+        <button type="button" id="mobileBtnMicPermissionRetry" onclick="window.retryVoiceRecording ? window.retryVoiceRecording() : window.openVoiceBottomSheet()" class="btn primary wide" style="min-height:44px;justify-content:center;">
+          Thử lại
+        </button>
+        <button type="button" id="mobileBtnMicPermissionClose" onclick="window.closeMobileMicPermissionModal ? window.closeMobileMicPermissionModal() : (document.getElementById('mobileMicPermissionModal').style.display='none')" class="btn secondary wide" style="min-height:44px;justify-content:center;">
+          Đóng
+        </button>
+      </div>
+    </div>
   </div>
 
+  <script src="/static/vendor/three.min.js"></script>
+  <script src="/static/vendor/GLTFLoader.js"></script>
+  <script src="/static/house3d.js"></script>
   <script src="/static/js/mobile_app.js"></script>
 </body>
 </html>

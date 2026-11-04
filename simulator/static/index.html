@@ -52,6 +52,9 @@
           <span class="status" id="homeCurrentAccountBadge" title="Tài khoản đang đăng nhập">
             👑 Chủ nhà · nep94121@gmail.com
           </span>
+          <span class="status" id="homeSessionDurationBadge" title="Thời hạn truy cập còn lại" style="display:none;" hidden>
+            Không giới hạn
+          </span>
           <button type="button" class="btn btn-secondary" id="btnLogoutHome" style="min-height:34px; padding:0 12px; font-size:12px;">
             Đăng nhập / Đổi TK
           </button>
@@ -126,6 +129,29 @@
             <div id="deviceGrid" class="device-list"></div>
             <div class="panel-foot">
               <a class="text-link" id="btnOpenFirstVoiceModal" href="/auth">Đăng ký giọng nói</a>
+            </div>
+          </section>
+
+          <section class="panel sensors" id="secSensors" aria-labelledby="sensors-title">
+            <div class="panel-head">
+              <h2 id="sensors-title">Cảm biến</h2>
+            </div>
+            <div class="sensor-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 12px 0;">
+              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
+                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Nhiệt độ</div>
+                <div class="sensor-meter-val" id="sensorTempVal" style="font-size: 20px; font-weight: 700; color: var(--text);">28.5°C</div>
+                <small class="muted" style="font-size: 11px;">Trong nhà</small>
+              </div>
+              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
+                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Độ ẩm</div>
+                <div class="sensor-meter-val" id="sensorHumVal" style="font-size: 20px; font-weight: 700; color: var(--text);">65%</div>
+                <small class="muted" style="font-size: 11px;">Không khí</small>
+              </div>
+              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
+                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Độ ẩm đất</div>
+                <div class="sensor-meter-val" id="sensorSoilVal" style="font-size: 20px; font-weight: 700; color: var(--text);">62%</div>
+                <small class="muted" style="font-size: 11px;">Sân vườn</small>
+              </div>
             </div>
           </section>
         </div>
@@ -252,7 +278,7 @@
       <div class="modal-header">
         <div>
           <h3>Đăng nhập · Nhà thông minh</h3>
-          <p class="subtle">Tài khoản chính Chủ nhà: nep94121@gmail.com (Mật khẩu mặc định: 123456)</p>
+          <p class="subtle">Tài khoản chính Chủ nhà: nep94121@gmail.com</p>
         </div>
         <button id="btnCloseLoginGateModal" type="button" class="btn-close" aria-label="Đóng" hidden>
           <svg class="icon"><use href="#i-x"/></svg>
@@ -269,12 +295,12 @@
       <form id="gatePanelLogin" style="display:grid; gap:10px;" onsubmit="event.preventDefault();">
         <div>
           <label for="gateLoginEmail" class="subtle" style="display:block; margin-bottom:4px;">Email đăng nhập</label>
-          <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="nep94121@gmail.com" placeholder="Nhập email (VD: nep94121@gmail.com)" />
+          <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="" placeholder="Nhập email (VD: nep94121@gmail.com)" />
         </div>
         <div>
           <label for="gateLoginPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu trong phần mềm</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu (mặc định: 123456)" />
+            <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
@@ -295,23 +321,23 @@
         </div>
         <div>
           <label for="gateRegName" class="subtle" style="display:block; margin-bottom:4px;">Họ và tên người dùng</label>
-          <input type="text" id="gateRegName" class="input-text" style="width:100%;" value="Nguyễn Tuấn Anh" placeholder="Nhập họ tên" />
+          <input type="text" id="gateRegName" class="input-text" style="width:100%;" value="" placeholder="Nhập họ tên" />
         </div>
         <div>
           <label for="gateRegEmail" class="subtle" style="display:block; margin-bottom:4px;">Email tài khoản</label>
-          <input type="email" id="gateRegEmail" class="input-text" style="width:100%;" value="nep94121@gmail.com" placeholder="Nhập email tài khoản" />
+          <input type="email" id="gateRegEmail" class="input-text" style="width:100%;" value="" placeholder="Nhập email tài khoản" />
         </div>
         <div>
           <label for="gateRegPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu" />
+            <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
         <div>
           <label for="gateRegConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập lại mật khẩu để xác nhận" />
+            <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập lại mật khẩu để xác nhận" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
@@ -320,40 +346,59 @@
         </button>
       </form>
 
-      <!-- TAB 3: QUÊN MẬT KHẨU (NHẬN MÃ OTP GMAIL -> ĐẶT LẠI 2 Ô MẬT KHẨU) -->
+      <!-- TAB 3: QUÊN MẬT KHẨU (NHẬN MÃ OTP GMAIL -> ĐẶT LẠI 2 Ô MẬT KHẨU - 3 BƯỚC) -->
       <form id="gatePanelForgot" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
-        <div>
-          <label for="gateForgotEmail" class="subtle" style="display:block; margin-bottom:4px;">Email nhận mã OTP khôi phục</label>
+        <!-- BƯỚC 1: NHẬP EMAIL -->
+        <div id="gateForgotStep1" style="display:grid; gap:10px;">
+          <div>
+            <label for="gateForgotEmail" class="subtle" style="display:block; margin-bottom:4px;">Bước 1/3: Email nhận mã OTP khôi phục</label>
+            <div style="display:flex; gap:6px;">
+              <input type="email" id="gateForgotEmail" class="input-text" style="flex:1;" value="" placeholder="Nhập email nhận OTP (VD: senat6031@gmail.com)" />
+              <button type="button" id="btnSendForgotOtp" class="btn btn-secondary">Gửi OTP</button>
+            </div>
+          </div>
+          <button type="button" id="btnGoForgotStep2" class="btn btn-secondary" style="width:100%; font-size:12px;">Đã có mã OTP ➔ Nhập OTP (Bước 2)</button>
+        </div>
+
+        <!-- BƯỚC 2: NHẬP MÃ OTP -->
+        <div id="gateForgotStep2" style="display:none; gap:10px;">
+          <div>
+            <label for="gateForgotOtpInput" class="subtle" style="display:block; margin-bottom:4px;">Bước 2/3: Mã OTP 6 số nhận qua Gmail</label>
+            <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" placeholder="Nhập mã OTP 6 số" />
+          </div>
           <div style="display:flex; gap:6px;">
-            <input type="email" id="gateForgotEmail" class="input-text" style="flex:1;" value="nep94121@gmail.com" placeholder="Nhập email nhận OTP" />
-            <button type="button" id="btnSendForgotOtp" class="btn btn-secondary">Gửi OTP</button>
+            <button type="button" id="btnBackForgotStep1" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 1</button>
+            <button type="button" id="btnGoForgotStep3" class="btn btn-primary" style="flex:1; font-size:12px;">Xác nhận OTP ➔ Bước 3</button>
           </div>
         </div>
-        <div>
-          <label for="gateForgotOtpInput" class="subtle" style="display:block; margin-bottom:4px;">Mã OTP 6 số nhận qua Gmail</label>
-          <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" placeholder="Nhập mã OTP 6 số" />
-        </div>
-        <div>
-          <label for="gateForgotNewPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
-          <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateForgotNewPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập mật khẩu mới" />
-            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+
+        <!-- BƯỚC 3: ĐẶT 2 Ô MẬT KHẨU MỚI -->
+        <div id="gateForgotStep3" style="display:none; gap:10px;">
+          <div>
+            <label for="gateForgotNewPassword" class="subtle" style="display:block; margin-bottom:4px;">Bước 3/3: Mật khẩu mới (Ô 1)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="gateForgotNewPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu mới" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div>
+            <label for="gateForgotConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="gateForgotConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập lại mật khẩu mới" />
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 2</button>
+            <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
+              Đặt lại mật khẩu
+            </button>
           </div>
         </div>
-        <div>
-          <label for="gateForgotConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2)</label>
-          <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateForgotConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="123456" placeholder="Nhập lại mật khẩu mới" />
-            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
-          </div>
-        </div>
-        <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="width:100%;">
-          Xác nhận OTP &amp; Đặt lại mật khẩu
-        </button>
       </form>
 
       <div id="gateStatusBox" class="subtle" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
-        Nhập Email + Mật khẩu (mặc định: 123456) để vào bảng điều khiển Nhà thông minh.
+        Nhập Email và Mật khẩu để vào bảng điều khiển Nhà thông minh.
       </div>
     </div>
   </div>
@@ -377,7 +422,7 @@
         <div id="lockdownPasswordGroup">
           <label class="label" for="lockdownPassword" style="display:block; font-weight:500; margin:10px 0 6px; font-size:13px;">Mật khẩu Chủ nhà</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input id="lockdownPassword" class="input-text field" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu (mặc định: 123456)" style="width:100%; height:44px; padding:0 38px 0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
+            <input id="lockdownPassword" class="input-text field" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" style="width:100%; height:44px; padding:0 38px 0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
             <button type="button" class="btn-toggle-pw" onclick="window.togglePasswordVisibility('lockdownPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>

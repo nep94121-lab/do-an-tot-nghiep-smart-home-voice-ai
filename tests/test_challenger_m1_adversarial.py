@@ -322,7 +322,7 @@ class TestAntiCollisionGateVerification:
         finally:
             # Khôi phục trạng thái chuẩn
             vm.profiles = orig_profiles
-            VOICEPRINT_FILE.write_text(json.dumps(orig_profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+            VOICEPRINT_FILE.write_bytes((json.dumps(orig_profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
     def test_owner_immediate_command_after_collision_rejection(
         self, vm: VoiceAuthManager, pcm_owner: np.ndarray

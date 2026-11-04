@@ -31,7 +31,7 @@ def append_audit_log(
     try:
         from simulator.database_sqlite import insert_audit_log_sqlite
         line = json.dumps(entry, ensure_ascii=False) + "\n"
-        with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
+        with AUDIT_LOG_FILE.open("a", encoding="utf-8", newline="\n") as f:
             f.write(line)
         insert_audit_log_sqlite(entry)
     except Exception:
@@ -61,6 +61,6 @@ def read_audit_logs(limit: int = 250) -> list[dict[str, Any]]:
 def clear_audit_logs() -> None:
     """Xóa toàn bộ log trong simulator/data/system_audit_logs.jsonl."""
     try:
-        AUDIT_LOG_FILE.write_text("", encoding="utf-8")
+        AUDIT_LOG_FILE.write_bytes(b"")
     except Exception:
         pass

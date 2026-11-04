@@ -55,11 +55,11 @@
         <div class="workbench-card">
           <div class="card-head">
             <h2>Mạch mô phỏng</h2>
-            <span id="hoverHoleInfo">Chưa có dữ liệu</span>
+            <span id="hoverHoleInfo">Nhiệt độ: 28.5°C · Độ ẩm: 65% · Độ ẩm đất: 62%</span>
           </div>
 
           <div class="workbench-scroll">
-            <div class="circuit-stage" id="circuitStage">
+            <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
 
           <!-- 1. MẠCH NODEMCU ESP8266 (ESP-12E, CP2102) THỰC TẾ GIỐNG HỆT TRÊN BÀN CỦA BẠN (ĐỦ 30 CHÂN CHUẨN THỨ TỰ) -->
           <div class="comp-tag" style="left: 18px; top: 12px; border-color:#38bdf8; color:#7dd3fc;">
@@ -166,13 +166,13 @@
           <div class="hw-comp" id="box_dht" style="left: 518px; top: 202px; transform: scale(0.66); transform-origin: top left; cursor:pointer;" onclick="filterStep('d6_dht11')" title="Cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D6)">
             <wokwi-dht22 id="w_dht" temperature="28.5" humidity="65"></wokwi-dht22>
           </div>
-          <div class="comp-tag" style="left: 500px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D6)</div>
+          <div class="comp-tag" style="left: 480px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D6)</div>
 
           <!-- 3.6. NỬA DƯỚI BREADBOARD (Hàng f..j): Còi báo động Buzzer 5V (<wokwi-buzzer>) cắm vào hàng j (Cột 24, 25) -->
           <div class="hw-comp" id="box_buzzer" style="left: 642px; top: 216px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8)">
             <wokwi-buzzer id="w_buzzer"></wokwi-buzzer>
           </div>
-          <div class="comp-tag" style="left: 632px; top: 360px; font-size:10px; border-color:#f43f5e;">Còi Buzzer 5V (Chân D8)</div>
+          <div class="comp-tag" style="left: 648px; top: 388px; font-size:10px; border-color:#f43f5e;">Còi Buzzer 5V (Chân D8)</div>
 
           <!-- 4. CÁC THIẾT BỊ NGOẠI VI BÊN PHẢI & PHÍA DƯỚI (ĐÚNG NHƯ TRÊN BÀN CỦA BẠN) -->
 

@@ -67,7 +67,8 @@
 | M12 | Session-based RBAC Security & Concurrent Tests (R2) | `SessionStore`, `resolve_request_session`, parameterize engine, remove global mutation, 120-test concurrency suite | M10 | DONE |
 | M13 | Android Native Compose M1–M5 & assembleDebug (R3) | M1-M5 screens, `android.overridePathCheck=true`, `assembleDebug` SUCCESSFUL, ADB S9 screencaps | M10 | DONE |
 | M14 | Ponytail Modularization & Dead Code Purge (R4) | Dead code purge (2001L), modularize `app.js`, `mobile_app.js`, `voice_auth.py`, `MainScreen.kt`, preserve DOM IDs & hooks | M11, M12, M13 | DONE |
-| M15 | Full Gating, Vercel Deploy & Phase 3 Delivery (R5, R6) | 100% pytest PASS, assembleDebug SUCCESSFUL, auditor CLEAN, git commit & push master, deploy Vercel prod, verify real URLs | M11, M12, M13, M14 | IN_PROGRESS |
+| M15 | Full Gating, Vercel Deploy & Phase 3 Delivery (R5, R6) | 100% pytest PASS, assembleDebug SUCCESSFUL, auditor CLEAN, git commit & push master, deploy Vercel prod, verify real URLs | M11, M12, M13, M14 | DONE |
+
 
 ## Interface Contracts
 ### Vercel Routing Contract (M11)
