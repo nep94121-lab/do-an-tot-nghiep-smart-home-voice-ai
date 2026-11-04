@@ -175,17 +175,13 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:44:56 04/11/2026"
+      "updated_at": "00:55:16 05/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ thêm được Email Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "thanhvien_test_c2",
-    "user_id": "thanhvien_test_c2",
-    "name": "Thanhvien_Test_C2",
-    "full_name": "Thanhvien_Test_C2"
+    ]
   },
   {
     "account_id": "khach_test_c3",
@@ -210,16 +206,12 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:44:56 04/11/2026"
+      "updated_at": "00:55:16 05/11/2026"
     },
     "permissions": [
       "Chỉ bật/tắt đèn & quạt cơ bản",
       "Không có quyền thêm thành viên"
-    ],
-    "id": "khach_test_c3",
-    "user_id": "khach_test_c3",
-    "name": "Khach_Test_C3",
-    "full_name": "Khach_Test_C3"
+    ]
   },
   {
     "account_id": "khach_tu_c2",
@@ -244,16 +236,12 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:44:56 04/11/2026"
+      "updated_at": "00:55:16 05/11/2026"
     },
     "permissions": [
       "Chỉ bật/tắt đèn & quạt cơ bản",
       "Không có quyền thêm thành viên"
-    ],
-    "id": "khach_tu_c2",
-    "user_id": "khach_tu_c2",
-    "name": "Khach_Tu_C2",
-    "full_name": "Khach_Tu_C2"
+    ]
   },
   {
     "account_id": "con_yeu_e2e_test",
@@ -278,17 +266,13 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:45:03 04/11/2026"
+      "updated_at": "00:55:27 05/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ thêm được Email Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "con_yeu_e2e_test",
-    "user_id": "con_yeu_e2e_test",
-    "name": "Con_Yeu_E2E_Test",
-    "full_name": "Con_Yeu_E2E_Test"
+    ]
   },
   {
     "account_id": "con_yeu_family",
@@ -313,17 +297,13 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:45:07 04/11/2026"
+      "updated_at": "00:55:33 05/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ thêm được Email Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "con_yeu_family",
-    "user_id": "con_yeu_family",
-    "name": "Con_Yeu_Family",
-    "full_name": "Con_Yeu_Family"
+    ]
   },
   {
     "account_id": "member_m5_test",
@@ -351,7 +331,7 @@
       "centroid_hz": 743.7,
       "reading_prompt_verified": true,
       "source_device": "Microphone Web Audio 16kHz",
-      "updated_at": "20:47:05 04/11/2026",
+      "updated_at": "00:59:05 05/11/2026",
       "embedding": [
         -0.12349,
         -0.24728,
@@ -451,11 +431,7 @@
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ thêm được Email Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "member_m5_test",
-    "user_id": "member_m5_test",
-    "name": "Member_M5_Test",
-    "full_name": "Member_M5_Test"
+    ]
   },
   {
     "account_id": "hacker_trying_duplicate",
@@ -480,17 +456,13 @@
       "f0_mean_hz": 0.0,
       "reading_prompt_verified": false,
       "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:47:06 04/11/2026"
+      "updated_at": "00:59:05 05/11/2026"
     },
     "permissions": [
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ thêm được Email Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "hacker_trying_duplicate",
-    "user_id": "hacker_trying_duplicate",
-    "name": "Hacker_Trying_Duplicate",
-    "full_name": "Hacker_Trying_Duplicate"
+    ]
   },
   {
     "account_id": "emgai_invite",
@@ -517,7 +489,7 @@
       "centroid_hz": 2101.2,
       "reading_prompt_verified": true,
       "source_device": "Trang Đầu (Nhấn & Giữ Thu Âm)",
-      "updated_at": "20:49:32 04/11/2026",
+      "updated_at": "00:59:22 05/11/2026",
       "enrolled_phrase": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
       "hold_duration_sec": 3.5
     },
@@ -525,152 +497,6 @@
       "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
       "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
       "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "emgai_invite",
-    "user_id": "emgai_invite",
-    "name": "Em Gái (Đăng ký qua Link Cấp 2)",
-    "full_name": "Em Gái (Đăng ký qua Link Cấp 2)",
-    "voice_verified": true
-  },
-  {
-    "account_id": "thành_viên_mới",
-    "email": "thành_viên_mới@gmail.com",
-    "display_name": "Thành viên mới",
-    "tier": 2,
-    "saved_tier": 2,
-    "role": "MEMBER",
-    "role_label": "Người nhà (Tầng 2 - Thiết bị sinh hoạt)",
-    "permission_active": true,
-    "permission_status": "ACTIVE",
-    "permission_label": "CÓ QUYỀN (Tầng 2)",
-    "password_plain_hint": "GiaDinh@123",
-    "password_hash": "32e36f98f9c3df1a4e325ece2bcea079373339aab2e7dc7bf77971152a990fb9",
-    "google_linked": true,
-    "invited_by": "nep94121@gmail.com (Cấp 1)",
-    "needs_first_page_voice_enroll": false,
-    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Thành viên mới, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-    "voiceprint": {
-      "enrolled": true,
-      "f0_mean_hz": 195.0,
-      "f0_min_hz": 175.0,
-      "f0_max_hz": 215.0,
-      "centroid_hz": 1989.0,
-      "reading_prompt_verified": true,
-      "source_device": "Samsung Galaxy S9 (App Android)",
-      "updated_at": "20:47:30 04/11/2026"
-    },
-    "permissions": [
-      "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa"
-    ],
-    "id": "thành_viên_mới",
-    "user_id": "thành_viên_mới",
-    "name": "Thành viên mới",
-    "full_name": "Thành viên mới",
-    "voice_verified": true
-  },
-  {
-    "account_id": "alias_auth1",
-    "email": "alias_auth1@gmail.com",
-    "display_name": "Alias_Auth1",
-    "tier": 2,
-    "saved_tier": 2,
-    "role": "MEMBER",
-    "role_label": "Người nhà (Tầng 2) - Thiết bị sinh hoạt",
-    "permission_active": true,
-    "permission_status": "ACTIVE",
-    "permission_label": "CÓ QUYỀN (Tầng 2)",
-    "password_plain_hint": "GiaDinh@123",
-    "password_hash": "32e36f98f9c3df1a4e325ece2bcea079373339aab2e7dc7bf77971152a990fb9",
-    "google_linked": true,
-    "invited_by": "Nguyễn Tuấn Anh (Cấp 1)",
-    "needs_first_page_voice_enroll": true,
-    "voice_verified": false,
-    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Alias_Auth1, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-    "voiceprint": {
-      "enrolled": false,
-      "f0_mean_hz": 0.0,
-      "reading_prompt_verified": false,
-      "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:47:31 04/11/2026"
-    },
-    "permissions": [
-      "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-      "Chỉ thêm được Email Cấp 3 (Khách)",
-      "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "alias_auth1",
-    "user_id": "alias_auth1",
-    "name": "Alias_Auth1",
-    "full_name": "Alias_Auth1"
-  },
-  {
-    "account_id": "alias_auth2",
-    "email": "alias_auth2@gmail.com",
-    "display_name": "Alias_Auth2",
-    "tier": 2,
-    "saved_tier": 2,
-    "role": "MEMBER",
-    "role_label": "Người nhà (Tầng 2) - Thiết bị sinh hoạt",
-    "permission_active": true,
-    "permission_status": "ACTIVE",
-    "permission_label": "CÓ QUYỀN (Tầng 2)",
-    "password_plain_hint": "GiaDinh@123",
-    "password_hash": "32e36f98f9c3df1a4e325ece2bcea079373339aab2e7dc7bf77971152a990fb9",
-    "google_linked": true,
-    "invited_by": "Nguyễn Tuấn Anh (Cấp 1)",
-    "needs_first_page_voice_enroll": true,
-    "voice_verified": false,
-    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Alias_Auth2, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-    "voiceprint": {
-      "enrolled": false,
-      "f0_mean_hz": 0.0,
-      "reading_prompt_verified": false,
-      "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:47:31 04/11/2026"
-    },
-    "permissions": [
-      "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-      "Chỉ thêm được Email Cấp 3 (Khách)",
-      "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "alias_auth2",
-    "user_id": "alias_auth2",
-    "name": "Alias_Auth2",
-    "full_name": "Alias_Auth2"
-  },
-  {
-    "account_id": "api_test_member",
-    "email": "api_test_member@gmail.com",
-    "display_name": "Api_Test_Member",
-    "tier": 2,
-    "saved_tier": 2,
-    "role": "MEMBER",
-    "role_label": "Người nhà (Tầng 2) - Thiết bị sinh hoạt",
-    "permission_active": true,
-    "permission_status": "ACTIVE",
-    "permission_label": "CÓ QUYỀN (Tầng 2)",
-    "password_plain_hint": "GiaDinh@123",
-    "password_hash": "32e36f98f9c3df1a4e325ece2bcea079373339aab2e7dc7bf77971152a990fb9",
-    "google_linked": true,
-    "invited_by": "Nguyễn Tuấn Anh (Cấp 1)",
-    "needs_first_page_voice_enroll": true,
-    "voice_verified": false,
-    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Api_Test_Member, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-    "voiceprint": {
-      "enrolled": false,
-      "f0_mean_hz": 0.0,
-      "reading_prompt_verified": false,
-      "source_device": "Chờ thu âm giọng chính",
-      "updated_at": "20:47:36 04/11/2026"
-    },
-    "permissions": [
-      "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-      "Chỉ thêm được Email Cấp 3 (Khách)",
-      "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)"
-    ],
-    "id": "api_test_member",
-    "user_id": "api_test_member",
-    "name": "Api_Test_Member",
-    "full_name": "Api_Test_Member"
+    ]
   }
 ]

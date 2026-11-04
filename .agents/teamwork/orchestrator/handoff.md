@@ -1,78 +1,100 @@
-# BÁO CÁO TỔNG KẾT BÀN GIAO TOÀN DIỆN DỰ ÁN (PROJECT ORCHESTRATOR HANDOFF)
-# SMART HOME VOICE AI — ĐỒ ÁN TỐT NGHIỆP
+# Orchestrator Soft Handoff — Successor Generation 1
 
-**Người thực hiện**: Project Orchestrator (`cb4be64f-6f73-4e8f-b499-50863e4051dc`)  
-**Báo cáo tới**: Sentinel Parent Agent (`e8c9a3e3-d890-4ed6-8221-f35bbfee544f`) & Sếp Nguyễn Tuấn Anh  
-**Thời gian hoàn thành**: 2026-11-04T09:46:00Z  
-**Trạng thái Dự án**: **HOÀN TẤT 100% — TẤT CẢ 5 MILESTONES ĐẠT GATE PASS TUYỆT ĐỐI**  
-
----
-
-## 1. Milestone State (Bảng Trạng Thái 5 Cột Mốc)
-
-| Milestone | Tên Cột Mốc | Phạm Vi & Nhiệm Vụ | Phán Quyết Gate | Minh Chứng Kiểm Thử Độc Lập |
-|---|---|---|:---:|---|
-| **M1** | **Deployment, Tunnel & QR Handshake** | Deploy Vercel Production (`vercel --prod --yes`), Cấu hình OpenSSH HTTPS Tunnel `localhost.run`, LAN IP `192.168.2.39:8088`, ADB reverse `8088`, Mở rộng cửa sổ QR TOTP từ 10s lên 180s (Single-Use chống Replay), Token query match `guest_enroll.html`. | **PASS** | Vercel Live: `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` (HTTP 200 trên 6 routes). Git Commit `5d99581`. 17/17 tests PASS. |
-| **M2** | **Login Gate & Password UX Hardening** | Khóa cứng Login Gate (`#homeLoginGateModal`), bỏ hoàn toàn nút tắt X khi chưa đăng nhập, mở khóa `readOnly = true` trên các ô input `auth.js`, bọc `<form>` Enter submit, thêm nút 👁️ toggle mật khẩu, xác nhận 2 mật khẩu Web/Mobile, sửa phạm vi SVG symbol trong `mobile_app/index.html`. | **PASS** | 36/36 tests PASS (`test_challenger_m4_dom.py`), 52/52 harness pass, 33/33 UX pass, Forensic Audit M2 CLEAN. |
-| **M3** | **3D Model DOM, Controls & Raycaster** | Sửa `house3d.js:179` chỉ xóa canvas cũ giữ nguyên `#house3dLabels` và `.viewport-note`, bỏ display:none nút `.pin-3d .pin-icon`, thanh công cụ 7 góc nhìn Camera 3D, tích hợp `THREE.Raycaster` click <= 6px kích hoạt bật/tắt thiết bị. | **PASS** | 36/36 DOM tests PASS, 18/18 orthogonal tests PASS, 61/61 harness pass, 20/20 stress pass, Forensic Audit M3 CLEAN. |
-| **M4** | **Real Voice Biometrics & ADB Mobile Testing** | Thẩm định 7 file âm thanh giọng nói thật của Sếp Nguyễn Tuấn Anh (`cau_1` đến `cau_7`) kích hoạt chuẩn xác 5 thiết bị mục tiêu (`main_door`, `living_room_light`, `bedroom_light`, `fan`, `ac`), đối soát CSDL SQLite; Chạy quy trình ADB trên điện thoại thật Samsung Galaxy S9 (`2223e8784b0c7ece`), chụp ảnh màn hình 4 bước và thẩm định trực quan. | **PASS** | 12/12 real voice tests PASS, 55/55 orthogonal sec tests PASS, 4/4 Samsung S9 PNG screenshots nguyên bản đã đối soát mắt thường và băm SHA-256, Forensic Audit M4 CLEAN. |
-| **M5** | **E2E Test Suite 100% Pass & Final Integrity Audits** | Khắc phục triệt để các bài test phân rã mô-đun và fixture leaky profile; Thẩm định độc kháng toàn bộ hệ thống test 4 tầng E2E; Quét chống gian lận AST, loại bỏ tiến trình zombie, kiểm toán mã hóa 0 CRLF & UTF-8 không BOM. | **PASS** | **678 / 678 tests PASSED (100%)** trong 192.34s, 72/72 E2E passed, 12/12 voice passed, 36/36 DOM passed, 55/55 orthogonal sec passed, 71/71 orthogonal M5 passed, 45/45 stress passed. Forensic Audit M5 CLEAN. |
+- **Date & Time**: 2026-11-04T16:07:00Z
+- **Predecessor**: Gen 0 Orchestrator (`39d935a1-0551-429d-ac45-c89f1e361ad0`)
+- **Successor**: Gen 1 Orchestrator
+- **Parent Conversation ID**: `72838c20-316a-4c87-9a96-337047b9f137`
+- **Working Directory**: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\`
 
 ---
 
-## 2. Active Subagents & Timers
-- **Tổng số Subagents đã điều phối**: 28 / 128 (Tất cả đều chạy ở mô hình tối cao `Model: "inherit"` — Gemini 4 Argon High).
-- **Subagents đang hoạt động**: 0 (100% đã hoàn thành nhiệm vụ và gửi báo cáo handoff).
-- **Dọn dẹp Timers**: Sẽ hủy toàn bộ Heartbeat cron `task-396` và Safety timer `task-1023` trước khi kết thúc.
+## 1. Observation (State of the Project)
+
+### What Has Been Completed:
+1. **Phase 3 Survey Phase**: Completed by 3 parallel Explorers:
+   - `explorer_p3_routing_rbac`: Verified missing routes on live Vercel prod, analyzed RBAC singleton race condition.
+   - `explorer_p3_android`: Located `android_app/`, identified `android.overridePathCheck=true` fix, gap analysis M1–M5.
+   - `explorer_p3_refactor`: Scanned 127 files, formulated Ponytail Facade pattern, mapped 68 DOM IDs & 25 window hooks, identified 2001L dead code.
+2. **Decomposition & PROJECT.md**: Updated with Phase 3 inventory (Features 26–34) and Milestones M11–M15.
+3. **Milestone M11 (Vercel Routing & Redirection — Requirement R1)**:
+   - Implemented: `vercel.json` (307 redirect `/mobile -> /app`, `/architecture`, status codes, catch-all `404.html`) and `simulator/server.py` (`/mobile`, `/architecture`).
+   - Gating: **GATE PASS**
+     - `worker_m11`: DONE (17/17 tests pass)
+     - `reviewer_m11_1`: APPROVE
+     - `reviewer_m11_2`: APPROVE
+     - `challenger_m11_1`: APPROVE (17/17 adversarial tests pass)
+     - `challenger_m11_2`: APPROVE (Query string redirects, Content negotiation 404 pass)
+     - `auditor_m11`: CLEAN (0 CRLF, UTF-8 no BOM, genuine logic)
+4. **Milestone M12 (Session-based RBAC — Requirement R2)**:
+   - Implemented: `simulator/auth/session_store.py`, `simulator/rule_engine.py` (parameterized `request_tier` and `actor_tier`), `simulator/api/routes_devices.py`, `simulator/api/routes_auth.py`, `tests/test_p3_session_rbac_concurrency.py` (120 concurrent requests across 3 roles on 16 threads).
+   - Gating: **GATE FAIL (Iteration 1)**
+     - `worker_m12`: DONE (64/64 tests pass)
+     - `reviewer_m12_1`: APPROVE
+     - `reviewer_m12_2`: APPROVE
+     - `challenger_m12_1`: **REJECT** (Critical vulnerability: `simulator/auth/session_store.py:286-295` has legacy unsigned fallback cookie `sh_session_tier=1` allowing unauthenticated callers to escalate to Admin by simply sending `Cookie: sh_session_tier=1`!)
+     - `challenger_m12_2`: APPROVE (noted medium risk on unsigned fallback cookie)
+     - `auditor_m12`: CLEAN
+5. **Milestone M13 (Android Native Compose & assembleDebug — Requirement R3)**:
+   - Implemented: `android.overridePathCheck=true` in `android_app/.lightbuild/gradle/gradle.properties`.
+   - Implemented M1–M5 Compose screens matching `ui_mockups/v2_new_pages/np_m1..np_m5`:
+     - M1 Home & Sensors (2-grid sensor card, Safety card, bottom CTAs).
+     - M2 Account & Tabs (3-line Profile card, Management menu, Logout).
+     - M3 Forgot Password OTP (`ForgotPasswordScreen.kt`).
+     - M4 Voice Bottom Sheet (`VoiceBottomSheet.kt`).
+     - M5 QR Scanner (`QrScannerScreen.kt`).
+     - Shared Lucide stroke `LineIcon.kt`.
+   - Build verified: `assembleDebug` **BUILD SUCCESSFUL in 1m 25s**, generated `app-debug.apk` (12,179,288 bytes).
+   - ADB S9 check: Hardware profile present, device currently unplugged (`Present: False`), directory `ui_mockups/android_phase3/` created.
+   - Status: Worker completed report; verifiers NOT YET spawned for M13.
 
 ---
 
-## 3. Pending Decisions & Remaining Work
-- **Pending Decisions**: Không có. Mọi yêu cầu và quyết định phỏng vấn (Grill-me) của Sếp đã được hiện thực hóa trọn vẹn và kiểm chứng thực nghiệm.
-- **Remaining Work**: 0 (Hệ thống đã sẵn sàng 100% cho việc nghiệm thu đồ án tốt nghiệp và báo cáo hội đồng).
+## 2. Logic Chain & Immediate Priorities for Successor
+
+1. **Priority 1: Fix Milestone M12 Vulnerability (Iteration 2)**:
+   - Read `challenger_m12_1/handoff.md` (reproduction script and vulnerability details).
+   - Spawn a fresh worker (`worker_m12_iter2`) to remove lines 286–295 in `simulator/auth/session_store.py` (remove insecure fallback to `sh_session_tier`).
+   - Ensure session resolution ONLY accepts cryptographically secure random `session_token` (from `Authorization: Bearer`, `X-Session-Token`, or cookie `sh_session_token`).
+   - Run tests: `python -X utf8 -m pytest tests/test_p3_session_rbac_concurrency.py tests/test_p3_challenger_m12_adversarial.py tests/test_phase1_bugfixes_20261104.py tests/test_challenger_m4_security.py --basetemp=.pytest_tmp`.
+   - Gate M12: spawn Reviewer, Challenger, and Auditor to confirm fix and approve gate.
+2. **Priority 2: Gate Milestone M13 (Android Compose)**:
+   - Worker handoff is at `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m13\handoff.md`.
+   - Spawn Reviewers, Challengers, and Auditor to independently verify `assembleDebug`, M1–M5 Compose screens, and mark M13 Gate PASS.
+3. **Priority 3: Milestone M14 (Ponytail Modularization Refactor)**:
+   - Worker executes Ponytail refactoring per Explorer 3 blueprint (`explorer_p3_refactor/handoff.md`):
+     - Replace legacy duplicates `simulator/static/app.js` (1031L) and `simulator/static/style.css` (970L) with clean forwarders, eliminating 2001 lines of dead code.
+     - Modularize `simulator/static/js/app.js` (1969L) into `simulator/static/js/modules/` preserving all 13 window hooks and literal string/regex anchors tested by Node VM runners.
+     - Modularize `simulator/static/js/mobile_app.js` (1483L) preserving 68 DOM IDs and 25 window hooks.
+     - Modularize `simulator/voice_auth.py` (2551L) moving pure DSP to `simulator/voice/dsp.py` and re-exporting.
+     - Strictly preserve `simulator/static/house3d.js` 1:1 and v1 light theme design!
+     - Never delete design files in `ui_mockups/`.
+   - Gate M14.
+4. **Priority 4: Milestone M15 (E2E Verification, Git Commit, Vercel Deploy & Report)**:
+   - Run full 100% pytest suite (`python -X utf8 -m pytest tests/ --basetemp=.pytest_tmp`).
+   - Run live flow verification.
+   - Run `assembleDebug` verification.
+   - Reviewer APPROVE, Auditor CLEAN.
+   - Git commit, push `master`.
+   - Deploy Vercel prod: `npx --yes vercel --prod --yes`.
+   - Run empirical `curl` checks on all production URLs on `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`.
+   - Append Phase 3 section to `FIX_REPORT_20261104.md` documenting before/after line counts of large files.
+   - Report victory to Sentinel (`72838c20-316a-4c87-9a96-337047b9f137`).
 
 ---
 
-## 4. Key Artifacts (Danh Mục Hồ Sơ & Minh Chứng Trọng Tâm)
-
-1. **Kiến Trúc & Quy Hoạch**:
-   - [PROJECT.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/PROJECT.md): Kiến trúc, bảng kiểm kê 17 tính năng, 5 milestones và layout mã nguồn.
-   - [ORIGINAL_REQUEST.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/ORIGINAL_REQUEST.md): Bản ghi bất biến chỉ thị của người dùng và quyết định phỏng vấn.
-   - [GATE_STATUS.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/orchestrator/GATE_STATUS.md): Bảng phán quyết chi tiết của 5 Cổng Milestone.
-2. **Ảnh Chụp Màn Hình Điện Thoại Thật Samsung Galaxy S9 (ADB `2223e8784b0c7ece`)**:
-   - `step1_login_gate.png`: Khóa cứng Login Gate, bắt buộc đăng nhập email/mật khẩu, không có nút X tắt bypass.
-   - `step2_main_dashboard.png`: Dashboard quản trị trung tâm, hiển thị đầy đủ trạng thái hệ thống.
-   - `step3_device_control.png`: Thao tác bật/tắt thiết bị thời gian thực đồng bộ 2 chiều với Web và CSDL SQLite.
-   - `step4_qr_guest.png`: Mã QR mời khách TOTP động với link public HTTPS Tunnel và cửa sổ hiệu lực 180 giây.
-3. **Mã Nguồn Cốt Lõi Đã Kiểm Chứng**:
-   - [simulator/voice_auth.py](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/voice_auth.py): Thuật toán xử lý tín hiệu âm thanh 2 tầng, nhận diện F0 chuẩn của Sếp Tuấn Anh (88–122Hz), chặn 100% kẻ lạ pitch-shift dải [1.18x - 1.28x], chấp nhận âm đệm vocal fry 82Hz.
-   - [simulator/knowledge_rag.py](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/knowledge_rag.py): Cơ sở tri thức RAG 7 thiết bị chuẩn, tăng cường từ khóa hỏi đáp tiếng Việt tự nhiên.
-   - [simulator/auth/qr_totp_mixin.py](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/auth/qr_totp_mixin.py): Bắt tay Single-Use Token cửa sổ 180 giây chống Replay Attack.
-   - [simulator/static/house3d.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js): Mô hình Ngôi nhà 3D Three.js, bảo toàn DOM labels và Raycaster bật/tắt thiết bị.
-4. **Báo Cáo Thẩm Định Độc Lập Milestone 5**:
-   - [reviewer_m5_1/handoff.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/reviewer_m5_1/handoff.md): APPROVE (E2E & DOM).
-   - [reviewer_m5_2/handoff.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/reviewer_m5_2/handoff.md): APPROVE (Security & Single-Use TOTP).
-   - [challenger_m5_1/handoff.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/challenger_m5_1/handoff.md): APPROVE (Full Suite 678 tests & AST Anti-cheat).
-   - [challenger_m5_2/handoff.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/challenger_m5_2/handoff.md): APPROVE (Adversarial DSP & SQLite WAL Stress).
-   - [auditor_m5/handoff.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/.agents/teamwork/auditor_m5/handoff.md): CLEAN (Forensic Integrity Audit).
-
----
-
-## 5. Verification Method (Lệnh Tái Kiểm Tra Toàn Diện)
-
-```powershell
-# 1. Chạy toàn bộ 678 test cases tự động của dự án (Yêu cầu: 678 passed, 0 failed in ~3 phút)
-python -m pytest tests/ -v --basetemp=.pytest_temp_final
-
-# 2. Kiểm chứng 12 ca kiểm thử giọng nói thật của Sếp Nguyễn Tuấn Anh
-python -m pytest tests/test_sep_real_voice_commands.py tests/test_live_sep_voice_actuation.py -v
-
-# 3. Kiểm chứng 36 ca kiểm thử giao diện DOM UI Three.js và Headless Web
-python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_dom
-
-# 4. Kiểm chứng 45 ca kiểm thử đối kháng cực hạn (Pitch-shift kẻ lạ, vocal fry chủ nhà, SQLite concurrency)
-python -m pytest tests/test_challenger_m5_orthogonal_stress.py -v
-
-# 5. Kiểm tra tính toàn vẹn CSDL SQLite WAL và Voiceprints trên đĩa
-python -c "import json, sqlite3; d=json.load(open('simulator/data/voiceprints.json', encoding='utf-8')); assert list(d.keys()) == ['owner_voice_1', 'intruder_voice_2']; con=sqlite3.connect('simulator/data/smarthome.db'); cur=con.cursor(); cur.execute('PRAGMA integrity_check;'); assert cur.fetchall() == [('ok',)]; print('HỆ THỐNG HOÀN TOÀN SẠCH VÀ NGUYÊN VẸN!')"
-```
+## 3. Key Artifacts & Paths
+- Scope Document: `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\PROJECT.md`
+- Gate Records: `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\GATE_STATUS.md`
+- Original Intent: `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
+- Dispatch Log: `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\DISPATCH.md`
+- Progress Log: `C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\orchestrator\progress.md`
+- Explorer Reports:
+  - `explorer_p3_routing_rbac/handoff.md`
+  - `explorer_p3_android/handoff.md`
+  - `explorer_p3_refactor/handoff.md`
+- Worker Reports:
+  - `worker_m11/handoff.md`
+  - `worker_m12/handoff.md`
+  - `worker_m13/handoff.md`
+- Challenger Vulnerability Report:
+  - `challenger_m12_1/handoff.md` (unsigned cookie `sh_session_tier` PoC)

@@ -275,6 +275,9 @@ class TestWebSocketLiveAndBuffer:
             assert "output_transcription" in events
             assert "turn_complete" in events
 
+            # Khôi phục lại chế độ online cho các bài test tiếp theo
+            ws.send_json({"type": "set_server_mode", "server_connected": True})
+
     def test_in_flight_buffer_queuing_and_capacity(self, client: TestClient) -> None:
         """Kiểm tra hàng đợi In-Flight buffer:
         - Khi gemini_session = None (upstream chưa kết nối hoặc đang reconnect), các chunk được đệm vào _mic_in_flight_queue.

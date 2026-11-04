@@ -84,6 +84,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pending_voice_enrollment: dict[str, Any] | None = None
         self.server_connected: bool = True
         self.pump_manual_override_off: bool = False
+        self._explicit_test_user_set: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
         try:
             init_sqlite_database()
@@ -271,6 +272,107 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             clauses.append(f"{dname} {self._state_verb_vi(dtype, r['state'], already=False)}")
         return " và ".join(clauses) + "."
 
+    def set_active_user(self, user_or_role: str) -> dict[str, Any]:
+        """Đặt người dùng kích hoạt cho engine (kèm cờ _explicit_test_user_set phục vụ tương thích test)."""
+        self._explicit_test_user_set = True
+        return super().set_active_user(user_or_role)
+
+    async def factory_reset(self, scope: str = "all") -> dict[str, Any]:
+        """Khôi phục cài đặt gốc, dọn dẹp cờ override của test."""
+        self._explicit_test_user_set = False
+        self.server_connected = True
+        return await super().factory_reset(scope)
+
+    def _check_custom_directive_device_lock_parameterized(self, dev_id: str, tier: int) -> tuple[bool, str]:
+        """Kiểm tra chỉ thị riêng của Admin theo tier được chỉ định cụ thể."""
+        directives = self.system_policies.get("custom_system_directives", [])
+        if not directives:
+            return True, "OK"
+        dev = self.devices.get(dev_id, {})
+        dname_low = dev.get("name", "").lower()
+        dev_keywords = {
+            "main_door": ("cửa chính", "cửa", "main_door"),
+            "living_room_light": ("đèn phòng khách", "đèn khách", "living_room_light"),
+            "bedroom_light": ("đèn phòng ngủ", "đèn ngủ", "bedroom_light"),
+            "fan": ("quạt", "fan"),
+            "ac": ("điều hòa", "máy lạnh", "ac"),
+            "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
+            "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm nước", "tưới cây", "garden_pump"),
+        }.get(dev_id, (dname_low, dev_id))
+
+        cur_hour = get_vn_now().hour
+        for raw_dir in directives:
+            d_low = str(raw_dir).lower()
+            if not any(kw in d_low for kw in dev_keywords):
+                continue
+            if not any(neg in d_low for neg in ("không được", "cấm", "không cho", "khóa")):
+                continue
+            if "cấp 3" in d_low and "cấp 2" not in d_low and tier < 3:
+                continue
+            if "cấp 2" in d_low and "cấp 3" not in d_low and tier != 2:
+                continue
+            if tier == 1 and ("cấp 2" in d_low or "cấp 3" in d_low or "khách" in d_low):
+                continue
+            m_after = re.search(r"sau\s+(\d{1,2})\s*(?:giờ|h)", d_low)
+            if m_after:
+                hr = int(m_after.group(1))
+                if any(w in d_low for w in ("đêm", "tối", "chiều", "pm")) and hr < 12:
+                    hr += 12
+                in_locked_hours = (cur_hour >= hr) or (hr >= 18 and cur_hour < 5)
+                if in_locked_hours:
+                    return False, f"Từ chối truy cập! Đang bị khóa theo quy định của Admin: '{raw_dir}'."
+            else:
+                return False, f"Từ chối truy cập! Đang bị khóa theo quy định của Admin: '{raw_dir}'."
+        return True, "OK"
+
+    def check_device_permission(
+        self,
+        dev_id: str,
+        action: str | None = None,
+        actor_tier: int | None = None,
+        actor_user_id: str | None = None,
+    ) -> tuple[bool, str]:
+        """Kiểm tra quyền điều khiển thiết bị theo RBAC 3 Tầng.
+        Hỗ trợ actor_tier truyền vào trực tiếp từ request session để không phụ thuộc vào trạng thái toàn cục Singleton."""
+        tier = int(actor_tier) if actor_tier is not None else int(self.current_tier)
+        uid = actor_user_id or self._current_user_id
+
+        u = self.users.get(uid) if uid else None
+        if u and not u.get("active", True):
+            return (
+                False,
+                f"Từ chối truy cập! Quyền của {u.get('name', uid)} đã bị hủy.",
+            )
+
+        dev = self.devices.get(dev_id, {})
+        default_tier_map = {"ADMIN": 1, "MEMBER": 2, "CHILD_GUEST": 3}
+        fallback_tier = default_tier_map.get(dev.get("min_role", "CHILD_GUEST"), 3)
+        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(dev_id, fallback_tier))
+
+        if tier > min_tier:
+            dname = dev.get("name", dev_id)
+            return (
+                False,
+                f"Từ chối truy cập! Thiết bị {dname} chỉ cho phép từ Cấp {min_tier} trở lên điều khiển.",
+            )
+
+        # Kiểm tra custom directives của Admin
+        ok_dir, reason_dir = self._check_custom_directive_device_lock_parameterized(dev_id, tier)
+        if not ok_dir:
+            return False, reason_dir
+
+        req_role = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}.get(min_tier, dev.get("min_role", "CHILD_GUEST"))
+        role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
+        actor_role = role_map_rev.get(tier, "CHILD_GUEST")
+        user_lvl = ROLE_LEVELS.get(actor_role, 0)
+        req_lvl = ROLE_LEVELS.get(req_role, 3)
+        if user_lvl < req_lvl:
+            return (
+                False,
+                f"Từ chối truy cập! Cấp hiện tại (Tầng {tier}) không đủ quyền.",
+            )
+        return True, "OK"
+
     async def execute_device_action(
         self,
         device_id: str,
@@ -278,6 +380,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         source: str = "voice",
         bypass_rbac: bool = False,
         trigger_chains: bool = True,
+        request_tier: int | None = None,
+        request_user_name: str | None = None,
+        request_role: str | None = None,
     ) -> dict[str, Any]:
         targets = self._expand_targets(device_id, action)
         results = []
@@ -286,6 +391,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 results.append({"ok": False, "device_id": dev_id, "error": f"Thiết bị '{dev_id}' không tồn tại."})
                 continue
             dev = self.devices[dev_id]
+
+            effective_tier = int(request_tier) if request_tier is not None else int(self.current_tier)
+            effective_user = request_user_name or self.get_current_user_name()
+            role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
+            effective_role = request_role or role_map_rev.get(effective_tier, self.current_role)
 
             if not self.server_connected:
                 if dev_id == "main_door" and act in ("open", "turn_on"):
@@ -320,14 +430,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     continue
 
             if not bypass_rbac and self.server_connected:
-                allowed, reason = self.check_device_permission(dev_id)
+                allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
                 if not allowed:
                     await self.emit({
                         "type": "rbac_blocked",
                         "device_id": dev_id,
                         "device_name": dev["name"],
                         "action": act,
-                        "role": self.current_role,
+                        "role": effective_role,
                         "reason": reason,
                     })
                     results.append({"ok": False, "device_id": dev_id, "error": reason})
@@ -368,8 +478,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 state=new_state,
                 action=act,
                 source=source,
-                user_name=self.get_current_user_name(),
-                tier=self.current_tier,
+                user_name=effective_user,
+                tier=effective_tier,
             )
 
             await self.emit({

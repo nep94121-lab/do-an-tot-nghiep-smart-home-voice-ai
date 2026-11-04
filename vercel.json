@@ -13,12 +13,13 @@
   ],
   "routes": [
     { "src": "^/api/(.*)$", "dest": "/api/index.py" },
-    { "src": "^/sw\\.js$", "dest": "/simulator/static/sw.js", "headers": { "Service-Worker-Allowed": "/" } },
-    { "src": "^/offline(\\.(html))?$", "dest": "/simulator/static/offline.html" },
-    { "src": "^/404(\\.(html))?$", "dest": "/simulator/static/404.html" },
-    { "src": "^/500(\\.(html))?$", "dest": "/simulator/static/500.html" },
-    { "src": "^/(qr_expired|qr-expired)(\\.(html))?$", "dest": "/simulator/static/qr_expired.html" },
-    { "src": "^/403(\\.(html))?$", "dest": "/simulator/static/403.html" },
+    { "src": "^/mobile/?$", "status": 307, "headers": { "Location": "/app" } },
+    { "src": "^/sw\\.js$", "dest": "/simulator/static/sw.js", "headers": { "Service-Worker-Allowed": "/", "Cache-Control": "no-cache, no-store, must-revalidate" } },
+    { "src": "^/offline(\\.(html))?$", "status": 200, "dest": "/simulator/static/offline.html" },
+    { "src": "^/404(\\.(html))?$", "status": 404, "dest": "/simulator/static/404.html" },
+    { "src": "^/500(\\.(html))?$", "status": 500, "dest": "/simulator/static/500.html" },
+    { "src": "^/(qr_expired|qr-expired)(\\.(html))?$", "status": 200, "dest": "/simulator/static/qr_expired.html" },
+    { "src": "^/403(\\.(html))?$", "status": 403, "dest": "/simulator/static/403.html" },
     { "src": "^/static/(.*)$", "dest": "/simulator/static/$1" },
     { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
     { "src": "^/app/?$", "dest": "/mobile_app/index.html" },
@@ -28,7 +29,10 @@
     { "src": "^/logs/?$", "dest": "/simulator/static/logs.html" },
     { "src": "^/wokwi/?$", "dest": "/simulator/static/wokwi.html" },
     { "src": "^/archify/devops/?$", "dest": "/docs/kien_truc/devops-cicd-pipeline.workflow.html" },
+    { "src": "^/archify/erd/?$", "dest": "/docs/kien_truc/smarthome-database.erd.html" },
     { "src": "^/archify/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
-    { "src": "^/$", "dest": "/simulator/static/index.html" }
+    { "src": "^/architecture/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
+    { "src": "^/$", "dest": "/simulator/static/index.html" },
+    { "src": "^/(.*)$", "status": 404, "dest": "/simulator/static/404.html" }
   ]
 }

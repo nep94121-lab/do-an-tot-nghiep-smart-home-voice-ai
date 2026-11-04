@@ -2,7 +2,7 @@
   "owner_voice_1": {
     "id": "owner_voice_1",
     "user_id": "tuan_anh",
-    "name": "Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà - Toàn quyền)",
+    "name": "Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà)",
     "authorized": true,
     "custom_enrolled": true,
     "voice_source": "Giọng thật thu trực tiếp qua Microphone (16kHz PCM)",

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from simulator.database_sqlite import insert_audit_log_sqlite
 from simulator.engine.constants_and_time import AUDIT_LOG_FILE, get_vn_now
 
 
@@ -30,6 +29,7 @@ def append_audit_log(
         "details": details or {},
     }
     try:
+        from simulator.database_sqlite import insert_audit_log_sqlite
         line = json.dumps(entry, ensure_ascii=False) + "\n"
         with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(line)

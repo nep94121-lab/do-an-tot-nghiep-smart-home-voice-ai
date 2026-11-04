@@ -337,3 +337,44 @@ Toàn bộ các mục tiêu trong nhiệm vụ Phase 1 và Phase 2 đã được
 5. 100% các bài kiểm thử tự động, kiểm thử đối kháng và kiểm thử trên máy chủ sống (`159/159 PASSED`) không có lỗi hồi quy.
 6. Hệ thống đạt tiêu chuẩn kiểm toán pháp y **CLEAN**, tuân thủ nghiêm ngặt **0 CRLF, UTF-8 without BOM**, và quy tắc bóc tách mã **Zero-Inline-Script**.
 7. Dự án đã được triển khai lên môi trường sản xuất Vercel Cloud và đồng bộ toàn vẹn lên nhánh `master` của GitHub.
+
+
+---
+
+## 11. Báo Cáo Tái Cấu Trúc Mô-đun Hóa Theo Nguyên Tắc Ponytail (Phase 3 Requirement R4)
+
+- **Ngày thực hiện:** 2026-11-04
+- **Đặc tả kiến trúc:** Triển khai tái cấu trúc mã nguồn theo triết lý Ponytail ("lười tích cực" — YAGNI, chống bloat, tái sử dụng native library/framework, tối thiểu hóa diff, bảo toàn 100% test contract).
+- **Trạng thái:** **HOÀN THÀNH 100% — ZERO REGRESSION, ASSEMBLEDEBUG SUCCESSFUL, PYTEST PASS 100%**.
+
+### 11.1. Thống Kê Số Dòng Trước và Sau Tái Cấu Trúc (Line Count Metrics)
+
+| Tệp tin / Mô-đun | Số dòng trước | Số dòng sau | Chênh lệch dòng | Vai trò & Giải pháp Ponytail |
+| :--- | :---: | :---: | :---: | :--- |
+| `simulator/static/style.css` | 970L | 2L | **-968L** | Loại bỏ 100% dead duplicate code, thay bằng `@import url("/static/css/style.css");` |
+| `simulator/static/app.js` | 1,031L | 10L | **-1,021L** | Loại bỏ dead duplicate code, thay bằng lightweight script chuyển tiếp sang `/static/js/app.js` |
+| `simulator/voice_auth.py` | 2,551L | 1,440L | **-1,111L** | Tách các hàm DSP, sinh âm thanh thử nghiệm và kiểm định chất lượng giọng sang thư mục `simulator/voice/`. Re-export toàn bộ giữ 100% backward compatibility |
+| `simulator/voice/dsp_features.py` | 0L (mới) | 789L | +789L | Xử lý tín hiệu Wiener Spectral Subtraction, lọc dải giọng người, Mel-Filterbank & MFCC 2 tầng |
+| `simulator/voice/synthesis_augment.py` | 0L (mới) | 79L | +79L | Pitch shift, noise injection quạt/điều hòa, giả lập hai người cùng nói |
+| `simulator/voice/enrollment_quality.py` | 0L (mới) | 304L | +304L | Kiểm định chất lượng giọng thu âm 6 tiêu chuẩn âm học & bộ phân tích intent câu lệnh tiếng Việt |
+| `android_app/.../MainScreen.kt` | 2,710L | 850L | **-1,860L** | Tái cấu trúc thành composable điều phối tinh gọn, tách các tab và thành phần giao diện |
+| `android_app/.../models/MainScreenModels.kt` | 0L (mới) | 41L | +41L | Data classes: HardwareDevice, EnrolledVoiceProfile, CountdownTimerItem, AuthTestCaseItem, CapturedVoiceSample |
+| `android_app/.../components/MainComponents.kt` | 0L (mới) | 194L | +194L | Reusable Composables: DeviceRowCard, AccountMenuRow, BottomTabItem, TierChip |
+| `android_app/.../tabs/HomeScreenTab.kt` | 0L (mới) | 324L | +324L | Màn hình Home M1: Mô hình 3D viewport preview, 2 cảm biến Nhiệt độ / Độ ẩm đất, thẻ an toàn Cửa/Còi |
+| `android_app/.../tabs/DevicesScreenTab.kt` | 0L (mới) | 164L | +164L | Màn hình Thiết bị M2: Bộ lọc phòng linh hoạt, danh sách thiết bị và danh sách lịch hẹn giờ |
+| `android_app/.../tabs/VoiceScreenTab.kt` | 0L (mới) | 273L | +273L | Màn hình Giọng nói M4: Vùng nhận diện nói/phản hồi, micro tương tác trực tiếp, đọc phản hồi TTS |
+| `android_app/.../tabs/AccountScreenTab.kt` | 0L (mới) | 760L | +760L | Màn hình Tài khoản M2/M3/M5: Hồ sơ, Quên mật khẩu OTP, Quét mã QR, Xác thực giọng nói 3 bước |
+
+### 11.2. Kết Quả Kiểm Thử Độc Lập
+1. **Android Native Compose Build:**
+   - Lệnh: `& "$env:JAVA_HOME\bin\java.exe" org.gradle.wrapper.GradleWrapperMain assembleDebug`
+   - Kết quả: **`BUILD SUCCESSFUL in 2m 22s`** (71 actionable tasks, 0 compiler error).
+2. **Backend & Frontend Test Suite:**
+   - Chạy: `python -X utf8 -m pytest tests/test_challenger_m4_dom.py tests/test_challenger_m4_security.py tests/test_m7_security_modals_banner.py tests/test_m8_mobile_screens.py tests/test_p3_session_rbac_concurrency.py tests/test_p3_challenger_m12_adversarial.py tests/test_challenger_m1_adversarial.py tests/test_adversarial_dsp.py tests/test_challenger_m3_stress_dom_raycaster.py tests/test_challenger_m5_interactions.py tests/test_challenger_m2_gate_ux_empirical.py tests/test_challenger_m11_vercel_routing.py`
+   - Kết quả: **`350/350 PASSED (100%)`**.
+3. **Hiến Pháp 6 Điều GitHub Spec Kit:**
+   - Lệnh: `python scripts/speckit_converge.py`
+   - Kết quả: Cả 6 Điều Hiến pháp (3-Strike Stranger, Voice DSP Guard, Zero-Drop Bridge, 3-Tier Invite, Short Reply, Offline Door Lock & 3NF SQLite) **CONVERGED 100%**.
+4. **Bảo toàn chuẩn định dạng:**
+   - 100% tệp tin tạo mới và sửa đổi tuân thủ UTF-8 không BOM, 0 CRLF (chuẩn POSIX LF).
+   - Bảo toàn nguyên vẹn 100% tệp `simulator/static/house3d.js` và thư mục `ui_mockups/`.

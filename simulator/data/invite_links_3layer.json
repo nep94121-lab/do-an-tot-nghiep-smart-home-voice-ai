@@ -9,7 +9,7 @@
     "url_path": "/auth?invite=INV-T1-TO-TIER2",
     "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
     "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 2",
-    "created_at": "20:47:28 04/11/2026"
+    "created_at": "00:57:02 05/11/2026"
   },
   "INV-T1-TO-TIER3": {
     "invite_code": "INV-T1-TO-TIER3",
@@ -21,7 +21,7 @@
     "url_path": "/auth?invite=INV-T1-TO-TIER3",
     "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
     "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 3",
-    "created_at": "19:52:00 04/11/2026"
+    "created_at": "00:44:58 05/11/2026"
   },
   "INV-T2-TO-TIER3": {
     "invite_code": "INV-T2-TO-TIER3",
@@ -33,6 +33,6 @@
     "url_path": "/auth?invite=INV-T2-TO-TIER3",
     "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
     "description": "Link do Thành viên A (Người nhà) (Cấp 2) gửi xuống để đăng ký Cấp 3",
-    "created_at": "19:52:00 04/11/2026"
+    "created_at": "00:44:58 05/11/2026"
   }
 }

@@ -1,459 +1,7 @@
 [
   {
-    "id": 42588,
-    "time_vn": "21:04:02 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 443693 — Mã OTP đã cấp trên Bảng Test (443693)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "443693",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 42102,
-    "time_vn": "21:04:02 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 707021 — Mã OTP đã cấp trên Bảng Test (707021)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "707021",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 41412,
-    "time_vn": "21:04:01 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 697207 — Mã OTP đã cấp trên Bảng Test (697207)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "697207",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 766227,
-    "time_vn": "20:59:26 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 391718 — Mã OTP đã cấp trên Bảng Test (391718)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "391718",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 765807,
-    "time_vn": "20:59:25 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 305138 — Mã OTP đã cấp trên Bảng Test (305138)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "305138",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 765039,
-    "time_vn": "20:59:25 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 274405 — Mã OTP đã cấp trên Bảng Test (274405)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "274405",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 658348,
-    "time_vn": "20:57:38 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 126960 — Mã OTP đã cấp trên Bảng Test (126960)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "126960",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 657919,
-    "time_vn": "20:57:37 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 369748 — Mã OTP đã cấp trên Bảng Test (369748)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "369748",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 656799,
-    "time_vn": "20:57:36 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 920106 — Mã OTP đã cấp trên Bảng Test (920106)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "920106",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 65719,
-    "time_vn": "20:47:45 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 617219 — Mã OTP đã cấp trên Bảng Test (617219)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "617219",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 65313,
-    "time_vn": "20:47:45 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 358336 — Mã OTP đã cấp trên Bảng Test (358336)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "358336",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 64524,
-    "time_vn": "20:47:44 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 115570 — Mã OTP đã cấp trên Bảng Test (115570)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "115570",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 855802,
-    "time_vn": "20:44:15 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 500179 — Mã OTP đã cấp trên Bảng Test (500179)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "500179",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 855326,
-    "time_vn": "20:44:15 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 737877 — Mã OTP đã cấp trên Bảng Test (737877)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "737877",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 854362,
-    "time_vn": "20:44:14 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 898121 — Mã OTP đã cấp trên Bảng Test (898121)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "898121",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 810076,
-    "time_vn": "20:43:30 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 966778 — Mã OTP đã cấp trên Bảng Test (966778)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "966778",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 809682,
-    "time_vn": "20:43:29 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 884477 — Mã OTP đã cấp trên Bảng Test (884477)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "884477",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 808420,
-    "time_vn": "20:43:28 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 245810 — Mã OTP đã cấp trên Bảng Test (245810)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "245810",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 763188,
-    "time_vn": "20:42:43 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 373698 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a6cc3489d61c4)",
-    "source": "QA",
-    "extra": {
-      "otp_code": "373698",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a6cc3489d61c4"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 735435,
-    "time_vn": "20:42:15 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 325101 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a6cbc6367470c)",
-    "source": "QA",
-    "extra": {
-      "otp_code": "325101",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a6cbc6367470c"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 721553,
-    "time_vn": "20:42:01 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 586747 — Mã OTP đã cấp trên Bảng Test (586747)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "586747",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 720867,
-    "time_vn": "20:42:00 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 235778 — Mã OTP đã cấp trên Bảng Test (235778)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "235778",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 572215,
-    "time_vn": "20:39:32 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 462884 — Mã OTP đã cấp trên Bảng Test (462884)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "462884",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 535762,
-    "time_vn": "20:38:55 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 541021 — Mã OTP đã cấp trên Bảng Test (541021)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "541021",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 535594,
-    "time_vn": "20:38:55 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 252323 — Mã OTP đã cấp trên Bảng Test (252323)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "252323",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 341606,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162862,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 3 (Server Tự Nhận Diện Giọng Nói)",
     "action": "stranger_blocked",
     "email": "unknown@stranger",
@@ -463,16 +11,16 @@
     "extra": {}
   },
   {
-    "id": 341603,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162858,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
     "action": "layer1_passed_otp_issued",
     "email": "thanhviena.hust@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 830748 — Mã OTP đã cấp trên Bảng Test (830748)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 257185 — Mã OTP đã cấp trên Bảng Test (257185)",
     "source": "AutoTest-RestoreCheck",
     "extra": {
-      "otp_code": "830748",
+      "otp_code": "257185",
       "gmail_delivery": {
         "sent_real_gmail": false,
         "actual_recipient": "nep94121@gmail.com"
@@ -481,8 +29,8 @@
     }
   },
   {
-    "id": 341553,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162807,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
     "action": "voice_permission_restored",
     "email": "thanhviena.hust@gmail.com",
@@ -495,8 +43,8 @@
     }
   },
   {
-    "id": 341548,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162803,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 3 (Kiểm tra Quyền Giọng Nói)",
     "action": "voice_recognized_but_revoked",
     "email": "thanhviena.hust@gmail.com",
@@ -506,8 +54,8 @@
     "extra": {}
   },
   {
-    "id": 341543,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162800,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 1 (Kiểm tra Cấp Quyền)",
     "action": "account_exists_but_no_permission",
     "email": "thanhviena.hust@gmail.com",
@@ -517,8 +65,8 @@
     "extra": {}
   },
   {
-    "id": 341490,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162745,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Giọng Nói Chủ Nhà (Thu Hồi Quyền)",
     "action": "voice_permission_revoked",
     "email": "thanhviena.hust@gmail.com",
@@ -531,8 +79,8 @@
     }
   },
   {
-    "id": 341484,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162739,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 3 (Giọng nói -> Hoàn tất 3 Lớp)",
     "action": "voice_biometric_verified",
     "email": "emgai.invite@gmail.com",
@@ -546,8 +94,8 @@
     }
   },
   {
-    "id": 341478,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162735,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Trang Đầu (Đọc Câu Mẫu & Giữ Thu Âm)",
     "action": "first_page_voice_enrolled",
     "email": "emgai.invite@gmail.com",
@@ -560,8 +108,8 @@
     }
   },
   {
-    "id": 341468,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162729,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 3 (Thu âm Đăng ký Giọng nói)",
     "action": "voice_enrolled_on_server",
     "email": "emgai.invite@gmail.com",
@@ -580,8 +128,8 @@
     }
   },
   {
-    "id": 341459,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162723,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Đăng ký Link Mời Hoàn Tất -> Chờ Thu Âm Trang Đầu",
     "action": "invite_account_created",
     "email": "emgai.invite@gmail.com",
@@ -594,18 +142,18 @@
     }
   },
   {
-    "id": 341380,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162666,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Link Mời + Google OAuth",
     "action": "invite_oauth_otp_sent",
     "email": "emgai.invite@gmail.com",
     "status": "PASS",
-    "detail": "Đăng ký qua link INV-T1-TO-TIER2 (Cấp 2 do Nguyễn Tuấn Anh (Cấp 1) mời). Đã gửi OTP 629026 & mật khẩu 'EmGai@2026' về Gmail (nep94121@gmail.com).",
+    "detail": "Đăng ký qua link INV-T1-TO-TIER2 (Cấp 2 do Nguyễn Tuấn Anh (Cấp 1) mời). Đã gửi OTP 386073 & mật khẩu 'EmGai@2026' về Gmail (nep94121@gmail.com).",
     "source": "AutoTest-Invite-OAuth",
     "extra": {
       "invite_code": "INV-T1-TO-TIER2",
       "target_tier": 2,
-      "otp_code": "629026",
+      "otp_code": "386073",
       "gmail_delivery": {
         "sent_real_gmail": false,
         "actual_recipient": "nep94121@gmail.com"
@@ -613,8 +161,8 @@
     }
   },
   {
-    "id": 341377,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162663,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Phân cấp Link Mời",
     "action": "tier3_invite_blocked",
     "email": "khachc.guest@gmail.com",
@@ -624,8 +172,8 @@
     "extra": {}
   },
   {
-    "id": 341370,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162660,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Phân cấp Link Mời",
     "action": "tier2_invite_tier2_blocked",
     "email": "thanhviena.hust@gmail.com",
@@ -635,30 +183,30 @@
     "extra": {}
   },
   {
-    "id": 341366,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162657,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 2 (Gmail OTP)",
     "action": "otp_verified",
     "email": "nep94121@gmail.com",
     "status": "PASS",
-    "detail": "Xác nhận đúng mã Gmail OTP (148263) cho Nguyễn Tuấn Anh (Tầng 1). Chờ Lớp 3 (Giọng nói).",
+    "detail": "Xác nhận đúng mã Gmail OTP (878570) cho Nguyễn Tuấn Anh (Tầng 1). Chờ Lớp 3 (Giọng nói).",
     "source": "AutoTest-Suite",
     "extra": {}
   },
   {
-    "id": 341363,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162654,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 2 (Gmail OTP)",
     "action": "otp_verify",
     "email": "nep94121@gmail.com",
     "status": "FAIL",
-    "detail": "Nhập sai mã OTP: nhập '000000' != mã đúng '148263'.",
+    "detail": "Nhập sai mã OTP: nhập '000000' != mã đúng '878570'.",
     "source": "AutoTest-Suite",
     "extra": {}
   },
   {
-    "id": 341352,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162651,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 1 (Tài khoản/Mật khẩu)",
     "action": "password_check",
     "email": "nep94121@gmail.com",
@@ -668,16 +216,16 @@
     "extra": {}
   },
   {
-    "id": 341226,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162574,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
     "action": "layer1_passed_otp_issued",
     "email": "nep94121@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 148263 — Mã OTP đã cấp trên Bảng Test (148263)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 878570 — Mã OTP đã cấp trên Bảng Test (878570)",
     "source": "AutoTest-Suite",
     "extra": {
-      "otp_code": "148263",
+      "otp_code": "878570",
       "gmail_delivery": {
         "sent_real_gmail": false,
         "actual_recipient": "nep94121@gmail.com"
@@ -686,8 +234,8 @@
     }
   },
   {
-    "id": 341065,
-    "time_vn": "20:35:41 04/11/2026",
+    "id": 162498,
+    "time_vn": "00:59:22 05/11/2026",
     "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
     "action": "voice_permission_restored",
     "email": "thanhviena.hust@gmail.com",
@@ -700,52 +248,688 @@
     }
   },
   {
-    "id": 321637,
-    "time_vn": "20:35:21 04/11/2026",
-    "layer": "Lớp 2 (Gmail OTP)",
-    "action": "otp_verify",
+    "id": 145617,
+    "time_vn": "00:59:05 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "hacker_trying_duplicate@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email hacker_trying_duplicate@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "hacker_trying_duplicate@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:59:05 05/11/2026"
+    }
+  },
+  {
+    "id": 145374,
+    "time_vn": "00:59:05 05/11/2026",
+    "layer": "Thu Âm Giọng Chính",
+    "action": "voice_enroll_passed",
+    "email": "member_m5_test@gmail.com",
+    "status": "PASS",
+    "detail": "Kiểm định giọng member_m5_test@gmail.com ĐÃ ĐẠT: F0=129.0Hz. Đã lưu hồ sơ giọng chính!",
+    "source": "Microphone Web Audio 16kHz",
+    "extra": {
+      "f0_hz": 129.0,
+      "duration_sec": 3.1
+    }
+  },
+  {
+    "id": 144868,
+    "time_vn": "00:59:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "member_m5_test@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email member_m5_test@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "member_m5_test@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:59:04 05/11/2026"
+    }
+  },
+  {
+    "id": 22352,
+    "time_vn": "00:57:02 05/11/2026",
+    "layer": "Thu Âm Giọng Chính",
+    "action": "voice_enroll_failed",
     "email": "nep94121@gmail.com",
     "status": "FAIL",
-    "detail": "Nhập sai mã OTP: nhập '999999' != mã đúng '861749'.",
-    "source": "Web Quên Mật Khẩu",
+    "detail": "Kiểm định giọng nep94121@gmail.com CHƯA ĐẠT: Dữ liệu âm thanh rỗng",
+    "source": "Thu Âm Giọng Chính",
+    "extra": {
+      "duration_sec": 0.0,
+      "rms": 0.0,
+      "voiced_ratio": 0.0,
+      "f0_mean_hz": 0.0,
+      "pitch_std_hz": 0.0,
+      "snr_db": 0.0
+    }
+  },
+  {
+    "id": 933897,
+    "time_vn": "00:55:33 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email ban_khach@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
     "extra": {}
   },
   {
-    "id": 321625,
-    "time_vn": "20:35:21 04/11/2026",
-    "layer": "Quên Mật Khẩu (Gmail OTP)",
-    "action": "forgot_password_otp_sent",
-    "email": "nep94121@gmail.com",
+    "id": 933478,
+    "time_vn": "00:55:33 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "con_yeu_family@gmail.com",
     "status": "PASS",
-    "detail": "Đã gửi mã OTP đặt lại mật khẩu (861749) tới Gmail (nep94121@gmail.com).",
-    "source": "Web Quên Mật Khẩu",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email con_yeu_family@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "con_yeu_family@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:55:33 05/11/2026"
+    }
+  },
+  {
+    "id": 927608,
+    "time_vn": "00:55:27 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "con_yeu_e2e_test@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email con_yeu_e2e_test@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "con_yeu_e2e_test@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:55:27 05/11/2026"
+    }
+  },
+  {
+    "id": 924009,
+    "time_vn": "00:55:24 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email guest_invite_t3@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
     "extra": {}
   },
   {
-    "id": 244273,
-    "time_vn": "20:34:04 04/11/2026",
-    "layer": "Lớp 2 (Gmail OTP)",
-    "action": "otp_verify",
+    "id": 924005,
+    "time_vn": "00:55:24 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email guest_invite_t2@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 924002,
+    "time_vn": "00:55:24 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email guest_invite_t1@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 923992,
+    "time_vn": "00:55:23 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email hack_c2@gmail.com vào Cấp 2 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 923989,
+    "time_vn": "00:55:23 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email hack_c1@gmail.com vào Cấp 1 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 916521,
+    "time_vn": "00:55:16 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email khach_tu_c3@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 916518,
+    "time_vn": "00:55:16 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email hack_c2@gmail.com vào Cấp 2 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 916515,
+    "time_vn": "00:55:16 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "khach_tu_c2@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã thêm email khach_tu_c2@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "khach_tu_c2@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "thanhviena.hust@gmail.com",
+      "added_by_name": "Thành viên A (Người nhà)",
+      "added_by_tier": 2,
+      "added_at": "00:55:16 05/11/2026"
+    }
+  },
+  {
+    "id": 916460,
+    "time_vn": "00:55:16 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "khach_test_c3@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email khach_test_c3@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "khach_test_c3@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:55:16 05/11/2026"
+    }
+  },
+  {
+    "id": 916406,
+    "time_vn": "00:55:16 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "thanhvien_test_c2@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email thanhvien_test_c2@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "thanhvien_test_c2@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:55:16 05/11/2026"
+    }
+  },
+  {
+    "id": 910525,
+    "time_vn": "00:55:10 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email ai_do@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 910514,
+    "time_vn": "00:55:10 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email ban_c2@gmail.com vào Cấp 2 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 910495,
+    "time_vn": "00:55:10 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email tuan_anh_override@gmail.com vào Cấp 1 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 910483,
+    "time_vn": "00:55:10 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "ban_than@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã thêm email ban_than@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "ban_than@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "thanhviena.hust@gmail.com",
+      "added_by_name": "Thành viên A (Người nhà)",
+      "added_by_tier": 2,
+      "added_at": "00:55:10 05/11/2026"
+    }
+  },
+  {
+    "id": 910401,
+    "time_vn": "00:55:10 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "em_gai@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email em_gai@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "em_gai@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:55:10 05/11/2026"
+    }
+  },
+  {
+    "id": 889114,
+    "time_vn": "00:54:49 05/11/2026",
+    "layer": "Lớp 1 (Tài khoản/Mật khẩu)",
+    "action": "password_check",
     "email": "nep94121@gmail.com",
     "status": "FAIL",
-    "detail": "Nhập sai mã OTP: nhập '999999' != mã đúng '918278'.",
-    "source": "Web Quên Mật Khẩu",
+    "detail": "Nhập sai mật khẩu cho tài khoản Nguyễn Tuấn Anh (Tầng 1).",
+    "source": "Web Portal",
     "extra": {}
   },
   {
-    "id": 244261,
-    "time_vn": "20:34:04 04/11/2026",
-    "layer": "Quên Mật Khẩu (Gmail OTP)",
-    "action": "forgot_password_otp_sent",
+    "id": 888976,
+    "time_vn": "00:54:48 05/11/2026",
+    "layer": "Lớp 1 (Tài khoản/Mật khẩu)",
+    "action": "password_check",
+    "email": "nep94121@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mật khẩu cho tài khoản Nguyễn Tuấn Anh (Tầng 1).",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 887919,
+    "time_vn": "00:54:47 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email ai_do@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 887916,
+    "time_vn": "00:54:47 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email fake_c1@gmail.com vào Cấp 1 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 887914,
+    "time_vn": "00:54:47 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "chau_gai@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã thêm email chau_gai@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "chau_gai@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "thanhviena.hust@gmail.com",
+      "added_by_name": "Thành viên A (Người nhà)",
+      "added_by_tier": 2,
+      "added_at": "00:54:47 05/11/2026"
+    }
+  },
+  {
+    "id": 887853,
+    "time_vn": "00:54:47 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "khach_quy@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email khach_quy@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "khach_quy@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:54:47 05/11/2026"
+    }
+  },
+  {
+    "id": 887798,
+    "time_vn": "00:54:47 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "me_yeu@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email me_yeu@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "me_yeu@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:54:47 05/11/2026"
+    }
+  },
+  {
+    "id": 862915,
+    "time_vn": "00:54:22 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "tier3_invite_blocked",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "🚫 Từ chối: Tài khoản Cấp 3 (Khách C (Tầng 3)) không có quyền tạo hay gửi link mời!",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 862913,
+    "time_vn": "00:54:22 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T2-TO-TIER3",
+      "issuer_email": "thanhviena.hust@gmail.com",
+      "issuer_name": "Thành viên A (Người nhà) (Cấp 2)",
+      "issuer_tier": 2,
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "url_path": "/auth?invite=INV-T2-TO-TIER3",
+      "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
+      "description": "Link do Thành viên A (Người nhà) (Cấp 2) gửi xuống để đăng ký Cấp 3",
+      "created_at": "00:54:22 05/11/2026"
+    }
+  },
+  {
+    "id": 862910,
+    "time_vn": "00:54:22 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "tier2_invite_tier2_blocked",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "🚫 Từ chối: Tài khoản Cấp 2 (Thành viên A (Người nhà)) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp 2!",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 862907,
+    "time_vn": "00:54:22 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
     "email": "nep94121@gmail.com",
     "status": "PASS",
-    "detail": "Đã gửi mã OTP đặt lại mật khẩu (918278) tới Gmail (nep94121@gmail.com).",
-    "source": "Web Quên Mật Khẩu",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T1-TO-TIER3",
+      "issuer_email": "nep94121@gmail.com",
+      "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+      "issuer_tier": 1,
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "url_path": "/auth?invite=INV-T1-TO-TIER3",
+      "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
+      "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 3",
+      "created_at": "00:54:22 05/11/2026"
+    }
+  },
+  {
+    "id": 862904,
+    "time_vn": "00:54:22 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
+    "email": "nep94121@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã xuất link mời Cấp 2: http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T1-TO-TIER2",
+      "issuer_email": "nep94121@gmail.com",
+      "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+      "issuer_tier": 1,
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "url_path": "/auth?invite=INV-T1-TO-TIER2",
+      "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
+      "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 2",
+      "created_at": "00:54:22 05/11/2026"
+    }
+  },
+  {
+    "id": 847848,
+    "time_vn": "00:54:07 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "tier3_invite_blocked",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "🚫 Từ chối: Tài khoản Cấp 3 (Khách C (Tầng 3)) không có quyền tạo hay gửi link mời!",
+    "source": "Web/App",
     "extra": {}
   },
   {
-    "id": 911076,
-    "time_vn": "20:28:31 04/11/2026",
+    "id": 847845,
+    "time_vn": "00:54:07 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T2-TO-TIER3",
+      "issuer_email": "thanhviena.hust@gmail.com",
+      "issuer_name": "Thành viên A (Người nhà) (Cấp 2)",
+      "issuer_tier": 2,
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "url_path": "/auth?invite=INV-T2-TO-TIER3",
+      "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
+      "description": "Link do Thành viên A (Người nhà) (Cấp 2) gửi xuống để đăng ký Cấp 3",
+      "created_at": "00:54:07 05/11/2026"
+    }
+  },
+  {
+    "id": 847842,
+    "time_vn": "00:54:07 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "tier2_invite_tier2_blocked",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "🚫 Từ chối: Tài khoản Cấp 2 (Thành viên A (Người nhà)) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp 2!",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 847840,
+    "time_vn": "00:54:07 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
+    "email": "nep94121@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T1-TO-TIER3",
+      "issuer_email": "nep94121@gmail.com",
+      "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+      "issuer_tier": 1,
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "url_path": "/auth?invite=INV-T1-TO-TIER3",
+      "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
+      "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 3",
+      "created_at": "00:54:07 05/11/2026"
+    }
+  },
+  {
+    "id": 847837,
+    "time_vn": "00:54:07 05/11/2026",
+    "layer": "Phân cấp Link Mời",
+    "action": "invite_link_created",
+    "email": "nep94121@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã xuất link mời Cấp 2: http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
+    "source": "Web/App",
+    "extra": {
+      "invite_code": "INV-T1-TO-TIER2",
+      "issuer_email": "nep94121@gmail.com",
+      "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
+      "issuer_tier": 1,
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "url_path": "/auth?invite=INV-T1-TO-TIER2",
+      "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER2",
+      "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 2",
+      "created_at": "00:54:07 05/11/2026"
+    }
+  },
+  {
+    "id": 844763,
+    "time_vn": "00:54:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier3",
+    "email": "khachc.guest@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 3 (Khách C (Tầng 3)) cố thêm email khach_tu_c3@gmail.com -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 844756,
+    "time_vn": "00:54:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "add_email_blocked_tier2",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Cấp 2 (Thành viên A (Người nhà)) cố thêm email hack_c2@gmail.com vào Cấp 2 -> BỊ CHẶN.",
+    "source": "Web/App",
+    "extra": {}
+  },
+  {
+    "id": 844752,
+    "time_vn": "00:54:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "khach_tu_c2@gmail.com",
+    "status": "PASS",
+    "detail": "Thành viên A (Người nhà) (Cấp 2) đã thêm email khach_tu_c2@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "khach_tu_c2@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "thanhviena.hust@gmail.com",
+      "added_by_name": "Thành viên A (Người nhà)",
+      "added_by_tier": 2,
+      "added_at": "00:54:04 05/11/2026"
+    }
+  },
+  {
+    "id": 844737,
+    "time_vn": "00:54:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "khach_test_c3@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email khach_test_c3@gmail.com vào Khách (Tầng 3).",
+    "source": "Web/App",
+    "extra": {
+      "email": "khach_test_c3@gmail.com",
+      "target_tier": 3,
+      "target_role_label": "Khách (Tầng 3)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:54:04 05/11/2026"
+    }
+  },
+  {
+    "id": 844715,
+    "time_vn": "00:54:04 05/11/2026",
+    "layer": "Email Allowlist",
+    "action": "family_email_added",
+    "email": "thanhvien_test_c2@gmail.com",
+    "status": "PASS",
+    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã thêm email thanhvien_test_c2@gmail.com vào Người nhà (Tầng 2).",
+    "source": "Web/App",
+    "extra": {
+      "email": "thanhvien_test_c2@gmail.com",
+      "target_tier": 2,
+      "target_role_label": "Người nhà (Tầng 2)",
+      "added_by": "nep94121@gmail.com",
+      "added_by_name": "Nguyễn Tuấn Anh",
+      "added_by_tier": 1,
+      "added_at": "00:54:04 05/11/2026"
+    }
+  },
+  {
+    "id": 830740,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Lớp 3 (Server Tự Nhận Diện Giọng Nói)",
     "action": "stranger_blocked",
     "email": "unknown@stranger",
@@ -755,16 +939,16 @@
     "extra": {}
   },
   {
-    "id": 911072,
-    "time_vn": "20:28:31 04/11/2026",
+    "id": 830737,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
     "action": "layer1_passed_otp_issued",
     "email": "thanhviena.hust@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 306664 — Mã OTP đã cấp trên Bảng Test (306664)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 328021 — Mã OTP đã cấp trên Bảng Test (328021)",
     "source": "AutoTest-RestoreCheck",
     "extra": {
-      "otp_code": "306664",
+      "otp_code": "328021",
       "gmail_delivery": {
         "sent_real_gmail": false,
         "actual_recipient": "nep94121@gmail.com"
@@ -773,8 +957,8 @@
     }
   },
   {
-    "id": 911014,
-    "time_vn": "20:28:31 04/11/2026",
+    "id": 830687,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
     "action": "voice_permission_restored",
     "email": "thanhviena.hust@gmail.com",
@@ -787,8 +971,8 @@
     }
   },
   {
-    "id": 910975,
-    "time_vn": "20:28:30 04/11/2026",
+    "id": 830683,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Lớp 3 (Kiểm tra Quyền Giọng Nói)",
     "action": "voice_recognized_but_revoked",
     "email": "thanhviena.hust@gmail.com",
@@ -798,8 +982,8 @@
     "extra": {}
   },
   {
-    "id": 910972,
-    "time_vn": "20:28:30 04/11/2026",
+    "id": 830680,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Lớp 1 (Kiểm tra Cấp Quyền)",
     "action": "account_exists_but_no_permission",
     "email": "thanhviena.hust@gmail.com",
@@ -809,8 +993,8 @@
     "extra": {}
   },
   {
-    "id": 910891,
-    "time_vn": "20:28:30 04/11/2026",
+    "id": 830632,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Giọng Nói Chủ Nhà (Thu Hồi Quyền)",
     "action": "voice_permission_revoked",
     "email": "thanhviena.hust@gmail.com",
@@ -823,8 +1007,8 @@
     }
   },
   {
-    "id": 910849,
-    "time_vn": "20:28:30 04/11/2026",
+    "id": 830628,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Lớp 3 (Giọng nói -> Hoàn tất 3 Lớp)",
     "action": "voice_biometric_verified",
     "email": "emgai.invite@gmail.com",
@@ -838,8 +1022,8 @@
     }
   },
   {
-    "id": 910839,
-    "time_vn": "20:28:30 04/11/2026",
+    "id": 830625,
+    "time_vn": "00:53:50 05/11/2026",
     "layer": "Trang Đầu (Đọc Câu Mẫu & Giữ Thu Âm)",
     "action": "first_page_voice_enrolled",
     "email": "emgai.invite@gmail.com",
@@ -850,210 +1034,5 @@
       "f0_hz": 206.0,
       "phrase": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ."
     }
-  },
-  {
-    "id": 910801,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 3 (Thu âm Đăng ký Giọng nói)",
-    "action": "voice_enrolled_on_server",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đã thu âm từ [Trang Đầu (Nhấn & Giữ Thu Âm)] & lưu mẫu giọng gốc cho Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2, F0=206.0Hz).",
-    "source": "Trang Đầu (Nhấn & Giữ Thu Âm)",
-    "extra": {
-      "acoustic": {
-        "f0_hz": 206.0,
-        "rms": 0.18,
-        "centroid_hz": 2101.2,
-        "duration_sec": 3.0
-      },
-      "account": "Em Gái (Đăng ký qua Link Cấp 2)",
-      "tier": 2
-    }
-  },
-  {
-    "id": 910761,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Đăng ký Link Mời Hoàn Tất -> Chờ Thu Âm Trang Đầu",
-    "action": "invite_account_created",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đã xác nhận Gmail OTP & cấp mật khẩu cho Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2). Chuyển vào Trang Đầu hiển thị câu mẫu để giữ thu âm giọng nói gốc!",
-    "source": "AutoTest-Invite-OAuth",
-    "extra": {
-      "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-      "tier": 2
-    }
-  },
-  {
-    "id": 910658,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Link Mời + Google OAuth",
-    "action": "invite_oauth_otp_sent",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng ký qua link INV-T1-TO-TIER2 (Cấp 2 do Nguyễn Tuấn Anh (Cấp 1) mời). Đã gửi OTP 670078 & mật khẩu 'EmGai@2026' về Gmail (nep94121@gmail.com).",
-    "source": "AutoTest-Invite-OAuth",
-    "extra": {
-      "invite_code": "INV-T1-TO-TIER2",
-      "target_tier": 2,
-      "otp_code": "670078",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      }
-    }
-  },
-  {
-    "id": 910638,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier3_invite_blocked",
-    "email": "khachc.guest@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 3 (Khách C (Tầng 3)) không có quyền tạo hay gửi link mời!",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 910631,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier2_invite_tier2_blocked",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 2 (Thành viên A (Người nhà)) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp 2!",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 910619,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 2 (Gmail OTP)",
-    "action": "otp_verified",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Xác nhận đúng mã Gmail OTP (480786) cho Nguyễn Tuấn Anh (Tầng 1). Chờ Lớp 3 (Giọng nói).",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 910616,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 2 (Gmail OTP)",
-    "action": "otp_verify",
-    "email": "nep94121@gmail.com",
-    "status": "FAIL",
-    "detail": "Nhập sai mã OTP: nhập '000000' != mã đúng '480786'.",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 910602,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 1 (Tài khoản/Mật khẩu)",
-    "action": "password_check",
-    "email": "nep94121@gmail.com",
-    "status": "FAIL",
-    "detail": "Nhập sai mật khẩu cho tài khoản Nguyễn Tuấn Anh (Tầng 1).",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 910478,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 480786 — Mã OTP đã cấp trên Bảng Test (480786)",
-    "source": "AutoTest-Suite",
-    "extra": {
-      "otp_code": "480786",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 910431,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
-    "action": "voice_permission_restored",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Khẩu lệnh 'Bật lại quyền' -> Đã bật lại quyền Tầng 2 cho Thành viên A (Người nhà). Tài khoản đã hoạt động bình thường trở lại như cũ.",
-    "source": "Giọng nói tại nhà (Chủ nhà Cấp 1)",
-    "extra": {
-      "permission_status": "ACTIVE",
-      "restored_tier": 2
-    }
-  },
-  {
-    "id": 910414,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 3 (Server Tự Nhận Diện Giọng Nói)",
-    "action": "stranger_blocked",
-    "email": "unknown@stranger",
-    "status": "BLOCKED",
-    "detail": "CẢNH BÁO: Giọng thu âm từ [Samsung Galaxy S9 (App Android)] (F0=262.0Hz, Cosine=0.23) không khớp bất kỳ tài khoản nào! Đã chặn quyền!",
-    "source": "Samsung Galaxy S9 (App Android)",
-    "extra": {}
-  },
-  {
-    "id": 910411,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 298910 — Mã OTP đã cấp trên Bảng Test (298910)",
-    "source": "AutoTest-RestoreCheck",
-    "extra": {
-      "otp_code": "298910",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 910364,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
-    "action": "voice_permission_restored",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Khẩu lệnh 'Bật lại quyền cho Thành viên A như cũ' -> Đã bật lại quyền Tầng 2 cho Thành viên A (Người nhà). Tài khoản đã hoạt động bình thường trở lại như cũ.",
-    "source": "Mic Nhà Thông Minh (Chủ nhà Cấp 1)",
-    "extra": {
-      "permission_status": "ACTIVE",
-      "restored_tier": 2
-    }
-  },
-  {
-    "id": 910359,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 3 (Kiểm tra Quyền Giọng Nói)",
-    "action": "voice_recognized_but_revoked",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Server nhận ra giọng của Thành viên A (Người nhà), nhưng tài khoản này đã bị Chủ nhà xóa cấp quyền! Khi nào Chủ nhà bảo bật lại mới được điều khiển.",
-    "source": "Samsung Galaxy S9 (App Android)",
-    "extra": {}
-  },
-  {
-    "id": 910357,
-    "time_vn": "20:28:30 04/11/2026",
-    "layer": "Lớp 1 (Kiểm tra Cấp Quyền)",
-    "action": "account_exists_but_no_permission",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "Tài khoản Thành viên A (Người nhà) (thanhviena.hust@gmail.com) vẫn tồn tại nhưng hiện KHÔNG CÓ QUYỀN (Đã bị Chủ nhà Nguyễn Tuấn Anh thu hồi quyền). Khi nào Chủ nhà bảo bật lại mới có quyền!",
-    "source": "AutoTest-RevokeCheck",
-    "extra": {}
   }
 ]

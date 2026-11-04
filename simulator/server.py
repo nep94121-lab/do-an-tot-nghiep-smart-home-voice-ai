@@ -24,7 +24,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -144,6 +144,12 @@ async def mobile_app_index() -> FileResponse:
     return FileResponse(MOBILE_APP_DIR / "index.html")
 
 
+@app.get("/mobile")
+async def mobile_redirect() -> RedirectResponse:
+    """Chuyển hướng 307 từ /mobile về ứng dụng /app."""
+    return RedirectResponse(url="/app", status_code=307)
+
+
 @app.get("/wokwi")
 async def wokwi_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "wokwi.html")
@@ -167,6 +173,12 @@ async def guest_enroll_page() -> FileResponse:
 
 @app.get("/archify")
 async def archify_architecture_page() -> FileResponse:
+    return FileResponse(DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
+
+
+@app.get("/architecture")
+async def architecture_page() -> FileResponse:
+    """Trang Sơ đồ Kiến trúc Hệ thống tương tác (Archify)."""
     return FileResponse(DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
 
 

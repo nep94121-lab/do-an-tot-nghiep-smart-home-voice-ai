@@ -162,3 +162,71 @@
 - [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
 - [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
 - [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-02** Không kết nối được Live Server tại http://127.0.0.1:8088/auth: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-03** Không kết nối được Live Server tại http://127.0.0.1:8088/wokwi: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-04** Không kết nối được Live Server tại http://127.0.0.1:8088/logs: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-05** Không kết nối được Live Server tại http://127.0.0.1:8088/archify: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-06** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/erd: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-07** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/devops: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-08** Không kết nối được Live Server tại http://127.0.0.1:8088/api/voice_auth/profiles: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-02** Không kết nối được Live Server tại http://127.0.0.1:8088/auth: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-03** Không kết nối được Live Server tại http://127.0.0.1:8088/wokwi: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-04** Không kết nối được Live Server tại http://127.0.0.1:8088/logs: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-05** Không kết nối được Live Server tại http://127.0.0.1:8088/archify: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-06** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/erd: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-07** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/devops: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-08** Không kết nối được Live Server tại http://127.0.0.1:8088/api/voice_auth/profiles: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-02** Không kết nối được Live Server tại http://127.0.0.1:8088/auth: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-03** Không kết nối được Live Server tại http://127.0.0.1:8088/wokwi: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-04** Không kết nối được Live Server tại http://127.0.0.1:8088/logs: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-05** Không kết nối được Live Server tại http://127.0.0.1:8088/archify: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-06** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/erd: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-07** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/devops: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-08** Không kết nối được Live Server tại http://127.0.0.1:8088/api/voice_auth/profiles: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-02** Không kết nối được Live Server tại http://127.0.0.1:8088/auth: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-03** Không kết nối được Live Server tại http://127.0.0.1:8088/wokwi: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-04** Không kết nối được Live Server tại http://127.0.0.1:8088/logs: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-05** Không kết nối được Live Server tại http://127.0.0.1:8088/archify: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-06** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/erd: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-07** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/devops: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-08** Không kết nối được Live Server tại http://127.0.0.1:8088/api/voice_auth/profiles: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-02** Không kết nối được Live Server tại http://127.0.0.1:8088/auth: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-03** Không kết nối được Live Server tại http://127.0.0.1:8088/wokwi: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-04** Không kết nối được Live Server tại http://127.0.0.1:8088/logs: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-05** Không kết nối được Live Server tại http://127.0.0.1:8088/archify: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-06** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/erd: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-07** Không kết nối được Live Server tại http://127.0.0.1:8088/archify/devops: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-08** Không kết nối được Live Server tại http://127.0.0.1:8088/api/voice_auth/profiles: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-09** Không kết nối được Live Server tại http://127.0.0.1:8088/api/auth3/overview: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-10** Không kết nối được Live Server tại http://127.0.0.1:8088/api/server_logs_and_db: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+- [ ] **CONV-11** Lỗi kiểm thử WebSocket /ws trực tiếp: [WinError 1225] The remote computer refused the network connection
+
+## Phase Convergence: Remediation Tasks
+- [ ] **CONV-01** Không kết nối được Live Server tại http://127.0.0.1:8088/: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>

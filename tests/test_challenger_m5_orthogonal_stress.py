@@ -269,7 +269,7 @@ class TestSqliteWalConcurrencyAndIntegrity:
         init_sqlite_database()
         conn = get_connection()
         try:
-            initial_count = conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
+            initial_count = conn.execute("SELECT COUNT(*) FROM audit_logs WHERE event_type = 'ev1'").fetchone()[0]
             with pytest.raises(sqlite3.IntegrityError):
                 with conn:
                     # Chèn bản ghi hợp lệ
@@ -288,8 +288,8 @@ class TestSqliteWalConcurrencyAndIntegrity:
                         ) VALUES ('2026-11-04T00:00:00Z', '00:00:00', 'TEST', 'ev2', 'non_existent_user_9999', 'Ghost', 3, 'sum2', '{}')
                         """
                     )
-            # Sau khi bị rollback, số lượng bản ghi phải bằng ban đầu
-            final_count = conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
+            # Sau khi bị rollback, số lượng bản ghi ev1 phải bằng ban đầu (0)
+            final_count = conn.execute("SELECT COUNT(*) FROM audit_logs WHERE event_type = 'ev1'").fetchone()[0]
             assert final_count == initial_count, (
                 f"ACID Atomicity thất bại! Số bản ghi thay đổi dù transaction bị lỗi: {initial_count} -> {final_count}"
             )

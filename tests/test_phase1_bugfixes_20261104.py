@@ -42,12 +42,32 @@ def _eng():
 def reset_rest_engine_session():
     """Đảm bảo _REST_ENGINE luôn quay về trạng thái mặc định (Chủ nhà Cấp 1) trước và sau mỗi test."""
     eng = _eng()
+    eng.set_active_user("tuan_anh")
+    eng.server_connected = True
     asyncio.run(eng.factory_reset())
     eng.set_active_user("tuan_anh")
+    for d in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+        if d in eng.devices:
+            eng.devices[d]["state"] = "OFF"
+    if "main_door" in eng.devices:
+        eng.devices["main_door"]["state"] = "CLOSED"
+    eng.pump_manual_override_off = False
+    if hasattr(eng, "mqtt_bridge") and hasattr(eng.mqtt_bridge, "soil_moisture_telemetry"):
+        eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] = 62.0
     yield
     eng = _eng()
+    eng.set_active_user("tuan_anh")
+    eng.server_connected = True
     asyncio.run(eng.factory_reset())
     eng.set_active_user("tuan_anh")
+    for d in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+        if d in eng.devices:
+            eng.devices[d]["state"] = "OFF"
+    if "main_door" in eng.devices:
+        eng.devices["main_door"]["state"] = "CLOSED"
+    eng.pump_manual_override_off = False
+    if hasattr(eng, "mqtt_bridge") and hasattr(eng.mqtt_bridge, "soil_moisture_telemetry"):
+        eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] = 62.0
 
 
 @pytest.fixture

@@ -277,8 +277,9 @@ class TestM5QrScanner:
         res_gen = client.get("/api/auth3/guest_qr_current?duration=1d&host=localhost:8088&tier=3")
         assert res_gen.status_code == 200
         token = res_gen.json().get("token")
+        window = res_gen.json().get("window")
         assert token, "Không lấy được token từ /api/auth3/guest_qr_current"
-        res_valid = client.post("/api/auth3/guest_handshake", json={"token": token, "duration": "1d"})
+        res_valid = client.post("/api/auth3/guest_handshake", json={"token": token, "duration": "1d", "window": window})
         assert res_valid.status_code == 200
         data = res_valid.json()
         assert data.get("ok") is True, f"Bắt tay token hợp lệ thất bại: {data}"

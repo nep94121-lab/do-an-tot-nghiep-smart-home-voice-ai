@@ -54,3 +54,61 @@ Gate Result: **PASS**
 
 Gate Result: **PASS**
 
+
+## Gate — Milestone 11 (Iteration 1)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m11 | teamwork_worker | DONE (17/17 tests passed, vercel.json & server.py updated) | worker_m11/handoff.md |
+| reviewer_m11_1 | teamwork_reviewer | APPROVE (FastAPI + Vercel routes verified, 0 CRLF, 0 BOM) | reviewer_m11_1/handoff.md |
+| reviewer_m11_2 | teamwork_reviewer | APPROVE (Zero shadowing, TestClient 307/200 verified) | reviewer_m11_2/handoff.md |
+| challenger_m11_1 | teamwork_challenger | APPROVE (17/17 adversarial tests passed, catch-all verified) | challenger_m11_1/handoff.md |
+| challenger_m11_2 | teamwork_challenger | APPROVE (Query string redirects & Content Negotiation verified) | challenger_m11_2/handoff.md |
+| auditor_m11 | teamwork_auditor | CLEAN (Zero-cheat, genuine logic, 0 CRLF, UTF-8 no BOM) | auditor_m11/handoff.md |
+
+Gate Result: **PASS**
+
+## Gate — Milestone 12 (Iteration 1)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m12 | teamwork_worker | DONE (64/64 tests passed) | worker_m12/handoff.md |
+| reviewer_m12_1 | teamwork_reviewer | APPROVE | reviewer_m12_1/handoff.md |
+| reviewer_m12_2 | teamwork_reviewer | APPROVE | reviewer_m12_2/handoff.md |
+| challenger_m12_1 | teamwork_challenger | REJECT (CWE-565: unsigned cookie sh_session_tier=1 privilege escalation) | challenger_m12_1/handoff.md |
+| challenger_m12_2 | teamwork_challenger | APPROVE (Noted medium risk on unsigned fallback cookie) | challenger_m12_2/handoff.md |
+| auditor_m12 | teamwork_auditor | CLEAN (Zero-cheat, 64/64 passed) | auditor_m12/handoff.md |
+
+Gate Result: **FAIL** (challenger_m12_1 REJECT: unsigned cookie sh_session_tier fallback allows privilege escalation)
+
+## Gate — Milestone 12 (Iteration 2)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m12_iter2 | teamwork_worker | DONE (CWE-565 cookie fallback removed, 70/70 passed) | worker_m12_iter2/handoff.md |
+| reviewer_m12_iter2 | teamwork_reviewer | APPROVE (16/16 vectors blocked, 70/70 passed in 43.83s, 0 CRLF, UTF-8 no BOM) | reviewer_m12_iter2/handoff.md |
+| challenger_m12_iter2 | teamwork_challenger | APPROVE (PoC SECURE 403, all variations blocked, 70/70 passed in 44.14s) | challenger_m12_iter2/handoff.md |
+| auditor_m12_iter2 | teamwork_auditor | CLEAN (Zero-cheat, authentic SQLite SessionStore, 70/70 passed, 0 CRLF, UTF-8 no BOM) | auditor_m12_iter2/handoff.md |
+
+Gate Result: **PASS**
+
+## Gate — Milestone 14 (Iteration 1)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m14 | teamwork_worker | DONE (-4,960L bloat purged, assembleDebug SUCCESSFUL in 2m 22s, 350/350 tests passed) | worker_m14/handoff.md |
+| reviewer_m14_1 | teamwork_reviewer | APPROVE (Android Compose clean, assembleDebug SUCCESSFUL in 1m 1s, 0 CRLF, UTF-8 no BOM) | reviewer_m14_1/handoff.md |
+| reviewer_m14_2 | teamwork_reviewer | APPROVE (Python modularization clean, 152/152 tests passed, dead code purged) | reviewer_m14_2/handoff.md |
+| challenger_m14_1_rep | teamwork_challenger | APPROVE (100% invariants verified: house3d.js, ui_mockups, 68 DOM IDs, 25 hooks, 148/148 Node tests) | challenger_m14_1_rep/handoff.md |
+| challenger_m14_2 | teamwork_challenger | APPROVE (assembleDebug SUCCESSFUL in 1m 6s, APK 12MB, Spec Kit 6/6 CONVERGED) | challenger_m14_2/handoff.md |
+| auditor_m14 | teamwork_auditor | CLEAN (Zero-cheat, authentic logic, -4,960L verified, 179 files 0 CRLF & UTF-8 no BOM) | auditor_m14/handoff.md |
+
+Gate Result: **PASS**
+
+## Gate — Milestone 13 (Iteration 1)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m13 | teamwork_worker | DONE (M1-M5 implemented, assembleDebug SUCCESSFUL in 1m 25s, APK 12.18 MB) | worker_m13/handoff.md |
+| reviewer_m13_1 | teamwork_reviewer | APPROVE (M1-M5 Compose UI matches mockups np_m1..np_m5 1:1, 0 CRLF, UTF-8 no BOM) | reviewer_m13_1/handoff.md |
+| reviewer_m13_2 | teamwork_reviewer | APPROVE (AGP overridePathCheck, build architecture clean, no test weakening) | reviewer_m13_2/handoff.md |
+| challenger_m13_1 | teamwork_challenger | APPROVE (Clean rebuild verified, composables compiled in classes4.dex) | challenger_m13_1/handoff.md |
+| challenger_m13_2 | teamwork_challenger | APPROVE (Independent assembleDebug SUCCESSFUL in 1m 23s, S9 PnP status verified) | challenger_m13_2/handoff.md |
+| auditor_m13 | teamwork_auditor | CLEAN (Independent assembleDebug SUCCESSFUL in 3m 51s, 0 CRLF, APK verified) | auditor_m13/handoff.md |
+
+Gate Result: **PASS**

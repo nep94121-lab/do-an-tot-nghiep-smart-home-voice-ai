@@ -1,113 +1,104 @@
-# BÁO CÁO TỔNG KẾT BÀN GIAO TOÀN DIỆN (SENTINEL FINAL HANDOFF)
-## DỰ ÁN: NHÀ THÔNG MINH ĐIỀU KHIỂN BẰNG GIỌNG NÓI AI (ĐỒ ÁN TỐT NGHIỆP)
+# BÁO CÁO BÀN GIAO SENTINEL (SENTINEL FINAL HANDOFF REPORT)
 
-- **Vai trò**: Project Sentinel (`e8c9a3e3-d890-4ed6-8221-f35bbfee544f`)
-- **Người gửi yêu cầu**: Caller Agent (`fa7a9ad6-f576-4d25-949b-005caa35d379`) & Sếp Nguyễn Tuấn Anh
-- **Thời gian hoàn tất**: 2026-11-04T10:03:00Z
-- **Phán quyết độc lập cuối cùng**: **VICTORY CONFIRMED** (Kiểm toán bởi `teamwork_victory_auditor`)
-
----
-
-## 1. OBSERVATION (Quan Sát & Dữ Liệu Thực Nghiệm Toàn Diện)
-
-1. **Hạ Tầng Triển Khai & Kết Nối Đa Kênh (Milestone 1)**:
-   - **Vercel Production Live**: [https://do-an-tot-nghiep-smart-home-voice-a.vercel.app](https://do-an-tot-nghiep-smart-home-voice-a.vercel.app)
-     - Cả 6 endpoint/routes chính phản hồi HTTP 200 OK: `/`, `/app`, `/guest`, `/wokwi`, `/archify`, `/archify/devops`.
-   - **Git Repository**: [nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai](https://github.com/nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai.git), branch `master`, commit `5d99581`.
-   - **Kết nối 4 kênh đồng bộ**: Vercel + HTTPS Tunnel OpenSSH `localhost.run` + IP LAN `192.168.2.39:8088` + ADB Reverse `8088`.
-   - **Mã QR TOTP**: Mở rộng cửa sổ hiệu lực từ 10s lên 180s (18 chu kỳ), hỗ trợ Single-Use vô hiệu hóa ngay sau khi quét lần đầu chống Replay Attack.
-
-2. **Cổng Đăng Nhập & Trải Nghiệm Mật Khẩu (Milestone 2)**:
-   - **Khóa cứng Login Gate** (`#homeLoginGateModal`): Nút X (`#btnCloseLoginGateModal`) bị ẩn khi chưa có session, chặn click backdrop ra ngoài và chặn phím `Escape`. Bắt buộc tài khoản chính Chủ nhà: `nep94121@gmail.com` / `123456`.
-   - **Mở khóa ô nhập**: Loại bỏ hoàn toàn `readOnly = true` trong `simulator/static/js/auth.js` cho phép chỉnh sửa tự do.
-   - **Form UX**: Bọc thẻ `<form>` hỗ trợ nhấn phím `Enter` submit, thêm 10 nút 👁️ toggle ẩn/hiện mật khẩu, chuẩn hóa 2 ô xác nhận mật khẩu khi tạo/đổi mật khẩu trên cả Web và Mobile (`/app`).
-   - **Mobile SVG Sprite**: Di chuyển thẻ `<svg>` ra ngoài `<div id="mobileMainContent" hidden>` trong `mobile_app/index.html`, icon `#i-home` hiển thị sắc nét.
-
-3. **Mô Hình 3D Three.js, Camera Viewports & Raycaster (Milestone 3)**:
-   - **Bảo toàn DOM Canvas**: Sửa `simulator/static/house3d.js:179` chỉ xóa `<canvas>` cũ và dùng `insertBefore`, bảo toàn 100% phần tử `#house3dLabels` và `.viewport-note`.
-   - **7 Nút Nổi `.pin-3d`**: Bỏ `display: none !important;` trong `simulator/static/css/style.css`, hiển thị đầy đủ icon emoji, tên thiết bị, trạng thái BẬT/TẮT và click trực tiếp để toggle.
-   - **Thanh 7 Góc Nhìn Camera 3D**: Tích hợp thanh nút toolbar trên header panel Ngôi nhà 3D (`Toàn cảnh`, `Phòng khách`, `Phòng ngủ`, `Cửa chính`, `Sân vườn`, `Mạch ESP`, `Tự xoay`).
-   - **THREE.Raycaster**: Click trực tiếp vào mesh mô hình 3D (phân biệt kéo xoay vs click ngưỡng <= 6px) để bật/tắt thiết bị tức thì.
-
-4. **Kiểm Thử Giọng Nói Thật Của Sếp & Điện Thoại Thật Samsung Galaxy S9 (Milestone 4)**:
-   - **Kiểm thử Giọng thật của Sếp Nguyễn Tuấn Anh**:
-     - File gốc: `test_audio/giong_chu_nha_cap1_tuan_anh.wav` (SHA-256: `80b8b455a8adfc6bef4c2a52b3c474315bf37690225beff8116d919bb6bf11c7`).
-     - 7 file âm thanh câu lệnh đã cắt trong `test_audio/cac_cau_lenh_cua_sep/`.
-     - Nhận diện 100% Cấp 1 ADMIN `tuan_anh` (F0 88-122Hz), kích hoạt chuẩn xác 5 thiết bị mục tiêu (`main_door`, `living_room_light`, `bedroom_light`, `fan`, `ac`), cập nhật đồng thời vào RAM và SQLite CSDL `simulator/data/smarthome.db`.
-   - **Kiểm thử ADB trên điện thoại Samsung Galaxy S9** (`2223e8784b0c7ece`, `$env:ADB_LIBUSB=1`):
-     - [step1_login_gate.png](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/step1_login_gate.png): Màn hình đăng nhập khóa cứng, icon `#i-home` chuẩn.
-     - [step2_main_dashboard.png](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/step2_main_dashboard.png): Bảng điều khiển trung tâm mobile.
-     - [step3_device_control.png](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/step3_device_control.png): Thao tác bật/tắt thiết bị đồng bộ thời gian thực với Web.
-     - [step4_qr_guest.png](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/step4_qr_guest.png): Giao diện quét mã QR mời khách TOTP 180s.
-     - Cả 4 ảnh chụp đã được tự đọc lại bằng mắt thường (`view_file`), xác nhận 100% đúng luồng giao diện thật.
-
-5. **Bộ Kiểm Thử E2E Toàn Diện & Pháp Y Mã Nguồn (Milestone 5)**:
-   - **Kết quả Pytest**: **678 / 678 tests PASSED (100%)** trong 171.73s (Exit Code: 0, 0 failed, 0 skipped, 0 xfail).
-   - **Quét AST Pháp y**: 288 hàm test, 1,390 asserts — 0 `assert True`, 0 dummy mock, 0 facade.
-   - **Chuẩn mã hóa**: 100% tệp mã nguồn đạt chuẩn 0 CRLF (Unix LF) và UTF-8 không BOM.
-   - **CSDL SQLite**: Chạy stress-test không deadlock, PRAGMA integrity_check OK.
+**Dự án**: Smart Home Voice AI — Triển khai Toàn diện PHASE 2  
+**Thời điểm bàn giao**: 2026-11-04T14:35:00Z  
+**Trạng thái**: **VICTORY CONFIRMED (100% HOÀN THÀNH)**  
+**Mã kiểm toán viên độc lập**: `88a7a489-1943-46ab-825e-7965f8888440`  
 
 ---
 
-## 2. LOGIC CHAIN (Chuỗi Lập Luận Kỹ Thuật)
+## 1. Observation (Quan sát thực nghiệm)
 
-1. **Từ Khảo Sát (Phase 0) đến Phân Rã Không Chồng Lấn**:
-   - Khảo sát toàn diện chia 3 nhánh độc lập (`survey_1`, `survey_2`, `survey_3`) giúp nắm trọn hạ tầng thực tế mà không đưa ra phán đoán cảm tính.
-   - Biên soạn `PROJECT.md` với 17 tính năng được ranh giới hóa rõ ràng cho từng Milestone, áp dụng quyền sở hữu tệp độc quyền (Exclusive Write Ownership) ngăn chặn 100% xung đột ghi đè mã nguồn.
+1. **Khảo sát Yêu cầu & Phê duyệt Prompt Ban đầu**:
+   - Sentinel đã thực hiện Task Interview, nhận Approved Task Prompt từ người dùng/caller và ghi nhận vào `.agents/teamwork/ORIGINAL_REQUEST.md`.
+   - Lộ trình: Định tuyến sang General Path (`teamwork_orchestrator`) với đầy đủ các ràng buộc liêm chính: không tự sáng tạo layout/icon, giữ nguyên mô hình 3D `house3d.js` / Toàn cảnh, bảo toàn 100% DOM IDs và window hooks, không leak bí mật/mật khẩu, chạy pytest chuẩn trên Windows, push master và deploy Vercel.
 
-2. **Cơ Chế Cổng Đối Kháng Đa Tầng (Multi-Agent Adversarial Gates)**:
-   - Mỗi Milestone đều phải trải qua Cổng thẩm định gồm: 1 Implementer -> 2 Reviewers độc lập -> 2 Challengers độc lập -> 1 Forensic Auditor.
-   - Từng cấp bậc kiểm thử được thực thi trên thư mục tạm trắng riêng biệt (`--basetemp`), loại bỏ hoàn toàn hiện tượng ô nhiễm cache hoặc giả lập kết quả.
+2. **Tiến trình Thực thi Đa Agent (Phân chia Chuyên môn)**:
+   - **Phase 0 (Khảo sát)**: 3 subagents (`spec_miner_web_p2`, `spec_miner_mobile_p2`, `explorer_qa_p2`) đã hoàn thành 100% khảo sát chi tiết.
+   - **Nhóm a (M6 - Web Error Pages & Service Worker)**: `worker_m6` tạo 5 trang lỗi (`offline.html`, `404.html`, `500.html`, `qr_expired.html`, `403.html`), Service Worker `sw.js`, custom 404 handler trong `simulator/server.py` và `vercel.json` (59/59 tests pass).
+   - **Nhóm b (M7 - Security Modals & Banner)**: `worker_m7` triển khai `#securityLockdownModal`, `#micPermissionModal`, `#wsReconnectBanner` (72/72 tests pass).
+   - **Nhóm c & d (M8 - Mobile /app 5 Screens & Android Scope)**: `worker_m8` triển khai M1 (Home & Sensors), M2 (4 Tab & Account), M3 (Quên mật khẩu OTP), M4 (Voice Bottom Sheet), M5 (QR Scanner); đóng băng mã nguồn Android Compose per R3 (97/97 tests pass).
+   - **Bóc tách Mã Inline (`worker_clean_sw_script`)**: Di dời thẻ inline `<script>` sang `app.js`, giúp `tests/test_challenger_m4_security.py` đạt 48/48 tests pass.
+   - **Nhóm e & f (M9 - Thẩm định Độc lập & QA 3 Vai)**:
+     - `reviewer_p2`: Phán quyết **APPROVE (100%)** với điểm 100/100, xác nhận khớp 100% `DESIGN_NEW_PAGES.md`.
+     - `auditor_p2`: Phán quyết **CLEAN (100%)**, zero-cheat, zero-facade, zero-leak, 0 CRLF, UTF-8 no BOM.
+     - `qa_tester_p2`: Kiểm thử thực tế cổng 8088 cho 3 vai (Chủ nhà nep94121@gmail.com, Gia đình, Khách with QR TOTP) đạt 20/20 pass; Playwright DevTools đạt 6/6 pass.
+   - **Milestone M10 (Đóng gói, Báo cáo & Deployment)**: `worker_delivery_m10` hoàn thiện `FIX_REPORT_20261104.md` (40,282 bytes), commit `26e7afa`, push lên `origin/master`, xác thực Vercel URL `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` (HTTP 200 OK).
 
-3. **Nguyên Tắc Zero-Illusion & Xác Thực Trực Quan (View-File)**:
-   - Các thao tác trên điện thoại Samsung Galaxy S9 đều được ghi hình lại bằng `exec-out screencap -p > .png` thông qua shell `cmd /c` (chống lỗi byte UTF-16 của PowerShell) và đọc lại bằng công cụ thị giác trực tiếp.
-   - Các file âm thanh giọng nói thật của Sếp Tuấn Anh được băm SHA-256 đối soát trực tiếp với dữ liệu trích xuất F0/Formants, loại bỏ hoàn toàn khả năng sử dụng giọng tổng hợp TTS.
-
-4. **Kiểm Toán Chiến Thắng Độc Lập (Victory Audit — Non-Bypassable)**:
-   - Khi Orchestrator tuyên bố hoàn thành, Sentinel không chấp nhận tuyên bố đó trực tiếp mà kích hoạt `teamwork_victory_auditor` với bối cảnh sạch hoàn toàn.
-   - Chỉ khi phán quyết chính thức **VICTORY CONFIRMED** được ban hành, dự án mới được đóng lại và bàn giao.
-
----
-
-## 3. CAVEATS (Lưu Ý & Vận Hành)
-
-1. **Phiên Kết Nối HTTPS Tunnel (`localhost.run`)**:
-   - Khi khởi động lại máy hoặc tạo lại phiên SSH `localhost.run`, URL tunnel công cộng (`*.lhr.life`) sẽ thay đổi tiền tố ngẫu nhiên. Khi đó người dùng chỉ cần nhập host mới vào ô cấu hình hoặc truyền query `?host=...` vào API QR.
-2. **Biến Môi Trường ADB trên Windows**:
-   - Để giao tiếp ổn định với Samsung Galaxy S9, luôn đặt `$env:ADB_LIBUSB="1"` trước khi thực hiện các lệnh ADB.
+3. **Kiểm toán Độc lập Sau Tuyên bố Chiến thắng (Post-Victory Audit)**:
+   - Subagent `teamwork_victory_auditor` được khởi tạo với ngữ cảnh sạch hoàn toàn để đối chiếu với `ORIGINAL_REQUEST.md`:
+     - Phase A (Timeline): PASS, không có dị thường.
+     - Phase B (Integrity Forensics): PASS (0 cheat, 0 facade, 0 leak, 0 CRLF, 0 git diff trên `house3d.js` và `android_app/`, Vercel live 200 OK).
+     - Phase C (Independent Test Execution): Thực thi độc lập 159 bài test tổng hợp: **159/159 PASSED (100% exact match)**.
+     - **Phán quyết cuối cùng: VICTORY CONFIRMED**.
 
 ---
 
-## 4. CONCLUSION (Kết Luận Bàn Giao)
+## 2. Logic Chain (Chuỗi suy luận logic)
 
-- **Đồ Án Tốt Nghiệp Smart Home Voice AI đã hoàn thành 100% tất cả các mục tiêu kỹ thuật, chất lượng cao nhất, không gian lận, không ảo tưởng, và đạt chuẩn quốc tế**.
-- **Trạng thái**: Hoàn tất xuất sắc — Sẵn sàng bảo vệ đồ án tốt nghiệp.
+1. **Tuân thủ Tuyệt đối Thiết kế Codex & Tương thích Ngược**:
+   - Mọi trang HTML mới đều dựa trên các tệp mockup `np_*.html` và đặc tả `DESIGN_NEW_PAGES.md`.
+   - Toàn bộ 68 DOM IDs mobile, 105 DOM IDs web và 158 `window.*` hooks được bảo vệ nguyên trạng, loại bỏ hoàn toàn rủi ro làm gãy các bộ test E2E / Challenger trước đó.
+   - Mô hình 3D `house3d.js` và nút chuyển góc nhìn Toàn cảnh được giữ nguyên vẹn 100% (0 git modifications).
+
+2. **Chất lượng Kỹ thuật Thực chất (Orthogonal Verification & Zero-Illusion)**:
+   - Hệ thống được kiểm tra chéo qua nhiều lăng kính độc lập: Reviewer (so sánh giao diện/copy), Forensic Auditor (soi mã băm, CRLF, rò rỉ bảo mật), QA Tester (chạy luồng thực tế trên máy chủ sống 8088 với 3 vai trò) và Victory Auditor độc lập.
+   - Mọi chỉ tiêu kỹ thuật đều đạt Exit Code 0 trên môi trường thực tế.
+
+3. **Quy trình Bàn giao Chuẩn mực**:
+   - Tất cả các tác vụ nền (Cron 1, Cron 2) và subagents đã được thu dọn sạch sẽ (manage_task kill, manage_subagents kill_all), bảo đảm không để lại tiến trình treo (zombie processes).
 
 ---
 
-## 5. VERIFICATION METHOD (Phương Pháp & Lệnh Kiểm Chứng Tức Thì)
+## 3. Caveats (Lưu ý Vận hành)
 
-Người dùng hoặc hội đồng có thể tự kiểm chứng toàn bộ hệ thống bằng các lệnh sau:
+1. **Vercel Serverless & FastAPI Bridge**:
+   - Bản Vercel Production phục vụ nhanh chóng giao diện người dùng, tài liệu và các trang tĩnh/lỗi theo chuẩn CDN.
+   - Để trải nghiệm trọn vẹn mô hình 3D kết nối thời gian thực và xử lý giọng nói AI DSP, người dùng duy trì máy chủ cục bộ hoặc tunnel HTTPS (như đã cấu hình qua `localhost.run` / ADB reverse `tcp:8088`).
 
-1. **Kiểm tra Website Vercel Live**:
-   ```bash
-   curl -I https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/
-   curl -I https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/app
-   ```
-2. **Kiểm tra Kiểm thử Toàn bộ Suite Pytest (678 tests PASS)**:
+2. **Đóng băng Mã nguồn Android**:
+   - Theo đúng Requirement R3, mã nguồn Android Compose trong `android_app/` được đóng băng nguyên trạng, tránh các tác động ngoài ý muốn tới Gradle và SDK môi trường.
+
+---
+
+## 4. Conclusion (Kết luận)
+
+PHASE 2 đã hoàn thành 100% với chất lượng hoàn hảo:
+- Tất cả 5 trang lỗi Web và Service Worker `sw.js` hoạt động chính xác.
+- Các modal/banner bảo mật (Lockdown, Mic Permission, WS Reconnect) vận hành ổn định.
+- 5 màn hình mobile `/app` đáp ứng đầy đủ yêu cầu UX/UI của Codex.
+- 100% test pass (159/159 tests tích hợp, 20/20 test sống 3 vai).
+- Báo cáo `FIX_REPORT_20261104.md` hoàn thiện đầy đủ cả Phase 1 và Phase 2.
+- Mã nguồn đã được commit và push lên `origin/master`.
+- Production Vercel đã deploy và hoạt động tại `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`.
+- Phán quyết Victory Auditor: **VICTORY CONFIRMED**.
+
+---
+
+## 5. Verification Method (Phương pháp Kiểm chứng Độc lập)
+
+Để kiểm chứng lại kết quả bất kỳ lúc nào:
+
+1. **Chạy kiểm thử tổng hợp Phase 2:**
    ```powershell
-   python -m pytest tests/ -v --basetemp=.pytest_temp_verify
+   python -X utf8 -m pytest tests/test_m6_web_error_sw.py tests/test_m7_security_modals_banner.py tests/test_m8_mobile_screens.py tests/test_qa_p2_live_user_flows.py tests/test_challenger_m4_security.py tests/test_challenger_m4_dom.py --basetemp=.pytest_tmp -v
    ```
-3. **Kiểm tra Giọng Nói Thật Của Sếp & Kích Hoạt 5 Thiết Bị**:
+   *Kỳ vọng:* 159 passed in ~15-20s (Exit Code 0).
+
+2. **Kiểm tra tính bất biến của mô hình 3D:**
    ```powershell
-   python -m pytest tests/test_sep_real_voice_commands.py tests/test_live_sep_voice_actuation.py -v
+   git diff 7e2576e -- simulator/static/house3d.js
    ```
-4. **Kiểm tra Giao Diện DOM & Cổng Đăng Nhập**:
+   *Kỳ vọng:* 0 dòng thay đổi (Empty output, Exit Code 0).
+
+3. **Kiểm tra định dạng báo cáo (0 CRLF, UTF-8 no BOM):**
    ```powershell
-   python -m pytest tests/test_challenger_m4_dom.py -v
+   python -c "b = open('FIX_REPORT_20261104.md', 'rb').read(); assert b.count(b'\r\n') == 0; assert not b.startswith(b'\xef\xbb\xbf'); print('FIX_REPORT OK')"
    ```
-5. **Kiểm tra Kết Nối Điện Thoại Samsung S9 Qua ADB**:
+   *Kỳ vọng:* `FIX_REPORT OK`.
+
+4. **Kiểm tra trạng thái Git Master:**
    ```powershell
-   $env:ADB_LIBUSB="1"
-   C:\Users\LENOVO\AppData\Local\Android\Sdk\platform-tools\adb.exe -s 2223e8784b0c7ece devices
+   git status
    ```
+   *Kỳ vọng:* `Your branch is up to date with 'origin/master'. nothing to commit, working tree clean`.

@@ -25,6 +25,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
+from simulator.auth.session_store import get_session_store
 from simulator.auth_3layer import get_auth_3layer_manager
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
 from simulator.rule_engine import append_audit_log
@@ -538,13 +539,28 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         source=source,
         send_gmail=send_gmail,
     )
-    if res.get("ok") and not source.startswith("AutoTest"):
+    session_token = None
+    if res.get("ok"):
         acc = res.get("account") or {}
         tier_val = int(acc.get("tier") or res.get("tier") or 1)
         acc_id = str(acc.get("account_id") or "")
-        role_map = {1: "tuan_anh", 2: "thanh_vien_a", 3: "khach_c"}
-        active_uid = acc_id if acc_id in _REST_ENGINE.users else role_map.get(tier_val, "khach_c")
-        _REST_ENGINE.set_active_user(active_uid)
+        role_map = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
+        role_name = acc.get("role") or role_map.get(tier_val, "CHILD_GUEST")
+        disp_name = acc.get("display_name") or email
+        store = get_session_store()
+        sess = store.create_session(
+            user_id=acc_id or email,
+            tier=tier_val,
+            role=role_name,
+            display_name=disp_name,
+            email=email,
+            source=source,
+        )
+        res["session_token"] = sess.session_id
+        res["session"] = sess.to_dict()
+        session_token = sess.session_id
+        engine_role_map = {1: "tuan_anh", 2: "thanh_vien_a", 3: "khach_c"}
+        _REST_ENGINE.set_active_user(acc_id or engine_role_map.get(tier_val, "tuan_anh"))
         await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
@@ -555,11 +571,11 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         details=res,
     )
     resp = JSONResponse(res)
-    if res.get("ok") and not source.startswith("AutoTest"):
+    if res.get("ok"):
         acc = res.get("account") or {}
         tier_val = int(acc.get("tier") or res.get("tier") or 1)
-        resp.set_cookie("sh_session_tier", str(tier_val), httponly=True, samesite="lax")
-        resp.set_cookie("sh_session_user", str(acc.get("account_id", "")), httponly=True, samesite="lax")
+        if session_token:
+            resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
     return resp
 
 
@@ -570,14 +586,26 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
     otp_code = str(payload.get("otp_code") or payload.get("otp") or "").strip()
     source = str(payload.get("source", "Web Portal")).strip()
     res = get_auth_3layer_manager().layer2_verify_otp(email=email, otp_input=otp_code, source=source)
-    if res.get("ok") and not source.startswith("AutoTest"):
+    session_token = None
+    if res.get("ok"):
         tier_val = int(res.get("tier") or 1)
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
         acc_id = str(acc_obj.get("account_id") or "")
-        role_map = {1: "tuan_anh", 2: "thanh_vien_a", 3: "khach_c"}
-        active_uid = acc_id if acc_id in _REST_ENGINE.users else role_map.get(tier_val, "khach_c")
-        _REST_ENGINE.set_active_user(active_uid)
-        await broadcast_rest_state_to_bridges()
+        role_map = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
+        role_name = acc_obj.get("role") or role_map.get(tier_val, "CHILD_GUEST")
+        disp_name = acc_obj.get("display_name") or email
+        store = get_session_store()
+        sess = store.create_session(
+            user_id=acc_id or email,
+            tier=tier_val,
+            role=role_name,
+            display_name=disp_name,
+            email=email,
+            source=source,
+        )
+        res["session_token"] = sess.session_id
+        res["session"] = sess.to_dict()
+        session_token = sess.session_id
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="layer2_verify_otp",
@@ -587,11 +615,11 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
         details=res,
     )
     resp = JSONResponse(res)
-    if res.get("ok") and not source.startswith("AutoTest"):
+    if res.get("ok"):
         tier_val = int(res.get("tier") or 1)
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
-        resp.set_cookie("sh_session_tier", str(tier_val), httponly=True, samesite="lax")
-        resp.set_cookie("sh_session_user", str(acc_obj.get("account_id", "")), httponly=True, samesite="lax")
+        if session_token:
+            resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
     return resp
 
 

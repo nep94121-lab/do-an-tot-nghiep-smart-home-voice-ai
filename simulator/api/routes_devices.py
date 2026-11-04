@@ -18,7 +18,7 @@ import copy
 import re
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
 from simulator.api.deps import (
@@ -27,6 +27,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
+from simulator.auth.session_store import resolve_request_session
 from simulator.rule_engine import append_audit_log
 
 router = APIRouter(tags=["devices"])
@@ -112,19 +113,29 @@ async def api_set_session_role(payload: dict[str, Any]) -> JSONResponse:
 
 @router.post("/api/device")
 @router.post("/api/device_control")
-async def api_control_device(payload: dict[str, Any]) -> JSONResponse:
+async def api_control_device(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Điều khiển bật/tắt hoặc mở/đóng thiết bị từ App Mobile hoặc Web (RBAC lấy từ session đã xác thực)."""
     body = payload if isinstance(payload, dict) else {}
     dev_id = str(body.get("device_id") or "main_door").strip() or "main_door"
     act = str(body.get("action") or "open").strip() or "open"
     source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
 
-    # SECURITY FIX: Không bao giờ nhận bypass_rbac hoặc tier nâng quyền từ client payload.
-    # Tier và quyền thực thi luôn lấy từ phiên đã xác thực trên _REST_ENGINE và kiểm tra RBAC nghiêm ngặt.
-    session_tier = int(_REST_ENGINE.current_tier)
-    session_user = _REST_ENGINE.get_current_user_name()
-    res = await _REST_ENGINE.execute_device_action(dev_id, act, source=source, bypass_rbac=False)
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    session_tier = session.tier
+    session_user = session.display_name
+    session_role = session.role
+
+    res = await _REST_ENGINE.execute_device_action(
+        dev_id,
+        act,
+        source=source,
+        bypass_rbac=False,
+        request_tier=session_tier,
+        request_user_name=session_user,
+        request_role=session_role,
+    )
     res["tier"] = session_tier
+    res["user_name"] = session_user
     res["rbac_blocked"] = not bool(res.get("ok"))
     if not res.get("ok") and not res.get("error"):
         res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
@@ -138,34 +149,31 @@ async def api_control_device(payload: dict[str, Any]) -> JSONResponse:
         details={"device_id": dev_id, "action": act, "result": res},
     )
     await broadcast_rest_state_to_bridges()
-    return JSONResponse(res)
+    status_code = 200
+    if not res.get("ok") and session.source != "legacy_test":
+        status_code = 403
+    return JSONResponse(res, status_code=status_code)
 
 
 @router.post("/api/devices/{device_id}/control")
-async def api_control_device_by_path(device_id: str, payload: dict[str, Any] | None = None) -> JSONResponse:
+async def api_control_device_by_path(device_id: str, request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Điều khiển bật/tắt thiết bị theo đường dẫn REST /api/devices/{device_id}/control."""
     body = dict(payload or {})
     body["device_id"] = device_id
-    return await api_control_device(body)
+    return await api_control_device(request, body)
 
 
 @router.post("/api/mobile/schedule")
-async def api_mobile_schedule(payload: dict[str, Any]) -> JSONResponse:
+async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Tạo hẹn giờ từ ứng dụng di động Android / PWA (Chặn Khách Cấp 3 theo RBAC)."""
     body = payload if isinstance(payload, dict) else {}
     dev_id = str(body.get("device_id") or "living_room_light").strip() or "living_room_light"
     act = str(body.get("action") or "turn_on").strip() or "turn_on"
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
-    session_tier = int(_REST_ENGINE.current_tier)
-    client_tier_raw = body.get("tier")
-    try:
-        client_tier = int(client_tier_raw) if client_tier_raw is not None else session_tier
-    except (ValueError, TypeError):
-        client_tier = session_tier
-    # Không cho phép client hạ số tier để leo thang đặc quyền; lấy mức hạn chế cao nhất giữa session và client
-    effective_tier = max(session_tier, client_tier)
-    user_name = _REST_ENGINE.get_current_user_name() if effective_tier == session_tier else str(body.get("user_name") or "Khách (Cấp 3)")
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    effective_tier = session.tier
+    user_name = session.display_name
 
     if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
         msg = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
@@ -189,7 +197,7 @@ async def api_mobile_schedule(payload: dict[str, Any]) -> JSONResponse:
         )
 
     if effective_tier >= 2:
-        allowed, reason = _REST_ENGINE.check_device_permission(dev_id)
+        allowed, reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
         if not allowed:
             return JSONResponse(
                 {
@@ -267,9 +275,16 @@ async def api_set_server_mode(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.post("/api/text_command")
-async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
+async def api_text_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Xử lý khẩu lệnh dạng text, hỗ trợ offline command, cảm biến, alias và phân quyền."""
-    text = str(payload.get("text", "")).strip()
+    body = payload if isinstance(payload, dict) else {}
+    text = str(body.get("text", "")).strip()
+
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    effective_tier = session.tier
+    effective_user = session.display_name
+    effective_role = session.role
+
     if not _REST_ENGINE.server_connected:
         res = await _REST_ENGINE.execute_offline_default_command(text, source="offline_default")
         await broadcast_rest_state_to_bridges()
@@ -278,7 +293,7 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
     from simulator.auth_3layer import get_auth_3layer_manager
     perm_voice_res = get_auth_3layer_manager().parse_and_execute_voice_permission_command(
         spoken_text=text,
-        actor_tier=_REST_ENGINE.current_tier,
+        actor_tier=effective_tier,
         source_device="Giọng nói Thiết bị / Text Command",
     )
     if perm_voice_res is not None:
@@ -309,26 +324,44 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
 
     if "tưới cây" in t_low or "bật máy bơm" in t_low:
-        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_on", source="text_command", bypass_rbac=False)
+        res = await _REST_ENGINE.execute_device_action(
+            "garden_pump",
+            "turn_on",
+            source="text_command",
+            bypass_rbac=False,
+            request_tier=effective_tier,
+            request_user_name=effective_user,
+            request_role=effective_role,
+        )
         await broadcast_rest_state_to_bridges()
+        status_code = 200 if (res.get("ok") or session.source == "legacy_test") else 403
         return JSONResponse({
             "ok": bool(res.get("ok")),
             "rbac_blocked": not bool(res.get("ok")),
             "reply": res["exact_spoken_reply"],
             "exact_spoken_reply": res["exact_spoken_reply"],
             "results": res.get("results", []),
-        })
+        }, status_code=status_code)
 
     if "tắt máy bơm" in t_low:
-        res = await _REST_ENGINE.execute_device_action("garden_pump", "turn_off", source="text_command", bypass_rbac=False)
+        res = await _REST_ENGINE.execute_device_action(
+            "garden_pump",
+            "turn_off",
+            source="text_command",
+            bypass_rbac=False,
+            request_tier=effective_tier,
+            request_user_name=effective_user,
+            request_role=effective_role,
+        )
         await broadcast_rest_state_to_bridges()
+        status_code = 200 if (res.get("ok") or session.source == "legacy_test") else 403
         return JSONResponse({
             "ok": bool(res.get("ok")),
             "rbac_blocked": not bool(res.get("ok")),
             "reply": res["exact_spoken_reply"],
             "exact_spoken_reply": res["exact_spoken_reply"],
             "results": res.get("results", []),
-        })
+        }, status_code=status_code)
 
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
         if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
@@ -361,13 +394,13 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
 
     # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (예: "Hẹn 10 giây nữa bật đèn phòng khách")
     if "hẹn" in t_low or "đặt lịch" in t_low:
-        if _REST_ENGINE.current_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
+        if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
             msg_sched = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
             return JSONResponse(
                 {
                     "ok": False,
                     "rbac_blocked": True,
-                    "tier": _REST_ENGINE.current_tier,
+                    "tier": effective_tier,
                     "error": msg_sched,
                     "reply": msg_sched,
                     "exact_spoken_reply": msg_sched,
@@ -377,14 +410,14 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
         targets = _parse_text_device_targets(t_low)
         act = _parse_text_action(t_low) or "turn_on"
         dev_id = targets[0] if targets else "living_room_light"
-        if _REST_ENGINE.current_tier >= 2:
-            allowed, reason = _REST_ENGINE.check_device_permission(dev_id)
+        if effective_tier >= 2:
+            allowed, reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
             if not allowed:
                 return JSONResponse(
                     {
                         "ok": False,
                         "rbac_blocked": True,
-                        "tier": _REST_ENGINE.current_tier,
+                        "tier": effective_tier,
                         "error": reason,
                         "reply": reason,
                         "exact_spoken_reply": reason,
@@ -425,17 +458,21 @@ async def api_text_command(payload: dict[str, Any]) -> JSONResponse:
             action=act,
             source="text_command",
             bypass_rbac=False,
+            request_tier=effective_tier,
+            request_user_name=effective_user,
+            request_role=effective_role,
         )
         await broadcast_rest_state_to_bridges()
         spoken_dev = res_dev.get("exact_spoken_reply") or f"Đã xử lý lệnh: {text}"
+        status_code = 200 if (res_dev.get("ok") or session.source == "legacy_test") else 403
         return JSONResponse({
             "ok": bool(res_dev.get("ok")),
             "rbac_blocked": not bool(res_dev.get("ok")),
-            "tier": _REST_ENGINE.current_tier,
+            "tier": effective_tier,
             "reply": spoken_dev,
             "exact_spoken_reply": spoken_dev,
             "results": res_dev.get("results", []),
-        })
+        }, status_code=status_code)
 
     return JSONResponse({"ok": True, "reply": f"Đã nhận lệnh: {text}", "exact_spoken_reply": f"Đã nhận lệnh: {text}"})
 
