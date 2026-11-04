@@ -22,11 +22,12 @@ import numpy as np
 from dotenv import load_dotenv
 from google import genai
 
+from simulator.engine.constants_and_time import resolve_data_dir
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=True)
 
-DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = resolve_data_dir()
 
 KB_FILE = DATA_DIR / "knowledge_base.json"
 CACHE_FILE = DATA_DIR / "knowledge_embeddings_cache.json"

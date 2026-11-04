@@ -1,0 +1,14 @@
+.git
+.agents
+.specify
+specs
+tests
+android_app
+kenh_do_an_thay_duyet
+docs/tai_lieu_tham_khao
+test_audio/lich_su_thu_am
+__pycache__
+*.pyc
+.pytest_cache
+.pytest_temp*
+dist

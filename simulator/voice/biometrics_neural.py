@@ -18,8 +18,10 @@ from typing import Any
 
 import numpy as np
 
+from simulator.engine.constants_and_time import resolve_data_dir
+
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
-VOICEPRINT_FILE = ROOT_DIR / "simulator" / "data" / "voiceprints.json"
+VOICEPRINT_FILE = resolve_data_dir() / "voiceprints.json"
 
 
 def extract_neural_embedding_256d(pcm_16k_mono: bytes | np.ndarray, sr: int = 16000) -> np.ndarray:

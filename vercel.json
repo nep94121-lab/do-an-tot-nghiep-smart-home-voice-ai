@@ -3,6 +3,7 @@
   "framework": null,
   "cleanUrls": false,
   "routes": [
+    { "src": "^/api/(.*)$", "dest": "/api/index.py" },
     { "src": "^/static/(.*)$", "dest": "/simulator/static/$1" },
     { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
     { "src": "^/app/?$", "dest": "/mobile_app/index.html" },

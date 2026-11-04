@@ -19,8 +19,9 @@ import pathlib
 import time
 from typing import Any, Callable, Awaitable
 
-DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from simulator.engine.constants_and_time import resolve_data_dir
+
+DATA_DIR = resolve_data_dir()
 IR_DB_FILE = DATA_DIR / "ir_devices_db.json"
 EDGE_REPLICA_FILE = DATA_DIR / "esp8266_flash_replica.json"
 

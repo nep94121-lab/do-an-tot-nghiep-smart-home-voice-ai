@@ -695,9 +695,28 @@
     };
 
     ws.onclose = () => {
-      updateConnectionUI(false);
-      setTimeout(connectWebSocket, 2000);
+      fetch("/api/state")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((snap) => {
+          updateConnectionUI(true);
+          applySnapshot(snap);
+        })
+        .catch(() => {
+          updateConnectionUI(false);
+        });
+      setTimeout(connectWebSocket, 4000);
     };
+  }
+
+  function pollRestStateFallback() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    fetch("/api/state")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((snap) => {
+        updateConnectionUI(true);
+        applySnapshot(snap);
+      })
+      .catch(() => {});
   }
 
   function sendWs(payload) {
@@ -1569,5 +1588,7 @@
   initCameraToolbar();
 
   loadVoiceSamples();
+  pollRestStateFallback();
+  setInterval(pollRestStateFallback, 4000);
   connectWebSocket();
 })();

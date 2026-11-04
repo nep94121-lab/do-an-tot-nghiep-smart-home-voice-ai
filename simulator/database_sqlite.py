@@ -27,8 +27,9 @@ import sqlite3
 import threading
 from typing import Any
 
-DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from simulator.engine.constants_and_time import resolve_data_dir
+
+DATA_DIR = resolve_data_dir()
 
 SQLITE_DB_PATH = DATA_DIR / "smarthome.db"
 _DB_LOCK = threading.RLock()

@@ -754,10 +754,19 @@
         }
       };
       ws.onclose = () => {
-        const connEl = document.getElementById('espBadge');
-        if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
-        /* Auto-reconnect after 3s */
-        setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 3000);
+        fetch('/api/state')
+          .then(r => (r.ok ? r.json() : Promise.reject()))
+          .then(d2 => {
+            const connEl = document.getElementById('espBadge');
+            if (connEl) { connEl.textContent = 'Đã kết nối'; connEl.classList.remove('offline'); }
+            renderState(d2);
+          })
+          .catch(() => {
+            const connEl = document.getElementById('espBadge');
+            if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
+          });
+        /* Auto-reconnect after 4s */
+        setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
       };
       ws.onerror = () => {};
     }
@@ -823,6 +832,11 @@
         const [r1, r2] = await Promise.all([fetch('/api/auth3/overview'), fetch('/api/state')]);
         const d1 = await r1.json();
         const d2 = await r2.json();
+        if (d2 && d2.devices) {
+          const connEl = document.getElementById('espBadge');
+          if (connEl) { connEl.textContent = 'Đã kết nối'; connEl.classList.remove('offline'); }
+          renderState(d2);
+        }
         const stBadge = document.getElementById('mobileStrikeBadge');
         if (stBadge && d1.security_status) {
           const st = d1.security_status;

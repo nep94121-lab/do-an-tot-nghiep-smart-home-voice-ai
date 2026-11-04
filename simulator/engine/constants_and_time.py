@@ -4,12 +4,30 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import pathlib
 import re
+import shutil
 from typing import Any
 
-DATA_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+def resolve_data_dir() -> pathlib.Path:
+    repo_data = pathlib.Path(__file__).resolve().parent.parent / "data"
+    if os.environ.get("VERCEL"):
+        tmp_data = pathlib.Path("/tmp/smarthome_data")
+        tmp_data.mkdir(parents=True, exist_ok=True)
+        if repo_data.exists():
+            for src in repo_data.iterdir():
+                if src.is_file():
+                    dst = tmp_data / src.name
+                    if not dst.exists():
+                        shutil.copy2(src, dst)
+        return tmp_data
+    repo_data.mkdir(parents=True, exist_ok=True)
+    return repo_data
+
+
+DATA_DIR = resolve_data_dir()
 
 FACTORY_FILE = DATA_DIR / "factory_default_rules.json"
 OVERLAY_FILE = DATA_DIR / "custom_rules_overlay.json"

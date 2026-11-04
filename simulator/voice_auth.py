@@ -28,13 +28,13 @@ from typing import Any
 
 import numpy as np
 
+from simulator.engine.constants_and_time import resolve_data_dir
 from simulator.voice.biometrics_neural import (
     compute_neural_similarity,
     extract_neural_embedding_256d,
 )
 
-DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = resolve_data_dir()
 VOICEPRINT_FILE = DATA_DIR / "voiceprints.json"
 
 STAGE1_HIGH_CONFIDENCE = 0.88

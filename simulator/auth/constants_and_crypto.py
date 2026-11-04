@@ -10,9 +10,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from simulator.engine.constants_and_time import resolve_data_dir
+
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = resolve_data_dir()
 ACCOUNTS_FILE = DATA_DIR / "accounts_3layer.json"
 AUTH_EVENTS_FILE = DATA_DIR / "auth_3layer_events.json"
 INVITE_LINKS_FILE = DATA_DIR / "invite_links_3layer.json"
