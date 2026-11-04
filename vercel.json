@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "framework": null,
+  "cleanUrls": false,
+  "routes": [
+    { "src": "^/static/(.*)$", "dest": "/simulator/static/$1" },
+    { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
+    { "src": "^/app/?$", "dest": "/mobile_app/index.html" },
+    { "src": "^/auth/?$", "dest": "/simulator/static/auth.html" },
+    { "src": "^/guest_enroll/?$", "dest": "/simulator/static/guest_enroll.html" },
+    { "src": "^/guest-qr/?$", "dest": "/simulator/static/guest_enroll.html" },
+    { "src": "^/logs/?$", "dest": "/simulator/static/logs.html" },
+    { "src": "^/wokwi/?$", "dest": "/simulator/static/wokwi.html" },
+    { "src": "^/archify/devops/?$", "dest": "/docs/kien_truc/devops-cicd-pipeline.workflow.html" },
+    { "src": "^/archify/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
+    { "src": "^/$", "dest": "/simulator/static/index.html" }
+  ]
+}
