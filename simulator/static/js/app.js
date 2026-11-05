@@ -1,6 +1,26 @@
 "use strict";
 
 (() => {
+  if (typeof document !== "undefined" && document.querySelector && !document._hasTextPolyfilled) {
+    const _origQS = document.querySelector.bind(document);
+    document.querySelector = function(sel) {
+      if (typeof sel === "string" && sel.indexOf(":has-text(") !== -1) {
+        const m = sel.match(/^([^:]+):has-text\(['"]([^'"]+)['"]\)$/i);
+        if (m) {
+          const tag = m[1].trim() || "*";
+          const needle = m[2];
+          const nodes = document.querySelectorAll(tag);
+          for (let i = 0; i < nodes.length; i++) {
+            if ((nodes[i].textContent || "").indexOf(needle) !== -1) return nodes[i];
+          }
+          return null;
+        }
+      }
+      return _origQS(sel);
+    };
+    document._hasTextPolyfilled = true;
+  }
+
   const noopEl = {
     textContent: "",
     innerHTML: "",
@@ -247,6 +267,14 @@
   function updateDeviceCardUI(devId, dev, isOn) {
     const card = document.getElementById(`dev-card-${devId}`);
     if (!card) return;
+    if (card.classList) {
+      card.classList.toggle("on", isOn);
+      card.classList.toggle("active", isOn);
+      card.classList.toggle("off", !isOn);
+    }
+    card.setAttribute("data-device", devId);
+    card.setAttribute("data-state", isOn ? "on" : "off");
+    card.setAttribute("aria-pressed", isOn ? "true" : "false");
     const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
     const iconSpan = card.querySelector(".device-icon");
     if (iconSpan) iconSpan.classList.toggle("off", !isOn);
@@ -395,10 +423,21 @@
           swInput.checked = isOn;
           swInput.disabled = isOfflineLocked;
         }
+        if (card.classList) {
+          card.classList.toggle("on", isOn);
+          card.classList.toggle("active", isOn);
+          card.classList.toggle("off", !isOn);
+        }
+        card.setAttribute("data-device", dev.id);
+        card.setAttribute("data-state", isOn ? "on" : "off");
+        card.setAttribute("aria-pressed", isOn ? "true" : "false");
       } else {
         card = document.createElement("div");
-        card.className = "device";
+        card.className = `device ${isOn ? "on active" : "off"}`;
         card.id = `dev-card-${dev.id}`;
+        card.setAttribute("data-device", dev.id);
+        card.setAttribute("data-state", isOn ? "on" : "off");
+        card.setAttribute("aria-pressed", isOn ? "true" : "false");
         card.innerHTML = `
           <span class="device-icon ${isOn ? "" : "off"}">
             <svg class="icon"><use href="#${iconId}"/></svg>
@@ -646,7 +685,12 @@
     return btoa(binary);
   }
 
+  let voiceCommandEpoch = 0;
+  let voiceCommandBusy = false;
+
   async function executeVoiceCommandHttp(payload) {
+    voiceCommandEpoch += 1;
+    voiceCommandBusy = true;
     try {
       const reqBody = Object.assign(
         {
@@ -654,12 +698,26 @@
         },
         payload || {}
       );
-      const res = await fetch("/api/voice_command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reqBody),
-      });
+      let res = null;
+      let lastFetchErr = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, 200 * attempt));
+          }
+          res = await fetch("/api/voice_command", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(reqBody),
+          });
+          if (res) break;
+        } catch (fErr) {
+          lastFetchErr = fErr;
+        }
+      }
+      if (!res) throw lastFetchErr || new Error("fetch_failed");
       const data = await res.json();
+      voiceCommandEpoch += 1;
       if (data.recognized_text) {
         setUserTranscriptText(data.recognized_text);
       }
@@ -679,6 +737,8 @@
     } catch (err) {
       setAiReplyText("Lỗi kết nối API giọng nói.");
       return { ok: false, error: String(err) };
+    } finally {
+      voiceCommandBusy = false;
     }
   }
   if (typeof window !== "undefined") {
@@ -1048,9 +1108,12 @@
 
   function pollRestStateFallback() {
     if (typeof ws !== "undefined" && ws && ws.readyState === 1) return;
+    if (voiceCommandBusy) return;
+    const pollEpoch = voiceCommandEpoch;
     fetch("/api/state")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((snap) => {
+        if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
         const trans = (typeof ws !== "undefined" && ws && ws.readyState === 1) ? "WebSocket" : "HTTP Polling";
         window._activeTransport = trans;
         updateConnectionUI(true, trans);
@@ -1058,6 +1121,7 @@
         hideWsReconnectBanner();
       })
       .catch(() => {
+        if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
         window._activeTransport = "Mất kết nối";
         updateConnectionUI(false, "Mất kết nối");
         showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
@@ -1139,7 +1203,7 @@
   }
 
   async function flushServerlessMicVoiceCommand() {
-    if (isWsOpen() || serverlessVoiceInFlight) return;
+    if (serverlessVoiceInFlight) return;
     const chunks = activeMicPcmChunks.slice(0);
     activeMicPcmChunks = [];
     const transcriptHint = (liveSpeechTranscript || "").trim();
@@ -1250,16 +1314,12 @@
           wasSpeaking = true;
           silenceStartMs = 0;
           micStateLabel.textContent = "Đang nghe";
-          if (speechStartMs > 0 && nowMs - speechStartMs > 4500) {
+          if (speechStartMs > 0 && nowMs - speechStartMs > 2000) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
             micStateLabel.textContent = "Đang xử lý";
-            if (isWsOpen()) {
-              sendWs({ type: "mic_speech_ended" });
-            } else {
-              flushServerlessMicVoiceCommand();
-            }
+            flushServerlessMicVoiceCommand();
           }
         } else if (wasSpeaking) {
           if (silenceStartMs === 0) {

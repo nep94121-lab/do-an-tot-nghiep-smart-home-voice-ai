@@ -1106,4 +1106,16 @@ Giai đoạn 7 (`Phase 7 Voice` trên nhánh `p7-voice`, worktree `C:\Users\LENO
 | **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=122.7Hz) | `level3_bat_den_phong_khach.wav` | `đèn phòng khách bốn bật` | `TURN_ON_LIVING_ROOM_LIGHT` | **ALLOWED** | `living_room_light:turn_on -> ON` | **3.51** | 6894.80 |
 | **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=125.4Hz) | `level3_tat_quat.wav` | `quạt phòng khách một tắt` | `TURN_OFF_FAN` | **ALLOWED** | `fan:turn_off -> OFF` | **4.66** | 1148.16 |
 | **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=139.0Hz) | `level3_mo_cua_chinh.wav` | `công tắc cổng hai bật` | `OPEN_MAIN_DOOR` | **DENIED** | `main_door:open -> BLOCKED_RBAC` | **3.37** | 2253.56 |
+| **Stranger** | Người lạ (`test_audio/giong_2_nguoi_la_mo_cua.wav`, F0=121.2Hz) | `test_audio/giong_2_nguoi_la_mo_cua.wav` | `mở cửa chính` | `OPEN_MAIN_DOOR` | **DENIED** | `BLOCKED_UNAUTHORIZED_VOICE` (`main_door: CLOSED -> CLOSED`) | **3.12** | 475.10 |
+
+---
+
+### 14.4. Nghiệm Thu Độc Lập (`_indep_verify/indep_voice_e2e.py` & `_indep_verify/ui/ui_voice_check.py`) Trên `https://voice-orcin-six.vercel.app`
+
+- **Vercel Preview Deployment URL mới nhất:** `https://voice-hjt1qohky-tuananhs-projects-8aea56ce.vercel.app` (`dpl_2VpNyxoxWMxY1Ri8rY4dsi17JK4G`)
+- **Vercel Preview Public Alias:** `https://voice-orcin-six.vercel.app`
+- **Báo cáo chi tiết:** Xem [`FAIL_FIX_REPORT.md`](file:///C:/Users/LENOVO/datn-wt/voice/FAIL_FIX_REPORT.md)
+- **Kết quả `_indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app`:** **`ALL_PASS: True`, `FAILURES: 0`** (7/7 clip Chủ nhà L1 `ALLOWED`, 6/6 clip L2/L3 RBAC chuẩn, 1/1 clip người lạ `giong_2_nguoi_la_mo_cua.wav` `DENIED` và `main_door` giữ nguyên `CLOSED`).
+- **Kết quả `_indep_verify/ui/ui_voice_check.py` trên `https://voice-orcin-six.vercel.app/app`:** **`failures: []`** (0 lỗi), fake-mic `cau_4_48k.wav` nhận diện chính xác `"Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật."`, độ trễ click-to-visual-feedback của cả 6 bộ chọn nút đều đạt `109.5 ms – 174.4 ms` (`< 300 ms`).
+
 

@@ -28,3 +28,17 @@ Result: ok=True, tier=1, user_id=tuan_anh, f0_hz=103.9Hz, latency_ms=10582.25ms 
 14. Level 3 (VIVOS/CV/FOSD Speaker B, F0~139.0Hz) | level3_mo_cua_chinh.wav | text="công tắc cổng hai bật" | intent=OPEN_MAIN_DOOR | permission=DENIED | action="main_door:open -> BLOCKED_RBAC" | server_latency=3.37ms | e2e_latency=2253.56ms
 
 DONE 2026-11-05T12:03:00+07:00 Phase 7 Voice ALL GATES PASSED
+
+[INDEPENDENT VERIFICATION FIX (2026-11-05T13:44:00+07:00)]
+Preview Alias URL: https://voice-orcin-six.vercel.app
+Preview Deployment URL: https://voice-hjt1qohky-tuananhs-projects-8aea56ce.vercel.app (dpl_2VpNyxoxWMxY1Ri8rY4dsi17JK4G)
+1. Security Fix (test_audio/giong_2_nguoi_la_mo_cua.wav):
+   - Before: level=1, tier=1, speaker_name="Chủ nhà Nguyễn Tuấn Anh (Cấp 1)", permission=ALLOWED, main_door=OPEN
+   - After: ok=False, authorized=False, level=99, tier=99, speaker_name="Người lạ (Không được phép)", permission=DENIED, action=BLOCKED_UNAUTHORIZED_VOICE, main_door=CLOSED->CLOSED (opened=False, pass=True)
+2. Independent Real-HTTP E2E (_indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app):
+   - ALL_PASS=True, FAILURES=0 (7/7 L1 Owner clips ALLOWED, 6/6 L2/L3 dataset clips RBAC verified, 1/1 Unknown stranger clip DENIED)
+3. Independent Playwright UI Check (_indep_verify/ui/ui_voice_check.py on https://voice-orcin-six.vercel.app/app):
+   - failures=[] (0 failures)
+   - Fake-mic cau_4_48k.wav E2E: "Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật." (e2e_ms=4222.7ms)
+   - Click-to-visual-feedback latency (<300ms target): living_light=174.4ms, fan=123.7ms, door=162.1ms, living_light_data=109.5ms, fan_data=150.9ms, toggle=112.0ms
+DONE 2026-11-05T13:45:00+07:00 Independent Verification Fixes Verified & Deployed

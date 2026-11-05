@@ -618,6 +618,9 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         tier_val = int(acc.get("tier") or res.get("tier") or 1)
         if session_token:
             resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
+            resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedInEmail", email, path="/", httponly=False, samesite="lax", max_age=86400)
     return resp
 
 
@@ -662,6 +665,9 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
         if session_token:
             resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
+            resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedInEmail", email, path="/", httponly=False, samesite="lax", max_age=86400)
     return resp
 
 

@@ -347,6 +347,67 @@ def test_voice_command_api_3_levels_end_to_end():
         assert _snapshot_device_state(data["snapshot"], dev_id) == expected_state
 
 
+def test_unknown_stranger_voice_rejected_and_never_opens_door():
+    """Bao mat sinh trac hoc: Giong nguoi la (giong_2_nguoi_la_mo_cua.wav) TUYET DOI KHONG bao gio duoc nhan la Level 1 Owner
+    va TUYET DOI KHONG mo cua chinh (main_door).
+    """
+    client = TestClient(app)
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+
+    stranger_wav = ROOT / "test_audio" / "giong_2_nguoi_la_mo_cua.wav"
+    assert stranger_wav.exists(), f"Thieu file giong nguoi la: {stranger_wav}"
+    b64 = base64.b64encode(stranger_wav.read_bytes()).decode("ascii")
+
+    resp = client.post(
+        "/api/voice_command",
+        json={"wav_b64": b64, "audio_b64": b64, "pcm16k_b64": b64},
+    )
+    assert resp.status_code in (200, 401, 403), resp.text
+    data = resp.json()
+
+    assert data.get("ok") is False, f"Giong nguoi la khong duoc ok=True: {data}"
+    assert data.get("authorized") is False, f"Giong nguoi la khong duoc authorized=True: {data}"
+    assert data.get("level") != 1 and data.get("tier") != 1, f"Giong nguoi la bi nhan nham la Level 1: {data}"
+    assert data.get("permission") == "DENIED", f"Giong nguoi la phai bi DENIED: {data}"
+    assert _snapshot_device_state(data["snapshot"], "main_door") == "CLOSED", "Cua chinh KHONG duoc phep mo boi giong nguoi la!"
+
+
+def test_looped_fake_mic_48k_audio_recognition_and_mobile_cookie_unlock():
+    """Kiem thu luong fake-mic Chromium 48kHz -> 16kHz lap chu ky va cookie session_token mo khoa /app."""
+    import numpy as np
+    import wave
+
+    client = TestClient(app)
+    sep_dir = ROOT / "test_audio" / "cac_cau_lenh_cua_sep"
+
+    for fname, exp_intent, dev_id, init_st, exp_st in [
+        ("cau_2_mo_cua_chinh.wav", "OPEN_MAIN_DOOR", "main_door", "CLOSED", "OPEN"),
+        ("cau_4_bat_den_phong_khach.wav", "TURN_ON_LIVING_ROOM_LIGHT", "living_room_light", "OFF", "ON"),
+        ("cau_6_tat_het_den.wav", "TURN_OFF_ALL_LIGHTS", "living_room_light", "ON", "OFF"),
+    ]:
+        _REST_ENGINE.devices[dev_id]["state"] = init_st
+        with wave.open(str(sep_dir / fname), "rb") as wf:
+            pcm16 = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
+        # Gia lap 2.0s luong fake-mic lap chu ky voi cac do lech pha bat ky (bao gom giua nguyen am)
+        looped = np.tile(pcm16, 4)
+        for offset in (int(0.150 * 16000), 4000, 8000):
+            _REST_ENGINE.devices[dev_id]["state"] = init_st
+            cap_2s = looped[offset : offset + 32000]
+            pcm_b64 = base64.b64encode(cap_2s.astype(np.int16).tobytes()).decode("ascii")
+
+            resp = client.post(
+                "/api/voice_command",
+                json={"pcm16k_b64": pcm_b64, "is_live_mic": True},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["ok"] is True, f"Looped fake-mic {fname} (offset={offset}) that bai: {data}"
+            assert data["level"] == 1
+            assert data["permission"] == "ALLOWED"
+            assert data["intent"] == exp_intent
+            assert _snapshot_device_state(data["snapshot"], dev_id) == exp_st
+
+
 def test_frontend_js_contains_serverless_voice_command_fallback():
     """Dam bao app.js va mobile_app.js deu goi /api/voice_command va cap nhat UI khi WebSocket khong mo tren Vercel."""
     app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
