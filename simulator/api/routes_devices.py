@@ -24,17 +24,20 @@ from fastapi.responses import JSONResponse
 from simulator.api.deps import (
     ROOT,
     _ACTIVE_BRIDGES,
+    _BOOT_VOICE_AUTH,
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
 from simulator.auth.session_store import resolve_request_session
 from simulator.rule_engine import append_audit_log
+from simulator.voice.enrollment_quality import strip_vietnamese_diacritics
+from simulator.voice.stt_pipeline import process_voice_command_pipeline
 
 router = APIRouter(tags=["devices"])
 
 
 def _parse_text_device_targets(t_low: str) -> list[str]:
-    """Trích xuất danh sách device_id từ câu lệnh tiếng Việt (kể cả từ ánh xạ word_mappings)."""
+    """Trích xuất danh sách device_id từ câu lệnh tiếng Việt (hỗ trợ cả có dấu, không dấu và word_mappings)."""
     mapped_text = t_low
     for custom_word, target_val in _REST_ENGINE.get_word_mappings().items():
         cw_low = str(custom_word).lower().strip()
@@ -42,34 +45,56 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
         if cw_low and cw_low in mapped_text:
             mapped_text = mapped_text.replace(cw_low, f" {tv_low} ")
 
-    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")):
+    tn = strip_vietnamese_diacritics(mapped_text)
+
+    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")) or any(
+        k in tn for k in ("tat ca thiet bi", "toan bo thiet bi", "het thiet bi", "moi thiet bi")
+    ):
         return ["all_devices"]
-    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")):
+    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")) or any(
+        k in tn for k in ("tat ca den", "toan bo den", "hai den", "2 den", "ca 2 den", "ca hai den", "het den", "cac den")
+    ):
         return ["all_lights"]
 
     targets: list[str] = []
-    if any(k in mapped_text for k in ("cửa chính", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "main_door")) or re.search(r"\bcửa\b", mapped_text):
+    if (
+        any(k in mapped_text for k in ("cửa chính", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "công tắc cổng", "main_door"))
+        or any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "cua ra vao", "cua sat", "cong tac cong", "mo cua", "dong cua", "khoa cua"))
+        or re.search(r"\bcửa\b", mapped_text)
+    ):
         targets.append("main_door")
-    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")):
+    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")) or any(
+        k in tn for k in ("den phong khach", "den khach")
+    ):
         targets.append("living_room_light")
-    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")):
+    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")) or any(
+        k in tn for k in ("den phong ngu", "den ngu")
+    ):
         targets.append("bedroom_light")
-    if any(k in mapped_text for k in ("quạt trần", "quạt điện", "quạt", "fan")):
+    if any(k in mapped_text for k in ("quạt trần", "quạt điện", "quạt", "fan")) or any(
+        k in tn for k in ("quat tran", "quat dien", "tat quat", "bat quat")
+    ) or re.search(r"\bquat\b", tn):
         targets.append("fan")
-    if any(k in mapped_text for k in ("điều hòa", "máy lạnh", "ac")) or re.search(r"\bac\b", mapped_text):
+    if any(k in mapped_text for k in ("điều hòa", "máy lạnh")) or any(
+        k in tn for k in ("dieu hoa", "may lanh")
+    ) or re.search(r"\bac\b", tn):
         targets.append("ac")
-    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or re.search(r"\bcòi\b", mapped_text):
+    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or any(
+        k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom")
+    ) or re.search(r"\bcòi\b", mapped_text):
         targets.append("alarm_siren")
-    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "tưới cây", "tưới vườn", "garden_pump")):
+    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "tưới cây", "tưới vườn", "garden_pump")) or any(
+        k in tn for k in ("may bom", "bom nuoc", "bom vuon", "tuoi cay", "tuoi vuon")
+    ):
         targets.append("garden_pump")
 
-    if not targets and "đèn" in mapped_text:
+    if not targets and ("đèn" in mapped_text or re.search(r"\bden\b", tn)):
         targets.append("living_room_light")
     return targets
 
 
 def _parse_text_action(t_low: str) -> str | None:
-    """Trích xuất hành động bật/mở hoặc tắt/đóng từ câu lệnh tiếng Việt."""
+    """Trích xuất hành động bật/mở hoặc tắt/đóng từ câu lệnh tiếng Việt (có dấu và không dấu)."""
     mapped_text = t_low
     for custom_word, target_val in _REST_ENGINE.get_word_mappings().items():
         cw_low = str(custom_word).lower().strip()
@@ -85,6 +110,15 @@ def _parse_text_action(t_low: str) -> str | None:
     for p in on_patterns:
         if re.search(rf"(?:^|\s){re.escape(p)}(?:\s|$)", mapped_text):
             return "open" if p in ("mở", "open") else "turn_on"
+
+    tn = strip_vietnamese_diacritics(mapped_text)
+    has_door = any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "mo cua", "dong cua", "khoa cua", "cong tac cong", "main_door"))
+    for p_un in ("tat", "dong", "khoa", "ngat", "dung"):
+        if re.search(rf"(?:^|\s){re.escape(p_un)}(?:\s|$)", tn):
+            return "close" if (p_un in ("dong", "khoa") or has_door) else "turn_off"
+    for p_un in ("bat", "mo", "khoi dong", "chay"):
+        if re.search(rf"(?:^|\s){re.escape(p_un)}(?:\s|$)", tn):
+            return "open" if (p_un == "mo" or has_door) else "turn_on"
     return None
 
 
@@ -448,6 +482,18 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "timer": res_timer,
         })
 
+    tn_cmd = strip_vietnamese_diacritics(t_low)
+    if any(k in tn_cmd for k in ("reset he thong", "khoi phuc cai dat goc", "factory reset")):
+        res_rst = await _REST_ENGINE.manual_factory_reset()
+        await broadcast_rest_state_to_bridges()
+        spoken_rst = res_rst.get("exact_spoken_reply") or "Đã khôi phục cài đặt gốc toàn hệ thống."
+        return JSONResponse({
+            "ok": True,
+            "reply": spoken_rst,
+            "exact_spoken_reply": spoken_rst,
+            "snapshot": _REST_ENGINE.get_snapshot(),
+        })
+
     # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (kể cả word_mappings)
     targets = _parse_text_device_targets(t_low)
     act = _parse_text_action(t_low)
@@ -472,9 +518,54 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "reply": spoken_dev,
             "exact_spoken_reply": spoken_dev,
             "results": res_dev.get("results", []),
+            "snapshot": _REST_ENGINE.get_snapshot(),
         }, status_code=status_code)
 
-    return JSONResponse({"ok": True, "reply": f"Đã nhận lệnh: {text}", "exact_spoken_reply": f"Đã nhận lệnh: {text}"})
+    return JSONResponse({
+        "ok": True,
+        "reply": f"Đã nhận lệnh: {text}",
+        "exact_spoken_reply": f"Đã nhận lệnh: {text}",
+        "snapshot": _REST_ENGINE.get_snapshot(),
+    })
+
+
+@router.post("/api/voice_command")
+@router.post("/api/voice/command")
+async def api_voice_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Endpoint Stateless Voice Command cho Vercel Serverless & Web/Mobile Mic Capture:
+    Audio Upload (wav_b64 / pcm16k_b64 / sample_id) -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
+    """
+    body = payload if isinstance(payload, dict) else {}
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+
+    res = await process_voice_command_pipeline(
+        body,
+        engine=_REST_ENGINE,
+        voice_auth=_BOOT_VOICE_AUTH,
+        session_tier=session.tier,
+        session_user=session.display_name,
+        session_role=session.role,
+    )
+
+    append_audit_log(
+        category="VOICE_COMMAND",
+        event_type="voice_command_executed" if res.get("ok") else "voice_command_blocked",
+        summary=(
+            f"🎙️ [Voice L{res.get('level')}] {res.get('speaker_name')}: "
+            f"'{res.get('recognized_text')}' -> {res.get('intent')} ({res.get('permission')}, {res.get('latency_ms')}ms)"
+        ),
+        user_name=str(res.get("speaker_name") or session.display_name),
+        tier=int(res.get("tier") or session.tier),
+        details={
+            "recognized_text": res.get("recognized_text"),
+            "intent": res.get("intent"),
+            "permission": res.get("permission"),
+            "action": res.get("action"),
+            "latency_ms": res.get("latency_ms"),
+        },
+    )
+    await broadcast_rest_state_to_bridges()
+    return JSONResponse(res, status_code=200)
 
 
 @router.get("/api/wokwi_files")

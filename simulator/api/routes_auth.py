@@ -193,9 +193,16 @@ async def api_auth3_read_gmail_otp(payload: dict[str, Any] | None = None) -> JSO
 @router.post("/api/auth3/enroll_first_page_voice")
 async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResponse:
     """Thu âm giọng nói câu mẫu trang đầu."""
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+
     email = str(payload.get("email", "")).strip()
     spoken_text = str(payload.get("spoken_text", "")).strip()
-    pcm16k_b64 = str(payload.get("pcm16k_b64", "")).strip()
+    pcm16k_b64 = str(
+        payload.get("pcm16k_b64")
+        or payload.get("wav_b64")
+        or payload.get("audio_b64")
+        or ""
+    ).strip()
     f0_raw = payload.get("measured_f0_hz")
     measured_f0_hz = float(f0_raw) if f0_raw is not None else None
     hold_duration_sec = float(payload.get("hold_duration_sec", 3.2) or 3.2)
@@ -203,7 +210,13 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
     pcm_bytes = b""
     if pcm16k_b64:
         try:
-            pcm_bytes = base64.b64decode(pcm16k_b64)
+            raw_decoded = base64.b64decode(pcm16k_b64)
+            if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+                pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
+                pcm_bytes = pcm_arr.astype("int16").tobytes()
+                pcm16k_b64 = base64.b64encode(pcm_bytes).decode("ascii")
+            else:
+                pcm_bytes = raw_decoded
         except Exception:
             pcm_bytes = b""
 
@@ -294,10 +307,24 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
         except (ValueError, TypeError):
             target_tier = None
 
-    pcm16k_b64 = str(payload.get("audio_pcm_b64") or payload.get("pcm16k_b64") or payload.get("audio_b64") or payload.get("audio_base64") or "").strip()
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+
+    pcm16k_b64 = str(
+        payload.get("audio_pcm_b64")
+        or payload.get("pcm16k_b64")
+        or payload.get("wav_b64")
+        or payload.get("audio_b64")
+        or payload.get("audio_base64")
+        or ""
+    ).strip()
     source_device = str(payload.get("source_device", "Thu Âm Giọng Chính")).strip()
     try:
-        pcm_bytes = base64.b64decode(pcm16k_b64) if pcm16k_b64 else b""
+        raw_decoded = base64.b64decode(pcm16k_b64) if pcm16k_b64 else b""
+        if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+            pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
+            pcm_bytes = pcm_arr.astype("int16").tobytes()
+        else:
+            pcm_bytes = raw_decoded
     except Exception:
         pcm_bytes = b""
 
@@ -432,15 +459,30 @@ async def api_voice_auth_profiles() -> JSONResponse:
 
 
 @router.post("/api/voice_auth/enroll_tier_pcm")
+@router.post("/api/voice_enroll")
+@router.post("/api/voice/enroll")
 async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm giọng nói thật 16kHz PCM từ mic lưu làm profile server."""
-    b64_pcm = str(payload.get("pcm16k_b64", "")).strip()
+    """Thu âm giọng nói thật 16kHz PCM hoặc WAV từ mic/file lưu làm profile server."""
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+
+    b64_pcm = str(
+        payload.get("pcm16k_b64")
+        or payload.get("wav_b64")
+        or payload.get("audio_b64")
+        or payload.get("audio_pcm_b64")
+        or ""
+    ).strip()
     user_id = str(payload.get("user_id", "tuan_anh")).strip()
     user_name = str(payload.get("user_name", "Nguyễn Tuấn Anh")).strip()
-    tier = int(payload.get("tier", 1) or 1)
+    tier = int(payload.get("tier") or payload.get("level") or 1)
     role = "ADMIN" if tier == 1 else ("MEMBER" if tier == 2 else "CHILD_GUEST")
     try:
-        pcm_bytes = base64.b64decode(b64_pcm) if b64_pcm else b""
+        raw_decoded = base64.b64decode(b64_pcm) if b64_pcm else b""
+        if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+            pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
+            pcm_bytes = pcm_arr.astype("int16").tobytes()
+        else:
+            pcm_bytes = raw_decoded
     except Exception:
         pcm_bytes = b""
 

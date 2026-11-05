@@ -695,6 +695,7 @@
 
       // Đã được cấp quyền mic: chuyển sang "Đang thu âm", kích hoạt sóng âm và timer
       if (title) title.textContent = 'Đang thu âm';
+      startMobileSpeechRecognitionVi();
 
       const raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : ((cb) => setTimeout(cb, 100));
       function animateBars() {
@@ -721,6 +722,9 @@
 
     async function stopVoiceRecording() {
       const recordedDuration = voiceSheetSec;
+      stopMobileSpeechRecognitionVi();
+      const spokenInSheet = (mobileSpeechTranscript || '').trim();
+      mobileSpeechTranscript = '';
       stopVoiceSheetRecordingClean();
 
       const title = document.getElementById('mobileVoiceSheetTitle');
@@ -737,7 +741,7 @@
 
       let isPass = false;
       let roleName = 'Chủ nhà';
-      if (recordedDuration < 2) {
+      if (recordedDuration < 2 && !spokenInSheet) {
         isPass = false;
       } else {
         try {
@@ -745,6 +749,12 @@
           const ovData = await ovRes.json();
           if (ovData && ovData.current_role) {
             roleName = ovData.current_role.display_name || 'Chủ nhà';
+          }
+          if (spokenInSheet) {
+            await executeMobileVoiceCommandHttp({
+              transcript: spokenInSheet,
+              is_live_mic: true,
+            });
           }
           isPass = true;
         } catch (e) {
@@ -1075,6 +1085,95 @@
       if (reply !== null) document.getElementById('aiReply').textContent = reply;
     }
 
+    let mobileMicPcmChunks = [];
+    let mobileSpeechRec = null;
+    let mobileSpeechTranscript = '';
+
+    function startMobileSpeechRecognitionVi() {
+      mobileSpeechTranscript = '';
+      if (typeof window === 'undefined') return;
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) return;
+      try {
+        mobileSpeechRec = new SpeechRec();
+        mobileSpeechRec.lang = 'vi-VN';
+        mobileSpeechRec.continuous = true;
+        mobileSpeechRec.interimResults = true;
+        mobileSpeechRec.onresult = (ev) => {
+          let combined = '';
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            combined += ev.results[i][0].transcript + ' ';
+          }
+          const cleaned = combined.trim();
+          if (cleaned) {
+            mobileSpeechTranscript = cleaned;
+            showPwaVoiceResults(cleaned, 'Đang nghe...');
+          }
+        };
+        mobileSpeechRec.onerror = () => {};
+        mobileSpeechRec.start();
+      } catch (_) {
+        mobileSpeechRec = null;
+      }
+    }
+
+    function stopMobileSpeechRecognitionVi() {
+      if (mobileSpeechRec) {
+        try {
+          mobileSpeechRec.stop();
+        } catch (_) {}
+        mobileSpeechRec = null;
+      }
+    }
+
+    function mobileUint8ChunksToBase64(chunks) {
+      let totalLen = 0;
+      for (const c of chunks) totalLen += c.byteLength;
+      if (totalLen === 0) return '';
+      const merged = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const c of chunks) {
+        merged.set(c, offset);
+        offset += c.byteLength;
+      }
+      let binary = '';
+      const chunkStep = 8192;
+      for (let i = 0; i < merged.byteLength; i += chunkStep) {
+        binary += String.fromCharCode.apply(null, merged.subarray(i, i + chunkStep));
+      }
+      return window.btoa(binary);
+    }
+
+    async function executeMobileVoiceCommandHttp(payload) {
+      const badge = document.getElementById('voiceStateBadge');
+      if (badge) badge.textContent = 'Đang xử lý';
+      try {
+        const res = await fetch('/api/voice_command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {}),
+        });
+        const data = await res.json();
+        const saidText = data.recognized_text || (payload && payload.transcript) || 'Khẩu lệnh giọng nói';
+        const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
+        showPwaVoiceResults(saidText, replyText);
+        if (badge) badge.textContent = data.ok === false ? 'Cần thử lại' : 'Sẵn sàng';
+        addLog(saidText, 'voice', data.ok === false ? 'Thất bại' : 'Thành công');
+        if (data.snapshot) {
+          renderState(data.snapshot);
+        } else {
+          await fetchInitial();
+        }
+        return data;
+      } catch (err) {
+        if (badge) badge.textContent = 'Cần thử lại';
+        return { ok: false, error: String(err) };
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.executeMobileVoiceCommandHttp = executeMobileVoiceCommandHttp;
+    }
+
     async function toggleMobileVoiceListen() {
       isMobileListening = !isMobileListening;
       const badge = document.getElementById('voiceStateBadge');
@@ -1083,6 +1182,7 @@
       if (!isMobileListening) {
         if (badge) badge.textContent = 'Sẵn sàng';
         if (label) label.textContent = 'Bắt đầu nói';
+        stopMobileSpeechRecognitionVi();
         if (mobileAudioProcessor) {
           mobileAudioProcessor.disconnect();
           mobileAudioProcessor = null;
@@ -1097,12 +1197,25 @@
         }
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'mic_speech_ended' }));
+        } else {
+          const chunks = mobileMicPcmChunks.slice(0);
+          mobileMicPcmChunks = [];
+          const transcriptHint = (mobileSpeechTranscript || '').trim();
+          mobileSpeechTranscript = '';
+          const pcm16k_b64 = chunks.length > 0 ? mobileUint8ChunksToBase64(chunks) : generateMobileSynthetic16kPcmB64(true);
+          await executeMobileVoiceCommandHttp({
+            pcm16k_b64,
+            transcript: transcriptHint,
+            is_live_mic: true,
+          });
         }
         return;
       }
 
       if (badge) badge.textContent = 'Đang nghe';
       if (label) label.textContent = 'Dừng và gửi';
+      mobileMicPcmChunks = [];
+      startMobileSpeechRecognitionVi();
 
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1133,7 +1246,11 @@
             const s = Math.max(-1, Math.min(1, input[i]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
           }
-          const bytes = new Uint8Array(pcm16.buffer);
+          const bytes = new Uint8Array(pcm16.buffer.slice(0));
+          mobileMicPcmChunks.push(bytes);
+          if (mobileMicPcmChunks.length > 40) {
+            mobileMicPcmChunks.shift();
+          }
           let binary = '';
           for (let i = 0; i < bytes.byteLength; i++) {
             binary += String.fromCharCode(bytes[i]);
