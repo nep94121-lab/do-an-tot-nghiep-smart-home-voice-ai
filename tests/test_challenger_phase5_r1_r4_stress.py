@@ -32,6 +32,7 @@ def run_node_stress_harness(script_body: str) -> dict:
         cwd=str(ROOT),
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if proc.returncode != 0:
         raise RuntimeError(

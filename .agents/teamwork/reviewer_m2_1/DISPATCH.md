@@ -1,24 +1,37 @@
-## 2026-11-04T06:36:24Z
-Bạn là Subagent teamwork_reviewer (Reviewer 1) thực hiện đánh giá độc lập Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+# Task Assignment: Reviewer 1 for Milestone 2
 
-MANDATORY: Đọc kỹ các tài liệu sau trước khi thẩm định:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M2: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m2\handoff.md`
+You are teamwork_reviewer / reviewer_m2_1.
+Working directory: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\
+Original Request: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\ORIGINAL_REQUEST.md
+Project Blueprint: C:\Users\LENOVO\datn-wt\ui\PROJECT.md
+Worker Handoff: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\worker_m2_gen2\handoff.md
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m2_1\`
+Review Milestone 2:
+1. Examine code changes:
+   - `simulator/static/index.html` (Header 2-row layout, `#homeLoginGateModal` minimalist redesign)
+   - `simulator/static/css/style.css` (2-row header, email ellipsis truncation, mobile compact 3D chips)
+   - `simulator/static/js/house3d.js` (`updatePinPositions()` boundary clamping, 3-pass relaxation collision repulsion)
+   - `mobile_app/index.html` & `simulator/static/js/mobile_app.js` (`data-device-id`, in-place DOM update, 2500ms `pendingDeviceMutations` guard)
+   - `simulator/static/auth.html` & `simulator/static/js/auth.js` (3 visible setup fields, empty static password `value=""`, fallback 123456)
+   - `FIX_REPORT_20261104.md` (latency metrics)
+2. Run test verification:
+   - `pytest --basetemp=.pytest_tmp tests/test_milestone_m1_navigation_routing.py tests/test_phase5_r4_house3d_overlay.py tests/test_challenger_m3_stress_dom_raycaster.py tests/test_challenger_m4_dom.py tests/test_challenger_m2_gate_ux_empirical.py tests/test_p4_survey1_security_auth.py tests/test_p4_survey3_ui_layout.py`
+   - `pytest tests/test_challenger_m4_security.py` (with GEMINI_API_KEY)
+3. Check invariants:
+   - 0 `<style>` tags, 0 inline `<script>` tags across all HTML files
+   - 100% POSIX LF line endings (0 CRLF)
+   - Zero modifications to `simulator/voice/**`, `simulator/voice_auth.py`, `simulator/live/**`
+4. Determine verdict: APPROVE or REQUEST_CHANGES.
 
-Nhiệm vụ cụ thể:
-1. Kiểm tra mã nguồn 5 tệp đã sửa:
-   - `simulator/static/index.html` (khóa cứng modal `#homeLoginGateModal`, ẩn `#btnCloseLoginGateModal`, thẻ `<form>`, nút 👁️ toggle)
-   - `simulator/static/js/app.js` (hàm `hasValidLoginSession`, chặn đóng khi chưa auth, chặn click backdrop/ESC, export `window.togglePasswordVisibility`)
-   - `simulator/static/js/auth.js` (bỏ `readOnly = true` ở dòng 56 & 60)
-   - `mobile_app/index.html` (khối `<svg>` sprite đặt ngay sau `<body>`, tab đặt/đổi mật khẩu 2 ô kèm nút 👁️)
-   - `simulator/static/js/mobile_app.js` (hàm đổi mật khẩu, đăng ký, toggle eye)
-2. Chạy kiểm thử xác thực:
-   - `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_rev_m2_1`
-3. Đánh giá tính đầy đủ, độ bền vững, tính an toàn và đưa ra kết luận rõ ràng: APPROVE hoặc REQUEST_CHANGES.
+Write your report to:
+`C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\handoff.md`
+And send a message to parent with your verdict.
 
-Viết báo cáo đánh giá chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m2_1\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+
+## 2026-11-05T05:54:09Z
+You are teamwork_reviewer / reviewer_m2_1.
+Working directory: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\
+Read C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\ORIGINAL_REQUEST.md, C:\Users\LENOVO\datn-wt\ui\PROJECT.md, C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\worker_m2_gen2\handoff.md, and C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\DISPATCH.md.
+
+Review Milestone 2 implementation, run tests, verify invariants.
+Write your report to C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\handoff.md and report verdict (APPROVE or REQUEST_CHANGES) via send_message.

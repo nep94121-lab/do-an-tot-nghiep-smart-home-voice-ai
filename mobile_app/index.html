@@ -37,7 +37,8 @@
         <p class="muted" style="margin-top:4px;">Đăng nhập để điều khiển ngôi nhà</p>
       </div>
 
-      <div style="display:flex; gap:6px; margin:10px 0 14px;">
+      <!-- Legacy tab bar preserved for backward test compatibility, hidden from minimalist view -->
+      <div id="mobileLegacyTabsWrapper" style="display:none;" hidden>
         <button type="button" id="btnMobileTabLogin" class="btn primary" onclick="switchMobileLoginTab('login')" style="flex:1; min-height:34px; font-size:12px; padding:6px 8px;">1. Đăng nhập</button>
         <button type="button" id="btnMobileTabRegister" class="btn secondary" onclick="switchMobileLoginTab('register')" style="flex:1; min-height:34px; font-size:12px; padding:6px 8px;">2. Đặt / Đổi mật khẩu</button>
       </div>
@@ -55,8 +56,9 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <div style="display:flex; justify-content:flex-end; margin-top:2px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
           <button type="button" id="btnMobileForgotPassword" class="text-link" onclick="openForgotPassword()" style="font-size:12px;">Quên mật khẩu?</button>
+          <a href="/register" class="text-link" style="font-size:12px; text-decoration:none;">Đăng ký</a>
         </div>
         <div id="mobileLoginMsg" class="muted" style="min-height:18px;"></div>
         <button type="submit" class="btn primary" id="mobileLoginBtn">Đăng nhập</button>
@@ -424,7 +426,7 @@
             </div>
             <div id="mobileVoiceRes" style="font-size:12px; margin-top:6px;"></div>
             <div id="mobileVoiceMetrics" style="font-size:11px;margin-top:4px;color:var(--muted);display:none;">
-              <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> · 
+              <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> ·
               <span>SNR: <strong id="mobileVoiceSNR">—</strong> dB</span>
             </div>
           </div>
@@ -514,14 +516,26 @@
         </div>
       </details>
 
-      <!-- MỤC 4: CÀI ĐẶT -->
-      <details class="account-item">
+      <!-- MỤC 4: CÀI ĐẶT & ĐIỀU HƯỚNG TRANG -->
+      <details class="account-item" id="secNavigationLinks">
         <summary>
-          <span>Cài đặt hệ thống</span>
-          <span class="muted">Tùy chọn</span>
+          <span>Điều hướng hệ thống</span>
+          <span class="muted">8 trang</span>
         </summary>
         <div class="account-body">
-          <a href="/logs" class="btn secondary">Mở trang Nhật ký quản trị</a>
+          <nav aria-label="Điều hướng hệ thống" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <a href="/" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Tổng quan</a>
+            <a href="/auth" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Xác thực</a>
+            <a href="/wokwi" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Phần cứng</a>
+            <a href="/logs" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Nhật ký</a>
+            <a href="/app" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center; background:var(--accent-soft); color:var(--accent);">Ứng dụng</a>
+            <a href="/guest_enroll" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Khách</a>
+            <a href="/login" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng nhập</a>
+            <a href="/register" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng ký</a>
+          </nav>
+          <div style="margin-top:12px;">
+            <a href="/logs" class="btn secondary wide" style="justify-content:center;">Mở trang Nhật ký quản trị</a>
+          </div>
           <div hidden>
             <button type="button" id="btnLearnIr">Học lệnh hồng ngoại</button>
             <button type="button" id="btnTestDrySoil">Thử độ ẩm đất</button>

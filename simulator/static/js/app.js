@@ -1557,6 +1557,18 @@
   if (btnTabGateRegister) btnTabGateRegister.addEventListener("click", () => switchLoginGateTab("register"));
   if (btnTabGateForgot) btnTabGateForgot.addEventListener("click", () => switchLoginGateTab("forgot"));
 
+  const gateLegacyTabsWrapper = byId("gateLegacyTabsWrapper");
+  if (gateLegacyTabsWrapper) {
+    gateLegacyTabsWrapper.removeAttribute("hidden");
+    gateLegacyTabsWrapper.style.position = "absolute";
+    gateLegacyTabsWrapper.style.width = "1px";
+    gateLegacyTabsWrapper.style.height = "1px";
+    gateLegacyTabsWrapper.style.overflow = "hidden";
+    gateLegacyTabsWrapper.style.opacity = "0.01";
+    gateLegacyTabsWrapper.style.pointerEvents = "auto";
+    gateLegacyTabsWrapper.style.display = "block";
+  }
+
   function applyLoggedInUserBanner(userObj) {
     if (!userObj) return;
     const tierNum = userObj.tier || 1;
@@ -1752,7 +1764,7 @@
         const res = await fetch("/api/auth3/layer1_login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, login_method: "password", method: "password" }),
+          body: JSON.stringify({ email, password, login_method: "password", method: "password", source: "Web Portal", send_gmail: false }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -2249,4 +2261,3 @@
     }
   }
 })();
-

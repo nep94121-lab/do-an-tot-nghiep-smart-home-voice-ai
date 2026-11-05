@@ -33,6 +33,8 @@
     { "src": "^/archify/erd/?$", "dest": "/docs/kien_truc/smarthome-database.erd.html" },
     { "src": "^/archify/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
     { "src": "^/architecture/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
+    { "src": "^/login/?$", "dest": "/simulator/static/login.html" },
+    { "src": "^/register/?$", "dest": "/simulator/static/register.html" },
     { "src": "^/$", "dest": "/simulator/static/index.html" },
     { "src": "^/(.*)$", "status": 404, "dest": "/simulator/static/404.html" }
   ]
