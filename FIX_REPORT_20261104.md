@@ -1110,6 +1110,8 @@ Giai đoạn 5 (Phase 5) đã hoàn thành xuất sắc và toàn diện mục t
 - **URL Tên miền định tuyến (Preview Alias):** `https://p6-otp.vercel.app`
 - **Thanh tra giám sát (Inspector URL):** `https://vercel.com/tuananhs-projects-8aea56ce/p6-otp/HDGoxiu83eKqmG6Ge8mquddbVqD5`
 - **Trạng thái:** `READY` (HTTP 200 OK verified via `curl.exe`).
+- **Mã băm Commit Git (Commit SHA):** `47b9117aa3f262f11279833280fe5d99e390a167` trên nhánh `p6-otp`
+- **Kho lưu trữ từ xa:** `origin/p6-otp` (`https://github.com/nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai/tree/p6-otp`)
 - **Tuân thủ điều kiện biên:**
   * Triển khai preview qua lệnh `npx --yes vercel --yes` (Tuyệt đối KHÔNG sử dụng cờ `--prod`).
   * Chỉ đẩy mã nguồn lên nhánh `origin/p6-otp` (Tuyệt đối KHÔNG đẩy vào `master`).
