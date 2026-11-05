@@ -275,6 +275,8 @@ class EngineRulesMixin:
         }
 
     def get_snapshot(self) -> dict[str, Any]:
+        if getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
+            self.sync_from_shared_store()
         now = time.time()
         timers_list = []
         for tid, tinfo in self.active_timers.items():
@@ -456,6 +458,8 @@ class EngineRulesMixin:
         }
 
     async def set_server_connection_mode(self, connected: bool) -> dict[str, Any]:
+        if hasattr(self, "sync_from_shared_store"):
+            self.sync_from_shared_store(force=True)
         self.server_connected = bool(connected)
         self.mqtt_bridge.esp8266_status["online"] = self.server_connected
         self.mqtt_bridge.esp8266_status["power_mode"] = (
@@ -476,6 +480,9 @@ class EngineRulesMixin:
                 "source": "Tự động khóa cửa khi mất kết nối Server (Offline Fail-Safe)",
                 "timestamp": self.devices["main_door"]["updated_at"],
             })
+
+        if hasattr(self, "persist_to_shared_store"):
+            self.persist_to_shared_store()
 
         if self.server_connected:
             msg = "🟢 Đã kết nối Server Laptop: Khôi phục đầy đủ AI Giọng nói, Khẩu lệnh tùy chỉnh và quyền mở Cửa chính."
@@ -1073,9 +1080,16 @@ class EngineRulesMixin:
             self._save_overlay()
 
         if norm_scope == "all":
-            self.devices = {
-                k: dict(v, updated_at=time.time()) for k, v in DEFAULT_DEVICES.items()
-            }
+            self._applying_shared_state = True
+            try:
+                self.devices = {
+                    k: dict(v, updated_at=time.time()) for k, v in DEFAULT_DEVICES.items()
+                }
+                self.pump_manual_override_off = False
+            finally:
+                self._applying_shared_state = False
+            if hasattr(self, "persist_to_shared_store"):
+                self.persist_to_shared_store()
 
         spoken_map = {
             "voice": "Đã reset giọng nói chỉ về của bạn.",

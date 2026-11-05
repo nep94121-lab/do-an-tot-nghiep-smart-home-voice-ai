@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng nhập · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <!-- SVG ICON SPRITE -->
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></symbol>
+  </svg>
+
+  <div class="app">
+    <!-- SHARED NAVIGATION SIDEBAR (8 ROUTES) -->
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list">
+          <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a href="/guest_enroll">Khách</a>
+        <a class="active" href="/login" aria-current="page">Đăng nhập</a>
+        <a href="/register">Đăng ký</a>
+        <a href="/archify">Tài liệu dự án</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="auth-wrapper">
+        <div class="auth-card">
+          <div class="auth-header">
+            <svg class="icon" style="width:36px;height:36px;color:var(--accent);margin-bottom:8px;"><use href="#i-lock"/></svg>
+            <h1>Đăng nhập</h1>
+            <p>Hệ thống điều khiển &amp; Giám sát Nhà thông minh</p>
+          </div>
+
+          <form id="loginForm" class="auth-form" autocomplete="on">
+            <div class="form-group">
+              <label for="pageLoginEmail">Email tài khoản</label>
+              <input type="email" id="pageLoginEmail" name="email" placeholder="name@example.com" value="" required autocomplete="email" />
+            </div>
+
+            <div class="form-group">
+              <label for="pageLoginPassword">Mật khẩu</label>
+              <input type="password" id="pageLoginPassword" name="password" placeholder="Nhập mật khẩu" value="" required autocomplete="current-password" />
+            </div>
+
+            <div class="auth-links">
+              <a href="#" id="linkForgotPassword" class="auth-link">Quên mật khẩu?</a>
+              <a href="/register" class="auth-link">Đăng ký tài khoản</a>
+            </div>
+
+            <button type="submit" id="pageLoginSubmitBtn" class="auth-btn-submit">Đăng nhập</button>
+          </form>
+
+          <!-- KHUNG QUÊN MẬT KHẨU RÚT GỌN -->
+          <div id="forgotPasswordPanel" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);" hidden>
+            <p style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px;">Đặt lại mật khẩu qua OTP</p>
+            <div class="form-group">
+              <label for="forgotEmailInput">Email đăng ký</label>
+              <input type="email" id="forgotEmailInput" placeholder="name@example.com" value="" />
+            </div>
+            <button type="button" id="btnSendForgotOtp" class="btn btn-secondary" style="width:100%;min-height:38px;margin-top:8px;">Gửi mã OTP</button>
+            <div id="forgotStatusBox" class="status-box" style="display:none;margin-top:8px;"></div>
+          </div>
+
+          <div id="loginStatusBox" class="status-box" style="display:none;margin-top:16px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/js/auth_pages.js"></script>
+</body>
+</html>

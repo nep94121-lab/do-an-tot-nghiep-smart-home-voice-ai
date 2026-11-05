@@ -24,7 +24,7 @@
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
-    button, input, select { font: inherit; color: inherit; }
+    button, input, select { font: inherit; color: inherit; max-width: 100%; box-sizing: border-box; }
     button { cursor: pointer; }
     a { color: inherit; text-decoration: none; }
     button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
@@ -296,6 +296,8 @@
     .scroll-table {
       max-height: 360px;
       overflow-y: auto;
+      overflow-x: auto;
+      max-width: 100%;
       border: 1px solid var(--line);
       border-radius: 10px;
     }
@@ -303,9 +305,10 @@
     .mobile-nav { display: none; }
 
     @media (max-width: 700px) {
-      .app { display: block; }
+      .app { display: block; overflow-x: hidden; }
       .sidebar { display: none; }
-      .main { padding: 20px 16px 88px; }
+      .main { padding: 20px 16px 88px; max-width: 100%; overflow-x: hidden; }
+      .card { max-width: 100%; overflow-x: hidden; }
       h1 { font-size: 22px; }
       .input-row .btn-primary { width: 100%; }
       .mobile-nav {
@@ -339,4 +342,3 @@
       }
       .mobile-nav .icon { width: 18px; height: 18px; }
     }
-  

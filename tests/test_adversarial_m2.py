@@ -36,7 +36,7 @@ class TestAdversarialM2(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.engine = SmartHomeEngine()
         cls.api_key = os.getenv("GEMINI_API_KEY", "")
-        cls.client = genai.Client(api_key=cls.api_key) if cls.api_key else None
+        cls.client = genai.Client(api_key=cls.api_key) if (cls.api_key and "dummy" not in cls.api_key.lower()) else None
         cls.audio_dir = ROOT / "test_audio"
 
     def test_01_system_instruction_adversarial_guards(self) -> None:
@@ -240,7 +240,7 @@ class TestAdversarialM2(unittest.TestCase):
                                         out_txt.append(sc.output_transcription.text)
                                     if sc.turn_complete:
                                         break
-                            
+
                             rep = "".join(out_txt).strip()
                             matched = any(exp in rep for exp in expected_outcomes) or any(exp in tools_called for exp in expected_outcomes)
                             self.assertTrue(

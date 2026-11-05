@@ -44,7 +44,7 @@ fun DevicesScreenTab(
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     // 1. Device list card with room filters
     Column(
@@ -53,8 +53,8 @@ fun DevicesScreenTab(
         .clip(RoundedCornerShape(16.dp))
         .background(cardBg)
         .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(10.dp),
+      verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
       Row(
         modifier = Modifier
@@ -100,8 +100,8 @@ fun DevicesScreenTab(
         .clip(RoundedCornerShape(16.dp))
         .background(cardBg)
         .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+        .padding(horizontal = 12.dp, vertical = 10.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),

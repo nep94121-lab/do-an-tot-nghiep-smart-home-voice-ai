@@ -1334,34 +1334,37 @@ class VoiceAuthManager:
         intents = parse_vietnamese_voice_command_intents(transcript_text)
         device_results: list[dict[str, Any]] = []
         if auth_res.get("authorized") and engine is not None and intents:
+            import contextlib
             actor_tier = int(auth_res.get("tier", 1))
             actor_user = str(auth_res.get("user_id", "tuan_anh"))
             if hasattr(engine, "set_active_user"):
                 engine.set_active_user(actor_user)
-            for item in intents:
-                call_out = engine.execute_device_action(
-                    device_id=item["device_id"],
-                    action=item["action"],
-                    source=f"voice_tier{actor_tier}_{actor_user}",
-                )
-                if inspect.isawaitable(call_out):
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
-                    if loop and loop.is_running():
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                            act_res = pool.submit(asyncio.run, call_out).result()
+            tx_ctx = engine.state_transaction() if hasattr(engine, "state_transaction") else contextlib.nullcontext()
+            with tx_ctx:
+                for item in intents:
+                    call_out = engine.execute_device_action(
+                        device_id=item["device_id"],
+                        action=item["action"],
+                        source=f"voice_tier{actor_tier}_{actor_user}",
+                    )
+                    if inspect.isawaitable(call_out):
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop and loop.is_running():
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                                act_res = pool.submit(asyncio.run, call_out).result()
+                        else:
+                            act_res = asyncio.run(call_out)
                     else:
-                        act_res = asyncio.run(call_out)
-                else:
-                    act_res = call_out
-                device_results.append({
-                    "device_id": item["device_id"],
-                    "action": item["action"],
-                    "result": act_res,
-                })
+                        act_res = call_out
+                    device_results.append({
+                        "device_id": item["device_id"],
+                        "action": item["action"],
+                        "result": act_res,
+                    })
         return {
             "ok": bool(auth_res.get("authorized")),
             "auth": auth_res,

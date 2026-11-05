@@ -8,6 +8,7 @@ Thiet ke chuyen biet cho ca 2 che do:
 from __future__ import annotations
 
 import base64
+import contextlib
 import glob
 import io
 import json
@@ -435,6 +436,8 @@ async def process_voice_command_pipeline(
         }
 
     if not intents:
+        if hasattr(engine, "sync_from_shared_store"):
+            engine.sync_from_shared_store(force=True)
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         tn_check = strip_vietnamese_diacritics(recognized_text)
         is_greeting = any(k in tn_check for k in ("xin chao", "toi la", "chu nha"))
@@ -478,34 +481,36 @@ async def process_voice_command_pipeline(
     action_summaries: list[str] = []
     device_results: list[dict[str, Any]] = []
 
-    for item in intents:
-        dev_id = item["device_id"]
-        act = item["action"]
-        res = await engine.execute_device_action(
-            device_id=dev_id,
-            action=act,
-            source="voice_command",
-            bypass_rbac=False,
-            request_tier=tier,
-            request_user_name=speaker_name,
-            request_role=role,
-        )
-        ok_item = bool(res.get("ok"))
-        if not ok_item:
-            all_ok = False
-            any_blocked = True
-            action_summaries.append(f"{dev_id}:{act} -> BLOCKED_RBAC")
-        else:
-            state_dev_key = "living_room_light" if dev_id == "all_lights" else dev_id
-            raw_st = engine.devices.get(state_dev_key, {}).get("state")
-            if isinstance(raw_st, str):
-                state_lbl = raw_st.upper()
+    tx_ctx = engine.state_transaction() if hasattr(engine, "state_transaction") else contextlib.nullcontext()
+    with tx_ctx:
+        for item in intents:
+            dev_id = item["device_id"]
+            act = item["action"]
+            res = await engine.execute_device_action(
+                device_id=dev_id,
+                action=act,
+                source="voice_command",
+                bypass_rbac=False,
+                request_tier=tier,
+                request_user_name=speaker_name,
+                request_role=role,
+            )
+            ok_item = bool(res.get("ok"))
+            if not ok_item:
+                all_ok = False
+                any_blocked = True
+                action_summaries.append(f"{dev_id}:{act} -> BLOCKED_RBAC")
             else:
-                state_lbl = ("OPEN" if raw_st else "CLOSED") if dev_id == "main_door" else ("ON" if raw_st else "OFF")
-            action_summaries.append(f"{dev_id}:{act} -> {state_lbl}")
-        if res.get("exact_spoken_reply"):
-            spoken_replies.append(str(res["exact_spoken_reply"]))
-        device_results.extend(res.get("results", []))
+                state_dev_key = "living_room_light" if dev_id == "all_lights" else dev_id
+                raw_st = engine.devices.get(state_dev_key, {}).get("state")
+                if isinstance(raw_st, str):
+                    state_lbl = raw_st.upper()
+                else:
+                    state_lbl = ("OPEN" if raw_st else "CLOSED") if dev_id == "main_door" else ("ON" if raw_st else "OFF")
+                action_summaries.append(f"{dev_id}:{act} -> {state_lbl}")
+            if res.get("exact_spoken_reply"):
+                spoken_replies.append(str(res["exact_spoken_reply"]))
+            device_results.extend(res.get("results", []))
 
     permission_str = "DENIED" if any_blocked else "ALLOWED"
     final_reply = " ".join(spoken_replies).strip() or f"Đã xử lý khẩu lệnh: {recognized_text}"

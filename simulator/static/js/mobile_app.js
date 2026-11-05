@@ -40,6 +40,8 @@
     let latestSnap = null;
     let showAllDevices = true;
     let selectedRoomFilter = 'all';
+    const pendingDeviceMutations = new Map();
+    const MUTATION_GUARD_WINDOW_MS = 2500;
     let mobileHistoryItems = [
       { time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }), event: 'Đồng bộ trạng thái nhà', result: 'Thành công', type: 'device' }
     ];
@@ -1180,72 +1182,66 @@
       const visibleDevices = showAllDevices ? filtered : filtered.slice(0, 4);
 
       const grid = document.getElementById('devGrid');
-      grid.innerHTML = '';
+      if (!grid) return;
 
+      // 1. Guard against stale polling snapshots using pendingDeviceMutations (2500ms window)
+      const now = Date.now();
+      visibleDevices.forEach((d) => {
+        if (pendingDeviceMutations.has(d.id)) {
+          const pending = pendingDeviceMutations.get(d.id);
+          if (now < pending.expiresAt) {
+            if (d.state === pending.targetState) {
+              pendingDeviceMutations.delete(d.id);
+            } else {
+              d.state = pending.targetState; // Protect optimistic state
+            }
+          } else {
+            pendingDeviceMutations.delete(d.id);
+          }
+        }
+      });
+
+      // 2. In-place DOM update without wiping grid.innerHTML
+      const currentCards = Array.from(grid.querySelectorAll('[data-device-id]'));
+      const visibleIds = new Set(visibleDevices.map(d => d.id));
+
+      // Remove cards that are no longer visible (e.g. room filtering)
+      currentCards.forEach((c) => {
+        const id = c.getAttribute('data-device-id');
+        if (!visibleIds.has(id)) {
+          grid.removeChild(c);
+        }
+      });
+
+      // Update existing cards or append new ones
       visibleDevices.forEach((d) => {
         const isOn = d.state === 'ON' || d.state === 'OPEN';
         const roomLabel = d.room || ROOM_NAMES[d.id] || 'Phòng khách';
-        const card = document.createElement('div');
-        card.className = `dev-row ${isOn ? 'on active' : 'off'}`;
-        card.setAttribute('data-device', d.id);
-        card.setAttribute('data-device-id', d.id);
-        card.setAttribute('data-state', isOn ? 'on' : 'off');
-        card.setAttribute('aria-pressed', isOn ? 'true' : 'false');
-        card.innerHTML = `
-          <span class="dev-icon">${ICONS[d.type] || '<svg class="icon"><use href="#i-lamp"/></svg>'}</span>
-          <div class="dev-copy">
-            <div class="dev-name">${d.name}</div>
-            <div class="dev-room">${roomLabel}</div>
-          </div>
-          <span class="switch" aria-hidden="true"></span>
-        `;
-        card.onclick = async () => {
-          const prevIsOn = d.state === 'ON' || d.state === 'OPEN';
-          const nextIsOn = !prevIsOn;
-          const prevState = d.state;
-          const nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
+        let card = grid.querySelector(`[data-device-id="${d.id}"]`);
 
-          // Optimistic UI: đổi class và state ngay lập tức
-          d.state = nextState;
-          card.classList.toggle('on', nextIsOn);
-          card.classList.toggle('active', nextIsOn);
-          card.classList.toggle('off', !nextIsOn);
-          card.setAttribute('data-state', nextIsOn ? 'on' : 'off');
-          card.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
-
-          const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
-          try {
-            const res = await fetch('/api/device', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ device_id: d.id, action }),
-            });
-            const data = await res.json();
-            if (data && (data.ok === false || data.error)) {
-              // Rollback khi lỗi
-              d.state = prevState;
-              card.classList.toggle('on', prevIsOn);
-              card.classList.toggle('active', prevIsOn);
-              card.classList.toggle('off', !prevIsOn);
-              card.setAttribute('data-state', prevIsOn ? 'on' : 'off');
-              card.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
-              addLog(`${d.name}: Lỗi thao tác`, 'device', 'Thất bại');
-            } else {
-              if (data && data.snapshot) renderState(data.snapshot);
-              addLog(`${d.name}: ${nextIsOn ? 'Bật' : 'Tắt'}`, 'device', 'Thành công');
-            }
-          } catch (err) {
-            // Rollback khi lỗi mạng
-            d.state = prevState;
-            card.classList.toggle('on', prevIsOn);
-            card.classList.toggle('active', prevIsOn);
-            card.classList.toggle('off', !prevIsOn);
-            card.setAttribute('data-state', prevIsOn ? 'on' : 'off');
-            card.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
-            addLog(`${d.name}: Lỗi kết nối`, 'device', 'Thất bại');
-          }
-        };
-        grid.appendChild(card);
+        if (!card) {
+          card = document.createElement('div');
+          card.setAttribute('data-device-id', d.id);
+          card.className = `dev-row ${isOn ? 'on' : 'off'}`;
+          card.innerHTML = `
+            <span class="dev-icon">${ICONS[d.type] || '<svg class="icon"><use href="#i-lamp"/></svg>'}</span>
+            <div class="dev-copy">
+              <div class="dev-name">${d.name}</div>
+              <div class="dev-room">${roomLabel}</div>
+            </div>
+            <span class="switch" aria-hidden="true"></span>
+          `;
+          card.onclick = () => toggleDev(d.id);
+          grid.appendChild(card);
+        } else {
+          // In-place update class
+          card.classList.toggle('on', isOn);
+          card.classList.toggle('off', !isOn);
+          const nameEl = card.querySelector('.dev-name');
+          if (nameEl && nameEl.textContent !== d.name) nameEl.textContent = d.name;
+          const roomEl = card.querySelector('.dev-room');
+          if (roomEl && roomEl.textContent !== roomLabel) roomEl.textContent = roomLabel;
+        }
       });
 
       const quickMap = {
@@ -1348,6 +1344,63 @@
         if (typeof window.SmartHome3D.updateSensors === 'function' && snap.mqtt) {
           window.SmartHome3D.updateSensors(snap.mqtt, true);
         }
+      }
+    }
+
+    async function toggleDev(devId) {
+      const d = (latestSnap && latestSnap.devices) ? latestSnap.devices.find(x => x.id === devId) : null;
+      if (!d) return;
+
+      const prevIsOn = d.state === 'ON' || d.state === 'OPEN';
+      const nextIsOn = !prevIsOn;
+      const prevState = d.state;
+      const nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
+
+      // Optimistic UI: <16ms frame in-place DOM update
+      d.state = nextState;
+      pendingDeviceMutations.set(d.id, {
+        targetState: nextState,
+        expiresAt: Date.now() + MUTATION_GUARD_WINDOW_MS
+      });
+
+      const grid = document.getElementById('devGrid');
+      const card = grid ? grid.querySelector(`[data-device-id="${d.id}"]`) : null;
+      if (card) {
+        card.classList.toggle('on', nextIsOn);
+        card.classList.toggle('off', !nextIsOn);
+      }
+
+      const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
+      try {
+        const res = await fetch('/api/device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_id: d.id, action }),
+        });
+        const data = await res.json();
+        if (data && (data.ok === false || data.error)) {
+          // Rollback on failure
+          pendingDeviceMutations.delete(d.id);
+          d.state = prevState;
+          if (card) {
+            card.classList.toggle('on', prevIsOn);
+            card.classList.toggle('off', !prevIsOn);
+          }
+          addLog(`${d.name}: Lỗi thao tác`, 'device', 'Thất bại');
+        } else {
+          pendingDeviceMutations.delete(d.id);
+          if (data && data.snapshot) renderState(data.snapshot);
+          addLog(`${d.name}: ${nextIsOn ? 'Bật' : 'Tắt'}`, 'device', 'Thành công');
+        }
+      } catch (err) {
+        // Rollback on network error
+        pendingDeviceMutations.delete(d.id);
+        d.state = prevState;
+        if (card) {
+          card.classList.toggle('on', prevIsOn);
+          card.classList.toggle('off', !prevIsOn);
+        }
+        addLog(`${d.name}: Lỗi kết nối`, 'device', 'Thất bại');
       }
     }
 

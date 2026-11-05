@@ -124,8 +124,12 @@ def _parse_text_action(t_low: str) -> str | None:
 
 @router.get("/api/state")
 async def api_get_state() -> JSONResponse:
-    """Trả về toàn bộ snapshot trạng thái thiết bị, cảm biến và luật hiện tại."""
-    return JSONResponse(_REST_ENGINE.get_snapshot())
+    """Trả về toàn bộ snapshot trạng thái thiết bị, cảm biến và luật hiện tại (luôn đồng bộ mới nhất từ shared store)."""
+    _REST_ENGINE.sync_from_shared_store(force=True)
+    return JSONResponse(
+        _REST_ENGINE.get_snapshot(),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 @router.post("/api/session/role")

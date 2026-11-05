@@ -44,7 +44,7 @@ fun HomeScreenTab(
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     // 1. Card "Ngôi nhà" (badge "Toàn cảnh", placeholder 3D ~16:9)
     Column(
@@ -53,8 +53,8 @@ fun HomeScreenTab(
         .clip(RoundedCornerShape(16.dp))
         .background(cardBg)
         .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -64,7 +64,7 @@ fun HomeScreenTab(
         Text(
           text = "Ngôi nhà",
           color = textPrimary,
-          fontSize = 16.sp,
+          fontSize = 15.sp,
           fontWeight = FontWeight.SemiBold,
         )
         Text(
@@ -82,7 +82,7 @@ fun HomeScreenTab(
       Box(
         modifier = Modifier
           .fillMaxWidth()
-          .height(180.dp)
+          .height(92.dp)
           .clip(RoundedCornerShape(12.dp))
           .background(Color(0xFFF4F9F9))
           .border(1.dp, Color(0xFFB9CCCE), RoundedCornerShape(12.dp)),
@@ -104,13 +104,13 @@ fun HomeScreenTab(
         .clip(RoundedCornerShape(16.dp))
         .background(cardBg)
         .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
         text = "Cảm biến",
         color = textPrimary,
-        fontSize = 16.sp,
+        fontSize = 15.sp,
         fontWeight = FontWeight.SemiBold,
       )
 
@@ -125,8 +125,8 @@ fun HomeScreenTab(
             .clip(RoundedCornerShape(12.dp))
             .background(cardBg)
             .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
           Text(
             text = "Nhiệt độ",
@@ -136,7 +136,7 @@ fun HomeScreenTab(
           Text(
             text = "${String.format(Locale.US, "%.1f", temperature)}°C",
             color = textPrimary,
-            fontSize = 20.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
           )
           Text(
@@ -153,8 +153,8 @@ fun HomeScreenTab(
             .clip(RoundedCornerShape(12.dp))
             .background(cardBg)
             .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
           Text(
             text = "Độ ẩm đất",
@@ -164,7 +164,7 @@ fun HomeScreenTab(
           Text(
             text = "$soilMoisture%",
             color = textPrimary,
-            fontSize = 20.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
           )
           Text(
@@ -183,13 +183,13 @@ fun HomeScreenTab(
         .clip(RoundedCornerShape(16.dp))
         .background(cardBg)
         .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
         text = "Trạng thái an toàn",
         color = textPrimary,
-        fontSize = 16.sp,
+        fontSize = 15.sp,
         fontWeight = FontWeight.SemiBold,
       )
 
@@ -278,17 +278,17 @@ fun HomeScreenTab(
     }
 
     // 4. Bottom CTA: "Nói lệnh" (primary) & "Xem thiết bị" (secondary)
-    Column(
+    Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(top = 4.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+        .padding(top = 2.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       Button(
         onClick = onOpenVoiceSheet,
         colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
         shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.fillMaxWidth().height(44.dp),
+        modifier = Modifier.weight(1f).height(44.dp),
       ) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -309,7 +309,7 @@ fun HomeScreenTab(
         colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier
-          .fillMaxWidth()
+          .weight(1f)
           .height(44.dp)
           .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
       ) {

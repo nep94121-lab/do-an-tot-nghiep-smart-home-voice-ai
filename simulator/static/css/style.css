@@ -187,10 +187,39 @@ summary:focus-visible {
 .top,
 .topbar {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.top-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
+  width: 100%;
+}
+
+.top-row-main {
+  gap: 12px;
+}
+
+.top-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-row-account {
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+#homeCurrentAccountBadge {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 
 h1, h2, p {
@@ -954,11 +983,58 @@ h2,
   .content,
   .main {
     padding: 20px 16px 88px;
+    max-width: 100%;
+    overflow-x: hidden;
   }
   .top,
   .topbar {
     align-items: flex-start;
-    margin-bottom: 18px;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .top-row-main {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .top-status-wrap {
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .top-row-account {
+    justify-content: space-between;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #homeCurrentAccountBadge {
+    max-width: 165px;
+    font-size: 11px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  #homeSessionDurationBadge {
+    font-size: 11px;
+    flex: 0 0 auto;
+  }
+  #btnLogoutHome {
+    font-size: 11px;
+    padding: 3px 8px;
+    min-height: 28px;
+    flex: 0 0 auto;
+  }
+  .pin-3d {
+    font-size: 10px;
+    padding: 2.5px 7px;
+    gap: 3px;
+  }
+  .pin-3d .pin-icon {
+    font-size: 11px;
+  }
+  .pin-3d .pin-state,
+  .pin-3d strong {
+    padding: 1px 3px;
   }
   h1,
   .top h1,
@@ -1135,3 +1211,108 @@ h2,
   }
 }
 
+/* ================= MILESTONE M1: DEDICATED AUTH PAGES (/login, /register) ================= */
+.auth-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  padding: 32px 16px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--line, #e5ebec);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: var(--shadow, 0 6px 24px rgba(31, 58, 62, 0.045));
+}
+.auth-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+.auth-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink, #172b31);
+  margin-bottom: 6px;
+}
+.auth-header p {
+  font-size: 13px;
+  color: var(--muted, #687a80);
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted, #687a80);
+}
+.form-group input {
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line, #e5ebec);
+  border-radius: 10px;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--ink, #172b31);
+}
+.form-group input:focus-visible {
+  outline: 3px solid #89c9c8;
+  outline-offset: 2px;
+}
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.auth-link {
+  color: var(--accent, #087d85);
+  font-weight: 500;
+}
+.auth-link:hover {
+  text-decoration: underline;
+}
+.auth-btn-submit {
+  width: 100%;
+  min-height: 44px;
+  background: var(--accent, #087d85);
+  color: #ffffff;
+  border: 1px solid var(--accent, #087d85);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.15s ease;
+}
+.auth-btn-submit:hover {
+  filter: brightness(0.95);
+}
+.status-box {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.status-box.status-error {
+  background: #fdf2f2;
+  border: 1px solid #f3c6c5;
+  color: #c83e3b;
+}
+.status-box.status-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #15803d;
+}

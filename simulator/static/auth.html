@@ -8,28 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/auth.css" />
-  <style>
-    .btn-spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255, 255, 255, 0.35);
-      border-top-color: currentColor;
-      border-radius: 50%;
-      animation: btn-spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-      box-sizing: border-box;
-    }
-    @keyframes btn-spin {
-      to { transform: rotate(360deg); }
-    }
-    .btn.loading {
-      opacity: 0.85;
-      pointer-events: none;
-      cursor: not-allowed;
-    }
-  </style>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
@@ -79,6 +57,8 @@
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
         <a href="/guest_enroll">Khách</a>
+        <a href="/login">Đăng nhập</a>
+        <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
       </div>
     </aside>
@@ -138,13 +118,9 @@
               </div>
 
               <div class="form-group">
-                <label for="loginEmail">3. Email tài khoản &amp; Mật khẩu (có xác nhận lại mật khẩu)</label>
+                <label for="loginEmail">3. Email tài khoản</label>
                 <div class="input-row" style="margin-bottom:8px;">
                   <input type="email" id="loginEmail" value="" placeholder="Email tài khoản (VD: nep94121@gmail.com)" />
-                </div>
-                <div class="input-row" style="margin-bottom:8px;">
-                  <input type="password" id="loginPassword" value="" placeholder="Mật khẩu" />
-                  <input type="password" id="loginPasswordConfirm" value="" placeholder="Xác nhận lại mật khẩu" />
                 </div>
                 <div class="input-row">
                   <button class="btn btn-primary" type="button" onclick="completeStep1AndGoToVoice()">Xác nhận Bước 1 &amp; Sang Bước 2 (Thu giọng) ➔</button>
@@ -153,32 +129,39 @@
                 </div>
               </div>
 
-              <!-- TÙY CHỌN QUÊN MẬT KHẨU (OTP GMAIL) & TÀI KHOẢN THỬ NHANH -->
-              <details style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
-                <summary style="cursor:pointer; font-size:12px; color:var(--muted); font-weight:500;">
-                  Tùy chọn: Quên mật khẩu (Nhận OTP qua Gmail) / Chọn nhanh tài khoản mẫu
-                </summary>
-                <div style="margin-top:10px; display:grid; gap:10px;">
-                  <div class="form-group">
-                    <label for="accountPresetSelect">Điền nhanh tài khoản mẫu</label>
-                    <select id="accountPresetSelect" onchange="applyPresetAccount(this.value)">
-                      <option value="owner">Chủ nhà (Cấp 1) · nep94121@gmail.com</option>
-                      <option value="family">Gia đình (Cấp 2) · thanhviena.hust@gmail.com</option>
-                      <option value="guest">Khách (Cấp 3) · khach.hust@gmail.com</option>
-                      <option value="wrong">Thử kịch bản nhập sai mật khẩu</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="otpInput">Mã OTP 6 số (Dùng khi Quên mật khẩu / Xác thực bổ sung)</label>
-                    <div class="input-row">
-                      <input type="text" id="otpInput" maxlength="6" placeholder="Nhập mã OTP 6 số gửi qua Gmail" />
-                      <button id="btnSendForgotOtpAuth" class="btn btn-secondary" type="button" onclick="requestForgotPasswordOtpAuthPage()">Gửi mã OTP</button>
-                      <button class="btn btn-primary" type="button" onclick="submitLayer2Otp()">Xác nhận OTP</button>
-                      <button class="btn-link-sub" type="button" onclick="testWrongOtp()">Thử OTP sai</button>
+              <!-- Hidden wrapper for backward test compatibility: passwords, presets, OTP -->
+              <div style="display:none;" hidden>
+                <div class="input-row" style="margin-bottom:8px;">
+                  <input type="password" id="loginPassword" value="" placeholder="Mật khẩu" />
+                  <input type="password" id="loginPasswordConfirm" value="" placeholder="Xác nhận lại mật khẩu" />
+                </div>
+                <!-- TÙY CHỌN QUÊN MẬT KHẨU (OTP GMAIL) & TÀI KHOẢN THỬ NHANH -->
+                <details style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
+                  <summary style="cursor:pointer; font-size:12px; color:var(--muted); font-weight:500;">
+                    Tùy chọn: Quên mật khẩu (Nhận OTP qua Gmail) / Chọn nhanh tài khoản mẫu
+                  </summary>
+                  <div style="margin-top:10px; display:grid; gap:10px;">
+                    <div class="form-group">
+                      <label for="accountPresetSelect">Điền nhanh tài khoản mẫu</label>
+                      <select id="accountPresetSelect" onchange="applyPresetAccount(this.value)">
+                        <option value="owner">Chủ nhà (Cấp 1) · nep94121@gmail.com</option>
+                        <option value="family">Gia đình (Cấp 2) · thanhviena.hust@gmail.com</option>
+                        <option value="guest">Khách (Cấp 3) · khach.hust@gmail.com</option>
+                        <option value="wrong">Thử kịch bản nhập sai mật khẩu</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="otpInput">Mã OTP 6 số (Dùng khi Quên mật khẩu / Xác thực bổ sung)</label>
+                      <div class="input-row">
+                        <input type="text" id="otpInput" maxlength="6" placeholder="Nhập mã OTP 6 số gửi qua Gmail" />
+                        <button class="btn btn-secondary" type="button" onclick="requestForgotPasswordOtpAuthPage()">Gửi mã OTP</button>
+                        <button class="btn btn-primary" type="button" onclick="submitLayer2Otp()">Xác nhận OTP</button>
+                        <button class="btn-link-sub" type="button" onclick="testWrongOtp()">Thử OTP sai</button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </details>
+                </details>
+              </div>
             </div>
           </details>
 

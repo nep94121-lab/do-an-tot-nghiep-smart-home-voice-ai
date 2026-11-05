@@ -139,6 +139,16 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/login")
+async def login_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "login.html")
+
+
+@app.get("/register")
+async def register_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "register.html")
+
+
 @app.get("/app")
 async def mobile_app_index() -> FileResponse:
     return FileResponse(MOBILE_APP_DIR / "index.html")

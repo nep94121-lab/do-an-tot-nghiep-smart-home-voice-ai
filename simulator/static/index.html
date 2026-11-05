@@ -41,42 +41,48 @@
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
         <a href="/guest_enroll">Khách</a>
+        <a href="/login">Đăng nhập</a>
+        <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
       </div>
     </aside>
 
     <div class="content">
       <header class="top">
-        <h1>Tổng quan</h1>
-        <div class="top-actions">
+        <div class="top-row top-row-main">
+          <h1>Tổng quan</h1>
+          <div class="top-status-wrap">
+            <span class="status" id="btnToggleServer" role="button" tabindex="0" aria-label="Đã kết nối">
+              <span class="dot" id="connDot"></span>
+              <span id="connText">Đã kết nối</span>
+              <span id="homeServerStatusBadge" class="transport-badge" style="margin-left:6px; font-size:11px; opacity:0.85; padding:2px 6px; border-radius:6px; background:rgba(255,255,255,0.08);">WebSocket</span>
+            </span>
+            <details class="menu">
+              <summary>Tùy chọn <svg class="icon"><use href="#i-chevron"/></svg></summary>
+              <div class="menu-panel">
+                <label for="selActiveSpeaker">Vai trò thử</label>
+                <select id="selActiveSpeaker">
+                  <option value="tuan_anh" selected>Chủ nhà · Nguyễn Tuấn Anh</option>
+                  <option value="thanh_vien_a">Gia đình · Thành viên A</option>
+                  <option value="thanh_vien_b">Gia đình · Thành viên B</option>
+                  <option value="khach_c">Khách · Khách C</option>
+                  <option value="stranger_1">Người lạ</option>
+                </select>
+                <button type="button" id="btnReset">Đặt lại mô phỏng</button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div class="top-row top-row-account top-actions" id="topAccountRow">
           <span class="status" id="homeCurrentAccountBadge" title="Tài khoản đang đăng nhập">
             👑 Chủ nhà · nep94121@gmail.com
           </span>
           <span class="status" id="homeSessionDurationBadge" title="Thời hạn truy cập còn lại" style="display:none;" hidden>
             Không giới hạn
           </span>
-          <button type="button" class="btn btn-secondary" id="btnLogoutHome" style="min-height:34px; padding:0 12px; font-size:12px;">
+          <button type="button" class="btn btn-secondary" id="btnLogoutHome" style="min-height:30px; padding:0 10px; font-size:11px; white-space:nowrap;">
             Đăng nhập / Đổi TK
           </button>
-          <span class="status" id="btnToggleServer" role="button" tabindex="0" aria-label="Đã kết nối">
-            <span class="dot" id="connDot"></span>
-            <span id="connText">Đã kết nối</span>
-            <span id="homeServerStatusBadge" class="transport-badge" style="margin-left:6px; font-size:11px; opacity:0.85; padding:2px 6px; border-radius:6px; background:rgba(255,255,255,0.08);">WebSocket</span>
-          </span>
-          <details class="menu">
-            <summary>Tùy chọn <svg class="icon"><use href="#i-chevron"/></svg></summary>
-            <div class="menu-panel">
-              <label for="selActiveSpeaker">Vai trò thử</label>
-              <select id="selActiveSpeaker">
-                <option value="tuan_anh" selected>Chủ nhà · Nguyễn Tuấn Anh</option>
-                <option value="thanh_vien_a">Gia đình · Thành viên A</option>
-                <option value="thanh_vien_b">Gia đình · Thành viên B</option>
-                <option value="khach_c">Khách · Khách C</option>
-                <option value="stranger_1">Người lạ</option>
-              </select>
-              <button type="button" id="btnReset">Đặt lại mô phỏng</button>
-            </div>
-          </details>
         </div>
       </header>
 
@@ -286,7 +292,8 @@
         </button>
       </div>
 
-      <div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 14px;">
+      <!-- Legacy tab bar preserved for backward test compatibility, hidden from minimalist view -->
+      <div id="gateLegacyTabsWrapper" style="display:none;" hidden>
         <button type="button" id="btnTabGateLogin" class="btn btn-primary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">1. Đăng nhập</button>
         <button type="button" id="btnTabGateRegister" class="btn btn-secondary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">2. Đặt / Đổi mật khẩu</button>
         <button type="button" id="btnTabGateForgot" class="btn btn-secondary" style="flex:1 1 auto; min-height:34px; font-size:12px; padding:0 10px;">3. Quên mật khẩu (OTP)</button>
@@ -304,6 +311,10 @@
             <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-top:2px;">
+          <a href="/login" class="subtle" id="linkGateForgot" style="text-decoration:none; color:var(--accent);">Quên mật khẩu?</a>
+          <a href="/register" class="subtle" id="linkGateRegister" style="text-decoration:none; color:var(--accent);">Đăng ký</a>
         </div>
         <button type="submit" id="btnSubmitGateLogin" class="btn btn-primary" style="width:100%;">
           Đăng nhập vào Nhà thông minh
@@ -486,4 +497,3 @@
   <script src="/static/js/app.js"></script>
 </body>
 </html>
-
