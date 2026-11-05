@@ -63,6 +63,22 @@ from simulator.auth import (
     validate_dns_mx_record,
     verify_password_hash,
 )
+from simulator.voice_config import (
+    OWNER_EMAIL,
+    OWNER_ID,
+    THRESHOLD_DEEP,
+    THRESHOLD_MEL,
+    sanitize_api_payload,
+)
+
+_LEGACY_DEFAULT_HASHES = frozenset(
+    {
+        "1f2d384b510d695cef6ababeb4125d3b8dea3bcc07e9b7fc18389da09957845a",
+        "32e36f98f9c3df1a4e325ece2bcea079373339aab2e7dc7bf77971152a990fb9",
+        "7d69d7474e26ad41695cf690770e80ca109bdb4131838fcd5d875a8b1d5d184e",
+        "a513440d7305d47120ad7cf065279770b696403290c2c4e0a270e53414e2eaaa",
+    }
+)
 
 
 class ThreeLayerAuthManager(
@@ -84,16 +100,17 @@ class ThreeLayerAuthManager(
         self._load_state()
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
-        if str(acc.get("account_id", "")).lower() == "tuan_anh" or str(acc.get("email", "")).lower() == "nep94121@gmail.com":
-            acc["account_id"] = "tuan_anh"
+        acc.pop("password_plain_hint", None)
+        if str(acc.get("account_id", "")).lower() == OWNER_ID or str(acc.get("email", "")).lower() == OWNER_EMAIL.lower():
+            acc["account_id"] = OWNER_ID
             acc["tier"] = 1
             acc["saved_tier"] = 1
             acc["role"] = "ADMIN"
             acc["permission_active"] = True
             acc["permission_status"] = "ACTIVE"
-            if acc.get("password_plain_hint") in (None, "", "TuanAnh@2026"):
-                acc["password_plain_hint"] = "123456"
-                acc["password_hash"] = hash_password("123456")
+        if str(acc.get("password_hash") or "").strip() in _LEGACY_DEFAULT_HASHES:
+            acc["password_hash"] = ""
+        acc.setdefault("password_hash", "")
         tier = int(acc.get("tier", 3) or 3)
         acc.setdefault("saved_tier", tier)
         acc.setdefault("id", acc.get("account_id", ""))
@@ -110,7 +127,7 @@ class ThreeLayerAuthManager(
                 if acc["permission_active"]
                 else "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà thu hồi quyền)"
             )
-        acc.setdefault("invited_by", "SYSTEM_ROOT" if tier == 1 else "nep94121@gmail.com (Cấp 1)")
+        acc.setdefault("invited_by", "SYSTEM_ROOT" if tier == 1 else f"{OWNER_EMAIL} (Cấp 1)")
         acc.setdefault("needs_first_page_voice_enroll", False)
         acc.setdefault("voice_verified", not acc.get("needs_first_page_voice_enroll", False))
         acc.setdefault("reading_prompt", build_reading_prompt(acc.get("display_name", "Thành viên"), tier))
@@ -289,8 +306,7 @@ class ThreeLayerAuthManager(
                 "permission_active": True,
                 "permission_status": "ACTIVE",
                 "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                "password_plain_hint": "GiaDinh@123",
-                "password_hash": hash_password("GiaDinh@123"),
+                "password_hash": hash_password(password) if (login_method == "password" and password) else "",
                 "google_linked": True,
                 "invited_by": item.get("added_by", "Chủ nhà Cấp 1"),
                 "needs_first_page_voice_enroll": True,
@@ -316,6 +332,7 @@ class ThreeLayerAuthManager(
                     ]
                 ),
             }
+            self._normalize_account_fields(acc)
             self.accounts.append(acc)
             self._save_accounts()
 
@@ -330,14 +347,26 @@ class ThreeLayerAuthManager(
             )
             return {"ok": False, "layer": 1, "error": f"Không tìm thấy tài khoản '{email}'!"}
 
-        if login_method in ("google_oauth", "email_allowlist", "family_allowlist"):
+        is_owner_acc = str(acc.get("account_id", "")).lower() == OWNER_ID or int(acc.get("tier", 3)) == 1
+        if is_owner_acc and login_method != "password":
+            return {
+                "ok": False,
+                "layer": 1,
+                "error": "Tài khoản Chủ nhà bắt buộc đăng nhập bằng mật khẩu mã hóa!",
+            }
+
+        if not is_owner_acc and login_method in ("google_oauth", "email_allowlist", "family_allowlist"):
             acc["google_linked"] = True
         else:
-            pw_ok = verify_password_hash(password, acc["password_hash"])
-            if not pw_ok and acc.get("account_id") == "tuan_anh" and password in ("123456", "TuanAnh@2026"):
-                pw_ok = True
-            if not pw_ok and acc.get("account_id") == "khach_c" and password in ("Khach@123", "Khach@789"):
-                pw_ok = True
+            stored_hash = str(acc.get("password_hash") or "").strip()
+            if not stored_hash or stored_hash == "0" * 64:
+                return {
+                    "ok": False,
+                    "layer": 1,
+                    "needs_password_reset": True,
+                    "error": f"Tài khoản {acc['email']} chưa thiết lập mật khẩu mã hóa. Vui lòng dùng Quên mật khẩu / OTP để đặt mật khẩu!",
+                }
+            pw_ok = verify_password_hash(password, stored_hash)
             if not pw_ok:
                 self._log_event(
                     layer="Lớp 1 (Tài khoản/Mật khẩu)",
@@ -471,7 +500,7 @@ class ThreeLayerAuthManager(
             return {"ok": False, "error": "Mật khẩu phải có từ 4 ký tự trở lên!"}
 
         acc = self.find_account(clean_email)
-        is_owner = clean_email == "nep94121@gmail.com" or (acc and acc.get("account_id") == "tuan_anh")
+        is_owner = clean_email == OWNER_EMAIL.lower() or (acc and acc.get("account_id") == OWNER_ID)
         safe_tier = 1 if is_owner else (2 if int(target_tier or 2) == 2 else 3)
 
         if not acc:
@@ -490,10 +519,9 @@ class ThreeLayerAuthManager(
                 "permission_active": True,
                 "permission_status": "ACTIVE",
                 "permission_label": f"CÓ QUYỀN (Tầng {safe_tier})",
-                "password_plain_hint": pw1,
                 "password_hash": hash_password(pw1),
                 "google_linked": True,
-                "invited_by": "nep94121@gmail.com (Cấp 1)",
+                "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
                 "needs_first_page_voice_enroll": True,
                 "voice_verified": False,
                 "reading_prompt": build_reading_prompt(name_clean, safe_tier),
@@ -516,7 +544,7 @@ class ThreeLayerAuthManager(
             self._normalize_account_fields(acc)
             self.accounts.append(acc)
         else:
-            acc["password_plain_hint"] = pw1
+            acc.pop("password_plain_hint", None)
             acc["password_hash"] = hash_password(pw1)
             if display_name.strip() and not is_owner:
                 acc["display_name"] = display_name.strip()
@@ -653,12 +681,12 @@ class ThreeLayerAuthManager(
         clean_name = str(speaker_name or "").strip()
         tier_req = int(target_tier or 2)
 
-        if tier_req == 1 or clean_email == "nep94121@gmail.com":
-            acc = self.find_account("nep94121@gmail.com")
+        if tier_req == 1 or clean_email == OWNER_EMAIL.lower():
+            acc = self.find_account(OWNER_EMAIL)
             return acc or self.accounts[0]
 
         safe_tier = 2 if tier_req == 2 else 3
-        if not clean_email or clean_email == "nep94121@gmail.com":
+        if not clean_email or clean_email == OWNER_EMAIL.lower():
             slug = re.sub(r"[^a-z0-9]+", "_", (clean_name or f"member_c{safe_tier}").lower()).strip("_") or f"user_c{safe_tier}"
             clean_email = f"{slug}.c{safe_tier}@gmail.com"
 
@@ -679,10 +707,9 @@ class ThreeLayerAuthManager(
                 "permission_active": True,
                 "permission_status": "ACTIVE",
                 "permission_label": f"CÓ QUYỀN (Tầng {safe_tier})",
-                "password_plain_hint": "123456",
-                "password_hash": hash_password("123456"),
+                "password_hash": "",
                 "google_linked": True,
-                "invited_by": "nep94121@gmail.com (Cấp 1)",
+                "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
                 "needs_first_page_voice_enroll": True,
                 "voice_verified": False,
                 "reading_prompt": build_reading_prompt(disp, safe_tier),
@@ -702,11 +729,11 @@ class ThreeLayerAuthManager(
             self._normalize_account_fields(acc)
             self.accounts.append(acc)
         else:
-            if clean_name and acc.get("account_id") != "tuan_anh":
+            if clean_name and acc.get("account_id") != OWNER_ID:
                 acc["display_name"] = clean_name
                 acc["name"] = clean_name
                 acc["full_name"] = clean_name
-            if acc.get("account_id") != "tuan_anh":
+            if acc.get("account_id") != OWNER_ID:
                 acc["tier"] = safe_tier
                 acc["saved_tier"] = safe_tier
                 acc["role"] = "MEMBER" if safe_tier == 2 else "CHILD_GUEST"
@@ -830,7 +857,7 @@ class ThreeLayerAuthManager(
         email: str = "",
         target_name: str = "",
         target_tier: int = 2,
-        password: str = "GiaDinh@123",
+        password: str = "",
         source_device: str = "Samsung Galaxy S9 (App Android)",
     ) -> dict[str, Any]:
         """Lớp 3: Nhận bản thu âm giọng nói từ Điện thoại hoặc Web đẩy lên Server."""
@@ -841,12 +868,14 @@ class ThreeLayerAuthManager(
             except Exception:
                 pcm_bytes = b""
 
-        acoustic = self.analyze_pcm16k_bytes(pcm_bytes) if pcm_bytes else {
-            "f0_hz": float(measured_f0_hz or 126.0),
-            "rms": 0.18,
-            "centroid_hz": round(float(measured_f0_hz or 126.0) * 10.2, 1),
-            "duration_sec": 3.0,
-        }
+        if len(pcm_bytes) < 640:
+            return {
+                "ok": False,
+                "recognized": False,
+                "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế để xác thực giọng nói!",
+            }
+
+        acoustic = self.analyze_pcm16k_bytes(pcm_bytes)
         if measured_f0_hz is not None and float(measured_f0_hz) > 50.0:
             acoustic["f0_hz"] = round(float(measured_f0_hz), 1)
 
@@ -876,10 +905,9 @@ class ThreeLayerAuthManager(
                     "permission_active": True,
                     "permission_status": "ACTIVE",
                     "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                    "password_plain_hint": password or "GiaDinh@123",
-                    "password_hash": hash_password(password or "GiaDinh@123"),
+                    "password_hash": hash_password(password) if password else "",
                     "google_linked": True,
-                    "invited_by": "nep94121@gmail.com (Cấp 1)",
+                    "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
                     "needs_first_page_voice_enroll": False,
                     "reading_prompt": build_reading_prompt(target_name.strip() or new_email, int(target_tier)),
                     "voiceprint": {},
@@ -887,6 +915,7 @@ class ThreeLayerAuthManager(
                         "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa" if target_tier >= 2 else "Toàn quyền hệ thống",
                     ],
                 }
+                self._normalize_account_fields(acc)
                 self.accounts.append(acc)
 
             acc["needs_first_page_voice_enroll"] = False
@@ -1109,8 +1138,8 @@ get_auth_manager = get_auth_3layer_manager
 def check_duplicate_voice_gate(
     feat_s1: bytes | Any,
     deep_feat: Any = None,
-    threshold_mel: float = 0.88,
-    threshold_deep: float = 0.80,
+    threshold_mel: float = THRESHOLD_MEL,
+    threshold_deep: float = THRESHOLD_DEEP,
     f0_hz: float | None = None,
     target_tier: int = 0,
     target_user_id: str = "",

@@ -63,7 +63,20 @@ from simulator.engine import (
     read_audit_logs,
     set_default_state_backend,
 )
+from simulator.engine.constants_and_time import DEVICE_ID_ALIASES
+from simulator.engine.voice_rbac_mixin import (
+    PermissionCheckResult,
+    UNKNOWN_REJECTION_REASON,
+    UNKNOWN_SPOKEN_REPLY,
+)
 from simulator.mqtt_bridge import SmartHomeMQTTBridge
+from simulator.voice_config import (
+    OWNER_DISPLAY_NAME,
+    OWNER_EMAIL,
+    OWNER_ID,
+    ROLE_MAP,
+    USER_ROLE_MAP,
+)
 
 
 class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin):
@@ -85,7 +98,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self._last_synced_ts_ns: int = 0
         self.on_event = on_event
         self.on_voice_reset = on_voice_reset
-        self._current_user_id: str = "tuan_anh"
+        self._current_user_id: str = OWNER_ID
         self._current_role: str = "ADMIN"
         self.devices: dict[str, dict[str, Any]] = {
             k: TrackedDeviceDict(v, updated_at=time.time(), _engine=self) for k, v in DEFAULT_DEVICES.items()
@@ -274,7 +287,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "chains": [],
             "users": {k: dict(v) for k, v in DEFAULT_USERS.items()},
             "user_pools": {
-                "tuan_anh": {"word_mappings": {}, "aliases": {}, "if_else_rules": []},
+                OWNER_ID: {"word_mappings": {}, "aliases": {}, "if_else_rules": []},
                 "thanh_vien_a": {"word_mappings": {}, "aliases": {}, "if_else_rules": []},
                 "thanh_vien_b": {"word_mappings": {}, "aliases": {}, "if_else_rules": []},
             },
@@ -289,7 +302,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 if "user_pools" not in base or not isinstance(base["user_pools"], dict):
                     base["user_pools"] = self._default_overlay()["user_pools"]
                 t1_pool = base["user_pools"].setdefault(
-                    "tuan_anh", {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
+                    OWNER_ID, {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
                 )
                 if base.get("word_mappings") and not t1_pool.get("word_mappings"):
                     t1_pool["word_mappings"] = dict(base["word_mappings"])
@@ -315,7 +328,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         return pools[uid]
 
     def _save_overlay(self) -> None:
-        t1_pool = self._get_user_pool("tuan_anh")
+        t1_pool = self._get_user_pool(OWNER_ID)
         self.overlay_rules["word_mappings"] = dict(t1_pool.get("word_mappings", {}))
         self.overlay_rules["aliases"] = dict(t1_pool.get("aliases", {}))
         self.overlay_rules["if_else_rules"] = list(t1_pool.get("if_else_rules", []))
@@ -413,7 +426,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 ("fan", "turn_on"),
                 ("ac", "turn_on"),
             ]
-        return [(device_id, action)]
+        return [(DEVICE_ID_ALIASES.get(device_id, device_id), action)]
 
     def _state_verb_vi(self, dev_type: str, state: str, already: bool = False) -> str:
         suffix = " sẵn rồi" if already else ""
@@ -458,7 +471,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             clauses.append(f"{dname} {self._state_verb_vi(dtype, r['state'], already=False)}")
         return " và ".join(clauses) + "."
 
-    def set_active_user(self, user_or_role: str) -> dict[str, Any]:
+    def set_active_user(self, user_or_role: str | None) -> dict[str, Any]:
         """Đặt người dùng kích hoạt cho engine (kèm cờ _explicit_test_user_set phục vụ tương thích test)."""
         self._explicit_test_user_set = True
         return super().set_active_user(user_or_role)
@@ -517,47 +530,103 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         action: str | None = None,
         actor_tier: int | None = None,
         actor_user_id: str | None = None,
-    ) -> tuple[bool, str]:
+    ) -> PermissionCheckResult:
         """Kiểm tra quyền điều khiển thiết bị theo RBAC 3 Tầng.
         Hỗ trợ actor_tier truyền vào trực tiếp từ request session để không phụ thuộc vào trạng thái toàn cục Singleton."""
+        if actor_tier is None:
+            if (
+                self._current_role == "UNKNOWN"
+                or str(self._current_user_id).strip().lower() in ("", "unknown", "stranger")
+                or self.current_tier not in (1, 2, 3)
+            ):
+                return PermissionCheckResult({
+                    "allowed": False,
+                    "reason": UNKNOWN_REJECTION_REASON,
+                    "tier": 99,
+                    "role": "UNKNOWN",
+                })
+        elif int(actor_tier) not in (1, 2, 3):
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": UNKNOWN_REJECTION_REASON,
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
+
+        if actor_user_id is not None and str(actor_user_id).strip().lower() in ("", "unknown", "stranger"):
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": UNKNOWN_REJECTION_REASON,
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
+
         tier = int(actor_tier) if actor_tier is not None else int(self.current_tier)
-        uid = actor_user_id or self._current_user_id
+        if tier not in (1, 2, 3):
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": UNKNOWN_REJECTION_REASON,
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
+
+        uid = actor_user_id or (
+            self._current_user_id
+            if str(self._current_user_id).strip().lower() != "unknown"
+            else USER_ROLE_MAP.get(tier, OWNER_ID)
+        )
+        actor_role = ROLE_MAP.get(tier, "UNKNOWN")
 
         u = self.users.get(uid) if uid else None
         if u and not u.get("active", True):
-            return (
-                False,
-                f"Từ chối truy cập! Quyền của {u.get('name', uid)} đã bị hủy.",
-            )
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": f"Từ chối truy cập! Quyền của {u.get('name', uid)} đã bị hủy.",
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
 
-        dev = self.devices.get(dev_id, {})
+        canonical_id = DEVICE_ID_ALIASES.get(dev_id, dev_id)
+        dev = self.devices.get(canonical_id, {})
         default_tier_map = {"ADMIN": 1, "MEMBER": 2, "CHILD_GUEST": 3}
         fallback_tier = default_tier_map.get(dev.get("min_role", "CHILD_GUEST"), 3)
-        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(dev_id, fallback_tier))
+        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(canonical_id, fallback_tier))
 
         if tier > min_tier:
             dname = dev.get("name", dev_id)
-            return (
-                False,
-                f"Từ chối truy cập! Thiết bị {dname} chỉ cho phép từ Cấp {min_tier} trở lên điều khiển.",
-            )
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": f"Từ chối truy cập! Thiết bị {dname} chỉ cho phép từ Cấp {min_tier} trở lên điều khiển.",
+                "tier": tier,
+                "role": actor_role,
+            })
 
         # Kiểm tra custom directives của Admin
-        ok_dir, reason_dir = self._check_custom_directive_device_lock_parameterized(dev_id, tier)
+        ok_dir, reason_dir = self._check_custom_directive_device_lock_parameterized(canonical_id, tier)
         if not ok_dir:
-            return False, reason_dir
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": reason_dir,
+                "tier": tier,
+                "role": actor_role,
+            })
 
-        req_role = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}.get(min_tier, dev.get("min_role", "CHILD_GUEST"))
-        role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
-        actor_role = role_map_rev.get(tier, "CHILD_GUEST")
+        req_role = ROLE_MAP.get(min_tier, dev.get("min_role", "CHILD_GUEST"))
         user_lvl = ROLE_LEVELS.get(actor_role, 0)
         req_lvl = ROLE_LEVELS.get(req_role, 3)
         if user_lvl < req_lvl:
-            return (
-                False,
-                f"Từ chối truy cập! Cấp hiện tại (Tầng {tier}) không đủ quyền.",
-            )
-        return True, "OK"
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": f"Từ chối truy cập! Cấp hiện tại (Tầng {tier}) không đủ quyền.",
+                "tier": tier,
+                "role": actor_role,
+            })
+        return PermissionCheckResult({
+            "allowed": True,
+            "reason": "OK",
+            "tier": tier,
+            "role": actor_role,
+        })
 
     async def execute_device_action(
         self,
@@ -569,7 +638,44 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_tier: int | None = None,
         request_user_name: str | None = None,
         request_role: str | None = None,
+        reason: str | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
+        if reason and source == "voice":
+            source = str(reason)
+        if not bypass_rbac:
+            if request_tier is None and request_role is None:
+                is_unknown_caller = (
+                    self._current_role == "UNKNOWN"
+                    or str(self._current_user_id).strip().lower() in ("", "unknown", "stranger")
+                    or self.current_tier not in (1, 2, 3)
+                )
+            else:
+                is_unknown_caller = (
+                    (request_role is not None and str(request_role).strip().upper() == "UNKNOWN")
+                    or (request_tier is not None and int(request_tier) not in (1, 2, 3))
+                    or (request_user_name is not None and str(request_user_name).strip().lower() in ("unknown", "stranger"))
+                )
+            if is_unknown_caller:
+                canonical_dev = DEVICE_ID_ALIASES.get(device_id, device_id)
+                await self.emit({
+                    "type": "rbac_blocked",
+                    "device_id": device_id,
+                    "device_name": self.devices.get(canonical_dev, {}).get("name", device_id),
+                    "action": action,
+                    "role": "UNKNOWN",
+                    "reason": UNKNOWN_REJECTION_REASON,
+                })
+                return {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "device_id": device_id,
+                    "tier": 99,
+                    "role": "UNKNOWN",
+                    "error": UNKNOWN_REJECTION_REASON,
+                    "exact_spoken_reply": UNKNOWN_SPOKEN_REPLY,
+                }
+
         with self.state_transaction():
             targets = self._expand_targets(device_id, action)
             results = []
@@ -581,8 +687,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
                 effective_tier = int(request_tier) if request_tier is not None else int(self.current_tier)
                 effective_user = request_user_name or self.get_current_user_name()
-                role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
-                effective_role = request_role or role_map_rev.get(effective_tier, self.current_role)
+                effective_role = request_role or ROLE_MAP.get(effective_tier, self.current_role)
 
                 if not self.server_connected:
                     if dev_id == "main_door" and act in ("open", "turn_on"):
@@ -631,9 +736,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         continue
 
                 if dev["type"] == "door":
-                    new_state = "OPEN" if act in ("open", "turn_on") else "CLOSED"
+                    new_state = "OPEN" if act in ("open", "turn_on", "on") else "CLOSED"
                 else:
-                    new_state = "ON" if act in ("open", "turn_on") else "OFF"
+                    new_state = "ON" if act in ("open", "turn_on", "on") else "OFF"
 
                 if dev_id == "garden_pump" and not str(source).startswith("Cảm biến đất"):
                     prev_override = getattr(self, "pump_manual_override_off", False)
@@ -713,7 +818,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         """Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266."""
         snap = self.get_snapshot()
         combined_rules = list(snap.get("t1_global_if_else_rules", []))
-        if self._current_user_id != "tuan_anh":
+        if self._current_user_id != OWNER_ID:
             combined_rules.extend(snap.get("if_else_rules", []))
         return await self.mqtt_bridge.sync_pools_to_esp8266_flash(
             timers=snap.get("timers", []),
@@ -820,9 +925,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         triggered_results: list[dict[str, Any]] = []
         t1_locked_targets: set[str] = set()
 
-        t1_rules = list(self._get_user_pool("tuan_anh").get("if_else_rules", []))
+        t1_rules = list(self._get_user_pool(OWNER_ID).get("if_else_rules", []))
         rule_batches: list[tuple[int, list[dict[str, Any]]]] = [(1, t1_rules)]
-        if self.current_tier == 2 and self._current_user_id != "tuan_anh":
+        if self.current_tier == 2 and self._current_user_id != OWNER_ID:
             t2_rules = list(self._get_user_pool(self._current_user_id).get("if_else_rules", []))
             rule_batches.append((2, t2_rules))
 

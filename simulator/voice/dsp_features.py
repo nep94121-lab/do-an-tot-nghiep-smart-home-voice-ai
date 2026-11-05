@@ -10,10 +10,17 @@ from simulator.voice.biometrics_neural import (
     compute_neural_similarity,
     extract_neural_embedding_256d,
 )
+from simulator.voice_config import (
+    OWNER_ID,
+    ROLE_MAP,
+    THRESHOLD_DEEP,
+    THRESHOLD_MEL,
+    USER_ROLE_MAP,
+)
 
-STAGE1_HIGH_CONFIDENCE = 0.88
+STAGE1_HIGH_CONFIDENCE = THRESHOLD_MEL
 STAGE1_LOW_REJECT = 0.45
-STAGE2_PASS_THRESHOLD = 0.80
+STAGE2_PASS_THRESHOLD = THRESHOLD_DEEP
 
 
 def denoise_and_isolate_human_voice(

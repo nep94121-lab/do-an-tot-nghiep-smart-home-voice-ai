@@ -64,6 +64,7 @@ from simulator.rule_engine import (
     format_vn_time_ampm,
     read_audit_logs,
 )
+from simulator.voice_config import sanitize_api_payload
 
 router = APIRouter()
 
@@ -213,25 +214,43 @@ async def api_logs_dashboard(
     ]
 
     return JSONResponse(
-        {
-            "ok": True,
-            "server_time_vn": format_vn_time_ampm(),
-            "hardware_database": hardware_database,
-            "automation_database": automation_database,
-            "knowledge_base": kb_items,
-            "total_logs": len(standardized_logs),
-            "sqlite_Wal": sqlite_wal_info,
-            "sqlite_overview": sqlite_ov,
-            "audit_logs": standardized_logs,
-            "storage_files": storage_files,
-            "connection_pools": connection_pools,
-            "snapshot": snap,
-            "all_user_pools": active_eng.overlay_rules.get("user_pools", {}),
-            "voiceprints": _safe_json("voiceprints.json"),
-            "ir_devices_db": _safe_json("ir_devices_db.json"),
-            "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
-        }
+        sanitize_api_payload(
+            mask_sensitive_log_data(
+                {
+                    "ok": True,
+                    "server_time_vn": format_vn_time_ampm(),
+                    "hardware_database": hardware_database,
+                    "automation_database": automation_database,
+                    "knowledge_base": kb_items,
+                    "total_logs": len(standardized_logs),
+                    "sqlite_Wal": sqlite_wal_info,
+                    "sqlite_overview": sqlite_ov,
+                    "audit_logs": standardized_logs,
+                    "storage_files": storage_files,
+                    "connection_pools": connection_pools,
+                    "snapshot": snap,
+                    "all_user_pools": active_eng.overlay_rules.get("user_pools", {}),
+                    "accounts_3layer": sanitize_api_payload(
+                        mask_sensitive_log_data(_safe_json("accounts_3layer.json"))
+                    ),
+                    "ir_devices_db": _safe_json("ir_devices_db.json"),
+                    "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
+                }
+            )
+        )
     )
+
+
+_FORBIDDEN_SQL_KEYWORDS = (
+    "accounts_3layer",
+    "user_sessions",
+    "voiceprint",
+    "password",
+    "embedding",
+    "otp",
+    "secret",
+    "token",
+)
 
 
 @router.post("/api/logs/sql_query")
@@ -239,12 +258,20 @@ async def api_logs_dashboard(
 async def api_logs_sql_query(payload: dict[str, Any]) -> JSONResponse:
     """Thực thi câu lệnh SQL chỉ đọc (SELECT, PRAGMA, EXPLAIN) an toàn trên smarthome.db."""
     sql = str(payload.get("sql", "")).strip()
+    sql_low = sql.lower()
+    if any(kw in sql_low for kw in _FORBIDDEN_SQL_KEYWORDS):
+        return JSONResponse(
+            {"ok": False, "error": "Truy vấn bảng hoặc cột nhạy cảm bị từ chối vì lý do bảo mật!"},
+            status_code=403,
+        )
     try:
         limit = int(payload.get("limit", 100) or 100)
     except (ValueError, TypeError):
         limit = 100
     res = execute_readonly_sql(sql, limit=limit)
-    return JSONResponse(res)
+    if isinstance(res, dict) and "rows" in res:
+        res["rows"] = sanitize_api_payload(mask_sensitive_log_data(res["rows"]))
+    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(res)))
 
 
 @router.post("/api/logs/knowledge/add")

@@ -106,7 +106,7 @@ python -X utf8 scripts/test_auth_3layer_and_invite.py
 
 | Mã Test | Hạng mục kiểm thử | Kịch bản chi tiết | Kết quả |
 | :--- | :--- | :--- | :---: |
-| **`TEST-01`** | Lớp 1 (Mật khẩu Cấp 1) | Đăng nhập Chủ nhà (`nep94121@gmail.com` / `TuanAnh@2026`) & gửi OTP về Gmail thật | **PASS** |
+| **`TEST-01`** | Lớp 1 (Mật khẩu Cấp 1) | Đăng nhập Chủ nhà (`nep94121@gmail.com` / `[REDACTED_PASSWORD]`) & gửi OTP về Gmail thật | **PASS** |
 | **`TEST-02`** | Lớp 2 (Đọc Gmail Thật) | Tự động truy cập hộp thư `nep94121@gmail.com` đọc bức thư vừa gửi để lấy mã OTP 6 số | **PASS** |
 | **`TEST-03`** | Lớp 2 (Chống giả mạo OTP) | Nhập mã OTP sai (`000000`) khác với mã gửi về Gmail $\rightarrow$ Bị chặn | **PASS** |
 | **`TEST-04`** | Lớp 2 (Xác nhận OTP) | Nhập đúng mã OTP 6 số vừa đọc từ hộp thư Gmail $\rightarrow$ Mở khóa Lớp 2 | **PASS** |

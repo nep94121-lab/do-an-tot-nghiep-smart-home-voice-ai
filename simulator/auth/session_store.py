@@ -16,6 +16,12 @@ import time
 from typing import Any
 
 from simulator.auth.constants_and_crypto import DATA_DIR
+from simulator.voice_config import (
+    OWNER_EMAIL,
+    OWNER_ID,
+    ROLE_MAP,
+    USER_ROLE_MAP,
+)
 
 DB_PATH = DATA_DIR / "smarthome.db"
 
@@ -75,8 +81,8 @@ class SessionStore:
         """Tạo sẵn 3 phiên chuẩn định danh phục vụ test suite đồng thời 3 vai trò."""
         far_future = 86400 * 30
         self.create_session(
-            user_id="tuan_anh",
-            email="nep94121@gmail.com",
+            user_id=OWNER_ID,
+            email=OWNER_EMAIL,
             display_name="Nguyễn Tuấn Anh (Chủ nhà)",
             tier=1,
             role="ADMIN",
@@ -232,6 +238,233 @@ def get_session_store() -> SessionStore:
     return _SESSION_STORE
 
 
+_IDENTITY_PAYLOAD_KEYS = ("role", "user_id", "speaker_id", "speaker", "email")
+_REJECTED_IDENTITY_LITERALS = frozenset(
+    {
+        "",
+        "unknown",
+        "stranger",
+        "stranger_1",
+        "intruder",
+        "intruder_voice_2",
+        "none",
+        "null",
+        "anonymous",
+        "unauthorized",
+    }
+)
+
+
+def _make_rejected_unknown_session() -> UserSession:
+    now = time.time()
+    return UserSession(
+        session_id="rejected_unknown",
+        user_id="unknown",
+        email="",
+        display_name="Người lạ chưa xác thực",
+        tier=99,
+        role="UNKNOWN",
+        created_at=now,
+        expires_at=now + 86400,
+        source="rejected_unknown",
+        is_authenticated=False,
+    )
+
+
+def _match_single_identity_value(
+    raw_val: Any,
+    engine: Any | None = None,
+) -> tuple[bool, dict[str, Any]]:
+    """Kiểm tra 1 giá trị định danh/vai trò tường minh trong payload có hợp lệ không."""
+    if raw_val is None or isinstance(raw_val, bool) or not isinstance(raw_val, (str, int)):
+        return False, {}
+    s = str(raw_val).strip()
+    s_low = s.lower()
+    s_up = s.upper()
+    if s_low in _REJECTED_IDENTITY_LITERALS:
+        return False, {}
+
+    # 1. Known roles: ADMIN, MEMBER, CHILD_GUEST
+    if s_up in ("ADMIN", "MEMBER", "CHILD_GUEST"):
+        tier_by_role = {"ADMIN": 1, "MEMBER": 2, "CHILD_GUEST": 3}
+        t_val = tier_by_role[s_up]
+        uid = USER_ROLE_MAP.get(t_val, OWNER_ID if t_val == 1 else "khach_c")
+        return True, {
+            "user_id": uid,
+            "email": OWNER_EMAIL if t_val == 1 else "",
+            "display_name": uid,
+            "tier": t_val,
+            "role": s_up,
+        }
+
+    # 2. Tier strings: "1", "2", "3", "tier1", "tier2", "tier3"
+    if s_low in ("1", "2", "3", "tier1", "tier2", "tier3", "tier_1", "tier_2", "tier_3"):
+        t_val = int(s_low[-1])
+        r_val = ROLE_MAP.get(t_val, "CHILD_GUEST")
+        uid = USER_ROLE_MAP.get(t_val, OWNER_ID if t_val == 1 else "khach_c")
+        return True, {
+            "user_id": uid,
+            "email": OWNER_EMAIL if t_val == 1 else "",
+            "display_name": uid,
+            "tier": t_val,
+            "role": r_val,
+        }
+
+    alias_map = {
+        "owner_voice_1": OWNER_ID,
+        "user_voice_thanh_vien_a": USER_ROLE_MAP.get(2, "thanh_vien_a"),
+        "user_voice_khach_c": USER_ROLE_MAP.get(3, "khach_c"),
+        "member_1": USER_ROLE_MAP.get(2, "thanh_vien_a"),
+        "member_2": "thanh_vien_b",
+        "guest_1": USER_ROLE_MAP.get(3, "khach_c"),
+        "guest_2": "khach_d",
+    }
+    lookup_id = alias_map.get(s_low, s_low)
+
+    # 3. Known users in engine.users (if engine provided)
+    eng_users = getattr(engine, "users", None) if engine is not None else None
+    if isinstance(eng_users, dict):
+        u_obj = eng_users.get(lookup_id)
+        if u_obj is None:
+            for uid_k, u_cand in eng_users.items():
+                if isinstance(u_cand, dict) and str(u_cand.get("name", "")).strip().lower() == s_low:
+                    u_obj = u_cand
+                    lookup_id = uid_k
+                    break
+        if isinstance(u_obj, dict):
+            if not u_obj.get("active", True):
+                return False, {}
+            t_val = int(u_obj.get("tier", 99))
+            r_val = str(u_obj.get("role") or ROLE_MAP.get(t_val, "UNKNOWN")).upper()
+            if t_val not in (1, 2, 3) or r_val == "UNKNOWN":
+                return False, {}
+            return True, {
+                "user_id": str(u_obj.get("id") or lookup_id),
+                "email": str(u_obj.get("email") or ""),
+                "display_name": str(u_obj.get("name") or lookup_id),
+                "tier": t_val,
+                "role": r_val,
+            }
+
+    # 4. Known account in get_auth_3layer_manager().find_account(...) or active guest_sessions
+    try:
+        from simulator.auth_3layer import get_auth_3layer_manager
+
+        mgr = get_auth_3layer_manager()
+    except Exception:
+        mgr = None
+
+    if mgr is not None:
+        acc = mgr.find_account(s)
+        if isinstance(acc, dict):
+            acc_email = str(acc.get("email") or "").strip().lower()
+            acc_id = str(acc.get("account_id") or "").strip().lower()
+            acc_name = str(acc.get("display_name") or "").strip().lower()
+            known_aliases = {"khach.hust@gmail.com", "khach_hust", "guest_1", "member_1"}
+            is_exact_match = (
+                s_low in (acc_email, acc_id, acc_name)
+                or lookup_id in (acc_email, acc_id, acc_name)
+                or s_low.replace(" ", "_") == acc_id
+                or s_low in known_aliases
+            )
+            if is_exact_match:
+                if not acc.get("permission_active", True):
+                    return False, {}
+                t_val = int(acc.get("tier", 99))
+                r_val = str(acc.get("role") or ROLE_MAP.get(t_val, "UNKNOWN")).upper()
+                if t_val not in (1, 2, 3) or r_val == "UNKNOWN":
+                    return False, {}
+                return True, {
+                    "user_id": str(acc.get("account_id") or lookup_id),
+                    "email": str(acc.get("email") or ""),
+                    "display_name": str(acc.get("display_name") or lookup_id),
+                    "tier": t_val,
+                    "role": r_val,
+                }
+
+        now_ts = time.time()
+        for gs_attr in ("guest_sessions", "guest_qr_sessions"):
+            gs_map = getattr(mgr, gs_attr, None)
+            if isinstance(gs_map, dict):
+                gs_item = gs_map.get(s) or gs_map.get(s_low)
+                if gs_item is None:
+                    for gs_v in gs_map.values():
+                        if isinstance(gs_v, dict) and s_low in (
+                            str(gs_v.get("guest_id") or "").strip().lower(),
+                            str(gs_v.get("session_id") or "").strip().lower(),
+                            str(gs_v.get("email") or "").strip().lower(),
+                        ):
+                            gs_item = gs_v
+                            break
+                if isinstance(gs_item, dict):
+                    if not gs_item.get("active", True) or gs_item.get("revoked", False):
+                        return False, {}
+                    exp_ts = float(gs_item.get("expires_at_ts") or gs_item.get("expires_at") or (now_ts + 60))
+                    if exp_ts <= now_ts:
+                        return False, {}
+                    gid = str(gs_item.get("guest_id") or gs_item.get("session_id") or s)
+                    return True, {
+                        "user_id": gid,
+                        "email": str(gs_item.get("email") or ""),
+                        "display_name": str(gs_item.get("display_name") or "Khách tạm thời"),
+                        "tier": 3,
+                        "role": "CHILD_GUEST",
+                    }
+
+    # 5. Fallback to DEFAULT_USERS if engine was not provided
+    if engine is None:
+        try:
+            from simulator.engine.constants_and_time import DEFAULT_USERS
+
+            if lookup_id in DEFAULT_USERS:
+                u_def = DEFAULT_USERS[lookup_id]
+                t_val = int(u_def.get("tier", 3))
+                return True, {
+                    "user_id": str(u_def.get("id") or lookup_id),
+                    "email": str(u_def.get("email") or ""),
+                    "display_name": str(u_def.get("name") or lookup_id),
+                    "tier": t_val,
+                    "role": str(u_def.get("role") or ROLE_MAP.get(t_val, "CHILD_GUEST")),
+                }
+        except Exception:
+            pass
+
+    return False, {}
+
+
+def _resolve_explicit_payload_identity(
+    payload: dict[str, Any],
+    engine: Any | None = None,
+) -> tuple[bool, UserSession | None]:
+    """Kiểm tra nếu payload có chứa bất kỳ trường định danh/vai trò tường minh nào.
+    Trả về (has_explicit_field, UserSession)."""
+    present_keys = [k for k in _IDENTITY_PAYLOAD_KEYS if k in payload]
+    if not present_keys:
+        return False, None
+
+    resolved_info: dict[str, Any] = {}
+    for k in present_keys:
+        ok, info = _match_single_identity_value(payload.get(k), engine=engine)
+        if not ok:
+            return True, _make_rejected_unknown_session()
+        if not resolved_info:
+            resolved_info = info
+
+    now = time.time()
+    return True, UserSession(
+        session_id=f"explicit_{resolved_info['user_id']}",
+        user_id=resolved_info["user_id"],
+        email=resolved_info.get("email", ""),
+        display_name=resolved_info.get("display_name") or resolved_info["user_id"],
+        tier=int(resolved_info["tier"]),
+        role=str(resolved_info["role"]),
+        created_at=now,
+        expires_at=now + 86400,
+        source="explicit_payload",
+        is_authenticated=True,
+    )
+
+
 def resolve_request_session(
     request: Any | None = None,
     payload: dict[str, Any] | None = None,
@@ -240,6 +473,13 @@ def resolve_request_session(
     """Xác định phiên người dùng một cách stateless từ Header / Cookie / Query / Payload / Fallback."""
     store = get_session_store()
     token = ""
+
+    has_explicit_identity = False
+    explicit_session: UserSession | None = None
+    if payload and isinstance(payload, dict):
+        has_explicit_identity, explicit_session = _resolve_explicit_payload_identity(payload, engine=engine)
+        if has_explicit_identity and explicit_session is not None and not explicit_session.is_authenticated:
+            return explicit_session
 
     if request is not None:
         # 1. Header Authorization Bearer
@@ -281,26 +521,37 @@ def resolve_request_session(
             is_authenticated=False,
         )
 
-    # 6. Engine test fallback: trường hợp bài test Phase 1 đã gọi tường minh eng.set_active_user(...)
+    if has_explicit_identity and explicit_session is not None:
+        return explicit_session
+
+    # 6. Nếu không có token và không có định danh trong payload, kiểm tra nếu engine đang ở trạng thái UNKNOWN
+    if engine is not None and (
+        str(getattr(engine, "_current_role", "")).upper() == "UNKNOWN"
+        or str(getattr(engine, "_current_user_id", "")).strip().lower() == "unknown"
+    ):
+        return _make_rejected_unknown_session()
+
+    # 7. Engine test fallback: trường hợp bài test Phase 1 đã gọi tường minh eng.set_active_user(...)
     if engine is not None and getattr(engine, "_explicit_test_user_set", False):
-        tier_val = getattr(engine, "current_tier", 3)
+        tier_val = int(getattr(engine, "current_tier", 3))
+        if tier_val not in (1, 2, 3):
+            return _make_rejected_unknown_session()
         user_val = engine.get_current_user_name() if hasattr(engine, "get_current_user_name") else "user"
         uid_val = getattr(engine, "_current_user_id", "user")
-        role_map = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
         return UserSession(
             session_id="legacy_test",
             user_id=uid_val,
             email="",
             display_name=user_val,
-            tier=int(tier_val),
-            role=role_map.get(int(tier_val), "CHILD_GUEST"),
+            tier=tier_val,
+            role=ROLE_MAP.get(tier_val, "CHILD_GUEST"),
             created_at=time.time(),
             expires_at=time.time() + 86400,
             source="legacy_test",
             is_authenticated=True,
         )
 
-    # 7. Fallback mặc định cho client chưa đăng nhập: Tầng 3 (Khách)
+    # 8. Fallback mặc định cho client chưa đăng nhập: Tầng 3 (Khách)
     return UserSession(
         session_id="anonymous",
         user_id="anonymous",

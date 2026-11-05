@@ -14,6 +14,7 @@ Danh sách 9 endpoints:
 
 from __future__ import annotations
 
+import base64
 import copy
 import re
 from typing import Any
@@ -32,6 +33,17 @@ from simulator.auth.session_store import resolve_request_session
 from simulator.rule_engine import append_audit_log
 from simulator.voice.enrollment_quality import strip_vietnamese_diacritics
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
+from simulator.voice_config import (
+    OWNER_EMAIL,
+    OWNER_ID,
+    ROLE_MAP,
+    USER_ROLE_MAP,
+    sanitize_api_payload,
+)
+
+UNKNOWN_DEVICE_REJECTION_ERROR = (
+    "🚫 NGƯỜI LẠ / VAI TRÒ KHÔNG XÁC ĐỊNH: Từ chối toàn bộ quyền điều khiển thiết bị!"
+)
 
 router = APIRouter(tags=["devices"])
 
@@ -133,20 +145,118 @@ async def api_get_state() -> JSONResponse:
 
 
 @router.post("/api/session/role")
-async def api_set_session_role(payload: dict[str, Any]) -> JSONResponse:
+async def api_set_session_role(payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Đồng bộ vai trò phiên hiện tại trên _REST_ENGINE (dành cho Web/Mobile UI switch)."""
-    role = str((payload or {}).get("role") or (payload or {}).get("user_id") or "tuan_anh").strip()
-    email = str((payload or {}).get("email") or "").strip().lower()
+    from simulator.auth_3layer import get_auth_3layer_manager
+
+    data = payload if isinstance(payload, dict) else {}
+    raw_role = str(data.get("role") if "role" in data else (data.get("user_id") or "")).strip()
+    email = str(data.get("email") or "").strip().lower()
+
+    async def _reject_unknown_session_role(
+        err_msg: str = "Vai trò hoặc người nói không xác định — Từ chối quyền điều khiển!",
+    ) -> JSONResponse:
+        _REST_ENGINE.set_active_user("unknown")
+        await broadcast_rest_state_to_bridges()
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "active_user_id": "unknown",
+                "role": "UNKNOWN",
+                "tier": 99,
+                "error": err_msg,
+            },
+            status_code=403,
+        )
+
+    if (not raw_role and not email) or raw_role.lower() in (
+        "unknown",
+        "stranger",
+        "stranger_1",
+        "none",
+        "null",
+        "intruder",
+        "unauthorized",
+    ):
+        return await _reject_unknown_session_role()
+
+    mgr = get_auth_3layer_manager()
+    resolved_target = ""
+
     if email:
-        if "thanhvien" in email:
-            role = "thanh_vien_a"
-        elif "khach" in email or "guest" in email:
-            role = "khach_c"
-        elif "nep94121" in email:
-            role = "tuan_anh"
-    snap_user = _REST_ENGINE.set_active_user(role)
+        acc = mgr.find_account(email)
+        acc_email = str((acc or {}).get("email") or "").strip().lower()
+        acc_id = str((acc or {}).get("account_id") or "").strip().lower()
+        is_valid_email_match = bool(
+            acc
+            and (email in (acc_email, acc_id) or email == "khach.hust@gmail.com")
+            and acc.get("permission_active", True)
+        )
+        if not is_valid_email_match:
+            return await _reject_unknown_session_role()
+        resolved_target = str(acc.get("account_id") or acc.get("role") or "").strip()
+
+    if raw_role and not resolved_target:
+        r_low = raw_role.lower()
+        r_up = raw_role.upper()
+        role_alias_map = {
+            "member_1": USER_ROLE_MAP.get(2, "thanh_vien_a"),
+            "member_2": "thanh_vien_b",
+            "guest_1": USER_ROLE_MAP.get(3, "khach_c"),
+            "guest_2": "khach_d",
+        }
+        lookup_role = role_alias_map.get(r_low, r_low)
+
+        if lookup_role in _REST_ENGINE.users:
+            u_eng = _REST_ENGINE.users[lookup_role]
+            if not u_eng.get("active", True):
+                return await _reject_unknown_session_role()
+            acc_chk = mgr.find_account(lookup_role)
+            if acc_chk and str(acc_chk.get("account_id", "")).lower() == lookup_role and not acc_chk.get("permission_active", True):
+                return await _reject_unknown_session_role()
+            resolved_target = lookup_role
+        elif r_up in ("ADMIN", "MEMBER", "CHILD_GUEST"):
+            resolved_target = r_up
+        else:
+            acc_role = mgr.find_account(raw_role)
+            acc_email = str((acc_role or {}).get("email") or "").strip().lower()
+            acc_id = str((acc_role or {}).get("account_id") or "").strip().lower()
+            acc_name = str((acc_role or {}).get("display_name") or "").strip().lower()
+            is_valid_acc_match = bool(
+                acc_role
+                and (
+                    r_low in (acc_email, acc_id, acc_name)
+                    or r_low.replace(" ", "_") == acc_id
+                    or r_low in ("khach.hust@gmail.com", "khach_hust", "guest_1", "member_1")
+                )
+                and acc_role.get("permission_active", True)
+            )
+            if not is_valid_acc_match:
+                return await _reject_unknown_session_role()
+            resolved_target = str(acc_role.get("account_id") or acc_role.get("role") or "").strip()
+
+    if not resolved_target:
+        return await _reject_unknown_session_role()
+
+    snap_user = _REST_ENGINE.set_active_user(resolved_target)
+    if (
+        _REST_ENGINE.current_role == "UNKNOWN"
+        or _REST_ENGINE.current_user_id == "unknown"
+        or _REST_ENGINE.current_tier not in (1, 2, 3)
+    ):
+        return await _reject_unknown_session_role()
+
     await broadcast_rest_state_to_bridges()
-    return JSONResponse({"ok": True, "active_user": snap_user, "tier": _REST_ENGINE.current_tier})
+    return JSONResponse(
+        {
+            "ok": True,
+            "active_user": snap_user,
+            "active_user_id": _REST_ENGINE.current_user_id,
+            "role": _REST_ENGINE.current_role,
+            "tier": _REST_ENGINE.current_tier,
+        }
+    )
 
 
 @router.post("/api/device")
@@ -158,7 +268,24 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     act = str(body.get("action") or "open").strip() or "open"
     source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
 
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if (
+        req_sess.role == "UNKNOWN"
+        or req_sess.tier not in (1, 2, 3)
+        or str(req_sess.user_id).strip().lower() == "unknown"
+    ):
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "tier": 99,
+                "role": "UNKNOWN",
+                "error": UNKNOWN_DEVICE_REJECTION_ERROR,
+            },
+            status_code=403,
+        )
+
+    session = req_sess
     session_tier = session.tier
     session_user = session.display_name
     session_role = session.role
@@ -209,7 +336,24 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
     act = str(body.get("action") or "turn_on").strip() or "turn_on"
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if (
+        req_sess.role == "UNKNOWN"
+        or req_sess.tier not in (1, 2, 3)
+        or str(req_sess.user_id).strip().lower() == "unknown"
+    ):
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "tier": 99,
+                "role": "UNKNOWN",
+                "error": UNKNOWN_DEVICE_REJECTION_ERROR,
+            },
+            status_code=403,
+        )
+
+    session = req_sess
     effective_tier = session.tier
     user_name = session.display_name
 
@@ -318,7 +462,24 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
     body = payload if isinstance(payload, dict) else {}
     text = str(body.get("text", "")).strip()
 
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if (
+        req_sess.role == "UNKNOWN"
+        or req_sess.tier not in (1, 2, 3)
+        or str(req_sess.user_id).strip().lower() == "unknown"
+    ):
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "tier": 99,
+                "role": "UNKNOWN",
+                "error": UNKNOWN_DEVICE_REJECTION_ERROR,
+            },
+            status_code=403,
+        )
+
+    session = req_sess
     effective_tier = session.tier
     effective_user = session.display_name
     effective_role = session.role
@@ -537,22 +698,83 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 @router.post("/api/voice/command")
 async def api_voice_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Endpoint Stateless Voice Command cho Vercel Serverless & Web/Mobile Mic Capture:
-    Audio Upload (wav_b64 / pcm16k_b64) -> Biometric Speaker Verification -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
+    Audio Upload (wav_b64 / pcm16k_b64 / audio_pcm_b64) -> Biometric Speaker Verification -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
     """
     body = payload if isinstance(payload, dict) else {}
-    session = resolve_request_session(request, payload=None, engine=None)
-    authed_tier = session.tier if session.is_authenticated else None
-    authed_user = session.display_name if session.is_authenticated else None
-    authed_role = session.role if session.is_authenticated else None
+
+    raw_audio_b64 = str(
+        body.get("audio_pcm_b64")
+        or body.get("wav_b64")
+        or body.get("pcm16k_b64")
+        or body.get("audio_b64")
+        or ""
+    ).strip()
+
+    decoded_audio = b""
+    if raw_audio_b64:
+        clean_b64 = raw_audio_b64
+        if "," in clean_b64 and clean_b64.startswith("data:"):
+            clean_b64 = clean_b64.split(",", 1)[1]
+        try:
+            decoded_audio = base64.b64decode(clean_b64)
+        except Exception:
+            decoded_audio = b""
+
+    has_spoof_keys = any(
+        k in body and body.get(k) not in (None, "", {})
+        for k in ("sample_id", "profile_id", "voiceprint")
+    )
+    if not raw_audio_b64 or len(decoded_audio) < 64 or (has_spoof_keys and not str(body.get("audio_pcm_b64") or body.get("wav_b64") or body.get("pcm16k_b64") or body.get("audio_b64") or "").strip()):
+        rej_msg = "Từ chối: Giọng nói người lạ không có quyền điều khiển ngôi nhà."
+        raw_tx = str(body.get("transcript") or body.get("text") or "").strip()
+        return JSONResponse(
+            sanitize_api_payload({
+                "ok": False,
+                "authorized": False,
+                "level": 0,
+                "tier": 99,
+                "speaker_id": "intruder_voice_2",
+                "user_id": "UNKNOWN",
+                "speaker_name": "Người lạ (Không được phép)",
+                "role": "UNKNOWN",
+                "recognized_text": raw_tx,
+                "transcript": raw_tx,
+                "canonical_command": raw_tx,
+                "intent": "UNKNOWN_INTENT",
+                "intents": [],
+                "permission": "DENIED",
+                "rbac_blocked": True,
+                "action": "BLOCKED_UNAUTHORIZED_VOICE",
+                "error": "🚫 Từ chối xác thực giọng nói: Bắt buộc phải cung cấp dữ liệu âm thanh PCM/WAV thực tế (không tin cậy sample_id/profile_id/voiceprint từ client)!",
+                "reply": rej_msg,
+                "exact_spoken_reply": rej_msg,
+                "results": [],
+                "f0_hz": 0.0,
+                "similarity": 0.0,
+                "latency_ms": 0.1,
+                "snapshot": _REST_ENGINE.get_snapshot(),
+            }),
+            status_code=403,
+        )
+
+    # Tuyệt đối không tin cậy các trường định danh / vân giọng do client tự gửi lên
+    sanitized_voice_input: dict[str, Any] = {
+        "wav_b64": raw_audio_b64,
+        "pcm16k_b64": raw_audio_b64,
+        "audio_b64": raw_audio_b64,
+        "transcript": str(body.get("transcript") or body.get("text") or "").strip(),
+        "is_live_mic": bool(body.get("is_live_mic", False)),
+    }
 
     res = await process_voice_command_pipeline(
-        body,
+        sanitized_voice_input,
         engine=_REST_ENGINE,
         voice_auth=_BOOT_VOICE_AUTH,
-        session_tier=authed_tier,
-        session_user=authed_user,
-        session_role=authed_role,
+        session_tier=None,
+        session_user=None,
+        session_role=None,
     )
+    res = sanitize_api_payload(res)
 
     append_audit_log(
         category="VOICE_COMMAND",
@@ -561,8 +783,8 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
             f"🎙️ [Voice L{res.get('level')}] {res.get('speaker_name')}: "
             f"'{res.get('recognized_text')}' -> {res.get('intent')} ({res.get('permission')}, {res.get('latency_ms')}ms)"
         ),
-        user_name=str(res.get("speaker_name") or session.display_name),
-        tier=int(res.get("tier") or session.tier),
+        user_name=str(res.get("speaker_name") or "Người lạ"),
+        tier=int(res.get("tier") or 99),
         details={
             "recognized_text": res.get("recognized_text"),
             "intent": res.get("intent"),

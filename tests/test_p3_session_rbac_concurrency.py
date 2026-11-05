@@ -357,12 +357,25 @@ def test_login_generates_session_token_and_keeps_engine_clean(client: TestClient
     store = get_session_store()
     eng = routes_devices._REST_ENGINE
 
+    # Thiết lập mật khẩu mã hóa ngẫu nhiên tại runtime cho Chủ nhà trước khi kiểm thử đăng nhập Lớp 1
+    import secrets
+    from simulator.auth_3layer import get_auth_3layer_manager
+
+    ephemeral_pw = "RuntimeOwner_" + secrets.token_urlsafe(12)
+    get_auth_3layer_manager().register_or_update_password(
+        email="nep94121@gmail.com",
+        password=ephemeral_pw,
+        confirm_password=ephemeral_pw,
+        display_name="Nguyễn Tuấn Anh",
+        target_tier=1,
+    )
+
     # Đăng nhập Chủ nhà Lớp 1
     resp = client.post(
         "/api/auth3/layer1_login",
         json={
             "email": "nep94121@gmail.com",
-            "password": "123456",
+            "password": ephemeral_pw,
             "login_method": "password",
             "source": "Web Test Login",
             "send_gmail": False,

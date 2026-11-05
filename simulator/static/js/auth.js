@@ -24,13 +24,13 @@
 
     function applyPresetAccount(preset) {
       if (preset === 'owner') {
-        fillAccount('nep94121@gmail.com', '123456');
+        fillAccount('nep94121@gmail.com', '');
         onEnrollTierSelectChange('1');
       } else if (preset === 'family') {
-        fillAccount('senat6031@gmail.com', 'GiaDinh@123');
+        fillAccount('senat6031@gmail.com', '');
         onEnrollTierSelectChange('2');
       } else if (preset === 'guest') {
-        fillAccount('kbanh376@gmail.com', 'Khach@789');
+        fillAccount('kbanh376@gmail.com', '');
         onEnrollTierSelectChange('3');
       } else if (preset === 'wrong') {
         fillAccount('nep94121@gmail.com', 'SaiMatKhau999');
@@ -114,7 +114,7 @@
       const box = document.getElementById('loginStatusBox');
 
       const email = emailEl ? emailEl.value.trim() : 'nep94121@gmail.com';
-      const password = (pwEl && pwEl.value) ? pwEl.value : '123456';
+      const password = (pwEl && pwEl.value) ? pwEl.value : '';
       const confirmPassword = (pwConfirmEl && pwConfirmEl.value) ? pwConfirmEl.value : password;
       const speakerName = nameEl ? nameEl.value.trim() : selectedSpeakerName;
 
@@ -146,29 +146,31 @@
         return;
       }
 
-      try {
-        const res = await fetch('/api/auth3/register_or_set_password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            display_name: speakerName,
-            target_tier: selectedEnrollTier,
-            password,
-            confirm_password: confirmPassword
-          })
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          setStepState('retry', '', '');
-          if (box) {
-            box.style.borderColor = 'var(--red-border)';
-            box.style.background = 'var(--red-soft)';
-            box.textContent = data.error || 'Chưa lưu được thông tin Bước 1.';
+      if (password) {
+        try {
+          const res = await fetch('/api/auth3/register_or_set_password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              display_name: speakerName,
+              target_tier: selectedEnrollTier,
+              password,
+              confirm_password: confirmPassword
+            })
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            setStepState('retry', '', '');
+            if (box) {
+              box.style.borderColor = 'var(--red-border)';
+              box.style.background = 'var(--red-soft)';
+              box.textContent = data.error || 'Chưa lưu được thông tin Bước 1.';
+            }
+            return;
           }
-          return;
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
       selectedSpeakerName = speakerName;
       refreshStepSummaries();

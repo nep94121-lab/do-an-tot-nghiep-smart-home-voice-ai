@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import re
 import subprocess
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from simulator.engine.constants_and_time import resolve_data_dir
+from simulator.voice_config import OWNER_EMAIL, OWNER_ID
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = resolve_data_dir()
@@ -24,17 +26,23 @@ def _now_vn() -> str:
     return time.strftime("%H:%M:%S %d/%m/%Y", time.localtime())
 
 
-def hash_password(password: str, salt: str = "hust_seee_2026_salt") -> str:
+def hash_password(password: str, salt: str | None = None) -> str:
+    effective_salt = salt if salt is not None else os.environ.get("SMARTHOME_PBKDF2_SALT", "hust_seee_2026_salt")
     dk = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
-        salt.encode("utf-8"),
+        effective_salt.encode("utf-8"),
         100_000,
     )
     return dk.hex()
 
 
-def verify_password_hash(password: str, expected_hash: str, salt: str = "hust_seee_2026_salt") -> bool:
+UNSET_PASSWORD_SENTINEL_HASH = "0" * 64
+
+
+def verify_password_hash(password: str, expected_hash: str, salt: str | None = None) -> bool:
+    if not expected_hash or expected_hash == UNSET_PASSWORD_SENTINEL_HASH:
+        return False
     actual = hash_password(password, salt=salt)
     return hmac.compare_digest(actual, expected_hash)
 
@@ -49,8 +57,8 @@ def build_reading_prompt(display_name: str, tier: int) -> str:
 
 DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
     {
-        "account_id": "tuan_anh",
-        "email": "nep94121@gmail.com",
+        "account_id": OWNER_ID,
+        "email": OWNER_EMAIL,
         "display_name": "Nguyễn Tuấn Anh",
         "tier": 1,
         "saved_tier": 1,
@@ -59,8 +67,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Chủ nhà Tầng 1)",
-        "password_plain_hint": "123456",
-        "password_hash": hash_password("123456"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
         "invited_by": "SYSTEM_ROOT",
         "needs_first_page_voice_enroll": False,
@@ -93,10 +100,9 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Tầng 2 - Người nhà)",
-        "password_plain_hint": "GiaDinh@123",
-        "password_hash": hash_password("GiaDinh@123"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
-        "invited_by": "nep94121@gmail.com (Cấp 1)",
+        "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
         "needs_first_page_voice_enroll": False,
         "reading_prompt": build_reading_prompt("Thành viên A", 2),
         "voiceprint": {
@@ -126,10 +132,9 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Tầng 2 - Người nhà)",
-        "password_plain_hint": "GiaDinh@456",
-        "password_hash": hash_password("GiaDinh@456"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
-        "invited_by": "nep94121@gmail.com (Cấp 1)",
+        "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
         "needs_first_page_voice_enroll": False,
         "reading_prompt": build_reading_prompt("Thành viên B", 2),
         "voiceprint": {
@@ -159,8 +164,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Tầng 3 - Khách)",
-        "password_plain_hint": "Khach@789",
-        "password_hash": hash_password("Khach@789"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
         "invited_by": "thanhviena.hust@gmail.com (Cấp 2)",
         "needs_first_page_voice_enroll": False,
@@ -192,9 +196,9 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Tầng 2 - Người nhà)",
-        "password_hash": hash_password("GiaDinh@123"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
-        "invited_by": "nep94121@gmail.com (Cấp 1)",
+        "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
         "needs_first_page_voice_enroll": False,
         "reading_prompt": build_reading_prompt("senat6031", 2),
         "voiceprint": {
@@ -224,9 +228,9 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_active": True,
         "permission_status": "ACTIVE",
         "permission_label": "CÓ QUYỀN (Tầng 3 - Khách)",
-        "password_hash": hash_password("Khach@789"),
+        "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
-        "invited_by": "nep94121@gmail.com (Cấp 1)",
+        "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
         "needs_first_page_voice_enroll": False,
         "reading_prompt": build_reading_prompt("kbanh376", 3),
         "voiceprint": {
@@ -250,7 +254,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
 DEFAULT_INVITE_LINKS: dict[str, dict[str, Any]] = {
     "INV-T1-TO-TIER2": {
         "invite_code": "INV-T1-TO-TIER2",
-        "issuer_email": "nep94121@gmail.com",
+        "issuer_email": OWNER_EMAIL,
         "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
         "issuer_tier": 1,
         "target_tier": 2,
@@ -262,7 +266,7 @@ DEFAULT_INVITE_LINKS: dict[str, dict[str, Any]] = {
     },
     "INV-T1-TO-TIER3": {
         "invite_code": "INV-T1-TO-TIER3",
-        "issuer_email": "nep94121@gmail.com",
+        "issuer_email": OWNER_EMAIL,
         "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
         "issuer_tier": 1,
         "target_tier": 3,

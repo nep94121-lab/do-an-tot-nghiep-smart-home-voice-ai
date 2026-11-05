@@ -10,6 +10,14 @@ import re
 import shutil
 from typing import Any
 
+from simulator.voice_config import (
+    OWNER_DISPLAY_NAME,
+    OWNER_EMAIL,
+    OWNER_ID,
+    ROLE_MAP,
+    USER_ROLE_MAP,
+)
+
 
 def resolve_data_dir() -> pathlib.Path:
     repo_data = pathlib.Path(__file__).resolve().parent.parent / "data"
@@ -127,13 +135,14 @@ ROLE_NAMES: dict[str, str] = {
     "UNKNOWN": "Đã hủy quyền / Người lạ (Chặn toàn bộ)",
     "CHILD_GUEST": "Tầng 3 — Khách (Chỉ gọi lệnh đóng/mở cố định)",
     "MEMBER": "Tầng 2 — Thành viên gia đình (Có bể lệnh & hẹn giờ riêng, cấp/hủy Tầng 3)",
-    "ADMIN": "Tầng 1 — Admin tối cao: Nguyễn Tuấn Anh (Toàn quyền ưu tiên số 1)",
+    "ADMIN": f"Tầng 1 — Admin tối cao: {OWNER_DISPLAY_NAME} (Toàn quyền ưu tiên số 1)",
 }
 
 DEFAULT_USERS: dict[str, dict[str, Any]] = {
-    "tuan_anh": {
-        "id": "tuan_anh",
-        "name": "Nguyễn Tuấn Anh",
+    OWNER_ID: {
+        "id": OWNER_ID,
+        "name": OWNER_DISPLAY_NAME,
+        "email": OWNER_EMAIL,
         "tier": 1,
         "role": "ADMIN",
         "granted_by": "SYSTEM_ROOT",
@@ -146,8 +155,8 @@ DEFAULT_USERS: dict[str, dict[str, Any]] = {
         "name": "Thành viên A",
         "tier": 2,
         "role": "MEMBER",
-        "granted_by": "tuan_anh",
-        "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+        "granted_by": OWNER_ID,
+        "granted_by_name": f"{OWNER_DISPLAY_NAME} (Tầng 1)",
         "granted_by_tier": 1,
         "active": True,
     },
@@ -156,8 +165,8 @@ DEFAULT_USERS: dict[str, dict[str, Any]] = {
         "name": "Thành viên B",
         "tier": 2,
         "role": "MEMBER",
-        "granted_by": "tuan_anh",
-        "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+        "granted_by": OWNER_ID,
+        "granted_by_name": f"{OWNER_DISPLAY_NAME} (Tầng 1)",
         "granted_by_tier": 1,
         "active": True,
     },
@@ -166,8 +175,8 @@ DEFAULT_USERS: dict[str, dict[str, Any]] = {
         "name": "Khách C",
         "tier": 3,
         "role": "CHILD_GUEST",
-        "granted_by": "tuan_anh",
-        "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+        "granted_by": OWNER_ID,
+        "granted_by_name": f"{OWNER_DISPLAY_NAME} (Tầng 1)",
         "granted_by_tier": 1,
         "active": True,
     },
@@ -181,6 +190,27 @@ DEFAULT_USERS: dict[str, dict[str, Any]] = {
         "granted_by_tier": 2,
         "active": True,
     },
+}
+
+DEVICE_ID_ALIASES: dict[str, str] = {
+    "light_living": "living_room_light",
+    "living_light": "living_room_light",
+    "light_bedroom": "bedroom_light",
+    "fan_bedroom": "fan",
+    "fan_living": "fan",
+    "ceiling_fan": "fan",
+    "alarm_buzzer": "alarm_siren",
+    "buzzer": "alarm_siren",
+    "siren": "alarm_siren",
+    "alarm": "alarm_siren",
+    "door": "main_door",
+    "front_door": "main_door",
+    "door_main": "main_door",
+    "air_conditioner": "ac",
+    "ac_living": "ac",
+    "ac_bedroom": "ac",
+    "pump": "garden_pump",
+    "water_pump": "garden_pump",
 }
 
 ACTION_TO_STATE: dict[str, str] = {

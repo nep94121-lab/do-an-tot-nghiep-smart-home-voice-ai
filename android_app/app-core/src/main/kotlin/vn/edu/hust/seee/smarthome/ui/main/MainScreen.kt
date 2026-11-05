@@ -205,7 +205,7 @@ fun MainScreen(
   var lastCosineScore by remember { mutableDoubleStateOf(0.92) }
 
   var authEmail by remember { mutableStateOf("nep94121@gmail.com") }
-  var authPassword by remember { mutableStateOf("TuanAnh@2026") }
+  var authPassword by remember { mutableStateOf("") }
   var authOtpInput by remember { mutableStateOf("") }
   var authStepDone by remember { mutableIntStateOf(0) }
   var authStatusMessage by remember {

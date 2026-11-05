@@ -57,6 +57,7 @@ from simulator.voice.vad_vietnamese import (
     is_vietnamese_speech,
 )
 from simulator.voice_auth import VoiceAuthManager
+from simulator.voice_config import OWNER_ID
 
 MODEL = "gemini-3.8-live"
 CHUNK_MS = 20
@@ -282,7 +283,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         mgr3 = get_auth_3layer_manager()
 
         if auth_res.get("authorized"):
-            matched_uid = str(auth_res.get("user_id") or "tuan_anh")
+            matched_uid = str(auth_res.get("user_id") or OWNER_ID)
             matched_tier = int(auth_res.get("tier", 1))
             acc_list = mgr3.accounts.values() if isinstance(mgr3.accounts, dict) else mgr3.accounts
             acc_3layer = next(
@@ -947,7 +948,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         await _broadcast_rest_state_to_bridges()
 
                     elif mtype == "set_role":
-                        new_role = str(msg.get("role", "tuan_anh"))
+                        new_role = str(msg.get("role") or "").strip()
                         self.engine.set_active_user(new_role)
                         _REST_ENGINE.set_active_user(new_role)
                         self.last_mic_turn_blocked = (
@@ -965,13 +966,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         dev_id = str(msg.get("device_id", ""))
                         action = str(msg.get("action", ""))
                         req_role = str(msg.get("role", "") or "").strip()
-                        if req_role and (
-                            req_role in self.engine.users
-                            or req_role in ("tuan_anh", "member_1", "guest_1", "stranger_1", "UNKNOWN")
-                        ):
+                        if req_role:
                             self.engine.set_active_user(req_role)
-                        elif self.engine.current_role == "UNKNOWN" and not req_role:
-                            self.engine.set_active_user("tuan_anh")
                         await self.engine.execute_device_action(
                             device_id=dev_id,
                             action=action,
@@ -995,9 +991,9 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                     elif mtype == "enroll_owner_voice":
                         pcm_bytes = base64.b64decode(msg.get("pcm16k_b64", ""))
-                        target_uid = str(msg.get("user_id") or "tuan_anh")
+                        target_uid = str(msg.get("user_id") or OWNER_ID)
                         if target_uid == "UNKNOWN":
-                            target_uid = "tuan_anh"
+                            target_uid = OWNER_ID
                         u_info = self.engine.users.get(target_uid, {"name": "Nguyễn Tuấn Anh", "tier": 1, "role": "ADMIN"})
                         t_tier = int(msg.get("tier") or u_info.get("tier", 1))
                         t_name = str(msg.get("user_name") or u_info.get("name", "Nguyễn Tuấn Anh"))
@@ -1033,8 +1029,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         self.last_mic_turn_blocked = False
                         self.mic_turn_verified = False
                         self.mic_utterance_pcm.clear()
-                        if self.engine.current_role == "UNKNOWN":
-                            self.engine.set_active_user("tuan_anh")
                         await self.send_ws_json({
                             "type": "voice_auth_result",
                             "sample_id": "reset",
