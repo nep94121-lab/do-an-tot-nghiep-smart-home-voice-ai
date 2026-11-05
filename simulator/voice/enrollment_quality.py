@@ -269,36 +269,82 @@ def validate_voice_enrollment_quality(
     }
 
 
+def strip_vietnamese_diacritics(text: str) -> str:
+    """Chuyển chuỗi Tiếng Việt có dấu sang không dấu (chữ thường) để đối sánh khẩu lệnh đa dạng."""
+    import unicodedata
+
+    s = (text or "").strip().lower()
+    s = s.replace("đ", "d")
+    nfd = unicodedata.normalize("NFD", s)
+    return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
+
+
 def parse_vietnamese_voice_command_intents(transcript_text: str) -> list[dict[str, str]]:
-    """Phân tích câu lệnh tiếng Việt của Chủ nhà thành danh sách lệnh điều khiển thiết bị SmartHomeEngine."""
+    """Phân tích câu lệnh tiếng Việt (có dấu, không dấu, hoặc cấu trúc đảo ngữ VIVOS/CommonVoice/FOSD)
+    thành danh sách lệnh điều khiển thiết bị SmartHomeEngine.
+    """
+    import re
+
     t = (transcript_text or "").strip().lower()
     if not t:
         return []
+    tn = strip_vietnamese_diacritics(t)
+    tn = re.sub(r"[^\w\s]", " ", tn)
+    tn = " ".join(tn.split())
+    tokens = tn.split()
+
+    has_on = any(w in tokens for w in ("bat", "mo", "chay")) or "khoi dong" in tn or "turn_on" in tn or "open" in tn
+    has_off = any(w in tokens for w in ("tat", "dong", "khoa", "ngat", "dung")) or "turn_off" in tn or "close" in tn
+
     intents: list[dict[str, str]] = []
-    if "mở cửa" in t or "mở hết cửa" in t:
-        intents.append({"device_id": "main_door", "action": "open"})
-    elif "đóng hết cửa" in t or "đóng cửa" in t or "khóa cửa" in t:
-        intents.append({"device_id": "main_door", "action": "close"})
 
-    if "tắt hết đèn" in t or "tắt toàn bộ đèn" in t or "tắt tất cả đèn" in t:
+    # 1. Cửa chính / Cổng chính (main_door)
+    is_gate_switch = ("cong tac cong" in tn) or ("cua chinh" in tn) or ("cua nha" in tn) or ("het cua" in tn) or ("mo cua" in tn) or ("dong cua" in tn) or ("khoa cua" in tn)
+    if is_gate_switch:
+        if "dong" in tokens or "khoa" in tokens or "tat" in tokens or "close" in tn:
+            intents.append({"device_id": "main_door", "action": "close"})
+        elif "mo" in tokens or "bat" in tokens or "open" in tn:
+            intents.append({"device_id": "main_door", "action": "open"})
+
+    # 2. Hệ thống đèn (all_lights / living_room_light / bedroom_light)
+    if any(p in tn for p in ("tat het den", "tat toan bo den", "tat tat ca den", "tat 2 den", "tat hai den")):
         intents.append({"device_id": "all_lights", "action": "turn_off"})
-    elif "bật hết đèn" in t or "bật tất cả đèn" in t:
+    elif any(p in tn for p in ("bat het den", "bat toan bo den", "bat tat ca den", "bat 2 den", "bat hai den")):
         intents.append({"device_id": "all_lights", "action": "turn_on"})
-    elif "bật đèn phòng khách" in t or ("bật đèn" in t and "ngủ" not in t):
-        intents.append({"device_id": "living_room_light", "action": "turn_on"})
-    elif "tắt đèn phòng khách" in t:
-        intents.append({"device_id": "living_room_light", "action": "turn_off"})
-    elif "bật đèn phòng ngủ" in t:
-        intents.append({"device_id": "bedroom_light", "action": "turn_on"})
-    elif "tắt đèn phòng ngủ" in t:
-        intents.append({"device_id": "bedroom_light", "action": "turn_off"})
+    else:
+        if "den phong khach" in tn or "den khach" in tn or ("bat den" in tn and "ngu" not in tn) or ("tat den" in tn and "ngu" not in tn):
+            act_lr = "turn_off" if ("tat den" in tn or (has_off and not has_on)) else "turn_on"
+            intents.append({"device_id": "living_room_light", "action": act_lr})
+        if "den phong ngu" in tn or "den ngu" in tn:
+            act_br = "turn_off" if ("tat den" in tn or (has_off and not has_on)) else "turn_on"
+            intents.append({"device_id": "bedroom_light", "action": act_br})
 
-    if "quạt" in t:
-        act_fan = "turn_off" if "tắt quạt" in t else "turn_on"
+    # 3. Quạt trần (fan)
+    if "quat" in tokens or "quat tran" in tn:
+        if "tat quat" in tn or (has_off and not ("bat quat" in tn)):
+            act_fan = "turn_off"
+        else:
+            act_fan = "turn_on"
         intents.append({"device_id": "fan", "action": act_fan})
-    if "điều hòa" in t or "máy lạnh" in t:
-        act_ac = "turn_off" if ("tắt điều hòa" in t or "tắt máy lạnh" in t) else "turn_on"
+
+    # 4. Điều hòa / Máy lạnh (ac)
+    if "dieu hoa" in tn or "may lanh" in tn:
+        if "tat dieu hoa" in tn or "tat may lanh" in tn or (has_off and not ("bat dieu hoa" in tn or "bat may lanh" in tn)):
+            act_ac = "turn_off"
+        else:
+            act_ac = "turn_on"
         intents.append({"device_id": "ac", "action": act_ac})
 
+    # 5. Máy bơm tưới cây (garden_pump)
+    if "may bom" in tn or "bom nuoc" in tn or "bom vuon" in tn or "tuoi cay" in tn:
+        act_pump = "turn_off" if ("tat may bom" in tn or "tat bom" in tn or (has_off and not has_on)) else "turn_on"
+        intents.append({"device_id": "garden_pump", "action": act_pump})
+
+    # 6. Còi báo động (alarm_siren)
+    if "coi bao dong" in tn or "bao dong" in tn or "coi hu" in tn:
+        act_siren = "turn_off" if ("tat coi" in tn or "tat bao dong" in tn or (has_off and not has_on)) else "turn_on"
+        intents.append({"device_id": "alarm_siren", "action": act_siren})
+
     return intents
+
 

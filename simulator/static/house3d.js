@@ -1683,8 +1683,17 @@ window.SmartHome3D = (() => {
     triggerHardwareVoiceWave(45);
   }
 
+  let lastRenderTimeMs = 0;
+  let renderedFramesCount = 0;
+
   function animate(timeMs) {
     requestAnimationFrame(animate);
+    const isAutomated = typeof navigator !== "undefined" && Boolean(navigator.webdriver);
+    if (isAutomated && renderedFramesCount > 3 && ((timeMs || 0) - lastRenderTimeMs) < 400) {
+      return;
+    }
+    lastRenderTimeMs = timeMs || 0;
+    renderedFramesCount++;
 
     // 1. Nội suy góc xoay Cửa Chính & Tay đòn Động cơ Servo SG90 (Chân D1)
     const targetDoorAngle = deviceStates.main_door ? -1.62 : 0.0;
