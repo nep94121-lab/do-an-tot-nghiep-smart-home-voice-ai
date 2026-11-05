@@ -80,30 +80,30 @@ fun DeviceRowCard(
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(14.dp))
+      .clip(RoundedCornerShape(12.dp))
       .background(if (isOn) Color(0xFFF8FCFC) else Color(0xFFF5F7F7))
-      .border(1.dp, if (isOn) Color(0xFFB9DEDB) else cardBorder, RoundedCornerShape(14.dp))
-      .padding(horizontal = 12.dp, vertical = 10.dp),
+      .border(1.dp, if (isOn) Color(0xFFB9DEDB) else cardBorder, RoundedCornerShape(12.dp))
+      .padding(horizontal = 10.dp, vertical = 3.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
       Box(
         modifier = Modifier
-          .size(36.dp)
-          .clip(RoundedCornerShape(10.dp))
+          .size(32.dp)
+          .clip(RoundedCornerShape(8.dp))
           .background(Color.White)
-          .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
+          .border(1.dp, cardBorder, RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center,
       ) {
-        LineIcon(dev.icon, accentCyan, 18)
+        LineIcon(dev.icon, accentCyan, 16)
       }
-      Spacer(modifier = Modifier.width(10.dp))
+      Spacer(modifier = Modifier.width(8.dp))
       Column(modifier = Modifier.weight(1f)) {
         Text(
           text = dev.name,
           color = textPrimary,
-          fontSize = 14.sp,
+          fontSize = 13.sp,
           fontWeight = FontWeight.Medium,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -111,7 +111,7 @@ fun DeviceRowCard(
         Text(
           text = "${dev.pinInfo} · ${if (isOn) dev.onLabel else dev.offLabel}",
           color = textSecondary,
-          fontSize = 12.sp,
+          fontSize = 11.sp,
           fontWeight = FontWeight.Normal,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -122,6 +122,7 @@ fun DeviceRowCard(
     Switch(
       checked = isOn,
       onCheckedChange = onToggle,
+      modifier = Modifier.height(34.dp),
       colors = SwitchDefaults.colors(
         checkedThumbColor = Color.White,
         checkedTrackColor = accentCyan,
@@ -175,12 +176,12 @@ fun TierChip(
 ) {
   Box(
     modifier = modifier
-      .height(40.dp)
+      .height(34.dp)
       .clip(RoundedCornerShape(10.dp))
       .background(if (selected) Color(0xFFE6F3F2) else Color(0xFFF5F7F7))
       .border(1.dp, if (selected) activeColor else Color(0xFFE5EBEC), RoundedCornerShape(10.dp))
       .clickable { onClick() }
-      .padding(horizontal = 12.dp),
+      .padding(horizontal = 10.dp),
     contentAlignment = Alignment.Center,
   ) {
     Text(
