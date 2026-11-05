@@ -1,7 +1,7 @@
-# BRIEFING — 2026-11-04T06:44:00Z
+# BRIEFING — 2026-11-05T06:02:00Z
 
 ## Mission
-Thẩm định và đánh giá độc lập (Reviewer 1) kết quả thực hiện Milestone 2: Login Gate, Password UX & Mobile SVG Fix do worker_m2 thực hiện.
+Thẩm định và đánh giá độc lập (Reviewer 1) kết quả thực hiện Milestone 2 Gen 2 (R1, R2, R3, R4) do worker_m2_gen2 thực hiện.
 
 ## 🔒 My Identity
 - Archetype: reviewer, critic
@@ -10,47 +10,53 @@ Thẩm định và đánh giá độc lập (Reviewer 1) kết quả thực hi�
 - Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
 - Milestone: Milestone 2: Login Gate, Password UX & Mobile SVG Fix
 - Instance: 1 of 2
+- Generation: Gen 2 (Milestone 2 Phase 7 UI Core)
+- Updated Working Directory: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\reviewer_m2_1\
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
 - Check for integrity violations (hardcoded test outputs, dummy implementations, shortcuts, fake logs)
 - Perform orthogonal verification and adversarial stress-testing
 - Keep briefing under ~100 lines
+- Prohibit modifications to simulator/voice/**, simulator/voice_auth.py, simulator/live/**
+- 0 inline scripts, 0 inline styles, 0 CRLF
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T06:44:00Z
+- Conversation ID: e7340628-f79a-4027-966a-f5d6b40bf426
+- Updated: 2026-11-05T06:02:00Z
 
 ## Review Scope
 - **Files to review**:
   - `simulator/static/index.html`
-  - `simulator/static/js/app.js`
-  - `simulator/static/js/auth.js`
+  - `simulator/static/css/style.css`
+  - `simulator/static/js/house3d.js`
   - `mobile_app/index.html`
   - `simulator/static/js/mobile_app.js`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m2/handoff.md`
-- **Review criteria**: Correctness, completeness, security/tamper-resistance, integrity, UX, test results
+  - `simulator/static/auth.html`
+  - `simulator/static/js/auth.js`
+  - `FIX_REPORT_20261104.md`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m2_gen2/handoff.md`
+- **Review criteria**: Correctness, completeness, anti-cheat/integrity, UX, test results, performance
 
 ## Review Checklist
-- **Items reviewed**: All 5 target files, test suite `tests/test_challenger_m4_dom.py`, backend auth API endpoints, file encoding (UTF-8, 0 CRLF)
+- **Items reviewed**: All 8 target files and suites verified.
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims verified with code inspection, CLI and pytest.
+- **Unverified claims**: None. All claims independently verified.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Login Gate bypass via Escape / Backdrop / direct close call: Handled safely, blocks and warns.
-  2. Double password confirmation mismatch: Handled on both client and backend API.
-  3. Enter key on `<form>`: Verified event interception and button trigger without infinite loop.
-  4. SVG sprite visibility on mobile: Sprite moved to body level, renders reliably.
-  5. Password visibility toggle: Tested with all 10 password fields across Web & Mobile.
-- **Vulnerabilities found**: None in production code. (Note: `tests/test_challenger_m2_gate_ux_empirical.py` contains mock environment flaws regarding bare `location` and non-greedy regex, whereas production and `test_challenger_m4_dom.py` pass 100%).
-- **Untested angles**: Hardware-level ADB touch interaction on physical Samsung S9 (delegated to M4).
+  1. Boundary clamping and collision repulsion under narrow viewports: Verified 3-pass relaxation logic in house3d.js.
+  2. Stale polling snapshot overwriting optimistic UI toggle: Guarded by 2500ms `pendingDeviceMutations` Map.
+  3. Latency measurement validity: Ran Playwright Chromium benchmark independently; measured 1.2 ms avg (<16ms 60 FPS).
+  4. Purity and invariants: 0 `<style>`, 0 inline `<script>`, 0 CRLF, 0 changes to forbidden voice files.
+- **Vulnerabilities found**: None.
+- **Untested angles**: Hardware-level ADB touch interaction on physical Samsung S9.
 
 ## Key Decisions Made
-- Issued verdict APPROVE based on solid evidence, absence of integrity violations, and 36/36 test pass.
+- Issued verdict APPROVE based on comprehensive verification, 203/203 passing tests, and 0 integrity violations.
 
 ## Artifact Index
 - `.agents/teamwork/reviewer_m2_1/DISPATCH.md` — Dispatch record
-- `.agents/teamwork/reviewer_m2_1/BRIEFING.md` — Working state
+- `.agents/teamwork/reviewer_m2_1/BRIEFING.md` — Persistent working memory
 - `.agents/teamwork/reviewer_m2_1/progress.md` — Liveness heartbeat
 - `.agents/teamwork/reviewer_m2_1/handoff.md` — Final review report

@@ -130,7 +130,7 @@
     }
 
     function loadMoreLogs() {
-      currentPage++;
+      currentPage = 999999;
       renderLogsPage();
     }
 

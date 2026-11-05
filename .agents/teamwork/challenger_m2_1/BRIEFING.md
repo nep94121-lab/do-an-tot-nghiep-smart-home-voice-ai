@@ -1,65 +1,70 @@
-# BRIEFING — 2026-11-04T06:47:30Z
+# BRIEFING — 2026-11-05T06:02:00Z
 
 ## Mission
-Empirical adversarial testing and stress-testing for Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+Empirical adversarial testing and stress-testing for Milestone 2: 3D overlay collision repulsion & boundary clamping in house3d.js, optimistic UI latency (<16ms, 2500ms guard), and 2-row header in index.html & style.css.
 
 ## 🔒 My Identity
 - Archetype: empirical_challenger
 - Roles: critic, specialist
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m2_1
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 2: Login Gate, Password UX & Mobile SVG Fix
+- Working directory: C:\Users\LENOVO\datn-wt\ui\.agents\teamwork\challenger_m2_1\
+- Original parent: e7340628-f79a-4027-966a-f5d6b40bf426
+- Milestone: Milestone 2: UI Overhaul Core (Gate, Mobile 3D, Optimistic UI, Voice Setup)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Must write and execute adversarial tests directly
-- Report empirical evidence and verdict (APPROVE / REQUEST_CHANGES)
-- Do NOT trust claims or logs without reproduction
+- Write and execute verification and adversarial tests empirically
+- Do NOT trust the worker's claims or logs without direct reproduction
+- Report empirical evidence and verdict (APPROVE or REJECT) via send_message
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T06:47:30Z
+- Conversation ID: e7340628-f79a-4027-966a-f5d6b40bf426
+- Updated: 2026-11-05T06:02:00Z
 
 ## Review Scope
-- **Files reviewed**:
+- **Files to review**:
   - `simulator/static/index.html`
-  - `simulator/static/js/app.js`
-  - `simulator/static/js/auth.js`
-  - `mobile_app/index.html`
+  - `simulator/static/css/style.css`
+  - `simulator/static/house3d.js`
   - `simulator/static/js/mobile_app.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, worker_m2 handoff
-- **Review criteria**: Login gate bypass resistance, password mismatch validation, eye toggle, editable registration fields, SVG sprite visibility.
+  - `mobile_app/index.html`
+  - `simulator/static/auth.html`
+  - `simulator/static/js/auth.js`
+  - `tests/benchmark_optimistic_latency.py`
+  - `FIX_REPORT_20261104.md`
+- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, worker_m2_gen2/handoff.md
+- **Review criteria**:
+  - 3D overlay collision repulsion & boundary clamping in house3d.js
+  - Static invariant strings in house3d.js preserved (`el.dataset.hasValue = "false";`, etc.)
+  - Optimistic UI latency (<16ms) and 2500ms pendingDeviceMutations guard
+  - 2-row header in index.html & style.css with email ellipsis
+  - Zero inline scripts, zero inline styles, 0 CRLF, voice backend untouched
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Login gate modal can be bypassed via Escape key without session -> REJECTED (Escape intercepted, preventDefault() called, warning shown, modal stays open).
-  2. Login gate modal can be bypassed via backdrop click without session -> REJECTED (backdrop click caught, warning shown, modal stays open).
-  3. Direct call to closeLoginGateModal() or close button click closes modal without session -> REJECTED (hasValidLoginSession() returns false, modal stays open).
-  4. Corrupted/empty JSON in localStorage bypasses session check -> REJECTED (handled safely with try/catch, returns false).
-  5. Mismatched passwords on Web Register or Forgot Password bypasses frontend and hits API -> REJECTED (aborts before fetch, error displayed).
-  6. Mismatched passwords on Mobile Register or Change Password bypasses frontend -> REJECTED (aborts before fetch, error displayed).
-  7. Direct API attack with mismatched passwords -> REJECTED (backend routes_auth and auth_3layer return ok: False, status 400).
-  8. Toggle 👁️ button fails to toggle password/text or icon state -> REJECTED (tested all 10 password fields across Web & Mobile, 100% toggle correctly).
-  9. Name or email inputs in auth.js retain readOnly = true or block user editing -> REJECTED (readOnly is false across all tiers, user can freely edit).
-  10. Mobile SVG symbol #i-home is trapped inside hidden content -> REJECTED (SVG sprite is direct child of body, #mobileLoginGate references #i-home outside hidden container).
+  1. Overlapping 3D pins on mobile viewports cause label occlusion or boundary violation -> REJECTED (3-iteration collision relaxation resolves overlap to minDist >= 26px, re-clamping strictly keeps pins within [pad + hw, w - pad - hw]).
+  2. Static invariant strings in house3d.js required by automated tests are corrupted -> REJECTED (all 11 critical invariants verified intact).
+  3. Optimistic UI latency exceeds 16ms frame threshold or pending guard window is omitted -> REJECTED (measured avg 1.18ms, max 1.8ms via Playwright; MUTATION_GUARD_WINDOW_MS = 2500 strictly enforced).
+  4. Optimistic DOM mutations cause state desync on server error -> REJECTED (both API error and fetch network exception trigger clean rollback to previous state).
+  5. Header on mobile 360-460px wraps email into multiple lines or collides with buttons -> REJECTED (2 distinct flex rows with max-width: 165px and text-overflow: ellipsis prevent overflow).
+  6. Voice backend files modified or CRLF introduced -> REJECTED (git status clean on voice modules, 0 CRLF across all static/mobile files).
 - **Vulnerabilities found**: None that break security or functional contracts for Milestone 2.
-- **Untested angles**: Hardware-level ADB touch inputs (delegated to Milestone 4).
+- **Untested angles**: Hardware-level ADB touch inputs (delegated to Milestone 3 E2E).
 
 ## Loaded Skills
 - None explicitly requested.
 
 ## Key Decisions Made
-- Executed 52 Node.js headless adversarial tests (`adversarial_harness.js`).
-- Executed 6 Python adversarial tests (`adversarial_suite_m2.py`).
-- Executed 36 DOM & Event integrity tests (`tests/test_challenger_m4_dom.py`).
-- Executed 23 Milestone 2 UX tests (`tests/test_challenger_m2_gate_ux_empirical.py`).
-- All 117 tests passed 100%. Final verdict: APPROVE.
+- Executed `tests/benchmark_optimistic_latency.py` measuring 1.18 ms average optimistic latency (< 16ms threshold, speedup factor 159.1x).
+- Executed 29 tests in `test_phase5_r4_house3d_overlay.py` and `test_challenger_m3_stress_dom_raycaster.py` (100% pass).
+- Executed 155 tests in Milestone 2 test suite (100% pass).
+- Developed and executed 11 empirical adversarial tests in `adversarial_m2_p7_suite.py` (100% pass).
+- Verified zero CRLF, zero inline scripts/styles, and unmodified voice backend.
+- Final verdict: APPROVE.
 
 ## Artifact Index
 - `BRIEFING.md` — Agent working memory
 - `DISPATCH.md` — Task dispatch log
-- `progress.md` — Execution status and heartbeat
-- `adversarial_harness.js` — Standalone Node.js adversarial stress-test script (52 tests)
-- `adversarial_suite_m2.py` — Standalone Python adversarial test suite (6 tests)
-- `handoff.md` — Final adversarial review report
+- `progress.md` — Liveness heartbeat and task checklist
+- `adversarial_m2_p7_suite.py` — Standalone empirical adversarial test suite (11 tests)
+- `handoff.md` — Final adversarial challenge report

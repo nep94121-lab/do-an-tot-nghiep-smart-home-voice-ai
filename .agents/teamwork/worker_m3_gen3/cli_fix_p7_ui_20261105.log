@@ -1,0 +1,21 @@
+START 2026-11-05T15:25:00.0000000+07:00 p7-ui milestone 3 vercel preview deployment
+================================================================================
+MILESTONE 3: VERCEL PREVIEW DEPLOYMENT & HTTP ROUTE AUDIT
+================================================================================
+Command: npx --yes vercel --yes (no --prod)
+Target: preview deployment
+Deployment URL: https://ui-kikttvbim-tuananhs-projects-8aea56ce.vercel.app
+Aliased URL: https://ui-gamma-orpin.vercel.app
+Inspector URL: https://vercel.com/tuananhs-projects-8aea56ce/ui/5fcW8s3oYM5C7anppGtWCNfL25E4
+
+Independent HTTP Verification (8 routes):
+  - /             : HTTP 200 OK (331779 bytes)
+  - /app          : HTTP 200 OK (331795 bytes)
+  - /auth         : HTTP 200 OK (331803 bytes)
+  - /wokwi        : HTTP 200 OK (331803 bytes)
+  - /logs         : HTTP 200 OK (331795 bytes)
+  - /guest_enroll : HTTP 200 OK (331831 bytes)
+  - /login        : HTTP 200 OK (331803 bytes)
+  - /register     : HTTP 200 OK (331819 bytes)
+Verification Result: ALL 8 ROUTES PASSED HTTP 200 OK.
+Status: SUCCESS

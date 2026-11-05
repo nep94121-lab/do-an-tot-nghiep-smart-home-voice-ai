@@ -114,8 +114,8 @@
       const box = document.getElementById('loginStatusBox');
 
       const email = emailEl ? emailEl.value.trim() : 'nep94121@gmail.com';
-      const password = pwEl ? pwEl.value : '123456';
-      const confirmPassword = pwConfirmEl ? pwConfirmEl.value : password;
+      const password = (pwEl && pwEl.value) ? pwEl.value : '123456';
+      const confirmPassword = (pwConfirmEl && pwConfirmEl.value) ? pwConfirmEl.value : password;
       const speakerName = nameEl ? nameEl.value.trim() : selectedSpeakerName;
 
       if (!speakerName) {

@@ -1288,6 +1288,8 @@ window.SmartHome3D = (() => {
     if (!labelsContainer || !renderer) return;
     const w = container.clientWidth;
     const h = container.clientHeight;
+    const visiblePins = [];
+
     PIN_META.forEach((m) => {
       const el = pinElements[m.id];
       if (!el) return;
@@ -1300,9 +1302,81 @@ window.SmartHome3D = (() => {
         return;
       }
       el.style.display = "inline-flex";
-      const x = (v.x * 0.5 + 0.5) * w;
-      const y = (-(v.y * 0.5) + 0.5) * h;
-      el.style.transform = `translate(-50%, -50%) translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+
+      let rawX = (v.x * 0.5 + 0.5) * w;
+      let rawY = (-(v.y * 0.5) + 0.5) * h;
+
+      const isMobile = w < 500;
+      const chipW = el.offsetWidth || (isMobile ? 86 : 110);
+      const chipH = el.offsetHeight || (isMobile ? 22 : 26);
+      const halfW = chipW * 0.5;
+      const halfH = chipH * 0.5;
+
+      // 1. Boundary clamping
+      const pad = 6;
+      rawX = Math.max(pad + halfW, Math.min(w - pad - halfW, rawX));
+      rawY = Math.max(pad + halfH, Math.min(h - pad - halfH, rawY));
+
+      visiblePins.push({
+        el,
+        x: rawX,
+        y: rawY,
+        hw: halfW,
+        hh: halfH,
+      });
+    });
+
+    // 2. Multi-pass collision relaxation (3 passes) repelling overlapping visible pins
+    const iterations = 3;
+    const gapX = 6;
+    const gapY = 4;
+    for (let iter = 0; iter < iterations; iter++) {
+      for (let i = 0; i < visiblePins.length; i++) {
+        for (let j = i + 1; j < visiblePins.length; j++) {
+          const p1 = visiblePins[i];
+          const p2 = visiblePins[j];
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const minDistX = p1.hw + p2.hw + gapX;
+          const minDistY = p1.hh + p2.hh + gapY;
+          const overlapX = minDistX - Math.abs(dx);
+          const overlapY = minDistY - Math.abs(dy);
+
+          if (overlapX > 0 && overlapY > 0) {
+            if (overlapY < overlapX) {
+              const pushY = overlapY * 0.5;
+              if (dy >= 0) {
+                p2.y += pushY;
+                p1.y -= pushY;
+              } else {
+                p2.y -= pushY;
+                p1.y += pushY;
+              }
+            } else {
+              const pushX = overlapX * 0.5;
+              if (dx >= 0) {
+                p2.x += pushX;
+                p1.x -= pushX;
+              } else {
+                p2.x -= pushX;
+                p1.x += pushX;
+              }
+            }
+          }
+        }
+      }
+
+      // Re-clamp after relaxation
+      const pad = 6;
+      visiblePins.forEach((p) => {
+        p.x = Math.max(pad + p.hw, Math.min(w - pad - p.hw, p.x));
+        p.y = Math.max(pad + p.hh, Math.min(h - pad - p.hh, p.y));
+      });
+    }
+
+    // 3. Final transform update
+    visiblePins.forEach((p) => {
+      p.el.style.transform = `translate(-50%, -50%) translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
     });
   }
 
