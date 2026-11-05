@@ -157,6 +157,14 @@ def test_anchor3_rest_voice_command_returns_pcm24k_b64_and_app_js_plays_it():
     assert data_403.get("authorized") is False
     assert data_403.get("pcm24k_b64"), "REST /api/voice_command 403 reject response is missing pcm24k_b64!"
 
+    # 2b. Unauthenticated 401 reject path on POST /api/device
+    resp_401 = client.post("/api/device", json={"device_id": "main_door", "action": "open"})
+    assert resp_401.status_code == 401
+    data_401 = resp_401.json()
+    assert data_401.get("ok") is False
+    assert data_401.get("rejection_speech")
+    assert data_401.get("pcm24k_b64"), "POST /api/device 401 reject response is missing pcm24k_b64!"
+
     # 3. Verify executeVoiceCommandHttp in simulator/static/js/app.js plays pcm24k_b64 and falls back to speechSynthesis
     app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
     fn_start = app_js.find("async function executeVoiceCommandHttp")
