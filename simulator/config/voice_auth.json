@@ -1,0 +1,17 @@
+{
+  "owner_id": "tuan_anh",
+  "owner_email": "nep94121@gmail.com",
+  "owner_display_name": "Nguyễn Tuấn Anh",
+  "role_map": {
+    "1": "ADMIN",
+    "2": "MEMBER",
+    "3": "CHILD_GUEST"
+  },
+  "user_role_map": {
+    "1": "tuan_anh",
+    "2": "thanh_vien_a",
+    "3": "khach_c"
+  },
+  "threshold_mel": 0.88,
+  "threshold_deep": 0.80
+}

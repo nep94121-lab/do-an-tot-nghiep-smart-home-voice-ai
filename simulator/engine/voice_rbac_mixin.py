@@ -9,9 +9,43 @@ from typing import Any
 
 from simulator.engine.constants_and_time import (
     DEFAULT_USERS,
+    DEVICE_ID_ALIASES,
     ROLE_LEVELS,
     get_vn_now,
 )
+from simulator.voice_config import (
+    OWNER_DISPLAY_NAME,
+    OWNER_EMAIL,
+    OWNER_ID,
+    ROLE_MAP,
+    USER_ROLE_MAP,
+    is_throwaway_qa_identity,
+)
+
+UNKNOWN_REJECTION_REASON = (
+    "🚫 NGƯỜI LẠ / VAI TRÒ KHÔNG XÁC ĐỊNH: Từ chối toàn bộ quyền điều khiển thiết bị!"
+)
+UNKNOWN_SPOKEN_REPLY = (
+    "Xin lỗi, hệ thống không nhận diện được danh tính của bạn nên từ chối điều khiển thiết bị."
+)
+
+
+class PermissionCheckResult(dict):
+    """Dict kết quả kiểm tra quyền RBAC tương thích kép:
+    - Truy cập như dict: res['allowed'], res['reason'], res['tier'], res['role'], res == {...}
+    - Unpack 2 phần tử: allowed, reason = eng.check_device_permission(...)
+    """
+
+    def __iter__(self):
+        yield bool(self.get("allowed", False))
+        yield str(self.get("reason", ""))
+
+    def __getitem__(self, key: Any) -> Any:
+        if key == 0:
+            return bool(self.get("allowed", False))
+        if key == 1:
+            return str(self.get("reason", ""))
+        return super().__getitem__(key)
 
 
 class EngineVoiceRbacMixin:
@@ -197,7 +231,7 @@ class EngineVoiceRbacMixin:
                 min_t = max(1, min(int(float(val_str)), 3))
             except Exception:
                 min_t = 3
-            role_for_tier = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}.get(min_t, "CHILD_GUEST")
+            role_for_tier = ROLE_MAP.get(min_t, "CHILD_GUEST")
             if dev_id in ("all_devices", "all"):
                 for dk in self.devices:
                     pol["device_min_tiers"][dk] = min_t
@@ -252,39 +286,85 @@ class EngineVoiceRbacMixin:
             "message": spoken,
         }
 
+    def _purge_throwaway_qa_users(self) -> None:
+        if hasattr(self, "users") and isinstance(self.users, dict):
+            for uid in list(self.users.keys()):
+                uinfo = self.users.get(uid) or {}
+                if (
+                    is_throwaway_qa_identity(uid)
+                    or is_throwaway_qa_identity(uinfo.get("id"))
+                    or is_throwaway_qa_identity(uinfo.get("email"))
+                    or is_throwaway_qa_identity(uinfo.get("name"))
+                ):
+                    self.users.pop(uid, None)
+        if hasattr(self, "overlay_rules") and isinstance(self.overlay_rules, dict):
+            ov_users = self.overlay_rules.get("users")
+            if isinstance(ov_users, dict):
+                for uid in list(ov_users.keys()):
+                    uinfo = ov_users.get(uid) or {}
+                    if (
+                        is_throwaway_qa_identity(uid)
+                        or (isinstance(uinfo, dict) and (
+                            is_throwaway_qa_identity(uinfo.get("id"))
+                            or is_throwaway_qa_identity(uinfo.get("email"))
+                            or is_throwaway_qa_identity(uinfo.get("name"))
+                        ))
+                    ):
+                        ov_users.pop(uid, None)
+            ov_pools = self.overlay_rules.get("user_pools")
+            if isinstance(ov_pools, dict):
+                for uid in list(ov_pools.keys()):
+                    if is_throwaway_qa_identity(uid):
+                        ov_pools.pop(uid, None)
+        if is_throwaway_qa_identity(getattr(self, "_current_user_id", "")):
+            self._current_user_id = OWNER_ID
+            self._current_role = "ADMIN"
+
     def _init_users(self) -> dict[str, dict[str, Any]]:
         users_map = {k: dict(v) for k, v in DEFAULT_USERS.items()}
         saved_users = self.overlay_rules.get("users", {})
         if isinstance(saved_users, dict):
             for uid, uinfo in saved_users.items():
-                if isinstance(uinfo, dict):
-                    users_map[uid] = dict(uinfo)
-        users_map["tuan_anh"] = dict(DEFAULT_USERS["tuan_anh"])
+                if not isinstance(uinfo, dict):
+                    continue
+                if (
+                    is_throwaway_qa_identity(uid)
+                    or is_throwaway_qa_identity(uinfo.get("id"))
+                    or is_throwaway_qa_identity(uinfo.get("email"))
+                    or is_throwaway_qa_identity(uinfo.get("name"))
+                ):
+                    continue
+                users_map[uid] = dict(uinfo)
+        users_map[OWNER_ID] = dict(DEFAULT_USERS[OWNER_ID])
         self.overlay_rules["users"] = users_map
         return users_map
 
     @property
     def current_user_id(self) -> str:
+        if is_throwaway_qa_identity(self._current_user_id):
+            self._purge_throwaway_qa_users()
         return self._current_user_id
 
     @property
     def current_tier(self) -> int:
-        if self._current_role == "UNKNOWN":
-            return 4
+        if self._current_role == "UNKNOWN" or str(self._current_user_id).strip().lower() == "unknown":
+            return 99
         u = self.users.get(self._current_user_id)
         if u:
             if not u.get("active", True):
-                return 4
-            return int(u.get("tier", 3))
+                return 99
+            return int(u.get("tier", 99))
         if self._current_role == "ADMIN":
             return 1
         if self._current_role == "MEMBER":
             return 2
         if self._current_role == "CHILD_GUEST":
             return 3
-        return 4
+        return 99
 
     def get_current_user_name(self) -> str:
+        if self._current_role == "UNKNOWN" or str(self._current_user_id).strip().lower() == "unknown":
+            return "Người lạ"
         u = self.users.get(self._current_user_id)
         if u:
             return u.get("name", self._current_user_id)
@@ -295,13 +375,23 @@ class EngineVoiceRbacMixin:
         return self._current_role
 
     @current_role.setter
-    def current_role(self, val: str) -> None:
-        v = (val or "").strip()
+    def current_role(self, val: str | None) -> None:
+        self._purge_throwaway_qa_users()
+        v = str(val or "").strip()
         v_low = v.lower()
+        if is_throwaway_qa_identity(v_low):
+            self._current_user_id = OWNER_ID
+            self._current_role = "ADMIN"
+            return
+        if not v or v_low in ("unknown", "stranger", "stranger_1", "none", "null", "intruder", "unauthorized"):
+            self._current_user_id = "unknown"
+            self._current_role = "UNKNOWN"
+            return
+
         role_alias_map = {
-            "member_1": "thanh_vien_a",
+            "member_1": USER_ROLE_MAP.get(2, "thanh_vien_a"),
             "member_2": "thanh_vien_b",
-            "guest_1": "khach_c",
+            "guest_1": USER_ROLE_MAP.get(3, "khach_c"),
             "guest_2": "khach_d",
             "stranger_1": "unknown",
         }
@@ -323,21 +413,24 @@ class EngineVoiceRbacMixin:
                     self._current_role = u["role"] if u.get("active", True) else "UNKNOWN"
                     return
         r = v.upper()
-        if r in ROLE_LEVELS:
+        if r in ("ADMIN", "MEMBER", "CHILD_GUEST"):
             self._current_role = r
             if r == "ADMIN":
-                self._current_user_id = "tuan_anh"
+                self._current_user_id = OWNER_ID
             elif r == "MEMBER":
                 if not hasattr(self, "users") or self.users.get(self._current_user_id, {}).get("tier") != 2:
-                    self._current_user_id = "thanh_vien_a"
+                    self._current_user_id = USER_ROLE_MAP.get(2, "thanh_vien_a")
             elif r == "CHILD_GUEST":
                 if not hasattr(self, "users") or self.users.get(self._current_user_id, {}).get("tier") != 3:
-                    self._current_user_id = "khach_c"
-            else:
-                self._current_user_id = "unknown"
+                    self._current_user_id = USER_ROLE_MAP.get(3, "khach_c")
+            return
+        self._current_user_id = "unknown"
+        self._current_role = "UNKNOWN"
 
-    def set_active_user(self, user_or_role: str) -> dict[str, Any]:
+    def set_active_user(self, user_or_role: str | None) -> dict[str, Any]:
+        self._purge_throwaway_qa_users()
         self.current_role = user_or_role
+        self._purge_throwaway_qa_users()
         u = self.users.get(self._current_user_id, {
             "id": self._current_user_id,
             "name": self.get_current_user_name(),
@@ -351,7 +444,7 @@ class EngineVoiceRbacMixin:
             "user_name": u.get("name", self._current_user_id),
             "tier": self.current_tier,
             "role": self._current_role,
-            "active": u.get("active", True),
+            "active": bool(u.get("active", True)) and self._current_role != "UNKNOWN",
         }
 
     def check_permission(self, required_role: str) -> tuple[bool, str]:
@@ -411,28 +504,55 @@ class EngineVoiceRbacMixin:
                 return False, f"Từ chối truy cập! Đang bị khóa theo quy định của Admin: '{raw_dir}'."
         return True, "OK"
 
-    def check_device_permission(self, dev_id: str) -> tuple[bool, str]:
+    def check_device_permission(self, dev_id: str) -> PermissionCheckResult:
+        if (
+            self._current_role == "UNKNOWN"
+            or str(self._current_user_id).strip().lower() == "unknown"
+            or self.current_tier not in (1, 2, 3)
+        ):
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": UNKNOWN_REJECTION_REASON,
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
         u = self.users.get(self._current_user_id)
         if u and not u.get("active", True):
-            return (
-                False,
-                f"Từ chối truy cập! Quyền của {u.get('name', self._current_user_id)} đã bị hủy.",
-            )
-        dev = self.devices.get(dev_id, {})
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": f"Từ chối truy cập! Quyền của {u.get('name', self._current_user_id)} đã bị hủy.",
+                "tier": 99,
+                "role": "UNKNOWN",
+            })
+        canonical_id = DEVICE_ID_ALIASES.get(dev_id, dev_id)
+        dev = self.devices.get(canonical_id, {})
         default_tier_map = {"ADMIN": 1, "MEMBER": 2, "CHILD_GUEST": 3}
         fallback_tier = default_tier_map.get(dev.get("min_role", "CHILD_GUEST"), 3)
-        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(dev_id, fallback_tier))
+        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(canonical_id, fallback_tier))
         if self.current_tier > min_tier:
             dname = dev.get("name", dev_id)
-            return (
-                False,
-                f"Từ chối truy cập! Thiết bị {dname} chỉ cho phép từ Cấp {min_tier} trở lên điều khiển.",
-            )
-        ok_dir, reason_dir = self._check_custom_directive_device_lock(dev_id)
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": f"Từ chối truy cập! Thiết bị {dname} chỉ cho phép từ Cấp {min_tier} trở lên điều khiển.",
+                "tier": self.current_tier,
+                "role": self._current_role,
+            })
+        ok_dir, reason_dir = self._check_custom_directive_device_lock(canonical_id)
         if not ok_dir:
-            return False, reason_dir
-        req_role = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}.get(min_tier, dev.get("min_role", "CHILD_GUEST"))
-        return self.check_permission(req_role)
+            return PermissionCheckResult({
+                "allowed": False,
+                "reason": reason_dir,
+                "tier": self.current_tier,
+                "role": self._current_role,
+            })
+        req_role = ROLE_MAP.get(min_tier, dev.get("min_role", "CHILD_GUEST"))
+        ok_perm, reason_perm = self.check_permission(req_role)
+        return PermissionCheckResult({
+            "allowed": ok_perm,
+            "reason": reason_perm,
+            "tier": self.current_tier,
+            "role": self._current_role,
+        })
 
     def _find_or_slug_user(self, target_name: str) -> tuple[str, dict[str, Any] | None]:
         t_clean = target_name.strip()
@@ -671,8 +791,8 @@ class EngineVoiceRbacMixin:
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         uid, existing = self._find_or_slug_user(target_name)
-        if uid == "tuan_anh":
-            msg = "Nguyễn Tuấn Anh đã là Admin tối cao Tầng 1."
+        if uid == OWNER_ID:
+            msg = f"{OWNER_DISPLAY_NAME} đã là Admin tối cao Tầng 1."
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         if (
@@ -732,8 +852,8 @@ class EngineVoiceRbacMixin:
             msg = f"Không tìm thấy người dùng '{target_name}'."
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
-        if uid == "tuan_anh" or existing.get("tier") == 1:
-            msg = "Không ai được phép hủy quyền của Tầng 1 Nguyễn Tuấn Anh."
+        if uid == OWNER_ID or existing.get("tier") == 1:
+            msg = f"Không ai được phép hủy quyền của Tầng 1 {OWNER_DISPLAY_NAME}."
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 

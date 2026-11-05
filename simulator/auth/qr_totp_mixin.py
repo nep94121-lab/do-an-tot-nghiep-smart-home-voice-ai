@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 import time
 from typing import Any
@@ -56,7 +57,7 @@ class AuthQrTotpMixin:
         window = int(now_ts // 10)
         dur_sec = DURATION_MAP_SECONDS[dur_key]
         dur_label = DURATION_LABELS_VN.get(dur_key, dur_key)
-        secret = "bk_smarthome_totp_salt_2026"
+        secret = os.environ.get("SMARTHOME_TOTP_SECRET", "bk_smarthome_totp_salt_2026")
         raw_payload = f"{window}:{issuer_tier}:{dur_key}:{dur_sec}"
         token = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
         expires_in_sec = max(1, 10 - int(now_ts % 10))
@@ -127,7 +128,7 @@ class AuthQrTotpMixin:
                 }
         else:
             matched_win = None
-            secret = "bk_smarthome_totp_salt_2026"
+            secret = os.environ.get("SMARTHOME_TOTP_SECRET", "bk_smarthome_totp_salt_2026")
             # Cửa sổ 180 giây: kiểm tra lùi tối đa 18 chu kỳ (180s) và tiến 2 chu kỳ (clock skew)
             w_candidates = list(range(cur_window + 2, cur_window - 19, -1))
             if target_window is not None:

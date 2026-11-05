@@ -41,6 +41,7 @@ from simulator.auth_3layer import (
 )
 from simulator.rule_engine import append_audit_log
 from simulator.voice_auth import validate_voice_enrollment_quality
+from simulator.voice_config import sanitize_api_payload
 
 router = APIRouter(tags=["guest_qr"])
 
@@ -158,7 +159,7 @@ async def api_auth3_guest_qr_current(
         "full_url": full_url,
         "qr_svg": qr_svg,
     }
-    return JSONResponse(resp, status_code=200)
+    return JSONResponse(sanitize_api_payload(resp), status_code=200)
 
 
 @router.post("/api/auth3/guest_qr_handshake")
@@ -171,7 +172,7 @@ async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
     try:
         win_val = int(target_window) if target_window is not None and str(target_window).strip() != "" else None
     except (ValueError, TypeError):
-        return JSONResponse({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}, status_code=400)
+        return JSONResponse(sanitize_api_payload({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}), status_code=400)
     dur_val = str(payload.get("duration") or payload.get("duration_type") or payload.get("dur") or "1d").strip()
 
     mgr3 = get_auth_3layer_manager()
@@ -181,7 +182,7 @@ async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
         duration_type=dur_val,
     )
     if not res.get("ok"):
-        return JSONResponse(res, status_code=int(res.get("status_code", 400)))
+        return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
 
     session_id = str(res.get("guest_session_id", "")).strip()
     dur_code = str(res.get("duration_type", dur_val)).strip()
@@ -208,7 +209,7 @@ async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
         "reading_prompt": res.get("reading_prompt"),
         "message": res.get("message"),
     }
-    return JSONResponse(out, status_code=200)
+    return JSONResponse(sanitize_api_payload(out), status_code=200)
 
 
 @router.post("/api/auth3/guest_qr_complete_voice")
@@ -253,12 +254,14 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
 
     if not pcm_bytes or len(pcm_bytes) < 4000:
         return JSONResponse(
-            {
-                "ok": False,
-                "status": "CHUA_DAT",
-                "error": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
-                "message": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
-            },
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "status": "CHUA_DAT",
+                    "error": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
+                    "message": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
+                }
+            ),
             status_code=400,
         )
 
@@ -266,13 +269,15 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     q_res = validate_voice_enrollment_quality(pcm_bytes, 16000)
     if not q_res.get("ok"):
         return JSONResponse(
-            {
-                "ok": False,
-                "status": "CHUA_DAT",
-                "error": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
-                "message": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
-                "details": q_res,
-            },
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "status": "CHUA_DAT",
+                    "error": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
+                    "message": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
+                    "details": q_res,
+                }
+            ),
             status_code=400,
         )
 
@@ -285,20 +290,22 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     )
     if dup_res.is_duplicate:
         return JSONResponse(
-            {
-                "ok": False,
-                "status": "DUPLICATE_VOICE_REJECTED",
-                "reason": dup_res.reason,
-                "error": dup_res.message,
-                "message": dup_res.message,
-                "matched_tier": dup_res.matched_tier,
-                "matched_name": dup_res.matched_name,
-            },
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "status": "DUPLICATE_VOICE_REJECTED",
+                    "reason": dup_res.reason,
+                    "error": dup_res.message,
+                    "message": dup_res.message,
+                    "matched_tier": dup_res.matched_tier,
+                    "matched_name": dup_res.matched_name,
+                }
+            ),
             status_code=400,
         )
 
     if verify_only:
-        return JSONResponse({
+        return JSONResponse(sanitize_api_payload({
             "ok": True,
             "status": "DA_DAT",
             "verify_only": True,
@@ -309,7 +316,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
             "duration_label": dur_label,
             "f0_hz": q_res.get("f0_hz"),
             "message": f"✅ Giọng nói của '{guest_name}' ĐẠT CHUẨN xác thực (F0 = {q_res.get('f0_hz')} Hz · {role_label_vn}). Nhấn nút 'OK · Xác nhận & Kích hoạt' bên dưới để lưu lên máy chủ!",
-        })
+        }))
 
     # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (1 lần duy nhất là xong)
     expires_at_ts = time.time() + float(dur_seconds)
@@ -323,7 +330,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         check_duplicate=False,
     )
     if not enroll_res.get("ok"):
-        return JSONResponse(enroll_res, status_code=400)
+        return JSONResponse(sanitize_api_payload(enroll_res), status_code=400)
 
     if guest_email:
         mgr3.upsert_speaker_account_for_voice(
@@ -352,7 +359,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         details={"guest_user_id": guest_uid, "guest_email": guest_email, "duration_type": dur_type, "expires_at": expires_at_ts, "quality": q_res},
     )
 
-    return JSONResponse({
+    return JSONResponse(sanitize_api_payload({
         "ok": True,
         "status": "DA_DAT",
         "guest_user_id": guest_uid,
@@ -374,7 +381,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         "f0_hz": q_res.get("f0_hz"),
         "profile": enroll_res.get("profile"),
         "message": f"✅ Đã xác nhận giọng nói và kích hoạt quyền {role_label_vn} cho {guest_name} (thời hạn {dur_label})!",
-    })
+    }))
 
 
 @router.post("/api/auth3/guest_qr_send_otp")
@@ -389,23 +396,23 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any]) -> JSONResponse:
 
     if not e1 or not e2:
         return JSONResponse(
-            {"ok": False, "error": "Vui lòng nhập đầy đủ cả 2 ô Email và Xác nhận Email!", "status_code": 400},
+            sanitize_api_payload({"ok": False, "error": "Vui lòng nhập đầy đủ cả 2 ô Email và Xác nhận Email!", "status_code": 400}),
             status_code=400,
         )
 
     if e1.lower() != e2.lower():
         return JSONResponse(
-            {
+            sanitize_api_payload({
                 "ok": False,
                 "error": "Hai ô nhập email không khớp nhau (Email và Xác nhận Email phải giống nhau 100%)!",
                 "status_code": 400,
-            },
+            }),
             status_code=400,
         )
 
     mx_ok, mx_msg = validate_dns_mx_record(e1)
     if not mx_ok:
-        return JSONResponse({"ok": False, "error": mx_msg, "status_code": 400}, status_code=400)
+        return JSONResponse(sanitize_api_payload({"ok": False, "error": mx_msg, "status_code": 400}), status_code=400)
 
     clean_email = e1.lower()
     otp_code = f"{secrets.randbelow(900000) + 100000}"
@@ -433,7 +440,7 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any]) -> JSONResponse:
         details={"email": clean_email, "session_id": session_id, "duration": dur_type},
     )
 
-    return JSONResponse({
+    return JSONResponse(sanitize_api_payload({
         "ok": True,
         "otp_dispatched": True,
         "email": clean_email,
@@ -443,7 +450,7 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any]) -> JSONResponse:
         "duration_label": dur_label,
         "mx_detail": mx_msg,
         "message": f"Đã kiểm tra tên miền MX hợp lệ và gửi mã xác nhận OTP 6 số về hộp thư {clean_email}!",
-    })
+    }))
 
 
 @router.post("/api/auth3/guest_qr_verify_otp")
@@ -475,22 +482,22 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any]) -> JSONResponse
             send_gmail=send_gmail,
         )
         status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
-        return JSONResponse(res, status_code=status_code)
+        return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
     if time.time() > float(record.get("expires_at", 0)):
         return JSONResponse(
-            {"ok": False, "error": "Mã OTP đã hết hạn sau 5 phút, vui lòng yêu cầu mã mới!", "status_code": 400},
+            sanitize_api_payload({"ok": False, "error": "Mã OTP đã hết hạn sau 5 phút, vui lòng yêu cầu mã mới!", "status_code": 400}),
             status_code=400,
         )
 
     if otp_input != str(record.get("otp", "")):
         record["attempts"] = int(record.get("attempts", 0)) + 1
         return JSONResponse(
-            {
+            sanitize_api_payload({
                 "ok": False,
                 "error": f"Mã xác nhận chưa đúng (Lần thử {record['attempts']})!",
                 "status_code": 400,
-            },
+            }),
             status_code=400,
         )
 
@@ -522,7 +529,7 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any]) -> JSONResponse
         details={"email": email, "session_id": session_id, "duration": dur_type, "expires_at": expires_at},
     )
 
-    return JSONResponse({
+    return JSONResponse(sanitize_api_payload({
         "ok": True,
         "verified": True,
         "email": email,
@@ -532,4 +539,4 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any]) -> JSONResponse
         "duration_seconds": dur_sec,
         "expires_at": expires_at,
         "message": f"Xác nhận email {email} thành công! Đã kích hoạt tài khoản khách.",
-    })
+    }))

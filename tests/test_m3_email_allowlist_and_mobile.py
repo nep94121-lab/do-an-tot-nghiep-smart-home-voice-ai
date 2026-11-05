@@ -131,12 +131,17 @@ def test_c3_guest_is_forbidden_from_adding_anyone(auth_mgr: ThreeLayerAuthManage
 
 def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLayerAuthManager) -> None:
     """Tài khoản được thêm vào Email Allowlist khi đăng nhập lần đầu phải có voice_verified = False."""
+    import secrets
+
     target_email = "tan_binh_gia_dinh@gmail.com"
     add_res = auth_mgr.add_family_email("tuan_anh", target_email, 2)
     assert add_res["ok"] is True
 
-    # Đăng nhập Lớp 1 bằng email vừa allowlist (mật khẩu mặc định cấp phát là GiaDinh@123)
-    l1_res = auth_mgr.layer1_login(target_email, "GiaDinh@123", login_method="password")
+    ephemeral_pw = "Allowlist_" + secrets.token_urlsafe(10)
+    auth_mgr.register_or_update_password(target_email, ephemeral_pw, ephemeral_pw, target_tier=2)
+
+    # Đăng nhập Lớp 1 bằng email vừa allowlist với mật khẩu đã băm
+    l1_res = auth_mgr.layer1_login(target_email, ephemeral_pw, login_method="password")
     assert l1_res["ok"] is True
     assert l1_res["tier"] == 2
     assert l1_res["voice_verified"] is False
@@ -157,9 +162,13 @@ def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLay
 
 def test_voice_enrollment_rejects_silent_or_poor_audio(auth_mgr: ThreeLayerAuthManager) -> None:
     """Giọng thu âm im lặng hoặc rác trả về CHUA_DAT và giữ voice_verified = False."""
+    import secrets
+
     email = "hoc_sinh_moi@gmail.com"
     auth_mgr.add_family_email("tuan_anh", email, 2)
-    auth_mgr.layer1_login(email, "GiaDinh@123")
+    pw = "Student_" + secrets.token_urlsafe(10)
+    auth_mgr.register_or_update_password(email, pw, pw, target_tier=2)
+    auth_mgr.layer1_login(email, pw)
 
     # Mẫu im lặng (zeros)
     silence_pcm = np.zeros(16000 * 2, dtype=np.int16).tobytes()
@@ -177,12 +186,16 @@ def test_voice_enrollment_rejects_silent_or_poor_audio(auth_mgr: ThreeLayerAuthM
 
 def test_voice_enrollment_accepts_valid_audio_and_verifies_account(auth_mgr: ThreeLayerAuthManager) -> None:
     """Giọng thu âm đạt chuẩn 6 tiêu chuẩn âm học trả về DA_DAT và cập nhật voice_verified = True."""
+    import secrets
+
     email = "thanh_vien_chuan@gmail.com"
     auth_mgr.add_family_email("tuan_anh", email, 2)
-    auth_mgr.layer1_login(email, "GiaDinh@123")
+    pw = "Member_" + secrets.token_urlsafe(10)
+    auth_mgr.register_or_update_password(email, pw, pw, target_tier=2)
+    auth_mgr.layer1_login(email, pw)
 
-    # Tải mẫu giọng chuẩn >= 2.0s
-    pcm_raw = load_wav("giong_1_chu_nha_mo_cua.wav")
+    # Tải mẫu giọng chuẩn Cấp 2 >= 2.0s (không trùng giọng Chủ nhà Cấp 1)
+    pcm_raw = load_wav("giong_cap2_thanh_vien_a.wav")
     valid_pcm = np.concatenate([pcm_raw, pcm_raw, pcm_raw]).tobytes()
 
     res = auth_mgr.validate_and_enroll_voice(email, valid_pcm)

@@ -18,6 +18,29 @@
       document._hasTextPolyfilled = true;
     }
 
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !window._shAuthFetchWrapped) {
+      const _origFetch = window.fetch.bind(window);
+      window.fetch = function(input, init) {
+        let urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (urlStr.startsWith('/api/')) {
+          let tok = '';
+          try {
+            tok = (window.sessionStorage && window.sessionStorage.getItem('session_token')) ||
+                  (window.localStorage && window.localStorage.getItem('session_token')) || '';
+          } catch (_) {}
+          const nextInit = Object.assign({ credentials: 'same-origin' }, init || {});
+          const hdrs = Object.assign({}, nextInit.headers || {});
+          if (tok && !hdrs['X-Session-Token'] && !hdrs['x-session-token'] && !hdrs['Authorization']) {
+            hdrs['X-Session-Token'] = tok;
+          }
+          nextInit.headers = hdrs;
+          return _origFetch(input, nextInit);
+        }
+        return _origFetch(input, init);
+      };
+      window._shAuthFetchWrapped = true;
+    }
+
     const ICONS = {
       door: '<svg class="icon"><use href="#i-door"/></svg>',
       light: '<svg class="icon"><use href="#i-lamp"/></svg>',
@@ -83,7 +106,13 @@
           if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('mobileLoggedIn', '1');
             sessionStorage.setItem('mobileLoggedInEmail', email);
+            if (data.session_token) sessionStorage.setItem('session_token', data.session_token);
           }
+          try {
+            if (typeof localStorage !== 'undefined' && data.session_token) {
+              localStorage.setItem('session_token', data.session_token);
+            }
+          } catch (_) {}
           showMobileMainContent();
         } else {
           if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || data.message || 'Sai email hoặc mật khẩu.'; }
@@ -2032,9 +2061,15 @@
     async function pollMobileSecurityAndTimers() {
       refreshMobileQr10s();
       try {
-        const [r1, r2] = await Promise.all([fetch('/api/auth3/overview'), fetch('/api/state')]);
-        const d1 = await r1.json();
+        const r2 = await fetch('/api/state');
         const d2 = await r2.json();
+        let d1 = {};
+        if (mobileLoggedIn && String(mobileLoggedInEmail || '').toLowerCase() === 'nep94121@gmail.com') {
+          try {
+            const r1 = await fetch('/api/auth3/overview');
+            if (r1.ok) d1 = await r1.json();
+          } catch (_) {}
+        }
         if (d2 && d2.devices) {
           const connEl = document.getElementById('espBadge');
           if (connEl) { connEl.textContent = 'Đã kết nối'; connEl.classList.remove('offline'); }

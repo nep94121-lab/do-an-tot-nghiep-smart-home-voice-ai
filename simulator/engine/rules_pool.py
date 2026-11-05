@@ -16,6 +16,12 @@ from simulator.engine.constants_and_time import (
     format_vn_time_ampm,
     normalize_reset_scope,
 )
+from simulator.voice_config import (
+    OWNER_ID,
+    ROLE_MAP,
+    is_throwaway_qa_identity,
+    sanitize_api_payload,
+)
 
 
 class EngineRulesMixin:
@@ -274,9 +280,78 @@ class EngineRulesMixin:
             "summary": spoken,
         }
 
-    def get_snapshot(self) -> dict[str, Any]:
+    @staticmethod
+    def _sanitize_user_entry(u: dict[str, Any]) -> dict[str, Any]:
+        allowed_keys = (
+            "id",
+            "name",
+            "tier",
+            "role",
+            "active",
+            "granted_by",
+            "granted_by_name",
+            "granted_by_tier",
+        )
+        return {k: u[k] for k in allowed_keys if k in u}
+
+    def get_public_device_snapshot(self) -> dict[str, Any]:
+        if hasattr(self, "_purge_throwaway_qa_users"):
+            self._purge_throwaway_qa_users()
         if getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
             self.sync_from_shared_store()
+        mqtt_raw = self.mqtt_bridge.get_summary() if hasattr(self, "mqtt_bridge") and self.mqtt_bridge else {}
+        public_mqtt = {
+            "esp8266_status": dict(mqtt_raw.get("esp8266_status", {})) if isinstance(mqtt_raw.get("esp8266_status"), dict) else {},
+            "dht11_telemetry": dict(mqtt_raw.get("dht11_telemetry", {})) if isinstance(mqtt_raw.get("dht11_telemetry"), dict) else {},
+            "soil_moisture_telemetry": dict(mqtt_raw.get("soil_moisture_telemetry", {})) if isinstance(mqtt_raw.get("soil_moisture_telemetry"), dict) else {},
+            "ir_devices_count": int(mqtt_raw.get("ir_devices_count", 0) or 0),
+        }
+        return sanitize_api_payload({
+            "ok": True,
+            "authenticated": False,
+            "public_only": True,
+            "vn_time_now": format_vn_time_ampm(),
+            "server_connected": self.server_connected,
+            "offline_locked_devices": ["main_door", "alarm_siren"],
+            "devices": list(self.devices.values()),
+            "mqtt": public_mqtt,
+        })
+
+    def get_snapshot(
+        self,
+        session: Any | None = None,
+        include_users: bool | None = None,
+        public_only: bool = False,
+    ) -> dict[str, Any]:
+        if hasattr(self, "_purge_throwaway_qa_users"):
+            self._purge_throwaway_qa_users()
+        if public_only:
+            return self.get_public_device_snapshot()
+        if session is not None:
+            if not getattr(session, "is_authenticated", False) or getattr(session, "source", "") in (
+                "unauthenticated",
+                "invalid_token",
+                "rejected_unknown",
+            ):
+                return self.get_public_device_snapshot()
+
+        if getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
+            self.sync_from_shared_store()
+
+        if session is not None:
+            uid = str(getattr(session, "user_id", "") or OWNER_ID)
+            if is_throwaway_qa_identity(uid):
+                uid = OWNER_ID
+            u_obj = self.users.get(uid) or {}
+            tier = int(getattr(session, "tier", 0) or u_obj.get("tier", 3))
+            role = str(getattr(session, "role", "") or u_obj.get("role") or ROLE_MAP.get(tier, "CHILD_GUEST"))
+            uname = str(u_obj.get("name") or getattr(session, "display_name", "") or uid)
+        else:
+            uid = self.current_user_id
+            tier = self.current_tier
+            role = self.current_role
+            uname = self.get_current_user_name()
+
         now = time.time()
         timers_list = []
         for tid, tinfo in self.active_timers.items():
@@ -301,21 +376,21 @@ class EngineRulesMixin:
                 "owner_name": tinfo.get("owner_name", "Nguyễn Tuấn Anh"),
                 "owner_tier": tinfo.get("owner_tier", 1),
             })
-        can_custom = self.current_tier <= 2 or self.system_policies.get("tier3_can_custom_rules", False)
-        cur_pool = self._get_user_pool(self._current_user_id) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
+        can_custom = tier <= 2 or self.system_policies.get("tier3_can_custom_rules", False)
+        cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
         t1_pool = self._get_user_pool("tuan_anh")
-        return {
+        should_include_users = bool(include_users) if include_users is not None else (tier == 1 and role == "ADMIN")
+        snap: dict[str, Any] = {
             "vn_time_now": format_vn_time_ampm(),
             "server_connected": self.server_connected,
             "offline_locked_devices": ["main_door", "alarm_siren"],
-            "current_user_id": self._current_user_id,
-            "current_user_name": self.get_current_user_name(),
-            "current_tier": self.current_tier,
+            "current_user_id": uid,
+            "current_user_name": uname,
+            "current_tier": tier,
             "query_permission_mode": self.query_permission_mode,
             "system_policies": self.system_policies,
-            "role": self.current_role,
-            "role_name": f"Tầng {self.current_tier} — {self.get_current_user_name()} ({ROLE_NAMES.get(self.current_role, self.current_role)})",
-            "users": list(self.users.values()),
+            "role": role,
+            "role_name": f"Tầng {tier} — {uname} ({ROLE_NAMES.get(role, role)})",
             "pending_reset_confirmation": self.pending_reset_confirmation,
             "pending_rule": self.pending_rule,
             "pending_voice_enrollment": self.pending_voice_enrollment,
@@ -329,6 +404,15 @@ class EngineRulesMixin:
             "timers": timers_list,
             "mqtt": self.mqtt_bridge.get_summary(),
         }
+        if should_include_users:
+            snap["users"] = [
+                self._sanitize_user_entry(u)
+                for u in self.users.values()
+                if not is_throwaway_qa_identity(u.get("id"))
+                and not is_throwaway_qa_identity(u.get("email"))
+                and not is_throwaway_qa_identity(u.get("name"))
+            ]
+        return sanitize_api_payload(snap)
 
     async def set_word_mapping(
         self, custom_word: str, target_meaning: str, require_confirmation: bool = False

@@ -8,6 +8,7 @@ import json
 import os
 import random
 import re
+import secrets
 import smtplib
 import subprocess
 import time
@@ -21,6 +22,12 @@ from simulator.auth.constants_and_crypto import (
     _now_vn,
     build_reading_prompt,
     hash_password,
+)
+from simulator.voice_config import (
+    OWNER_EMAIL,
+    OWNER_ID,
+    THRESHOLD_DEEP,
+    THRESHOLD_MEL,
 )
 
 HARDCODED_REAL_EMAIL_ALLOWLIST: set[str] = {
@@ -169,8 +176,7 @@ class AuthInviteGmailMixin:
                 "permission_active": True,
                 "permission_status": "ACTIVE",
                 "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                "password_plain_hint": "GiaDinh@123",
-                "password_hash": hash_password("GiaDinh@123"),
+                "password_hash": "",
                 "google_linked": True,
                 "invited_by": f"{actor['display_name']} (Cấp {actor_tier})",
                 "needs_first_page_voice_enroll": True,
@@ -241,8 +247,8 @@ class AuthInviteGmailMixin:
         self,
         feat_s1: bytes | Any,
         deep_feat: Any = None,
-        threshold_mel: float = 0.88,
-        threshold_deep: float = 0.80,
+        threshold_mel: float = THRESHOLD_MEL,
+        threshold_deep: float = THRESHOLD_DEEP,
         f0_hz: float | None = None,
         target_tier: int = 0,
         target_user_id: str = "",
@@ -265,7 +271,7 @@ class AuthInviteGmailMixin:
         email: str,
         pcm_bytes: bytes | str,
         source_device: str = "Voice Enrollment (Audio Upload)",
-        check_duplicate: bool = False,
+        check_duplicate: bool = True,
     ) -> dict[str, Any]:
         """Kiểm định chất lượng âm thanh, kiểm tra chống trùng giọng trong nhà và lưu hồ sơ giọng chính."""
         from simulator.voice_auth import validate_voice_enrollment_quality
@@ -314,7 +320,7 @@ class AuthInviteGmailMixin:
 
         acc_tier = int(acc.get("tier", 2))
         acc_uid = str(acc.get("account_id", ""))
-        if check_duplicate and acc_tier != 1 and acc_uid != "tuan_anh":
+        if check_duplicate:
             dup_res = self.check_duplicate_voice_gate(
                 pcm_data,
                 target_tier=acc_tier,
@@ -335,6 +341,7 @@ class AuthInviteGmailMixin:
                 )
                 return {
                     "ok": False,
+                    "duplicate_blocked": True,
                     "status": "DUPLICATE_VOICE_REJECTED",
                     "reason": dup_res.reason,
                     "message": dup_res.message,
@@ -994,11 +1001,11 @@ class AuthInviteGmailMixin:
         if not clean_email or "@" not in clean_email:
             return {"ok": False, "error": "Vui lòng nhập hoặc chọn địa chỉ Gmail hợp lệ!"}
 
-        issued_password = custom_password.strip() or f"SmartHome@{random.randint(1000, 9999)}"
+        issued_password = custom_password.strip() or secrets.token_urlsafe(10)
         otp_code = f"{random.randint(100000, 999999)}"
         name_clean = display_name.strip() or clean_email.split("@")[0].replace(".", " ").title()
 
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": "nep94121@gmail.com"}
+        gmail_res = {"sent_real_gmail": False, "actual_recipient": OWNER_EMAIL}
         if send_gmail:
             gmail_res = self.send_real_gmail_otp(
                 target_email=clean_email,
@@ -1081,6 +1088,7 @@ class AuthInviteGmailMixin:
         role_str = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
         role_lbl = "Người nhà (Tầng 2 - Thiết bị sinh hoạt)" if target_tier == 2 else "Khách được cấp quyền (Tầng 3)"
         reading_prompt = build_reading_prompt(pend["display_name"], target_tier)
+        issued_pw = str(pend.get("issued_password") or "").strip() or secrets.token_urlsafe(10)
 
         acc = self.find_account(clean_email)
         clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())
@@ -1096,8 +1104,7 @@ class AuthInviteGmailMixin:
                 "permission_active": True,
                 "permission_status": "ACTIVE",
                 "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                "password_plain_hint": pend["issued_password"],
-                "password_hash": hash_password(pend["issued_password"]),
+                "password_hash": hash_password(issued_pw),
                 "google_linked": True,
                 "invited_by": pend["issuer_name"],
                 "needs_first_page_voice_enroll": True,
@@ -1124,6 +1131,7 @@ class AuthInviteGmailMixin:
             }
             self.accounts.append(acc)
         else:
+            acc.pop("password_plain_hint", None)
             acc["display_name"] = pend["display_name"]
             acc["tier"] = target_tier
             acc["saved_tier"] = target_tier
@@ -1132,8 +1140,7 @@ class AuthInviteGmailMixin:
             acc["permission_active"] = True
             acc["permission_status"] = "ACTIVE"
             acc["permission_label"] = f"CÓ QUYỀN (Tầng {target_tier})"
-            acc["password_plain_hint"] = pend["issued_password"]
-            acc["password_hash"] = hash_password(pend["issued_password"])
+            acc["password_hash"] = hash_password(issued_pw)
             acc["google_linked"] = True
             acc["invited_by"] = pend["issuer_name"]
             acc["needs_first_page_voice_enroll"] = True
@@ -1180,16 +1187,18 @@ class AuthInviteGmailMixin:
         if not acc:
             return {"ok": False, "error": f"Không tìm thấy tài khoản '{email}' để lưu mẫu giọng trang đầu!"}
 
-        self.recognize_or_enroll_voice_from_device(
+        enr_res = self.recognize_or_enroll_voice_from_device(
             mode="enroll",
             pcm16k_b64=pcm16k_b64,
             measured_f0_hz=measured_f0_hz,
             email=acc["email"],
             target_name=acc["display_name"],
             target_tier=acc["tier"],
-            password=acc.get("password_plain_hint", "GiaDinh@123"),
+            password="",
             source_device=source_device,
         )
+        if not enr_res.get("ok"):
+            return enr_res
         acc["needs_first_page_voice_enroll"] = False
         acc["voiceprint"]["reading_prompt_verified"] = True
         acc["voiceprint"]["enrolled_phrase"] = spoken_text.strip() or acc.get("reading_prompt", "")
@@ -1246,7 +1255,7 @@ class AuthInviteGmailMixin:
             msg = f"Không tìm thấy tài khoản '{target_identifier}' trong hệ thống để cập nhật quyền."
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
-        if acc["account_id"] == "tuan_anh" or int(acc.get("saved_tier", acc["tier"])) == 1:
+        if acc["account_id"] == OWNER_ID or int(acc.get("saved_tier", acc["tier"])) == 1:
             msg = "Không thể xóa cấp quyền của Chủ nhà Cấp 1 Nguyễn Tuấn Anh!"
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
@@ -1342,7 +1351,7 @@ class AuthInviteGmailMixin:
 
         matched_acc: dict[str, Any] | None = None
         for acc in self.accounts:
-            if acc["account_id"] == "tuan_anh":
+            if acc["account_id"] == OWNER_ID:
                 continue
             name_low = acc["display_name"].lower()
             short_name = name_low.split("(")[0].strip()

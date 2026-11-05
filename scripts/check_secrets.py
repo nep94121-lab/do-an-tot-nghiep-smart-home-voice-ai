@@ -3,7 +3,7 @@ import re
 text = open("FIX_REPORT_20261104.md", encoding="utf-8").read()
 
 # Check for raw secrets
-known_secrets = ["GiaDinh@123", "ChuNha@123", "Khach@123"]
+known_secrets = ["[REDACTED_PASSWORD]"]
 for s in known_secrets:
     if s in text:
         print(f"ALERT: Plaintext secret found: {s}")

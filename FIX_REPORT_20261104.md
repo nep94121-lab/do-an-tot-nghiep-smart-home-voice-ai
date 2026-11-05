@@ -1267,7 +1267,7 @@ Giai đoạn 7 (`Phase 7 Voice` trên nhánh `p7-voice`, worktree `C:\Users\LENO
        3. Email: `<input id="loginEmail">`
      - Đưa toàn bộ các ô mật khẩu (`#loginPassword`, `#loginPasswordConfirm`) và tùy chọn nhanh/OTP vào wrapper ẩn `style="display:none;" hidden` với giá trị rỗng tĩnh `value=""`.
    - Tại `simulator/static/js/auth.js`:
-     - Đảm bảo `completeStep1AndGoToVoice()` tự động sử dụng mật khẩu mặc định `'123456'` khi các ô mật khẩu ẩn để trống, cho phép tiến trình đăng ký và thu âm giọng nói chuyển tiếp mượt mà.
+     - Đảm bảo `completeStep1AndGoToVoice()` xử lý mật khẩu `[REDACTED_PASSWORD]` khi các ô mật khẩu ẩn để trống, cho phép tiến trình đăng ký và thu âm giọng nói chuyển tiếp mượt mà.
 
 ### 14.2. Bảng Đối Chiếu Độ Trễ Thực Nghiệm (Playwright Chromium Benchmark)
 

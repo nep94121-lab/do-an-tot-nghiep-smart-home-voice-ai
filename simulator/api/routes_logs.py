@@ -13,7 +13,7 @@ import re
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 
@@ -50,6 +50,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     get_knowledge_rag,
 )
+from simulator.auth.session_store import resolve_request_session
 from simulator.database_sqlite import (
     DATA_DIR,
     clear_audit_logs_sqlite,
@@ -64,6 +65,7 @@ from simulator.rule_engine import (
     format_vn_time_ampm,
     read_audit_logs,
 )
+from simulator.voice_config import sanitize_api_payload
 
 router = APIRouter()
 
@@ -97,12 +99,15 @@ def _safe_json(filename: str) -> Any:
 @router.get("/api/logs/dashboard")
 @router.get("/api/server_logs_and_db")
 async def api_logs_dashboard(
+    request: Request,
     category: str | None = None,
     q: str | None = None,
 ) -> JSONResponse:
     """Cung cấp dữ liệu toàn diện cho trang Quản trị Nhật ký (/logs) và Mobile Dashboard."""
     active_eng = _ACTIVE_BRIDGES[-1].engine if _ACTIVE_BRIDGES else _REST_ENGINE
-    snap = active_eng.get_snapshot()
+    sess = resolve_request_session(request, payload=None, engine=None)
+    is_admin = bool(sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN")
+    snap = active_eng.get_snapshot(session=sess) if sess.is_authenticated else active_eng.get_public_device_snapshot()
 
     storage_files: list[dict[str, Any]] = []
     for fp in sorted(DATA_DIR.glob("*")):
@@ -125,6 +130,10 @@ async def api_logs_dashboard(
     try:
         sync_engine_state_to_sqlite(active_eng)
         sqlite_ov = get_sqlite_overview()
+        if not is_admin:
+            for tbl_item in sqlite_ov.get("tables", []):
+                if isinstance(tbl_item, dict) and tbl_item.get("table_name") in ("users", "voiceprints"):
+                    tbl_item["sample_rows"] = []
     except Exception as exc:
         sqlite_ov = {"ok": False, "error": str(exc), "tables": []}
 
@@ -213,25 +222,45 @@ async def api_logs_dashboard(
     ]
 
     return JSONResponse(
-        {
-            "ok": True,
-            "server_time_vn": format_vn_time_ampm(),
-            "hardware_database": hardware_database,
-            "automation_database": automation_database,
-            "knowledge_base": kb_items,
-            "total_logs": len(standardized_logs),
-            "sqlite_Wal": sqlite_wal_info,
-            "sqlite_overview": sqlite_ov,
-            "audit_logs": standardized_logs,
-            "storage_files": storage_files,
-            "connection_pools": connection_pools,
-            "snapshot": snap,
-            "all_user_pools": active_eng.overlay_rules.get("user_pools", {}),
-            "voiceprints": _safe_json("voiceprints.json"),
-            "ir_devices_db": _safe_json("ir_devices_db.json"),
-            "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
-        }
+        sanitize_api_payload(
+            mask_sensitive_log_data(
+                {
+                    "ok": True,
+                    "server_time_vn": format_vn_time_ampm(),
+                    "hardware_database": hardware_database,
+                    "automation_database": automation_database,
+                    "knowledge_base": kb_items,
+                    "total_logs": len(standardized_logs),
+                    "sqlite_Wal": sqlite_wal_info,
+                    "sqlite_overview": sqlite_ov,
+                    "audit_logs": standardized_logs,
+                    "storage_files": storage_files,
+                    "connection_pools": connection_pools,
+                    "snapshot": snap,
+                    "all_user_pools": active_eng.overlay_rules.get("user_pools", {}) if is_admin else {},
+                    "accounts_3layer": (
+                        sanitize_api_payload(mask_sensitive_log_data(_safe_json("accounts_3layer.json")))
+                        if is_admin
+                        else []
+                    ),
+                    "ir_devices_db": _safe_json("ir_devices_db.json"),
+                    "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
+                }
+            )
+        )
     )
+
+
+_FORBIDDEN_SQL_KEYWORDS = (
+    "accounts_3layer",
+    "user_sessions",
+    "voiceprint",
+    "password",
+    "embedding",
+    "otp",
+    "secret",
+    "token",
+)
 
 
 @router.post("/api/logs/sql_query")
@@ -239,12 +268,20 @@ async def api_logs_dashboard(
 async def api_logs_sql_query(payload: dict[str, Any]) -> JSONResponse:
     """Thực thi câu lệnh SQL chỉ đọc (SELECT, PRAGMA, EXPLAIN) an toàn trên smarthome.db."""
     sql = str(payload.get("sql", "")).strip()
+    sql_low = sql.lower()
+    if any(kw in sql_low for kw in _FORBIDDEN_SQL_KEYWORDS):
+        return JSONResponse(
+            {"ok": False, "error": "Truy vấn bảng hoặc cột nhạy cảm bị từ chối vì lý do bảo mật!"},
+            status_code=403,
+        )
     try:
         limit = int(payload.get("limit", 100) or 100)
     except (ValueError, TypeError):
         limit = 100
     res = execute_readonly_sql(sql, limit=limit)
-    return JSONResponse(res)
+    if isinstance(res, dict) and "rows" in res:
+        res["rows"] = sanitize_api_payload(mask_sensitive_log_data(res["rows"]))
+    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(res)))
 
 
 @router.post("/api/logs/knowledge/add")
@@ -313,9 +350,16 @@ async def api_logs_clear() -> JSONResponse:
 
 
 @router.get("/api/sqlite/overview")
-async def api_sqlite_overview() -> JSONResponse:
+async def api_sqlite_overview(request: Request) -> JSONResponse:
     """Trả về tổng quan 8 bảng CSDL SQLite smarthome.db."""
-    return JSONResponse(get_sqlite_overview())
+    sess = resolve_request_session(request, payload=None, engine=None)
+    is_admin = bool(sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN")
+    ov = get_sqlite_overview()
+    if not is_admin:
+        for tbl_item in ov.get("tables", []):
+            if isinstance(tbl_item, dict) and tbl_item.get("table_name") in ("users", "voiceprints"):
+                tbl_item["sample_rows"] = []
+    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(ov)))
 
 
 @router.get("/api/devops/status")

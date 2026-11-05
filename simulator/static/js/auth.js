@@ -1,3 +1,26 @@
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !window._shAuthFetchWrapped) {
+      const _origFetch = window.fetch.bind(window);
+      window.fetch = function(input, init) {
+        let urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (urlStr.startsWith('/api/')) {
+          let tok = '';
+          try {
+            tok = (window.sessionStorage && window.sessionStorage.getItem('session_token')) ||
+                  (window.localStorage && window.localStorage.getItem('session_token')) || '';
+          } catch (_) {}
+          const nextInit = Object.assign({ credentials: 'same-origin' }, init || {});
+          const hdrs = Object.assign({}, nextInit.headers || {});
+          if (tok && !hdrs['X-Session-Token'] && !hdrs['x-session-token'] && !hdrs['Authorization']) {
+            hdrs['X-Session-Token'] = tok;
+          }
+          nextInit.headers = hdrs;
+          return _origFetch(input, nextInit);
+        }
+        return _origFetch(input, init);
+      };
+      window._shAuthFetchWrapped = true;
+    }
+
     const tierBadgeClass = (t) => t === 1 ? 'badge-tier1' : (t === 2 ? 'badge-tier2' : 'badge-tier3');
     const tierRoleLabel = (t) => t === 1 ? 'Chủ nhà (Cấp 1)' : (t === 2 ? 'Gia đình (Cấp 2)' : 'Khách (Cấp 3)');
 
@@ -24,13 +47,13 @@
 
     function applyPresetAccount(preset) {
       if (preset === 'owner') {
-        fillAccount('nep94121@gmail.com', '123456');
+        fillAccount('nep94121@gmail.com', '');
         onEnrollTierSelectChange('1');
       } else if (preset === 'family') {
-        fillAccount('senat6031@gmail.com', 'GiaDinh@123');
+        fillAccount('senat6031@gmail.com', '');
         onEnrollTierSelectChange('2');
       } else if (preset === 'guest') {
-        fillAccount('kbanh376@gmail.com', 'Khach@789');
+        fillAccount('kbanh376@gmail.com', '');
         onEnrollTierSelectChange('3');
       } else if (preset === 'wrong') {
         fillAccount('nep94121@gmail.com', 'SaiMatKhau999');
@@ -114,7 +137,7 @@
       const box = document.getElementById('loginStatusBox');
 
       const email = emailEl ? emailEl.value.trim() : 'nep94121@gmail.com';
-      const password = (pwEl && pwEl.value) ? pwEl.value : '123456';
+      const password = (pwEl && pwEl.value) ? pwEl.value : '';
       const confirmPassword = (pwConfirmEl && pwConfirmEl.value) ? pwConfirmEl.value : password;
       const speakerName = nameEl ? nameEl.value.trim() : selectedSpeakerName;
 
@@ -146,29 +169,37 @@
         return;
       }
 
-      try {
-        const res = await fetch('/api/auth3/register_or_set_password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            display_name: speakerName,
-            target_tier: selectedEnrollTier,
-            password,
-            confirm_password: confirmPassword
-          })
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          setStepState('retry', '', '');
-          if (box) {
-            box.style.borderColor = 'var(--red-border)';
-            box.style.background = 'var(--red-soft)';
-            box.textContent = data.error || 'Chưa lưu được thông tin Bước 1.';
+      if (password) {
+        try {
+          const res = await fetch('/api/auth3/register_or_set_password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              display_name: speakerName,
+              target_tier: selectedEnrollTier,
+              password,
+              confirm_password: confirmPassword
+            })
+          });
+          const data = await res.json();
+          if (data && data.session_token) {
+            try {
+              if (window.sessionStorage) window.sessionStorage.setItem('session_token', data.session_token);
+              if (window.localStorage) window.localStorage.setItem('session_token', data.session_token);
+            } catch (_) {}
           }
-          return;
-        }
-      } catch (_) {}
+          if (!data.ok) {
+            setStepState('retry', '', '');
+            if (box) {
+              box.style.borderColor = 'var(--red-border)';
+              box.style.background = 'var(--red-soft)';
+              box.textContent = data.error || 'Chưa lưu được thông tin Bước 1.';
+            }
+            return;
+          }
+        } catch (_) {}
+      }
 
       selectedSpeakerName = speakerName;
       refreshStepSummaries();
@@ -521,10 +552,13 @@
     }
 
     async function loadOverview() {
-      const res = await fetch('/api/auth3/overview');
-      const data = await res.json();
+      try {
+        const res = await fetch('/api/auth3/overview');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.ok) return;
 
-      if (data.security_status) {
+        if (data.security_status) {
         const st = data.security_status;
         const strikeBadge = document.getElementById('globalStrikeBadge');
         if (strikeBadge) {
@@ -579,6 +613,7 @@
       if (data.test_report) {
         renderTestSuiteReport(data.test_report);
       }
+      } catch (_) {}
     }
 
     function renderTestSuiteReport(rep) {
@@ -730,6 +765,12 @@
       });
       const data = await res.json();
       if (data.ok) {
+        if (data.session_token) {
+          try {
+            if (window.sessionStorage) window.sessionStorage.setItem('session_token', data.session_token);
+            if (window.localStorage) window.localStorage.setItem('session_token', data.session_token);
+          } catch (_) {}
+        }
         setStepState('done', 'active', '');
         box.style.borderColor = '#cce5e3';
         box.style.background = 'var(--accent-soft)';
@@ -755,6 +796,12 @@
       });
       const data = await res.json();
       if (data.ok) {
+        if (data.session_token) {
+          try {
+            if (window.sessionStorage) window.sessionStorage.setItem('session_token', data.session_token);
+            if (window.localStorage) window.localStorage.setItem('session_token', data.session_token);
+          } catch (_) {}
+        }
         setStepState('done', 'active', '');
         document.getElementById('currentSessionBadge').textContent = 'Đang thực hiện';
         box.style.borderColor = '#cce5e3';

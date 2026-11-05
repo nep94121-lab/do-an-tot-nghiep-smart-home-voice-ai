@@ -21,6 +21,36 @@
     document._hasTextPolyfilled = true;
   }
 
+  if (typeof window !== "undefined" && typeof window.fetch === "function" && !window._shAuthFetchWrapped) {
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = function(input, init) {
+      let urlStr = typeof input === "string" ? input : (input && input.url ? input.url : "");
+      if (urlStr.startsWith("/api/")) {
+        let tok = "";
+        try {
+          tok = (window.sessionStorage && window.sessionStorage.getItem("session_token")) ||
+                (window.localStorage && window.localStorage.getItem("session_token")) || "";
+          if (!tok && window.localStorage) {
+            const rawSess = window.localStorage.getItem("smarthome_auth_session");
+            if (rawSess) {
+              const parsed = JSON.parse(rawSess);
+              tok = (parsed && parsed.session_token) || "";
+            }
+          }
+        } catch (_) {}
+        const nextInit = Object.assign({ credentials: "same-origin" }, init || {});
+        const hdrs = Object.assign({}, nextInit.headers || {});
+        if (tok && !hdrs["X-Session-Token"] && !hdrs["x-session-token"] && !hdrs["Authorization"]) {
+          hdrs["X-Session-Token"] = tok;
+        }
+        nextInit.headers = hdrs;
+        return _origFetch(input, nextInit);
+      }
+      return _origFetch(input, init);
+    };
+    window._shAuthFetchWrapped = true;
+  }
+
   const noopEl = {
     textContent: "",
     innerHTML: "",
@@ -1838,9 +1868,14 @@
 
   function clearAuthState() {
     try {
-      if (window.localStorage) window.localStorage.removeItem("smarthome_auth_session");
+      if (window.localStorage) {
+        window.localStorage.removeItem("smarthome_auth_session");
+        window.localStorage.removeItem("session_token");
+      }
       if (window.sessionStorage) window.sessionStorage.clear();
       document.cookie = "smarthome_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "sh_session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     } catch (_) {}
     if (homeCurrentAccountBadge) {
       homeCurrentAccountBadge.textContent = "Chưa đăng nhập";
@@ -2019,10 +2054,15 @@
           email,
           display_name: data.display_name || email,
           tier: data.tier || 1,
+          session_token: data.session_token || "",
         };
         try {
           if (window.localStorage) {
             window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
+            if (data.session_token) window.localStorage.setItem("session_token", data.session_token);
+          }
+          if (window.sessionStorage && data.session_token) {
+            window.sessionStorage.setItem("session_token", data.session_token);
           }
         } catch (_) {}
         applyLoggedInUserBanner(userSession);
@@ -2090,10 +2130,14 @@
       });
       const data = await res.json();
       if (data.ok) {
-        const userSession = data.account || { email, display_name: displayName, tier };
+        const userSession = Object.assign({}, data.account || { email, display_name: displayName, tier }, { session_token: data.session_token || "" });
         try {
           if (window.localStorage) {
             window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
+            if (data.session_token) window.localStorage.setItem("session_token", data.session_token);
+          }
+          if (window.sessionStorage && data.session_token) {
+            window.sessionStorage.setItem("session_token", data.session_token);
           }
         } catch (_) {}
         applyLoggedInUserBanner(userSession);

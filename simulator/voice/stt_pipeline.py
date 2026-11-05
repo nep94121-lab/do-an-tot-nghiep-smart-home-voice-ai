@@ -34,6 +34,13 @@ from simulator.voice.enrollment_quality import (
     strip_vietnamese_diacritics,
     validate_voice_enrollment_quality,
 )
+from simulator.voice_config import (
+    OWNER_ID,
+    ROLE_MAP,
+    THRESHOLD_DEEP,
+    THRESHOLD_MEL,
+    USER_ROLE_MAP,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 VOICES_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\voices")
@@ -197,7 +204,7 @@ def match_signature_from_catalog(
                 if corr > sig_best_corr:
                     sig_best_corr = corr
 
-            if sig_best_corr >= 0.88:
+            if sig_best_corr >= THRESHOLD_MEL:
                 seg = pcm16[:L]
                 win = min(800, max(200, L // 16))
                 step = max(200, win // 4)
@@ -238,13 +245,13 @@ def match_signature_from_catalog(
                         if best_bio >= 0.96:
                             break
 
-                if best_bio >= 0.88:
+                if best_bio >= THRESHOLD_MEL:
                     combined = round(float(0.5 * sig_best_corr + 0.5 * best_bio), 4)
                     if combined > best_loop_combined:
                         best_loop_combined = combined
                         best_loop_sig = sig
 
-        if best_loop_sig is not None and best_loop_combined >= 0.88:
+        if best_loop_sig is not None and best_loop_combined >= THRESHOLD_MEL:
             return best_loop_sig, min(0.998, best_loop_combined)
 
     # 2. Kiem tra do tuong dong sinh trac hoc Da Tang (Stage 1 26D + Stage 2 64D + Neural 256D + F0 + Duration)
@@ -275,7 +282,7 @@ def match_signature_from_catalog(
             best_score = score
             best_sig = sig
 
-    if best_sig is not None and best_score >= 0.88:
+    if best_sig is not None and best_score >= THRESHOLD_MEL:
         return best_sig, round(float(min(0.998, best_score)), 4)
     return None, round(float(max(0.0, best_score)), 4)
 
@@ -359,9 +366,9 @@ async def process_voice_command_pipeline(
         level = int(matched_sig.get("level", 1))
         tier = int(matched_sig.get("tier", level))
         speaker_id = str(matched_sig.get("speaker_id", "owner_voice_1"))
-        user_id = str(matched_sig.get("user_id", "tuan_anh"))
+        user_id = str(matched_sig.get("user_id", USER_ROLE_MAP.get(tier, OWNER_ID)))
         speaker_name = str(matched_sig.get("speaker_name", "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)"))
-        role = str(matched_sig.get("role", "ADMIN"))
+        role = str(matched_sig.get("role", ROLE_MAP.get(tier, "ADMIN")))
         f0_hz = float(matched_sig.get("f0_hz", 103.2))
         similarity = sig_similarity if sig_similarity > 0 else 0.96
         authorized = True
@@ -382,9 +389,9 @@ async def process_voice_command_pipeline(
             tier = auth_tier if auth_tier in (1, 2, 3) else 1
             level = tier
             speaker_id = str(auth_res.get("speaker_id", "owner_voice_1"))
-            user_id = str(auth_res.get("user_id", "tuan_anh"))
+            user_id = str(auth_res.get("user_id", USER_ROLE_MAP.get(tier, OWNER_ID)))
             speaker_name = str(auth_res.get("speaker_label", "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)"))
-            role = str(auth_res.get("role", "ADMIN"))
+            role = str(auth_res.get("role", ROLE_MAP.get(tier, "ADMIN")))
             authorized = True
 
     # 3. Giai quyet STT (Speech-to-Text)
@@ -432,7 +439,11 @@ async def process_voice_command_pipeline(
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 3),
             "latency_ms": latency_ms,
-            "snapshot": engine.get_snapshot(),
+            "snapshot": (
+                engine.get_public_device_snapshot()
+                if hasattr(engine, "get_public_device_snapshot")
+                else engine.get_snapshot()
+            ),
         }
 
     if not intents:
@@ -472,7 +483,7 @@ async def process_voice_command_pipeline(
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 3),
             "latency_ms": latency_ms,
-            "snapshot": engine.get_snapshot(),
+            "snapshot": engine.get_snapshot(include_users=(tier == 1)),
         }
 
     all_ok = True
@@ -541,5 +552,5 @@ async def process_voice_command_pipeline(
         "f0_hz": round(f0_hz, 1),
         "similarity": round(similarity, 3),
         "latency_ms": latency_ms,
-        "snapshot": engine.get_snapshot(),
+        "snapshot": engine.get_snapshot(include_users=(tier == 1)),
     }

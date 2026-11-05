@@ -43,6 +43,13 @@ from simulator.voice.enrollment_quality import (
     parse_vietnamese_voice_command_intents,
     validate_voice_enrollment_quality,
 )
+from simulator.voice_config import (
+    OWNER_ID,
+    ROLE_MAP,
+    THRESHOLD_DEEP,
+    THRESHOLD_MEL,
+    USER_ROLE_MAP,
+)
 
 DATA_DIR = resolve_data_dir()
 VOICEPRINT_FILE = DATA_DIR / "voiceprints.json"
@@ -138,8 +145,8 @@ class VoiceAuthManager:
         self,
         feat_s1: bytes | np.ndarray | dict[str, Any] | list[float],
         deep_feat: dict[str, Any] | list[float] | None = None,
-        threshold_mel: float = 0.88,
-        threshold_deep: float = 0.80,
+        threshold_mel: float = THRESHOLD_MEL,
+        threshold_deep: float = THRESHOLD_DEEP,
         f0_hz: float | None = None,
         target_tier: int = 0,
         target_user_id: str = "",
@@ -374,10 +381,10 @@ class VoiceAuthManager:
         data: dict[str, Any] = {
             "owner_voice_1": {
                 "id": "owner_voice_1",
-                "user_id": "tuan_anh",
+                "user_id": OWNER_ID,
                 "name": "Giọng Cấp 1 — Nguyễn Tuấn Anh (Chủ nhà - Toàn quyền)",
                 "authorized": True,
-                "role": "ADMIN",
+                "role": ROLE_MAP.get(1, "ADMIN"),
                 "tier": 1,
                 "voice_source": "Mẫu chuẩn Server (Có thể nhấn giữ thu âm giọng thật đè lên)",
                 "f0_hz": feat_v1["f0_hz"],
@@ -432,17 +439,17 @@ class VoiceAuthManager:
         """
         return self.enroll_tier_voice_from_pcm16k(
             pcm_bytes=pcm_bytes,
-            user_id="tuan_anh",
+            user_id=OWNER_ID,
             user_name="Nguyễn Tuấn Anh",
             tier=1,
-            role="ADMIN",
+            role=ROLE_MAP.get(1, "ADMIN"),
             custom_label=label,
         )
 
     def enroll_tier_voice_from_pcm16k(
         self,
         pcm_bytes: bytes,
-        user_id: str = "tuan_anh",
+        user_id: str = OWNER_ID,
         user_name: str = "Nguyễn Tuấn Anh",
         tier: int = 1,
         role: str = "ADMIN",
@@ -451,17 +458,17 @@ class VoiceAuthManager:
         check_duplicate: bool = True,
     ) -> dict[str, Any]:
         """Thu âm giọng nói thật từ Microphone (16kHz PCM) và lưu làm giọng gốc Server cho Cấp 1, Cấp 2 hoặc Cấp 3.
-        Bắt buộc qua Cổng Chống Trùng Giọng Trong Nhà (check_duplicate_voice_gate) khi đăng ký cho Cấp 2 / Cấp 3!
+        Bắt buộc qua Cổng Chống Trùng Giọng Trong Nhà (check_duplicate_voice_gate) cho tất cả các cấp!
         """
         # Tier 1 Owner Invariant Guard:
-        # Tài khoản Chủ nhà "tuan_anh" / "owner_voice_1" là bất biến Cấp 1 ADMIN.
+        # Tài khoản Chủ nhà OWNER_ID / "owner_voice_1" là bất biến Cấp 1 ADMIN.
         # Chặn tuyệt đối hành vi hạ cấp tài khoản Chủ nhà xuống Tier 2 hoặc Tier 3.
-        if (user_id == "tuan_anh" or custom_label == "owner_voice_1") and int(tier) != 1:
+        if (user_id == OWNER_ID or custom_label == "owner_voice_1") and int(tier) != 1:
             return {
                 "ok": False,
                 "status": "TIER1_DEMOTION_FORBIDDEN",
                 "reason": "CAM_HA_CAP_CHU_NHA",
-                "error": "Tài khoản Chủ nhà tuan_anh là bất biến Cấp 1 ADMIN. Nghiêm cấm mọi hành vi hạ cấp xuống Tier 2 hoặc Tier 3!",
+                "error": f"Tài khoản Chủ nhà {OWNER_ID} là bất biến Cấp 1 ADMIN. Nghiêm cấm mọi hành vi hạ cấp xuống Tier 2 hoặc Tier 3!",
                 "message": "Không thể hạ cấp quyền Chủ nhà Cấp 1.",
             }
 
@@ -473,8 +480,7 @@ class VoiceAuthManager:
         deep = extract_stage2_deep_features(pcm_clean, 16000)
 
         # CỔNG CHỐNG TRÙNG GIỌNG TRONG NHÀ (Duplicate Voiceprint Reject Gate):
-        # Nếu đang đăng ký cho Cấp 2 hoặc Cấp 3 (hoặc không phải Chủ nhà), đối chiếu với toàn bộ hồ sơ đã có.
-        if check_duplicate and (int(tier) != 1 or user_id != "tuan_anh"):
+        if check_duplicate:
             dup_res = self.check_duplicate_voice_gate(
                 feat_s1=pcm_bytes,
                 deep_feat=deep,
@@ -495,8 +501,8 @@ class VoiceAuthManager:
                     "similarity": dup_res.similarity,
                 }
 
-        prof_key = "owner_voice_1" if (tier == 1 or user_id == "tuan_anh") else f"user_voice_{user_id}"
-        role_code = "ADMIN" if tier == 1 else ("MEMBER" if tier == 2 else "CHILD_GUEST")
+        prof_key = "owner_voice_1" if (tier == 1 or user_id == OWNER_ID) else f"user_voice_{user_id}"
+        role_code = ROLE_MAP.get(int(tier), "CHILD_GUEST")
         disp_label = custom_label or f"Giọng Cấp {tier} — {user_name} (Đã thu âm giọng thật)"
         prev_prof = self.profiles.get(prof_key, {})
 
@@ -585,22 +591,12 @@ class VoiceAuthManager:
         deep_embedding: list[float] | None = None,
         embedding_256d: list[float] | None = None,
     ) -> dict[str, Any]:
-        """Lưu hồ sơ giọng nói người dùng mới được cấp quyền (Cấp 2 hoặc Cấp 3).
+        """Lưu hồ sơ giọng nói người dùng mới được cấp quyền (Cấp 1, Cấp 2 hoặc Cấp 3).
         Cổng Chống Trùng Giọng & Khóa Quyền Cấp 1 (Tier 1 Owner Protection Invariant):
-        - Nếu user_id == 'tuan_anh' hoặc int(tier) == 1: BẢO VỆ TUYỆT ĐỐI, không bao giờ ghi đè hay hạ cấp C1.
-        - Kiểm tra chống trùng giọng trong nhà: Nếu trùng Chủ nhà Cấp 1 hoặc thành viên có sẵn -> TỪ CHỐI NGAY LẬP TỨC.
+        - Luôn kiểm tra chống trùng giọng trong nhà trước (kể cả Chủ nhà).
+        - Nếu hợp lệ và user_id == OWNER_ID hoặc int(tier) == 1: cập nhật đặc trưng mới vào owner_voice_1 và bảo toàn quyền ADMIN Cấp 1.
         """
-        # 1. BẢO VỆ BẤT BIẾN CHỦ NHÀ CẤP 1 (Tier 1 Owner Protection Invariant)
-        if user_id == "tuan_anh" or int(tier) == 1:
-            owner_prof = self.profiles.get("owner_voice_1")
-            if owner_prof:
-                owner_prof["authorized"] = True
-                owner_prof["tier"] = 1
-                owner_prof["role"] = "ADMIN"
-                VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-                return owner_prof
-
-        # 2. CỔNG CHỐNG TRÙNG GIỌNG TRONG NHÀ (Duplicate Voiceprint Reject Gate)
+        # 1. CỔNG CHỐNG TRÙNG GIỌNG TRONG NHÀ (Duplicate Voiceprint Reject Gate)
         dup_chk = self.check_duplicate_voice_gate(
             feat_s1=embedding,
             deep_feat=deep_embedding,
@@ -615,6 +611,29 @@ class VoiceAuthManager:
                 "message": "Trùng giọng người đã có trong nhà - Từ chối lưu",
                 "matched_profile": dup_chk.matched_profile,
             }
+
+        # 2. BẢO VỆ BẤT BIẾN & CẬP NHẬT HỒ SƠ CHỦ NHÀ CẤP 1 (Tier 1 Owner Protection Invariant)
+        if user_id == OWNER_ID or int(tier) == 1:
+            owner_prof = self.profiles.get("owner_voice_1", {})
+            owner_prof.update({
+                "id": "owner_voice_1",
+                "user_id": user_id or OWNER_ID,
+                "name": owner_prof.get("name") or f"Giọng Cấp 1 — {user_name} (Chủ nhà - Toàn quyền)",
+                "authorized": True,
+                "tier": 1,
+                "role": ROLE_MAP.get(1, "ADMIN"),
+                "f0_hz": f0_hz,
+                "centroid_hz": centroid_hz,
+                "embedding": embedding,
+                "formants_hz": formants_hz or owner_prof.get("formants_hz") or [510.0, 1480.0, 2580.0, 3620.0],
+                "deep_embedding": deep_embedding or owner_prof.get("deep_embedding") or ([0.12] * 64),
+                "embedding_256d": embedding_256d or owner_prof.get("embedding_256d") or ([0.0] * 256),
+                "custom_enrolled": True,
+            })
+            self.profiles["owner_voice_1"] = owner_prof
+            VOICEPRINT_FILE.write_bytes((json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+            self.unauthorized_strikes = 0
+            return owner_prof
 
         prof_id = f"user_voice_{user_id}"
         self.profiles[prof_id] = {
@@ -779,8 +798,8 @@ class VoiceAuthManager:
                 res = {
                     "authorized": True,
                     "speaker_id": matched_prof["id"],
-                    "user_id": str(matched_prof.get("user_id", "tuan_anh")),
-                    "role": str(matched_prof.get("role", "ADMIN")),
+                    "user_id": str(matched_prof.get("user_id", OWNER_ID)),
+                    "role": str(matched_prof.get("role", ROLE_MAP.get(1, "ADMIN"))),
                     "speaker_label": matched_prof["name"],
                     "tier": 1,
                     "f0_hz": feat_s1["f0_hz"],
@@ -898,7 +917,7 @@ class VoiceAuthManager:
             )
             if is_live_mic and not is_exact_subtier:
                 best_auth_prof = owner_prof
-                best_sim_auth = max(s_own, 0.88)
+                best_sim_auth = max(s_own, THRESHOLD_MEL)
                 best_f0_diff = 0.0 if (75.0 <= feat_s1["f0_hz"] <= 198.0) else df0_own
             elif s_own >= 0.86 and not is_exact_subtier:
                 best_auth_prof = owner_prof
@@ -908,13 +927,13 @@ class VoiceAuthManager:
         # Nếu là giọng nói trực tiếp qua Microphone (is_live_mic) của Chủ nhà (owner_voice_1) trong dải giọng người tự nhiên (75Hz - 198Hz):
         if is_live_mic and best_auth_prof.get("id") == "owner_voice_1" and (75.0 <= feat_s1["f0_hz"] <= 198.0):
             best_f0_diff = 0.0
-            best_sim_auth = max(best_sim_auth, 0.88)
+            best_sim_auth = max(best_sim_auth, THRESHOLD_MEL)
 
         # Kiểm tra xem có phải là hồ sơ Khách Cấp 3 đã hết hạn (expires_at < now) đang cố nói lệnh không:
         for exp_p in expired_profiles:
             s_exp = cosine_sim(feat_s1["embedding"], exp_p["embedding"])
             df0_exp = abs(feat_s1["f0_hz"] - float(exp_p.get("f0_hz", 150.0)))
-            if s_exp >= 0.88 and df0_exp <= 18.0 and (best_auth_prof.get("id") == "owner_voice_1" and best_f0_diff > 20.0):
+            if s_exp >= THRESHOLD_MEL and df0_exp <= 18.0 and (best_auth_prof.get("id") == "owner_voice_1" and best_f0_diff > 20.0):
                 total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
                 return {
                     "authorized": False,
@@ -1173,11 +1192,11 @@ class VoiceAuthManager:
             matched_tier = int(best_auth_prof.get("tier", 1))
             matched_uid = str(
                 best_auth_prof.get("user_id")
-                or ("tuan_anh" if matched_tier == 1 else ("thanh_vien_a" if matched_tier == 2 else "khach_c"))
+                or USER_ROLE_MAP.get(matched_tier, "khach_c")
             )
             matched_role = str(
                 best_auth_prof.get("role")
-                or ("ADMIN" if matched_tier == 1 else ("MEMBER" if matched_tier == 2 else "CHILD_GUEST"))
+                or ROLE_MAP.get(matched_tier, "CHILD_GUEST")
             )
             res = {
                 "authorized": True,
@@ -1336,7 +1355,7 @@ class VoiceAuthManager:
         if auth_res.get("authorized") and engine is not None and intents:
             import contextlib
             actor_tier = int(auth_res.get("tier", 1))
-            actor_user = str(auth_res.get("user_id", "tuan_anh"))
+            actor_user = str(auth_res.get("user_id", OWNER_ID))
             if hasattr(engine, "set_active_user"):
                 engine.set_active_user(actor_user)
             tx_ctx = engine.state_transaction() if hasattr(engine, "state_transaction") else contextlib.nullcontext()
@@ -1426,8 +1445,8 @@ SEP_REAL_VOICE_COMMANDS_META: dict[str, dict[str, Any]] = {
 def check_duplicate_voice_gate(
     feat_s1: bytes | np.ndarray | dict[str, Any] | list[float],
     deep_feat: dict[str, Any] | list[float] | None = None,
-    threshold_mel: float = 0.88,
-    threshold_deep: float = 0.80,
+    threshold_mel: float = THRESHOLD_MEL,
+    threshold_deep: float = THRESHOLD_DEEP,
     f0_hz: float | None = None,
     target_tier: int = 0,
     target_user_id: str = "",
