@@ -533,18 +533,21 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 @router.post("/api/voice/command")
 async def api_voice_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Endpoint Stateless Voice Command cho Vercel Serverless & Web/Mobile Mic Capture:
-    Audio Upload (wav_b64 / pcm16k_b64 / sample_id) -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
+    Audio Upload (wav_b64 / pcm16k_b64) -> Biometric Speaker Verification -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
     """
     body = payload if isinstance(payload, dict) else {}
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    session = resolve_request_session(request, payload=None, engine=None)
+    authed_tier = session.tier if session.is_authenticated else None
+    authed_user = session.display_name if session.is_authenticated else None
+    authed_role = session.role if session.is_authenticated else None
 
     res = await process_voice_command_pipeline(
         body,
         engine=_REST_ENGINE,
         voice_auth=_BOOT_VOICE_AUTH,
-        session_tier=session.tier,
-        session_user=session.display_name,
-        session_role=session.role,
+        session_tier=authed_tier,
+        session_user=authed_user,
+        session_role=authed_role,
     )
 
     append_audit_log(

@@ -37,8 +37,20 @@ Preview Deployment URL: https://voice-hjt1qohky-tuananhs-projects-8aea56ce.verce
    - After: ok=False, authorized=False, level=99, tier=99, speaker_name="Người lạ (Không được phép)", permission=DENIED, action=BLOCKED_UNAUTHORIZED_VOICE, main_door=CLOSED->CLOSED (opened=False, pass=True)
 2. Independent Real-HTTP E2E (_indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app):
    - ALL_PASS=True, FAILURES=0 (7/7 L1 Owner clips ALLOWED, 6/6 L2/L3 dataset clips RBAC verified, 1/1 Unknown stranger clip DENIED)
-3. Independent Playwright UI Check (_indep_verify/ui/ui_voice_check.py on https://voice-orcin-six.vercel.app/app):
+4. Independent Playwright UI Check (_indep_verify/ui/ui_voice_check.py on https://voice-orcin-six.vercel.app/app):
    - failures=[] (0 failures)
    - Fake-mic cau_4_48k.wav E2E: "Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật." (e2e_ms=4222.7ms)
    - Click-to-visual-feedback latency (<300ms target): living_light=174.4ms, fan=123.7ms, door=162.1ms, living_light_data=109.5ms, fan_data=150.9ms, toggle=112.0ms
 DONE 2026-11-05T13:45:00+07:00 Independent Verification Fixes Verified & Deployed
+
+[ROUND 3 HARDENING & LAYOUT FIX (2026-11-05T15:02:00+07:00)]
+Preview Alias URL: https://voice-orcin-six.vercel.app
+Preview Deployment URL (Round 3): https://voice-pn2nhyu2p-tuananhs-projects-8aea56ce.vercel.app (dpl_FtdF2rjbuLDh4gwgaiUsEBT67nLX)
+1. Removed all request-field auth bypasses (explicit_level, session_tier, is_live_mic, empty PCM + transcript) in simulator/voice/stt_pipeline.py and simulator/api/routes_devices.py.
+2. Removed SHA-256 exact-match whitelist (0.999) and sample_id shortcuts (sample_id == "intruder_2") in simulator/voice/stt_pipeline.py; all voice auth decisions use real multi-stage biometric matching.
+3. Fixed /app 390x844 layout in simulator/static/css/mobile_app.css so #mobileBtnVoiceSheet is 100% visible above #mobileBottomNav (verified via Playwright & _indep_verify/ui/mobile_app_390x844.png).
+4. Pytest TDD & Regression Suites: 46/46 PASSED (tests/test_p7_voice_pipeline.py 10/10, tests/test_m8_mobile_screens.py 22/22, tests/test_sep_real_voice_commands.py 7/7, tests/test_live_sep_voice_actuation.py 7/7).
+5. Live Vercel Preview Verification:
+   - _indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app -> ALL_PASS=True, FAILURES=0
+   - _indep_verify/ui/ui_voice_check.py -> failures=[], button latencies 130.0ms..185.2ms (<300ms)
+DONE 2026-11-05T15:04:00+07:00 Round 3 Complete
