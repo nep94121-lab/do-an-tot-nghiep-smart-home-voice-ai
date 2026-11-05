@@ -1,18 +1,15 @@
 /**
  * Service Worker - Smart Home Voice AI
  * Scope: / and /app
- * Strategy: Precache shell & error pages, network-first for navigation with fallback to /offline.html
+ * Strategy: Precache shell (skip non-200 error pages), network-first for navigation with fallback to /offline.html
  * Bypass: /api/*, /ws, and all non-GET requests
  */
 
-const CACHE_NAME = 'smarthome-cache-v1';
+const CACHE_NAME = 'smarthome-cache-v2';
 
 const SHELL_ASSETS = [
   '/offline.html',
-  '/404.html',
-  '/500.html',
   '/qr_expired.html',
-  '/403.html',
   '/static/css/style.css',
   '/static/css/mobile_app.css',
   '/static/js/app.js',
@@ -29,7 +26,7 @@ self.addEventListener('install', (event) => {
       await Promise.all(
         SHELL_ASSETS.map((url) =>
           cache.add(url).catch((err) => {
-            console.warn('[SW] Precache skipped for ' + url + ':', err);
+            /* precache miss ignored */
           })
         )
       );
