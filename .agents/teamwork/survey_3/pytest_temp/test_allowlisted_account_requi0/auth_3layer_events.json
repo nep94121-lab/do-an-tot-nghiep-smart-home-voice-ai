@@ -6,7 +6,7 @@
     "action": "otp_verified",
     "email": "tan_binh_gia_dinh@gmail.com",
     "status": "PASS",
-    "detail": "Xác nhận đúng mã Gmail OTP ([REDACTED]) cho Tan_Binh_Gia_Dinh (Tầng 2). Chờ Lớp 3 (Giọng nói).",
+    "detail": "Xác nhận đúng mã Gmail OTP (839466) cho Tan_Binh_Gia_Dinh (Tầng 2). Chờ Lớp 3 (Giọng nói).",
     "source": "Web",
     "extra": {}
   },
@@ -17,9 +17,10 @@
     "action": "layer1_passed_otp_issued",
     "email": "tan_binh_gia_dinh@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: [REDACTED] — Đã gửi Gmail thật tới tan_binh_gia_dinh@gmail.com (ID: 1a1a530b895e955b)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 839466 — Đã gửi Gmail thật tới tan_binh_gia_dinh@gmail.com (ID: 1a1a530b895e955b)",
     "source": "Web",
     "extra": {
+      "otp_code": "839466",
       "gmail_delivery": {
         "sent_real_gmail": true,
         "actual_recipient": "tan_binh_gia_dinh@gmail.com",

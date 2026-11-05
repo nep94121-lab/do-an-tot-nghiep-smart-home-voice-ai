@@ -32,6 +32,7 @@ _TRACKED_DATA_FILES = (
     "family_email_allowlist.json",
     "invite_links_3layer.json",
     "ir_devices_db.json",
+    "knowledge_base.json",
     "smarthome.db",
     "system_audit_logs.jsonl",
     "voiceprints.json",
@@ -42,6 +43,7 @@ _INITIAL_DATA_BYTES: dict[str, bytes] = {
     if (DATA_DIR / fname).exists()
 }
 _INITIAL_MGR_ACCOUNTS: list[dict[str, Any]] | None = None
+_INITIAL_MGR_ALLOWLIST: dict[str, Any] | None = None
 
 
 def _restore_tracked_data_files() -> None:
@@ -78,28 +80,47 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def clean_auth_pending_otps() -> None:
     """Ensure pending_otps and tracked data files do not leak state across tests."""
-    global _INITIAL_MGR_ACCOUNTS
+    global _INITIAL_MGR_ACCOUNTS, _INITIAL_MGR_ALLOWLIST
     from simulator.api.deps import _REST_ENGINE
     from simulator.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     if _INITIAL_MGR_ACCOUNTS is None:
         _INITIAL_MGR_ACCOUNTS = copy.deepcopy(mgr.accounts)
+    if _INITIAL_MGR_ALLOWLIST is None and hasattr(mgr, "family_email_allowlist"):
+        _INITIAL_MGR_ALLOWLIST = copy.deepcopy(mgr.family_email_allowlist)
     lock = getattr(mgr, "_otp_lock", threading.Lock())
     with lock:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "pending_invite_registrations"):
+            mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+        if _INITIAL_MGR_ALLOWLIST is not None and hasattr(mgr, "family_email_allowlist"):
+            mgr.family_email_allowlist = copy.deepcopy(_INITIAL_MGR_ALLOWLIST)
     _REST_ENGINE._explicit_test_user_set = False
+    _REST_ENGINE._current_role = "ADMIN"
+    _REST_ENGINE._current_user_id = "tuan_anh"
     _restore_tracked_data_files()
     yield
     with lock:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "pending_invite_registrations"):
+            mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+        if _INITIAL_MGR_ALLOWLIST is not None and hasattr(mgr, "family_email_allowlist"):
+            mgr.family_email_allowlist = copy.deepcopy(_INITIAL_MGR_ALLOWLIST)
     _REST_ENGINE._explicit_test_user_set = False
+    _REST_ENGINE._current_role = "ADMIN"
+    _REST_ENGINE._current_user_id = "tuan_anh"
+    _restore_tracked_data_files()
+
+
+def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+    """Restore tracked data files at the end of the entire pytest session."""
     _restore_tracked_data_files()
 
 
