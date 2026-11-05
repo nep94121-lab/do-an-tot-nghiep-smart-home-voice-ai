@@ -11,6 +11,7 @@ Cung cấp các đối tượng Singleton trung tâm:
 from __future__ import annotations
 
 import copy
+import os
 import pathlib
 from typing import Any
 
@@ -89,8 +90,10 @@ def load_key() -> str:
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             if line.startswith("GEMINI_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    return ""
+                val = line.split("=", 1)[1].strip()
+                if val:
+                    return val
+    return os.environ.get("GEMINI_API_KEY", "").strip()
 
 
 KEY = load_key()

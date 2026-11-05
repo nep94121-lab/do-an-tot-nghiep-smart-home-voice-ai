@@ -922,13 +922,13 @@
         }
         const badge = document.getElementById('authQrCountdownBadge');
         if (badge) {
-          const rem = data.remaining_slot_sec || data.remaining_Slot_sec || 10;
+          const rem = data.remaining_slot_sec || 10;
           badge.textContent = `Còn ${rem}s`;
           badge.className = rem <= 3 ? 'badge badge-fail' : 'badge badge-tier1';
         }
         const linkEl = document.getElementById('authQrOpenLink');
         if (linkEl) {
-          linkEl.href = `/guest_enroll?token=${encodeURIComponent(data.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(targetTier)}`;
+          linkEl.href = `/guest?token=${encodeURIComponent(data.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(targetTier)}`;
         }
         const box = document.getElementById('authQrTokenBox');
         if (box) {

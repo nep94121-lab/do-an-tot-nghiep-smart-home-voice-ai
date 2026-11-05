@@ -1840,8 +1840,27 @@
   if (btnTabGateRegister) btnTabGateRegister.addEventListener("click", () => switchLoginGateTab("register"));
   if (btnTabGateForgot) btnTabGateForgot.addEventListener("click", () => switchLoginGateTab("forgot"));
 
+  function setDeviceAreaLockdown(isLocked) {
+    const devSec = document.getElementById("secDevices") || document.querySelector(".panel.devices");
+    if (!devSec) return;
+    if (isLocked) {
+      devSec.classList.add("devices-logged-out");
+      devSec.setAttribute("aria-hidden", "true");
+      devSec.setAttribute("inert", "");
+    } else {
+      devSec.classList.remove("devices-logged-out");
+      devSec.removeAttribute("aria-hidden");
+      devSec.removeAttribute("inert");
+    }
+  }
+  window.setDeviceAreaLockdown = setDeviceAreaLockdown;
+
+  let inMemoryUserSession = null;
+
   function applyLoggedInUserBanner(userObj) {
     if (!userObj) return;
+    inMemoryUserSession = userObj;
+    setDeviceAreaLockdown(false);
     const tierNum = userObj.tier || 1;
     const rolePrefix = tierNum === 1 ? "👑 Cấp 1 · Chủ nhà" : (tierNum === 2 ? "🏠 Cấp 2 · Gia đình" : "🎫 Cấp 3 · Khách");
     if (homeCurrentAccountBadge) {
@@ -1864,9 +1883,12 @@
         durationBadge.textContent = userObj.validity || "Hiệu lực 24 giờ";
       }
     }
+    loadOwnerDashboardGuestQr();
   }
 
   function clearAuthState() {
+    inMemoryUserSession = null;
+    setDeviceAreaLockdown(true);
     try {
       if (window.localStorage) {
         window.localStorage.removeItem("smarthome_auth_session");
@@ -1918,6 +1940,7 @@
   }
 
   function hasValidLoginSession() {
+    if (inMemoryUserSession && inMemoryUserSession.email) return true;
     try {
       const raw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
       if (!raw) return false;
@@ -1942,6 +1965,7 @@
   window.togglePasswordVisibility = togglePasswordVisibility;
 
   function openLoginGateModal() {
+    setDeviceAreaLockdown(true);
     if (homeLoginGateModal) homeLoginGateModal.classList.remove("hidden");
     if (btnCloseLoginGateModal) {
       btnCloseLoginGateModal.hidden = !hasValidLoginSession();
@@ -1949,11 +1973,13 @@
   }
   function closeLoginGateModal() {
     if (!hasValidLoginSession()) {
+      setDeviceAreaLockdown(true);
       if (gateStatusBox) {
         gateStatusBox.textContent = "⚠️ Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
       }
       return;
     }
+    setDeviceAreaLockdown(false);
     if (homeLoginGateModal) homeLoginGateModal.classList.add("hidden");
   }
 
@@ -2587,6 +2613,69 @@
     }
   });
 
+  async function loadOwnerDashboardGuestQr(retryCount = 0) {
+    const qrBox = byId("ownerDashboardQrBox");
+    const linkText = byId("ownerGuestLinkText");
+    const openLink = byId("ownerGuestOpenLink");
+    const fallbackUrl = (typeof location !== "undefined" && location.origin) ? `${location.origin}/guest` : "/guest";
+    if (linkText) linkText.textContent = fallbackUrl;
+    if (openLink) openLink.href = "/guest";
+    if (!qrBox) return;
+    try {
+      const hostParam = (typeof location !== "undefined" && location.host) ? location.host : "localhost:8088";
+      let tok = (inMemoryUserSession && inMemoryUserSession.session_token) ? inMemoryUserSession.session_token : "";
+      if (!tok) {
+        try {
+          tok = (window.localStorage && window.localStorage.getItem("session_token")) ||
+                (window.sessionStorage && window.sessionStorage.getItem("session_token")) || "";
+          if (!tok && window.localStorage) {
+            const rawSess = window.localStorage.getItem("smarthome_auth_session");
+            if (rawSess) {
+              const parsed = JSON.parse(rawSess);
+              if (parsed && parsed.session_token) tok = parsed.session_token;
+            }
+          }
+        } catch (_) {}
+      }
+      const fetchOpts = tok ? { headers: { Authorization: `Bearer ${tok}` } } : {};
+      const res = await fetch(`/api/auth3/guest_qr_current?duration=1d&target_tier=3&host=${encodeURIComponent(hostParam)}`, fetchOpts);
+      const data = await res.json();
+      if (data && data.ok) {
+        if (data.qr_svg) {
+          qrBox.innerHTML = data.qr_svg;
+          const svgEl = qrBox.querySelector("svg");
+          if (svgEl) {
+            svgEl.setAttribute("width", "96");
+            svgEl.setAttribute("height", "96");
+          }
+        }
+        if (linkText) {
+          linkText.textContent = data.public_guest_url || fallbackUrl;
+        }
+      } else if (retryCount < 3) {
+        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
+      }
+    } catch (_) {
+      if (retryCount < 3) {
+        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
+      }
+    }
+  }
+
+  async function copyOwnerGuestLink() {
+    const linkText = byId("ownerGuestLinkText");
+    const badge = byId("ownerGuestQrBadge");
+    const urlToCopy = (linkText && linkText.textContent) ? linkText.textContent.trim() : `${location.origin}/guest`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(urlToCopy);
+      }
+      if (badge) badge.textContent = "Đã sao chép link";
+    } catch (_) {
+      if (badge) badge.textContent = "Link: /guest";
+    }
+  }
+
   // Export M7 functions to window
   window.retryWsConnection = retryWsConnection;
   window.showWsReconnectBanner = showWsReconnectBanner;
@@ -2606,8 +2695,11 @@
   window.setForgotStep = setForgotStep;
   window.updateConnectionUI = updateConnectionUI;
   window.connectWebSocket = connectWebSocket;
+  window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
+  window.copyOwnerGuestLink = copyOwnerGuestLink;
 
   loadVoiceSamples();
+  loadOwnerDashboardGuestQr();
   pollRestStateFallback();
   setInterval(pollRestStateFallback, 4000);
   connectWebSocket();

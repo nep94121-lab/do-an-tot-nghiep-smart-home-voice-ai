@@ -1930,7 +1930,7 @@
     }
 
     async function copyMobileGuestLink() {
-      const url = document.getElementById('mobileQrUrlText')?.textContent || location.origin + '/guest_enroll';
+      const url = document.getElementById('mobileQrUrlText')?.textContent || location.origin + '/guest';
       try {
         await navigator.clipboard.writeText(url);
         document.getElementById('mobileQrCountdown').textContent = 'Đã sao chép';
@@ -2012,15 +2012,15 @@
         const r = await fetch(`/api/auth3/guest_qr_current?duration=${encodeURIComponent(dur)}&host=${encodeURIComponent(location.host)}&tier=${encodeURIComponent(inviteTier)}`);
         const d = await r.json();
         if (!d.ok) return;
-        const rem = d.remaining_slot_sec || d.remaining_Slot_sec || 10;
+        const rem = d.remaining_slot_sec || 10;
         const cdEl = document.getElementById('mobileQrCountdown');
         if (cdEl) {
           cdEl.textContent = `Đổi mã sau ${rem}s`;
           cdEl.style.color = rem <= 3 ? '#c83e3b' : 'var(--muted)';
         }
         document.getElementById('mobileQrTokenText').textContent = `${d.token}`;
-        document.getElementById('mobileQrUrlText').textContent = d.full_url || d.qr_url;
-        document.getElementById('mobileQrOpenLink').href = `/guest_enroll?token=${encodeURIComponent(d.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(inviteTier)}`;
+        document.getElementById('mobileQrUrlText').textContent = d.public_guest_url || d.full_url || d.qr_url;
+        document.getElementById('mobileQrOpenLink').href = `/guest?token=${encodeURIComponent(d.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(inviteTier)}`;
         const qrContainer = document.getElementById('mobileQrSvgContainer');
         if (d.qr_svg && qrContainer) {
           qrContainer.innerHTML = d.qr_svg;

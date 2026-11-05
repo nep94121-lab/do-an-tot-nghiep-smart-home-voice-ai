@@ -55,7 +55,7 @@ def clean_test_state():
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app)
+    return TestClient(app, headers={"Authorization": "Bearer sess_owner_t1_nep94121"})
 
 
 def _load_wav_as_pcm16k(filename: str) -> bytes:
@@ -101,7 +101,7 @@ def test_guest_qr_current_durations(client: TestClient, dur: str) -> None:
     assert data["duration"] == expected_dur
     assert data["duration_seconds"] == DURATION_MAP_SECONDS[expected_dur]
     assert 1 <= data["remaining_slot_sec"] <= 10
-    assert 1 <= data["remaining_Slot_sec"] <= 10
+    assert "remaining_Slot_sec" not in data
     assert "qr_svg" in data
     assert "<svg" in data["qr_svg"] and "</svg>" in data["qr_svg"]
     assert "/guest_enroll?token=" in data["qr_url"]

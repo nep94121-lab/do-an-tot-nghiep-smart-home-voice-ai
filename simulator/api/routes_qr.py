@@ -24,8 +24,10 @@ import secrets
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+from simulator.auth.session_store import resolve_request_session
 
 from simulator.api.deps import (
     _ACTIVE_BRIDGES,
@@ -44,6 +46,48 @@ from simulator.voice_auth import validate_voice_enrollment_quality
 from simulator.voice_config import sanitize_api_payload
 
 router = APIRouter(tags=["guest_qr"])
+
+
+def _decode_container_audio_to_pcm16k(audio_bytes: bytes) -> bytes:
+    """Giải mã âm thanh từ định dạng container (WAV RIFF, v.v.) sang raw PCM 16kHz 16-bit mono."""
+    if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
+        return audio_bytes
+    try:
+        import io
+        import wave
+        from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+
+        if len(audio_bytes) >= 44 and audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+            with wave.open(io.BytesIO(audio_bytes), "rb"):
+                pass
+            pcm_arr, _ = decode_audio_bytes_to_pcm16k(audio_bytes)
+            if pcm_arr.size > 0:
+                return pcm_arr.astype("int16").tobytes()
+    except Exception:
+        pass
+    try:
+        import io
+        import numpy as np
+        import soundfile as sf
+
+        with sf.SoundFile(io.BytesIO(audio_bytes)) as snd:
+            sr = snd.samplerate
+            channels = snd.channels
+            data = snd.read(dtype="float32")
+
+        if channels > 1:
+            data = np.mean(data, axis=1)
+
+        if sr != 16000:
+            import scipy.signal
+            num_samples = int(round(len(data) * 16000 / sr))
+            data = scipy.signal.resample(data, num_samples)
+
+        clipped = np.clip(data, -1.0, 1.0)
+        pcm_16 = (clipped * 32767.0).astype(np.int16)
+        return pcm_16.tobytes()
+    except Exception:
+        return b""
 
 
 def generate_qr_svg_string(content: str) -> str:
@@ -71,6 +115,7 @@ def generate_qr_svg_string(content: str) -> str:
 @router.get("/api/auth3/qr/generate")
 @router.post("/api/auth3/qr/generate")
 async def api_auth3_guest_qr_current(
+    request: Request,
     payload: dict[str, Any] | None = None,
     duration: str = "1d",
     duration_type: str | None = None,
@@ -82,6 +127,37 @@ async def api_auth3_guest_qr_current(
     tier: int | None = None,
 ) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế cho Khách (Cấp 3) hoặc Gia đình (Cấp 2)."""
+    session = resolve_request_session(request, payload=payload or {}, engine=_REST_ENGINE)
+    if (
+        session.role == "UNKNOWN"
+        or session.tier not in (1, 2, 3)
+        or str(session.user_id).strip().lower() == "unknown"
+    ):
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "tier": 99,
+                    "role": "UNKNOWN",
+                    "error": "Từ chối: Giọng nói hoặc danh tính chưa xác thực (UNKNOWN).",
+                    "status_code": 403,
+                }
+            ),
+            status_code=403,
+        )
+    if not session.is_authenticated:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "error": "Yêu cầu đăng nhập để tạo mã QR Khách (HTTP 401 Unauthorized).",
+                    "status_code": 401,
+                }
+            ),
+            status_code=401,
+        )
+
     mgr3 = get_auth_3layer_manager()
     data = payload or {}
     chosen_dur = str(
@@ -124,9 +200,14 @@ async def api_auth3_guest_qr_current(
     token = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
 
     qr_url = f"/guest_enroll?token={token}&window={window}&dur={chosen_dur}"
+    guest_url = f"/guest?token={token}&window={window}&dur={chosen_dur}"
     if chosen_tier == 2:
         qr_url += "&tier=2"
+        guest_url += "&tier=2"
     full_url = f"{base_host}{qr_url}"
+    guest_full_url = f"{base_host}{guest_url}"
+    public_guest_path = "/guest"
+    public_guest_url = f"{base_host}{public_guest_path}"
 
     if not hasattr(mgr3, "active_qr_tokens"):
         mgr3.active_qr_tokens = {}
@@ -141,7 +222,7 @@ async def api_auth3_guest_qr_current(
         "created_at_ts": now_ts,
     }
 
-    qr_svg = generate_qr_svg_string(full_url)
+    qr_svg = generate_qr_svg_string(public_guest_url)
 
     resp = {
         "ok": True,
@@ -153,10 +234,13 @@ async def api_auth3_guest_qr_current(
         "duration_label": dur_label,
         "duration_seconds": dur_sec,
         "remaining_slot_sec": remaining,
-        "remaining_Slot_sec": remaining,
         "window": window,
         "qr_url": qr_url,
         "full_url": full_url,
+        "guest_url": guest_url,
+        "guest_full_url": guest_full_url,
+        "public_guest_path": public_guest_path,
+        "public_guest_url": public_guest_url,
         "qr_svg": qr_svg,
     }
     return JSONResponse(sanitize_api_payload(resp), status_code=200)
@@ -220,16 +304,23 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     session_id = str(payload.get("session_id") or payload.get("guest_session_id") or "").strip()
     guest_name = str(payload.get("guest_name") or payload.get("speaker_name") or "Khách Quét QR").strip()
     guest_email = str(payload.get("guest_email") or payload.get("email") or "").strip().lower()
+    if guest_email == "nep94121@gmail.com":
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "status": "OWNER_EMAIL_FORBIDDEN",
+                    "error": "Không được dùng email Chủ nhà Cấp 1 để đăng ký Khách Cấp 3!",
+                    "message": "Không được dùng email Chủ nhà Cấp 1 để đăng ký Khách Cấp 3!",
+                }
+            ),
+            status_code=400,
+        )
     verify_only = bool(payload.get("verify_only", False))
-    raw_tier = payload.get("target_tier", payload.get("tier", 3))
-    try:
-        target_tier = int(raw_tier)
-    except (ValueError, TypeError):
-        target_tier = 3
-    if target_tier not in (2, 3):
-        target_tier = 3
-    role_code = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
-    role_label_vn = "Thành viên gia đình Cấp 2" if target_tier == 2 else "Khách Cấp 3"
+    # Luôn cố định tài khoản ở Cấp 3 (CHILD_GUEST), không cho phép client tự leo quyền lên Cấp 1 hoặc 2
+    target_tier = 3
+    role_code = "CHILD_GUEST"
+    role_label_vn = "Khách Cấp 3"
 
     dur_type = str(payload.get("duration") or payload.get("duration_type") or "1d").strip().lower()
     b64_pcm = str(
@@ -251,6 +342,10 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         pcm_bytes = base64.b64decode(b64_pcm) if b64_pcm else b""
     except Exception:
         pcm_bytes = b""
+
+    # Hỗ trợ giải mã âm thanh container WAV (b"RIFF") sang raw PCM 16kHz
+    if pcm_bytes and pcm_bytes.startswith(b"RIFF"):
+        pcm_bytes = _decode_container_audio_to_pcm16k(pcm_bytes)
 
     if not pcm_bytes or len(pcm_bytes) < 4000:
         return JSONResponse(
@@ -333,12 +428,21 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         return JSONResponse(sanitize_api_payload(enroll_res), status_code=400)
 
     if guest_email:
-        mgr3.upsert_speaker_account_for_voice(
+        acc = mgr3.upsert_speaker_account_for_voice(
             email=guest_email,
             speaker_name=guest_name,
             target_tier=target_tier,
-            measured_f0_hz=float(q_res.get("f0_hz") or 180.0),
         )
+        if isinstance(acc, dict) and acc.get("account_id") != "tuan_anh":
+            f0_val = float(q_res.get("f0_hz") or 180.0)
+            acc["voice_verified"] = True
+            acc["needs_first_page_voice_enroll"] = False
+            if isinstance(acc.get("voiceprint"), dict):
+                acc["voiceprint"]["enrolled"] = True
+                acc["voiceprint"]["f0_mean_hz"] = round(f0_val, 1)
+                acc["voiceprint"]["reading_prompt_verified"] = True
+                acc["voiceprint"]["source_device"] = "Guest QR (/guest)"
+            mgr3._save_accounts()
 
     await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
     for br in list(_ACTIVE_BRIDGES):

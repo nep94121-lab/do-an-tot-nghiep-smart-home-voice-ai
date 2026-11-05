@@ -129,7 +129,7 @@
             </div>
           </section>
 
-          <section class="panel devices" aria-labelledby="device-title">
+          <section class="panel devices" id="secDevices" aria-labelledby="device-title">
             <div class="panel-head">
               <h2 id="device-title">Thiết bị</h2>
             </div>
@@ -204,6 +204,26 @@
             <p class="schedule-empty" id="scheduleEmptyText">Chưa có lịch</p>
             <div id="timerList" class="schedule-list" hidden></div>
             <div id="ruleList" class="schedule-list" hidden></div>
+          </section>
+
+          <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
+            <div class="panel-head">
+              <h2 id="guest-qr-title">Mã QR Khách (Cấp 3)</h2>
+              <span class="status" id="ownerGuestQrBadge">Cấp 3 · Công khai</span>
+            </div>
+            <div class="guest-qr-card">
+              <div id="ownerDashboardQrBox" class="guest-qr-svg-wrap" role="img" aria-label="Mã QR đăng ký Khách Cấp 3"></div>
+              <div class="guest-qr-info">
+                <p class="subtle">Khách quét mã QR để mở trang <strong>/guest</strong> trên điện thoại, nhập Họ tên + Email và thu âm giọng nói (Cấp 3, không cần đăng nhập).</p>
+                <div class="guest-qr-url-box">
+                  <code id="ownerGuestLinkText">/guest</code>
+                </div>
+                <div class="guest-qr-actions">
+                  <a id="ownerGuestOpenLink" class="btn btn-primary" href="/guest">Mở trang Khách (/guest)</a>
+                  <button type="button" id="btnCopyOwnerGuestLink" class="btn btn-secondary" onclick="window.copyOwnerGuestLink()">Sao chép liên kết</button>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </main>
@@ -280,7 +300,7 @@
   </div>
 
   <!-- TRANG ĐĂNG NHẬP (LOGIN GATE) TRƯỚC KHI VÀO NHÀ THÔNG MINH -->
-  <div id="homeLoginGateModal" class="modal hidden" style="z-index:200; background:rgba(23,43,49,0.55);">
+  <div id="homeLoginGateModal" class="modal hidden" style="z-index:200; background:rgba(23,43,49,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
     <div class="modal-content" style="max-width:460px;">
       <div class="modal-header">
         <div>
@@ -353,7 +373,7 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <button type="submit" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
+        <button type="button" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
           Xác nhận 2 mật khẩu &amp; Lưu tài khoản
         </button>
       </form>
@@ -402,7 +422,7 @@
           </div>
           <div style="display:flex; gap:6px;">
             <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 2</button>
-            <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
+            <button type="button" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
               Đặt lại mật khẩu
             </button>
           </div>

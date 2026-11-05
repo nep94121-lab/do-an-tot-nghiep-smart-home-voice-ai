@@ -6,6 +6,7 @@ network sockets or CLI commands are executed during test runs.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import pathlib
@@ -22,6 +23,42 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+DATA_DIR = ROOT / "simulator" / "data"
+_TRACKED_DATA_FILES = (
+    "accounts_3layer.json",
+    "auth_3layer_events.json",
+    "custom_rules_overlay.json",
+    "family_email_allowlist.json",
+    "invite_links_3layer.json",
+    "ir_devices_db.json",
+    "smarthome.db",
+    "system_audit_logs.jsonl",
+    "voiceprints.json",
+)
+_INITIAL_DATA_BYTES: dict[str, bytes] = {
+    fname: (DATA_DIR / fname).read_bytes()
+    for fname in _TRACKED_DATA_FILES
+    if (DATA_DIR / fname).exists()
+}
+_INITIAL_MGR_ACCOUNTS: list[dict[str, Any]] | None = None
+
+
+def _restore_tracked_data_files() -> None:
+    for fname, raw_bytes in _INITIAL_DATA_BYTES.items():
+        fpath = DATA_DIR / fname
+        try:
+            if not fpath.exists() or fpath.read_bytes() != raw_bytes:
+                fpath.write_bytes(raw_bytes)
+        except Exception:
+            pass
+    for wal_ext in ("smarthome.db-wal", "smarthome.db-shm"):
+        wal_path = DATA_DIR / wal_ext
+        if wal_path.exists():
+            try:
+                wal_path.unlink()
+            except Exception:
+                pass
 
 
 @pytest.fixture(autouse=True)
@@ -40,16 +77,30 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def clean_auth_pending_otps() -> None:
-    """Ensure pending_otps does not leak state across tests."""
+    """Ensure pending_otps and tracked data files do not leak state across tests."""
+    global _INITIAL_MGR_ACCOUNTS
+    from simulator.api.deps import _REST_ENGINE
     from simulator.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
+    if _INITIAL_MGR_ACCOUNTS is None:
+        _INITIAL_MGR_ACCOUNTS = copy.deepcopy(mgr.accounts)
     lock = getattr(mgr, "_otp_lock", threading.Lock())
     with lock:
-        mgr.pending_otps.clear()
+        dict.clear(mgr.pending_otps)
+        if hasattr(mgr, "otp_failed_attempts"):
+            mgr.otp_failed_attempts.clear()
+        mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+    _REST_ENGINE._explicit_test_user_set = False
+    _restore_tracked_data_files()
     yield
     with lock:
-        mgr.pending_otps.clear()
+        dict.clear(mgr.pending_otps)
+        if hasattr(mgr, "otp_failed_attempts"):
+            mgr.otp_failed_attempts.clear()
+        mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+    _REST_ENGINE._explicit_test_user_set = False
+    _restore_tracked_data_files()
 
 
 @pytest.fixture(autouse=True)
