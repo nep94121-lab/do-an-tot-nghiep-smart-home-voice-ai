@@ -1,65 +1,51 @@
-# BRIEFING — 2026-11-04T07:12:00Z
+# BRIEFING — 2026-11-05T07:44:00Z
 
 ## Mission
-Adversarial empirical testing & stress-testing Milestone 3: 3D Model DOM, Controls & Raycaster.
+Empirically challenge and adversarially stress-test Milestone 3 (Email RFC 5322 Standards & Deliverability) to find bugs, verify contracts, and issue APPROVE/REJECT verdict.
 
 ## 🔒 My Identity
-- Archetype: empirical challenger
+- Archetype: teamwork_challenger
 - Roles: critic, specialist
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m3_1
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 3 (3D Model DOM, Controls & Raycaster)
+- Working directory: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m3_1
+- Original parent: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Milestone: milestone_3
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code directly
-- Must empirically execute tests and harnesses
-- Strictly verify findings before concluding APPROVE or REQUEST_CHANGES
-- Communicate to caller via send_message
+- Review-only — do NOT modify implementation code
+- Write and execute adversarial test cases independently
+- Zero-trust of worker claims: every claim must be backed by empirical execution
+- Issue explicit APPROVE or REJECT verdict based on test results
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T07:12:00Z
+- Conversation ID: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Updated: 2026-11-05T07:44:00Z
 
 ## Review Scope
-- **Files reviewed**:
-  - `simulator/static/house3d.js`
-  - `simulator/static/css/style.css`
-  - `simulator/static/index.html`
-  - `simulator/static/js/app.js`
-  - `simulator/static/style.css` (legacy duplicate checked)
-  - `tests/test_challenger_m4_dom.py`
-  - `tests/e2e/test_all_36_project_flows.py`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, worker_m3 handoff.md
-- **Review criteria**: Correctness, stress resistance, edge cases, DOM persistence, Raycaster accuracy
+- **Files reviewed**: `simulator/auth/invite_and_gmail_mixin.py`, `tests/test_phase6_r3_rfc5322.py`, `tests/test_phase5_r3_otp_email.py`
+- **Interface contracts**: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md` (Milestone 3 Contract)
+- **Review criteria**: RFC 5322 compliance, Subject anti-spam enforcement (no digits, no all-caps, no emojis), MIME multipart text/plain + text/html, Gmail API base64url decoding with nested structures, Zero-Leak security.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Drag > 6px vs click <= 6px distinguishes camera orbit from device toggle [CONFIRMED]
-  - Touch tap <= 10px vs swipe > 10px [CONFIRMED]
-  - Raycaster ray intersection resolves device keys correctly for all 7 actuators [CONFIRMED]
-  - Parent hierarchy traversal resolves deviceId for deep nested meshes [CONFIRMED]
-  - `#house3dLabels` and `.viewport-note` survive container re-init and `container.innerHTML = ""` removal [CONFIRMED]
-  - `.pin-icon` display restored in `simulator/static/css/style.css` [CONFIRMED]
-  - 7 camera preset buttons work with valid coordinates and transitions [CONFIRMED]
-  - Regression stability across 36 E2E flows [CONFIRMED]
+  1. Header Injection & Fuzzing: Unicode display names across 5 languages, quotes, brackets, and CRLF injection attempts (`\r\nBcc:`). Result: PASSED. Python email library strictly detects embedded headers and raises `HeaderParseError`, completely preventing malicious header injection.
+  2. Subject Anti-Spam: Digits, ALL-CAPS words, and emojis in subjects under adversarial caller inputs. Result: PASSED. OTP subjects are hardcoded to "Smart Home Voice - Mã xác thực tài khoản" (0 digits, 0 all-caps, 0 emojis).
+  3. MIME Payload Hygiene: Multipart/alternative structure, zero emojis in plain text and HTML, light background (#ffffff / #f8fafc), container `id="otp-code-value"`, zero deceptive Google OAuth claims. Result: PASSED.
+  4. Gmail Scraper Resilience: 4 levels of nested multipart payloads, malformed Base64 padding (`len % 4 == 1`), single-part direct payload, HTML container precedence over distractor numbers in snippet, leading zeros preservation (`001234`), container whitespaces. Result: PASSED.
+  5. Zero-Leak: Verification that `GMAIL_APP_PASSWORD` and `SMTP_PASSWORD` are never reflected in return dictionaries or audit logs. Result: PASSED.
 - **Vulnerabilities found**:
-  - Minor non-blocking legacy discrepancy: `simulator/static/style.css` still contains old `display: none !important;` rule, whereas `simulator/static/css/style.css` is used by `index.html`.
+  - [Informational / Edge-case Observation]: In `_extract_payload_text`, if a Gmail API payload contains a part with `body: None` and `parts: None` (or missing), `part.get("body", {}).get(...)` raises `AttributeError: 'NoneType' object has no attribute 'get'`. The outer try/except in `read_latest_otp_from_gmail_inbox` safely catches this and returns `{"ok": False, "error": ...}` without server crash.
 - **Untested angles**:
-  - WebGL shader rendering fidelity on actual physical GPU hardware (mocked in headless node VM, verified via DOM/Three.js state machine).
-
-## Loaded Skills
-- None explicitly loaded from prompt.
+  - Live production network dispatches to Gmail (intentionally reserved for Milestone 4 under test isolation protocol).
 
 ## Key Decisions Made
-- Executed Node.js + Three.js adversarial harness (61 tests, 100% PASS).
-- Executed Python adversarial test suite (31 tests, 100% PASS).
-- Executed pytest test_challenger_m4_dom.py (36 tests, 100% PASS).
-- Executed pytest test_all_36_project_flows.py (36 tests, 100% PASS).
-- Verdict: APPROVE.
+- [2026-11-05] Authored `tests/test_challenger_m3_rfc5322.py` containing 35 adversarial empirical tests.
+- [2026-11-05] Verified full test pass: 35/35 challenger tests passed, 94/94 combined regression tests passed.
+- [2026-11-05] Verdict: APPROVE.
 
 ## Artifact Index
-- `.agents/teamwork/challenger_m3_1/adversarial_harness.js` — 61-point Node.js/Three.js stress test harness
-- `.agents/teamwork/challenger_m3_1/test_m3_adversarial.py` — 31-point Pytest adversarial suite
-- `.agents/teamwork/challenger_m3_1/progress.md` — Execution heartbeat
-- `.agents/teamwork/challenger_m3_1/handoff.md` — Final adversarial report
+- DISPATCH.md — Dispatch instructions from parent orchestrator
+- BRIEFING.md — Current persistent state and identity
+- progress.md — Liveness heartbeat and execution log
+- tests/test_challenger_m3_rfc5322.py — Adversarial empirical test suite (35 tests)
+- handoff.md — Comprehensive handoff report with empirical evidence and final verdict

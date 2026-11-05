@@ -1,25 +1,25 @@
-## 2026-11-04T07:02:59Z
-Bạn là Subagent teamwork_reviewer (Reviewer 1) thực hiện đánh giá độc lập Milestone 3: 3D Model DOM, Controls & Raycaster.
+## 2026-11-05T07:31:17Z
+You are reviewer_m3_1 (teamwork_reviewer).
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m3_1
+Your parent orchestrator is: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
 
-MANDATORY: Đọc kỹ các tài liệu sau trước khi thẩm định:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M3: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\handoff.md`
+MANDATORY READING BEFORE REVIEW:
+1. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md
+2. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md (Milestone 3 Contract)
+3. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\handoff.md
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m3_1\`
-
-Nhiệm vụ cụ thể:
-1. Kiểm tra mã nguồn 4 tệp đã sửa:
-   - `simulator/static/house3d.js` (xóa canvas cũ, `insertBefore(renderer.domElement, container.firstChild)`, giữ `#house3dLabels` và `.viewport-note`, `THREE.Raycaster`, phân biệt drag vs click <= 6px, gán `userData.deviceId`)
-   - `simulator/static/css/style.css` (bỏ `display: none !important` trên `.pin-icon`, hiển thị rõ emoji, tên thiết bị, trạng thái ON/OFF)
-   - `simulator/static/index.html` (7 nút preset camera trên header panel Ngôi nhà, nhãn `#lblCurrentCameraView`)
-   - `simulator/static/js/app.js` (`initCameraToolbar()`, gắn click listener gọi `SmartHome3D.setCameraView`)
-2. Chạy kiểm thử xác thực:
-   - `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_rev_m3_1`
-   - `node -c simulator/static/house3d.js`
-   - `node -c simulator/static/js/app.js`
-3. Đánh giá tính đầy đủ, độ bền vững, tính an toàn và đưa ra kết luận rõ ràng: APPROVE hoặc REQUEST_CHANGES.
-
-Viết báo cáo đánh giá chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m3_1\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+TASK:
+Perform independent code review and test verification for Milestone 3 (R3: Email RFC 5322 Standards & Deliverability):
+1. Review `simulator/auth/invite_and_gmail_mixin.py`:
+   - Verify `From`, `Date`, `Message-ID`, `Reply-To`, `To` headers RFC 5322 compliance.
+   - Verify Subject lines contain NO OTP codes, NO ALL-CAPS words ('OTP', 'AI', 'OAUTH'), NO emojis.
+   - Verify MIME multipart/alternative structure: `text/plain` (first, zero emojis) + light-background `text/html` (second, zero emojis, clean typography, NO fake Google OAuth branding).
+   - Verify `read_latest_otp_from_gmail_inbox` query `q`, Base64URL payload decoding, and 3-tier regex extraction.
+2. Review tests in `tests/test_phase6_r3_rfc5322.py` and `tests/test_phase5_r3_otp_email.py`.
+3. Check 0 CRLF and UTF-8 without BOM.
+4. Verify Zero-Leak constraint (0 SMTP secrets logged or exposed).
+5. Run test verification:
+   `pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+   `pytest tests/test_challenger_phase5_r2_r3.py -v`
+6. Write your independent review report to `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m3_1\handoff.md` with explicit Verdict: APPROVE or REQUEST_CHANGES.
+7. Send completion message with your verdict to parent orchestrator.

@@ -1,24 +1,28 @@
-## 2026-11-04T06:36:24Z
-Bạn là Subagent teamwork_reviewer (Reviewer 1) thực hiện đánh giá độc lập Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+## 2026-11-05T06:54:44Z
+You are Reviewer 1 (reviewer_m2_1), archetype teamwork_reviewer.
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m2_1
+You MUST read ORIGINAL_REQUEST.md at: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md before starting work.
+Read Worker M2's handoff: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m2\handoff.md
+Read SCOPE.md at: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md
 
-MANDATORY: Đọc kỹ các tài liệu sau trước khi thẩm định:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M2: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m2\handoff.md`
-
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m2_1\`
-
-Nhiệm vụ cụ thể:
-1. Kiểm tra mã nguồn 5 tệp đã sửa:
-   - `simulator/static/index.html` (khóa cứng modal `#homeLoginGateModal`, ẩn `#btnCloseLoginGateModal`, thẻ `<form>`, nút 👁️ toggle)
-   - `simulator/static/js/app.js` (hàm `hasValidLoginSession`, chặn đóng khi chưa auth, chặn click backdrop/ESC, export `window.togglePasswordVisibility`)
-   - `simulator/static/js/auth.js` (bỏ `readOnly = true` ở dòng 56 & 60)
-   - `mobile_app/index.html` (khối `<svg>` sprite đặt ngay sau `<body>`, tab đặt/đổi mật khẩu 2 ô kèm nút 👁️)
-   - `simulator/static/js/mobile_app.js` (hàm đổi mật khẩu, đăng ký, toggle eye)
-2. Chạy kiểm thử xác thực:
-   - `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_rev_m2_1`
-3. Đánh giá tính đầy đủ, độ bền vững, tính an toàn và đưa ra kết luận rõ ràng: APPROVE hoặc REQUEST_CHANGES.
-
-Viết báo cáo đánh giá chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m2_1\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+Mission: Review Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes)
+1. Inspect code changes:
+   - simulator/auth_3layer.py:
+     * threading.Lock() usage for self._otp_lock.
+     * 60s cooldown and idempotency logic in request_password_reset_otp: preserves existing valid OTP, returns idempotent response without sending duplicate emails.
+     * destruction of consumed OTP in reset_password_with_otp.
+   - simulator/static/js/app.js:
+     * elimination of form submit -> button.click() recursion.
+     * inFlight flag and button.disabled state management.
+     * 60s countdown timer on #btnSendForgotOtp.
+   - simulator/static/index.html:
+     * form submit behavior and elimination of duplicate onclick.
+   - tests/test_phase6_r2_cooldown_triggers.py:
+     * 12/12 tests coverage and correctness.
+2. Verify Interface Conformance, Correctness, Robustness:
+   - Run tests: pytest tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py -v
+3. Verdict:
+   - State clearly in handoff.md: APPROVE or REQUEST_CHANGES.
+   - Write your report to C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m2_1\handoff.md
+   - DO NOT read, write, or print SMTP secret values.
+   - Notify orchestrator via send_message when done.

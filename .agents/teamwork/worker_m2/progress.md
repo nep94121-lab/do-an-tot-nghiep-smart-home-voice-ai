@@ -1,16 +1,15 @@
-# Tiến độ thực hiện - Milestone 2
+# Progress Tracker - Worker M2 (R2 Anti-Double-Send Cooldown & Trigger Fixes)
+Last visited: 2026-11-05T06:39:00Z
 
-Last visited: 2026-11-04T06:34:00Z
+## Status
+All implementations and verification completed. All 51 tests in target suites and 175 tests in challenger suites pass cleanly with Exit Code 0. Writing handoff.md and preparing to notify orchestrator.
 
-- [x] Khởi tạo môi trường làm việc `worker_m2`, `DISPATCH.md`, `BRIEFING.md`.
-- [x] Đọc các tài liệu cơ sở: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `survey_2/handoff.md`.
-- [x] Chạy baseline test hiện tại để ghi nhận tình trạng (`tests/test_challenger_m4_dom.py` 36/36 PASS).
-- [x] Khảo sát chi tiết 5 file thuộc quyền sở hữu.
-- [x] Triển khai Mục 1: Khóa cứng Login Gate trong `simulator/static/index.html` và `simulator/static/js/app.js` (ẩn nút X khi chưa có session, chặn backdrop click & ESC key, bắt buộc đăng nhập `nep94121@gmail.com` / `123456`).
-- [x] Triển khai Mục 2: Mở khóa họ tên & email trong `simulator/static/js/auth.js` (bỏ `readOnly = true` ở dòng 56 & 60, cho phép sửa tự do).
-- [x] Triển khai Mục 3: Thêm `<form onsubmit="event.preventDefault();">` cho các form đăng nhập/đổi mật khẩu, hỗ trợ nhấn phím Enter.
-- [x] Triển khai Mục 4 & 5: Bổ sung nút 👁️ toggle password và đảm bảo 2 ô xác nhận mật khẩu (Web & Mobile).
-- [x] Triển khai Mục 6: Di chuyển SVG sprite trong `mobile_app/index.html` ra ngay sau `<body>`, hiển thị icon `#i-home` chuẩn 100%.
-- [x] Chạy kiểm thử tự động, xác minh 36/36 PASS không hồi quy.
-- [x] Soát lỗi CRLF, UTF-8 không BOM (kết quả: 0 CRLF, 0 BOM).
-- [ ] Viết `handoff.md` và gửi tin nhắn báo cáo về cho Orchestrator.
+## Steps
+- [x] Step 0: Initialize DISPATCH.md, BRIEFING.md, progress.md
+- [x] Step 1: Read reference docs (ORIGINAL_REQUEST.md, explorer_survey_2/survey_report.md, handoff.md, SCOPE.md)
+- [x] Step 2: Inspect existing code (`simulator/auth_3layer.py`, `simulator/api/routes_auth.py`, `simulator/static/js/app.js`, `simulator/static/index.html`)
+- [x] Step 3: Write TDD test file `tests/test_phase6_r2_cooldown_triggers.py` and run tests to verify expected failures (Red stage: 10 failed, 2 passed)
+- [x] Step 4: Implement backend changes in `simulator/auth_3layer.py` (thread lock `_otp_lock`, 60s cooldown, destroy OTP after reset)
+- [x] Step 5: Implement frontend changes in `simulator/static/js/app.js` and `simulator/static/index.html` (inFlight guards, disabled states, countdown timer, eliminate submit -> click recursion)
+- [x] Step 6: Verify all tests (`pytest tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py -v`: 51 passed)
+- [x] Step 7: Final review, update BRIEFING.md, write handoff.md, send message to orchestrator

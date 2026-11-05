@@ -14,7 +14,9 @@ Kiểm định:
 
 from __future__ import annotations
 
+import email.utils
 import os
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -103,6 +105,36 @@ class TestPhase5R3PasswordResetOtpEmail:
 
             # Đảm bảo smtplib.SMTP được gọi
             assert mock_smtp_cls.called, "smtplib.SMTP chưa được gọi để gửi mail!"
+            assert mock_smtp.send_message.called, "server.send_message chưa được gọi!"
+            msg = mock_smtp.send_message.call_args[0][0]
+
+            # 1. Kiểm tra RFC 5322 Headers
+            assert "Smart Home Voice AI" in msg["From"]
+            assert msg["Date"] is not None and len(msg["Date"]) > 5
+            assert msg["Message-ID"] is not None and msg["Message-ID"].startswith("<") and msg["Message-ID"].endswith(">")
+            assert msg["Reply-To"] is not None and "Smart Home Voice AI" in msg["Reply-To"]
+
+            # 2. Kiểm tra Subject: Không chứa OTP, không ALL-CAPS, không Emoji
+            subject = msg["Subject"]
+            assert re.search(r"\b\d{6}\b", subject) is None, f"Subject chứa mã OTP: {subject}"
+            all_caps_words = [w for w in re.findall(r"\b[A-Z]{2,}\b", subject)]
+            assert not all_caps_words, f"Subject chứa từ ALL-CAPS: {all_caps_words} in '{subject}'"
+            assert re.search(r"[\U00010000-\U0010ffff]", subject) is None, f"Subject chứa emoji: {subject}"
+
+            # 3. Kiểm tra Multipart Structure
+            assert msg.is_multipart(), "Thư phải là MIME multipart/alternative!"
+            payload_parts = msg.get_payload()
+            assert len(payload_parts) >= 2, "Thư phải có ít nhất 2 part (text/plain và text/html)!"
+
+            content_types = [p.get_content_type() for p in payload_parts]
+            assert "text/plain" in content_types, "Thiếu part text/plain!"
+            assert "text/html" in content_types, "Thiếu part text/html!"
+
+            # 4. Kiểm tra Plain Text & HTML không chứa emoji và không có Google OAuth lừa đảo
+            for part in payload_parts:
+                body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                assert re.search(r"[\U00010000-\U0010ffff]", body) is None, f"Part {part.get_content_type()} chứa emoji!"
+                assert "Google OAuth" not in body, f"Part {part.get_content_type()} chứa deceptive Google OAuth branding!"
 
     def test_r3_frontend_js_guards_against_fake_step_transition(self):
         """Kịch bản 3: Mã JS trên frontend phải kiểm tra sent_real_gmail trước khi chuyển bước 2."""

@@ -1,120 +1,130 @@
-# Báo Cáo Bàn Giao Kỹ Thuật (Milestone 1)
-## Deployment & Connectivity (Vercel, HTTPS Tunnel, LAN IP & QR TOTP Extension)
+# Báo Cáo Bàn Giao (Handoff Report) — Worker M1 (worker_m1)
 
-**Người thực hiện:** `worker_m1` (Teamwork Implementer & QA)  
-**Ngày thực hiện:** 2026-11-04  
-**Chỉ thị dispatch:** `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m1\DISPATCH.md`  
-**Quyền sở hữu tệp (Write Ownership):**
-1. `vercel.json` (tạo mới ở thư mục gốc)
-2. `simulator/auth/qr_totp_mixin.py`
-3. `simulator/api/routes_qr.py`
-4. `simulator/static/js/guest_enroll.js`
+**Nhiệm vụ:** Hoàn thành Milestone 1 (R1 Email Allowlist & Test Isolation)  
+**Tác giả:** Worker M1 (`worker_m1` - `teamwork_worker`)  
+**Ngày thực hiện:** 05/11/2026  
+**Thư mục làm việc:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m1`  
+**Trạng thái:** COMPLETED (Exit Code 0)  
 
 ---
 
-## 1. Observation (Dữ Liệu & Thực Nghiệm Trực Tiếp)
+## 1. Quan Sát Thực Tế (Observation)
 
-### 1.1. Hiện trạng Mã nguồn Trước khi Sửa
-- Trong `simulator/auth/qr_totp_mixin.py` (dòng 131 và 162):
-  - Vòng lặp HMAC fallback chỉ kiểm tra: `for w_chk in (cur_window, cur_window - 1):` (tối đa lùi 1 chu kỳ = 10s).
-  - Điều kiện hết hạn: `if abs(cur_window - token_win) > 1: return {"ok": False, "error": "Mã QR đã hết hạn 10 giây...", "status_code": 401}`.
-  - Hậu quả: Khi khách quét mã QR trên điện thoại (mất 15 - 45s để mở camera, bấm link, tải trang), request handshake luôn bị máy chủ từ chối với mã 401.
-- Trong `simulator/api/routes_qr.py` (dòng 108-113):
-  - Logic gán prefix: Nếu `chosen_host` không có `http://` hay `https://`, code mặc định gán `http://{chosen_host}`.
-  - Hậu quả: Domain tunnel công cộng như `04f0beba8cdda9.lhr.life` bị gắn nhầm thành `http://` khiến trình duyệt chặn truy cập Microphone (do thiếu Secure Context).
-- Trong `simulator/static/js/guest_enroll.js` (dòng 127-143):
-  - `initQrHandshake()` chỉ đọc `dur` và `tier`, không đọc tham số `token` và `window` từ URL query params. Nó tự động gọi `refreshGuestQrNow()` để fetch token mới từ server, gây lệch pha với mã QR hiển thị trên màn hình.
-- File cấu hình `vercel.json`: Chưa tồn tại ở thư mục gốc.
+### 1.1. Hiện trạng Trước Khi Thực Hiện
+1. **Lỗ hổng gửi thư thật ra ngoài:**
+   - Trong `simulator/auth/invite_and_gmail_mixin.py` (cũ):
+     Hàm `send_real_gmail_otp` (dòng 587–594) chỉ kiểm tra 4 hậu tố (`.hust@gmail.com`, `.guest@gmail.com`, `.invite@gmail.com`, `.family@gmail.com`) rồi re-map sang `nep94121@gmail.com`. Mọi email test khác (`thanh_vien_chuan@gmail.com`, `hoc_sinh_moi@gmail.com`, `tan_binh_gia_dinh@gmail.com`) đều bị giữ nguyên `actual_to = recipient` và gọi SMTP/gws thật, gây bounce mail.
+     Hàm `send_invite_link_via_gmail` (dòng 503–576) hoàn toàn không có bất kỳ bộ lọc allowlist nào.
+2. **Cổng Đăng Nhập Trang Chủ (`/`):**
+   - Trong `simulator/static/js/app.js` (dòng 1752–1756), sự kiện click `#btnSubmitGateLogin` gửi fetch `/api/auth3/layer1_login` nhưng không có `"send_gmail": false`. Kết hợp với mặc định của backend (`send_gmail = bool(payload.get("send_gmail", True))`), mỗi lần đăng nhập hay chạy Playwright live test đều kích hoạt gửi thư thật.
+3. **Thiếu Pytest Fixture Cô Lập Toàn Cục:**
+   - Thư mục `tests/` không có `tests/conftest.py`, dẫn đến `pytest tests/test_phase5_r3_otp_email.py` báo `ModuleNotFoundError: No module named 'simulator'` và không có mock mạng toàn cục.
+4. **Ô Nhiễm Dữ Liệu Tệp Cấu Hình:**
+   - `simulator/data/accounts_3layer.json` chứa 18 tài khoản (trong đó có 12 tài khoản test rác).
+   - `simulator/data/family_email_allowlist.json` chứa 10 bản ghi rác từ các lượt chạy test trước.
 
-### 1.2. Các Lệnh Đã Thực Thi & Kết Quả
-1. **Kiểm thử Pytest:**
-   - Lệnh: `python -m pytest tests/test_milestone_m2_qr_guest.py -v --basetemp=.pytest_temp_m1`
-   - Kết quả: `17 passed, 3 warnings in 9.38s` (Đạt 100% PASS, Exit Code: 0).
-2. **Kiểm thử Trực Giao Độc Lập (Orthogonal Verification Script):**
-   - Lệnh: Kiểm tra sinh token cách 120s (12 chu kỳ), gọi `consume_guest_handshake` -> `res['ok'] is True`.
-   - Kiểm tra Single-Use Token replay: Gọi lại token vừa dùng -> `res['ok'] is False` (bảo vệ chống Replay Attack thành công).
-   - Kiểm tra token hết hạn > 180s (200s, 20 chu kỳ) -> `res['ok'] is False` (từ chối chính xác).
-   - Kiểm tra auto-prefix HTTPS: Gọi `/api/auth3/guest_qr_current?host=04f0beba8cdda9.lhr.life` -> `full_url` bắt đầu bằng `https://04f0beba8cdda9.lhr.life`.
-   - Kết quả: `ALL ORTHOGONAL CHECKS PASSED 100%!`.
-3. **Triển khai Vercel Production:**
-   - Lệnh: `vercel --prod --yes`
-   - Vercel Production URL (Aliased): `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`
-   - Deployment URL: `https://do-an-tot-nghiep-smart-home-voice-nxjpv0jy8.vercel.app`
-   - Inspect Dashboard: `https://vercel.com/tuananhs-projects-8aea56ce/do-an-tot-nghiep-smart-home-voice-ai/7u5m3Wd7mkPhJp4JtHFzgdnepjEk`
-   - Kiểm tra phản hồi HTTP thực tế qua Python urllib:
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/` -> `200 OK` (21,418 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/app` -> `200 OK` (24,269 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/auth` -> `200 OK` (26,896 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/guest_enroll` -> `200 OK` (9,806 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/logs` -> `200 OK` (13,061 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/wokwi` -> `200 OK` (43,616 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/archify` -> `200 OK` (862,456 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/archify/devops` -> `200 OK` (851,022 bytes)
-     - `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/static/style.css` -> `200 OK` (15,817 bytes)
-4. **Git Commit & Push:**
-   - Lệnh: `git commit -m "feat(milestone1): deploy vercel config, qr totp 180s window, routes_qr https detection and guest enroll token handshake" && git push origin master`
-   - Commit Hash: `5d99581`
-   - Repository: `https://github.com/nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai.git`
+### 1.2. Các Thay Đổi Đã Thực Hiện
+1. **Tạo mới `tests/conftest.py`:**
+   - Đưa `ROOT` vào `sys.path`.
+   - Cung cấp `@pytest.fixture(autouse=True)` `mock_email_and_gws_network_isolation(monkeypatch)` mock toàn diện `smtplib.SMTP`, `smtplib.SMTP_SSL` và `subprocess.run` cho các lệnh `"gws"`.
+2. **Tạo mới `tests/test_phase6_r1_allowlist_isolation.py` (TDD First):**
+   - 35 ca kiểm thử bao phủ toàn diện:
+     - `TestAllowlistEngine`: kiểm tra email hợp lệ, email không hợp lệ, phân biệt hoa thường, khoảng trắng, mở rộng qua biến môi trường `REAL_EMAIL_ALLOWLIST`.
+     - `TestDispatcherAllowlistGate`: kiểm tra `send_real_gmail_otp` và `send_invite_link_via_gmail` chặn tức thì email ngoài allowlist không gọi SMTP/gws, và cho phép email thuộc allowlist.
+     - `TestApiRoutesAllowlistIsolation`: kiểm tra endpoint `/api/auth3/forgot_password_send_otp` và `/api/auth3/send_invite_email`.
+     - `TestAutouseFixtureIsolation`: kiểm tra mock mạng mặc định của conftest.
+     - `TestFrontendAppJsConfiguration`: kiểm tra payload của `#btnSubmitGateLogin` có `"send_gmail": false`.
+     - `TestCleanDataFixtures`: kiểm tra `accounts_3layer.json` có đúng 6 tài khoản và `family_email_allowlist.json` rỗng `{}`.
+3. **Cập nhật `simulator/auth/invite_and_gmail_mixin.py`:**
+   - Định nghĩa `HARDCODED_REAL_EMAIL_ALLOWLIST = {"nep94121@gmail.com", "senat6031@gmail.com", "kbanh376@gmail.com"}`.
+   - Thêm hàm `is_email_allowlisted_for_real_send(email: str | None) -> bool` chuẩn hóa regex, trim, lowercase, kết hợp env `REAL_EMAIL_ALLOWLIST`.
+   - Thêm alias `is_real_email_allowed = is_email_allowlisted_for_real_send`.
+   - Cài đặt Allowlist Gate tại đầu hàm `send_real_gmail_otp` và `send_invite_link_via_gmail`: nếu không thuộc allowlist, log sự kiện và trả về ngay lập tức:
+     `sent_real_gmail: False`, `blocked_by_allowlist: True`, không chạm vào giao thức mạng SMTP hay subprocess gws.
+4. **Cập nhật `simulator/static/js/app.js`:**
+   - Thêm `"send_gmail": false` vào body fetch gọi `/api/auth3/layer1_login` tại `#btnSubmitGateLogin` (dòng 1755).
+5. **Thanh lọc dữ liệu (Data Cleanup):**
+   - Khôi phục `simulator/data/accounts_3layer.json` về đúng 6 tài khoản mặc định chuẩn (`tuan_anh`, `thanh_vien_a`, `thanh_vien_b`, `khach_c`, `senat6031`, `kbanh376`).
+   - Khôi phục `simulator/data/family_email_allowlist.json` về `{}`.
 
----
-
-## 2. Logic Chain (Chuỗi Lập Luận Kỹ Thuật)
-
-1. **Về Cấu hình Vercel (`vercel.json`):**
-   - Dự án là một ứng dụng Hybrid: Backend FastAPI (chứa SQLite WAL, WebSocket hai chiều, mô hình AI âm học) chạy tại máy trạm, trong khi Frontend là tập hợp các trang Web HTML5/CSS3/Three.js phục vụ người dùng.
-   - Khi deploy lên Vercel, Vercel tự động nhận diện mã nguồn Python và cố gắng build FastAPI serverless, dẫn đến lỗi "No FastAPI entrypoint found" do các file tham khảo trong `docs/tai_lieu_tham_khao/`.
-   - Bằng cách cấu hình `"framework": null`, `"cleanUrls": false` và khai báo bản đồ `routes` chính xác với regex `^/.../?$`, Vercel hoạt động chuẩn xác như một Static Web Showcase, phục vụ đầy đủ 6 trang HTML chính, tài nguyên tĩnh `/static/`, audio `/test_audio/` và hồ sơ kiến trúc `/archify`.
-2. **Về Nới Rộng Cửa Sổ Thời Gian Handshake 180s (`qr_totp_mixin.py`):**
-   - Vòng quay 10 giây trên giao diện người dùng giúp hiển thị thanh đếm lùi trực quan và chống chụp lén mã QR từ xa.
-   - Tuy nhiên, tại tầng backend, việc chấp nhận token được nới rộng lên 18 chu kỳ (180 giây = 3 phút). Cả thuật toán HMAC fallback (`range(cur_window + 2, cur_window - 19, -1)`) và điều kiện chặn (`(cur_window - token_win) > 18 or (token_win - cur_window) > 2`) đều được đồng bộ hóa lên 180s.
-   - An toàn thông tin được bảo vệ tuyệt đối nhờ cơ chế **Single-Use Token** (`store.add(clean_tok)`): Dù token có hạn chấp nhận 180s, ngay khi khách bắt tay thành công 1 lần, token lập tức bị vô hiệu hóa. Kẻ xấu replay request sẽ bị máy chủ chặn ngay lập tức với lỗi HTTP 400.
-3. **Về Tự Động Nhận Diện HTTPS Tunnel (`routes_qr.py`):**
-   - Kiểm tra các chuỗi domain tunnel đặc trưng (`.lhr.life`, `.vercel.app`, `trycloudflare.com`, `.ngrok`, `.loca.lt`) hoặc cổng 443; nếu người dùng nhập host không có scheme, hệ thống tự động gán tiền tố `https://`. Đảm bảo mã QR luôn dẫn đến liên kết Secure Context, cho phép điện thoại cấp quyền Microphone.
-4. **Về Handshake Tức Thì Tại Frontend (`guest_enroll.js`):**
-   - Bổ sung việc trích xuất `urlToken` và `urlWindow` từ `window.location.search`.
-   - Nếu phát hiện trang được mở qua quét mã QR (có `urlToken`), giao diện lập tức thực thi `doGuestHandshake(urlToken, dur, urlWindow)` mà không cần chờ fetch token mới, thiết lập ngay phiên đăng ký và mở quyền thu âm cho khách.
+### 1.3. Kết Quả Kiểm Thử Thực Tế
+Lệnh chạy: `pytest tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py -v`
+Kết quả:
+```
+======================= 39 passed, 3 warnings in 6.16s ========================
+Exit Code: 0
+```
+Lệnh chạy hồi quy: `pytest tests/test_challenger_phase5_r2_r3.py -v`
+Kết quả:
+```
+======================= 24 passed, 3 warnings in 47.01s =======================
+Exit Code: 0
+```
+Kiểm tra tính sạch của fixtures:
+`python -c "import json; a=json.load(open('simulator/data/accounts_3layer.json', encoding='utf-8')); f=json.load(open('simulator/data/family_email_allowlist.json', encoding='utf-8')); print(f'Accounts: {len(a)}, Family allowlist: {len(f)}'); assert len(a) == 6; assert f == {}"`
+Kết quả: `Accounts: 6, Family allowlist: 0` (Thành công).
 
 ---
 
-## 3. Caveats (Giới Hạn & Lưu Ý)
+## 2. Chuỗi Logic Suy Luận (Logic Chain)
 
-1. **Phụ thuộc Phiên Tunnel SSH:**
-   - Miền công cộng miễn phí từ `localhost.run` (`*.lhr.life`) sẽ thay đổi tên miền con nếu phiên kết nối SSH bị ngắt và tạo lại. Khi đó, người dùng chỉ cần truyền host mới vào tham số `host=` của API tạo mã QR hoặc cấu hình trên UI.
-2. **Quyền hạn Tệp:**
-   - Subagent `worker_m1` tuân thủ nghiêm ngặt ranh giới phân quyền: Chỉ tạo/chỉnh sửa đúng 4 file được cấp phép (`vercel.json`, `simulator/auth/qr_totp_mixin.py`, `simulator/api/routes_qr.py`, `simulator/static/js/guest_enroll.js`). Toàn bộ các file khác được bảo toàn nguyên vẹn.
+1. **Từ Quan sát 1.1 (lỗ hổng gửi thư thật):** Các địa chỉ email không thuộc danh sách cho phép khi gửi qua SMTP/gws thật sẽ gây bounce mail hoặc gửi thư rác tới địa chỉ lạ.  
+   $\rightarrow$ Bằng việc thêm `HARDCODED_REAL_EMAIL_ALLOWLIST` và hàm `is_email_allowlisted_for_real_send` (Quan sát 1.2.3), mọi hàm gửi thư (`send_real_gmail_otp`, `send_invite_link_via_gmail`) đều kiểm tra allowlist ngay ở dòng đầu tiên trước khi khởi tạo kết nối mạng. Nếu email không được phép, hàm trả về kết quả an toàn `sent_real_gmail: False, blocked_by_allowlist: True` mà không kích hoạt socket/subprocess.
 
----
+2. **Từ Quan sát 1.1 (Cổng Đăng Nhập Trang Chủ `/`):** Người dùng nhập email/mật khẩu tại cổng chỉ để mở giao diện điều khiển, không cần nhận OTP Gmail.  
+   $\rightarrow$ Thêm `"send_gmail": false` vào fetch gọi `/api/auth3/layer1_login` trong `simulator/static/js/app.js` (Quan sát 1.2.4) ngăn chặn việc gửi mail mỗi khi đăng nhập hay chạy Playwright browser test.
 
-## 4. Conclusion (Kết Luận Bàn Giao)
+3. **Từ Quan sát 1.1 (thiếu fixture conftest):** Khi chạy các bài test độc lập, việc thiếu mock toàn cục có thể dẫn tới rò rỉ mail thật ra ngoài nếu một test nào đó quên patch.  
+   $\rightarrow$ Cung cấp fixture `@pytest.fixture(autouse=True)` `mock_email_and_gws_network_isolation` trong `tests/conftest.py` (Quan sát 1.2.1) tự động chặn và mock mọi lời gọi tới `smtplib.SMTP`, `smtplib.SMTP_SSL` và `subprocess.run(gws...)` trong 100% test cases.
 
-- **Milestone 1 ĐÃ HOÀN THÀNH 100%**, đáp ứng toàn bộ các tiêu chí:
-  - Vercel Production Deployment: `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` (Hoạt động ổn định, 100% routes 200 OK).
-  - GitHub Remote Repo: `nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai` đã cập nhật commit `5d99581`.
-  - TOTP Guest Handshake: Đã nới rộng thành công lên 180s (18 chu kỳ), bảo vệ Single-Use Token hoạt động chuẩn xác chống Replay Attack.
-  - Tự động nhận diện HTTPS Tunnel: Hoạt động trơn tru với các tên miền tunnel.
-  - Đồng bộ Frontend `guest_enroll.js`: Bắt tay tức thì ngay khi mở trang bằng liên kết QR.
-  - Bộ kiểm thử `tests/test_milestone_m2_qr_guest.py` đạt **17/17 PASSED (100%)**.
+4. **Từ Quan sát 1.1 (ô nhiễm dữ liệu):** Dữ liệu mẫu bị ghi đè sau các lượt test khiến hệ thống chứa 18 tài khoản và 10 email allowlist rác.  
+   $\rightarrow$ Đưa `accounts_3layer.json` về 6 tài khoản chuẩn và `family_email_allowlist.json` về `{}` (Quan sát 1.2.5) giúp khôi phục hệ thống về trạng thái sạch nguyên bản theo thiết kế.
+
+5. **Từ Quan sát 1.3:** Toàn bộ 39 bài test thuộc Milestone 1 và Phase 5 R3 đều xanh 100% mà không đọc, ghi, in hay làm lộ bất kỳ secret nào của SMTP, chứng minh tính đúng đắn và an toàn tuyệt đối của giải pháp.
 
 ---
 
-## 5. Verification Method (Hướng Dẫn Kiểm Chứng Độc Lập)
+## 3. Vùng Chưa Khảo Sát & Giả Định (Caveats)
 
-Bất kỳ kiểm định viên hoặc auditor nào đều có thể kiểm chứng lại toàn bộ kết quả bằng các lệnh sau:
+- **Vùng chưa khảo sát:** Các luồng gửi OTP qua giao diện Mobile (`simulator/static/js/mobile_app.js`) thuộc phạm vi Milestone 2, tuy nhiên ở tầng backend đã được bảo vệ 100% bởi `is_email_allowlisted_for_real_send`.
+- **Giả định:** Người dùng cấu hình thêm email vào allowlist qua biến môi trường `REAL_EMAIL_ALLOWLIST` bằng chuỗi phân tách bởi dấu phẩy, chấm phẩy hoặc khoảng trắng.
+- **Không có giả định ẩn nào khác.**
 
-1. **Kiểm tra Pytest M2 QR Guest:**
-   ```bash
-   python -m pytest tests/test_milestone_m2_qr_guest.py -v --basetemp=.pytest_temp_audit
-   ```
-   *Tiêu chí đạt:* 17/17 tests PASSED, Exit Code: 0.
+---
 
-2. **Kiểm tra Các Endpoints Trên Vercel Production:**
+## 4. Đánh Giá & Kết Luận (Conclusion)
+
+Milestone 1 (R1 Email Allowlist & Test Isolation) đã được hoàn thành 100% chuẩn xác, đầy đủ và đạt mọi tiêu chí nghiệm thu (Acceptance Criteria):
+1. Không có bất kỳ email nào gửi tới địa chỉ ngoài `REAL_EMAIL_ALLOWLIST`.
+2. Toàn bộ lượt kiểm thử được cô lập mạng 100% qua fixture `mock_email_and_gws_network_isolation`.
+3. Giao diện Login Gate gửi `send_gmail: false`.
+4. Dữ liệu seed accounts và family allowlist đã được làm sạch hoàn toàn.
+5. 39/39 unit & integration tests pass với Exit Code 0.
+
+---
+
+## 5. Phương Pháp Kiểm Chứng Độc Lập (Verification Method)
+
+Người thẩm định (Auditor) hoặc Orchestrator có thể độc lập kiểm chứng kết quả theo các bước:
+
+1. **Chạy bộ kiểm thử tự động Milestone 1 & Phase 5 R3:**
    ```powershell
-   python -c "import urllib.request; [print(u, urllib.request.urlopen(u).status) for u in ['https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/app', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/auth', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/guest_enroll', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/logs', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/wokwi', 'https://do-an-tot-nghiep-smart-home-voice-a.vercel.app/archify']]"
+   pytest tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py -v
    ```
-   *Tiêu chí đạt:* Toàn bộ các URL đều trả về mã HTTP `200`.
+   *Kỳ vọng:* 39 passed, 0 failed, Exit Code 0.
 
-3. **Kiểm tra Handshake 180s & Single-Use Replay Protection:**
+2. **Kiểm tra tính sạch của tệp dữ liệu:**
    ```powershell
-   python -c "import time, hmac, hashlib; from simulator.auth_3layer import get_auth_3layer_manager; mgr = get_auth_3layer_manager(); cur_w = int(time.time() // 10); past_w = cur_w - 12; tok = hmac.new(b'bk_smarthome_totp_salt_2026', f'{past_w}:1:1d:86400'.encode(), hashlib.sha256).hexdigest()[:16]; res1 = mgr.consume_guest_handshake(tok); assert res1['ok'] is True; res2 = mgr.consume_guest_handshake(tok); assert res2['ok'] is False; print('VERIFICATION_SUCCESS')"
+   python -c "import json; a=json.load(open('simulator/data/accounts_3layer.json', encoding='utf-8')); f=json.load(open('simulator/data/family_email_allowlist.json', encoding='utf-8')); assert len(a) == 6; assert f == {}; print('CLEAN PASS')"
    ```
-   *Tiêu chí đạt:* In ra `VERIFICATION_SUCCESS`.
+   *Kỳ vọng:* In ra `CLEAN PASS`.
+
+3. **Kiểm tra mã nguồn `simulator/static/js/app.js`:**
+   Mở dòng 1752–1756, kiểm tra có `"send_gmail": false` trong payload JSON của `fetch("/api/auth3/layer1_login", ...)`.
+
+4. **Kiểm tra cổng chặn không bounce:**
+   Chạy đoạn mã độc lập thử gửi OTP cho email ảo:
+   ```powershell
+   python -c "from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin; m = AuthInviteGmailMixin(); res = m.send_real_gmail_otp('fake_student@gmail.com', '123456', 'Fake'); assert res['sent_real_gmail'] is False and res['blocked_by_allowlist'] is True; print('BLOCKED PASS')"
+   ```
+   *Kỳ vọng:* In ra `BLOCKED PASS`.

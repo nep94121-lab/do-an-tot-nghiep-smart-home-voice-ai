@@ -1,65 +1,56 @@
-# BRIEFING — 2026-11-04T06:47:30Z
+# BRIEFING — 2026-11-05T07:04:00Z
 
 ## Mission
-Empirical adversarial testing and stress-testing for Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+Empirically challenge Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes) through concurrency, rapid-fire, recipient isolation, and OTP reuse stress testing.
 
 ## 🔒 My Identity
-- Archetype: empirical_challenger
+- Archetype: teamwork_challenger
 - Roles: critic, specialist
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m2_1
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 2: Login Gate, Password UX & Mobile SVG Fix
+- Working directory: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m2_1
+- Original parent: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Milestone: Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Must write and execute adversarial tests directly
-- Report empirical evidence and verdict (APPROVE / REQUEST_CHANGES)
-- Do NOT trust claims or logs without reproduction
+- DO NOT read, write, or print SMTP secret values
+- Must run verification code yourself (Empirical Challenger)
+- Output only metadata to .agents/teamwork/
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T06:47:30Z
+- Conversation ID: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Updated: 2026-11-05T07:04:00Z
 
 ## Review Scope
-- **Files reviewed**:
-  - `simulator/static/index.html`
-  - `simulator/static/js/app.js`
-  - `simulator/static/js/auth.js`
-  - `mobile_app/index.html`
-  - `simulator/static/js/mobile_app.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, worker_m2 handoff
-- **Review criteria**: Login gate bypass resistance, password mismatch validation, eye toggle, editable registration fields, SVG sprite visibility.
+- **Files to review**: `simulator/auth_3layer.py`, `simulator/api/routes_auth.py`, `simulator/static/js/app.js`, `simulator/static/index.html`
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `worker_m2/handoff.md`
+- **Review criteria**: Correctness under concurrency (30 threads), anti-double-send cooldown, idempotent preservation of active OTP, consumed OTP rejection (HTTP 400), cross-recipient isolation
+
+## Key Decisions Made
+- Authored and executed dedicated empirical stress test suite: `tests/test_challenger_m2_r2_stress.py`.
+- Verified 30 concurrent threads synchronized via `threading.Barrier`: 1 email dispatch, 30x HTTP 200, 29 idempotent, preserved identical OTP.
+- Verified 10 rapid-fire sequential requests (<0.55s): 1 email sent, 9 idempotent, OTP unchanged.
+- Verified cross-recipient isolation: recipient A does not block recipient B or C.
+- Verified anti-replay: consumed OTP reuse fails with HTTP 400.
+- Executed full 90-test combined regression suite: 90 passed, 0 failed.
+- Verdict: APPROVE.
+
+## Artifact Index
+- handoff.md — Final challenge report and verdict (APPROVE)
+- progress.md — Liveness heartbeat and step tracking
+- DISPATCH.md — Received task prompt
+- tests/test_challenger_m2_r2_stress.py — 6 adversarial challenge tests
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Login gate modal can be bypassed via Escape key without session -> REJECTED (Escape intercepted, preventDefault() called, warning shown, modal stays open).
-  2. Login gate modal can be bypassed via backdrop click without session -> REJECTED (backdrop click caught, warning shown, modal stays open).
-  3. Direct call to closeLoginGateModal() or close button click closes modal without session -> REJECTED (hasValidLoginSession() returns false, modal stays open).
-  4. Corrupted/empty JSON in localStorage bypasses session check -> REJECTED (handled safely with try/catch, returns false).
-  5. Mismatched passwords on Web Register or Forgot Password bypasses frontend and hits API -> REJECTED (aborts before fetch, error displayed).
-  6. Mismatched passwords on Mobile Register or Change Password bypasses frontend -> REJECTED (aborts before fetch, error displayed).
-  7. Direct API attack with mismatched passwords -> REJECTED (backend routes_auth and auth_3layer return ok: False, status 400).
-  8. Toggle 👁️ button fails to toggle password/text or icon state -> REJECTED (tested all 10 password fields across Web & Mobile, 100% toggle correctly).
-  9. Name or email inputs in auth.js retain readOnly = true or block user editing -> REJECTED (readOnly is false across all tiers, user can freely edit).
-  10. Mobile SVG symbol #i-home is trapped inside hidden content -> REJECTED (SVG sprite is direct child of body, #mobileLoginGate references #i-home outside hidden container).
-- **Vulnerabilities found**: None that break security or functional contracts for Milestone 2.
-- **Untested angles**: Hardware-level ADB touch inputs (delegated to Milestone 4).
+  - H1: 30 concurrent requests could trigger race conditions or multiple email dispatches -> REJECTED (thread-safe, exactly 1 dispatch).
+  - H2: Rapid-fire requests could overwrite active OTP -> REJECTED (OTP preserved identically across 10 requests).
+  - H3: Cooldown for recipient A might leak/block recipient B -> REJECTED (independent cooldown per email).
+  - H4: Consumed OTP could be replayed to reset password -> REJECTED (returns HTTP 400).
+  - H5: Email casing or whitespace variation could bypass cooldown -> REJECTED (normalized to lowercase/stripped).
+  - H6: Boundary timing near 60s could misbehave -> REJECTED (59.5s throttled, 60.5s refreshed).
+- **Vulnerabilities found**: 0 vulnerabilities found.
+- **Untested angles**: Full production SMTP server (mocked as required by test isolation rules).
 
 ## Loaded Skills
-- None explicitly requested.
-
-## Key Decisions Made
-- Executed 52 Node.js headless adversarial tests (`adversarial_harness.js`).
-- Executed 6 Python adversarial tests (`adversarial_suite_m2.py`).
-- Executed 36 DOM & Event integrity tests (`tests/test_challenger_m4_dom.py`).
-- Executed 23 Milestone 2 UX tests (`tests/test_challenger_m2_gate_ux_empirical.py`).
-- All 117 tests passed 100%. Final verdict: APPROVE.
-
-## Artifact Index
-- `BRIEFING.md` — Agent working memory
-- `DISPATCH.md` — Task dispatch log
-- `progress.md` — Execution status and heartbeat
-- `adversarial_harness.js` — Standalone Node.js adversarial stress-test script (52 tests)
-- `adversarial_suite_m2.py` — Standalone Python adversarial test suite (6 tests)
-- `handoff.md` — Final adversarial review report
+- None specified by dispatch

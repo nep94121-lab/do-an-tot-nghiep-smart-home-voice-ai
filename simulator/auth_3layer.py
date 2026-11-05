@@ -40,6 +40,7 @@ import math
 import random
 import re
 import struct
+import threading
 import time
 from typing import Any
 
@@ -81,6 +82,7 @@ class ThreeLayerAuthManager(
         self.sessions: dict[str, dict[str, Any]] = {}
         self.verification_logs: list[dict[str, Any]] = []
         self.latest_test_report: dict[str, Any] = {}
+        self._otp_lock = threading.Lock()
         self._load_state()
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
@@ -548,71 +550,104 @@ class ThreeLayerAuthManager(
         send_gmail: bool = True,
         source: str = "Web Quên Mật Khẩu",
     ) -> dict[str, Any]:
-        """Gửi mã OTP 6 số qua Gmail khi người dùng bấm 'Quên mật khẩu'."""
+        """Gửi mã OTP 6 số qua Gmail khi người dùng bấm 'Quên mật khẩu' (chống gửi lặp trong 60s)."""
         clean_email = str(email or "").strip().lower()
         acc = self.find_account(clean_email)
         if not acc:
             return {"ok": False, "status_code": 404, "error": f"Không tìm thấy tài khoản với email '{email}'!"}
 
-        otp_code = f"{random.randint(100000, 999999)}"
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
-        if send_gmail:
-            gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
-            if not gmail_res.get("sent_real_gmail"):
-                err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
-                missing_sec = gmail_res.get("missing_secret")
-                self._log_event(
-                    layer="Quên Mật Khẩu (Gmail OTP)",
-                    action="forgot_password_otp_failed",
-                    email=acc["email"],
-                    status="FAIL",
-                    detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc['email'])}): {err_msg}",
-                    source=source,
-                )
-                fail_resp = {
-                    "ok": False,
-                    "status_code": 503,
-                    "email": acc["email"],
-                    "display_name": acc["display_name"],
-                    "error": f"Không thể gửi email OTP: {err_msg}",
-                    "gmail_delivery": gmail_res,
-                }
-                if missing_sec:
-                    fail_resp["missing_secret"] = missing_sec
-                return fail_resp
+        now = time.time()
+        with self._otp_lock:
+            existing = self.pending_otps.get(clean_email)
+            if existing and existing.get("otp_code") and not existing.get("consumed", False):
+                if now < existing.get("expires_at", 0):
+                    elapsed = now - existing.get("created_at", 0)
+                    if elapsed < 60.0:
+                        remaining_sec = max(0, int(60.0 - elapsed))
+                        delivery_res = existing.get("gmail_delivery") or {"sent_real_gmail": False}
+                        self._log_event(
+                            layer="Quên Mật Khẩu (Gmail OTP)",
+                            action="forgot_password_otp_throttled",
+                            email=acc["email"],
+                            status="PASS",
+                            detail=f"Yêu cầu OTP trong thời gian chờ ({remaining_sec}s còn lại). Giữ nguyên mã OTP đang hiệu lực ({existing['otp_code']}).",
+                            source=source,
+                            extra={"cooldown_remaining_sec": remaining_sec, "idempotent": True},
+                        )
+                        return {
+                            "ok": True,
+                            "idempotent": True,
+                            "cooldown_active": True,
+                            "cooldown_remaining_seconds": remaining_sec,
+                            "email": clean_email,
+                            "display_name": acc.get("display_name", clean_email),
+                            "message": "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau.",
+                            "otp_code_for_test": existing["otp_code"],
+                            "demo_otp_preview": existing["otp_code"],
+                            "expires_in": max(0, int(existing["expires_at"] - now)),
+                            "gmail_delivery": delivery_res,
+                        }
 
-        self.pending_otps[acc["email"].lower()] = {
-            "email": acc["email"],
-            "account_id": acc["account_id"],
-            "display_name": acc["display_name"],
-            "tier": acc["tier"],
-            "otp_code": otp_code,
-            "created_at": time.time(),
-            "expires_at": time.time() + 300,
-            "verified_layer2": False,
-            "verified_layer3": False,
-            "gmail_delivery": gmail_res,
-            "source": source,
-        }
-        self._log_event(
-            layer="Quên Mật Khẩu (Gmail OTP)",
-            action="forgot_password_otp_sent",
-            email=acc["email"],
-            status="PASS",
-            detail=f"Đã gửi mã OTP đặt lại mật khẩu ({otp_code}) tới Gmail ({gmail_res.get('actual_recipient')}).",
-            source=source,
-        )
-        res_data = {
-            "ok": True,
-            "email": acc["email"],
-            "display_name": acc["display_name"],
-            "gmail_delivery": gmail_res,
-            "message": f"✅ Đã gửi mã OTP 6 số về Gmail ({gmail_res.get('actual_recipient')}) để đặt lại mật khẩu!",
-        }
-        if not send_gmail:
-            res_data["demo_otp_preview"] = otp_code
-            res_data["otp_code_for_test"] = otp_code
-        return res_data
+            otp_code = f"{random.randint(100000, 999999)}"
+            gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
+            if send_gmail:
+                gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+                if not gmail_res.get("sent_real_gmail"):
+                    err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
+                    missing_sec = gmail_res.get("missing_secret")
+                    self._log_event(
+                        layer="Quên Mật Khẩu (Gmail OTP)",
+                        action="forgot_password_otp_failed",
+                        email=acc["email"],
+                        status="FAIL",
+                        detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc['email'])}): {err_msg}",
+                        source=source,
+                    )
+                    fail_resp = {
+                        "ok": False,
+                        "status_code": 503,
+                        "email": acc["email"],
+                        "display_name": acc["display_name"],
+                        "error": f"Không thể gửi email OTP: {err_msg}",
+                        "gmail_delivery": gmail_res,
+                    }
+                    if missing_sec:
+                        fail_resp["missing_secret"] = missing_sec
+                    return fail_resp
+
+            self.pending_otps[clean_email] = {
+                "email": acc["email"],
+                "account_id": acc["account_id"],
+                "display_name": acc["display_name"],
+                "tier": acc["tier"],
+                "otp_code": otp_code,
+                "created_at": now,
+                "expires_at": now + 300,
+                "verified_layer2": False,
+                "verified_layer3": False,
+                "consumed": False,
+                "gmail_delivery": gmail_res,
+                "source": source,
+            }
+            self._log_event(
+                layer="Quên Mật Khẩu (Gmail OTP)",
+                action="forgot_password_otp_sent",
+                email=acc["email"],
+                status="PASS",
+                detail=f"Đã gửi mã OTP đặt lại mật khẩu ({otp_code}) tới Gmail ({gmail_res.get('actual_recipient')}).",
+                source=source,
+            )
+            res_data = {
+                "ok": True,
+                "email": acc["email"],
+                "display_name": acc["display_name"],
+                "gmail_delivery": gmail_res,
+                "message": f"✅ Đã gửi mã OTP 6 số về Gmail ({gmail_res.get('actual_recipient')}) để đặt lại mật khẩu!",
+            }
+            if not send_gmail:
+                res_data["demo_otp_preview"] = otp_code
+                res_data["otp_code_for_test"] = otp_code
+            return res_data
 
     def reset_password_with_otp(
         self,
@@ -635,12 +670,16 @@ class ThreeLayerAuthManager(
         if not otp_res.get("ok"):
             return otp_res
 
-        return self.register_or_update_password(
+        res = self.register_or_update_password(
             email=clean_email,
             password=pw1,
             confirm_password=pw2,
             source=source,
         )
+        if res.get("ok"):
+            with self._otp_lock:
+                self.pending_otps.pop(clean_email, None)
+        return res
 
     def upsert_speaker_account_for_voice(
         self,

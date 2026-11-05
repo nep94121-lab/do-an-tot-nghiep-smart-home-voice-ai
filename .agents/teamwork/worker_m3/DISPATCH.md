@@ -1,42 +1,77 @@
-## 2026-11-04T06:49:14Z
+# Dispatch — worker_m3: Milestone 3 (Email RFC 5322 Standards & Deliverability)
 
-Bạn là Subagent teamwork_worker thực hiện Milestone 3: 3D Model DOM, Controls & Raycaster.
+**Worker:** `worker_m3` (Archetype: `teamwork_worker`)  
+**Assigned Scope:** Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)  
+**Parent:** Project Orchestrator (`91485de0-7c6f-449a-ba3f-ed6820ebb01a`)  
+**Workspace:** `C:\Users\LENOVO\datn-wt\p6-otp` (Branch: `p6-otp`)  
+**Working Directory:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3`  
+**Date:** 2026-11-05T07:16:00Z  
 
-MANDATORY: Đọc kỹ các tài liệu sau trước khi thực hiện:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo khảo sát chi tiết của Explorer 2: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\survey_2\handoff.md`
+## Mandatory Reading Before Implementation:
+1. `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md` (Authoritative User Request)
+2. `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md` (Features 8..11 and M3 Contract)
+3. `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\explorer_survey_3\survey_report.md` (Detailed Technical Survey)
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\`
+## Exclusively Owned Files:
+- `simulator/auth/invite_and_gmail_mixin.py`
+- `tests/test_phase5_r3_otp_email.py`
+- `tests/test_phase6_r3_rfc5322.py`
+- `.agents/teamwork/worker_m3/`
 
-Quyền sở hữu tệp (Write Ownership) ĐỘC QUYỀN của bạn:
-1. `simulator/static/house3d.js`
-2. `simulator/static/css/style.css`
-3. `simulator/static/index.html` (chỉ sửa khu vực header panel Ngôi nhà 3D để thêm thanh nút camera)
-4. `simulator/static/js/app.js` (gắn event listener cho thanh nút camera gọi `SmartHome3D.setCameraView`)
-(TUYỆT ĐỐI KHÔNG sửa các file ngoài danh sách này).
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+## 2026-11-05T07:16:36Z
+You are worker_m3 (teamwork_worker).
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3
+Your parent orchestrator is: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
 
-Nhiệm vụ cụ thể:
-1. Sửa lỗi trong `simulator/static/house3d.js` dòng 179:
-   - `container.innerHTML = ""` đang xóa mất `#house3dLabels` và `.viewport-note` bên trong `#house3dViewport`!
-   - Sửa thành: chỉ xóa `<canvas>` cũ (nếu có) và dùng `container.insertBefore(renderer.domElement, container.firstChild)` để giữ nguyên vẹn `#house3dLabels` và `.viewport-note` nổi trên mô hình 3D.
-2. Sửa file `simulator/static/css/style.css`:
-   - Bỏ quy tắc `.pin-3d .pin-icon { display: none !important; }` (dòng 441) và rule ẩn nút cảm biến (dòng 445).
-   - Tinh chỉnh CSS để 7 nút nổi `.pin-3d` trên 7 thiết bị hiển thị rõ icon emoji (`🚪`, `💡`, `🌀`, `❄️`, `🛏️`, `🚨`, `💧`) + tên thiết bị + trạng thái BẬT/TẮT và bấm vào bật/tắt trực tiếp thiết bị.
-3. Thêm thanh nút chọn góc nhìn Camera 3D trên header của panel Ngôi nhà trong `simulator/static/index.html`:
-   - Gồm 7 nút preset: `Toàn cảnh` (overview), `Phòng khách` (living), `Phòng ngủ` (bedroom), `Cửa chính` (door), `Sân vườn` (garden), `Mạch ESP` (board), `🔄 Tự xoay` (rotate).
-   - Trong `simulator/static/js/app.js`: Gắn click event listener cho các nút này để gọi `SmartHome3D.setCameraView(preset)` và cập nhật class active/nhãn góc nhìn hiện tại.
-4. Tích hợp `THREE.Raycaster` khi click vào mô hình 3D trong `simulator/static/house3d.js`:
-   - Cơ chế phân biệt Kéo xoay camera (drag) vs Click thật: đo khoảng cách di chuyển chuột giữa mousedown và mouseup (`Math.hypot(dx, dy) <= 6px`).
-   - Gán `userData.deviceId` cho các mesh/group của thiết bị 3D.
-   - Khi click trúng mesh thiết bị, kích hoạt `onToggleDevice(deviceId)` để bật/tắt thiết bị tương ứng (đồng bộ với click trên nút nổi và bảng điều khiển).
-5. Chạy kiểm thử xác thực:
-   - `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_m3` (phải đạt 36/36 PASS, không làm vỡ DOM, không thiếu window exports).
-   - Đảm bảo 100% POSIX LF (0 CRLF) và UTF-8 không BOM.
+MANDATORY READING BEFORE STARTING WORK:
+1. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md
+2. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md
+3. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\explorer_survey_3\survey_report.md
+4. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\DISPATCH.md
 
-Viết báo cáo bàn giao chi tiết (bao gồm lệnh đã chạy, kết quả, file đã sửa, diff cụ thể) vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator kèm đường dẫn file bàn giao.
+EXCLUSIVE FILE OWNERSHIP:
+- simulator/auth/invite_and_gmail_mixin.py
+- tests/test_phase5_r3_otp_email.py
+- tests/test_phase6_r3_rfc5322.py (new)
+- .agents/teamwork/worker_m3/
+
+OBJECTIVE:
+Implement Milestone 3 (R3: Email RFC 5322 Standards & Deliverability) following strict TDD:
+
+1. In simulator/auth/invite_and_gmail_mixin.py:
+   - Import `email.utils` (formataddr, formatdate, make_msgid).
+   - In `send_real_gmail_otp` & `send_invite_link_via_gmail`:
+     * Format `From` using `formataddr(('Smart Home Voice AI', sender_addr))`.
+     * Format `To` using `formataddr((display_name or actual_to.split('@')[0], actual_to))`.
+     * Add `Date` header using `formatdate(localtime=True)` (RFC 5322 §3.6.1).
+     * Add `Message-ID` header using `make_msgid(domain=domain)` (RFC 5322 §3.6.4).
+     * Add `Reply-To` header using `formataddr(('Smart Home Voice AI', sender_addr))`.
+     * Subject lines:
+       - For OTP: "Smart Home Voice - Mã xác thực tài khoản" (Title Case, strictly NO OTP digits, NO ALL-CAPS words like 'OTP', 'AI', 'OAUTH', NO emojis).
+       - For Invite: "Smart Home Voice - Lời mời đăng ký tài khoản Cấp ..." (strictly NO emojis, NO ALL-CAPS words).
+     * MIME Multipart (`alternative`):
+       - Attach `text/plain; charset=utf-8` part FIRST (zero emojis, clean plain text).
+       - Attach `text/html; charset=utf-8` part SECOND (clean light-background `#ffffff` / `#f8fafc`, clean typography, zero emojis, strictly NO deceptive Google OAuth branding).
+   - In `read_latest_otp_from_gmail_inbox`:
+     * Update search query `q` to: `'subject:"Smart Home" (xác thực OR OTP OR verification)'`
+     * Implement recursive Base64URL payload decoding for nested multipart messages (`payload["parts"]`).
+     * Implement 3-tier regex OTP extraction:
+       1) Keyword context regex: `(?:OTP[:\s-]*|mã[:\s-]*|code[:\s-]*|xác thực[:\s-]*|xác nhận[:\s-]*)\s*(\d{6})\b`
+       2) HTML container regex: `id=["\']otp-code-value["\'][^>]*>(?:OTP:)?\s*(\d{6})<`
+       3) Fallback boundary regex: `\b(\d{6})\b`
+
+2. In tests/test_phase6_r3_rfc5322.py and tests/test_phase5_r3_otp_email.py:
+   - Follow strict TDD: verify that tests check for RFC 5322 headers, clean Subject, MIME multipart alternative with plain text + light HTML, zero emojis, no deceptive Google OAuth, and robust inbox scraping.
+
+3. CONSTRAINTS & INTEGRITY WARNING:
+   > DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+   - ZERO-LEAK: NEVER read, write, print, or log real SMTP secrets (GMAIL_APP_PASSWORD, etc.).
+   - All files must be saved as UTF-8 without BOM, 0 CRLF (100% POSIX LF).
+
+4. VERIFICATION:
+   - Run tests:
+     `pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+     And regression suites.
+   - Write comprehensive report to `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\handoff.md`.
+   - Send completion message to parent orchestrator via `send_message`.

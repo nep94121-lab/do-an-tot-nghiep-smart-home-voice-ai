@@ -1,219 +1,193 @@
-# Báo Cáo Giám Định Pháp Y Tính Toàn Vẹn (Forensic Audit Report) - Milestone 2
-## Cổng Đăng Nhập (Login Gate), Password UX & Mobile SVG Fix
+# Báo Cáo Thẩm Định Pháp Y Độc Lập (Forensic Audit Report) — Milestone 2
 
-- **Giám định viên (Auditor):** `teamwork_auditor` (Forensic Integrity Auditor)
-- **Thời gian giám định:** 2026-11-04T06:44:00Z
-- **Thư mục giám định:** `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m2\`
-- **Parent Conversation ID:** `cb4be64f-6f73-4e8f-b499-50863e4051dc`
-- **Hồ sơ giám định (Profile):** General Project (Forensic Integrity)
-- **Phán quyết chính thức (Official Verdict):** **CLEAN**
-
----
-
-## TỔNG HỢP KẾT QUẢ CÁC GIAI ĐOẠN (PHASE RESULTS)
-
-| Giai đoạn / Tiêu chí | Kết quả | Chi tiết thẩm định |
-|---|---|---|
-| **1. Rà soát gian lận & mã giả (Anti-Cheat / Anti-Facade)** | **PASS** | Không phát hiện kết quả test hardcode, không có dummy facade. Logic thực chất kết nối API và DOM. |
-| **2. Logic Cổng Đăng nhập (`hasValidLoginSession`)** | **PASS** | Thẩm định thực tế: kiểm tra hợp lệ `localStorage`, khóa cứng nút X, chặn Escape và backdrop bypass 100%. |
-| **3. Mở khóa ô nhập (`auth.js`)** | **PASS** | Đã gỡ bỏ 100% `readOnly = true` cho Họ tên và Email ở cả 3 Cấp độ tài khoản; cho phép chỉnh sửa tự do. |
-| **4. UX Mật khẩu (Enter submit & Nút 👁️ Toggle)** | **PASS** | 100% các ô mật khẩu trên Web (5 ô) và Mobile (5 ô) đều có nút 👁️ chuyển đổi trạng thái và bọc thẻ `<form>` nhận Enter. |
-| **5. Vị trí biểu tượng SVG trên Mobile (`index.html`)** | **PASS** | Khối `<svg>` chứa `<symbol id="i-home">` đã được di chuyển ra ngay sau `<body>`, nằm ngoài `#mobileMainContent hidden`. |
-| **6. Xác nhận 2 mật khẩu khi đăng ký / đổi mật khẩu** | **PASS** | Kiểm tra khớp 100% trên Web và Mobile, kết nối thực chất API backend `/api/auth3/register_or_set_password`. |
-| **7. Ranh giới tệp & Git Diff Scope** | **PASS** | Giới hạn tuyệt đối trong đúng 5 tệp được cấp quyền. Không xâm lấn các module ngoài thẩm quyền. |
-| **8. Định dạng chuẩn UTF-8 & 0 CRLF** | **PASS** | Cả 5 tệp đều đạt chuẩn UTF-8 không BOM, 0 CRLF (100% POSIX LF). |
-| **9. Kiểm thử đối kháng DOM Challenger** | **PASS** | Bộ test độc lập `tests/test_challenger_m4_dom.py` đạt 36/36 test PASS (100%). |
-| **10. Kiểm thử trực giao (Orthogonal Verification)** | **PASS** | Hai bộ test độc lập của Auditor (`test_orthogonal_integrity.py` & `test_js_runtime.js`) đạt 100% PASS. |
+**Sản phẩm thẩm định (Work Product):** Milestone 2: R2 Anti-Double-Send Cooldown & Trigger Fixes  
+**Đơn vị thực hiện:** Forensic Auditor M2 (`auditor_m2` - Archetype: `teamwork_auditor`)  
+**Ngày thực hiện:** 05/11/2026  
+**Thư mục làm việc:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\auditor_m2`  
+**Hồ sơ thẩm định (Profile):** General Project (Development Mode per `ORIGINAL_REQUEST.md`)  
+**Phán quyết cuối cùng (Verdict):** **CLEAN** (Hoàn toàn trong sạch — Đạt 100% tiêu chí liêm chính)
 
 ---
 
-## 1. Observation (Quan Sát Thực Nghiệm & Bằng Chứng Mã Nguồn)
+## 1. Kết Quả Thẩm Định Chi Tiết Từng Hạng Mục (Phase Results)
 
-### 1.1. Thẩm định tệp [simulator/static/index.html](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/index.html)
-- **Nút đóng `#btnCloseLoginGateModal`:**
+| # | Hạng Mục Kiểm Tra Pháp Y | Kết Quả | Chi Tiết Đánh Giá |
+|---|---|:---:|---|
+| 1 | **AST & Phân Tích Tĩnh Backend** (`simulator/auth_3layer.py`) | **PASS** | `self._otp_lock = threading.Lock()` được khởi tạo thực tế và bao bọc toàn bộ khối kiểm tra cooldown 60s, dispatch email, và ghi nhận `pending_otps`. AST kiểm tra chứng minh 0 hàm soi stack frame (`_getframe`, `caller`), không có logic giả lập dựa theo tên hàm test. |
+| 2 | **Cơ chế Tiêu Hủy OTP & Chống Tái Sử Dụng (Anti-Replay)** | **PASS** | Trong `reset_password_with_otp`, `self.pending_otps.pop(clean_email, None)` được thực thi dưới `_otp_lock` khi đổi mật khẩu thành công. Thực nghiệm chứng minh tấn công replay với mã OTP cũ bị từ chối 100%. |
+| 3 | **Phân Tích Tĩnh & Runtime Frontend** (`simulator/static/js/app.js`) | **PASS** | Đã loại bỏ hoàn toàn cơ chế gọi đúp `button.click()` trong sự kiện form submit. Hợp nhất vào `handleGateLoginSubmit`, `handleGateRegisterSubmit`, `handleForgotResetSubmit`. Cờ `inFlight` và thuộc tính `.disabled = true` được kích hoạt ngay khi bấm và khôi phục trong `finally`. Đã có bộ đếm ngược trực quan 60 giây (`setInterval`) trên `#btnSendForgotOtp`. |
+| 4 | **Loại Bỏ Kích Hoạt Kép HTML** (`simulator/static/index.html`) | **PASS** | Đã loại bỏ hoàn toàn inline handler `onclick="window.unlockSecurityLockdown()"` trên `<button type="submit" id="btnLockdownUnlock">`, ngăn chặn triệt để hiện tượng form onsubmit + button onclick kích hoạt 2 lần. |
+| 5 | **Bảo Mật Tuyệt Đối Thông Tin Bí Mật (Zero-Leak)** | **PASS** | Quét biểu thức chính quy trên toàn bộ mã nguồn, test suite và báo cáo bàn giao: 0 mật khẩu SMTP/Gmail thực tế, 0 token bí mật bị đọc, ghi, in, hoặc log ra ngoài. Chỉ sử dụng chuỗi mock `"mock app password"` trong môi trường test phân lập. |
+| 6 | **Kiểm Soát Tác Dụng Phụ Dữ Liệu (Clean State)** | **PASS** | `simulator/data/accounts_3layer.json` chỉ chứa đúng 6 tài khoản mẫu sạch mặc định; `simulator/data/family_email_allowlist.json` hoàn toàn là đối tượng rỗng `{}`. Toàn bộ tài khoản rác phát sinh trong các đợt test trước đã được dọn sạch. |
+| 7 | **Kiểm Thử Độc Lập (Independent Test Execution)** | **PASS** | Tự chạy độc lập toàn bộ các bộ test: `test_phase6_r2_cooldown_triggers.py` (12/12 passed), `test_phase6_r1_allowlist_isolation.py` + `test_phase5_r3_otp_email.py` (39/39 passed), bộ test Challenger M2 (19/19 passed), bộ test Challenger hồi quy (175/175 passed). Tỷ lệ đạt: **100% (245/245 passed, Exit Code: 0)**. |
+| 8 | **Kiểm Chứng Trực Giao (Orthogonal Verification)** | **PASS** | Thiết lập kịch bản kiểm chứng độc lập hoàn toàn: kiểm tra luồng chặn thực tế của `_otp_lock` (blocking lock harness), kiểm tra cooldown với dynamic nonce ngẫu nhiên, kiểm tra ranh giới thời gian trôi qua (>60s và >300s), kiểm tra phá hủy OTP. Toàn bộ đều đạt kết quả mong đợi. |
+
+---
+
+## 2. Quan Sát Thực Tế (Observation)
+
+### 2.1. Cấu Trúc Khóa Đa Luồng & Cooldown trong `simulator/auth_3layer.py`
+- Dòng 43: `import threading`
+- Dòng 85: Khởi tạo khóa điều phối đa luồng:
+  ```python
+  self._otp_lock = threading.Lock()
+  ```
+- Dòng 560–590 (`request_password_reset_otp`):
+  Toàn bộ logic kiểm tra và áp dụng cooldown được đồng bộ hóa hoàn toàn:
+  ```python
+  now = time.time()
+  with self._otp_lock:
+      existing = self.pending_otps.get(clean_email)
+      if existing and existing.get("otp_code") and not existing.get("consumed", False):
+          if now < existing.get("expires_at", 0):
+              elapsed = now - existing.get("created_at", 0)
+              if elapsed < 60.0:
+                  remaining_sec = max(0, int(60.0 - elapsed))
+                  ...
+                  return {
+                      "ok": True,
+                      "idempotent": True,
+                      "cooldown_active": True,
+                      "cooldown_remaining_seconds": remaining_sec,
+                      "email": clean_email,
+                      "otp_code_for_test": existing["otp_code"],
+                      "demo_otp_preview": existing["otp_code"],
+                      ...
+                  }
+  ```
+- Dòng 680–682 (`reset_password_with_otp`):
+  ```python
+  if res.get("ok"):
+      with self._otp_lock:
+          self.pending_otps.pop(clean_email, None)
+  ```
+
+### 2.2. Kiểm Soát Sự Kiện & Trạng Thái Nút trong `simulator/static/js/app.js`
+- Dòng 1711–1716:
+  ```javascript
+  let isGateLoginInFlight = false;
+  let isGateRegisterInFlight = false;
+  let isGateForgotInFlight = false;
+  let isSendingForgotOtp = false;
+  let forgotOtpCooldownTimer = null;
+  ```
+- Dòng 1731–1793 (`handleGateLoginSubmit`):
+  * Kiểm tra `if (isGateLoginInFlight) return;`
+  * Ngay lập tức đặt `isGateLoginInFlight = true; btn.disabled = true; btn.textContent = "⏳ Đang đăng nhập...";`
+  * Đặt trong khối `finally`: `isGateLoginInFlight = false; if (btn) { btn.disabled = false; ... }`
+  * Cả `btnSubmitGateLogin.addEventListener("click")` và `gatePanelLogin.addEventListener("submit")` cùng trỏ về `handleGateLoginSubmit`, loại bỏ hoàn toàn đệ quy `btnSubmitGateLogin.click()`.
+- Dòng 1918–1934 (`btnSendForgotOtp`):
+  * Kích hoạt đếm ngược 60 giây trực quan `setInterval`: `btnSendForgotOtp.textContent = "Gửi lại sau (" + remaining + "s)"`.
+  * Sau khi hết 60s: giải phóng `clearInterval`, khôi phục `btnSendForgotOtp.disabled = false` và text `"Gửi OTP"`.
+
+### 2.3. Loại Bỏ Trùng Lặp trong `simulator/static/index.html`
+- Dòng 441–444:
   ```html
-  <button id="btnCloseLoginGateModal" type="button" class="btn-close" aria-label="Đóng" hidden>
-    <svg class="icon"><use href="#i-x"/></svg>
+  <button type="submit" id="btnLockdownUnlock" class="btn btn-primary primary" style="min-height:44px; font-weight:500; width:100%; justify-content:center;">
+    Xác minh và mở khóa
   </button>
   ```
-  Nút đóng đã có thuộc tính `hidden` mặc định từ cây DOM, ngăn chặn người dùng bấm tắt khi chưa có phiên đăng nhập.
-- **Thẻ `<form>` và Nút 👁️ Toggle:**
-  - Ba khối `#gatePanelLogin`, `#gatePanelRegister`, `#gatePanelForgot` đều là thẻ `<form>` chuẩn với nút `type="submit"`.
-  - Cả 5 ô mật khẩu: `gateLoginPassword`, `gateRegPassword`, `gateRegConfirmPassword`, `gateForgotNewPassword`, `gateForgotConfirmPassword` đều có nút `<button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('...', this)">👁️</button>`.
+  Thuộc tính `onclick="window.unlockSecurityLockdown()"` đã bị xóa hoàn toàn khỏi phần tử nút bấm, chỉ để form cha `lockdownForm` xử lý `onsubmit` 1 lần duy nhất.
 
-### 1.2. Thẩm định tệp [simulator/static/js/app.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/app.js)
-- **Hàm `hasValidLoginSession()` (Dòng 1242 - 1251):**
-  ```javascript
-  function hasValidLoginSession() {
-    try {
-      const raw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
-      if (!raw) return false;
-      const user = JSON.parse(raw);
-      return !!(user && user.email);
-    } catch (_) {
-      return false;
-    }
-  }
-  ```
-  Logic kiểm tra thực tế dữ liệu trong `localStorage`, bọc try/catch chống sập khi JSON hỏng hoặc storage bị vô hiệu hóa.
-- **Bảo vệ Cổng Đăng nhập (Dòng 1266 - 1310):**
-  - `openLoginGateModal()`: gán `btnCloseLoginGateModal.hidden = !hasValidLoginSession()`.
-  - `closeLoginGateModal()`: từ chối đóng và hiện cảnh báo `gateStatusBox` nếu `!hasValidLoginSession()`.
-  - Click backdrop và phím `Escape`: bị chặn hoàn toàn nếu `!hasValidLoginSession()`.
-  - Export hàm: `window.togglePasswordVisibility = togglePasswordVisibility`.
-
-### 1.3. Thẩm định tệp [simulator/static/js/auth.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/auth.js)
-- Tại dòng 54, 63, 71, 78, 86, 93:
-  - `nameInput.readOnly = false;`
-  - `emailInput.readOnly = false;`
-- Tuyệt đối không còn dòng `readOnly = true` nào cho `nameInput` hay `emailInput`.
-- Hàm `onStep2SpeakerNameInput` cho phép đồng bộ hai chiều mượt mà giữa Họ tên Bước 1 và Bước 2.
-
-### 1.4. Thẩm định tệp [mobile_app/index.html](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/mobile_app/index.html)
-- **Khối SVG Sprite (Dòng 14 - 26):**
-  ```html
-  <body>
-    <!-- SVG ICON SPRITE (Toàn cục cho cả Login Gate và Main Content) -->
-    <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
-      <symbol id="i-home" viewBox="0 0 24 24">...</symbol>
-      ...
-    </svg>
-    <div id="mobileLoginGate" class="login-gate">
-  ```
-  Khối SVG được đặt ngay sau `<body>`, trước `#mobileLoginGate` và hoàn toàn nằm ngoài `#mobileMainContent hidden` (Dòng 98). Do đó, biểu tượng `<symbol id="i-home">` luôn hiển thị sắc nét trên Login Gate của Mobile mà không bị vỡ.
-- **Form đăng ký / đổi mật khẩu:**
-  - Có tab `#btnMobileTabLogin` và `#btnMobileTabRegister`.
-  - Có form `#mobileRegisterForm` và form `#mobileChangePasswordForm` bắt buộc 2 ô mật khẩu kèm nút 👁️ toggle.
-
-### 1.5. Thẩm định tệp [simulator/static/js/mobile_app.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/mobile_app.js)
-- Đầy đủ logic xử lý form `submitMobileLogin`, `switchMobileLoginTab`, `onMobileRegTierChange`, `submitMobileRegister`, `submitMobileChangePassword`, `togglePasswordVisibility`.
-- Export đầy đủ lên `window.*` (Dòng 863 - 869).
+### 2.4. Trạng Thái Dữ Liệu Sạch (Clean State)
+- `simulator/data/accounts_3layer.json`: Đúng 6 tài khoản hợp lệ (`tuan_anh`, `thanh_vien_a`, `thanh_vien_b`, `khach_c`, `senat6031`, `kbanh376`).
+- `simulator/data/family_email_allowlist.json`: `{}` (rỗng hoàn toàn).
 
 ---
 
-## 2. Logic Chain (Chuỗi Lập Luận Pháp Y Từ Quan Sát Đến Kết Luận)
+## 3. Chuỗi Suy Luận Kỹ Thuật (Logic Chain)
 
-1. **Về tính chân thực của Cổng Đăng nhập (Anti-Facade Check):**
-   - *Quan sát:* Khi khởi chạy trang Web, nếu `localStorage` chưa có session `smarthome_auth_session`, modal `#homeLoginGateModal` hiển thị và nút `X` mang thuộc tính `hidden`.
-   - *Thử nghiệm tấn công (Attack Scenario):*
-     - Giả lập người dùng bấm phím `Escape`: event listener chặn `preventDefault()`, modal không đóng.
-     - Giả lập người dùng click ra vùng tối ngoài modal: event listener chặn, modal không đóng.
-     - Giả lập can thiệp DevTools xóa `hidden` trên nút `X` rồi click: hàm `closeLoginGateModal()` kiểm tra `!hasValidLoginSession()`, từ chối đóng modal và in thông báo cảnh báo.
-   - *Suy luận:* Logic Cổng Đăng nhập được thiết kế nhiều lớp phòng thủ (Multi-layered defense), hoàn toàn có hiệu lực thực chất và không thể bypass.
+1. **Khóa Đa Luồng Thật Sự (Genuine Mutex):**
+   - AST và kiểm thử trực giao chứng minh `_otp_lock` là một instance thật sự của `threading.Lock()`.
+   - Khi một thread ngoại vi chiếm giữ `_otp_lock`, lời gọi `request_password_reset_otp` từ thread khác bị chặn (block) 100% cho đến khi khóa được nhả. Điều này loại bỏ hoàn toàn nguy cơ race condition khi hai request đồng thời gửi đến cùng một thời điểm.
 
-2. **Về việc gỡ bỏ `readOnly = true`:**
-   - *Quan sát:* Trước đây dòng 56 & 60 ép cứng `readOnly = true`. Hiện tại toàn bộ đã đổi thành `readOnly = false`.
-   - *Suy luận:* Người dùng có thể sửa đổi họ tên và email tự do mà không bị can thiệp khóa ô input.
+2. **Chống Gửi Lặp & Bảo Toàn OTP (Idempotency & Preservation):**
+   - Trong cửa sổ 60 giây, request tiếp theo không gọi `send_real_gmail_otp` mà tái sử dụng bản ghi trong `pending_otps`.
+   - Kết quả trả về chứa đúng mã OTP đang có hiệu lực (`otp1 == otp2`) và cờ `idempotent=True`, `cooldown_active=True`.
+   - Khi thời gian trôi qua hơn 60 giây hoặc OTP hết hạn (>300 giây), một mã OTP mới được tạo ra (`otp3 != otp1`), chứng minh thuật toán tính toán thời gian `elapsed = now - created_at` vận hành trung thực theo đồng hồ thực tế, không bị code cứng.
 
-3. **Về tính đồng bộ và xác thực 2 mật khẩu:**
-   - *Quan sát:* Cả Web và Mobile đều có cơ chế so sánh `password !== confirmPassword` ở phía client trước khi gửi, và endpoint backend `/api/auth3/register_or_set_password` xác thực lại lần nữa ở server.
-   - *Suy luận:* Đảm bảo tính nhất quán dữ liệu người dùng và tránh lỗi gõ nhầm mật khẩu.
+3. **Chống Replay Bằng Tiêu Hủy Tức Thì (Immediate Invalidation):**
+   - Ngay khi mật khẩu được cập nhật thành công, `self.pending_otps.pop(clean_email, None)` tiêu hủy bản ghi.
+   - Thử nghiệm tấn công replay ngay sau đó lập tức bị từ chối với mã lỗi HTTP 400 và `ok=False`.
 
-4. **Về kiểm tra mã độc / Hardcode kết quả:**
-   - Không tìm thấy bất kỳ chuỗi trả về cố định nào kiểu `return true` trong hàm kiểm tra session. Hàm `hasValidLoginSession()` phân tích JSON thực tế và trả về boolean dựa trên sự tồn tại của `user.email`.
-   - Không có file rác hay bằng chứng ngụy tạo nào tồn tại trong kho mã nguồn.
+4. **Triệt Tiêu Kích Hoạt Kép & Quản Lý Trạng Thái Nút (Single-Firing & State Guard):**
+   - Trước đây form submit kích hoạt sự kiện submit, bên trong lại gọi `btn.click()`, sinh ra 2 network request song song.
+   - Việc chuyển logic sang hàm xử lý tập trung `handleGateLoginSubmit` kết hợp cờ `inFlight` và `btn.disabled = true` ngăn chặn cả 2 trường hợp: người dùng click đúp thủ công và trình duyệt phát sinh 2 sự kiện `submit` + `click`.
 
 ---
 
-## 3. Caveats (Ranh Giới, Giả Định & Giới Hạn Giám Định)
+## 4. Bằng Chứng Thực Nghiệm & Lệnh Độc Lập (Empirical Evidence)
 
-1. **Phạm vi Milestone 2:** Giám định viên tập trung pháp y vào 5 tệp liên quan trực tiếp đến Cổng Đăng nhập, Password UX và Mobile SVG. Các chức năng khác (như Raycaster 3D của Milestone 3 hay kiểm thử âm thanh giọng nói của Milestone 4) không thuộc phạm vi nghiệm thu của đợt này.
-2. **Môi trường thiết bị di động vật lý (Samsung S9 qua ADB):** Việc xác thực trên thiết bị thật và chụp ảnh màn hình thuộc Milestone 4 theo đúng kế hoạch trong [PROJECT.md](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/PROJECT.md).
+### 4.1. Bằng Chứng Kiểm Thử Đơn Vị & Tích Hợp (M2 Test Suite)
+```
+pytest tests/test_phase6_r2_cooldown_triggers.py -v
+======================= 12 passed, 3 warnings in 36.81s =======================
+Exit Code: 0
+```
+
+### 4.2. Bằng Chứng Kiểm Thử Phân Lập & Quy Chuẩn (R1 & Phase 5 R3)
+```
+pytest tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py -v
+======================= 39 passed, 3 warnings in 11.91s =======================
+Exit Code: 0
+```
+
+### 4.3. Bằng Chứng Kiểm Thử Tải & Kịch Bản Khắc Nghiệt (Challenger M2 Suites)
+```
+pytest tests/test_challenger_phase6_m2_empirical.py tests/test_challenger_m2_r2_stress.py -v
+======================= 14 passed, 3 warnings in 41.41s =======================
+Exit Code: 0
+
+node tests/test_challenger_m2_frontend_node.js
+All 5 Challenger 2 Node.js tests PASSED cleanly!
+Exit Code: 0
+```
+
+### 4.4. Bằng Chứng Kiểm Thử Hồi Quy Toàn Diện (Full Legacy Regression)
+```
+pytest tests/test_challenger_m2_gate_ux_empirical.py tests/test_challenger_phase6_m1.py tests/test_challenger_phase6_m1_2.py -q
+175 passed, 3 warnings in 35.81s
+Exit Code: 0
+```
+
+### 4.5. Bằng Chứng Kiểm Chứng Trực Giao Độc Lập (Orthogonal Harness)
+```
+python -c "<orthogonal_verification_script>"
+Orthogonal Check 1 (Threading Lock genuinely acquired & blocks): PASS
+Orthogonal Check 2 (Dynamic Nonce Cooldown & Idempotency): PASS
+Orthogonal Check 3 (Fresh OTP after 60s elapsed): PASS
+Orthogonal Check 4 (Anti-Replay OTP Destruction): PASS
+ALL ORTHOGONAL EMPIRICAL CHECKS PASSED!
+Exit Code: 0
+```
 
 ---
 
-## 4. Conclusion (Kết Luận & Phán Quyết Giám Định)
+## 5. Điểm Cần Lưu Ý (Caveats)
 
-Tất cả các tiêu chí trong yêu cầu gốc của Sếp và kế hoạch kỹ thuật Milestone 2 đã được triển khai hoàn toàn trung thực, đạt chất lượng cao:
-- **Phán quyết cuối cùng:** **CLEAN**
-- **Trạng thái Milestone 2:** **PASSED / ACCEPTED**
+- **Không Có Caveat**: Tất cả các tiêu chuẩn của `ORIGINAL_REQUEST.md` và các chỉ thị pháp y đối với Milestone 2 đều được đáp ứng trọn vẹn. Không có giả định thiếu căn cứ, không có vùng code nào chưa được kiểm chứng.
 
 ---
 
-## 5. Verification Method & Evidence (Phương Pháp & Bằng Chứng Tái Hiện)
+## 6. Kết Luận (Conclusion)
 
-### 5.1. Bằng chứng kiểm tra định dạng tệp (100% POSIX LF, UTF-8 no BOM)
-```powershell
-python -c "
-files = [
-    'simulator/static/index.html',
-    'simulator/static/js/app.js',
-    'simulator/static/js/auth.js',
-    'mobile_app/index.html',
-    'simulator/static/js/mobile_app.js'
-]
-for p in files:
-    with open(p, 'rb') as f:
-        data = f.read()
-    assert b'\r\n' not in data, f'{p} có chứa CRLF'
-    assert not data.startswith(b'\xef\xbb\xbf'), f'{p} có chứa BOM'
-print('Tất cả 5 tệp đều đạt chuẩn 100% POSIX LF và UTF-8 không BOM!')
-"
-```
-**Kết quả thực tế:**
-```
-simulator/static/index.html: size=21418 bytes, CRLF=0, BOM=False
-simulator/static/js/app.js: size=57605 bytes, CRLF=0, BOM=False
-simulator/static/js/auth.js: size=44208 bytes, CRLF=0, BOM=False
-mobile_app/index.html: size=24269 bytes, CRLF=0, BOM=False
-simulator/static/js/mobile_app.js: size=36706 bytes, CRLF=0, BOM=False
-ALL 5 FILES PASS ENCODING AND LF LINE ENDINGS VERIFICATION!
-```
+- **Phán quyết Pháp Y:** **CLEAN**
+- Gói sản phẩm Milestone 2 do Worker M2 thực hiện hoàn toàn chân thực, không có mã giả, không có kết quả code cứng, an toàn tuyệt đối về bảo mật thông tin bí mật (Zero-Leak), bảo toàn tính sạch sẽ của cơ sở dữ liệu và vượt qua toàn bộ 245/245 bài kiểm tra nghiêm ngặt nhất.
+- Khuyến nghị Orchestrator phê duyệt Milestone 2 và chuyển sang Milestone 3 (R3 Email RFC 5322 Standards and Deliverability).
 
-### 5.2. Bằng chứng chạy kiểm thử đối kháng DOM Challenger
-```powershell
-python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_m2
-```
-**Kết quả thực tế:**
-```
-collected 36 items
-tests/test_challenger_m4_dom.py::TestMilestoneM4DomIntegrity::test_all_inline_event_handlers_resolved[index] PASSED
-...
-tests/test_challenger_m4_dom.py::TestMilestoneM4DomIntegrity::test_node_headless_runtime_evaluation[mobile_app] PASSED
-============================= 36 passed in 1.91s ==============================
-```
+---
 
-### 5.3. Bằng chứng chạy kiểm thử trực giao của Auditor (`test_orthogonal_integrity.py`)
-```powershell
-python .agents/teamwork/auditor_m2/test_orthogonal_integrity.py
-```
-**Kết quả thực tế:**
-```
-[TEST 1] Verifying simulator/static/index.html contracts...
- -> PASSED: Web HTML contracts valid.
-[TEST 2] Verifying mobile_app/index.html contracts...
- -> PASSED: Mobile HTML contracts valid.
-[TEST 3] Verifying simulator/static/js/auth.js readOnly removal...
- -> PASSED: auth.js readOnly unlocked.
-[TEST 4] Verifying simulator/static/js/app.js Login Gate hardening...
- -> PASSED: app.js Login Gate logic verified.
-[TEST 5] Verifying simulator/static/js/mobile_app.js exports...
- -> PASSED: mobile_app.js exports verified.
-[TEST 6] Verifying Live Backend Auth & Password endpoints...
-   -> Wrong password rejected properly.
-   -> Default password login passed.
-   -> Password mismatch rejected properly.
-   -> Valid registration with random nonce passed.
-   -> Newly registered account login passed.
- -> PASSED: Live Backend endpoints verified with nonces.
-==========================================
-ALL ORTHOGONAL INTEGRITY TESTS PASSED 100%!
-==========================================
-```
+## 7. Phương Pháp Kiểm Chứng Lại Độc Lập (Verification Method)
 
-### 5.4. Bằng chứng chạy kiểm thử môi trường Node.js Headless VM (`test_js_runtime.js`)
+Để bất kỳ thẩm định viên nào có thể tái tạo 100% kết quả trên một cách độc lập:
 ```powershell
-node .agents/teamwork/auditor_m2/test_js_runtime.js
-```
-**Kết quả thực tế:**
-```
-[JS RUNTIME TEST 1] Verifying togglePasswordVisibility implementation...
- -> PASSED: togglePasswordVisibility toggles state and icon bidirectionally.
-[JS RUNTIME TEST 2] Verifying hasValidLoginSession forensic edge cases...
- -> PASSED: hasValidLoginSession handles all edge cases rigorously.
-[JS RUNTIME TEST 3] Verifying closeLoginGateModal lockdown...
- -> PASSED: closeLoginGateModal strictly enforces authentication.
-==========================================
-ALL JS RUNTIME INTEGRITY CHECKS PASSED 100%!
-==========================================
+# 1. Chạy bộ kiểm thử chuyên trách Milestone 2
+pytest tests/test_phase6_r2_cooldown_triggers.py -v
+
+# 2. Chạy bộ kiểm thử stress & challenger
+pytest tests/test_challenger_phase6_m2_empirical.py tests/test_challenger_m2_r2_stress.py -v
+node tests/test_challenger_m2_frontend_node.js
+
+# 3. Kiểm tra tính sạch của dữ liệu
+python -c "import json; accs=json.load(open('simulator/data/accounts_3layer.json', encoding='utf-8')); allow=json.load(open('simulator/data/family_email_allowlist.json', encoding='utf-8')); assert len(accs)==6; assert allow=={}; print('DATA CLEAN: PASS')"
 ```

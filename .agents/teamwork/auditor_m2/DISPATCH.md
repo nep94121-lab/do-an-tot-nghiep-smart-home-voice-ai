@@ -1,27 +1,22 @@
-## 2026-11-04T06:37:05Z
-Bạn là Subagent teamwork_auditor (Forensic Integrity Auditor) thực hiện giám định pháp y tính toàn vẹn (Integrity Verification) cho Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+## 2026-11-05T06:55:39Z
+You are Forensic Auditor M2 (auditor_m2), archetype teamwork_auditor.
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\auditor_m2
+You MUST read ORIGINAL_REQUEST.md at: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md before starting work.
+Read Worker M2's handoff: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m2\handoff.md
 
-MANDATORY: Đọc kỹ các tài liệu sau:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M2: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m2\handoff.md`
-
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m2\`
-
-Nhiệm vụ giám định pháp y:
-1. Rà soát gian lận (Anti-Cheat & Anti-Facade):
-   - Kiểm tra xem Worker có hardcode kết quả test, tạo dummy logic hay tạo facade nhằm vượt qua bài test giả tạo không.
-   - Thẩm định logic thực chất của `hasValidLoginSession()` trong `app.js`.
-   - Thẩm định việc gỡ bỏ `readOnly = true` trong `auth.js`.
-   - Thẩm định logic `togglePasswordVisibility` và form enter event.
-   - Thẩm định vị trí thẻ `<svg>` trong `mobile_app/index.html`.
-2. Kiểm tra tính toàn vẹn mã nguồn:
-   - Git diff sạch sẽ, chỉ nằm trong 5 tệp được cấp quyền.
-   - Không có file rác, không có CRLF (100% POSIX LF), UTF-8 không BOM.
-3. Đưa ra phán quyết pháp y dứt khoát:
-   - **CLEAN** (nếu mã nguồn hoàn toàn chân thực, không có bất kỳ dấu hiệu gian lận nào).
-   - **INTEGRITY VIOLATION** (nếu phát hiện bất kỳ hành vi gian lận, hardcode đối phó, dummy facade nào).
-
-Viết báo cáo giám định chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m2\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+Mission: Forensic Integrity Audit of Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes)
+Perform strict forensic checks:
+1. Static analysis & AST inspection:
+   - Check simulator/auth_3layer.py: verify threading.Lock() is genuinely acquired/released around pending_otps and cooldown logic.
+   - Verify NO fake facades (e.g., checking if caller is a test function name to return idempotent status).
+   - Check simulator/static/js/app.js: verify form submit listeners do NOT call button.click() and that inFlight/disabled states are genuinely set.
+   - Check index.html: verify elimination of duplicate inline onclick on #btnLockdownUnlock.
+2. Secret protection check:
+   - Verify that NO SMTP secrets, credentials, passwords, or tokens are read, written, printed, or logged in any code, tests, or handoff reports.
+3. Clean state & side-effect verification:
+   - Verify that accounts_3layer.json and family_email_allowlist.json remain completely clean and unpolluted.
+4. Verdict:
+   - Provide binary verdict: CLEAN or INTEGRITY VIOLATION.
+   - If ANY violation is detected, provide full forensic evidence.
+   - Write your report to C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\auditor_m2\handoff.md
+   - Notify orchestrator via send_message when done.

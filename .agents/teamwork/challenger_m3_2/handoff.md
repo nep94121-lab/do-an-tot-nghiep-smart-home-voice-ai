@@ -1,177 +1,127 @@
-# Báo Cáo Kiểm Định Thực Nghiệm Đối Kháng Độc Lập (Challenger 2)
-## Milestone 3: 3D Model DOM, Controls & Raycaster
+# Báo Cáo Thẩm Định & Đối Kháng Thực Nghiệm (Challenger M3-2)
+## Milestone 3: R3 — Email RFC 5322 Standards & Deliverability
 
-**Người thực hiện:** Subagent `teamwork_challenger` (Challenger 2 - Empirical Adversarial Critic)  
-**Mục tiêu:** Kiểm thử thực nghiệm đối kháng độc lập các thành phần DOM, CSS, Raycaster, Toolbar và tính toàn vẹn mã nguồn của Milestone 3.  
-**Phán quyết chính thức:** **APPROVE** (ĐẠT 100% TIÊU CHUẨN KỸ THUẬT VÀ ĐỐI KHÁNG)
-
----
-
-## 1. Observation (Quan Sát Thực Nghiệm & Bằng Chứng Mã Nguồn)
-
-### 1.1. Khử triệt để lỗi xóa DOM trong `simulator/static/house3d.js`
-- **Quan sát mã nguồn:** Không tìm thấy bất kỳ sự xuất hiện nào của `container.innerHTML = ""` hay `container.innerHTML = ...` (0 kết quả).
-- **Cơ chế chèn canvas và bảo tồn DOM:**
-  Tại [simulator/static/house3d.js:208-212](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js#L208-L212):
-  ```javascript
-  clickableMeshes.length = 0;
-  const existingCanvas = container.querySelector("canvas");
-  if (existingCanvas) {
-    existingCanvas.remove();
-  }
-  container.insertBefore(renderer.domElement, container.firstChild);
-  ```
-- **Hiện tượng:** Khi khởi tạo hoặc tái khởi tạo `SmartHome3D.init()`, chỉ thẻ `<canvas>` cũ bị loại bỏ. Thẻ con `#house3dLabels` và `.viewport-note` hoàn toàn nguyên vẹn, thẻ canvas Three.js được gắn ở vị trí con đầu tiên (`firstChild`), nằm dưới các nhãn DOM nổi.
-
-### 1.2. Khử triệt để lệnh ẩn icon emoji trong `simulator/static/css/style.css`
-- **Quan sát mã nguồn:** Không tìm thấy `.pin-3d .pin-icon { display: none !important; }` và `.pin-3d[title*="Bấm để chuyển góc nhìn"] { display: none !important; }` (0 kết quả).
-- Tại [simulator/static/css/style.css:450-456](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/css/style.css#L450-L456):
-  ```css
-  .pin-3d .pin-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    line-height: 1;
-  }
-  ```
-- Phân tầng tương tác con trỏ:
-  - `.house3d-labels { pointer-events: none; }` đảm bảo click vào khoảng trống lọt xuống canvas 3D cho Raycaster.
-  - `.pin-3d { pointer-events: auto; }` đảm bảo click vào pin kích hoạt bật/tắt thiết bị qua nút nổi.
-
-### 1.3. Cụm Toolbar 7 góc nhìn Camera trong `simulator/static/index.html` và `app.js`
-- Tại [simulator/static/index.html:84-95](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/index.html#L84-L95):
-  - Nhãn hiển thị góc nhìn hiện tại: `<span class="view-label" id="lblCurrentCameraView">Toàn cảnh</span>`.
-  - Cụm 7 nút điều hướng camera mang `data-cam`:
-    1. `overview`: Toàn cảnh (mặc định mang class `active`).
-    2. `living`: Phòng khách.
-    3. `bedroom`: Phòng ngủ.
-    4. `door`: Cửa chính.
-    5. `garden`: Sân vườn.
-    6. `board`: Mạch ESP.
-    7. `rotate`: 🔄 Tự xoay.
-- Tại [simulator/static/js/app.js:1544-1569](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/app.js#L1544-L1569):
-  Hàm `initCameraToolbar()` gắn lắng nghe click trên toàn bộ `.camera-toolbar .btn-cam`, gọi `window.SmartHome3D.setCameraView(preset)`, cập nhật class `active` và nhãn `lblCurrentCameraView`.
-- Tại [simulator/static/house3d.js:1423-1462](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js#L1423-L1462):
-  `setCameraView(preset)` hỗ trợ đầy đủ 7 góc nhìn, điều khiển mượt mà góc xoay/tọa độ camera `camGoal` và tự động đồng bộ trạng thái `active` của thanh toolbar cùng nhãn hiển thị.
-
-### 1.4. Tương tác THREE.Raycaster Actuation và Phân Biệt Drag vs Click
-- Tại [simulator/static/house3d.js:728-741, 861-867](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js#L728-L741):
-  Toàn bộ 7 thiết bị chấp hành thực tế được đăng ký vào mảng `clickableMeshes`:
-  1. `main_door`: `doorPivot`, `sg90Group`, `lockLed`
-  2. `living_room_light`: `lrBulb`, `lrCord`
-  3. `fan`: `fanBladesGroup`, `fanRod`
-  4. `ac`: `acBody`, `acLed`, `acFlapPivot`
-  5. `bedroom_light`: `bedCeilingLamp`, `nightLampShade`
-  6. `alarm_siren`: `sirenMesh`, `buzzerCylinder`
-  7. `garden_pump`: `pumpCylinder`, `pumpImpeller`, `tankMesh`, `soilBed`, `pipeVert`, `pipeHoriz`, `nozzle`
-- Cơ chế phân biệt Kéo xoay camera vs Click chuột thật:
-  - Chuột máy tính: Đo khoảng cách di chuyển giữa mousedown và mouseup `Math.hypot(dx, dy)`. Nếu khoảng cách `<= 6px` thì kích hoạt `handleRaycastClick(e.clientX, e.clientY)`; nếu `> 6px` coi là thao tác kéo xoay camera.
-  - Cảm ứng di động (Samsung Galaxy S9): Hỗ trợ sự kiện `touchstart`, `touchmove`, `touchend` với ngưỡng `Math.hypot(dx, dy) <= 10px`.
-- Chuẩn hóa tọa độ thiết bị chuẩn hóa (NDC):
-  `mouseVec.x = ((clientX - rect.left) / rect.width) * 2 - 1`
-  `mouseVec.y = -((clientY - rect.top) / rect.height) * 2 + 1`
-- Duyệt ngược Scene Graph (Bubble-up Hierarchy):
-  `while (target && (!target.userData || !target.userData.deviceId) && target !== scene) { target = target.parent; }` đảm bảo click vào chi tiết con (như cánh quạt, cánh cửa) vẫn kích hoạt đúng `deviceId` của khối cha.
-
-### 1.5. Định dạng tệp và mã hóa (Zero-CRLF & UTF-8 Không BOM)
-Kết quả đo byte trực tiếp trên đĩa:
-| Đường dẫn tệp | Kích thước | UTF-8 BOM | CRLF (`\r\n`) | CR đơn | LF (`\n`) |
-|---|---|---|---|---|---|
-| `simulator/static/house3d.js` | 72,937 bytes | False | 0 | 0 | 1819 |
-| `simulator/static/css/style.css` | 17,446 bytes | False | 0 | 0 | 1049 |
-| `simulator/static/index.html` | 22,350 bytes | False | 0 | 0 | 350 |
-| `simulator/static/js/app.js` | 58,728 bytes | False | 0 | 0 | 1573 |
+- **Subagent:** `challenger_m3_2` (Archetype: `teamwork_challenger`, Roles: `critic`, `specialist`)
+- **Parent Orchestrator:** `91485de0-7c6f-449a-ba3f-ed6820ebb01a`
+- **Working Directory:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m3_2`
+- **Thời điểm hoàn thành:** 2026-11-05T07:44:00Z
+- **Phán quyết chính thức:** **APPROVE** (100% ĐẠT TIÊU CHUẨN KỸ THUẬT VÀ ĐỐI KHÁNG)
 
 ---
 
-## 2. Logic Chain (Chuỗi Lập Luận Từ Quan Sát Đến Kết Luận)
+## Challenge Summary
 
-```
-[Mục tiêu 1: Ngăn chặn bốc hơi DOM nhãn 3D]
-  ──> Quan sát: container.innerHTML = "" đã bị loại bỏ hoàn toàn.
-  ──> Thay bằng: existingCanvas.remove() + container.insertBefore(renderer.domElement, container.firstChild).
-  ──> Kiểm thử đối kháng Node.js VM: Khởi tạo SmartHome3D.init 5 lần liên tiếp.
-  ──> Kết quả thực nghiệm: Thẻ #house3dLabels và .viewport-note vẫn tồn tại nguyên vẹn, số lượng canvas duy trì duy nhất = 1 (không memory leak / DOM stacking).
-
-[Mục tiêu 2: Hiển thị icon emoji trên 7 nút nổi]
-  ──> Quan sát: style.css loại bỏ toàn bộ display: none trên .pin-icon.
-  ──> Bổ sung: display: inline-flex và font-size: 13px cho .pin-icon.
-  ──> Kiểm thử thực nghiệm: Quét regex toàn bộ style.css xác nhận 0 rule ẩn icon.
-
-[Mục tiêu 3: 7 nút camera toolbar và nhãn góc nhìn]
-  ──> Quan sát: index.html có đủ 7 nút data-cam và nhãn lblCurrentCameraView.
-  ──> app.js gắn listener gọi SmartHome3D.setCameraView.
-  ──> Kiểm thử đối kháng: Duyệt 7 preset, xác minh class active và cập nhật nhãn hoạt động mượt mà.
-
-[Mục tiêu 4: THREE.Raycaster kích hoạt 7 thiết bị]
-  ──> Quan sát: house3d.js đăng ký chính xác 7 thiết bị chấp hành vào mảng clickableMeshes.
-  ──> Cơ chế phân biệt kéo xoay camera vs click thật (ngưỡng 6px chuột, 10px touch) ngăn click nhầm khi xoay nhà.
-  ──> Duyệt ngược bubble-up tìm userData.deviceId chính xác từ mọi mesh con.
-
-[Mục tiêu 5: Tính toàn vẹn hệ thống và hồi quy]
-  ──> Bộ test đối kháng M3 tự động (tests/test_challenger_m3_stress_dom_raycaster.py): 20/20 PASSED.
-  ──> Bộ test DOM M4 (tests/test_challenger_m4_dom.py): 36/36 PASSED.
-  ──> Bộ test trực giao M3 (worker_m3/test_m3_orthogonal.py): 18/18 PASSED.
-  ──> Bộ test toàn diện 36 luồng (tests/e2e/test_all_36_project_flows.py): 36/36 PASSED.
-  ──> Kiểm tra cú pháp Node.js (node -c): Exit code 0.
-```
+- **Overall Risk Assessment:** **LOW**
+- **Empirical Test Suites Executed:**
+  - `tests/test_challenger_phase6_m3_2.py`: 20/20 PASSED (0.97s)
+  - `tests/test_challenger_m3_rfc5322.py`: 35/35 PASSED (3.66s)
+  - `tests/test_phase6_r3_rfc5322.py`: 8/8 PASSED
+  - `tests/test_phase5_r3_otp_email.py`: 4/4 PASSED
+  - `tests/test_phase6_r2_cooldown_triggers.py`: 12/12 PASSED
+  - `tests/test_phase6_r1_allowlist_isolation.py`: 35/35 PASSED
+  - `tests/test_challenger_phase5_r2_r3.py`: 24/24 PASSED (120.61s)
+  - **Tổng cộng kiểm định:** 138/138 tests PASSED (100% Green, 0 Failures).
+- **CRLF & BOM Audit:** 100% UTF-8 không BOM, 0 CRLF (POSIX LF thuần túy).
+- **Security Audit:** Zero-Leak tuyệt đối — 0 thông tin đăng nhập/mật khẩu ứng dụng SMTP bị rò rỉ trong headers, bodies, JSON responses hay audit logs.
 
 ---
 
-## 3. Caveats (Giới Hạn, Giả Định & Phạm Vi Ranh Giới)
+## 1. Observation (Quan Sát Trực Tiếp)
 
-1. **Kiểm thử WebGL Headless:** Môi trường kiểm thử tự động sử dụng Node.js VM DOM mock để xác minh toàn vẹn cấu trúc và logic sự kiện. Việc render GPU thực tế trên canvas WebGL đã được kiểm chứng bằng Three.js r128 vendor gốc.
-2. **Kiểm thử trên điện thoại thật (Samsung Galaxy S9):** Milestone 3 tập trung vào tầng DOM, CSS, Controls & Raycaster của giao diện 3D. Các luồng chạy thực tế qua ADB kèm chụp ảnh màn hình sẽ tiếp tục được kiểm chứng ở Milestone 4 theo đúng kế hoạch `PROJECT.md`.
+### 1.1. Cấu Trúc Headers và Tuân Thủ RFC 5322
+Tại [simulator/auth/invite_and_gmail_mixin.py:712-719](file:///C:/Users/LENOVO/datn-wt/p6-otp/simulator/auth/invite_and_gmail_mixin.py#L712-L719) và [simulator/auth/invite_and_gmail_mixin.py:568-575](file:///C:/Users/LENOVO/datn-wt/p6-otp/simulator/auth/invite_and_gmail_mixin.py#L568-L575):
+1. `From` & `Reply-To`: Được định dạng chuẩn qua `email.utils.formataddr(("Smart Home Voice AI", smtp_user))` tạo ra chuỗi RFC 5322 hợp lệ: `"Smart Home Voice AI" <nep94121@gmail.com>`.
+2. `To`: Được format qua `email.utils.formataddr((to_name, actual_to))`. Với tên hiển thị tiếng Việt có dấu (ví dụ: `Nguyễn Tuấn Anh`), `formataddr` tự động mã hóa RFC 2047 encoded-word (`=?utf-8?b?Tmd1eeG7hW4gVHXhuqVuIEFuaA==?= <senat6031@gmail.com>`), phân tích giải mã qua `email.header.decode_header` bảo toàn 100% ký tự UTF-8.
+3. `Date`: Thiết lập bằng `email.utils.formatdate(localtime=True)` (ví dụ: `Thu, 05 Nov 2026 14:35:34 +0700`). Phân tích bằng `email.utils.parsedate_to_datetime` thành công với đối tượng datetime có timezone hợp lệ.
+4. `Message-ID`: Thiết lập bằng `email.utils.make_msgid(domain=domain)` (ví dụ: `<176232813425.27596.1284759283749281@gmail.com>`). Kiểm tra bằng regex `^<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>$` đạt 100%. Kiểm tra sinh 30 tin nhắn liên tiếp ghi nhận 30 Message-ID hoàn toàn duy nhất.
+
+### 1.2. Tiêu Chuẩn Chống Thư Rác (SpamAssassin Heuristics)
+1. **Tiêu đề thư OTP (`Subject`):**
+   - Giá trị: `"Smart Home Voice - Mã xác thực tài khoản"`
+   - Kiểm tra `re.search(r"\d", subject)`: **0 kết quả** (không chứa bất kỳ chữ số nào, loại bỏ hoàn toàn việc để lộ 6 số OTP ra thanh thông báo/màn hình khóa).
+   - Kiểm tra `re.findall(r"\b[A-Z]{2,}\b", subject)`: **0 kết quả** (không chứa bất kỳ từ viết hoa toàn bộ như `OTP`, `AI`, `OAUTH`, `SMART`).
+   - Kiểm tra regex emoji `[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf]`: **0 kết quả**.
+2. **Tiêu đề thư Mời (`Subject`):**
+   - Giá trị: `"Smart Home Voice - Lời mời đăng ký tài khoản Cấp 2 (Người nhà (Tầng 2))"`
+   - Kiểm tra từ ALL-CAPS: **0 kết quả**.
+   - Kiểm tra emoji: **0 kết quả**.
+3. **Nội dung Plain Text và HTML:**
+   - Cấu trúc MIME `multipart/alternative`: `text/plain` được gắn trước (part 0), `text/html` được gắn sau (part 1) tuân thủ nghiêm ngặt RFC 2046 §5.1.4 (thứ tự ưu tiên tăng dần).
+   - Kiểm tra toàn bộ nội dung plain text và HTML qua regex emoji: **0 emoji**.
+   - Tỷ lệ độ dài plain text / HTML: Plain text dài >230 ký tự, HTML dài ~2500 ký tự (tỷ lệ > 0.09, vượt ngưỡng cảnh báo SpamAssassin `RATIO_TEXT_HTML_LOW`).
+   - Kiểm tra từ khóa lừa đảo (Anti-Phishing): Chuỗi `"Google OAuth"`, `"GOOGLE OAUTH"`, `"Google Security"`, `"Tài khoản Google"` hoàn toàn vắng mặt (0 kết quả).
+   - Giao diện HTML: Tông màu nền sáng chuẩn `#f8fafc` và `#ffffff`, border `#e2e8f0`, thẻ chứa mã OTP `<div id="otp-code-value">` hiển thị rõ ràng với font-size 32px.
+
+### 1.3. Khả Năng Cào Hộp Thư Bền Vững (`read_latest_otp_from_gmail_inbox`)
+Tại [simulator/auth/invite_and_gmail_mixin.py:870-968](file:///C:/Users/LENOVO/datn-wt/p6-otp/simulator/auth/invite_and_gmail_mixin.py#L870-L968):
+1. **Search Query `q`:** Cấu hình chuẩn `subject:"Smart Home" (xác thực OR OTP OR verification)` với `maxResults: 5`, bắt được cả định dạng tiêu đề mới và cũ.
+2. **Đệ quy giải mã Base64URL:** Hàm con `_extract_payload_text` duyệt đệ quy `payload["parts"]` qua nhiều cấp lồng nhau (lên tới 4 tầng), tự động bù padding `=` khi `len % 4 != 0`, xử lý an toàn khi payload bị hỏng hoặc thiếu part.
+3. **Regex 3 Tầng Phân Cấp (3-Tier Precedence):**
+   - Tầng 1: `(?:OTP[:\s-]*|mã[:\s-]*|code[:\s-]*|xác thực[:\s-]*|xác nhận[:\s-]*)\s*(\d{6})\b`
+   - Tầng 2: `id=["\']otp-code-value["\'][^>]*>(?:OTP:)?\s*(\d{6})<`
+   - Tầng 3: `\b(\d{6})\b`
+   - Khi có số điện thoại 10 số (`0987654321`) hoặc mã bưu cục 7 số (`7654321`) ở gần, regex không bao giờ cắt nhầm; khi có nhiều số 6 chữ số (năm tháng `202611`, mã bưu chính `100000`), Tầng 1 ưu tiên bắt chính xác mã OTP có ngữ cảnh (`Mã xác thực: 839201`).
 
 ---
 
-## 4. Conclusion (Phán Quyết Thực Nghiệm Độc Lập)
+## 2. Logic Chain (Chuỗi Lập Luận)
 
-- **Phán quyết:** **APPROVE**
-- **Đánh giá:**
-  1. Yêu cầu của Sếp tại `ORIGINAL_REQUEST.md` mục 3 đã được đáp ứng 100% một cách thực chất, không có hiện tượng gian lận, không ảo tưởng.
-  2. Toàn bộ 4 file sửa đổi đều đạt chuẩn UTF-8 không BOM và 0 CRLF (POSIX LF).
-  3. Cấu trúc DOM, thanh điều khiển Camera và cơ chế Raycaster hoạt động ổn định, có khả năng chống chịu re-init và phân biệt thao tác chuột / cảm ứng xuất sắc.
+1. **Chuẩn hóa RFC 5322 đảm bảo thư không bị SMTP relays từ chối:**
+   - Dựa trên quan sát 1.1, các trường bắt buộc theo RFC 5322 (§3.6.1 Date, §3.6.4 Message-ID, §3.6.2 From) đều có mặt đầy đủ, đúng cú pháp chuẩn, có timezone rõ ràng. Do đó, các máy chủ nhận thư (như Gmail, Outlook) sẽ không gắn cờ vi phạm RFC 5322 cấu trúc tin nhắn.
+2. **Loại bỏ triệt để các tiêu chí phạt của bộ lọc SpamAssassin:**
+   - Dựa trên quan sát 1.2, tiêu đề không chứa từ ALL-CAPS (tránh quy tắc `SUBJ_ALL_CAPS`), không chứa chữ số (tránh quy tắc lộ OTP/số ngẫu nhiên trên subject), không chứa emoji (tránh quy tắc `SUBJECT_HAS_EMOJI`).
+   - Cấu trúc 2 phần `text/plain` và `text/html` giúp tránh quy tắc `MIME_HTML_ONLY`.
+   - Loại bỏ các từ khóa giả mạo nhãn hiệu "Google OAuth" giúp thư không bị bộ lọc Anti-Phishing của Google chặn hoặc xếp vào hòm thư lừa đảo/Spam.
+3. **Khả năng trích xuất OTP tự động có khả năng chống nhiễu cao:**
+   - Dựa trên quan sát 1.3, cơ chế 3 tầng kết hợp Base64URL tự bù đệm bảo đảm kiểm thử tự động e2e đọc thư qua Gmail API/gws không bao giờ bị nghẽn do cấu trúc MIME multipart phức tạp hay số giả mạo xung quanh.
 
 ---
 
-## 5. Verification Method (Hướng Dẫn Tái Hiện Độc Lập)
+## 3. Caveats (Điểm Giới Hạn & Giả Định)
 
-Bất kỳ kiểm định viên nào cũng có thể kiểm chứng toàn bộ kết quả trên bằng các lệnh PowerShell độc lập sau:
+1. **Không gửi thư thật trong Milestone 3:** Toàn bộ kiểm thử trong Milestone 3 được thực hiện trên môi trường giả lập (mock SMTP/gws) tuân thủ quy tắc cô lập kiểm thử. Việc gửi tối đa 1 email thật duy nhất tới `senat6031@gmail.com` được dành riêng cho Milestone 4 theo đúng hợp đồng `SCOPE.md`.
+2. **Không có cảnh báo hay lỗi tồn đọng.**
 
-### 5.1. Chạy bộ kiểm thử đối kháng chuyên sâu M3
-```powershell
-python -m pytest tests/test_challenger_m3_stress_dom_raycaster.py -v --basetemp=.pytest_temp_chal_m3_2
-```
-*Kỳ vọng:* `20 passed in ~0.76s` (100% PASS).
+---
 
-### 5.2. Chạy bộ kiểm thử toàn vẹn DOM M4
-```powershell
-python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_chal_m3_2
-```
-*Kỳ vọng:* `36 passed in ~1.85s` (100% PASS).
+## 4. Conclusion (Kết Luận & Phán Quyết)
 
-### 5.3. Chạy bộ kiểm thử trực giao M3
-```powershell
-python .agents/teamwork/worker_m3/test_m3_orthogonal.py
-```
-*Kỳ vọng:* `SUCCESS: All 18 orthogonal verifications PASSED with 0 errors!`
+### Phán quyết: **APPROVE**
+Mã nguồn triển khai Milestone 3 (R3: Email RFC 5322 Standards & Deliverability) trong `simulator/auth/invite_and_gmail_mixin.py` đã vượt qua 100% các bài kiểm thử thực nghiệm đối kháng độc lập, tuân thủ hoàn hảo chuẩn RFC 5322, loại trừ mọi yếu tố kích hoạt spam filter, đảm bảo khả năng trích xuất OTP bền vững và bảo toàn Zero-Leak.
 
-### 5.4. Chạy kiểm tra định dạng tệp 0 CRLF & UTF-8 Không BOM
-```powershell
-python -c "
-files = ['simulator/static/house3d.js', 'simulator/static/css/style.css', 'simulator/static/index.html', 'simulator/static/js/app.js']
-for f in files:
-    raw = open(f, 'rb').read()
-    print(f'{f}: BOM={raw.startswith(b\"\xef\xbb\xbf\")}, CRLF={raw.count(b\"\r\n\")}, CR={raw.count(b\"\r\") - raw.count(b\"\r\n\")}')
-"
-```
-*Kỳ vọng:* Cả 4 file in ra `BOM=False, CRLF=0, CR=0`.
+---
 
-### 5.5. Chạy kiểm tra cú pháp Node.js
-```powershell
-node -c simulator/static/house3d.js
-node -c simulator/static/js/app.js
-```
-*Kỳ vọng:* Exit code 0, không có lỗi cú pháp.
+## 5. Verification Method (Phương Pháp Tái Hiện Độc Lập)
+
+Để kiểm chứng độc lập kết quả:
+
+1. **Chạy bộ kiểm thử đối kháng Challenger M3-2 (20 tests):**
+   ```powershell
+   pytest tests/test_challenger_phase6_m3_2.py -v
+   ```
+   *Kết quả kỳ vọng:* 20 passed.
+
+2. **Chạy bộ kiểm thử đối kháng kết hợp (55 tests):**
+   ```powershell
+   pytest tests/test_challenger_m3_rfc5322.py tests/test_challenger_phase6_m3_2.py -v
+   ```
+   *Kết quả kỳ vọng:* 55 passed in ~3.7s.
+
+3. **Chạy hồi quy Milestone 1, 2, 3 (79 tests):**
+   ```powershell
+   pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py tests/test_challenger_phase6_m3_2.py -v
+   ```
+   *Kết quả kỳ vọng:* 79 passed.
+
+4. **Kiểm tra 0 CRLF và UTF-8 không BOM:**
+   ```powershell
+   python -c "
+   files = ['simulator/auth/invite_and_gmail_mixin.py', 'tests/test_phase6_r3_rfc5322.py', 'tests/test_challenger_phase6_m3_2.py']
+   for f in files:
+       b = open(f, 'rb').read()
+       assert not b.startswith(b'\xef\xbb\xbf'), f'BOM: {f}'
+       assert b'\r\n' not in b, f'CRLF: {f}'
+   print('ALL CLEAN LF UTF-8')
+   "
+   ```
+   *Kết quả kỳ vọng:* `ALL CLEAN LF UTF-8`.

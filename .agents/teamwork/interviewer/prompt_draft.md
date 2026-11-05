@@ -1,44 +1,45 @@
-Fix all 15 bugs identified during real testing as documented in REAL_TEST_BUGS_20261105.md for the Smart Home Voice AI system, verified with reviewer and auditor checks across web, Android, and production deployment.
+Phase 6: Resolve OTP email deliverability and spam filtering issues, prevent unwanted emails to fake addresses with complete test isolation, implement anti-double-send cooldown, and verify end-to-end for the Smart Home Voice AI system.
 
-Working directory: C:\Users\LENOVO\Desktop\đồ án tốt nghiệp
+Working directory: C:\Users\LENOVO\datn-wt\p6-otp
 Integrity mode: development
+The team must NOT: read, write, or print SMTP secret values; push to master; deploy to production (--prod); touch Admin bots or Desktop BA-SVD; send real emails to addresses outside REAL_EMAIL_ALLOWLIST.
 
 ## Requirements
 
-### R1. Reproduce and Fix All 15 Real Test Bugs
-Read `REAL_TEST_BUGS_20261105.md` at the project root and fix all 15 identified bugs. For each bug, follow a strict test-driven bugfix cycle: write an automated reproduction test first (pytest or Playwright), confirm that the test fails before any fix, and then modify the codebase until the test passes.
+### R1. Email Allowlist and Test Isolation
+Implement a 3-tier protection system ensuring real emails are only ever sent to allowlisted addresses (`REAL_EMAIL_ALLOWLIST`: `nep94121@gmail.com`, `senat6031@gmail.com`, `kbanh376@gmail.com`, and any addresses defined in env `REAL_EMAIL_ALLOWLIST`). Enforce test isolation via an `autouse` pytest fixture in `tests/conftest.py` that mocks SMTP (`smtplib.SMTP`, `smtplib.SMTP_SSL`) and `gws` CLI subprocess dispatches. Configure the login gate on `/` and Playwright 3-roles test flows to use `send_gmail=False`. Real OTP dispatches are strictly restricted to password reset, layer-2 OTP, and user invites for allowlisted recipients; demo seed accounts and fake addresses must never receive real mail or trigger bounces.
 
-### R2. Comprehensive Multi-Role and Cross-Platform Verification
-Execute full test validation suites:
-- Full pytest test suite (executed on Windows with `python -X utf8 -m pytest tests/ --basetemp=.pytest_tmp` and clean up `.pytest_tmp` afterward).
-- Playwright live flow tests covering all 3 user roles: owner, family member (tier 2), and guest (tier 3).
-- Android build verification via Gradle `assembleDebug` (with `android.overridePathCheck=true`).
-- Independent reviewer and auditor verification ensuring no fabricated/mocked tests and zero data leaks. The process must not stop while any test is failing.
+### R2. Anti-Double-Send Cooldown and Trigger Fixes
+Prevent rapid duplicate OTP dispatches. Implement a 60-second cooldown and idempotency mechanism on the backend per recipient, returning idempotent status without dispatching duplicate emails while preserving the active OTP. Fix the frontend form submit and button click double-trigger on login and OTP forms, and enforce `inFlight` / `disabled` states on submit and OTP buttons to prevent duplicate requests.
 
-### R3. Production Deployment and Live Verification
-Commit and push all changes to the `master` branch, deploy to Vercel production, and verify each bug fix against https://do-an-tot-nghiep-smart-home-voice-a.vercel.app using real browser interaction flows.
+### R3. Email RFC 5322 Standards and Deliverability
+Fix email formatting to comply with RFC 5322 and prevent Gmail spam filtering. Format `From` using `formataddr`, and include valid `Date`, `Message-ID`, and `Reply-To` headers. Ensure subjects do not contain OTP codes, ALL-CAPS text, or emojis. Send multipart messages containing both clean text/plain and light-background HTML (zero emojis, no deceptive Google OAuth branding). Update `read_latest_otp_from_gmail_inbox` query and extraction logic to match the new subject and message structure.
 
-### R4. Documentation and Security Guardrails
-Append a Phase 4 section to `FIX_REPORT_20261104.md` documenting for each bug: the bug description, root cause, resolution approach, verification tests, and production verification results. Operate strictly within the project directory without interacting with other external processes or bots. Use the default owner password from the project seed for testing; do NOT log, commit, or display any passwords, OTPs, or secrets in reports, logs, commits, or UI. Preserve all 68 DOM IDs, window hooks, re-exports, the 3D model `house3d.js`, and maintain UTF-8 encoding without BOM and POSIX LF (0 CRLF).
+### R4. TDD Verification, Single Real Verification Email, and Deployment
+Follow strict TDD: create or run reproducing tests for each issue before verifying the fix. All test suites (pytest and Playwright) must run with 100% mocked email dispatches and pass cleanly. Once all tests pass, send at most one real verification email to `senat6031@gmail.com`. Work exclusively on branch `p6-otp` in worktree `C:\Users\LENOVO\datn-wt\p6-otp`, push only `p6-otp`, deploy a Vercel preview (strictly no `--prod`), and record the preview URL and Phase 6 summary into `FIX_REPORT_20261104.md`.
 
 ## Acceptance Criteria
 
-### Bug Fixes and TDD Verification
-- [ ] All 15 bugs listed in `REAL_TEST_BUGS_20261105.md` have corresponding automated reproduction tests written and verified failing prior to fixes.
-- [ ] All 15 reproduction tests pass after code fixes.
+### Email Allowlist & Test Mocking
+- [ ] Any attempt to send real email to non-allowlisted addresses (such as `thanh_vien_chuan@gmail.com`, `hoc_sinh_moi@gmail.com`, `tan_binh_gia_dinh@gmail.com`) is rejected or blocked without bounce.
+- [ ] An `autouse` fixture in `tests/conftest.py` mocks `smtplib.SMTP`, `smtplib.SMTP_SSL`, and `gws` dispatches during all pytest runs.
+- [ ] Login gate (`/`) dispatches login with `send_gmail: false`, and Playwright 3-roles tests run without triggering real email dispatches.
+- [ ] Demo seed accounts and test fixtures in `simulator/data/accounts_3layer.json` and `simulator/data/family_email_allowlist.json` contain only clean default accounts.
 
-### Test Suite Execution
-- [ ] Full pytest suite passes with 0 failures (`python -X utf8 -m pytest tests/ --basetemp=.pytest_tmp`).
-- [ ] Full Playwright live flow tests pass for owner, tier-2 family member, and tier-3 guest roles.
-- [ ] Android `assembleDebug` succeeds with exit code 0.
-- [ ] Independent reviewer and auditor checks confirm no mocked/fake tests and no sensitive credentials leaked.
+### Anti-Double-Send & Idempotency
+- [ ] Subsequent OTP requests for the same recipient within 60 seconds do not trigger a second email dispatch and return idempotent/cooldown status.
+- [ ] Double-firing event listeners on `#btnSubmitGateLogin` and related forms (`gatePanelLogin`, `gatePanelRegister`, `gatePanelForgot`) are eliminated.
+- [ ] Frontend buttons for login and OTP request show `disabled` / `inFlight` state during active network requests.
 
-### Production and Deployment
-- [ ] All changes are committed and pushed to `master`.
-- [ ] Production deployment to Vercel completes successfully.
-- [ ] Live browser verification on `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` confirms resolution of each bug.
+### Deliverability & RFC 5322 Compliance
+- [ ] Outgoing emails have RFC 5322 compliant `From` (via `formataddr`), `Date`, `Message-ID`, and `Reply-To` headers.
+- [ ] Email subject contains no OTP codes, no ALL-CAPS words, and no emojis.
+- [ ] Outgoing emails are MIME multipart (`alternative`) with both `text/plain` and light-background HTML containing zero emojis and no Google OAuth branding.
+- [ ] `read_latest_otp_from_gmail_inbox` successfully finds and extracts OTP codes matching the new subject format and multipart body.
 
-### Documentation and Integrity
-- [ ] `FIX_REPORT_20261104.md` contains the complete Phase 4 section with root causes, fixes, tests, and production verification evidence.
-- [ ] Zero secrets, passwords, or OTPs are recorded in reports, logs, commits, or UI.
-- [ ] All 68 DOM IDs, window hooks, re-exports, `house3d.js`, and UTF-8 LF formatting remain intact.
+### Verification & Delivery
+- [ ] Pytest suite and Playwright tests pass 100% with all mocks active.
+- [ ] Exactly zero or at most one real verification email is dispatched to `senat6031@gmail.com` after automated tests are green.
+- [ ] No SMTP secrets or credentials are read, written, logged, or printed.
+- [ ] Changes are committed on branch `p6-otp`, pushed only to `origin/p6-otp` (no master push), and deployed to Vercel preview without `--prod`.
+- [ ] Vercel preview URL and Phase 6 completion details are documented in `FIX_REPORT_20261104.md`.

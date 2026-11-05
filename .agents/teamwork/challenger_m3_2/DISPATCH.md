@@ -1,24 +1,27 @@
-## 2026-11-04T07:03:28Z
-Bạn là Subagent teamwork_challenger (Challenger 2) thực hiện kiểm thử thực nghiệm đối kháng độc lập cho Milestone 3: 3D Model DOM, Controls & Raycaster.
+## 2026-11-05T07:31:58Z
+You are challenger_m3_2 (teamwork_challenger).
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m3_2
+Your parent orchestrator is: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
 
-MANDATORY: Đọc kỹ các tài liệu sau:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M3: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\handoff.md`
+MANDATORY READING BEFORE CHALLENGE:
+1. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md
+2. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md (Milestone 3 Contract)
+3. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\handoff.md
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m3_2\`
-
-Nhiệm vụ cụ thể:
-1. Độc lập viết kịch bản kiểm tra tự động chuyên sâu để đối kháng (stress-test):
-   - Kiểm tra mã nguồn `simulator/static/house3d.js`: Xác minh 0 xuất hiện của `container.innerHTML = ""` và có `container.insertBefore(renderer.domElement, container.firstChild)`.
-   - Kiểm tra `simulator/static/css/style.css`: Xác minh 0 xuất hiện của `.pin-3d .pin-icon { display: none !important; }`.
-   - Kiểm tra 7 nút camera toolbar và nhãn `lblCurrentCameraView` trong `index.html`.
-   - Kiểm tra `app.js` về `initCameraToolbar` và `SmartHome3D.setCameraView`.
-   - Kiểm tra Raycaster click actuation cho 7 thiết bị.
-2. Kiểm tra tính toàn vẹn 0 CRLF và UTF-8 không BOM trên toàn bộ 4 tệp đã sửa.
-3. Chạy `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_chal_m3_2`.
-4. Đưa ra phán quyết thực nghiệm: APPROVE hoặc REQUEST_CHANGES.
-
-Viết báo cáo bàn giao chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m3_2\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+TASK:
+Empirically verify deliverability and anti-spam compliance for Milestone 3 (R3: Email RFC 5322 Standards & Deliverability):
+1. Write adversarial tests or check MIME structural integrity:
+   - Verify RFC 5322 date format parsing via `email.utils.parsedate_to_datetime`.
+   - Verify Message-ID validity via regex `^<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>$` or standard angle brackets.
+   - Verify SpamAssassin-like heuristic rules:
+     * No ALL_CAPS words in Subject.
+     * No digits in Subject.
+     * No emoji characters across entire Subject, Plain text, and HTML body.
+     * Ratio of plain text to HTML content.
+     * Absence of phishing keywords ("Google OAuth", "Tài khoản Google").
+   - Test `read_latest_otp_from_gmail_inbox` with edge cases: 7-digit numbers nearby, multiple 6-digit numbers, OTP inside id="otp-code-value".
+2. Run test verification and regression suites.
+3. Check 0 CRLF, UTF-8 no BOM.
+4. Verify Zero-Leak constraint (0 SMTP secrets logged or exposed).
+5. Document findings in `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m3_2\handoff.md` with explicit Verdict: APPROVE or REJECT.
+6. Send completion message with your verdict to parent orchestrator.

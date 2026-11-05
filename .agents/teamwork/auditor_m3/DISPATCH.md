@@ -1,27 +1,27 @@
-## 2026-11-04T07:03:37Z
-Bạn là Subagent teamwork_auditor (Forensic Integrity Auditor) thực hiện giám định pháp y tính toàn vẹn (Integrity Verification) cho Milestone 3: 3D Model DOM, Controls & Raycaster.
+## 2026-11-05T07:32:09Z
+You are auditor_m3 (teamwork_auditor).
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\auditor_m3
+Your parent orchestrator is: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
 
-MANDATORY: Đọc kỹ các tài liệu sau:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M3: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\handoff.md`
+MANDATORY READING BEFORE AUDIT:
+1. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md
+2. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md (Milestone 3 Contract)
+3. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\handoff.md
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m3\`
-
-Nhiệm vụ giám định pháp y:
-1. Rà soát gian lận (Anti-Cheat & Anti-Facade):
-   - Kiểm tra xem Worker có hardcode kết quả test, tạo dummy logic hay tạo facade nhằm vượt qua bài test giả tạo không.
-   - Thẩm định logic thực chất của việc bảo tồn `#house3dLabels` và `.viewport-note` (bỏ `container.innerHTML = ""`).
-   - Thẩm định việc gỡ bỏ rule ẩn icon trong `style.css`.
-   - Thẩm định 7 nút camera preset và handler kết nối `SmartHome3D.setCameraView`.
-   - Thẩm định `THREE.Raycaster` và logic phân biệt drag vs click (ngưỡng 6px) kích hoạt `onToggleDevice`.
-2. Kiểm tra tính toàn vẹn mã nguồn:
-   - Git diff sạch sẽ, chỉ nằm trong 4 tệp được cấp quyền.
-   - Không có file rác, không có CRLF (100% POSIX LF), UTF-8 không BOM.
-3. Đưa ra phán quyết pháp y dứt khoát:
-   - **CLEAN** (nếu mã nguồn hoàn toàn chân thực, không có bất kỳ dấu hiệu gian lận nào).
-   - **INTEGRITY VIOLATION** (nếu phát hiện bất kỳ hành vi gian lận, hardcode đối phó, dummy facade nào).
-
-Viết báo cáo giám định chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m3\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+TASK:
+Perform strict Forensic Integrity Audit on Milestone 3 (R3: Email RFC 5322 Standards & Deliverability):
+1. Anti-Cheat & Anti-Facade verification:
+   - Perform AST analysis on `simulator/auth/invite_and_gmail_mixin.py`: ensure RFC 5322 headers, subject formatting, multipart bodies, and Base64URL decoding are genuine implementations without hardcoded expected outputs, test-name inspections, or fake mocks in production code.
+2. Zero-Leak audit:
+   - Scan entire repository, test files, and reports for real SMTP passwords, tokens, or credentials. Confirm 100% Zero-Leak.
+3. Clean State audit:
+   - Verify `simulator/data/accounts_3layer.json` (6 default accounts) and `simulator/data/family_email_allowlist.json` (`{}`) remain clean.
+4. Formatting & Encoding audit:
+   - Confirm 0 CRLF (100% POSIX LF) and UTF-8 without BOM across all modified and newly created files.
+5. Independent Test Execution & Orthogonal Verification:
+   - Run tests directly and independently:
+     `pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+     And regression suites.
+   - Run an orthogonal verification check (test from a completely independent perspective with random inputs/nonces).
+6. Document full evidence in `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\auditor_m3\handoff.md` with explicit Verdict: CLEAN or INTEGRITY VIOLATION.
+7. Send completion message with your verdict to parent orchestrator.

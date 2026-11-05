@@ -1,174 +1,142 @@
-# Báo Cáo Giám Định Pháp Y Tính Toàn Vẹn (Forensic Integrity Audit Report)
-## Milestone 3: 3D Model DOM, Controls & Raycaster
+# Forensic Integrity Audit Report: Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)
 
-**Người thực hiện:** Subagent `teamwork_auditor` (Forensic Integrity Auditor)  
-**Ngày hoàn thành:** 2026-11-04  
-**Workspace:** `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp`  
-**Working Directory:** `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\auditor_m3\`  
-**Target Files Thẩm Định:**
-1. [simulator/static/house3d.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js)
-2. [simulator/static/css/style.css](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/css/style.css)
-3. [simulator/static/index.html](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/index.html)
-4. [simulator/static/js/app.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/app.js)
+**Auditor:** `auditor_m3` (Archetype: `forensic_auditor`, Roles: `critic`, `specialist`, `auditor`)  
+**Parent Orchestrator:** `91485de0-7c6f-449a-ba3f-ed6820ebb01a`  
+**Workspace:** `C:\Users\LENOVO\datn-wt\p6-otp`  
+**Target:** Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)  
+**Profile:** General Project Forensic Integrity Check (Development Mode)  
+**Verdict:** **CLEAN**
 
 ---
 
-## Forensic Audit Report
+## 1. Observation
 
-**Work Product**: Milestone 3 (3D Model DOM, Controls & Raycaster)  
-**Profile**: General Project / Forensic Auditor  
-**Verdict**: **CLEAN**  
+### 1.1. Anti-Cheat & Anti-Facade AST Inspection
+- **Target File:** `simulator/auth/invite_and_gmail_mixin.py`
+- Executed AST inspection script scanning for test-name reflection, test environment evasion (`pytest`, `PYTEST_CURRENT_TEST`, `unittest`, `_pytest`, `mock`), and hardcoded return values.
+- Result: **0 suspicious nodes or reflection branches found**.
+- Function `send_real_gmail_otp` (lines 678–868):
+  - `msg["From"] = email.utils.formataddr((sender_name, smtp_user))`
+  - `msg["To"] = email.utils.formataddr((to_name, actual_to))`
+  - `msg["Date"] = email.utils.formatdate(localtime=True)`
+  - `msg["Message-ID"] = email.utils.make_msgid(domain=domain)`
+  - `msg["Reply-To"] = email.utils.formataddr((sender_name, smtp_user))`
+  - `msg["Subject"] = "Smart Home Voice - Mã xác thực tài khoản"`
+  - Attachments:
+    - `msg.attach(MIMEText(plain_text, "plain", "utf-8"))`
+    - `msg.attach(MIMEText(html_body, "html", "utf-8"))`
+- Function `send_invite_link_via_gmail` (lines 530–676):
+  - Sets RFC 5322 headers via `formataddr`, `formatdate`, `make_msgid`.
+  - Attaches plain text and HTML parts with clean styling and 0 emojis.
+- Function `read_latest_otp_from_gmail_inbox` (lines 870–970):
+  - Search query `q: 'subject:"Smart Home" (xác thực OR OTP OR verification)'`.
+  - Recursive Base64URL decoder `_extract_payload_text` with padding handling: `pad = len(data) % 4; padded_data = data + ("=" * (4 - pad) if pad else "")`.
+  - 3-tier regex cascade for OTP extraction:
+    1. Keyword context regex: `(?:OTP[:\s-]*|mã[:\s-]*|code[:\s-]*|xác thực[:\s-]*|xác nhận[:\s-]*)\s*(\d{6})\b`
+    2. HTML container regex: `id=["\']otp-code-value["\'][^>]*>(?:OTP:)?\s*(\d{6})<`
+    3. Fallback boundary regex: `\b(\d{6})\b`
+- Checked for emojis in email bodies/subjects: **0 emojis found**.
+- Checked for deceptive Google OAuth branding: **0 deceptive strings found**.
 
-### Phase Results
-- **[File Formatting & Hygiene]**: PASS — 100% POSIX LF (0 CRLF), UTF-8 không BOM trên toàn bộ 4 tệp. Git diff nằm chính xác trong 4 tệp được cấp quyền.
-- **[DOM Preservation Logic]**: PASS — Đã xóa bỏ hoàn toàn `container.innerHTML = ""`. Canvas mới được chèn bằng `container.insertBefore(renderer.domElement, container.firstChild)`, giữ nguyên vẹn `#house3dLabels` và `.viewport-note`.
-- **[CSS Pin Icons & Toolbar]**: PASS — Đã gỡ bỏ triệt để rule `.pin-3d .pin-icon { display: none !important; }` và `.pin-3d[title*="Bấm để chuyển góc nhìn"] { display: none !important; }`. Toàn bộ 7 emoji icon hiển thị rõ nét kèm trạng thái ON/OFF. Đầy đủ CSS cho `.camera-toolbar` và `.btn-cam`.
-- **[Raycaster & Actuator Registration]**: PASS — Khởi tạo `THREE.Raycaster()` thực chất. Cả 7 thiết bị chấp hành (`main_door`, `living_room_light`, `fan`, `ac`, `bedroom_light`, `alarm_siren`, `garden_pump`) đều được gắn `userData.deviceId` qua `registerClickable()` và hỗ trợ duyệt ngược parent hierarchy.
-- **[Drag vs Click Segregation]**: PASS — Tính khoảng cách di chuyển chuột/chạm bằng `Math.hypot(dx, dy)`. Ngưỡng `dist <= 6px` kích hoạt click thật sự, `dist > 6px` nhận diện thao tác xoay camera, chống kích hoạt nhầm khi kéo.
-- **[Camera Presets & Two-Way Sync]**: PASS — 7 nút preset (`overview`, `living`, `bedroom`, `door`, `garden`, `board`, `rotate`) kết nối hai chiều giữa toolbar DOM và `SmartHome3D.setCameraView()`, đồng bộ nhãn `#lblCurrentCameraView` và class `.active`.
-- **[Independent Suite Verification]**: PASS — `audit_verification_suite.py` (26/26 tiêu chí PASS), `test_challenger_m4_dom.py` (36/36 test PASS), `test_all_36_project_flows.py` (36/36 flow PASS).
+### 1.2. Zero-Leak Credential Audit
+- Scanned all files across the repository for `GMAIL_APP_PASSWORD`, `SMTP_PASSWORD`, Google API keys (`AIza...`), and 16-character app password patterns.
+- Findings: **0 real credentials leaked**. All occurrences in test suites are explicit test mock values (e.g., `"dummy_pass"`, `"abcd efgh ijkl mnop"` in `tests/test_phase5_r3_otp_email.py`).
+- No `.env` files with secret values exist in repository.
 
----
+### 1.3. Clean State Verification
+- `simulator/data/accounts_3layer.json`: Exactly 6 default seed accounts:
+  `['nep94121@gmail.com', 'thanhviena.hust@gmail.com', 'thanhvienb.hust@gmail.com', 'khachc.guest@gmail.com', 'senat6031@gmail.com', 'kbanh376@gmail.com']`.
+- `simulator/data/family_email_allowlist.json`: Exactly empty dictionary `{}`.
 
-## 1. Observation (Quan Sát Thực Nghiệm & Đo Đạc Mã Nguồn)
+### 1.4. Formatting & Encoding Audit
+- Verified 68 python, markdown, and config files across the workspace.
+- Result: **100% UTF-8 without BOM, 0 CRLF (100% POSIX LF)**.
+- Specific Milestone 3 targets verified:
+  - `simulator/auth/invite_and_gmail_mixin.py`: BOM=False, CRLF=0 (62,726 bytes)
+  - `tests/test_phase6_r3_rfc5322.py`: BOM=False, CRLF=0 (19,363 bytes)
+  - `tests/test_phase5_r3_otp_email.py`: BOM=False, CRLF=0 (9,500 bytes)
+  - `tests/test_challenger_phase6_m3_2.py`: BOM=False, CRLF=0 (31,913 bytes)
+  - `.agents/teamwork/worker_m3/handoff.md`: BOM=False, CRLF=0 (7,562 bytes)
 
-### 1.1. Thẩm định bảo tồn DOM trong `simulator/static/house3d.js`
-- **Vị trí:** Dòng 207-212 trong `simulator/static/house3d.js`:
-  ```javascript
-  clickableMeshes.length = 0;
-  const existingCanvas = container.querySelector("canvas");
-  if (existingCanvas) {
-    existingCanvas.remove();
-  }
-  container.insertBefore(renderer.domElement, container.firstChild);
-  ```
-- **Chứng cứ thực nghiệm:** Lệnh nguy hiểm `container.innerHTML = ""` đã bị loại trừ 100%. Phần tử canvas Three.js được đặt ở vị trí `firstChild`, giữ nguyên các phần tử anh em là `#house3dLabels` và `.viewport-note` bên trong container `#house3dViewport`.
+### 1.5. Independent Test Execution
+- **Command:** `pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+  - Result: `59 passed, 3 warnings in 12.60s` (Exit Code: 0).
+- **Command:** `pytest tests/test_challenger_phase5_r2_r3.py -v`
+  - Result: `24 passed, 3 warnings in 58.04s` (Exit Code: 0).
+- **Command:** `pytest tests/test_challenger_phase6_m3_2.py -v`
+  - Result: `20 passed in 1.52s` (Exit Code: 0).
+- **Command:** `pytest tests/test_challenger_phase6_m1.py tests/test_challenger_phase6_m1_2.py tests/test_challenger_phase6_m2_empirical.py -v`
+  - Result: `149 passed, 1 failed in 24.70s`.
+  - Note on the 1 failure: `tests/test_challenger_phase6_m1.py:400` asserted `assert msg["To"] == "senat6031@gmail.com"` expecting a bare string, which was written in Milestone 1 before Milestone 3 introduced RFC 5322 `formataddr` (`'Senat User <senat6031@gmail.com>'`). This is a historical challenger test expectation drift, not an implementation defect.
 
-### 1.2. Thẩm định gỡ bỏ rule ẩn icon trong `simulator/static/css/style.css`
-- **Vị trí:** Dòng 450-456 và dòng 492-498 trong `simulator/static/css/style.css`:
-  ```css
-  .pin-3d .pin-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    line-height: 1;
-  }
-  ```
-- **Chứng cứ thực nghiệm:** Không còn bất kỳ khai báo `display: none !important;` nào đối với `.pin-icon` hay nhãn cảm biến. Các icon emoji (`🚪`, `💡`, `🌀`, `❄️`, `🛏️`, `🚨`, `💧`) hiển thị trực quan và có hiệu ứng hover pointer, glow khi `on` và tối giản khi `off`.
-
-### 1.3. Thẩm định Raycaster và ngưỡng phân biệt Kéo vs Click
-- **Vị trí:** Dòng 39-43, 1298-1323, và 1346-1353 trong `simulator/static/house3d.js`:
-  ```javascript
-  const clickableMeshes = [];
-  const raycaster = new THREE.Raycaster();
-  const mouseVec = new THREE.Vector2();
-  ...
-  window.addEventListener("mouseup", (e) => {
-    if (!isDragging) return;
-    isDragging = false;
-    const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
-    if (dist <= 6) {
-      handleRaycastClick(e.clientX, e.clientY);
-    }
-  });
-  ```
-- **Chứng cứ thực nghiệm:** 
-  1. `raycaster.setFromCamera(mouseVec, camera)` và `raycaster.intersectObjects(clickableMeshes, true)` thực hiện tính toán giao cắt hình học 3D thực chất.
-  2. Đoạn mã có vòng lặp duyệt ngược `while (target && (!target.userData || !target.userData.deviceId) && target !== scene)` đảm bảo click vào các chi tiết cấu thành (cánh cửa, cánh quạt, cánh vẫy điều hòa, bóng đèn, thân bơm) đều nhận diện được `deviceId` gốc.
-  3. Đoạn mã `dist <= 6` ngăn chặn hoàn toàn việc click nhầm khi người dùng đang thực hiện thao tác kéo xoay không gian 3D.
-
-### 1.4. Thẩm định 7 nút Camera Preset và kết nối `SmartHome3D.setCameraView`
-- **Vị trí:** Dòng 87-95 trong `simulator/static/index.html` và dòng 1544-1568 trong `simulator/static/js/app.js`:
-  ```html
-  <div class="camera-toolbar" role="toolbar" aria-label="Góc nhìn 3D">
-    <button type="button" class="btn-cam active" data-cam="overview">Toàn cảnh</button>
-    <button type="button" class="btn-cam" data-cam="living">Phòng khách</button>
-    <button type="button" class="btn-cam" data-cam="bedroom">Phòng ngủ</button>
-    <button type="button" class="btn-cam" data-cam="door">Cửa chính</button>
-    <button type="button" class="btn-cam" data-cam="garden">Sân vườn</button>
-    <button type="button" class="btn-cam" data-cam="board">Mạch ESP</button>
-    <button type="button" class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
-  </div>
-  ```
-  ```javascript
-  camButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const preset = btn.getAttribute("data-cam");
-      if (window.SmartHome3D && typeof window.SmartHome3D.setCameraView === "function") {
-        window.SmartHome3D.setCameraView(preset);
-      }
-  ...
-  ```
-- **Chứng cứ thực nghiệm:** Cả 7 nút đều gắn sự kiện, chuyển đổi góc nhìn mượt mà, đồng bộ hai chiều với nhãn hiển thị `#lblCurrentCameraView` và class `.active`.
-
-### 1.5. Thẩm định định dạng tệp và mã băm SHA-256
-- `simulator/static/house3d.js`: 72,937 bytes, 0 CRLF, 0 BOM.
-- `simulator/static/css/style.css`: 17,446 bytes, 0 CRLF, 0 BOM.
-- `simulator/static/index.html`: 22,350 bytes, 0 CRLF, 0 BOM.
-- `simulator/static/js/app.js`: 58,728 bytes, 0 CRLF, 0 BOM.
+### 1.6. Orthogonal Independent Verification with Random Nonces
+- Executed dedicated orthogonal test script testing from a third-party MTA perspective:
+  - **Step 1 (Allowlist Nonce Boundary):** 50 dynamic random string nonces verified against allowlist rejection and environment expansion.
+  - **Step 2 (MIME MTA Deserialization):** 25 randomized dispatches serialized to raw bytes and deserialized using Python's standard `email.message_from_bytes`. Verified RFC 5322 headers (`From`, `To`, `Date`, `Message-ID`, `Reply-To`), Subject without OTP/ALL-CAPS/emojis, and multipart/alternative plain+light HTML containing genuine OTP nonces.
+  - **Step 3 (Scraper Fuzzing with Nested Payloads):** 30 iterations of multi-level nested payloads with unpadded/padded Base64URL data and decoy phone numbers (`09xxxxxxxx`) / order IDs (`ORD-xxxxxx`). Inbox scraper accurately extracted the genuine OTP nonce in all 30 runs without false positives.
+  - Result: **ALL ORTHOGONAL INDEPENDENT CHECKS PASSED (Exit Code: 0)**.
 
 ---
 
-## 2. Logic Chain (Chuỗi Lập Luận Giám Định)
+## 2. Logic Chain
 
-1. **Rà soát Gian Lận & Hardcode (Anti-Cheat & Anti-Facade):**
-   - *Giả thuyết:* Worker tạo facade `return true` hoặc hardcode kết quả test để qua mặt bài test.
-   - *Kiểm chứng thực tế:* Xem xét toàn bộ mã hàm `handleRaycastClick`, `registerClickable`, `setCameraView`, `initCameraToolbar`. Không có bất kỳ hằng số cố định hay chuỗi string giả mạo nào. Toàn bộ logic giao cắt tia Raycaster là thuật toán toán học 3D chuẩn xác của Three.js r128.
-   - *Kết luận:* Bác bỏ giả thuyết gian lận. Logic hoàn toàn thực chất.
-
-2. **Rà soát Tính Toàn Vẹn Cấu Trúc DOM:**
-   - *Giả thuyết:* Canvas đè lên làm mất khả năng tương tác của các nhãn HTML hoặc nhãn bị detached khỏi DOM tree.
-   - *Kiểm chứng thực tế:* `container.insertBefore(renderer.domElement, container.firstChild)` đẩy `<canvas>` xuống vị trí đầu tiên của container `#house3dViewport`. `#house3dLabels` (z-index: 4) và `.viewport-note` nằm ở lớp trên, cho phép các nút `.pin-3d` nhận sự kiện chuột `click` và hiển thị đầy đủ icon + text.
-   - *Kết luận:* Hoàn toàn chuẩn xác theo đúng yêu cầu tại mục 3 của `ORIGINAL_REQUEST.md`.
-
-3. **Rà soát Tính Độc Lập Phân Biệt Thao Tác Chuột:**
-   - *Giả thuyết:* Việc thêm Raycaster gây ra hiện tượng bật tắt thiết bị ngoài ý muốn khi người dùng kéo chuột xoay mô hình 3D.
-   - *Kiểm chứng thực tế:* Đo khoảng cách `Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y)`. Khi người dùng kéo xoay camera, khoảng cách di chuyển thường > 20px, vượt ngưỡng 6px nên Raycaster bị chặn. Khi người dùng click chọn thiết bị, khoảng cách <= 6px, Raycaster được kích hoạt chính xác.
-   - *Kết luận:* Cơ chế phòng ngừa kích hoạt nhầm hoạt động đúng thiết kế.
-
----
-
-## 3. Caveats (Giới Hạn & Phạm Vi Kiểm Thẩm)
-
-1. **Thứ tự nạp script Three.js:** `house3d.js` khởi tạo `const raycaster = new THREE.Raycaster()` ở phạm vi module. Trong môi trường trình duyệt thực tế, `index.html` luôn nạp `vendor/three.min.js` trước `house3d.js` nên hoàn toàn trơn tru. Khi chạy trong môi trường Node.js headless cô lập (không có browser DOM/Three.js nạp sẵn), cần cung cấp đối tượng mock `THREE` như đã thiết kế trong bộ test pháp y `audit_verification_suite.py`.
-2. **WebGL Context vật lý:** Thao tác render 3D thực tế phụ thuộc vào WebGL driver trên thiết bị đầu cuối (máy tính hoặc điện thoại Galaxy S9). Quá trình kiểm định đã xác nhận tính đúng đắn của toàn bộ cây DOM và luồng điều khiển sự kiện logic.
+1. **Anti-Facade Authenticity**:
+   - The AST analysis confirmed that `simulator/auth/invite_and_gmail_mixin.py` contains genuine logic for RFC 5322 message creation, Base64URL decoding, and 3-tier regex extraction.
+   - No conditional branches or dummy returns bypass computation during tests.
+2. **Deliverability & Anti-Spam Heuristics**:
+   - RFC 5322 compliance was confirmed by serializing outgoing messages to raw bytes and parsing them via an independent parser. The `Date` header parses to valid datetimes, `Message-ID` conforms to `<id@domain>`, and `From`/`To`/`Reply-To` use `formataddr`.
+   - Spam score risks are mitigated: subjects contain no OTP codes, no ALL-CAPS words, and zero emojis.
+   - MIME structure is strictly `multipart/alternative` with `text/plain` followed by `text/html` on light background (`#ffffff` / `#f8fafc`), eliminating SpamAssassin `MIME_HTML_ONLY` triggers.
+3. **Scraper Robustness**:
+   - Fuzzing with random nested payloads, unpadded Base64URL, and decoy 6-digit substrings proved that the scraper reliably prioritizes context keywords and HTML container markers over bare numbers.
+4. **Security & Clean State**:
+   - 0 secrets leaked across workspace.
+   - Clean seed state (`accounts_3layer.json` with 6 accounts, `family_email_allowlist.json` with `{}`) remains intact.
+   - 100% POSIX LF and UTF-8 without BOM confirmed.
 
 ---
 
-## 4. Conclusion (Phán Quyết Chung Cuộc)
+## 3. Caveats
 
-- **Phán quyết:** **CLEAN**
-- Toàn bộ các yêu cầu của Milestone 3 đã được thực thi trung thực, chuẩn mực, không có facade, không có hardcode, và tuân thủ 100% các ràng buộc kỹ thuật trong `ORIGINAL_REQUEST.md` và `PROJECT.md`.
-- Sẵn sàng chuyển giao cho Milestone 4 (Kiểm thử thực tế Giọng nói và ADB Mobile trên điện thoại Samsung Galaxy S9).
+- In `tests/test_challenger_phase6_m1.py` line 400, a test case written during Milestone 1 specifically asserted `assert msg["To"] == "senat6031@gmail.com"` expecting a bare email string. Milestone 3's implementation upgraded `msg["To"]` to RFC 5322 `formataddr((to_name, actual_to))` (`'Senat User <senat6031@gmail.com>'`), causing that single historical assertion to fail. The test assertion in `test_challenger_phase6_m1.py` should be updated to `assert "senat6031@gmail.com" in msg["To"]` or `assert email.utils.parseaddr(msg["To"])[1] == "senat6031@gmail.com"`.
+- Real network SMTP dispatch to external email providers was not performed during Milestone 3 (reserved for Milestone 4 verification email).
 
 ---
 
-## 5. Verification Method (Hướng Dẫn Tái Xác Minh Độc Lập)
+## 4. Conclusion
 
-Bất kỳ kiểm định viên hoặc hệ thống CI/CD nào cũng có thể tái xác minh độc lập bằng các câu lệnh sau:
+**Verdict: CLEAN**
 
-### 5.1. Chạy Bộ Kiểm Định Pháp Y Toàn Diện (26 tiêu chí)
-```powershell
-python .agents/teamwork/auditor_m3/audit_verification_suite.py
-```
-- **Kết quả kỳ vọng:** `Total: 26, PASS: 26, FAIL: 0 -> Exit Code 0`.
+Milestone 3 (R3: Email RFC 5322 Standards & Deliverability) satisfies all integrity requirements, acceptance criteria, and quality standards. The implementation is authentic, robust, zero-leak, and fully verified through both automated test suites and independent orthogonal verification.
 
-### 5.2. Chạy Bộ Kiểm Thử Đối Kháng DOM & Event Handlers
-```powershell
-python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_auditor_dom
-```
-- **Kết quả kỳ vọng:** `36 passed in ~2s`.
+---
 
-### 5.3. Chạy Toàn Bộ 36 Luồng Dự Án E2E
-```powershell
-python -m pytest tests/e2e/test_all_36_project_flows.py -v --basetemp=.pytest_temp_auditor_flows
-```
-- **Kết quả kỳ vọng:** `36 passed in ~12s`.
+## 5. Verification Method
 
-### 5.4. Kiểm Tra Cú Pháp JavaScript
-```powershell
-node -c simulator/static/house3d.js
-node -c simulator/static/js/app.js
-```
-- **Kết quả kỳ vọng:** Exit Code 0 (không có lỗi cú pháp).
+To independently reproduce this forensic audit:
+
+1. **Run Primary Test Suite**:
+   ```powershell
+   pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v
+   ```
+   *Expected:* 59 passed.
+
+2. **Run Milestone 3 Challenger Suite**:
+   ```powershell
+   pytest tests/test_challenger_phase6_m3_2.py tests/test_challenger_phase5_r2_r3.py -v
+   ```
+   *Expected:* 44 passed.
+
+3. **Verify Zero-Leak & Encoding**:
+   ```powershell
+   python -c "
+   import glob
+   files = ['simulator/auth/invite_and_gmail_mixin.py', 'tests/test_phase6_r3_rfc5322.py', 'tests/test_phase5_r3_otp_email.py']
+   for f in files:
+       raw = open(f, 'rb').read()
+       assert not raw.startswith(b'\xef\xbb\xbf'), f'BOM in {f}'
+       assert b'\r\n' not in raw, f'CRLF in {f}'
+   print('ENCODING CLEAN')
+   "
+   ```
+   *Expected:* `ENCODING CLEAN`.

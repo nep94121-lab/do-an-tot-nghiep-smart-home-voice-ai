@@ -1,92 +1,95 @@
-# Phase 3 Orchestrator Handoff Report — Smart Home Voice AI
+# Handoff Report — Project Orchestrator (Generation 1 to Generation 2)
 
-- **Orchestrator**: `teamwork_orchestrator`
-- **Parent ID**: `72838c20-316a-4c87-9a96-337047b9f137`
-- **Date**: 2026-11-04T18:25:00Z
-- **Phase**: Phase 3 (Requirements R1, R2, R3, R4, R5, R6)
-- **Status**: **100% COMPLETED — ALL GATES PASSED (M11–M15)**
-
----
-
-## 1. Observation
-
-All 5 Phase 3 milestones have passed their multi-agent verification gates with unanimous approval from Reviewers, Challengers, and Forensic Auditors:
-
-### Milestone Breakdown:
-1. **Milestone M11 (Vercel Production Routing & Redirection — R1)**:
-   - Configured `vercel.json` and `simulator/server.py` with 307 temporary redirect `^/mobile/?$ -> Location: /app`.
-   - Correctly routed `/architecture`, error pages `/offline`, `/404`, `/403`, `/500`, `/qr_expired`, and Service Worker `/sw.js`.
-   - Configured catch-all route `^/(.*)$ -> status 404, dest: /simulator/static/404.html` ensuring custom design system error page without Vercel raw `NOT_FOUND`.
-   - Gate Verdicts: Worker DONE, Reviewer 1 & 2 APPROVE, Challenger 1 & 2 APPROVE, Auditor CLEAN -> **Gate Result: PASS**.
-
-2. **Milestone M12 (Session-based RBAC Security — R2)**:
-   - Built thread-safe SQLite-backed `SessionStore` (`simulator/auth/session_store.py`).
-   - Fixed unauthenticated cookie fallback vulnerability (CWE-565) in Iteration 2 remediation.
-   - Refactored `deps.py` and `routes_devices.py` to extract stateless session tokens and pass `request_tier` explicitly per-request.
-   - Zero permission bleed across 120 concurrent multi-threaded requests for 3 roles (Chủ nhà Tier 1, Gia đình Tier 2, Khách Tier 3).
-   - Gate Verdicts (Iteration 2): Worker DONE, Reviewer APPROVE, Challenger APPROVE, Auditor CLEAN -> **Gate Result: PASS**.
-
-3. **Milestone M13 (Android Native Compose M1–M5 UI & assembleDebug — R3)**:
-   - Added `android.overridePathCheck=true` in `android_app/.lightbuild/gradle/gradle.properties` bypassing AGP path restrictions on Windows.
-   - Aligned M1–M5 Jetpack Compose screens 1:1 with Codex mockups (`ui_mockups/v2_new_pages/np_m1..np_m5`).
-   - Verified Gradle compilation: `assembleDebug` yields **`BUILD SUCCESSFUL`** (APK 12 MB).
-   - Verified Samsung Galaxy S9 status (serial `2223e8784b0c7ece`, `Present: False` via USB); created `ui_mockups/android_phase3/`.
-   - Gate Verdicts: Worker DONE, Reviewer 1 & 2 APPROVE, Challenger 1 & 2 APPROVE, Auditor CLEAN -> **Gate Result: PASS**.
-
-4. **Milestone M14 (Ponytail Modularization Refactoring — R4)**:
-   - Purged dead and duplicate code: `simulator/static/style.css` (970L -> 2L), `simulator/static/app.js` (1031L -> 10L).
-   - Modularized backend: extracted `simulator/voice/dsp_features.py` (789L), `synthesis_augment.py` (79L), `enrollment_quality.py` (304L); trimmed `voice_auth.py` from 2551L to 1440L.
-   - Modularized Android Compose: decomposed `MainScreen.kt` (2710L -> 850L) into dedicated tabs and components.
-   - Net codebase reduction: **-4,960 lines** of monolithic bloat.
-   - 100% Invariants preserved: `house3d.js` intact (0 changes), `ui_mockups/` intact (0 deletions), 68 DOM IDs, 25 mobile window hooks, 13 security hooks.
-   - Gate Verdicts: Worker DONE, Reviewer 1 & 2 APPROVE, Challenger 1 & 2 APPROVE, Auditor CLEAN -> **Gate Result: PASS**.
-
-5. **Milestone M15 (The Final Milestone: Verification Gating, Deploy & Report — R5, R6)**:
-   - Pytest suites: 100% PASS (155/155 tests in challenger run, 94/94 tests in auditor run).
-   - Android Compose build: `assembleDebug` independently executed and verified **`BUILD SUCCESSFUL`** by multiple agents.
-   - Repository-wide encoding: 100% UTF-8 without BOM, 0 CRLF (POSIX LF `\n`).
-   - Git commits pushed to GitHub `origin/master`:
-     - `02a715e`: `feat(phase3): vercel routing, session rbac, android compose, ponytail modularization`
-     - `9cf67dc`: `docs(report): finalize Phase 3 acceptance metrics, curl verification, and production release sign-off`
-   - Vercel Production Deployment:
-     - Deployment ID: `dpl_EtgiuDsSv8qdpa5zFA8H8K9XGEKh`
-     - Domain: `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`
-     - Empirical `curl.exe` verification on real production domain:
-       - `/mobile` -> `307` (`Location: /app`)
-       - `/architecture` -> `200`
-       - `/offline` -> `200`
-       - `/404` -> `404`
-       - `/403` -> `403`
-       - `/500` -> `500`
-       - `/qr_expired` -> `200`
-       - `/sw.js` -> `200`
-       - Non-existent route -> `404` (Custom `404.html`, zero raw Vercel NOT_FOUND)
-   - Gate Verdicts: Worker DONE, Reviewer 1 & 2 APPROVE, Challenger 1 & 2 APPROVE, Auditor CLEAN -> **Gate Result: PASS**.
+**Mission:** Phase 6 — OTP email deliverability, RFC 5322 compliance, test isolation, anti-double-send cooldown, and E2E verification on branch `p6-otp`.  
+**From:** Project Orchestrator Gen 1 (`91485de0-7c6f-449a-ba3f-ed6820ebb01a`)  
+**To:** Project Orchestrator Gen 2 (Successor)  
+**Parent Agent ID:** `416a74d0-7ac4-49b6-ae99-1ccbcf054fea`  
+**Handoff Type:** Soft Handoff (Succession Threshold Reached: 16 spawns completed)  
+**Date:** 2026-11-05T07:14:00Z  
+**Workspace Root:** `C:\Users\LENOVO\datn-wt\p6-otp` (Git branch: `p6-otp`)  
 
 ---
 
-## 2. Logic Chain
+## 1. Milestone State
 
-1. Requirements R1 through R6 define the complete scope of Phase 3.
-2. The Top-level Orchestrator surveyed the codebase, mapped all dependencies, and decomposed the work into 5 sequential milestones (M11 to M15).
-3. Each milestone was rigorously verified using the Project Pattern: 1 Worker, 2 Reviewers, 2 Challengers, and 1 Forensic Auditor.
-4. When Challenger 1 identified an unsigned cookie privilege escalation (CWE-565) in M12 Iteration 1, the gate rejected the work, triggered remediation in Iteration 2, and achieved clean re-audit.
-5. All verification gates for M11, M12, M13, M14, and M15 have unanimously passed with zero regressions, zero test tampering, and zero facades.
-6. The project is deployed, pushed to GitHub remote, verified on the live production URL, and signed off in `FIX_REPORT_20261104.md` Section 11.
-
----
-
-## 3. Caveats
-
-1. Real-time bi-directional WebSocket streaming (`/ws`) and low-latency audio processing require running the local server backend (`simulator/server.py`), whereas Vercel serves the static frontend, PWA Service Worker caching, and redirection layer.
-2. The Samsung Galaxy S9 hardware device was physically disconnected during build verification; the conditional APK install and adb screencap was skipped per requirement specifications.
+| # | Milestone Name | Status | Key Artifacts & Evidence |
+|---|----------------|:------:|--------------------------|
+| M0 | Architecture Survey & Scope Decomposition | **DONE** | 3 Explorer reports in `.agents/teamwork/explorer_survey_{1,2,3}/survey_report.md`. `SCOPE.md` created with 14 features. |
+| M1 | Email Allowlist and Test Isolation | **DONE** | Gate Result: **PASS** (181/181 tests passed). `tests/conftest.py` autouse fixture, 3-tier allowlist engine in `simulator/auth/invite_and_gmail_mixin.py`, `send_gmail: false` in `app.js`, clean seed JSONs. |
+| M2 | Anti-Double-Send Cooldown & Trigger Fixes | **DONE** | Gate Result: **PASS** (245/245 tests passed). `self._otp_lock = threading.Lock()`, 60s cooldown & idempotency preserving OTP in `simulator/auth_3layer.py`, OTP destruction on reset, form submit deduplication & inFlight / disabled states with 60s countdown in `simulator/static/js/app.js`. |
+| M3 | Email RFC 5322 Standards and Deliverability | **READY TO EXECUTE** | Scope defined in `SCOPE.md` § Feature 8..11 & M3 Contract. Surveyed by Explorer 3 (`explorer_survey_3/survey_report.md`). |
+| M4 | Full Test Verification, Single Real Verification Email & Vercel Preview Deploy | **PENDING** | Blocked on M3 completion. |
 
 ---
 
-## 4. Conclusion & Verdict
+## 2. Active Subagents
 
-- **Phase 3 Status**: **100% COMPLETE & VERIFIED**
-- **Production URL**: `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`
-- **Git Commits**: `02a715e`, `9cf67dc` on `origin/master`
-- **Total Codebase Reduction**: -4,960 lines of bloat
-- **Gate Evaluation**: Unanimous PASS across all 5 milestones.
+- Currently active: **NONE**. All 16 subagents of Generation 1 have fully concluded with hard handoffs.
+- All previous workers, reviewers, challengers, and auditors are retired. Fresh subagents must be spawned for Milestone 3.
+
+---
+
+## 3. Pending Decisions & Hard Constraints
+
+1. **DISPATCH-ONLY Orchestrator**: You MUST delegate ALL implementation and testing work to subagents via `invoke_subagent`. NEVER modify source code or run build/test commands directly.
+2. **Model Inherit**: All spawned subagents MUST use `Model="inherit"` (`Gemini 4 Argon High`).
+3. **Zero-Leak Protection**: DO NOT read, write, print, or log SMTP secrets (`GMAIL_APP_PASSWORD`).
+4. **Git Safety**: Push ONLY to `origin/p6-otp`. DO NOT push to `master`.
+5. **Deployment Safety**: Deploy ONLY Vercel preview (`vercel` without `--prod`).
+6. **Email Allowlist**: NEVER send real mail to non-allowlisted recipients. At most ONE real verification email to `senat6031@gmail.com` during Milestone 4.
+
+---
+
+## 4. Remaining Work (Concrete Next Steps for Gen 2)
+
+### Immediate Next Step: Execute Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)
+
+1. **Step 1: Dispatch `worker_m3` (`teamwork_worker`)**
+   - **Assigned Scope**: Implement Feature 8, 9, 10, 11 from `SCOPE.md`:
+     * File: `simulator/auth/invite_and_gmail_mixin.py`
+       - Import `email.utils` (`formataddr`, `formatdate`, `make_msgid`).
+       - In `send_real_gmail_otp` & `send_invite_link_via_gmail`:
+         - Construct RFC 5322 headers:
+           * `From: formataddr(('Smart Home Voice AI', sender_addr))`
+           * `Date: formatdate(localtime=True)`
+           * `Message-ID: make_msgid(domain=domain)`
+           * `Reply-To: formataddr(('Smart Home Voice AI', sender_addr))`
+         - Subject sanitization: Clean Title Case `"Smart Home Voice - Mã xác thực tài khoản"` (NO OTP digits, NO ALL-CAPS words, NO emojis).
+         - MIME Multipart (`alternative`):
+           * Part 1: `text/plain; charset=utf-8` (zero emojis).
+           * Part 2: `text/html; charset=utf-8` (light background `#ffffff`/`#f8fafc`, clean typography, zero emojis, NO deceptive Google OAuth branding).
+       - In `read_latest_otp_from_gmail_inbox`:
+         - Update query `q` to `'subject:"Smart Home" (xác thực OR OTP OR verification)'`.
+         - Add recursive Base64URL payload decoding for nested multipart messages.
+         - 3-tier OTP regex extraction:
+           1. Regex pattern `(?:mã|otp|code)[^\d]{1,15}(\b\d{6}\b)`
+           2. Strong boundary `(?<!\d)(\d{6})(?!\d)`
+           3. Fallback 6-digit sequence.
+     * File: `tests/test_phase5_r3_otp_email.py` & `tests/test_phase6_r3_rfc5322.py`:
+       - Add comprehensive test assertions for RFC 5322 headers (`From`, `Date`, `Message-ID`, `Reply-To`), Subject formatting, multipart structure, and inbox scraping.
+   - **Verification Requirement**: Worker must run `pytest tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v` (Exit Code: 0).
+
+2. **Step 2: Milestone 3 Gate Verification**
+   - Dispatch 2 `teamwork_reviewer`s (`reviewer_m3_1`, `reviewer_m3_2`).
+   - Dispatch 2 `teamwork_challenger`s (`challenger_m3_1`, `challenger_m3_2`) for adversarial RFC 5322 and multipart fuzzing.
+   - Dispatch 1 `teamwork_auditor` (`auditor_m3`) for forensic integrity audit.
+   - Collect verdicts into `GATE_STATUS.md`. Once all APPROVE/CLEAN -> Milestone 3 PASS.
+
+3. **Step 3: Execute Milestone 4 (R4: E2E Verification, Single Real Email & Preview Deploy)**
+   - Run 100% mocked pytest and Playwright suites.
+   - Dispatch at most 1 real verification email to `senat6031@gmail.com`.
+   - Commit on branch `p6-otp` and push to `origin/p6-otp`.
+   - Deploy Vercel preview: `vercel --yes` (no `--prod`).
+   - Write comprehensive report to `FIX_REPORT_20261104.md`.
+   - Report final completion to parent (`416a74d0-7ac4-49b6-ae99-1ccbcf054fea`).
+
+---
+
+## 5. Key Artifact Index
+
+- Authoritative User Request: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md`
+- Scope Document: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md`
+- Gate Status: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\GATE_STATUS.md`
+- Persistent Briefing: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\BRIEFING.md`
+- Progress Tracker: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\progress.md`
+- Explorer 3 Survey on RFC 5322: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\explorer_survey_3\survey_report.md`

@@ -1,1210 +1,838 @@
 [
   {
-    "id": 442949,
-    "time_vn": "05:14:02 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 255208 — Mã OTP đã cấp trên Bảng Test (255208)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "255208",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 442503,
-    "time_vn": "05:14:02 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 142810 — Mã OTP đã cấp trên Bảng Test (142810)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "142810",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 441581,
-    "time_vn": "05:14:01 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 848507 — Mã OTP đã cấp trên Bảng Test (848507)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "848507",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 438891,
-    "time_vn": "05:13:58 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 117768 — Mã OTP đã cấp trên Bảng Test (117768)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "117768",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 433990,
-    "time_vn": "05:13:53 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 930817 — Mã OTP đã cấp trên Bảng Test (930817)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "930817",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 428902,
-    "time_vn": "05:13:48 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 144823 — Mã OTP đã cấp trên Bảng Test (144823)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "144823",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 427220,
-    "time_vn": "05:13:47 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 722578 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a8a019df3de3a)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "722578",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a8a019df3de3a"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 425772,
-    "time_vn": "05:13:45 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 200858 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a8a013efc1e19)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "200858",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a8a013efc1e19"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 420470,
-    "time_vn": "05:13:40 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 102016 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a89ffe4afa481)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "102016",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a89ffe4afa481"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 419570,
-    "time_vn": "05:13:39 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 216485 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a89ffb1d8fefe)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "216485",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a89ffb1d8fefe"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 413706,
-    "time_vn": "05:13:33 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 163535 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a89fe5efad062)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "163535",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a89fe5efad062"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 412669,
-    "time_vn": "05:13:32 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 266731 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a89fe0efb68ad)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "266731",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a89fe0efb68ad"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 918048,
-    "time_vn": "05:05:18 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 673453 — Mã OTP đã cấp trên Bảng Test (673453)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "673453",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 912898,
-    "time_vn": "05:05:12 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 470444 — Mã OTP đã cấp trên Bảng Test (470444)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "470444",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 907974,
-    "time_vn": "05:05:07 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 651922 — Mã OTP đã cấp trên Bảng Test (651922)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "651922",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 905112,
-    "time_vn": "05:05:05 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 373325 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a898209055d7b)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "373325",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a898209055d7b"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 903992,
-    "time_vn": "05:05:03 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 415857 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a8981d07da767)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "415857",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a8981d07da767"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 898340,
-    "time_vn": "05:04:58 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 662459 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a898076b25f4c)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "662459",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a898076b25f4c"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 897358,
-    "time_vn": "05:04:57 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 785905 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a89802947a5ab)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "785905",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a89802947a5ab"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 892429,
-    "time_vn": "05:04:52 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 501829 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a897f1caed3b3)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "501829",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a897f1caed3b3"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 891399,
-    "time_vn": "05:04:51 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 621031 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a897ecd28ba02)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "621031",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a897ecd28ba02"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 708817,
-    "time_vn": "05:01:48 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 112854 — Mã OTP đã cấp trên Bảng Test (112854)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "112854",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 673788,
-    "time_vn": "05:01:13 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 173646 — Mã OTP đã cấp trên Bảng Test (173646)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "173646",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 638634,
-    "time_vn": "05:00:38 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 156571 — Mã OTP đã cấp trên Bảng Test (156571)",
-    "source": "Mobile App",
-    "extra": {
-      "otp_code": "156571",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 635649,
-    "time_vn": "05:00:35 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 268387 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a89405dd47186)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "268387",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a89405dd47186"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 634733,
-    "time_vn": "05:00:34 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 235467 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a89401a497150)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "235467",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a89401a497150"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 629441,
-    "time_vn": "05:00:29 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 731785 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a893edd02ff03)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "731785",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a893edd02ff03"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 628546,
-    "time_vn": "05:00:28 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 747488 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a893e88b94e7a)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "747488",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a893e88b94e7a"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 623451,
-    "time_vn": "05:00:23 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 109155 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a893d52b59acb)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "109155",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a893d52b59acb"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 622450,
-    "time_vn": "05:00:22 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 494633 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a893d14141f1d)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "494633",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a893d14141f1d"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 564328,
-    "time_vn": "04:59:24 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 194278 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a892ef5b8d22b)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "194278",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a892ef5b8d22b"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 562689,
-    "time_vn": "04:59:22 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 186492 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a892e9711e82a)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "186492",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a892e9711e82a"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 556743,
-    "time_vn": "04:59:16 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 670202 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a892d1fab0bf9)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "670202",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a892d1fab0bf9"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 555772,
-    "time_vn": "04:59:15 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 799466 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a892cdb3b84a8)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "799466",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a892cdb3b84a8"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 550673,
-    "time_vn": "04:59:10 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 331035 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a892b974b49ca)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "331035",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a892b974b49ca"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 549559,
-    "time_vn": "04:59:09 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 499562 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a892b458eb128)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "499562",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a892b458eb128"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 509192,
-    "time_vn": "04:58:29 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 610537 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a89216912d3cf)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "610537",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a89216912d3cf"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 508278,
-    "time_vn": "04:58:28 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "kbanh376@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 823534 — Đã gửi Gmail thật tới kbanh376@gmail.com (ID: 1a1a892124df18fe)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "823534",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "kbanh376@gmail.com",
-        "gmail_message_id": "1a1a892124df18fe"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 494928,
-    "time_vn": "04:58:14 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 564518 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a891df7b22faf)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "564518",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a891df7b22faf"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 493512,
-    "time_vn": "04:58:13 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "senat6031@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 382420 — Đã gửi Gmail thật tới senat6031@gmail.com (ID: 1a1a891db70abb07)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "382420",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "senat6031@gmail.com",
-        "gmail_message_id": "1a1a891db70abb07"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 479170,
-    "time_vn": "04:57:59 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 415625 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a891a3adadb56)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "415625",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a891a3adadb56"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 478060,
-    "time_vn": "04:57:58 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 216805 — Đã gửi Gmail thật tới nep94121@gmail.com (ID: 1a1a8919ca40e674)",
-    "source": "Web Portal",
-    "extra": {
-      "otp_code": "216805",
-      "gmail_delivery": {
-        "sent_real_gmail": true,
-        "actual_recipient": "nep94121@gmail.com",
-        "gmail_message_id": "1a1a8919ca40e674"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 355271,
-    "time_vn": "04:55:55 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 126405 — Mã OTP đã cấp trên Bảng Test (126405)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "126405",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 354530,
-    "time_vn": "04:55:54 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 230472 — Mã OTP đã cấp trên Bảng Test (230472)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "230472",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 352962,
-    "time_vn": "04:55:52 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 834242 — Mã OTP đã cấp trên Bảng Test (834242)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "834242",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 789464,
-    "time_vn": "04:46:29 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "khachc.guest@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 981216 — Mã OTP đã cấp trên Bảng Test (981216)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "981216",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 3
-    }
-  },
-  {
-    "id": 789015,
-    "time_vn": "04:46:29 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 582828 — Mã OTP đã cấp trên Bảng Test (582828)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "582828",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 788141,
-    "time_vn": "04:46:28 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 928028 — Mã OTP đã cấp trên Bảng Test (928028)",
-    "source": "QA_Test_Live",
-    "extra": {
-      "otp_code": "928028",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
-    }
-  },
-  {
-    "id": 632938,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 3 (Server Tự Nhận Diện Giọng Nói)",
-    "action": "stranger_blocked",
-    "email": "unknown@stranger",
-    "status": "BLOCKED",
-    "detail": "CẢNH BÁO: Giọng thu âm từ [Samsung Galaxy S9 (App Android)] (F0=262.0Hz, Cosine=0.23) không khớp bất kỳ tài khoản nào! Đã chặn quyền!",
-    "source": "Samsung Galaxy S9 (App Android)",
-    "extra": {}
-  },
-  {
-    "id": 632936,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 234695 — Mã OTP đã cấp trên Bảng Test (234695)",
-    "source": "AutoTest-RestoreCheck",
-    "extra": {
-      "otp_code": "234695",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 2
-    }
-  },
-  {
-    "id": 632876,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
-    "action": "voice_permission_restored",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Khẩu lệnh 'Bật lại quyền cho Thành viên A như cũ' -> Đã bật lại quyền Tầng 2 cho Thành viên A (Người nhà). Tài khoản đã hoạt động bình thường trở lại như cũ.",
-    "source": "Mic Nhà Thông Minh (Chủ nhà Cấp 1)",
-    "extra": {
-      "permission_status": "ACTIVE",
-      "restored_tier": 2
-    }
-  },
-  {
-    "id": 632873,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 3 (Kiểm tra Quyền Giọng Nói)",
-    "action": "voice_recognized_but_revoked",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Server nhận ra giọng của Thành viên A (Người nhà), nhưng tài khoản này đã bị Chủ nhà xóa cấp quyền! Khi nào Chủ nhà bảo bật lại mới được điều khiển.",
-    "source": "Samsung Galaxy S9 (App Android)",
-    "extra": {}
-  },
-  {
-    "id": 632871,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 1 (Kiểm tra Cấp Quyền)",
-    "action": "account_exists_but_no_permission",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "Tài khoản Thành viên A (Người nhà) (thanhviena.hust@gmail.com) vẫn tồn tại nhưng hiện KHÔNG CÓ QUYỀN (Đã bị Chủ nhà Nguyễn Tuấn Anh thu hồi quyền). Khi nào Chủ nhà bảo bật lại mới có quyền!",
-    "source": "AutoTest-RevokeCheck",
-    "extra": {}
-  },
-  {
-    "id": 632838,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Giọng Nói Chủ Nhà (Thu Hồi Quyền)",
-    "action": "voice_permission_revoked",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Khẩu lệnh 'Xóa cấp quyền của Thành viên A ngay lập tức' -> Đã xóa cấp quyền của Thành viên A (Người nhà). Tài khoản vẫn còn trên hệ thống nhưng hiện ở trạng thái KHÔNG CÓ QUYỀN.",
-    "source": "Mic Nhà Thông Minh (Chủ nhà Cấp 1)",
-    "extra": {
-      "permission_status": "REVOKED",
-      "saved_tier": 2
-    }
-  },
-  {
-    "id": 632834,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 3 (Giọng nói -> Hoàn tất 3 Lớp)",
-    "action": "voice_biometric_verified",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Thu âm từ [Samsung Galaxy S9 (App Android)] khớp Vân tay Giọng nói của Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2, F0=205.5Hz, Cosine=0.95). ĐÃ MỞ KHÓA ĐỦ 3 LỚP!",
-    "source": "Samsung Galaxy S9 (App Android)",
-    "extra": {
-      "f0_hz": 205.5,
-      "cosine": 0.95,
-      "tier": 2
-    }
-  },
-  {
-    "id": 632832,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Trang Đầu (Đọc Câu Mẫu & Giữ Thu Âm)",
-    "action": "first_page_voice_enrolled",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2) đã giữ nút thu âm (3.5s) đọc câu mẫu trên Trang Đầu -> Lưu giọng gốc F0=206.0Hz lên Server!",
-    "source": "Trang Đầu (Nhấn & Giữ Thu Âm)",
-    "extra": {
-      "f0_hz": 206.0,
-      "phrase": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ."
-    }
-  },
-  {
-    "id": 632829,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 3 (Thu âm Đăng ký Giọng nói)",
-    "action": "voice_enrolled_on_server",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đã thu âm từ [Trang Đầu (Nhấn & Giữ Thu Âm)] & lưu mẫu giọng gốc cho Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2, F0=206.0Hz).",
-    "source": "Trang Đầu (Nhấn & Giữ Thu Âm)",
-    "extra": {
-      "acoustic": {
-        "f0_hz": 206.0,
-        "rms": 0.18,
-        "centroid_hz": 2101.2,
-        "duration_sec": 3.0
-      },
-      "account": "Em Gái (Đăng ký qua Link Cấp 2)",
-      "tier": 2
-    }
-  },
-  {
-    "id": 632825,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Đăng ký Link Mời Hoàn Tất -> Chờ Thu Âm Trang Đầu",
-    "action": "invite_account_created",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đã xác nhận Gmail OTP & cấp mật khẩu cho Em Gái (Đăng ký qua Link Cấp 2) (Tầng 2). Chuyển vào Trang Đầu hiển thị câu mẫu để giữ thu âm giọng nói gốc!",
-    "source": "AutoTest-Invite-OAuth",
-    "extra": {
-      "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Em Gái (Đăng ký qua Link Cấp 2), tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 2 Thành viên gia đình lên máy chủ.",
-      "tier": 2
-    }
-  },
-  {
-    "id": 632794,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Link Mời + Google OAuth",
-    "action": "invite_oauth_otp_sent",
-    "email": "emgai.invite@gmail.com",
-    "status": "PASS",
-    "detail": "Đăng ký qua link INV-T1-TO-TIER2 (Cấp 2 do Nguyễn Tuấn Anh (Cấp 1) mời). Đã gửi OTP 540286 & mật khẩu 'EmGai@2026' về Gmail (nep94121@gmail.com).",
-    "source": "AutoTest-Invite-OAuth",
-    "extra": {
-      "invite_code": "INV-T1-TO-TIER2",
-      "target_tier": 2,
-      "otp_code": "540286",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      }
-    }
-  },
-  {
-    "id": 632793,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier3_invite_blocked",
-    "email": "khachc.guest@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 3 (Khách C (Tầng 3)) không có quyền tạo hay gửi link mời!",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 632792,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier2_invite_tier2_blocked",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 2 (Thành viên A (Người nhà)) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp 2!",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 632791,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 2 (Gmail OTP)",
-    "action": "otp_verified",
-    "email": "nep94121@gmail.com",
-    "status": "PASS",
-    "detail": "Xác nhận đúng mã Gmail OTP (185690) cho Nguyễn Tuấn Anh (Tầng 1). Chờ Lớp 3 (Giọng nói).",
-    "source": "AutoTest-Suite",
-    "extra": {}
-  },
-  {
-    "id": 632790,
-    "time_vn": "04:43:52 05/11/2026",
+    "id": 160788,
+    "time_vn": "14:52:40 05/11/2026",
     "layer": "Lớp 2 (Gmail OTP)",
     "action": "otp_verify",
-    "email": "nep94121@gmail.com",
+    "email": "senat6031@gmail.com",
     "status": "FAIL",
-    "detail": "Nhập sai mã OTP: nhập '000000' != mã đúng '185690'.",
-    "source": "AutoTest-Suite",
+    "detail": "Nhập sai mã OTP: nhập 'None' không chính xác.",
+    "source": "Web Portal",
     "extra": {}
   },
   {
-    "id": 632789,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 1 (Tài khoản/Mật khẩu)",
-    "action": "password_check",
-    "email": "nep94121@gmail.com",
+    "id": 160763,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
     "status": "FAIL",
-    "detail": "Nhập sai mật khẩu cho tài khoản Nguyễn Tuấn Anh (Tầng 1).",
-    "source": "AutoTest-Suite",
+    "detail": "Nhập sai mã OTP: nhập 'None' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
     "extra": {}
   },
   {
-    "id": 632748,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Lớp 1 -> Lớp 2 (Gmail OTP)",
-    "action": "layer1_passed_otp_issued",
-    "email": "nep94121@gmail.com",
+    "id": 160721,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 185690 — Mã OTP đã cấp trên Bảng Test (185690)",
-    "source": "AutoTest-Suite",
+    "detail": "Yêu cầu OTP trong thời gian chờ (58s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
     "extra": {
-      "otp_code": "185690",
-      "gmail_delivery": {
-        "sent_real_gmail": false,
-        "actual_recipient": "nep94121@gmail.com"
-      },
-      "tier": 1
+      "cooldown_remaining_sec": 58,
+      "idempotent": true
     }
   },
   {
-    "id": 632716,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Giọng Nói Chủ Nhà (Khôi Phục Quyền)",
-    "action": "voice_permission_restored",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Khẩu lệnh 'Bật lại quyền' -> Đã bật lại quyền Tầng 2 cho Thành viên A (Người nhà). Tài khoản đã hoạt động bình thường trở lại như cũ.",
-    "source": "Giọng nói tại nhà (Chủ nhà Cấp 1)",
-    "extra": {
-      "permission_status": "ACTIVE",
-      "restored_tier": 2
-    }
-  },
-  {
-    "id": 632038,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier3_invite_blocked",
-    "email": "khachc.guest@gmail.com",
+    "id": 160665,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
     "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 3 (Khách C (Tầng 3)) không có quyền tạo hay gửi link mời!",
-    "source": "Web/App",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Portal",
     "extra": {}
   },
   {
-    "id": 632036,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "invite_link_created",
-    "email": "thanhviena.hust@gmail.com",
-    "status": "PASS",
-    "detail": "Thành viên A (Người nhà) (Cấp 2) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
-    "source": "Web/App",
-    "extra": {
-      "invite_code": "INV-T2-TO-TIER3",
-      "issuer_email": "thanhviena.hust@gmail.com",
-      "issuer_name": "Thành viên A (Người nhà) (Cấp 2)",
-      "issuer_tier": 2,
-      "target_tier": 3,
-      "target_role_label": "Khách (Tầng 3)",
-      "url_path": "/auth?invite=INV-T2-TO-TIER3",
-      "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
-      "description": "Link do Thành viên A (Người nhà) (Cấp 2) gửi xuống để đăng ký Cấp 3",
-      "created_at": "04:43:52 05/11/2026"
-    }
-  },
-  {
-    "id": 632034,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "tier2_invite_tier2_blocked",
-    "email": "thanhviena.hust@gmail.com",
+    "id": 160642,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
     "status": "FAIL",
-    "detail": "🚫 Từ chối: Tài khoản Cấp 2 (Thành viên A (Người nhà)) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp 2!",
-    "source": "Web/App",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
     "extra": {}
   },
   {
-    "id": 632032,
-    "time_vn": "04:43:52 05/11/2026",
-    "layer": "Phân cấp Link Mời",
-    "action": "invite_link_created",
+    "id": 160607,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 160509,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 160479,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 160450,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 160376,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' OR '1'='1' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 160338,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' OR '1'='1' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 160292,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 160047,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập 'ABCDEF' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 160016,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập 'ABCDEF' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 160001,
+    "time_vn": "14:52:40 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 159963,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '1234567' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 159950,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '1234567' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159936,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 159905,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '12345' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 159894,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '12345' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159878,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 159792,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '999999' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 159768,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '999999' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159754,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (950374).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 159692,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '000000' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 159676,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '000000' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159659,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (950374) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159591,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "nep94121@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (nep94121@gmail.com): Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159574,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "nep94121@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (nep94121@gmail.com): Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159532,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (senat6031@gmail.com): Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 159506,
+    "time_vn": "14:52:39 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (senat6031@gmail.com): Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 59073,
+    "time_vn": "14:50:59 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '000000' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 59030,
+    "time_vn": "14:50:59 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (949740).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 58957,
+    "time_vn": "14:50:58 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (949740) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 58885,
+    "time_vn": "14:50:58 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (senat6031@gmail.com): Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 58512,
+    "time_vn": "14:50:58 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_failed",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "FAIL",
+    "detail": "Thất bại gửi mã OTP tới Gmail (thanhviena.hust@gmail.com): Không thể gửi email OTP đến hộp thư người dùng.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 58508,
+    "time_vn": "14:50:58 05/11/2026",
+    "layer": "Email Allowlist Protection Gate",
+    "action": "blocked_non_allowlisted_email",
+    "email": "thanhviena.hust@gmail.com",
+    "status": "BLOCKED",
+    "detail": "Chặn gửi thư thật tới 'thanhviena.hust@gmail.com' vì không thuộc REAL_EMAIL_ALLOWLIST (Chống bounce mail).",
+    "source": "EmailProtectionGate",
+    "extra": {}
+  },
+  {
+    "id": 57919,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57913,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57905,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57898,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57887,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57879,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57868,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (370720).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57865,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (370720) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57693,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quản lý Tài khoản & Mật khẩu",
+    "action": "password_set_confirmed",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã xác nhận 2 ô mật khẩu và lưu mật khẩu cho Thành viên Gia đình (senat6031) (Cấp 2).",
+    "source": "TestCleanup",
+    "extra": {}
+  },
+  {
+    "id": 57560,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57535,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quản lý Tài khoản & Mật khẩu",
+    "action": "password_set_confirmed",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã xác nhận 2 ô mật khẩu và lưu mật khẩu cho Thành viên Gia đình (senat6031) (Cấp 2).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57389,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verified",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Xác nhận đúng mã Gmail OTP (241392) cho Thành viên Gia đình (senat6031) (Tầng 2). Chờ Lớp 3 (Giọng nói).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57093,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (241392) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57055,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
     "email": "nep94121@gmail.com",
     "status": "PASS",
-    "detail": "Nguyễn Tuấn Anh (Cấp 1) đã xuất link mời Cấp 3: http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
-    "source": "Web/App",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (629240).",
+    "source": "Web Quên Mật Khẩu",
     "extra": {
-      "invite_code": "INV-T1-TO-TIER3",
-      "issuer_email": "nep94121@gmail.com",
-      "issuer_name": "Nguyễn Tuấn Anh (Cấp 1)",
-      "issuer_tier": 1,
-      "target_tier": 3,
-      "target_role_label": "Khách (Tầng 3)",
-      "url_path": "/auth?invite=INV-T1-TO-TIER3",
-      "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
-      "description": "Link do Nguyễn Tuấn Anh (Cấp 1) gửi xuống để đăng ký Cấp 3",
-      "created_at": "04:43:52 05/11/2026"
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 57042,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (398466) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 57030,
+    "time_vn": "14:50:57 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "nep94121@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (629240) tới Gmail (nep94121@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56994,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (503136) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56967,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (678543) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56953,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (369852) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56930,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (704037).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 56918,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (704037) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56895,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (59s còn lại). Giữ nguyên mã OTP đang hiệu lực (469320).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 59,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 56868,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (469320) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 56801,
+    "time_vn": "14:50:56 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_sent",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Đã gửi mã OTP đặt lại mật khẩu (413069) tới Gmail (senat6031@gmail.com).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 601897,
+    "time_vn": "14:43:21 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập 'None' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 601846,
+    "time_vn": "14:43:21 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập 'None' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 601814,
+    "time_vn": "14:43:21 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (54s còn lại). Giữ nguyên mã OTP đang hiệu lực (737627).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 54,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 600382,
+    "time_vn": "14:43:20 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 600106,
+    "time_vn": "14:43:20 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 599997,
+    "time_vn": "14:43:19 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (55s còn lại). Giữ nguyên mã OTP đang hiệu lực (737627).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 55,
+      "idempotent": true
+    }
+  },
+  {
+    "id": 599263,
+    "time_vn": "14:43:19 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Portal",
+    "extra": {}
+  },
+  {
+    "id": 599248,
+    "time_vn": "14:43:19 05/11/2026",
+    "layer": "Lớp 2 (Gmail OTP)",
+    "action": "otp_verify",
+    "email": "senat6031@gmail.com",
+    "status": "FAIL",
+    "detail": "Nhập sai mã OTP: nhập '' không chính xác.",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {}
+  },
+  {
+    "id": 599231,
+    "time_vn": "14:43:19 05/11/2026",
+    "layer": "Quên Mật Khẩu (Gmail OTP)",
+    "action": "forgot_password_otp_throttled",
+    "email": "senat6031@gmail.com",
+    "status": "PASS",
+    "detail": "Yêu cầu OTP trong thời gian chờ (56s còn lại). Giữ nguyên mã OTP đang hiệu lực (737627).",
+    "source": "Web Quên Mật Khẩu",
+    "extra": {
+      "cooldown_remaining_sec": 56,
+      "idempotent": true
     }
   }
 ]

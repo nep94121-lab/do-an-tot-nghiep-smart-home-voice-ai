@@ -1,25 +1,40 @@
-# Plan: Phase 3 Orchestration
+# Orchestration Plan - Phase 6: OTP Email Deliverability & System Hardening
 
-## Objective
-Implement Phase 3 requirements:
-1. Fix Vercel production routing (/mobile, /architecture, /offline, /404, /403, /500, /qr_expired, /sw.js, custom 404, redirect /mobile -> /app, verify via curl on real domain https://do-an-tot-nghiep-smart-home-voice-a.vercel.app).
-2. Refactor RBAC from global engine state to session-based (cookie/token) for each request, preventing permission leaks between concurrent users, with tests for concurrent 3 roles (owner, admin, user/guest).
-3. Android Native Compose: audit M1-M5 screens against ui_mockups/v2_new_pages (np_m1..np_m5), run assembleDebug successfully, install APK on connected S9 device (2223e8784b0c7ece) via ADB and capture screencaps into ui_mockups/android_phase3/.
-4. Modularize & refactor whole project following skill ponytail principles: split thousand-line files (app.js, Python modules, MainScreen.kt...) without behavior changes, preserving 3D concept house3d.js, v1 light design, DOM IDs, window hooks, and test entry points.
-5. Verification Gates: 100% pytest pass, Playwright/live user flows pass, assembleDebug SUCCESSFUL, reviewer approval, forensic auditor CLEAN (zero cheating/facades).
-6. Git commit, push master, deploy Vercel prod, verify real URLs, and document line counts before/after in FIX_REPORT_20261104.md.
+## Overview
+Phase 6 focuses on resolving OTP deliverability issues, spam filtering, test isolation, anti-double-send cooldown, and end-to-end verification for the Smart Home Voice AI system on branch `p6-otp`.
 
-## Phase 3 Execution Steps
-1. **Step 0: Survey (3 Parallel Explorers)**
-   - `explorer_p3_routing_rbac`: Investigate Vercel routing configuration, `/mobile` redirect, static error pages, session-based RBAC architecture, FastAPI request state/cookies/tokens, concurrent test design.
-   - `explorer_p3_android`: Investigate Android native Compose codebase, M1–M5 screens vs mockups, Gradle assembleDebug, S9 ADB connectivity & screencap automation.
-   - `explorer_p3_refactor`: Search for ponytail skill, investigate large files (`app.js`, `mobile_app.js`, Python modules, `MainScreen.kt`), map DOM IDs/window hooks/test dependencies.
-2. **Step 1: Merge Findings & Finalize PROJECT.md Milestones**
-   - Synthesize explorer reports into PROJECT.md.
-3. **Step 2: Milestone Execution & Gating**
-   - Execute implementation through Worker -> Reviewer -> Challenger -> Auditor cycles.
-   - Gate each milestone strictly.
-4. **Step 3: Dual-track E2E Testing & Verification**
-   - Verify 100% pytest pass, assembleDebug pass, ADB screencaps verified, curl verification on live Vercel.
-5. **Step 4: Commit, Deploy & Final Delivery**
-   - Push to master, deploy Vercel prod, update FIX_REPORT_20261104.md, notify Sentinel.
+## Pattern
+Project Pattern with Survey Phase, Decomposition, and Iteration Loops (Explorer -> Worker -> Reviewer -> Challenger -> Forensic Auditor).
+
+## Phases & Milestones
+
+### Phase 0: Parallel Survey (Exploration & Requirement Mapping)
+- **Explorer 1**: R1 Email Allowlist & Test Isolation mapping (`tests/conftest.py`, SMTP/GWS mocks, login gate `send_gmail=False`, test fixtures `accounts_3layer.json`, `family_email_allowlist.json`).
+- **Explorer 2**: R2 Anti-Double-Send Cooldown & Trigger Fixes (`simulator/api/routes_auth.py`, 60s cooldown & idempotency, frontend form listeners `#btnSubmitGateLogin`, `gatePanel*`, button `inFlight`/`disabled` states).
+- **Explorer 3**: R3 RFC 5322 Compliance & Deliverability (`formataddr`, Date, Message-ID, Reply-To, subject sanitization, multipart text+HTML, zero emojis, update `read_latest_otp_from_gmail_inbox`).
+- **Synthesis**: Consolidate findings into `PROJECT.md § Feature Inventory` and define milestone interface contracts.
+
+### Phase 1: M1 - Email Allowlist and Test Isolation
+- Strict 3-tier protection for `REAL_EMAIL_ALLOWLIST` (`nep94121@gmail.com`, `senat6031@gmail.com`, `kbanh376@gmail.com`).
+- Autouse pytest fixture mocking SMTP and GWS subprocess calls.
+- Login gate `/` and Playwright 3-roles test flows set to `send_gmail=False`.
+- Clean seed accounts in test fixtures.
+
+### Phase 2: M2 - Anti-Double-Send Cooldown and Trigger Fixes
+- 60s backend cooldown and idempotency preserving active OTP.
+- Frontend event listener deduplication for form submit & button clicks.
+- `inFlight` and `disabled` state management for submit buttons.
+
+### Phase 3: M3 - Email RFC 5322 Standards & Deliverability
+- Full RFC 5322 email headers (`From`, `Date`, `Message-ID`, `Reply-To`).
+- Clean subject line (no OTP, no ALL-CAPS, no emojis).
+- MIME multipart alternative (text/plain + clean HTML, no Google OAuth branding, no emojis).
+- Update inbox scraper `read_latest_otp_from_gmail_inbox`.
+
+### Phase 4: M4 - TDD Verification, Single Real Verification Email, and Deployment
+- Complete pytest & Playwright test run with 100% mocked isolation.
+- Exactly zero or at most one real verification email to `senat6031@gmail.com`.
+- No secret leak check.
+- Git commit on branch `p6-otp`, push to `origin/p6-otp` (NO master push).
+- Vercel preview deployment (strictly NO `--prod`).
+- Document report in `FIX_REPORT_20261104.md`.

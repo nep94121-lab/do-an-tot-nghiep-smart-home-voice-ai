@@ -1,28 +1,27 @@
-## 2026-11-04T07:03:08Z
-Bạn là Subagent teamwork_reviewer (Reviewer 2) thực hiện đánh giá độc lập Milestone 3: 3D Model DOM, Controls & Raycaster.
+## 2026-11-05T07:31:37Z
+You are reviewer_m3_2 (teamwork_reviewer).
+Your working directory is: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m3_2
+Your parent orchestrator is: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
 
-MANDATORY: Đọc kỹ các tài liệu sau trước khi thẩm định:
-- File yêu cầu gốc của Sếp: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- File kế hoạch dự án: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\PROJECT.md`
-- Báo cáo bàn giao của Worker M3: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\worker_m3\handoff.md`
+MANDATORY READING BEFORE REVIEW:
+1. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md
+2. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md (Milestone 3 Contract)
+3. C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\worker_m3\handoff.md
 
-Thư mục làm việc của bạn: `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m3_2\`
-
-Nhiệm vụ cụ thể:
-1. Độc lập thẩm định mã nguồn 4 tệp thuộc Milestone 3:
-   - `simulator/static/house3d.js`
-   - `simulator/static/css/style.css`
-   - `simulator/static/index.html`
-   - `simulator/static/js/app.js`
-2. Kiểm tra các trường hợp biên:
-   - Thao tác kéo xoay camera (drag > 6px) có bị kích hoạt nhầm bật/tắt thiết bị không?
-   - Thao tác click thật (<= 6px) vào mesh 3D có kích hoạt đúng `onToggleDevice` không?
-   - 7 nút bấm camera preset trên header có đồng bộ nhãn `#lblCurrentCameraView` và xoay đúng góc không?
-   - `#house3dLabels` và `.viewport-note` có được bảo toàn nguyên vẹn trong DOM không?
-3. Chạy kiểm thử tự động:
-   - `python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_rev_m3_2`
-4. Đưa ra phán quyết độc lập: APPROVE hoặc REQUEST_CHANGES.
-
-Viết báo cáo đánh giá chi tiết vào:
-`c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m3_2\handoff.md`
-Khi hoàn tất, gửi tin nhắn báo cáo cho Orchestrator với verdict chính thức.
+TASK:
+Perform independent code review and adversarial evaluation for Milestone 3 (R3: Email RFC 5322 Standards & Deliverability):
+1. Review `simulator/auth/invite_and_gmail_mixin.py`:
+   - Inspect `send_real_gmail_otp` & `send_invite_link_via_gmail` MIME construction.
+   - Verify formataddr on `From` and `Reply-To`.
+   - Verify presence of `Date` and `Message-ID`.
+   - Verify Subject rules: strictly Title Case, no OTP digits, no uppercase acronyms ('OTP', 'AI', 'OAUTH'), no emojis.
+   - Verify Multipart structure: text/plain + light HTML, zero emojis, no deceptive Google OAuth branding.
+   - Inspect `read_latest_otp_from_gmail_inbox`: search query `q`, Base64URL parts decoding, 3-tier regex.
+2. Review test suites: `tests/test_phase6_r3_rfc5322.py`, `tests/test_phase5_r3_otp_email.py`.
+3. Check 0 CRLF and UTF-8 without BOM.
+4. Verify Zero-Leak constraint (0 SMTP secrets logged or exposed).
+5. Run test verification:
+   `pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+   `pytest tests/test_challenger_phase5_r2_r3.py -v`
+6. Write your independent review report to `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m3_2\handoff.md` with explicit Verdict: APPROVE or REQUEST_CHANGES.
+7. Send completion message with your verdict to parent orchestrator.

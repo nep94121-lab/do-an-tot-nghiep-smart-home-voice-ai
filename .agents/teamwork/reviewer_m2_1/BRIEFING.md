@@ -1,56 +1,59 @@
-# BRIEFING — 2026-11-04T06:44:00Z
+# BRIEFING — 2026-11-05T07:05:00Z
 
 ## Mission
-Thẩm định và đánh giá độc lập (Reviewer 1) kết quả thực hiện Milestone 2: Login Gate, Password UX & Mobile SVG Fix do worker_m2 thực hiện.
+Review Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes) and perform adversarial audit.
 
 ## 🔒 My Identity
-- Archetype: reviewer, critic
+- Archetype: teamwork_reviewer
 - Roles: reviewer, critic
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m2_1\
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 2: Login Gate, Password UX & Mobile SVG Fix
+- Working directory: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m2_1
+- Original parent: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Milestone: Milestone 2 (R2)
 - Instance: 1 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Check for integrity violations (hardcoded test outputs, dummy implementations, shortcuts, fake logs)
-- Perform orthogonal verification and adversarial stress-testing
-- Keep briefing under ~100 lines
+- DO NOT read, write, or print SMTP secret values
+- Verify independently: run test commands, check integrity
+- Issue clear verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T06:44:00Z
+- Conversation ID: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Updated: 2026-11-05T07:05:00Z
 
 ## Review Scope
 - **Files to review**:
-  - `simulator/static/index.html`
+  - `simulator/auth_3layer.py`
   - `simulator/static/js/app.js`
-  - `simulator/static/js/auth.js`
-  - `mobile_app/index.html`
-  - `simulator/static/js/mobile_app.js`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m2/handoff.md`
-- **Review criteria**: Correctness, completeness, security/tamper-resistance, integrity, UX, test results
+  - `simulator/static/index.html`
+  - `tests/test_phase6_r2_cooldown_triggers.py`
+- **Interface contracts**: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md`
+- **Review criteria**: correctness, integrity, robustness, concurrency, UI UX anti-double-send
+
+## Key Decisions Made
+- Verdict: APPROVE. All 4 Milestone 2 deliverables verified with 100% test pass rate across 51 target tests, 175 challenger regression tests, and 6 empirical stress tests. Zero integrity violations detected.
 
 ## Review Checklist
-- **Items reviewed**: All 5 target files, test suite `tests/test_challenger_m4_dom.py`, backend auth API endpoints, file encoding (UTF-8, 0 CRLF)
+- **Items reviewed**:
+  - `simulator/auth_3layer.py` (threading.Lock, 60s cooldown, idempotency, OTP destruction on reset) -> PASS
+  - `simulator/static/js/app.js` (removal of recursion, inFlight flag, disabled attribute, 60s countdown timer) -> PASS
+  - `simulator/static/index.html` (removal of inline onclick duplicate trigger on lockdown form) -> PASS
+  - `tests/test_phase6_r2_cooldown_triggers.py` (12 comprehensive tests) -> PASS
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims verified with code inspection, CLI and pytest.
+- **Unverified claims**: None (all claims empirically verified via independent pytest runs and orthogonal code inspection).
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Login Gate bypass via Escape / Backdrop / direct close call: Handled safely, blocks and warns.
-  2. Double password confirmation mismatch: Handled on both client and backend API.
-  3. Enter key on `<form>`: Verified event interception and button trigger without infinite loop.
-  4. SVG sprite visibility on mobile: Sprite moved to body level, renders reliably.
-  5. Password visibility toggle: Tested with all 10 password fields across Web & Mobile.
-- **Vulnerabilities found**: None in production code. (Note: `tests/test_challenger_m2_gate_ux_empirical.py` contains mock environment flaws regarding bare `location` and non-greedy regex, whereas production and `test_challenger_m4_dom.py` pass 100%).
-- **Untested angles**: Hardware-level ADB touch interaction on physical Samsung S9 (delegated to M4).
-
-## Key Decisions Made
-- Issued verdict APPROVE based on solid evidence, absence of integrity violations, and 36/36 test pass.
+  - 30 concurrent requests under thread contention: Single email sent, 29 throttled idempotently -> PASS
+  - Rapid-fire 10 requests within 5s: 1 sent, 9 idempotent -> PASS
+  - Adversarial email casing ('SENAT6031@GMAIL.COM') & whitespace padding -> Throttled into same cooldown bucket -> PASS
+  - Sequential replay attack with consumed OTP -> Rejected with HTTP 400 -> PASS
+  - TOCTOU on concurrent password reset with same OTP -> Documented as minor advisory.
+- **Vulnerabilities found**: No critical or blocking vulnerabilities.
+- **Untested angles**: Hardware voice auth interaction with cooldown (out of M2 scope).
 
 ## Artifact Index
-- `.agents/teamwork/reviewer_m2_1/DISPATCH.md` — Dispatch record
-- `.agents/teamwork/reviewer_m2_1/BRIEFING.md` — Working state
-- `.agents/teamwork/reviewer_m2_1/progress.md` — Liveness heartbeat
+- `.agents/teamwork/reviewer_m2_1/DISPATCH.md` — Inbound instructions
+- `.agents/teamwork/reviewer_m2_1/progress.md` — Liveness & task checklist
+- `.agents/teamwork/reviewer_m2_1/BRIEFING.md` — Situational awareness
 - `.agents/teamwork/reviewer_m2_1/handoff.md` — Final review report

@@ -1,20 +1,17 @@
-# Tiến Trình Milestone 1 (worker_m1)
+# Progress Tracker — Worker M1
 
-- Last visited: 2026-11-04T06:37:30Z
-- Trạng thái hiện tại: ĐÃ HOÀN THÀNH 100% Milestone 1.
+**Last visited**: 2026-11-05T05:57:00Z  
+**Status**: COMPLETED  
+**Current Step**: Step 7 - Completed Verification & Handoff Report
 
-## Kế Hoạch Các Bước:
-- [x] Khởi tạo DISPATCH.md, BRIEFING.md, progress.md
-- [x] Đọc và đối chiếu ORIGINAL_REQUEST.md, PROJECT.md, survey_1/handoff.md
-- [x] Khảo sát mã nguồn hiện tại của 4 tệp được phân quyền:
-  - vercel.json (tạo mới)
-  - simulator/auth/qr_totp_mixin.py
-  - simulator/api/routes_qr.py
-  - simulator/static/js/guest_enroll.js
-- [x] Thực hiện chỉnh sửa mã nguồn cho qr_totp_mixin.py, routes_qr.py, guest_enroll.js
-- [x] Tạo file vercel.json cấu hình routes chuẩn xác cho các trang static, static assets, audio, archify
-- [x] Chạy pytest test_milestone_m2_qr_guest.py xác nhận 100% PASS (17/17 passed)
-- [x] Chạy kiểm thử trực giao (Orthogonal Verification) xác nhận handshake 120s, Single-Use, và HTTPS tunnel
-- [x] Git commit (5d99581) & push lên GitHub `nep94121-lab/do-an-tot-nghiep-smart-home-voice-ai`
-- [x] Deploy Vercel Production thành công: `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` (9/9 routes đạt 200 OK)
-- [ ] Hoàn thiện handoff.md và báo cáo Orchestrator qua send_message
+## Roadmap & Checkpoints
+- [x] Read ORIGINAL_REQUEST.md, survey report, handoff report
+- [x] Initialize DISPATCH.md, BRIEFING.md, progress.md
+- [x] Inspect existing code and fixtures
+- [x] Step 1: Write TDD test suite `tests/test_phase6_r1_allowlist_isolation.py` and `tests/conftest.py` (Confirmed RED)
+- [x] Step 2: Implement Allowlist Engine & Gate in `simulator/auth/invite_and_gmail_mixin.py`
+- [x] Step 3: Implement autouse network isolation fixture in `tests/conftest.py`
+- [x] Step 4: Update `simulator/static/js/app.js` with `send_gmail: false`
+- [x] Step 5: Clean `simulator/data/accounts_3layer.json` and `simulator/data/family_email_allowlist.json`
+- [x] Step 6: Run verification pytest commands & orthogonal validation (39/39 passed, Exit Code 0)
+- [x] Step 7: Complete handoff.md & notify orchestrator

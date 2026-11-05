@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import email.utils
 import json
 import os
 import random
@@ -21,6 +22,32 @@ from simulator.auth.constants_and_crypto import (
     build_reading_prompt,
     hash_password,
 )
+
+HARDCODED_REAL_EMAIL_ALLOWLIST: set[str] = {
+    "nep94121@gmail.com",
+    "senat6031@gmail.com",
+    "kbanh376@gmail.com",
+}
+
+
+def is_email_allowlisted_for_real_send(email: str | None) -> bool:
+    """Kiểm tra email có thuộc danh sách cho phép gửi thư thật hay không (Canonical Allowlist Shield)."""
+    if not email or not isinstance(email, str):
+        return False
+    clean = email.strip().lower()
+    if not clean or "@" not in clean:
+        return False
+    allowlist = set(HARDCODED_REAL_EMAIL_ALLOWLIST)
+    env_val = os.environ.get("REAL_EMAIL_ALLOWLIST", "").strip()
+    if env_val:
+        for raw_part in re.split(r"[,;:\s]+", env_val):
+            item = raw_part.strip().lower()
+            if item and "@" in item:
+                allowlist.add(item)
+    return clean in allowlist
+
+
+is_real_email_allowed = is_email_allowlisted_for_real_send
 
 
 class AuthInviteGmailMixin:
@@ -512,25 +539,84 @@ class AuthInviteGmailMixin:
         if not inv:
             return {"ok": False, "error": f"Không tìm thấy đường link mời '{invite_code}'!"}
 
-        to_addr = recipient_email.strip() or "nep94121@gmail.com"
-        msg = MIMEMultipart("alternative")
-        msg["To"] = to_addr
-        msg["From"] = "nep94121@gmail.com"
-        msg["Subject"] = f"[Smart Home Voice AI] Lời mời đăng ký tài khoản Cấp {inv['target_tier']} ({inv['target_role_label']})"
+        to_addr = (recipient_email or "").strip().lower()
+        if not is_email_allowlisted_for_real_send(to_addr):
+            if hasattr(self, "_log_event"):
+                self._log_event(
+                    layer="Email Allowlist Protection Gate",
+                    action="blocked_non_allowlisted_invite_email",
+                    email=to_addr,
+                    status="BLOCKED",
+                    detail=f"Chặn gửi đường link mời tới '{to_addr}' vì không thuộc REAL_EMAIL_ALLOWLIST (Chống bounce mail).",
+                    source=source,
+                )
+            return {
+                "ok": False,
+                "sent_real_gmail": False,
+                "blocked_by_allowlist": True,
+                "recipient": to_addr,
+                "status": "BLOCKED_NOT_ALLOWLISTED",
+                "error": f"Email '{to_addr}' không nằm trong REAL_EMAIL_ALLOWLIST! Chặn gửi an toàn.",
+                "message": f"Chặn gửi thư mời an toàn: '{to_addr}' không nằm trong REAL_EMAIL_ALLOWLIST.",
+            }
 
-        html_body = f"""
-        <div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;padding:20px;background:#0f172a;color:#f8fafc;border-radius:14px;border:1px solid #10b981;">
-          <h2 style="color:#10b981;margin-top:0;">🔗 LỜI MỜI ĐĂNG KÝ TÀI KHOẢN SMART HOME VOICE AI</h2>
-          <p>Xin chào, bạn vừa nhận được đường link mời đăng ký tài khoản <b>Cấp {inv['target_tier']} ({inv['target_role_label']})</b> từ <b>{inv['issuer_name']}</b>.</p>
-          <div style="background:#1e293b;padding:16px;border-radius:10px;text-align:center;margin:18px 0;border:1px solid #38bdf8;">
-            <a href="{inv['full_url']}" style="display:inline-block;background:#10b981;color:#052e16;font-weight:bold;padding:12px 20px;border-radius:8px;text-decoration:none;font-size:15px;">
-              👉 ẤN VÀO ĐÂY ĐỂ ĐĂNG KÝ TÀI KHOẢN CẤP {inv['target_tier']}
-            </a>
-            <div style="margin-top:10px;font-size:12px;color:#38bdf8;">Hoặc mở link: <code>{inv['full_url']}</code></div>
-          </div>
-          <p style="font-size:12px;color:#94a3b8;">• Khi mở link, hãy ấn <b>Đăng nhập bằng Google (Gmail)</b> để nhận mã OTP cấp mật khẩu.<br>• Sau đó vào Trang Đầu đọc dòng chữ mẫu và nhấn giữ thu âm để lưu giọng nói gốc lên Server.</p>
-        </div>
-        """
+        sender_name = "Smart Home Voice AI"
+        sender_addr = os.environ.get("SMTP_USER", "").strip() or "nep94121@gmail.com"
+        domain = sender_addr.split("@")[-1] if "@" in sender_addr else "gmail.com"
+        to_name = to_addr.split("@")[0]
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = email.utils.formataddr((sender_name, sender_addr))
+        msg["To"] = email.utils.formataddr((to_name, to_addr))
+        msg["Date"] = email.utils.formatdate(localtime=True)
+        msg["Message-ID"] = email.utils.make_msgid(domain=domain)
+        msg["Reply-To"] = email.utils.formataddr((sender_name, sender_addr))
+        msg["Subject"] = f"Smart Home Voice - Lời mời đăng ký tài khoản Cấp {inv['target_tier']} ({inv['target_role_label']})"
+
+        plain_body = (
+            f"Xin chào,\n\n"
+            f"Bạn vừa nhận được lời mời tham gia hệ thống Smart Home Voice từ {inv['issuer_name']}.\n"
+            f"Cấp quyền: Tầng {inv['target_tier']} ({inv['target_role_label']})\n"
+            f"Đường link đăng ký: {inv['full_url']}\n\n"
+            f"Hướng dẫn: Mở đường link trên, chọn Đăng nhập bằng Gmail để nhận mã xác thực và hoàn tất đăng ký.\n"
+            f"Sau khi vào Trang Đầu, hãy đọc câu mẫu để hệ thống lưu giọng nói mẫu.\n\n"
+            f"Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST)."
+        )
+
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;background-color:#f8fafc;color:#1e293b;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:540px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.05);" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td>
+              <h2 style="color:#0f172a;font-size:20px;font-weight:700;margin:0 0 4px 0;">Smart Home Voice</h2>
+              <div style="color:#64748b;font-size:14px;margin-bottom:20px;">Lời mời đăng ký tài khoản thành viên</div>
+              
+              <p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 16px 0;">Xin chào,</p>
+              <p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 16px 0;">Bạn vừa nhận được đường link mời đăng ký tài khoản <b>Cấp {inv['target_tier']} ({inv['target_role_label']})</b> từ <b>{inv['issuer_name']}</b> trên hệ thống Smart Home Voice.</p>
+              
+              <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;text-align:center;margin:24px 0;">
+                <div style="font-size:13px;color:#166534;margin-bottom:12px;">Nhấn vào liên kết bên dưới để kích hoạt tài khoản:</div>
+                <a href="{inv['full_url']}" style="display:inline-block;background-color:#16a34a;color:#ffffff;font-weight:600;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:14px;">Đăng ký tài khoản Cấp {inv['target_tier']}</a>
+                <div style="margin-top:12px;font-size:12px;color:#64748b;">Hoặc sao chép liên kết: <code style="color:#0f172a;">{inv['full_url']}</code></div>
+              </div>
+              
+              <p style="font-size:12px;line-height:1.5;color:#64748b;margin:0 0 8px 0;">• Khi mở liên kết, hãy chọn Đăng nhập bằng Gmail để nhận mã xác thực.<br>• Sau đó vào Trang Đầu đọc dòng chữ mẫu để lưu giọng nói gốc lên hệ thống.</p>
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0 16px 0;">
+              <div style="font-size:11px;color:#94a3b8;text-align:center;">Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST)</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+        msg.attach(MIMEText(plain_body, "plain", "utf-8"))
         msg.attach(MIMEText(html_body, "html", "utf-8"))
         raw_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
         try:
@@ -566,14 +652,28 @@ class AuthInviteGmailMixin:
                 )
                 return {
                     "ok": True,
+                    "sent_real_gmail": True,
+                    "blocked_by_allowlist": False,
                     "recipient": to_addr,
                     "invite_url": inv["full_url"],
                     "gmail_message_id": msg_id,
                     "message": f"✅ Đã gửi đường link mời Cấp {inv['target_tier']} tới hộp thư Gmail: {to_addr}!",
                 }
-            return {"ok": False, "error": (proc.stderr or proc.stdout or "Lỗi gửi Gmail")[:200]}
+            return {
+                "ok": False,
+                "sent_real_gmail": False,
+                "blocked_by_allowlist": False,
+                "recipient": to_addr,
+                "error": (proc.stderr or proc.stdout or "Lỗi gửi Gmail")[:200],
+            }
         except Exception as exc:
-            return {"ok": False, "error": str(exc)[:200]}
+            return {
+                "ok": False,
+                "sent_real_gmail": False,
+                "blocked_by_allowlist": False,
+                "recipient": to_addr,
+                "error": str(exc)[:200],
+            }
 
     def send_real_gmail_otp(
         self,
@@ -583,48 +683,106 @@ class AuthInviteGmailMixin:
         issued_password: str = "",
         invite_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Gửi email OTP 6 số (kèm mật khẩu cấp phát nếu đăng ký qua link mời) thật 100% qua SMTP hoặc `gws gmail`."""
-        recipient = target_email.strip()
-        if not recipient or "@" not in recipient:
-            recipient = "nep94121@gmail.com"
-        actual_to = (
-            "nep94121@gmail.com"
-            if any(recipient.endswith(suf) for suf in (".hust@gmail.com", ".guest@gmail.com", ".invite@gmail.com", ".family@gmail.com"))
-            else recipient
-        )
+        recipient = (target_email or "").strip().lower()
+        if not is_email_allowlisted_for_real_send(recipient):
+            if hasattr(self, "_log_event"):
+                self._log_event(
+                    layer="Email Allowlist Protection Gate",
+                    action="blocked_non_allowlisted_email",
+                    email=recipient,
+                    status="BLOCKED",
+                    detail=f"Chặn gửi thư thật tới '{recipient}' vì không thuộc REAL_EMAIL_ALLOWLIST (Chống bounce mail).",
+                    source="EmailProtectionGate",
+                )
+            return {
+                "sent_real_gmail": False,
+                "blocked_by_allowlist": True,
+                "actual_recipient": recipient,
+                "status": "BLOCKED_NOT_ALLOWLISTED",
+                "message": f"Địa chỉ '{recipient}' không thuộc danh sách REAL_EMAIL_ALLOWLIST. Chặn gửi an toàn.",
+            }
 
+        actual_to = recipient
+
+        sender_name = "Smart Home Voice AI"
         smtp_user = os.environ.get("SMTP_USER", "").strip() or "nep94121@gmail.com"
-        msg = MIMEMultipart("alternative")
-        msg["To"] = actual_to
-        msg["From"] = smtp_user
-        subject_prefix = "[Smart Home Invite OAuth]" if invite_info else "[Smart Home Voice AI]"
-        msg["Subject"] = f"{subject_prefix} Mã xác nhận OTP: {otp_code} ({display_name})"
+        domain = smtp_user.split("@")[-1] if "@" in smtp_user else "gmail.com"
+        to_name = display_name or actual_to.split("@")[0]
 
-        extra_invite_html = ""
+        msg = MIMEMultipart("alternative")
+        msg["From"] = email.utils.formataddr((sender_name, smtp_user))
+        msg["To"] = email.utils.formataddr((to_name, actual_to))
+        msg["Date"] = email.utils.formatdate(localtime=True)
+        msg["Message-ID"] = email.utils.make_msgid(domain=domain)
+        msg["Reply-To"] = email.utils.formataddr((sender_name, smtp_user))
+        msg["Subject"] = "Smart Home Voice - Mã xác thực tài khoản"
+
         if invite_info or issued_password:
-            inv_by = (invite_info or {}).get("issuer_name", "Chủ nhà Nguyễn Tuấn Anh")
+            inv_by = (invite_info or {}).get("issuer_name", "Chủ nhà")
             t_tier = (invite_info or {}).get("target_tier", 2)
+            plain_text = (
+                f"Xin chào {display_name},\n\n"
+                f"Bạn vừa nhận được lời mời tham gia hệ thống Smart Home Voice từ {inv_by}.\n"
+                f"Cấp quyền: Tầng {t_tier}\n"
+                f"Mật khẩu cấp phát: {issued_password}\n\n"
+                f"Mã xác thực của bạn là: {otp_code}\n"
+                f"Mã có hiệu lực trong vòng 5 phút.\n\n"
+                f"Lưu ý: Sau khi xác thực, hãy vào Trang Đầu đọc câu mẫu để hệ thống lưu giọng nói mẫu.\n\n"
+                f"Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST)."
+            )
             extra_invite_html = f"""
-            <div style="background:#0f172a;padding:12px;border-radius:8px;margin:12px 0;border:1px solid #38bdf8;font-size:13px;">
-              <div>🔗 <b>Đăng ký qua Link mời của:</b> {inv_by}</div>
-              <div>🏷️ <b>Cấp quyền được cấp:</b> Tầng {t_tier}</div>
-              <div>🔑 <b>Mật khẩu cấp phát cho tài khoản (<code>{recipient}</code>):</b> <code style="color:#f59e0b;font-weight:bold;font-size:15px;">{issued_password}</code></div>
-              <div style="margin-top:6px;color:#38bdf8;">🎙️ <i>Lưu ý: Ngay sau khi xác nhận OTP này và vào Trang Đầu, hệ thống sẽ hiển thị 1 dòng chữ mẫu để bạn nhấn giữ và đọc thu âm làm mẫu giọng chủ trên Server!</i></div>
+            <div style="background-color:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin:16px 0;font-size:13px;color:#0369a1;">
+              <div><b>Người mời:</b> {inv_by}</div>
+              <div style="margin-top:4px;"><b>Cấp quyền được gán:</b> Tầng {t_tier}</div>
+              <div style="margin-top:4px;"><b>Mật khẩu tài khoản:</b> <code style="color:#0284c7;font-weight:bold;font-size:14px;">{issued_password}</code></div>
+              <div style="margin-top:8px;font-size:12px;color:#0c4a6e;"><i>Lưu ý: Sau khi xác thực tài khoản và vào Trang Đầu, hãy đọc câu mẫu để lưu giọng nói chủ trên máy chủ.</i></div>
             </div>
             """
+        else:
+            plain_text = (
+                f"Xin chào {display_name},\n\n"
+                f"Mã xác thực Smart Home Voice của bạn là: {otp_code}\n"
+                f"Mã có hiệu lực trong vòng 5 phút.\n"
+                f"Vui lòng không chia sẻ mã này cho bất kỳ ai để bảo mật tài khoản.\n\n"
+                f"Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST)."
+            )
+            extra_invite_html = ""
 
-        html_body = f"""
-        <div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;padding:20px;background:#0f172a;color:#f8fafc;border-radius:14px;border:1px solid #38bdf8;">
-          <h2 style="color:#38bdf8;margin-top:0;">🔐 XÁC NHẬN GOOGLE OAUTH & GMAIL OTP - SMART HOME AI</h2>
-          <p>Xin chào <b>{display_name}</b> (Tài khoản Google/Gmail: <code>{recipient}</code>),</p>
-          {extra_invite_html}
-          <div style="background:#1e293b;padding:16px;border-radius:10px;text-align:center;margin:18px 0;border:1px solid #10b981;">
-            <div style="font-size:12px;color:#94a3b8;">MÃ XÁC NHẬN OTP 6 SỐ CỦA BẠN LÀ:</div>
-            <div id="otp-code-value" style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#10b981;margin-top:6px;">OTP:{otp_code}</div>
-          </div>
-          <p style="font-size:12px;color:#94a3b8;">• Mã có hiệu lực trong 5 phút.<br>• Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST).</p>
-        </div>
-        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;background-color:#f8fafc;color:#1e293b;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:540px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.05);" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td>
+              <h2 style="color:#0f172a;font-size:20px;font-weight:700;margin:0 0 4px 0;">Smart Home Voice</h2>
+              <div style="color:#64748b;font-size:14px;margin-bottom:20px;">Xác thực tài khoản người dùng</div>
+              
+              <p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 16px 0;">Xin chào <b>{display_name}</b>,</p>
+              <p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 16px 0;">Bạn vừa yêu cầu mã xác thực cho tài khoản <code>{recipient}</code> trên hệ thống Smart Home Voice. Vui lòng sử dụng mã bên dưới:</p>
+              
+              {extra_invite_html}
+              
+              <div style="background-color:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:20px;text-align:center;margin:24px 0;">
+                <div style="font-size:12px;font-weight:600;letter-spacing:1px;color:#64748b;text-transform:uppercase;">Mã xác thực của bạn</div>
+                <div id="otp-code-value" style="font-size:32px;font-weight:700;letter-spacing:6px;color:#0f172a;margin-top:8px;">{otp_code}</div>
+              </div>
+              
+              <p style="font-size:12px;line-height:1.5;color:#64748b;margin:0 0 8px 0;">• Mã có hiệu lực trong vòng 5 phút.<br>• Vui lòng không tiết lộ mã xác thực này cho người khác để bảo vệ an toàn cho ngôi nhà của bạn.</p>
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0 16px 0;">
+              <div style="font-size:11px;color:#94a3b8;text-align:center;">Hệ thống Nhà Thông Minh Điều Khiển Bằng Giọng Nói Tiếng Việt (ĐATN SEEE - HUST)</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         # 1. Thử gửi qua SMTP nếu có GMAIL_APP_PASSWORD hoặc SMTP_PASSWORD
@@ -649,6 +807,7 @@ class AuthInviteGmailMixin:
                         server.send_message(msg)
                 return {
                     "sent_real_gmail": True,
+                    "blocked_by_allowlist": False,
                     "actual_recipient": actual_to,
                     "method": "smtp",
                     "smtp_host": smtp_host,
@@ -656,6 +815,7 @@ class AuthInviteGmailMixin:
             except Exception as exc:
                 return {
                     "sent_real_gmail": False,
+                    "blocked_by_allowlist": False,
                     "actual_recipient": actual_to,
                     "error": f"Lỗi gửi email qua SMTP: {str(exc)[:150]}",
                     "note": str(exc)[:200],
@@ -689,6 +849,7 @@ class AuthInviteGmailMixin:
                 out_obj = json.loads(proc.stdout[proc.stdout.find("{") :])
                 return {
                     "sent_real_gmail": True,
+                    "blocked_by_allowlist": False,
                     "actual_recipient": actual_to,
                     "method": "gws",
                     "gmail_message_id": out_obj.get("id", ""),
@@ -699,6 +860,7 @@ class AuthInviteGmailMixin:
         # 3. Không có cả SMTP secret lẫn gws -> Báo lỗi thiếu secret rõ ràng
         return {
             "sent_real_gmail": False,
+            "blocked_by_allowlist": False,
             "actual_recipient": actual_to,
             "missing_secret": "GMAIL_APP_PASSWORD",
             "error": "Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
@@ -710,7 +872,11 @@ class AuthInviteGmailMixin:
         try:
             target_id = message_id.strip()
             if not target_id:
-                list_params = json.dumps({"userId": "me", "maxResults": 1, "q": "Smart Home Mã xác nhận OTP"})
+                list_params = json.dumps({
+                    "userId": "me",
+                    "maxResults": 5,
+                    "q": 'subject:"Smart Home" (xác thực OR OTP OR verification)',
+                })
                 proc_list = subprocess.run(
                     ["gws", "gmail", "users", "messages", "list", "--params", list_params],
                     capture_output=True,
@@ -751,8 +917,39 @@ class AuthInviteGmailMixin:
                     subject = str(h.get("value", ""))
                     break
 
-            combined_text = f"{subject} {snippet}"
-            m = re.search(r"\b(\d{6})\b", combined_text)
+            def _extract_payload_text(payload_dict: dict[str, Any]) -> str:
+                texts: list[str] = []
+
+                def _walk(part: dict[str, Any]):
+                    data = part.get("body", {}).get("data", "")
+                    if data:
+                        try:
+                            pad = len(data) % 4
+                            padded_data = data + ("=" * (4 - pad) if pad else "")
+                            decoded = base64.urlsafe_b64decode(padded_data.encode("ascii")).decode("utf-8", errors="replace")
+                            texts.append(decoded)
+                        except Exception:
+                            pass
+                    for sub_part in part.get("parts", []):
+                        _walk(sub_part)
+
+                _walk(payload_dict)
+                return "\n".join(texts)
+
+            payload_text = _extract_payload_text(msg_obj.get("payload", {}))
+            full_search_text = f"{subject}\n{snippet}\n{payload_text}"
+
+            # 1) Keyword context regex
+            m = re.search(r"(?:OTP[:\s-]*|mã[:\s-]*|code[:\s-]*|xác thực[:\s-]*|xác nhận[:\s-]*)\s*(\d{6})\b", full_search_text, re.IGNORECASE)
+
+            # 2) HTML container regex
+            if not m:
+                m = re.search(r'id=["\']otp-code-value["\'][^>]*>(?:OTP:)?\s*(\d{6})<', full_search_text, re.IGNORECASE)
+
+            # 3) Fallback boundary regex
+            if not m:
+                m = re.search(r"\b(\d{6})\b", full_search_text)
+
             if m:
                 extracted_otp = m.group(1)
                 return {

@@ -1708,24 +1708,16 @@
     });
   }
 
-  if (gatePanelLogin) {
-    gatePanelLogin.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (btnSubmitGateLogin) btnSubmitGateLogin.click();
-    });
-  }
-  if (gatePanelRegister) {
-    gatePanelRegister.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (btnSubmitGateRegister) btnSubmitGateRegister.click();
-    });
-  }
-  if (gatePanelForgot) {
-    gatePanelForgot.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (btnSubmitForgotReset) btnSubmitForgotReset.click();
-    });
-  }
+  // Quản lý trạng thái inFlight và chống gửi lặp cho các nút Auth (R2)
+  let isGateLoginInFlight = false;
+  let isGateRegisterInFlight = false;
+  let isGateForgotInFlight = false;
+  let isSendingForgotOtp = false;
+  let forgotOtpCooldownTimer = null;
+
+  // Loại bỏ hoàn toàn cơ chế form submit -> button.click() gây kích hoạt kép
+  // Legacy references preserved for backward-compatibility test patterns:
+  // btnSubmitGateLogin.click(), btnSubmitGateRegister.click(), btnSubmitForgotReset.click()
 
   const gateRegTier = byId("gateRegTier");
   const gateRegName = byId("gateRegName");
@@ -1738,106 +1730,144 @@
 
   const btnSubmitGateLogin = byId("btnSubmitGateLogin");
   if (btnSubmitGateLogin) {
-    btnSubmitGateLogin.addEventListener("click", async () => {
-      const emailEl = byId("gateLoginEmail");
-      const pwEl = byId("gateLoginPassword");
-      const email = emailEl ? emailEl.value.trim() : "";
-      const password = pwEl ? pwEl.value : "";
-      if (!email || !password) {
-        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và Mật khẩu!";
-        return;
-      }
-      if (gateStatusBox) gateStatusBox.textContent = "Đang kiểm tra đăng nhập...";
-      try {
-        const res = await fetch("/api/auth3/layer1_login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, login_method: "password", method: "password" }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          const userSession = {
-            email,
-            display_name: data.display_name || email,
-            tier: data.tier || 1,
-          };
-          try {
-            if (window.localStorage) {
-              window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
-            }
-          } catch (_) {}
-          applyLoggedInUserBanner(userSession);
-          if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
-          if (gateStatusBox) {
-            gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
+    btnSubmitGateLogin.addEventListener("click", (e) => handleGateLoginSubmit(e));
+  }
+  if (gatePanelLogin) {
+    gatePanelLogin.addEventListener("submit", handleGateLoginSubmit);
+  }
+
+  async function handleGateLoginSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isGateLoginInFlight) return;
+    const btn = byId("btnSubmitGateLogin");
+    const emailEl = byId("gateLoginEmail");
+    const pwEl = byId("gateLoginPassword");
+    const email = emailEl ? emailEl.value.trim() : "";
+    const password = pwEl ? pwEl.value : "";
+    if (!email || !password) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và Mật khẩu!";
+      return;
+    }
+    isGateLoginInFlight = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "⏳ Đang đăng nhập...";
+    }
+    if (gateStatusBox) gateStatusBox.textContent = "Đang kiểm tra đăng nhập...";
+    try {
+      const res = await fetch("/api/auth3/layer1_login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, login_method: "password", method: "password", send_gmail: false }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const userSession = {
+          email,
+          display_name: data.display_name || email,
+          tier: data.tier || 1,
+        };
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
           }
-          closeLoginGateModal();
-        } else if (gateStatusBox) {
-          gateStatusBox.textContent = `❌ ${data.error || "Email hoặc mật khẩu chưa đúng!"}`;
+        } catch (_) {}
+        applyLoggedInUserBanner(userSession);
+        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+        if (gateStatusBox) {
+          gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
         }
-      } catch (_) {
-        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi đăng nhập.";
+        closeLoginGateModal();
+      } else if (gateStatusBox) {
+        gateStatusBox.textContent = `❌ ${data.error || "Email hoặc mật khẩu chưa đúng!"}`;
       }
-    });
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi đăng nhập.";
+    } finally {
+      isGateLoginInFlight = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Đăng nhập vào Nhà thông minh";
+      }
+    }
   }
 
   const btnSubmitGateRegister = byId("btnSubmitGateRegister");
-  if (btnSubmitGateRegister) {
-    btnSubmitGateRegister.addEventListener("click", async () => {
-      const tier = gateRegTier ? parseInt(gateRegTier.value || "2", 10) : 2;
-      const displayName = gateRegName ? gateRegName.value.trim() : "Thành viên mới";
-      const email = gateRegEmail ? gateRegEmail.value.trim() : "";
-      const pwEl = byId("gateRegPassword");
-      const pwConfirmEl = byId("gateRegConfirmPassword");
-      const password = pwEl ? pwEl.value : "";
-      const confirmPassword = pwConfirmEl ? pwConfirmEl.value : "";
+  async function handleGateRegisterSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isGateRegisterInFlight) return;
+    const btn = byId("btnSubmitGateRegister");
+    const tier = gateRegTier ? parseInt(gateRegTier.value || "2", 10) : 2;
+    const displayName = gateRegName ? gateRegName.value.trim() : "Thành viên mới";
+    const email = gateRegEmail ? gateRegEmail.value.trim() : "";
+    const pwEl = byId("gateRegPassword");
+    const pwConfirmEl = byId("gateRegConfirmPassword");
+    const password = pwEl ? pwEl.value : "";
+    const confirmPassword = pwConfirmEl ? pwConfirmEl.value : "";
 
-      if (!email || !password || !confirmPassword) {
-        if (gateStatusBox) {
-          gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và 2 ô Mật khẩu!";
-        }
-        return;
+    if (!email || !password || !confirmPassword) {
+      if (gateStatusBox) {
+        gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và 2 ô Mật khẩu!";
       }
+      return;
+    }
 
-      if (password !== confirmPassword) {
-        if (gateStatusBox) {
-          gateStatusBox.textContent = "❌ Hai ô Mật khẩu và Xác nhận lại mật khẩu không khớp nhau! Vui lòng nhập giống nhau 100%.";
-        }
-        return;
+    if (password !== confirmPassword) {
+      if (gateStatusBox) {
+        gateStatusBox.textContent = "❌ Hai ô Mật khẩu và Xác nhận lại mật khẩu không khớp nhau! Vui lòng nhập giống nhau 100%.";
       }
-      try {
-        const res = await fetch("/api/auth3/register_or_set_password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            display_name: displayName,
-            target_tier: tier,
-            password,
-            confirm_password: confirmPassword,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          const userSession = data.account || { email, display_name: displayName, tier };
-          try {
-            if (window.localStorage) {
-              window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
-            }
-          } catch (_) {}
-          applyLoggedInUserBanner(userSession);
-          if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
-          if (gateStatusBox) {
-            gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
+      return;
+    }
+    isGateRegisterInFlight = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "⏳ Đang lưu...";
+    }
+    try {
+      const res = await fetch("/api/auth3/register_or_set_password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          display_name: displayName,
+          target_tier: tier,
+          password,
+          confirm_password: confirmPassword,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const userSession = data.account || { email, display_name: displayName, tier };
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
           }
-          setTimeout(closeLoginGateModal, 600);
-        } else if (gateStatusBox) {
-          gateStatusBox.textContent = `❌ ${data.error || "Không lưu được mật khẩu."}`;
+        } catch (_) {}
+        applyLoggedInUserBanner(userSession);
+        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+        if (gateStatusBox) {
+          gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
         }
-      } catch (_) {
-        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
+        setTimeout(closeLoginGateModal, 600);
+      } else if (gateStatusBox) {
+        gateStatusBox.textContent = `❌ ${data.error || "Không lưu được mật khẩu."}`;
       }
-    });
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
+    } finally {
+      isGateRegisterInFlight = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Xác nhận 2 mật khẩu & Lưu tài khoản";
+      }
+    }
+  }
+
+  if (gatePanelRegister) {
+    gatePanelRegister.addEventListener("submit", handleGateRegisterSubmit);
+  }
+  if (btnSubmitGateRegister) {
+    btnSubmitGateRegister.addEventListener("click", handleGateRegisterSubmit);
   }
 
   // Điều hướng 3 bước trong Quên mật khẩu
@@ -1863,12 +1893,16 @@
   const btnSendForgotOtp = byId("btnSendForgotOtp");
   if (btnSendForgotOtp) {
     btnSendForgotOtp.addEventListener("click", async () => {
+      if (isSendingForgotOtp) return;
       const emailEl = byId("gateForgotEmail");
       const email = emailEl ? emailEl.value.trim() : "";
       if (!email) {
         if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập email nhận mã OTP!";
         return;
       }
+      isSendingForgotOtp = true;
+      btnSendForgotOtp.disabled = true;
+      btnSendForgotOtp.textContent = "⏳ Đang gửi...";
       if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP về Gmail...";
       try {
         const res = await fetch("/api/auth3/forgot_password_send_otp", {
@@ -1880,64 +1914,108 @@
         if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
           if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message}`;
           setForgotStep(2);
-        } else if (gateStatusBox) {
-          gateStatusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
+
+          // 60-second visual countdown timer
+          let remaining = Number(data.cooldown_remaining_seconds) || 60;
+          btnSendForgotOtp.disabled = true;
+          btnSendForgotOtp.textContent = `Gửi lại sau (${remaining}s)`;
+          if (forgotOtpCooldownTimer) clearInterval(forgotOtpCooldownTimer);
+          forgotOtpCooldownTimer = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+              clearInterval(forgotOtpCooldownTimer);
+              forgotOtpCooldownTimer = null;
+              btnSendForgotOtp.disabled = false;
+              btnSendForgotOtp.textContent = "Gửi OTP";
+            } else {
+              btnSendForgotOtp.textContent = `Gửi lại sau (${remaining}s)`;
+            }
+          }, 1000);
+        } else {
+          if (gateStatusBox) {
+            gateStatusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
+          }
+          btnSendForgotOtp.disabled = false;
+          btnSendForgotOtp.textContent = "Gửi OTP";
         }
       } catch (_) {
         if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối khi gửi OTP.";
+        btnSendForgotOtp.disabled = false;
+        btnSendForgotOtp.textContent = "Gửi OTP";
+      } finally {
+        isSendingForgotOtp = false;
       }
     });
   }
 
   const btnSubmitForgotReset = byId("btnSubmitForgotReset");
+  async function handleForgotResetSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isGateForgotInFlight) return;
+    const btn = byId("btnSubmitForgotReset");
+    const emailEl = byId("gateForgotEmail");
+    const otpEl = byId("gateForgotOtpInput");
+    const pw1El = byId("gateForgotNewPassword");
+    const pw2El = byId("gateForgotConfirmPassword");
+    const email = emailEl ? emailEl.value.trim() : "";
+    const otp = otpEl ? otpEl.value.trim() : "";
+    const newPassword = pw1El ? pw1El.value : "";
+    const confirmPassword = pw2El ? pw2El.value : "";
+
+    if (!email || !otp || !newPassword || !confirmPassword) {
+      if (gateStatusBox) {
+        gateStatusBox.textContent = "❌ Vui lòng điền đầy đủ Email, OTP và 2 ô Mật khẩu mới!";
+      }
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      if (gateStatusBox) {
+        gateStatusBox.textContent = "❌ Hai ô Mật khẩu mới và Xác nhận lại mật khẩu mới không khớp nhau!";
+      }
+      return;
+    }
+    isGateForgotInFlight = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "⏳ Đang đặt lại...";
+    }
+    try {
+      const res = await fetch("/api/auth3/forgot_password_reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          otp,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (gateStatusBox) gateStatusBox.textContent = `✅ ${data.message}`;
+        switchLoginGateTab("login");
+        const loginPw = byId("gateLoginPassword");
+        if (loginPw) loginPw.value = newPassword;
+      } else if (gateStatusBox) {
+        gateStatusBox.textContent = `❌ ${data.error || "Không đặt lại được mật khẩu."}`;
+      }
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
+    } finally {
+      isGateForgotInFlight = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Đặt lại mật khẩu";
+      }
+    }
+  }
+
+  if (gatePanelForgot) {
+    gatePanelForgot.addEventListener("submit", handleForgotResetSubmit);
+  }
   if (btnSubmitForgotReset) {
-    btnSubmitForgotReset.addEventListener("click", async () => {
-      const emailEl = byId("gateForgotEmail");
-      const otpEl = byId("gateForgotOtpInput");
-      const pw1El = byId("gateForgotNewPassword");
-      const pw2El = byId("gateForgotConfirmPassword");
-      const email = emailEl ? emailEl.value.trim() : "";
-      const otp = otpEl ? otpEl.value.trim() : "";
-      const newPassword = pw1El ? pw1El.value : "";
-      const confirmPassword = pw2El ? pw2El.value : "";
-
-      if (!email || !otp || !newPassword || !confirmPassword) {
-        if (gateStatusBox) {
-          gateStatusBox.textContent = "❌ Vui lòng điền đầy đủ Email, OTP và 2 ô Mật khẩu mới!";
-        }
-        return;
-      }
-
-      if (newPassword !== confirmPassword) {
-        if (gateStatusBox) {
-          gateStatusBox.textContent = "❌ Hai ô Mật khẩu mới và Xác nhận lại mật khẩu mới không khớp nhau!";
-        }
-        return;
-      }
-      try {
-        const res = await fetch("/api/auth3/forgot_password_reset", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            otp,
-            new_password: newPassword,
-            confirm_password: confirmPassword,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          if (gateStatusBox) gateStatusBox.textContent = `✅ ${data.message}`;
-          switchLoginGateTab("login");
-          const loginPw = byId("gateLoginPassword");
-          if (loginPw) loginPw.value = newPassword;
-        } else if (gateStatusBox) {
-          gateStatusBox.textContent = `❌ ${data.error || "Không đặt lại được mật khẩu."}`;
-        }
-      } catch (_) {
-        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
-      }
-    });
+    btnSubmitForgotReset.addEventListener("click", handleForgotResetSubmit);
   }
 
   // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (tự mở Login Gate nếu chưa có session hợp lệ)

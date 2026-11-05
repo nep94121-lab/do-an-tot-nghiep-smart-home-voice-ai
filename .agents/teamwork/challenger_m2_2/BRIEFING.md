@@ -1,60 +1,68 @@
-# BRIEFING — 2026-11-04T06:46:00Z
+# BRIEFING — 2026-11-05T07:11:00Z
 
 ## Mission
-Thực hiện kiểm thử thực nghiệm đối kháng độc lập cho Milestone 2: Login Gate, Password UX & Mobile SVG Fix.
+Empirically challenge Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes) focusing on frontend triggers, disabled state handling, visual countdowns, and backend cooldown boundaries.
 
 ## 🔒 My Identity
-- Archetype: challenger (empirical challenger)
+- Archetype: teamwork_challenger
 - Roles: critic, specialist
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\challenger_m2_2\
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 2: Login Gate, Password UX & Mobile SVG Fix
+- Working directory: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\challenger_m2_2
+- Original parent: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Milestone: Milestone 2 (R2 Anti-Double-Send Cooldown & Trigger Fixes)
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Empirical verification: run all tests yourself, do not trust logs or claims
-- Layout compliance: tests belong in tests/, .agents/teamwork/ holds metadata only
-- Zero-Pollution, UTF-8 no BOM, Unix LF (0 CRLF)
+- Write and execute tests independently — do NOT trust worker claims
+- If cannot reproduce bug empirically, it does not count
+- DO NOT read, write, or print SMTP secret values
+- State verdict clearly in handoff.md: APPROVE or REQUEST_CHANGES
+- Write only metadata/reports in .agents/teamwork/challenger_m2_2
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T06:46:00Z
+- Conversation ID: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Updated: 2026-11-05T07:11:00Z
 
 ## Review Scope
 - **Files reviewed**:
-  - `simulator/static/index.html`
   - `simulator/static/js/app.js`
-  - `simulator/static/js/auth.js`
-  - `mobile_app/index.html`
-  - `simulator/static/js/mobile_app.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, worker_m2/handoff.md
+  - `simulator/static/index.html`
+  - `simulator/auth_3layer.py`
+  - `simulator/api/routes_auth.py`
+  - `tests/test_phase6_r2_cooldown_triggers.py`
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `worker_m2/handoff.md`
 - **Review criteria**:
-  - Gate modal cannot be bypassed without valid localStorage `smarthome_auth_session`
-  - Close button `#btnCloseLoginGateModal` is hidden and blocked against programmatic/manual clicks
-  - Enter key on form triggers submission across login, register, forgot forms
-  - Eye button toggle (`btn-toggle-pw`) works across all login/auth password inputs
-  - Mobile app SVG symbols and DOM integrity
-  - 0 CRLF and UTF-8 without BOM verification across all 5 files
+  - Double-firing trigger inspection (no `button.click()` inside submit listeners, no recursive calls)
+  - inFlight & disabled state verification on `#btnSubmitGateLogin`, `#btnSubmitGateRegister`, `#btnSubmitForgotReset`, `#btnSendForgotOtp`
+  - Visual countdown on `#btnSendForgotOtp` (setInterval, countdown, 60s restore)
+  - Exact boundary tests on backend cooldown (t=0s, t=30s, t=59s, t=60s, t=61s)
+
+## Key Decisions Made
+- Created independent test suite `tests/test_challenger_phase6_m2_empirical.py` (8 test cases).
+- Created independent Node.js DOM test harness `tests/test_challenger_m2_frontend_node.js` (5 test suites).
+- Confirmed zero active `button.click()` calls in submit handlers.
+- Confirmed robust `disabled=true` and `inFlight` management across all auth forms.
+- Confirmed countdown timer runs smoothly and restores button state upon completion or network failure.
+- Confirmed strict boundary behavior on backend cooldown with time.time patching: t=0s (active, remaining=60), t=30s (active, remaining=30), t=59s (active, remaining=1), t=59.9s (active, remaining=0), t=60s (expired, new OTP), t=61s (active under new OTP cycle, remaining=59).
+- Verdict: APPROVE Milestone 2.
+
+## Artifact Index
+- `DISPATCH.md` — Dispatch log
+- `BRIEFING.md` — Identity and working memory
+- `progress.md` — Liveness and task execution log
+- `handoff.md` — Final verdict and empirical challenge report
+- `tests/test_challenger_phase6_m2_empirical.py` — Python empirical challenge suite (8 tests)
+- `tests/test_challenger_m2_frontend_node.js` — Node.js DOM and timer runtime harness (5 tests)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. H1: Người dùng có thể bypass Login Gate bằng click nút X, backdrop, hoặc phím Escape khi chưa có session -> BỊ CHẶN 100%.
-  2. H2: Kẻ tấn công có thể giả mạo `smarthome_auth_session` không có email hoặc dữ liệu JSON rác để mở khóa gate -> BỊ TỪ CHỐI 100%.
-  3. H3: Nhấn Enter trên ô input của các form không kích hoạt submit -> ĐÃ ĐƯỢC GIẢI QUYẾT (form tags + type=submit + submit event listeners).
-  4. H4: Icon ngôi nhà `#i-home` trên `#mobileLoginGate` bị biến mất do kẹt trong container `#mobileMainContent hidden` -> ĐÃ ĐƯỢC DI CHUYỂN ra thẻ `<svg>` toàn cục trực tiếp dưới `<body>`.
-  5. H5: Ô nhập tên và email trong `auth.js` bị khóa cứng `readOnly = true` khi chọn Cấp 1 -> ĐÃ GỠ BỎ HOÀN TOÀN, gán `readOnly = false`.
-- **Vulnerabilities found**: Không phát hiện lỗ hổng bypass. Toàn bộ logic kiểm soát session và DOM được gia cố vững chắc.
-- **Untested angles**: Đã kiểm thử Node VM Headless DOM, static BeautifulSoup DOM parsing, và encoding checks byte-level.
+  1. Form submit triggers might still invoke `button.click()`, leading to duplicate requests -> Refuted: active `.click()` calls eliminated.
+  2. Submitting forms or clicking buttons without internet connection might lock buttons permanently in `disabled=true` -> Refuted: `finally` blocks guarantee restoration.
+  3. Visual countdown on `#btnSendForgotOtp` might drift or fail to clear interval, leaking timers -> Refuted: interval is cleared on completion and cleared before creating new timers.
+  4. Backend cooldown boundary at exact 60.0s might have off-by-one errors -> Refuted: exact timing boundaries (0s, 30s, 59s, 59.9s, 60s, 61s) verified empirically.
+  5. Case differences in email address (`senat6031@gmail.com` vs `SENAT6031@GMAIL.COM`) might bypass cooldown -> Refuted: email is normalized (`.strip().lower()`).
+- **Vulnerabilities found**: None. Worker M2's implementation is solid and resilient.
+- **Untested angles**: Hardware-level SMTP socket failures (mocked in test suites).
 
 ## Loaded Skills
-- None explicitly requested.
-
-## Key Decisions Made
-- Viết bộ test đối kháng độc lập `tests/test_challenger_m2_gate_ux_empirical.py` gồm 33 test items, kiểm thử 100% các tiêu chí thực nghiệm.
-- Chạy cả 2 bộ test: `tests/test_challenger_m2_gate_ux_empirical.py` (33/33 PASS) và `tests/test_challenger_m4_dom.py` (36/36 PASS). Tổng cộng 69/69 PASS (100%).
-- Đưa ra phán quyết thực nghiệm: APPROVE.
-
-## Artifact Index
-- `tests/test_challenger_m2_gate_ux_empirical.py` — Kịch bản kiểm thử đối kháng thực nghiệm chuyên sâu cho Milestone 2.
-- `.agents/teamwork/challenger_m2_2/handoff.md` — Báo cáo nghiệm thu bàn giao chính thức.
+None loaded.

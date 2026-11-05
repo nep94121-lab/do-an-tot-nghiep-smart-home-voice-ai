@@ -1,60 +1,69 @@
-# BRIEFING — 2026-11-04T07:09:00Z
+# BRIEFING — 2026-11-05T07:37:30Z
 
 ## Mission
-Thẩm định và phản biện độc lập (Reviewer & Adversarial Critic) kết quả triển khai Milestone 3: 3D Model DOM, Controls & Raycaster của Worker M3.
+Perform independent quality and adversarial review of Milestone 3 (R3: Email RFC 5322 Standards & Deliverability) implementation and test suites.
 
 ## 🔒 My Identity
-- Archetype: reviewer_critic
+- Archetype: reviewer
 - Roles: reviewer, critic
-- Working directory: c:\Users\LENOVO\Desktop\đồ án tốt nghiệp\.agents\teamwork\reviewer_m3_1
-- Original parent: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Milestone: Milestone 3: 3D Model DOM, Controls & Raycaster
+- Working directory: C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\reviewer_m3_1
+- Original parent: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Milestone: milestone_3
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Actively check for integrity violations: hardcoded test returns, dummy/facade implementations, shortcuts bypassing tasks, fabricated verification outputs
-- Full Vietnamese responses for reporting, strict evidence-based findings
-- Trả lời 100% bằng Tiếng Việt, dẫn link clickable [Tên File](file:///...)
+- Check for integrity violations (hardcoding, facade, bypasses)
+- Zero-Leak constraint (0 SMTP secrets logged or exposed)
+- 0 CRLF and UTF-8 without BOM verification
+- Issue explicit Verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: cb4be64f-6f73-4e8f-b499-50863e4051dc
-- Updated: 2026-11-04T07:09:00Z
+- Conversation ID: 91485de0-7c6f-449a-ba3f-ed6820ebb01a
+- Updated: 2026-11-05T07:37:30Z
 
 ## Review Scope
 - **Files to review**:
-  - `simulator/static/house3d.js`
-  - `simulator/static/css/style.css`
-  - `simulator/static/index.html`
-  - `simulator/static/js/app.js`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `tests/test_challenger_m4_dom.py`
-- **Review criteria**: DOM preservation & cleanup, Three.js Raycaster + OrbitControls interaction, click vs drag differentiation, device pin labels visibility, 7 camera presets, test pass & syntax validation, zero-facade/zero-hardcoding
-
-## Key Decisions Made
-- Thực hiện đầy đủ 2 pha: Quality Review và Adversarial Stress Testing.
-- Độc lập chạy toàn bộ kiểm thử xác thực: pytest DOM challenger (36/36 PASS), test_all_36_project_flows (36/36 PASS), test_m3_orthogonal (18/18 PASS), node -c syntax check (exit 0).
-- Kiểm tra tính toàn vẹn (Integrity Check): Xác nhận 0 hardcoded test results, 0 dummy facades, 0 CRLF, 0 BOM.
-- Đưa ra kết luận chính thức: **APPROVE**.
-
-## Artifact Index
-- [DISPATCH.md](file:///c:/Users/LENOVO/Desktop/đồ án tốt nghiệp/.agents/teamwork/reviewer_m3_1/DISPATCH.md) — Chỉ thị giao việc từ Orchestrator
-- [progress.md](file:///c:/Users/LENOVO/Desktop/đồ án tốt nghiệp/.agents/teamwork/reviewer_m3_1/progress.md) — Tiến độ và liveness heartbeat
-- [BRIEFING.md](file:///c:/Users/LENOVO/Desktop/đồ án tốt nghiệp/.agents/teamwork/reviewer_m3_1/BRIEFING.md) — Bộ nhớ ngữ cảnh làm việc
-- [handoff.md](file:///c:/Users/LENOVO/Desktop/đồ án tốt nghiệp/.agents/teamwork/reviewer_m3_1/handoff.md) — Báo cáo thẩm định bàn giao
+  - `simulator/auth/invite_and_gmail_mixin.py`
+  - `tests/test_phase6_r3_rfc5322.py`
+  - `tests/test_phase5_r3_otp_email.py`
+- **Interface contracts**:
+  - `ORIGINAL_REQUEST.md`
+  - `orchestrator/SCOPE.md`
+  - `worker_m3/handoff.md`
+- **Review criteria**:
+  - RFC 5322 header compliance (`From`, `Date`, `Message-ID`, `Reply-To`, `To`)
+  - Subject anti-spam (no OTP digits, no banned uppercase words, no emojis)
+  - MIME multipart/alternative structure (plain text first, HTML second, zero emoji, clean light background, no fake Google OAuth branding)
+  - Gmail API reading logic (`read_latest_otp_from_gmail_inbox`, query `q`, Base64URL decoding, 3-tier regex)
+  - Regressions, edge cases, adversarial challenges
 
 ## Review Checklist
 - **Items reviewed**:
-  - `simulator/static/house3d.js` (DOM cleanup, Raycaster, drag/click <= 6px, touch <= 10px, camera lerp, pins)
-  - `simulator/static/css/style.css` (bỏ display: none, hiển thị emoji + name + ON/OFF, toolbar buttons)
-  - `simulator/static/index.html` (7 camera preset buttons, lblCurrentCameraView)
-  - `simulator/static/js/app.js` (initCameraToolbar, SmartHome3D.setCameraView binding)
+  - `simulator/auth/invite_and_gmail_mixin.py`
+  - `tests/test_phase6_r3_rfc5322.py`
+  - `tests/test_phase5_r3_otp_email.py`
+  - `tests/test_challenger_phase6_m3_2.py`
+  - `tests/test_challenger_phase5_r2_r3.py`
 - **Verdict**: APPROVE
-- **Unverified claims**: Không còn. Đã kiểm chứng độc lập 100%.
+- **Unverified claims**: None. All claims independently verified via automated test runs and direct code audit.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Khởi tạo lại `SmartHome3D.init()` nhiều lần có bị rò rỉ canvas hoặc mất `#house3dLabels` không? -> Đã kiểm chứng: canvas cũ bị xoá, `clickableMeshes.length = 0`, chèn canvas mới bằng `insertBefore(renderer.domElement, container.firstChild)`, nhãn và note bảo toàn nguyên vẹn.
-  - Kéo xoay camera góc lớn có bị kích hoạt nhầm Raycaster không? -> Đã kiểm chứng: `Math.hypot(dx, dy) > 6` chặn triệt để click; chỉ `dist <= 6` mới gọi Raycaster.
-  - Click trượt ngoài khung canvas hoặc click vào vật thể không phải thiết bị? -> Đã kiểm chứng: có bounding rect check an toàn và traverse parent tree lọc `userData.deviceId`.
-  - Cú pháp và runtime trong môi trường Node.js Headless? -> Đã kiểm chứng: Node.js VM chạy mượt mà, `test_challenger_m4_dom.py` pass 36/36.
-  - Định dạng mã hóa và ký tự xuống dòng? -> Đã kiểm chứng: 100% POSIX LF (0 CRLF), UTF-8 không BOM.
+  - RFC 5322 compliance of From, To, Date, Message-ID, Reply-To headers: VERIFIED (RFC 2047 diacritics encoding verified).
+  - Subject anti-spam: verified no 6-digit OTP, no uppercase words like OTP/AI/OAUTH, zero emojis.
+  - MIME multipart/alternative structure: verified text/plain first, light HTML second, zero emojis, no deceptive Google OAuth branding.
+  - Inbox scraper resilience: verified resilient query q, Base64URL padding handling, 3-tier regex precedence.
+  - Integrity violation checks: verified 0 hardcoded test bypasses, 0 facade implementations, 0 fake successes.
+  - Zero-Leak security: verified 0 SMTP credentials printed or logged.
+  - Encoding: verified 0 CRLF and UTF-8 without BOM across all codebase and review files.
+- **Vulnerabilities found**: None.
+- **Untested angles**: Real live network dispatch to `senat6031@gmail.com` (reserved for Milestone 4).
+
+## Key Decisions Made
+- Confirmed implementation is fully compliant with RFC 5322 and deliverability anti-spam standards.
+- Issued verdict: APPROVE.
+
+## Artifact Index
+- `handoff.md` — Final review and challenge assessment report
+- `progress.md` — Heartbeat and execution step tracker

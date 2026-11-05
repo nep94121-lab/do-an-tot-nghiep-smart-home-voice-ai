@@ -1,147 +1,139 @@
-# Báo Cáo Bàn Giao Kỹ Thuật (Handoff Report) - Milestone 3
-## 3D Model DOM, Controls & Raycaster
+# Handoff Report: Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)
 
-**Người thực hiện:** Subagent `teamwork_worker` (Milestone 3 Implementer & QA)  
-**Ngày hoàn thành:** 2026-11-04  
-**Workspace:** `c:\Users\LENOVO\Desktop\đồ án tốt nghiệp`  
-**Các tệp chỉnh sửa (Write Ownership độc quyền):**
-1. [simulator/static/house3d.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js)
-2. [simulator/static/css/style.css](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/css/style.css)
-3. [simulator/static/index.html](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/index.html)
-4. [simulator/static/js/app.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/js/app.js)
+**Worker:** `worker_m3` (Archetype: `teamwork_worker`, Roles: `implementer`, `qa`, `specialist`)  
+**Parent Orchestrator:** `91485de0-7c6f-449a-ba3f-ed6820ebb01a`  
+**Workspace:** `C:\Users\LENOVO\datn-wt\p6-otp`  
+**Date:** 2026-11-05T07:30:00Z  
+**Type:** Hard Handoff (Task Complete)
 
 ---
 
-## 1. Observation (Quan Sát Thực Nghiệm & Bằng Chứng Mã Nguồn)
+## 1. Observation
 
-### 1.1. Lỗi Xóa Nhãn Nổi DOM trong `house3d.js`
-- **Tệp:** [simulator/static/house3d.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js) (dòng 179-180 trước khi sửa)
-  ```javascript
-  container.innerHTML = "";
-  container.appendChild(renderer.domElement);
-  ```
-- **Hiện tượng:** Lệnh `container.innerHTML = ""` làm bốc hơi toàn bộ phần tử `#house3dLabels` và `.viewport-note` bên trong `#house3dViewport`. Kết quả là các nút nổi `.pin-3d` tạo bởi `buildFloatingPins()` biến thành các detached DOM nodes, không hiển thị trên màn hình.
+### 1.1. Pre-Fix Code State
+1. **`simulator/auth/invite_and_gmail_mixin.py`**:
+   - `From` header: Set as bare string `msg["From"] = smtp_user` or `msg["From"] = "nep94121@gmail.com"` without `email.utils.formataddr`.
+   - `To` header: Set as bare email address string `msg["To"] = actual_to`.
+   - `Date` header: Completely absent (violation of RFC 5322 §3.6.1).
+   - `Message-ID` header: Completely absent (violation of RFC 5322 §3.6.4).
+   - `Reply-To` header: Completely absent.
+   - `Subject` lines: Contained OTP codes and ALL-CAPS words:
+     - `msg["Subject"] = f"{subject_prefix} Mã xác nhận OTP: {otp_code} ({display_name})"`
+     - `msg["Subject"] = f"[Smart Home Voice AI] Lời mời đăng ký tài khoản Cấp ..."`
+   - MIME body: Initialized `MIMEMultipart("alternative")` but attached only a single `text/html` part, missing `text/plain` entirely. HTML used a dark `#0f172a` background with neon accents, multiple emojis, and deceptive "Google OAuth" branding (`🔐 XÁC NHẬN GOOGLE OAUTH & GMAIL OTP - SMART HOME AI`).
+   - `read_latest_otp_from_gmail_inbox`: Used static search query `q: "Smart Home Mã xác nhận OTP"` with `maxResults: 1`, only searched `subject` and `snippet` with single-tier regex `\b(\d{6})\b`, completely failing to decode MIME parts from `payload["parts"]`.
 
-### 1.2. Ẩn Icon Emoji và Nút Cảm Biến trong `style.css`
-- **Tệp:** [simulator/static/css/style.css](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/css/style.css) (dòng 441-447 trước khi sửa)
-  ```css
-  .pin-3d .pin-icon {
-    display: none !important;
-  }
-
-  .pin-3d[title*="Bấm để chuyển góc nhìn"] {
-    display: none !important;
-  }
-  ```
-- **Hiện tượng:** Toàn bộ icon emoji nhận diện (`🚪`, `💡`, `🌀`, `❄️`, `🛏️`, `🚨`, `💧`) bị ẩn cưỡng bức, làm mất khả năng nhận diện trực quan nhanh trên mô hình 3D. Các nút nhãn cảm biến & mạch cũng bị ẩn hoàn toàn.
-
-### 1.3. Thiếu Thanh Nút Chọn Góc Nhìn Camera 3D trên Panel Ngôi Nhà
-- **Tệp:** [simulator/static/index.html](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/index.html) (dòng 82-85 trước khi sửa)
-  ```html
-  <div class="panel-head">
-    <h2 id="house-title">Ngôi nhà</h2>
-    <span class="view-label">Toàn cảnh</span>
-  </div>
-  ```
-- **Hiện tượng:** Header của panel chỉ có text tĩnh, người dùng không có giao diện trực tiếp để chuyển đổi giữa 7 góc nhìn đã được lập trình sẵn trong `house3d.js` (`overview`, `living`, `bedroom`, `door`, `garden`, `board`, `rotate`).
-
-### 1.4. Thiếu `THREE.Raycaster` Khi Click Trực Tiếp Vào Mô Hình 3D
-- **Tệp:** [simulator/static/house3d.js](file:///c:/Users/LENOVO/Desktop/đồ%20án%20tốt%20nghiệp/simulator/static/house3d.js) (dòng 1241-1272 trước khi sửa)
-  `bindMouseControls()` chỉ xử lý kéo xoay (drag) và cuộn chuột (wheel). Không có đối tượng `THREE.Raycaster` để nhận diện click vào mesh thiết bị 3D và chưa có cơ chế phân biệt giữa thao tác xoay camera (drag) và click chuột chọn thiết bị.
-
----
-
-## 2. Logic Chain (Chuỗi Lập Luận Từ Quan Sát Đến Giải Pháp Kỹ Thuật)
-
+### 1.2. TDD Red State (Pre-Implementation Verification)
+Ran command:
+`pytest tests/test_phase5_r3_otp_email.py tests/test_phase6_r3_rfc5322.py -v`
+Result:
 ```
-[Quan sát 1.1: container.innerHTML = "" xóa nhãn]
-  ──> Cần bảo tồn cấu trúc con của #house3dViewport.
-  ──> Thay bằng việc tìm thẻ <canvas> cũ xóa đi (nếu có), rồi dùng container.insertBefore(renderer.domElement, container.firstChild).
-  ──> Kết quả: canvas Three.js được đặt ở lớp đáy, #house3dLabels và .viewport-note giữ nguyên vị trí ở lớp trên (z-index).
+=========================== short test summary info ===========================
+FAILED tests/test_phase5_r3_otp_email.py::TestPhase5R3PasswordResetOtpEmail::test_r3_successful_smtp_dispatch_when_secret_provided
+FAILED tests/test_phase6_r3_rfc5322.py::TestRFC5322HeadersAndFormatting::test_send_real_gmail_otp_headers_rfc5322
+FAILED tests/test_phase6_r3_rfc5322.py::TestRFC5322HeadersAndFormatting::test_send_invite_link_headers_rfc5322
+FAILED tests/test_phase6_r3_rfc5322.py::TestSubjectLinesAntiSpam::test_otp_subject_has_no_digits_no_all_caps_no_emojis
+FAILED tests/test_phase6_r3_rfc5322.py::TestMultipartAlternativeStructure::test_otp_email_multipart_structure_and_styling
+FAILED tests/test_phase6_r3_rfc5322.py::TestResilientGmailInboxScraper::test_scraper_query_matches_new_subject_format
+FAILED tests/test_phase6_r3_rfc5322.py::TestResilientGmailInboxScraper::test_scraper_decodes_nested_multipart_payload
+FAILED tests/test_phase6_r3_rfc5322.py::TestResilientGmailInboxScraper::test_scraper_3tier_regex_precedence
+=================== 8 failed, 4 passed, 3 warnings in 9.86s ===================
+```
 
-[Quan sát 1.2: style.css ép display: none !important trên .pin-icon]
-  ──> Xóa bỏ hoàn toàn 2 rules display: none.
-  ──> Bổ sung CSS hiển thị rõ ràng icon emoji, tên thiết bị, trạng thái ON/OFF (màu sắc phân biệt, glow hiệu ứng), và hiệu ứng hover pointer.
+### 1.3. Post-Fix Verification (TDD Green & Full Regression)
+Ran command:
+`pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v`
+Result:
+```
+======================= 59 passed, 3 warnings in 49.78s =======================
+```
+Ran command:
+`pytest tests/test_challenger_phase5_r2_r3.py -v`
+Result:
+```
+================== 24 passed, 3 warnings in 89.25s (0:01:29) ==================
+```
 
-[Quan sát 1.3: HTML thiếu nút điều khiển camera preset]
-  ──> Thêm cụm .camera-toolbar gồm 7 button: data-cam="overview", "living", "bedroom", "door", "garden", "board", "rotate".
-  ──> Gán id="lblCurrentCameraView" cho nhãn góc nhìn.
-  ──> Trong app.js: Thêm hàm initCameraToolbar() lắng nghe click để gọi SmartHome3D.setCameraView(preset) và cập nhật class active/nhãn hiển thị.
-  ──> Trong house3d.js: Bổ sung logic tự động đồng bộ trạng thái active của thanh toolbar khi setCameraView được gọi từ bất kỳ nguồn nào.
-
-[Quan sát 1.4: Không có Raycaster và không phân biệt drag vs click]
-  ──> Khởi tạo THREE.Raycaster và THREE.Vector2 trong house3d.js.
-  ──> Xây dựng hàm registerClickable(obj, deviceId) gán userData.deviceId cho toàn bộ mesh thiết bị và gom vào clickableMeshes:
-      + main_door: doorPivot (cánh cửa, kính, tay nắm), sg90Group, lockLed.
-      + living_room_light: lrBulb, lrCord.
-      + fan: fanBladesGroup (trục + 4 cánh), fanRod.
-      + ac: acBody, acLed, acFlapPivot (cánh vẫy).
-      + bedroom_light: bedCeilingLamp, nightLampShade.
-      + alarm_siren: sirenMesh, buzzerCylinder.
-      + garden_pump: pumpCylinder, pumpImpeller, tankMesh, soilBed, ống dẫn nước & vòi phun.
-  ──> Cơ chế phân biệt Kéo xoay camera vs Click thật:
-      Lưu tọa độ mouseDownPos tại sự kiện mousedown.
-      Tại sự kiện mouseup, đo khoảng cách di chuyển: Math.hypot(dx, dy).
-      Nếu khoảng cách <= 6px: Xử lý Click thật -> kích hoạt handleRaycastClick() để gọi onDeviceClickCallback(deviceId).
-      Nếu khoảng cách > 6px: Bỏ qua (thao tác kéo xoay camera, không kích hoạt bật tắt thiết bị ngoài ý muốn).
-  ──> Bổ sung cursor pointer khi hover qua vật thể và hỗ trợ thao tác touch trên thiết bị cảm ứng (Galaxy S9).
+### 1.4. Encoding and Line Endings Audit
+Ran command:
+`python -c "check BOM and CRLF"`
+Result:
+```
+simulator/auth/invite_and_gmail_mixin.py: BOM=False, CRLF count=0
+tests/test_phase5_r3_otp_email.py: BOM=False, CRLF count=0
+tests/test_phase6_r3_rfc5322.py: BOM=False, CRLF count=0
+.agents/teamwork/worker_m3/DISPATCH.md: BOM=False, CRLF count=0
+.agents/teamwork/worker_m3/BRIEFING.md: BOM=False, CRLF count=0
+.agents/teamwork/worker_m3/progress.md: BOM=False, CRLF count=0
 ```
 
 ---
 
-## 3. Caveats (Giới Hạn, Giả Định & Phạm Vi Ranh Giới)
+## 2. Logic Chain
 
-1. **Phạm vi sở hữu tệp:** Chỉ can thiệp đúng 4 file được chỉ định độc quyền (`house3d.js`, `style.css`, `index.html`, `app.js`). Không sửa bất kỳ file backend, auth hay test nào.
-2. **Bảo toàn tương thích Node.js Headless:** Môi trường Node.js VM trong test `test_challenger_m4_dom.py` không có WebGL context thực tế. Logic trong `house3d.js` duy trì guard `if (typeof window === "undefined" || !window.THREE) return { ... }` đảm bảo Node.js parse và thực thi an toàn 100%.
-3. **Môi trường Three.js:** Sử dụng API tương thích hoàn toàn Three.js r128 offline vendor của dự án.
+1. **RFC 5322 Compliance**:
+   - `email.utils.formataddr(('Smart Home Voice AI', sender_addr))` formats the `From` and `Reply-To` headers into RFC 5322 compliant mailbox format `Smart Home Voice AI <address>`.
+   - `email.utils.formatdate(localtime=True)` produces valid RFC 2822/5322 Date timestamps ensuring Gmail and SMTP relays do not flag messages for missing origination dates.
+   - `email.utils.make_msgid(domain=domain)` produces a unique `Message-ID` enclosed in `<...>` with a valid domain portion, satisfying RFC 5322 §3.6.4.
+
+2. **Spam & Anti-Phishing Deliverability Heuristics**:
+   - Subjects formatted as `"Smart Home Voice - Mã xác thực tài khoản"` and `"Smart Home Voice - Lời mời đăng ký tài khoản Cấp ..."` remove raw OTP digits, ALL-CAPS words (`OTP`, `AI`, `OAUTH`), and emojis. This prevents spam filter penalties and protects OTP privacy on lockscreen notifications.
+   - Using MIME `multipart/alternative` with `text/plain` attached first and `text/html` attached second complies with RFC 2046 and eliminates SpamAssassin `MIME_HTML_ONLY` triggers.
+   - HTML template redesigned to clean light-background `#ffffff` / `#f8fafc`, clean typography, neutral borders, zero emojis, and zero misleading Google OAuth claims, preventing Google anti-spoofing flags.
+
+3. **Resilient Inbox Scraper**:
+   - Search query upgraded to `q: 'subject:"Smart Home" (xác thực OR OTP OR verification)'` with `maxResults: 5`, matching both old and new subjects.
+   - Recursive Base64URL decoder `_extract_payload_text` traverses nested `payload["parts"]` and extracts all encoded body texts.
+   - 3-tier regex logic ensures OTP is extracted reliably:
+     1. Keyword context regex: `(?:OTP[:\s-]*|mã[:\s-]*|code[:\s-]*|xác thực[:\s-]*|xác nhận[:\s-]*)\s*(\d{6})\b`
+     2. HTML container regex: `id=["\']otp-code-value["\'][^>]*>(?:OTP:)?\s*(\d{6})<`
+     3. Fallback boundary regex: `\b(\d{6})\b`
 
 ---
 
-## 4. Conclusion (Kết Quả Triển Khai)
+## 3. Caveats
 
-- Toàn bộ 4 nhiệm vụ của Milestone 3 đã hoàn thành xuất sắc, đúng yêu cầu kỹ thuật:
-  1. Bảo tồn 100% `#house3dLabels` và `.viewport-note` trên mô hình 3D.
-  2. Hiển thị 7 nút nổi `.pin-3d` với đầy đủ emoji (`🚪`, `💡`, `🌀`, `❄️`, `🛏️`, `🚨`, `💧`), tên thiết bị và trạng thái ON/OFF.
-  3. Thanh 7 nút camera preset hoạt động mượt mà, đồng bộ hai chiều với mô hình 3D và nhãn góc nhìn.
-  4. Hệ thống `THREE.Raycaster` nhận diện chính xác 7 thiết bị chấp hành, phân biệt hoàn hảo giữa kéo xoay camera và click kích hoạt (ngưỡng 6px).
-- Chuẩn hóa định dạng tệp: 100% POSIX LF (0 CRLF), UTF-8 không BOM.
+- **No Caveats.**
+- Automated tests mock SMTP connections and CLI subprocess calls cleanly via standard test fixtures. Real network dispatches were not performed during M3 (single real verification email is explicitly reserved for Milestone 4).
 
 ---
 
-## 5. Verification Method (Phương Pháp Kiểm Chứng Độc Lập)
+## 4. Conclusion
 
-Bất kỳ kiểm định viên hoặc Forensic Auditor nào cũng có thể kiểm chứng toàn diện kết quả bằng các lệnh sau:
+Milestone 3 (R3: Email RFC 5322 Standards & Deliverability) has been fully implemented, verified, and documented following strict TDD. All acceptance criteria for R3 in `SCOPE.md` and `ORIGINAL_REQUEST.md` have been met. All tests pass with 100% green status.
 
-### 5.1. Chạy Kiểm Thử Đối Kháng DOM & Event Handlers
-```powershell
-python -m pytest tests/test_challenger_m4_dom.py -v --basetemp=.pytest_temp_m3
-```
-- **Kết quả thực tế:** `36 passed in 2.03s` (100% PASS, không lỗi syntax, không vỡ DOM, không null-dereference).
+---
 
-### 5.2. Chạy Kiểm Thử Độc Lập Chuyên Biệt M3 (Orthogonal Verification)
-```powershell
-python .agents/teamwork/worker_m3/test_m3_orthogonal.py
-```
-- **Kết quả thực tế:** `SUCCESS: All 18 orthogonal verifications PASSED with 0 errors!`
-- Kiểm tra độc lập:
-  - `container.innerHTML = ""` đã bị loại bỏ hoàn toàn.
-  - `container.insertBefore(renderer.domElement, container.firstChild)` hiện diện.
-  - `THREE.Raycaster` và `Math.hypot` hoạt động chuẩn xác.
-  - Cả 7 thiết bị được đăng ký `userData.deviceId`.
-  - Không còn rule ẩn icon emoji trong CSS.
-  - 7 nút preset camera và nhãn `lblCurrentCameraView` tồn tại trong HTML.
-  - `app.js` gắn listener gọi `SmartHome3D.setCameraView`.
-  - 100% 0 CRLF, 0 BOM trên cả 4 tệp.
+## 5. Verification Method
 
-### 5.3. Chạy Kiểm Thử Hồi Quy 36 Luồng Toàn Dự Án
-```powershell
-python -m pytest tests/e2e/test_all_36_project_flows.py -v --basetemp=.pytest_temp_m3_flows
-```
-- **Kết quả thực tế:** `36 passed in 12.37s` (100% PASS, không gây bất kỳ tác động tiêu cực nào tới các luồng khác).
+To independently reproduce and verify this milestone:
 
-### 5.4. Kiểm Tra Cú Pháp JavaScript Bằng Node.js Engine
-```powershell
-node -c simulator/static/house3d.js
-node -c simulator/static/js/app.js
-```
-- **Kết quả:** Exit code 0 (cú pháp chuẩn xác tuyệt đối).
+1. **Run R3 Unit & RFC 5322 Test Suite**:
+   ```powershell
+   pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py -v
+   ```
+   *Expected:* 12 passed.
+
+2. **Run Full Milestone 1-3 Regression Suite**:
+   ```powershell
+   pytest tests/test_phase6_r3_rfc5322.py tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v
+   ```
+   *Expected:* 59 passed.
+
+3. **Run Adversarial Challenger Suite**:
+   ```powershell
+   pytest tests/test_challenger_phase5_r2_r3.py -v
+   ```
+   *Expected:* 24 passed.
+
+4. **Verify 0 CRLF and UTF-8 Without BOM**:
+   ```powershell
+   python -c "
+   for p in ['simulator/auth/invite_and_gmail_mixin.py', 'tests/test_phase5_r3_otp_email.py', 'tests/test_phase6_r3_rfc5322.py']:
+       raw = open(p, 'rb').read()
+       assert not raw.startswith(b'\xef\xbb\xbf'), f'BOM in {p}'
+       assert b'\r\n' not in raw, f'CRLF in {p}'
+   print('ALL CLEAN POSIX LF UTF-8')
+   "
+   ```
+   *Expected:* `ALL CLEAN POSIX LF UTF-8`.
