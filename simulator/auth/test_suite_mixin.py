@@ -9,7 +9,12 @@ import struct
 from typing import Any
 
 from simulator.auth.constants_and_crypto import _now_vn, hash_password
-from simulator.voice_config import OWNER_EMAIL, OWNER_ID, sanitize_api_payload
+from simulator.voice_config import (
+    OWNER_EMAIL,
+    OWNER_ID,
+    is_throwaway_qa_identity,
+    sanitize_api_payload,
+)
 
 
 def _synth_pcm_b64(f0_hz: float = 200.0, duration_sec: float = 0.8) -> str:
@@ -299,6 +304,9 @@ class AuthTestSuiteMixin:
             if emgai_acc is not None:
                 emgai_acc.pop("password_plain_hint", None)
                 emgai_acc["password_hash"] = ""
+            self.pending_otps.pop(OWNER_EMAIL.lower(), None)
+            self.pending_otps.pop("thanhviena.hust@gmail.com", None)
+            self.pending_invite_registrations.pop("emgai.invite@gmail.com", None)
             self._save_accounts()
 
         for c in cases:
@@ -318,10 +326,18 @@ class AuthTestSuiteMixin:
         return self.latest_test_report
 
     def get_overview(self, active_email: str = OWNER_EMAIL) -> dict[str, Any]:
+        if hasattr(self, "_purge_throwaway_qa_accounts"):
+            self._purge_throwaway_qa_accounts()
         if not self.latest_test_report:
             self.run_automated_3layer_test_suite(send_real_email_on_test1=False)
         safe_accounts = []
         for acc in self.accounts:
+            if (
+                is_throwaway_qa_identity(acc.get("account_id"))
+                or is_throwaway_qa_identity(acc.get("email"))
+                or is_throwaway_qa_identity(acc.get("display_name"))
+            ):
+                continue
             self._normalize_account_fields(acc)
             email_key = acc["email"].lower()
             pend = self.pending_otps.get(email_key)
@@ -350,21 +366,24 @@ class AuthTestSuiteMixin:
                         "reading_prompt": acc.get("reading_prompt", ""),
                         "permissions": acc.get("permissions", []),
                         "invite_links_bundle": inv_bundle,
-                        "active_otp": pend.get("otp_code") if pend else None,
                         "layer2_verified": bool(pend.get("verified_layer2")) if pend else False,
                         "layer3_verified": bool(sess.get("all_3_layers_passed")) if sess else False,
-                        "last_session": sess,
                     }
                 )
             )
         recent_logs_norm = []
         for lg in self.verification_logs[:40]:
+            if is_throwaway_qa_identity(lg.get("email")) or is_throwaway_qa_identity(lg.get("detail")):
+                continue
             recent_logs_norm.append({
                 **lg,
                 "time": lg.get("time_vn", ""),
                 "event": lg.get("action") or lg.get("layer") or "Xác thực",
             })
-        allowlist_items = self.get_family_email_allowlist()
+        allowlist_items = [
+            item for item in self.get_family_email_allowlist()
+            if not is_throwaway_qa_identity(item.get("email"))
+        ]
         return sanitize_api_payload({
             "ok": True,
             "server_time_vn": _now_vn(),
@@ -373,9 +392,6 @@ class AuthTestSuiteMixin:
             "family_allowlist": allowlist_items,
             "invite_links": list(self.invite_links.values()),
             "active_invite_bundle": self.get_invite_links_for_account(active_email),
-            "pending_otps": list(self.pending_otps.values()),
-            "pending_invite_registrations": list(self.pending_invite_registrations.values()),
-            "active_sessions": list(self.sessions.values()),
             "verification_logs": recent_logs_norm,
             "recent_logs": recent_logs_norm,
             "test_report": self.latest_test_report,

@@ -68,6 +68,7 @@ from simulator.voice_config import (
     OWNER_ID,
     THRESHOLD_DEEP,
     THRESHOLD_MEL,
+    is_throwaway_qa_identity,
     sanitize_api_payload,
 )
 
@@ -135,6 +136,45 @@ class ThreeLayerAuthManager(
         vp.setdefault("reading_prompt_verified", bool(vp.get("enrolled", False)))
         return acc
 
+    @staticmethod
+    def _is_throwaway_account_entry(acc: Any) -> bool:
+        if not isinstance(acc, dict):
+            return is_throwaway_qa_identity(acc)
+        return (
+            is_throwaway_qa_identity(acc.get("account_id"))
+            or is_throwaway_qa_identity(acc.get("id"))
+            or is_throwaway_qa_identity(acc.get("user_id"))
+            or is_throwaway_qa_identity(acc.get("email"))
+            or is_throwaway_qa_identity(acc.get("display_name"))
+            or is_throwaway_qa_identity(acc.get("name"))
+        )
+
+    def _purge_throwaway_qa_accounts(self) -> None:
+        if isinstance(self.accounts, list):
+            self.accounts = [
+                a for a in self.accounts
+                if isinstance(a, dict) and not self._is_throwaway_account_entry(a)
+            ]
+        for mapping_attr in (
+            "family_email_allowlist",
+            "pending_otps",
+            "pending_invite_registrations",
+            "sessions",
+        ):
+            mapping = getattr(self, mapping_attr, None)
+            if isinstance(mapping, dict):
+                for k in list(mapping.keys()):
+                    val = mapping.get(k)
+                    if is_throwaway_qa_identity(k) or self._is_throwaway_account_entry(val):
+                        mapping.pop(k, None)
+        if isinstance(self.verification_logs, list):
+            self.verification_logs = [
+                lg for lg in self.verification_logs
+                if isinstance(lg, dict)
+                and not is_throwaway_qa_identity(lg.get("email"))
+                and not is_throwaway_qa_identity(lg.get("detail"))
+            ]
+
     def reset_to_factory_defaults(self) -> dict[str, Any]:
         """Khôi phục danh sách 4 tài khoản gốc chuẩn của nhà thông minh và bảo toàn quyền Cấp 1 của Nguyễn Tuấn Anh."""
         self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
@@ -148,7 +188,11 @@ class ThreeLayerAuthManager(
             try:
                 data = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
                 if isinstance(data, list) and data:
-                    self.accounts = [self._normalize_account_fields(a) for a in data]
+                    self.accounts = [
+                        self._normalize_account_fields(a)
+                        for a in data
+                        if isinstance(a, dict) and not self._is_throwaway_account_entry(a)
+                    ]
                 else:
                     self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
             except Exception:
@@ -160,6 +204,7 @@ class ThreeLayerAuthManager(
         for def_acc in json.loads(json.dumps(DEFAULT_ACCOUNTS)):
             if str(def_acc.get("account_id", "")).lower() not in existing_ids:
                 self.accounts.append(self._normalize_account_fields(def_acc))
+        self._purge_throwaway_qa_accounts()
         self._save_accounts()
 
         if FAMILY_ALLOWLIST_FILE.exists():
@@ -197,6 +242,7 @@ class ThreeLayerAuthManager(
                 self.verification_logs = []
 
     def _save_accounts(self) -> None:
+        self._purge_throwaway_qa_accounts()
         payload = json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n"
         for _ in range(3):
             try:
@@ -254,8 +300,9 @@ class ThreeLayerAuthManager(
         return item
 
     def find_account(self, identifier: str) -> dict[str, Any] | None:
+        self._purge_throwaway_qa_accounts()
         ident = identifier.strip().lower()
-        if not ident:
+        if not ident or is_throwaway_qa_identity(ident):
             return None
         alias_map = {
             "khach.hust@gmail.com": "khachc.guest@gmail.com",
@@ -287,7 +334,10 @@ class ThreeLayerAuthManager(
         send_gmail: bool = True,
     ) -> dict[str, Any]:
         """Lớp 1: Kiểm tra Email/Mật khẩu hoặc Google OAuth -> Kiểm tra trạng thái Quyền -> Sinh OTP Lớp 2 & gửi Gmail."""
+        self._purge_throwaway_qa_accounts()
         clean_email = email.strip().lower()
+        if is_throwaway_qa_identity(clean_email):
+            return {"ok": False, "layer": 1, "error": "Tài khoản thử nghiệm QA tạm thời đã bị thu hồi vĩnh viễn."}
         acc = self.find_account(clean_email)
         if not acc and clean_email in self.family_email_allowlist:
             item = self.family_email_allowlist[clean_email]
@@ -487,7 +537,10 @@ class ThreeLayerAuthManager(
         source: str = "Web",
     ) -> dict[str, Any]:
         """Tạo tài khoản hoặc đặt/đổi mật khẩu với bắt buộc 2 ô mật khẩu (Mật khẩu & Xác nhận lại mật khẩu)."""
+        self._purge_throwaway_qa_accounts()
         clean_email = str(email or "").strip().lower()
+        if is_throwaway_qa_identity(clean_email) or is_throwaway_qa_identity(display_name):
+            return {"ok": False, "error": "Tài khoản thử nghiệm QA tạm thời đã bị cấm đăng ký."}
         pw1 = str(password or "").strip()
         pw2 = str(confirm_password or "").strip()
         if not clean_email or "@" not in clean_email:

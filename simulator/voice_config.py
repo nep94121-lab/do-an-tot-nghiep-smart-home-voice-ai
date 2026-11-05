@@ -13,18 +13,47 @@ _FORBIDDEN_RESPONSE_KEYS = frozenset(
     {
         "voiceprint",
         "voiceprints",
+        "voiceprint_json",
         "embedding",
+        "embeddings",
         "deep_embedding",
+        "deep_embedding_64d",
+        "embedding_26d_json",
+        "embedding_64d_json",
         "embedding_256d",
         "baseline_embedding",
         "baseline_deep_embedding",
         "baseline_embedding_256d",
         "formants_hz",
         "password_hash",
+        "password_salt",
+        "pin_hash",
         "password_plain_hint",
         "password_hint",
+        "active_otp",
+        "pending_otps",
+        "pending_invite_registrations",
+        "active_sessions",
+        "last_session",
     }
 )
+
+_THROWAWAY_QA_IDENTITIES = frozenset(
+    {
+        "qa_app_1793876716",
+        "qa.app.1793876716@example.com",
+    }
+)
+
+
+def is_throwaway_qa_identity(value: Any) -> bool:
+    """Return True if value matches the throwaway QA account id/email that must be purged."""
+    if value is None:
+        return False
+    s = str(value).strip().lower()
+    if not s:
+        return False
+    return s in _THROWAWAY_QA_IDENTITIES
 
 
 def load_voice_auth_config() -> dict[str, Any]:
@@ -88,7 +117,9 @@ def sanitize_api_payload(obj: Any) -> Any:
             cleaned.setdefault("voice_enrolled", bool(vp.get("enrolled", False)))
         for k, v in obj.items():
             k_str = str(k)
-            if k_str in ("password_plain_hint", "password_hint"):
+            if k_str == "password_hint":
+                continue
+            if k_str == "password_plain_hint":
                 if v == "******":
                     cleaned[k] = v
                 continue

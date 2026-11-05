@@ -29,7 +29,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
-from simulator.auth.session_store import resolve_request_session
+from simulator.auth.session_store import get_session_store, resolve_request_session
 from simulator.rule_engine import append_audit_log
 from simulator.voice.enrollment_quality import strip_vietnamese_diacritics
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
@@ -38,6 +38,7 @@ from simulator.voice_config import (
     OWNER_ID,
     ROLE_MAP,
     USER_ROLE_MAP,
+    is_throwaway_qa_identity,
     sanitize_api_payload,
 )
 
@@ -135,11 +136,31 @@ def _parse_text_action(t_low: str) -> str | None:
 
 
 @router.get("/api/state")
-async def api_get_state() -> JSONResponse:
-    """Trả về toàn bộ snapshot trạng thái thiết bị, cảm biến và luật hiện tại (luôn đồng bộ mới nhất từ shared store)."""
+async def api_get_state(request: Request) -> JSONResponse:
+    """Trả về snapshot trạng thái theo phiên người dùng đang xác thực (hoặc bản rút gọn thiết bị công khai nếu chưa đăng nhập)."""
     _REST_ENGINE.sync_from_shared_store(force=True)
+    sess = resolve_request_session(request, payload=None, engine=None)
+    explicit_header_token = bool(
+        str(request.headers.get("authorization") or "").strip()
+        or str(request.headers.get("x-session-token") or "").strip()
+    )
+    if sess.source == "invalid_token" and explicit_header_token:
+        return JSONResponse(
+            {
+                "ok": False,
+                "authenticated": False,
+                "error": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
+            },
+            status_code=401,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+    if not sess.is_authenticated:
+        return JSONResponse(
+            _REST_ENGINE.get_public_device_snapshot(),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
     return JSONResponse(
-        _REST_ENGINE.get_snapshot(),
+        _REST_ENGINE.get_snapshot(session=sess),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
 
@@ -169,6 +190,9 @@ async def api_set_session_role(payload: dict[str, Any] = Body(default={})) -> JS
             },
             status_code=403,
         )
+
+    if is_throwaway_qa_identity(raw_role) or is_throwaway_qa_identity(email):
+        return await _reject_unknown_session_role("Tài khoản thử nghiệm QA tạm thời đã bị thu hồi vĩnh viễn!")
 
     if (not raw_role and not email) or raw_role.lower() in (
         "unknown",
@@ -248,15 +272,27 @@ async def api_set_session_role(payload: dict[str, Any] = Body(default={})) -> JS
         return await _reject_unknown_session_role()
 
     await broadcast_rest_state_to_bridges()
-    return JSONResponse(
+    sess_obj = get_session_store().create_session(
+        user_id=_REST_ENGINE.current_user_id,
+        tier=_REST_ENGINE.current_tier,
+        role=_REST_ENGINE.current_role,
+        display_name=_REST_ENGINE.get_current_user_name(),
+        email=email or (OWNER_EMAIL if _REST_ENGINE.current_tier == 1 else ""),
+        source="session_role_switch",
+    )
+    resp = JSONResponse(
         {
             "ok": True,
             "active_user": snap_user,
             "active_user_id": _REST_ENGINE.current_user_id,
             "role": _REST_ENGINE.current_role,
             "tier": _REST_ENGINE.current_tier,
+            "session_token": sess_obj.session_id,
         }
     )
+    resp.set_cookie("sh_session_token", sess_obj.session_id, path="/", httponly=True, samesite="lax", max_age=86400)
+    resp.set_cookie("session_token", sess_obj.session_id, path="/", httponly=False, samesite="lax", max_age=86400)
+    return resp
 
 
 @router.post("/api/device")
@@ -656,7 +692,7 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "ok": True,
             "reply": spoken_rst,
             "exact_spoken_reply": spoken_rst,
-            "snapshot": _REST_ENGINE.get_snapshot(),
+            "snapshot": _REST_ENGINE.get_snapshot(session=session),
         })
 
     # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (kể cả word_mappings)
@@ -683,14 +719,14 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "reply": spoken_dev,
             "exact_spoken_reply": spoken_dev,
             "results": res_dev.get("results", []),
-            "snapshot": _REST_ENGINE.get_snapshot(),
+            "snapshot": _REST_ENGINE.get_snapshot(session=session),
         }, status_code=status_code)
 
     return JSONResponse({
         "ok": True,
         "reply": f"Đã nhận lệnh: {text}",
         "exact_spoken_reply": f"Đã nhận lệnh: {text}",
-        "snapshot": _REST_ENGINE.get_snapshot(),
+        "snapshot": _REST_ENGINE.get_snapshot(session=session),
     })
 
 
@@ -752,7 +788,7 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
                 "f0_hz": 0.0,
                 "similarity": 0.0,
                 "latency_ms": 0.1,
-                "snapshot": _REST_ENGINE.get_snapshot(),
+                "snapshot": _REST_ENGINE.get_public_device_snapshot(),
             }),
             status_code=403,
         )

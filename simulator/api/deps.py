@@ -65,7 +65,7 @@ def get_active_bridges() -> list[Any]:
 
 async def broadcast_rest_state_to_bridges() -> None:
     """Đồng bộ trạng thái REST Engine sang toàn bộ các kết nối WebSocket đang hoạt động."""
-    snap = _REST_ENGINE.get_snapshot()
+    snap = _REST_ENGINE.get_public_device_snapshot()
     for br in list(_ACTIVE_BRIDGES):
         try:
             br.engine.server_connected = _REST_ENGINE.server_connected

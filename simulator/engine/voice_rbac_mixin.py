@@ -19,6 +19,7 @@ from simulator.voice_config import (
     OWNER_ID,
     ROLE_MAP,
     USER_ROLE_MAP,
+    is_throwaway_qa_identity,
 )
 
 UNKNOWN_REJECTION_REASON = (
@@ -285,19 +286,63 @@ class EngineVoiceRbacMixin:
             "message": spoken,
         }
 
+    def _purge_throwaway_qa_users(self) -> None:
+        if hasattr(self, "users") and isinstance(self.users, dict):
+            for uid in list(self.users.keys()):
+                uinfo = self.users.get(uid) or {}
+                if (
+                    is_throwaway_qa_identity(uid)
+                    or is_throwaway_qa_identity(uinfo.get("id"))
+                    or is_throwaway_qa_identity(uinfo.get("email"))
+                    or is_throwaway_qa_identity(uinfo.get("name"))
+                ):
+                    self.users.pop(uid, None)
+        if hasattr(self, "overlay_rules") and isinstance(self.overlay_rules, dict):
+            ov_users = self.overlay_rules.get("users")
+            if isinstance(ov_users, dict):
+                for uid in list(ov_users.keys()):
+                    uinfo = ov_users.get(uid) or {}
+                    if (
+                        is_throwaway_qa_identity(uid)
+                        or (isinstance(uinfo, dict) and (
+                            is_throwaway_qa_identity(uinfo.get("id"))
+                            or is_throwaway_qa_identity(uinfo.get("email"))
+                            or is_throwaway_qa_identity(uinfo.get("name"))
+                        ))
+                    ):
+                        ov_users.pop(uid, None)
+            ov_pools = self.overlay_rules.get("user_pools")
+            if isinstance(ov_pools, dict):
+                for uid in list(ov_pools.keys()):
+                    if is_throwaway_qa_identity(uid):
+                        ov_pools.pop(uid, None)
+        if is_throwaway_qa_identity(getattr(self, "_current_user_id", "")):
+            self._current_user_id = OWNER_ID
+            self._current_role = "ADMIN"
+
     def _init_users(self) -> dict[str, dict[str, Any]]:
         users_map = {k: dict(v) for k, v in DEFAULT_USERS.items()}
         saved_users = self.overlay_rules.get("users", {})
         if isinstance(saved_users, dict):
             for uid, uinfo in saved_users.items():
-                if isinstance(uinfo, dict):
-                    users_map[uid] = dict(uinfo)
+                if not isinstance(uinfo, dict):
+                    continue
+                if (
+                    is_throwaway_qa_identity(uid)
+                    or is_throwaway_qa_identity(uinfo.get("id"))
+                    or is_throwaway_qa_identity(uinfo.get("email"))
+                    or is_throwaway_qa_identity(uinfo.get("name"))
+                ):
+                    continue
+                users_map[uid] = dict(uinfo)
         users_map[OWNER_ID] = dict(DEFAULT_USERS[OWNER_ID])
         self.overlay_rules["users"] = users_map
         return users_map
 
     @property
     def current_user_id(self) -> str:
+        if is_throwaway_qa_identity(self._current_user_id):
+            self._purge_throwaway_qa_users()
         return self._current_user_id
 
     @property
@@ -331,8 +376,13 @@ class EngineVoiceRbacMixin:
 
     @current_role.setter
     def current_role(self, val: str | None) -> None:
+        self._purge_throwaway_qa_users()
         v = str(val or "").strip()
         v_low = v.lower()
+        if is_throwaway_qa_identity(v_low):
+            self._current_user_id = OWNER_ID
+            self._current_role = "ADMIN"
+            return
         if not v or v_low in ("unknown", "stranger", "stranger_1", "none", "null", "intruder", "unauthorized"):
             self._current_user_id = "unknown"
             self._current_role = "UNKNOWN"
@@ -378,7 +428,9 @@ class EngineVoiceRbacMixin:
         self._current_role = "UNKNOWN"
 
     def set_active_user(self, user_or_role: str | None) -> dict[str, Any]:
+        self._purge_throwaway_qa_users()
         self.current_role = user_or_role
+        self._purge_throwaway_qa_users()
         u = self.users.get(self._current_user_id, {
             "id": self._current_user_id,
             "name": self.get_current_user_name(),

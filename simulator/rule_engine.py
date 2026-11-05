@@ -76,6 +76,7 @@ from simulator.voice_config import (
     OWNER_ID,
     ROLE_MAP,
     USER_ROLE_MAP,
+    is_throwaway_qa_identity,
 )
 
 
@@ -299,8 +300,23 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 data = json.loads(OVERLAY_FILE.read_text(encoding="utf-8"))
                 base = self._default_overlay()
                 base.update(data)
+                if isinstance(base.get("users"), dict):
+                    for uid in list(base["users"].keys()):
+                        uinfo = base["users"].get(uid) or {}
+                        if (
+                            is_throwaway_qa_identity(uid)
+                            or (isinstance(uinfo, dict) and (
+                                is_throwaway_qa_identity(uinfo.get("id"))
+                                or is_throwaway_qa_identity(uinfo.get("email"))
+                                or is_throwaway_qa_identity(uinfo.get("name"))
+                            ))
+                        ):
+                            base["users"].pop(uid, None)
                 if "user_pools" not in base or not isinstance(base["user_pools"], dict):
                     base["user_pools"] = self._default_overlay()["user_pools"]
+                for uid in list(base["user_pools"].keys()):
+                    if is_throwaway_qa_identity(uid):
+                        base["user_pools"].pop(uid, None)
                 t1_pool = base["user_pools"].setdefault(
                     OWNER_ID, {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
                 )
@@ -319,6 +335,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     def _get_user_pool(self, user_id: str | None = None) -> dict[str, Any]:
         uid = user_id or self._current_user_id
+        if is_throwaway_qa_identity(uid):
+            uid = OWNER_ID
         pools = self.overlay_rules.setdefault("user_pools", {})
         if uid not in pools or not isinstance(pools[uid], dict):
             pools[uid] = {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
@@ -328,6 +346,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         return pools[uid]
 
     def _save_overlay(self) -> None:
+        self._purge_throwaway_qa_users()
         t1_pool = self._get_user_pool(OWNER_ID)
         self.overlay_rules["word_mappings"] = dict(t1_pool.get("word_mappings", {}))
         self.overlay_rules["aliases"] = dict(t1_pool.get("aliases", {}))

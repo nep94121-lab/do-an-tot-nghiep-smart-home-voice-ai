@@ -439,7 +439,11 @@ async def process_voice_command_pipeline(
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 3),
             "latency_ms": latency_ms,
-            "snapshot": engine.get_snapshot(),
+            "snapshot": (
+                engine.get_public_device_snapshot()
+                if hasattr(engine, "get_public_device_snapshot")
+                else engine.get_snapshot()
+            ),
         }
 
     if not intents:
@@ -479,7 +483,7 @@ async def process_voice_command_pipeline(
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 3),
             "latency_ms": latency_ms,
-            "snapshot": engine.get_snapshot(),
+            "snapshot": engine.get_snapshot(include_users=(tier == 1)),
         }
 
     all_ok = True
@@ -548,5 +552,5 @@ async def process_voice_command_pipeline(
         "f0_hz": round(f0_hz, 1),
         "similarity": round(similarity, 3),
         "latency_ms": latency_ms,
-        "snapshot": engine.get_snapshot(),
+        "snapshot": engine.get_snapshot(include_users=(tier == 1)),
     }

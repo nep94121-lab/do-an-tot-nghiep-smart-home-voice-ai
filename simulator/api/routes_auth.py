@@ -15,7 +15,7 @@ import copy
 import wave
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from simulator.api.deps import (
@@ -25,7 +25,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
-from simulator.auth.session_store import get_session_store
+from simulator.auth.session_store import UserSession, get_session_store, resolve_request_session
 from simulator.auth_3layer import get_auth_3layer_manager
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
 from simulator.rule_engine import append_audit_log
@@ -36,22 +36,92 @@ from simulator.voice_config import (
     THRESHOLD_DEEP,
     THRESHOLD_MEL,
     USER_ROLE_MAP,
+    is_throwaway_qa_identity,
     sanitize_api_payload,
 )
 
 router = APIRouter(tags=["auth"])
 
 
+def _require_admin_session(request: Request) -> tuple[UserSession | None, JSONResponse | None]:
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated:
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": False,
+                    "error": "Yêu cầu đăng nhập quyền Chủ nhà (Admin Cấp 1) để truy cập dữ liệu quản trị.",
+                }
+            ),
+            status_code=401,
+        )
+    if sess.tier != 1 or sess.role != "ADMIN":
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": True,
+                    "rbac_blocked": True,
+                    "tier": sess.tier,
+                    "role": sess.role,
+                    "error": "Từ chối truy cập! Chỉ Chủ nhà (Admin Cấp 1) mới có quyền xem tổng quan tài khoản và bảo mật.",
+                }
+            ),
+            status_code=403,
+        )
+    return sess, None
+
+
+def _require_tier_session(request: Request, max_tier: int = 2) -> tuple[UserSession | None, JSONResponse | None]:
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated:
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": False,
+                    "error": "Yêu cầu đăng nhập để truy cập tài nguyên này.",
+                }
+            ),
+            status_code=401,
+        )
+    if sess.tier > max_tier or sess.tier not in (1, 2, 3):
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": True,
+                    "rbac_blocked": True,
+                    "tier": sess.tier,
+                    "role": sess.role,
+                    "error": f"Từ chối truy cập! Yêu cầu quyền tối thiểu Cấp {max_tier}.",
+                }
+            ),
+            status_code=403,
+        )
+    return sess, None
+
+
 @router.get("/api/auth3/overview")
-async def api_auth3_overview(email: str = OWNER_EMAIL) -> JSONResponse:
-    """Tổng quan trạng thái phân quyền và tài khoản."""
+async def api_auth3_overview(request: Request, email: str = OWNER_EMAIL) -> JSONResponse:
+    """Tổng quan trạng thái phân quyền và tài khoản (Chỉ Admin Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     return JSONResponse(sanitize_api_payload(get_auth_3layer_manager().get_overview(active_email=email)))
 
 
 @router.get("/api/auth3/invite_links")
-async def api_auth3_invite_links(email: str = OWNER_EMAIL) -> JSONResponse:
-    """Danh sách link mời còn hiệu lực."""
-    return JSONResponse(sanitize_api_payload(get_auth_3layer_manager().get_invite_links_for_account(email)))
+async def api_auth3_invite_links(request: Request, email: str = OWNER_EMAIL) -> JSONResponse:
+    """Danh sách link mời còn hiệu lực (Yêu cầu Cấp 1 hoặc Cấp 2)."""
+    sess, err_resp = _require_tier_session(request, max_tier=2)
+    if err_resp is not None:
+        return err_resp
+    target_email = email
+    if sess and sess.tier == 2 and sess.email:
+        target_email = sess.email
+    return JSONResponse(sanitize_api_payload(get_auth_3layer_manager().get_invite_links_for_account(target_email)))
 
 
 @router.post("/api/auth3/send_invite_email")
@@ -129,8 +199,11 @@ async def api_auth3_add_family_email(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.get("/api/auth3/family_emails")
-async def api_auth3_family_emails() -> JSONResponse:
-    """Danh sách email gia đình trong allowlist."""
+async def api_auth3_family_emails(request: Request) -> JSONResponse:
+    """Danh sách email gia đình trong allowlist (Chỉ Admin Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     return JSONResponse(sanitize_api_payload({
         "ok": True,
         "allowlist": get_auth_3layer_manager().get_family_email_allowlist(),
@@ -192,8 +265,11 @@ async def api_auth3_invite_verify_otp(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.post("/api/auth3/read_gmail_otp")
-async def api_auth3_read_gmail_otp(payload: dict[str, Any] | None = None) -> JSONResponse:
-    """Đọc mã OTP mới nhất từ hộp thư Gmail qua công cụ gws."""
+async def api_auth3_read_gmail_otp(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    """Đọc mã OTP mới nhất từ hộp thư Gmail qua công cụ gws (Chỉ Admin Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     msg_id = str((payload or {}).get("message_id", "")).strip()
     res = get_auth_3layer_manager().read_latest_otp_from_gmail_inbox(message_id=msg_id)
     return JSONResponse(sanitize_api_payload(res))
@@ -455,8 +531,11 @@ async def api_mobile_enroll_voice(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.get("/api/voice_auth/profiles")
-async def api_voice_auth_profiles() -> JSONResponse:
-    """Danh sách hồ sơ giọng nói gốc trên Server."""
+async def api_voice_auth_profiles(request: Request) -> JSONResponse:
+    """Danh sách hồ sơ giọng nói gốc trên Server (Chỉ Admin Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     active_va = _ACTIVE_BRIDGES[-1].voice_auth if _ACTIVE_BRIDGES else _BOOT_VOICE_AUTH
     return JSONResponse(sanitize_api_payload({
         "ok": True,
@@ -622,7 +701,8 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         res["session"] = sess.to_dict()
         session_token = sess.session_id
         engine_role_map = USER_ROLE_MAP
-        _REST_ENGINE.set_active_user(acc_id or engine_role_map.get(tier_val, OWNER_ID))
+        if not is_throwaway_qa_identity(email) and not is_throwaway_qa_identity(acc_id):
+            _REST_ENGINE.set_active_user(acc_id or engine_role_map.get(tier_val, OWNER_ID))
         await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
@@ -710,12 +790,33 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
         target_tier=target_tier,
         source=str(payload.get("source", "Web Login Gate")),
     )
+    session_token = None
     if res.get("ok") and res.get("account"):
         acc = res["account"]
+        tier_val = int(acc.get("tier", target_tier) or 2)
+        acc_id = str(acc.get("account_id") or "")
+        role_name = str(acc.get("role") or ROLE_MAP.get(tier_val, "CHILD_GUEST"))
+        disp_name = str(acc.get("display_name") or display_name or email)
+        sess = get_session_store().create_session(
+            user_id=acc_id or email,
+            tier=tier_val,
+            role=role_name,
+            display_name=disp_name,
+            email=email,
+            source=str(payload.get("source", "Web Login Gate")),
+        )
+        if sess.is_authenticated:
+            res["session_token"] = sess.session_id
+            res["session"] = sess.to_dict()
+            session_token = sess.session_id
         await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
         await broadcast_rest_state_to_bridges()
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
-    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+    resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
+    if session_token:
+        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
+        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+    return resp
 
 
 @router.post("/api/auth3/forgot_password_send_otp")

@@ -396,13 +396,19 @@ def _find_forbidden_biometric_keys(obj: Any, path: str = "$") -> list[str]:
 def test_no_api_response_contains_voiceprints_or_sample_name_shortcut(client: TestClient) -> None:
     """No API endpoint may expose voiceprint vectors/objects or password hashes,
     and no endpoint may authenticate by sample name or client-supplied voiceprint/level."""
+    owner_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
     for get_ep in (
         "/api/server_logs_and_db",
         "/api/logs/dashboard",
         "/api/voice_auth/profiles",
         "/api/auth3/overview",
     ):
-        resp = client.get(get_ep)
+        resp_unauth = client.get(get_ep)
+        assert resp_unauth.status_code in (200, 401, 403)
+        leaks_unauth = _find_forbidden_biometric_keys(resp_unauth.json())
+        assert not leaks_unauth, f"Unauth endpoint {get_ep} leaked forbidden keys: {leaks_unauth}"
+
+        resp = client.get(get_ep, headers=owner_headers)
         assert resp.status_code == 200
         body = resp.json()
         leaks = _find_forbidden_biometric_keys(body)
@@ -489,3 +495,213 @@ def test_grep_scan_no_removed_fallback_password_literals_in_repo() -> None:
                     violations.append(f"{rel} (matched forbidden fallback pattern #{idx + 1})")
 
     assert not violations, f"Found removed fallback password literals in codebase: {violations}"
+
+
+# ============================================================================
+# 7. ROUND-2 HARDENING: /api/state, /api/auth3/overview, PER-SESSION IDENTITY,
+#    NON-ADMIN USERS LIST OMISSION, AND QA THROWAWAY ACCOUNT PURGE
+# ============================================================================
+
+
+def test_unauthenticated_get_state_does_not_expose_users_or_identity(client: TestClient) -> None:
+    """Unauthenticated GET /api/state must never expose users, current_user_*,
+    role, role_name, accounts, voiceprints, embeddings, password hashes, or tokens."""
+    from simulator.api.deps import _REST_ENGINE
+
+    _REST_ENGINE.set_active_user("thanh_vien_a")
+    resp = client.get("/api/state")
+    assert resp.status_code in (200, 401, 403)
+    body = resp.json()
+
+    forbidden_unauth_state_keys = {
+        "users",
+        "current_user_id",
+        "current_user_name",
+        "current_tier",
+        "role",
+        "role_name",
+        "accounts",
+        "voiceprint",
+        "voiceprints",
+        "embedding",
+        "embeddings",
+        "password_hash",
+        "session_token",
+        "session_tokens",
+        "timers",
+        "if_else_rules",
+        "t1_global_if_else_rules",
+        "chains",
+        "word_mappings",
+        "custom_aliases",
+    }
+    leaked_keys = forbidden_unauth_state_keys.intersection(body.keys())
+    assert not leaked_keys, f"Unauthenticated GET /api/state exposed private keys: {leaked_keys}"
+    assert not _find_forbidden_biometric_keys(body)
+
+    # Explicit invalid session token in header must return 401 and expose no private keys
+    resp_invalid = client.get("/api/state", headers={"X-Session-Token": "sess_invalid_forged_token_999"})
+    assert resp_invalid.status_code in (401, 403)
+    body_invalid = resp_invalid.json()
+    assert not forbidden_unauth_state_keys.intersection(body_invalid.keys())
+
+
+def test_unauthenticated_and_non_admin_auth3_overview_blocked_and_sanitized(client: TestClient) -> None:
+    """Unauthenticated and non-admin callers to GET /api/auth3/overview (and sibling
+    overview/list endpoints) must receive 401/403 with no accounts, voiceprint, otp, or password_hint."""
+    forbidden_overview_keys = {
+        "accounts",
+        "voiceprint",
+        "voiceprints",
+        "otp",
+        "otp_code",
+        "active_otp",
+        "pending_otps",
+        "password_hint",
+        "password_plain_hint",
+        "password_hash",
+        "family_allowlist",
+        "family_email_allowlist",
+        "invite_links",
+        "active_sessions",
+    }
+
+    # 1. Unauthenticated GET /api/auth3/overview -> 401/403
+    r_unauth = client.get("/api/auth3/overview")
+    assert r_unauth.status_code in (401, 403), (
+        f"Expected 401/403 on unauthenticated /api/auth3/overview, got {r_unauth.status_code}"
+    )
+    b_unauth = r_unauth.json()
+    assert not forbidden_overview_keys.intersection(b_unauth.keys()), (
+        f"Unauthenticated /api/auth3/overview leaked keys: {forbidden_overview_keys.intersection(b_unauth.keys())}"
+    )
+
+    # 2. Non-admin sessions (Tier 2 and Tier 3) -> 403
+    for tok in ("sess_family_t2_member_a", "sess_guest_t3_visitor_c"):
+        r_non_admin = client.get("/api/auth3/overview", headers={"X-Session-Token": tok})
+        assert r_non_admin.status_code == 403, f"Expected 403 for {tok}, got {r_non_admin.status_code}"
+        assert "accounts" not in r_non_admin.json()
+
+    # 3. Sibling endpoints unauthenticated -> 401/403
+    for ep in ("/api/auth3/invite_links", "/api/auth3/family_emails", "/api/voice_auth/profiles"):
+        r_sib = client.get(ep)
+        assert r_sib.status_code in (401, 403), f"Expected 401/403 on unauthenticated {ep}, got {r_sib.status_code}"
+
+    # 4. Authenticated Owner (Tier 1) -> 200, sanitized, never contains password_hint/voiceprint/otp/token
+    r_owner = client.get("/api/auth3/overview", headers={"X-Session-Token": "sess_owner_t1_nep94121"})
+    assert r_owner.status_code == 200
+    b_owner = r_owner.json()
+    assert "accounts" in b_owner
+    assert not _find_forbidden_biometric_keys(b_owner)
+    raw_owner_str = json.dumps(b_owner, ensure_ascii=False)
+    for banned_field in (
+        '"password_hint"',
+        '"password_plain_hint"',
+        '"password_hash"',
+        '"voiceprint"',
+        '"embedding"',
+        '"active_otp"',
+        '"pending_otps"',
+        '"active_sessions"',
+        '"last_session"',
+        '"session_token"',
+    ):
+        assert banned_field not in raw_owner_str, f"Owner /api/auth3/overview contained banned field {banned_field}"
+
+
+def test_two_sessions_see_own_identity_and_non_admin_has_no_users_list(client: TestClient) -> None:
+    """Concurrent sessions calling GET /api/state must resolve their own identity
+    from the request session (not process-global _REST_ENGINE.current_user_id),
+    and non-admin state responses must never include the full users list."""
+    from simulator.api.deps import _REST_ENGINE
+    from simulator.voice_config import OWNER_ID
+
+    # Mutate process-global engine state to Guest to prove GET /api/state ignores global current_user_id
+    _REST_ENGINE.set_active_user("khach_d")
+
+    r_owner = client.get("/api/state", headers={"X-Session-Token": "sess_owner_t1_nep94121"})
+    r_member = client.get("/api/state", headers={"X-Session-Token": "sess_family_t2_member_a"})
+    r_guest = client.get("/api/state", headers={"X-Session-Token": "sess_guest_t3_visitor_c"})
+
+    assert r_owner.status_code == 200
+    assert r_member.status_code == 200
+    assert r_guest.status_code == 200
+
+    b_owner = r_owner.json()
+    b_member = r_member.json()
+    b_guest = r_guest.json()
+
+    # Owner session sees Tier 1 ADMIN and sanitized users list
+    assert b_owner.get("current_user_id") == OWNER_ID
+    assert b_owner.get("current_tier") == 1
+    assert b_owner.get("role") == "ADMIN"
+    assert isinstance(b_owner.get("users"), list) and len(b_owner["users"]) >= 1
+    for u_item in b_owner["users"]:
+        assert "password_hash" not in u_item
+        assert "voiceprint" not in u_item
+        assert "embedding" not in u_item
+        assert "email" not in u_item
+
+    # Member session sees Tier 2 MEMBER and NO users list
+    assert b_member.get("current_user_id") == "thanh_vien_a"
+    assert b_member.get("current_tier") == 2
+    assert b_member.get("role") == "MEMBER"
+    assert "users" not in b_member, f"Non-admin Tier 2 snapshot leaked users list: {b_member.get('users')}"
+
+    # Guest session sees Tier 3 CHILD_GUEST and NO users list
+    assert b_guest.get("current_user_id") == "khach_c"
+    assert b_guest.get("current_tier") == 3
+    assert b_guest.get("role") == "CHILD_GUEST"
+    assert "users" not in b_guest, f"Non-admin Tier 3 snapshot leaked users list: {b_guest.get('users')}"
+
+    # Re-check Owner session immediately after Guest request -> still sees Owner
+    r_owner_after = client.get("/api/state", headers={"Authorization": "Bearer sess_owner_t1_nep94121"})
+    assert r_owner_after.status_code == 200
+    assert r_owner_after.json().get("current_user_id") == OWNER_ID
+    assert r_owner_after.json().get("current_tier") == 1
+    assert not _find_forbidden_biometric_keys(b_owner)
+    assert not _find_forbidden_biometric_keys(b_member)
+    assert not _find_forbidden_biometric_keys(b_guest)
+
+
+def test_throwaway_qa_account_purged_and_never_stuck_as_current_user(client: TestClient) -> None:
+    """Throwaway QA account qa_app_1793876716 / qa.app.1793876716@example.com must be
+    purged from accounts, users overlay, and sessions, and never stuck as current_user_id."""
+    from simulator.api.deps import _REST_ENGINE
+    from simulator.auth_3layer import get_auth_3layer_manager
+
+    mgr = get_auth_3layer_manager()
+    _REST_ENGINE.users["qa_app_1793876716"] = {
+        "id": "qa_app_1793876716",
+        "name": "QA App User",
+        "email": "qa.app.1793876716@example.com",
+        "tier": 3,
+        "role": "CHILD_GUEST",
+        "active": True,
+    }
+    mgr.accounts.append({
+        "account_id": "qa_app_1793876716",
+        "display_name": "QA App User",
+        "email": "qa.app.1793876716@example.com",
+        "tier": 3,
+        "role": "CHILD_GUEST",
+        "permission_active": True,
+    })
+
+    _REST_ENGINE.set_active_user("qa_app_1793876716")
+    assert _REST_ENGINE.current_user_id != "qa_app_1793876716"
+    assert mgr.find_account("qa_app_1793876716") is None
+    assert mgr.find_account("qa.app.1793876716@example.com") is None
+
+    r_state = client.get("/api/state", headers={"X-Session-Token": "sess_owner_t1_nep94121"})
+    assert r_state.status_code == 200
+    state_str = json.dumps(r_state.json(), ensure_ascii=False)
+    assert "qa_app_1793876716" not in state_str
+    assert "qa.app.1793876716@example.com" not in state_str
+
+    r_ov = client.get("/api/auth3/overview", headers={"X-Session-Token": "sess_owner_t1_nep94121"})
+    assert r_ov.status_code == 200
+    ov_str = json.dumps(r_ov.json(), ensure_ascii=False)
+    assert "qa_app_1793876716" not in ov_str
+    assert "qa.app.1793876716@example.com" not in ov_str
+
