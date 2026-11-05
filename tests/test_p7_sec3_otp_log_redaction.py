@@ -443,7 +443,9 @@ def test_logs_api_masks_password_hints_with_asterisks_not_redacted_token(client:
         tier=1,
         details={"raw_event": "Đăng nhập thất bại. Mật khẩu gợi ý: SuperSecretHint2026"},
     )
-    res = client.get("/api/logs/dashboard")
+    res_unauth = client.get("/api/logs/dashboard")
+    assert res_unauth.status_code == 401
+    res = client.get("/api/logs/dashboard", headers=OWNER_HEADERS)
     assert res.status_code == 200
     logs = res.json().get("audit_logs", [])
     assert logs

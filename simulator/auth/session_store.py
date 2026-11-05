@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import dataclasses
 import hashlib
 import hmac
@@ -20,6 +21,7 @@ import time
 from typing import Any
 
 from simulator.auth.constants_and_crypto import DATA_DIR
+from simulator.database_sqlite import _DB_LOCK as _SQLITE_GLOBAL_LOCK
 from simulator.voice_config import (
     OWNER_EMAIL,
     OWNER_ID,
@@ -82,7 +84,11 @@ class SessionStore:
     def _init_sqlite(self) -> None:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._lock, sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
+            with (
+                self._lock,
+                _SQLITE_GLOBAL_LOCK,
+                contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
+            ):
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS user_sessions (
                         session_id TEXT PRIMARY KEY,
@@ -251,7 +257,10 @@ class SessionStore:
             self._revoked_sids.discard(sid)
             self._memory_cache[sid] = sess
             try:
-                with sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
+                with (
+                    _SQLITE_GLOBAL_LOCK,
+                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
+                ):
                     conn.execute("""
                         INSERT OR REPLACE INTO user_sessions
                         (session_id, user_id, email, display_name, tier, role, created_at, expires_at, source)
@@ -279,30 +288,33 @@ class SessionStore:
 
             # SQLite fallback
             try:
-                with sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
+                with (
+                    _SQLITE_GLOBAL_LOCK,
+                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
+                ):
                     cur = conn.execute(
                         "SELECT session_id, user_id, email, display_name, tier, role, created_at, expires_at, source FROM user_sessions WHERE session_id = ?",
                         (sid,),
                     )
                     row = cur.fetchone()
-                    if row:
-                        sess = UserSession(
-                            session_id=row[0],
-                            user_id=row[1],
-                            email=row[2] or "",
-                            display_name=row[3] or row[1],
-                            tier=int(row[4]),
-                            role=row[5],
-                            created_at=float(row[6]),
-                            expires_at=float(row[7]),
-                            source=row[8] or "sqlite",
-                            is_authenticated=True,
-                        )
-                        if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
-                            self._delete_sqlite_session(sid)
-                            return None
-                        self._memory_cache[sid] = sess
-                        return sess
+                if row:
+                    sess = UserSession(
+                        session_id=row[0],
+                        user_id=row[1],
+                        email=row[2] or "",
+                        display_name=row[3] or row[1],
+                        tier=int(row[4]),
+                        role=row[5],
+                        created_at=float(row[6]),
+                        expires_at=float(row[7]),
+                        source=row[8] or "sqlite",
+                        is_authenticated=True,
+                    )
+                    if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
+                        self._delete_sqlite_session(sid)
+                        return None
+                    self._memory_cache[sid] = sess
+                    return sess
             except Exception:
                 pass
 
@@ -327,7 +339,10 @@ class SessionStore:
 
     def _delete_sqlite_session(self, session_id: str) -> bool:
         try:
-            with sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
+            with (
+                _SQLITE_GLOBAL_LOCK,
+                contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
+            ):
                 cur = conn.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
                 conn.commit()
                 return cur.rowcount > 0
@@ -343,7 +358,10 @@ class SessionStore:
                 del self._memory_cache[k]
                 count += 1
             try:
-                with sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
+                with (
+                    _SQLITE_GLOBAL_LOCK,
+                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
+                ):
                     cur = conn.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (now,))
                     conn.commit()
                     count = max(count, cur.rowcount)
