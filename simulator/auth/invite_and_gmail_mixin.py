@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import random
 import re
+import smtplib
 import subprocess
 import time
 from email.mime.multipart import MIMEMultipart
@@ -581,7 +583,7 @@ class AuthInviteGmailMixin:
         issued_password: str = "",
         invite_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Gửi email OTP 6 số (kèm mật khẩu cấp phát nếu đăng ký qua link mời) thật 100% qua `gws gmail`."""
+        """Gửi email OTP 6 số (kèm mật khẩu cấp phát nếu đăng ký qua link mời) thật 100% qua SMTP hoặc `gws gmail`."""
         recipient = target_email.strip()
         if not recipient or "@" not in recipient:
             recipient = "nep94121@gmail.com"
@@ -591,9 +593,10 @@ class AuthInviteGmailMixin:
             else recipient
         )
 
+        smtp_user = os.environ.get("SMTP_USER", "").strip() or "nep94121@gmail.com"
         msg = MIMEMultipart("alternative")
         msg["To"] = actual_to
-        msg["From"] = "nep94121@gmail.com"
+        msg["From"] = smtp_user
         subject_prefix = "[Smart Home Invite OAuth]" if invite_info else "[Smart Home Voice AI]"
         msg["Subject"] = f"{subject_prefix} Mã xác nhận OTP: {otp_code} ({display_name})"
 
@@ -623,8 +626,43 @@ class AuthInviteGmailMixin:
         </div>
         """
         msg.attach(MIMEText(html_body, "html", "utf-8"))
-        raw_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
 
+        # 1. Thử gửi qua SMTP nếu có GMAIL_APP_PASSWORD hoặc SMTP_PASSWORD
+        smtp_pass = os.environ.get("GMAIL_APP_PASSWORD", "").strip() or os.environ.get("SMTP_PASSWORD", "").strip()
+        if smtp_pass:
+            smtp_host = os.environ.get("SMTP_HOST", "").strip() or "smtp.gmail.com"
+            port_val = os.environ.get("SMTP_PORT", "").strip() or "587"
+            try:
+                smtp_port = int(port_val)
+            except ValueError:
+                smtp_port = 587
+
+            try:
+                if smtp_port == 465:
+                    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as server:
+                        server.login(smtp_user, smtp_pass)
+                        server.send_message(msg)
+                else:
+                    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                        server.starttls()
+                        server.login(smtp_user, smtp_pass)
+                        server.send_message(msg)
+                return {
+                    "sent_real_gmail": True,
+                    "actual_recipient": actual_to,
+                    "method": "smtp",
+                    "smtp_host": smtp_host,
+                }
+            except Exception as exc:
+                return {
+                    "sent_real_gmail": False,
+                    "actual_recipient": actual_to,
+                    "error": f"Lỗi gửi email qua SMTP: {str(exc)[:150]}",
+                    "note": str(exc)[:200],
+                }
+
+        # 2. Fallback: Thử qua CLI `gws` nếu có
+        raw_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
         try:
             body_json = json.dumps({"raw": raw_b64})
             params_json = json.dumps({"userId": "me"})
@@ -652,19 +690,20 @@ class AuthInviteGmailMixin:
                 return {
                     "sent_real_gmail": True,
                     "actual_recipient": actual_to,
+                    "method": "gws",
                     "gmail_message_id": out_obj.get("id", ""),
                 }
-            return {
-                "sent_real_gmail": False,
-                "actual_recipient": actual_to,
-                "note": (proc.stderr or proc.stdout or "Fallback local OTP").strip()[:200],
-            }
-        except Exception as exc:
-            return {
-                "sent_real_gmail": False,
-                "actual_recipient": actual_to,
-                "note": str(exc)[:200],
-            }
+        except Exception:
+            pass
+
+        # 3. Không có cả SMTP secret lẫn gws -> Báo lỗi thiếu secret rõ ràng
+        return {
+            "sent_real_gmail": False,
+            "actual_recipient": actual_to,
+            "missing_secret": "GMAIL_APP_PASSWORD",
+            "error": "Thiếu biến môi trường cấu hình mật khẩu ứng dụng Gmail ('GMAIL_APP_PASSWORD' hoặc 'SMTP_PASSWORD').",
+            "note": "Không tìm thấy GMAIL_APP_PASSWORD/SMTP_PASSWORD và không có gws CLI trên môi trường hiện tại.",
+        }
 
     def read_latest_otp_from_gmail_inbox(self, message_id: str = "") -> dict[str, Any]:
         """Tự động vào hộp thư Gmail thật (`nep94121@gmail.com`) qua `gws gmail` để đọc thư vừa gửi và trích xuất mã OTP 6 số."""

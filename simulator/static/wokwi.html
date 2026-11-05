@@ -63,7 +63,7 @@
 
           <!-- 1. MẠCH NODEMCU ESP8266 (ESP-12E, CP2102) THỰC TẾ GIỐNG HỆT TRÊN BÀN CỦA BẠN (ĐỦ 30 CHÂN CHUẨN THỨ TỰ) -->
           <div class="comp-tag" style="left: 18px; top: 12px; border-color:#38bdf8; color:#7dd3fc;">
-            Mạch NodeMCU ESP8266 (ESP-12E) — Đúng chiều &amp; đúng thứ tự 15 chân Trái / 15 chân Phải trên bàn bạn
+            Mạch NodeMCU ESP8266 (ESP-12E)
           </div>
           <div class="hw-comp" id="box_mcu" style="left: 28px; top: 42px;">
             <svg id="nodemcuSvg" width="210" height="336" viewBox="0 0 210 336">
@@ -114,8 +114,8 @@
           </div>
 
           <!-- 2. BẢNG CẮM MẠCH BREADBOARD 400 LỖ THỰC TẾ (CÓ ĐỦ 400 LỖ CẮM A1..J30 & 2 RÃNH NGUỒN) -->
-          <div class="comp-tag" style="left: 390px; top: 12px; border-color:#cbd5e1;">
-            Bảng cắm Breadboard 400 lỗ (Trên bàn của bạn) — Cột 1 → 30, Hàng a–e (trên) &amp; f–j (dưới)
+          <div class="comp-tag" style="left: 295px; top: 6px; border-color:#cbd5e1; max-width: 310px; white-space: normal; line-height: 1.35; padding: 2px 7px;">
+            Bảng cắm Breadboard 400 lỗ — Cột 1–30, Hàng a–e (trên) &amp; f–j (dưới)
           </div>
           <div class="hw-comp" id="box_breadboard" style="left: 295px; top: 45px;">
             <svg id="bbSvg" width="490" height="310" viewBox="0 0 490 310"></svg>
@@ -160,13 +160,13 @@
           <div class="hw-comp" id="box_ir_rx" style="left: 382px; top: 215px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="triggerIrLearnDemo('Điều hòa Casper', 'open')" title="Mắt thu hồng ngoại VS1838B 38kHz (Chân D5)">
             <wokwi-ir-receiver id="w_ir_rx"></wokwi-ir-receiver>
           </div>
-          <div class="comp-tag" style="left: 350px; top: 360px; font-size:10px; border-color:#c084fc;">Mắt thu VS1838B (Chân D5)</div>
+          <div class="comp-tag" style="left: 320px; top: 360px; font-size:10px; border-color:#c084fc;">Mắt thu VS1838B (Chân D5)</div>
 
           <!-- 3.5. NỬA DƯỚI BREADBOARD (Hàng f..j): Cảm biến DHT11 (<wokwi-dht22>) cắm vào hàng j (Cột 15 → 18) -->
           <div class="hw-comp" id="box_dht" style="left: 518px; top: 202px; transform: scale(0.66); transform-origin: top left; cursor:pointer;" onclick="filterStep('d6_dht11')" title="Cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D6)">
             <wokwi-dht22 id="w_dht" temperature="28.5" humidity="65"></wokwi-dht22>
           </div>
-          <div class="comp-tag" style="left: 480px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D6)</div>
+          <div class="comp-tag" style="left: 505px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D6)</div>
 
           <!-- 3.6. NỬA DƯỚI BREADBOARD (Hàng f..j): Còi báo động Buzzer 5V (<wokwi-buzzer>) cắm vào hàng j (Cột 24, 25) -->
           <div class="hw-comp" id="box_buzzer" style="left: 642px; top: 216px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8)">
@@ -286,8 +286,8 @@
           </div>
 
           <!-- 4.4. Chiếc Điều khiển Hồng ngoại thật của Wokwi (<wokwi-ir-remote>) đặt phía dưới Breadboard -->
-          <div class="comp-tag" style="left: 310px; top: 412px; border-color:#c084fc; color:#e9d5ff;">
-            Điều khiển Hồng ngoại 38kHz (Bấm nút trên Remote để bắn tia vào mắt thu VS1838B)
+          <div class="comp-tag" style="left: 355px; top: 412px; border-color:#c084fc; color:#e9d5ff;">
+            Remote Hồng ngoại 38kHz (Bắn tia tới VS1838B)
           </div>
           <div class="hw-comp" style="left: 355px; top: 440px; transform: scale(0.88); transform-origin: top left;" onclick="triggerIrLearnDemo('Điều hòa Casper', 'open')">
             <wokwi-ir-remote id="w_ir_remote"></wokwi-ir-remote>
@@ -295,7 +295,7 @@
 
           <!-- 4.5. Thanh trượt cảm biến Wokwi (<wokwi-slide-potentiometer>) đặt cạnh YL-69 -->
           <div class="comp-tag" style="left: 555px; top: 445px; border-color:#10b981;">
-            Kéo thử Độ ẩm đất trực tiếp trên bàn mạch:
+            Kéo thử Độ ẩm đất trực tiếp:
           </div>
           <div class="hw-comp" style="left: 565px; top: 478px;">
             <wokwi-potentiometer id="w_soil_pot" value="550"></wokwi-potentiometer>
@@ -303,7 +303,7 @@
 
           <!-- 4.6. CỤM MICRO THU ÂM GIỌNG NÓI (Chân RX/GPIO3) + LOA PHÁT 8Ω 3W (Chân D4/GPIO2) TRỰC TIẾP TRÊN MẠCH -->
           <div class="comp-tag" style="left: 22px; top: 412px; border-color:#34d399; color:#a7f3d0;">
-            Cụm Micro Thu Âm (Chân RX) + Loa Phát 8Ω 3W (Chân D4) — Nói trực tiếp không cần Laptop!
+            Cụm Micro Thu Âm (RX) + Loa Phát 8Ω 3W (D4)
           </div>
           <div class="hw-comp" id="box_mic_spk" style="left: 22px; top: 438px;">
             <svg width="295" height="215" viewBox="0 0 295 215">

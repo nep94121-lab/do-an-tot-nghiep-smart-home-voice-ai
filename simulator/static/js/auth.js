@@ -196,9 +196,10 @@
         body: JSON.stringify({ email, send_gmail: false })
       });
       const data = await res.json();
-      if (data.ok) {
+      if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
         if (data.demo_otp_preview) {
-          document.getElementById('otpInput').value = data.demo_otp_preview;
+          const otpInputEl = document.getElementById('otpInput');
+          if (otpInputEl) otpInputEl.value = data.demo_otp_preview;
         }
         if (box) {
           box.style.borderColor = '#cce5e3';
@@ -208,7 +209,7 @@
       } else if (box) {
         box.style.borderColor = 'var(--red-border)';
         box.style.background = 'var(--red-soft)';
-        box.textContent = data.error || 'Không gửi được mã OTP.';
+        box.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được mã OTP.';
       }
     }
 

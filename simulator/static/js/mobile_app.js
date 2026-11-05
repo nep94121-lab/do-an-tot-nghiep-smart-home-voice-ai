@@ -463,7 +463,7 @@
           body: JSON.stringify({ email, send_gmail: true })
         });
         const data = await res.json();
-        if (data.ok) {
+        if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
           const stepEmail = document.getElementById('mobileForgotStepEmail');
           const stepOtp = document.getElementById('mobileForgotStepOtp');
           const stepLabel = document.getElementById('mobileForgotStepLabel');
@@ -495,7 +495,10 @@
             }, 1000);
           }
         } else {
-          if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || 'Không gửi được OTP.'; }
+          if (msgEl) {
+            msgEl.style.color = 'var(--danger)';
+            msgEl.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được OTP.';
+          }
         }
       } catch (err) {
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Lỗi kết nối máy chủ.'; }
@@ -1430,8 +1433,24 @@
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 
+    const isMobileVercel = (typeof window !== 'undefined') && (
+      (typeof location !== 'undefined' && Boolean((location.hostname || location.host || '').includes('vercel.app'))) ||
+      Boolean(window._FORCE_HTTP_POLLING)
+    );
+
     function connectMobileWebSocket() {
-      ws = new WebSocket(`${proto}://${location.host}/ws`);
+      if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
+        /* On Vercel serverless, WebSocket is not supported: fallback cleanly without spamming console errors */
+        fetchInitial().catch(() => {});
+        return;
+      }
+
+      try {
+        ws = new WebSocket(`${proto}://${location.host}/ws`);
+      } catch (_) {
+        fetchInitial().catch(() => {});
+        return;
+      }
       ws.onopen = () => {
         addLog('WebSocket kết nối', 'device', 'Thành công');
       };
@@ -1470,8 +1489,10 @@
             const connEl = document.getElementById('espBadge');
             if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
           });
-        /* Auto-reconnect after 4s */
-        setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
+        /* Auto-reconnect after 4s only when not on Vercel */
+        if (!isMobileVercel) {
+          setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
+        }
       };
       ws.onerror = () => {};
     }

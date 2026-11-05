@@ -21,10 +21,16 @@
 
   const geminiStatusBadge = byId("btnToggleServer") || noopEl;
   const geminiStatusText = byId("connText") || noopEl;
+  const homeServerStatusBadge = byId("homeServerStatusBadge") || noopEl;
   const connDot = byId("connDot") || noopEl;
   const roleSelect = byId("selActiveSpeaker") || noopEl;
   const btnFactoryReset = byId("btnReset") || noopEl;
   const vnClockText = byId("vnClockText");
+
+  const isVercelServerless = (typeof window !== "undefined") && (
+    (typeof location !== "undefined" && Boolean((location.hostname || location.host || "").includes("vercel.app"))) ||
+    Boolean(window._FORCE_HTTP_POLLING)
+  );
 
   const btnTogglePromptModal = byId("btnTogglePromptModal");
   const btnClosePromptModal = byId("btnClosePromptModal");
@@ -502,8 +508,20 @@
     updateScheduleEmptyState();
   }
 
-  function updateConnectionUI(connected) {
+  function updateConnectionUI(connected, transport = null) {
     window._serverConnected = connected !== false;
+    let activeTransport = transport;
+    if (!activeTransport) {
+      if (!window._serverConnected) {
+        activeTransport = "Mất kết nối";
+      } else if (typeof ws !== "undefined" && ws && ws.readyState === 1) {
+        activeTransport = "WebSocket";
+      } else {
+        activeTransport = window._activeTransport || "HTTP Polling";
+      }
+    }
+    window._activeTransport = activeTransport;
+
     if (connDot && connDot !== noopEl && connDot.classList) {
       if (typeof connDot.classList.toggle === "function") {
         connDot.classList.toggle("offline", !window._serverConnected);
@@ -513,11 +531,15 @@
         if (typeof connDot.classList.remove === "function") connDot.classList.remove("offline");
       }
     }
+    const statusLabel = window._serverConnected ? `Đã kết nối (${activeTransport})` : "Mất kết nối";
     if (geminiStatusText && geminiStatusText !== noopEl) {
-      geminiStatusText.textContent = window._serverConnected ? "Đã kết nối" : "Mất kết nối";
+      geminiStatusText.textContent = statusLabel;
+    }
+    if (homeServerStatusBadge && homeServerStatusBadge !== noopEl) {
+      homeServerStatusBadge.textContent = window._serverConnected ? activeTransport : "Mất kết nối";
     }
     if (geminiStatusBadge && geminiStatusBadge !== noopEl && geminiStatusBadge.setAttribute) {
-      geminiStatusBadge.setAttribute("aria-label", window._serverConnected ? "Đã kết nối" : "Mất kết nối");
+      geminiStatusBadge.setAttribute("aria-label", statusLabel);
     }
   }
 
@@ -719,12 +741,26 @@
   }
 
   function connectWebSocket() {
+    if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
+      window._activeTransport = "HTTP Polling";
+      updateConnectionUI(true, "HTTP Polling");
+      pollRestStateFallback();
+      return;
+    }
+
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    try {
+      ws = new WebSocket(`${proto}://${location.host}/ws`);
+    } catch (_) {
+      window._activeTransport = "HTTP Polling";
+      pollRestStateFallback();
+      return;
+    }
 
     ws.onopen = () => {
-      updateConnectionUI(true);
-      logEvent("Đã kết nối tới máy chủ.", "info");
+      window._activeTransport = "WebSocket";
+      updateConnectionUI(true, "WebSocket");
+      logEvent("Đã kết nối tới máy chủ qua WebSocket.", "info");
       if (wsReconnectTimer) {
         clearTimeout(wsReconnectTimer);
         wsReconnectTimer = null;
@@ -733,6 +769,11 @@
         showWsRestoredBanner();
       }
       wsRetryCount = 0;
+    };
+
+    ws.onerror = () => {
+      window._activeTransport = "HTTP Polling";
+      pollRestStateFallback();
     };
 
     ws.onmessage = (ev) => {
@@ -919,20 +960,21 @@
     };
 
     ws.onclose = () => {
+      window._activeTransport = "HTTP Polling";
       fetch("/api/state")
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((snap) => {
-          updateConnectionUI(true);
+          updateConnectionUI(true, "HTTP Polling");
           applySnapshot(snap);
           hideWsReconnectBanner();
         })
         .catch(() => {
-          updateConnectionUI(false);
+          updateConnectionUI(false, "Mất kết nối");
           wsRetryCount = Math.min(WS_MAX_RETRIES, wsRetryCount + 1);
           showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
         });
 
-      if (wsRetryCount < WS_MAX_RETRIES) {
+      if (!isVercelServerless && wsRetryCount < WS_MAX_RETRIES && wsRetryCount > 0) {
         if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
         wsReconnectTimer = setTimeout(connectWebSocket, 4000);
       }
@@ -940,16 +982,19 @@
   }
 
   function pollRestStateFallback() {
-    if (ws && ws.readyState === WebSocket.OPEN) return;
+    if (typeof ws !== "undefined" && ws && ws.readyState === 1) return;
     fetch("/api/state")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((snap) => {
-        updateConnectionUI(true);
+        const trans = (typeof ws !== "undefined" && ws && ws.readyState === 1) ? "WebSocket" : "HTTP Polling";
+        window._activeTransport = trans;
+        updateConnectionUI(true, trans);
         applySnapshot(snap);
         hideWsReconnectBanner();
       })
       .catch(() => {
-        updateConnectionUI(false);
+        window._activeTransport = "Mất kết nối";
+        updateConnectionUI(false, "Mất kết nối");
         showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
       });
   }
@@ -1832,11 +1877,11 @@
           body: JSON.stringify({ email, send_gmail: true }),
         });
         const data = await res.json();
-        if (data.ok) {
+        if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
           if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message}`;
           setForgotStep(2);
         } else if (gateStatusBox) {
-          gateStatusBox.textContent = `❌ ${data.error || "Không gửi được OTP."}`;
+          gateStatusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
         }
       } catch (_) {
         if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối khi gửi OTP.";
@@ -2005,10 +2050,10 @@
         body: JSON.stringify({ email: "nep94121@gmail.com" }),
       });
       const data = await res.json();
-      if (data.ok) {
+      if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
         if (statusBox) statusBox.textContent = "✅ Đã gửi mã OTP 6 số đến Gmail nep94121@gmail.com.";
       } else {
-        if (statusBox) statusBox.textContent = `❌ ${data.error || "Không gửi được OTP."}`;
+        if (statusBox) statusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
       }
     } catch (_) {
       if (statusBox) statusBox.textContent = "❌ Lỗi mạng khi gửi OTP.";
@@ -2184,6 +2229,8 @@
   window.applyLoggedInUserBanner = applyLoggedInUserBanner;
   window.clearAuthState = clearAuthState;
   window.setForgotStep = setForgotStep;
+  window.updateConnectionUI = updateConnectionUI;
+  window.connectWebSocket = connectWebSocket;
 
   loadVoiceSamples();
   pollRestStateFallback();

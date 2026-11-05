@@ -1253,6 +1253,9 @@ window.SmartHome3D = (() => {
         else if (m.id === "sensor_ir_d5") initVal = "38kHz READY";
         else if (m.id === "board_esp8266") initVal = "9 DÂY ĐI TRONG NHÀ";
         else if (m.id === "mic_speaker_unit") initVal = "MIC RX + LOA D4 READY";
+        if (!el.dataset) el.dataset = {};
+        el.dataset.hasValue = "true";
+        el.setAttribute("data-has-value", "true");
         el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state" style="color:#38bdf8;">${initVal}</strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -1264,7 +1267,11 @@ window.SmartHome3D = (() => {
       } else {
         el.className = "pin-3d off";
         el.title = "Bấm để Bật/Tắt hoặc Đóng/Mở trực tiếp thiết bị này";
-        el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state">OFF</strong>`;
+        el.style.display = "none";
+        if (!el.dataset) el.dataset = {};
+        el.dataset.hasValue = "false";
+        el.setAttribute("data-has-value", "false");
+        el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state"></strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           if (onDeviceClickCallback) {
@@ -1285,7 +1292,10 @@ window.SmartHome3D = (() => {
       const el = pinElements[m.id];
       if (!el) return;
       const v = pinAnchors[m.id].clone().project(camera);
-      if (v.z > 1 || (m.kind === "sensor" && camGoal.radius >= 10.0)) {
+      const stSpan = el.querySelector(".pin-state");
+      const hasValProp = el.dataset && el.dataset.hasValue !== undefined ? el.dataset.hasValue : el.getAttribute("data-has-value");
+      const hasValue = hasValProp !== "false" && Boolean(stSpan && stSpan.textContent && stSpan.textContent.trim());
+      if (!hasValue || v.z > 1 || (m.kind === "sensor" && camGoal.radius >= 10.0)) {
         el.style.display = "none";
         return;
       }
@@ -1542,12 +1552,22 @@ window.SmartHome3D = (() => {
       const pin = pinElements[d.id];
       if (pin) {
         const isLockedOffline = !isOnline && (d.id === "main_door" || d.id === "alarm_siren");
-        pin.className = `pin-3d ${isActive ? "on" : "off"}`;
-        pin.style.borderColor = isLockedOffline ? "#f59e0b" : "";
+        const stateVal = isLockedOffline ? "🔒 KHÓA OFFLINE" : (d.state ? String(d.state).trim() : "");
         const stSpan = pin.querySelector(".pin-state");
         if (stSpan) {
-          stSpan.textContent = isLockedOffline ? "🔒 KHÓA OFFLINE" : d.state;
+          stSpan.textContent = stateVal;
           stSpan.style.color = isLockedOffline ? "#fbbf24" : "";
+        }
+        if (!pin.dataset) pin.dataset = {};
+        if (!stateVal) {
+          pin.style.display = "none";
+          pin.dataset.hasValue = "false";
+          pin.setAttribute("data-has-value", "false");
+        } else {
+          pin.dataset.hasValue = "true";
+          pin.setAttribute("data-has-value", "true");
+          pin.className = `pin-3d ${isActive ? "on" : "off"}`;
+          pin.style.borderColor = isLockedOffline ? "#f59e0b" : "";
         }
       }
     });
