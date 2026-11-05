@@ -38,6 +38,7 @@ from simulator.voice_config import (
     USER_ROLE_MAP,
     is_throwaway_qa_identity,
     sanitize_api_payload,
+    sanitize_overview_and_logs_payload,
 )
 
 router = APIRouter(tags=["auth"])
@@ -109,7 +110,11 @@ async def api_auth3_overview(request: Request, email: str = OWNER_EMAIL) -> JSON
     _, err_resp = _require_admin_session(request)
     if err_resp is not None:
         return err_resp
-    return JSONResponse(sanitize_api_payload(get_auth_3layer_manager().get_overview(active_email=email)))
+    return JSONResponse(
+        sanitize_overview_and_logs_payload(
+            sanitize_api_payload(get_auth_3layer_manager().get_overview(active_email=email))
+        )
+    )
 
 
 @router.get("/api/auth3/invite_links")
@@ -211,7 +216,7 @@ async def api_auth3_family_emails(request: Request) -> JSONResponse:
 
 
 @router.post("/api/auth3/invite_oauth_start")
-async def api_auth3_invite_oauth_start(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_invite_oauth_start(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Đăng ký qua link mời và Google OAuth."""
     invite_code = str(payload.get("invite_code", "INV-T1-TO-TIER2")).strip()
     google_email = str(payload.get("google_email", "")).strip()
@@ -227,13 +232,17 @@ async def api_auth3_invite_oauth_start(payload: dict[str, Any]) -> JSONResponse:
         send_gmail=send_gmail,
         source=source,
     )
+    req_app = getattr(request, "app", None)
+    if not is_test_otp_fields_allowed(req_app):
+        res.pop("otp_code_for_test", None)
+        res.pop("issued_password_for_test", None)
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="invite_oauth_start",
         summary=res.get("message") or res.get("error") or "Đăng ký qua Link mời + Google OAuth",
         user_name=google_email or display_name,
         tier=int(res.get("target_tier", 2)) if res.get("ok") else 99,
-        details=res,
+        details=sanitize_overview_and_logs_payload(res),
     )
     return JSONResponse(sanitize_api_payload(res))
 
@@ -666,7 +675,7 @@ async def api_auth3_voice_permission_command(payload: dict[str, Any]) -> JSONRes
 
 
 @router.post("/api/auth3/layer1_login")
-async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Xác thực Lớp 1 (Mật khẩu PBKDF2 hoặc PIN)."""
     email = str(payload.get("email", OWNER_EMAIL)).strip()
     password = str(payload.get("password", "")).strip()
@@ -680,6 +689,10 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         source=source,
         send_gmail=send_gmail,
     )
+    req_app = getattr(request, "app", None)
+    if not is_test_otp_fields_allowed(req_app):
+        res.pop("otp_code_for_test_table", None)
+        res.pop("demo_otp_preview", None)
     session_token = None
     if res.get("ok"):
         acc = res.get("account") or {}
@@ -710,7 +723,7 @@ async def api_auth3_layer1_login(payload: dict[str, Any]) -> JSONResponse:
         summary=res.get("message") or res.get("error") or "Đăng nhập Lớp 1",
         user_name=email,
         tier=int(res.get("account", {}).get("tier", 1)) if res.get("ok") else 99,
-        details=res,
+        details=sanitize_overview_and_logs_payload(res),
     )
     resp = JSONResponse(sanitize_api_payload(res))
     if res.get("ok"):
@@ -938,7 +951,9 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
 async def api_auth3_run_tests(payload: dict[str, Any] | None = None) -> JSONResponse:
     """Chạy bộ kiểm thử tự động 14 ca xác thực 3 tầng (Hỗ trợ alias chống 404)."""
     send_real = bool((payload or {}).get("send_real_gmail", False) or (payload or {}).get("send_live_email", False))
-    rep = get_auth_3layer_manager().run_automated_3layer_test_suite(send_real_email_on_test1=send_real)
+    rep = sanitize_overview_and_logs_payload(
+        get_auth_3layer_manager().run_automated_3layer_test_suite(send_real_email_on_test1=send_real)
+    )
     cases_with_id = [{**c, "id": c.get("test_id", "")} for c in rep.get("cases", [])]
     rep["passed"] = rep.get("passed_cases", 0)
     rep["total"] = rep.get("total_cases", len(cases_with_id))
@@ -949,9 +964,9 @@ async def api_auth3_run_tests(payload: dict[str, Any] | None = None) -> JSONResp
         summary=f"🧪 Chạy Kiểm thử 3 Lớp: {rep.get('summary')}",
         user_name="Nguyễn Tuấn Anh (Admin Cấp 1)",
         tier=1,
-        details=rep,
+        details=sanitize_overview_and_logs_payload(rep),
     )
-    return JSONResponse(sanitize_api_payload(rep))
+    return JSONResponse(sanitize_overview_and_logs_payload(sanitize_api_payload(rep)))
 
 
 @router.get("/api/voice_samples")

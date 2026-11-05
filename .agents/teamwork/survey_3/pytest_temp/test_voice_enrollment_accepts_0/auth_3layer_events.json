@@ -20,10 +20,9 @@
     "action": "layer1_passed_otp_issued",
     "email": "thanh_vien_chuan@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 300988 — Đã gửi Gmail thật tới thanh_vien_chuan@gmail.com (ID: 1a1a530bfd784ecb)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: [REDACTED] — Đã gửi Gmail thật tới thanh_vien_chuan@gmail.com (ID: 1a1a530bfd784ecb)",
     "source": "Web",
     "extra": {
-      "otp_code": "300988",
       "gmail_delivery": {
         "sent_real_gmail": true,
         "actual_recipient": "thanh_vien_chuan@gmail.com",

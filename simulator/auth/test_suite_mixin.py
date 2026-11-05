@@ -14,6 +14,7 @@ from simulator.voice_config import (
     OWNER_ID,
     is_throwaway_qa_identity,
     sanitize_api_payload,
+    sanitize_overview_and_logs_payload,
 )
 
 
@@ -70,7 +71,7 @@ class AuthTestSuiteMixin:
                 "layer": "Lớp 1 (Mật khẩu Chủ nhà Cấp 1)",
                 "scenario": f"Đăng nhập Chủ nhà ({OWNER_EMAIL}) với mật khẩu mã hóa hợp lệ & sinh OTP Gmail",
                 "expected": "PASS Lớp 1 & Cấp mã OTP 6 số",
-                "actual": f"PASS — OTP: {otp_t1}" + (f" (Gmail MsgID: {msg_id_t1})" if msg_id_t1 else ""),
+                "actual": "PASS — Đã cấp mã OTP 6 số" + (f" (Gmail MsgID: {msg_id_t1})" if msg_id_t1 else ""),
                 "passed": bool(r1.get("ok") and otp_t1),
             })
 
@@ -81,8 +82,8 @@ class AuthTestSuiteMixin:
                     "test_id": "TEST-02",
                     "layer": "Lớp 2 (Đọc Hộp Thư Gmail Thật)",
                     "scenario": f"Tự động truy cập hộp thư {OWNER_EMAIL} đọc bức thư vừa gửi để lấy mã OTP xác nhận",
-                    "expected": f"Đọc đúng mã OTP {otp_t1} từ trong Gmail",
-                    "actual": f"Đọc từ Gmail MsgID {msg_id_t1}: OTP={inbox_read.get('extracted_otp')}",
+                    "expected": "Đọc đúng mã OTP 6 số từ trong Gmail",
+                    "actual": f"Đọc từ Gmail MsgID {msg_id_t1}: Đã khớp mã OTP",
                     "passed": read_ok,
                 })
             else:
@@ -106,9 +107,9 @@ class AuthTestSuiteMixin:
             cases.append({
                 "test_id": "TEST-03",
                 "layer": "Lớp 2 (Chống Giả Mạo OTP)",
-                "scenario": "Nhập mã OTP sai (000000) khác với mã gửi về Gmail",
+                "scenario": "Nhập mã OTP sai khác với mã gửi về Gmail",
                 "expected": "Bị chặn tại Lớp 2 (Reject OTP)",
-                "actual": r3.get("error", "Đã chặn OTP sai"),
+                "actual": "Đã chặn OTP sai",
                 "passed": not r3.get("ok", True),
             })
 
@@ -116,7 +117,7 @@ class AuthTestSuiteMixin:
             cases.append({
                 "test_id": "TEST-04",
                 "layer": "Lớp 2 (Xác Nhận Gmail OTP)",
-                "scenario": f"Nhập đúng mã OTP 6 số ({otp_t1}) nhận từ Gmail",
+                "scenario": "Nhập đúng mã OTP 6 số nhận từ Gmail",
                 "expected": "Xác thực Lớp 2 thành công -> Mở cổng Lớp 3",
                 "actual": r4.get("message", "OK"),
                 "passed": bool(r4.get("ok")),
@@ -384,15 +385,19 @@ class AuthTestSuiteMixin:
             item for item in self.get_family_email_allowlist()
             if not is_throwaway_qa_identity(item.get("email"))
         ]
-        return sanitize_api_payload({
-            "ok": True,
-            "server_time_vn": _now_vn(),
-            "accounts": safe_accounts,
-            "family_email_allowlist": allowlist_items,
-            "family_allowlist": allowlist_items,
-            "invite_links": list(self.invite_links.values()),
-            "active_invite_bundle": self.get_invite_links_for_account(active_email),
-            "verification_logs": recent_logs_norm,
-            "recent_logs": recent_logs_norm,
-            "test_report": self.latest_test_report,
-        })
+        return sanitize_overview_and_logs_payload(
+            sanitize_api_payload(
+                {
+                    "ok": True,
+                    "server_time_vn": _now_vn(),
+                    "accounts": safe_accounts,
+                    "family_email_allowlist": allowlist_items,
+                    "family_allowlist": allowlist_items,
+                    "invite_links": list(self.invite_links.values()),
+                    "active_invite_bundle": self.get_invite_links_for_account(active_email),
+                    "verification_logs": recent_logs_norm,
+                    "recent_logs": recent_logs_norm,
+                    "test_report": self.latest_test_report,
+                }
+            )
+        )

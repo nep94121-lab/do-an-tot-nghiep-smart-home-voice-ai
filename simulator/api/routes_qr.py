@@ -39,11 +39,15 @@ from simulator.auth_3layer import (
     DURATION_LABELS_VN,
     DURATION_MAP_SECONDS,
     get_auth_3layer_manager,
+    is_test_otp_fields_allowed,
     validate_dns_mx_record,
 )
 from simulator.rule_engine import append_audit_log
 from simulator.voice_auth import validate_voice_enrollment_quality
-from simulator.voice_config import sanitize_api_payload
+from simulator.voice_config import (
+    sanitize_api_payload,
+    sanitize_overview_and_logs_payload,
+)
 
 router = APIRouter(tags=["guest_qr"])
 
@@ -460,7 +464,15 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         summary=f"🎫 '{guest_name}' quét QR động & thu âm thành công {role_label_vn} (Hạn: {dur_label}, F0={q_res.get('f0_hz')}Hz)",
         user_name=guest_name,
         tier=target_tier,
-        details={"guest_user_id": guest_uid, "guest_email": guest_email, "duration_type": dur_type, "expires_at": expires_at_ts, "quality": q_res},
+        details=sanitize_overview_and_logs_payload(
+            {
+                "guest_user_id": guest_uid,
+                "guest_email": guest_email,
+                "duration_type": dur_type,
+                "expires_at": expires_at_ts,
+                "quality": q_res,
+            }
+        ),
     )
 
     return JSONResponse(sanitize_api_payload({
@@ -489,7 +501,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
 
 
 @router.post("/api/auth3/guest_qr_send_otp")
-async def api_auth3_guest_qr_send_otp(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Gửi OTP xác thực email khách sau khi kiểm tra so khớp 2 ô và kiểm tra DNS MX thực tế."""
     mgr3 = get_auth_3layer_manager()
     session_id = str(payload.get("session_id") or payload.get("guest_session_id") or "").strip()
@@ -544,22 +556,23 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any]) -> JSONResponse:
         details={"email": clean_email, "session_id": session_id, "duration": dur_type},
     )
 
-    return JSONResponse(sanitize_api_payload({
+    resp_data: dict[str, Any] = {
         "ok": True,
         "otp_dispatched": True,
         "email": clean_email,
-        "demo_otp_preview": otp_code,
-        "otp_code": otp_code,
-        "otp_code_for_test": otp_code,
         "duration_label": dur_label,
         "mx_detail": mx_msg,
         "message": f"Đã kiểm tra tên miền MX hợp lệ và gửi mã xác nhận OTP 6 số về hộp thư {clean_email}!",
-    }))
+    }
+    if is_test_otp_fields_allowed(getattr(request, "app", None)):
+        resp_data["demo_otp_preview"] = otp_code
+        resp_data["otp_code_for_test"] = otp_code
+    return JSONResponse(sanitize_api_payload(resp_data))
 
 
 @router.post("/api/auth3/guest_qr_verify_otp")
 @router.post("/api/auth3/guest/verify_email")
-async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Xác nhận mã OTP email của khách và kích hoạt tài khoản khách."""
     mgr3 = get_auth_3layer_manager()
     email = str(payload.get("email") or payload.get("confirm_email") or "").strip().lower()
@@ -585,6 +598,9 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any]) -> JSONResponse
             session_id=session_id,
             send_gmail=send_gmail,
         )
+        if not is_test_otp_fields_allowed(getattr(request, "app", None)):
+            res.pop("otp_code_for_test", None)
+            res.pop("demo_otp_preview", None)
         status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
         return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 

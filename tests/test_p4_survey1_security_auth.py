@@ -169,8 +169,8 @@ class TestBug1SecurityCredentialCleanup:
         matched = [l for l in logs if l.get("event_type") == "TEST_MASKING_NESTED"]
         assert len(matched) > 0, "Không tìm thấy log TEST_MASKING_NESTED trong response API"
         target_details = matched[0].get("details", {})
-        assert target_details.get("password_plain_hint") == "******"
-        assert target_details.get("sub", {}).get("otp_code") == "******"
+        assert target_details.get("password_plain_hint") in (None, "******")
+        assert target_details.get("sub", {}).get("otp_code") in (None, "******")
         assert target_details.get("sub", {}).get("safe") == "ok"
 
     def test_bug1_logs_js_contains_password_masking(self):

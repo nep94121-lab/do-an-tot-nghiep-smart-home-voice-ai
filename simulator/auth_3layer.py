@@ -98,7 +98,9 @@ from simulator.voice_config import (
     THRESHOLD_DEEP,
     THRESHOLD_MEL,
     is_throwaway_qa_identity,
+    redact_otp_and_secrets_in_text,
     sanitize_api_payload,
+    sanitize_overview_and_logs_payload,
 )
 
 _LEGACY_DEFAULT_HASHES = frozenset(
@@ -303,7 +305,11 @@ class ThreeLayerAuthManager(
                 try:
                     ev = json.loads(AUTH_EVENTS_FILE.read_text(encoding="utf-8"))
                     if isinstance(ev, list):
-                        self.verification_logs = ev[:100]
+                        cleaned_ev = sanitize_overview_and_logs_payload(ev[:100])
+                        self.verification_logs = cleaned_ev
+                        if cleaned_ev != ev[:100]:
+                            payload = (json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                            _atomic_write_file(AUTH_EVENTS_FILE, payload)
                 except Exception:
                     self.verification_logs = []
 
@@ -353,6 +359,8 @@ class ThreeLayerAuthManager(
         source: str = "Web/App",
         extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        safe_detail = redact_otp_and_secrets_in_text(str(detail or ""))
+        safe_extra = sanitize_overview_and_logs_payload(extra or {})
         item = {
             "id": int(time.time() * 1000) % 1000000,
             "time_vn": _now_vn(),
@@ -360,9 +368,9 @@ class ThreeLayerAuthManager(
             "action": action,
             "email": email,
             "status": status,
-            "detail": detail,
+            "detail": safe_detail,
             "source": source,
-            "extra": extra or {},
+            "extra": safe_extra if isinstance(safe_extra, dict) else {},
         }
         self.verification_logs.insert(0, item)
         self.verification_logs = self.verification_logs[:120]
@@ -562,16 +570,16 @@ class ThreeLayerAuthManager(
         delivery_txt = (
             f"Đã gửi Gmail thật tới {gmail_res['actual_recipient']} (ID: {gmail_res.get('gmail_message_id')})"
             if gmail_res.get("sent_real_gmail")
-            else f"Mã OTP đã cấp trên Bảng Test ({otp_code})"
+            else "Mã OTP đã cấp cho phiên kiểm thử"
         )
         self._log_event(
             layer="Lớp 1 -> Lớp 2 (Gmail OTP)",
             action="layer1_passed_otp_issued",
             email=acc["email"],
             status="PASS",
-            detail=f"Đăng nhập Lớp 1 hợp lệ ({login_method}). Mã OTP: {otp_code} — {delivery_txt}",
+            detail=f"Đăng nhập Lớp 1 hợp lệ ({login_method}) — {delivery_txt}",
             source=source,
-            extra={"otp_code": otp_code, "gmail_delivery": gmail_res, "tier": acc["tier"]},
+            extra={"gmail_delivery": gmail_res, "tier": acc["tier"]},
         )
 
         invite_bundle = self.get_invite_links_for_account(acc["email"])
@@ -731,7 +739,7 @@ class ThreeLayerAuthManager(
                             action="forgot_password_otp_throttled",
                             email=acc["email"],
                             status="PASS",
-                            detail=f"Yêu cầu OTP trong thời gian chờ ({remaining_sec}s còn lại). Giữ nguyên mã OTP đang hiệu lực ({existing['otp_code']}).",
+                            detail=f"Yêu cầu OTP trong thời gian chờ ({remaining_sec}s còn lại). Giữ nguyên mã OTP đang hiệu lực.",
                             source=source,
                             extra={"cooldown_remaining_sec": remaining_sec, "idempotent": True},
                         )
@@ -808,7 +816,7 @@ class ThreeLayerAuthManager(
             action="forgot_password_otp_sent",
             email=acc["email"],
             status="PASS",
-            detail=f"Đã gửi mã OTP đặt lại mật khẩu ({otp_code}) tới Gmail ({gmail_res.get('actual_recipient')}).",
+            detail=f"Đã gửi mã OTP đặt lại mật khẩu tới Gmail ({gmail_res.get('actual_recipient')}).",
             source=source,
         )
         elapsed_sec = time.time() - now
@@ -1008,7 +1016,7 @@ class ThreeLayerAuthManager(
                     action="otp_verify",
                     email=pending["email"],
                     status="FAIL",
-                    detail=f"Nhập sai mã OTP: nhập '{otp_input.strip()}' không chính xác. (Lần {len(recent_fails)}/3)",
+                    detail=f"Nhập sai mã OTP: mã xác nhận không chính xác. (Lần {len(recent_fails)}/3)",
                     source=source,
                 )
                 return {
@@ -1031,7 +1039,7 @@ class ThreeLayerAuthManager(
             action="otp_verified",
             email=pending["email"],
             status="PASS",
-            detail=f"Xác nhận đúng mã Gmail OTP ({pending['otp_code']}) cho {pending['display_name']} (Tầng {pending['tier']}). Chờ Lớp 3 (Giọng nói).",
+            detail=f"Xác nhận đúng mã Gmail OTP cho {pending['display_name']} (Tầng {pending['tier']}). Chờ Lớp 3 (Giọng nói).",
             source=source,
         )
         return {

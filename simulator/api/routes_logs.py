@@ -73,6 +73,7 @@ def _mask_string_secrets_and_emails(raw_str: str) -> str:
         t,
         flags=re.IGNORECASE,
     )
+    t = redact_otp_and_secrets_in_text(t)
     return t
 
 
@@ -126,7 +127,11 @@ from simulator.rule_engine import (
     format_vn_time_ampm,
     read_audit_logs,
 )
-from simulator.voice_config import sanitize_api_payload
+from simulator.voice_config import (
+    redact_otp_and_secrets_in_text,
+    sanitize_api_payload,
+    sanitize_overview_and_logs_payload,
+)
 
 router = APIRouter()
 
@@ -318,30 +323,34 @@ async def api_logs_dashboard(
     ]
 
     return JSONResponse(
-        sanitize_api_payload(
-            mask_sensitive_log_data(
-                {
-                    "ok": True,
-                    "server_time_vn": format_vn_time_ampm(),
-                    "hardware_database": hardware_database,
-                    "automation_database": automation_database,
-                    "knowledge_base": kb_items,
-                    "total_logs": len(standardized_logs),
-                    "sqlite_Wal": sqlite_wal_info,
-                    "sqlite_overview": sqlite_ov,
-                    "audit_logs": standardized_logs,
-                    "storage_files": storage_files,
-                    "connection_pools": connection_pools,
-                    "snapshot": snap,
-                    "all_user_pools": active_eng.overlay_rules.get("user_pools", {}) if is_admin else {},
-                    "accounts_3layer": (
-                        sanitize_api_payload(mask_sensitive_log_data(_safe_json("accounts_3layer.json")))
-                        if is_admin
-                        else []
-                    ),
-                    "ir_devices_db": _safe_json("ir_devices_db.json"),
-                    "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
-                }
+        sanitize_overview_and_logs_payload(
+            sanitize_api_payload(
+                mask_sensitive_log_data(
+                    {
+                        "ok": True,
+                        "server_time_vn": format_vn_time_ampm(),
+                        "hardware_database": hardware_database,
+                        "automation_database": automation_database,
+                        "knowledge_base": kb_items,
+                        "total_logs": len(standardized_logs),
+                        "sqlite_Wal": sqlite_wal_info,
+                        "sqlite_overview": sqlite_ov,
+                        "audit_logs": standardized_logs,
+                        "storage_files": storage_files,
+                        "connection_pools": connection_pools,
+                        "snapshot": snap,
+                        "all_user_pools": active_eng.overlay_rules.get("user_pools", {}) if is_admin else {},
+                        "accounts_3layer": (
+                            sanitize_overview_and_logs_payload(
+                                sanitize_api_payload(mask_sensitive_log_data(_safe_json("accounts_3layer.json")))
+                            )
+                            if is_admin
+                            else []
+                        ),
+                        "ir_devices_db": _safe_json("ir_devices_db.json"),
+                        "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
+                    }
+                )
             )
         )
     )
@@ -383,8 +392,12 @@ async def api_logs_sql_query(
         limit = 100
     res = execute_readonly_sql(sql, limit=limit)
     if isinstance(res, dict) and "rows" in res:
-        res["rows"] = sanitize_api_payload(mask_sensitive_log_data(res["rows"]))
-    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(res)))
+        res["rows"] = sanitize_overview_and_logs_payload(
+            sanitize_api_payload(mask_sensitive_log_data(res["rows"]))
+        )
+    return JSONResponse(
+        sanitize_overview_and_logs_payload(sanitize_api_payload(mask_sensitive_log_data(res)))
+    )
 
 
 @router.post("/api/logs/knowledge/add")
@@ -478,7 +491,9 @@ async def api_sqlite_overview(request: Request) -> JSONResponse:
         return err_resp
 
     ov = get_sqlite_overview()
-    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(ov)))
+    return JSONResponse(
+        sanitize_overview_and_logs_payload(sanitize_api_payload(mask_sensitive_log_data(ov)))
+    )
 
 
 @router.get("/api/devops/status")

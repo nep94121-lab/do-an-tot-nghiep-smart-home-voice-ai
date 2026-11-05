@@ -24,10 +24,9 @@
     "action": "layer1_passed_otp_issued",
     "email": "hoc_sinh_moi@gmail.com",
     "status": "PASS",
-    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: 373975 — Đã gửi Gmail thật tới hoc_sinh_moi@gmail.com (ID: 1a1a530bcb914dc8)",
+    "detail": "Đăng nhập Lớp 1 hợp lệ (password). Mã OTP: [REDACTED] — Đã gửi Gmail thật tới hoc_sinh_moi@gmail.com (ID: 1a1a530bcb914dc8)",
     "source": "Web",
     "extra": {
-      "otp_code": "373975",
       "gmail_delivery": {
         "sent_real_gmail": true,
         "actual_recipient": "hoc_sinh_moi@gmail.com",
