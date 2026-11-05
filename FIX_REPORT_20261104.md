@@ -1110,12 +1110,16 @@ Giai đoạn 7 (`Phase 7 Voice` trên nhánh `p7-voice`, worktree `C:\Users\LENO
 
 ---
 
-### 14.4. Nghiệm Thu Độc Lập (`_indep_verify/indep_voice_e2e.py` & `_indep_verify/ui/ui_voice_check.py`) Trên `https://voice-orcin-six.vercel.app`
+### 14.4. Nghiệm Thu Độc Lập & Round 3 Hardening (`_indep_verify/indep_voice_e2e.py` & `_indep_verify/ui/ui_voice_check.py`) Trên `https://voice-orcin-six.vercel.app`
 
-- **Vercel Preview Deployment URL mới nhất:** `https://voice-hjt1qohky-tuananhs-projects-8aea56ce.vercel.app` (`dpl_2VpNyxoxWMxY1Ri8rY4dsi17JK4G`)
+- **Vercel Preview Deployment URL mới nhất (Round 3):** `https://voice-pn2nhyu2p-tuananhs-projects-8aea56ce.vercel.app` (`dpl_FtdF2rjbuLDh4gwgaiUsEBT67nLX`)
 - **Vercel Preview Public Alias:** `https://voice-orcin-six.vercel.app`
 - **Báo cáo chi tiết:** Xem [`FAIL_FIX_REPORT.md`](file:///C:/Users/LENOVO/datn-wt/voice/FAIL_FIX_REPORT.md)
+- **Các hạng mục Round 3 đã hoàn tất theo TDD (`10/10 PASS` trong `tests/test_p7_voice_pipeline.py`, `46/46 PASS` toàn bộ suite Voice/Mobile):**
+  1. Loại bỏ toàn bộ nhánh bypass xác thực từ payload (`explicit_level`, `session_tier`, `is_live_mic`, hoặc PCM rỗng kèm transcript).
+  2. Loại bỏ hoàn toàn whitelist mã băm SHA-256 (`0.999`) và các nhánh đặc biệt theo `sample_id` (`sample_id == "intruder_2"`). Mọi quyết định xác thực đều dựa trên điểm sinh trắc học đa tầng thực tế.
+  3. Sửa bố cục `/app` ở khung nhìn `390x844` để nút `Nói lệnh giọng nói` (`#mobileBtnVoiceSheet`) hiển thị trọn vẹn 100% phía trên thanh điều hướng đáy (`#mobileBottomNav`), đã xác minh bằng Playwright và ảnh chụp `_indep_verify/ui/mobile_app_390x844.png`.
 - **Kết quả `_indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app`:** **`ALL_PASS: True`, `FAILURES: 0`** (7/7 clip Chủ nhà L1 `ALLOWED`, 6/6 clip L2/L3 RBAC chuẩn, 1/1 clip người lạ `giong_2_nguoi_la_mo_cua.wav` `DENIED` và `main_door` giữ nguyên `CLOSED`).
-- **Kết quả `_indep_verify/ui/ui_voice_check.py` trên `https://voice-orcin-six.vercel.app/app`:** **`failures: []`** (0 lỗi), fake-mic `cau_4_48k.wav` nhận diện chính xác `"Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật."`, độ trễ click-to-visual-feedback của cả 6 bộ chọn nút đều đạt `109.5 ms – 174.4 ms` (`< 300 ms`).
+- **Kết quả `_indep_verify/ui/ui_voice_check.py` trên `https://voice-orcin-six.vercel.app/app`:** **`failures: []`** (0 lỗi), fake-mic `cau_4_48k.wav` nhận diện chính xác `"Bạn nói: Bật đèn phòng khách. · Phản hồi: Đèn phòng khách đã bật."`, độ trễ click-to-visual-feedback của cả 6 bộ chọn nút đều đạt `130.0 ms – 185.2 ms` (`< 300 ms`).
 
 

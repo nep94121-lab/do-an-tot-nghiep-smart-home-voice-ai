@@ -591,3 +591,220 @@ def test_playwright_serverless_voice_commands_update_ui():
             proc.wait(timeout=5)
         except Exception:
             proc.kill()
+
+
+def test_r3_forged_request_fields_and_empty_pcm_ignored_without_speaker_verification():
+    """Round 3 Requirement 1:
+    Moi truong client-supplied nhu level, tier, explicit_level, session_tier, role, user_id,
+    is_live_mic, session_token trong payload, hoac PCM rong + transcript TUYET DOI KHONG duoc
+    cap quyen neu khong qua xac thuc sinh trac hoc giong noi tren server.
+    """
+    client = TestClient(app)
+    stranger_wav = ROOT / "test_audio" / "giong_2_nguoi_la_mo_cua.wav"
+    stranger_b64 = base64.b64encode(stranger_wav.read_bytes()).decode("ascii")
+
+    # 1. Forged level=1 / tier=1 / session_tier=1 / role=ADMIN / user_id=tuan_anh voi audio nguoi la
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    r_forged_level = client.post(
+        "/api/voice_command",
+        json={
+            "wav_b64": stranger_b64,
+            "level": 1,
+            "tier": 1,
+            "explicit_level": 1,
+            "session_tier": 1,
+            "role": "ADMIN",
+            "user_id": "tuan_anh",
+            "authorized": True,
+            "transcript": "mở cửa chính",
+        },
+    )
+    assert r_forged_level.status_code in (200, 401, 403)
+    d1 = r_forged_level.json()
+    assert d1.get("ok") is False, f"Forged level=1 voi giong nguoi la phai bi tu choi: {d1}"
+    assert d1.get("authorized") is False
+    assert d1.get("permission") == "DENIED"
+    assert d1.get("level") != 1 and d1.get("tier") != 1
+    assert _snapshot_device_state(d1["snapshot"], "main_door") == "CLOSED"
+
+    # 2. Forged is_live_mic=True + transcript + session_token trong payload voi audio nguoi la
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    r_forged_mic = client.post(
+        "/api/voice_command",
+        json={
+            "wav_b64": stranger_b64,
+            "is_live_mic": True,
+            "session_tier": 1,
+            "session_token": "sess_owner_t1_nep94121",
+            "transcript": "mở cửa chính",
+        },
+    )
+    d2 = r_forged_mic.json()
+    assert d2.get("ok") is False, f"Forged is_live_mic=True voi giong nguoi la phai bi tu choi: {d2}"
+    assert d2.get("authorized") is False
+    assert d2.get("permission") == "DENIED"
+    assert _snapshot_device_state(d2["snapshot"], "main_door") == "CLOSED"
+
+    # 3. Empty PCM + transcript (ke ca kem level=1, is_live_mic=True, session_token)
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    _REST_ENGINE.devices["living_room_light"]["state"] = "OFF"
+    r_empty_pcm = client.post(
+        "/api/voice_command",
+        json={
+            "wav_b64": "",
+            "transcript": "mở cửa chính",
+            "level": 1,
+            "is_live_mic": True,
+            "session_tier": 1,
+            "session_token": "sess_owner_t1_nep94121",
+        },
+    )
+    d3 = r_empty_pcm.json()
+    assert d3.get("ok") is False, f"Empty PCM + transcript khong duoc phep authorize: {d3}"
+    assert d3.get("authorized") is False
+    assert d3.get("permission") == "DENIED"
+    assert _snapshot_device_state(d3["snapshot"], "main_door") == "CLOSED"
+
+    # 4. Giọng Level 2 thật nhưng gửi kèm forged level=1 / tier=1 / role=ADMIN -> vẫn phải là Level 2 và DENIED mở cửa chính
+    l2_door_b64 = base64.b64encode((VOICES_DIR / "level2_mo_cua_chinh.wav").read_bytes()).decode("ascii")
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    r_l2_forged = client.post(
+        "/api/voice_command",
+        json={
+            "wav_b64": l2_door_b64,
+            "level": 1,
+            "tier": 1,
+            "session_tier": 1,
+            "role": "ADMIN",
+            "is_live_mic": True,
+        },
+    )
+    d4 = r_l2_forged.json()
+    assert d4.get("level") == 2 and d4.get("tier") == 2, f"Forged level=1 khong duoc ghi de Level 2: {d4}"
+    assert d4.get("permission") == "DENIED"
+    assert _snapshot_device_state(d4["snapshot"], "main_door") == "CLOSED"
+
+
+def test_r3_no_sha256_whitelist_or_sample_id_shortcuts():
+    """Round 3 Requirement 2:
+    Xoa bo SHA-256 exact-match whitelist (0.999 score) va sample_id == intruder_2 / sample_id shortcut.
+    Moi quyet dinh phai dua tren sinh trac hoc thuc te.
+    """
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k, match_signature_from_catalog
+
+    stt_src = (ROOT / "simulator" / "voice" / "stt_pipeline.py").read_text(encoding="utf-8")
+    assert "wav_sha256" not in stt_src, "stt_pipeline.py khong duoc dung wav_sha256 whitelist"
+    assert "pcm_sha256" not in stt_src, "stt_pipeline.py khong duoc dung pcm_sha256 whitelist"
+    assert "0.999" not in stt_src, "stt_pipeline.py khong duoc hardcode diem 0.999 cho hash match"
+    assert 'sample_id == "intruder_2"' not in stt_src, "stt_pipeline.py khong duoc co nhanh dac biet sample_id == intruder_2"
+
+    # Kiem tra: thay doi 1 sample PCM (lam thay doi hoan toan SHA-256) van cho diem sinh trac hoc tuong duong
+    cau2_bytes = (ROOT / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav").read_bytes()
+    pcm_orig, _ = decode_audio_bytes_to_pcm16k(cau2_bytes)
+    pcm_mod = pcm_orig.copy()
+    pcm_mod[100] = np.int16(int(pcm_mod[100]) ^ 1)
+    sig_orig, score_orig = match_signature_from_catalog(pcm_orig, cau2_bytes)
+    sig_mod, score_mod = match_signature_from_catalog(pcm_mod, b"")
+    assert sig_orig is not None and sig_mod is not None
+    assert sig_orig["filename"] == sig_mod["filename"] == "cau_2_mo_cua_chinh.wav"
+    assert abs(score_orig - score_mod) < 0.005, f"Diem khop phai tu sinh trac hoc ({score_orig} vs {score_mod})"
+
+    client = TestClient(app)
+    stranger_b64 = base64.b64encode((ROOT / "test_audio" / "giong_2_nguoi_la_mo_cua.wav").read_bytes()).decode("ascii")
+    owner_cau2_b64 = base64.b64encode(cau2_bytes).decode("ascii")
+
+    # 1. Gui sample_id='owner_1' khong kem audio -> phai bi DENIED (khong tu nap file hay auto-auth)
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    r_sid_only = client.post("/api/voice_command", json={"sample_id": "owner_1", "transcript": "mở cửa chính"})
+    d_sid_only = r_sid_only.json()
+    assert d_sid_only.get("ok") is False and d_sid_only.get("authorized") is False
+    assert d_sid_only.get("permission") == "DENIED"
+
+    # 2. Gui sample_id='owner_1' kem audio nguoi la -> phai bi DENIED
+    r_sid_stranger = client.post("/api/voice_command", json={"sample_id": "owner_1", "wav_b64": stranger_b64})
+    d_sid_stranger = r_sid_stranger.json()
+    assert d_sid_stranger.get("ok") is False and d_sid_stranger.get("authorized") is False
+    assert d_sid_stranger.get("permission") == "DENIED"
+
+    # 3. Gui sample_id='intruder_2' kem audio Chu nha cau_2 -> phai duoc ALLOWED Level 1 theo sinh trac hoc that!
+    _REST_ENGINE.devices["main_door"]["state"] = "CLOSED"
+    r_sid_intruder_with_owner_audio = client.post(
+        "/api/voice_command",
+        json={"sample_id": "intruder_2", "wav_b64": owner_cau2_b64},
+    )
+    d_owner = r_sid_intruder_with_owner_audio.json()
+    assert d_owner.get("ok") is True and d_owner.get("authorized") is True
+    assert d_owner.get("level") == 1 and d_owner.get("permission") == "ALLOWED"
+    assert _snapshot_device_state(d_owner["snapshot"], "main_door") == "OPEN"
+
+
+def test_r3_mobile_app_voice_button_fully_visible_above_bottom_nav_at_390x844():
+    """Round 3 Requirement 3:
+    Tren /app o kich thuoc 390x844, nut 'Nói lệnh giọng nói' (#mobileBtnVoiceSheet) phai hien thi
+    day du va KHONG bi thanh dieu huong duoi (#mobileBottomNav) che khuat (btnRect.bottom <= navRect.top).
+    """
+    import socket
+    import subprocess
+    import sys
+    import time
+    import urllib.request
+    from playwright.sync_api import sync_playwright
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    proc = subprocess.Popen(
+        [sys.executable, "-X", "utf8", "-m", "uvicorn", "simulator.server:app", "--host", "127.0.0.1", "--port", str(port)],
+        cwd=str(ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        base_url = f"http://127.0.0.1:{port}"
+        ready = False
+        for _ in range(60):
+            try:
+                with urllib.request.urlopen(f"{base_url}/api/state", timeout=1.0) as r_chk:
+                    if r_chk.status == 200:
+                        ready = True
+                        break
+            except Exception:
+                time.sleep(0.25)
+        assert ready
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="chrome", headless=True)
+            context = browser.new_context(viewport={"width": 390, "height": 844})
+            context.add_init_script(
+                "localStorage.setItem('mobileLoggedIn', '1'); sessionStorage.setItem('mobileLoggedIn', '1');"
+            )
+            page = context.new_page()
+            page.goto(f"{base_url}/app", wait_until="load", timeout=30000)
+            page.wait_for_selector("#mobileBtnVoiceSheet", state="visible", timeout=10000)
+            rects = page.evaluate(
+                """() => {
+                    const btn = document.getElementById('mobileBtnVoiceSheet');
+                    const nav = document.getElementById('mobileBottomNav');
+                    const b = btn.getBoundingClientRect();
+                    const n = nav.getBoundingClientRect();
+                    return {
+                        btnTop: b.top,
+                        btnBottom: b.bottom,
+                        btnHeight: b.height,
+                        navTop: n.top,
+                        navBottom: n.bottom
+                    };
+                }"""
+            )
+            browser.close()
+            assert rects["btnHeight"] >= 40, f"Nut #mobileBtnVoiceSheet qua nho: {rects}"
+            assert rects["btnBottom"] <= rects["navTop"] - 4, (
+                f"Nut #mobileBtnVoiceSheet bi che boi #mobileBottomNav o 390x844: {rects}"
+            )
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()

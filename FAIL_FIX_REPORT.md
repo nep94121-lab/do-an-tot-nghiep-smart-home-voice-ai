@@ -1,9 +1,9 @@
 # BÁO CÁO KHẮC PHỤC LỖI KIỂM ĐỊNH ĐỘC LẬP — PHASE 7 VOICE (`p7-voice`)
 
 - **Worktree**: `C:\Users\LENOVO\datn-wt\voice`
-- **Branch**: `p7-voice` (KHÔNG merge `master`, KHÔNG deploy `--prod`)
+- **Branch**: `p7-voice` (KHÔNG merge `master`, KHÔNG deploy `--prod`, KHÔNG `git push`)
 - **Preview Alias URL**: `https://voice-orcin-six.vercel.app`
-- **Preview Deployment URL**: `https://voice-hjt1qohky-tuananhs-projects-8aea56ce.vercel.app` (`dpl_2VpNyxoxWMxY1Ri8rY4dsi17JK4G`)
+- **Preview Deployment URL (Round 3)**: `https://voice-pn2nhyu2p-tuananhs-projects-8aea56ce.vercel.app` (`dpl_FtdF2rjbuLDh4gwgaiUsEBT67nLX`)
 
 ---
 
@@ -86,9 +86,32 @@ Chạy trực tiếp `python -X utf8 _indep_verify/indep_voice_e2e.py --url http
   - Transcript & Phản hồi trên `/app`: `"Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật."`
   - Thời gian E2E (gồm ~2.0s thu mẫu mic): `4222.7 ms`
 - **Độ trễ Click-to-Visual-Feedback trên `/app` (Mục tiêu `< 300ms`)**:
-  - `living_light` (`button:has-text('Đèn phòng khách')`): **`174.4 ms`**
-  - `fan` (`button:has-text('Quạt')`): **`123.7 ms`**
-  - `door` (`button:has-text('Cửa chính')`): **`162.1 ms`**
-  - `living_light_data` (`[data-device='living_room_light']`): **`109.5 ms`**
-  - `fan_data` (`[data-device='fan']`): **`150.9 ms`**
-  - `toggle` (`button.toggle`): **`112.0 ms`**
+  - `living_light` (`button:has-text('Đèn phòng khách')`): **`137.5 ms`**
+  - `fan` (`button:has-text('Quạt')`): **`130.0 ms`**
+  - `door` (`button:has-text('Cửa chính')`): **`146.7 ms`**
+  - `living_light_data` (`[data-device='living_room_light']`): **`185.2 ms`**
+  - `fan_data` (`[data-device='fan']`): **`145.1 ms`**
+  - `toggle` (`button.toggle`): **`169.4 ms`**
+
+---
+
+## 4. Khắc phục Round 3 (TDD): Xóa bỏ Bypass Xác thực, Xóa bỏ Whitelist SHA-256 / `sample_id` & Sửa Bố cục Mobile `390x844`
+
+### 4.1. Loại bỏ toàn bộ nhánh vượt quyền từ trường Request Payload (`simulator/voice/stt_pipeline.py`, `simulator/api/routes_devices.py`)
+- Loại bỏ hoàn toàn việc đọc và tin cậy các trường do client gửi lên trong `payload` gồm `explicit_level` (`level`, `tier`), `is_live_mic`, `session_tier` từ body request, và nhánh `pcm16.size == 0 and explicit_transcript`.
+- Tại `simulator/api/routes_devices.py` (`api_voice_command`), gọi `resolve_request_session(request, payload=None, engine=None)` để chỉ đọc phiên từ HTTP Cookie / Header xác thực của server, tuyệt đối không nhận `session_token` hoặc `role` từ JSON body.
+- Luôn truyền `is_live_mic=False` vào `voice_auth.verify_pcm16k_and_apply_strikes()` để vô hiệu hóa nhánh nới lỏng chỉ kiểm tra cao độ F0.
+
+### 4.2. Loại bỏ Whitelist SHA-256 (`0.999`) và `sample_id` Shortcuts (`simulator/voice/stt_pipeline.py`)
+- Xóa bỏ hoàn toàn `import hashlib`, `SAMPLE_ID_TO_FILE_AND_TEXT`, nhánh khớp mã băm `wav_sha256` / `pcm_sha256` trả điểm cứng `0.999`, nhánh nạp file âm thanh từ `sample_id`, và nhánh đặc biệt `sample_id == "intruder_2"`.
+- Mọi quyết định xác thực giọng nói đều dựa 100% trên điểm sinh trắc học đa tầng thực tế (`0.25 * Stage1_26D + 0.35 * Stage2_64D + 0.40 * Neural_256D` kết hợp cổng `F0` và tỷ lệ thời lượng) với ngưỡng nghiêm ngặt `score >= 0.88`.
+
+### 4.3. Sửa lỗi nút `Nói lệnh giọng nói` (`#mobileBtnVoiceSheet`) bị che khuất bởi `#mobileBottomNav` ở khung nhìn `390x844` (`simulator/static/css/mobile_app.css`)
+- Bổ sung khoảng đệm đáy an toàn (`padding-bottom: calc(116px + env(safe-area-inset-bottom))` trên `body`, `calc(96px + env(safe-area-inset-bottom))` trên `.tab-view`, `calc(24px + env(safe-area-inset-bottom))` trên `#tabViewHome .actions`) và thu gọn khoảng cách thẻ trong `#tabViewHome` (`min-height: 118px; max-height: 136px` cho `.overview-box.preview-16-9`).
+- Kiểm tra bằng Playwright ở khung nhìn `390x844` và ảnh chụp `_indep_verify/ui/mobile_app_390x844.png`: toàn bộ nút `#mobileBtnVoiceSheet` và `#mobileBtnViewDevices` hiển thị rõ 100% phía trên `#mobileBottomNav` (`btnRect.bottom <= navRect.top - 4`).
+
+### 4.4. Bộ Kiểm thử TDD Round 3 (`tests/test_p7_voice_pipeline.py`)
+- `test_r3_forged_request_fields_and_empty_pcm_ignored_without_speaker_verification`: **PASS**
+- `test_r3_no_sha256_whitelist_or_sample_id_shortcuts`: **PASS**
+- `test_r3_mobile_app_voice_button_fully_visible_above_bottom_nav_at_390x844`: **PASS**
+- Tổng kết `pytest` (`tests/test_p7_voice_pipeline.py`, `tests/test_m8_mobile_screens.py`, `tests/test_sep_real_voice_commands.py`, `tests/test_live_sep_voice_actuation.py`): **`46/46 PASSED`**.

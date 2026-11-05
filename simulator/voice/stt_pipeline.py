@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import base64
 import glob
-import hashlib
 import io
 import json
 import pathlib
@@ -40,29 +39,6 @@ VOICES_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\voices")
 SIGNATURES_JSON_PATH = pathlib.Path(__file__).resolve().parent / "real_voices_signatures.json"
 
 _CACHED_SIGNATURES_DATA: dict[str, Any] | None = None
-
-SAMPLE_ID_TO_FILE_AND_TEXT: dict[str, tuple[str, str, int]] = {
-    "owner_1": ("giong_chu_nha_cap1_tuan_anh.wav", "Bật đèn phòng khách, mở cửa chính.", 1),
-    "member_a": ("giong_cap2_thanh_vien_a.wav", "Bật đèn phòng khách.", 2),
-    "guest_c": ("giong_cap3_khach_c.wav", "Bật quạt.", 3),
-    "intruder_2": ("giong_nguoi_la_2.wav", "Mở cửa chính.", 99),
-    "noisy_fan": ("giong_chu_nha_trong_tieng_on_quat.wav", "Bật đèn phòng khách.", 1),
-    "two_speakers": ("hai_nguoi_cung_noi_chu_nha_va_khach.wav", "Bật đèn phòng khách.", 1),
-    "sep_cau_1": ("cac_cau_lenh_cua_sep/cau_1_xin_chao_chu_nha_cap1.wav", "Xin chào ngôi nhà thông minh, tôi là Nguyễn Tuấn Anh, chủ nhà.", 1),
-    "sep_cau_2": ("cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav", "Mở cửa chính.", 1),
-    "sep_cau_3": ("cac_cau_lenh_cua_sep/cau_3_dong_cua_chinh.wav", "Đóng cửa chính.", 1),
-    "sep_cau_4": ("cac_cau_lenh_cua_sep/cau_4_bat_den_phong_khach.wav", "Bật đèn phòng khách.", 1),
-    "sep_cau_5": ("cac_cau_lenh_cua_sep/cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav", "Bật quạt trần và điều hòa.", 1),
-    "sep_cau_6": ("cac_cau_lenh_cua_sep/cau_6_tat_het_den.wav", "Tắt hết đèn.", 1),
-    "sep_cau_7": ("cac_cau_lenh_cua_sep/cau_7_dong_het_cua.wav", "Đóng hết cửa.", 1),
-    "cau_1_xin_chao_chu_nha_cap1": ("cac_cau_lenh_cua_sep/cau_1_xin_chao_chu_nha_cap1.wav", "Xin chào ngôi nhà thông minh, tôi là Nguyễn Tuấn Anh, chủ nhà.", 1),
-    "cau_2_mo_cua_chinh": ("cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav", "Mở cửa chính.", 1),
-    "cau_3_dong_cua_chinh": ("cac_cau_lenh_cua_sep/cau_3_dong_cua_chinh.wav", "Đóng cửa chính.", 1),
-    "cau_4_bat_den_phong_khach": ("cac_cau_lenh_cua_sep/cau_4_bat_den_phong_khach.wav", "Bật đèn phòng khách.", 1),
-    "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu": ("cac_cau_lenh_cua_sep/cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav", "Bật quạt trần và điều hòa.", 1),
-    "cau_6_tat_het_den": ("cac_cau_lenh_cua_sep/cau_6_tat_het_den.wav", "Tắt hết đèn.", 1),
-    "cau_7_dong_het_cua": ("cac_cau_lenh_cua_sep/cau_7_dong_het_cua.wav", "Đóng hết cửa.", 1),
-}
 
 
 def load_real_voices_signatures() -> dict[str, Any]:
@@ -158,7 +134,12 @@ def _compute_biometric_score_against_sig(
     f0_ref = float(sig.get("f0_hz") or 0.0)
     dur_ref = float(sig.get("duration_sec") or 0.0)
 
-    df0 = abs(f0_in - f0_ref) if (f0_in > 50.0 and f0_ref > 50.0) else 50.0
+    f0_s1 = float(feat_s1.get("f0_hz") or 0.0)
+    f0_candidates = [v for v in (f0_in, f0_s1) if v > 50.0]
+    if f0_candidates and f0_ref > 50.0:
+        df0 = min(abs(v - f0_ref) for v in f0_candidates)
+    else:
+        df0 = 50.0
     if df0 > 35.0:
         return -1.0
 
@@ -180,22 +161,14 @@ def _compute_biometric_score_against_sig(
 
 def match_signature_from_catalog(
     pcm16: np.ndarray,
-    raw_bytes: bytes,
+    raw_bytes: bytes = b"",
 ) -> tuple[dict[str, Any] | None, float]:
-    """Doi sanh am thanh dau vao voi kho chu ky giong that Level 1 / Level 2 / Level 3."""
+    """Doi sanh am thanh dau vao voi kho chu ky giong that Level 1 / Level 2 / Level 3 bang sinh trac hoc Da Tang."""
     catalog = load_real_voices_signatures().get("signatures", [])
     if not catalog or pcm16.size == 0:
         return None, 0.0
 
-    wav_sha = hashlib.sha256(raw_bytes).hexdigest() if raw_bytes else ""
-    pcm_sha = hashlib.sha256(pcm16.astype(np.int16).tobytes()).hexdigest()
-
-    # 1. Kiem tra khop tuyet doi SHA-256 (0 sai so)
-    for sig in catalog:
-        if (wav_sha and sig.get("wav_sha256") == wav_sha) or (pcm_sha and sig.get("pcm_sha256") == pcm_sha):
-            return sig, 0.999
-
-    # 2. Phat hien luong mic lap chu ky (Chromium fake-audio-capture loop period L)
+    # 1. Phat hien luong mic lap chu ky (Chromium fake-audio-capture loop period L) + doi sanh sinh trac hoc
     if pcm16.size >= 18000:
         best_loop_combined = -1.0
         best_loop_sig: dict[str, Any] | None = None
@@ -273,7 +246,7 @@ def match_signature_from_catalog(
         if best_loop_sig is not None and best_loop_combined >= 0.88:
             return best_loop_sig, min(0.998, best_loop_combined)
 
-    # 3. Kiem tra do tuong dong sinh trac hoc Da Tang (Stage 1 26D + Stage 2 64D + Neural 256D + F0 + Duration)
+    # 2. Kiem tra do tuong dong sinh trac hoc Da Tang (Stage 1 26D + Stage 2 64D + Neural 256D + F0 + Duration)
     pcm_clean, _ = denoise_and_isolate_human_voice(pcm16, 16000)
     feat_s1 = extract_voice_features(pcm_clean, 16000)
     if not feat_s1.get("valid"):
@@ -281,7 +254,7 @@ def match_signature_from_catalog(
     feat_s2 = extract_stage2_deep_features(pcm_clean, 16000)
     emb_256 = extract_neural_embedding_256d(pcm_clean, 16000)
     qual = validate_voice_enrollment_quality(pcm16, 16000)
-    f0_in = float(feat_s1.get("f0_hz") or qual.get("f0_hz") or 0.0)
+    f0_in = float(qual.get("f0_hz") or feat_s1.get("f0_hz") or 0.0)
     dur_in = pcm16.size / 16000.0
 
     best_sig: dict[str, Any] | None = None
@@ -302,7 +275,7 @@ def match_signature_from_catalog(
             best_sig = sig
 
     if best_sig is not None and best_score >= 0.88:
-        return best_sig, round(float(best_score), 4)
+        return best_sig, round(float(min(0.998, best_score)), 4)
     return None, round(float(max(0.0, best_score)), 4)
 
 
@@ -340,15 +313,14 @@ async def process_voice_command_pipeline(
     session_role: str | None = None,
 ) -> dict[str, Any]:
     """Xu ly toan trinh Voice Command:
-    Audio (WAV/PCM16k/sample_id) -> STT -> Intent -> 3-Level Voice Auth / RBAC -> Device Action -> Snapshot.
+    Audio (WAV/PCM16k) -> Biometric Speaker Verification -> STT -> Intent -> 3-Level Voice Auth / RBAC -> Device Action -> Snapshot.
+    Quyen dieu khien chi duoc xac dinh tu ket qua xac thuc sinh trac hoc giong noi tren server,
+    tuyet doi khong lay tu cac truong client-supplied trong request.
     """
     t0 = time.perf_counter()
     body = payload if isinstance(payload, dict) else {}
 
-    sample_id = str(body.get("sample_id") or "").strip()
     explicit_transcript = str(body.get("transcript") or body.get("text") or "").strip()
-    explicit_level = body.get("level")
-    is_live_mic = bool(body.get("is_live_mic", False))
 
     raw_bytes = b""
     b64_str = (
@@ -366,31 +338,15 @@ async def process_voice_command_pipeline(
         except Exception:
             raw_bytes = b""
 
-    sample_meta: tuple[str, str, int] | None = None
-    if not raw_bytes and sample_id:
-        if sample_id in SAMPLE_ID_TO_FILE_AND_TEXT:
-            sample_meta = SAMPLE_ID_TO_FILE_AND_TEXT[sample_id]
-            sample_path = ROOT / "test_audio" / sample_meta[0]
-            if sample_path.exists():
-                raw_bytes = sample_path.read_bytes()
-        elif sample_id.startswith("level1"):
-            p1 = resolve_level1_owner_audio_path()
-            if p1.exists():
-                raw_bytes = p1.read_bytes()
-        elif VOICES_DIR.exists():
-            cand = VOICES_DIR / (sample_id if sample_id.endswith(".wav") else f"{sample_id}.wav")
-            if cand.exists():
-                raw_bytes = cand.read_bytes()
-
     pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
 
-    # 1. Doi sanh voi kho chu ky giong nguoi that Level 1 / Level 2 / Level 3
+    # 1. Doi sanh sinh trac hoc voi kho chu ky giong nguoi that Level 1 / Level 2 / Level 3
     matched_sig, sig_similarity = match_signature_from_catalog(pcm16, decoded_raw)
 
     # 2. Xac dinh Speaker & Voice Auth Tier (Level 1, 2, 3) - Mac dinh DENY neu khong khop sinh trac hoc
     authorized = False
-    level = int(explicit_level) if explicit_level in (1, 2, 3, "1", "2", "3") else 0
-    tier = level if level in (1, 2, 3) else 99
+    level = 0
+    tier = 99
     speaker_id = "intruder_voice_2"
     user_id = "UNKNOWN"
     speaker_name = "Người lạ (Không được phép)"
@@ -398,16 +354,7 @@ async def process_voice_command_pipeline(
     similarity = sig_similarity if sig_similarity > 0 else 0.0
     f0_hz = 0.0
 
-    if sample_id == "intruder_2":
-        authorized = False
-        level = 0
-        tier = 99
-        speaker_id = "intruder_voice_2"
-        user_id = "UNKNOWN"
-        speaker_name = "Người lạ (Không được phép)"
-        role = "UNKNOWN"
-        similarity = 0.38
-    elif matched_sig is not None and not explicit_level:
+    if matched_sig is not None:
         level = int(matched_sig.get("level", 1))
         tier = int(matched_sig.get("tier", level))
         speaker_id = str(matched_sig.get("speaker_id", "owner_voice_1"))
@@ -417,51 +364,10 @@ async def process_voice_command_pipeline(
         f0_hz = float(matched_sig.get("f0_hz", 103.2))
         similarity = sig_similarity if sig_similarity > 0 else 0.96
         authorized = True
-    elif sample_meta is not None and not explicit_level:
-        tier = int(sample_meta[2])
-        level = tier if tier in (1, 2, 3) else 0
-        if tier == 1:
-            authorized = True
-            similarity = max(similarity, 0.95)
-            f0_hz = 103.2
-            speaker_id, user_id, speaker_name, role = (
-                "owner_voice_1",
-                "tuan_anh",
-                "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)",
-                "ADMIN",
-            )
-        elif tier == 2:
-            authorized = True
-            similarity = max(similarity, 0.92)
-            f0_hz = 265.0
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_thanh_vien_a",
-                "thanh_vien_a",
-                "Thành viên A (Cấp 2)",
-                "MEMBER",
-            )
-        elif tier == 3:
-            authorized = True
-            similarity = max(similarity, 0.90)
-            f0_hz = 128.0
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_khach_c",
-                "khach_c",
-                "Khách C (Cấp 3)",
-                "GUEST",
-            )
-        else:
-            authorized = False
-            speaker_id, user_id, speaker_name, role = (
-                "intruder_voice_2",
-                "UNKNOWN",
-                "Người lạ (Không được phép)",
-                "UNKNOWN",
-            )
-    elif pcm16.size > 0 and not explicit_level:
+    elif pcm16.size > 0:
         auth_res = voice_auth.verify_pcm16k_and_apply_strikes(
             pcm16.astype(np.int16).tobytes(),
-            is_live_mic=True if is_live_mic else False,
+            is_live_mic=False,
         )
         f0_hz = float(auth_res.get("f0_hz") or 0.0)
         similarity = float(auth_res.get("similarity") or sig_similarity or 0.0)
@@ -479,93 +385,6 @@ async def process_voice_command_pipeline(
             speaker_name = str(auth_res.get("speaker_label", "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)"))
             role = str(auth_res.get("role", "ADMIN"))
             authorized = True
-        elif is_live_mic and session_tier in (1, 2, 3) and explicit_transcript:
-            tier = int(session_tier)
-            level = tier
-            authorized = True
-            if tier == 1:
-                speaker_id, user_id, speaker_name, role = (
-                    "owner_voice_1",
-                    "tuan_anh",
-                    session_user or "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)",
-                    "ADMIN",
-                )
-            elif tier == 2:
-                speaker_id, user_id, speaker_name, role = (
-                    "user_voice_thanh_vien_a",
-                    "thanh_vien_a",
-                    session_user or "Thành viên A (Cấp 2)",
-                    "MEMBER",
-                )
-            else:
-                speaker_id, user_id, speaker_name, role = (
-                    "user_voice_khach_c",
-                    "khach_c",
-                    session_user or "Khách C (Cấp 3)",
-                    "GUEST",
-                )
-        else:
-            authorized = False
-            level = 0
-            tier = 99
-            speaker_id = "intruder_voice_2"
-            user_id = "UNKNOWN"
-            speaker_name = "Người lạ (Không được phép)"
-            role = "UNKNOWN"
-    elif explicit_level in (1, 2, 3, "1", "2", "3"):
-        authorized = True
-        level = int(explicit_level)
-        tier = level
-        similarity = max(similarity, 0.95)
-        f0_hz = 103.2 if tier == 1 else (265.0 if tier == 2 else 128.0)
-        if tier == 1:
-            speaker_id, user_id, speaker_name, role = (
-                "owner_voice_1",
-                "tuan_anh",
-                "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)",
-                "ADMIN",
-            )
-        elif tier == 2:
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_thanh_vien_a",
-                "thanh_vien_a",
-                "Thành viên A (Cấp 2)",
-                "MEMBER",
-            )
-        else:
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_khach_c",
-                "khach_c",
-                "Khách C (Cấp 3)",
-                "GUEST",
-            )
-    elif pcm16.size == 0 and explicit_transcript:
-        authorized = True
-        tier = int(session_tier) if session_tier in (1, 2, 3) else 1
-        level = tier
-        similarity = 0.95
-        f0_hz = 103.2 if tier == 1 else (265.0 if tier == 2 else 128.0)
-        if tier == 1:
-            speaker_id, user_id, speaker_name, role = (
-                "owner_voice_1",
-                "tuan_anh",
-                session_user or "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)",
-                "ADMIN",
-            )
-        elif tier == 2:
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_thanh_vien_a",
-                "thanh_vien_a",
-                session_user or "Thành viên A (Cấp 2)",
-                "MEMBER",
-            )
-        else:
-            speaker_id, user_id, speaker_name, role = (
-                "user_voice_khach_c",
-                "khach_c",
-                session_user or "Khách C (Cấp 3)",
-                "GUEST",
-            )
 
     # 3. Giai quyet STT (Speech-to-Text)
     recognized_text = explicit_transcript
@@ -574,8 +393,6 @@ async def process_voice_command_pipeline(
         canonical_command = str(matched_sig.get("canonical_command") or "")
         if not recognized_text:
             recognized_text = str(matched_sig.get("recognized_text") or canonical_command)
-    if not recognized_text and sample_meta is not None:
-        recognized_text = sample_meta[1]
     if not recognized_text:
         recognized_text = infer_command_from_acoustic_envelope(pcm16)
     if not canonical_command:

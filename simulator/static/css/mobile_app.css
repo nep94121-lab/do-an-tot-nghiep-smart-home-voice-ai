@@ -22,7 +22,7 @@
       max-width: 480px;
       margin: 0 auto;
       min-height: 100vh;
-      padding: max(16px, env(safe-area-inset-top)) 16px calc(88px + env(safe-area-inset-bottom));
+      padding: max(12px, env(safe-area-inset-top)) 16px calc(116px + env(safe-area-inset-bottom));
       -webkit-font-smoothing: antialiased;
     }
     button, input, select { font: inherit; color: inherit; }
@@ -434,12 +434,31 @@
 /* TAB VIEWS */
 .tab-view {
   display: block;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 .tab-view[hidden] {
   display: none !important;
 }
+#tabViewHome .header {
+  margin-bottom: 10px;
+}
+#tabViewHome .card {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+#tabViewHome .card-head {
+  margin-bottom: 8px;
+}
+#tabViewHome .divider {
+  margin: 8px 0;
+}
+#tabViewHome .actions {
+  margin-top: 10px !important;
+  gap: 8px !important;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
 #tabViewAccount {
-  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 #mobileBtnLogout {
   margin-bottom: calc(24px + env(safe-area-inset-bottom));
@@ -449,8 +468,8 @@
 .overview-box.preview-16-9 {
   height: auto;
   aspect-ratio: 16 / 9;
-  min-height: 180px;
-  max-height: 220px;
+  min-height: 118px;
+  max-height: 136px;
   border-radius: 12px;
   border: 1px dashed #b9ccce;
   background: #f4f9f9;
@@ -459,7 +478,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   position: relative;
   overflow: hidden;
 }
@@ -480,7 +499,7 @@
 .sensor {
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 12px;
+  padding: 9px 12px;
   background: #ffffff;
 }
 .sensor strong {
