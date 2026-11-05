@@ -1078,3 +1078,51 @@ Giai đoạn 7 (`Phase 7 Guest` trên nhánh `p7-guest`, worktree `C:\Users\LENO
   - `POST https://guest-bay.vercel.app/api/auth3/guest_qr_complete_voice` -> **HTTP 200** (`ok: true`, `tier: 3`, lưu thành công Khách Cấp 3 không cần đăng nhập).
   - **Playwright Live E2E trên Preview URL:** Xác thực trực tiếp trên `https://guest-bay.vercel.app/guest` (`390x844`) và `https://guest-bay.vercel.app/` (`1280x800`) đạt **100% PASS**.
 
+---
+
+### 14.4. Phase 7 Guest Round 2 (HEAD 08ac56bebedf014b00a698a17f52b5f46390e39a)
+
+#### 1. Thông Tin Bản Phát Hành & Triển Khai
+- **Nhánh Git (Branch):** `p7-guest`
+- **Mã băm Commit (Commit SHA):** `08ac56bebedf014b00a698a17f52b5f46390e39a` (`08ac56b`)
+- **Triển khai Vercel Preview (Chế độ Preview, Tuyệt đối KHÔNG dùng --prod):**
+  - **Direct Preview URL:** `https://guest-k0geu94cg-tuananhs-projects-8aea56ce.vercel.app` (Deployment ID: `dpl_8yH1ohp9hopBmcoyxv5q8nCgLgfa`)
+  - **Vercel Alias:** `https://guest-bay.vercel.app`
+- **Kiểm định trực tiếp qua cURL / HTTP:**
+  - `curl -I https://guest-bay.vercel.app/guest` -> **HTTP 200 OK**
+  - `curl -s -b "sh_session_token=sess_owner_t1_nep94121" https://guest-bay.vercel.app/api/auth3/guest_qr_current` -> **HTTP 200 OK**, `remaining_slot_sec` hiện diện chính xác, `remaining_Slot_sec` (viết hoa chữ S) đã bị loại bỏ hoàn toàn.
+  - `curl -s https://guest-bay.vercel.app/api/auth3/guest_qr_current` (chưa xác thực) -> **HTTP 401 Unauthorized** theo đúng yêu cầu bảo mật.
+
+#### 2. Tổng Hợp Kết Quả Khắc Phục 5 Yêu Cầu Cốt Lõi
+1. **Dự phòng tải lên tệp âm thanh (/guest) & Trạng thái thu âm trực quan:**
+   - Hỗ trợ tải lên tệp âm thanh các định dạng `.wav`, `.m4a`, `.webm`, `.mp3`, `.ogg` với giới hạn dung lượng nghiêm ngặt tối đa 15MB.
+   - Nút Lưu ("Lưu & Kích hoạt quyền Khách (Cấp 3)") tự động mở khóa sau khi thu âm qua micro hoặc tải lên tệp âm thanh hợp lệ.
+   - Khi micro bị từ chối hoặc thiết bị không có micro: Hiển thị thông báo lỗi tiếng Việt trực quan, rõ ràng ngay sát nút thu âm ("❌ Trình duyệt hoặc thiết bị của bạn không hỗ trợ thu âm qua microphone. Vui lòng sử dụng tính năng tải lên tệp âm thanh bên dưới!"). Đã xóa triệt để toàn bộ mã giả lập sóng sin nhân tạo.
+   - Trong lúc thu âm: Hiển thị trạng thái thu âm trực quan gồm chấm đỏ nhấp nháy, chữ "Đang ghi âm...", đồng hồ đếm thời gian dạng `mm:ss` và nút Dừng thu âm ("⏹️ Dừng thu âm").
+   - Mọi nút bấm đều có phản hồi trực quan dưới 100ms (vô hiệu hóa nút và kích hoạt spinner `.btn-loading` ngay lập tức khi request đang xử lý).
+2. **Loại bỏ khóa trùng lặp /api/auth3/guest_qr_current:**
+   - Đã xóa triệt để trường trùng lặp `remaining_Slot_sec` (chữ S viết hoa), chuẩn hóa duy nhất một khóa chuẩn `remaining_slot_sec` (chữ thường).
+   - Đồng bộ cập nhật toàn bộ mã nguồn frontend (`simulator/static/js/app.js`, `simulator/static/js/guest_enroll.js`) và các bộ kiểm thử tự động.
+3. **Bảo vệ bảng điều khiển thiết bị Chủ nhà (/) & Bảo vệ API Server-side 401:**
+   - Khi chưa đăng nhập (logged out): Toàn bộ bảng điều khiển thiết bị `#deviceControlsArea` trên trang chủ `/` được làm mờ (`filter: blur(4px)`), vô hiệu hóa toàn bộ tương tác chuột/chạm (`pointer-events: none !important`), đồng thời hỗ trợ accessibility tiêu chuẩn (`aria-hidden="true"`, `inert=""`).
+   - Mọi API điều khiển thiết bị (`/api/device`, `/api/mobile/schedule`, `/api/text_command`, v.v.) và API mã QR Khách (`/api/auth3/guest_qr_current`) từ chối nghiêm ngặt các request chưa đăng nhập với mã trạng thái **HTTP 401 Unauthorized**.
+4. **Giao diện di động responsive (390x844 & 360x740) & Ảnh chụp màn hình:**
+   - Tinh chỉnh giao diện trang `/guest` và khung `#ownerGuestQrPanel` trên trang chủ `/` đảm bảo 100% không tràn lề ngang (`scrollWidth <= clientWidth`), không chồng lấn và không bị cắt cụt nội dung trên các độ phân giải di động chuẩn `390x844` và `360x740`.
+   - 4 tệp ảnh chụp màn hình Playwright được lưu trữ tại `reports/screenshots/`:
+     - `reports/screenshots/guest_390x844.png`
+     - `reports/screenshots/guest_360x740.png`
+     - `reports/screenshots/dashboard_390x844.png`
+     - `reports/screenshots/dashboard_360x740.png`
+5. **Đăng ký Khách luôn lưu ở Cấp 3 (CHILD_GUEST):**
+   - Xác thực logic đăng ký giọng nói Khách luôn lưu đúng phân quyền Cấp 3 (`tier = 3`, `role = "CHILD_GUEST"`, quyền hạn chỉ bật/tắt đèn & quạt cơ bản).
+
+#### 3. Kết Quả Kiểm Thử Độc Lập & Xác Minh Liêm Chính
+- **Bộ kiểm thử tự động (49/49 Test Cases Pass 100%):**
+  - `tests/test_phase7_guest_qr.py`: 16/16 passed
+  - `tests/test_milestone_m2_qr_guest.py`: 17/17 passed
+  - `tests/test_adversarial_p7_2_stress.py`: 9/9 passed
+  - `tests/test_p7_challenger_adversarial.py`: 7/7 passed
+  - **Tổng cộng:** 49/49 ca kiểm thử vượt qua với kết quả tuyệt đối (100% Green, EXIT CODE: 0).
+- **Chuẩn hóa định dạng mã nguồn:**
+  - 100% tệp tin tuân thủ UTF-8 không BOM.
+  - **0 CRLF** (100% chuẩn kết thúc dòng POSIX LF `\n`).
