@@ -19,6 +19,10 @@ from typing import Any
 
 import numpy as np
 
+from simulator.live.tts_rejection_vi import (
+    get_cached_speech_audio_b64,
+    get_rejection_audio_b64,
+)
 from simulator.voice.biometrics_neural import (
     compute_neural_similarity,
     extract_neural_embedding_256d,
@@ -435,6 +439,8 @@ async def process_voice_command_pipeline(
             "action": "BLOCKED_UNAUTHORIZED_VOICE",
             "reply": rejection_msg,
             "exact_spoken_reply": rejection_msg,
+            "rejection_speech": rejection_msg,
+            "pcm24k_b64": get_rejection_audio_b64("REST_STRANGER_BLOCKED"),
             "results": [],
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 3),
@@ -478,6 +484,7 @@ async def process_voice_command_pipeline(
             "action": action_no_dev,
             "reply": msg,
             "exact_spoken_reply": msg,
+            "pcm24k_b64": get_cached_speech_audio_b64(msg),
             "results": [],
             "device_states": {k: v.get("state") for k, v in engine.devices.items()},
             "f0_hz": round(f0_hz, 1),
@@ -527,6 +534,11 @@ async def process_voice_command_pipeline(
     final_reply = " ".join(spoken_replies).strip() or f"Đã xử lý khẩu lệnh: {recognized_text}"
     action_str = "; ".join(action_summaries)
     latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+    if any_blocked:
+        rbac_code = "TIER2_PERMISSION_DENIED" if tier == 2 else "TIER3_PERMISSION_DENIED"
+        spoken_b64 = get_rejection_audio_b64(rbac_code)
+    else:
+        spoken_b64 = get_cached_speech_audio_b64(final_reply)
 
     return {
         "ok": all_ok,
@@ -547,6 +559,7 @@ async def process_voice_command_pipeline(
         "action": action_str,
         "reply": final_reply,
         "exact_spoken_reply": final_reply,
+        "pcm24k_b64": spoken_b64,
         "results": device_results,
         "device_states": {k: v.get("state") for k, v in engine.devices.items()},
         "f0_hz": round(f0_hz, 1),

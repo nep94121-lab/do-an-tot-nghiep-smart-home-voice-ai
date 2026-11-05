@@ -25,6 +25,23 @@ from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
 
+VOICE_SAMPLES_META: dict[str, str] = {
+    "giong_1_chu_nha_mo_cua": "✅ Giọng Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - Toàn quyền): Mở cửa chính",
+    "giong_cap2_thanh_vien_a": "👨‍👩‍👧 Giọng Cấp 2 (Thành viên A - Chặn Cửa D1 & Còi D8): Mở cửa chính",
+    "giong_cap3_khach_c": "🧒 Giọng Cấp 3 (Khách C - Chỉ bật Đèn/Quạt, Chặn Cửa/Còi/ĐH/Bơm): Mở cửa chính",
+    "giong_1_kem_tieng_on_quat": "🌀 Giọng Cấp 1 + Ồn Quạt (-24dB ➡️ Lọc Tầng 2): Mở cửa chính",
+    "hai_nguoi_cung_noi_cap1_va_nguoi_la": "👥 2 Người Cùng Nói (Chủ nhà C1 + Người lạ ➡️ Ưu tiên C1): Mở cửa chính",
+    "giong_2_nguoi_la_mo_cua": "🚫 Giọng Người lạ (Không phép - Chặn 2 lần ➡️ Im lặng): Mở cửa chính",
+    "mo_cua_chinh": "Mở cửa chính",
+    "bat_den_phong_khach": "Bật đèn phòng khách",
+    "tat_quat": "Tắt quạt",
+    "bat_quat_va_dieu_hoa": "Bật quạt trần và bật điều hòa giúp tôi",
+    "hen_gio_5s_tat_den": "Năm giây nữa tắt đèn phòng khách nhé",
+    "day_lenh_di_ngu": "Từ giờ khi tôi nói chế độ đi ngủ thì tắt đèn phòng khách và đóng cửa chính nhé",
+    "kich_hoat_di_ngu": "Chế độ đi ngủ",
+    "reset_he_thong": "Reset hệ thống về mặc định",
+}
+
 from simulator.api.deps import (
     AUDIO_DIR,
     _ACTIVE_BRIDGES,
@@ -65,23 +82,6 @@ CHUNK_SAMPLES = 16000 * CHUNK_MS // 1000  # 320 mẫu
 SILENCE = b"\x00\x00" * CHUNK_SAMPLES
 
 KEY = load_key()
-
-VOICE_SAMPLES_META: dict[str, str] = {
-    "giong_1_chu_nha_mo_cua": "✅ Giọng Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - Toàn quyền): Mở cửa chính",
-    "giong_cap2_thanh_vien_a": "👨‍👩‍👧 Giọng Cấp 2 (Thành viên A - Chặn Cửa D1 & Còi D8): Mở cửa chính",
-    "giong_cap3_khach_c": "🧒 Giọng Cấp 3 (Khách C - Chỉ bật Đèn/Quạt, Chặn Cửa/Còi/ĐH/Bơm): Mở cửa chính",
-    "giong_1_kem_tieng_on_quat": "🌀 Giọng Cấp 1 + Ồn Quạt (-24dB ➡️ Lọc Tầng 2): Mở cửa chính",
-    "hai_nguoi_cung_noi_cap1_va_nguoi_la": "👥 2 Người Cùng Nói (Chủ nhà C1 + Người lạ ➡️ Ưu tiên C1): Mở cửa chính",
-    "giong_2_nguoi_la_mo_cua": "🚫 Giọng Người lạ (Không phép - Chặn 2 lần ➡️ Im lặng): Mở cửa chính",
-    "mo_cua_chinh": "Mở cửa chính",
-    "bat_den_phong_khach": "Bật đèn phòng khách",
-    "tat_quat": "Tắt quạt",
-    "bat_quat_va_dieu_hoa": "Bật quạt trần và bật điều hòa giúp tôi",
-    "hen_gio_5s_tat_den": "Năm giây nữa tắt đèn phòng khách nhé",
-    "day_lenh_di_ngu": "Từ giờ khi tôi nói chế độ đi ngủ thì tắt đèn phòng khách và đóng cửa chính nhé",
-    "kich_hoat_di_ngu": "Chế độ đi ngủ",
-    "reset_he_thong": "Reset hệ thống về mặc định",
-}
 
 
 def _sanitize_vietnamese_input_transcript(raw_text: str, tools_called: list[str] | None = None) -> str:
@@ -172,7 +172,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.last_mic_turn_blocked: bool = False
         self.last_mic_turn_silent_ignore: bool = False
         self.vad_stream_filter = VietnameseVADStreamFilter(sample_rate=16000)
-        self.client = genai.Client(api_key=KEY)
+        self.client = genai.Client(api_key=KEY or "TEST_DUMMY_GEMINI_KEY")
         self.gemini_session: Any = None
         self.speech_end_ts: float | None = None
         self.turn_first_tool_ts: float | None = None
@@ -437,6 +437,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         auth_res = await self._apply_voice_tier_and_sync(auth_res, sample_id="live_mic", label="Giọng nói trực tiếp qua Mic")
 
         if not auth_res["authorized"]:
+            self.last_mic_turn_blocked = True
             strike = auth_res["strike_count"]
             if auth_res["silent_ignore"]:
                 await self.send_ws_json({
@@ -646,6 +647,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 "analysis": auth_off,
             })
             if not auth_off["authorized"] or int(auth_off.get("tier", 1)) >= 3:
+                self.last_mic_turn_blocked = True
                 rej_off = (
                     f"🚫 [CHẶN GIỌNG LẠ OFFLINE - TINY-DSP {auth_off.get('stage1_ms', 16)}ms]: "
                     f"Khi ngắt Server, mạch ESP8266 chỉ nhận giọng Tầng 1 (Chủ nhà) & Tầng 2 (Gia đình) đã lưu trong Flash! "
@@ -690,6 +692,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         auth_res = await self._apply_voice_tier_and_sync(auth_res, sample_id=sample_id, label=label)
 
         if not auth_res["authorized"]:
+            self.last_mic_turn_blocked = True
             strike = auth_res["strike_count"]
             if auth_res["silent_ignore"]:
                 await self.send_ws_json({
@@ -715,24 +718,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 "rejection_speech": rej_text,
                 "pcm24k_b64": get_rejection_audio_b64(reason_code),
             })
-            if self.gemini_session is not None:
-                await self.gemini_session.send_client_content(
-                    turns=[
-                        types.Content(
-                            role="user",
-                            parts=[
-                                types.Part(
-                                    text=(
-                                        f"[HỆ THỐNG CHẶN GIỌNG NÓI LẠ - LẦN {strike}]: "
-                                        f"TUYỆT ĐỐI KHÔNG gọi bất kỳ tool nào. "
-                                        f"Chỉ đọc nguyên văn câu này: '{rej_text}'"
-                                    )
-                                )
-                            ],
-                        )
-                    ],
-                    turn_complete=True,
-                )
             return
 
         step = CHUNK_SAMPLES * 2

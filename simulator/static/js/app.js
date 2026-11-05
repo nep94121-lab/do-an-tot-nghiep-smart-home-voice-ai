@@ -294,6 +294,21 @@
     }
   }
 
+  function speakVietnameseFallback(text) {
+    if (chkPlayAiVoice && chkPlayAiVoice.checked === false) return;
+    const cleanText = String(text || "").trim();
+    if (!cleanText) return;
+    try {
+      if (typeof window !== "undefined" && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function") {
+        window.speechSynthesis.cancel();
+        const utt = new window.SpeechSynthesisUtterance(cleanText);
+        utt.lang = "vi-VN";
+        utt.rate = 1.0;
+        window.speechSynthesis.speak(utt);
+      }
+    } catch (_) {}
+  }
+
   function updateDeviceCardUI(devId, dev, isOn) {
     const card = document.getElementById(`dev-card-${devId}`);
     if (!card) return;
@@ -751,8 +766,25 @@
       if (data.recognized_text) {
         setUserTranscriptText(data.recognized_text);
       }
-      if (data.exact_spoken_reply || data.reply) {
-        setAiReplyText(data.exact_spoken_reply || data.reply);
+      const spokenReply = data.exact_spoken_reply || data.reply || data.rejection_speech || "";
+      if (spokenReply) {
+        setAiReplyText(spokenReply);
+      }
+      if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
+        if (data.pcm24k_b64) {
+          playPcm24kChunk(data.pcm24k_b64);
+        } else if (spokenReply) {
+          if (typeof window !== "undefined" && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function") {
+            try {
+              window.speechSynthesis.cancel();
+              const utt = new window.SpeechSynthesisUtterance(spokenReply);
+              utt.lang = "vi-VN";
+              window.speechSynthesis.speak(utt);
+            } catch (_) {}
+          } else {
+            speakVietnameseFallback(spokenReply);
+          }
+        }
       }
       if (data.snapshot) {
         applySnapshot(data.snapshot);
@@ -1044,9 +1076,11 @@
           if (msg.strike_count && msg.strike_count >= 3) {
             triggerSecurityLockdown();
           }
-          // Server-Side Rejection TTS 24kHz: phát âm thanh server qua Web Audio API (không dùng speechSynthesis)
+          // Server-Side Rejection TTS 24kHz: phát âm thanh server qua Web Audio API (fallback speechSynthesis vi-VN)
           if (msg.pcm24k_b64) {
             playPcm24kChunk(msg.pcm24k_b64);
+          } else {
+            speakVietnameseFallback(rejSpeech);
           }
           break;
         }

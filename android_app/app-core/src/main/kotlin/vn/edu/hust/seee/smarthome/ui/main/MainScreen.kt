@@ -6,8 +6,11 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +19,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Base64
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -287,10 +291,133 @@ fun MainScreen(
     }
   }
 
-  fun speakOutLoud(text: String) {
-    if (ttsEnabled && text.isNotBlank()) {
-      textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "smarthome_tts_${System.currentTimeMillis()}")
+  fun resolveBundledViTtsAsset(text: String): String {
+    val t = text.lowercase(Locale.getDefault())
+    return when {
+      t.contains("lần nữa") || t.contains("không trả lời bạn") -> "stranger_blocked_2.mp3"
+      t.contains("không có quyền điều khiển ngôi nhà") -> "rest_stranger_blocked.mp3"
+      t.contains("người lạ") || t.contains("chưa có quyền") -> "stranger_blocked.mp3"
+      t.contains("trùng giọng") -> "duplicate_voice.mp3"
+      t.contains("hết hạn") -> "voice_expired.mp3"
+      t.contains("quá nhanh") -> "rate_limited.mp3"
+      t.contains("đèn và quạt") -> "tier3_permission_denied.mp3"
+      t.contains("chỉ chủ nhà") -> "tier2_permission_denied.mp3"
+      t.contains("tiếng ồn") -> "vad_noise_blocked.mp3"
+      t.contains("khẩu lệnh tiếng việt") -> "vad_blocked.mp3"
+      t.contains("cửa") && (t.contains("mở") || t.contains("bật")) -> "open_main_door.mp3"
+      t.contains("cửa") && (t.contains("đóng") || t.contains("tắt") || t.contains("khóa")) -> "close_main_door.mp3"
+      t.contains("đèn phòng khách") && t.contains("tắt") -> "turn_off_living_room_light.mp3"
+      t.contains("đèn phòng khách") -> "turn_on_living_room_light.mp3"
+      t.contains("đèn phòng ngủ") && t.contains("tắt") -> "turn_off_bedroom_light.mp3"
+      t.contains("đèn phòng ngủ") -> "turn_on_bedroom_light.mp3"
+      t.contains("quạt") && t.contains("tắt") -> "turn_off_fan.mp3"
+      t.contains("quạt") -> "turn_on_fan.mp3"
+      t.contains("điều hòa") && t.contains("tắt") -> "turn_off_ac.mp3"
+      t.contains("điều hòa") -> "turn_on_ac.mp3"
+      else -> "stranger_blocked.mp3"
     }
+  }
+
+  fun playBundledViTtsAsset(text: String) {
+    val assetName = resolveBundledViTtsAsset(text)
+    scope.launch(Dispatchers.IO) {
+      try {
+        context.assets.openFd("tts_vi/$assetName").use { afd ->
+          val mp = MediaPlayer()
+          mp.setAudioAttributes(
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+              .build()
+          )
+          mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+          mp.setOnCompletionListener { player ->
+            try { player.release() } catch (_: Exception) {}
+          }
+          mp.prepare()
+          mp.start()
+          Log.i("SmartHomeTTS", "MediaPlayer played bundled VI TTS ($assetName): $text")
+        }
+      } catch (e: Exception) {
+        Log.w("SmartHomeTTS", "MediaPlayer asset playback failed ($assetName): ${e.message}")
+      }
+    }
+  }
+
+  fun playPcm24kBase64(pcm24kB64: String, text: String) {
+    scope.launch(Dispatchers.IO) {
+      try {
+        val pcmBytes = Base64.decode(pcm24kB64, Base64.DEFAULT)
+        if (pcmBytes.isEmpty()) {
+          playBundledViTtsAsset(text)
+          return@launch
+        }
+        val minBuf = AudioTrack.getMinBufferSize(
+          24000,
+          AudioFormat.CHANNEL_OUT_MONO,
+          AudioFormat.ENCODING_PCM_16BIT,
+        ).coerceAtLeast(4800)
+        val track = AudioTrack.Builder()
+          .setAudioAttributes(
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+              .build()
+          )
+          .setAudioFormat(
+            AudioFormat.Builder()
+              .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+              .setSampleRate(24000)
+              .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+              .build()
+          )
+          .setBufferSizeInBytes(maxOf(minBuf, pcmBytes.size))
+          .setTransferMode(AudioTrack.MODE_STATIC)
+          .build()
+        track.write(pcmBytes, 0, pcmBytes.size)
+        track.play()
+        Log.i("SmartHomeTTS", "AudioTrack played pcm24k_b64 (${pcmBytes.size} bytes): $text")
+        val durationMs = (pcmBytes.size.toLong() * 1000L / 48000L).coerceIn(300L, 12000L)
+        delay(durationMs + 250L)
+        try {
+          track.stop()
+          track.release()
+        } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("SmartHomeTTS", "AudioTrack pcm24k playback failed: ${e.message}")
+        playBundledViTtsAsset(text)
+      }
+    }
+  }
+
+  fun speakOutLoud(text: String, pcm24kB64: String = "") {
+    if (!ttsEnabled || (text.isBlank() && pcm24kB64.isBlank())) return
+    if (pcm24kB64.isNotBlank()) {
+      playPcm24kBase64(pcm24kB64, text)
+      return
+    }
+    val ttsRes = textToSpeech?.speak(
+      text,
+      TextToSpeech.QUEUE_FLUSH,
+      null,
+      "smarthome_tts_${System.currentTimeMillis()}",
+    ) ?: TextToSpeech.ERROR
+    if (ttsRes != TextToSpeech.SUCCESS) {
+      playBundledViTtsAsset(text)
+    } else {
+      Log.i("SmartHomeTTS", "TextToSpeech engine spoke: $text")
+    }
+  }
+
+  fun extractServerSpokenReply(res: JSONObject?): String {
+    if (res == null) return ""
+    val rej = res.optString("rejection_speech", "").trim()
+    if (rej.isNotEmpty()) return rej
+    val exact = res.optString("exact_spoken_reply", "").trim()
+    if (exact.isNotEmpty()) return exact
+    val rep = res.optString("reply", "").trim()
+    if (rep.isNotEmpty()) return rep
+    return ""
   }
 
   fun addHistoryLog(entry: String) {
@@ -566,14 +693,25 @@ fun MainScreen(
         hasRecordedAuthSample = true
         if (resStr != null) {
           val res = JSONObject(resStr)
+          val serverSpeech = extractServerSpokenReply(res)
+          val serverPcmB64 = res.optString("pcm24k_b64", "")
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 3)
             authStatusColor = accentGreen
-            authStatusMessage = "Đã lưu giọng nói thành công!"
+            authStatusMessage = serverSpeech.ifBlank { "Đã lưu giọng nói thành công!" }
             addHistoryLog("Lớp 3: Vân giọng đã được xác thực.")
+            if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
+              speakerReply = serverSpeech
+              speakOutLoud(serverSpeech, serverPcmB64)
+            }
           } else {
             authStatusColor = accentRed
-            authStatusMessage = res.optString("message", "Giọng nói chưa đạt chuẩn. Hãy thử lại!")
+            val rejSpeech = serverSpeech.ifBlank {
+              res.optString("message", "Giọng nói chưa đạt chuẩn. Hãy thử lại!")
+            }
+            authStatusMessage = rejSpeech
+            speakerReply = rejSpeech
+            speakOutLoud(rejSpeech, serverPcmB64)
           }
         } else {
           authStepDone = maxOf(authStepDone, 3)
@@ -639,6 +777,13 @@ fun MainScreen(
     val isTurnOn = lower.contains("bật") || lower.contains("mở") || lower.contains("khởi động")
     val isTurnOff = lower.contains("tắt") || lower.contains("đóng") || lower.contains("ngắt")
 
+    if (selectedTier >= 99) {
+      val rejReply = "Tôi không được phép nhận lệnh từ người lạ."
+      speakerReply = rejReply
+      speakOutLoud(rejReply)
+      return
+    }
+
     if (targetDevice != null) {
       if (targetDevice.tier1Only && selectedTier != 1) {
         val reply = "Chỉ chủ nhà mới được điều khiển ${targetDevice.name}."
@@ -646,7 +791,8 @@ fun MainScreen(
         speakOutLoud(reply)
         return
       }
-      val newState = if (isTurnOn) true else if (isTurnOff) false else !(deviceStates[targetDevice.serverId] ?: false)
+      val prevState = deviceStates[targetDevice.serverId] ?: false
+      val newState = if (isTurnOn) true else if (isTurnOff) false else !prevState
       deviceStates[targetDevice.serverId] = newState
       val actionWord = if (targetDevice.serverId == "main_door") {
         if (newState) "mở" else "khóa"
@@ -666,12 +812,54 @@ fun MainScreen(
           put("tier", selectedTier)
           put("session_token", activeSessionToken)
         }.toString()
-        callServerHttp("/api/device", "POST", payload)
+        val resStr = callServerHttp("/api/device", "POST", payload)
+        if (resStr != null) {
+          withContext(Dispatchers.Main) {
+            try {
+              val res = JSONObject(resStr)
+              val serverSpeech = extractServerSpokenReply(res)
+              val serverPcmB64 = res.optString("pcm24k_b64", "")
+              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+                deviceStates[targetDevice.serverId] = prevState
+                val rejSpeech = serverSpeech.ifBlank {
+                  res.optString("error", "Tôi không được phép nhận lệnh từ người lạ.")
+                }
+                speakerReply = rejSpeech
+                speakOutLoud(rejSpeech, serverPcmB64)
+              } else if (serverSpeech.isNotBlank() && serverSpeech != speakerReply) {
+                speakerReply = serverSpeech
+                speakOutLoud(serverSpeech, serverPcmB64)
+              }
+            } catch (_: Exception) {}
+          }
+        }
       }
     } else {
       val reply = "Đã nhận lệnh: “$cleanCmd”."
       speakerReply = reply
       speakOutLoud(reply)
+      scope.launch(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+          put("text", cleanCmd)
+          put("user_name", activeSpeakerName)
+          put("tier", selectedTier)
+          put("session_token", activeSessionToken)
+        }.toString()
+        val resStr = callServerHttp("/api/text_command", "POST", payload)
+        if (resStr != null) {
+          withContext(Dispatchers.Main) {
+            try {
+              val res = JSONObject(resStr)
+              val serverSpeech = extractServerSpokenReply(res)
+              val serverPcmB64 = res.optString("pcm24k_b64", "")
+              if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
+                speakerReply = serverSpeech.ifBlank { speakerReply }
+                speakOutLoud(speakerReply, serverPcmB64)
+              }
+            } catch (_: Exception) {}
+          }
+        }
+      }
     }
   }
 
@@ -869,6 +1057,7 @@ fun MainScreen(
                 speakerReply = denyMsg
                 speakOutLoud(denyMsg)
               } else {
+                val prevVal = deviceStates[dev.serverId] ?: false
                 deviceStates[dev.serverId] = newValue
                 val actWord = if (dev.serverId == "main_door") {
                   if (newValue) "open" else "close"
@@ -884,7 +1073,27 @@ fun MainScreen(
                     put("tier", selectedTier)
                     put("session_token", activeSessionToken)
                   }.toString()
-                  callServerHttp("/api/device", "POST", payload)
+                  val resStr = callServerHttp("/api/device", "POST", payload)
+                  if (resStr != null) {
+                    withContext(Dispatchers.Main) {
+                      try {
+                        val res = JSONObject(resStr)
+                        val serverSpeech = extractServerSpokenReply(res)
+                        val serverPcmB64 = res.optString("pcm24k_b64", "")
+                        if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+                          deviceStates[dev.serverId] = prevVal
+                          val rejSpeech = serverSpeech.ifBlank {
+                            res.optString("error", "Tôi không được phép nhận lệnh từ người lạ.")
+                          }
+                          speakerReply = rejSpeech
+                          speakOutLoud(rejSpeech, serverPcmB64)
+                        } else if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
+                          speakerReply = serverSpeech.ifBlank { speakerReply }
+                          speakOutLoud(speakerReply, serverPcmB64)
+                        }
+                      } catch (_: Exception) {}
+                    }
+                  }
                 }
               }
             },

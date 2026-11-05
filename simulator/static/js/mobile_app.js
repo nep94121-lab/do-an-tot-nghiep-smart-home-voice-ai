@@ -1520,6 +1520,56 @@
       return window.btoa(binary);
     }
 
+    let mobileOutAudioCtx = null;
+    let mobileNextPlayTime = 0;
+
+    function playMobilePcm24kOrSpeakVi(pcm24kB64, fallbackText) {
+      if (pcm24kB64) {
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            if (!mobileOutAudioCtx) {
+              mobileOutAudioCtx = new AudioCtx({ sampleRate: 24000 });
+            }
+            if (mobileOutAudioCtx.state === 'suspended') {
+              mobileOutAudioCtx.resume();
+            }
+            const binaryStr = window.atob(pcm24kB64);
+            const len = binaryStr.length;
+            const int16Arr = new Int16Array(len / 2);
+            for (let i = 0; i < len; i += 2) {
+              int16Arr[i / 2] = binaryStr.charCodeAt(i) | (binaryStr.charCodeAt(i + 1) << 8);
+            }
+            const float32Arr = new Float32Array(int16Arr.length);
+            for (let i = 0; i < int16Arr.length; i++) {
+              float32Arr[i] = int16Arr[i] / 32768.0;
+            }
+            const audioBuffer = mobileOutAudioCtx.createBuffer(1, float32Arr.length, 24000);
+            audioBuffer.getChannelData(0).set(float32Arr);
+            const source = mobileOutAudioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(mobileOutAudioCtx.destination);
+            const now = mobileOutAudioCtx.currentTime;
+            if (mobileNextPlayTime < now) {
+              mobileNextPlayTime = now + 0.02;
+            }
+            source.start(mobileNextPlayTime);
+            mobileNextPlayTime += audioBuffer.duration;
+            return;
+          }
+        } catch (_) {}
+      }
+      const cleanTxt = String(fallbackText || '').trim();
+      if (cleanTxt && typeof window !== 'undefined' && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function') {
+        try {
+          window.speechSynthesis.cancel();
+          const utt = new window.SpeechSynthesisUtterance(cleanTxt);
+          utt.lang = 'vi-VN';
+          window.speechSynthesis.speak(utt);
+        } catch (_) {}
+      }
+    }
+
     async function executeMobileVoiceCommandHttp(payload) {
       const badge = document.getElementById('voiceStateBadge');
       if (badge) badge.textContent = 'Đang xử lý';
@@ -1544,8 +1594,9 @@
       if (!res) throw lastFetchErr || new Error('fetch_failed');
         const data = await res.json();
         const saidText = data.recognized_text || (payload && payload.transcript) || 'Khẩu lệnh giọng nói';
-        const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
+        const replyText = data.exact_spoken_reply || data.reply || data.rejection_speech || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(saidText, replyText);
+        playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
         if (badge) badge.textContent = data.ok === false ? 'Cần thử lại' : 'Sẵn sàng';
         addLog(saidText, 'voice', data.ok === false ? 'Thất bại' : 'Thành công');
         if (data.snapshot) {
@@ -1981,6 +2032,16 @@
           showPwaVoiceResults(null, msg.full_text);
           const badge = document.getElementById('voiceStateBadge');
           if (badge) badge.textContent = 'Sẵn sàng';
+        }
+        if (msg.type === 'audio_chunk' && msg.pcm24k_b64) {
+          playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, '');
+        }
+        if (msg.type === 'voice_auth_rejected') {
+          const rejText = msg.rejection_speech || 'Tôi không được phép nhận lệnh từ người lạ.';
+          showPwaVoiceResults(msg.label || null, rejText);
+          playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, rejText);
+          const badge = document.getElementById('voiceStateBadge');
+          if (badge) badge.textContent = 'Cần thử lại';
         }
       };
       ws.onclose = () => {
