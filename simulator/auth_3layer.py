@@ -37,12 +37,40 @@ from __future__ import annotations
 import base64
 import json
 import math
+import os
+from pathlib import Path
 import random
 import re
 import struct
 import threading
 import time
 from typing import Any
+
+_ACCOUNTS_FILE_LOCK = threading.RLock()
+_GLOBAL_OTP_LOCK = threading.RLock()
+
+
+def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
+    target_path = Path(target_file) if not isinstance(target_file, Path) else target_file
+    tmp_path = target_path.with_suffix(f".tmp.{os.getpid()}_{threading.get_ident()}_{time.time_ns()}")
+    for attempt in range(5):
+        try:
+            tmp_path.write_bytes(payload_bytes)
+            os.replace(tmp_path, target_path)
+            return
+        except OSError:
+            time.sleep(0.01 * (attempt + 1))
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+    try:
+        target_path.write_bytes(payload_bytes)
+    except Exception:
+        pass
+
 
 from simulator.auth import (
     ACCOUNTS_FILE,
@@ -66,6 +94,41 @@ from simulator.auth import (
 )
 
 
+def is_test_otp_fields_allowed(app: Any = None) -> bool:
+    """Kiểm tra cờ kiểm thử server-side cho các trường OTP nhạy cảm.
+
+    Quy tắc bảo mật:
+    1. Vô điều kiện ép TẮT (False) nếu VERCEL env được thiết lập (ngăn rò rỉ trên Vercel).
+    2. Cho phép (True) nếu biến môi trường PYTEST == '1' hoặc app.testing là True.
+    3. Mặc định là TẮT (False) trên môi trường production.
+    """
+    if os.getenv("VERCEL"):
+        return False
+    if os.getenv("PYTEST") == "1" or getattr(app, "testing", False) is True:
+        return True
+    return False
+
+
+class PendingOtpsStore(dict):
+    """Lưu trữ pending OTPs có đồng bộ hóa với bản ghi accounts để hỗ trợ kiểm thử và serverless."""
+
+    def __init__(self, auth_mgr: Any = None, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._auth_mgr = auth_mgr
+
+    def clear(self) -> None:
+        super().clear()
+        if self._auth_mgr and hasattr(self._auth_mgr, "accounts"):
+            with _ACCOUNTS_FILE_LOCK:
+                for acc in getattr(self._auth_mgr, "accounts", []):
+                    acc.pop("pending_otp", None)
+                    acc.pop("otp_cooldown_started_at", None)
+                    acc.pop("otp_failed_verify_attempts", None)
+                if hasattr(self._auth_mgr, "otp_failed_attempts"):
+                    self._auth_mgr.otp_failed_attempts.clear()
+                self._auth_mgr._save_accounts()
+
+
 class ThreeLayerAuthManager(
     AuthInviteGmailMixin,
     AuthQrTotpMixin,
@@ -77,12 +140,13 @@ class ThreeLayerAuthManager(
         self.accounts: list[dict[str, Any]] = []
         self.family_email_allowlist: dict[str, dict[str, Any]] = {}
         self.invite_links: dict[str, dict[str, Any]] = {}
-        self.pending_otps: dict[str, dict[str, Any]] = {}
+        self.pending_otps: dict[str, dict[str, Any]] = PendingOtpsStore(auth_mgr=self)
+        self.otp_failed_attempts: dict[str, list[float]] = {}
         self.pending_invite_registrations: dict[str, dict[str, Any]] = {}
         self.sessions: dict[str, dict[str, Any]] = {}
         self.verification_logs: list[dict[str, Any]] = []
         self.latest_test_report: dict[str, Any] = {}
-        self._otp_lock = threading.Lock()
+        self._otp_lock = _GLOBAL_OTP_LOCK
         self._load_state()
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
@@ -122,91 +186,104 @@ class ThreeLayerAuthManager(
 
     def reset_to_factory_defaults(self) -> dict[str, Any]:
         """Khôi phục danh sách 4 tài khoản gốc chuẩn của nhà thông minh và bảo toàn quyền Cấp 1 của Nguyễn Tuấn Anh."""
-        self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
-        self._save_accounts()
-        self.family_email_allowlist = {}
-        self._save_family_allowlist()
-        return {"ok": True, "accounts": self.accounts}
-
-    def _load_state(self) -> None:
-        if ACCOUNTS_FILE.exists():
-            try:
-                data = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
-                if isinstance(data, list) and data:
-                    self.accounts = [self._normalize_account_fields(a) for a in data]
-                else:
-                    self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
-            except Exception:
-                self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
-        else:
+        with _ACCOUNTS_FILE_LOCK:
             self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
-
-        existing_ids = {str(a.get("account_id", "")).lower() for a in self.accounts}
-        for def_acc in json.loads(json.dumps(DEFAULT_ACCOUNTS)):
-            if str(def_acc.get("account_id", "")).lower() not in existing_ids:
-                self.accounts.append(self._normalize_account_fields(def_acc))
-        self._save_accounts()
-
-        if FAMILY_ALLOWLIST_FILE.exists():
-            try:
-                fa = json.loads(FAMILY_ALLOWLIST_FILE.read_text(encoding="utf-8"))
-                if isinstance(fa, dict):
-                    self.family_email_allowlist = fa
-                elif isinstance(fa, list):
-                    self.family_email_allowlist = {str(item.get("email", "")).lower(): item for item in fa if item.get("email")}
-            except Exception:
-                self.family_email_allowlist = {}
-        else:
+            self._save_accounts()
             self.family_email_allowlist = {}
             self._save_family_allowlist()
+            return {"ok": True, "accounts": self.accounts}
 
-        if INVITE_LINKS_FILE.exists():
-            try:
-                inv = json.loads(INVITE_LINKS_FILE.read_text(encoding="utf-8"))
-                if isinstance(inv, dict) and inv:
-                    self.invite_links = inv
-                else:
+    def _load_state(self) -> None:
+        with _ACCOUNTS_FILE_LOCK:
+            if ACCOUNTS_FILE.exists():
+                try:
+                    data = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
+                    if isinstance(data, list) and data:
+                        self.accounts = [self._normalize_account_fields(a) for a in data]
+                    else:
+                        self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
+                except Exception:
+                    self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
+            else:
+                self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
+
+            existing_ids = {str(a.get("account_id", "")).lower() for a in self.accounts}
+            missing_defaults = False
+            for def_acc in json.loads(json.dumps(DEFAULT_ACCOUNTS)):
+                if str(def_acc.get("account_id", "")).lower() not in existing_ids:
+                    self.accounts.append(self._normalize_account_fields(def_acc))
+                    missing_defaults = True
+            if missing_defaults:
+                self._save_accounts()
+
+            if FAMILY_ALLOWLIST_FILE.exists():
+                try:
+                    fa = json.loads(FAMILY_ALLOWLIST_FILE.read_text(encoding="utf-8"))
+                    if isinstance(fa, dict):
+                        self.family_email_allowlist = fa
+                    elif isinstance(fa, list):
+                        self.family_email_allowlist = {str(item.get("email", "")).lower(): item for item in fa if item.get("email")}
+                except Exception:
+                    self.family_email_allowlist = {}
+            else:
+                self.family_email_allowlist = {}
+                self._save_family_allowlist()
+
+            if INVITE_LINKS_FILE.exists():
+                try:
+                    inv = json.loads(INVITE_LINKS_FILE.read_text(encoding="utf-8"))
+                    if isinstance(inv, dict) and inv:
+                        self.invite_links = inv
+                    else:
+                        self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
+                except Exception:
                     self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
-            except Exception:
+            else:
                 self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
-        else:
-            self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
-            self._save_invite_links()
+                self._save_invite_links()
 
-        if AUTH_EVENTS_FILE.exists():
-            try:
-                ev = json.loads(AUTH_EVENTS_FILE.read_text(encoding="utf-8"))
-                if isinstance(ev, list):
-                    self.verification_logs = ev[:100]
-            except Exception:
-                self.verification_logs = []
+            if AUTH_EVENTS_FILE.exists():
+                try:
+                    ev = json.loads(AUTH_EVENTS_FILE.read_text(encoding="utf-8"))
+                    if isinstance(ev, list):
+                        self.verification_logs = ev[:100]
+                except Exception:
+                    self.verification_logs = []
+
+            now = time.time()
+            for acc in self.accounts:
+                email_key = str(acc.get("email", "")).strip().lower()
+                if not email_key:
+                    continue
+                p_otp = acc.get("pending_otp")
+                if p_otp and isinstance(p_otp, dict):
+                    if now < p_otp.get("expires_at", 0) or (now - p_otp.get("created_at", 0) < 60.0):
+                        self.pending_otps[email_key] = p_otp
+                    else:
+                        acc.pop("pending_otp", None)
+                failed = acc.get("otp_failed_verify_attempts")
+                if isinstance(failed, list):
+                    recent = [float(t) for t in failed if (now - float(t)) < 300.0]
+                    if recent:
+                        self.otp_failed_attempts[email_key] = recent
+                        acc["otp_failed_verify_attempts"] = recent
+                    else:
+                        acc.pop("otp_failed_verify_attempts", None)
 
     def _save_accounts(self) -> None:
-        payload = json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n"
-        for _ in range(3):
-            try:
-                ACCOUNTS_FILE.write_bytes(payload.encode("utf-8"))
-                return
-            except OSError:
-                time.sleep(0.01)
+        payload = (json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        with _ACCOUNTS_FILE_LOCK:
+            _atomic_write_file(ACCOUNTS_FILE, payload)
 
     def _save_family_allowlist(self) -> None:
-        payload = json.dumps(self.family_email_allowlist, ensure_ascii=False, indent=2) + "\n"
-        for _ in range(3):
-            try:
-                FAMILY_ALLOWLIST_FILE.write_bytes(payload.encode("utf-8"))
-                return
-            except OSError:
-                time.sleep(0.01)
+        payload = (json.dumps(self.family_email_allowlist, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        with _ACCOUNTS_FILE_LOCK:
+            _atomic_write_file(FAMILY_ALLOWLIST_FILE, payload)
 
     def _save_invite_links(self) -> None:
-        payload = json.dumps(self.invite_links, ensure_ascii=False, indent=2) + "\n"
-        for _ in range(3):
-            try:
-                INVITE_LINKS_FILE.write_bytes(payload.encode("utf-8"))
-                return
-            except OSError:
-                time.sleep(0.01)
+        payload = (json.dumps(self.invite_links, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        with _ACCOUNTS_FILE_LOCK:
+            _atomic_write_file(INVITE_LINKS_FILE, payload)
 
     def _log_event(
         self,
@@ -232,8 +309,9 @@ class ThreeLayerAuthManager(
         self.verification_logs.insert(0, item)
         self.verification_logs = self.verification_logs[:120]
         try:
-            payload = json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n"
-            AUTH_EVENTS_FILE.write_bytes(payload.encode("utf-8"))
+            payload = (json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            with _ACCOUNTS_FILE_LOCK:
+                _atomic_write_file(AUTH_EVENTS_FILE, payload)
         except Exception:
             pass
         return item
@@ -549,6 +627,7 @@ class ThreeLayerAuthManager(
         email: str,
         send_gmail: bool = True,
         source: str = "Web Quên Mật Khẩu",
+        app: Any = None,
     ) -> dict[str, Any]:
         """Gửi mã OTP 6 số qua Gmail khi người dùng bấm 'Quên mật khẩu' (chống gửi lặp trong 60s)."""
         clean_email = str(email or "").strip().lower()
@@ -559,8 +638,14 @@ class ThreeLayerAuthManager(
         now = time.time()
         with self._otp_lock:
             existing = self.pending_otps.get(clean_email)
+            if not existing and acc.get("pending_otp"):
+                candidate = acc.get("pending_otp")
+                if candidate and (now < candidate.get("expires_at", 0) or (now - candidate.get("created_at", 0) < 60.0)):
+                    existing = candidate
+                    self.pending_otps[clean_email] = candidate
+
             if existing and existing.get("otp_code") and not existing.get("consumed", False):
-                if now < existing.get("expires_at", 0):
+                if now < existing.get("expires_at", 0) or (now - existing.get("created_at", 0) < 60.0):
                     elapsed = now - existing.get("created_at", 0)
                     if elapsed < 60.0:
                         remaining_sec = max(0, int(60.0 - elapsed))
@@ -574,7 +659,7 @@ class ThreeLayerAuthManager(
                             source=source,
                             extra={"cooldown_remaining_sec": remaining_sec, "idempotent": True},
                         )
-                        return {
+                        cooldown_resp = {
                             "ok": True,
                             "idempotent": True,
                             "cooldown_active": True,
@@ -582,40 +667,17 @@ class ThreeLayerAuthManager(
                             "email": clean_email,
                             "display_name": acc.get("display_name", clean_email),
                             "message": "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau.",
-                            "otp_code_for_test": existing["otp_code"],
-                            "demo_otp_preview": existing["otp_code"],
-                            "expires_in": max(0, int(existing["expires_at"] - now)),
+                            "expires_in": max(0, int(existing.get("expires_at", now + 300) - now)),
                             "gmail_delivery": delivery_res,
                         }
+                        if is_test_otp_fields_allowed(app):
+                            cooldown_resp["otp_code_for_test"] = existing["otp_code"]
+                            cooldown_resp["demo_otp_preview"] = existing["otp_code"]
+                        return cooldown_resp
 
+            # Cooldown starts at REQUEST TIME: record OTP & cooldown immediately before SMTP
             otp_code = f"{random.randint(100000, 999999)}"
-            gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
-            if send_gmail:
-                gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
-                if not gmail_res.get("sent_real_gmail"):
-                    err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
-                    missing_sec = gmail_res.get("missing_secret")
-                    self._log_event(
-                        layer="Quên Mật Khẩu (Gmail OTP)",
-                        action="forgot_password_otp_failed",
-                        email=acc["email"],
-                        status="FAIL",
-                        detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc['email'])}): {err_msg}",
-                        source=source,
-                    )
-                    fail_resp = {
-                        "ok": False,
-                        "status_code": 503,
-                        "email": acc["email"],
-                        "display_name": acc["display_name"],
-                        "error": f"Không thể gửi email OTP: {err_msg}",
-                        "gmail_delivery": gmail_res,
-                    }
-                    if missing_sec:
-                        fail_resp["missing_secret"] = missing_sec
-                    return fail_resp
-
-            self.pending_otps[clean_email] = {
+            otp_record = {
                 "email": acc["email"],
                 "account_id": acc["account_id"],
                 "display_name": acc["display_name"],
@@ -626,28 +688,67 @@ class ThreeLayerAuthManager(
                 "verified_layer2": False,
                 "verified_layer3": False,
                 "consumed": False,
-                "gmail_delivery": gmail_res,
+                "gmail_delivery": {"sent_real_gmail": False, "pending": True},
                 "source": source,
             }
-            self._log_event(
-                layer="Quên Mật Khẩu (Gmail OTP)",
-                action="forgot_password_otp_sent",
-                email=acc["email"],
-                status="PASS",
-                detail=f"Đã gửi mã OTP đặt lại mật khẩu ({otp_code}) tới Gmail ({gmail_res.get('actual_recipient')}).",
-                source=source,
-            )
-            res_data = {
-                "ok": True,
-                "email": acc["email"],
-                "display_name": acc["display_name"],
-                "gmail_delivery": gmail_res,
-                "message": f"✅ Đã gửi mã OTP 6 số về Gmail ({gmail_res.get('actual_recipient')}) để đặt lại mật khẩu!",
-            }
-            if not send_gmail:
-                res_data["demo_otp_preview"] = otp_code
-                res_data["otp_code_for_test"] = otp_code
-            return res_data
+            self.pending_otps[clean_email] = otp_record
+            acc["pending_otp"] = otp_record
+            acc["otp_cooldown_started_at"] = now
+            self._save_accounts()
+
+        gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
+        if send_gmail:
+            gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+            with self._otp_lock:
+                otp_record["gmail_delivery"] = gmail_res
+                if acc.get("pending_otp"):
+                    acc["pending_otp"]["gmail_delivery"] = gmail_res
+                self._save_accounts()
+            if not gmail_res.get("sent_real_gmail"):
+                err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
+                missing_sec = gmail_res.get("missing_secret")
+                self._log_event(
+                    layer="Quên Mật Khẩu (Gmail OTP)",
+                    action="forgot_password_otp_failed",
+                    email=acc["email"],
+                    status="FAIL",
+                    detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc['email'])}): {err_msg}",
+                    source=source,
+                )
+                fail_resp = {
+                    "ok": False,
+                    "status_code": 503,
+                    "email": acc["email"],
+                    "display_name": acc["display_name"],
+                    "error": f"Không thể gửi email OTP: {err_msg}",
+                    "gmail_delivery": gmail_res,
+                }
+                if missing_sec:
+                    fail_resp["missing_secret"] = missing_sec
+                return fail_resp
+
+        self._log_event(
+            layer="Quên Mật Khẩu (Gmail OTP)",
+            action="forgot_password_otp_sent",
+            email=acc["email"],
+            status="PASS",
+            detail=f"Đã gửi mã OTP đặt lại mật khẩu ({otp_code}) tới Gmail ({gmail_res.get('actual_recipient')}).",
+            source=source,
+        )
+        elapsed_sec = time.time() - now
+        cooldown_rem = max(0, int(60.0 - elapsed_sec))
+        res_data = {
+            "ok": True,
+            "email": acc["email"],
+            "display_name": acc["display_name"],
+            "cooldown_remaining_seconds": cooldown_rem,
+            "gmail_delivery": gmail_res,
+            "message": f"✅ Đã gửi mã OTP 6 số về Gmail ({gmail_res.get('actual_recipient')}) để đặt lại mật khẩu!",
+        }
+        if not send_gmail and is_test_otp_fields_allowed(app):
+            res_data["demo_otp_preview"] = otp_code
+            res_data["otp_code_for_test"] = otp_code
+        return res_data
 
     def reset_password_with_otp(
         self,
@@ -659,6 +760,7 @@ class ThreeLayerAuthManager(
     ) -> dict[str, Any]:
         """Xác nhận mã OTP quên mật khẩu và đặt lại mật khẩu mới (kiểm tra 2 ô mật khẩu)."""
         clean_email = str(email or "").strip().lower()
+        acc = self.find_account(clean_email)
         pw1 = str(new_password or "").strip()
         pw2 = str(confirm_password or "").strip()
         if not pw1 or not pw2:
@@ -679,6 +781,10 @@ class ThreeLayerAuthManager(
         if res.get("ok"):
             with self._otp_lock:
                 self.pending_otps.pop(clean_email, None)
+                if acc:
+                    acc.pop("pending_otp", None)
+                    acc.pop("otp_cooldown_started_at", None)
+                    self._save_accounts()
         return res
 
     def upsert_speaker_account_for_voice(
@@ -756,48 +862,95 @@ class ThreeLayerAuthManager(
         return acc
 
     def layer2_verify_otp(self, email: str, otp_input: str, source: str = "Web") -> dict[str, Any]:
-        """Lớp 2: Xác nhận mã OTP 6 số gửi về Gmail."""
-        acc = self.find_account(email)
-        key = acc["email"].lower() if acc else email.strip().lower()
-        pending = self.pending_otps.get(key)
-        if not pending:
-            self._log_event(
-                layer="Lớp 2 (Gmail OTP)",
-                action="otp_verify",
-                email=email,
-                status="FAIL",
-                detail="Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
-                source=source,
-            )
-            return {"ok": False, "layer": 2, "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!"}
+        """Lớp 2: Xác nhận mã OTP 6 số gửi về Gmail có rate limiting tối đa 3 lần sai trong 5 phút."""
+        clean_email = str(email or "").strip().lower()
+        acc = self.find_account(clean_email)
+        key = acc["email"].lower() if acc else clean_email
+        now = time.time()
 
-        if time.time() > pending["expires_at"]:
-            self._log_event(
-                layer="Lớp 2 (Gmail OTP)",
-                action="otp_verify",
-                email=email,
-                status="FAIL",
-                detail="Mã OTP đã hết hạn (> 5 phút).",
-                source=source,
-            )
-            return {"ok": False, "layer": 2, "error": "Mã OTP đã hết hạn!"}
+        with self._otp_lock:
+            # 1. Atomic Rate limit check
+            raw_fails = self.otp_failed_attempts.get(key, [])
+            if not raw_fails and acc and "otp_failed_verify_attempts" in acc:
+                raw_fails = acc["otp_failed_verify_attempts"]
+            recent_fails = [float(t) for t in raw_fails if (now - float(t)) < 300.0]
 
-        if otp_input.strip() != pending["otp_code"]:
-            self._log_event(
-                layer="Lớp 2 (Gmail OTP)",
-                action="otp_verify",
-                email=pending["email"],
-                status="FAIL",
-                detail=f"Nhập sai mã OTP: nhập '{otp_input.strip()}' không chính xác.",
-                source=source,
-            )
-            return {
-                "ok": False,
-                "layer": 2,
-                "error": f"Mã OTP '{otp_input}' không chính xác!",
-            }
+            if len(recent_fails) >= 3:
+                self._log_event(
+                    layer="Lớp 2 (Gmail OTP)",
+                    action="otp_verify_rate_limited",
+                    email=email,
+                    status="FAIL",
+                    detail="Đã thử sai mã OTP quá 3 lần trong 5 phút. Tạm thời chặn xác thực.",
+                    source=source,
+                )
+                return {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 429,
+                    "rate_limited": True,
+                    "error": "Đã thử sai mã OTP quá 3 lần trong 5 phút. Vui lòng đợi 5 phút trước khi thử lại.",
+                }
 
-        pending["verified_layer2"] = True
+            pending = self.pending_otps.get(key)
+            if not pending and acc and acc.get("pending_otp"):
+                candidate = acc.get("pending_otp")
+                if candidate and (now < candidate.get("expires_at", 0)):
+                    pending = candidate
+                    self.pending_otps[key] = candidate
+
+            if not pending:
+                self._log_event(
+                    layer="Lớp 2 (Gmail OTP)",
+                    action="otp_verify",
+                    email=email,
+                    status="FAIL",
+                    detail="Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
+                    source=source,
+                )
+                return {"ok": False, "layer": 2, "status_code": 400, "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!"}
+
+            if now > pending["expires_at"]:
+                self._log_event(
+                    layer="Lớp 2 (Gmail OTP)",
+                    action="otp_verify",
+                    email=email,
+                    status="FAIL",
+                    detail="Mã OTP đã hết hạn (> 5 phút).",
+                    source=source,
+                )
+                return {"ok": False, "layer": 2, "status_code": 400, "error": "Mã OTP đã hết hạn!"}
+
+            if otp_input.strip() != pending["otp_code"]:
+                recent_fails.append(now)
+                self.otp_failed_attempts[key] = recent_fails
+                if acc:
+                    acc["otp_failed_verify_attempts"] = recent_fails
+                    self._save_accounts()
+
+                self._log_event(
+                    layer="Lớp 2 (Gmail OTP)",
+                    action="otp_verify",
+                    email=pending["email"],
+                    status="FAIL",
+                    detail=f"Nhập sai mã OTP: nhập '{otp_input.strip()}' không chính xác. (Lần {len(recent_fails)}/3)",
+                    source=source,
+                )
+                return {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "error": f"Mã OTP '{otp_input}' không chính xác!",
+                }
+
+            # Verification succeeds: atomically reset failed attempts
+            self.otp_failed_attempts[key] = []
+            if acc:
+                acc["otp_failed_verify_attempts"] = []
+                self._save_accounts()
+
+            pending["verified_layer2"] = True
+
         self._log_event(
             layer="Lớp 2 (Gmail OTP)",
             action="otp_verified",
@@ -811,6 +964,7 @@ class ThreeLayerAuthManager(
             "layer": 2,
             "next_layer": 3,
             "email": pending["email"],
+            "account_id": pending.get("account_id", ""),
             "display_name": pending["display_name"],
             "tier": pending["tier"],
             "voice_verified": bool(acc and acc.get("voice_verified", not acc.get("needs_first_page_voice_enroll", False))),
@@ -1189,4 +1343,6 @@ __all__ = [
     "get_auth_3layer_manager",
     "get_auth_manager",
     "check_duplicate_voice_gate",
+    "is_test_otp_fields_allowed",
+    "_ACCOUNTS_FILE_LOCK",
 ]

@@ -15,7 +15,7 @@ import copy
 import wave
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from simulator.api.deps import (
@@ -26,7 +26,7 @@ from simulator.api.deps import (
     broadcast_rest_state_to_bridges,
 )
 from simulator.auth.session_store import get_session_store
-from simulator.auth_3layer import get_auth_3layer_manager
+from simulator.auth_3layer import get_auth_3layer_manager, is_test_otp_fields_allowed
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
 from simulator.rule_engine import append_audit_log
 
@@ -659,7 +659,8 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
         tier=int(res.get("tier", 1)) if res.get("ok") else 99,
         details=res,
     )
-    resp = JSONResponse(res)
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
+    resp = JSONResponse(res, status_code=status_code)
     if res.get("ok"):
         tier_val = int(res.get("tier") or 1)
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
@@ -699,15 +700,23 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
 
 
 @router.post("/api/auth3/forgot_password_send_otp")
-async def api_auth3_forgot_password_send_otp(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_forgot_password_send_otp(
+    payload: dict[str, Any],
+    request: Request,
+) -> JSONResponse:
     """Gửi mã OTP 6 số về Gmail cho tính năng Quên mật khẩu."""
     email = str(payload.get("email", "nep94121@gmail.com")).strip()
     send_gmail = bool(payload.get("send_gmail", True))
+    req_app = getattr(request, "app", None)
     res = get_auth_3layer_manager().request_password_reset_otp(
         email=email,
         send_gmail=send_gmail,
         source=str(payload.get("source", "Web Quên Mật Khẩu")),
+        app=req_app,
     )
+    if not is_test_otp_fields_allowed(req_app):
+        res.pop("otp_code_for_test", None)
+        res.pop("demo_otp_preview", None)
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     return JSONResponse(res, status_code=status_code)
 

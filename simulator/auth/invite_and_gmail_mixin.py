@@ -29,6 +29,8 @@ HARDCODED_REAL_EMAIL_ALLOWLIST: set[str] = {
     "kbanh376@gmail.com",
 }
 
+SMTP_TIMEOUT_SECONDS: float = float(os.environ.get("SMTP_TIMEOUT_SECONDS", "8.0"))
+
 
 def is_email_allowlisted_for_real_send(email: str | None) -> bool:
     """Kiểm tra email có thuộc danh sách cho phép gửi thư thật hay không (Canonical Allowlist Shield)."""
@@ -797,11 +799,11 @@ class AuthInviteGmailMixin:
 
             try:
                 if smtp_port == 465:
-                    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as server:
+                    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=SMTP_TIMEOUT_SECONDS) as server:
                         server.login(smtp_user, smtp_pass)
                         server.send_message(msg)
                 else:
-                    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                    with smtplib.SMTP(smtp_host, smtp_port, timeout=SMTP_TIMEOUT_SECONDS) as server:
                         server.starttls()
                         server.login(smtp_user, smtp_pass)
                         server.send_message(msg)

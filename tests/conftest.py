@@ -7,10 +7,12 @@ network sockets or CLI commands are executed during test runs.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import smtplib
 import subprocess
 import sys
+import threading
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -20,6 +22,34 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+@pytest.fixture(autouse=True)
+def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure legacy test suites receive test OTP fields during local pytest runs."""
+    monkeypatch.setenv("PYTEST", "1")
+    try:
+        from simulator.server import app
+
+        monkeypatch.setattr(app, "testing", True, raising=False)
+    except Exception:
+        pass
+    if "VERCEL" in os.environ:
+        monkeypatch.delenv("VERCEL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def clean_auth_pending_otps() -> None:
+    """Ensure pending_otps does not leak state across tests."""
+    from simulator.api.routes_auth import get_auth_3layer_manager
+
+    mgr = get_auth_3layer_manager()
+    lock = getattr(mgr, "_otp_lock", threading.Lock())
+    with lock:
+        mgr.pending_otps.clear()
+    yield
+    with lock:
+        mgr.pending_otps.clear()
 
 
 @pytest.fixture(autouse=True)

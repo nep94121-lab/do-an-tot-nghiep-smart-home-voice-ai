@@ -186,30 +186,74 @@
     async function requestForgotPasswordOtpAuthPage() {
       const email = document.getElementById('loginEmail').value.trim();
       const box = document.getElementById('loginStatusBox');
+      const btn = document.getElementById('btnSendForgotOtpAuth') || document.querySelector('button[onclick*="requestForgotPasswordOtpAuthPage"]');
       if (!email) {
         if (box) box.textContent = 'Vui lòng nhập Email tài khoản cần khôi phục mật khẩu.';
         return;
       }
-      const res = await fetch('/api/auth3/forgot_password_send_otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, send_gmail: false })
-      });
-      const data = await res.json();
-      if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
-        if (data.demo_otp_preview) {
-          const otpInputEl = document.getElementById('otpInput');
-          if (otpInputEl) otpInputEl.value = data.demo_otp_preview;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span> Đang gửi mã...';
+        btn.classList.add('loading');
+      }
+      try {
+        const res = await fetch('/api/auth3/forgot_password_send_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, send_gmail: false })
+        });
+        const data = await res.json();
+        if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
+          if (data.demo_otp_preview) {
+            const otpInputEl = document.getElementById('otpInput');
+            if (otpInputEl) otpInputEl.value = data.demo_otp_preview;
+          }
+          if (box) {
+            box.style.borderColor = '#cce5e3';
+            box.style.background = 'var(--accent-soft)';
+            box.textContent = data.message || `Đã gửi mã OTP khôi phục mật khẩu tới ${email}.`;
+          }
+          let countdown = Number(data.cooldown_remaining_seconds) || 60;
+          if (btn) {
+            btn.disabled = true;
+            btn.classList.remove('loading');
+            btn.textContent = `Gửi lại sau (${countdown}s)`;
+            if (window._authForgotOtpTimer) clearInterval(window._authForgotOtpTimer);
+            window._authForgotOtpTimer = setInterval(() => {
+              countdown--;
+              if (countdown <= 0) {
+                clearInterval(window._authForgotOtpTimer);
+                window._authForgotOtpTimer = null;
+                btn.disabled = false;
+                btn.innerHTML = 'Gửi mã OTP';
+              } else {
+                btn.textContent = `Gửi lại sau (${countdown}s)`;
+              }
+            }, 1000);
+          }
+        } else {
+          if (box) {
+            box.style.borderColor = 'var(--red-border)';
+            box.style.background = 'var(--red-soft)';
+            box.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được mã OTP.';
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            btn.innerHTML = 'Gửi mã OTP';
+          }
         }
+      } catch (err) {
         if (box) {
-          box.style.borderColor = '#cce5e3';
-          box.style.background = 'var(--accent-soft)';
-          box.textContent = data.message || `Đã gửi mã OTP khôi phục mật khẩu tới ${email}.`;
+          box.style.borderColor = 'var(--red-border)';
+          box.style.background = 'var(--red-soft)';
+          box.textContent = 'Lỗi kết nối máy chủ khi gửi OTP.';
         }
-      } else if (box) {
-        box.style.borderColor = 'var(--red-border)';
-        box.style.background = 'var(--red-soft)';
-        box.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được mã OTP.';
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('loading');
+          btn.innerHTML = 'Gửi mã OTP';
+        }
       }
     }
 

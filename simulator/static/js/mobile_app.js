@@ -546,8 +546,14 @@
         return;
       }
       forgotEmail = email;
-      if (btn) { btn.disabled = true; btn.textContent = 'Đang gửi mã...'; }
-      if (resendBtn) { resendBtn.disabled = true; }
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span> Đang gửi mã...';
+        btn.classList.add('loading');
+      }
+      if (resendBtn) {
+        resendBtn.disabled = true;
+      }
       try {
         const res = await fetch('/api/auth3/forgot_password_send_otp', {
           method: 'POST',
@@ -569,7 +575,7 @@
             const parts = email.split('@');
             sentText.textContent = parts.length === 2 && parts[0].length > 1 ? `${parts[0][0]}***@${parts[1]}` : email;
           }
-          let countdown = 60;
+          let countdown = Number(data.cooldown_remaining_seconds) || 60;
           if (resendBtn) {
             resendBtn.disabled = true;
             resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
@@ -591,11 +597,21 @@
             msgEl.style.color = 'var(--danger)';
             msgEl.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được OTP.';
           }
+          if (resendBtn && !forgotOtpCountdownTimer) {
+            resendBtn.disabled = false;
+          }
         }
       } catch (err) {
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Lỗi kết nối máy chủ.'; }
+        if (resendBtn && !forgotOtpCountdownTimer) {
+          resendBtn.disabled = false;
+        }
       }
-      if (btn) { btn.disabled = false; btn.textContent = 'Gửi mã OTP'; }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = 'Gửi mã OTP';
+        btn.classList.remove('loading');
+      }
     }
 
     function submitForgotVerifyOtp() {
