@@ -13,27 +13,88 @@ import re
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
 
 SENSITIVE_KEY_PATTERN = re.compile(r"(password|hint|secret|token|otp|mat_khau)", re.IGNORECASE)
+EMAIL_PATTERN = re.compile(r"\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b")
+
+
+def mask_email_address(text: str) -> str:
+    """Che địa chỉ email theo chuẩn ký tự đầu + '***@domain' (ví dụ: n***@gmail.com)."""
+    if not text:
+        return text
+
+    def _repl(match: re.Match[str]) -> str:
+        local_part = match.group(1)
+        domain_part = match.group(2)
+        first_char = local_part[0] if local_part else "*"
+        return f"{first_char}***@{domain_part}"
+
+    return EMAIL_PATTERN.sub(_repl, text)
+
+
+def _mask_string_secrets_and_emails(raw_str: str) -> str:
+    t = mask_email_address(raw_str)
+    t = re.sub(
+        r"((?:Mật khẩu gợi ý|Gợi ý mật khẩu|Mật khẩu)\s*:\s*)([^\s\)]+)",
+        r"\1******",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(Mã\s*OTP(?:\s*[^:\d\n]{0,30})?[:=]\s*)(\d{4,8})",
+        r"\1******",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(\bOTP\s*[:=]\s*)(\d{4,8})",
+        r"\1******",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(Bảng\s*Test\s*\()(\d{4,8})(\))",
+        r"\1******\3",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"((?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|otp_code_for_test|otp_code_for_test_table|demo_otp_preview|mat_khau|mk)['\"]?\s*[:=]\s*['\"])([^'\"]+)(['\"])",
+        r"\1******\3",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(\b(?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|otp_code_for_test|otp_code_for_test_table|demo_otp_preview|mat_khau|mk)\b['\"]?\s*[:=]\s*)(?!['\"])([^\s,;}\]\)\"']+)",
+        r"\1******",
+        t,
+        flags=re.IGNORECASE,
+    )
+    return t
 
 
 def mask_sensitive_log_data(text: Any) -> Any:
-    """Che gợi ý mật khẩu và thông tin xác thực nhạy cảm trong log hiển thị (hỗ trợ cả chuỗi và dictionary keys)."""
+    """Che email, mã OTP, mật khẩu, gợi ý mật khẩu và thông tin xác thực nhạy cảm trong log hiển thị."""
     if isinstance(text, str):
-        t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1******", text, flags=re.IGNORECASE)
-        t = re.sub(
-            r"((?:password|password_plain_hint|hint|secret|token|otp|mat_khau)['\"]?\s*[:=]\s*['\"])([^'\"]+)(['\"])",
-            r"\1******\3",
-            t,
-            flags=re.IGNORECASE,
-        )
-        return t
+        stripped = text.strip()
+        if (stripped.startswith("{") and stripped.endswith("}")) or (
+            stripped.startswith("[") and stripped.endswith("]")
+        ):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, (dict, list)):
+                    masked_parsed = mask_sensitive_log_data(parsed)
+                    dumped = json.dumps(masked_parsed, ensure_ascii=False)
+                    return _mask_string_secrets_and_emails(dumped)
+            except Exception:
+                pass
+        return _mask_string_secrets_and_emails(text)
     if isinstance(text, dict):
         return {
-            k: (
+            (mask_email_address(k) if isinstance(k, str) and "@" in k else k): (
                 "******"
                 if SENSITIVE_KEY_PATTERN.search(str(k))
                 else mask_sensitive_log_data(v)
@@ -96,6 +157,37 @@ def _safe_json(filename: str) -> Any:
     return {}
 
 
+def _require_admin_session(request: Request) -> tuple[Any, JSONResponse | None]:
+    """Bắt buộc phiên đăng nhập Chủ nhà (Tier 1 ADMIN) cho toàn bộ endpoint nhật ký và CSDL.
+
+    - Chưa đăng nhập / token không hợp lệ -> HTTP 401.
+    - Đã đăng nhập nhưng không phải Tier 1 ADMIN (Tier 2 MEMBER, Tier 3 CHILD_GUEST) -> HTTP 403.
+    """
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated:
+        return None, JSONResponse(
+            {
+                "ok": False,
+                "authenticated": False,
+                "error": "Yêu cầu đăng nhập quyền Chủ nhà (Admin Cấp 1) để truy cập nhật ký và cơ sở dữ liệu hệ thống.",
+            },
+            status_code=401,
+        )
+    if sess.tier != 1 or sess.role != "ADMIN":
+        return None, JSONResponse(
+            {
+                "ok": False,
+                "authenticated": True,
+                "rbac_blocked": True,
+                "tier": sess.tier,
+                "role": sess.role,
+                "error": "Từ chối truy cập! Chỉ Chủ nhà (Admin Cấp 1) mới có quyền truy cập nhật ký và cơ sở dữ liệu hệ thống.",
+            },
+            status_code=403,
+        )
+    return sess, None
+
+
 @router.get("/api/logs/dashboard")
 @router.get("/api/server_logs_and_db")
 async def api_logs_dashboard(
@@ -104,10 +196,13 @@ async def api_logs_dashboard(
     q: str | None = None,
 ) -> JSONResponse:
     """Cung cấp dữ liệu toàn diện cho trang Quản trị Nhật ký (/logs) và Mobile Dashboard."""
+    sess, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     active_eng = _ACTIVE_BRIDGES[-1].engine if _ACTIVE_BRIDGES else _REST_ENGINE
-    sess = resolve_request_session(request, payload=None, engine=None)
-    is_admin = bool(sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN")
-    snap = active_eng.get_snapshot(session=sess) if sess.is_authenticated else active_eng.get_public_device_snapshot()
+    is_admin = True
+    snap = active_eng.get_snapshot(session=sess)
 
     storage_files: list[dict[str, Any]] = []
     for fp in sorted(DATA_DIR.glob("*")):
@@ -173,6 +268,7 @@ async def api_logs_dashboard(
                 continue
 
         masked_ev = mask_sensitive_log_data(ev_str)
+        masked_user = mask_sensitive_log_data(user_str)
         masked_detail = mask_sensitive_log_data(detail_str)
         masked_details = mask_sensitive_log_data(raw.get("details") or {})
 
@@ -181,9 +277,9 @@ async def api_logs_dashboard(
             "time_vn": ts_str,
             "event": masked_ev,
             "event_type": raw.get("event_type") or "event",
-            "actor": user_str,
-            "user": user_str,
-            "user_name": user_str,
+            "actor": masked_user,
+            "user": masked_user,
+            "user_name": masked_user,
             "detail": masked_detail,
             "summary": masked_detail,
             "level": lvl,
@@ -265,8 +361,15 @@ _FORBIDDEN_SQL_KEYWORDS = (
 
 @router.post("/api/logs/sql_query")
 @router.post("/api/sqlite/query")
-async def api_logs_sql_query(payload: dict[str, Any]) -> JSONResponse:
+async def api_logs_sql_query(
+    request: Request,
+    payload: dict[str, Any] = Body(default={}),
+) -> JSONResponse:
     """Thực thi câu lệnh SQL chỉ đọc (SELECT, PRAGMA, EXPLAIN) an toàn trên smarthome.db."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     sql = str(payload.get("sql", "")).strip()
     sql_low = sql.lower()
     if any(kw in sql_low for kw in _FORBIDDEN_SQL_KEYWORDS):
@@ -286,8 +389,15 @@ async def api_logs_sql_query(payload: dict[str, Any]) -> JSONResponse:
 
 @router.post("/api/logs/knowledge/add")
 @router.post("/api/kb_upsert")
-async def api_logs_knowledge_add(payload: dict[str, Any]) -> JSONResponse:
+async def api_logs_knowledge_add(
+    request: Request,
+    payload: dict[str, Any] = Body(default={}),
+) -> JSONResponse:
     """Thêm hoặc cập nhật tri thức RAG vào knowledge_base.json và bảng knowledge_rag của SQLite."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     topic = str(payload.get("topic", "")).strip()
     content = str(payload.get("content", "")).strip()
     keywords = str(payload.get("keywords", "")).strip()
@@ -311,12 +421,19 @@ async def api_logs_knowledge_add(payload: dict[str, Any]) -> JSONResponse:
             tier=1,
             details=res.get("item", {}),
         )
-    return JSONResponse(res)
+    return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(res)))
 
 
 @router.post("/api/logs/append")
-async def api_logs_append(payload: dict[str, Any]) -> JSONResponse:
+async def api_logs_append(
+    request: Request,
+    payload: dict[str, Any] = Body(default={}),
+) -> JSONResponse:
     """Tiếp nhận bản ghi log thủ công từ client hoặc demo event ghi bền vững."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     cat = str(payload.get("category", "SYSTEM"))
     ev = str(payload.get("event", "Client Event"))
     actor = str(payload.get("actor", "Hệ thống"))
@@ -335,8 +452,12 @@ async def api_logs_append(payload: dict[str, Any]) -> JSONResponse:
 
 @router.post("/api/logs/clear")
 @router.post("/api/clear_audit_logs")
-async def api_logs_clear() -> JSONResponse:
+async def api_logs_clear(request: Request) -> JSONResponse:
     """Làm sạch nhật ký kiểm toán hệ thống theo lệnh của Quản trị viên Cấp 1."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     clear_audit_logs()
     clear_audit_logs_sqlite()
     append_audit_log(
@@ -352,23 +473,29 @@ async def api_logs_clear() -> JSONResponse:
 @router.get("/api/sqlite/overview")
 async def api_sqlite_overview(request: Request) -> JSONResponse:
     """Trả về tổng quan 8 bảng CSDL SQLite smarthome.db."""
-    sess = resolve_request_session(request, payload=None, engine=None)
-    is_admin = bool(sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN")
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     ov = get_sqlite_overview()
-    if not is_admin:
-        for tbl_item in ov.get("tables", []):
-            if isinstance(tbl_item, dict) and tbl_item.get("table_name") in ("users", "voiceprints"):
-                tbl_item["sample_rows"] = []
     return JSONResponse(sanitize_api_payload(mask_sensitive_log_data(ov)))
 
 
 @router.get("/api/devops/status")
-async def api_devops_status() -> JSONResponse:
+async def api_devops_status(request: Request) -> JSONResponse:
     """Trả về biên lai DevOps 5 cổng và trạng thái CI/CD."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+
     receipt_path = ROOT / "docs" / "kien_truc" / "DEVOPS_RELEASE_RECEIPT.json"
     if receipt_path.exists():
         try:
-            return JSONResponse(json.loads(receipt_path.read_text(encoding="utf-8")))
+            return JSONResponse(
+                sanitize_api_payload(
+                    mask_sensitive_log_data(json.loads(receipt_path.read_text(encoding="utf-8")))
+                )
+            )
         except Exception as exc:
             return JSONResponse({"ok": False, "error": f"Lỗi đọc biên lai DevOps: {exc}"}, status_code=500)
     return JSONResponse({"ok": False, "error": "Chưa tìm thấy tệp biên lai DevOps Release Receipt."}, status_code=404)

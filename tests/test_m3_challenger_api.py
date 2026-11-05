@@ -150,16 +150,17 @@ def test_route_aliases_parity_auth(client: TestClient) -> None:
 
 def test_route_aliases_parity_logs(client: TestClient) -> None:
     """Verify route alias parity on /logs: dashboard, sql_query, knowledge/add, clear."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
     # 1. Dashboard alias
-    d1 = client.get("/api/logs/dashboard")
-    d2 = client.get("/api/server_logs_and_db")
+    d1 = client.get("/api/logs/dashboard", headers=admin_headers)
+    d2 = client.get("/api/server_logs_and_db", headers=admin_headers)
     assert d1.status_code == 200
     assert d2.status_code == 200
     assert set(d1.json().keys()) == set(d2.json().keys())
 
     # 2. SQL query alias
-    s1 = client.post("/api/logs/sql_query", json={"sql": "SELECT 1;"})
-    s2 = client.post("/api/sqlite/query", json={"sql": "SELECT 1;"})
+    s1 = client.post("/api/logs/sql_query", json={"sql": "SELECT 1;"}, headers=admin_headers)
+    s2 = client.post("/api/sqlite/query", json={"sql": "SELECT 1;"}, headers=admin_headers)
     assert s1.status_code == 200
     assert s2.status_code == 200
     assert s1.json().get("ok") is True
@@ -169,10 +170,12 @@ def test_route_aliases_parity_logs(client: TestClient) -> None:
     k1 = client.post(
         "/api/logs/knowledge/add",
         json={"topic": "alias_kb_1", "content": "RAG test 1", "keywords": "rag"},
+        headers=admin_headers,
     )
     k2 = client.post(
         "/api/kb_upsert",
         json={"topic": "alias_kb_2", "content": "RAG test 2", "keywords": "rag"},
+        headers=admin_headers,
     )
     assert k1.status_code == 200
     assert k2.status_code == 200
@@ -180,8 +183,8 @@ def test_route_aliases_parity_logs(client: TestClient) -> None:
     assert k2.json().get("ok") is True
 
     # 4. Clear audit logs alias
-    c1 = client.post("/api/logs/clear")
-    c2 = client.post("/api/clear_audit_logs")
+    c1 = client.post("/api/logs/clear", headers=admin_headers)
+    c2 = client.post("/api/clear_audit_logs", headers=admin_headers)
     assert c1.status_code == 200
     assert c2.status_code == 200
     assert c1.json().get("ok") is True
@@ -213,7 +216,8 @@ def test_route_aliases_parity_qr(client: TestClient) -> None:
 
 def test_dual_key_json_schema_dashboard(client: TestClient) -> None:
     """Verify that /api/logs/dashboard returns all dual-key pairs required by logs.html."""
-    resp = client.get("/api/logs/dashboard")
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
+    resp = client.get("/api/logs/dashboard", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -254,9 +258,10 @@ def test_dual_key_json_schema_dashboard(client: TestClient) -> None:
             "detail": "Verifying dual key presence in audit logs",
             "level": "INFO",
         },
+        headers=admin_headers,
     )
 
-    resp_after = client.get("/api/logs/dashboard")
+    resp_after = client.get("/api/logs/dashboard", headers=admin_headers)
     audit_logs = resp_after.json().get("audit_logs", [])
     assert len(audit_logs) > 0, "audit_logs list should not be empty"
 
@@ -304,35 +309,36 @@ def test_dual_key_json_schema_dashboard(client: TestClient) -> None:
 
 def test_sql_query_readonly_enforcement(client: TestClient) -> None:
     """Verify that /api/logs/sql_query strictly prevents DDL and DML operations."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
     # 1. Allowed: SELECT
-    r_select = client.post("/api/logs/sql_query", json={"sql": "SELECT 1 AS num;"})
+    r_select = client.post("/api/logs/sql_query", json={"sql": "SELECT 1 AS num;"}, headers=admin_headers)
     assert r_select.status_code == 200
     assert r_select.json().get("ok") is True
 
     # 2. Allowed: PRAGMA
-    r_pragma = client.post("/api/logs/sql_query", json={"sql": "PRAGMA table_info(devices);"})
+    r_pragma = client.post("/api/logs/sql_query", json={"sql": "PRAGMA table_info(devices);"}, headers=admin_headers)
     assert r_pragma.status_code == 200
     assert r_pragma.json().get("ok") is True
 
     # 3. Blocked: DROP TABLE
-    r_drop = client.post("/api/logs/sql_query", json={"sql": "DROP TABLE devices;"})
+    r_drop = client.post("/api/logs/sql_query", json={"sql": "DROP TABLE devices;"}, headers=admin_headers)
     assert r_drop.status_code == 200
     b_drop = r_drop.json()
     assert b_drop.get("ok") is False
     assert "Chỉ cho phép truy vấn đọc" in b_drop.get("error", "")
 
     # 4. Blocked: INSERT
-    r_ins = client.post("/api/logs/sql_query", json={"sql": "INSERT INTO devices VALUES ('x', 'y');"})
+    r_ins = client.post("/api/logs/sql_query", json={"sql": "INSERT INTO devices VALUES ('x', 'y');"}, headers=admin_headers)
     assert r_ins.status_code == 200
     assert r_ins.json().get("ok") is False
 
     # 5. Blocked: UPDATE
-    r_upd = client.post("/api/logs/sql_query", json={"sql": "UPDATE devices SET state='OFF';"})
+    r_upd = client.post("/api/logs/sql_query", json={"sql": "UPDATE devices SET state='OFF';"}, headers=admin_headers)
     assert r_upd.status_code == 200
     assert r_upd.json().get("ok") is False
 
     # 6. Blocked: DELETE
-    r_del = client.post("/api/logs/sql_query", json={"sql": "DELETE FROM devices;"})
+    r_del = client.post("/api/logs/sql_query", json={"sql": "DELETE FROM devices;"}, headers=admin_headers)
     assert r_del.status_code == 200
     assert r_del.json().get("ok") is False
 

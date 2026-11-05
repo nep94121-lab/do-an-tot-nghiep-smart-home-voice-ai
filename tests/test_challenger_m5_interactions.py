@@ -36,7 +36,11 @@ def test_sample_sql_queries_execute_cleanly(table_name, sql):
     async def _run():
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post("/api/logs/sql_query", json={"sql": sql})
+            resp = await client.post(
+                "/api/logs/sql_query",
+                json={"sql": sql},
+                headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+            )
             assert resp.status_code == 200, f"HTTP error {resp.status_code}: {resp.text}"
             data = resp.json()
             assert data.get("ok") is True, f"Lỗi SQL trên bảng {table_name}: {data.get('error')}"

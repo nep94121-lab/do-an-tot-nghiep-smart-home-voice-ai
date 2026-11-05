@@ -119,7 +119,10 @@ class TestAdversarialBug1CredentialScan:
                 details={"raw_event": text}
             )
 
-        res = client.get("/api/logs/dashboard")
+        res = client.get(
+            "/api/logs/dashboard",
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+        )
         assert res.status_code == 200
         data = res.json()
         assert data.get("ok") is True

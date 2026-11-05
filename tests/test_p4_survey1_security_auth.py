@@ -108,7 +108,10 @@ class TestBug1SecurityCredentialCleanup:
 
     def test_bug1_logs_api_masks_password_hints(self, client: TestClient):
         """API /api/logs/dashboard phải che toàn bộ gợi ý mật khẩu trong các trường event/detail/summary."""
-        res = client.get("/api/logs/dashboard")
+        res = client.get(
+            "/api/logs/dashboard",
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+        )
         assert res.status_code == 200
         data = res.json()
         logs = data.get("audit_logs", [])
@@ -157,7 +160,10 @@ class TestBug1SecurityCredentialCleanup:
                 "sub": {"otp_code": "654321", "safe": "ok"},
             },
         )
-        res = client.get("/api/logs/dashboard")
+        res = client.get(
+            "/api/logs/dashboard",
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+        )
         assert res.status_code == 200
         logs = res.json().get("audit_logs", [])
         matched = [l for l in logs if l.get("event_type") == "TEST_MASKING_NESTED"]

@@ -78,6 +78,11 @@
           try {
             const sessionData = data.session || data;
             localStorage.setItem('smarthome_auth_session', JSON.stringify(sessionData));
+            const activeTok = data.session_token || (sessionData && sessionData.session_id) || '';
+            if (activeTok) {
+              localStorage.setItem('session_token', String(activeTok));
+              sessionStorage.setItem('session_token', String(activeTok));
+            }
             sessionStorage.setItem('mobileLoggedIn', '1');
             sessionStorage.setItem('mobileLoggedInEmail', email);
           } catch (storageErr) {

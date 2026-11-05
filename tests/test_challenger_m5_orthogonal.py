@@ -61,7 +61,11 @@ def clean_system_state():
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app, raise_server_exceptions=False)
+    return TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+    )
 
 
 def _generate_synthetic_pcm_16k(duration_sec: float = 2.0, freq: float = 440.0) -> bytes:

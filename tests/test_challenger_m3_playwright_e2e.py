@@ -39,7 +39,18 @@ class TestMilestone3LiveBrowserE2E:
         """Bug 13: /logs hiển thị 20 dòng ban đầu, bấm 'Xem thêm' tải đủ phần còn lại."""
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
-            page = browser.new_page()
+            context = browser.new_context()
+            context.add_cookies(
+                [
+                    {
+                        "name": "sh_session_token",
+                        "value": "sess_owner_t1_nep94121",
+                        "domain": "127.0.0.1",
+                        "path": "/",
+                    }
+                ]
+            )
+            page = context.new_page()
             page.goto(f"http://127.0.0.1:{self.port}/logs")
             page.wait_for_selector("#auditLogsTbody .log-row", timeout=10000)
 

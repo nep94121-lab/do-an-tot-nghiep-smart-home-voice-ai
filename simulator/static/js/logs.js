@@ -1,3 +1,45 @@
+    (function installLogsAuthFetchInterceptor() {
+      if (typeof window === 'undefined' || typeof window.fetch !== 'function' || window._shLogsAuthFetchWrapped) {
+        return;
+      }
+      const originalFetch = window.fetch.bind(window);
+      function resolveActiveSessionToken() {
+        try {
+          const ss = window.sessionStorage && window.sessionStorage.getItem('session_token');
+          if (ss) return ss;
+        } catch (_e) {}
+        try {
+          const ls = window.localStorage && window.localStorage.getItem('session_token');
+          if (ls) return ls;
+          const rawAuth = window.localStorage && window.localStorage.getItem('smarthome_auth_session');
+          if (rawAuth) {
+            const parsed = JSON.parse(rawAuth);
+            if (parsed && typeof parsed === 'object') {
+              const tok = parsed.session_token || parsed.session_id || (parsed.session && parsed.session.session_id);
+              if (tok) return String(tok);
+            }
+          }
+        } catch (_e2) {}
+        return '';
+      }
+      const wrappedFetch = function (input, init) {
+        const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (urlStr.startsWith('/api/') || urlStr.includes('/api/')) {
+          const nextInit = Object.assign({ credentials: 'same-origin' }, init || {});
+          const headersObj = Object.assign({}, nextInit.headers || {});
+          const token = resolveActiveSessionToken();
+          if (token && !headersObj['X-Session-Token'] && !headersObj['x-session-token']) {
+            headersObj['X-Session-Token'] = token;
+          }
+          nextInit.headers = headersObj;
+          return originalFetch(input, nextInit);
+        }
+        return originalFetch(input, init);
+      };
+      window.fetch = wrappedFetch;
+      window._shLogsAuthFetchWrapped = true;
+    })();
+
     let activeCategory = '';
     let lastLoadedLogs = [];
 
@@ -23,10 +65,15 @@
     function maskSensitiveLogText(text) {
       if (!text) return '';
       return String(text)
+        .replace(/\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g, (_m, local, domain) => `${String(local).charAt(0)}***@${domain}`)
+        .replace(/(Mã\s*OTP(?:\s*[^:\d\n]{0,30})?[:=]\s*)(\d{4,8})/gi, '$1******')
+        .replace(/(\bOTP\s*[:=]\s*)(\d{4,8})/gi, '$1******')
+        .replace(/(Bảng\s*Test\s*\()(\d{4,8})(\))/gi, '$1******$3')
         .replace(/(Mật khẩu gợi ý:\s*)([^\s\)]+)/gi, '$1******')
         .replace(/(Gợi ý mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
         .replace(/(Mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
-        .replace(/((?:password|password_plain_hint|mat_khau|mk)["']?\s*[:=]\s*["'])([^"']+)(["'])/gi, '$1******$3');
+        .replace(/((?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|mat_khau|mk)["']?\s*[:=]\s*["'])([^"']+)(["'])/gi, '$1******$3')
+        .replace(/(\b(?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|mat_khau|mk)\b["']?\s*[:=]\s*)(?!["'])([^\s,;}\]\)"']+)/gi, '$1******');
     }
 
     function toggleLogDetailRow(idx) {
@@ -91,6 +138,7 @@
         visibleLogs.forEach((item, idx) => {
           const status = deriveResultStatus(item);
           const evText = maskSensitiveLogText(item.event || 'Sự kiện');
+          const actorText = maskSensitiveLogText(item.actor || 'Hệ thống');
           const detText = maskSensitiveLogText(item.detail || 'Không có mô tả bổ sung.');
           const tr = document.createElement('tr');
           tr.className = 'log-row';
@@ -98,7 +146,7 @@
           tr.innerHTML = `
             <td>${item.time || '—'}</td>
             <td style="font-weight:500;">${evText}</td>
-            <td>${item.actor || 'Hệ thống'}</td>
+            <td>${actorText}</td>
             <td><span class="result-text ${status.cls}">${status.label}</span></td>
           `;
           const detailTr = document.createElement('tr');
@@ -120,7 +168,7 @@
               <span class="result-text ${status.cls}">${status.label}</span>
             </div>
             <div class="mobile-log-line2">
-              <span>${item.actor || 'Hệ thống'}</span>
+              <span>${actorText}</span>
               <span>${item.time || '—'}</span>
             </div>
           `;
@@ -139,6 +187,18 @@
       const url = `/api/logs/dashboard?category=${encodeURIComponent(activeCategory)}&q=${encodeURIComponent(q)}`;
       const res = await fetch(url);
       const data = await res.json();
+      if (!res.ok || (data && data.ok === false)) {
+        const errMsg = maskSensitiveLogText((data && data.error) || `Yêu cầu đăng nhập quyền Chủ nhà (HTTP ${res.status})`);
+        const logTbody = document.getElementById('auditLogsTbody');
+        const mobileCards = document.getElementById('mobileLogCards');
+        if (logTbody) {
+          logTbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">${errMsg}</td></tr>`;
+        }
+        if (mobileCards) {
+          mobileCards.innerHTML = `<div style="color:var(--danger);">${errMsg}</div>`;
+        }
+        return;
+      }
 
       document.getElementById('kpiServerClock').textContent = `${data.server_time_vn || '--:--:--'}`;
       document.getElementById('kpiServerState').textContent = data.hardware_database?.server_connected ? 'Đã kết nối' : 'Mất kết nối';
@@ -283,10 +343,10 @@
         rows.push([
           item.time || '',
           item.category || item.cat || '',
-          item.event || '',
-          item.actor || '',
+          maskSensitiveLogText(item.event || ''),
+          maskSensitiveLogText(item.actor || ''),
           st.label,
-          item.detail || ''
+          maskSensitiveLogText(item.detail || '')
         ]);
       });
       const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -348,7 +408,7 @@
       thead.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = cols.map(c => `<td><code>${r[c] !== null && r[c] !== undefined ? String(r[c]) : '—'}</code></td>`).join('');
+        tr.innerHTML = cols.map(c => `<td><code>${r[c] !== null && r[c] !== undefined ? maskSensitiveLogText(String(r[c])) : '—'}</code></td>`).join('');
         tbody.appendChild(tr);
       });
     }
@@ -391,3 +451,4 @@ window.executeCustomSql = executeCustomSql;
 window.renderLogsPage = renderLogsPage;
 window.loadMoreLogs = loadMoreLogs;
 window.getFilteredLogs = getFilteredLogs;
+window.maskSensitiveLogText = maskSensitiveLogText;

@@ -314,6 +314,7 @@ class TestOrthogonalApiRoutes:
             resp = client.post(
                 "/api/logs/sql_query",
                 json={"sql": sql, "limit": 10},
+                headers={"X-Session-Token": "sess_owner_t1_nep94121"},
             )
             # Route này tuyệt đối không được crash 500, và BẮT BUỘC trả ok: False với thông báo bảo vệ CSDL
             assert resp.status_code != 500, f"SQL '{sql}' gây crash HTTP 500!"
@@ -330,6 +331,7 @@ class TestOrthogonalApiRoutes:
         resp = client.post(
             "/api/logs/sql_query",
             json={"sql": "SELECT 1 AS test_val, 'orthogonal_ok' AS note", "limit": 5},
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
         )
         assert resp.status_code == 200
         data = resp.json()
