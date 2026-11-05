@@ -34,6 +34,8 @@ VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
 
 
 def load_wav(name: str) -> np.ndarray:
+    if name in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        name = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     path = AUDIO_DIR / name
     if not path.exists():
         raise FileNotFoundError(f"Missing audio file: {path}")

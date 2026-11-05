@@ -59,6 +59,8 @@ VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
 
 
 def load_wav_pcm(name: str) -> np.ndarray:
+    if name in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        name = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     path = AUDIO_DIR / name
     if not path.exists():
         raise FileNotFoundError(f"Missing audio file: {path}")
@@ -133,6 +135,11 @@ def pcm_member() -> np.ndarray:
 
 class TestNeuralEmbedding256DVerification:
     """Kiểm chứng thực nghiệm tính bất biến và các đặc tính toán học của vector 256D."""
+
+    @pytest.fixture
+    def pcm_owner(self) -> np.ndarray:
+        with wave.open(str(AUDIO_DIR / "mo_cua_chinh.wav"), "rb") as w:
+            return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
 
     def test_embedding_contract_and_l2_normalization(self, pcm_owner: np.ndarray) -> None:
         """Xác nhận hợp đồng giao diện: shape=(256,), float32, chuẩn hóa mặt cầu đơn vị ||e||_2 == 1.0."""

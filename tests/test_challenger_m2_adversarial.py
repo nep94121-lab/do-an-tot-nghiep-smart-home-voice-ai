@@ -38,12 +38,14 @@ from simulator.rule_engine import SmartHomeEngine
 def clean_adversarial_state():
     """Làm sạch trạng thái token và voice auth trước mỗi test."""
     mgr = get_auth_3layer_manager()
+    mgr.active_session_tier = 1
     if hasattr(mgr, "used_qr_tokens"):
         mgr.used_qr_tokens.clear()
     if hasattr(mgr, "active_qr_tokens"):
         mgr.active_qr_tokens.clear()
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     yield
+    mgr.active_session_tier = 1
     if hasattr(mgr, "used_qr_tokens"):
         mgr.used_qr_tokens.clear()
     if hasattr(mgr, "active_qr_tokens"):
@@ -53,10 +55,12 @@ def clean_adversarial_state():
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app)
+    return TestClient(app, headers={"Authorization": "Bearer sess_owner_t1_nep94121"})
 
 
 def _load_wav_pcm16k(filename: str) -> bytes:
+    if filename in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        filename = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     wav_path = ROOT / "test_audio" / filename
     assert wav_path.exists(), f"Không tìm thấy file audio: {wav_path}"
     with wave.open(str(wav_path), "rb") as wf:

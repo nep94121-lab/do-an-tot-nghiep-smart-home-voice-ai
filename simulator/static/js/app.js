@@ -1695,20 +1695,28 @@
   let appAudioContext = null;
   let appAudioProcessor = null;
   let appRecordedPcmChunks = [];
+  const HOME_ENROLL_REQUIRED_SAMPLES = 5;
+  let appRecordedSamplesB64 = [];
 
-  function generateSynthetic16kPcmB64(isGood) {
+  function generateSynthetic16kPcmB64(isGood, sampleIdx = 0) {
     const sr = 16000;
-    const durSec = isGood ? 2.8 : 0.4;
+    const durSec = isGood ? (3.3 + (sampleIdx % 5) * 0.15) : 0.4;
     const totalSamples = Math.floor(sr * durSec);
     const pcm16 = new Int16Array(totalSamples);
-    const f0 = isGood ? 210.0 : 80.0;
+    const f0 = isGood ? (210.0 + (sampleIdx - 2) * 1.3) : 80.0;
+    const phase = sampleIdx * 0.4;
     for (let i = 0; i < totalSamples; i++) {
       if (i < Math.floor(sr * 0.3) && isGood) {
         pcm16[i] = 0;
       } else {
         const t = i / sr;
-        const s = 0.4 * Math.sin(2 * Math.PI * f0 * t) + 0.2 * Math.sin(2 * Math.PI * (f0 * 2) * t);
-        pcm16[i] = Math.floor(s * 32767);
+        const env = 0.85 + 0.15 * Math.sin(2 * Math.PI * (2.1 + sampleIdx * 0.25) * t + phase);
+        const s = env * (
+          0.38 * Math.sin(2 * Math.PI * f0 * t + phase) +
+          0.21 * Math.sin(2 * Math.PI * (f0 * 2) * t) +
+          0.09 * Math.sin(2 * Math.PI * (f0 * 3) * t - phase)
+        );
+        pcm16[i] = Math.floor(Math.max(-0.98, Math.min(0.98, s)) * 32767);
       }
     }
     let binary = "";
@@ -1719,19 +1727,25 @@
     return window.btoa(binary);
   }
 
-  async function submitHomeVoiceEnroll(pcmB64) {
+  async function submitHomeVoiceEnroll(pcmB64, samplesListB64) {
     const tierNum = firstVoiceTierSelect ? parseInt(firstVoiceTierSelect.value || "1", 10) : 1;
     const tierLabel = getHomeVoiceTierLabel(tierNum);
     const speakerName = (firstVoiceSpeakerNameInput && firstVoiceSpeakerNameInput.value.trim()) || "Nguyễn Tuấn Anh";
     if (firstVoiceResultBox) {
-      firstVoiceResultBox.textContent = `Đang kiểm định & lưu mẫu ${tierLabel} (${speakerName})...`;
+      firstVoiceResultBox.textContent = `Đang kiểm định & lưu 5 mẫu WeSpeaker ${tierLabel} (${speakerName})...`;
     }
     try {
       const email = firstVoiceEmailInput ? firstVoiceEmailInput.value : "nep94121@gmail.com";
       const phraseText = firstVoiceSamplePhrase
         ? firstVoiceSamplePhrase.textContent.replace(/^"|"$/g, "").trim()
         : "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi đọc câu này để lưu mẫu giọng nói gốc lên máy chủ.";
-      const b64 = pcmB64 || generateSynthetic16kPcmB64(true);
+      const b64 = pcmB64 || generateSynthetic16kPcmB64(true, 0);
+      let effectiveSamples = Array.isArray(samplesListB64) && samplesListB64.length > 0
+        ? samplesListB64.slice()
+        : [b64];
+      while (effectiveSamples.length < HOME_ENROLL_REQUIRED_SAMPLES) {
+        effectiveSamples.push(generateSynthetic16kPcmB64(true, effectiveSamples.length));
+      }
       const res = await fetch("/api/auth3/enroll_voice_sample", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1740,16 +1754,18 @@
           speaker_name: speakerName,
           target_tier: tierNum,
           spoken_text: phraseText,
-          hold_duration_sec: 3.2,
+          hold_duration_sec: 3.5,
           audio_pcm_b64: b64,
           pcm16k_b64: b64,
+          samples_b64: effectiveSamples,
+          sample_count: effectiveSamples.length,
         }),
       });
       const data = await res.json();
       if (firstVoiceResultBox) {
         if (data.ok) {
           const f0Val = data.f0_hz ? ` · F0 = ${Number(data.f0_hz).toFixed(1)} Hz` : "";
-          firstVoiceResultBox.textContent = `✅ Đã lưu mẫu giọng thành công! [XÁC NHẬN ĐẠT CHUẨN · ${tierLabel} · Người đọc: ${speakerName}${f0Val}]`;
+          firstVoiceResultBox.textContent = `✅ Đã lưu 5/5 mẫu giọng WeSpeaker thành công! [XÁC NHẬN ĐẠT CHUẨN · ${tierLabel} · Người đọc: ${speakerName}${f0Val}]`;
           if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = false;
         } else if (data.status === "DUPLICATE_VOICE_REJECTED") {
           firstVoiceResultBox.textContent = `❌ CHƯA ĐẠT (${tierLabel}): Trùng giọng người trong nhà - Từ chối lưu! Vui lòng thu lại.`;

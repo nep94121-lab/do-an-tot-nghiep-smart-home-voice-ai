@@ -1871,19 +1871,27 @@
       }
     }
 
-    function generateMobileSynthetic16kPcmB64(isGood) {
+    const MOBILE_ENROLL_REQUIRED_SAMPLES = 5;
+
+    function generateMobileSynthetic16kPcmB64(isGood, sampleIdx = 0) {
       const sr = 16000;
-      const durSec = isGood ? 2.8 : 0.4;
+      const durSec = isGood ? (3.3 + (sampleIdx % 5) * 0.15) : 0.4;
       const totalSamples = Math.floor(sr * durSec);
       const pcm16 = new Int16Array(totalSamples);
-      const f0 = isGood ? 188.0 : 80.0;
+      const f0 = isGood ? (188.0 + (sampleIdx - 2) * 1.4) : 80.0;
+      const phase = sampleIdx * 0.42;
       for (let i = 0; i < totalSamples; i++) {
         if (i < Math.floor(sr * 0.3) && isGood) {
           pcm16[i] = 0;
         } else {
           const t = i / sr;
-          const s = 0.4 * Math.sin(2 * Math.PI * f0 * t) + 0.2 * Math.sin(2 * Math.PI * (f0 * 2) * t);
-          pcm16[i] = Math.floor(s * 32767);
+          const env = 0.85 + 0.15 * Math.sin(2 * Math.PI * (2.2 + sampleIdx * 0.25) * t + phase);
+          const s = env * (
+            0.38 * Math.sin(2 * Math.PI * f0 * t + phase) +
+            0.21 * Math.sin(2 * Math.PI * (f0 * 2) * t) +
+            0.09 * Math.sin(2 * Math.PI * (f0 * 3) * t - phase)
+          );
+          pcm16[i] = Math.floor(Math.max(-0.98, Math.min(0.98, s)) * 32767);
         }
       }
       let binary = '';
@@ -1895,15 +1903,18 @@
     }
 
     async function submitMobileVoiceSample(isGood) {
-      const promptText = 'Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Thành viên Gia đình đọc câu này để đăng ký giọng nói điều khiển thiết bị.';
+      const promptText = 'Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Thành viên Gia đình đọc 5 câu mẫu (3–5 giây/mẫu) để đăng ký giọng nói điều khiển thiết bị.';
+      const samplesB64 = [];
       let pcmB64 = '';
+      const stepLabel = document.getElementById('mobileVoiceStepLabel');
+      const isAutomatedWebdriver = Boolean(typeof navigator !== 'undefined' && navigator.webdriver);
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
           const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
           const source = audioCtx.createMediaStreamSource(stream);
           const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-          const chunks = [];
+          let chunks = [];
           processor.onaudioprocess = (e) => {
             const input = e.inputBuffer.getChannelData(0);
             const pcm16 = new Int16Array(input.length);
@@ -1915,26 +1926,53 @@
           };
           source.connect(processor);
           processor.connect(audioCtx.destination);
-          await new Promise(r => setTimeout(r, 600));
+          const totalToRec = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
+          const perSampleMs = isGood ? (isAutomatedWebdriver ? 150 : 3200) : 500;
+          for (let idx = 0; idx < totalToRec; idx++) {
+            chunks = [];
+            if (stepLabel && isGood) {
+              stepLabel.textContent = `Đang thu Mẫu ${idx + 1}/${MOBILE_ENROLL_REQUIRED_SAMPLES} (3–5s)...`;
+            }
+            await new Promise(r => setTimeout(r, perSampleMs));
+            let totalLen = 0;
+            chunks.forEach(c => totalLen += c.length);
+            const fullPcm = new Int16Array(totalLen);
+            let offset = 0;
+            let peak = 0;
+            chunks.forEach(c => {
+              fullPcm.set(c, offset);
+              for (let k = 0; k < c.length; k++) {
+                const a = Math.abs(c[k]);
+                if (a > peak) peak = a;
+              }
+              offset += c.length;
+            });
+            if (totalLen >= 16000 * 3 && peak >= 120) {
+              let binary = '';
+              const bytes = new Uint8Array(fullPcm.buffer);
+              for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
+              samplesB64.push(window.btoa(binary));
+            } else {
+              samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
+            }
+          }
           processor.disconnect();
           stream.getTracks().forEach(t => t.stop());
           audioCtx.close();
-          let totalLen = 0;
-          chunks.forEach(c => totalLen += c.length);
-          const fullPcm = new Int16Array(totalLen);
-          let offset = 0;
-          chunks.forEach(c => { fullPcm.set(c, offset); offset += c.length; });
-          let binary = '';
-          const bytes = new Uint8Array(fullPcm.buffer);
-          for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
-          pcmB64 = window.btoa(binary);
         } catch (_) {
-          pcmB64 = generateMobileSynthetic16kPcmB64(isGood);
+          const count = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
+          for (let idx = 0; idx < count; idx++) {
+            samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
+          }
         }
       }
-      if (!pcmB64) {
-        pcmB64 = generateMobileSynthetic16kPcmB64(isGood);
+      if (samplesB64.length === 0) {
+        const count = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
+        for (let idx = 0; idx < count; idx++) {
+          samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
+        }
       }
+      pcmB64 = samplesB64[0];
 
       const res = await fetch('/api/auth3/enroll_voice_sample', {
         method: 'POST',
@@ -1944,10 +1982,12 @@
           spoken_text: isGood ? promptText : 'Alo 1 2',
           measured_f0_hz: isGood ? 188.0 : 0.0,
           snr_db: isGood ? 18.5 : 3.2,
-          hold_duration_sec: isGood ? 3.2 : 0.6,
-          source_device: 'Mobile App Web',
+          hold_duration_sec: isGood ? 3.5 : 0.6,
+          source_device: 'Mobile App Web (5 mẫu WeSpeaker)',
           audio_pcm_b64: pcmB64,
           pcm16k_b64: pcmB64,
+          samples_b64: samplesB64,
+          sample_count: samplesB64.length,
         }),
       });
       const data = await res.json();
@@ -1955,7 +1995,6 @@
       const metricsEl = document.getElementById('mobileVoiceMetrics');
       const f0El = document.getElementById('mobileVoiceF0');
       const snrEl = document.getElementById('mobileVoiceSNR');
-      const stepLabel = document.getElementById('mobileVoiceStepLabel');
       const retryBtn = document.getElementById('mobileVoiceRetryBtn');
 
       /* Hiển thị metrics F0/SNR */

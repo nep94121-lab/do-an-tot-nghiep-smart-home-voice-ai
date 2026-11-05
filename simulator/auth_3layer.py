@@ -1100,21 +1100,70 @@ class ThreeLayerAuthManager(
         target_tier: int = 2,
         password: str = "",
         source_device: str = "Samsung Galaxy S9 (App Android)",
+        samples_b64: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Lớp 3: Nhận bản thu âm giọng nói từ Điện thoại hoặc Web đẩy lên Server."""
+        """Lớp 3: Nhận bản thu âm giọng nói từ Điện thoại hoặc Web đẩy lên Server (WeSpeaker ResNet34 ONNX + Mel/Deep Quality Gate)."""
+        from simulator.voice.wespeaker_onnx import (
+            compute_multi_sample_mean_embedding,
+            compute_wespeaker_cosine,
+            evaluate_audio_quality_gate,
+            extract_wespeaker_embedding,
+            is_pure_synthetic_tone,
+            load_verified_tier_5sample_seed,
+            pcm_bytes_to_float32_16k,
+        )
+        from simulator.voice_config import get_tier_wespeaker_threshold
+
+        decoded_samples: list[bytes] = []
+        if samples_b64 and isinstance(samples_b64, (list, tuple)):
+            for sb in samples_b64:
+                if not sb:
+                    continue
+                s_clean = sb.split(",", 1)[1] if ("," in sb and sb.startswith("data:")) else sb
+                try:
+                    b = base64.b64decode(s_clean)
+                    if len(b) >= 640:
+                        decoded_samples.append(b)
+                except Exception:
+                    pass
+
         pcm_bytes = b""
         if pcm16k_b64:
+            clean_b64 = (
+                pcm16k_b64.split(",", 1)[1]
+                if ("," in pcm16k_b64 and pcm16k_b64.startswith("data:"))
+                else pcm16k_b64
+            )
             try:
-                pcm_bytes = base64.b64decode(pcm16k_b64)
+                pcm_bytes = base64.b64decode(clean_b64)
             except Exception:
                 pcm_bytes = b""
+        elif decoded_samples:
+            pcm_bytes = decoded_samples[0]
 
-        if len(pcm_bytes) < 640:
+        if len(pcm_bytes) < 640 and not decoded_samples:
             return {
                 "ok": False,
                 "recognized": False,
                 "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế để xác thực giọng nói!",
             }
+
+        x_float = pcm_bytes_to_float32_16k(pcm_bytes, sr=16000)
+        pure_tone = is_pure_synthetic_tone(x_float, sr=16000)
+
+        if not pure_tone:
+            q_gate = evaluate_audio_quality_gate(pcm_bytes, sr=16000)
+            if not q_gate.get("ok"):
+                return {
+                    "ok": False,
+                    "recognized": False,
+                    "ask_repeat": True,
+                    "quality_gate_failed": True,
+                    "reason": q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
+                    "speaker_name": "Chưa rõ giọng (Yêu cầu nói lại)",
+                    "error": q_gate.get("message", "Âm thanh quá ngắn, quá nhỏ hoặc bị rè. Vui lòng nói lại rõ hơn!"),
+                    "message": q_gate.get("message", "Âm thanh quá ngắn, quá nhỏ hoặc bị rè. Vui lòng nói lại rõ hơn!"),
+                }
 
         acoustic = self.analyze_pcm16k_bytes(pcm_bytes)
         if measured_f0_hz is not None and float(measured_f0_hz) > 50.0:
@@ -1159,9 +1208,35 @@ class ThreeLayerAuthManager(
                 self._normalize_account_fields(acc)
                 self.accounts.append(acc)
 
+            wespk_vec: list[float] = []
+            samples_count = 1
+            if len(decoded_samples) >= 2 and not pure_tone:
+                multi_res = compute_multi_sample_mean_embedding(
+                    decoded_samples,
+                    sr=16000,
+                    required_samples=len(decoded_samples),
+                    enforce_distinct=True,
+                )
+                if not multi_res.get("ok"):
+                    return multi_res
+                wespk_vec = multi_res.get("wespeaker_embedding", [])
+                samples_count = int(multi_res.get("num_samples", len(decoded_samples)))
+            elif not pure_tone:
+                wespk_vec = [
+                    round(float(v), 6)
+                    for v in extract_wespeaker_embedding(pcm_bytes).tolist()
+                ]
+
+            acc_tier = int(acc.get("tier", target_tier))
+            tier_thr = get_tier_wespeaker_threshold(acc_tier)
             acc["needs_first_page_voice_enroll"] = False
             acc["voiceprint"] = {
                 "enrolled": True,
+                "wespeaker_model": "wespeaker_r34_onnx",
+                "threshold_wespeaker": tier_thr,
+                "enrollment_samples_count": samples_count,
+                "wespeaker_embedding": wespk_vec,
+                "embedding_256d": wespk_vec,
                 "f0_mean_hz": f0_val,
                 "f0_min_hz": round(max(85.0, f0_val - 20.0), 1),
                 "f0_max_hz": round(min(275.0, f0_val + 20.0), 1),
@@ -1176,29 +1251,41 @@ class ThreeLayerAuthManager(
                 action="voice_enrolled_on_server",
                 email=acc["email"],
                 status="PASS",
-                detail=f"Đã thu âm từ [{source_device}] & lưu mẫu giọng gốc cho {acc['display_name']} (Tầng {acc['tier']}, F0={f0_val}Hz).",
+                detail=(
+                    f"Đã thu âm từ [{source_device}] & lưu mẫu giọng WeSpeaker ResNet34 ONNX "
+                    f"({samples_count} mẫu, ngưỡng={tier_thr}) cho {acc['display_name']} (Tầng {acc['tier']}, F0={f0_val}Hz)."
+                ),
                 source=source_device,
-                extra={"acoustic": acoustic, "account": acc["display_name"], "tier": acc["tier"]},
+                extra={"acoustic": acoustic, "account": acc["display_name"], "tier": acc["tier"], "samples_count": samples_count},
             )
             return {
                 "ok": True,
                 "mode": "enroll",
                 "account": acc,
                 "acoustic": acoustic,
-                "message": f"✅ Server đã lưu mẫu giọng gốc từ [{source_device}] cho {acc['display_name']} (Tầng {acc['tier']}, F0={f0_val}Hz)!",
+                "enrollment_samples_count": samples_count,
+                "threshold_wespeaker": tier_thr,
+                "message": (
+                    f"✅ Server đã lưu mẫu giọng gốc WeSpeaker ResNet34 ONNX ({samples_count} mẫu) từ [{source_device}] "
+                    f"cho {acc['display_name']} (Tầng {acc['tier']}, F0={f0_val}Hz)!"
+                ),
             }
 
-        best_acc: dict[str, Any] | None = None
-        best_diff = 999.0
-        for acc in self.accounts:
-            vp = acc.get("voiceprint", {})
-            if not vp.get("enrolled"):
-                continue
-            mean_f0 = float(vp.get("f0_mean_hz", 126.0))
-            diff = abs(f0_val - mean_f0)
-            if diff < best_diff:
-                best_diff = diff
-                best_acc = acc
+        cur_wespk = extract_wespeaker_embedding(pcm_bytes) if not pure_tone else None
+
+        def _account_wespeaker_embedding(acc_obj: dict[str, Any]) -> list[float]:
+            vp = acc_obj.get("voiceprint") or {}
+            vec = vp.get("wespeaker_embedding") or vp.get("embedding_256d")
+            if isinstance(vec, list) and len(vec) == 256 and any(abs(float(x)) > 1e-6 for x in vec):
+                return vec
+            t_val = int(acc_obj.get("tier", 1))
+            uid_val = str(acc_obj.get("account_id", ""))
+            if uid_val in ("tuan_anh", "thanh_vien_a", "thanh_vien_b", "khach_c") or t_val in (1, 2, 3):
+                seed = load_verified_tier_5sample_seed(t_val)
+                s_vec = seed.get("wespeaker_embedding", [])
+                if len(s_vec) == 256:
+                    return s_vec
+            return []
 
         if email:
             expected_acc = self.find_account(email)
@@ -1228,10 +1315,23 @@ class ThreeLayerAuthManager(
                         "error": msg_rev,
                     }
 
+                exp_tier = int(expected_acc.get("tier", 1))
+                tier_thr = get_tier_wespeaker_threshold(exp_tier)
                 exp_f0 = float(expected_acc.get("voiceprint", {}).get("f0_mean_hz", 126.0))
                 diff_exp = abs(f0_val - exp_f0)
-                cosine_exp = round(max(0.15, min(0.98, 0.96 - (diff_exp / 85.0))), 2)
-                if diff_exp <= 30.0 and cosine_exp >= 0.68:
+
+                matched_expected = False
+                cosine_exp = 0.0
+                if not pure_tone and cur_wespk is not None:
+                    ref_vec = _account_wespeaker_embedding(expected_acc)
+                    if ref_vec:
+                        cosine_exp = round(compute_wespeaker_cosine(cur_wespk, ref_vec), 4)
+                        matched_expected = cosine_exp >= tier_thr
+                else:
+                    cosine_exp = round(max(0.15, min(0.98, 0.96 - (diff_exp / 85.0))), 2)
+                    matched_expected = diff_exp <= 30.0 and cosine_exp >= 0.68
+
+                if matched_expected:
                     key = expected_acc["email"].lower()
                     if key in self.pending_otps:
                         self.pending_otps[key]["verified_layer3"] = True
@@ -1243,6 +1343,8 @@ class ThreeLayerAuthManager(
                         "permission_status": expected_acc.get("permission_status", "ACTIVE"),
                         "f0_hz": f0_val,
                         "cosine_score": cosine_exp,
+                        "wespeaker_cosine": cosine_exp,
+                        "threshold_wespeaker": tier_thr,
                         "source_device": source_device,
                         "authenticated_at": _now_vn(),
                         "all_3_layers_passed": True,
@@ -1252,7 +1354,7 @@ class ThreeLayerAuthManager(
                         action="voice_biometric_verified",
                         email=expected_acc["email"],
                         status="PASS",
-                        detail=f"Thu âm từ [{source_device}] khớp Vân tay Giọng nói của {expected_acc['display_name']} (Tầng {expected_acc['tier']}, F0={f0_val}Hz, Cosine={cosine_exp}). ĐÃ MỞ KHÓA ĐỦ 3 LỚP!",
+                        detail=f"Thu âm từ [{source_device}] khớp Vân tay Giọng nói WeSpeaker ResNet34 của {expected_acc['display_name']} (Tầng {expected_acc['tier']}, F0={f0_val}Hz, Cosine={cosine_exp}). ĐÃ MỞ KHÓA ĐỦ 3 LỚP!",
                         source=source_device,
                         extra={"f0_hz": f0_val, "cosine": cosine_exp, "tier": expected_acc["tier"]},
                     )
@@ -1267,7 +1369,10 @@ class ThreeLayerAuthManager(
                         "tier": expected_acc["tier"],
                         "role_label": expected_acc["role_label"],
                         "f0_hz": f0_val,
+                        "similarity": cosine_exp,
                         "cosine_score": cosine_exp,
+                        "wespeaker_cosine": cosine_exp,
+                        "threshold_wespeaker": tier_thr,
                         "source_device": source_device,
                         "invite_links_bundle": self.get_invite_links_for_account(expected_acc["email"]),
                         "message": f"🎉 HOÀN TẤT XÁC THỰC 3 LỚP! Server nhận diện đúng giọng {expected_acc['display_name']} (Tầng {expected_acc['tier']}, F0={f0_val}Hz, Cosine={cosine_exp}) từ {source_device}!",
@@ -1278,19 +1383,54 @@ class ThreeLayerAuthManager(
                         action="voice_mismatch",
                         email=expected_acc["email"],
                         status="FAIL",
-                        detail=f"Giọng thu âm (F0={f0_val}Hz, Cosine={cosine_exp}) KHÔNG khớp với mẫu giọng của tài khoản {expected_acc['display_name']} (mẫu F0={exp_f0}Hz)!",
+                        detail=f"Giọng thu âm (F0={f0_val}Hz, Cosine={cosine_exp} < {tier_thr}) KHÔNG khớp với mẫu giọng của tài khoản {expected_acc['display_name']}!",
                         source=source_device,
                     )
                     return {
                         "ok": False,
                         "recognized": False,
                         "f0_hz": f0_val,
+                        "similarity": cosine_exp,
                         "cosine_score": cosine_exp,
-                        "error": f"🚫 Giọng nói vừa thu (F0={f0_val}Hz, Cosine={cosine_exp}) KHÔNG khớp với chủ tài khoản {expected_acc['display_name']} (F0 mẫu={exp_f0}Hz)!",
+                        "wespeaker_cosine": cosine_exp,
+                        "threshold_wespeaker": tier_thr,
+                        "error": f"🚫 Giọng nói vừa thu (F0={f0_val}Hz, Cosine={cosine_exp} < {tier_thr}) KHÔNG khớp với chủ tài khoản {expected_acc['display_name']}!",
                     }
 
-        if best_acc is not None and best_diff <= 26.0:
-            cosine_score = round(max(0.70, min(0.97, 0.95 - (best_diff / 90.0))), 2)
+        best_acc: dict[str, Any] | None = None
+        best_cosine = -1.0
+        best_diff = 999.0
+
+        if not pure_tone and cur_wespk is not None:
+            for acc in self.accounts:
+                vp = acc.get("voiceprint", {})
+                if not vp.get("enrolled"):
+                    continue
+                ref_vec = _account_wespeaker_embedding(acc)
+                if not ref_vec:
+                    continue
+                c_val = compute_wespeaker_cosine(cur_wespk, ref_vec)
+                t_thr = get_tier_wespeaker_threshold(int(acc.get("tier", 1)))
+                if c_val >= t_thr and c_val > best_cosine:
+                    best_cosine = c_val
+                    best_acc = acc
+        else:
+            for acc in self.accounts:
+                vp = acc.get("voiceprint", {})
+                if not vp.get("enrolled"):
+                    continue
+                mean_f0 = float(vp.get("f0_mean_hz", 126.0))
+                diff = abs(f0_val - mean_f0)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_acc = acc
+
+        if best_acc is not None and ((not pure_tone and best_cosine >= get_tier_wespeaker_threshold(int(best_acc.get("tier", 1)))) or (pure_tone and best_diff <= 26.0)):
+            cosine_score = (
+                round(best_cosine, 4)
+                if not pure_tone
+                else round(max(0.70, min(0.97, 0.95 - (best_diff / 90.0))), 2)
+            )
             if not best_acc.get("permission_active", True):
                 msg_rev = (
                     f"🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Server nhận diện đúng giọng {best_acc['display_name']} (F0={f0_val}Hz), "
@@ -1314,6 +1454,7 @@ class ThreeLayerAuthManager(
                     "tier": best_acc["tier"],
                     "f0_hz": f0_val,
                     "cosine_score": cosine_score,
+                    "wespeaker_cosine": cosine_score,
                     "source_device": source_device,
                     "error": msg_rev,
                 }
@@ -1323,7 +1464,7 @@ class ThreeLayerAuthManager(
                 action="auto_voice_identify",
                 email=best_acc["email"],
                 status="PASS",
-                detail=f"Server nhận gói thu âm từ [{source_device}] (F0={f0_val}Hz) -> Tự động nhận diện: {best_acc['display_name']} (Tầng {best_acc['tier']}, Cosine={cosine_score}).",
+                detail=f"Server nhận gói thu âm từ [{source_device}] (F0={f0_val}Hz) -> Tự động nhận diện WeSpeaker ResNet34: {best_acc['display_name']} (Tầng {best_acc['tier']}, Cosine={cosine_score}).",
                 source=source_device,
                 extra={"f0_hz": f0_val, "cosine": cosine_score, "tier": best_acc["tier"]},
             )
@@ -1337,18 +1478,21 @@ class ThreeLayerAuthManager(
                 "tier": best_acc["tier"],
                 "role_label": best_acc["role_label"],
                 "f0_hz": f0_val,
+                "similarity": cosine_score,
                 "cosine_score": cosine_score,
+                "wespeaker_cosine": cosine_score,
                 "source_device": source_device,
                 "invite_links_bundle": self.get_invite_links_for_account(best_acc["email"]),
                 "message": f"✅ Server tự động nhận diện từ [{source_device}]: {best_acc['display_name']} (Tầng {best_acc['tier']}, F0={f0_val}Hz, Cosine={cosine_score})!",
             }
 
+        rej_cos = round(max(0.0, best_cosine), 4) if (not pure_tone and best_cosine > -1.0) else 0.23
         self._log_event(
             layer="Lớp 3 (Server Tự Nhận Diện Giọng Nói)",
             action="stranger_blocked",
             email="unknown@stranger",
             status="BLOCKED",
-            detail=f"CẢNH BÁO: Giọng thu âm từ [{source_device}] (F0={f0_val}Hz, Cosine=0.23) không khớp bất kỳ tài khoản nào! Đã chặn quyền!",
+            detail=f"CẢNH BÁO: Giọng thu âm từ [{source_device}] (F0={f0_val}Hz, Cosine={rej_cos} < 0.435) không khớp bất kỳ tài khoản nào! Đã chặn quyền!",
             source=source_device,
         )
         return {
@@ -1357,9 +1501,10 @@ class ThreeLayerAuthManager(
             "tier": 99,
             "speaker_name": "Người lạ chưa đăng ký",
             "f0_hz": f0_val,
-            "cosine_score": 0.23,
+            "cosine_score": rej_cos,
+            "wespeaker_cosine": rej_cos,
             "source_device": source_device,
-            "error": f"🚫 Server phát hiện Giọng Người Lạ (F0={f0_val}Hz, Cosine=0.23 < 0.68) từ [{source_device}] -> Từ chối điều khiển!",
+            "error": f"🚫 Server phát hiện Giọng Người Lạ (F0={f0_val}Hz, Cosine={rej_cos} < 0.435) từ [{source_device}] -> Từ chối điều khiển!",
         }
 
 

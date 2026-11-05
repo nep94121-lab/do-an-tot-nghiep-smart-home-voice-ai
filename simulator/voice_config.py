@@ -21,9 +21,14 @@ _FORBIDDEN_RESPONSE_KEYS = frozenset(
         "embedding_26d_json",
         "embedding_64d_json",
         "embedding_256d",
+        "wespeaker_embedding",
+        "wespeaker_samples",
+        "sample_embeddings_256d",
+        "neural_embedding",
         "baseline_embedding",
         "baseline_deep_embedding",
         "baseline_embedding_256d",
+        "baseline_wespeaker_embedding",
         "formants_hz",
         "password_hash",
         "password_salt",
@@ -64,8 +69,8 @@ def load_voice_auth_config() -> dict[str, Any]:
         except Exception:
             raw = {}
 
-    owner_id = os.environ.get("VOICE_AUTH_OWNER_ID", raw.get("owner_id", "")).strip()
-    owner_email = os.environ.get("VOICE_AUTH_OWNER_EMAIL", raw.get("owner_email", "")).strip()
+    owner_id = os.environ.get("VOICE_AUTH_OWNER_ID", raw.get("owner_id", "tuan_anh")).strip()
+    owner_email = os.environ.get("VOICE_AUTH_OWNER_EMAIL", raw.get("owner_email", "nep94121@gmail.com")).strip()
     owner_display_name = os.environ.get(
         "VOICE_AUTH_OWNER_DISPLAY_NAME",
         raw.get("owner_display_name", "Nguyễn Tuấn Anh"),
@@ -83,6 +88,33 @@ def load_voice_auth_config() -> dict[str, Any]:
 
     threshold_mel = float(os.environ.get("VOICE_AUTH_THRESHOLD_MEL", raw.get("threshold_mel", 0.88)))
     threshold_deep = float(os.environ.get("VOICE_AUTH_THRESHOLD_DEEP", raw.get("threshold_deep", 0.80)))
+    threshold_wespeaker = float(
+        os.environ.get("VOICE_AUTH_THRESHOLD_WESPEAKER", raw.get("threshold_wespeaker", 0.435))
+    )
+    threshold_wespeaker_tier1 = float(
+        os.environ.get(
+            "VOICE_AUTH_THRESHOLD_WESPEAKER_TIER1",
+            raw.get("threshold_wespeaker_tier1", threshold_wespeaker),
+        )
+    )
+    threshold_wespeaker_tier2 = float(
+        os.environ.get(
+            "VOICE_AUTH_THRESHOLD_WESPEAKER_TIER2",
+            raw.get("threshold_wespeaker_tier2", 0.435),
+        )
+    )
+    threshold_wespeaker_tier3 = float(
+        os.environ.get(
+            "VOICE_AUTH_THRESHOLD_WESPEAKER_TIER3",
+            raw.get("threshold_wespeaker_tier3", 0.385),
+        )
+    )
+    enrollment_required_samples = int(
+        os.environ.get(
+            "VOICE_AUTH_ENROLLMENT_SAMPLES",
+            raw.get("enrollment_required_samples", 5),
+        )
+    )
 
     return {
         "owner_id": owner_id,
@@ -93,6 +125,11 @@ def load_voice_auth_config() -> dict[str, Any]:
         "user_role_map": user_role_map_int,
         "threshold_mel": threshold_mel,
         "threshold_deep": threshold_deep,
+        "threshold_wespeaker": threshold_wespeaker,
+        "threshold_wespeaker_tier1": threshold_wespeaker_tier1,
+        "threshold_wespeaker_tier2": threshold_wespeaker_tier2,
+        "threshold_wespeaker_tier3": threshold_wespeaker_tier3,
+        "enrollment_required_samples": enrollment_required_samples,
     }
 
 
@@ -105,6 +142,21 @@ ROLE_MAP: dict[int, str] = _CFG["role_map"]
 USER_ROLE_MAP: dict[int, str] = _CFG["user_role_map"]
 THRESHOLD_MEL: float = _CFG["threshold_mel"]
 THRESHOLD_DEEP: float = _CFG["threshold_deep"]
+THRESHOLD_WESPEAKER: float = _CFG["threshold_wespeaker"]
+THRESHOLD_WESPEAKER_TIER1: float = _CFG["threshold_wespeaker_tier1"]
+THRESHOLD_WESPEAKER_TIER2: float = _CFG["threshold_wespeaker_tier2"]
+THRESHOLD_WESPEAKER_TIER3: float = _CFG["threshold_wespeaker_tier3"]
+ENROLLMENT_REQUIRED_SAMPLES: int = _CFG["enrollment_required_samples"]
+
+
+def get_tier_wespeaker_threshold(tier: int) -> float:
+    """Return configurable WeSpeaker ResNet34 ONNX cosine threshold for a given permission tier."""
+    t = int(tier)
+    if t <= 1:
+        return THRESHOLD_WESPEAKER_TIER1
+    if t == 2:
+        return THRESHOLD_WESPEAKER_TIER2
+    return THRESHOLD_WESPEAKER_TIER3
 
 
 def sanitize_api_payload(obj: Any) -> Any:

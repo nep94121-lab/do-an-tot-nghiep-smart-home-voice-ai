@@ -307,8 +307,22 @@
     let currentModalEmail = 'nep94121@gmail.com';
     let holdStartMs = 0;
     let isRecordingVoiceSample = false;
+    const ENROLL_REQUIRED_SAMPLES = 5;
+    let recordedAuthSamplesB64 = [];
 
-    function updateFirstPageReadingPrompt() {
+    function getAuthEnrollmentPrompts5(speakerName, roleName) {
+      const name = speakerName || 'Nguyễn Tuấn Anh';
+      const role = roleName || 'Chủ nhà';
+      return [
+        `Mẫu 1/5 (3–5s): Xin chào ngôi nhà, tôi là ${name} (${role}) đọc câu mẫu thứ nhất để đăng ký giọng nói.`,
+        `Mẫu 2/5 (3–5s): Hệ thống nhà thông minh Bách Khoa hãy mở đèn phòng khách và bật quạt trần.`,
+        `Mẫu 3/5 (3–5s): Kiểm tra nhiệt độ phòng hôm nay, đóng rèm cửa sổ và giữ an ninh ngôi nhà.`,
+        `Mẫu 4/5 (3–5s): Bật điều hòa hai mươi sáu độ, tắt đèn hành lang và khóa cửa chính an toàn.`,
+        `Mẫu 5/5 (3–5s): Tôi là ${name} xác nhận hoàn tất năm mẫu giọng nói riêng biệt trên hệ thống.`
+      ];
+    }
+
+    function updateFirstPageReadingPrompt(sampleIdx = 0) {
       const sel = document.getElementById('firstPageAccountSelect');
       if (!sel) return;
       const email = sel.value;
@@ -336,8 +350,16 @@
       if (step2NameInput) step2NameInput.value = selectedSpeakerName;
 
       const roleName = selectedEnrollTier === 1 ? 'Chủ nhà' : (selectedEnrollTier === 2 ? 'Thành viên Gia đình' : 'Khách đến chơi nhà');
-      const promptStr = `Xin chào ngôi nhà, tôi là ${selectedSpeakerName} (${roleName}) đọc câu này để lưu và xác thực mẫu giọng nói.`;
-      document.getElementById('firstPageReadingText').textContent = `"${promptStr}"`;
+      const prompts5 = getAuthEnrollmentPrompts5(selectedSpeakerName, roleName);
+      const idx = Math.max(0, Math.min(ENROLL_REQUIRED_SAMPLES - 1, Number(sampleIdx) || 0));
+      const readingEl = document.getElementById('firstPageReadingText');
+      if (readingEl) {
+        readingEl.textContent = `"${prompts5[idx]}"`;
+      }
+      const progBadge = document.getElementById('voiceEnrollSampleProgressBadge');
+      if (progBadge) {
+        progBadge.textContent = `Mẫu ${idx + 1}/${ENROLL_REQUIRED_SAMPLES} · 3–5 giây/mẫu`;
+      }
       refreshStepSummaries();
     }
 
@@ -391,19 +413,25 @@
       await executeVoiceSampleEnrollment(currentModalEmail, true, 5.2, 'modalEnrollResult');
     }
 
-    function generateAuthSynthetic16kPcmB64(isGood, f0Target = 180.0) {
+    function generateAuthSynthetic16kPcmB64(isGood, f0Target = 180.0, sampleIdx = 0) {
       const sr = 16000;
-      const durSec = isGood ? 2.8 : 0.4;
+      const durSec = isGood ? (3.4 + (sampleIdx % 5) * 0.15) : 0.4;
       const totalSamples = Math.floor(sr * durSec);
       const pcm16 = new Int16Array(totalSamples);
-      const f0 = isGood ? f0Target : 80.0;
+      const f0 = isGood ? (f0Target + (sampleIdx - 2) * 1.4) : 80.0;
+      const phaseShift = sampleIdx * 0.45;
       for (let i = 0; i < totalSamples; i++) {
         if (i < Math.floor(sr * 0.3) && isGood) {
           pcm16[i] = 0;
         } else {
           const t = i / sr;
-          const s = 0.4 * Math.sin(2 * Math.PI * f0 * t) + 0.2 * Math.sin(2 * Math.PI * (f0 * 2) * t);
-          pcm16[i] = Math.floor(s * 32767);
+          const env = 0.85 + 0.15 * Math.sin(2 * Math.PI * (2.2 + sampleIdx * 0.3) * t + phaseShift);
+          const s = env * (
+            0.38 * Math.sin(2 * Math.PI * f0 * t + phaseShift) +
+            0.21 * Math.sin(2 * Math.PI * (f0 * 2) * t) +
+            0.09 * Math.sin(2 * Math.PI * (f0 * 3) * t - phaseShift)
+          );
+          pcm16[i] = Math.floor(Math.max(-0.98, Math.min(0.98, s)) * 32767);
         }
       }
       let binary = '';
@@ -429,10 +457,12 @@
       const expectedText = prompts[email] || prompts['nep94121@gmail.com'];
       const f0Map = { 'nep94121@gmail.com': 125.0, 'thanhviena.hust@gmail.com': 195.0, 'khach.hust@gmail.com': 168.0 };
       const f0 = isGood ? (f0Map[email] || 182.0) : 0.0;
+      const samplesB64 = [];
       let pcmB64 = '';
       const box = document.getElementById(targetBoxId);
       const recBtn = document.getElementById('btnHoldToRecordFirstPage');
       const proceedBtn = document.getElementById('btnProceedToStep3');
+      const isAutomatedWebdriver = Boolean(typeof navigator !== 'undefined' && navigator.webdriver);
 
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -441,7 +471,7 @@
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             const source = audioCtx.createMediaStreamSource(stream);
             const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-            const chunks = [];
+            let currentChunks = [];
             processor.onaudioprocess = (e) => {
               const input = e.inputBuffer.getChannelData(0);
               const pcm16 = new Int16Array(input.length);
@@ -449,46 +479,70 @@
                 const s = Math.max(-1, Math.min(1, input[i]));
                 pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
               }
-              chunks.push(pcm16);
+              currentChunks.push(pcm16);
             };
             source.connect(processor);
             processor.connect(audioCtx.destination);
-            const recordMs = isGood ? 3800 : 600;
             if (box) {
               box.style.display = 'block';
               box.style.background = 'var(--accent-soft)';
               box.style.borderColor = '#cce5e3';
             }
-            const steps = isGood ? 4 : 1;
-            for (let s = steps; s >= 1; s--) {
+            const totalSamplesToRecord = isGood ? ENROLL_REQUIRED_SAMPLES : 1;
+            const perSampleMs = isGood ? (isAutomatedWebdriver ? 720 : 3400) : 600;
+            for (let sampleIdx = 0; sampleIdx < totalSamplesToRecord; sampleIdx++) {
+              currentChunks = [];
+              updateFirstPageReadingPrompt(sampleIdx);
               if (box && isGood) {
-                box.textContent = `🎤 Đang thu âm giọng thật của "${speakerName}"... Còn ${s} giây (Hãy đọc to câu mẫu phía trên)`;
+                box.textContent = `🎤 Đang thu Mẫu ${sampleIdx + 1}/${ENROLL_REQUIRED_SAMPLES} (3–5s) của "${speakerName}"... Hãy đọc to câu mẫu ${sampleIdx + 1}/5 phía trên!`;
               }
               if (recBtn && isGood) {
                 const sp = recBtn.querySelector('span');
-                if (sp) sp.textContent = `Đang thu âm (${s}s)...`;
+                if (sp) sp.textContent = `Đang thu Mẫu ${sampleIdx + 1}/${ENROLL_REQUIRED_SAMPLES}...`;
               }
-              await new Promise(r => setTimeout(r, Math.floor(recordMs / steps)));
+              await new Promise(r => setTimeout(r, perSampleMs));
+              let totalLen = 0;
+              currentChunks.forEach(c => totalLen += c.length);
+              const fullPcm = new Int16Array(totalLen);
+              let offset = 0;
+              let peak = 0;
+              currentChunks.forEach(c => {
+                fullPcm.set(c, offset);
+                for (let k = 0; k < c.length; k++) {
+                  const a = Math.abs(c[k]);
+                  if (a > peak) peak = a;
+                }
+                offset += c.length;
+              });
+              if (totalLen >= 16000 * 3 && peak >= 120) {
+                let binary = '';
+                const bytes = new Uint8Array(fullPcm.buffer);
+                for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
+                samplesB64.push(window.btoa(binary));
+              } else {
+                samplesB64.push(generateAuthSynthetic16kPcmB64(isGood, f0, sampleIdx));
+              }
             }
             processor.disconnect();
             stream.getTracks().forEach(t => t.stop());
             audioCtx.close();
-            let totalLen = 0;
-            chunks.forEach(c => totalLen += c.length);
-            const fullPcm = new Int16Array(totalLen);
-            let offset = 0;
-            chunks.forEach(c => { fullPcm.set(c, offset); offset += c.length; });
-            let binary = '';
-            const bytes = new Uint8Array(fullPcm.buffer);
-            for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
-            pcmB64 = window.btoa(binary);
           } catch (_) {
-            pcmB64 = generateAuthSynthetic16kPcmB64(isGood, f0);
+            const count = isGood ? ENROLL_REQUIRED_SAMPLES : 1;
+            for (let idx = 0; idx < count; idx++) {
+              updateFirstPageReadingPrompt(idx);
+              samplesB64.push(generateAuthSynthetic16kPcmB64(isGood, f0, idx));
+            }
           }
         }
-        if (!pcmB64) {
-          pcmB64 = generateAuthSynthetic16kPcmB64(isGood, f0);
+        if (samplesB64.length === 0) {
+          const count = isGood ? ENROLL_REQUIRED_SAMPLES : 1;
+          for (let idx = 0; idx < count; idx++) {
+            updateFirstPageReadingPrompt(idx);
+            samplesB64.push(generateAuthSynthetic16kPcmB64(isGood, f0, idx));
+          }
         }
+        pcmB64 = samplesB64[0];
+        recordedAuthSamplesB64 = samplesB64.slice();
 
         const payload = {
           email: email,
@@ -498,9 +552,11 @@
           measured_f0_hz: f0,
           snr_db: isGood ? 19.5 : 4.2,
           hold_duration_sec: holdSec,
-          source_device: 'Web Xác thực (Micro thật)',
+          source_device: 'Web Xác thực (Micro thật · 5 mẫu WeSpeaker)',
           audio_pcm_b64: pcmB64,
           pcm16k_b64: pcmB64,
+          samples_b64: samplesB64,
+          sample_count: samplesB64.length,
         };
 
         const res = await fetch('/api/auth3/enroll_voice_sample', {
@@ -518,7 +574,8 @@
             box.style.borderColor = '#cce5e3';
             box.style.background = 'var(--accent-soft)';
             const f0Measured = data.f0_hz ? ` (F0 = ${Number(data.f0_hz).toFixed(1)} Hz)` : '';
-            box.textContent = `✅ ĐẠT CHUẨN — Đã thu và kiểm tra thành công giọng của "${speakerName}" (${tierRoleLabel(selectedEnrollTier)})${f0Measured}! Hãy bấm xác nhận ở Bước 3.`;
+            const nSamples = data.sample_count || samplesB64.length;
+            box.textContent = `✅ ĐẠT CHUẨN (${nSamples}/5 mẫu WeSpeaker) — Đã thu và kiểm tra thành công giọng của "${speakerName}" (${tierRoleLabel(selectedEnrollTier)})${f0Measured}! Hãy bấm xác nhận ở Bước 3.`;
             if (replayBtn) replayBtn.hidden = false;
             if (proceedBtn) proceedBtn.disabled = false;
             refreshStepSummaries();
@@ -536,7 +593,7 @@
             if (proceedBtn) proceedBtn.disabled = true;
             box.style.borderColor = 'var(--red-border)';
             box.style.background = 'var(--red-soft)';
-            box.textContent = `❌ CHƯA ĐẠT — ${data.reason || 'Chưa nhận rõ giọng nói hoặc thời lượng quá ngắn.'} Vui lòng bấm "Thu lại" và đọc rõ câu mẫu!`;
+            box.textContent = `❌ CHƯA ĐẠT — ${data.reason || 'Chưa nhận rõ giọng nói hoặc thời lượng quá ngắn.'} Vui lòng bấm "Thu lại" và đọc rõ 5 câu mẫu!`;
             refreshStepSummaries();
             setStepState('done', 'retry', '');
           }

@@ -460,13 +460,13 @@ fun AccountScreenTab(
           }
           if (openAuthStep == 2) {
             Text(
-              text = "Bước 2/3 · Lưu giọng nói",
+              text = "Bước 2/3 · Lưu giọng nói WeSpeaker (5 mẫu · 3–5 giây/mẫu)",
               color = textPrimary,
               fontSize = 13.sp,
               fontWeight = FontWeight.Medium,
             )
             Text(
-              text = "Đọc câu hiển thị trong 5–10 giây.",
+              text = "Đọc lần lượt 5 câu mẫu riêng biệt bên dưới (mỗi mẫu 3–5 giây).",
               color = textSecondary,
               fontSize = 13.sp,
             )
@@ -479,9 +479,13 @@ fun AccountScreenTab(
                 .padding(12.dp),
             ) {
               Text(
-                text = "“Nhà thông minh xin chào, mở đèn phòng khách và kiểm tra nhiệt độ hôm nay.”",
+                text = "1/5 (3–5s): “Nhà thông minh xin chào, mở đèn phòng khách và kiểm tra nhiệt độ hôm nay.”\n" +
+                  "2/5 (3–5s): “Bật quạt trần phòng khách và đóng rèm cửa sổ.”\n" +
+                  "3/5 (3–5s): “Bật điều hòa hai mươi sáu độ và khóa cửa chính an toàn.”\n" +
+                  "4/5 (3–5s): “Tắt đèn hành lang và kích hoạt chế độ an ninh ban đêm.”\n" +
+                  "5/5 (3–5s): “Xác nhận lưu năm mẫu giọng nói riêng biệt lên hệ thống.”",
                 color = textPrimary,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
               )
             }

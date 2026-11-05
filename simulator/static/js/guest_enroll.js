@@ -13,6 +13,20 @@ let guestRecordingInterval = null;
 let guestRecordingStartTime = 0;
 let lastValidGuestPcmB64 = '';
 let lastVerifiedGuestData = null;
+const GUEST_REQUIRED_SAMPLES = 5;
+let guestRecordedSamplesB64 = [];
+
+function getGuestEnrollmentPrompts5(speakerName, roleDesc) {
+  const name = speakerName || 'Khách đến chơi nhà';
+  const role = roleDesc || 'Khách đến chơi nhà (Cấp 3)';
+  return [
+    `Mẫu 1/5 (3–5s): Xin chào ngôi nhà, tôi là ${name} đăng ký quyền ${role} để điều khiển thiết bị bằng giọng nói.`,
+    `Mẫu 2/5 (3–5s): Hệ thống nhà thông minh Bách Khoa hãy bật đèn phòng khách và quạt bàn cho khách.`,
+    `Mẫu 3/5 (3–5s): Kiểm tra trạng thái đèn chiếu sáng và nhiệt độ phòng khách hôm nay.`,
+    `Mẫu 4/5 (3–5s): Tắt đèn bàn làm việc và điều chỉnh tốc độ quạt phòng khách vừa phải.`,
+    `Mẫu 5/5 (3–5s): Tôi là ${name} xác nhận hoàn tất năm mẫu giọng nói riêng biệt trên hệ thống.`
+  ];
+}
 
 function setButtonLoading(btn, isLoading, loadingText) {
   if (!btn) return;
@@ -42,13 +56,21 @@ function onGuestTierChange(val) {
   refreshGuestQrNow();
 }
 
-function updateGuestPromptByRole() {
+function updateGuestPromptByRole(sampleIdx) {
   const nameEl = document.getElementById('guestNameInput');
   const promptEl = document.getElementById('readingPromptBox');
+  const progBadge = document.getElementById('guestSampleProgressBadge');
   const speakerName = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : 'Khách đến chơi nhà';
   const roleDesc = guestTargetTier === 2 ? 'Thành viên Gia đình (Cấp 2)' : 'Khách đến chơi nhà (Cấp 3)';
+  const idx = (typeof sampleIdx === 'number')
+    ? Math.max(0, Math.min(GUEST_REQUIRED_SAMPLES - 1, sampleIdx))
+    : Math.min(GUEST_REQUIRED_SAMPLES - 1, guestRecordedSamplesB64.length);
+  const prompts5 = getGuestEnrollmentPrompts5(speakerName, roleDesc);
   if (promptEl) {
-    promptEl.textContent = `"Xin chào ngôi nhà, tôi là ${speakerName} đăng ký quyền ${roleDesc} để điều khiển thiết bị bằng giọng nói."`;
+    promptEl.textContent = `"${prompts5[idx]}"`;
+  }
+  if (progBadge) {
+    progBadge.textContent = `Mẫu ${idx + 1}/${GUEST_REQUIRED_SAMPLES} · 3–5 giây/mẫu`;
   }
 }
 
@@ -416,11 +438,17 @@ async function stopGuestMicRecording() {
     binary += String.fromCharCode(bytes[i]);
   }
   const b64 = window.btoa(binary);
-  await sendGuestVoicePayload(b64);
+  if (guestRecordedSamplesB64.length >= GUEST_REQUIRED_SAMPLES) {
+    guestRecordedSamplesB64 = [];
+  }
+  guestRecordedSamplesB64.push(b64);
+  updateGuestPromptByRole(Math.min(GUEST_REQUIRED_SAMPLES - 1, guestRecordedSamplesB64.length));
+  await sendGuestVoicePayload(b64, guestRecordedSamplesB64.slice());
 }
 
 async function handleGuestAudioFileUpload(event) {
-  const file = event.target && event.target.files && event.target.files[0];
+  const files = event.target && event.target.files ? Array.from(event.target.files) : [];
+  const file = files[0];
   if (!file) return;
 
   const uploadInfo = document.getElementById('uploadedAudioInfo');
@@ -473,52 +501,67 @@ async function handleGuestAudioFileUpload(event) {
   }
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    let b64Payload = '';
+    const decodeOneFileToB64 = async (f) => {
+      const arrayBuffer = await f.arrayBuffer();
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+        const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+          1,
+          Math.ceil(decodedBuffer.duration * 16000),
+          16000
+        );
+        const src = offlineCtx.createBufferSource();
+        src.buffer = decodedBuffer;
+        src.connect(offlineCtx.destination);
+        src.start(0);
+        const rendered = await offlineCtx.startRendering();
+        const ch = rendered.getChannelData(0);
+        const pcm16 = new Int16Array(ch.length);
+        for (let i = 0; i < ch.length; i++) {
+          const s = Math.max(-1, Math.min(1, ch[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        let binary = '';
+        const bytes = new Uint8Array(pcm16.buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        audioCtx.close();
+        return window.btoa(binary);
+      } catch (_) {
+        let binary = '';
+        const bytes = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+      }
+    };
 
-    // Thử giải mã bằng AudioContext nếu trình duyệt hỗ trợ định dạng này
-    try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-      const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
-        1,
-        Math.ceil(decodedBuffer.duration * 16000),
-        16000
-      );
-      const src = offlineCtx.createBufferSource();
-      src.buffer = decodedBuffer;
-      src.connect(offlineCtx.destination);
-      src.start(0);
-      const rendered = await offlineCtx.startRendering();
-      const ch = rendered.getChannelData(0);
-      const pcm16 = new Int16Array(ch.length);
-      for (let i = 0; i < ch.length; i++) {
-        const s = Math.max(-1, Math.min(1, ch[i]));
-        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    const uploadedList = [];
+    for (const f of files.slice(0, GUEST_REQUIRED_SAMPLES)) {
+      if (f.size <= MAX_FILE_SIZE) {
+        uploadedList.push(await decodeOneFileToB64(f));
       }
-      let binary = '';
-      const bytes = new Uint8Array(pcm16.buffer);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      b64Payload = window.btoa(binary);
-      audioCtx.close();
-    } catch (_) {
-      // Nếu decodeAudioData của browser không giải mã được container này (hoặc trong headless),
-      // gửi file gốc dạng base64 vì backend server đã có thư viện soundfile hỗ trợ đọc trực tiếp container audio
-      let binary = '';
-      const bytes = new Uint8Array(arrayBuffer);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      b64Payload = window.btoa(binary);
     }
-
-    await sendGuestVoicePayload(b64Payload);
+    const b64Payload = uploadedList[0] || '';
+    if (uploadedList.length >= GUEST_REQUIRED_SAMPLES) {
+      guestRecordedSamplesB64 = uploadedList.slice(0, GUEST_REQUIRED_SAMPLES);
+    } else {
+      for (const item of uploadedList) {
+        if (guestRecordedSamplesB64.length >= GUEST_REQUIRED_SAMPLES) {
+          guestRecordedSamplesB64 = [];
+        }
+        guestRecordedSamplesB64.push(item);
+      }
+    }
+    updateGuestPromptByRole(Math.min(GUEST_REQUIRED_SAMPLES - 1, guestRecordedSamplesB64.length));
+    await sendGuestVoicePayload(b64Payload, guestRecordedSamplesB64.slice());
 
     if (lastValidGuestPcmB64) {
       if (uploadInfo) {
-        uploadInfo.textContent = `✅ Đã tải tệp "${file.name}" thành công! Nút Lưu đã sẵn sàng.`;
+        uploadInfo.textContent = `✅ Đã tải tệp "${file.name}" (${guestRecordedSamplesB64.length}/${GUEST_REQUIRED_SAMPLES} mẫu) thành công! Nút Lưu đã sẵn sàng.`;
       }
       const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
       if (okBtn) okBtn.disabled = false;
@@ -545,7 +588,7 @@ async function handleGuestAudioFileUpload(event) {
   }
 }
 
-async function sendGuestVoicePayload(b64Pcm) {
+async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
   const nameInput = document.getElementById('guestNameInput');
   const emailOptInput = document.getElementById('guestOptionalEmailInput');
   const guestName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : '';
@@ -556,6 +599,9 @@ async function sendGuestVoicePayload(b64Pcm) {
   const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
   const recBtn = document.getElementById('btnRecordGuestVoice');
   const retryBtn = document.getElementById('btnRetryGuestVoice');
+  const effectiveSamples = (Array.isArray(samplesListB64) && samplesListB64.length > 0)
+    ? samplesListB64
+    : (b64Pcm ? [b64Pcm] : []);
 
   if (!guestName) {
     if (box) {
@@ -566,7 +612,7 @@ async function sendGuestVoicePayload(b64Pcm) {
     return;
   }
 
-  if (box) box.textContent = 'Đang kiểm định chất lượng giọng nói (16kHz PCM)...';
+  if (box) box.textContent = `Đang kiểm định chất lượng giọng nói WeSpeaker (${effectiveSamples.length}/${GUEST_REQUIRED_SAMPLES} mẫu 16kHz PCM)...`;
   setButtonLoading(recBtn, true, 'Đang phân tích...');
   setButtonLoading(retryBtn, true, 'Đang gửi...');
 
@@ -580,7 +626,11 @@ async function sendGuestVoicePayload(b64Pcm) {
         guest_email: guestEmail,
         target_tier: 3,
         duration: guestDurationCode || '1d',
-        audio_pcm_b64: b64Pcm
+        audio_pcm_b64: b64Pcm,
+        samples_b64: effectiveSamples,
+        sample_count: effectiveSamples.length,
+        sample_index: effectiveSamples.length,
+        total_samples: GUEST_REQUIRED_SAMPLES
       })
     });
     const data = await res.json();

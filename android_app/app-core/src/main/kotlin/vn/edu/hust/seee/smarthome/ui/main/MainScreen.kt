@@ -76,6 +76,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import vn.edu.hust.seee.smarthome.ui.main.components.BottomTabItem
 import vn.edu.hust.seee.smarthome.ui.main.models.AuthTestCaseItem
@@ -677,14 +678,37 @@ fun MainScreen(
 
   fun uploadVoiceToServerForRecognition(simulatedF0: Double? = null, emailTarget: String = "") {
     isUploadingVoiceToServer = true
-    authStatusMessage = "Đang phân tích vân giọng..."
+    val requiredSamples = 5
+    val sampleDurationMs = 3200
+    authStatusMessage = "Đang thu 5 mẫu giọng WeSpeaker (Mẫu 1/$requiredSamples · 3–5s)..."
     scope.launch(Dispatchers.IO) {
-      val captured = captureMicPcmAndPitch(1100)
-      val pcmB64 = captured.pcm16kBase64
-      val f0ToUse = simulatedF0 ?: captured.f0Hz
+      val samplesJsonArr = JSONArray()
+      var firstPcmB64 = ""
+      var detectedF0Sum = 0.0
+      for (sampleIdx in 0 until requiredSamples) {
+        withContext(Dispatchers.Main) {
+          authStatusMessage = "Đang thu Mẫu ${sampleIdx + 1}/$requiredSamples (3–5 giây/mẫu)..."
+        }
+        val captured = captureMicPcmAndPitch(sampleDurationMs)
+        if (sampleIdx == 0) {
+          firstPcmB64 = captured.pcm16kBase64
+        }
+        detectedF0Sum += captured.f0Hz
+        if (captured.pcm16kBase64.isNotBlank()) {
+          samplesJsonArr.put(captured.pcm16kBase64)
+        }
+      }
+      val f0ToUse = simulatedF0 ?: (detectedF0Sum / requiredSamples.toDouble())
+      withContext(Dispatchers.Main) {
+        authStatusMessage = "Đang trích xuất 5 vector WeSpeaker ResNet34 ONNX..."
+      }
       val payload = JSONObject().apply {
         put("email", if (emailTarget.isNotBlank()) emailTarget else authEmail)
-        put("pcm_base64", pcmB64)
+        put("pcm_base64", firstPcmB64)
+        put("audio_pcm_b64", firstPcmB64)
+        put("samples_b64", samplesJsonArr)
+        put("sample_count", requiredSamples)
+        put("hold_duration_sec", 3.5)
         put("simulated_f0", f0ToUse)
       }.toString()
       val resStr = callServerHttp("/api/auth3/enroll_voice_sample", "POST", payload)
@@ -698,8 +722,8 @@ fun MainScreen(
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 3)
             authStatusColor = accentGreen
-            authStatusMessage = serverSpeech.ifBlank { "Đã lưu giọng nói thành công!" }
-            addHistoryLog("Lớp 3: Vân giọng đã được xác thực.")
+            authStatusMessage = serverSpeech.ifBlank { "Đã lưu 5/5 mẫu giọng WeSpeaker thành công!" }
+            addHistoryLog("Lớp 3: Đã lưu trung bình 5 mẫu vân giọng WeSpeaker.")
             if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
               speakerReply = serverSpeech
               speakOutLoud(serverSpeech, serverPcmB64)
@@ -716,7 +740,7 @@ fun MainScreen(
         } else {
           authStepDone = maxOf(authStepDone, 3)
           authStatusColor = accentGreen
-          authStatusMessage = "Đã lưu giọng nói."
+          authStatusMessage = "Đã lưu 5/5 mẫu giọng nói."
         }
       }
     }

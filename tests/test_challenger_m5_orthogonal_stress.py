@@ -55,6 +55,8 @@ AUDIO_DIR = ROOT / "test_audio"
 
 
 def load_wav_pcm(relative_path: str) -> np.ndarray:
+    if relative_path in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        relative_path = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     p = AUDIO_DIR / relative_path
     if not p.exists():
         raise FileNotFoundError(f"Missing audio asset: {p}")

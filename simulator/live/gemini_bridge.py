@@ -415,6 +415,19 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(raw_utt)
         auth_res.pop("clean_pcm_bytes", None)
 
+        if auth_res.get("ask_repeat") or auth_res.get("quality_gate_failed"):
+            self.voice_auth.unauthorized_strikes = prev_strikes
+            auth_res["strike_count"] = prev_strikes
+            self.last_mic_turn_blocked = True
+            self.last_mic_auth_result = dict(auth_res)
+            await self.send_ws_json({
+                "type": "voice_auth_result",
+                "sample_id": "live_mic_quality_gate",
+                "label": "Yêu cầu nói lại (Cổng chất lượng Mel/Deep)",
+                "analysis": auth_res,
+            })
+            return
+
         is_short = len(raw_utt) < 16000
         f0_val = float(auth_res.get("f0_hz") or 0.0)
         is_vocal_fry = len(raw_utt) < 25600 and (0 < f0_val < 105.0)
@@ -423,7 +436,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             self.voice_auth.unauthorized_strikes = prev_strikes
             auth_res["strike_count"] = prev_strikes
             auth_res["deferred_strike"] = True
-            auth_res["speaker_label"] = "⚠️ Âm đệm / Tiếng thở ngập ngừng (Hoãn điểm phạt)"
+            auth_res["ask_repeat"] = True
+            auth_res["speaker_label"] = "⚠️ Âm đệm / Tiếng thở ngập ngừng (Yêu cầu nói lại)"
             self.last_mic_turn_blocked = False
             self.last_mic_auth_result = dict(auth_res)
             await self.send_ws_json({
@@ -625,7 +639,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             raise
 
     async def stream_wav_sample(self, sample_id: str) -> None:
-        wav_path = AUDIO_DIR / f"{sample_id}.wav"
+        verified_owner_sample_map = {
+            "giong_1_chu_nha_mo_cua": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav",
+            "mo_cua_chinh": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav",
+            "bat_den_phong_khach": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav",
+            "tat_quat": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_6_tat_het_den.wav",
+            "bat_quat_va_dieu_hoa": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
+        }
+        mapped_path = verified_owner_sample_map.get(sample_id)
+        wav_path = mapped_path if (mapped_path and mapped_path.exists()) else (AUDIO_DIR / f"{sample_id}.wav")
         if not wav_path.exists():
             await self.send_ws_json({"type": "error", "message": f"Không tìm thấy mẫu âm thanh '{sample_id}.wav'"})
             return

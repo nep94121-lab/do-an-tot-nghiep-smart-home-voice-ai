@@ -13,5 +13,12 @@
     "3": "khach_c"
   },
   "threshold_mel": 0.88,
-  "threshold_deep": 0.80
+  "threshold_deep": 0.80,
+  "threshold_wespeaker": 0.435,
+  "threshold_wespeaker_tier1": 0.435,
+  "threshold_wespeaker_tier2": 0.435,
+  "threshold_wespeaker_tier3": 0.385,
+  "enrollment_required_samples": 5,
+  "enrollment_sample_min_sec": 3.0,
+  "enrollment_sample_max_sec": 5.0
 }

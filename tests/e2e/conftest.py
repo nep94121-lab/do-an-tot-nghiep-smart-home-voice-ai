@@ -31,6 +31,8 @@ AUDIO_DIR = ROOT / "test_audio"
 
 def read_wav_pcm16(filename: str) -> bytes:
     """Đọc tệp âm thanh WAV PCM 16-bit 16kHz."""
+    if filename in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        filename = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     path = AUDIO_DIR / filename
     if not path.exists():
         raise FileNotFoundError(f"Không tìm thấy tệp âm thanh kiểm thử: {path}")

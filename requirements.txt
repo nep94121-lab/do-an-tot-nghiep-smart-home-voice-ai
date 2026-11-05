@@ -3,5 +3,6 @@ uvicorn>=0.32.0
 google-genai>=1.0.0
 python-dotenv>=1.0.0
 numpy>=1.26.0
+onnxruntime>=1.19.0
 qrcode>=7.4.2
 websockets>=13.0

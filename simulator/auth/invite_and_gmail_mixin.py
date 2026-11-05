@@ -272,9 +272,15 @@ class AuthInviteGmailMixin:
         pcm_bytes: bytes | str,
         source_device: str = "Voice Enrollment (Audio Upload)",
         check_duplicate: bool = True,
+        samples_pcm: list[bytes] | None = None,
     ) -> dict[str, Any]:
-        """Kiểm định chất lượng âm thanh, kiểm tra chống trùng giọng trong nhà và lưu hồ sơ giọng chính."""
+        """Kiểm định chất lượng âm thanh, kiểm tra chống trùng giọng trong nhà và lưu hồ sơ giọng chính (WeSpeaker ResNet34 ONNX + 5-Sample Mean)."""
+        from simulator.voice.wespeaker_onnx import (
+            compute_multi_sample_mean_embedding,
+            extract_wespeaker_embedding,
+        )
         from simulator.voice_auth import validate_voice_enrollment_quality
+        from simulator.voice_config import get_tier_wespeaker_threshold
 
         clean_email = email.strip().lower()
         acc = self.find_account(clean_email)
@@ -313,6 +319,7 @@ class AuthInviteGmailMixin:
             return {
                 "ok": False,
                 "status": "CHUA_DAT",
+                "ask_repeat": True,
                 "message": "Giọng thu âm chưa đạt chuẩn (Chưa được)",
                 "reason": val_res.get("reason", "Chất lượng âm thanh chưa đạt chuẩn"),
                 "details": val_res.get("details", {}),
@@ -320,9 +327,41 @@ class AuthInviteGmailMixin:
 
         acc_tier = int(acc.get("tier", 2))
         acc_uid = str(acc.get("account_id", ""))
+        samples_count = 1
+        if samples_pcm and len(samples_pcm) >= 2:
+            multi_res = compute_multi_sample_mean_embedding(
+                samples_pcm,
+                sr=16000,
+                required_samples=len(samples_pcm),
+                enforce_distinct=True,
+            )
+            if not multi_res.get("ok"):
+                return {
+                    "ok": False,
+                    "status": "CHUA_DAT",
+                    "ask_repeat": bool(multi_res.get("ask_repeat", False)),
+                    "reason": multi_res.get("reason", "MULTI_SAMPLE_FAILED"),
+                    "message": multi_res.get("message", "Các mẫu giọng thu âm chưa đạt chuẩn."),
+                    "error": multi_res.get("message", "Các mẫu giọng thu âm chưa đạt chuẩn."),
+                }
+            wespk_vec = multi_res.get("wespeaker_embedding", [])
+            samples_count = int(multi_res.get("num_samples", len(samples_pcm)))
+        else:
+            wespk_vec = [
+                round(float(v), 6)
+                for v in extract_wespeaker_embedding(pcm_data).tolist()
+            ]
+
         if check_duplicate:
             dup_res = self.check_duplicate_voice_gate(
-                pcm_data,
+                {
+                    "embedding": val_res.get("embedding", []),
+                    "f0_hz": val_res.get("f0_hz", 126.0),
+                    "wespeaker_embedding": wespk_vec,
+                    "embedding_256d": wespk_vec,
+                },
+                deep_feat={"deep_embedding": val_res.get("deep_embedding", [])},
+                f0_hz=float(val_res.get("f0_hz", 126.0)),
                 target_tier=acc_tier,
                 target_user_id=acc_uid,
             )
@@ -351,10 +390,16 @@ class AuthInviteGmailMixin:
                 }
 
         f0_val = float(val_res.get("f0_hz", 126.0))
+        tier_thr = get_tier_wespeaker_threshold(acc_tier)
         acc["voice_verified"] = True
         acc["needs_first_page_voice_enroll"] = False
         acc["voiceprint"] = {
             "enrolled": True,
+            "wespeaker_model": "wespeaker_r34_onnx",
+            "threshold_wespeaker": tier_thr,
+            "enrollment_samples_count": samples_count,
+            "wespeaker_embedding": wespk_vec,
+            "embedding_256d": wespk_vec,
             "f0_mean_hz": f0_val,
             "f0_min_hz": round(max(75.0, f0_val - 20.0), 1),
             "f0_max_hz": round(min(340.0, f0_val + 20.0), 1),
@@ -372,9 +417,12 @@ class AuthInviteGmailMixin:
             action="voice_enroll_passed",
             email=clean_email,
             status="PASS",
-            detail=f"Kiểm định giọng {clean_email} ĐÃ ĐẠT: F0={f0_val}Hz. Đã lưu hồ sơ giọng chính!",
+            detail=(
+                f"Kiểm định giọng {clean_email} ĐÃ ĐẠT (WeSpeaker ResNet34 ONNX, {samples_count} mẫu, "
+                f"ngưỡng={tier_thr}): F0={f0_val}Hz. Đã lưu hồ sơ giọng chính!"
+            ),
             source=source_device,
-            extra={"f0_hz": f0_val, "duration_sec": val_res.get("duration_sec")},
+            extra={"f0_hz": f0_val, "duration_sec": val_res.get("duration_sec"), "samples_count": samples_count},
         )
 
         return {
@@ -382,6 +430,9 @@ class AuthInviteGmailMixin:
             "status": "DA_DAT",
             "message": "Giọng chính đã đạt chuẩn (Đã được)",
             "f0_hz": f0_val,
+            "sample_count": samples_count,
+            "enrollment_samples_count": samples_count,
+            "threshold_wespeaker": tier_thr,
             "account": acc,
             "voiceprint": acc["voiceprint"],
         }
@@ -1181,6 +1232,7 @@ class AuthInviteGmailMixin:
         measured_f0_hz: float | None = None,
         hold_duration_sec: float = 3.2,
         source_device: str = "Trang Đầu Web / App Samsung S9 (Nhấn & Giữ)",
+        samples_b64: list[str] | None = None,
     ) -> dict[str, Any]:
         """Khi người dùng mới vào Trang Đầu, đọc dòng chữ mẫu hiển thị trên màn hình và giữ nút thu âm."""
         acc = self.find_account(email)
@@ -1196,6 +1248,7 @@ class AuthInviteGmailMixin:
             target_tier=acc["tier"],
             password="",
             source_device=source_device,
+            samples_b64=samples_b64,
         )
         if not enr_res.get("ok"):
             return enr_res

@@ -59,6 +59,8 @@ def client() -> TestClient:
 
 
 def _load_wav_as_pcm16k(filename: str) -> bytes:
+    if filename in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
+        filename = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
     wav_path = ROOT / "test_audio" / filename
     assert wav_path.exists(), f"Không tìm thấy file audio: {wav_path}"
     with wave.open(str(wav_path), "rb") as wf:

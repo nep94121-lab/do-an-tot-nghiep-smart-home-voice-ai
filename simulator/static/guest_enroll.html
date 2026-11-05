@@ -45,12 +45,15 @@
       <input type="email" id="guestOptionalEmailInput" name="guest_email" value="" placeholder="Nhập email (VD: khach@gmail.com)" autocomplete="email" required />
 
       <div class="section-divider">
-        <h2>3. Thu âm giọng nói</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <h2>3. Thu âm giọng nói (5 mẫu WeSpeaker · 3–5s/mẫu)</h2>
+          <span class="badge badge-ok" id="guestSampleProgressBadge">Mẫu 1/5 · 3–5 giây/mẫu</span>
+        </div>
         <p class="sub-hint">
-          Đọc câu mẫu bên dưới để đăng ký giọng nói Khách Cấp 3.
+          Đọc 5 câu mẫu riêng biệt bên dưới (mỗi mẫu 3–5 giây) để đăng ký giọng nói Khách Cấp 3 bằng WeSpeaker ResNet34 ONNX.
         </p>
         <div class="prompt-box" id="readingPromptBox">
-          "Xin chào ngôi nhà, tôi là Khách đến chơi nhà đăng ký quyền Khách đến chơi nhà (Cấp 3) để điều khiển thiết bị bằng giọng nói."
+          "Mẫu 1/5 (3–5s): Xin chào ngôi nhà, tôi là Khách đến chơi nhà đăng ký quyền Khách đến chơi nhà (Cấp 3) để điều khiển thiết bị bằng giọng nói."
         </div>
         <div class="actions-row">
           <button id="btnRecordGuestVoice" type="button" class="btn btn-primary btn-flex" onclick="toggleGuestMicRecording()">
@@ -83,7 +86,7 @@
           <label for="guestAudioFileInput" class="btn btn-secondary btn-upload" id="btnUploadAudioLabel">
             📁 Tải lên tệp âm thanh (.wav, .m4a, .webm, .mp3, .ogg)
           </label>
-          <input type="file" id="guestAudioFileInput" accept=".wav,.m4a,.webm,.mp3,.ogg,audio/*" style="display:none;" onchange="handleGuestAudioFileUpload(event)" />
+          <input type="file" id="guestAudioFileInput" accept=".wav,.m4a,.webm,.mp3,.ogg,audio/*" multiple style="display:none;" onchange="handleGuestAudioFileUpload(event)" />
           <div id="uploadedAudioInfo" class="uploaded-info" style="display:none;"></div>
         </div>
       </div>

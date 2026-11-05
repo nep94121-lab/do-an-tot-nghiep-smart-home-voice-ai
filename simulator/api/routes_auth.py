@@ -275,9 +275,34 @@ async def api_auth3_read_gmail_otp(request: Request, payload: dict[str, Any] | N
     return JSONResponse(sanitize_api_payload(res))
 
 
+def _decode_b64_samples_to_pcm16k_list(raw_list: Any) -> list[bytes]:
+    """Decode a list of base64 audio strings (PCM16k or WAV container) to 16 kHz mono PCM16 bytes."""
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+
+    if not isinstance(raw_list, (list, tuple)):
+        return []
+    out: list[bytes] = []
+    for item in raw_list:
+        if not item:
+            continue
+        s = str(item).strip()
+        if "," in s and s.startswith("data:"):
+            s = s.split(",", 1)[1]
+        try:
+            dec = base64.b64decode(s)
+            if len(dec) >= 44 and dec[:4] == b"RIFF":
+                arr, _ = decode_audio_bytes_to_pcm16k(dec)
+                dec = arr.astype("int16").tobytes()
+            if len(dec) >= 640:
+                out.append(dec)
+        except Exception:
+            pass
+    return out
+
+
 @router.post("/api/auth3/enroll_first_page_voice")
 async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm giọng nói câu mẫu trang đầu."""
+    """Thu âm giọng nói câu mẫu trang đầu (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
     from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
 
     email = str(payload.get("email", "")).strip()
@@ -289,24 +314,41 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
         or payload.get("audio_b64")
         or ""
     ).strip()
+    raw_samples_b64 = (
+        payload.get("samples_b64")
+        or payload.get("samples_pcm_b64")
+        or payload.get("samples_wav_b64")
+    )
+    decoded_samples = _decode_b64_samples_to_pcm16k_list(raw_samples_b64)
+    normalized_samples_b64 = [base64.b64encode(b).decode("ascii") for b in decoded_samples]
+
     f0_raw = payload.get("measured_f0_hz")
     measured_f0_hz = float(f0_raw) if f0_raw is not None else None
     hold_duration_sec = float(payload.get("hold_duration_sec", 3.2) or 3.2)
     source_device = str(payload.get("source_device", "Trang Đầu (Nhấn & Giữ Thu Âm)")).strip()
     pcm_bytes = b""
     if pcm16k_b64:
+        clean_b64 = (
+            pcm16k_b64.split(",", 1)[1]
+            if ("," in pcm16k_b64 and pcm16k_b64.startswith("data:"))
+            else pcm16k_b64
+        )
         try:
-            raw_decoded = base64.b64decode(pcm16k_b64)
+            raw_decoded = base64.b64decode(clean_b64)
             if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
                 pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
                 pcm_bytes = pcm_arr.astype("int16").tobytes()
                 pcm16k_b64 = base64.b64encode(pcm_bytes).decode("ascii")
             else:
                 pcm_bytes = raw_decoded
+                pcm16k_b64 = clean_b64
         except Exception:
             pcm_bytes = b""
+    elif decoded_samples:
+        pcm_bytes = decoded_samples[0]
+        pcm16k_b64 = normalized_samples_b64[0]
 
-    if len(pcm_bytes) < 640:
+    if len(pcm_bytes) < 640 and not decoded_samples:
         return JSONResponse(
             sanitize_api_payload(
                 {
@@ -350,6 +392,7 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
         measured_f0_hz=measured_f0_hz,
         hold_duration_sec=hold_duration_sec,
         source_device=source_device,
+        samples_b64=normalized_samples_b64 if normalized_samples_b64 else None,
     )
     append_audit_log(
         category="AUTH_3LAYER",
@@ -357,7 +400,7 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
         summary=res.get("message") or res.get("error") or "Thu âm câu mẫu trang đầu",
         user_name=email,
         tier=int(res.get("account", {}).get("tier", 2)) if res.get("ok") else 99,
-        details=res,
+        details=sanitize_api_payload(res),
     )
     if res.get("ok") and res.get("account"):
         acc = res["account"]
@@ -371,6 +414,10 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
         emb_vec = v_an.get("embedding", [0.1] * 26)
         form_vec = v_an.get("formants_hz")
         deep_vec = v_an.get("deep_embedding")
+        wespk_vec = (
+            acc.get("voiceprint", {}).get("wespeaker_embedding")
+            or v_an.get("wespeaker_embedding")
+        )
         _BOOT_VOICE_AUTH.register_enrolled_user_profile(
             user_id=uid,
             user_name=uname,
@@ -381,6 +428,7 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
             embedding=emb_vec,
             formants_hz=form_vec,
             deep_embedding=deep_vec,
+            wespeaker_embedding=wespk_vec,
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
@@ -389,7 +437,7 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
 
 @router.post("/api/auth3/enroll_voice_sample")
 async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse:
-    """Kiểm định chất lượng và thu âm mẫu giọng chính."""
+    """Kiểm định chất lượng và thu âm mẫu giọng chính (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
     email = str(payload.get("email", "")).strip()
     speaker_name = str(payload.get("speaker_name") or payload.get("display_name") or "").strip()
     raw_tier = payload.get("target_tier", payload.get("tier"))
@@ -410,9 +458,20 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
         or payload.get("audio_base64")
         or ""
     ).strip()
+    raw_samples_b64 = (
+        payload.get("samples_b64")
+        or payload.get("samples_pcm_b64")
+        or payload.get("samples_wav_b64")
+    )
+    decoded_samples = _decode_b64_samples_to_pcm16k_list(raw_samples_b64)
     source_device = str(payload.get("source_device", "Thu Âm Giọng Chính")).strip()
     try:
-        raw_decoded = base64.b64decode(pcm16k_b64) if pcm16k_b64 else b""
+        clean_b64 = (
+            pcm16k_b64.split(",", 1)[1]
+            if ("," in pcm16k_b64 and pcm16k_b64.startswith("data:"))
+            else pcm16k_b64
+        )
+        raw_decoded = base64.b64decode(clean_b64) if clean_b64 else b""
         if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
             pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
             pcm_bytes = pcm_arr.astype("int16").tobytes()
@@ -421,7 +480,10 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
     except Exception:
         pcm_bytes = b""
 
-    if len(pcm_bytes) < 640:
+    if not pcm_bytes and decoded_samples:
+        pcm_bytes = decoded_samples[0]
+
+    if len(pcm_bytes) < 640 and not decoded_samples:
         return JSONResponse(
             sanitize_api_payload(
                 {
@@ -471,6 +533,7 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
         email=email,
         pcm_bytes=pcm_bytes,
         source_device=source_device,
+        samples_pcm=decoded_samples if decoded_samples else None,
     )
     append_audit_log(
         category="AUTH_3LAYER",
@@ -478,7 +541,7 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
         summary=res.get("message") or res.get("reason") or "Kiểm định và thu âm mẫu giọng chính",
         user_name=email,
         tier=int(res.get("account", {}).get("tier", 2)) if res.get("ok") else 99,
-        details=res,
+        details=sanitize_api_payload(res),
     )
     if res.get("ok") and res.get("status") == "DA_DAT" and res.get("account"):
         acc = res["account"]
@@ -493,6 +556,7 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
             tier=utier,
             role=urole,
             check_duplicate=True,
+            samples_pcm16k=decoded_samples if decoded_samples else None,
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
@@ -548,7 +612,7 @@ async def api_voice_auth_profiles(request: Request) -> JSONResponse:
 @router.post("/api/voice_enroll")
 @router.post("/api/voice/enroll")
 async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm giọng nói thật 16kHz PCM hoặc WAV từ mic/file lưu làm profile server."""
+    """Thu âm giọng nói thật 16kHz PCM hoặc WAV từ mic/file lưu làm profile server (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
     from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
 
     b64_pcm = str(
@@ -558,12 +622,26 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
         or payload.get("audio_pcm_b64")
         or ""
     ).strip()
+    raw_samples_b64 = (
+        payload.get("samples_b64")
+        or payload.get("samples_pcm_b64")
+        or payload.get("samples_wav_b64")
+    )
+    decoded_samples = _decode_b64_samples_to_pcm16k_list(raw_samples_b64)
+
     user_id = str(payload.get("user_id", OWNER_ID)).strip()
     user_name = str(payload.get("user_name", "Nguyễn Tuấn Anh")).strip()
     tier = int(payload.get("tier") or payload.get("level") or 1)
     role = ROLE_MAP.get(tier, "CHILD_GUEST")
+    sample_index = payload.get("sample_index")
+    total_samples = int(payload.get("total_samples") or 5)
     try:
-        raw_decoded = base64.b64decode(b64_pcm) if b64_pcm else b""
+        clean_b64 = (
+            b64_pcm.split(",", 1)[1]
+            if ("," in b64_pcm and b64_pcm.startswith("data:"))
+            else b64_pcm
+        )
+        raw_decoded = base64.b64decode(clean_b64) if clean_b64 else b""
         if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
             pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
             pcm_bytes = pcm_arr.astype("int16").tobytes()
@@ -572,7 +650,10 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
     except Exception:
         pcm_bytes = b""
 
-    if len(pcm_bytes) < 640:
+    if not pcm_bytes and decoded_samples:
+        pcm_bytes = decoded_samples[0]
+
+    if len(pcm_bytes) < 640 and not decoded_samples:
         return JSONResponse(
             sanitize_api_payload(
                 {
@@ -591,6 +672,9 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
         tier=tier,
         role=role,
         check_duplicate=True,
+        samples_pcm16k=decoded_samples if decoded_samples else None,
+        sample_index=int(sample_index) if sample_index is not None else None,
+        total_samples=total_samples,
     )
     if res.get("ok") and res.get("profile"):
         prof = res["profile"]
@@ -604,9 +688,11 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
         get_auth_3layer_manager().complete_first_page_voice_enrollment(
             email=target_email,
             spoken_text=str(payload.get("spoken_text", f"Thu âm giọng thật Cấp {tier} ({user_name})")),
+            pcm16k_b64=base64.b64encode(pcm_bytes).decode("ascii") if pcm_bytes else "",
             measured_f0_hz=float(prof["f0_hz"]),
             hold_duration_sec=float(res.get("duration_sec", 4.0)),
             source_device="Microphone Trực Tiếp (16kHz PCM)",
+            samples_b64=[base64.b64encode(b).decode("ascii") for b in decoded_samples] if decoded_samples else None,
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
@@ -862,7 +948,7 @@ async def api_auth3_forgot_password_reset(payload: dict[str, Any]) -> JSONRespon
 
 @router.post("/api/auth3/layer3_voice")
 async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
-    """Xác thực Lớp 3 (Sinh trắc học giọng nói)."""
+    """Xác thực Lớp 3 (Sinh trắc học giọng nói WeSpeaker ResNet34 ONNX + 5-Sample Mean Enrollment)."""
     mode = str(payload.get("mode", "recognize")).strip()
     pcm16k_b64 = str(
         payload.get("audio_pcm_b64")
@@ -871,6 +957,14 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
         or payload.get("audio_b64")
         or ""
     ).strip()
+    raw_samples_b64 = (
+        payload.get("samples_b64")
+        or payload.get("samples_pcm_b64")
+        or payload.get("samples_wav_b64")
+    )
+    decoded_samples = _decode_b64_samples_to_pcm16k_list(raw_samples_b64)
+    normalized_samples_b64 = [base64.b64encode(b).decode("ascii") for b in decoded_samples]
+
     pcm_bytes = b""
     if pcm16k_b64:
         clean_b64 = (
@@ -882,10 +976,13 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
             pcm_bytes = base64.b64decode(clean_b64)
         except Exception:
             pcm_bytes = b""
+    elif decoded_samples:
+        pcm_bytes = decoded_samples[0]
+        pcm16k_b64 = normalized_samples_b64[0]
 
     if (
         any(k in payload for k in ("sample_id", "profile_id", "speaker_id", "voiceprint"))
-        or len(pcm_bytes) < 640
+        or (len(pcm_bytes) < 640 and not decoded_samples)
     ):
         return JSONResponse(
             sanitize_api_payload(
@@ -915,6 +1012,7 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
         target_tier=target_tier,
         password=password,
         source_device=source_device,
+        samples_b64=normalized_samples_b64 if normalized_samples_b64 else None,
     )
     if res.get("ok") and res.get("recognized"):
         tier_val = int(res.get("tier", 1))
@@ -928,7 +1026,7 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
         summary=res.get("message") or res.get("error") or "Xử lý Giọng nói Lớp 3",
         user_name=str(res.get("speaker_name") or target_name or email or "Voice User"),
         tier=int(res.get("tier", target_tier)),
-        details=res,
+        details=sanitize_api_payload(res),
     )
     return JSONResponse(sanitize_api_payload(res))
 

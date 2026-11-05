@@ -329,6 +329,27 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         or payload.get("audio_b64")
         or ""
     ).strip()
+    raw_samples_b64 = (
+        payload.get("samples_b64")
+        or payload.get("samples_pcm_b64")
+        or payload.get("samples_wav_b64")
+    )
+    decoded_samples: list[bytes] = []
+    if isinstance(raw_samples_b64, (list, tuple)):
+        for sb in raw_samples_b64:
+            if not sb:
+                continue
+            s_clean = str(sb).strip()
+            if "," in s_clean and s_clean.startswith("data:"):
+                s_clean = s_clean.split(",", 1)[1]
+            try:
+                b_raw = base64.b64decode(s_clean)
+                if b_raw.startswith(b"RIFF"):
+                    b_raw = _decode_container_audio_to_pcm16k(b_raw)
+                if len(b_raw) >= 4000:
+                    decoded_samples.append(b_raw)
+            except Exception:
+                pass
 
     sess_info = getattr(mgr3, "guest_qr_sessions", {}).get(session_id, {})
     if sess_info:
@@ -339,7 +360,12 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     dur_label = DURATION_LABELS_VN.get(dur_type, dur_type)
 
     try:
-        pcm_bytes = base64.b64decode(b64_pcm) if b64_pcm else b""
+        clean_b64 = (
+            b64_pcm.split(",", 1)[1]
+            if ("," in b64_pcm and b64_pcm.startswith("data:"))
+            else b64_pcm
+        )
+        pcm_bytes = base64.b64decode(clean_b64) if clean_b64 else b""
     except Exception:
         pcm_bytes = b""
 
@@ -347,12 +373,16 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     if pcm_bytes and pcm_bytes.startswith(b"RIFF"):
         pcm_bytes = _decode_container_audio_to_pcm16k(pcm_bytes)
 
-    if not pcm_bytes or len(pcm_bytes) < 4000:
+    if not pcm_bytes and decoded_samples:
+        pcm_bytes = decoded_samples[0]
+
+    if (not pcm_bytes or len(pcm_bytes) < 4000) and not decoded_samples:
         return JSONResponse(
             sanitize_api_payload(
                 {
                     "ok": False,
                     "status": "CHUA_DAT",
+                    "ask_repeat": True,
                     "error": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
                     "message": "Chưa nhận rõ giọng nói hoặc bản thu quá ngắn. Vui lòng thu âm lại!",
                 }
@@ -368,6 +398,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
                 {
                     "ok": False,
                     "status": "CHUA_DAT",
+                    "ask_repeat": True,
                     "error": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
                     "message": q_res.get("message") or "Chất lượng âm thanh không đạt chuẩn",
                     "details": q_res,
@@ -410,10 +441,11 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
             "duration_code": dur_type,
             "duration_label": dur_label,
             "f0_hz": q_res.get("f0_hz"),
-            "message": f"✅ Giọng nói của '{guest_name}' ĐẠT CHUẨN xác thực (F0 = {q_res.get('f0_hz')} Hz · {role_label_vn}). Nhấn nút 'OK · Xác nhận & Kích hoạt' bên dưới để lưu lên máy chủ!",
+            "enrollment_samples_count": len(decoded_samples) if decoded_samples else 1,
+            "message": f"✅ Giọng nói của '{guest_name}' ĐẠT CHUẨN xác thực WeSpeaker ResNet34 (F0 = {q_res.get('f0_hz')} Hz · {role_label_vn}). Nhấn nút 'OK · Xác nhận & Kích hoạt' bên dưới để lưu lên máy chủ!",
         }))
 
-    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (1 lần duy nhất là xong)
+    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)
     expires_at_ts = time.time() + float(dur_seconds)
     enroll_res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
         pcm_bytes=pcm_bytes,
@@ -423,6 +455,9 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         role=role_code,
         expires_at=expires_at_ts,
         check_duplicate=False,
+        samples_pcm16k=decoded_samples if len(decoded_samples) >= 2 else None,
+        sample_index=int(payload.get("sample_index") or max(1, len(decoded_samples))),
+        total_samples=int(payload.get("total_samples") or 5),
     )
     if not enroll_res.get("ok"):
         return JSONResponse(sanitize_api_payload(enroll_res), status_code=400)
@@ -435,6 +470,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         )
         if isinstance(acc, dict) and acc.get("account_id") != "tuan_anh":
             f0_val = float(q_res.get("f0_hz") or 180.0)
+            prof_w = (enroll_res.get("profile") or {}).get("wespeaker_embedding") or []
             acc["voice_verified"] = True
             acc["needs_first_page_voice_enroll"] = False
             if isinstance(acc.get("voiceprint"), dict):
@@ -442,6 +478,10 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
                 acc["voiceprint"]["f0_mean_hz"] = round(f0_val, 1)
                 acc["voiceprint"]["reading_prompt_verified"] = True
                 acc["voiceprint"]["source_device"] = "Guest QR (/guest)"
+                acc["voiceprint"]["wespeaker_model"] = "wespeaker_r34_onnx"
+                acc["voiceprint"]["enrollment_samples_count"] = enroll_res.get("enrollment_samples_count", 1)
+                acc["voiceprint"]["wespeaker_embedding"] = prof_w
+                acc["voiceprint"]["embedding_256d"] = prof_w
             mgr3._save_accounts()
 
     await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
@@ -460,7 +500,7 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         summary=f"🎫 '{guest_name}' quét QR động & thu âm thành công {role_label_vn} (Hạn: {dur_label}, F0={q_res.get('f0_hz')}Hz)",
         user_name=guest_name,
         tier=target_tier,
-        details={"guest_user_id": guest_uid, "guest_email": guest_email, "duration_type": dur_type, "expires_at": expires_at_ts, "quality": q_res},
+        details=sanitize_api_payload({"guest_user_id": guest_uid, "guest_email": guest_email, "duration_type": dur_type, "expires_at": expires_at_ts, "quality": q_res}),
     )
 
     return JSONResponse(sanitize_api_payload({
@@ -483,6 +523,8 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         "duration_seconds": dur_seconds,
         "expires_at": expires_at_ts,
         "f0_hz": q_res.get("f0_hz"),
+        "enrollment_samples_count": enroll_res.get("enrollment_samples_count", len(decoded_samples) if decoded_samples else 1),
+        "sample_count": enroll_res.get("enrollment_samples_count", len(decoded_samples) if decoded_samples else 1),
         "profile": enroll_res.get("profile"),
         "message": f"✅ Đã xác nhận giọng nói và kích hoạt quyền {role_label_vn} cho {guest_name} (thời hạn {dur_label})!",
     }))
