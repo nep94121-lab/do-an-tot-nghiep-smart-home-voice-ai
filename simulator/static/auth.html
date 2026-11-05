@@ -8,6 +8,28 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/auth.css" />
+  <style>
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+      box-sizing: border-box;
+    }
+    @keyframes btn-spin {
+      to { transform: rotate(360deg); }
+    }
+    .btn.loading {
+      opacity: 0.85;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+  </style>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
