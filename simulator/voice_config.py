@@ -222,8 +222,8 @@ def redact_otp_and_secrets_in_text(text: str) -> str:
         return text
     t = text
     # Redact password hints and inline quoted passwords
-    t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1[REDACTED]", t, flags=re.IGNORECASE)
-    t = re.sub(r"(mật khẩu\s+['\"])([^'\"]+)(['\"])", r"\1[REDACTED]\3", t, flags=re.IGNORECASE)
+    t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1******", t, flags=re.IGNORECASE)
+    t = re.sub(r"(mật khẩu\s+['\"])([^'\"]+)(['\"])", r"\1******\3", t, flags=re.IGNORECASE)
     t = re.sub(
         r"(\(Mã trong Gmail là:\s*\d{6}\))",
         "",
@@ -238,7 +238,7 @@ def redact_otp_and_secrets_in_text(text: str) -> str:
     )
     t = re.sub(
         r"((?:password|password_plain_hint|hint|secret|token|otp|otp_code|mat_khau)['\"]?\s*[:=]\s*['\"]?)(\d{6}|[^'\"\s,}]+)(['\"]?)",
-        r"\1[REDACTED]\3",
+        r"\1******\3",
         t,
         flags=re.IGNORECASE,
     )

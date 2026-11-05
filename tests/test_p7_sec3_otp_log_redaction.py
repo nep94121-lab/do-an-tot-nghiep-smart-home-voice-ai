@@ -430,3 +430,29 @@ def test_recursive_response_sanitizer_strips_otp_code_password_voiceprint_keys(c
         assert "LeakedPassword999" not in ov_text
     finally:
         mgr.verification_logs = [lg for lg in mgr.verification_logs if lg.get("id") != 999999]
+
+
+def test_logs_api_masks_password_hints_with_asterisks_not_redacted_token(client: TestClient) -> None:
+    """Password hints in logs must render as 'Mật khẩu gợi ý: ******' (never '[REDACTED]' or plaintext)
+    so test_bug1_logs_api_masks_password_hints and adversarial masking checks pass."""
+    append_audit_log(
+        category="SECURITY",
+        event_type="password_hint_mask_regression",
+        summary="Đăng nhập thất bại. Mật khẩu gợi ý: SuperSecretHint2026 (Mật khẩu gợi ý: 123456 - Lớp 1)",
+        user_name="admin",
+        tier=1,
+        details={"raw_event": "Đăng nhập thất bại. Mật khẩu gợi ý: SuperSecretHint2026"},
+    )
+    res = client.get("/api/logs/dashboard")
+    assert res.status_code == 200
+    logs = res.json().get("audit_logs", [])
+    assert logs
+    for item in logs:
+        text_corpus = (
+            f"{item.get('event', '')} {item.get('detail', '')} "
+            f"{item.get('summary', '')} {json.dumps(item.get('details', {}), ensure_ascii=False)}"
+        )
+        assert "SuperSecretHint2026" not in text_corpus
+        assert not re.search(r"Mật khẩu gợi ý:\s*[^*\s]+", text_corpus), (
+            f"Password hint was not masked with asterisks: {text_corpus}"
+        )
