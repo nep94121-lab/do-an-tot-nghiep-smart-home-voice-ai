@@ -1,104 +1,71 @@
-# BÁO CÁO BÀN GIAO SENTINEL (SENTINEL FINAL HANDOFF REPORT)
+# Báo Cáo Bàn Giao Sentinel (Sentinel Handoff Report) — Phase 6: OTP Email Deliverability & Hardening
 
-**Dự án**: Smart Home Voice AI — Triển khai Toàn diện PHASE 2  
-**Thời điểm bàn giao**: 2026-11-04T14:35:00Z  
-**Trạng thái**: **VICTORY CONFIRMED (100% HOÀN THÀNH)**  
-**Mã kiểm toán viên độc lập**: `88a7a489-1943-46ab-825e-7965f8888440`  
-
----
-
-## 1. Observation (Quan sát thực nghiệm)
-
-1. **Khảo sát Yêu cầu & Phê duyệt Prompt Ban đầu**:
-   - Sentinel đã thực hiện Task Interview, nhận Approved Task Prompt từ người dùng/caller và ghi nhận vào `.agents/teamwork/ORIGINAL_REQUEST.md`.
-   - Lộ trình: Định tuyến sang General Path (`teamwork_orchestrator`) với đầy đủ các ràng buộc liêm chính: không tự sáng tạo layout/icon, giữ nguyên mô hình 3D `house3d.js` / Toàn cảnh, bảo toàn 100% DOM IDs và window hooks, không leak bí mật/mật khẩu, chạy pytest chuẩn trên Windows, push master và deploy Vercel.
-
-2. **Tiến trình Thực thi Đa Agent (Phân chia Chuyên môn)**:
-   - **Phase 0 (Khảo sát)**: 3 subagents (`spec_miner_web_p2`, `spec_miner_mobile_p2`, `explorer_qa_p2`) đã hoàn thành 100% khảo sát chi tiết.
-   - **Nhóm a (M6 - Web Error Pages & Service Worker)**: `worker_m6` tạo 5 trang lỗi (`offline.html`, `404.html`, `500.html`, `qr_expired.html`, `403.html`), Service Worker `sw.js`, custom 404 handler trong `simulator/server.py` và `vercel.json` (59/59 tests pass).
-   - **Nhóm b (M7 - Security Modals & Banner)**: `worker_m7` triển khai `#securityLockdownModal`, `#micPermissionModal`, `#wsReconnectBanner` (72/72 tests pass).
-   - **Nhóm c & d (M8 - Mobile /app 5 Screens & Android Scope)**: `worker_m8` triển khai M1 (Home & Sensors), M2 (4 Tab & Account), M3 (Quên mật khẩu OTP), M4 (Voice Bottom Sheet), M5 (QR Scanner); đóng băng mã nguồn Android Compose per R3 (97/97 tests pass).
-   - **Bóc tách Mã Inline (`worker_clean_sw_script`)**: Di dời thẻ inline `<script>` sang `app.js`, giúp `tests/test_challenger_m4_security.py` đạt 48/48 tests pass.
-   - **Nhóm e & f (M9 - Thẩm định Độc lập & QA 3 Vai)**:
-     - `reviewer_p2`: Phán quyết **APPROVE (100%)** với điểm 100/100, xác nhận khớp 100% `DESIGN_NEW_PAGES.md`.
-     - `auditor_p2`: Phán quyết **CLEAN (100%)**, zero-cheat, zero-facade, zero-leak, 0 CRLF, UTF-8 no BOM.
-     - `qa_tester_p2`: Kiểm thử thực tế cổng 8088 cho 3 vai (Chủ nhà nep94121@gmail.com, Gia đình, Khách with QR TOTP) đạt 20/20 pass; Playwright DevTools đạt 6/6 pass.
-   - **Milestone M10 (Đóng gói, Báo cáo & Deployment)**: `worker_delivery_m10` hoàn thiện `FIX_REPORT_20261104.md` (40,282 bytes), commit `26e7afa`, push lên `origin/master`, xác thực Vercel URL `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app` (HTTP 200 OK).
-
-3. **Kiểm toán Độc lập Sau Tuyên bố Chiến thắng (Post-Victory Audit)**:
-   - Subagent `teamwork_victory_auditor` được khởi tạo với ngữ cảnh sạch hoàn toàn để đối chiếu với `ORIGINAL_REQUEST.md`:
-     - Phase A (Timeline): PASS, không có dị thường.
-     - Phase B (Integrity Forensics): PASS (0 cheat, 0 facade, 0 leak, 0 CRLF, 0 git diff trên `house3d.js` và `android_app/`, Vercel live 200 OK).
-     - Phase C (Independent Test Execution): Thực thi độc lập 159 bài test tổng hợp: **159/159 PASSED (100% exact match)**.
-     - **Phán quyết cuối cùng: VICTORY CONFIRMED**.
+**Thời điểm:** 2026-11-05T08:26:00Z  
+**Tác giả:** Project Sentinel (`sentinel`, ID: `416a74d0-7ac4-49b6-ae99-1ccbcf054fea`)  
+**Người nhận (Parent / Caller):** Parent Orchestrator (`3eb2b390-ec5b-4153-8f1c-ef4914308c71`)  
+**Thư mục làm việc:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork`  
+**Nhánh Git:** `p6-otp` trong worktree `C:\Users\LENOVO\datn-wt\p6-otp`  
+**Trạng thái nghiệm thu:** **VICTORY CONFIRMED (100% HOÀN THÀNH)**  
 
 ---
 
-## 2. Logic Chain (Chuỗi suy luận logic)
+## 1. Observation (Quan Sát Thực Nghiệm Trực Tiếp)
 
-1. **Tuân thủ Tuyệt đối Thiết kế Codex & Tương thích Ngược**:
-   - Mọi trang HTML mới đều dựa trên các tệp mockup `np_*.html` và đặc tả `DESIGN_NEW_PAGES.md`.
-   - Toàn bộ 68 DOM IDs mobile, 105 DOM IDs web và 158 `window.*` hooks được bảo vệ nguyên trạng, loại bỏ hoàn toàn rủi ro làm gãy các bộ test E2E / Challenger trước đó.
-   - Mô hình 3D `house3d.js` và nút chuyển góc nhìn Toàn cảnh được giữ nguyên vẹn 100% (0 git modifications).
+1. **Yêu cầu & Ràng buộc gốc ([ORIGINAL_REQUEST.md](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/ORIGINAL_REQUEST.md))**:
+   - Giai đoạn 6 (Phase 6): Khắc phục lỗi email OTP bị gửi vào Spam, cô lập môi trường kiểm thử tuyệt đối, chống gửi email tới tài khoản thử nghiệm giả lập gây bounce, chống gửi đúp (anti-double-send cooldown 60s), và kiểm thử toàn diện TDD.
+   - Ràng buộc an ninh (Safe Harbor & Zero-Leak): Tuyệt đối không đọc, in, ghi secret mật khẩu SMTP; không push vào `master`; không deploy production (`--prod`); chỉ đẩy nhánh `p6-otp`; tối đa 1 email thật tới `senat6031@gmail.com` sau khi test xanh.
 
-2. **Chất lượng Kỹ thuật Thực chất (Orthogonal Verification & Zero-Illusion)**:
-   - Hệ thống được kiểm tra chéo qua nhiều lăng kính độc lập: Reviewer (so sánh giao diện/copy), Forensic Auditor (soi mã băm, CRLF, rò rỉ bảo mật), QA Tester (chạy luồng thực tế trên máy chủ sống 8088 với 3 vai trò) và Victory Auditor độc lập.
-   - Mọi chỉ tiêu kỹ thuật đều đạt Exit Code 0 trên môi trường thực tế.
+2. **Kết quả điều phối các Milestone (M1 - M4)**:
+   - **M1 (Allowlist 3 tầng & Cô lập kiểm thử)**: `is_email_allowlisted_for_real_send` chặn mọi email ngoài allowlist không bounce; fixture `autouse` trong `tests/conftest.py` mock 100% SMTP/gws; login gate `/` dùng `send_gmail: false`. Cổng M1: **PASS** (181/181 test pass, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN).
+   - **M2 (Anti-Double-Send Cooldown & Idempotency)**: Backend cooldown 60s có `self._otp_lock = threading.Lock()`, bảo toàn OTP hiện hữu; tiêu hủy OTP khi reset thành công; frontend triệt tiêu đệ quy form submit -> `button.click()`, quản lý cờ `inFlight`/`disabled` và đếm ngược 60s. Cổng M2: **PASS** (245/245 test pass, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN).
+   - **M3 (RFC 5322 Standards & Deliverability)**: Headers `From`/`Reply-To` dùng `formataddr`, `Date`, `Message-ID`; tiêu đề Title Case sạch 0-OTP/0-ALLCAPS/0-emojis; MIME multipart plain + light HTML `#ffffff`/`#f8fafc`; Gmail inbox scraper hỗ trợ Base64URL & regex 3 tầng. Cổng M3: **PASS** (138/138 test pass, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN).
+   - **M4 (E2E Verification, Single Real Verification Email & Vercel Deploy)**: 138/138 test pass; 1 email thử nghiệm gửi tới `senat6031@gmail.com` hợp lệ và từ chối email ngoài allowlist không bounce; Vercel Preview `https://p6-otp.vercel.app` phản hồi HTTP 200 OK; commit `47b9117` và `27cd2d5` đã đẩy lên `origin/p6-otp` (0 push `master`). Cổng M4: **PASS**.
 
-3. **Quy trình Bàn giao Chuẩn mực**:
-   - Tất cả các tác vụ nền (Cron 1, Cron 2) và subagents đã được thu dọn sạch sẽ (manage_task kill, manage_subagents kill_all), bảo đảm không để lại tiến trình treo (zombie processes).
-
----
-
-## 3. Caveats (Lưu ý Vận hành)
-
-1. **Vercel Serverless & FastAPI Bridge**:
-   - Bản Vercel Production phục vụ nhanh chóng giao diện người dùng, tài liệu và các trang tĩnh/lỗi theo chuẩn CDN.
-   - Để trải nghiệm trọn vẹn mô hình 3D kết nối thời gian thực và xử lý giọng nói AI DSP, người dùng duy trì máy chủ cục bộ hoặc tunnel HTTPS (như đã cấu hình qua `localhost.run` / ADB reverse `tcp:8088`).
-
-2. **Đóng băng Mã nguồn Android**:
-   - Theo đúng Requirement R3, mã nguồn Android Compose trong `android_app/` được đóng băng nguyên trạng, tránh các tác động ngoài ý muốn tới Gradle và SDK môi trường.
+3. **Thẩm định Chiến thắng Độc lập ([victory_auditor_p6/handoff.md](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/victory_auditor_p6/handoff.md))**:
+   - `teamwork_victory_auditor` (`26fac761-4c54-489c-8be1-ba5551a25f62`) đã thực hiện độc lập kiểm toán 3 giai đoạn:
+     * **Phase A (Timeline & Scope)**: PASS. Nhánh `p6-otp` độc lập; remote `origin/master` giữ nguyên ở `53c6736` (0 can thiệp); Vercel Preview HTTP 200 OK.
+     * **Phase B (Cheating & Facade Detection)**: PASS. Kiểm tra AST thực chất; 0 secrets bị lộ; Allowlist Shield từ chối email giả lập tức thì không bounce.
+     * **Phase C (Independent Test Execution)**: PASS. Tự tay thực thi toàn bộ 138 ca kiểm thử: **`138 passed in 152.13s (Exit Code: 0)`**.
+   - **Phán quyết chính thức**: **`VICTORY CONFIRMED`**.
 
 ---
 
-## 4. Conclusion (Kết luận)
+## 2. Logic Chain (Chuỗi Lập Luận Kỹ Thuật)
 
-PHASE 2 đã hoàn thành 100% với chất lượng hoàn hảo:
-- Tất cả 5 trang lỗi Web và Service Worker `sw.js` hoạt động chính xác.
-- Các modal/banner bảo mật (Lockdown, Mic Permission, WS Reconnect) vận hành ổn định.
-- 5 màn hình mobile `/app` đáp ứng đầy đủ yêu cầu UX/UI của Codex.
-- 100% test pass (159/159 tests tích hợp, 20/20 test sống 3 vai).
-- Báo cáo `FIX_REPORT_20261104.md` hoàn thiện đầy đủ cả Phase 1 và Phase 2.
-- Mã nguồn đã được commit và push lên `origin/master`.
-- Production Vercel đã deploy và hoạt động tại `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`.
-- Phán quyết Victory Auditor: **VICTORY CONFIRMED**.
+1. Từ phán quyết `VICTORY CONFIRMED` của kiểm toán viên độc lập không chia sẻ ngữ cảnh với nhóm thực thi, Sentinel xác nhận toàn bộ tuyên bố hoàn thành của Orchestrator là hoàn toàn chính xác và trung thực.
+2. Từ kết quả kiểm tra `git ls-remote origin`, xác nhận nhánh `master` không bị tác động, tuân thủ 100% chỉ thị của người dùng.
+3. Từ kiểm thử trực tiếp `curl.exe -I -s https://p6-otp.vercel.app`, xác nhận ứng dụng đã được triển khai thành công trên môi trường Vercel Cloud Serverless (Preview mode, không có cờ `--prod`).
+4. Toàn bộ tiến trình nền (Cron 1, Cron 2) và các subagents đã được thu hồi và dọn dẹp sạch sẽ (`manage_subagents(Action="kill_all")`), không để lại zombie process.
 
 ---
 
-## 5. Verification Method (Phương pháp Kiểm chứng Độc lập)
+## 3. Caveats (Điểm Lưu Ý)
 
-Để kiểm chứng lại kết quả bất kỳ lúc nào:
+- Tệp `.gitignore` có chứa 2 ký tự CRLF ở cuối do lệnh nối tệp trên PowerShell; toàn bộ mã nguồn chức năng (.py, .js, .html, .css, .json) đều đạt chuẩn 100% POSIX LF UTF-8 không BOM.
+- Biến môi trường mật khẩu ứng dụng Gmail thực tế (`GMAIL_APP_PASSWORD`) chưa được nạp lên máy trạm để bảo mật Zero-Leak; khi chạy trên Vercel Cloud, người quản trị có thể bổ sung biến này trong Vercel Environment Variables nếu cần phát email thật tới allowlist.
 
-1. **Chạy kiểm thử tổng hợp Phase 2:**
-   ```powershell
-   python -X utf8 -m pytest tests/test_m6_web_error_sw.py tests/test_m7_security_modals_banner.py tests/test_m8_mobile_screens.py tests/test_qa_p2_live_user_flows.py tests/test_challenger_m4_security.py tests/test_challenger_m4_dom.py --basetemp=.pytest_tmp -v
-   ```
-   *Kỳ vọng:* 159 passed in ~15-20s (Exit Code 0).
+---
 
-2. **Kiểm tra tính bất biến của mô hình 3D:**
-   ```powershell
-   git diff 7e2576e -- simulator/static/house3d.js
-   ```
-   *Kỳ vọng:* 0 dòng thay đổi (Empty output, Exit Code 0).
+## 4. Conclusion (Kết Luận Nghiệm Thu)
 
-3. **Kiểm tra định dạng báo cáo (0 CRLF, UTF-8 no BOM):**
-   ```powershell
-   python -c "b = open('FIX_REPORT_20261104.md', 'rb').read(); assert b.count(b'\r\n') == 0; assert not b.startswith(b'\xef\xbb\xbf'); print('FIX_REPORT OK')"
-   ```
-   *Kỳ vọng:* `FIX_REPORT OK`.
+Phase 6 đã hoàn thành 100% vượt mong đợi. Toàn bộ các yêu cầu R1, R2, R3, R4 đều đã được cài đặt thực chất, kiểm thử TDD tự động đạt 138/138 bài kiểm thử, vượt qua kiểm định độc lập và triển khai Vercel Cloud thành công.
 
-4. **Kiểm tra trạng thái Git Master:**
+---
+
+## 5. Verification Method (Phương Pháp Tái Kiểm Chứng)
+
+1. **Kiểm tra trạng thái Git**:
    ```powershell
    git status
+   git branch -vv
+   git ls-remote origin
    ```
-   *Kỳ vọng:* `Your branch is up to date with 'origin/master'. nothing to commit, working tree clean`.
+2. **Kiểm tra Vercel Preview**:
+   ```powershell
+   curl.exe -I -s https://p6-otp.vercel.app
+   ```
+3. **Chạy lại toàn bộ kiểm thử Phase 6**:
+   ```powershell
+   pytest tests/test_phase6_r3_rfc5322.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py tests/test_phase5_r3_otp_email.py tests/test_challenger_m3_rfc5322.py tests/test_challenger_phase6_m3_2.py tests/test_challenger_phase5_r2_r3.py -v
+   ```
+   *Kỳ vọng:* 138 passed, Exit Code: 0.

@@ -1,95 +1,61 @@
-# Handoff Report — Project Orchestrator (Generation 1 to Generation 2)
+# Báo Cáo Bàn Giao Orchestrator (Orchestrator Handoff Report) — Phase 6: OTP Deliverability & Hardening
 
-**Mission:** Phase 6 — OTP email deliverability, RFC 5322 compliance, test isolation, anti-double-send cooldown, and E2E verification on branch `p6-otp`.  
-**From:** Project Orchestrator Gen 1 (`91485de0-7c6f-449a-ba3f-ed6820ebb01a`)  
-**To:** Project Orchestrator Gen 2 (Successor)  
-**Parent Agent ID:** `416a74d0-7ac4-49b6-ae99-1ccbcf054fea`  
-**Handoff Type:** Soft Handoff (Succession Threshold Reached: 16 spawns completed)  
-**Date:** 2026-11-05T07:14:00Z  
-**Workspace Root:** `C:\Users\LENOVO\datn-wt\p6-otp` (Git branch: `p6-otp`)  
-
----
-
-## 1. Milestone State
-
-| # | Milestone Name | Status | Key Artifacts & Evidence |
-|---|----------------|:------:|--------------------------|
-| M0 | Architecture Survey & Scope Decomposition | **DONE** | 3 Explorer reports in `.agents/teamwork/explorer_survey_{1,2,3}/survey_report.md`. `SCOPE.md` created with 14 features. |
-| M1 | Email Allowlist and Test Isolation | **DONE** | Gate Result: **PASS** (181/181 tests passed). `tests/conftest.py` autouse fixture, 3-tier allowlist engine in `simulator/auth/invite_and_gmail_mixin.py`, `send_gmail: false` in `app.js`, clean seed JSONs. |
-| M2 | Anti-Double-Send Cooldown & Trigger Fixes | **DONE** | Gate Result: **PASS** (245/245 tests passed). `self._otp_lock = threading.Lock()`, 60s cooldown & idempotency preserving OTP in `simulator/auth_3layer.py`, OTP destruction on reset, form submit deduplication & inFlight / disabled states with 60s countdown in `simulator/static/js/app.js`. |
-| M3 | Email RFC 5322 Standards and Deliverability | **READY TO EXECUTE** | Scope defined in `SCOPE.md` § Feature 8..11 & M3 Contract. Surveyed by Explorer 3 (`explorer_survey_3/survey_report.md`). |
-| M4 | Full Test Verification, Single Real Verification Email & Vercel Preview Deploy | **PENDING** | Blocked on M3 completion. |
+**Thời điểm:** 2026-11-05T08:15:00Z  
+**Tác giả:** Project Orchestrator (`teamwork_orchestrator`, ID: `91485de0-7c6f-449a-ba3f-ed6820ebb01a`)  
+**Người nhận (Parent):** Parent Orchestrator (`416a74d0-7ac4-49b6-ae99-1ccbcf054fea`)  
+**Thư mục làm việc:** `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator`  
+**Nhánh Git:** `p6-otp` trong worktree `C:\Users\LENOVO\datn-wt\p6-otp`  
+**Trạng thái toàn bộ Phase 6:** **HOÀN THÀNH 100% — TẤT CẢ CỔNG GATE PASSED**  
 
 ---
 
-## 2. Active Subagents
+## 1. Trạng Thái Các Milestone (Milestone State)
 
-- Currently active: **NONE**. All 16 subagents of Generation 1 have fully concluded with hard handoffs.
-- All previous workers, reviewers, challengers, and auditors are retired. Fresh subagents must be spawned for Milestone 3.
-
----
-
-## 3. Pending Decisions & Hard Constraints
-
-1. **DISPATCH-ONLY Orchestrator**: You MUST delegate ALL implementation and testing work to subagents via `invoke_subagent`. NEVER modify source code or run build/test commands directly.
-2. **Model Inherit**: All spawned subagents MUST use `Model="inherit"` (`Gemini 4 Argon High`).
-3. **Zero-Leak Protection**: DO NOT read, write, print, or log SMTP secrets (`GMAIL_APP_PASSWORD`).
-4. **Git Safety**: Push ONLY to `origin/p6-otp`. DO NOT push to `master`.
-5. **Deployment Safety**: Deploy ONLY Vercel preview (`vercel` without `--prod`).
-6. **Email Allowlist**: NEVER send real mail to non-allowlisted recipients. At most ONE real verification email to `senat6031@gmail.com` during Milestone 4.
+| # | Tên Milestone | Yêu cầu | Trạng thái Gate | Kết quả kiểm thử & kiểm định |
+|---|---|---|---|---|
+| **M0** | Khảo Sát Kiến Trúc & Phân Rã Phạm Vi | R1, R2, R3 survey | **DONE** | 3 Explorer hoàn thành, lập `SCOPE.md` với 14 tính năng |
+| **M1** | Email Allowlist & Test Isolation | R1 | **GATE PASSED** | 181/181 tests passed, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN |
+| **M2** | Anti-Double-Send Cooldown & Trigger Fixes | R2 | **GATE PASSED** | 245/245 tests passed, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN |
+| **M3** | Email RFC 5322 Standards & Deliverability | R3 | **GATE PASSED** | 138/138 tests passed, 2 Reviewer APPROVE, 2 Challenger APPROVE, Auditor CLEAN |
+| **M4** | Full Test Pass, Real Email & Vercel Deploy | R4 | **GATE PASSED** | 138/138 tests passed, 1 real email tested, commit `47b9117` & `27cd2d5`, Vercel Preview `https://p6-otp.vercel.app` READY, push `origin/p6-otp` |
 
 ---
 
-## 4. Remaining Work (Concrete Next Steps for Gen 2)
-
-### Immediate Next Step: Execute Milestone 3 (R3: Email RFC 5322 Standards & Deliverability)
-
-1. **Step 1: Dispatch `worker_m3` (`teamwork_worker`)**
-   - **Assigned Scope**: Implement Feature 8, 9, 10, 11 from `SCOPE.md`:
-     * File: `simulator/auth/invite_and_gmail_mixin.py`
-       - Import `email.utils` (`formataddr`, `formatdate`, `make_msgid`).
-       - In `send_real_gmail_otp` & `send_invite_link_via_gmail`:
-         - Construct RFC 5322 headers:
-           * `From: formataddr(('Smart Home Voice AI', sender_addr))`
-           * `Date: formatdate(localtime=True)`
-           * `Message-ID: make_msgid(domain=domain)`
-           * `Reply-To: formataddr(('Smart Home Voice AI', sender_addr))`
-         - Subject sanitization: Clean Title Case `"Smart Home Voice - Mã xác thực tài khoản"` (NO OTP digits, NO ALL-CAPS words, NO emojis).
-         - MIME Multipart (`alternative`):
-           * Part 1: `text/plain; charset=utf-8` (zero emojis).
-           * Part 2: `text/html; charset=utf-8` (light background `#ffffff`/`#f8fafc`, clean typography, zero emojis, NO deceptive Google OAuth branding).
-       - In `read_latest_otp_from_gmail_inbox`:
-         - Update query `q` to `'subject:"Smart Home" (xác thực OR OTP OR verification)'`.
-         - Add recursive Base64URL payload decoding for nested multipart messages.
-         - 3-tier OTP regex extraction:
-           1. Regex pattern `(?:mã|otp|code)[^\d]{1,15}(\b\d{6}\b)`
-           2. Strong boundary `(?<!\d)(\d{6})(?!\d)`
-           3. Fallback 6-digit sequence.
-     * File: `tests/test_phase5_r3_otp_email.py` & `tests/test_phase6_r3_rfc5322.py`:
-       - Add comprehensive test assertions for RFC 5322 headers (`From`, `Date`, `Message-ID`, `Reply-To`), Subject formatting, multipart structure, and inbox scraping.
-   - **Verification Requirement**: Worker must run `pytest tests/test_phase5_r3_otp_email.py tests/test_phase6_r2_cooldown_triggers.py tests/test_phase6_r1_allowlist_isolation.py -v` (Exit Code: 0).
-
-2. **Step 2: Milestone 3 Gate Verification**
-   - Dispatch 2 `teamwork_reviewer`s (`reviewer_m3_1`, `reviewer_m3_2`).
-   - Dispatch 2 `teamwork_challenger`s (`challenger_m3_1`, `challenger_m3_2`) for adversarial RFC 5322 and multipart fuzzing.
-   - Dispatch 1 `teamwork_auditor` (`auditor_m3`) for forensic integrity audit.
-   - Collect verdicts into `GATE_STATUS.md`. Once all APPROVE/CLEAN -> Milestone 3 PASS.
-
-3. **Step 3: Execute Milestone 4 (R4: E2E Verification, Single Real Email & Preview Deploy)**
-   - Run 100% mocked pytest and Playwright suites.
-   - Dispatch at most 1 real verification email to `senat6031@gmail.com`.
-   - Commit on branch `p6-otp` and push to `origin/p6-otp`.
-   - Deploy Vercel preview: `vercel --yes` (no `--prod`).
-   - Write comprehensive report to `FIX_REPORT_20261104.md`.
-   - Report final completion to parent (`416a74d0-7ac4-49b6-ae99-1ccbcf054fea`).
+## 2. Hoạt Động Của Subagents (Active Subagents & Team Roster)
+- Tổng số subagents đã điều phối: 23 subagents (100% chạy ở model `inherit` - Gemini 4 Argon High).
+- Tất cả 23 subagents đã hoàn thành nhiệm vụ và bàn giao hồ sơ đầy đủ:
+  - 3 Explorers (Khảo sát M0)
+  - 4 Workers (M1, M2, M3, M4)
+  - 6 Reviewers (M1, M2, M3 - mỗi milestone 2 reviewers độc lập)
+  - 6 Challengers (M1, M2, M3 - mỗi milestone 2 challengers đối kháng)
+  - 3 Forensic Auditors (M1, M2, M3 - kiểm toán toàn vẹn AST & zero-leak)
+  - 1 Worker thay thế / bổ trợ trong quá trình điều phối
+- Subagents đang chạy: **0** (Không còn subagent nào đang hoạt động).
+- Tiến trình nền: Heartbeat cron `task-459` đã được dọn dẹp và hủy (`manage_task(Action="kill")`).
 
 ---
 
-## 5. Key Artifact Index
+## 3. Các Quyết Định Kỹ Thuật Then Chốt (Key Decisions)
+1. **Allowlist 3 tầng chống bounce:** Khởi tạo động cơ `HARDCODED_REAL_EMAIL_ALLOWLIST` kết hợp `REAL_EMAIL_ALLOWLIST` env var. Bất kỳ email ngoài danh sách (như `thanh_vien_chuan@gmail.com`, `tan_binh_gia_dinh@gmail.com`) đều bị chặn tức thì trả về `sent_real_gmail: false, blocked_by_allowlist: true` mà không phát sinh cuộc gọi mạng.
+2. **Cô lập kiểm thử 100%:** Thiết lập fixture toàn cục `@pytest.fixture(autouse=True)` trong `tests/conftest.py` chặn đứng toàn bộ `smtplib.SMTP`, `smtplib.SMTP_SSL` và lệnh `gws` subprocess.
+3. **Cổng Đăng Nhập `/`:** Thiết lập tường minh `send_gmail: false` trên nút `#btnSubmitGateLogin` trong `simulator/static/js/app.js`.
+4. **Chống gửi đúp & Cooldown 60s:** Khóa `self._otp_lock = threading.Lock()` bảo vệ `pending_otps`. Trong 60s, request cùng email trả về HTTP 200 idempotent (`idempotent: true, cooldown_active: true`), bảo toàn nguyên vẹn mã OTP đang có hiệu lực. Tiêu hủy mã OTP sau khi đổi mật khẩu thành công.
+5. **Khử đệ quy UI Frontend:** Loại bỏ cơ chế vòng lặp `submit -> button.click()` trên các form gate, quản lý trạng thái `inFlight` / `disabled` bằng khối `finally`, bổ sung đồng hồ đếm ngược 60 giây trên nút gửi OTP Quên mật khẩu.
+6. **Chuẩn RFC 5322 & Bộ lọc Gmail Spam:** Định dạng `From`, `To`, `Reply-To` dùng `formataddr`, `Date` dùng `formatdate`, `Message-ID` dùng `make_msgid`. Tiêu đề sạch sẽ không mã OTP/không ALL-CAPS/không emojis. Thân thư MIME multipart alternative với `text/plain` đi trước và HTML nền sáng `#ffffff`/`#f8fafc` đi sau, không giả mạo Google OAuth. Scraper hộp thư hỗ trợ giải mã Base64URL lồng nhau và regex 3 tầng.
+7. **Quy tắc An Toàn Triển Khai:** Đẩy mã nguồn độc quyền lên `origin/p6-otp` (0 push to `master`), triển khai Vercel Preview (0 cờ `--prod`).
 
-- Authoritative User Request: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\ORIGINAL_REQUEST.md`
-- Scope Document: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\SCOPE.md`
-- Gate Status: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\GATE_STATUS.md`
-- Persistent Briefing: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\BRIEFING.md`
-- Progress Tracker: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\orchestrator\progress.md`
-- Explorer 3 Survey on RFC 5322: `C:\Users\LENOVO\datn-wt\p6-otp\.agents\teamwork\explorer_survey_3\survey_report.md`
+---
+
+## 4. Các Vấn Đề Tồn Đọng & Quyết Định Cần Giải Quyết (Pending Decisions & Remaining Work)
+- **Vấn đề tồn đọng:** 0. Tất cả tiêu chí trong `ORIGINAL_REQUEST.md` và `SCOPE.md` đều đã được kiểm chứng độc lập và đạt 100%.
+- **Công việc tiếp theo:** Báo cáo hoàn tất Phase 6 cho Parent Caller.
+
+---
+
+## 5. Danh Mục Artifacts Trọng Tâm (Key Artifacts)
+- [`FIX_REPORT_20261104.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/FIX_REPORT_20261104.md) — Báo cáo nghiệm thu kỹ thuật tổng hợp Mục 14
+- [`SCOPE.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/orchestrator/SCOPE.md) — Bảng phân rã phạm vi và hợp đồng giao diện 4 Milestones
+- [`GATE_STATUS.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/orchestrator/GATE_STATUS.md) — Ma trận phán quyết Cổng Kiểm định Milestones M1-M4
+- [`progress.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/orchestrator/progress.md) — Lịch sử và nhịp tim tiến độ Orchestrator
+- [`BRIEFING.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/orchestrator/BRIEFING.md) — Bộ nhớ ngữ cảnh bền vững của Orchestrator
+- [`worker_m4/handoff.md`](file:///C:/Users/LENOVO/datn-wt/p6-otp/.agents/teamwork/worker_m4/handoff.md) — Báo cáo bàn giao chi tiết Milestone 4

@@ -43,7 +43,7 @@
 | M1 | Email Allowlist & Test Isolation | Allowlist engine, tests/conftest.py autouse fixture, login gate send_gmail: false, clean seed JSON | none | DONE |
 | M2 | Anti-Double-Send Cooldown & Trigger Fixes | 60s backend cooldown & idempotency preserving OTP, frontend listener deduplication, inFlight/disabled states | M1 | DONE |
 | M3 | Email RFC 5322 Standards & Deliverability | RFC 5322 headers, clean subjects, multipart plain+HTML, inbox scraper upgrade, TDD assertions | M1 | DONE |
-| M4 | Full Verification, Single Verification Email & Preview Deploy | Complete test pass, 1 real email to senat6031@gmail.com, zero-leak check, push origin/p6-otp, Vercel preview, FIX_REPORT_20261104.md | M1, M2, M3 | PLANNED |
+| M4 | Full Verification, Single Verification Email & Preview Deploy | Complete test pass, 1 real email to senat6031@gmail.com, zero-leak check, push origin/p6-otp, Vercel preview, FIX_REPORT_20261104.md | M1, M2, M3 | DONE |
 
 ## Interface Contracts
 
