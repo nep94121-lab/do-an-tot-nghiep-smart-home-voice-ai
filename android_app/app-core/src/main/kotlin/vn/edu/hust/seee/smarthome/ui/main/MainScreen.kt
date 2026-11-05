@@ -204,12 +204,12 @@ fun MainScreen(
   var lastDetectedF0 by remember { mutableDoubleStateOf(126.0) }
   var lastCosineScore by remember { mutableDoubleStateOf(0.92) }
 
-  var authEmail by remember { mutableStateOf("nep94121@gmail.com") }
-  var authPassword by remember { mutableStateOf("TuanAnh@2026") }
+  var authEmail by remember { mutableStateOf("") }
+  var authPassword by remember { mutableStateOf("") }
   var authOtpInput by remember { mutableStateOf("") }
   var authStepDone by remember { mutableIntStateOf(0) }
   var authStatusMessage by remember {
-    mutableStateOf("Bấm Đăng nhập hoặc Google để gửi mã OTP 6 số về Gmail thật (nep94121@gmail.com).")
+    mutableStateOf("Nhập email và mật khẩu để đăng ký hoặc đăng nhập.")
   }
   var authStatusColor by remember { mutableStateOf(accentCyan) }
   var testSummaryText by remember {
@@ -233,7 +233,6 @@ fun MainScreen(
   var allowlistStatusMessage by remember { mutableStateOf("") }
   var allowlistStatusColor by remember { mutableStateOf(accentCyan) }
   var guestQrDuration by remember { mutableStateOf("1d") }
-  var guestQrToken by remember { mutableStateOf("TOTP10S-ACTIVE") }
   var guestQrCountdown by remember { mutableIntStateOf(10) }
 
   var speakerReply by remember { mutableStateOf("Chưa có lệnh") }
@@ -302,27 +301,77 @@ fun MainScreen(
     }
   }
 
-  suspend fun callServerHttp(endpoint: String, method: String = "GET", jsonBody: String? = null): String? {
+  val micPermissionLauncher = rememberLauncherForActivityResult(
+    ActivityResultContracts.RequestPermission()
+  ) { granted ->
+    micPermissionGranted = granted
+    if (granted) micErrorState = false
+  }
+
+  LaunchedEffect(currentTab, showVoiceSheet) {
+    if (currentTab == 2 || showVoiceSheet) {
+      val granted = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO,
+      ) == PackageManager.PERMISSION_GRANTED
+      micPermissionGranted = granted
+      if (!granted) {
+        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+      }
+    }
+  }
+
+  var activeSessionToken by remember { mutableStateOf("") }
+
+  val allowLocalDebugFallback = false
+
+  suspend fun callServerHttp(
+    endpoint: String,
+    method: String = "GET",
+    jsonBody: String? = null,
+  ): String? {
     return withContext(Dispatchers.IO) {
-      val candidates = listOf("http://10.0.2.2:8088", "http://127.0.0.1:8088", "http://localhost:8088")
+      val prodBase = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
+      val candidates = if (allowLocalDebugFallback) {
+        listOf(prodBase, "http://10.0.2.2:8088", "http://127.0.0.1:8088", "http://localhost:8088")
+      } else {
+        listOf(prodBase)
+      }
       for (base in candidates) {
         try {
           val url = URL("$base$endpoint")
           val conn = url.openConnection() as HttpURLConnection
           conn.requestMethod = method
-          conn.connectTimeout = 1200
-          conn.readTimeout = 1500
+          if (base.startsWith("https://")) {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 10000
+          } else {
+            conn.connectTimeout = 700
+            conn.readTimeout = 700
+          }
           conn.setRequestProperty("Accept", "application/json")
+          if (activeSessionToken.isNotBlank()) {
+            conn.setRequestProperty("X-Session-Token", activeSessionToken)
+          }
           if (jsonBody != null) {
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             OutputStreamWriter(conn.outputStream).use { it.write(jsonBody); it.flush() }
           }
-          if (conn.responseCode in 200..299) {
+          val code = conn.responseCode
+          if (code in 200..299) {
             val response = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
             serverSynced = true
             lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             return@withContext response
+          }
+          if (code in 400..499) {
+            val errBody = conn.errorStream?.let { stream ->
+              BufferedReader(InputStreamReader(stream)).use { it.readText() }
+            } ?: "{\"ok\":false}"
+            serverSynced = true
+            lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            return@withContext errBody
           }
         } catch (_: Exception) {}
       }
@@ -330,34 +379,138 @@ fun MainScreen(
     }
   }
 
+  suspend fun syncServerState() {
+    val resStr = callServerHttp("/api/state", "GET") ?: return
+    withContext(Dispatchers.Main) {
+      try {
+        val root = JSONObject(resStr)
+        val devArr = root.optJSONArray("devices")
+        if (devArr != null) {
+          for (i in 0 until devArr.length()) {
+            val obj = devArr.optJSONObject(i) ?: continue
+            val id = obj.optString("id")
+            val st = obj.optString("state")
+            if (id.isNotBlank() && deviceStates.containsKey(id)) {
+              deviceStates[id] = (st == "ON" || st == "OPEN")
+            }
+          }
+        }
+        val mqttObj = root.optJSONObject("mqtt")
+        val dhtObj = mqttObj?.optJSONObject("dht11_telemetry")
+        if (dhtObj != null) {
+          temperature = dhtObj.optDouble("temp_c", temperature)
+          humidity = dhtObj.optDouble("humidity_pct", humidity.toDouble()).toInt()
+        }
+        val soilObj = mqttObj?.optJSONObject("soil_moisture_telemetry")
+        if (soilObj != null) {
+          soilMoisture = soilObj.optDouble("soil_moisture_pct", soilMoisture.toDouble()).toInt()
+        }
+      } catch (_: Exception) {}
+    }
+  }
+
+  LaunchedEffect(isOnlineMode) {
+    if (isOnlineMode) {
+      syncServerState()
+    }
+  }
+
+  fun performRegisterAccount() {
+    if (authEmail.isBlank() || authPassword.isBlank()) {
+      authStatusColor = accentRed
+      authStatusMessage = "Vui lòng nhập đầy đủ email và mật khẩu."
+      return
+    }
+    val cleanEmail = authEmail.trim()
+    val displayName = cleanEmail.substringBefore("@").ifBlank { "Người dùng" }
+    authStatusMessage = "Đang đăng ký tài khoản..."
+    authStatusColor = accentCyan
+    scope.launch(Dispatchers.IO) {
+      val payload = JSONObject().apply {
+        put("email", cleanEmail)
+        put("password", authPassword)
+        put("confirm_password", authPassword)
+        put("display_name", displayName)
+        put("target_tier", selectedTier)
+        put("source", "Android_Compose_3Layer")
+      }.toString()
+      val resStr = callServerHttp("/api/auth3/register_or_set_password", "POST", payload)
+      withContext(Dispatchers.Main) {
+        if (resStr != null) {
+          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+          if (res.optBoolean("ok")) {
+            authStepDone = maxOf(authStepDone, 1)
+            authStatusColor = accentGreen
+            activeSpeakerName = displayName
+            authStatusMessage = "Đã đăng ký tài khoản: $cleanEmail"
+            addHistoryLog("Đăng ký tài khoản: $cleanEmail")
+          } else {
+            authStatusColor = accentRed
+            authStatusMessage = res.optString("error", res.optString("message", "Đăng ký tài khoản thất bại!"))
+          }
+        } else {
+          authStatusColor = accentRed
+          authStatusMessage = "Không thể kết nối máy chủ để đăng ký."
+        }
+      }
+    }
+  }
+
   fun performLayer1Login(method: String) {
+    if (authEmail.isBlank() || (method == "password" && authPassword.isBlank())) {
+      authStatusColor = accentRed
+      authStatusMessage = "Vui lòng nhập email và mật khẩu."
+      return
+    }
+    val cleanEmail = authEmail.trim()
+    val displayName = cleanEmail.substringBefore("@").ifBlank { "Người dùng" }
     authStatusMessage = "Đang kết nối Lớp 1..."
     authStatusColor = accentCyan
     scope.launch(Dispatchers.IO) {
       val payload = JSONObject().apply {
-        put("email", authEmail)
+        put("email", cleanEmail)
         put("password", authPassword)
         put("login_method", method)
         put("source", "Android_Compose_3Layer")
-        put("send_gmail", true)
+        put("send_gmail", !cleanEmail.endsWith("@example.com"))
       }.toString()
-      val resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
+      var resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
+      if (resStr != null) {
+        val firstRes = try { JSONObject(resStr) } catch (_: Exception) { null }
+        val errText = firstRes?.optString("error", "") ?: ""
+        if (firstRes != null && !firstRes.optBoolean("ok") && errText.contains("Không tìm thấy tài khoản") && authPassword.isNotBlank()) {
+          val regPayload = JSONObject().apply {
+            put("email", cleanEmail)
+            put("password", authPassword)
+            put("confirm_password", authPassword)
+            put("display_name", displayName)
+            put("target_tier", selectedTier)
+            put("source", "Android_Compose_3Layer")
+          }.toString()
+          callServerHttp("/api/auth3/register_or_set_password", "POST", regPayload)
+          resStr = callServerHttp("/api/auth3/layer1_login", "POST", payload)
+        }
+      }
       withContext(Dispatchers.Main) {
         if (resStr != null) {
-          val res = JSONObject(resStr)
+          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 1)
             authStatusColor = accentGreen
-            authStatusMessage = res.optString("message", "Đã gửi OTP 6 số qua Gmail!")
-            addHistoryLog("Lớp 1 thành công: $authEmail")
+            activeSpeakerName = displayName
+            val returnedToken = res.optString("session_token", "")
+            if (returnedToken.isNotBlank()) {
+              activeSessionToken = returnedToken
+            }
+            authStatusMessage = "Đăng nhập thành công: $cleanEmail"
+            addHistoryLog("Đăng nhập thành công: $cleanEmail")
           } else {
             authStatusColor = accentRed
-            authStatusMessage = res.optString("message", "Đăng nhập Lớp 1 thất bại!")
+            authStatusMessage = res.optString("error", res.optString("message", "Đăng nhập Lớp 1 thất bại!"))
           }
         } else {
-          authStepDone = maxOf(authStepDone, 1)
-          authStatusColor = accentGreen
-          authStatusMessage = "Mã OTP 6 số đã được gửi tới $authEmail."
+          authStatusColor = accentRed
+          authStatusMessage = "Không thể kết nối máy chủ."
         }
       }
     }
@@ -435,8 +588,10 @@ fun MainScreen(
     if (allowlistTargetEmail.isBlank()) return
     scope.launch(Dispatchers.IO) {
       val payload = JSONObject().apply {
-        put("target_email", allowlistTargetEmail)
+        put("target_email", allowlistTargetEmail.trim())
         put("target_tier", allowlistTargetTier)
+        put("actor_email", authEmail.trim().ifBlank { "nep94121@gmail.com" })
+        put("actor_id", "tuan_anh")
       }.toString()
       val resStr = callServerHttp("/api/auth3/add_family_email", "POST", payload)
       withContext(Dispatchers.Main) {
@@ -449,7 +604,7 @@ fun MainScreen(
             allowlistTargetEmail = ""
           } else {
             allowlistStatusColor = accentRed
-            allowlistStatusMessage = res.optString("message", "Không thể thêm email!")
+            allowlistStatusMessage = res.optString("error", res.optString("message", "Không thể thêm email!"))
           }
         } else {
           allowlistStatusColor = accentGreen
@@ -509,6 +664,7 @@ fun MainScreen(
           put("action", if (newState) "turn_on" else "turn_off")
           put("user_name", activeSpeakerName)
           put("tier", selectedTier)
+          put("session_token", activeSessionToken)
         }.toString()
         callServerHttp("/api/device", "POST", payload)
       }
@@ -520,8 +676,13 @@ fun MainScreen(
   }
 
   fun startLiveMicRecognition() {
-    if (!micPermissionGranted) {
-      micErrorState = true
+    val hasPerm = ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+    micPermissionGranted = hasPerm
+    if (!hasPerm) {
+      micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
       return
     }
     try {
@@ -673,14 +834,14 @@ fun MainScreen(
 
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
 
-      // NỘI DUNG CHÍNH THEO TAB (16dp padding ngang)
+      // NỘI DUNG CHÍNH THEO TAB (16dp padding ngang, 12dp padding dọc)
       Column(
         modifier = Modifier
           .weight(1f)
           .fillMaxWidth()
           .verticalScroll(rememberScrollState())
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+          .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         when (currentTab) {
           0 -> HomeScreenTab(
@@ -721,6 +882,7 @@ fun MainScreen(
                     put("action", actWord)
                     put("user_name", activeSpeakerName)
                     put("tier", selectedTier)
+                    put("session_token", activeSessionToken)
                   }.toString()
                   callServerHttp("/api/device", "POST", payload)
                 }
@@ -777,6 +939,7 @@ fun MainScreen(
             openAuthStep = openAuthStep,
             onOpenAuthStepChange = { openAuthStep = it },
             authStepDone = authStepDone,
+            authStatusMessage = authStatusMessage,
             authStatusColor = authStatusColor,
             allowlistTargetEmail = allowlistTargetEmail,
             onAllowlistTargetEmailChange = { allowlistTargetEmail = it },
@@ -793,6 +956,7 @@ fun MainScreen(
             lastDetectedF0 = lastDetectedF0,
             lastCosineScore = lastCosineScore,
             lastSyncTime = lastSyncTime,
+            onPerformRegister = { performRegisterAccount() },
             onPerformLayer1Login = { performLayer1Login(it) },
             onPerformLayer2OtpVerify = { performLayer2OtpVerify() },
             onUploadVoiceSample = { uploadVoiceToServerForRecognition(null, authEmail) },
@@ -800,7 +964,12 @@ fun MainScreen(
             onLogout = {
               selectedTier = 3
               activeSpeakerName = "Khách"
-              authEmail = "guest@smarthome.local"
+              activeSessionToken = ""
+              authEmail = ""
+              authPassword = ""
+              authOtpInput = ""
+              authStepDone = 0
+              authStatusMessage = "Đã đăng xuất tài khoản."
               addHistoryLog("Đã đăng xuất tài khoản")
             },
             onSpeakSamplePhrase = { speakOutLoud("Nhà thông minh xin chào, mở đèn phòng khách và kiểm tra nhiệt độ hôm nay.") },

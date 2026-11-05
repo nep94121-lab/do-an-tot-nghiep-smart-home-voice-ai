@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +48,7 @@ fun AccountScreenTab(
   openAuthStep: Int,
   onOpenAuthStepChange: (Int) -> Unit,
   authStepDone: Int,
+  authStatusMessage: String = "",
   authStatusColor: Color,
   allowlistTargetEmail: String,
   onAllowlistTargetEmailChange: (String) -> Unit,
@@ -63,6 +65,7 @@ fun AccountScreenTab(
   lastDetectedF0: Double,
   lastCosineScore: Double,
   lastSyncTime: String,
+  onPerformRegister: () -> Unit = {},
   onPerformLayer1Login: (String) -> Unit,
   onPerformLayer2OtpVerify: () -> Unit,
   onUploadVoiceSample: () -> Unit,
@@ -82,7 +85,7 @@ fun AccountScreenTab(
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     if (accountSubScreen == "menu") {
       // Card Hồ sơ (3 dòng: Vai trò, Email, Thời hạn)
@@ -92,8 +95,8 @@ fun AccountScreenTab(
           .clip(RoundedCornerShape(16.dp))
           .background(cardBg)
           .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
       ) {
         Text(
           text = "Hồ sơ",
@@ -129,10 +132,13 @@ fun AccountScreenTab(
         ) {
           Text("Email", color = textSecondary, fontSize = 13.sp)
           Text(
-            text = authEmail,
+            text = authEmail.ifBlank { "Chưa đăng nhập" },
             color = textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).padding(start = 12.dp),
           )
         }
 
@@ -160,13 +166,13 @@ fun AccountScreenTab(
           .clip(RoundedCornerShape(16.dp))
           .background(cardBg)
           .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
       ) {
         Text(
           text = "Quản lý",
           color = textPrimary,
-          fontSize = 16.sp,
+          fontSize = 15.sp,
           fontWeight = FontWeight.SemiBold,
         )
 
@@ -174,7 +180,7 @@ fun AccountScreenTab(
           modifier = Modifier
             .fillMaxWidth()
             .clickable { onNavigateSubScreen("auth") }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -188,7 +194,7 @@ fun AccountScreenTab(
           modifier = Modifier
             .fillMaxWidth()
             .clickable { onNavigateSubScreen("guest") }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -202,7 +208,7 @@ fun AccountScreenTab(
           modifier = Modifier
             .fillMaxWidth()
             .clickable { onNavigateSubScreen("qr_scanner") }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -216,7 +222,7 @@ fun AccountScreenTab(
           modifier = Modifier
             .fillMaxWidth()
             .clickable { onNavigateSubScreen("forgot_otp") }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -230,7 +236,7 @@ fun AccountScreenTab(
           modifier = Modifier
             .fillMaxWidth()
             .clickable { onNavigateSubScreen("settings") }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -251,8 +257,7 @@ fun AccountScreenTab(
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier
           .fillMaxWidth()
-          .height(44.dp)
-          .padding(top = 8.dp)
+          .height(42.dp)
           .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
       ) {
         Text("Đăng xuất", fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -276,8 +281,8 @@ fun AccountScreenTab(
           .clip(RoundedCornerShape(16.dp))
           .background(cardBg)
           .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         Row(
           modifier = Modifier.fillMaxWidth(),
@@ -326,8 +331,8 @@ fun AccountScreenTab(
             .clip(RoundedCornerShape(12.dp))
             .background(bgDark)
             .border(1.dp, if (openAuthStep == 1) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(14.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           Row(
             modifier = Modifier
@@ -371,8 +376,43 @@ fun AccountScreenTab(
               onValueChange = onAuthPasswordChange,
               placeholder = { Text("Mật khẩu", fontSize = 13.sp) },
               singleLine = true,
+              visualTransformation = PasswordVisualTransformation(),
               modifier = Modifier.fillMaxWidth(),
             )
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              Button(
+                onClick = onPerformRegister,
+                colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = accentCyan),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                  .weight(1f)
+                  .height(42.dp)
+                  .border(1.dp, accentCyan, RoundedCornerShape(10.dp)),
+              ) {
+                Text("Đăng ký", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+              }
+              Button(
+                onClick = { onPerformLayer1Login("password") },
+                colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                  .weight(1f)
+                  .height(42.dp),
+              ) {
+                Text("Đăng nhập", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+              }
+            }
+            if (authStatusMessage.isNotBlank()) {
+              Text(
+                text = authStatusMessage,
+                color = authStatusColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+              )
+            }
             OutlinedTextField(
               value = authOtpInput,
               onValueChange = onAuthOtpInputChange,
@@ -390,8 +430,8 @@ fun AccountScreenTab(
             .clip(RoundedCornerShape(12.dp))
             .background(bgDark)
             .border(1.dp, if (openAuthStep == 2) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(14.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           Row(
             modifier = Modifier
@@ -455,8 +495,8 @@ fun AccountScreenTab(
             .clip(RoundedCornerShape(12.dp))
             .background(bgDark)
             .border(1.dp, if (openAuthStep == 3) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(14.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           Row(
             modifier = Modifier
@@ -596,8 +636,8 @@ fun AccountScreenTab(
           .clip(RoundedCornerShape(16.dp))
           .background(cardBg)
           .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         Text(
           text = "Chọn thời hạn và quyền truy cập cho khách.",
