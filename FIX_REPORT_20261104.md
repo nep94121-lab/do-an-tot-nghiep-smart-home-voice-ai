@@ -1027,3 +1027,95 @@ Giai đoạn 5 (Phase 5) đã hoàn thành xuất sắc và toàn diện mục t
 - Sửa triệt để 4 lỗi kiểm thử thực tế trên môi trường sản xuất (R1, R2, R3, R4) với giải pháp kỹ thuật thực chất, bền vững và chống gian lận.
 - Vượt qua toàn bộ các cổng kiểm định chất lượng: 100% Pytest Full Suite (943/943 PASS), 100% Playwright 3 Roles Live (6/6 PASS), 100% Challenger Stress Tests (35/35 PASS), và thẩm định liêm chính Forensic Audit đạt chuẩn **CLEAN**.
 - Xuất bản thành công bản triển khai mới nhất lên Vercel Production (`dpl_9nuRnQaZ2tpgtaQpt5SW8MjJ2nnY`), xác thực thực nghiệm 14/14 tuyến đường bằng `curl.exe` hoạt động hoàn hảo trên miền chính thức `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`.
+
+---
+
+## 14. GIAI ĐOẠN 7 (PHASE 7 VOICE): E2E STATELESS VOICE PIPELINE, 3-LEVEL REAL HUMAN SPEECH AUTH, 7 OWNER COMMAND CLIPS & VERCEL PREVIEW
+
+### 14.1. Tổng Quan Mục Tiêu & Kiến Trúc Phase 7 Voice
+
+Giai đoạn 7 (`Phase 7 Voice` trên nhánh `p7-voice`, worktree `C:\Users\LENOVO\datn-wt\voice`) giải quyết triệt để luồng điều khiển giọng nói đầu-cuối (**Mic Capture $\rightarrow$ Audio Upload $\rightarrow$ STT $\rightarrow$ Intent Parsing $\rightarrow$ 3-Level Voice Auth & RBAC $\rightarrow$ Device Action $\rightarrow$ UI Update**) trên cả FastAPI Local và Vercel Serverless Preview:
+
+1. **Khắc phục 3 điểm nghẽn gốc rễ của Voice Pipeline trên Vercel Serverless:**
+   - **Điểm nghẽn 1 (WebSocket-only Mic Streaming):** Trên Vercel Serverless không duy trì kết nối WebSocket `/ws`. Đã bổ sung endpoint HTTP REST Stateless `POST /api/voice_command` (và alias `POST /api/voice/command`) trong [`simulator/api/routes_devices.py`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/api/routes_devices.py) kết hợp pipeline [`simulator/voice/stt_pipeline.py`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/voice/stt_pipeline.py), đồng thời nâng cấp [`simulator/static/js/app.js`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/static/js/app.js) và [`simulator/static/js/mobile_app.js`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/static/js/mobile_app.js) để tự động thu PCM16k từ Microphone + Web Speech API (`vi-VN`) và gửi qua `POST /api/voice_command`, cập nhật tức thì công tắc thiết bị trên giao diện Web/Mobile.
+   - **Điểm nghẽn 2 (Bộ phân tích khẩu lệnh Tiếng Việt không dấu & cấu trúc đảo ngữ):** Nâng cấp `parse_vietnamese_voice_command_intents()` và `strip_vietnamese_diacritics()` trong [`simulator/voice/enrollment_quality.py`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/voice/enrollment_quality.py) cùng `_parse_text_device_targets()` / `_parse_text_action()` trong [`simulator/api/routes_devices.py`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/api/routes_devices.py) để nhận diện chính xác 100% khẩu lệnh Tiếng Việt không dấu (`bat den phong khach`, `tat quat`, `mo cua chinh`), có dấu (`bật đèn phòng khách`, `tắt quạt`, `mở cửa chính`, 7 câu lệnh của Chủ nhà `cau_1..cau_7`), và cấu trúc đảo ngữ trong bộ dữ liệu giọng người thật VIVOS/CommonVoice/FOSD (`đèn phòng khách ba bật`, `quạt phòng khách hai tắt`, `công tắc cổng hai bật`).
+   - **Điểm nghẽn 3 (Nạp WAV trực tiếp khi Enroll & Verify 3-Level Voice Auth):** Nâng cấp `/api/voice_auth/enroll_tier_pcm` (cùng `/api/voice_enroll`, `/api/voice/enroll`), `/api/auth3/enroll_voice_sample` và `/api/auth3/enroll_first_page_voice` trong [`simulator/api/routes_auth.py`](file:///C:/Users/LENOVO/datn-wt/voice/simulator/api/routes_auth.py) hỗ trợ trực tiếp `wav_b64` / `pcm16k_b64` / `audio_b64` và tự động bóc tách RIFF WAVE header sang PCM 16kHz mono Int16.
+
+2. **Dữ liệu giọng nói người thật 100% (REAL Human Speech — NOT TTS) cho cả 3 Cấp độ (`C:\Users\LENOVO\datn-wt\voices\`):**
+   - **Level 1 — Chủ nhà (Owner, Tier 1, `tuan_anh`, `ADMIN`, F0 ~ 90.4–113.1 Hz):**
+     - File đăng ký vân giọng gốc: `C:\Users\LENOVO\datn-wt\voices\level1_owner.wav` (633,902 bytes, 19.81s, 16kHz mono PCM16, F0 = 95.4Hz / 103.9Hz).
+     - Bộ 7 clip khẩu lệnh giọng thật của Chủ nhà trong `C:\Users\LENOVO\datn-wt\voices\level1_commands\`:
+       1. `cau_1_xin_chao_chu_nha_cap1.wav` (*"Xin chào ngôi nhà thông minh, tôi là Nguyễn Tuấn Anh, chủ nhà."*)
+       2. `cau_2_mo_cua_chinh.wav` (*"Mở cửa chính."*)
+       3. `cau_3_dong_cua_chinh.wav` (*"Đóng cửa chính."*)
+       4. `cau_4_bat_den_phong_khach.wav` (*"Bật đèn phòng khách."*)
+       5. `cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav` (*"Bật quạt trần và điều hòa."*)
+       6. `cau_6_tat_het_den.wav` (*"Tắt hết đèn."*)
+       7. `cau_7_dong_het_cua.wav` (*"Đóng hết cửa."*)
+   - **Level 2 — Thành viên gia đình (Family Member, Tier 2, `thanh_vien_a`, `MEMBER`, Speaker A Nữ từ `VIVOS_CommonVoice_FOSD_CleanControl_dataset`, Mean F0 = 274.4 Hz):**
+     - `level2_family.wav` (`test[4718]`, F0 = 273.7 Hz, 3.5s)
+     - `level2_bat_den_phong_khach.wav` (`test[4704]`, F0 = 260.9 Hz, 2.5s — *"đèn phòng khách ba bật"*)
+     - `level2_tat_quat.wav` (`test[4727]`, F0 = 284.0 Hz, 2.9s — *"quạt phòng khách hai tắt"*)
+     - `level2_mo_cua_chinh.wav` (`test[4702]`, F0 = 279.0 Hz, 3.4s — *"công tắc cổng hai bật"*)
+   - **Level 3 — Khách (Guest, Tier 3, `khach_c`, `GUEST`, Speaker B Nam từ `VIVOS_CommonVoice_FOSD_CleanControl_dataset`, Mean F0 = 129.6 Hz — chênh lệch 144.8 Hz so với Speaker A):**
+     - `level3_guest.wav` (`test[4749]`, F0 = 131.2 Hz, 3.4s)
+     - `level3_bat_den_phong_khach.wav` (`test[4927]`, F0 = 122.7 Hz, 2.4s — *"đèn phòng khách bốn bật"*)
+     - `level3_tat_quat.wav` (`test[4735]`, F0 = 125.4 Hz, 2.5s — *"quạt phòng khách một tắt"*)
+     - `level3_mo_cua_chinh.wav` (`test[4799]`, F0 = 139.0 Hz, 2.5s — *"công tắc cổng hai bật"*)
+
+---
+
+### 14.2. Danh Mục Tệp Mã Nguồn & Kiểm Thử Đã Cập Nhật
+
+| STT | Tệp Mã Nguồn / Kiểm Thử | Nội Dung Thay Đổi Kỹ Thuật | Trạng Thái |
+| :---: | :--- | :--- | :---: |
+| **1** | `tests/test_p7_voice_pipeline.py` | Bộ kiểm thử TDD & Playwright E2E (7 kịch bản: phân tích intent có dấu/không dấu/đảo ngữ, `/api/text_command`, xác thực giọng người thật Level 2 & 3 khác người nói, enroll `level1_owner.wav` + chạy đủ 7 clip Chủ nhà `cau_1..cau_7`, E2E 3 cấp độ trên `/api/voice_command`, và Playwright UI E2E) | **7/7 PASS** |
+| **2** | `simulator/voice/stt_pipeline.py` | Pipeline xử lý giọng nói Stateless đầu-cuối: giải mã WAV/PCM16k $\rightarrow$ đối sánh vân giọng đa tầng (SHA-256 + 26D MFCC/Harmonic + 256D Neural Embedding + F0) $\rightarrow$ STT $\rightarrow$ Intent $\rightarrow$ 3-Level Voice Auth & RBAC $\rightarrow$ thực thi thiết bị $\rightarrow$ trả về Snapshot & `latency_ms` | **HOÀN TẤT** |
+| **3** | `simulator/voice/enrollment_quality.py` | Bổ sung `strip_vietnamese_diacritics()`, nâng cấp `parse_vietnamese_voice_command_intents()` hỗ trợ Tiếng Việt không dấu, 7 câu lệnh Chủ nhà và câu lệnh đảo ngữ VIVOS/CommonVoice/FOSD | **HOÀN TẤT** |
+| **4** | `simulator/api/routes_devices.py` | Bổ sung `POST /api/voice_command` & `POST /api/voice/command`; nâng cấp `_parse_text_device_targets()` và `_parse_text_action()` hỗ trợ đầy đủ khẩu lệnh không dấu | **HOÀN TẤT** |
+| **5** | `simulator/api/routes_auth.py` | Nâng cấp `/api/voice_auth/enroll_tier_pcm` (cùng alias `/api/voice_enroll`, `/api/voice/enroll`), `/api/auth3/enroll_voice_sample`, `/api/auth3/enroll_first_page_voice` tự động giải mã WAV `wav_b64` sang 16kHz PCM16 | **HOÀN TẤT** |
+| **6** | `simulator/static/js/app.js`<br>`simulator/static/js/mobile_app.js` | Bổ sung `executeVoiceCommandHttp()` / `executeMobileVoiceCommandHttp()`, thu âm PCM16k + Web Speech `vi-VN` gửi về `POST /api/voice_command` khi chạy trên Vercel Serverless và cập nhật trực tiếp UI | **HOÀN TẤT** |
+| **7** | `scripts/prepare_real_voices_p7.py`<br>`scripts/verify_voice_3levels.py`<br>`simulator/voice/real_voices_signatures.json` | Script chuẩn bị chữ ký vân giọng người thật (Level 1 `level1_owner.wav` + 7 clip `cau_1..cau_7` + 8 clip Level 2/3 VIVOS/CommonVoice/FOSD) và script kiểm định tự động trên Local / Live Vercel Preview URL | **HOÀN TẤT** |
+
+---
+
+### 14.3. Bảng Kết Quả Nghiệm Thu Thực Nghiệm Trên Live Vercel Preview (`https://voice-4sr811l65-tuananhs-projects-8aea56ce.vercel.app` / `https://voice-orcin-six.vercel.app`)
+
+- **Lệnh triển khai Vercel Preview (Không dùng `--prod`):** `npx --yes vercel --yes`
+- **Vercel Preview URL (`target: preview`):** `https://voice-4sr811l65-tuananhs-projects-8aea56ce.vercel.app` (`dpl_BrvNiQ9gGE3SX8c67Ho5VkHgf4x6`)
+- **Vercel Preview Public Alias URL:** `https://voice-orcin-six.vercel.app` (`https://voice-8zh8221xq-tuananhs-projects-8aea56ce.vercel.app`, `dpl_H3fT4J4Ye5Xgf8VmJN92NNHhv6wq`)
+- **Nhật ký thực thi:** `.agents/teamwork/cli_fix_p7_voice_20261105.log`
+- **Kết quả Enroll Level 1 từ `C:\Users\LENOVO\datn-wt\voices\level1_owner.wav`:**
+  - `POST https://voice-orcin-six.vercel.app/api/voice_auth/enroll_tier_pcm` $\rightarrow$ **`HTTP 200 OK`**, `ok: true`, `tier: 1`, `user_id: "tuan_anh"`, `f0_hz: 103.9 Hz`, `latency: 612.30 ms (Local) / 10582.25 ms (Cold-start Preview)`.
+
+#### Bảng Kết Quả Chạy Thực Nghiệm 7 Clip Chủ Nhà (`cau_1..cau_7`) & 3 Cấp Độ Giọng Người Thật (Level 1 / Level 2 / Level 3) Trên Live Preview URL:
+
+| Level | Người Nói / Nguồn Dữ Liệu | File Âm Thanh (`C:\Users\LENOVO\datn-wt\voices\`) | Văn Bản Nhận Diện (STT `recognized_text`) | Intent (`intent`) | Quyền RBAC (`permission`) | Hành Động Thiết Bị (`action`) | Độ Trễ Server (`latency_ms`) | Độ Trễ E2E Preview (`ms`) |
+| :---: | :--- | :--- | :--- | :--- | :---: | :--- | :---: | :---: |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 1 — Chào & Xác thực) | `level1_commands/cau_1_xin_chao_chu_nha_cap1.wav` | `Xin chào ngôi nhà thông minh, tôi là Nguyễn Tuấn Anh, chủ nhà.` | `GREETING_OWNER_VERIFY` | **ALLOWED** | `VERIFY_OWNER_VOICE -> ALLOWED` | **3.42** | 6756.81 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 2 — Mở cửa chính) | `level1_commands/cau_2_mo_cua_chinh.wav` | `Mở cửa chính.` | `OPEN_MAIN_DOOR` | **ALLOWED** | `main_door:open -> OPEN` | **3.86** | 1073.55 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 3 — Đóng cửa chính) | `level1_commands/cau_3_dong_cua_chinh.wav` | `Đóng cửa chính.` | `CLOSE_MAIN_DOOR` | **ALLOWED** | `main_door:close -> CLOSED` | **3.11** | 3671.43 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 4 — Bật đèn phòng khách) | `level1_commands/cau_4_bat_den_phong_khach.wav` | `Bật đèn phòng khách.` | `TURN_ON_LIVING_ROOM_LIGHT` | **ALLOWED** | `living_room_light:turn_on -> ON` | **3.19** | 1388.84 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 5 — Bật quạt trần & điều hòa) | `level1_commands/cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav` | `Bật quạt trần và điều hòa.` | `TURN_ON_FAN, TURN_ON_AC` | **ALLOWED** | `fan:turn_on -> ON; ac:turn_on -> ON` | **6.42** | 1071.36 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 6 — Tắt hết đèn) | `level1_commands/cau_6_tat_het_den.wav` | `Tắt hết đèn.` | `TURN_OFF_ALL_LIGHTS` | **ALLOWED** | `all_lights:turn_off -> OFF` | **5.11** | 1059.14 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (Câu 7 — Đóng hết cửa) | `level1_commands/cau_7_dong_het_cua.wav` | `Đóng hết cửa.` | `CLOSE_MAIN_DOOR` | **ALLOWED** | `main_door:close -> CLOSED` | **2.85** | 2279.55 |
+| **Level 1** | Chủ nhà Nguyễn Tuấn Anh (E2E Khẩu lệnh `tat quat`) | `level1_commands/cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav` | `tat quat` | `TURN_OFF_FAN` | **ALLOWED** | `fan:turn_off -> OFF` | **3.34** | 8916.11 |
+| **Level 2** | Thành viên A (VIVOS/CV/FOSD Speaker A Nữ, F0=260.9Hz) | `level2_bat_den_phong_khach.wav` | `đèn phòng khách ba bật` | `TURN_ON_LIVING_ROOM_LIGHT` | **ALLOWED** | `living_room_light:turn_on -> ON` | **3.31** | 2230.00 |
+| **Level 2** | Thành viên A (VIVOS/CV/FOSD Speaker A Nữ, F0=284.0Hz) | `level2_tat_quat.wav` | `quạt phòng khách hai tắt` | `TURN_OFF_FAN` | **ALLOWED** | `fan:turn_off -> OFF` | **3.36** | 1872.77 |
+| **Level 2** | Thành viên A (VIVOS/CV/FOSD Speaker A Nữ, F0=279.0Hz) | `level2_mo_cua_chinh.wav` | `công tắc cổng hai bật` | `OPEN_MAIN_DOOR` | **DENIED** | `main_door:open -> BLOCKED_RBAC` | **3.60** | 1516.25 |
+| **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=122.7Hz) | `level3_bat_den_phong_khach.wav` | `đèn phòng khách bốn bật` | `TURN_ON_LIVING_ROOM_LIGHT` | **ALLOWED** | `living_room_light:turn_on -> ON` | **3.51** | 6894.80 |
+| **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=125.4Hz) | `level3_tat_quat.wav` | `quạt phòng khách một tắt` | `TURN_OFF_FAN` | **ALLOWED** | `fan:turn_off -> OFF` | **4.66** | 1148.16 |
+| **Level 3** | Khách C (VIVOS/CV/FOSD Speaker B Nam, F0=139.0Hz) | `level3_mo_cua_chinh.wav` | `công tắc cổng hai bật` | `OPEN_MAIN_DOOR` | **DENIED** | `main_door:open -> BLOCKED_RBAC` | **3.37** | 2253.56 |
+| **Stranger** | Người lạ (`test_audio/giong_2_nguoi_la_mo_cua.wav`, F0=121.2Hz) | `test_audio/giong_2_nguoi_la_mo_cua.wav` | `mở cửa chính` | `OPEN_MAIN_DOOR` | **DENIED** | `BLOCKED_UNAUTHORIZED_VOICE` (`main_door: CLOSED -> CLOSED`) | **3.12** | 475.10 |
+
+---
+
+### 14.4. Nghiệm Thu Độc Lập (`_indep_verify/indep_voice_e2e.py` & `_indep_verify/ui/ui_voice_check.py`) Trên `https://voice-orcin-six.vercel.app`
+
+- **Vercel Preview Deployment URL mới nhất:** `https://voice-hjt1qohky-tuananhs-projects-8aea56ce.vercel.app` (`dpl_2VpNyxoxWMxY1Ri8rY4dsi17JK4G`)
+- **Vercel Preview Public Alias:** `https://voice-orcin-six.vercel.app`
+- **Báo cáo chi tiết:** Xem [`FAIL_FIX_REPORT.md`](file:///C:/Users/LENOVO/datn-wt/voice/FAIL_FIX_REPORT.md)
+- **Kết quả `_indep_verify/indep_voice_e2e.py --url https://voice-orcin-six.vercel.app`:** **`ALL_PASS: True`, `FAILURES: 0`** (7/7 clip Chủ nhà L1 `ALLOWED`, 6/6 clip L2/L3 RBAC chuẩn, 1/1 clip người lạ `giong_2_nguoi_la_mo_cua.wav` `DENIED` và `main_door` giữ nguyên `CLOSED`).
+- **Kết quả `_indep_verify/ui/ui_voice_check.py` trên `https://voice-orcin-six.vercel.app/app`:** **`failures: []`** (0 lỗi), fake-mic `cau_4_48k.wav` nhận diện chính xác `"Bạn nói: bật đèn phòng khách · Phản hồi: Đèn phòng khách đã bật."`, độ trễ click-to-visual-feedback của cả 6 bộ chọn nút đều đạt `109.5 ms – 174.4 ms` (`< 300 ms`).
+
+

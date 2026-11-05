@@ -177,6 +177,12 @@
         <span id="mobileStrikeBadge" hidden></span>
         <span id="mobileCountdownBadge" hidden></span>
       </header>
+      <div id="mobileHomeVoiceBanner" class="card" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;"></div>
+      <div class="btn-row" id="mobileHomeQuickDevices" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+        <button type="button" class="btn secondary toggle" id="mobileQuickBtnLight" data-device="living_room_light" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('living_room_light', this)">Đèn phòng khách</button>
+        <button type="button" class="btn secondary toggle" id="mobileQuickBtnFan" data-device="fan" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('fan', this)">Quạt</button>
+        <button type="button" class="btn secondary toggle" id="mobileQuickBtnDoor" data-device="main_door" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('main_door', this)">Cửa chính</button>
+      </div>
 
       <!-- Thẻ 1: Ngôi nhà Toàn cảnh 16:9 -->
       <section class="card" aria-labelledby="pwa-house-title">
@@ -229,9 +235,9 @@
 
       <!-- Cặp nút hành động nhanh: Nói lệnh / Xem thiết bị -->
       <div class="actions" style="display:grid;gap:10px;margin-top:16px;">
-        <button type="button" class="btn primary wide" id="mobileBtnVoiceSheet" onclick="openVoiceBottomSheet()">
+        <button type="button" class="btn primary wide voice-btn" id="mobileBtnVoiceSheet" data-testid="voice-button" aria-label="Mic giọng nói" onclick="openVoiceBottomSheet()">
           <svg class="icon"><use href="#i-mic"/></svg>
-          <span>Nói lệnh</span>
+          <span>Nói lệnh giọng nói</span>
         </button>
         <button type="button" class="btn secondary wide" id="mobileBtnViewDevices" onclick="switchMobileTab('devices')">
           <span>Xem thiết bị</span>

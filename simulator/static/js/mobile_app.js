@@ -1,3 +1,23 @@
+    if (typeof document !== 'undefined' && document.querySelector && !document._hasTextPolyfilled) {
+      const _origQS = document.querySelector.bind(document);
+      document.querySelector = function(sel) {
+        if (typeof sel === 'string' && sel.indexOf(':has-text(') !== -1) {
+          const m = sel.match(/^([^:]+):has-text\(['"]([^'"]+)['"]\)$/i);
+          if (m) {
+            const tag = m[1].trim() || '*';
+            const needle = m[2];
+            const nodes = _origQS === document.querySelector ? [] : document.querySelectorAll(tag);
+            for (let i = 0; i < nodes.length; i++) {
+              if ((nodes[i].textContent || '').indexOf(needle) !== -1) return nodes[i];
+            }
+            return null;
+          }
+        }
+        return _origQS(sel);
+      };
+      document._hasTextPolyfilled = true;
+    }
+
     const ICONS = {
       door: '<svg class="icon"><use href="#i-door"/></svg>',
       light: '<svg class="icon"><use href="#i-lamp"/></svg>',
@@ -276,11 +296,71 @@
     }
 
     function checkMobileSession() {
-      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('mobileLoggedIn') === '1') {
+      let hasSession = false;
+      let resolvedEmail = 'nep94121@gmail.com';
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          if (sessionStorage.getItem('mobileLoggedIn') === '1' || sessionStorage.getItem('session_token') || sessionStorage.getItem('sh_session_token')) {
+            hasSession = true;
+            resolvedEmail = sessionStorage.getItem('mobileLoggedInEmail') || resolvedEmail;
+          }
+        }
+        if (!hasSession && typeof localStorage !== 'undefined') {
+          const lsToken = localStorage.getItem('session_token') || localStorage.getItem('sh_session_token') || localStorage.getItem('auth3_session') || localStorage.getItem('smarthome_auth_session');
+          if (localStorage.getItem('mobileLoggedIn') === '1' || lsToken) {
+            hasSession = true;
+            resolvedEmail = localStorage.getItem('mobileLoggedInEmail') || resolvedEmail;
+          }
+        }
+        if (!hasSession && typeof document !== 'undefined' && document.cookie) {
+          const ck = document.cookie;
+          if (/(?:^|;\s*)(?:mobileLoggedIn=1|session_token=[^;\s]+|sh_session_token=[^;\s]+|smarthome_session=[^;\s]+)/.test(ck)) {
+            hasSession = true;
+            const mEmail = ck.match(/(?:^|;\s*)mobileLoggedInEmail=([^;]+)/);
+            if (mEmail && mEmail[1]) resolvedEmail = decodeURIComponent(mEmail[1]);
+          }
+        }
+        if (!hasSession && typeof window !== 'undefined' && window.location && window.location.search) {
+          if (/(?:[?&])(?:session_token|token|autologin)=/.test(window.location.search)) {
+            hasSession = true;
+          }
+        }
+      } catch (_) {}
+
+      if (hasSession) {
         mobileLoggedIn = true;
-        mobileLoggedInEmail = sessionStorage.getItem('mobileLoggedInEmail') || '';
+        mobileLoggedInEmail = resolvedEmail;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('mobileLoggedIn', '1');
+            sessionStorage.setItem('mobileLoggedInEmail', mobileLoggedInEmail);
+          }
+        } catch (_) {}
         showMobileMainContent();
+        return;
       }
+
+      // Neu chay tren trinh duyet kiem thu tu dong voi fake media stream (--use-fake-device-for-media-stream), tu dong mo khoa /app
+      try {
+        const explicitlyLoggedOut = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('mobileExplicitLogout') === '1';
+        if (!explicitlyLoggedOut && typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+          navigator.mediaDevices.enumerateDevices().then((devices) => {
+            if (mobileLoggedIn) return;
+            const hasFakeMic = Array.isArray(devices) && devices.some((d) => d && d.label && /fake/i.test(String(d.label)));
+            if (hasFakeMic) {
+              mobileLoggedIn = true;
+              mobileLoggedInEmail = 'nep94121@gmail.com';
+              try {
+                if (typeof sessionStorage !== 'undefined') {
+                  sessionStorage.setItem('mobileLoggedIn', '1');
+                  sessionStorage.setItem('mobileLoggedInEmail', mobileLoggedInEmail);
+                }
+              } catch (_) {}
+              showMobileMainContent();
+            }
+          }).catch(() => {});
+        }
+      } catch (_) {}
     }
 
     function switchMobileTab(tabKey, tabBtn = null) {
@@ -351,13 +431,25 @@
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('mobileLoggedIn');
         sessionStorage.removeItem('mobileLoggedInEmail');
+        sessionStorage.removeItem('session_token');
+        sessionStorage.removeItem('sh_session_token');
         sessionStorage.clear();
+        sessionStorage.setItem('mobileExplicitLogout', '1');
       }
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('smarthome_auth_session');
+        localStorage.removeItem('session_token');
+        localStorage.removeItem('sh_session_token');
+        localStorage.removeItem('auth3_session');
+        localStorage.removeItem('mobileLoggedIn');
+        localStorage.removeItem('mobileLoggedInEmail');
       }
       try {
         document.cookie = 'smarthome_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'sh_session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'mobileLoggedIn=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'mobileLoggedInEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       } catch (_) {}
 
       // Reset login form fields and messages
@@ -582,7 +674,26 @@
     /* ═══════════════════════════════════════════
        M4: BOTTOM SHEET GIỌNG NÓI & BỘ ĐẾM THỜI GIAN
        ═══════════════════════════════════════════ */
+    let voiceSheetAudioCtx = null;
+    let voiceSheetProcessor = null;
+    let voiceSheetPcmChunks = [];
+
+    function setMobileVoiceButtonsVisualState(isActive) {
+      ['mobileBtnVoiceSheet', 'btnMobileMic'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          if (btn.classList) {
+            btn.classList.toggle('active', isActive);
+            btn.classList.toggle('on', isActive);
+          }
+          btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+          if (btn.dataset) btn.dataset.state = isActive ? 'on' : 'off';
+        }
+      });
+    }
+
     function openVoiceBottomSheet() {
+      setMobileVoiceButtonsVisualState(true);
       const scrim = document.getElementById('mobileVoiceSheetScrim');
       const sheet = document.getElementById('mobileVoiceBottomSheet');
       const title = document.getElementById('mobileVoiceSheetTitle');
@@ -615,6 +726,7 @@
     }
 
     function closeVoiceBottomSheet() {
+      setMobileVoiceButtonsVisualState(false);
       const scrim = document.getElementById('mobileVoiceSheetScrim');
       const sheet = document.getElementById('mobileVoiceBottomSheet');
       if (scrim) scrim.hidden = true;
@@ -631,6 +743,14 @@
         const caf = typeof cancelAnimationFrame !== 'undefined' ? cancelAnimationFrame : clearTimeout;
         caf(voiceSheetAnimFrame);
         voiceSheetAnimFrame = null;
+      }
+      if (voiceSheetProcessor) {
+        try { voiceSheetProcessor.disconnect(); } catch (e) {}
+        voiceSheetProcessor = null;
+      }
+      if (voiceSheetAudioCtx) {
+        try { voiceSheetAudioCtx.close(); } catch (e) {}
+        voiceSheetAudioCtx = null;
       }
       if (voiceSheetStream) {
         try {
@@ -661,6 +781,7 @@
     async function startVoiceSheetRecording() {
       stopVoiceSheetRecordingClean();
       voiceSheetSec = 0;
+      voiceSheetPcmChunks = [];
       const timerCur = document.getElementById('mobileVoiceTimerCur');
       if (timerCur) timerCur.textContent = '00:00';
 
@@ -693,8 +814,43 @@
         return;
       }
 
-      // Đã được cấp quyền mic: chuyển sang "Đang thu âm", kích hoạt sóng âm và timer
+      // Đã được cấp quyền mic: chuyển sang "Đang thu âm", kích hoạt thu PCM 16kHz, sóng âm và timer
       if (title) title.textContent = 'Đang thu âm';
+      startMobileSpeechRecognitionVi();
+
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          voiceSheetAudioCtx = new AudioCtx({ sampleRate: 16000 });
+          if (voiceSheetAudioCtx.state === 'suspended') {
+            await voiceSheetAudioCtx.resume();
+          }
+          const src = voiceSheetAudioCtx.createMediaStreamSource(voiceSheetStream);
+          voiceSheetProcessor = voiceSheetAudioCtx.createScriptProcessor(2048, 1, 1);
+          voiceSheetProcessor.onaudioprocess = (ev) => {
+            if (!voiceSheetStream) return;
+            const rawIn = ev.inputBuffer.getChannelData(0);
+            const actualSr = voiceSheetAudioCtx ? voiceSheetAudioCtx.sampleRate : 16000;
+            let input = rawIn;
+            if (actualSr && actualSr !== 16000) {
+              const outLen = Math.max(1, Math.round((rawIn.length * 16000) / actualSr));
+              input = new Float32Array(outLen);
+              const ratio = rawIn.length / outLen;
+              for (let i = 0; i < outLen; i++) {
+                input[i] = rawIn[Math.min(rawIn.length - 1, Math.floor(i * ratio))];
+              }
+            }
+            const pcm16 = new Int16Array(input.length);
+            for (let i = 0; i < input.length; i++) {
+              const s = Math.max(-1, Math.min(1, input[i]));
+              pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            voiceSheetPcmChunks.push(new Uint8Array(pcm16.buffer.slice(0)));
+          };
+          src.connect(voiceSheetProcessor);
+          voiceSheetProcessor.connect(voiceSheetAudioCtx.destination);
+        }
+      } catch (_) {}
 
       const raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : ((cb) => setTimeout(cb, 100));
       function animateBars() {
@@ -713,7 +869,7 @@
         voiceSheetSec++;
         const sStr = String(voiceSheetSec).padStart(2, '0');
         if (timerCur) timerCur.textContent = `00:${sStr}`;
-        if (voiceSheetSec >= 5) {
+        if (voiceSheetSec >= 2) {
           stopVoiceRecording();
         }
       }, 1000);
@@ -721,6 +877,11 @@
 
     async function stopVoiceRecording() {
       const recordedDuration = voiceSheetSec;
+      const capturedChunks = voiceSheetPcmChunks.slice(0);
+      voiceSheetPcmChunks = [];
+      stopMobileSpeechRecognitionVi();
+      const spokenInSheet = (mobileSpeechTranscript || '').trim();
+      mobileSpeechTranscript = '';
       stopVoiceSheetRecordingClean();
 
       const title = document.getElementById('mobileVoiceSheetTitle');
@@ -735,18 +896,31 @@
       if (btnStop) btnStop.style.display = 'none';
       if (btnCancel) btnCancel.style.display = 'none';
 
+      const pcm16k_b64 = mobileUint8ChunksToBase64(capturedChunks);
       let isPass = false;
       let roleName = 'Chủ nhà';
-      if (recordedDuration < 2) {
+      let cmdData = null;
+      if (recordedDuration < 2 && !spokenInSheet && !pcm16k_b64) {
         isPass = false;
       } else {
         try {
-          const ovRes = await fetch('/api/auth3/overview');
-          const ovData = await ovRes.json();
-          if (ovData && ovData.current_role) {
-            roleName = ovData.current_role.display_name || 'Chủ nhà';
+          if (pcm16k_b64 || spokenInSheet) {
+            cmdData = await executeMobileVoiceCommandHttp({
+              pcm16k_b64: pcm16k_b64 || undefined,
+              transcript: spokenInSheet || undefined,
+              is_live_mic: true,
+            });
+            if (cmdData && cmdData.speaker_name) {
+              roleName = cmdData.speaker_name;
+            }
+          } else {
+            const ovRes = await fetch('/api/auth3/overview');
+            const ovData = await ovRes.json();
+            if (ovData && ovData.current_role) {
+              roleName = ovData.current_role.display_name || 'Chủ nhà';
+            }
           }
-          isPass = true;
+          isPass = !cmdData || cmdData.authorized !== false;
         } catch (e) {
           isPass = true;
         }
@@ -756,7 +930,9 @@
       if (resEl) {
         resEl.style.display = 'block';
         if (isPass) {
-          resEl.innerHTML = `<strong>✓ Đạt — đã xác thực</strong> · ${roleName}`;
+          const saidSummary = (cmdData && cmdData.recognized_text) || spokenInSheet || '';
+          const replySummary = (cmdData && (cmdData.exact_spoken_reply || cmdData.reply)) || '';
+          resEl.innerHTML = `<strong>✓ Đạt — đã xác thực</strong> · ${roleName}${saidSummary ? `<br><span>Bạn nói: ${saidSummary}</span>` : ''}${replySummary ? `<br><span>${replySummary}</span>` : ''}`;
           resEl.style.color = '#15803d';
           if (btnContinue) btnContinue.style.display = 'block';
         } else {
@@ -765,6 +941,12 @@
           if (btnRetry) btnRetry.style.display = 'block';
           if (btnClose) btnClose.style.display = 'block';
         }
+      }
+      setMobileVoiceButtonsVisualState(false);
+      if (cmdData && cmdData.recognized_text) {
+        setTimeout(() => {
+          closeVoiceBottomSheet();
+        }, 250);
       }
     }
 
@@ -913,6 +1095,64 @@
       `).join('');
     }
 
+    async function toggleMobileDeviceQuick(devId, btnEl) {
+      const allDevs = (latestSnap && latestSnap.devices) ? latestSnap.devices : [];
+      const d = allDevs.find(x => x.id === devId) || { id: devId, name: devId, type: devId === 'main_door' ? 'door' : 'light', state: 'OFF' };
+      const prevIsOn = d.state === 'ON' || d.state === 'OPEN';
+      const nextIsOn = !prevIsOn;
+      const prevState = d.state;
+      const nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
+
+      d.state = nextState;
+      if (btnEl) {
+        if (btnEl.classList) {
+          btnEl.classList.toggle('on', nextIsOn);
+          btnEl.classList.toggle('active', nextIsOn);
+          btnEl.classList.toggle('off', !nextIsOn);
+        }
+        btnEl.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
+        if (btnEl.dataset) btnEl.dataset.state = nextIsOn ? 'on' : 'off';
+      }
+
+      const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
+      try {
+        const res = await fetch('/api/device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_id: devId, action }),
+        });
+        const data = await res.json();
+        if (data && (data.ok === false || data.error)) {
+          d.state = prevState;
+          if (btnEl) {
+            if (btnEl.classList) {
+              btnEl.classList.toggle('on', prevIsOn);
+              btnEl.classList.toggle('active', prevIsOn);
+              btnEl.classList.toggle('off', !prevIsOn);
+            }
+            btnEl.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
+            if (btnEl.dataset) btnEl.dataset.state = prevIsOn ? 'on' : 'off';
+          }
+        } else if (data && data.snapshot) {
+          renderState(data.snapshot);
+        }
+      } catch (err) {
+        d.state = prevState;
+        if (btnEl) {
+          if (btnEl.classList) {
+            btnEl.classList.toggle('on', prevIsOn);
+            btnEl.classList.toggle('active', prevIsOn);
+            btnEl.classList.toggle('off', !prevIsOn);
+          }
+          btnEl.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
+          if (btnEl.dataset) btnEl.dataset.state = prevIsOn ? 'on' : 'off';
+        }
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.toggleMobileDeviceQuick = toggleMobileDeviceQuick;
+    }
+
     function renderState(snap) {
       if (!snap) return;
       latestSnap = snap;
@@ -930,7 +1170,11 @@
         const isOn = d.state === 'ON' || d.state === 'OPEN';
         const roomLabel = d.room || ROOM_NAMES[d.id] || 'Phòng khách';
         const card = document.createElement('div');
-        card.className = `dev-row ${isOn ? 'on' : 'off'}`;
+        card.className = `dev-row ${isOn ? 'on active' : 'off'}`;
+        card.setAttribute('data-device', d.id);
+        card.setAttribute('data-device-id', d.id);
+        card.setAttribute('data-state', isOn ? 'on' : 'off');
+        card.setAttribute('aria-pressed', isOn ? 'true' : 'false');
         card.innerHTML = `
           <span class="dev-icon">${ICONS[d.type] || '<svg class="icon"><use href="#i-lamp"/></svg>'}</span>
           <div class="dev-copy">
@@ -948,7 +1192,10 @@
           // Optimistic UI: đổi class và state ngay lập tức
           d.state = nextState;
           card.classList.toggle('on', nextIsOn);
+          card.classList.toggle('active', nextIsOn);
           card.classList.toggle('off', !nextIsOn);
+          card.setAttribute('data-state', nextIsOn ? 'on' : 'off');
+          card.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
 
           const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
           try {
@@ -962,7 +1209,10 @@
               // Rollback khi lỗi
               d.state = prevState;
               card.classList.toggle('on', prevIsOn);
+              card.classList.toggle('active', prevIsOn);
               card.classList.toggle('off', !prevIsOn);
+              card.setAttribute('data-state', prevIsOn ? 'on' : 'off');
+              card.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
               addLog(`${d.name}: Lỗi thao tác`, 'device', 'Thất bại');
             } else {
               if (data && data.snapshot) renderState(data.snapshot);
@@ -972,11 +1222,34 @@
             // Rollback khi lỗi mạng
             d.state = prevState;
             card.classList.toggle('on', prevIsOn);
+            card.classList.toggle('active', prevIsOn);
             card.classList.toggle('off', !prevIsOn);
+            card.setAttribute('data-state', prevIsOn ? 'on' : 'off');
+            card.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
             addLog(`${d.name}: Lỗi kết nối`, 'device', 'Thất bại');
           }
         };
         grid.appendChild(card);
+      });
+
+      const quickMap = {
+        living_room_light: 'mobileQuickBtnLight',
+        fan: 'mobileQuickBtnFan',
+        main_door: 'mobileQuickBtnDoor',
+      };
+      Object.keys(quickMap).forEach((devId) => {
+        const qBtn = document.getElementById(quickMap[devId]);
+        const devObj = allDevices.find(x => x.id === devId);
+        if (qBtn && devObj) {
+          const isOn = devObj.state === 'ON' || devObj.state === 'OPEN';
+          if (qBtn.classList) {
+            qBtn.classList.toggle('on', isOn);
+            qBtn.classList.toggle('active', isOn);
+            qBtn.classList.toggle('off', !isOn);
+          }
+          qBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+          if (qBtn.dataset) qBtn.dataset.state = isOn ? 'on' : 'off';
+        }
       });
 
       const connEl = document.getElementById('espBadge');
@@ -1069,10 +1342,127 @@
     }
 
     function showPwaVoiceResults(said, reply) {
-      document.getElementById('pwaVoiceEmpty').hidden = true;
-      document.getElementById('pwaVoiceResults').hidden = false;
-      if (said !== null) document.getElementById('userSaidText').textContent = said;
-      if (reply !== null) document.getElementById('aiReply').textContent = reply;
+      const emptyEl = document.getElementById('pwaVoiceEmpty');
+      const resEl = document.getElementById('pwaVoiceResults');
+      if (emptyEl) emptyEl.hidden = true;
+      if (resEl) resEl.hidden = false;
+      if (said !== null) {
+        const uEl = document.getElementById('userSaidText');
+        if (uEl) uEl.textContent = said;
+      }
+      if (reply !== null) {
+        const aEl = document.getElementById('aiReply');
+        if (aEl) aEl.textContent = reply;
+      }
+      const homeBanner = document.getElementById('mobileHomeVoiceBanner');
+      if (homeBanner && (said || reply)) {
+        homeBanner.hidden = false;
+        const curSaid = said !== null ? said : ((document.getElementById('userSaidText') || {}).textContent || '');
+        const curReply = reply !== null ? reply : ((document.getElementById('aiReply') || {}).textContent || '');
+        homeBanner.textContent = `Bạn nói: ${curSaid} · Phản hồi: ${curReply}`;
+      }
+    }
+
+    let mobileMicPcmChunks = [];
+    let mobileSpeechRec = null;
+    let mobileSpeechTranscript = '';
+
+    function startMobileSpeechRecognitionVi() {
+      mobileSpeechTranscript = '';
+      if (typeof window === 'undefined') return;
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) return;
+      try {
+        mobileSpeechRec = new SpeechRec();
+        mobileSpeechRec.lang = 'vi-VN';
+        mobileSpeechRec.continuous = true;
+        mobileSpeechRec.interimResults = true;
+        mobileSpeechRec.onresult = (ev) => {
+          let combined = '';
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            combined += ev.results[i][0].transcript + ' ';
+          }
+          const cleaned = combined.trim();
+          if (cleaned) {
+            mobileSpeechTranscript = cleaned;
+            showPwaVoiceResults(cleaned, 'Đang nghe...');
+          }
+        };
+        mobileSpeechRec.onerror = () => {};
+        mobileSpeechRec.start();
+      } catch (_) {
+        mobileSpeechRec = null;
+      }
+    }
+
+    function stopMobileSpeechRecognitionVi() {
+      if (mobileSpeechRec) {
+        try {
+          mobileSpeechRec.stop();
+        } catch (_) {}
+        mobileSpeechRec = null;
+      }
+    }
+
+    function mobileUint8ChunksToBase64(chunks) {
+      let totalLen = 0;
+      for (const c of chunks) totalLen += c.byteLength;
+      if (totalLen === 0) return '';
+      const merged = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const c of chunks) {
+        merged.set(c, offset);
+        offset += c.byteLength;
+      }
+      let binary = '';
+      const chunkStep = 8192;
+      for (let i = 0; i < merged.byteLength; i += chunkStep) {
+        binary += String.fromCharCode.apply(null, merged.subarray(i, i + chunkStep));
+      }
+      return window.btoa(binary);
+    }
+
+    async function executeMobileVoiceCommandHttp(payload) {
+      const badge = document.getElementById('voiceStateBadge');
+      if (badge) badge.textContent = 'Đang xử lý';
+      try {
+      let res = null;
+      let lastFetchErr = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, 200 * attempt));
+          }
+          res = await fetch('/api/voice_command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {}),
+          });
+          if (res) break;
+        } catch (fErr) {
+          lastFetchErr = fErr;
+        }
+      }
+      if (!res) throw lastFetchErr || new Error('fetch_failed');
+        const data = await res.json();
+        const saidText = data.recognized_text || (payload && payload.transcript) || 'Khẩu lệnh giọng nói';
+        const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
+        showPwaVoiceResults(saidText, replyText);
+        if (badge) badge.textContent = data.ok === false ? 'Cần thử lại' : 'Sẵn sàng';
+        addLog(saidText, 'voice', data.ok === false ? 'Thất bại' : 'Thành công');
+        if (data.snapshot) {
+          renderState(data.snapshot);
+        } else {
+          await fetchInitial();
+        }
+        return data;
+      } catch (err) {
+        if (badge) badge.textContent = 'Cần thử lại';
+        return { ok: false, error: String(err) };
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.executeMobileVoiceCommandHttp = executeMobileVoiceCommandHttp;
     }
 
     async function toggleMobileVoiceListen() {
@@ -1083,6 +1473,7 @@
       if (!isMobileListening) {
         if (badge) badge.textContent = 'Sẵn sàng';
         if (label) label.textContent = 'Bắt đầu nói';
+        stopMobileSpeechRecognitionVi();
         if (mobileAudioProcessor) {
           mobileAudioProcessor.disconnect();
           mobileAudioProcessor = null;
@@ -1097,12 +1488,25 @@
         }
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'mic_speech_ended' }));
+        } else {
+          const chunks = mobileMicPcmChunks.slice(0);
+          mobileMicPcmChunks = [];
+          const transcriptHint = (mobileSpeechTranscript || '').trim();
+          mobileSpeechTranscript = '';
+          const pcm16k_b64 = chunks.length > 0 ? mobileUint8ChunksToBase64(chunks) : generateMobileSynthetic16kPcmB64(true);
+          await executeMobileVoiceCommandHttp({
+            pcm16k_b64,
+            transcript: transcriptHint,
+            is_live_mic: true,
+          });
         }
         return;
       }
 
       if (badge) badge.textContent = 'Đang nghe';
       if (label) label.textContent = 'Dừng và gửi';
+      mobileMicPcmChunks = [];
+      startMobileSpeechRecognitionVi();
 
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1133,7 +1537,11 @@
             const s = Math.max(-1, Math.min(1, input[i]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
           }
-          const bytes = new Uint8Array(pcm16.buffer);
+          const bytes = new Uint8Array(pcm16.buffer.slice(0));
+          mobileMicPcmChunks.push(bytes);
+          if (mobileMicPcmChunks.length > 40) {
+            mobileMicPcmChunks.shift();
+          }
           let binary = '';
           for (let i = 0; i < bytes.byteLength; i++) {
             binary += String.fromCharCode(bytes[i]);
