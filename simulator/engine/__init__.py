@@ -30,6 +30,17 @@ from .constants_and_time import (
     parse_vn_time_string,
 )
 from .rules_pool import EngineRulesMixin
+from .state_store import (
+    FileStateBackend,
+    InMemoryStateBackend,
+    StateBackend,
+    TrackedDeviceDict,
+    VercelBlobStateBackend,
+    build_default_shared_state_payload,
+    create_state_backend_from_env,
+    get_default_state_backend,
+    set_default_state_backend,
+)
 from .timers_pool import EngineTimersMixin
 from .voice_rbac_mixin import EngineVoiceRbacMixin
 
@@ -61,6 +72,15 @@ __all__ = [
     "parse_vn_clock_and_date",
     "parse_vn_time_string",
     "ensure_factory_file",
+    "StateBackend",
+    "TrackedDeviceDict",
+    "InMemoryStateBackend",
+    "FileStateBackend",
+    "VercelBlobStateBackend",
+    "create_state_backend_from_env",
+    "get_default_state_backend",
+    "set_default_state_backend",
+    "build_default_shared_state_payload",
     "EngineVoiceRbacMixin",
     "EngineTimersMixin",
     "EngineRulesMixin",

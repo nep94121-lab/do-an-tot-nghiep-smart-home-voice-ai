@@ -12,10 +12,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 import time
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Iterator
 
 from simulator.database_sqlite import (
     init_sqlite_database,
@@ -41,18 +42,26 @@ from simulator.engine import (
     EngineRulesMixin,
     EngineTimersMixin,
     EngineVoiceRbacMixin,
+    FileStateBackend,
+    InMemoryStateBackend,
+    StateBackend,
+    TrackedDeviceDict,
+    VercelBlobStateBackend,
     _extract_vn_date,
     _format_clock_12h,
     append_audit_log,
     clear_audit_logs,
+    create_state_backend_from_env,
     detect_repeat_mode,
     ensure_factory_file,
     format_vn_time_ampm,
+    get_default_state_backend,
     get_vn_now,
     normalize_reset_scope,
     parse_vn_clock_and_date,
     parse_vn_time_string,
     read_audit_logs,
+    set_default_state_backend,
 )
 from simulator.mqtt_bridge import SmartHomeMQTTBridge
 
@@ -64,13 +73,22 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self,
         on_event: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
         on_voice_reset: Callable[[], dict[str, Any]] | None = None,
+        state_backend: StateBackend | None = None,
     ):
+        self._applying_shared_state: bool = True
+        self._initialized_devices: bool = False
+        self._state_backend: StateBackend | None = state_backend
+        self._mutation_depth: int = 0
+        self._state_dirty_in_tx: bool = False
+        self._dirty_device_ids: set[str] = set()
+        self._last_synced_seq: int = 0
+        self._last_synced_ts_ns: int = 0
         self.on_event = on_event
         self.on_voice_reset = on_voice_reset
         self._current_user_id: str = "tuan_anh"
         self._current_role: str = "ADMIN"
         self.devices: dict[str, dict[str, Any]] = {
-            k: dict(v, updated_at=time.time()) for k, v in DEFAULT_DEVICES.items()
+            k: TrackedDeviceDict(v, updated_at=time.time(), _engine=self) for k, v in DEFAULT_DEVICES.items()
         }
         self.factory_rules = ensure_factory_file()
         self.overlay_rules = self._load_overlay()
@@ -86,11 +104,167 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pump_manual_override_off: bool = False
         self._explicit_test_user_set: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
+        self._applying_shared_state = False
+        self._initialized_devices = True
+        try:
+            if state_backend is not None or not getattr(self.state_backend, "is_remote", False):
+                self.sync_from_shared_store(force=True)
+        except Exception:
+            pass
         try:
             init_sqlite_database()
             sync_engine_state_to_sqlite(self)
         except Exception:
             pass
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "devices" and isinstance(value, dict):
+            wrapped = {
+                k: (v if isinstance(v, TrackedDeviceDict) and getattr(v, "_engine", None) is self else TrackedDeviceDict(v, _engine=self))
+                for k, v in value.items()
+            }
+            super().__setattr__(name, wrapped)
+            if getattr(self, "_initialized_devices", False) and not getattr(self, "_applying_shared_state", False):
+                for dev_id in wrapped:
+                    self._on_direct_device_mutation(str(dev_id))
+            return
+        super().__setattr__(name, value)
+
+    @property
+    def state_backend(self) -> StateBackend:
+        if self._state_backend is not None:
+            return self._state_backend
+        return get_default_state_backend()
+
+    def set_state_backend(self, backend: StateBackend | None) -> None:
+        self._state_backend = backend
+
+    def _build_shared_state_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "revision_seq": self._last_synced_seq,
+            "revision_ts_ns": self._last_synced_ts_ns,
+            "server_connected": bool(self.server_connected),
+            "pump_manual_override_off": bool(getattr(self, "pump_manual_override_off", False)),
+            "devices": {
+                k: {
+                    "id": str(v.get("id", k)),
+                    "name": str(v.get("name", DEFAULT_DEVICES.get(k, {}).get("name", k))),
+                    "gpio": str(v.get("gpio", DEFAULT_DEVICES.get(k, {}).get("gpio", ""))),
+                    "type": str(v.get("type", DEFAULT_DEVICES.get(k, {}).get("type", "light"))),
+                    "state": str(v.get("state", DEFAULT_DEVICES.get(k, {}).get("state", "OFF"))),
+                    "min_role": str(v.get("min_role", DEFAULT_DEVICES.get(k, {}).get("min_role", "CHILD_GUEST"))),
+                    "updated_at": float(v.get("updated_at", time.time())),
+                }
+                for k, v in self.devices.items()
+            },
+        }
+        if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+            if hasattr(self.mqtt_bridge, "dht11_telemetry"):
+                payload["dht11_telemetry"] = dict(self.mqtt_bridge.dht11_telemetry)
+            if hasattr(self.mqtt_bridge, "soil_moisture_telemetry"):
+                payload["soil_moisture_telemetry"] = dict(self.mqtt_bridge.soil_moisture_telemetry)
+        return payload
+
+    def persist_to_shared_store(self) -> dict[str, Any]:
+        """Ghi trạng thái thiết bị hiện tại xuống tầng lưu trữ chia sẻ (Vercel Blob / File / InMemory)."""
+        self._dirty_device_ids.clear()
+        payload = self._build_shared_state_payload()
+        saved = self.state_backend.save_state(payload)
+        self._last_synced_seq = max(self._last_synced_seq, int(saved.get("revision_seq", 0)))
+        self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(saved.get("revision_ts_ns", 0)))
+        try:
+            sync_engine_state_to_sqlite(self)
+        except Exception:
+            pass
+        return saved
+
+    def sync_from_shared_store(self, force: bool = False) -> bool:
+        """Đồng bộ trạng thái thiết bị mới nhất từ tầng lưu trữ chia sẻ về RAM của instance hiện tại."""
+        if not force and self._mutation_depth > 0:
+            return False
+        shared = self.state_backend.load_state()
+        if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
+            if self._dirty_device_ids:
+                self.persist_to_shared_store()
+            return False
+
+        dirty_ids = set(self._dirty_device_ids)
+        self._applying_shared_state = True
+        try:
+            if "server_connected" in shared and not dirty_ids:
+                self.server_connected = bool(shared["server_connected"])
+                if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                    self.mqtt_bridge.esp8266_status["online"] = self.server_connected
+                    self.mqtt_bridge.esp8266_status["power_mode"] = (
+                        "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
+                    )
+            if "pump_manual_override_off" in shared and "garden_pump" not in dirty_ids:
+                self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
+
+            remote_devices = shared.get("devices", {})
+            for dev_id, dev_data in remote_devices.items():
+                if dev_id in dirty_ids:
+                    continue
+                if dev_id in self.devices and isinstance(dev_data, dict):
+                    if "state" in dev_data:
+                        self.devices[dev_id]["state"] = str(dev_data["state"])
+                    if "updated_at" in dev_data:
+                        self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
+                    if "min_role" in dev_data:
+                        self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
+                elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
+                    merged_dev = dict(DEFAULT_DEVICES[dev_id])
+                    merged_dev.update(dev_data)
+                    self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
+
+            if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                if isinstance(shared.get("dht11_telemetry"), dict):
+                    self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
+                if isinstance(shared.get("soil_moisture_telemetry"), dict):
+                    self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
+
+            self._last_synced_seq = max(self._last_synced_seq, int(shared.get("revision_seq", 0)))
+            self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(shared.get("revision_ts_ns", 0)))
+        finally:
+            self._applying_shared_state = False
+
+        if dirty_ids:
+            self._dirty_device_ids.clear()
+            self.persist_to_shared_store()
+        else:
+            try:
+                sync_engine_state_to_sqlite(self)
+            except Exception:
+                pass
+        return True
+
+    def _on_direct_device_mutation(self, dev_id: str) -> None:
+        if self._applying_shared_state:
+            return
+        if self._mutation_depth > 0:
+            self._state_dirty_in_tx = True
+            return
+        if getattr(self.state_backend, "is_remote", False):
+            if dev_id:
+                self._dirty_device_ids.add(dev_id)
+        else:
+            self.persist_to_shared_store()
+
+    @contextlib.contextmanager
+    def state_transaction(self) -> Iterator[None]:
+        """Ngữ cảnh giao dịch trạng thái có thể lồng nhau: đồng bộ 1 lần khi vào và lưu bền vững 1 lần khi thoát."""
+        is_outer = (self._mutation_depth == 0)
+        if is_outer:
+            self.sync_from_shared_store(force=True)
+            self._state_dirty_in_tx = False
+        self._mutation_depth += 1
+        try:
+            yield
+        finally:
+            self._mutation_depth = max(0, self._mutation_depth - 1)
+            if is_outer and (self._state_dirty_in_tx or self._dirty_device_ids):
+                self._state_dirty_in_tx = False
+                self.persist_to_shared_store()
 
     def _default_overlay(self) -> dict[str, Any]:
         return {
@@ -207,6 +381,18 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             )
 
     def _expand_targets(self, device_id: str, action: str) -> list[tuple[str, str]]:
+        if "," in device_id:
+            expanded: list[tuple[str, str]] = []
+            seen: set[tuple[str, str]] = set()
+            for part in device_id.split(","):
+                p = part.strip()
+                if not p:
+                    continue
+                for item in self._expand_targets(p, action):
+                    if item not in seen:
+                        seen.add(item)
+                        expanded.append(item)
+            return expanded
         if device_id == "all_lights":
             act = "turn_on" if action in ("open", "turn_on") else "turn_off"
             return [("living_room_light", act), ("bedroom_light", act)]
@@ -384,126 +570,133 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_user_name: str | None = None,
         request_role: str | None = None,
     ) -> dict[str, Any]:
-        targets = self._expand_targets(device_id, action)
-        results = []
-        for dev_id, act in targets:
-            if dev_id not in self.devices:
-                results.append({"ok": False, "device_id": dev_id, "error": f"Thiết bị '{dev_id}' không tồn tại."})
-                continue
-            dev = self.devices[dev_id]
+        with self.state_transaction():
+            targets = self._expand_targets(device_id, action)
+            results = []
+            for dev_id, act in targets:
+                if dev_id not in self.devices:
+                    results.append({"ok": False, "device_id": dev_id, "error": f"Thiết bị '{dev_id}' không tồn tại."})
+                    continue
+                dev = self.devices[dev_id]
 
-            effective_tier = int(request_tier) if request_tier is not None else int(self.current_tier)
-            effective_user = request_user_name or self.get_current_user_name()
-            role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
-            effective_role = request_role or role_map_rev.get(effective_tier, self.current_role)
+                effective_tier = int(request_tier) if request_tier is not None else int(self.current_tier)
+                effective_user = request_user_name or self.get_current_user_name()
+                role_map_rev = {1: "ADMIN", 2: "MEMBER", 3: "CHILD_GUEST"}
+                effective_role = request_role or role_map_rev.get(effective_tier, self.current_role)
 
-            if not self.server_connected:
-                if dev_id == "main_door" and act in ("open", "turn_on"):
-                    lock_reason = (
-                        "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> "
-                        "Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!"
-                    )
+                if not self.server_connected:
+                    if dev_id == "main_door" and act in ("open", "turn_on"):
+                        lock_reason = (
+                            "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực giọng nói -> "
+                            "Cửa chính bị khóa cứng, không ai được phép mở cửa khi mất kết nối Server!"
+                        )
+                        await self.emit({
+                            "type": "rbac_blocked",
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "action": act,
+                            "role": "OFFLINE_DEFAULT",
+                            "reason": lock_reason,
+                        })
+                        results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
+                        continue
+                    if dev_id == "alarm_siren":
+                        lock_reason = (
+                            "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực -> "
+                            "Còi báo động bị khóa bảo vệ, chỉ cho phép điều khiển Đèn, Điều hòa, Quạt, Máy bơm!"
+                        )
+                        await self.emit({
+                            "type": "rbac_blocked",
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "action": act,
+                            "role": "OFFLINE_DEFAULT",
+                            "reason": lock_reason,
+                        })
+                        results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
+                        continue
+
+                if not bypass_rbac and self.server_connected:
+                    allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
+                    if not allowed:
+                        await self.emit({
+                            "type": "rbac_blocked",
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "action": act,
+                            "role": effective_role,
+                            "reason": reason,
+                        })
+                        results.append({"ok": False, "device_id": dev_id, "error": reason})
+                        continue
+
+                if dev["type"] == "door":
+                    new_state = "OPEN" if act in ("open", "turn_on") else "CLOSED"
+                else:
+                    new_state = "ON" if act in ("open", "turn_on") else "OFF"
+
+                if dev_id == "garden_pump" and not str(source).startswith("Cảm biến đất"):
+                    prev_override = getattr(self, "pump_manual_override_off", False)
+                    self.pump_manual_override_off = (new_state == "OFF")
+                    if prev_override != self.pump_manual_override_off:
+                        self._state_dirty_in_tx = True
+
+                old_state = dev["state"]
+                if old_state == new_state:
+                    if self._last_synced_seq == 0:
+                        self._state_dirty_in_tx = True
+                    already_msg = f"{dev['name']} {self._state_verb_vi(dev['type'], new_state, already=True)}."
                     await self.emit({
-                        "type": "rbac_blocked",
+                        "type": "device_already_in_state",
                         "device_id": dev_id,
                         "device_name": dev["name"],
-                        "action": act,
-                        "role": "OFFLINE_DEFAULT",
-                        "reason": lock_reason,
+                        "state": new_state,
+                        "message": already_msg,
                     })
-                    results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
-                    continue
-                if dev_id == "alarm_siren":
-                    lock_reason = (
-                        "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực -> "
-                        "Còi báo động bị khóa bảo vệ, chỉ cho phép điều khiển Đèn, Điều hòa, Quạt, Máy bơm!"
-                    )
-                    await self.emit({
-                        "type": "rbac_blocked",
+                    results.append({
+                        "ok": True,
                         "device_id": dev_id,
                         "device_name": dev["name"],
-                        "action": act,
-                        "role": "OFFLINE_DEFAULT",
-                        "reason": lock_reason,
+                        "state": new_state,
+                        "already_in_state": True,
                     })
-                    results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
                     continue
 
-            if not bypass_rbac and self.server_connected:
-                allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
-                if not allowed:
-                    await self.emit({
-                        "type": "rbac_blocked",
-                        "device_id": dev_id,
-                        "device_name": dev["name"],
-                        "action": act,
-                        "role": effective_role,
-                        "reason": reason,
-                    })
-                    results.append({"ok": False, "device_id": dev_id, "error": reason})
-                    continue
+                dev["state"] = new_state
+                dev["updated_at"] = time.time()
+                self._state_dirty_in_tx = True
 
-            if dev["type"] == "door":
-                new_state = "OPEN" if act in ("open", "turn_on") else "CLOSED"
-            else:
-                new_state = "ON" if act in ("open", "turn_on") else "OFF"
+                await self.mqtt_bridge.publish_actuate_command(
+                    device_id=dev_id,
+                    state=new_state,
+                    action=act,
+                    source=source,
+                    user_name=effective_user,
+                    tier=effective_tier,
+                )
 
-            if dev_id == "garden_pump" and not str(source).startswith("Cảm biến đất"):
-                self.pump_manual_override_off = (new_state == "OFF")
-
-            old_state = dev["state"]
-            if old_state == new_state:
-                already_msg = f"{dev['name']} {self._state_verb_vi(dev['type'], new_state, already=True)}."
                 await self.emit({
-                    "type": "device_already_in_state",
+                    "type": "device_updated",
                     "device_id": dev_id,
                     "device_name": dev["name"],
-                    "state": new_state,
-                    "message": already_msg,
+                    "gpio": dev["gpio"],
+                    "old_state": old_state,
+                    "new_state": new_state,
+                    "source": source,
+                    "timestamp": dev["updated_at"],
                 })
+
                 results.append({
                     "ok": True,
                     "device_id": dev_id,
                     "device_name": dev["name"],
                     "state": new_state,
-                    "already_in_state": True,
+                    "already_in_state": False,
                 })
-                continue
 
-            dev["state"] = new_state
-            dev["updated_at"] = time.time()
-
-            await self.mqtt_bridge.publish_actuate_command(
-                device_id=dev_id,
-                state=new_state,
-                action=act,
-                source=source,
-                user_name=effective_user,
-                tier=effective_tier,
-            )
-
-            await self.emit({
-                "type": "device_updated",
-                "device_id": dev_id,
-                "device_name": dev["name"],
-                "gpio": dev["gpio"],
-                "old_state": old_state,
-                "new_state": new_state,
-                "source": source,
-                "timestamp": dev["updated_at"],
-            })
-
-            results.append({
-                "ok": True,
-                "device_id": dev_id,
-                "device_name": dev["name"],
-                "state": new_state,
-                "already_in_state": False,
-            })
-
-            if trigger_chains and self.server_connected:
-                triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
-                results.extend(triggered_fx)
+                if trigger_chains and self.server_connected:
+                    triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
+                    results.extend(triggered_fx)
 
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         all_ok = all(r["ok"] for r in results) if results else False
@@ -530,17 +723,19 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     async def update_sensor_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
-        pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
-        t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
-        h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
-        triggered: list[dict[str, Any]] = []
-        for raw_dir in self.system_policies.get("custom_system_directives", []):
-            d_low = str(raw_dir).lower()
-            m_temp = re.search(r"nhiệt độ\s*(?:trên|>|lớn hơn|vượt)\s*(\d+(?:\.\d+)?)", d_low)
-            if m_temp and t_clamped > float(m_temp.group(1)):
-                if any(k in d_low for k in ("mở điều hòa", "bật điều hòa", "ac")):
-                    res = await self.execute_device_action("ac", "open", source=f"DHT11 ({t_clamped}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
-                    triggered.extend(res.get("results", []))
+        with self.state_transaction():
+            pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
+            self._state_dirty_in_tx = True
+            t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
+            h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
+            triggered: list[dict[str, Any]] = []
+            for raw_dir in self.system_policies.get("custom_system_directives", []):
+                d_low = str(raw_dir).lower()
+                m_temp = re.search(r"nhiệt độ\s*(?:trên|>|lớn hơn|vượt)\s*(\d+(?:\.\d+)?)", d_low)
+                if m_temp and t_clamped > float(m_temp.group(1)):
+                    if any(k in d_low for k in ("mở điều hòa", "bật điều hòa", "ac")):
+                        res = await self.execute_device_action("ac", "open", source=f"DHT11 ({t_clamped}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
+                        triggered.extend(res.get("results", []))
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {
@@ -558,38 +753,40 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         auto_stop_above_pct: float = 70.0,
     ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
-        pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
-        pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
-        triggered: list[dict[str, Any]] = []
-        auto_action = "NONE"
-        if pct >= float(auto_pump_below_pct):
-            self.pump_manual_override_off = False
-        if pct < float(auto_pump_below_pct):
-            if getattr(self, "pump_manual_override_off", False) and self.devices.get("garden_pump", {}).get("state") == "OFF":
-                auto_action = "MANUAL_OVERRIDE_KEEP_OFF"
-                spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), nhưng máy bơm đang giữ trạng thái tắt do người dùng vừa tắt tay."
-            else:
+        with self.state_transaction():
+            pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
+            self._state_dirty_in_tx = True
+            pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
+            triggered: list[dict[str, Any]] = []
+            auto_action = "NONE"
+            if pct >= float(auto_pump_below_pct):
+                self.pump_manual_override_off = False
+            if pct < float(auto_pump_below_pct):
+                if getattr(self, "pump_manual_override_off", False) and self.devices.get("garden_pump", {}).get("state") == "OFF":
+                    auto_action = "MANUAL_OVERRIDE_KEEP_OFF"
+                    spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), nhưng máy bơm đang giữ trạng thái tắt do người dùng vừa tắt tay."
+                else:
+                    res = await self.execute_device_action(
+                        "garden_pump",
+                        "turn_on",
+                        source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% < {auto_pump_below_pct:.0f}%)",
+                        bypass_rbac=True,
+                    )
+                    triggered.extend(res.get("results", []))
+                    auto_action = "AUTO_PUMP_ON"
+                    spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), máy bơm tưới cây đã tự động bật."
+            elif pct >= float(auto_stop_above_pct) and self.devices.get("garden_pump", {}).get("state") == "ON":
                 res = await self.execute_device_action(
                     "garden_pump",
-                    "turn_on",
-                    source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% < {auto_pump_below_pct:.0f}%)",
+                    "turn_off",
+                    source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% >= {auto_stop_above_pct:.0f}%)",
                     bypass_rbac=True,
                 )
                 triggered.extend(res.get("results", []))
-                auto_action = "AUTO_PUMP_ON"
-                spoken = f"Độ ẩm đất đang thấp ({pct:.0f}%), máy bơm tưới cây đã tự động bật."
-        elif pct >= float(auto_stop_above_pct) and self.devices.get("garden_pump", {}).get("state") == "ON":
-            res = await self.execute_device_action(
-                "garden_pump",
-                "turn_off",
-                source=f"Cảm biến đất YL-69 A0 ({pct:.0f}% >= {auto_stop_above_pct:.0f}%)",
-                bypass_rbac=True,
-            )
-            triggered.extend(res.get("results", []))
-            auto_action = "AUTO_PUMP_OFF"
-            spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
-        else:
-            spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
+                auto_action = "AUTO_PUMP_OFF"
+                spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
+            else:
+                spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
