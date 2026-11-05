@@ -165,6 +165,7 @@ async def auth_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "auth.html")
 
 
+@app.get("/guest")
 @app.get("/guest_enroll")
 @app.get("/guest-qr")
 async def guest_enroll_page() -> FileResponse:

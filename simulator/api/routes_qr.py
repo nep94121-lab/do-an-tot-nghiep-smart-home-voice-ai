@@ -123,9 +123,14 @@ async def api_auth3_guest_qr_current(
     token = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
 
     qr_url = f"/guest_enroll?token={token}&window={window}&dur={chosen_dur}"
+    guest_url = f"/guest?token={token}&window={window}&dur={chosen_dur}"
     if chosen_tier == 2:
         qr_url += "&tier=2"
+        guest_url += "&tier=2"
     full_url = f"{base_host}{qr_url}"
+    guest_full_url = f"{base_host}{guest_url}"
+    public_guest_path = "/guest"
+    public_guest_url = f"{base_host}{public_guest_path}"
 
     if not hasattr(mgr3, "active_qr_tokens"):
         mgr3.active_qr_tokens = {}
@@ -140,7 +145,7 @@ async def api_auth3_guest_qr_current(
         "created_at_ts": now_ts,
     }
 
-    qr_svg = generate_qr_svg_string(full_url)
+    qr_svg = generate_qr_svg_string(public_guest_url)
 
     resp = {
         "ok": True,
@@ -156,6 +161,10 @@ async def api_auth3_guest_qr_current(
         "window": window,
         "qr_url": qr_url,
         "full_url": full_url,
+        "guest_url": guest_url,
+        "guest_full_url": guest_full_url,
+        "public_guest_path": public_guest_path,
+        "public_guest_url": public_guest_url,
         "qr_svg": qr_svg,
     }
     return JSONResponse(resp, status_code=200)
@@ -219,6 +228,16 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
     session_id = str(payload.get("session_id") or payload.get("guest_session_id") or "").strip()
     guest_name = str(payload.get("guest_name") or payload.get("speaker_name") or "Khách Quét QR").strip()
     guest_email = str(payload.get("guest_email") or payload.get("email") or "").strip().lower()
+    if guest_email == "nep94121@gmail.com":
+        return JSONResponse(
+            {
+                "ok": False,
+                "status": "OWNER_EMAIL_FORBIDDEN",
+                "error": "Không được dùng email Chủ nhà Cấp 1 để đăng ký Khách Cấp 3!",
+                "message": "Không được dùng email Chủ nhà Cấp 1 để đăng ký Khách Cấp 3!",
+            },
+            status_code=400,
+        )
     verify_only = bool(payload.get("verify_only", False))
     raw_tier = payload.get("target_tier", payload.get("tier", 3))
     try:
@@ -326,12 +345,21 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         return JSONResponse(enroll_res, status_code=400)
 
     if guest_email:
-        mgr3.upsert_speaker_account_for_voice(
+        acc = mgr3.upsert_speaker_account_for_voice(
             email=guest_email,
             speaker_name=guest_name,
             target_tier=target_tier,
-            measured_f0_hz=float(q_res.get("f0_hz") or 180.0),
         )
+        if isinstance(acc, dict) and acc.get("account_id") != "tuan_anh":
+            f0_val = float(q_res.get("f0_hz") or 180.0)
+            acc["voice_verified"] = True
+            acc["needs_first_page_voice_enroll"] = False
+            if isinstance(acc.get("voiceprint"), dict):
+                acc["voiceprint"]["enrolled"] = True
+                acc["voiceprint"]["f0_mean_hz"] = round(f0_val, 1)
+                acc["voiceprint"]["reading_prompt_verified"] = True
+                acc["voiceprint"]["source_device"] = "Guest QR (/guest)"
+            mgr3._save_accounts()
 
     await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
     for br in list(_ACTIVE_BRIDGES):

@@ -1,0 +1,39 @@
+START 2026-11-05T10:50:23.0741740+07:00 p7-guest branch=p7-guest wt=C:\Users\LENOVO\datn-wt\guest
+PHASE 7 GUEST QR — EXECUTION & VERIFICATION LOG
+================================================================================
+Worktree       : C:\Users\LENOVO\datn-wt\guest
+Branch         : p7-guest
+Preview URL    : https://guest-bay.vercel.app
+Guest QR Route : https://guest-bay.vercel.app/guest
+Owner Dashboard: https://guest-bay.vercel.app/
+Direct Deploy  : https://guest-nziafq51m-tuananhs-projects-8aea56ce.vercel.app
+Deployment ID  : dpl_J3iYWXnZpvAQxZ4qyPVdJPr9d6Aj
+Deploy Command : npx --yes vercel --yes (NO --prod)
+
+1. TDD & Automated Test Results
+-------------------------------
+- TDD Test File: tests/test_phase7_guest_qr.py (7/7 PASSED)
+  * test_route_guest_and_vercel_rewrite_configured: PASSED
+  * test_guest_page_is_clean_minimal_mobile_without_login: PASSED
+  * test_api_guest_qr_current_exposes_public_guest_link: PASSED
+  * test_guest_complete_voice_saves_name_email_as_level3_without_login: PASSED
+  * test_guest_complete_voice_blocks_owner_email_and_tier1_escalation: PASSED
+  * test_owner_dashboard_exposes_guest_qr_panel: PASSED
+  * test_playwright_e2e_guest_mobile_and_owner_dashboard_qr: PASSED
+- Full Core & Regression Suites: 261 passed, 0 failed (Exit Code: 0)
+
+2. Live Vercel Preview Verification
+-----------------------------------
+- GET https://guest-bay.vercel.app/guest -> HTTP 200 (Clean minimal mobile page: Name + Email + Record Voice, Level 3 CHILD_GUEST, no login)
+- GET https://guest-bay.vercel.app/ -> HTTP 200 (Owner Dashboard displays #ownerGuestQrPanel with SVG QR & /guest link)
+- GET https://guest-bay.vercel.app/api/auth3/guest_qr_current -> HTTP 200 (ok=true, public_guest_path="/guest", qr_svg=<svg...>)
+- POST https://guest-bay.vercel.app/api/auth3/guest_qr_complete_voice -> HTTP 200 (ok=true, tier=3, role_code="CHILD_GUEST")
+- Playwright Live E2E against https://guest-bay.vercel.app/guest (390x844) & https://guest-bay.vercel.app/ (1280x800): 100% PASS
+
+3. Guardrails Verification
+--------------------------
+- Zero secrets printed or committed: PASS (0 secrets)
+- Zero real emails sent: PASS
+- Formatting: 100% UTF-8 without BOM, 0 CRLF (POSIX LF only)
+- Git Target: Committed & pushed ONLY to origin/p7-guest (master untouched)
+END 2026-11-05T11:22:00+07:00 EXIT=0

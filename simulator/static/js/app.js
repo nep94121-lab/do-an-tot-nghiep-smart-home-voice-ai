@@ -2212,6 +2212,48 @@
     }
   });
 
+  async function loadOwnerDashboardGuestQr() {
+    const qrBox = byId("ownerDashboardQrBox");
+    const linkText = byId("ownerGuestLinkText");
+    const openLink = byId("ownerGuestOpenLink");
+    const fallbackUrl = (typeof location !== "undefined" && location.origin) ? `${location.origin}/guest` : "/guest";
+    if (linkText) linkText.textContent = fallbackUrl;
+    if (openLink) openLink.href = "/guest";
+    if (!qrBox) return;
+    try {
+      const hostParam = (typeof location !== "undefined" && location.host) ? location.host : "localhost:8088";
+      const res = await fetch(`/api/auth3/guest_qr_current?duration=1d&target_tier=3&host=${encodeURIComponent(hostParam)}`);
+      const data = await res.json();
+      if (data && data.ok) {
+        if (data.qr_svg) {
+          qrBox.innerHTML = data.qr_svg;
+          const svgEl = qrBox.querySelector("svg");
+          if (svgEl) {
+            svgEl.setAttribute("width", "96");
+            svgEl.setAttribute("height", "96");
+          }
+        }
+        if (linkText) {
+          linkText.textContent = data.public_guest_url || fallbackUrl;
+        }
+      }
+    } catch (_) {}
+  }
+
+  async function copyOwnerGuestLink() {
+    const linkText = byId("ownerGuestLinkText");
+    const badge = byId("ownerGuestQrBadge");
+    const urlToCopy = (linkText && linkText.textContent) ? linkText.textContent.trim() : `${location.origin}/guest`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(urlToCopy);
+      }
+      if (badge) badge.textContent = "Đã sao chép link";
+    } catch (_) {
+      if (badge) badge.textContent = "Link: /guest";
+    }
+  }
+
   // Export M7 functions to window
   window.retryWsConnection = retryWsConnection;
   window.showWsReconnectBanner = showWsReconnectBanner;
@@ -2231,8 +2273,11 @@
   window.setForgotStep = setForgotStep;
   window.updateConnectionUI = updateConnectionUI;
   window.connectWebSocket = connectWebSocket;
+  window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
+  window.copyOwnerGuestLink = copyOwnerGuestLink;
 
   loadVoiceSamples();
+  loadOwnerDashboardGuestQr();
   pollRestStateFallback();
   setInterval(pollRestStateFallback, 4000);
   connectWebSocket();

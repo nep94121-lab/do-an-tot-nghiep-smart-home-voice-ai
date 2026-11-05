@@ -837,7 +837,7 @@
         }
         const linkEl = document.getElementById('authQrOpenLink');
         if (linkEl) {
-          linkEl.href = `/guest_enroll?token=${encodeURIComponent(data.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(targetTier)}`;
+          linkEl.href = `/guest?token=${encodeURIComponent(data.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(targetTier)}`;
         }
         const box = document.getElementById('authQrTokenBox');
         if (box) {

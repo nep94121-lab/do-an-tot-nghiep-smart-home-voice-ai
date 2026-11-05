@@ -1424,7 +1424,7 @@
     }
 
     async function copyMobileGuestLink() {
-      const url = document.getElementById('mobileQrUrlText')?.textContent || location.origin + '/guest_enroll';
+      const url = document.getElementById('mobileQrUrlText')?.textContent || location.origin + '/guest';
       try {
         await navigator.clipboard.writeText(url);
         document.getElementById('mobileQrCountdown').textContent = 'Đã sao chép';
@@ -1513,8 +1513,8 @@
           cdEl.style.color = rem <= 3 ? '#c83e3b' : 'var(--muted)';
         }
         document.getElementById('mobileQrTokenText').textContent = `${d.token}`;
-        document.getElementById('mobileQrUrlText').textContent = d.full_url || d.qr_url;
-        document.getElementById('mobileQrOpenLink').href = `/guest_enroll?token=${encodeURIComponent(d.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(inviteTier)}`;
+        document.getElementById('mobileQrUrlText').textContent = d.public_guest_url || d.full_url || d.qr_url;
+        document.getElementById('mobileQrOpenLink').href = `/guest?token=${encodeURIComponent(d.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(inviteTier)}`;
         const qrContainer = document.getElementById('mobileQrSvgContainer');
         if (d.qr_svg && qrContainer) {
           qrContainer.innerHTML = d.qr_svg;

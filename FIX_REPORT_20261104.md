@@ -1027,3 +1027,54 @@ Giai đoạn 5 (Phase 5) đã hoàn thành xuất sắc và toàn diện mục t
 - Sửa triệt để 4 lỗi kiểm thử thực tế trên môi trường sản xuất (R1, R2, R3, R4) với giải pháp kỹ thuật thực chất, bền vững và chống gian lận.
 - Vượt qua toàn bộ các cổng kiểm định chất lượng: 100% Pytest Full Suite (943/943 PASS), 100% Playwright 3 Roles Live (6/6 PASS), 100% Challenger Stress Tests (35/35 PASS), và thẩm định liêm chính Forensic Audit đạt chuẩn **CLEAN**.
 - Xuất bản thành công bản triển khai mới nhất lên Vercel Production (`dpl_9nuRnQaZ2tpgtaQpt5SW8MjJ2nnY`), xác thực thực nghiệm 14/14 tuyến đường bằng `curl.exe` hoạt động hoàn hảo trên miền chính thức `https://do-an-tot-nghiep-smart-home-voice-a.vercel.app`.
+
+---
+
+## 14. GIAI ĐOẠN 7 (PHASE 7 GUEST): PUBLIC GUEST QR LINK (/guest), MINIMAL MOBILE PAGE & OWNER DASHBOARD QR
+
+### 14.1. Tổng Quan Mục Tiêu & Kiến Trúc Phase 7 Guest
+
+Giai đoạn 7 (`Phase 7 Guest` trên nhánh `p7-guest`, worktree `C:\Users\LENOVO\datn-wt\guest`) triển khai luồng đăng ký giọng nói công khai dành cho Khách qua mã QR:
+1. **Liên kết Khách công khai `/guest`:** Cung cấp route ngắn gọn, thân thiện `/guest` trong cả FastAPI (`simulator/server.py`) và cấu hình định tuyến Vercel (`vercel.json`), đồng thời duy trì tương thích ngược 100% với `/guest_enroll` và `/guest-qr`.
+2. **Trang di động độc lập, tối giản tại `/guest`:**
+   - Giao diện thẻ di động tối giản, sạch sẽ, không chứa `<style>` hay `<script>` nội tuyến, không điền sẵn bất kỳ thông tin đăng nhập nào.
+   - Khách chỉ cần nhập **Họ tên (`#guestNameInput`) + Email (`#guestOptionalEmailInput`)**, bấm **Thu âm giọng nói (`#btnRecordGuestVoice`)** và **Lưu & Kích hoạt quyền Khách Cấp 3 (`#btnConfirmGuestVoiceOk`)** — **hoàn toàn không cần đăng nhập**.
+   - Tự động lưu hồ sơ giọng nói và tài khoản Khách ở **Phân quyền Cấp 3 (`tier = 3`, `role_code = "CHILD_GUEST"`, chỉ điều khiển đèn & quạt, thời hạn mặc định 24 giờ)**.
+   - Tích hợp chốt chặn bảo mật: Chặn tuyệt đối hành vi dùng email Chủ nhà (`nep94121@gmail.com`) tại `/guest` (`HTTP 400 OWNER_EMAIL_FORBIDDEN`) và chặn mọi nỗ lực leo quyền lên Cấp 1 (`OWNER`).
+3. **Hiển thị mã QR `/guest` trực tiếp trên Bảng điều khiển Chủ nhà (`/`):**
+   - Bổ sung khung `#ownerGuestQrPanel` trên trang chủ `/` hiển thị mã QR SVG (`#ownerDashboardQrBox`), đường dẫn công khai `#ownerGuestLinkText` (`.../guest`), nút mở trang `/guest` (`#ownerGuestOpenLink`) và nút sao chép liên kết (`#btnCopyOwnerGuestLink`).
+
+---
+
+### 14.2. Danh Mục Tệp Mã Nguồn & Kiểm Thử Đã Cập Nhật
+
+| STT | Tệp Mã Nguồn / Kiểm Thử | Nội Dung Thay Đổi Kỹ Thuật | Trạng Thái |
+| :---: | :--- | :--- | :---: |
+| **1** | `tests/test_phase7_guest_qr.py` | Bộ kiểm thử TDD 7 ca kiểm thử (API `/guest`, DOM mobile tối giản, lưu giọng + email Cấp 3 không cần login, chặn leo quyền/giả mạo email Chủ nhà, hiển thị QR trên `/`, và Playwright E2E trên mobile `390x844` & desktop `1280x800`) | **7/7 PASS** |
+| **2** | `simulator/server.py` | Bổ sung `@app.get("/guest")` vào `guest_enroll_page()` | **HOÀN TẤT** |
+| **3** | `vercel.json` | Bổ sung quy tắc rewrite `{ "src": "^/guest/?$", "dest": "/simulator/static/guest_enroll.html" }` | **HOÀN TẤT** |
+| **4** | `simulator/api/routes_qr.py` | Cập nhật `/api/auth3/guest_qr_current` trả về `public_guest_path: "/guest"`, `public_guest_url` và sinh `qr_svg` trỏ tới `/guest`; sửa lỗi `upsert_speaker_account_for_voice` khi lưu `guest_email` Cấp 3; chặn email Chủ nhà `nep94121@gmail.com` (`OWNER_EMAIL_FORBIDDEN`) | **HOÀN TẤT** |
+| **5** | `simulator/static/guest_enroll.html`<br>`simulator/static/css/guest_enroll.css`<br>`simulator/static/js/guest_enroll.js` | Thiết kế lại giao diện `/guest` chuẩn mobile tối giản (Họ tên + Email + Thu âm giọng nói Cấp 3, không cần đăng nhập, tự động bắt tay phiên ngầm, 0 inline style/script) | **HOÀN TẤT** |
+| **6** | `simulator/static/index.html`<br>`simulator/static/css/style.css`<br>`simulator/static/js/app.js` | Bổ sung thẻ `#ownerGuestQrPanel` hiển thị mã QR `/guest` trực tiếp trên Bảng điều khiển Chủ nhà (`/`) kèm hàm `loadOwnerDashboardGuestQr()` và `copyOwnerGuestLink()` | **HOÀN TẤT** |
+| **7** | `simulator/static/js/auth.js`<br>`simulator/static/js/mobile_app.js` | Đồng bộ liên kết mở trang khách QR sang `/guest` | **HOÀN TẤT** |
+
+---
+
+### 14.3. Kết Quả Kiểm Thử Tự Động & Triển Khai Vercel Preview (`NO --prod`)
+
+- **Kiểm thử TDD & Hồi quy (`pytest` + Playwright):**
+  - `python -X utf8 -m pytest tests/test_phase7_guest_qr.py -v` -> **`7 passed in 11.79s (100% PASS)`**.
+  - Kiểm thử tổng thể các bộ test liên quan (QR Guest, DOM, Security, Routing, Auth, Mobile, UI Layout): **`261 passed, 0 failed — Exit Code: 0`**.
+- **Triển khai Vercel Preview (Không dùng `--prod`):**
+  - **Lệnh triển khai:** `npx --yes vercel --yes`
+  - **Vercel Preview URL (Public Alias):** `https://guest-bay.vercel.app`
+  - **Trang Khách QR (`/guest`):** `https://guest-bay.vercel.app/guest`
+  - **Direct Deployment URL:** `https://guest-nziafq51m-tuananhs-projects-8aea56ce.vercel.app` (`dpl_J3iYWXnZpvAQxZ4qyPVdJPr9d6Aj`)
+  - **Nhật ký thực thi:** `.agents/teamwork/cli_fix_p7_guest_20261105.log`
+- **Nghiệm thu thực nghiệm trên Live Preview URL (`https://guest-bay.vercel.app`):**
+  - `GET https://guest-bay.vercel.app/guest` -> **HTTP 200** (Hiển thị đúng form Họ tên `#guestNameInput`, Email `#guestOptionalEmailInput`, nút Thu âm `#btnRecordGuestVoice`).
+  - `GET https://guest-bay.vercel.app/` -> **HTTP 200** (Hiển thị `#ownerGuestQrPanel` và mã QR SVG dẫn tới `https://guest-bay.vercel.app/guest`).
+  - `GET https://guest-bay.vercel.app/api/auth3/guest_qr_current` -> **HTTP 200** (`ok: true`, `public_guest_path: "/guest"`, `qr_svg` hợp lệ).
+  - `POST https://guest-bay.vercel.app/api/auth3/guest_qr_complete_voice` -> **HTTP 200** (`ok: true`, `tier: 3`, lưu thành công Khách Cấp 3 không cần đăng nhập).
+  - **Playwright Live E2E trên Preview URL:** Xác thực trực tiếp trên `https://guest-bay.vercel.app/guest` (`390x844`) và `https://guest-bay.vercel.app/` (`1280x800`) đạt **100% PASS**.
+
