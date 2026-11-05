@@ -1557,8 +1557,27 @@
   if (btnTabGateRegister) btnTabGateRegister.addEventListener("click", () => switchLoginGateTab("register"));
   if (btnTabGateForgot) btnTabGateForgot.addEventListener("click", () => switchLoginGateTab("forgot"));
 
+  function setDeviceAreaLockdown(isLocked) {
+    const devSec = document.getElementById("secDevices") || document.querySelector(".panel.devices");
+    if (!devSec) return;
+    if (isLocked) {
+      devSec.classList.add("devices-logged-out");
+      devSec.setAttribute("aria-hidden", "true");
+      devSec.setAttribute("inert", "");
+    } else {
+      devSec.classList.remove("devices-logged-out");
+      devSec.removeAttribute("aria-hidden");
+      devSec.removeAttribute("inert");
+    }
+  }
+  window.setDeviceAreaLockdown = setDeviceAreaLockdown;
+
+  let inMemoryUserSession = null;
+
   function applyLoggedInUserBanner(userObj) {
     if (!userObj) return;
+    inMemoryUserSession = userObj;
+    setDeviceAreaLockdown(false);
     const tierNum = userObj.tier || 1;
     const rolePrefix = tierNum === 1 ? "👑 Cấp 1 · Chủ nhà" : (tierNum === 2 ? "🏠 Cấp 2 · Gia đình" : "🎫 Cấp 3 · Khách");
     if (homeCurrentAccountBadge) {
@@ -1581,9 +1600,12 @@
         durationBadge.textContent = userObj.validity || "Hiệu lực 24 giờ";
       }
     }
+    loadOwnerDashboardGuestQr();
   }
 
   function clearAuthState() {
+    inMemoryUserSession = null;
+    setDeviceAreaLockdown(true);
     try {
       if (window.localStorage) window.localStorage.removeItem("smarthome_auth_session");
       if (window.sessionStorage) window.sessionStorage.clear();
@@ -1630,6 +1652,7 @@
   }
 
   function hasValidLoginSession() {
+    if (inMemoryUserSession && inMemoryUserSession.email) return true;
     try {
       const raw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
       if (!raw) return false;
@@ -1654,6 +1677,7 @@
   window.togglePasswordVisibility = togglePasswordVisibility;
 
   function openLoginGateModal() {
+    setDeviceAreaLockdown(true);
     if (homeLoginGateModal) homeLoginGateModal.classList.remove("hidden");
     if (btnCloseLoginGateModal) {
       btnCloseLoginGateModal.hidden = !hasValidLoginSession();
@@ -1661,11 +1685,13 @@
   }
   function closeLoginGateModal() {
     if (!hasValidLoginSession()) {
+      setDeviceAreaLockdown(true);
       if (gateStatusBox) {
         gateStatusBox.textContent = "⚠️ Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
       }
       return;
     }
+    setDeviceAreaLockdown(false);
     if (homeLoginGateModal) homeLoginGateModal.classList.add("hidden");
   }
 
@@ -1739,6 +1765,7 @@
   const btnSubmitGateLogin = byId("btnSubmitGateLogin");
   if (btnSubmitGateLogin) {
     btnSubmitGateLogin.addEventListener("click", async () => {
+      if (btnSubmitGateLogin.disabled) return;
       const emailEl = byId("gateLoginEmail");
       const pwEl = byId("gateLoginPassword");
       const email = emailEl ? emailEl.value.trim() : "";
@@ -1747,12 +1774,13 @@
         if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và Mật khẩu!";
         return;
       }
+      btnSubmitGateLogin.disabled = true;
       if (gateStatusBox) gateStatusBox.textContent = "Đang kiểm tra đăng nhập...";
       try {
         const res = await fetch("/api/auth3/layer1_login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, login_method: "password", method: "password" }),
+          body: JSON.stringify({ email, password, login_method: "password", method: "password", send_gmail: false }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -1777,6 +1805,8 @@
         }
       } catch (_) {
         if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi đăng nhập.";
+      } finally {
+        btnSubmitGateLogin.disabled = false;
       }
     });
   }
@@ -2212,7 +2242,7 @@
     }
   });
 
-  async function loadOwnerDashboardGuestQr() {
+  async function loadOwnerDashboardGuestQr(retryCount = 0) {
     const qrBox = byId("ownerDashboardQrBox");
     const linkText = byId("ownerGuestLinkText");
     const openLink = byId("ownerGuestOpenLink");
@@ -2236,8 +2266,14 @@
         if (linkText) {
           linkText.textContent = data.public_guest_url || fallbackUrl;
         }
+      } else if (retryCount < 3) {
+        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
       }
-    } catch (_) {}
+    } catch (_) {
+      if (retryCount < 3) {
+        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
+      }
+    }
   }
 
   async function copyOwnerGuestLink() {

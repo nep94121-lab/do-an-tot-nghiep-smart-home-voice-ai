@@ -40,6 +40,11 @@
   display: none !important;
 }
 
+html, body, .app, .content, .main {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 html {
   font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--ink);
@@ -52,6 +57,21 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 400 13px/1.5 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+}
+
+/* Hiệu ứng làm mờ và khóa tương tác khu vực thiết bị khi chưa đăng nhập */
+.devices-logged-out {
+  filter: blur(8px) saturate(0.6);
+  -webkit-filter: blur(8px) saturate(0.6);
+  pointer-events: none !important;
+  user-select: none !important;
+  opacity: 0.35;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+#homeLoginGateModal {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 button, input, select, textarea {
@@ -925,14 +945,20 @@ h2,
   .house {
     order: 1;
   }
-  .voice {
+  .sensors {
     order: 2;
   }
   .devices {
     order: 3;
   }
-  .schedule {
+  .voice {
     order: 4;
+  }
+  .schedule {
+    order: 5;
+  }
+  .guest-qr {
+    order: 6;
   }
   .sidebar,
   .side {
@@ -959,6 +985,8 @@ h2,
   .topbar {
     align-items: flex-start;
     margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
   h1,
   .top h1,
@@ -968,6 +996,8 @@ h2,
   .top-actions,
   .top-right {
     gap: 8px;
+    flex-wrap: wrap;
+    max-width: 100%;
   }
   .status {
     font-size: 11px;
@@ -1180,5 +1210,29 @@ h2,
   gap: 8px;
   flex-wrap: wrap;
 }
+
+@media (max-width: 600px) {
+  .guest-qr-card {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 12px;
+  }
+  .guest-qr-svg-wrap {
+    margin: 0 auto;
+  }
+  .guest-qr-info {
+    min-width: 0;
+    width: 100%;
+  }
+  .guest-qr-actions {
+    flex-direction: column;
+  }
+  .guest-qr-actions a,
+  .guest-qr-actions button {
+    width: 100%;
+  }
+}
+
 
 

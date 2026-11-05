@@ -159,31 +159,27 @@ def test_session_resolution_via_query_param(client: TestClient):
 
 
 def test_unauthenticated_request_defaults_to_tier3_and_blocked(client: TestClient):
-    """Request không có token/cookie tự động gán Tầng 3 (Khách) và bị từ chối mở cửa chính (HTTP 403)."""
+    """Request không có token/cookie tự động bị từ chối với HTTP 401 Unauthorized."""
     resp = client.post(
         "/api/device",
         json={"device_id": "main_door", "action": "open"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
     data = resp.json()
     assert data.get("ok") is False
-    assert data.get("rbac_blocked") is True
-    assert data.get("tier") == 3
     assert routes_devices._REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
 
 
 def test_unsigned_cookie_tampering_ignored_and_defaults_to_tier3(client: TestClient):
-    """Client không đăng nhập gửi Cookie sh_session_tier=1 giả mạo phải bị bỏ qua hoàn toàn và chặn 403."""
+    """Client không đăng nhập gửi Cookie sh_session_tier=1 giả mạo phải bị từ chối 401."""
     resp = client.post(
         "/api/device",
         json={"device_id": "main_door", "action": "open"},
         cookies={"sh_session_tier": "1", "sh_session_user": "attacker"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
     data = resp.json()
     assert data.get("ok") is False
-    assert data.get("rbac_blocked") is True
-    assert data.get("tier") == 3
     assert routes_devices._REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
 
 
@@ -427,15 +423,14 @@ def test_session_revocation_blocks_subsequent_requests(client: TestClient):
     assert revoked is True
     assert store.get_session(token) is None
 
-    # Sau khi thu hồi: token không còn giá trị, tự động rơi vào Tầng 3 và bị chặn 403
+    # Sau khi thu hồi: token không còn giá trị, tự động rơi vào unauthenticated và bị chặn 401/403
     r2 = client.post(
         "/api/device",
         json={"device_id": "main_door", "action": "open"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert r2.status_code == 403
+    assert r2.status_code in (401, 403)
     assert r2.json().get("ok") is False
-    assert r2.json().get("rbac_blocked") is True
 
 
 def test_session_expiration_cleanup():

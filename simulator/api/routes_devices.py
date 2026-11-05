@@ -121,6 +121,15 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
 
     session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if not session.is_authenticated:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                "status_code": 401,
+            },
+            status_code=401,
+        )
     session_tier = session.tier
     session_user = session.display_name
     session_role = session.role
@@ -172,6 +181,15 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
     session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if not session.is_authenticated:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                "status_code": 401,
+            },
+            status_code=401,
+        )
     effective_tier = session.tier
     user_name = session.display_name
 
@@ -228,9 +246,19 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
 
 
 @router.post("/api/ir_learn")
-async def api_ir_learn(payload: dict[str, Any]) -> JSONResponse:
+async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Học lệnh điều khiển hồng ngoại IR từ xa."""
     body = payload if isinstance(payload, dict) else {}
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    if not session.is_authenticated:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                "status_code": 401,
+            },
+            status_code=401,
+        )
     dev_name = str(body.get("device_name") or "Điều hòa Casper")
     act = str(body.get("command_action") or "open")
     res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
@@ -324,6 +352,15 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
 
     if "tưới cây" in t_low or "bật máy bơm" in t_low:
+        if not session.is_authenticated:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                    "status_code": 401,
+                },
+                status_code=401,
+            )
         res = await _REST_ENGINE.execute_device_action(
             "garden_pump",
             "turn_on",
@@ -344,6 +381,15 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
         }, status_code=status_code)
 
     if "tắt máy bơm" in t_low:
+        if not session.is_authenticated:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                    "status_code": 401,
+                },
+                status_code=401,
+            )
         res = await _REST_ENGINE.execute_device_action(
             "garden_pump",
             "turn_off",
@@ -394,6 +440,15 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 
     # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (예: "Hẹn 10 giây nữa bật đèn phòng khách")
     if "hẹn" in t_low or "đặt lịch" in t_low:
+        if not session.is_authenticated:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                    "status_code": 401,
+                },
+                status_code=401,
+            )
         if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
             msg_sched = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
             return JSONResponse(
@@ -452,6 +507,15 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
     targets = _parse_text_device_targets(t_low)
     act = _parse_text_action(t_low)
     if targets and act:
+        if not session.is_authenticated:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
+                    "status_code": 401,
+                },
+                status_code=401,
+            )
         dev_arg = ",".join(targets)
         res_dev = await _REST_ENGINE.execute_device_action(
             device_id=dev_arg,

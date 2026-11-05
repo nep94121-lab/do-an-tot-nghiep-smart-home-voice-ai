@@ -1506,7 +1506,7 @@
         const r = await fetch(`/api/auth3/guest_qr_current?duration=${encodeURIComponent(dur)}&host=${encodeURIComponent(location.host)}&tier=${encodeURIComponent(inviteTier)}`);
         const d = await r.json();
         if (!d.ok) return;
-        const rem = d.remaining_slot_sec || d.remaining_Slot_sec || 10;
+        const rem = d.remaining_slot_sec || 10;
         const cdEl = document.getElementById('mobileQrCountdown');
         if (cdEl) {
           cdEl.textContent = `Đổi mã sau ${rem}s`;

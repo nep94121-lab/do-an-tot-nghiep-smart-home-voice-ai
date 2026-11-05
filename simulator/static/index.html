@@ -123,7 +123,7 @@
             </div>
           </section>
 
-          <section class="panel devices" aria-labelledby="device-title">
+          <section class="panel devices" id="secDevices" aria-labelledby="device-title">
             <div class="panel-head">
               <h2 id="device-title">Thiết bị</h2>
             </div>
@@ -294,7 +294,7 @@
   </div>
 
   <!-- TRANG ĐĂNG NHẬP (LOGIN GATE) TRƯỚC KHI VÀO NHÀ THÔNG MINH -->
-  <div id="homeLoginGateModal" class="modal hidden" style="z-index:200; background:rgba(23,43,49,0.55);">
+  <div id="homeLoginGateModal" class="modal hidden" style="z-index:200; background:rgba(23,43,49,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
     <div class="modal-content" style="max-width:460px;">
       <div class="modal-header">
         <div>
@@ -325,7 +325,7 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <button type="submit" id="btnSubmitGateLogin" class="btn btn-primary" style="width:100%;">
+        <button type="button" id="btnSubmitGateLogin" class="btn btn-primary" style="width:100%;">
           Đăng nhập vào Nhà thông minh
         </button>
       </form>
@@ -362,7 +362,7 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <button type="submit" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
+        <button type="button" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
           Xác nhận 2 mật khẩu &amp; Lưu tài khoản
         </button>
       </form>
@@ -411,7 +411,7 @@
           </div>
           <div style="display:flex; gap:6px;">
             <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 2</button>
-            <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
+            <button type="button" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
               Đặt lại mật khẩu
             </button>
           </div>

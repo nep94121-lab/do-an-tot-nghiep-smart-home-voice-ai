@@ -24,8 +24,10 @@ import secrets
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+from simulator.auth.session_store import resolve_request_session
 
 from simulator.api.deps import (
     _ACTIVE_BRIDGES,
@@ -43,6 +45,41 @@ from simulator.rule_engine import append_audit_log
 from simulator.voice_auth import validate_voice_enrollment_quality
 
 router = APIRouter(tags=["guest_qr"])
+
+
+def _decode_container_audio_to_pcm16k(audio_bytes: bytes) -> bytes:
+    """Giải mã âm thanh từ định dạng container (WAV RIFF, v.v.) sang raw PCM 16kHz 16-bit mono."""
+    if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
+        return audio_bytes
+    try:
+        import io
+        import numpy as np
+        import soundfile as sf
+
+        with sf.SoundFile(io.BytesIO(audio_bytes)) as snd:
+            sr = snd.samplerate
+            channels = snd.channels
+            data = snd.read(dtype="float32")
+
+        if channels > 1:
+            data = np.mean(data, axis=1)
+
+        if sr != 16000:
+            import scipy.signal
+            num_samples = int(round(len(data) * 16000 / sr))
+            data = scipy.signal.resample(data, num_samples)
+
+        clipped = np.clip(data, -1.0, 1.0)
+        pcm_16 = (clipped * 32767.0).astype(np.int16)
+        return pcm_16.tobytes()
+    except Exception:
+        try:
+            import io
+            import wave
+            with wave.open(io.BytesIO(audio_bytes), "rb") as wf:
+                return wf.readframes(wf.getnframes())
+        except Exception:
+            return audio_bytes
 
 
 def generate_qr_svg_string(content: str) -> str:
@@ -70,6 +107,7 @@ def generate_qr_svg_string(content: str) -> str:
 @router.get("/api/auth3/qr/generate")
 @router.post("/api/auth3/qr/generate")
 async def api_auth3_guest_qr_current(
+    request: Request,
     payload: dict[str, Any] | None = None,
     duration: str = "1d",
     duration_type: str | None = None,
@@ -81,6 +119,17 @@ async def api_auth3_guest_qr_current(
     tier: int | None = None,
 ) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế cho Khách (Cấp 3) hoặc Gia đình (Cấp 2)."""
+    session = resolve_request_session(request, payload=payload or {}, engine=_REST_ENGINE)
+    if not session.is_authenticated:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Yêu cầu đăng nhập để tạo mã QR Khách (HTTP 401 Unauthorized).",
+                "status_code": 401,
+            },
+            status_code=401,
+        )
+
     mgr3 = get_auth_3layer_manager()
     data = payload or {}
     chosen_dur = str(
@@ -157,7 +206,6 @@ async def api_auth3_guest_qr_current(
         "duration_label": dur_label,
         "duration_seconds": dur_sec,
         "remaining_slot_sec": remaining,
-        "remaining_Slot_sec": remaining,
         "window": window,
         "qr_url": qr_url,
         "full_url": full_url,
@@ -239,15 +287,10 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
             status_code=400,
         )
     verify_only = bool(payload.get("verify_only", False))
-    raw_tier = payload.get("target_tier", payload.get("tier", 3))
-    try:
-        target_tier = int(raw_tier)
-    except (ValueError, TypeError):
-        target_tier = 3
-    if target_tier not in (2, 3):
-        target_tier = 3
-    role_code = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
-    role_label_vn = "Thành viên gia đình Cấp 2" if target_tier == 2 else "Khách Cấp 3"
+    # Luôn cố định tài khoản ở Cấp 3 (CHILD_GUEST), không cho phép client tự leo quyền lên Cấp 1 hoặc 2
+    target_tier = 3
+    role_code = "CHILD_GUEST"
+    role_label_vn = "Khách Cấp 3"
 
     dur_type = str(payload.get("duration") or payload.get("duration_type") or "1d").strip().lower()
     b64_pcm = str(
@@ -269,6 +312,10 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         pcm_bytes = base64.b64decode(b64_pcm) if b64_pcm else b""
     except Exception:
         pcm_bytes = b""
+
+    # Hỗ trợ giải mã âm thanh container WAV (b"RIFF") sang raw PCM 16kHz
+    if pcm_bytes and pcm_bytes.startswith(b"RIFF"):
+        pcm_bytes = _decode_container_audio_to_pcm16k(pcm_bytes)
 
     if not pcm_bytes or len(pcm_bytes) < 4000:
         return JSONResponse(

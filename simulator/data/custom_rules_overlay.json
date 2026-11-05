@@ -53,6 +53,166 @@
       "granted_by_name": "Thành viên A (Tầng 2)",
       "granted_by_tier": 2,
       "active": true
+    },
+    "l_ho_ng_kh_ch_p7": {
+      "id": "l_ho_ng_kh_ch_p7",
+      "name": "Lê Hoàng Khách P7",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_th_leo_quy_n": {
+      "id": "kh_ch_th_leo_quy_n",
+      "name": "Khách Thử Leo Quyền",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "ph_m_minh_kh_ch": {
+      "id": "ph_m_minh_kh_ch",
+      "name": "Phạm Minh Khách",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "b_n_i_h_c_hust": {
+      "id": "b_n_i_h_c_hust",
+      "name": "Bạn Đại Học HUST",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_otp_verify": {
+      "id": "kh_ch_otp_verify",
+      "name": "Khách OTP Verify",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_th_ch_n_c_p_2": {
+      "id": "kh_ch_th_ch_n_c_p_2",
+      "name": "Khách Thử Chọn Cấp 2",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_t_i_file_wav": {
+      "id": "kh_ch_t_i_file_wav",
+      "name": "Khách Tải File WAV",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "tr_n_kh_ch_mic_error": {
+      "id": "tr_n_kh_ch_mic_error",
+      "name": "Trần Khách Mic Error",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_test_chu_n": {
+      "id": "kh_ch_test_chu_n",
+      "name": "Khách Test Chuẩn",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "attacker_1": {
+      "id": "attacker_1",
+      "name": "Attacker 1",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "attacker_2": {
+      "id": "attacker_2",
+      "name": "Attacker 2",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "attacker_0": {
+      "id": "attacker_0",
+      "name": "Attacker 0",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "attacker_neg": {
+      "id": "attacker_neg",
+      "name": "Attacker Neg",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "attacker_tier1": {
+      "id": "attacker_tier1",
+      "name": "Attacker Tier1",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_spam_click": {
+      "id": "kh_ch_spam_click",
+      "name": "Khách Spam Click",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
+    },
+    "kh_ch_test_sine_wave": {
+      "id": "kh_ch_test_sine_wave",
+      "name": "Khách Test Sine Wave",
+      "tier": 3,
+      "role": "CHILD_GUEST",
+      "granted_by": "tuan_anh",
+      "granted_by_name": "Nguyễn Tuấn Anh (Tầng 1)",
+      "granted_by_tier": 1,
+      "active": true
     }
   },
   "user_pools": {
@@ -70,6 +230,33 @@
       "word_mappings": {},
       "aliases": {},
       "if_else_rules": []
+    },
+    "kh_ch_th_ch_n_c_p_2": {
+      "word_mappings": {},
+      "aliases": {},
+      "if_else_rules": []
     }
+  },
+  "system_policies": {
+    "tier3_can_schedule_timer": false,
+    "tier3_can_custom_rules": false,
+    "tier3_can_grant_revoke": false,
+    "tier2_can_grant_tier2": false,
+    "tier2_can_revoke_same_tier": false,
+    "tier2_can_override_tier1": false,
+    "require_rule_confirmation": true,
+    "require_reset_confirmation": true,
+    "enrollment_signal_device_id": "living_room_light",
+    "enrollment_duration_seconds": 5,
+    "device_min_tiers": {
+      "main_door": 1,
+      "living_room_light": 3,
+      "bedroom_light": 3,
+      "fan": 3,
+      "ac": 2,
+      "alarm_siren": 1,
+      "garden_pump": 2
+    },
+    "custom_system_directives": []
   }
 }

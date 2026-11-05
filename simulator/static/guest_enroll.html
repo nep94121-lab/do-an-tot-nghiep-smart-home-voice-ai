@@ -49,9 +49,35 @@
             <svg class="icon"><use href="#i-mic"/></svg>
             <span id="btnRecordGuestVoiceText">🎤 Bấm để Thu âm giọng nói</span>
           </button>
-          <button id="btnRetryGuestVoice" type="button" class="btn btn-secondary" onclick="recordAndEnrollGuestVoice(true)">🔄 Thu lại</button>
+          <button id="btnRetryGuestVoice" type="button" class="btn btn-secondary" onclick="retryGuestVoiceRecording()">🔄 Thu lại</button>
         </div>
+
+        <!-- Khung Cảnh Báo Lỗi Microphone (Tiếng Việt) -->
+        <div id="micErrorAlert" class="alert-box alert-error" style="display:none;" role="alert"></div>
+
+        <!-- Khung Trạng Thái Ghi Âm Trực Quan (Live Recording Indicator) -->
+        <div id="recordingIndicatorBox" class="recording-state-box" style="display:none;" aria-live="polite">
+          <div class="recording-badge">
+            <span class="blinking-red-dot" id="recordingDot" aria-hidden="true"></span>
+            <span class="recording-text" id="recordingText">Đang ghi âm</span>
+          </div>
+          <div class="recording-timer" id="recordingTimer">00:00</div>
+          <button id="btnStopGuestRecording" type="button" class="btn btn-danger btn-stop" onclick="stopGuestMicRecording()">
+            ⏹ Dừng
+          </button>
+        </div>
+
         <div id="voiceEnrollResult" class="status-box">Nhấn "Bấm để Thu âm giọng nói" để ghi mẫu giọng của bạn.</div>
+
+        <!-- Khối Tải Lên Tệp Âm Thanh Dự Phòng (Audio File Upload Fallback) -->
+        <div class="audio-upload-container" id="audioUploadContainer">
+          <div class="upload-separator"><span>HOẶC TẢI LÊN TỆP ÂM THANH</span></div>
+          <label for="guestAudioFileInput" class="btn btn-secondary btn-upload" id="btnUploadAudioLabel">
+            📁 Tải lên tệp âm thanh (.wav, .m4a, .webm, .mp3, .ogg)
+          </label>
+          <input type="file" id="guestAudioFileInput" accept=".wav,.m4a,.webm,.mp3,.ogg,audio/*" style="display:none;" onchange="handleGuestAudioFileUpload(event)" />
+          <div id="uploadedAudioInfo" class="uploaded-info" style="display:none;"></div>
+        </div>
       </div>
 
       <div class="section-divider">
@@ -60,6 +86,8 @@
             ✅ Lưu &amp; Kích hoạt quyền Khách (Cấp 3)
           </button>
         </div>
+        <!-- Khung Thông Báo Kết Quả Sau Khi Lưu -->
+        <div id="saveFeedbackAlert" class="alert-box" style="display:none;" role="status"></div>
         <div id="handshakeStatus" class="status-box">Nhập Họ tên, Email và thu âm giọng nói ở trên để kích hoạt quyền Khách Cấp 3.</div>
       </div>
 

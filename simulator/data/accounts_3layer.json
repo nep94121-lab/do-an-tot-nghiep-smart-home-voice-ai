@@ -747,5 +747,137 @@
     "user_id": "api_test_member",
     "name": "Api_Test_Member",
     "full_name": "Api_Test_Member"
+  },
+  {
+    "account_id": "trankhach_micerror",
+    "email": "trankhach.micerror@gmail.com",
+    "display_name": "Trần Khách Mic Error",
+    "tier": 3,
+    "saved_tier": 3,
+    "role": "CHILD_GUEST",
+    "role_label": "Khách được cấp quyền (Tầng 3)",
+    "permission_active": true,
+    "permission_status": "ACTIVE",
+    "permission_label": "CÓ QUYỀN (Tầng 3)",
+    "password_plain_hint": "123456",
+    "password_hash": "1f2d384b510d695cef6ababeb4125d3b8dea3bcc07e9b7fc18389da09957845a",
+    "google_linked": true,
+    "invited_by": "nep94121@gmail.com (Cấp 1)",
+    "needs_first_page_voice_enroll": false,
+    "voice_verified": true,
+    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Trần Khách Mic Error, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 3 Khách lên máy chủ.",
+    "voiceprint": {
+      "enrolled": true,
+      "f0_mean_hz": 231.9,
+      "reading_prompt_verified": true,
+      "source_device": "Guest QR (/guest)",
+      "updated_at": "13:00:52 05/11/2026"
+    },
+    "permissions": [
+      "Chỉ bật/tắt đèn & quạt cơ bản"
+    ],
+    "id": "trankhach_micerror",
+    "user_id": "trankhach_micerror",
+    "name": "Trần Khách Mic Error",
+    "full_name": "Trần Khách Mic Error"
+  },
+  {
+    "account_id": "testchuan",
+    "email": "testchuan@gmail.com",
+    "display_name": "Khách Test Chuẩn",
+    "tier": 3,
+    "saved_tier": 3,
+    "role": "CHILD_GUEST",
+    "role_label": "Khách được cấp quyền (Tầng 3)",
+    "permission_active": true,
+    "permission_status": "ACTIVE",
+    "permission_label": "CÓ QUYỀN (Tầng 3)",
+    "password_plain_hint": "123456",
+    "password_hash": "1f2d384b510d695cef6ababeb4125d3b8dea3bcc07e9b7fc18389da09957845a",
+    "google_linked": true,
+    "invited_by": "nep94121@gmail.com (Cấp 1)",
+    "needs_first_page_voice_enroll": false,
+    "voice_verified": true,
+    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Khách Test Chuẩn, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 3 Khách lên máy chủ.",
+    "voiceprint": {
+      "enrolled": true,
+      "f0_mean_hz": 216.2,
+      "reading_prompt_verified": true,
+      "source_device": "Guest QR (/guest)",
+      "updated_at": "14:51:30 05/11/2026"
+    },
+    "permissions": [
+      "Chỉ bật/tắt đèn & quạt cơ bản"
+    ],
+    "id": "testchuan",
+    "user_id": "testchuan",
+    "name": "Khách Test Chuẩn",
+    "full_name": "Khách Test Chuẩn"
+  },
+  {
+    "account_id": "spamclick",
+    "email": "spamclick@gmail.com",
+    "display_name": "Khách Spam Click",
+    "tier": 3,
+    "saved_tier": 3,
+    "role": "CHILD_GUEST",
+    "role_label": "Khách được cấp quyền (Tầng 3)",
+    "permission_active": true,
+    "permission_status": "ACTIVE",
+    "permission_label": "CÓ QUYỀN (Tầng 3)",
+    "password_plain_hint": "123456",
+    "password_hash": "1f2d384b510d695cef6ababeb4125d3b8dea3bcc07e9b7fc18389da09957845a",
+    "google_linked": true,
+    "invited_by": "nep94121@gmail.com (Cấp 1)",
+    "needs_first_page_voice_enroll": false,
+    "voice_verified": true,
+    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Khách Spam Click, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 3 Khách lên máy chủ.",
+    "voiceprint": {
+      "enrolled": true,
+      "f0_mean_hz": 186.0,
+      "reading_prompt_verified": true,
+      "source_device": "Guest QR (/guest)",
+      "updated_at": "14:58:47 05/11/2026"
+    },
+    "permissions": [
+      "Chỉ bật/tắt đèn & quạt cơ bản"
+    ],
+    "id": "spamclick",
+    "user_id": "spamclick",
+    "name": "Khách Spam Click",
+    "full_name": "Khách Spam Click"
+  },
+  {
+    "account_id": "sinewave",
+    "email": "sinewave@gmail.com",
+    "display_name": "Khách Test Sine Wave",
+    "tier": 3,
+    "saved_tier": 3,
+    "role": "CHILD_GUEST",
+    "role_label": "Khách được cấp quyền (Tầng 3)",
+    "permission_active": true,
+    "permission_status": "ACTIVE",
+    "permission_label": "CÓ QUYỀN (Tầng 3)",
+    "password_plain_hint": "123456",
+    "password_hash": "1f2d384b510d695cef6ababeb4125d3b8dea3bcc07e9b7fc18389da09957845a",
+    "google_linked": true,
+    "invited_by": "nep94121@gmail.com (Cấp 1)",
+    "needs_first_page_voice_enroll": false,
+    "voice_verified": true,
+    "reading_prompt": "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Khách Test Sine Wave, tôi đọc câu này để lưu mẫu giọng nói gốc Cấp 3 Khách lên máy chủ.",
+    "voiceprint": {
+      "enrolled": true,
+      "f0_mean_hz": 216.2,
+      "reading_prompt_verified": true,
+      "source_device": "Guest QR (/guest)",
+      "updated_at": "14:58:57 05/11/2026"
+    },
+    "permissions": [
+      "Chỉ bật/tắt đèn & quạt cơ bản"
+    ],
+    "id": "sinewave",
+    "user_id": "sinewave",
+    "name": "Khách Test Sine Wave",
+    "full_name": "Khách Test Sine Wave"
   }
 ]

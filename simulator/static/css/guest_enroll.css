@@ -34,11 +34,14 @@
   visibility: hidden;
 }
 
+html,
 body {
   font: 400 14px/1.5 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
   background: var(--page);
   color: var(--ink);
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -307,3 +310,179 @@ select {
     font-size: 20px;
   }
 }
+
+/* ==========================================================================
+   MILESTONE M7R2_2: Audio Fallback & Interactive States
+   ========================================================================== */
+
+/* Animation nhấp nháy chấm tròn đỏ ghi âm */
+.blinking-red-dot {
+  width: 12px;
+  height: 12px;
+  background-color: #e02424;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(224, 36, 36, 0.7);
+}
+
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(224, 36, 36, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(224, 36, 36, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(224, 36, 36, 0);
+  }
+}
+
+/* Khung trạng thái ghi âm trực quan */
+.recording-state-box {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--red-soft);
+  border: 1px solid var(--red-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recording-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-text {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--red);
+}
+
+.recording-timer {
+  font-family: monospace, ui-monospace, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.btn-stop {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ffffff;
+  color: var(--red);
+  border-color: var(--red-border);
+}
+
+.btn-stop:hover {
+  background: var(--red-soft);
+}
+
+/* Nút tải lên và khu vực Upload Fallback */
+.audio-upload-container {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-separator {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.upload-separator::before,
+.upload-separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dashed var(--line);
+}
+
+.upload-separator span {
+  padding: 0 8px;
+}
+
+.btn-upload {
+  width: 100%;
+  cursor: pointer;
+  text-align: center;
+}
+
+.uploaded-info {
+  font-size: 12px;
+  color: var(--accent);
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  border: 1px solid #cce5e3;
+}
+
+/* Spinner Icon xoay 360 độ và trạng thái Loading của nút */
+.spinner-icon {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin-fast 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin-fast {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.82;
+  cursor: wait !important;
+}
+
+/* Alert Boxes cho Thông Báo Cảnh Báo Lỗi và Thành Công */
+.alert-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid var(--line);
+  background: var(--page);
+  color: var(--ink);
+}
+
+.alert-error {
+  background: var(--red-soft);
+  border-color: var(--red-border);
+  color: var(--red);
+  font-weight: 500;
+}
+
+.alert-success {
+  background: var(--accent-soft);
+  border-color: #cce5e3;
+  color: var(--accent);
+  font-weight: 500;
+}
+

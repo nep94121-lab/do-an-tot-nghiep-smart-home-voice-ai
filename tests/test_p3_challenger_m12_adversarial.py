@@ -193,17 +193,16 @@ def test_adversarial_invalid_tokens_fuzzing(client: TestClient):
             json={"device_id": "main_door", "action": "open"},
             headers={"Authorization": f"Bearer {vec}"},
         )
-        assert resp.status_code == 403, f"Fuzz vector '{vec[:20]}' phải bị chặn 403, nhận được {resp.status_code}"
+        assert resp.status_code in (401, 403), f"Fuzz vector '{vec[:20]}' phải bị chặn 401/403, nhận được {resp.status_code}"
         data = resp.json()
         assert data.get("ok") is False
-        assert data.get("rbac_blocked") is True
 
     # Fuzzing qua body payload với emoji/unicode
     resp_emoji = client.post(
         "/api/device",
         json={"device_id": "main_door", "action": "open", "session_token": "👑_root_super_admin_🔓"},
     )
-    assert resp_emoji.status_code == 403
+    assert resp_emoji.status_code in (401, 403)
     assert resp_emoji.json().get("ok") is False
 
 
@@ -213,7 +212,7 @@ def test_adversarial_invalid_tokens_fuzzing(client: TestClient):
 
 
 def test_adversarial_expired_session(client: TestClient):
-    """Session đã hết hạn phải tự động bị từ chối (403) và không cho phép mở cửa."""
+    """Session đã hết hạn phải tự động bị từ chối (401/403) và không cho phép mở cửa."""
     store = get_session_store()
     # Tạo session đã hết hạn từ 60 giây trước
     expired_sess = store.create_session(
@@ -229,9 +228,8 @@ def test_adversarial_expired_session(client: TestClient):
         json={"device_id": "main_door", "action": "open"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
     assert resp.json().get("ok") is False
-    assert resp.json().get("rbac_blocked") is True
 
 
 # =============================================================================
@@ -247,7 +245,7 @@ def test_adversarial_malformed_headers(client: TestClient):
         json={"device_id": "main_door", "action": "open"},
         headers={"Authorization": "Basic sess_owner_t1_nep94121"},
     )
-    assert r1.status_code == 403
+    assert r1.status_code in (401, 403)
     assert r1.json().get("ok") is False
 
     # 2. Bearer không có token phía sau
@@ -256,7 +254,7 @@ def test_adversarial_malformed_headers(client: TestClient):
         json={"device_id": "main_door", "action": "open"},
         headers={"Authorization": "Bearer "},
     )
-    assert r2.status_code == 403
+    assert r2.status_code in (401, 403)
     assert r2.json().get("ok") is False
 
     # 3. Xung đột kênh: Bearer Guest vs Cookie Owner
@@ -301,7 +299,7 @@ def test_adversarial_cookie_tampering_sh_session_tier_forgery(client: TestClient
         json={"device_id": "main_door", "action": "open"},
         cookies={"sh_session_tier": "1"},
     )
-    assert resp_door.status_code == 403, (
+    assert resp_door.status_code in (401, 403), (
         f"LỖ HỔNG BẢO MẬT NGHIÊM TRỌNG (RBAC Bypass via Cookie Tampering tại /api/device): "
         f"Kẻ tấn công không đăng nhập gửi cookie sh_session_tier=1 đã mở được cửa chính! "
         f"Status: {resp_door.status_code}, Body: {resp_door.json()}"
@@ -313,7 +311,7 @@ def test_adversarial_cookie_tampering_sh_session_tier_forgery(client: TestClient
         json={"device_id": "living_room_light", "action": "turn_on", "seconds": 30},
         cookies={"sh_session_tier": "1"},
     )
-    assert resp_sched.status_code == 403, (
+    assert resp_sched.status_code in (401, 403), (
         f"LỖ HỔNG BẢO MẬT NGHIÊM TRỌNG (RBAC Bypass via Cookie Tampering tại /api/mobile/schedule): "
         f"Kẻ tấn công gửi cookie sh_session_tier=1 đã tạo được lịch hẹn giờ! "
         f"Status: {resp_sched.status_code}, Body: {resp_sched.json()}"
@@ -325,7 +323,7 @@ def test_adversarial_cookie_tampering_sh_session_tier_forgery(client: TestClient
         json={"text": "Mở cửa chính"},
         cookies={"sh_session_tier": "1"},
     )
-    assert resp_text.status_code == 403 or resp_text.json().get("rbac_blocked") is True, (
+    assert resp_text.status_code in (401, 403) or resp_text.json().get("rbac_blocked") is True, (
         f"LỖ HỔNG BẢO MẬT NGHIÊM TRỌNG (RBAC Bypass via Cookie Tampering tại /api/text_command): "
         f"Kẻ tấn công gửi cookie sh_session_tier=1 đã thực thi được lệnh mở cửa! "
         f"Status: {resp_text.status_code}, Body: {resp_text.json()}"
