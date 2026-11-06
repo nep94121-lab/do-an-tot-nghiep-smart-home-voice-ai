@@ -111,6 +111,35 @@ def _get_cached_seeds(audio_dir: pathlib.Path) -> dict[str, Any]:
     tier2_seed = load_verified_tier_5sample_seed(tier=2, project_root=project_root)
     tier3_seed = load_verified_tier_5sample_seed(tier=3, project_root=project_root)
 
+    # Fast-path: load precomputed acoustic & WeSpeaker seeds from real_voices_signatures.json
+    sig_json = pathlib.Path(__file__).resolve().parent / "voice" / "real_voices_signatures.json"
+    if sig_json.exists():
+        try:
+            raw_sig = json.loads(sig_json.read_text(encoding="utf-8"))
+            pre_seeds = raw_sig.get("precomputed_voice_auth_seeds") or {}
+            if (
+                pre_seeds.get("feat_own")
+                and pre_seeds.get("deep_own")
+                and pre_seeds.get("feat_v2")
+                and pre_seeds.get("deep_v2")
+                and len(pre_seeds.get("wespk_v2") or []) == 256
+                and len(pre_seeds.get("t2_single_emb") or []) == 256
+                and len(pre_seeds.get("t3_single_emb") or []) == 256
+            ):
+                _SEED_CACHE["owner_seed"] = owner_seed
+                _SEED_CACHE["tier2_seed"] = tier2_seed
+                _SEED_CACHE["tier3_seed"] = tier3_seed
+                _SEED_CACHE["feat_own"] = pre_seeds["feat_own"]
+                _SEED_CACHE["deep_own"] = pre_seeds["deep_own"]
+                _SEED_CACHE["feat_v2"] = pre_seeds["feat_v2"]
+                _SEED_CACHE["deep_v2"] = pre_seeds["deep_v2"]
+                _SEED_CACHE["wespk_v2"] = pre_seeds["wespk_v2"]
+                _SEED_CACHE["t2_single_emb"] = pre_seeds["t2_single_emb"]
+                _SEED_CACHE["t3_single_emb"] = pre_seeds["t3_single_emb"]
+                return _SEED_CACHE
+        except Exception:
+            pass
+
     # Extract acoustic metadata from real LENOVO owner clip cau_2_mo_cua_chinh.wav
     cau2_wav = audio_dir / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav"
     if cau2_wav.exists():
@@ -152,15 +181,16 @@ def _get_cached_seeds(audio_dir: pathlib.Path) -> dict[str, Any]:
     if cau2_wav.exists() and v2_wav.exists():
         noisy_wav = audio_dir / "giong_1_kem_tieng_on_quat.wav"
         dual_wav = audio_dir / "hai_nguoi_cung_noi_cap1_va_nguoi_la.wav"
-        try:
-            VoiceAuthManager._write_wav16k(
-                noisy_wav, synthesize_noisy_fan_voice(pcm_own, 16000)
-            )
-            VoiceAuthManager._write_wav16k(
-                dual_wav, synthesize_two_speakers_audio(pcm_own, pcm_v2, 16000)
-            )
-        except Exception:
-            pass
+        if not (noisy_wav.exists() and dual_wav.exists()):
+            try:
+                VoiceAuthManager._write_wav16k(
+                    noisy_wav, synthesize_noisy_fan_voice(pcm_own, 16000)
+                )
+                VoiceAuthManager._write_wav16k(
+                    dual_wav, synthesize_two_speakers_audio(pcm_own, pcm_v2, 16000)
+                )
+            except Exception:
+                pass
 
     t2_single_wav = audio_dir / "giong_cap2_thanh_vien_a.wav"
     t2_single_emb = (
