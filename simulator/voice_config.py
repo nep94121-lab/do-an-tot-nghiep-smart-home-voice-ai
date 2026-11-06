@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import re
 from typing import Any
 
 _CONFIG_PATH = pathlib.Path(__file__).resolve().parent / "config" / "voice_auth.json"
@@ -30,17 +31,68 @@ _FORBIDDEN_RESPONSE_KEYS = frozenset(
         "baseline_embedding_256d",
         "baseline_wespeaker_embedding",
         "formants_hz",
+        "password",
+        "passwords",
+        "new_password",
+        "confirm_password",
+        "custom_password",
+        "issued_password",
         "password_hash",
         "password_salt",
         "pin_hash",
         "password_plain_hint",
         "password_hint",
+        "otp",
+        "otp_code",
+        "otp_input",
+        "input_otp",
+        "extracted_otp",
         "active_otp",
+        "pending_otp",
         "pending_otps",
+        "pending_guest_email_otps",
         "pending_invite_registrations",
         "active_sessions",
         "last_session",
     }
+)
+
+_FORBIDDEN_OVERVIEW_AND_LOG_KEYS = _FORBIDDEN_RESPONSE_KEYS | frozenset(
+    {
+        "code",
+        "auth_otp",
+        "otp_code_for_test",
+        "otp_code_for_test_table",
+        "demo_otp_preview",
+        "issued_password_for_test",
+        "mat_khau",
+        "mat_khau_tam",
+        "passwd",
+        "passcode",
+        "secret",
+        "client_secret",
+        "user_token",
+    }
+)
+
+_SAFE_OVERVIEW_KEYS = frozenset(
+    {
+        "invite_code",
+        "status_code",
+        "duration_code",
+        "role_code",
+        "hex_code",
+        "ir_code_id",
+        "ir_remote_codes",
+        "error_code",
+        "otp_dispatched",
+        "otp_verified",
+    }
+)
+
+_OVERVIEW_SENSITIVE_KEY_RE = re.compile(
+    r"(?:^|_)(?:otp|password|passwd|passcode|mat_khau|voiceprint|embedding|formant|pin_hash|password_hash|password_hint)(?:$|_)",
+    re.IGNORECASE,
 )
 
 _THROWAWAY_QA_IDENTITIES = frozenset(
@@ -181,4 +233,113 @@ def sanitize_api_payload(obj: Any) -> Any:
         return cleaned
     if isinstance(obj, list):
         return [sanitize_api_payload(item) for item in obj]
+    return obj
+
+
+def is_forbidden_overview_or_log_key(key: Any) -> bool:
+    """Return True if a dictionary key is a sensitive OTP/code/password/voiceprint key
+    that must be stripped from overview and log payloads."""
+    k_low = str(key).strip().lower()
+    if not k_low:
+        return False
+    if k_low in _SAFE_OVERVIEW_KEYS:
+        return False
+    if k_low in _FORBIDDEN_OVERVIEW_AND_LOG_KEYS:
+        return True
+    if _OVERVIEW_SENSITIVE_KEY_RE.search(k_low):
+        return True
+    if any(
+        tok in k_low
+        for tok in (
+            "otp",
+            "password",
+            "passwd",
+            "passcode",
+            "mat_khau",
+            "voiceprint",
+            "embedding",
+            "formant",
+            "pin_hash",
+        )
+    ):
+        return True
+    if k_low == "code" or k_low.endswith("_code"):
+        return True
+    return False
+
+
+def redact_otp_and_secrets_in_text(text: str) -> str:
+    """Redact plaintext 6-digit OTP codes and password hints/values embedded in log or overview strings."""
+    if not text or not isinstance(text, str):
+        return text
+    t = text
+    # Redact password hints and inline quoted passwords
+    t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1******", t, flags=re.IGNORECASE)
+    t = re.sub(r"(mật khẩu\s+['\"])([^'\"]+)(['\"])", r"\1******\3", t, flags=re.IGNORECASE)
+    t = re.sub(
+        r"(\(Mã trong Gmail là:\s*\d{6}\))",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(Mã trong Gmail là:\s*)\d{6}",
+        r"\1[REDACTED]",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"((?:password|password_plain_hint|hint|secret|token|otp|otp_code|mat_khau)['\"]?\s*[:=]\s*['\"]?)(\d{6}|[^'\"\s,}]+)(['\"]?)",
+        r"\1******\3",
+        t,
+        flags=re.IGNORECASE,
+    )
+    # Redact any 6-digit OTP inside strings mentioning OTP / verification codes
+    t_low = t.lower()
+    if any(
+        kw in t_low
+        for kw in (
+            "otp",
+            "mã xác thực",
+            "mã xác nhận",
+            "bảng test",
+            "đặt lại mật khẩu",
+            "quên mật khẩu",
+            "lớp 1",
+            "lớp 2",
+        )
+    ):
+        t = re.sub(r"\(\d{6}\)", "([REDACTED])", t)
+        t = re.sub(r"'\d{6}'", "'[REDACTED]'", t)
+        t = re.sub(r"\b\d{6}\b", "[REDACTED]", t)
+    return t.strip()
+
+
+def sanitize_overview_and_logs_payload(obj: Any) -> Any:
+    """Recursively strip otp/code/password/voiceprint keys and redact embedded OTP/password
+    patterns from overview and logs payloads (including JSON-encoded details_json strings)."""
+    if isinstance(obj, dict):
+        cleaned: dict[str, Any] = {}
+        if "account_id" in obj and "voiceprint" in obj and isinstance(obj.get("voiceprint"), dict):
+            vp = obj["voiceprint"]
+            cleaned.setdefault("voice_enrolled", bool(vp.get("enrolled", False)))
+        for k, v in obj.items():
+            k_str = str(k)
+            if is_forbidden_overview_or_log_key(k_str):
+                continue
+            if k_str == "details_json" and isinstance(v, str):
+                try:
+                    parsed = json.loads(v)
+                    sanitized_parsed = sanitize_overview_and_logs_payload(parsed)
+                    cleaned[k] = json.dumps(sanitized_parsed, ensure_ascii=False)
+                    continue
+                except Exception:
+                    cleaned[k] = redact_otp_and_secrets_in_text(v)
+                    continue
+            cleaned[k] = sanitize_overview_and_logs_payload(v)
+        return cleaned
+    if isinstance(obj, list):
+        return [sanitize_overview_and_logs_payload(item) for item in obj]
+    if isinstance(obj, str):
+        return redact_otp_and_secrets_in_text(obj)
     return obj

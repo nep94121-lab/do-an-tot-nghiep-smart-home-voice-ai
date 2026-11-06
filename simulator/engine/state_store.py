@@ -116,7 +116,13 @@ class FileStateBackend:
     _GLOBAL_LOCK = threading.RLock()
 
     def __init__(self, file_path: pathlib.Path | None = None) -> None:
-        self.file_path = file_path or (pathlib.Path(tempfile.gettempdir()) / "smarthome_shared_device_state.json")
+        if file_path is None:
+            import hashlib
+
+            wt_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
+            wt_hash = hashlib.sha256(wt_root.encode("utf-8")).hexdigest()[:12]
+            file_path = pathlib.Path(tempfile.gettempdir()) / f"smarthome_shared_device_state_{wt_hash}.json"
+        self.file_path = file_path
         self._lock = threading.RLock()
         self._cached_state: dict[str, Any] | None = None
         self._cached_mtime_ns: int = -1

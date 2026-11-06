@@ -389,6 +389,10 @@ class EngineVoiceRbacMixin:
             return
 
         role_alias_map = {
+            "owner_root_t1": OWNER_ID,
+            "family_member_a": USER_ROLE_MAP.get(2, "thanh_vien_a"),
+            "family_member_b": "thanh_vien_b",
+            "guest_temp_c": USER_ROLE_MAP.get(3, "khach_c"),
             "member_1": USER_ROLE_MAP.get(2, "thanh_vien_a"),
             "member_2": "thanh_vien_b",
             "guest_1": USER_ROLE_MAP.get(3, "khach_c"),

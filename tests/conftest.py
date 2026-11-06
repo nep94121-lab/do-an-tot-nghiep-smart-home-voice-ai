@@ -6,13 +6,18 @@ network sockets or CLI commands are executed during test runs.
 """
 from __future__ import annotations
 
+import atexit
+import contextlib
 import copy
+import gc
 import json
 import os
 import pathlib
 import smtplib
+import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 from typing import Any
 from unittest.mock import MagicMock
@@ -32,6 +37,7 @@ _TRACKED_DATA_FILES = (
     "family_email_allowlist.json",
     "invite_links_3layer.json",
     "ir_devices_db.json",
+    "knowledge_base.json",
     "smarthome.db",
     "system_audit_logs.jsonl",
     "voiceprints.json",
@@ -42,23 +48,104 @@ _INITIAL_DATA_BYTES: dict[str, bytes] = {
     if (DATA_DIR / fname).exists()
 }
 _INITIAL_MGR_ACCOUNTS: list[dict[str, Any]] | None = None
+_INITIAL_MGR_ALLOWLIST: dict[str, Any] | None = None
 
 
-def _restore_tracked_data_files() -> None:
+def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = False) -> None:
+    """Restore smarthome.db without ever overwriting the main DB file underneath an active WAL."""
+    import simulator.database_sqlite as db_mod
+    from simulator.auth.session_store import get_session_store
+
+    db_path = DATA_DIR / "smarthome.db"
+    wal_path = DATA_DIR / "smarthome.db-wal"
+    shm_path = DATA_DIR / "smarthome.db-shm"
+    store = get_session_store()
+
+    with db_mod._DB_LOCK, store._lock:
+        need_restore = (
+            force_exact_bytes
+            or not db_path.exists()
+            or wal_path.exists()
+            or shm_path.exists()
+            or db_path.read_bytes() != raw_db_bytes
+        )
+        if not need_restore:
+            return
+
+        db_mod._SCHEMA_INITIALIZED = False
+        db_mod._LAST_KB_MTIME = -1.0
+        db_mod._LAST_VP_MTIME = -1.0
+        db_mod._LAST_IR_MTIME = -1.0
+
+        # 1. Try unlinking WAL/SHM first so we never overwrite smarthome.db while WAL exists
+        for aux_path in (wal_path, shm_path):
+            if aux_path.exists():
+                try:
+                    aux_path.unlink()
+                except Exception:
+                    pass
+
+        if wal_path.exists() or shm_path.exists():
+            gc.collect()
+            for aux_path in (wal_path, shm_path):
+                if aux_path.exists():
+                    try:
+                        aux_path.unlink()
+                    except Exception:
+                        pass
+
+        # 2. If WAL and SHM are completely gone, a direct byte write is 100% safe and exact
+        if not wal_path.exists() and not shm_path.exists():
+            try:
+                if not db_path.exists() or db_path.read_bytes() != raw_db_bytes:
+                    db_path.write_bytes(raw_db_bytes)
+                return
+            except Exception:
+                pass
+
+        # 3. Fallback when a background server thread holds WAL/SHM open:
+        #    use SQLite's online backup API so WAL and DB pages remain 100% consistent.
+        tmp_clean_db = pathlib.Path(tempfile.gettempdir()) / f"smarthome_clean_template_{os.getpid()}.db"
+        try:
+            if not tmp_clean_db.exists() or tmp_clean_db.read_bytes() != raw_db_bytes:
+                tmp_clean_db.write_bytes(raw_db_bytes)
+            with (
+                contextlib.closing(sqlite3.connect(str(tmp_clean_db), timeout=5.0)) as src_conn,
+                contextlib.closing(sqlite3.connect(str(db_path), timeout=5.0)) as dst_conn,
+            ):
+                src_conn.backup(dst_conn)
+                dst_conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                dst_conn.commit()
+        except Exception:
+            pass
+
+        if force_exact_bytes:
+            gc.collect()
+            for aux_path in (wal_path, shm_path):
+                if aux_path.exists():
+                    try:
+                        aux_path.unlink()
+                    except Exception:
+                        pass
+            if not wal_path.exists() and not shm_path.exists():
+                try:
+                    db_path.write_bytes(raw_db_bytes)
+                except Exception:
+                    pass
+
+
+def _restore_tracked_data_files(force_exact_bytes: bool = False) -> None:
     for fname, raw_bytes in _INITIAL_DATA_BYTES.items():
+        if fname == "smarthome.db":
+            continue
         fpath = DATA_DIR / fname
         try:
             if not fpath.exists() or fpath.read_bytes() != raw_bytes:
                 fpath.write_bytes(raw_bytes)
         except Exception:
             pass
-    for wal_ext in ("smarthome.db-wal", "smarthome.db-shm"):
-        wal_path = DATA_DIR / wal_ext
-        if wal_path.exists():
-            try:
-                wal_path.unlink()
-            except Exception:
-                pass
+    if "smarthome.db" in _INITIAL_DATA_BYTES:
+        _restore_sqlite_db_safely(_INITIAL_DATA_BYTES["smarthome.db"], force_exact_bytes=force_exact_bytes)
 
 
 @pytest.fixture(autouse=True)
@@ -78,29 +165,51 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def clean_auth_pending_otps() -> None:
     """Ensure pending_otps and tracked data files do not leak state across tests."""
-    global _INITIAL_MGR_ACCOUNTS
+    global _INITIAL_MGR_ACCOUNTS, _INITIAL_MGR_ALLOWLIST
     from simulator.api.deps import _REST_ENGINE
     from simulator.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     if _INITIAL_MGR_ACCOUNTS is None:
         _INITIAL_MGR_ACCOUNTS = copy.deepcopy(mgr.accounts)
+    if _INITIAL_MGR_ALLOWLIST is None and hasattr(mgr, "family_email_allowlist"):
+        _INITIAL_MGR_ALLOWLIST = copy.deepcopy(mgr.family_email_allowlist)
     lock = getattr(mgr, "_otp_lock", threading.Lock())
     with lock:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "pending_invite_registrations"):
+            mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+        if _INITIAL_MGR_ALLOWLIST is not None and hasattr(mgr, "family_email_allowlist"):
+            mgr.family_email_allowlist = copy.deepcopy(_INITIAL_MGR_ALLOWLIST)
     _REST_ENGINE._explicit_test_user_set = False
+    _REST_ENGINE._current_role = "ADMIN"
+    _REST_ENGINE._current_user_id = "tuan_anh"
     _restore_tracked_data_files()
     yield
     with lock:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "pending_invite_registrations"):
+            mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
+        if _INITIAL_MGR_ALLOWLIST is not None and hasattr(mgr, "family_email_allowlist"):
+            mgr.family_email_allowlist = copy.deepcopy(_INITIAL_MGR_ALLOWLIST)
     _REST_ENGINE._explicit_test_user_set = False
+    _REST_ENGINE._current_role = "ADMIN"
+    _REST_ENGINE._current_user_id = "tuan_anh"
     _restore_tracked_data_files()
+
+
+def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+    """Restore tracked data files at the end of the entire pytest session."""
+    _restore_tracked_data_files(force_exact_bytes=True)
+
+
+atexit.register(_restore_tracked_data_files, True)
 
 
 @pytest.fixture(autouse=True)

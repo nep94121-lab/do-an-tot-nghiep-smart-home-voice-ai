@@ -1087,10 +1087,10 @@ class AuthInviteGmailMixin:
             status="PASS",
             detail=(
                 f"Đăng ký qua link {code} (Cấp {target_tier} do {inv['issuer_name']} mời). "
-                f"Đã gửi OTP {otp_code} & mật khẩu '{issued_password}' về Gmail ({gmail_res.get('actual_recipient')})."
+                f"Đã gửi OTP & mật khẩu cấp phát về Gmail ({gmail_res.get('actual_recipient')})."
             ),
             source=source,
-            extra={"invite_code": code, "target_tier": target_tier, "otp_code": otp_code, "gmail_delivery": gmail_res},
+            extra={"invite_code": code, "target_tier": target_tier, "gmail_delivery": gmail_res},
         )
 
         return {
@@ -1127,12 +1127,12 @@ class AuthInviteGmailMixin:
                 action="invite_otp_failed",
                 email=clean_email,
                 status="FAIL",
-                detail=f"Nhập sai OTP đăng ký link mời: nhập '{otp_input}' != '{pend['otp_code']}'.",
+                detail="Nhập sai OTP đăng ký link mời: mã OTP không khớp.",
                 source=source,
             )
             return {
                 "ok": False,
-                "error": f"Mã OTP '{otp_input}' không đúng! (Mã trong Gmail là: {pend['otp_code']})",
+                "error": f"Mã OTP '{otp_input}' không đúng!",
             }
 
         target_tier = int(pend["target_tier"])

@@ -28,6 +28,10 @@ import threading
 from typing import Any
 
 from simulator.engine.constants_and_time import resolve_data_dir
+from simulator.voice_config import (
+    redact_otp_and_secrets_in_text,
+    sanitize_overview_and_logs_payload,
+)
 
 DATA_DIR = resolve_data_dir()
 
@@ -156,6 +160,33 @@ _LAST_VP_MTIME: float = -1.0
 _LAST_IR_MTIME: float = -1.0
 
 
+def _redact_sqlite_audit_logs_in_conn(conn: sqlite3.Connection) -> int:
+    """Làm sạch toàn bộ mã OTP / mật khẩu / voiceprint trong bảng audit_logs của SQLite."""
+    changed = 0
+    try:
+        rows = conn.execute("SELECT log_id, summary, details_json FROM audit_logs").fetchall()
+        for r in rows:
+            lid = r["log_id"]
+            orig_sum = str(r["summary"] or "")
+            orig_det = str(r["details_json"] or "{}")
+            new_sum = redact_otp_and_secrets_in_text(orig_sum)
+            try:
+                parsed_det = json.loads(orig_det)
+                sanitized_det = sanitize_overview_and_logs_payload(parsed_det)
+                new_det = json.dumps(sanitized_det, ensure_ascii=False)
+            except Exception:
+                new_det = redact_otp_and_secrets_in_text(orig_det)
+            if new_sum != orig_sum or new_det != orig_det:
+                conn.execute(
+                    "UPDATE audit_logs SET summary = ?, details_json = ? WHERE log_id = ?",
+                    (new_sum, new_det, lid),
+                )
+                changed += 1
+    except Exception:
+        pass
+    return changed
+
+
 def init_sqlite_database() -> None:
     """Khởi tạo cấu trúc 8 bảng SQL chuẩn 3NF + Indexes và nạp dữ liệu ban đầu nếu bảng rỗng."""
     global _SCHEMA_INITIALIZED, _WAL_ANCHOR_CONN
@@ -164,6 +195,7 @@ def init_sqlite_database() -> None:
             return
         conn = get_connection()
         conn.executescript(DDL_SCHEMA_SQL)
+        _redact_sqlite_audit_logs_in_conn(conn)
         conn.commit()
         conn.close()
         _WAL_ANCHOR_CONN = None
@@ -181,6 +213,8 @@ def insert_audit_log_sqlite(entry: dict[str, Any], user_id: str | None = None) -
                 row = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (uid,)).fetchone()
                 if not row:
                     uid = None
+            safe_summary = redact_otp_and_secrets_in_text(str(entry.get("summary") or ""))
+            safe_details = sanitize_overview_and_logs_payload(entry.get("details") or {})
             conn.execute(
                 """
                 INSERT INTO audit_logs (
@@ -195,8 +229,8 @@ def insert_audit_log_sqlite(entry: dict[str, Any], user_id: str | None = None) -
                     uid,
                     str(entry.get("user") or "Hệ thống"),
                     int(entry.get("tier") or 1),
-                    str(entry.get("summary") or ""),
-                    json.dumps(entry.get("details") or {}, ensure_ascii=False),
+                    safe_summary,
+                    json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False),
                 ),
             )
             conn.commit()
@@ -556,7 +590,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             ln_s = ln.strip()
                             if not ln_s:
                                 continue
-                            entry = json.loads(ln_s)
+                            entry = sanitize_overview_and_logs_payload(json.loads(ln_s))
                             conn.execute(
                                 """
                                 INSERT INTO audit_logs (
@@ -570,8 +604,8 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                     str(entry.get("event_type") or "event"),
                                     str(entry.get("user") or "Hệ thống"),
                                     int(entry.get("tier") or 1),
-                                    str(entry.get("summary") or ""),
-                                    json.dumps(entry.get("details") or {}, ensure_ascii=False),
+                                    redact_otp_and_secrets_in_text(str(entry.get("summary") or "")),
+                                    json.dumps(sanitize_overview_and_logs_payload(entry.get("details") or {}), ensure_ascii=False),
                                 ),
                             )
                     except Exception:
