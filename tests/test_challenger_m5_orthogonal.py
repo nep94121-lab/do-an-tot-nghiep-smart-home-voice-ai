@@ -399,8 +399,10 @@ class TestEnrollVoiceSampleAudioPcmB64Alias:
         mgr = get_auth_3layer_manager()
         mgr.add_family_email("tuan_anh", test_email_c2, 2)
 
-        # Đọc trực tiếp mẫu giọng Chủ nhà Cấp 1 từ test_audio/giong_1_chu_nha_mo_cua.wav
-        wav_owner_path = ROOT / "test_audio" / "giong_1_chu_nha_mo_cua.wav"
+        # Đọc trực tiếp mẫu giọng Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) từ test_audio/giong_chu_nha_cap1_tuan_anh.wav
+        wav_owner_path = ROOT / "test_audio" / "giong_chu_nha_cap1_tuan_anh.wav"
+        if not wav_owner_path.exists():
+            wav_owner_path = ROOT / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav"
         with wave.open(str(wav_owner_path), "rb") as w:
             pcm_owner = w.readframes(w.getnframes())
 

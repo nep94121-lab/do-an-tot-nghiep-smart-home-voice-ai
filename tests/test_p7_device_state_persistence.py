@@ -80,6 +80,8 @@ class FakeVercelBlobServer:
         self.list_count: int = 0
         self.get_count: int = 0
         self.delete_count: int = 0
+        self.simulate_store_suspended: bool = False
+        self.last_put_headers: dict[str, str] = {}
 
     def urlopen(self, req: urllib.request.Request, timeout: float = 8.0) -> Any:
         url = req.full_url
@@ -88,6 +90,11 @@ class FakeVercelBlobServer:
 
         if method == "PUT":
             self.put_count += 1
+            self.last_put_headers = {str(k).lower(): str(v) for k, v in req.headers.items()}
+            if self.simulate_store_suspended:
+                err_body = json.dumps({"error": {"code": "store_suspended", "message": "Store is suspended"}}).encode("utf-8")
+                fp = io.BytesIO(err_body)
+                raise urllib.error.HTTPError(url, 403, "Forbidden", {"Content-Type": "application/json"}, fp)
             pathname = parsed.path.lstrip("/")
             raw_bytes = req.data or b"{}"
             add_rand = req.headers.get("X-add-random-suffix") or req.headers.get("x-add-random-suffix")
@@ -545,3 +552,180 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
             assert dev_map.get(exp_dev) == exp_state, (
                 f"Cycle {idx} stale/wrong state for {exp_dev}: expected {exp_state}, got {dev_map.get(exp_dev)}"
             )
+
+
+# ==============================================================================
+# 3. UNIT & INTEGRATION TESTS: 403 STORE SUSPENDED GRACEFUL DEGRADATION
+# ==============================================================================
+
+def test_vercel_blob_save_state_graceful_degradation_on_403_store_suspended(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kiểm chứng VercelBlobStateBackend:
+    1. Khi remote PUT gặp HTTP 403 store_suspended, save_state không raise exception.
+    2. Header "x-vercel-blob-access": "public" được gửi đi.
+    3. State được lưu bền vững vào RAM cache (_cached_state, _last_seq, _last_ts_ns).
+    4. Fallback snapshot được ghi xuống file cục bộ (/tmp/smarthome_shared_device_state.json).
+    5. load_state() đọc lại đúng dữ liệu từ RAM/file fallback.
+    """
+    fake_blob = FakeVercelBlobServer()
+    fake_blob.simulate_store_suspended = True
+    monkeypatch.setattr(urllib.request, "urlopen", fake_blob.urlopen)
+
+    fallback_file = tmp_path / "mock_fallback_device_state.json"
+    backend = VercelBlobStateBackend(
+        token="vercel_blob_rw_mock_token",
+        prefix="test_suspended/",
+        fallback_file_path=fallback_file,
+    )
+
+    p1 = build_default_shared_state_payload()
+    p1["devices"]["main_door"]["state"] = "CLOSED"
+    p1["devices"]["fan"]["state"] = "ON"
+    p1["devices"]["ac"]["state"] = "ON"
+
+    # save_state() tuyệt đối không ném ngoại lệ dù server blob bị đình chỉ 403
+    saved = backend.save_state(p1)
+    assert saved is not None
+    assert saved["revision_seq"] == 1
+    assert saved["revision_ts_ns"] > 0
+    assert saved["devices"]["fan"]["state"] == "ON"
+    assert saved["devices"]["ac"]["state"] == "ON"
+
+    # Khẳng định header x-vercel-blob-access: public được gửi đi
+    assert fake_blob.last_put_headers.get("x-vercel-blob-access") == "public"
+
+    # Khẳng định RAM cache được cập nhật
+    assert backend._cached_state is not None
+    assert backend._cached_state["devices"]["fan"]["state"] == "ON"
+    assert backend._last_seq == 1
+
+    # Khẳng định file fallback được ghi đúng đĩa
+    assert fallback_file.exists()
+    fb_data = backend.fallback_backend.load_state()
+    assert fb_data is not None
+    assert fb_data["devices"]["fan"]["state"] == "ON"
+    assert fb_data["devices"]["ac"]["state"] == "ON"
+
+    # Khẳng định load_state() trả về đúng trạng thái vừa lưu
+    loaded = backend.load_state()
+    assert loaded is not None
+    assert loaded["devices"]["fan"]["state"] == "ON"
+    assert loaded["devices"]["ac"]["state"] == "ON"
+    assert loaded["devices"]["main_door"]["state"] == "CLOSED"
+
+    # Thao tác lưu lần 2: tăng seq tuần tự
+    p2 = copy.deepcopy(saved)
+    p2["devices"]["fan"]["state"] = "OFF"
+    saved2 = backend.save_state(p2)
+    assert saved2["revision_seq"] == 2
+    assert backend._last_seq == 2
+    assert backend.load_state()["devices"]["fan"]["state"] == "OFF"
+
+
+def test_rule_engine_state_transaction_resilient_to_backend_crash() -> None:
+    """Kiểm chứng SmartHomeEngine:
+    Nếu backend ném ngoại lệ bất kỳ trong save_state hoặc persist_to_shared_store,
+    state_transaction.__exit__ và persist_to_shared_store tuyệt đối không văng lỗi ra ngoài.
+    """
+    class CrashingStateBackend:
+        is_remote: bool = True
+
+        def load_state(self) -> dict[str, Any] | None:
+            return None
+
+        def save_state(self, state: dict[str, Any]) -> dict[str, Any]:
+            raise urllib.error.HTTPError(
+                "https://blob.vercel-storage.com",
+                403,
+                "Forbidden (Store is suspended)",
+                {},
+                None,
+            )
+
+        def clear(self) -> None:
+            pass
+
+    engine = SmartHomeEngine(state_backend=CrashingStateBackend())
+
+    # Thao tác trong state_transaction: không bị crash
+    with engine.state_transaction():
+        engine.devices["fan"]["state"] = "ON"
+        engine.devices["ac"]["state"] = "ON"
+
+    # Trạng thái trong RAM vẫn được bảo toàn
+    assert engine.devices["fan"]["state"] == "ON"
+    assert engine.devices["ac"]["state"] == "ON"
+
+    # Gọi trực tiếp persist_to_shared_store cũng không crash, trả về payload
+    result = engine.persist_to_shared_store()
+    assert isinstance(result, dict)
+    assert result["devices"]["fan"]["state"] == "ON"
+
+
+def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """Kiểm chứng End-to-End API /api/voice_command:
+    1. Chủ nhà Cấp 1 ra lệnh điều khiển thiết bị (cau_3_dong_cua_chinh.wav) khi Vercel Blob 403:
+       - Phản hồi HTTP 200 OK (KHÔNG bị HTTP 500!).
+       - authorized=True, permission="ALLOWED".
+       - main_door chuyển sang CLOSED.
+    2. Bảo toàn Sinh trắc học & Phân quyền RBAC (Authentication Preservation):
+       - Lệnh mở cửa của Thành viên Cấp 2 (level2_mo_cua_chinh.wav) bị RBAC DENIED, cửa vẫn CLOSED.
+       - Không có bất kỳ sự bypass bảo mật nào.
+    """
+    fake_blob = FakeVercelBlobServer()
+    fake_blob.simulate_store_suspended = True
+    monkeypatch.setattr(urllib.request, "urlopen", fake_blob.urlopen)
+
+    fallback_file = tmp_path / "api_fallback_device_state.json"
+    suspended_backend = VercelBlobStateBackend(
+        token="vercel_blob_rw_api_test",
+        prefix="api_suspended/",
+        fallback_file_path=fallback_file,
+    )
+    set_default_state_backend(suspended_backend)
+
+    test_engine = SmartHomeEngine(
+        on_event=api_deps._emit_to_all_active_bridges,
+        on_voice_reset=api_deps._BOOT_VOICE_AUTH.reset_to_owner_only,
+        state_backend=suspended_backend,
+    )
+    routes_devices._REST_ENGINE = test_engine
+    routes_auth._REST_ENGINE = test_engine
+    api_deps._REST_ENGINE = test_engine
+
+    # Ban đầu mở cửa chính
+    test_engine.devices["main_door"]["state"] = "OPEN"
+    test_engine.devices["fan"]["state"] = "OFF"
+    test_engine.persist_to_shared_store()
+
+    client = TestClient(app)
+
+    # 1. Chủ nhà lệnh đóng cửa chính (cau_3) -> Phải trả về HTTP 200 OK (Đã khắc phục lỗi HTTP 500)
+    resp_owner = client.post(
+        "/api/voice_command",
+        json={"wav_b64": _wav_b64(SEP_DIR / "cau_3_dong_cua_chinh.wav")},
+    )
+    assert resp_owner.status_code == 200, f"Owner command failed with status {resp_owner.status_code}: {resp_owner.text}"
+    body_owner = resp_owner.json()
+    assert body_owner["authorized"] is True
+    assert body_owner["permission"] == "ALLOWED"
+
+    # Trạng thái cửa đã đóng
+    assert test_engine.devices["main_door"]["state"] == "CLOSED"
+    # Fallback và cache RAM đều đã ghi nhận CLOSED
+    assert suspended_backend._cached_state["devices"]["main_door"]["state"] == "CLOSED"
+    assert suspended_backend.fallback_backend.load_state()["devices"]["main_door"]["state"] == "CLOSED"
+
+    # 2. Thành viên Cấp 2 cố mở cửa chính -> RBAC DENIED, cửa vẫn đóng (Không bypass RBAC)
+    resp_l2 = client.post(
+        "/api/voice_command",
+        json={"wav_b64": _wav_b64(ROLE_DIR / "level2_mo_cua_chinh.wav")},
+    )
+    assert resp_l2.status_code == 200
+    body_l2 = resp_l2.json()
+    assert body_l2["permission"] == "DENIED"
+    assert test_engine.devices["main_door"]["state"] == "CLOSED"
+

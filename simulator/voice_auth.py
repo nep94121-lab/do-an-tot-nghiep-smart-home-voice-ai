@@ -46,8 +46,10 @@ from simulator.voice.wespeaker_onnx import (
     compute_multi_sample_mean_embedding,
     compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
+    evaluate_cohort_margin,
     extract_wespeaker_embedding,
     get_wespeaker_session,
+    load_verified_owner_seed,
     load_verified_owner_5sample_seed,
     load_verified_tier_5sample_seed,
     pcm_bytes_to_float32_16k,
@@ -104,7 +106,7 @@ def _get_cached_seeds(audio_dir: pathlib.Path) -> dict[str, Any]:
         return _SEED_CACHE
 
     project_root = audio_dir.parent
-    owner_seed = load_verified_owner_5sample_seed(project_root=project_root)
+    owner_seed = load_verified_owner_seed(project_root=project_root)
     tier2_seed = load_verified_tier_5sample_seed(tier=2, project_root=project_root)
     tier3_seed = load_verified_tier_5sample_seed(tier=3, project_root=project_root)
 
@@ -1096,8 +1098,13 @@ class VoiceAuthManager:
         """
         t_total_start = time.perf_counter()
         if isinstance(pcm_bytes, (bytes, bytearray)):
-            usable = (len(pcm_bytes) // 2) * 2
-            pcm_raw = np.frombuffer(pcm_bytes[:usable], dtype=np.int16)
+            raw_b = bytes(pcm_bytes)
+            if len(raw_b) >= 44 and raw_b[:4] == b"RIFF" and raw_b[8:12] == b"WAVE":
+                pcm_flt = pcm_bytes_to_float32_16k(raw_b, sr=16000)
+                pcm_raw = np.clip(pcm_flt * 32767.0, -32768, 32767).astype(np.int16)
+            else:
+                usable = (len(raw_b) // 2) * 2
+                pcm_raw = np.frombuffer(raw_b[:usable], dtype=np.int16)
         elif isinstance(pcm_bytes, np.ndarray):
             if np.issubdtype(pcm_bytes.dtype, np.floating) and (
                 pcm_bytes.size > 0 and np.max(np.abs(pcm_bytes)) <= 1.05
@@ -1398,16 +1405,25 @@ class VoiceAuthManager:
                 best_auth_prof = ap
 
             if sim_ap >= ap_thresh:
+                # Defense-in-depth: For Level 1 (Owner), require Vietnamese background cohort margin gate
+                # cos(probe, owner) >= max_{c in Cohort} cos(probe, c) (margin >= 0.0)
+                if ap_tier == 1:
+                    c_vec_owner = cand_vecs[0] if cand_vecs else None
+                    margin, max_c, c_pass = evaluate_cohort_margin(cur_wespk, c_vec_owner)
+                    if not c_pass:
+                        continue
                 if best_matched_prof is None or sim_ap > best_matched_cos:
                     best_matched_prof = ap
                     best_matched_cos = sim_ap
                     best_matched_thresh = ap_thresh
 
+        probe_cohort_margin, probe_max_cohort, probe_cohort_passed = evaluate_cohort_margin(cur_wespk)
+
         is_authorized = best_matched_prof is not None
         final_cos = round(
             float(best_matched_cos if is_authorized else max(0.0, highest_any_cos)), 4
         )
-        filter_stage_used = "WeSpeaker ResNet34 ONNX (256-D Cosine + Mel/Deep Quality Gate)"
+        filter_stage_used = "WeSpeaker ResNet34 ONNX (256-D Cosine + Mel/Deep Quality Gate + Cohort Gate)"
         total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
 
         if is_authorized and best_matched_prof is not None:
@@ -1436,6 +1452,9 @@ class VoiceAuthManager:
                 "similarity": final_cos,
                 "wespeaker_cosine": final_cos,
                 "threshold_wespeaker": best_matched_thresh,
+                "cohort_margin": probe_cohort_margin,
+                "cohort_max_sim": probe_max_cohort,
+                "cohort_gate_passed": probe_cohort_passed,
                 "stage1_confidence": final_cos,
                 "stage2_triggered": True,
                 "stage2_confidence": final_cos,
@@ -1495,6 +1514,9 @@ class VoiceAuthManager:
             "similarity": final_cos,
             "wespeaker_cosine": final_cos,
             "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
+            "cohort_margin": probe_cohort_margin,
+            "cohort_max_sim": probe_max_cohort,
+            "cohort_gate_passed": probe_cohort_passed,
             "stage1_confidence": final_cos,
             "stage2_triggered": True,
             "stage2_confidence": final_cos,

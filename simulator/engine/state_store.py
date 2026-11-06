@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import pathlib
 import re
@@ -31,6 +32,8 @@ import urllib.request
 from typing import Any, Protocol
 
 from simulator.engine.constants_and_time import DEFAULT_DEVICES
+
+logger = logging.getLogger(__name__)
 
 
 class StateBackend(Protocol):
@@ -209,6 +212,7 @@ class VercelBlobStateBackend:
         prefix: str = "smarthome_shared_state_v1/",
         api_base: str = "https://blob.vercel-storage.com",
         timeout_sec: float = 8.0,
+        fallback_file_path: pathlib.Path | None = None,
     ) -> None:
         self._token = token.strip().strip('"')
         self.prefix = prefix.rstrip("/") + "/"
@@ -221,6 +225,17 @@ class VercelBlobStateBackend:
         self._known_blobs: list[dict[str, Any]] = []
         self._last_seq: int = 0
         self._last_ts_ns: int = 0
+        if fallback_file_path is not None:
+            fb_path = fallback_file_path
+        elif os.name != "nt":
+            fb_path = pathlib.Path("/tmp/smarthome_shared_device_state.json")
+        else:
+            fb_path = pathlib.Path(tempfile.gettempdir()) / "smarthome_shared_device_state.json"
+        self._fallback_backend = FileStateBackend(fb_path)
+
+    @property
+    def fallback_backend(self) -> FileStateBackend:
+        return self._fallback_backend
 
     def _request_json(
         self,
@@ -287,17 +302,34 @@ class VercelBlobStateBackend:
         with self._lock:
             try:
                 blobs = self._list_blobs()
-            except Exception:
-                return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
+            except Exception as exc:
+                logger.warning("Vercel Blob _list_blobs failed: %s; falling back to RAM cache / local file", exc)
+                if self._cached_state is not None:
+                    return copy.deepcopy(self._cached_state)
+                if self._fallback_backend is not None:
+                    try:
+                        fb = self._fallback_backend.load_state()
+                        if fb is not None:
+                            self._cached_state = copy.deepcopy(fb)
+                            self._last_seq = max(self._last_seq, int(fb.get("revision_seq", 0)))
+                            self._last_ts_ns = max(self._last_ts_ns, int(fb.get("revision_ts_ns", 0)))
+                            return copy.deepcopy(fb)
+                    except Exception:
+                        pass
+                return None
 
             self._known_blobs = blobs
             if not blobs:
-                return None
+                return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
 
             latest = blobs[-1]
             latest_pathname = str(latest.get("pathname") or "")
             latest_url = str(latest.get("url") or latest.get("downloadUrl") or "")
             sort_ts_ns, sort_seq, _ = _extract_blob_sort_key(latest)
+
+            if self._cached_state is not None and self._last_seq > sort_seq:
+                return copy.deepcopy(self._cached_state)
+
             self._last_ts_ns = max(self._last_ts_ns, sort_ts_ns)
             self._last_seq = max(self._last_seq, sort_seq)
 
@@ -305,7 +337,14 @@ class VercelBlobStateBackend:
                 return copy.deepcopy(self._cached_state)
 
             if not latest_url:
-                return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
+                if self._cached_state is not None:
+                    return copy.deepcopy(self._cached_state)
+                if self._fallback_backend is not None:
+                    try:
+                        return self._fallback_backend.load_state()
+                    except Exception:
+                        pass
+                return None
 
             try:
                 data = self._request_json(
@@ -323,9 +362,17 @@ class VercelBlobStateBackend:
                     self._last_seq = max(self._last_seq, int(data.get("revision_seq", 0)), sort_seq)
                     self._last_ts_ns = max(self._last_ts_ns, int(data.get("revision_ts_ns", 0)), sort_ts_ns)
                     return copy.deepcopy(data)
-            except Exception:
-                pass
-            return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
+            except Exception as exc:
+                logger.warning("Vercel Blob read latest blob failed: %s", exc)
+
+            if self._cached_state is not None:
+                return copy.deepcopy(self._cached_state)
+            if self._fallback_backend is not None:
+                try:
+                    return self._fallback_backend.load_state()
+                except Exception:
+                    pass
+            return None
 
     def save_state(self, state: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -335,39 +382,57 @@ class VercelBlobStateBackend:
             snap["revision_seq"] = seq
             snap["revision_ts_ns"] = ts_ns
 
+            # Always preserve state in RAM cache
+            self._last_seq = seq
+            self._last_ts_ns = ts_ns
+            self._cached_state = copy.deepcopy(snap)
+
+            # Save fallback snapshot to /tmp/smarthome_shared_device_state.json via local FileStateBackend
+            if self._fallback_backend is not None:
+                try:
+                    self._fallback_backend.save_state(snap)
+                except Exception as fb_exc:
+                    logger.warning("Local fallback FileStateBackend.save_state failed: %s", fb_exc)
+
             nonce = secrets.token_hex(4)
             pathname = f"{self.prefix}st_{ts_ns:021d}_{seq:010d}_{nonce}.json"
             payload_bytes = json.dumps(snap, ensure_ascii=False).encode("utf-8")
 
-            res = self._request_json(
-                f"{self.api_base}/{pathname}",
-                method="PUT",
-                data=payload_bytes,
-                headers={
-                    "Authorization": f"Bearer {self._token}",
-                    "x-api-version": "7",
-                    "x-content-type": "application/json",
-                    "x-cache-control-max-age": "0",
-                    "x-add-random-suffix": "1",
-                },
-            )
-            saved_pathname = str(res.get("pathname") or pathname)
-            saved_url = str(res.get("url") or "")
+            try:
+                res = self._request_json(
+                    f"{self.api_base}/{pathname}",
+                    method="PUT",
+                    data=payload_bytes,
+                    headers={
+                        "Authorization": f"Bearer {self._token}",
+                        "x-api-version": "7",
+                        "x-content-type": "application/json",
+                        "x-cache-control-max-age": "0",
+                        "x-add-random-suffix": "1",
+                        "x-vercel-blob-access": "public",
+                    },
+                    retries=1,
+                )
+                saved_pathname = str(res.get("pathname") or pathname)
+                saved_url = str(res.get("url") or "")
 
-            self._last_seq = seq
-            self._last_ts_ns = ts_ns
-            self._cached_pathname = saved_pathname
-            self._cached_url = saved_url
-            self._cached_state = copy.deepcopy(snap)
+                self._cached_pathname = saved_pathname
+                self._cached_url = saved_url
 
-            if saved_url:
-                self._known_blobs.append({"pathname": saved_pathname, "url": saved_url})
-            if len(self._known_blobs) >= 5:
-                old_items = self._known_blobs[:-2]
-                self._known_blobs = self._known_blobs[-2:]
-                old_urls = [str(b.get("url") or "") for b in old_items if b.get("url")]
-                if old_urls:
-                    self._delete_urls_best_effort(old_urls)
+                if saved_url:
+                    self._known_blobs.append({"pathname": saved_pathname, "url": saved_url})
+                if len(self._known_blobs) >= 5:
+                    old_items = self._known_blobs[:-2]
+                    self._known_blobs = self._known_blobs[-2:]
+                    old_urls = [str(b.get("url") or "") for b in old_items if b.get("url")]
+                    if old_urls:
+                        self._delete_urls_best_effort(old_urls)
+            except Exception as exc:
+                logger.warning(
+                    "Vercel Blob remote save_state failed (%s): %s; state safely preserved in RAM and local fallback",
+                    type(exc).__name__,
+                    exc,
+                )
 
             return snap
 
@@ -386,6 +451,11 @@ class VercelBlobStateBackend:
             self._cached_state = None
             self._last_seq = 0
             self._last_ts_ns = 0
+            if self._fallback_backend is not None:
+                try:
+                    self._fallback_backend.clear()
+                except Exception:
+                    pass
 
 
 _DEFAULT_BACKEND: StateBackend | None = None

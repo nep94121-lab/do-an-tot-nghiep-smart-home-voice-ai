@@ -89,7 +89,7 @@ def load_voice_auth_config() -> dict[str, Any]:
     threshold_mel = float(os.environ.get("VOICE_AUTH_THRESHOLD_MEL", raw.get("threshold_mel", 0.88)))
     threshold_deep = float(os.environ.get("VOICE_AUTH_THRESHOLD_DEEP", raw.get("threshold_deep", 0.80)))
     threshold_wespeaker = float(
-        os.environ.get("VOICE_AUTH_THRESHOLD_WESPEAKER", raw.get("threshold_wespeaker", 0.435))
+        os.environ.get("VOICE_AUTH_THRESHOLD_WESPEAKER", raw.get("threshold_wespeaker", 0.475))
     )
     threshold_wespeaker_tier1 = float(
         os.environ.get(
@@ -100,7 +100,7 @@ def load_voice_auth_config() -> dict[str, Any]:
     threshold_wespeaker_tier2 = float(
         os.environ.get(
             "VOICE_AUTH_THRESHOLD_WESPEAKER_TIER2",
-            raw.get("threshold_wespeaker_tier2", 0.435),
+            raw.get("threshold_wespeaker_tier2", 0.475),
         )
     )
     threshold_wespeaker_tier3 = float(

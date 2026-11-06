@@ -14,9 +14,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import re
 import time
 from typing import Any, Callable, Coroutine, Iterator
+
+logger = logging.getLogger(__name__)
 
 from simulator.database_sqlite import (
     init_sqlite_database,
@@ -183,9 +186,13 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         """Ghi trạng thái thiết bị hiện tại xuống tầng lưu trữ chia sẻ (Vercel Blob / File / InMemory)."""
         self._dirty_device_ids.clear()
         payload = self._build_shared_state_payload()
-        saved = self.state_backend.save_state(payload)
-        self._last_synced_seq = max(self._last_synced_seq, int(saved.get("revision_seq", 0)))
-        self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(saved.get("revision_ts_ns", 0)))
+        try:
+            saved = self.state_backend.save_state(payload)
+            self._last_synced_seq = max(self._last_synced_seq, int(saved.get("revision_seq", 0)))
+            self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(saved.get("revision_ts_ns", 0)))
+        except Exception as exc:
+            logger.warning("Failed to persist state to backend %s: %s", self.state_backend, exc)
+            saved = payload
         try:
             sync_engine_state_to_sqlite(self)
         except Exception:
@@ -269,7 +276,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         """Ngữ cảnh giao dịch trạng thái có thể lồng nhau: đồng bộ 1 lần khi vào và lưu bền vững 1 lần khi thoát."""
         is_outer = (self._mutation_depth == 0)
         if is_outer:
-            self.sync_from_shared_store(force=True)
+            try:
+                self.sync_from_shared_store(force=True)
+            except Exception as exc:
+                logger.warning("state_transaction initial sync failed: %s", exc)
             self._state_dirty_in_tx = False
         self._mutation_depth += 1
         try:
@@ -278,7 +288,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             self._mutation_depth = max(0, self._mutation_depth - 1)
             if is_outer and (self._state_dirty_in_tx or self._dirty_device_ids):
                 self._state_dirty_in_tx = False
-                self.persist_to_shared_store()
+                try:
+                    self.persist_to_shared_store()
+                except Exception as exc:
+                    logger.warning("state_transaction persist failed: %s", exc)
 
     def _default_overlay(self) -> dict[str, Any]:
         return {

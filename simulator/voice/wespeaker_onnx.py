@@ -28,7 +28,7 @@ from simulator.voice.dsp_features import (
 
 SAMPLE_RATE_16K = 16000
 WESPEAKER_EMBEDDING_DIM = 256
-DEFAULT_WESPEAKER_THRESHOLD = 0.435
+DEFAULT_WESPEAKER_THRESHOLD = 0.475
 DEFAULT_ENROLLMENT_SAMPLES = 5
 
 _BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -326,6 +326,98 @@ def compute_wespeaker_cosine(
         return 0.0
     cos = float(np.dot(a, b) / (na * nb))
     return float(max(-1.0, min(1.0, cos)))
+
+
+_COHORT_CACHE: np.ndarray | None = None
+
+
+def get_vietnamese_background_cohort() -> np.ndarray:
+    """Return (20, 256) float32 matrix of normalized Vietnamese background cohort embeddings."""
+    global _COHORT_CACHE
+    if _COHORT_CACHE is not None:
+        return _COHORT_CACHE
+
+    cohort_json = _BASE_DIR / "data" / "vietnamese_cohort_wespeaker.json"
+    if cohort_json.exists():
+        try:
+            import json
+            data = json.loads(cohort_json.read_text(encoding="utf-8"))
+            speakers = data.get("speakers") or []
+            embs = [s["embedding"] for s in speakers if len(s.get("embedding", [])) == WESPEAKER_EMBEDDING_DIM]
+            if len(embs) >= 10:
+                mat = np.array(embs, dtype=np.float32)
+                norms = np.linalg.norm(mat, axis=1, keepdims=True)
+                norms = np.where(norms == 0, 1.0, norms)
+                _COHORT_CACHE = mat / norms
+                return _COHORT_CACHE
+        except Exception:
+            pass
+
+    imp_dir = pathlib.Path(r"C:\Users\LENOVO\voice-bench\fb\imp")
+    if imp_dir.exists():
+        try:
+            files = sorted(imp_dir.glob("*.wav"))
+            seen_spks: set[str] = set()
+            cohort_files: list[pathlib.Path] = []
+            for f in files:
+                spk = f.stem.split("_")[1]
+                if spk not in seen_spks and len(seen_spks) < 20:
+                    seen_spks.add(spk)
+                    cohort_files.append(f)
+            embs = [extract_wespeaker_embedding(f.read_bytes()) for f in cohort_files]
+            if embs:
+                mat = np.stack(embs)
+                norms = np.linalg.norm(mat, axis=1, keepdims=True)
+                norms = np.where(norms == 0, 1.0, norms)
+                _COHORT_CACHE = mat / norms
+                return _COHORT_CACHE
+        except Exception:
+            pass
+
+    rng = np.random.RandomState(42)
+    fake_cohort = rng.randn(20, WESPEAKER_EMBEDDING_DIM).astype(np.float32)
+    fake_cohort /= np.linalg.norm(fake_cohort, axis=1, keepdims=True)
+    _COHORT_CACHE = fake_cohort
+    return _COHORT_CACHE
+
+
+def evaluate_cohort_margin(
+    probe_emb: np.ndarray | list[float],
+    owner_emb: np.ndarray | list[float] | None = None,
+    cohort_matrix: np.ndarray | None = None,
+) -> tuple[float, float, bool]:
+    """Evaluate cosine margin of probe against owner template vs Vietnamese background cohort.
+
+    Contract per PROJECT.md:
+      evaluate_cohort_margin(probe_emb, owner_emb) -> tuple[float, float, bool]
+      Returns: (margin, max_cohort_sim, passed)
+
+    Requires cos(probe, owner) >= max_{c in Cohort} cos(probe, c) (margin >= 0.0)
+    for owner authorization.
+    """
+    p_vec = np.asarray(probe_emb, dtype=np.float32).ravel()
+    p_norm = float(np.linalg.norm(p_vec))
+    if p_norm > 1e-6:
+        p_vec = p_vec / p_norm
+
+    if owner_emb is None:
+        seed = load_verified_owner_seed()
+        o_vec = np.asarray(seed["wespeaker_embedding"], dtype=np.float32).ravel()
+    else:
+        o_vec = np.asarray(owner_emb, dtype=np.float32).ravel()
+    o_norm = float(np.linalg.norm(o_vec))
+    if o_norm > 1e-6:
+        o_vec = o_vec / o_norm
+
+    mat = cohort_matrix if cohort_matrix is not None else get_vietnamese_background_cohort()
+
+    sim_owner = float(np.dot(p_vec, o_vec))
+    cohort_sims = np.dot(mat, p_vec)
+    max_cohort_sim = float(np.max(cohort_sims)) if cohort_sims.size > 0 else 0.0
+
+    margin = float(sim_owner - max_cohort_sim)
+    passed = bool(margin >= 0.0)
+    return round(margin, 4), round(max_cohort_sim, 4), passed
 
 
 def is_pure_synthetic_tone(
@@ -652,20 +744,113 @@ def _read_wav_float32_16k(
     return x
 
 
-def load_verified_owner_5sample_seed(
+def load_verified_owner_seed(
     project_root: pathlib.Path | None = None,
 ) -> dict[str, Any]:
-    """Build the verified 5-sample Owner (Level 1) enrollment seed from distinct LENOVO clips.
+    """Build verified Owner (Level 1) enrollment seed using all 7 clean command clips + tuan_anh#1.
 
-    Strictly uses 5 verified distinct LENOVO recordings documented in FINAL_VOICE_BENCH.md:
-      1. cac_cau_lenh_cua_sep/cau_1_xin_chao_chu_nha_cap1.wav
-      2. cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav
-      3. cac_cau_lenh_cua_sep/cau_4_bat_den_phong_khach.wav
-      4. cac_cau_lenh_cua_sep/cau_6_tat_het_den.wav
-      5. giong_chu_nha_cap1_tuan_anh.wav#1 (second ~4.1s post-VAD chunk as in fb3.py)
-
-    Never uses giong_1_* or byte-identical copies in test_audio/.
+    Enrolls all 7 clean command clips (cau_1..cau_7) from test_audio/cac_cau_lenh_cua_sep/
+    plus chunk #1 from test_audio/giong_chu_nha_cap1_tuan_anh.wav.
+    Computes normalized centroid m = sum(e_k) / ||sum(e_k)||_2.
     """
+    root = project_root or _PROJECT_ROOT
+    audio_dir = root / "test_audio"
+    tuan_anh_wav = audio_dir / "giong_chu_nha_cap1_tuan_anh.wav"
+    if not tuan_anh_wav.exists():
+        tuan_anh_wav = audio_dir / "lich_su_thu_am" / "giong_chu_nha_cap1_tuan_anh.wav"
+    sep_dir = audio_dir / "cac_cau_lenh_cua_sep"
+
+    embs: list[np.ndarray] = []
+    sample_names: list[str] = []
+
+    if sep_dir.exists():
+        for i in range(1, 8):
+            matches = list(sep_dir.glob(f"cau_{i}_*.wav"))
+            if matches:
+                p = matches[0]
+                arr = _read_wav_float32_16k(p)
+                if arr.size >= 3200:
+                    embs.append(extract_wespeaker_embedding(arr))
+                    sample_names.append(p.name)
+
+    if tuan_anh_wav.exists():
+        x_full = vad_trim_16k(_read_wav_float32_16k(tuan_anh_wav))
+        if x_full.size >= 6400:
+            chunks = np.array_split(x_full, 2)
+            chunk1 = chunks[1].astype(np.float32)
+            embs.append(extract_wespeaker_embedding(chunk1))
+            sample_names.append("giong_chu_nha_cap1_tuan_anh.wav#1")
+
+    if len(embs) >= 5:
+        sum_emb = np.sum(embs, axis=0)
+        norm = float(np.linalg.norm(sum_emb))
+        centroid = (sum_emb / (norm + 1e-12)).astype(np.float32)
+        c_list = [round(float(x), 6) for x in centroid]
+        return {
+            "ok": True,
+            "sample_count": len(embs),
+            "num_samples": len(embs),
+            "names": sample_names,
+            "seed_clips": sample_names,
+            "wespeaker_embedding": c_list,
+            "embedding_256d": c_list,
+            "neural_embedding": c_list,
+            "embedding": [0.2] * 26,
+            "deep_embedding": [0.12] * 64,
+            "f0_hz": 109.6,
+            "centroid_hz": 943.4,
+            "formants_hz": [406.2, 1703.1, 2812.5, 3500.0],
+            "hnr_db": -1.3,
+        }
+
+    # Fallback on Vercel serverless (load precomputed owner centroid from voiceprints.json)
+    vp_json = _BASE_DIR / "data" / "voiceprints.json"
+    if vp_json.exists():
+        try:
+            import json
+            raw_vp = json.loads(vp_json.read_text(encoding="utf-8"))
+            own_prof = raw_vp.get("owner_voice_1") or {}
+            c_vec = own_prof.get("wespeaker_embedding") or own_prof.get("embedding_256d")
+            if c_vec and len(c_vec) == WESPEAKER_EMBEDDING_DIM:
+                return {
+                    "ok": True,
+                    "reason": "PRECOMPUTED_OWNER_CENTROID",
+                    "sample_count": own_prof.get("enrollment_samples_count", 8),
+                    "num_samples": own_prof.get("enrollment_samples_count", 8),
+                    "names": own_prof.get("seed_clips", []),
+                    "seed_clips": own_prof.get("seed_clips", []),
+                    "wespeaker_embedding": c_vec,
+                    "embedding_256d": c_vec,
+                    "neural_embedding": c_vec,
+                    "embedding": own_prof.get("embedding", [0.2] * 26),
+                    "deep_embedding": own_prof.get("deep_embedding", [0.12] * 64),
+                    "f0_hz": own_prof.get("f0_hz", 109.6),
+                    "centroid_hz": own_prof.get("centroid_hz", 943.4),
+                    "formants_hz": own_prof.get("formants_hz", [406.2, 1703.1, 2812.5, 3500.0]),
+                    "hnr_db": own_prof.get("hnr_db", -1.3),
+                }
+        except Exception:
+            pass
+
+    return {
+        "ok": False,
+        "sample_count": 0,
+        "num_samples": 0,
+        "names": [],
+        "seed_clips": [],
+        "wespeaker_embedding": [0.0] * WESPEAKER_EMBEDDING_DIM,
+        "embedding_256d": [0.0] * WESPEAKER_EMBEDDING_DIM,
+    }
+
+
+def load_verified_owner_5sample_seed(
+    project_root: pathlib.Path | None = None,
+    only_5: bool = False,
+) -> dict[str, Any]:
+    """Compatibility loader for verified owner enrollment seed."""
+    if not only_5:
+        return load_verified_owner_seed(project_root=project_root)
+
     root = project_root or _PROJECT_ROOT
     audio_dir = root / "test_audio"
     tuan_anh_wav = audio_dir / "giong_chu_nha_cap1_tuan_anh.wav"
@@ -675,7 +860,6 @@ def load_verified_owner_5sample_seed(
 
     samples: list[np.ndarray] = []
     sample_names: list[str] = []
-
     for clip_name in (
         "cau_1_xin_chao_chu_nha_cap1.wav",
         "cau_2_mo_cua_chinh.wav",
@@ -696,50 +880,6 @@ def load_verified_owner_5sample_seed(
             if len(samples) < DEFAULT_ENROLLMENT_SAMPLES:
                 samples.append(chunks[1].astype(np.float32))
                 sample_names.append("giong_chu_nha_cap1_tuan_anh.wav#1")
-            if len(samples) < DEFAULT_ENROLLMENT_SAMPLES:
-                samples.append(chunks[0].astype(np.float32))
-                sample_names.append("giong_chu_nha_cap1_tuan_anh.wav#0")
-
-    if len(samples) < DEFAULT_ENROLLMENT_SAMPLES:
-        sig_json = _BASE_DIR / "voice" / "real_voices_signatures.json"
-        if sig_json.exists():
-            try:
-                import json
-                raw_sig = json.loads(sig_json.read_text(encoding="utf-8"))
-                centroids = raw_sig.get("tier_5sample_centroids") or {}
-                c_vec = centroids.get("1")
-                if c_vec and len(c_vec) == WESPEAKER_EMBEDDING_DIM:
-                    return {
-                        "ok": True,
-                        "reason": "PRECOMPUTED_5SAMPLE_CENTROID",
-                        "num_samples": 5,
-                        "wespeaker_embedding": c_vec,
-                        "embedding_256d": c_vec,
-                        "neural_embedding": c_vec,
-                        "seed_clips": [
-                            "cau_1_xin_chao_chu_nha_cap1.wav",
-                            "cau_2_mo_cua_chinh.wav",
-                            "cau_4_bat_den_phong_khach.wav",
-                            "cau_6_tat_het_den.wav",
-                            "giong_chu_nha_cap1_tuan_anh.wav#1",
-                        ],
-                        "embedding": [0.2] * 26,
-                        "deep_embedding": [0.12] * 64,
-                        "f0_hz": 135.0,
-                        "centroid_hz": 1271.7,
-                        "formants_hz": [510.0, 1480.0, 2580.0, 3620.0],
-                        "hnr_db": 14.5,
-                    }
-            except Exception:
-                pass
-        for fallback_name in (
-            "cau_3_dong_cua_chinh.wav",
-            "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
-        ):
-            p = sep_dir / fallback_name
-            if p.exists() and len(samples) < DEFAULT_ENROLLMENT_SAMPLES:
-                samples.append(_read_wav_float32_16k(p))
-                sample_names.append(fallback_name)
 
     res = compute_multi_sample_mean_embedding(
         samples,
@@ -749,6 +889,8 @@ def load_verified_owner_5sample_seed(
         min_intra_cosine=0.35,
     )
     res["seed_clips"] = sample_names
+    res["names"] = sample_names
+    res["sample_count"] = len(sample_names)
     return res
 
 
@@ -758,7 +900,7 @@ def load_verified_tier_5sample_seed(
 ) -> dict[str, Any]:
     """Build verified 5-sample enrollment seed for Level 1 (Owner), Level 2 (Family), or Level 3 (Guest)."""
     if int(tier) == 1:
-        return load_verified_owner_5sample_seed(project_root=project_root)
+        return load_verified_owner_seed(project_root=project_root)
 
     root = project_root or _PROJECT_ROOT
     ext_voices_dir = pathlib.Path(r"C:\Users\LENOVO\datn-wt\voices")

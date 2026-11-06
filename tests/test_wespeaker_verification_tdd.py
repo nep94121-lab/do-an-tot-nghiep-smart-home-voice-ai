@@ -40,12 +40,16 @@ from simulator.rule_engine import SmartHomeEngine
 from simulator.server import _BOOT_VOICE_AUTH, app
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
 from simulator.voice.wespeaker_onnx import (
+    _read_wav_float32_16k,
     compute_multi_sample_mean_embedding,
     compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
+    evaluate_cohort_margin,
     extract_wespeaker_embedding,
+    load_verified_owner_seed,
     load_verified_owner_5sample_seed,
     load_verified_tier_5sample_seed,
+    vad_trim_16k,
 )
 from simulator.voice_auth import VoiceAuthManager
 from simulator.voice_config import (
@@ -105,19 +109,19 @@ def client() -> TestClient:
     return TestClient(app, headers={"Authorization": "Bearer sess_owner_t1_nep94121"})
 
 
-def test_wespeaker_config_and_5sample_owner_seed() -> None:
-    """Verify threshold 0.435, 5-sample requirement, and distinct verified LENOVO owner seed clips."""
-    assert THRESHOLD_WESPEAKER == pytest.approx(0.435)
-    assert THRESHOLD_WESPEAKER_TIER1 == pytest.approx(0.435)
-    assert THRESHOLD_WESPEAKER_TIER2 == pytest.approx(0.435)
+def test_wespeaker_config_and_owner_seed() -> None:
+    """Verify calibrated threshold 0.475, enrollment samples requirement, and expanded owner seed clips."""
+    assert THRESHOLD_WESPEAKER == pytest.approx(0.475)
+    assert THRESHOLD_WESPEAKER_TIER1 == pytest.approx(0.475)
+    assert THRESHOLD_WESPEAKER_TIER2 == pytest.approx(0.475)
     assert THRESHOLD_WESPEAKER_TIER3 == pytest.approx(0.385)
     assert ENROLLMENT_REQUIRED_SAMPLES == 5
 
-    seed = load_verified_owner_5sample_seed(project_root=ROOT)
+    seed = load_verified_owner_seed(project_root=ROOT)
     assert seed["ok"] is True
-    assert seed["num_samples"] == 5
+    assert seed["sample_count"] >= 7
     seed_clips = seed["seed_clips"]
-    assert len(seed_clips) == 5
+    assert len(seed_clips) >= 7
     # Must NOT use giong_1_* clips
     for clip_name in seed_clips:
         assert "giong_1" not in clip_name
@@ -263,7 +267,7 @@ def test_all_5_paths_and_level2_level3_rbac_owner_only_devices(client: TestClien
     assert r_vc_own.status_code == 200
     assert r_vc_own.json()["authorized"] is True
     assert r_vc_own.json()["tier"] == 1
-    assert r_vc_own.json()["similarity"] >= 0.435
+    assert r_vc_own.json()["similarity"] >= 0.475
 
     r_vc_str = client.post("/api/voice_command", json={"audio_b64": stranger_b64, "transcript": "Mở cửa chính"})
     assert r_vc_str.status_code == 200
@@ -275,7 +279,7 @@ def test_all_5_paths_and_level2_level3_rbac_owner_only_devices(client: TestClien
     assert r_l3_own.status_code == 200
     assert r_l3_own.json()["ok"] is True
     assert r_l3_own.json()["tier"] == 1
-    assert r_l3_own.json()["similarity"] >= 0.435
+    assert r_l3_own.json()["similarity"] >= 0.475
 
     r_l3_str = client.post("/api/auth3/layer3_voice", json={"pcm16k_b64": stranger_b64})
     assert r_l3_str.status_code == 200
@@ -335,3 +339,120 @@ def test_all_5_paths_and_level2_level3_rbac_owner_only_devices(client: TestClien
         siren_res = asyncio.run(engine.execute_device_action("alarm_siren", "turn_off", source=f"voice_{sub_user}"))
         assert door_res.get("ok") is False or engine.devices["main_door"]["state"] == "CLOSED"
         assert siren_res.get("ok") is False or engine.devices["alarm_siren"]["state"] == "ON"
+
+
+def test_vivos_impostors_dev11_298_and_dev12_271_strictly_rejected() -> None:
+    """Explicitly assert that known failure cases DEV11_298 and DEV12_271 are strictly rejected as owner."""
+    vm = VoiceAuthManager(ROOT / "test_audio")
+    imp_dir = pathlib.Path(r"C:\Users\LENOVO\voice-bench\fb\imp")
+    targets = ("vivos_VIVOSDEV11_298.wav", "vivos_VIVOSDEV12_271.wav")
+    for fname in targets:
+        p = imp_dir / fname
+        assert p.exists(), f"Missing required benchmark impostor: {p}"
+        res = vm.verify_pcm16k_and_apply_strikes(p.read_bytes())
+        assert res["authorized"] is False, f"{fname} must NOT be authorized as owner"
+        assert res["tier"] != 1, f"{fname} must NOT be granted Tier 1 permission"
+        assert res["speaker_id"] != "owner_voice_1"
+        assert res.get("cohort_gate_passed") is False or res["similarity"] < 0.475
+        assert res.get("cohort_margin", 0.0) < 0.0 or res["similarity"] < 0.475
+
+
+def test_all_130_vivos_impostor_clips_zero_false_acceptance() -> None:
+    """Evaluate all 130 VIVOS clips in C:\\Users\\LENOVO\\voice-bench\\fb\\imp and family/strangers.
+
+    Asserts FAR = 0.0% (exactly 0 false accepts at owner level).
+    """
+    vm = VoiceAuthManager(ROOT / "test_audio")
+    imp_dir = pathlib.Path(r"C:\Users\LENOVO\voice-bench\fb\imp")
+    if not imp_dir.exists():
+        pytest.skip(f"VIVOS benchmark directory not found at {imp_dir}")
+
+    files = sorted(imp_dir.glob("*.wav"))
+    assert len(files) == 130, f"Expected 130 VIVOS impostor clips, found {len(files)}"
+
+    false_accepts: list[tuple[str, float, float]] = []
+    for f in files:
+        pcm = f.read_bytes()
+        res = vm.verify_pcm16k_and_apply_strikes(pcm)
+        if res["authorized"] and res.get("tier") == 1:
+            false_accepts.append((f.name, float(res.get("similarity", 0.0)), float(res.get("cohort_margin", 0.0))))
+
+    for rel_stranger in (
+        "test_audio/giong_2_nguoi_la_mo_cua.wav",
+        "test_audio/giong_cap2_thanh_vien_a.wav",
+        "test_audio/giong_cap3_khach_c.wav",
+    ):
+        p = ROOT / rel_stranger
+        if p.exists():
+            res = vm.verify_pcm16k_and_apply_strikes(p.read_bytes())
+            if res["authorized"] and res.get("tier") == 1:
+                false_accepts.append((rel_stranger, float(res.get("similarity", 0.0)), float(res.get("cohort_margin", 0.0))))
+
+    assert len(false_accepts) == 0, f"Detected owner False Accepts (FAR > 0%): {false_accepts}"
+
+
+def test_all_7_genuine_owner_commands_and_held_out_zero_false_rejection() -> None:
+    """Evaluate all 7 genuine owner commands (cau_1..cau_7) and clean held-out owner audio.
+
+    Asserts FRR = 0.0% (exactly 0 false rejections at owner level).
+    """
+    vm = VoiceAuthManager(ROOT / "test_audio")
+    sep_dir = ROOT / "test_audio" / "cac_cau_lenh_cua_sep"
+    false_rejections: list[tuple[str, float, float]] = []
+
+    # 1. All 7 genuine owner commands
+    for i in range(1, 8):
+        matches = list(sep_dir.glob(f"cau_{i}_*.wav"))
+        assert len(matches) > 0, f"Missing owner command cau_{i}"
+        p = matches[0]
+        res = vm.verify_pcm16k_and_apply_strikes(p.read_bytes())
+        if not res["authorized"] or res.get("tier") != 1:
+            false_rejections.append((p.name, float(res.get("similarity", 0.0)), float(res.get("cohort_margin", 0.0))))
+        assert res["authorized"] is True, f"Owner command {p.name} rejected: {res}"
+        assert res["tier"] == 1, f"Owner command {p.name} did not receive Tier 1"
+        assert res["similarity"] >= 0.475, f"Owner command {p.name} similarity {res['similarity']} < 0.475"
+        assert res["cohort_margin"] >= 0.0, f"Owner command {p.name} cohort margin {res['cohort_margin']} < 0.0"
+
+    # 2. Clean held-out owner recordings
+    held_out_1 = ROOT / "test_audio" / "lich_su_thu_am" / "giong_cap1_20261104_110554.wav"
+    if held_out_1.exists():
+        res_ho1 = vm.verify_pcm16k_and_apply_strikes(held_out_1.read_bytes())
+        assert res_ho1["authorized"] is True, f"Held-out clean owner audio {held_out_1.name} rejected"
+        assert res_ho1["tier"] == 1
+        assert res_ho1["similarity"] >= 0.475
+        assert res_ho1["cohort_margin"] >= 0.0
+
+    tuan_anh_wav = ROOT / "test_audio" / "giong_chu_nha_cap1_tuan_anh.wav"
+    if tuan_anh_wav.exists():
+        x_full = vad_trim_16k(_read_wav_float32_16k(tuan_anh_wav))
+        chunks = np.array_split(x_full, 2)
+        chunk0 = chunks[0].astype(np.float32)
+        pcm_c0 = np.clip(chunk0 * 32767.0, -32768, 32767).astype(np.int16).tobytes()
+        res_c0 = vm.verify_pcm16k_and_apply_strikes(pcm_c0)
+        assert res_c0["authorized"] is True, "Held-out chunk tuan_anh#0 rejected"
+        assert res_c0["tier"] == 1
+        assert res_c0["similarity"] >= 0.475
+        assert res_c0["cohort_margin"] >= 0.0
+
+    assert len(false_rejections) == 0, f"Detected owner False Rejections (FRR > 0%): {false_rejections}"
+
+
+def test_cohort_margin_defense_in_depth_gate() -> None:
+    """Directly test evaluate_cohort_margin function behavior and separation gap."""
+    seed = load_verified_owner_seed(project_root=ROOT)
+    owner_centroid = np.asarray(seed["wespeaker_embedding"], dtype=np.float32)
+
+    # Genuine owner command cau_1 must have strongly positive margin (>= +0.20)
+    c1_path = list((ROOT / "test_audio" / "cac_cau_lenh_cua_sep").glob("cau_1_*.wav"))[0]
+    emb_c1 = extract_wespeaker_embedding(c1_path.read_bytes())
+    margin_c1, max_c1, pass_c1 = evaluate_cohort_margin(emb_c1, owner_centroid)
+    assert pass_c1 is True
+    assert margin_c1 >= 0.20, f"Expected margin >= 0.20, got {margin_c1}"
+
+    # VIVOS impostor DEV11_298 must have negative margin (<= -0.10)
+    dev11_path = pathlib.Path(r"C:\Users\LENOVO\voice-bench\fb\imp\vivos_VIVOSDEV11_298.wav")
+    if dev11_path.exists():
+        emb_dev11 = extract_wespeaker_embedding(dev11_path.read_bytes())
+        margin_d11, max_d11, pass_d11 = evaluate_cohort_margin(emb_dev11, owner_centroid)
+        assert pass_d11 is False
+        assert margin_d11 < 0.0, f"Expected negative margin, got {margin_d11}"

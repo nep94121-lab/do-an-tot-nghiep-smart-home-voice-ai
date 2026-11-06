@@ -1765,7 +1765,7 @@
       if (firstVoiceResultBox) {
         if (data.ok) {
           const f0Val = data.f0_hz ? ` · F0 = ${Number(data.f0_hz).toFixed(1)} Hz` : "";
-          firstVoiceResultBox.textContent = `✅ Đã lưu 5/5 mẫu giọng WeSpeaker thành công! [XÁC NHẬN ĐẠT CHUẨN · ${tierLabel} · Người đọc: ${speakerName}${f0Val}]`;
+          firstVoiceResultBox.textContent = `✅ Đã lưu mẫu giọng thành công! (5/5 mẫu WeSpeaker) [XÁC NHẬN ĐẠT CHUẨN · ${tierLabel} · Người đọc: ${speakerName}${f0Val}]`;
           if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = false;
         } else if (data.status === "DUPLICATE_VOICE_REJECTED") {
           firstVoiceResultBox.textContent = `❌ CHƯA ĐẠT (${tierLabel}): Trùng giọng người trong nhà - Từ chối lưu! Vui lòng thu lại.`;
