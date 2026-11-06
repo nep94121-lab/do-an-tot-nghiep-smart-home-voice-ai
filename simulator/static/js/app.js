@@ -225,25 +225,54 @@
       .replace(/>/g, "&gt;");
   }
 
+  let relayAudioCtx = null;
+
   function playRelayClick(isOpenOrOn) {
     try {
-      if (!audioCtxOut) {
-        audioCtxOut = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      if (!relayAudioCtx) {
+        relayAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (audioCtxOut.state === "suspended") {
-        audioCtxOut.resume();
+      if (relayAudioCtx.state === "suspended") {
+        relayAudioCtx.resume();
       }
-      const osc = audioCtxOut.createOscillator();
-      const gain = audioCtxOut.createGain();
+      const osc = relayAudioCtx.createOscillator();
+      const gain = relayAudioCtx.createGain();
       osc.type = "triangle";
-      osc.frequency.setValueAtTime(isOpenOrOn ? 1450 : 850, audioCtxOut.currentTime);
-      gain.gain.setValueAtTime(0.18, audioCtxOut.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtxOut.currentTime + 0.045);
+      osc.frequency.setValueAtTime(isOpenOrOn ? 1450 : 850, relayAudioCtx.currentTime);
+      gain.gain.setValueAtTime(0.18, relayAudioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, relayAudioCtx.currentTime + 0.045);
       osc.connect(gain);
-      gain.connect(audioCtxOut.destination);
+      gain.connect(relayAudioCtx.destination);
       osc.start();
-      osc.stop(audioCtxOut.currentTime + 0.05);
+      osc.stop(relayAudioCtx.currentTime + 0.05);
     } catch (_) {}
+  }
+
+  function resampleFloat32AntiAliased(rawInput, actualSr, targetSr = 16000) {
+    if (!actualSr || actualSr === targetSr || !rawInput || rawInput.length === 0) {
+      return rawInput;
+    }
+    const outLen = Math.max(1, Math.round((rawInput.length * targetSr) / actualSr));
+    const output = new Float32Array(outLen);
+    const ratio = rawInput.length / outLen;
+    for (let i = 0; i < outLen; i++) {
+      const start = i * ratio;
+      const end = (i + 1) * ratio;
+      const idxStart = Math.max(0, Math.floor(start));
+      const idxEnd = Math.min(rawInput.length - 1, Math.ceil(end) - 1);
+      if (idxEnd <= idxStart) {
+        output[i] = rawInput[idxStart];
+      } else {
+        let sum = 0;
+        let cnt = 0;
+        for (let k = idxStart; k <= idxEnd; k++) {
+          sum += rawInput[k];
+          cnt++;
+        }
+        output[i] = sum / cnt;
+      }
+    }
+    return output;
   }
 
   function playPcm24kChunk(base64Data) {
@@ -771,19 +800,8 @@
         setAiReplyText(spokenReply);
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
-        if (data.pcm24k_b64) {
-          playPcm24kChunk(data.pcm24k_b64);
-        } else if (spokenReply) {
-          if (typeof window !== "undefined" && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function") {
-            try {
-              window.speechSynthesis.cancel();
-              const utt = new window.SpeechSynthesisUtterance(spokenReply);
-              utt.lang = "vi-VN";
-              window.speechSynthesis.speak(utt);
-            } catch (_) {}
-          } else {
-            speakVietnameseFallback(spokenReply);
-          }
+        if (spokenReply) {
+          speakVietnameseFallback(spokenReply);
         }
       }
       if (data.snapshot) {
@@ -1063,7 +1081,7 @@
 
         case "voice_auth_rejected": {
           const rejSpeech = msg.rejection_speech || (msg.strike_count === 1
-            ? "Tôi không được phép nhận lệnh từ người lạ."
+            ? "Tôi không nhận ra giọng của bạn."
             : "Tôi sẽ không trả lời bạn lần nữa.");
           if (msg.label && msg.label !== "Giọng nói trực tiếp qua Mic") {
             setUserTranscriptText(msg.label);
@@ -1076,12 +1094,13 @@
           if (msg.strike_count && msg.strike_count >= 3) {
             triggerSecurityLockdown();
           }
-          // Server-Side Rejection TTS 24kHz: phát âm thanh server qua Web Audio API (fallback speechSynthesis vi-VN)
-          if (msg.pcm24k_b64) {
-            playPcm24kChunk(msg.pcm24k_b64);
-          } else {
-            speakVietnameseFallback(rejSpeech);
-          }
+          const rejectTs = performance.now();
+          setTimeout(() => {
+            const lastChunkTs = window._lastGeminiAudioChunkTs || 0;
+            if (lastChunkTs < rejectTs) {
+              speakVietnameseFallback(rejSpeech);
+            }
+          }, 650);
           break;
         }
 
@@ -1315,6 +1334,7 @@
       wasSpeaking = false;
       silenceStartMs = 0;
       activeMicPcmChunks = [];
+      let preRollMicChunks = [];
       startBrowserSpeechRecognitionVi();
       let noiseFloorRms = 0.008;
       let speechStartMs = 0;
@@ -1323,15 +1343,7 @@
         if (!isRecording) return;
         const rawInput = e.inputBuffer.getChannelData(0);
         const actualSr = micAudioCtx ? micAudioCtx.sampleRate : 16000;
-        let input = rawInput;
-        if (actualSr && actualSr !== 16000) {
-          const outLen = Math.max(1, Math.round((rawInput.length * 16000) / actualSr));
-          input = new Float32Array(outLen);
-          const ratio = rawInput.length / outLen;
-          for (let i = 0; i < outLen; i++) {
-            input[i] = rawInput[Math.min(rawInput.length - 1, Math.floor(i * ratio))];
-          }
-        }
+        const input = resampleFloat32AntiAliased(rawInput, actualSr, 16000);
         let sumSq = 0;
         const pcm16 = new Int16Array(input.length);
         for (let i = 0; i < input.length; i++) {
@@ -1363,32 +1375,48 @@
           noiseFloorRms = Math.min(0.025, noiseFloorRms * 0.995 + rms * 0.005);
         }
         const nowMs = performance.now();
+        const chunkBytes = new Uint8Array(pcm16.buffer.slice(0));
 
-        if (isSpeech || wasSpeaking) {
-          activeMicPcmChunks.push(new Uint8Array(pcm16.buffer.slice(0)));
-          if (activeMicPcmChunks.length > 75) {
-            activeMicPcmChunks.shift();
+        if (!isSpeech && !wasSpeaking) {
+          preRollMicChunks.push(chunkBytes);
+          if (preRollMicChunks.length > 2) {
+            preRollMicChunks.shift();
           }
         }
 
         if (isSpeech) {
           if (!wasSpeaking) {
             speechStartMs = nowMs;
+            while (preRollMicChunks.length > 0) {
+              activeMicPcmChunks.push(preRollMicChunks.shift());
+            }
           }
           wasSpeaking = true;
           silenceStartMs = 0;
+          activeMicPcmChunks.push(chunkBytes);
+          if (activeMicPcmChunks.length > 100) {
+            activeMicPcmChunks.shift();
+          }
           micStateLabel.textContent = "Đang nghe";
-          if (speechStartMs > 0 && nowMs - speechStartMs > 2000) {
+          if (speechStartMs > 0 && nowMs - speechStartMs > 6500) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
             micStateLabel.textContent = "Đang xử lý";
-            flushServerlessMicVoiceCommand();
+            if (isWsOpen()) {
+              sendWs({ type: "mic_speech_ended" });
+            } else {
+              flushServerlessMicVoiceCommand();
+            }
           }
         } else if (wasSpeaking) {
+          activeMicPcmChunks.push(chunkBytes);
+          if (activeMicPcmChunks.length > 100) {
+            activeMicPcmChunks.shift();
+          }
           if (silenceStartMs === 0) {
             silenceStartMs = nowMs;
-          } else if (nowMs - silenceStartMs > 460) {
+          } else if (nowMs - silenceStartMs > 520) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
@@ -1474,7 +1502,9 @@
         const src = tempCtx.createMediaStreamSource(tempStream);
         tempProc = tempCtx.createScriptProcessor(2048, 1, 1);
         tempProc.onaudioprocess = (ev) => {
-          const input = ev.inputBuffer.getChannelData(0);
+          const rawInput = ev.inputBuffer.getChannelData(0);
+          const actualSr = tempCtx ? tempCtx.sampleRate : 16000;
+          const input = resampleFloat32AntiAliased(rawInput, actualSr, 16000);
           const pcm16 = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) {
             const s = Math.max(-1, Math.min(1, input[i]));
@@ -1739,12 +1769,15 @@
       const phraseText = firstVoiceSamplePhrase
         ? firstVoiceSamplePhrase.textContent.replace(/^"|"$/g, "").trim()
         : "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi đọc câu này để lưu mẫu giọng nói gốc lên máy chủ.";
+      const isSyntheticFallback = !pcmB64 && (!Array.isArray(samplesListB64) || samplesListB64.length === 0);
       const b64 = pcmB64 || generateSynthetic16kPcmB64(true, 0);
       let effectiveSamples = Array.isArray(samplesListB64) && samplesListB64.length > 0
         ? samplesListB64.slice()
         : [b64];
-      while (effectiveSamples.length < HOME_ENROLL_REQUIRED_SAMPLES) {
-        effectiveSamples.push(generateSynthetic16kPcmB64(true, effectiveSamples.length));
+      if (isSyntheticFallback) {
+        while (effectiveSamples.length < HOME_ENROLL_REQUIRED_SAMPLES) {
+          effectiveSamples.push(generateSynthetic16kPcmB64(true, effectiveSamples.length));
+        }
       }
       const res = await fetch("/api/auth3/enroll_voice_sample", {
         method: "POST",
@@ -1783,7 +1816,7 @@
   if (btnRetryFirstVoiceModal) {
     btnRetryFirstVoiceModal.addEventListener("click", async () => {
       if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = true;
-      await submitHomeVoiceEnroll(generateSynthetic16kPcmB64(true));
+      await submitHomeVoiceEnroll(null, null);
     });
   }
 
@@ -1822,7 +1855,7 @@
       appRecordedPcmChunks = [];
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          await submitHomeVoiceEnroll(generateSynthetic16kPcmB64(true));
+          await submitHomeVoiceEnroll(null, null);
           return;
         }
         appMediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
@@ -1831,7 +1864,9 @@
         appAudioProcessor = appAudioContext.createScriptProcessor(4096, 1, 1);
         appAudioProcessor.onaudioprocess = (e) => {
           if (!isAppVoiceRecording) return;
-          const input = e.inputBuffer.getChannelData(0);
+          const rawInput = e.inputBuffer.getChannelData(0);
+          const actualSr = appAudioContext ? appAudioContext.sampleRate : 16000;
+          const input = resampleFloat32AntiAliased(rawInput, actualSr, 16000);
           const pcm16 = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) {
             const s = Math.max(-1, Math.min(1, input[i]));
@@ -1849,7 +1884,7 @@
           }
         }, 3200);
       } catch (err) {
-        await submitHomeVoiceEnroll(generateSynthetic16kPcmB64(true));
+        await submitHomeVoiceEnroll(null, null);
       }
     });
   }

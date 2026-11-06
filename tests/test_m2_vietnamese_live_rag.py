@@ -58,19 +58,19 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         prompt = build_system_instruction(self.engine)
 
         # 1. Vietnamese Prompt Guard
-        self.assertIn("VIETNAMESE PROMPT GUARD", prompt)
-        self.assertIn("BẮT BUỘC 100% PHẢN HỒI BẰNG TIẾNG VIỆT", prompt)
-        self.assertIn("TUYỆT ĐỐI KHÔNG BAO GIỜ TRẢ LỜI BẰNG TIẾNG ANH", prompt)
+        self.assertIn("Vietnamese Prompt Guard", prompt)
+        self.assertIn("Phản hồi 100% bằng tiếng Việt", prompt)
+        self.assertIn("Không trả lời bằng tiếng Anh", prompt)
 
         # 2. Filler Sound Guard
-        self.assertIn("FILLER SOUND & HESITATION GUARD", prompt)
+        self.assertIn("Filler Sound & Hesitation Guard", prompt)
         self.assertIn("ừm", prompt)
         self.assertIn("ờ", prompt)
         self.assertIn("Tôi có thể giúp gì cho bạn?", prompt)
 
         # 3. Domain Guard 7 thiết bị
-        self.assertIn("SMART HOME DOMAIN GUARD", prompt)
-        self.assertIn("7 THIẾT BỊ", prompt)
+        self.assertIn("Smart Home Domain Guard", prompt)
+        self.assertIn("7 thiết bị nhà thông minh", prompt)
         self.assertIn("Máy bơm tưới cây (D3)", prompt)
         self.assertIn("Cửa chính (D1)", prompt)
         self.assertIn("Đèn phòng khách (D2)", prompt)

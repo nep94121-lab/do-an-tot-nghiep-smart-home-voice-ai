@@ -78,11 +78,11 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
     },
     {
         "id": "voice_enrollment_flow",
-        "min_tier": "2",
+        "min_tier": "1",
         "topic": "Cách thêm người mới / thu âm giọng nói để cấp quyền cấp 2, cấp 3",
         "keywords": "thêm người mới, bật ghi âm, thu âm, ghi âm, cấp quyền giọng nói, đăng ký giọng",
         "content": (
-            "Khi bạn yêu cầu thu âm cấp quyền, tôi sẽ đếm 3, 2, 1 và nháy đèn báo hiệu bắt đầu, thu âm trong 5 giây, báo đã thu âm đủ, phân tích tần số giọng nói rồi hỏi tên người được cấp quyền."
+            "Chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền đăng ký giọng mới và cấp/hủy quyền. Khi Chủ nhà yêu cầu thu âm cấp quyền, tôi sẽ đếm 3, 2, 1 và nháy đèn báo hiệu bắt đầu, thu âm trong 5 giây, báo đã thu âm đủ, phân tích tần số giọng nói rồi hỏi tên người được cấp quyền."
         ),
     },
     {
@@ -92,9 +92,9 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "keywords": "quy định, phân quyền, 3 tầng, ba tầng, cấp quyền, hủy quyền, tầng 1, tầng 2, tầng 3, cấp 1, cấp 2, cấp 3, admin, thành viên, khách",
         "content": (
             "Hệ thống có 3 tầng quyền hạn: "
-            "Tầng 1 là Admin tối cao Nguyễn Tuấn Anh: toàn quyền, được hỏi mọi thông tin, luật IF áp dụng toàn nhà, không ai được hủy người do Tầng 1 cấp, và không ai được đè hay vướng hẹn giờ của Tầng 1. "
-            "Tầng 2 là Thành viên gia đình: mỗi người có bể lệnh và hẹn giờ riêng, chỉ được reset bể của chính mình, được thu âm cấp và hủy quyền cho Tầng 3 (trừ người do Tầng 1 cấp), không được hủy cùng cấp. "
-            "Tầng 3 là Khách: chỉ được gọi lệnh đóng mở cố định, không được đổi lệnh, không được đặt luật IF, không được hẹn giờ và không được cấp hay hủy quyền của ai."
+            "Tầng 1 là Admin tối cao Nguyễn Tuấn Anh: toàn quyền điều khiển thiết bị, là người duy nhất được cấp quyền, hủy quyền và đăng ký giọng nói mới, luật IF áp dụng toàn nhà, và không ai được đè hẹn giờ của Tầng 1. "
+            "Tầng 2 là Thành viên gia đình: mỗi người có bể lệnh và hẹn giờ riêng, chỉ được reset bể của chính mình, không được cấp hay hủy quyền của bất kỳ ai. "
+            "Tầng 3 là Khách: chỉ được gọi lệnh đóng mở cố định (đèn, quạt), không được đổi lệnh, không được đặt luật IF, không được hẹn giờ và không được cấp hay hủy quyền của ai."
         ),
     },
     {

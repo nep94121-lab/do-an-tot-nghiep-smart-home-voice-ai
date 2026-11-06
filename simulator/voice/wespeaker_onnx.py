@@ -115,11 +115,131 @@ def _build_kaldi_fbank80_constants(
 _POVEY_WINDOW_400, _KALDI_MEL_BINS_80 = _build_kaldi_fbank80_constants()
 
 
+def _is_encoded_container_bytes(raw: bytes) -> bool:
+    """Detect WebM/Matroska, Ogg/Opus, FLAC, MP3, or MP4/M4A headers."""
+    if len(raw) < 4:
+        return False
+    if raw[:4] in (b"\x1a\x45\xdf\xa3", b"OggS", b"fLaC") or raw[:3] == b"ID3":
+        return True
+    if raw[0] == 0xFF and (raw[1] & 0xE0) == 0xE0:
+        return True
+    if len(raw) >= 8 and raw[4:8] == b"ftyp":
+        return True
+    return False
+
+
+def _decode_encoded_container_to_float32_16k(raw: bytes) -> np.ndarray | None:
+    """Decode WebM/Opus, Ogg, MP3, FLAC, or M4A bytes to 16 kHz mono float32 in [-1, 1]."""
+    try:
+        import av  # type: ignore
+
+        with av.open(io.BytesIO(raw)) as container:
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE_16K)
+            chunks: list[np.ndarray] = []
+            for frame in container.decode(audio=0):
+                for rframe in resampler.resample(frame):
+                    arr = rframe.to_ndarray().reshape(-1)
+                    chunks.append(arr.astype(np.float32) / 32768.0)
+            for rframe in resampler.resample(None):
+                arr = rframe.to_ndarray().reshape(-1)
+                chunks.append(arr.astype(np.float32) / 32768.0)
+            if chunks:
+                return np.concatenate(chunks).astype(np.float32, copy=False)
+    except Exception:
+        pass
+
+    try:
+        import soundfile as sf  # type: ignore
+
+        data, sr_in = sf.read(io.BytesIO(raw), dtype="float32", always_2d=True)
+        mono = data.mean(axis=1).astype(np.float32)
+        if mono.size > 0:
+            return _resample_float32_anti_aliased(mono, int(sr_in), SAMPLE_RATE_16K)
+    except Exception:
+        pass
+
+    try:
+        import shutil
+        import subprocess
+
+        ffmpeg_exe = shutil.which("ffmpeg")
+        if not ffmpeg_exe:
+            try:
+                import imageio_ffmpeg  # type: ignore
+
+                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                ffmpeg_exe = None
+        if ffmpeg_exe:
+            proc = subprocess.run(
+                [
+                    ffmpeg_exe,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-i",
+                    "pipe:0",
+                    "-f",
+                    "s16le",
+                    "-acodec",
+                    "pcm_s16le",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    str(SAMPLE_RATE_16K),
+                    "pipe:1",
+                ],
+                input=raw,
+                capture_output=True,
+                timeout=8,
+                check=False,
+            )
+            if proc.returncode == 0 and len(proc.stdout) >= 2:
+                usable = (len(proc.stdout) // 2) * 2
+                return (
+                    np.frombuffer(proc.stdout[:usable], dtype=np.int16).astype(np.float32)
+                    / 32768.0
+                )
+    except Exception:
+        pass
+    return None
+
+
+def _resample_float32_anti_aliased(
+    x: np.ndarray,
+    sr_in: int,
+    sr_out: int = SAMPLE_RATE_16K,
+) -> np.ndarray:
+    """Resample 1-D float32 audio from sr_in to sr_out with anti-aliasing low-pass filtering."""
+    if sr_in == sr_out or x.size <= 1:
+        return x.astype(np.float32, copy=False)
+    if sr_in > sr_out:
+        ratio = float(sr_in) / float(sr_out)
+        int_ratio = int(round(ratio))
+        if abs(ratio - int_ratio) < 1e-4 and int_ratio >= 2 and len(x) >= int_ratio:
+            n_blocks = len(x) // int_ratio
+            return (
+                x[: n_blocks * int_ratio]
+                .reshape(n_blocks, int_ratio)
+                .mean(axis=1)
+                .astype(np.float32)
+            )
+        win_len = max(2, int(round(ratio)))
+        kernel = np.ones(win_len, dtype=np.float32) / float(win_len)
+        x = np.convolve(x, kernel, mode="same").astype(np.float32)
+    new_len = max(1, int(round(len(x) * float(sr_out) / float(sr_in))))
+    return np.interp(
+        np.linspace(0.0, len(x) - 1, new_len),
+        np.arange(len(x), dtype=np.float64),
+        x.astype(np.float64),
+    ).astype(np.float32)
+
+
 def pcm_bytes_to_float32_16k(
     audio: bytes | bytearray | np.ndarray,
     sr: int = SAMPLE_RATE_16K,
 ) -> np.ndarray:
-    """Convert raw PCM16 bytes, WAV bytes, or numpy array to 16 kHz mono float32 in [-1, 1]."""
+    """Convert raw PCM16 bytes, WAV bytes, WebM/Opus/Ogg/MP3 bytes, or numpy array to 16 kHz mono float32 in [-1, 1]."""
     if isinstance(audio, np.ndarray):
         arr = audio
         if arr.ndim == 2:
@@ -160,6 +280,17 @@ def pcm_bytes_to_float32_16k(
                     np.frombuffer(raw[:usable], dtype=np.int16).astype(np.float32)
                     / 32768.0
                 )
+        elif _is_encoded_container_bytes(raw):
+            decoded_x = _decode_encoded_container_to_float32_16k(raw)
+            if decoded_x is not None and decoded_x.size > 0:
+                return decoded_x
+            usable = (len(raw) // 2) * 2
+            if usable == 0:
+                return np.zeros(0, dtype=np.float32)
+            x = (
+                np.frombuffer(raw[:usable], dtype=np.int16).astype(np.float32)
+                / 32768.0
+            )
         else:
             usable = (len(raw) // 2) * 2
             if usable == 0:
@@ -172,12 +303,7 @@ def pcm_bytes_to_float32_16k(
         return np.zeros(0, dtype=np.float32)
 
     if sr != SAMPLE_RATE_16K and x.size > 1:
-        new_len = max(1, int(round(len(x) * SAMPLE_RATE_16K / float(sr))))
-        x = np.interp(
-            np.linspace(0.0, len(x) - 1, new_len),
-            np.arange(len(x), dtype=np.float64),
-            x.astype(np.float64),
-        ).astype(np.float32)
+        x = _resample_float32_anti_aliased(x, sr, SAMPLE_RATE_16K)
     return x.astype(np.float32, copy=False)
 
 
@@ -780,6 +906,13 @@ def load_verified_owner_seed(
             chunk1 = chunks[1].astype(np.float32)
             embs.append(extract_wespeaker_embedding(chunk1))
             sample_names.append("giong_chu_nha_cap1_tuan_anh.wav#1")
+
+    mic_seed_wav = audio_dir / "lich_su_thu_am" / "giong_cap1_20261104_110554.wav"
+    if mic_seed_wav.exists():
+        arr_mic = _read_wav_float32_16k(mic_seed_wav)
+        if arr_mic.size >= 3200:
+            embs.append(extract_wespeaker_embedding(arr_mic))
+            sample_names.append(mic_seed_wav.name)
 
     if len(embs) >= 5:
         sum_emb = np.sum(embs, axis=0)

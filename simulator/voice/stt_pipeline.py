@@ -19,10 +19,6 @@ from typing import Any
 
 import numpy as np
 
-from simulator.live.tts_rejection_vi import (
-    get_cached_speech_audio_b64,
-    get_rejection_audio_b64,
-)
 from simulator.voice.dsp_features import (
     cosine_sim,
     denoise_and_isolate_human_voice,
@@ -35,9 +31,12 @@ from simulator.voice.enrollment_quality import (
     validate_voice_enrollment_quality,
 )
 from simulator.voice.wespeaker_onnx import (
+    _is_encoded_container_bytes,
     compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
+    evaluate_cohort_margin,
     extract_wespeaker_embedding,
+    pcm_bytes_to_float32_16k,
 )
 from simulator.voice_config import (
     OWNER_ID,
@@ -101,34 +100,19 @@ def resolve_level1_owner_audio_path(
 
 
 def decode_audio_bytes_to_pcm16k(raw_bytes: bytes) -> tuple[np.ndarray, bytes]:
-    """Giai ma WAV hoac raw PCM16 sang mang numpy Int16 16kHz mono."""
+    """Giai ma WAV, WebM/Opus, Ogg, MP3, FLAC hoac raw PCM16 sang mang numpy Int16 16kHz mono."""
     if not raw_bytes:
         return np.array([], dtype=np.int16), b""
 
-    if len(raw_bytes) >= 44 and raw_bytes[:4] == b"RIFF" and raw_bytes[8:12] == b"WAVE":
+    if (
+        (len(raw_bytes) >= 44 and raw_bytes[:4] == b"RIFF" and raw_bytes[8:12] == b"WAVE")
+        or _is_encoded_container_bytes(raw_bytes)
+    ):
         try:
-            with wave.open(io.BytesIO(raw_bytes), "rb") as wf:
-                ch = wf.getnchannels()
-                sr = wf.getframerate()
-                sw = wf.getsampwidth()
-                frames = wf.readframes(wf.getnframes())
-            if sw == 2:
-                pcm = np.frombuffer(frames, dtype=np.int16)
-            elif sw == 4:
-                pcm = (np.frombuffer(frames, dtype=np.int32) >> 16).astype(np.int16)
-            else:
-                pcm = (
-                    (np.frombuffer(frames, dtype=np.uint8).astype(np.int16) - 128) << 8
-                ).astype(np.int16)
-            if ch > 1:
-                pcm = pcm.reshape(-1, ch).mean(axis=1).astype(np.int16)
-            if sr != 16000 and pcm.size > 0:
-                dur = pcm.size / float(sr)
-                target_len = max(1, int(round(dur * 16000)))
-                x_old = np.linspace(0.0, 1.0, num=pcm.size, endpoint=False)
-                x_new = np.linspace(0.0, 1.0, num=target_len, endpoint=False)
-                pcm = np.interp(x_new, x_old, pcm.astype(np.float32)).astype(np.int16)
-            return pcm, raw_bytes
+            flt = pcm_bytes_to_float32_16k(raw_bytes, sr=16000)
+            if flt.size > 0:
+                pcm = np.clip(flt * 32767.0, -32768, 32767).astype(np.int16)
+                return pcm, raw_bytes
         except Exception:
             pass
 
@@ -400,6 +384,10 @@ async def process_voice_command_pipeline(
         if cos_val > highest_raw_cos:
             highest_raw_cos = cos_val
         if cos_val >= p_thresh and cos_val > best_cos:
+            if p_tier == 1:
+                _, _, cohort_pass = evaluate_cohort_margin(cur_wespk, p_emb)
+                if not cohort_pass:
+                    continue
             best_cos = cos_val
             best_prof = prof
             best_thresh = p_thresh
@@ -479,7 +467,6 @@ async def process_voice_command_pipeline(
             "reply": rejection_msg,
             "exact_spoken_reply": rejection_msg,
             "rejection_speech": rejection_msg,
-            "pcm24k_b64": get_rejection_audio_b64("REST_STRANGER_BLOCKED"),
             "results": [],
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 4),
@@ -527,7 +514,6 @@ async def process_voice_command_pipeline(
             "action": action_no_dev,
             "reply": msg,
             "exact_spoken_reply": msg,
-            "pcm24k_b64": get_cached_speech_audio_b64(msg),
             "results": [],
             "device_states": {k: v.get("state") for k, v in engine.devices.items()},
             "f0_hz": round(f0_hz, 1),
@@ -592,11 +578,6 @@ async def process_voice_command_pipeline(
     )
     action_str = "; ".join(action_summaries)
     latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-    if any_blocked:
-        rbac_code = "TIER2_PERMISSION_DENIED" if tier == 2 else "TIER3_PERMISSION_DENIED"
-        spoken_b64 = get_rejection_audio_b64(rbac_code)
-    else:
-        spoken_b64 = get_cached_speech_audio_b64(final_reply)
 
     return {
         "ok": all_ok,
@@ -619,7 +600,7 @@ async def process_voice_command_pipeline(
         "action": action_str,
         "reply": final_reply,
         "exact_spoken_reply": final_reply,
-        "pcm24k_b64": spoken_b64,
+        "rejection_speech": final_reply if any_blocked else "",
         "results": device_results,
         "device_states": {k: v.get("state") for k, v in engine.devices.items()},
         "f0_hz": round(f0_hz, 1),

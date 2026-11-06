@@ -1523,6 +1523,33 @@
     let mobileOutAudioCtx = null;
     let mobileNextPlayTime = 0;
 
+    function resampleMobileFloat32AntiAliased(rawInput, actualSr, targetSr = 16000) {
+      if (!actualSr || actualSr === targetSr || !rawInput || rawInput.length === 0) {
+        return rawInput;
+      }
+      const outLen = Math.max(1, Math.round((rawInput.length * targetSr) / actualSr));
+      const output = new Float32Array(outLen);
+      const ratio = rawInput.length / outLen;
+      for (let i = 0; i < outLen; i++) {
+        const start = i * ratio;
+        const end = (i + 1) * ratio;
+        const idxStart = Math.max(0, Math.floor(start));
+        const idxEnd = Math.min(rawInput.length - 1, Math.ceil(end) - 1);
+        if (idxEnd <= idxStart) {
+          output[i] = rawInput[idxStart];
+        } else {
+          let sum = 0;
+          let cnt = 0;
+          for (let k = idxStart; k <= idxEnd; k++) {
+            sum += rawInput[k];
+            cnt++;
+          }
+          output[i] = sum / cnt;
+        }
+      }
+      return output;
+    }
+
     function playMobilePcm24kOrSpeakVi(pcm24kB64, fallbackText) {
       if (pcm24kB64) {
         try {
@@ -1680,7 +1707,9 @@
         mobileAudioProcessor = mobileAudioContext.createScriptProcessor(4096, 1, 1);
         mobileAudioProcessor.onaudioprocess = (e) => {
           if (!isMobileListening) return;
-          const input = e.inputBuffer.getChannelData(0);
+          const rawInput = e.inputBuffer.getChannelData(0);
+          const actualSr = mobileAudioContext ? mobileAudioContext.sampleRate : 16000;
+          const input = resampleMobileFloat32AntiAliased(rawInput, actualSr, 16000);
           const pcm16 = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) {
             const s = Math.max(-1, Math.min(1, input[i]));
@@ -1827,15 +1856,10 @@
         targetTierSel.innerHTML = `<option value="2">Gia đình</option><option value="3">Khách</option>`;
         msg.style.color = 'var(--muted)';
         msg.textContent = 'Chủ nhà được thêm Gia đình và Khách.';
-      } else if (tier === 2) {
-        form.style.display = 'grid';
-        targetTierSel.innerHTML = `<option value="3">Khách</option>`;
-        msg.style.color = 'var(--muted)';
-        msg.textContent = 'Gia đình chỉ được thêm Khách.';
       } else {
         form.style.display = 'none';
         msg.style.color = 'var(--danger)';
-        msg.textContent = 'Khách không có quyền thêm thành viên.';
+        msg.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên.';
       }
       fetch('/api/session/role', {
         method: 'POST',
@@ -1916,7 +1940,9 @@
           const processor = audioCtx.createScriptProcessor(4096, 1, 1);
           let chunks = [];
           processor.onaudioprocess = (e) => {
-            const input = e.inputBuffer.getChannelData(0);
+            const rawInput = e.inputBuffer.getChannelData(0);
+            const actualSr = audioCtx ? audioCtx.sampleRate : 16000;
+            const input = resampleMobileFloat32AntiAliased(rawInput, actualSr, 16000);
             const pcm16 = new Int16Array(input.length);
             for (let i = 0; i < input.length; i++) {
               const s = Math.max(-1, Math.min(1, input[i]));
@@ -2073,12 +2099,18 @@
           if (badge) badge.textContent = 'Sẵn sàng';
         }
         if (msg.type === 'audio_chunk' && msg.pcm24k_b64) {
+          window._lastMobileGeminiAudioChunkTs = performance.now();
           playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, '');
         }
         if (msg.type === 'voice_auth_rejected') {
-          const rejText = msg.rejection_speech || 'Tôi không được phép nhận lệnh từ người lạ.';
+          const rejText = msg.rejection_speech || 'Tôi không nhận ra giọng của bạn.';
           showPwaVoiceResults(msg.label || null, rejText);
-          playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, rejText);
+          const rejTs = performance.now();
+          setTimeout(() => {
+            if ((window._lastMobileGeminiAudioChunkTs || 0) < rejTs) {
+              playMobilePcm24kOrSpeakVi('', rejText);
+            }
+          }, 650);
           const badge = document.getElementById('voiceStateBadge');
           if (badge) badge.textContent = 'Cần thử lại';
         }

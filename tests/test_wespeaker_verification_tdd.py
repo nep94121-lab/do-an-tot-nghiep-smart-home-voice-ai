@@ -96,12 +96,15 @@ def _generate_distinct_human_like_samples(base_f0: float, count: int = 5) -> lis
 
 @pytest.fixture(autouse=True)
 def reset_voice_state():
+    from simulator.api.deps import _REST_ENGINE
+
     mgr = get_auth_3layer_manager()
     if hasattr(mgr, "used_qr_tokens"):
         mgr.used_qr_tokens.clear()
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     yield
     _BOOT_VOICE_AUTH.reset_to_owner_only()
+    asyncio.run(_REST_ENGINE.factory_reset())
 
 
 @pytest.fixture

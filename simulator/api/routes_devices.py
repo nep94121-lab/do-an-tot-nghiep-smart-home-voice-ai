@@ -30,11 +30,7 @@ from simulator.api.deps import (
     broadcast_rest_state_to_bridges,
 )
 from simulator.auth.session_store import get_session_store, resolve_request_session
-from simulator.live.tts_rejection_vi import (
-    get_cached_speech_audio_b64,
-    get_rejection_audio_b64,
-    get_rejection_speech_text,
-)
+from simulator.live.tts_rejection_vi import get_rejection_speech_text
 from simulator.rule_engine import append_audit_log
 from simulator.voice.enrollment_quality import strip_vietnamese_diacritics
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
@@ -324,7 +320,6 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
                 "error": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "rejection_speech": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "exact_spoken_reply": UNKNOWN_DEVICE_REJECTION_ERROR,
-                "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
             },
             status_code=403,
         )
@@ -337,7 +332,6 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
                 "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                 "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                 "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                 "status_code": 401,
             },
             status_code=401,
@@ -363,10 +357,6 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     spoken_dev_ctrl = str(res.get("exact_spoken_reply") or res.get("error") or "").strip()
     if not res.get("ok"):
         res["rejection_speech"] = spoken_dev_ctrl
-        rej_code_ctrl = "TIER3_PERMISSION_DENIED" if session_tier == 3 else ("TIER2_PERMISSION_DENIED" if session_tier == 2 else "STRANGER_BLOCKED")
-        res["pcm24k_b64"] = get_cached_speech_audio_b64(spoken_dev_ctrl, fallback_reason_code=rej_code_ctrl)
-    elif spoken_dev_ctrl:
-        res["pcm24k_b64"] = get_cached_speech_audio_b64(spoken_dev_ctrl)
 
     append_audit_log(
         category="DEVICE_IO",
@@ -414,7 +404,6 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
                 "error": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "rejection_speech": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "exact_spoken_reply": UNKNOWN_DEVICE_REJECTION_ERROR,
-                "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
             },
             status_code=403,
         )
@@ -427,7 +416,6 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
                 "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                 "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                 "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                 "status_code": 401,
             },
             status_code=401,
@@ -565,7 +553,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
                 "error": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "rejection_speech": UNKNOWN_DEVICE_REJECTION_ERROR,
                 "exact_spoken_reply": UNKNOWN_DEVICE_REJECTION_ERROR,
-                "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
             },
             status_code=403,
         )
@@ -621,7 +608,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
                     "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                     "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                     "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                     "status_code": 401,
                 },
                 status_code=401,
@@ -653,7 +639,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
                     "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                     "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                     "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                     "status_code": 401,
                 },
                 status_code=401,
@@ -715,7 +700,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
                     "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                     "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                     "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                     "status_code": 401,
                 },
                 status_code=401,
@@ -797,7 +781,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
                     "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
                     "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
                     "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "pcm24k_b64": get_rejection_audio_b64("STRANGER_BLOCKED"),
                     "status_code": 401,
                 },
                 status_code=401,
@@ -815,11 +798,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
         await broadcast_rest_state_to_bridges()
         spoken_dev = res_dev.get("exact_spoken_reply") or f"Đã xử lý lệnh: {text}"
         status_code = 200 if (res_dev.get("ok") or session.source == "legacy_test") else 403
-        rej_code_txt = "TIER3_PERMISSION_DENIED" if effective_tier == 3 else ("TIER2_PERMISSION_DENIED" if effective_tier == 2 else "STRANGER_BLOCKED")
-        pcm_txt_b64 = get_cached_speech_audio_b64(
-            spoken_dev,
-            fallback_reason_code=(rej_code_txt if not res_dev.get("ok") else ""),
-        )
         return JSONResponse({
             "ok": bool(res_dev.get("ok")),
             "rbac_blocked": not bool(res_dev.get("ok")),
@@ -827,7 +805,6 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "reply": spoken_dev,
             "exact_spoken_reply": spoken_dev,
             "rejection_speech": spoken_dev if not res_dev.get("ok") else "",
-            "pcm24k_b64": pcm_txt_b64,
             "results": res_dev.get("results", []),
             "snapshot": _REST_ENGINE.get_snapshot(session=session),
         }, status_code=status_code)
@@ -895,7 +872,6 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
                 "reply": rej_msg,
                 "exact_spoken_reply": rej_msg,
                 "rejection_speech": rej_msg,
-                "pcm24k_b64": get_rejection_audio_b64("REST_STRANGER_BLOCKED"),
                 "results": [],
                 "f0_hz": 0.0,
                 "similarity": 0.0,
@@ -922,16 +898,6 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
         session_user=None,
         session_role=None,
     )
-    if not res.get("pcm24k_b64"):
-        if not res.get("authorized", True):
-            res["pcm24k_b64"] = get_rejection_audio_b64("REST_STRANGER_BLOCKED")
-        elif res.get("rbac_blocked"):
-            rbac_code = "TIER2_PERMISSION_DENIED" if res.get("tier") == 2 else "TIER3_PERMISSION_DENIED"
-            res["pcm24k_b64"] = get_rejection_audio_b64(rbac_code)
-        else:
-            res["pcm24k_b64"] = get_cached_speech_audio_b64(
-                str(res.get("exact_spoken_reply") or res.get("reply") or "")
-            )
     res = sanitize_api_payload(res)
 
     append_audit_log(

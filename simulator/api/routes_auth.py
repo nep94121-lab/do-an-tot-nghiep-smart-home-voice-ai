@@ -260,7 +260,12 @@ async def api_auth3_invite_verify_otp(payload: dict[str, Any]) -> JSONResponse:
     )
     if res.get("ok") and res.get("account"):
         acc = res["account"]
-        await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
+        prev_uid = _REST_ENGINE.current_user_id
+        _REST_ENGINE.set_active_user(OWNER_ID)
+        try:
+            await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
+        finally:
+            _REST_ENGINE.set_active_user(prev_uid)
         await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
@@ -285,8 +290,9 @@ async def api_auth3_read_gmail_otp(request: Request, payload: dict[str, Any] | N
 
 
 def _decode_b64_samples_to_pcm16k_list(raw_list: Any) -> list[bytes]:
-    """Decode a list of base64 audio strings (PCM16k or WAV container) to 16 kHz mono PCM16 bytes."""
+    """Decode a list of base64 audio strings (PCM16k, WAV, or WebM/Opus/Ogg/MP3 container) to 16 kHz mono PCM16 bytes."""
     from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+    from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
 
     if not isinstance(raw_list, (list, tuple)):
         return []
@@ -299,7 +305,7 @@ def _decode_b64_samples_to_pcm16k_list(raw_list: Any) -> list[bytes]:
             s = s.split(",", 1)[1]
         try:
             dec = base64.b64decode(s)
-            if len(dec) >= 44 and dec[:4] == b"RIFF":
+            if (len(dec) >= 44 and dec[:4] == b"RIFF") or _is_encoded_container_bytes(dec):
                 arr, _ = decode_audio_bytes_to_pcm16k(dec)
                 dec = arr.astype("int16").tobytes()
             if len(dec) >= 640:
@@ -343,8 +349,10 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
             else pcm16k_b64
         )
         try:
+            from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
             raw_decoded = base64.b64decode(clean_b64)
-            if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+            if (len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF") or _is_encoded_container_bytes(raw_decoded):
                 pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
                 pcm_bytes = pcm_arr.astype("int16").tobytes()
                 pcm16k_b64 = base64.b64encode(pcm_bytes).decode("ascii")
@@ -480,8 +488,10 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
             if ("," in pcm16k_b64 and pcm16k_b64.startswith("data:"))
             else pcm16k_b64
         )
+        from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
         raw_decoded = base64.b64decode(clean_b64) if clean_b64 else b""
-        if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+        if (len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF") or _is_encoded_container_bytes(raw_decoded):
             pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
             pcm_bytes = pcm_arr.astype("int16").tobytes()
         else:
@@ -501,7 +511,7 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
                     "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế!",
                 }
             ),
-            status_code=400,
+            status_code=200,
         )
 
     mgr3 = get_auth_3layer_manager()
@@ -565,7 +575,8 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
             tier=utier,
             role=urole,
             check_duplicate=True,
-            samples_pcm16k=decoded_samples if decoded_samples else None,
+            samples_pcm16k=decoded_samples if (decoded_samples and len(decoded_samples) >= 2) else None,
+            required_samples=len(decoded_samples) if (decoded_samples and len(decoded_samples) >= 2) else 1,
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
@@ -650,8 +661,10 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
             if ("," in b64_pcm and b64_pcm.startswith("data:"))
             else b64_pcm
         )
+        from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
         raw_decoded = base64.b64decode(clean_b64) if clean_b64 else b""
-        if len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF":
+        if (len(raw_decoded) >= 44 and raw_decoded[:4] == b"RIFF") or _is_encoded_container_bytes(raw_decoded):
             pcm_arr, _ = decode_audio_bytes_to_pcm16k(raw_decoded)
             pcm_bytes = pcm_arr.astype("int16").tobytes()
         else:
@@ -671,7 +684,7 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
                     "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế!",
                 }
             ),
-            status_code=400,
+            status_code=200,
         )
 
     res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
@@ -743,10 +756,15 @@ async def api_auth3_voice_permission_command(payload: dict[str, Any]) -> JSONRes
 
     if res.get("ok") and res.get("account"):
         acc = res["account"]
-        if res.get("action") == "REVOKED":
-            await _REST_ENGINE.revoke_user_permission(target_name=acc["display_name"])
-        elif res.get("action") == "RESTORED":
-            await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
+        prev_uid = _REST_ENGINE.current_user_id
+        _REST_ENGINE.set_active_user(OWNER_ID)
+        try:
+            if res.get("action") == "REVOKED":
+                await _REST_ENGINE.revoke_user_permission(target_name=acc["display_name"])
+            elif res.get("action") == "RESTORED":
+                await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
+        finally:
+            _REST_ENGINE.set_active_user(prev_uid)
         await broadcast_rest_state_to_bridges()
 
     append_audit_log(

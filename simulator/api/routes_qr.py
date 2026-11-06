@@ -488,7 +488,12 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
                 acc["voiceprint"]["embedding_256d"] = prof_w
             mgr3._save_accounts()
 
-    await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
+    prev_uid = _REST_ENGINE.current_user_id
+    _REST_ENGINE.set_active_user("tuan_anh")
+    try:
+        await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
+    finally:
+        _REST_ENGINE.set_active_user(prev_uid)
     for br in list(_ACTIVE_BRIDGES):
         br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
     await broadcast_rest_state_to_bridges()

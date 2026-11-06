@@ -393,6 +393,7 @@ fun MainScreen(
 
   fun speakOutLoud(text: String, pcm24kB64: String = "") {
     if (!ttsEnabled || (text.isBlank() && pcm24kB64.isBlank())) return
+    try { textToSpeech?.stop() } catch (_: Exception) {}
     if (pcm24kB64.isNotBlank()) {
       playPcm24kBase64(pcm24kB64, text)
       return
@@ -825,7 +826,9 @@ fun MainScreen(
       }
       val reply = "Đã $actionWord ${targetDevice.name} theo lệnh của $activeSpeakerName."
       speakerReply = reply
-      speakOutLoud(reply)
+      if (!isOnlineMode) {
+        speakOutLoud(reply)
+      }
       addHistoryLog("Lệnh: $cleanCmd -> $reply")
 
       scope.launch(Dispatchers.IO) {
@@ -837,8 +840,8 @@ fun MainScreen(
           put("session_token", activeSessionToken)
         }.toString()
         val resStr = callServerHttp("/api/device", "POST", payload)
-        if (resStr != null) {
-          withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main) {
+          if (resStr != null) {
             try {
               val res = JSONObject(resStr)
               val serverSpeech = extractServerSpokenReply(res)
@@ -846,22 +849,29 @@ fun MainScreen(
               if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
                 deviceStates[targetDevice.serverId] = prevState
                 val rejSpeech = serverSpeech.ifBlank {
-                  res.optString("error", "Tôi không được phép nhận lệnh từ người lạ.")
+                  res.optString("error", "Bạn không có quyền thực hiện lệnh này.")
                 }
                 speakerReply = rejSpeech
                 speakOutLoud(rejSpeech, serverPcmB64)
-              } else if (serverSpeech.isNotBlank() && serverSpeech != speakerReply) {
-                speakerReply = serverSpeech
-                speakOutLoud(serverSpeech, serverPcmB64)
+              } else {
+                val finalSpeech = serverSpeech.ifBlank { reply }
+                speakerReply = finalSpeech
+                speakOutLoud(finalSpeech, serverPcmB64)
               }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+              if (isOnlineMode) speakOutLoud(reply)
+            }
+          } else if (isOnlineMode) {
+            speakOutLoud(reply)
           }
         }
       }
     } else {
       val reply = "Đã nhận lệnh: “$cleanCmd”."
       speakerReply = reply
-      speakOutLoud(reply)
+      if (!isOnlineMode) {
+        speakOutLoud(reply)
+      }
       scope.launch(Dispatchers.IO) {
         val payload = JSONObject().apply {
           put("text", cleanCmd)
@@ -870,17 +880,20 @@ fun MainScreen(
           put("session_token", activeSessionToken)
         }.toString()
         val resStr = callServerHttp("/api/text_command", "POST", payload)
-        if (resStr != null) {
-          withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main) {
+          if (resStr != null) {
             try {
               val res = JSONObject(resStr)
               val serverSpeech = extractServerSpokenReply(res)
               val serverPcmB64 = res.optString("pcm24k_b64", "")
-              if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
-                speakerReply = serverSpeech.ifBlank { speakerReply }
-                speakOutLoud(speakerReply, serverPcmB64)
-              }
-            } catch (_: Exception) {}
+              val finalSpeech = serverSpeech.ifBlank { reply }
+              speakerReply = finalSpeech
+              speakOutLoud(finalSpeech, serverPcmB64)
+            } catch (_: Exception) {
+              if (isOnlineMode) speakOutLoud(reply)
+            }
+          } else if (isOnlineMode) {
+            speakOutLoud(reply)
           }
         }
       }
@@ -1107,13 +1120,12 @@ fun MainScreen(
                         if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
                           deviceStates[dev.serverId] = prevVal
                           val rejSpeech = serverSpeech.ifBlank {
-                            res.optString("error", "Tôi không được phép nhận lệnh từ người lạ.")
+                            res.optString("error", "Bạn không có quyền thực hiện lệnh này.")
                           }
                           speakerReply = rejSpeech
                           speakOutLoud(rejSpeech, serverPcmB64)
-                        } else if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
-                          speakerReply = serverSpeech.ifBlank { speakerReply }
-                          speakOutLoud(speakerReply, serverPcmB64)
+                        } else if (serverSpeech.isNotBlank()) {
+                          speakerReply = serverSpeech
                         }
                       } catch (_: Exception) {}
                     }

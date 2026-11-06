@@ -302,7 +302,25 @@ async function startGuestMicRecording() {
     guestAudioProcessor = guestAudioContext.createScriptProcessor(4096, 1, 1);
     guestAudioProcessor.onaudioprocess = (e) => {
       if (!isGuestRecording) return;
-      const input = e.inputBuffer.getChannelData(0);
+      const rawInput = e.inputBuffer.getChannelData(0);
+      const actualSr = guestAudioContext ? guestAudioContext.sampleRate : 16000;
+      let input = rawInput;
+      if (actualSr && actualSr !== 16000 && rawInput.length > 0) {
+        const outLen = Math.max(1, Math.round((rawInput.length * 16000) / actualSr));
+        input = new Float32Array(outLen);
+        const ratio = rawInput.length / outLen;
+        for (let i = 0; i < outLen; i++) {
+          const idxStart = Math.max(0, Math.floor(i * ratio));
+          const idxEnd = Math.min(rawInput.length - 1, Math.ceil((i + 1) * ratio) - 1);
+          if (idxEnd <= idxStart) {
+            input[i] = rawInput[idxStart];
+          } else {
+            let sum = 0;
+            for (let k = idxStart; k <= idxEnd; k++) sum += rawInput[k];
+            input[i] = sum / (idxEnd - idxStart + 1);
+          }
+        }
+      }
       const pcm16 = new Int16Array(input.length);
       for (let i = 0; i < input.length; i++) {
         const s = Math.max(-1, Math.min(1, input[i]));

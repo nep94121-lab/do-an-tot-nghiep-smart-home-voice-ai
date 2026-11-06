@@ -156,7 +156,7 @@ class LiveToolDispatcherMixin:
             rej_info = self.last_mic_auth_result or {}
             rej_msg = str(
                 rej_info.get("rejection_speech")
-                or "Tôi không được phép nhận lệnh từ người lạ."
+                or "Tôi không nhận ra giọng của bạn."
             )
             f0_val = rej_info.get("f0_hz", 0.0)
             await self.send_ws_json({

@@ -44,22 +44,22 @@ class TestAdversarialM2(unittest.TestCase):
         prompt = build_system_instruction(self.engine)
 
         # 1. Bức tường lửa ngôn ngữ
-        self.assertIn("VIETNAMESE PROMPT GUARD", prompt)
-        self.assertIn("BẮT BUỘC 100% PHẢN HỒI BẰNG TIẾNG VIỆT", prompt)
-        self.assertIn("TUYỆT ĐỐI KHÔNG BAO GIỜ TRẢ LỜI BẰNG TIẾNG ANH", prompt)
-        for lang in ["TIẾNG TRUNG", "TIẾNG PHÁP", "TIẾNG TÂY BAN NHA", "TIẾNG HÀN"]:
+        self.assertIn("Vietnamese Prompt Guard", prompt)
+        self.assertIn("Phản hồi 100% bằng tiếng Việt", prompt)
+        self.assertIn("Không trả lời bằng tiếng Anh", prompt)
+        for lang in ["tiếng Trung", "tiếng Pháp", "tiếng Tây Ban Nha", "tiếng Hàn"]:
             self.assertIn(lang, prompt)
 
         # 2. Bức tường lửa âm đệm
-        self.assertIn("FILLER SOUND & HESITATION GUARD", prompt)
+        self.assertIn("Filler Sound & Hesitation Guard", prompt)
         self.assertIn("ừm", prompt)
         self.assertIn("ờ", prompt)
         self.assertIn("aló", prompt)
         self.assertIn("Tôi có thể giúp gì cho bạn?", prompt)
 
         # 3. Bức tường lửa phạm vi nhà thông minh
-        self.assertIn("SMART HOME DOMAIN GUARD", prompt)
-        self.assertIn("7 THIẾT BỊ", prompt)
+        self.assertIn("Smart Home Domain Guard", prompt)
+        self.assertIn("7 thiết bị nhà thông minh", prompt)
         expected_devices = [
             "Cửa chính (D1)",
             "Đèn phòng khách (D2)",

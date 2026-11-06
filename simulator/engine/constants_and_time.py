@@ -185,9 +185,9 @@ DEFAULT_USERS: dict[str, dict[str, Any]] = {
         "name": "Khách D",
         "tier": 3,
         "role": "CHILD_GUEST",
-        "granted_by": "thanh_vien_a",
-        "granted_by_name": "Thành viên A (Tầng 2)",
-        "granted_by_tier": 2,
+        "granted_by": OWNER_ID,
+        "granted_by_name": f"{OWNER_DISPLAY_NAME} (Tầng 1)",
+        "granted_by_tier": 1,
         "active": True,
     },
 }

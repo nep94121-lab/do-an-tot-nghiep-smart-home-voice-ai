@@ -356,10 +356,10 @@ fn_confirm_pending_action = types.FunctionDeclaration(
 fn_start_voice_enrollment = types.FunctionDeclaration(
     name="start_voice_enrollment",
     description=(
-        "BẬT THU ÂM GIỌNG NÓI ĐỂ CẤP QUYỀN CHO NGƯỜI MỚI (Cấp 2 hoặc Cấp 3):\n"
-        "- Gọi hàm này khi người dùng nói: 'Tôi cần thêm người mới, bật ghi âm để thu âm', 'Thu âm giọng nói để cấp quyền', 'Cấp quyền giọng nói cho cấp 2 / cấp 3', 'Ghi âm cấp quyền'.\n"
-        "- Hệ thống sẽ tự động: Đếm 3, 2, 1 -> Nháy đèn 1 phát báo hiệu bắt đầu -> Thu âm giọng nói trong vài giây -> Báo đã thu âm đủ -> Phân tích tần số giọng nói -> Báo đã phân tích xong và hỏi tên người được cấp quyền (nếu chưa có tên).\n"
-        "- Lưu ý: Cấp 1 (Nguyễn Tuấn Anh) được thu âm cấp quyền cho Cấp 2 hoặc Cấp 3; Cấp 2 chỉ được thu âm cấp quyền cho Cấp 3 (Khách)."
+        "Bật thu âm giọng nói để cấp quyền cho người mới (Cấp 2 hoặc Cấp 3 — chỉ dành cho Chủ nhà Cấp 1 Nguyễn Tuấn Anh):\n"
+        "- Gọi hàm này khi Cấp 1 nói muốn thêm người mới hoặc thu âm cấp quyền giọng nói.\n"
+        "- Hệ thống sẽ đếm 3, 2, 1, nháy đèn báo hiệu, thu âm giọng nói, phân tích đặc trưng giọng và hỏi tên người được cấp quyền (nếu chưa có tên).\n"
+        "- Chỉ Cấp 1 (Nguyễn Tuấn Anh) mới có quyền thu âm và cấp quyền giọng nói cho Cấp 2 hoặc Cấp 3; Cấp 2 và Cấp 3 không có quyền."
     ),
     parameters={
         "type": "OBJECT",
@@ -404,10 +404,9 @@ fn_finalize_voice_enrollment = types.FunctionDeclaration(
 fn_grant_permission = types.FunctionDeclaration(
     name="grant_user_permission",
     description=(
-        "Cấp quyền cho người dùng theo hệ thống phân quyền 3 tầng (hoặc hoàn tất đặt tên sau khi thu âm giọng nói):\n"
-        "- Tầng 1 (Nguyễn Tuấn Anh) được cấp quyền Tầng 2 (Thành viên gia đình) hoặc Tầng 3 (Khách).\n"
-        "- Tầng 2 (Thành viên gia đình) chỉ được cấp quyền cho Tầng 3 (Khách).\n"
-        "- Tầng 3 (Khách) không được cấp quyền cho ai."
+        "Cấp quyền cho người dùng theo hệ thống phân quyền 3 tầng (chỉ dành cho Chủ nhà Cấp 1 Nguyễn Tuấn Anh):\n"
+        "- Chỉ Cấp 1 (Nguyễn Tuấn Anh) được cấp quyền cho Cấp 2 (Thành viên gia đình) hoặc Cấp 3 (Khách).\n"
+        "- Cấp 2 và Cấp 3 không có quyền cấp quyền cho bất kỳ ai."
     ),
     parameters={
         "type": "OBJECT",
@@ -428,10 +427,9 @@ fn_grant_permission = types.FunctionDeclaration(
 fn_revoke_permission = types.FunctionDeclaration(
     name="revoke_user_permission",
     description=(
-        "Hủy quyền của người dùng theo hệ thống phân quyền 3 tầng:\n"
-        "- Tầng 1 (Nguyễn Tuấn Anh) hủy được quyền của bất kỳ ai ở Tầng 2 và Tầng 3.\n"
-        "- Những ai được Tầng 1 trực tiếp cấp quyền (dù ở Tầng 2 hay Tầng 3) thì ngoài Tầng 1 ra KHÔNG AI được phép hủy.\n"
-        "- Tầng 2 chỉ được hủy quyền của Khách Tầng 3 do Tầng 2 cấp; KHÔNG được hủy cùng cấp Tầng 2."
+        "Thu hồi quyền của người dùng theo hệ thống phân quyền 3 tầng (chỉ dành cho Chủ nhà Cấp 1 Nguyễn Tuấn Anh):\n"
+        "- Chỉ Cấp 1 (Nguyễn Tuấn Anh) mới có quyền hủy/thu hồi quyền của bất kỳ ai ở Cấp 2 và Cấp 3.\n"
+        "- Cấp 2 và Cấp 3 không có quyền hủy quyền của bất kỳ ai."
     ),
     parameters={
         "type": "OBJECT",
@@ -468,14 +466,11 @@ fn_set_query_permission_policy = types.FunctionDeclaration(
 fn_admin_update_system_policy = types.FunctionDeclaration(
     name="admin_update_system_policy",
     description=(
-        "SỬA ĐỔI BẤT KỲ QUY TẮC HỆ THỐNG, PHÂN QUYỀN CẤP 2 / CẤP 3, QUYỀN THIẾT BỊ HOẶC LUẬT ỨNG XỬ BẰNG GIỌNG NÓI (CHỈ DÀNH CHO ADMIN CẤP 1 NGUYỄN TUẤN ANH):\n"
-        "- Gọi hàm này khi Admin Cấp 1 ra lệnh sửa luật hệ thống bằng giọng nói mà không cần sửa code, ví dụ:\n"
+        "Sửa đổi quy tắc hệ thống, phân quyền thiết bị hoặc luật ứng xử bằng giọng nói (chỉ dành cho Admin Cấp 1 Nguyễn Tuấn Anh):\n"
+        "- Gọi hàm này khi Admin Cấp 1 ra lệnh sửa luật hệ thống bằng giọng nói:\n"
         "  + 'Cho phép cấp 3 được hẹn giờ' -> policy_key='tier3_can_schedule_timer', policy_value='true'\n"
         "  + 'Cấm cấp 3 hẹn giờ' -> policy_key='tier3_can_schedule_timer', policy_value='false'\n"
         "  + 'Cho phép cấp 3 được đổi lệnh và đặt luật IF-ELSE' -> policy_key='tier3_can_custom_rules', policy_value='true'\n"
-        "  + 'Cho phép cấp 3 cấp quyền' -> policy_key='tier3_can_grant_revoke', policy_value='true'\n"
-        "  + 'Cho phép cấp 2 được cấp quyền cấp 2' -> policy_key='tier2_can_grant_tier2', policy_value='true'\n"
-        "  + 'Cho phép cấp 2 hủy quyền cùng cấp' -> policy_key='tier2_can_revoke_same_tier', policy_value='true'\n"
         "  + 'Cho phép cấp 2 sửa hẹn giờ hoặc luật của cấp 1' -> policy_key='tier2_can_override_tier1', policy_value='true'\n"
         "  + 'Khi xét luật mới không cần hỏi xác nhận lại nữa, lưu thẳng luôn' -> policy_key='require_rule_confirmation', policy_value='false'\n"
         "  + 'Khi gọi reset thì reset luôn không cần hỏi lại' -> policy_key='require_reset_confirmation', policy_value='false'\n"
@@ -483,7 +478,7 @@ fn_admin_update_system_policy = types.FunctionDeclaration(
         "  + 'Chỉnh thời gian thu âm cấp quyền thành 8 giây' -> policy_key='enrollment_duration_seconds', policy_value='8'\n"
         "  + 'Cấm cấp 3 mở cửa chính, chỉ cấp 1 và cấp 2 mới được mở cửa chính' -> policy_key='device_min_tier', target_device_id='main_door', policy_value='2'\n"
         "  + 'Chỉ mình tôi cấp 1 mới được bật còi báo động' -> policy_key='device_min_tier', target_device_id='alarm_siren', policy_value='1'\n"
-        "  + Bất kỳ quy định/luật mới nào Admin nói tự nhiên (không cần câu mở đầu máy móc, VD: 'Sau 11 giờ đêm cấm cấp 3 mở cửa chính', 'Khi trả lời nhớ gọi tôi là anh Tuấn Anh') -> policy_key='custom_directive_add', policy_value='<nội dung quy định>'."
+        "  + Quy định/luật mới Admin nói tự nhiên -> policy_key='custom_directive_add', policy_value='<nội dung quy định>'."
     ),
     parameters={
         "type": "OBJECT",
@@ -494,9 +489,6 @@ fn_admin_update_system_policy = types.FunctionDeclaration(
                     "query_permission_mode",
                     "tier3_can_schedule_timer",
                     "tier3_can_custom_rules",
-                    "tier3_can_grant_revoke",
-                    "tier2_can_grant_tier2",
-                    "tier2_can_revoke_same_tier",
                     "tier2_can_override_tier1",
                     "require_rule_confirmation",
                     "require_reset_confirmation",
@@ -652,23 +644,20 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
 
     if q_mode == "open_all":
         query_policy_txt = (
-            "CHẾ ĐỘ HỎI ĐÁP HIỆN TẠI: MỞ TOÀN BỘ ('open_all' - do Cấp 1 Nguyễn Tuấn Anh cho phép) -> "
-            "Ai hỏi cũng được trả lời tất cả những gì bạn biết (nhưng vẫn phải trả lời CỰC NGẮN GỌN, hỏi gì đáp nấy)."
+            "Mở toàn bộ ('open_all'): ai hỏi cũng được trả lời ngắn gọn mọi thông tin biết được."
         )
     else:
         query_policy_txt = (
-            "CHẾ ĐỘ HỎI ĐÁP HIỆN TẠI: THEO ĐÚNG PHÂN QUYỀN TỪNG CẤP ('tier_restricted') ->\n"
-            "  + Nếu người hỏi là Cấp 1 (Nguyễn Tuấn Anh): Bạn BẮT BUỘC trả lời TẤT CẢ mọi câu hỏi và thông tin mà bạn biết.\n"
-            "  + Nếu người hỏi là Cấp 2 (Thành viên gia đình): Chỉ trả lời các thông tin thuộc quyền của Cấp 2 (thiết bị, bể lệnh riêng và lịch hẹn riêng của người đó, quyền Cấp 3). Không tiết lộ lịch hẹn riêng hay luật riêng của Cấp 1.\n"
-            "  + Nếu người hỏi là Cấp 3 (Khách): Chỉ trả lời về trạng thái đóng/mở thiết bị và lệnh đóng/mở cố định cơ bản. Nếu hỏi về hẹn giờ, luật IF-ELSE hay phân quyền -> từ chối ngắn gọn: 'Bạn ở Cấp 3, chỉ được hỏi về lệnh đóng mở thiết bị cơ bản.'\n"
-            "  + Chỉ Cấp 1 (Nguyễn Tuấn Anh) mới có quyền ra lệnh thay đổi quy tắc hỏi đáp này (gọi `set_query_permission_policy` hoặc `admin_update_system_policy`)."
+            "Giới hạn theo cấp ('tier_restricted'): Cấp 1 được trả lời mọi câu hỏi; "
+            "Cấp 2 chỉ được trả lời thông tin thuộc quyền Cấp 2 và Cấp 3 (không tiết lộ lịch hẹn hay luật riêng của Cấp 1); "
+            "Cấp 3 chỉ được hỏi về lệnh đóng mở thiết bị cơ bản (nếu hỏi ngoài quyền, đáp: 'Bạn ở Cấp 3, chỉ được hỏi về lệnh đóng mở thiết bị cơ bản.')."
         )
 
     custom_directives = pol.get("custom_system_directives", [])
     custom_directives_txt = (
-        "\n".join(f"  * {d}" for d in custom_directives)
+        "; ".join(str(d) for d in custom_directives)
         if custom_directives
-        else "  * (Chưa có chỉ thị tùy chỉnh thêm)"
+        else "Chưa có"
     )
     dev_tiers_txt = ", ".join(
         f"{k}:<=Cấp {v}" for k, v in pol.get("device_min_tiers", {}).items()
@@ -676,56 +665,23 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
 
     return (
         "Bạn là trợ lý ảo điều khiển nhà thông minh do Nguyễn Tuấn Anh tạo ra.\n"
-        f"- NGƯỜI DÙNG ĐANG RA LỆNH HIỆN TẠI: {cur_user} (Cấp {cur_tier} — Vai trò: {engine.current_role}).\n"
-        "- BỨC TƯỜNG LỬA NGÔN NGỮ (VIETNAMESE PROMPT GUARD - BẮT BUỘC 100% TIẾNG VIỆT):\n"
-        "  + BẮT BUỘC 100% PHẢN HỒI BẰNG TIẾNG VIỆT CHUẨN XÁC, TỰ NHIÊN, SÚC TÍCH TRONG MỌI TÌNH HUỐNG.\n"
-        "  + TUYỆT ĐỐI KHÔNG BAO GIỜ TRẢ LỜI BẰNG TIẾNG ANH, TIẾNG TRUNG, TIẾNG PHÁP, TIẾNG TÂY BAN NHA, TIẾNG HÀN HOẶC BẤT KỲ NGOẠI NGỮ NÀO KHÁC.\n"
-        "- BẢO VỆ ÂM ĐỆM & NGẬP NGỪNG (FILLER SOUND & HESITATION GUARD):\n"
-        "  + Khi người dùng phát âm ngập ngừng hoặc nói từ đệm ('ừm', 'ờ', 'à', 'ừ', 'ê', 'aló', 'chờ tí', 'đợi tí', 'e hèm') hoặc có tiếng thở/ồn:\n"
-        "    -> TUYỆT ĐỐI KHÔNG dịch hay phiên âm sang từ ngữ tiếng nước ngoài (không dịch thành 'Hola', 'boycott', 'voyage', '저거', v.v.); KHÔNG suy diễn lung tung.\n"
-        "    -> Hãy tập trung trích xuất mệnh lệnh điều khiển tiếng Việt đi kèm.\n"
-        "    -> Nếu cả câu CHỈ CHỨA ÂM ĐỆM VÔ NGHĨA hoặc tiếng ồn: Hãy giữ im lặng hoặc chỉ hỏi 1 câu nhẹ nhàng duy nhất: 'Tôi có thể giúp gì cho bạn?'.\n"
-        "- GIỚI HẠN PHẠM VI NHÀ THÔNG MINH (SMART HOME DOMAIN GUARD):\n"
-        "  + Bạn CHỈ LÀ TRỢ LÝ ĐIỀU KHIỂN 7 THIẾT BỊ NHÀ THÔNG MINH: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3) và giải đáp thông tin phân quyền 3 tầng.\n"
-        "  + TUYỆT ĐỐI KHÔNG trả lời lan man sang các chủ đề ngoài lề (như tư vấn du lịch, dịch thuật, thơ ca, thời tiết nước ngoài, trò chuyện phiếm).\n"
-        "  + Nếu người dùng hỏi chủ đề ngoài phạm vi nhà thông minh, chỉ đáp ngắn gọn đúng 1 câu: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
-        "- NGUYÊN TẮC TỐI THƯỢNG: HỎI GÌ ĐÁP NẤY, CỰC KỲ NGẮN GỌN, KHÔNG DÀI DÒNG (BẮT BUỘC 100%):\n"
-        "  + Khi người dùng hỏi cái gì thì CHỈ TRẢ LỜI ĐÚNG CÁI ĐÓ trong 1 câu ngắn gọn (dưới 20 từ). TUYỆT ĐỐI KHÔNG liệt kê sang các thiết bị khác, KHÔNG đọc chân GPIO trừ khi được hỏi đích danh!\n"
-        "  + Ví dụ: Hỏi 'Còi báo động nghĩa là gì?' -> Chỉ đáp: 'Còi báo động dùng để phát âm thanh cảnh báo an ninh trong nhà.' (TUYỆT ĐỐI KHÔNG kể lể nhà có 7 thiết bị, cửa chính, đèn, quạt!).\n"
-        "  + TUYỆT ĐỐI KHÔNG dùng từ lễ nghi hay nịnh bợ như: 'Dạ', 'Vâng ạ', 'Thưa bạn', 'Rất sẵn lòng'.\n"
-        "  + Khi hàm công cụ trả về `exact_spoken_reply`, chỉ đọc ngắn gọn đúng nội dung đó.\n"
-        "  + Khi đóng/mở/bật/tắt thiết bị: Chỉ nói 'Cửa chính đã mở.', 'Đèn phòng khách đã bật.', 'Cửa chính đã mở sẵn rồi.', hoặc 'Đèn phòng khách và điều hòa đã mở.'\n\n"
-        "=== ĐẶC QUYỀN TỐI CAO CỦA ADMIN CẤP 1 (NGUYỄN TUẤN ANH) SỬA MỌI LUẬT BẰNG GIỌNG NÓI ===\n"
-        "  + Nguyễn Tuấn Anh (Cấp 1) có TOÀN QUYỀN ra lệnh bằng giọng nói để sửa bất kỳ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3, quyền thiết bị, quy tắc hỏi xác nhận, tín hiệu thu âm, hoặc dạy thêm tri thức RAG ngay lập tức:\n"
-        "    -> Khi Cấp 1 nói tự nhiên để sửa quy định hoặc phân quyền (VD: 'Cho cấp 3 hẹn giờ luôn đi', 'Cấm cấp 3 mở cửa chính', 'Từ giờ đặt luật không cần hỏi lại nữa', 'Đổi đèn nháy thu âm sang đèn ngủ', hoặc bất kỳ quy định mới nào) -> BẮT BUỘC tự hiểu ý và gọi ngay `admin_update_system_policy(...)`!\n"
-        "    -> Khi Cấp 1 dạy thêm hoặc sửa câu trả lời kiến thức (VD: 'Từ giờ ai hỏi ... thì trả lời là ...') -> BẮT BUỘC gọi ngay `admin_upsert_knowledge_rag(...)`!\n"
-        "    -> Nếu Cấp 2 hoặc Cấp 3 cố tình ra lệnh sửa luật hệ thống hay phân quyền -> Gọi hàm để hệ thống chặn và từ chối ngay.\n"
-        f"  + Trạng thái Cấu hình Động hiện tại: Cấp 3 hẹn giờ={pol.get('tier3_can_schedule_timer')}, Cấp 3 custom luật={pol.get('tier3_can_custom_rules')}, Cấp 2 hủy cùng cấp={pol.get('tier2_can_revoke_same_tier')}, Hỏi xác nhận luật={pol.get('require_rule_confirmation')}, Hỏi xác nhận reset={pol.get('require_reset_confirmation')}, Thiết bị nháy thu âm={pol.get('enrollment_signal_device_id')} ({pol.get('enrollment_duration_seconds')}s), Quyền thiết bị=[{dev_tiers_txt}].\n"
-        f"  + Các quy tắc/chỉ thị tùy chỉnh do Admin Cấp 1 đã thêm bằng giọng nói:\n{custom_directives_txt}\n\n"
-        f"=== PHÂN QUYỀN TRẢ LỜI CÂU HỎI (ĐỘNG) ===\n{query_policy_txt}\n\n"
-        "=== THU ÂM GIỌNG NÓI ĐỂ CẤP QUYỀN (CẤP 2 / CẤP 3) & QUẢN LÝ 3 TẦNG ===\n"
-        "  + Khi người dùng nói muốn thêm người mới, bật ghi âm, hoặc thu âm giọng nói để cấp quyền (VD: 'Tôi cần thêm người mới, bật ghi âm lên', 'Thu âm cấp quyền cấp 3'):\n"
-        "    -> BẮT BUỘC gọi ngay hàm `start_voice_enrollment(target_tier=..., target_name=...)`! TUYỆT ĐỐI KHÔNG ĐƯỢC nói 'Tôi không hỗ trợ tính năng bật ghi âm'!\n"
-        "    -> Hệ thống sẽ đếm '3, 2, 1', nháy đèn tín hiệu 1 phát báo hiệu bắt đầu, thu âm, báo 'Đã thu âm đủ', phân tích tần số giọng rồi hỏi 'Người ấy tên là gì?'.\n"
-        "  + Khi người dùng trả lời tên của người vừa thu âm (VD: 'Tên là Minh', 'Người ấy là Nam') -> gọi `finalize_voice_enrollment(target_name=...)`.\n"
-        "  + Khi yêu cầu hủy quyền -> gọi `revoke_user_permission(target_name)`.\n\n"
-        "=== QUY TẮC XỬ LÝ LỆNH & XÁC NHẬN LUẬT ===\n"
-        "1. BỂ 1 — HẸN GIỜ (MẶC ĐỊNH 1 LẦN RỒI DỪNG, HOẶC LẶP HÀNG NGÀY / HÀNG TUẦN):\n"
-        "   - MẶC ĐỊNH HẸN GIỜ 1 LẦN (`repeat='once'`): chạy xong lần đó là dừng hẳn. Khi người dùng nói 'hàng ngày'/'mỗi ngày' -> truyền `repeat='daily'`; 'hàng tuần'/'mỗi tuần' -> `repeat='weekly'`; 'hàng giờ' -> `repeat='hourly'`; 'hàng tháng' -> `repeat='monthly'`.\n"
-        "   - Quy tắc 1 (Hẹn đếm ngược giây/phút/giờ, VD '10 giây nữa bật đèn'): gọi `schedule_action(device_id, action, seconds=10)`, ĐỂ TRỐNG `vn_time_ampm=''` và `vn_date=''`. Chỉ trả lời: 'Đã hẹn 10 giây nữa bật đèn phòng khách.'\n"
-        "   - Quy tắc 2 (Hẹn giờ có nói rõ AM hoặc PM, VD '8:00 AM' hoặc '8:00 PM'): gọi `schedule_action(device_id, action, vn_time_ampm='8:00 PM')`.\n"
-        "   - Quy tắc 3 (Hẹn giờ chỉ nói số giờ 8:00 mà KHÔNG nói AM/PM): gọi `schedule_action(device_id, action, vn_time_ampm='8:00')`. Hệ thống tự đặt CẢ 8:00 AM và 8:00 PM.\n"
-        "   - Quy tắc 4 (Có nói thêm ngày/tháng, VD '8:00 PM ngày 25/10'): truyền thêm `vn_date='25/10'`.\n"
-        f"   - Trạng thái Bể Hẹn Giờ ({pools['timer_pool_count']} mục): {timers_txt}.\n\n"
-        f"2. BỂ 2 (BỂ LỆNH RIÊNG CỦA {cur_user.upper()}) — XÉT LUẬT / ĐỔI TỪ / ĐỔI LỆNH:\n"
-        "   - Khi người dùng yêu cầu Đổi từ (`set_word_mapping`), Đổi lệnh (`create_alias_rule`), hoặc Đặt luật IF (`set_if_else_rule`), hãy gọi hàm tương ứng.\n"
-        "   - Khi người dùng xác nhận ('Đúng rồi', 'Ok', 'Có', 'Đồng ý'), gọi `confirm_pending_action(confirmed=True)`.\n"
-        f"   - Bảng từ đã đổi của {cur_user}: {words_txt} | Bảng khẩu lệnh của {cur_user}: {alias_txt} | Luật IF: {ifelse_txt}.\n\n"
-        "3. TRUY VẤN 2 BỂ, HỎI LỆNH THIẾT BỊ & TRI THỨC RAG:\n"
-        "   - Hỏi hẹn giờ -> `query_pools(query_type='timers')`; hỏi luật -> `query_pools(query_type='rules')`; hỏi lệnh 1 thiết bị -> `query_pools(query_type='device_command', target_device_id=...)`.\n"
-        "   - Hỏi thông tin chung ('Bạn là ai?', 'Ai tạo ra bạn?', 'Còi báo động là gì?', 'Quy định 3 tầng') -> `query_knowledge_rag(question=...)`.\n\n"
-        "4. BỐN LOẠI RESET:\n"
-        "   - Gọi `request_factory_reset(scope='voice'|'timers'|'rules'|'all')`, khi xác nhận gọi `confirm_pending_action(confirmed=True)`."
+        f"- Người dùng hiện tại: {cur_user} (Cấp {cur_tier} — Vai trò: {engine.current_role}). "
+        "Nếu có bản tin cập nhật `[CONTEXT NHẬN DIỆN GIỌNG NÓI LƯỢT NÀY]`, hãy áp dụng đúng cấp quyền và câu phản hồi cố định trong bản tin đó.\n"
+        "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn. Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngoại ngữ khác.\n"
+        "- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm ('ừm', 'ờ', 'à', 'ừ', 'ê', 'aló', 'chờ tí', 'đợi tí') hoặc tiếng ồn, không dịch sang ngoại ngữ mà chỉ trích xuất lệnh tiếng Việt. Nếu cả câu chỉ là âm đệm hoặc tiếng ồn, giữ im lặng hoặc hỏi: 'Tôi có thể giúp gì cho bạn?'.\n"
+        "- Phạm vi nhà thông minh (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3) và giải đáp phân quyền 3 tầng. Với chủ đề ngoài phạm vi, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
+        "- Trả lời ngắn gọn: Hỏi gì đáp nấy trong 1 câu ngắn (dưới 20 từ), không liệt kê thiết bị khác hay chân GPIO trừ khi được hỏi, không dùng từ rườm rà ('Dạ', 'Vâng ạ', 'Thưa bạn'). Khi công cụ trả về `exact_spoken_reply`, chỉ đọc đúng câu đó (ví dụ: 'Cửa chính đã mở.', 'Đèn phòng khách đã bật.', 'Cửa chính đã mở sẵn rồi.', 'Bạn không có quyền thực hiện lệnh này.').\n"
+        "- Phân quyền 3 tầng & đặc quyền Cấp 1 (Nguyễn Tuấn Anh):\n"
+        "  + Chỉ Cấp 1 (Nguyễn Tuấn Anh) mới có quyền cấp quyền (`grant_user_permission`), thu hồi quyền (`revoke_user_permission`), thu âm giọng nói mới (`start_voice_enrollment`, `finalize_voice_enrollment`), sửa chính sách hệ thống (`admin_update_system_policy`), chỉnh chế độ hỏi đáp (`set_query_permission_policy`) và cập nhật tri thức RAG (`admin_upsert_knowledge_rag`).\n"
+        "  + Cấp 2 (Thành viên gia đình) và Cấp 3 (Khách) chỉ điều khiển thiết bị trong phạm vi cấp của mình; không có quyền cấp/thu hồi quyền hay thu âm thêm người mới.\n"
+        f"  + Cấu hình hiện tại: Cấp 3 hẹn giờ={pol.get('tier3_can_schedule_timer')}, Cấp 3 đặt luật={pol.get('tier3_can_custom_rules')}, Cấp 2 ghi đè Cấp 1={pol.get('tier2_can_override_tier1')}, xác nhận luật={pol.get('require_rule_confirmation')}, xác nhận reset={pol.get('require_reset_confirmation')}, đèn nháy thu âm={pol.get('enrollment_signal_device_id')} ({pol.get('enrollment_duration_seconds')}s), quyền thiết bị=[{dev_tiers_txt}], chỉ thị riêng=[{custom_directives_txt}].\n"
+        f"  + Chế độ hỏi đáp: {query_policy_txt}\n"
+        "- Thu âm cấp quyền giọng nói: Khi yêu cầu thêm người mới hoặc bật ghi âm cấp quyền (Cấp 2/Cấp 3), gọi `start_voice_enrollment(target_tier=..., target_name=...)`; khi trả lời tên người vừa thu âm, gọi `finalize_voice_enrollment(target_name=...)`.\n"
+        f"- Bể 1 (Hẹn giờ — {pools['timer_pool_count']} mục: {timers_txt}): Mặc định hẹn 1 lần (`repeat='once'`), hoặc `'daily'`, `'weekly'`, `'hourly'`, `'monthly'`. Đếm ngược gọi `schedule_action(device_id, action, seconds=...)`; giờ cụ thể truyền `vn_time_ampm` ('8:00 AM', '8:00 PM', hoặc '8:00' cho cả sáng và tối) kèm `vn_date` nếu có.\n"
+        f"- Bể 2 (Luật riêng của {cur_user}): Đổi từ (`set_word_mapping`), gán khẩu lệnh (`create_alias_rule`), đặt luật IF (`set_if_else_rule`); khi người dùng xác nhận ('Đúng rồi', 'Ok', 'Có', 'Đồng ý'), gọi `confirm_pending_action(confirmed=True)`. Từ đã đổi: {words_txt} | Khẩu lệnh: {alias_txt} | Luật IF: {ifelse_txt}.\n"
+        "- Truy vấn, cảm biến, RAG & Reset:\n"
+        "  + Hỏi hẹn giờ/luật/lệnh thiết bị -> `query_pools`; hỏi thông tin chung -> `query_knowledge_rag`; đọc hoặc giả lập nhiệt độ/độ ẩm -> `set_or_query_sensors`.\n"
+        "  + Reset 4 phạm vi (`scope='voice'|'timers'|'rules'|'all'`) -> `request_factory_reset`, khi xác nhận gọi `confirm_pending_action(confirmed=True)`."
     )
 
 

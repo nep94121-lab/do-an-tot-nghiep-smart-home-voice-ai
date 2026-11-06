@@ -43,6 +43,7 @@ from simulator.voice.synthesis_augment import (
 from simulator.voice.wespeaker_onnx import (
     DEFAULT_ENROLLMENT_SAMPLES,
     DEFAULT_WESPEAKER_THRESHOLD,
+    _is_encoded_container_bytes,
     compute_multi_sample_mean_embedding,
     compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
@@ -584,10 +585,42 @@ class VoiceAuthManager:
                 v["baseline_embedding_256d"] = data[k]["embedding_256d"]
                 v["baseline_wespeaker_embedding"] = data[k]["wespeaker_embedding"]
             data[k] = v
-        VOICEPRINT_FILE.write_bytes(
-            (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        )
+        self._save_voiceprints_safe(data)
         return data
+
+    def _save_voiceprints_safe(self, data: dict[str, Any] | None = None) -> None:
+        target = data if data is not None else self.profiles
+        try:
+            VOICEPRINT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            VOICEPRINT_FILE.write_bytes(
+                (json.dumps(target, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            )
+            self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+        except Exception:
+            pass
+
+    def _sync_voiceprints_from_disk(self) -> None:
+        try:
+            if not VOICEPRINT_FILE.exists():
+                return
+            st_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+            if getattr(self, "_voiceprint_mtime_ns", 0) == st_ns:
+                return
+            self._voiceprint_mtime_ns = st_ns
+            loaded = json.loads(VOICEPRINT_FILE.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                for k, v in loaded.items():
+                    if (
+                        isinstance(v, dict)
+                        and v.get("custom_enrolled")
+                        and v.get("wespeaker_model") == "wespeaker_r34_onnx"
+                    ):
+                        if k in self.profiles and "baseline_wespeaker_embedding" not in v:
+                            v["baseline_wespeaker_embedding"] = self.profiles[k].get("wespeaker_embedding")
+                            v["baseline_embedding_256d"] = self.profiles[k].get("embedding_256d")
+                        self.profiles[k] = v
+        except Exception:
+            pass
 
     @staticmethod
     def _write_wav16k(path: pathlib.Path, pcm16: np.ndarray) -> None:
@@ -781,11 +814,16 @@ class VoiceAuthManager:
             enrolled_samples_count = int(multi_res["num_samples"])
             sample_cosines_to_mean = multi_res.get("sample_cosines_to_mean", [])
         else:
-            pcm_raw = (
-                np.frombuffer(pcm_bytes, dtype=np.int16)
-                if isinstance(pcm_bytes, (bytes, bytearray))
-                else np.asarray(pcm_bytes, dtype=np.int16)
-            )
+            if isinstance(pcm_bytes, (bytes, bytearray)):
+                raw_b = bytes(pcm_bytes)
+                if (len(raw_b) >= 44 and raw_b[:4] == b"RIFF" and raw_b[8:12] == b"WAVE") or _is_encoded_container_bytes(raw_b):
+                    pcm_flt = pcm_bytes_to_float32_16k(raw_b, sr=16000)
+                    pcm_raw = np.clip(pcm_flt * 32767.0, -32768, 32767).astype(np.int16)
+                else:
+                    usable = (len(raw_b) // 2) * 2
+                    pcm_raw = np.frombuffer(raw_b[:usable], dtype=np.int16)
+            else:
+                pcm_raw = np.asarray(pcm_bytes, dtype=np.int16)
             q_gate = evaluate_audio_quality_gate(pcm_raw, sr=16000)
             pcm_clean, denoise_info = denoise_and_isolate_human_voice(pcm_raw, 16000)
             feat = extract_voice_features(pcm_clean, 16000)
@@ -892,11 +930,7 @@ class VoiceAuthManager:
             new_prof["expires_at"] = float(expires_at)
 
         self.profiles[prof_key] = new_prof
-        VOICEPRINT_FILE.write_bytes(
-            (json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode(
-                "utf-8"
-            )
-        )
+        self._save_voiceprints_safe()
         self.unauthorized_strikes = 0
         return {
             "ok": True,
@@ -1032,11 +1066,7 @@ class VoiceAuthManager:
                 }
             )
             self.profiles["owner_voice_1"] = owner_prof
-            VOICEPRINT_FILE.write_bytes(
-                (json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode(
-                    "utf-8"
-                )
-            )
+            self._save_voiceprints_safe()
             self.unauthorized_strikes = 0
             return owner_prof
 
@@ -1061,11 +1091,7 @@ class VoiceAuthManager:
             "wespeaker_embedding": final_256,
             "custom_enrolled": True,
         }
-        VOICEPRINT_FILE.write_bytes(
-            (json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode(
-                "utf-8"
-            )
-        )
+        self._save_voiceprints_safe()
         self.unauthorized_strikes = 0
         self.last_analysis = {
             "speaker_id": prof_id,
@@ -1097,9 +1123,10 @@ class VoiceAuthManager:
           (Cấp 1: 0.435, Cấp 2: 0.435, Cấp 3: 0.385, có thể cấu hình).
         """
         t_total_start = time.perf_counter()
+        self._sync_voiceprints_from_disk()
         if isinstance(pcm_bytes, (bytes, bytearray)):
             raw_b = bytes(pcm_bytes)
-            if len(raw_b) >= 44 and raw_b[:4] == b"RIFF" and raw_b[8:12] == b"WAVE":
+            if (len(raw_b) >= 44 and raw_b[:4] == b"RIFF" and raw_b[8:12] == b"WAVE") or _is_encoded_container_bytes(raw_b):
                 pcm_flt = pcm_bytes_to_float32_16k(raw_b, sr=16000)
                 pcm_raw = np.clip(pcm_flt * 32767.0, -32768, 32767).astype(np.int16)
             else:
@@ -1574,11 +1601,7 @@ class VoiceAuthManager:
                 "owner_voice_1": owner_prof,
                 "intruder_voice_2": intruder_prof,
             }
-            VOICEPRINT_FILE.write_bytes(
-                (json.dumps(self.profiles, ensure_ascii=False, indent=2) + "\n").encode(
-                    "utf-8"
-                )
-            )
+            self._save_voiceprints_safe()
 
         self.unauthorized_strikes = 0
         self.last_analysis = {

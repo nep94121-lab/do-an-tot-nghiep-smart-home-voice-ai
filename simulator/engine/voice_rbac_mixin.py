@@ -64,9 +64,6 @@ class EngineVoiceRbacMixin:
         defaults: dict[str, Any] = {
             "tier3_can_schedule_timer": False,
             "tier3_can_custom_rules": False,
-            "tier3_can_grant_revoke": False,
-            "tier2_can_grant_tier2": False,
-            "tier2_can_revoke_same_tier": False,
             "tier2_can_override_tier1": False,
             "require_rule_confirmation": True,
             "require_reset_confirmation": True,
@@ -87,6 +84,9 @@ class EngineVoiceRbacMixin:
         if not isinstance(pol, dict):
             pol = {}
             self.overlay_rules["system_policies"] = pol
+        for k in list(pol.keys()):
+            if k not in defaults:
+                pol.pop(k, None)
         for k, v in defaults.items():
             if k not in pol:
                 pol[k] = dict(v) if isinstance(v, dict) else (list(v) if isinstance(v, list) else v)
@@ -168,27 +168,6 @@ class EngineVoiceRbacMixin:
                 "Đã cập nhật luật: Cho phép Cấp 3 (Khách) tùy chỉnh khẩu lệnh và đặt luật IF-ELSE."
                 if is_true
                 else "Đã cập nhật luật: Cấp 3 (Khách) chỉ được gọi lệnh đóng mở cố định."
-            )
-        elif key == "tier3_can_grant_revoke":
-            pol["tier3_can_grant_revoke"] = is_true
-            spoken = (
-                "Đã cập nhật luật: Cho phép Cấp 3 được cấp và hủy quyền Cấp 3."
-                if is_true
-                else "Đã cập nhật luật: Cấm Cấp 3 cấp hoặc hủy quyền của bất kỳ ai."
-            )
-        elif key == "tier2_can_grant_tier2":
-            pol["tier2_can_grant_tier2"] = is_true
-            spoken = (
-                "Đã cập nhật luật: Cho phép Cấp 2 được cấp quyền cho cả Cấp 2 và Cấp 3."
-                if is_true
-                else "Đã cập nhật luật: Cấp 2 chỉ được cấp quyền cho Cấp 3."
-            )
-        elif key == "tier2_can_revoke_same_tier":
-            pol["tier2_can_revoke_same_tier"] = is_true
-            spoken = (
-                "Đã cập nhật luật: Cho phép Cấp 2 được hủy quyền cùng cấp Cấp 2."
-                if is_true
-                else "Đã cập nhật luật: Cấm Cấp 2 hủy quyền cùng cấp."
             )
         elif key == "tier2_can_override_tier1":
             pol["tier2_can_override_tier1"] = is_true
@@ -618,19 +597,14 @@ class EngineVoiceRbacMixin:
         duration_sec: int | None = None,
     ) -> dict[str, Any]:
         pol = self.system_policies
-        if self.current_tier >= 3 and not pol.get("tier3_can_grant_revoke", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền thu âm cấp quyền cho ai."
+        if self.current_tier > 1:
+            msg = "Từ chối truy cập! Bạn không có quyền thu âm cấp quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền đăng ký giọng mới."
             await self.emit({"type": "rbac_blocked", "action": "start_voice_enrollment", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         target_tier = int(target_tier or 3)
         if target_tier not in (2, 3):
             target_tier = 3
-
-        if self.current_tier == 2 and target_tier != 3 and not pol.get("tier2_can_grant_tier2", False):
-            msg = "Thành viên Cấp 2 chỉ được phép thu âm cấp quyền cho Cấp 3 (Khách)."
-            await self.emit({"type": "rbac_blocked", "action": "start_voice_enrollment", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         default_dur = int(pol.get("enrollment_duration_seconds", 5) or 5)
         raw_dur = duration_sec if duration_sec is not None else (duration_seconds or default_dur)
@@ -774,9 +748,8 @@ class EngineVoiceRbacMixin:
     ) -> dict[str, Any]:
         if tier is not None:
             target_tier = int(tier)
-        pol = self.system_policies
-        if self.current_tier >= 3 and not pol.get("tier3_can_grant_revoke", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền cấp quyền cho bất kỳ ai."
+        if self.current_tier > 1:
+            msg = "Từ chối truy cập! Bạn không có quyền cấp quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền cấp quyền."
             await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
@@ -784,30 +757,9 @@ class EngineVoiceRbacMixin:
         if target_tier not in (2, 3):
             target_tier = 3
 
-        if self.current_tier == 2 and target_tier != 3 and not pol.get("tier2_can_grant_tier2", False):
-            msg = "Thành viên Tầng 2 chỉ được cấp quyền cho Khách (Tầng 3), không được cấp quyền Tầng 1 hay Tầng 2."
-            await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-
-        if self.current_tier >= 3 and target_tier != 3:
-            msg = "Cấp khách (Tầng 3) chỉ được phép cấp quyền Tầng 3."
-            await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-
         uid, existing = self._find_or_slug_user(target_name)
         if uid == OWNER_ID:
             msg = f"{OWNER_DISPLAY_NAME} đã là Admin tối cao Tầng 1."
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-
-        if (
-            existing
-            and existing.get("granted_by_tier") == 1
-            and existing.get("active", True)
-            and self.current_tier > 1
-            and not pol.get("tier2_can_override_tier1", False)
-        ):
-            msg = f"Không thể sửa quyền: {existing['name']} do Tầng 1 Nguyễn Tuấn Anh trực tiếp cấp quyền."
-            await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         role_code = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
@@ -845,9 +797,8 @@ class EngineVoiceRbacMixin:
         }
 
     async def revoke_user_permission(self, target_name: str) -> dict[str, Any]:
-        pol = self.system_policies
-        if self.current_tier >= 3 and not pol.get("tier3_can_grant_revoke", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền hủy quyền của bất kỳ ai."
+        if self.current_tier > 1:
+            msg = "Từ chối truy cập! Bạn không có quyền hủy quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền hủy quyền."
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
@@ -860,20 +811,6 @@ class EngineVoiceRbacMixin:
             msg = f"Không ai được phép hủy quyền của Tầng 1 {OWNER_DISPLAY_NAME}."
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-
-        if self.current_tier >= 2:
-            if existing.get("granted_by_tier") == 1 and not pol.get("tier2_can_override_tier1", False):
-                msg = f"Không thể hủy quyền: {existing['name']} được Tầng 1 Nguyễn Tuấn Anh cấp quyền, ngoài Tầng 1 ra không ai được phép hủy."
-                await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-            if self.current_tier == 2 and existing.get("tier") == 2 and not pol.get("tier2_can_revoke_same_tier", False):
-                msg = f"Không thể hủy quyền: Thành viên Tầng 2 không được phép hủy quyền cùng cấp ({existing['name']})."
-                await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-            if self.current_tier >= 3 and existing.get("tier") < 3:
-                msg = f"Không thể hủy quyền của cấp cao hơn ({existing['name']})."
-                await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         existing["active"] = False
         existing["role"] = "UNKNOWN"

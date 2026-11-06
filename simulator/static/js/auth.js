@@ -473,7 +473,25 @@
             const processor = audioCtx.createScriptProcessor(4096, 1, 1);
             let currentChunks = [];
             processor.onaudioprocess = (e) => {
-              const input = e.inputBuffer.getChannelData(0);
+              const rawInput = e.inputBuffer.getChannelData(0);
+              const actualSr = audioCtx ? audioCtx.sampleRate : 16000;
+              let input = rawInput;
+              if (actualSr && actualSr !== 16000 && rawInput.length > 0) {
+                const outLen = Math.max(1, Math.round((rawInput.length * 16000) / actualSr));
+                input = new Float32Array(outLen);
+                const ratio = rawInput.length / outLen;
+                for (let i = 0; i < outLen; i++) {
+                  const idxStart = Math.max(0, Math.floor(i * ratio));
+                  const idxEnd = Math.min(rawInput.length - 1, Math.ceil((i + 1) * ratio) - 1);
+                  if (idxEnd <= idxStart) {
+                    input[i] = rawInput[idxStart];
+                  } else {
+                    let sum = 0;
+                    for (let k = idxStart; k <= idxEnd; k++) sum += rawInput[k];
+                    input[i] = sum / (idxEnd - idxStart + 1);
+                  }
+                }
+              }
               const pcm16 = new Int16Array(input.length);
               for (let i = 0; i < input.length; i++) {
                 const s = Math.max(-1, Math.min(1, input[i]));
@@ -725,15 +743,17 @@
       } else if (actorTier === 2) {
         badge.className = 'badge badge-tier2';
         badge.textContent = 'Gia đình';
-        controls.style.display = 'block';
-        targetTierSel.innerHTML = `<option value="3">Khách (Cấp 3)</option>`;
+        controls.style.display = 'none';
+        statusBox.style.borderColor = 'var(--red-border)';
+        statusBox.style.background = 'var(--red-soft)';
+        statusBox.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên mới.';
       } else {
         badge.className = 'badge badge-tier3';
         badge.textContent = 'Khách';
         controls.style.display = 'none';
         statusBox.style.borderColor = 'var(--red-border)';
         statusBox.style.background = 'var(--red-soft)';
-        statusBox.textContent = 'Vai trò Khách không có quyền thêm thành viên mới.';
+        statusBox.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên mới.';
       }
     }
 
