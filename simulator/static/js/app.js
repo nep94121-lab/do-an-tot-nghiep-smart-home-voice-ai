@@ -389,69 +389,166 @@
     deviceActiveSummary.textContent = `${activeCount} đang bật`;
   }
 
-  function toggleDeviceById(devId) {
+  const DEVICE_DEBOUNCE_MS = 50;
+  const PENDING_INTENT_HOLD_MS = 4000;
+  const deviceControlState = {};
+  let lastServerRevisionSeq = 0;
+  let pollStateInFlight = false;
+  if (typeof window !== "undefined") {
+    window.__deviceControlState = deviceControlState;
+  }
+
+  function getDeviceControlState(devId) {
+    if (!deviceControlState[devId]) {
+      const cur = latestDevicesMap[devId];
+      const initSt = cur && cur.state ? String(cur.state).toUpperCase() : "OFF";
+      deviceControlState[devId] = {
+        seq: 0,
+        desiredState: initSt,
+        confirmedState: initSt,
+        lastConfirmedSeq: 0,
+        pendingCount: 0,
+        debounceTimer: null,
+        lastClickTs: 0,
+        lastVersion: cur && cur.version ? Number(cur.version) : 0,
+        lastUpdatedAt: cur && cur.updated_at ? Number(cur.updated_at) : 0,
+      };
+    }
+    return deviceControlState[devId];
+  }
+
+  function syncDeviceDOMToState(devId, targetState) {
+    const dev = latestDevicesMap[devId];
+    if (!dev) return;
+    dev.state = targetState;
+    const isOn = targetState === "ON" || targetState === "OPEN";
+    updateDeviceCardUI(devId, dev, isOn);
+    updateActiveDeviceSummaryCount();
+    if (window.SmartHome3D) {
+      window.SmartHome3D.updateDevices(Object.values(latestDevicesMap), window._latestMqtt, window._serverConnected !== false);
+    }
+  }
+
+  function dispatchDeviceSetState(devId, mySeq, targetState, myTs) {
+    const dev = latestDevicesMap[devId];
+    const ctrl = getDeviceControlState(devId);
+    if (!dev || mySeq < ctrl.seq) return;
+
+    const isTargetOn = targetState === "ON" || targetState === "OPEN";
+    const action = dev.type === "door" ? (isTargetOn ? "open" : "close") : (isTargetOn ? "turn_on" : "turn_off");
+    const roleVal = roleSelect && roleSelect.value ? roleSelect.value : "";
+
+    const rollbackIfLatest = () => {
+      if (mySeq !== ctrl.seq) return;
+      const revertState = ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF");
+      ctrl.desiredState = revertState;
+      syncDeviceDOMToState(devId, revertState);
+    };
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      sendWs({
+        type: "manual_toggle",
+        device_id: devId,
+        action,
+        target_state: targetState,
+        state: targetState,
+        client_seq: mySeq,
+        client_ts_ms: myTs,
+        role: roleVal,
+      });
+    } else {
+      ctrl.pendingCount += 1;
+      fetch("/api/device", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device_id: devId,
+          action,
+          target_state: targetState,
+          state: targetState,
+          client_seq: mySeq,
+          client_ts_ms: myTs,
+          source: "MANUAL_UI",
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          // Ignore stale out-of-order response if a newer click has occurred
+          if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+            return;
+          }
+          if (data && (data.ok === false || data.error)) {
+            rollbackIfLatest();
+            if (data.error) setAiReplyText(data.error);
+            return;
+          }
+          const finalState = String((data && data.state) || targetState).toUpperCase();
+          ctrl.confirmedState = finalState;
+          ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
+          if (data && data.device_version !== undefined) {
+            ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+          }
+          if (data && data.revision_seq !== undefined) {
+            lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(data.revision_seq) || 0);
+          }
+          ctrl.desiredState = finalState;
+          syncDeviceDOMToState(devId, finalState);
+          if (data && data.snapshot) {
+            applySnapshot(data.snapshot);
+          }
+        })
+        .catch(() => {
+          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          if (mySeq < ctrl.seq) return;
+          rollbackIfLatest();
+        });
+    }
+  }
+
+  function toggleDeviceById(devId, explicitTargetState = null) {
     const dev = latestDevicesMap[devId];
     if (!dev) return;
     const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
     if (isOfflineLocked) return;
 
-    const prevIsOn = dev.state === "ON" || dev.state === "OPEN";
-    const nextIsOn = !prevIsOn;
-    const prevState = dev.state;
-    const nextState = dev.type === "door" ? (nextIsOn ? "OPEN" : "CLOSED") : (nextIsOn ? "ON" : "OFF");
+    const ctrl = getDeviceControlState(devId);
+    const currentEffectiveState =
+      ctrl.pendingCount > 0 || ctrl.debounceTimer !== null
+        ? ctrl.desiredState || dev.state
+        : dev.state;
+    const prevIsOn = currentEffectiveState === "ON" || currentEffectiveState === "OPEN";
+    let nextState;
+    if (explicitTargetState && typeof explicitTargetState === "string") {
+      nextState = explicitTargetState.toUpperCase();
+    } else {
+      const nextIsOn = !prevIsOn;
+      nextState = dev.type === "door" ? (nextIsOn ? "OPEN" : "CLOSED") : (nextIsOn ? "ON" : "OFF");
+    }
+    const nextIsOn = nextState === "ON" || nextState === "OPEN";
+
+    ctrl.seq += 1;
+    const mySeq = ctrl.seq;
+    const myTs = Date.now();
+    ctrl.lastClickTs = myTs;
+    ctrl.desiredState = nextState;
 
     // Optimistic UI: Cập nhật in-memory và DOM tức thì
-    dev.state = nextState;
-    const cardEl = document.getElementById(`dev-card-${devId}`);
-    if (cardEl) {
-      const swInput = cardEl.querySelector(".switch input");
-      if (swInput) swInput.checked = nextIsOn;
-    }
-    updateDeviceCardUI(devId, dev, nextIsOn);
-    updateActiveDeviceSummaryCount();
+    syncDeviceDOMToState(devId, nextState);
     playRelayClick(nextIsOn);
 
-    if (window.SmartHome3D) {
-      window.SmartHome3D.updateDevices(Object.values(latestDevicesMap), window._latestMqtt, window._serverConnected !== false);
+    // Debounce rapid clicks: gộp các click liên tiếp trong khoảng ngắn thành trạng thái đích cuối cùng
+    if (ctrl.debounceTimer !== null) {
+      clearTimeout(ctrl.debounceTimer);
+      ctrl.debounceTimer = null;
     }
-
-    const action = dev.type === "door" ? (prevIsOn ? "close" : "open") : (prevIsOn ? "turn_off" : "turn_on");
-    const roleVal = roleSelect && roleSelect.value ? roleSelect.value : "";
-
-    const rollback = () => {
-      dev.state = prevState;
-      if (cardEl) {
-        const swInput = cardEl.querySelector(".switch input");
-        if (swInput) swInput.checked = prevIsOn;
-      }
-      updateDeviceCardUI(devId, dev, prevIsOn);
-      updateActiveDeviceSummaryCount();
-      if (window.SmartHome3D) {
-        window.SmartHome3D.updateDevices(Object.values(latestDevicesMap), window._latestMqtt, window._serverConnected !== false);
-      }
-    };
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      sendWs({ type: "manual_toggle", device_id: devId, action, role: roleVal });
-    } else {
-      fetch("/api/device", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device_id: devId, action, source: "MANUAL_UI" }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data && (data.ok === false || data.error)) {
-            rollback();
-            if (data.error) setAiReplyText(data.error);
-          } else if (data && data.snapshot) {
-            applySnapshot(data.snapshot);
-          }
-        })
-        .catch(() => {
-          rollback();
-        });
-    }
+    ctrl.debounceTimer = setTimeout(() => {
+      ctrl.debounceTimer = null;
+      dispatchDeviceSetState(devId, mySeq, nextState, myTs);
+    }, DEVICE_DEBOUNCE_MS);
+  }
+  if (typeof window !== "undefined") {
+    window.toggleDeviceById = toggleDeviceById;
   }
 
   function getDeviceRoomLabel(dev, isOn, isOfflineLocked) {
@@ -468,6 +565,86 @@
     const room = roomMap[dev.id] || "";
     const st = isOn ? "Đã bật" : "Đã tắt";
     return room ? `${room} · ${st}` : st;
+  }
+
+  function reconcileDevicesWithPendingIntent(devices, snapRevisionSeq = 0) {
+    if (!Array.isArray(devices)) return [];
+    const nowMs = Date.now();
+    const isStaleSnapshotRevision =
+      snapRevisionSeq > 0 && lastServerRevisionSeq > 0 && snapRevisionSeq < lastServerRevisionSeq;
+    if (snapRevisionSeq > lastServerRevisionSeq) {
+      lastServerRevisionSeq = snapRevisionSeq;
+    }
+
+    return devices.map((rawDev) => {
+      if (!rawDev || !rawDev.id) return rawDev;
+      const dev = Object.assign({}, rawDev);
+      const ctrl = deviceControlState[dev.id];
+      const serverSeq = Number(dev.last_client_seq || 0);
+      const serverVer = Number(dev.version || 0);
+
+      if (!ctrl) {
+        deviceControlState[dev.id] = {
+          seq: serverSeq,
+          desiredState: dev.state,
+          confirmedState: dev.state,
+          lastConfirmedSeq: serverSeq,
+          pendingCount: 0,
+          debounceTimer: null,
+          lastClickTs: 0,
+          lastVersion: serverVer,
+          lastUpdatedAt: Number(dev.updated_at || 0),
+        };
+        return dev;
+      }
+
+      const hasPendingLocalMutation = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
+      const withinHoldWindow = ctrl.seq > 0 && nowMs - ctrl.lastClickTs < PENDING_INTENT_HOLD_MS;
+
+      if (isStaleSnapshotRevision) {
+        const curMem = latestDevicesMap[dev.id];
+        if (curMem && curMem.state) {
+          dev.state = curMem.state;
+        }
+        return dev;
+      }
+
+      if (hasPendingLocalMutation && serverSeq < ctrl.seq) {
+        dev.state = ctrl.desiredState;
+        return dev;
+      }
+
+      if (ctrl.seq > 0 && serverSeq > 0 && serverSeq < ctrl.seq) {
+        dev.state = ctrl.desiredState;
+        return dev;
+      }
+
+      if (
+        withinHoldWindow &&
+        dev.state !== ctrl.desiredState &&
+        serverSeq < ctrl.seq &&
+        serverVer <= ctrl.lastVersion
+      ) {
+        dev.state = ctrl.desiredState;
+        return dev;
+      }
+
+      // Server state is authoritative and caught up
+      ctrl.confirmedState = dev.state;
+      if (!hasPendingLocalMutation) {
+        ctrl.desiredState = dev.state;
+        if (serverSeq > ctrl.seq) {
+          ctrl.seq = serverSeq;
+        }
+      }
+      if (serverSeq > ctrl.lastConfirmedSeq) {
+        ctrl.lastConfirmedSeq = serverSeq;
+      }
+      if (serverVer > ctrl.lastVersion) {
+        ctrl.lastVersion = serverVer;
+      }
+      return dev;
+    });
   }
 
   function renderDevices(devices) {
@@ -496,7 +673,7 @@
       let card = document.getElementById(`dev-card-${dev.id}`);
 
       if (card) {
-        // Cập nhật DOM in-place không xóa trắng node
+        // Cập nhật DOM in-place không xóa trắng node và KHÔNG gán lại event listener
         const iconSpan = card.querySelector(".device-icon");
         if (iconSpan) {
           iconSpan.className = `device-icon ${isOn ? "" : "off"}`;
@@ -543,23 +720,20 @@
           </label>
         `;
 
-        const swInput = card.querySelector(".switch input");
-        const swLabel = card.querySelector(".switch");
-        if (swLabel) {
-          swLabel.addEventListener("click", (e) => {
-            e.stopPropagation();
+        // Single listener binding: Gán duy nhất 1 listener trên card, chặn hành vi mặc định của label/checkbox để không phát sinh sự kiện kép click+change
+        if (!card.dataset.toggleListenerBound) {
+          card.dataset.toggleListenerBound = "1";
+          card._toggleListenerCount = (card._toggleListenerCount || 0) + 1;
+          card.addEventListener("click", (e) => {
+            e.preventDefault();
+            const locked =
+              window._serverConnected === false &&
+              (dev.id === "main_door" || dev.id === "alarm_siren");
+            if (!locked) {
+              toggleDeviceById(dev.id);
+            }
           });
         }
-        if (swInput) {
-          swInput.addEventListener("change", (e) => {
-            e.stopPropagation();
-            toggleDeviceById(dev.id);
-          });
-        }
-        card.addEventListener("click", () => {
-          const locked = window._serverConnected === false && (dev.id === "main_door" || dev.id === "alarm_siren");
-          if (!locked) toggleDeviceById(dev.id);
-        });
         devicesGrid.appendChild(card);
       }
     });
@@ -696,7 +870,11 @@
     }
 
     updateConnectionUI(snap.server_connected !== false);
-    renderDevices(snap.devices || []);
+    const reconciledDevices = reconcileDevicesWithPendingIntent(
+      snap.devices || [],
+      Number(snap.revision_seq || 0)
+    );
+    renderDevices(reconciledDevices);
 
     if ((snap.unauthorized_strikes && snap.unauthorized_strikes >= 3) || snap.security_lockdown) {
       triggerSecurityLockdown();
@@ -1197,13 +1375,20 @@
     };
   }
 
+  if (typeof window !== "undefined") {
+    window.applySnapshot = applySnapshot;
+    window.renderDevices = renderDevices;
+  }
+
   function pollRestStateFallback() {
     if (typeof ws !== "undefined" && ws && ws.readyState === 1) return;
-    if (voiceCommandBusy) return;
+    if (voiceCommandBusy || pollStateInFlight) return;
     const pollEpoch = voiceCommandEpoch;
+    pollStateInFlight = true;
     fetch("/api/state")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((snap) => {
+        pollStateInFlight = false;
         if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
         const trans = (typeof ws !== "undefined" && ws && ws.readyState === 1) ? "WebSocket" : "HTTP Polling";
         window._activeTransport = trans;
@@ -1212,6 +1397,7 @@
         hideWsReconnectBanner();
       })
       .catch(() => {
+        pollStateInFlight = false;
         if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
         window._activeTransport = "Mất kết nối";
         updateConnectionUI(false, "Mất kết nối");

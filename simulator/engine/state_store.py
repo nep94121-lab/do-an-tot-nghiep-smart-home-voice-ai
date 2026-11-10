@@ -56,6 +56,9 @@ class TrackedDeviceDict(dict):
 
     def __init__(self, *args: Any, _engine: Any = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        self.setdefault("version", 1)
+        self.setdefault("last_client_seq", 0)
+        self.setdefault("last_client_ts_ms", 0)
         self._engine = _engine
 
     def __setitem__(self, key: str, value: Any) -> None:
@@ -65,8 +68,10 @@ class TrackedDeviceDict(dict):
         if eng is not None and not getattr(eng, "_applying_shared_state", False):
             if key == "state":
                 if old_val != value or "updated_at" not in self:
-                    super().__setitem__("updated_at", time.time())
-            if key in ("state", "min_role", "name", "gpio", "type"):
+                    prev_ts = float(self.get("updated_at") or 0.0)
+                    super().__setitem__("updated_at", max(time.time(), prev_ts + 1e-6))
+                    super().__setitem__("version", int(self.get("version") or 1) + 1)
+            if key in ("state", "min_role", "name", "gpio", "type", "version", "last_client_seq", "last_client_ts_ms"):
                 eng._on_direct_device_mutation(str(self.get("id") or ""))
 
     def __deepcopy__(self, memo: dict[int, Any]) -> dict[str, Any]:
@@ -231,6 +236,7 @@ class VercelBlobStateBackend:
         self._known_blobs: list[dict[str, Any]] = []
         self._last_seq: int = 0
         self._last_ts_ns: int = 0
+        self._blob_suspended_until: float = 0.0
         if fallback_file_path is not None:
             fb_path = fallback_file_path
         elif os.name != "nt":
@@ -252,6 +258,8 @@ class VercelBlobStateBackend:
         headers: dict[str, str] | None = None,
         retries: int = 3,
     ) -> Any:
+        if self._blob_suspended_until > time.time():
+            raise urllib.error.URLError("Vercel Blob suspended circuit breaker active")
         req_headers = dict(headers or {})
         last_err: Exception | None = None
         for attempt in range(retries):
@@ -260,6 +268,13 @@ class VercelBlobStateBackend:
                 with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
                     raw = resp.read().decode("utf-8")
                     return json.loads(raw) if raw.strip() else {}
+            except urllib.error.HTTPError as exc:
+                last_err = exc
+                if exc.code in (401, 403):
+                    self._blob_suspended_until = time.time() + 600.0
+                    break
+                if attempt + 1 < retries:
+                    time.sleep(0.12 * (attempt + 1))
             except Exception as exc:
                 last_err = exc
                 if attempt + 1 < retries:

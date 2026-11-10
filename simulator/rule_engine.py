@@ -171,6 +171,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "state": str(v.get("state", DEFAULT_DEVICES.get(k, {}).get("state", "OFF"))),
                     "min_role": str(v.get("min_role", DEFAULT_DEVICES.get(k, {}).get("min_role", "CHILD_GUEST"))),
                     "updated_at": float(v.get("updated_at", time.time())),
+                    "version": int(v.get("version", 1)),
+                    "last_client_seq": int(v.get("last_client_seq", 0)),
+                    "last_client_ts_ms": int(v.get("last_client_ts_ms", 0)),
                 }
                 for k, v in self.devices.items()
             },
@@ -233,6 +236,21 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
                     if "min_role" in dev_data:
                         self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
+                    if "version" in dev_data:
+                        self.devices[dev_id]["version"] = max(
+                            int(self.devices[dev_id].get("version", 1)),
+                            int(dev_data["version"]),
+                        )
+                    if "last_client_seq" in dev_data:
+                        self.devices[dev_id]["last_client_seq"] = max(
+                            int(self.devices[dev_id].get("last_client_seq", 0)),
+                            int(dev_data["last_client_seq"]),
+                        )
+                    if "last_client_ts_ms" in dev_data:
+                        self.devices[dev_id]["last_client_ts_ms"] = max(
+                            int(self.devices[dev_id].get("last_client_ts_ms", 0)),
+                            int(dev_data["last_client_ts_ms"]),
+                        )
                 elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
                     merged_dev = dict(DEFAULT_DEVICES[dev_id])
                     merged_dev.update(dev_data)
@@ -376,10 +394,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             await self.on_event(event)
         ev_type = str(event.get("type", ""))
         if ev_type and ev_type not in ("state_snapshot", "mqtt_message", "mqtt_packet"):
-            try:
-                sync_engine_state_to_sqlite(self)
-            except Exception:
-                pass
+            if getattr(self, "_mutation_depth", 0) == 0:
+                try:
+                    sync_engine_state_to_sqlite(self)
+                except Exception:
+                    pass
             cat_map = {
                 "device_updated": "DEVICE_GPIO",
                 "device_actuated": "DEVICE_GPIO",
@@ -660,10 +679,32 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "role": actor_role,
         })
 
+    @staticmethod
+    def _normalize_idempotent_action(action: str | None, target_state: Any = None) -> str:
+        """Chuẩn hóa trạng thái đích tường minh (ON/OFF/OPEN/CLOSED/bool) về hành động lũy đẳng (idempotent)."""
+        if target_state is not None and target_state != "":
+            if isinstance(target_state, bool):
+                return "open" if target_state else "close"
+            st_up = str(target_state).strip().upper()
+            if st_up in ("ON", "OPEN", "1", "TRUE", "TURN_ON"):
+                return "open" if st_up == "OPEN" else "turn_on"
+            if st_up in ("OFF", "CLOSED", "CLOSE", "0", "FALSE", "TURN_OFF"):
+                return "close" if st_up in ("CLOSED", "CLOSE") else "turn_off"
+        act_low = str(action or "open").strip().lower()
+        if act_low in ("on", "turn_on", "true", "1"):
+            return "turn_on"
+        if act_low in ("off", "turn_off", "false", "0"):
+            return "turn_off"
+        if act_low in ("open",):
+            return "open"
+        if act_low in ("close", "closed"):
+            return "close"
+        return act_low or "open"
+
     async def execute_device_action(
         self,
         device_id: str,
-        action: str,
+        action: str = "",
         source: str = "voice",
         bypass_rbac: bool = False,
         trigger_chains: bool = True,
@@ -671,10 +712,42 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_user_name: str | None = None,
         request_role: str | None = None,
         reason: str | None = None,
+        target_state: Any = None,
+        client_seq: int | None = None,
+        client_ts_ms: int | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         if reason and source == "voice":
             source = str(reason)
+        if target_state is None:
+            for k in ("state", "desired_state", "targetState", "desiredState"):
+                if k in kwargs and kwargs[k] is not None and kwargs[k] != "":
+                    target_state = kwargs[k]
+                    break
+        action = self._normalize_idempotent_action(action, target_state)
+
+        raw_seq = client_seq
+        if raw_seq is None:
+            for k in ("seq", "request_seq", "clientSeq"):
+                if k in kwargs and kwargs[k] is not None:
+                    raw_seq = kwargs[k]
+                    break
+        try:
+            req_seq = max(0, int(raw_seq)) if raw_seq is not None else 0
+        except (TypeError, ValueError):
+            req_seq = 0
+
+        raw_ts = client_ts_ms
+        if raw_ts is None:
+            for k in ("timestamp", "client_ts", "clientTsMs"):
+                if k in kwargs and kwargs[k] is not None:
+                    raw_ts = kwargs[k]
+                    break
+        try:
+            req_ts_ms = max(0, int(float(raw_ts))) if raw_ts is not None else 0
+        except (TypeError, ValueError):
+            req_ts_ms = 0
+
         if not bypass_rbac:
             if request_tier is None and request_role is None:
                 is_unknown_caller = (
@@ -769,6 +842,48 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
                         continue
 
+                prev_seq = int(dev.get("last_client_seq", 0) or 0)
+                prev_ts_ms = int(dev.get("last_client_ts_ms", 0) or 0)
+                is_fresh_client_epoch = (
+                    req_ts_ms > 0
+                    and prev_ts_ms > 0
+                    and (req_ts_ms >= prev_ts_ms + 3000 or abs(req_ts_ms - prev_ts_ms) > 86_400_000)
+                )
+                if req_seq > 0:
+                    if not is_fresh_client_epoch and (
+                        req_seq < prev_seq or (req_seq == prev_seq and req_ts_ms > 0 and req_ts_ms < prev_ts_ms)
+                    ):
+                        results.append({
+                            "ok": True,
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "state": dev["state"],
+                            "already_in_state": True,
+                            "stale_ignored": True,
+                            "version": int(dev.get("version", 1) or 1),
+                            "last_client_seq": prev_seq,
+                        })
+                        continue
+                    dev["last_client_seq"] = req_seq
+                    if req_ts_ms > 0:
+                        dev["last_client_ts_ms"] = req_ts_ms if is_fresh_client_epoch else max(prev_ts_ms, req_ts_ms)
+                    self._state_dirty_in_tx = True
+                elif req_ts_ms > 0:
+                    if req_ts_ms < prev_ts_ms and (prev_ts_ms - req_ts_ms) < 86_400_000:
+                        results.append({
+                            "ok": True,
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "state": dev["state"],
+                            "already_in_state": True,
+                            "stale_ignored": True,
+                            "version": int(dev.get("version", 1) or 1),
+                            "last_client_seq": prev_seq,
+                        })
+                        continue
+                    dev["last_client_ts_ms"] = req_ts_ms
+                    self._state_dirty_in_tx = True
+
                 if dev["type"] == "door":
                     new_state = "OPEN" if act in ("open", "turn_on", "on") else "CLOSED"
                 else:
@@ -798,11 +913,16 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         "device_name": dev["name"],
                         "state": new_state,
                         "already_in_state": True,
+                        "version": int(dev.get("version", 1) or 1),
+                        "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
                     })
                     continue
 
+                prev_ver = int(dev.get("version", 1) or 1)
+                prev_updated_at = float(dev.get("updated_at", 0.0) or 0.0)
                 dev["state"] = new_state
-                dev["updated_at"] = time.time()
+                dev["updated_at"] = max(time.time(), prev_updated_at + 1e-6)
+                dev["version"] = max(int(dev.get("version", 1) or 1), prev_ver + 1)
                 self._state_dirty_in_tx = True
 
                 await self.mqtt_bridge.publish_actuate_command(
@@ -823,6 +943,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "new_state": new_state,
                     "source": source,
                     "timestamp": dev["updated_at"],
+                    "version": int(dev["version"]),
+                    "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
                 })
 
                 results.append({
@@ -831,13 +953,16 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "device_name": dev["name"],
                     "state": new_state,
                     "already_in_state": False,
+                    "version": int(dev["version"]),
+                    "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
                 })
 
                 if trigger_chains and self.server_connected:
                     triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                     results.extend(triggered_fx)
 
-        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        snap = self.get_snapshot()
+        await self.emit({"type": "state_snapshot", "snapshot": snap})
         all_ok = all(r["ok"] for r in results) if results else False
         any_rbac_blocked = any(bool(r.get("rbac_blocked")) for r in results)
         concise_reply = (
@@ -845,10 +970,19 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             if any_rbac_blocked and not all_ok
             else self._build_concise_spoken_reply(results)
         )
+        primary_res = results[0] if results else {}
         out_res: dict[str, Any] = {
             "ok": all_ok,
             "rbac_blocked": any_rbac_blocked and not all_ok,
+            "device_id": primary_res.get("device_id", DEVICE_ID_ALIASES.get(device_id, device_id)),
+            "state": primary_res.get("state"),
+            "device_version": primary_res.get("version"),
+            "client_seq": req_seq if req_seq > 0 else None,
+            "stale_ignored": bool(primary_res.get("stale_ignored", False)),
+            "revision_seq": int(self._last_synced_seq),
+            "revision_ts_ns": int(self._last_synced_ts_ns),
             "results": results,
+            "snapshot": snap,
             "message": concise_reply,
             "exact_spoken_reply": concise_reply,
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'",

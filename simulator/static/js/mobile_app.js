@@ -64,7 +64,14 @@
     let showAllDevices = true;
     let selectedRoomFilter = 'all';
     const pendingDeviceMutations = new Map();
-    const MUTATION_GUARD_WINDOW_MS = 2500;
+    const MUTATION_GUARD_WINDOW_MS = 4000;
+    const MOBILE_DEVICE_DEBOUNCE_MS = 50;
+    const mobileDeviceControlState = {};
+    let mobileLastRevisionSeq = 0;
+    let mobilePollInFlight = false;
+    if (typeof window !== 'undefined') {
+      window.__mobileDeviceControlState = mobileDeviceControlState;
+    }
     let mobileHistoryItems = [
       { time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }), event: 'Đồng bộ trạng thái nhà', result: 'Thành công', type: 'device' }
     ];
@@ -1142,59 +1149,174 @@
       `).join('');
     }
 
-    async function toggleMobileDeviceQuick(devId, btnEl) {
-      const allDevs = (latestSnap && latestSnap.devices) ? latestSnap.devices : [];
-      const d = allDevs.find(x => x.id === devId) || { id: devId, name: devId, type: devId === 'main_door' ? 'door' : 'light', state: 'OFF' };
-      const prevIsOn = d.state === 'ON' || d.state === 'OPEN';
-      const nextIsOn = !prevIsOn;
-      const prevState = d.state;
-      const nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
+    function getMobileDeviceControl(devId, fallbackState = 'OFF') {
+      if (!mobileDeviceControlState[devId]) {
+        const initSt = String(fallbackState || 'OFF').toUpperCase();
+        mobileDeviceControlState[devId] = {
+          seq: 0,
+          desiredState: initSt,
+          confirmedState: initSt,
+          lastConfirmedSeq: 0,
+          pendingCount: 0,
+          debounceTimer: null,
+          lastClickTs: 0,
+          lastVersion: 0,
+        };
+      }
+      return mobileDeviceControlState[devId];
+    }
 
-      d.state = nextState;
-      if (btnEl) {
-        if (btnEl.classList) {
-          btnEl.classList.toggle('on', nextIsOn);
-          btnEl.classList.toggle('active', nextIsOn);
-          btnEl.classList.toggle('off', !nextIsOn);
-        }
-        btnEl.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
-        if (btnEl.dataset) btnEl.dataset.state = nextIsOn ? 'on' : 'off';
+    function applyMobileDeviceOptimisticUI(devId, nextState, explicitBtnEl = null) {
+      const nextIsOn = nextState === 'ON' || nextState === 'OPEN';
+      if (latestSnap && Array.isArray(latestSnap.devices)) {
+        const d = latestSnap.devices.find(x => x.id === devId);
+        if (d) d.state = nextState;
       }
 
-      const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
-      try {
-        const res = await fetch('/api/device', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ device_id: devId, action }),
+      const grid = document.getElementById('devGrid');
+      const card = grid ? grid.querySelector(`[data-device-id="${devId}"]`) : null;
+      if (card) {
+        card.classList.toggle('on', nextIsOn);
+        card.classList.toggle('off', !nextIsOn);
+        card.setAttribute('data-state', nextIsOn ? 'on' : 'off');
+      }
+
+      const quickMap = {
+        living_room_light: 'mobileQuickBtnLight',
+        fan: 'mobileQuickBtnFan',
+        main_door: 'mobileQuickBtnDoor',
+      };
+      const qBtn = explicitBtnEl || (quickMap[devId] ? document.getElementById(quickMap[devId]) : null);
+      if (qBtn) {
+        if (qBtn.classList) {
+          qBtn.classList.toggle('on', nextIsOn);
+          qBtn.classList.toggle('active', nextIsOn);
+          qBtn.classList.toggle('off', !nextIsOn);
+        }
+        qBtn.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
+        if (qBtn.dataset) qBtn.dataset.state = nextIsOn ? 'on' : 'off';
+      }
+    }
+
+    function dispatchMobileDeviceSetState(devId, dName, dType, mySeq, targetState, myTs, btnEl = null) {
+      const ctrl = getMobileDeviceControl(devId, targetState);
+      if (mySeq < ctrl.seq) return Promise.resolve(null);
+
+      const isTargetOn = targetState === 'ON' || targetState === 'OPEN';
+      const action = dType === 'door' ? (isTargetOn ? 'open' : 'close') : (isTargetOn ? 'turn_on' : 'turn_off');
+      ctrl.pendingCount += 1;
+
+      const rollbackIfLatest = () => {
+        if (mySeq !== ctrl.seq) return;
+        pendingDeviceMutations.delete(devId);
+        const revertState = ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF');
+        ctrl.desiredState = revertState;
+        applyMobileDeviceOptimisticUI(devId, revertState, btnEl);
+      };
+
+      return fetch('/api/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: devId,
+          action,
+          target_state: targetState,
+          state: targetState,
+          client_seq: mySeq,
+          client_ts_ms: myTs,
+          source: 'mobile_app',
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+            return data;
+          }
+          if (data && (data.ok === false || data.error)) {
+            rollbackIfLatest();
+            addLog(`${dName}: Lỗi thao tác`, 'device', 'Thất bại');
+            return data;
+          }
+          const finalState = String((data && data.state) || targetState).toUpperCase();
+          ctrl.confirmedState = finalState;
+          ctrl.desiredState = finalState;
+          ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
+          if (data && data.device_version !== undefined) {
+            ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+          }
+          if (data && data.revision_seq !== undefined) {
+            mobileLastRevisionSeq = Math.max(mobileLastRevisionSeq, Number(data.revision_seq) || 0);
+          }
+          if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
+            pendingDeviceMutations.delete(devId);
+          }
+          applyMobileDeviceOptimisticUI(devId, finalState, btnEl);
+          if (data && data.snapshot) {
+            renderState(data.snapshot);
+          }
+          addLog(`${dName}: ${isTargetOn ? 'Bật' : 'Tắt'}`, 'device', 'Thành công');
+          return data;
+        })
+        .catch(() => {
+          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          if (mySeq < ctrl.seq) return null;
+          rollbackIfLatest();
+          addLog(`${dName}: Lỗi kết nối`, 'device', 'Thất bại');
+          return null;
         });
-        const data = await res.json();
-        if (data && (data.ok === false || data.error)) {
-          d.state = prevState;
-          if (btnEl) {
-            if (btnEl.classList) {
-              btnEl.classList.toggle('on', prevIsOn);
-              btnEl.classList.toggle('active', prevIsOn);
-              btnEl.classList.toggle('off', !prevIsOn);
-            }
-            btnEl.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
-            if (btnEl.dataset) btnEl.dataset.state = prevIsOn ? 'on' : 'off';
-          }
-        } else if (data && data.snapshot) {
-          renderState(data.snapshot);
-        }
-      } catch (err) {
-        d.state = prevState;
-        if (btnEl) {
-          if (btnEl.classList) {
-            btnEl.classList.toggle('on', prevIsOn);
-            btnEl.classList.toggle('active', prevIsOn);
-            btnEl.classList.toggle('off', !prevIsOn);
-          }
-          btnEl.setAttribute('aria-pressed', prevIsOn ? 'true' : 'false');
-          if (btnEl.dataset) btnEl.dataset.state = prevIsOn ? 'on' : 'off';
-        }
+    }
+
+    function scheduleMobileDeviceToggle(devId, btnEl = null, explicitTargetState = null) {
+      const allDevs = (latestSnap && latestSnap.devices) ? latestSnap.devices : [];
+      const d = allDevs.find(x => x.id === devId) || {
+        id: devId,
+        name: devId,
+        type: devId === 'main_door' ? 'door' : 'light',
+        state: 'OFF',
+      };
+      const ctrl = getMobileDeviceControl(devId, d.state);
+      const effectiveState =
+        ctrl.pendingCount > 0 || ctrl.debounceTimer !== null
+          ? ctrl.desiredState || d.state
+          : d.state;
+      const prevIsOn = effectiveState === 'ON' || effectiveState === 'OPEN';
+      let nextState;
+      if (explicitTargetState && typeof explicitTargetState === 'string') {
+        nextState = explicitTargetState.toUpperCase();
+      } else {
+        const nextIsOn = !prevIsOn;
+        nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
       }
+
+      ctrl.seq += 1;
+      const mySeq = ctrl.seq;
+      const myTs = Date.now();
+      ctrl.lastClickTs = myTs;
+      ctrl.desiredState = nextState;
+
+      pendingDeviceMutations.set(devId, {
+        seq: mySeq,
+        targetState: nextState,
+        expiresAt: myTs + MUTATION_GUARD_WINDOW_MS,
+      });
+
+      applyMobileDeviceOptimisticUI(devId, nextState, btnEl);
+
+      if (ctrl.debounceTimer !== null) {
+        clearTimeout(ctrl.debounceTimer);
+        ctrl.debounceTimer = null;
+      }
+      return new Promise(resolve => {
+        ctrl.debounceTimer = setTimeout(() => {
+          ctrl.debounceTimer = null;
+          dispatchMobileDeviceSetState(devId, d.name || devId, d.type, mySeq, nextState, myTs, btnEl).then(resolve);
+        }, MOBILE_DEVICE_DEBOUNCE_MS);
+      });
+    }
+
+    async function toggleMobileDeviceQuick(devId, btnEl) {
+      return scheduleMobileDeviceToggle(devId, btnEl);
     }
     if (typeof window !== 'undefined') {
       window.toggleMobileDeviceQuick = toggleMobileDeviceQuick;
@@ -1202,8 +1324,64 @@
 
     function renderState(snap) {
       if (!snap) return;
+      const snapRev = Number(snap.revision_seq || 0);
+      const isStaleRevision = snapRev > 0 && mobileLastRevisionSeq > 0 && snapRev < mobileLastRevisionSeq;
+      if (snapRev > mobileLastRevisionSeq) {
+        mobileLastRevisionSeq = snapRev;
+      }
+
+      const rawDevices = Array.isArray(snap.devices) ? snap.devices : [];
+      const now = Date.now();
+      const allDevices = rawDevices.map(rawD => {
+        if (!rawD || !rawD.id) return rawD;
+        const d = Object.assign({}, rawD);
+        const ctrl = getMobileDeviceControl(d.id, d.state);
+        const serverSeq = Number(d.last_client_seq || 0);
+        const serverVer = Number(d.version || 0);
+        const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
+        const pendingMut = pendingDeviceMutations.get(d.id);
+
+        if (isStaleRevision && latestSnap && Array.isArray(latestSnap.devices)) {
+          const prevD = latestSnap.devices.find(x => x.id === d.id);
+          if (prevD && prevD.state) d.state = prevD.state;
+          return d;
+        }
+
+        if (hasPending && serverSeq < ctrl.seq) {
+          d.state = ctrl.desiredState;
+          return d;
+        }
+
+        if (ctrl.seq > 0 && serverSeq > 0 && serverSeq < ctrl.seq) {
+          d.state = ctrl.desiredState;
+          return d;
+        }
+
+        if (pendingMut) {
+          if (now < pendingMut.expiresAt && serverSeq < ctrl.seq) {
+            if (d.state === pendingMut.targetState && !hasPending) {
+              pendingDeviceMutations.delete(d.id);
+            } else {
+              d.state = pendingMut.targetState;
+              return d;
+            }
+          } else if (!hasPending) {
+            pendingDeviceMutations.delete(d.id);
+          }
+        }
+
+        ctrl.confirmedState = d.state;
+        if (!hasPending) {
+          ctrl.desiredState = d.state;
+          if (serverSeq > ctrl.seq) ctrl.seq = serverSeq;
+        }
+        if (serverSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = serverSeq;
+        if (serverVer > ctrl.lastVersion) ctrl.lastVersion = serverVer;
+        return d;
+      });
+
+      snap = Object.assign({}, snap, { devices: allDevices });
       latestSnap = snap;
-      const allDevices = snap.devices || [];
       const filtered = allDevices.filter(d => {
         const roomLabel = d.room || ROOM_NAMES[d.id] || 'Phòng khách';
         return selectedRoomFilter === 'all' || roomLabel === selectedRoomFilter;
@@ -1212,23 +1390,6 @@
 
       const grid = document.getElementById('devGrid');
       if (!grid) return;
-
-      // 1. Guard against stale polling snapshots using pendingDeviceMutations (2500ms window)
-      const now = Date.now();
-      visibleDevices.forEach((d) => {
-        if (pendingDeviceMutations.has(d.id)) {
-          const pending = pendingDeviceMutations.get(d.id);
-          if (now < pending.expiresAt) {
-            if (d.state === pending.targetState) {
-              pendingDeviceMutations.delete(d.id);
-            } else {
-              d.state = pending.targetState; // Protect optimistic state
-            }
-          } else {
-            pendingDeviceMutations.delete(d.id);
-          }
-        }
-      });
 
       // 2. In-place DOM update without wiping grid.innerHTML
       const currentCards = Array.from(grid.querySelectorAll('[data-device-id]'));
@@ -1251,6 +1412,7 @@
         if (!card) {
           card = document.createElement('div');
           card.setAttribute('data-device-id', d.id);
+          card.setAttribute('data-state', isOn ? 'on' : 'off');
           card.className = `dev-row ${isOn ? 'on' : 'off'}`;
           card.innerHTML = `
             <span class="dev-icon">${ICONS[d.type] || '<svg class="icon"><use href="#i-lamp"/></svg>'}</span>
@@ -1260,12 +1422,20 @@
             </div>
             <span class="switch" aria-hidden="true"></span>
           `;
-          card.onclick = () => toggleDev(d.id);
+          if (!card.dataset.toggleListenerBound) {
+            card.dataset.toggleListenerBound = '1';
+            card._toggleListenerCount = 1;
+            card.addEventListener('click', (e) => {
+              e.preventDefault();
+              toggleDev(d.id);
+            });
+          }
           grid.appendChild(card);
         } else {
-          // In-place update class
+          // In-place update class without rebinding listener
           card.classList.toggle('on', isOn);
           card.classList.toggle('off', !isOn);
+          card.setAttribute('data-state', isOn ? 'on' : 'off');
           const nameEl = card.querySelector('.dev-name');
           if (nameEl && nameEl.textContent !== d.name) nameEl.textContent = d.name;
           const roomEl = card.querySelector('.dev-room');
@@ -1376,61 +1546,11 @@
       }
     }
 
-    async function toggleDev(devId) {
-      const d = (latestSnap && latestSnap.devices) ? latestSnap.devices.find(x => x.id === devId) : null;
-      if (!d) return;
-
-      const prevIsOn = d.state === 'ON' || d.state === 'OPEN';
-      const nextIsOn = !prevIsOn;
-      const prevState = d.state;
-      const nextState = d.type === 'door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
-
-      // Optimistic UI: <16ms frame in-place DOM update
-      d.state = nextState;
-      pendingDeviceMutations.set(d.id, {
-        targetState: nextState,
-        expiresAt: Date.now() + MUTATION_GUARD_WINDOW_MS
-      });
-
-      const grid = document.getElementById('devGrid');
-      const card = grid ? grid.querySelector(`[data-device-id="${d.id}"]`) : null;
-      if (card) {
-        card.classList.toggle('on', nextIsOn);
-        card.classList.toggle('off', !nextIsOn);
-      }
-
-      const action = d.type === 'door' ? (prevIsOn ? 'close' : 'open') : (prevIsOn ? 'turn_off' : 'turn_on');
-      try {
-        const res = await fetch('/api/device', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ device_id: d.id, action }),
-        });
-        const data = await res.json();
-        if (data && (data.ok === false || data.error)) {
-          // Rollback on failure
-          pendingDeviceMutations.delete(d.id);
-          d.state = prevState;
-          if (card) {
-            card.classList.toggle('on', prevIsOn);
-            card.classList.toggle('off', !prevIsOn);
-          }
-          addLog(`${d.name}: Lỗi thao tác`, 'device', 'Thất bại');
-        } else {
-          pendingDeviceMutations.delete(d.id);
-          if (data && data.snapshot) renderState(data.snapshot);
-          addLog(`${d.name}: ${nextIsOn ? 'Bật' : 'Tắt'}`, 'device', 'Thành công');
-        }
-      } catch (err) {
-        // Rollback on network error
-        pendingDeviceMutations.delete(d.id);
-        d.state = prevState;
-        if (card) {
-          card.classList.toggle('on', prevIsOn);
-          card.classList.toggle('off', !prevIsOn);
-        }
-        addLog(`${d.name}: Lỗi kết nối`, 'device', 'Thất bại');
-      }
+    async function toggleDev(devId, explicitTargetState = null) {
+      return scheduleMobileDeviceToggle(devId, null, explicitTargetState);
+    }
+    if (typeof window !== 'undefined') {
+      window.toggleDev = toggleDev;
     }
 
     async function fetchInitial() {
@@ -2192,6 +2312,8 @@
 
     async function pollMobileSecurityAndTimers() {
       refreshMobileQr10s();
+      if (mobilePollInFlight) return;
+      mobilePollInFlight = true;
       try {
         const r2 = await fetch('/api/state');
         const d2 = await r2.json();
@@ -2224,6 +2346,8 @@
       } catch (e) {
         const connEl = document.getElementById('espBadge');
         if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
+      } finally {
+        mobilePollInFlight = false;
       }
     }
 

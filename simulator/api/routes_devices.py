@@ -339,8 +339,15 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     """Điều khiển bật/tắt hoặc mở/đóng thiết bị từ App Mobile hoặc Web (RBAC lấy từ session đã xác thực)."""
     body = payload if isinstance(payload, dict) else {}
     dev_id = str(body.get("device_id") or "main_door").strip() or "main_door"
-    act = str(body.get("action") or "open").strip() or "open"
+    target_state = (
+        body.get("target_state")
+        if "target_state" in body
+        else (body.get("state") if "state" in body else body.get("desired_state"))
+    )
+    act = str(body.get("action") or (target_state if target_state is not None else "open")).strip() or "open"
     source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
+    client_seq = body.get("client_seq") if "client_seq" in body else body.get("seq")
+    client_ts_ms = body.get("client_ts_ms") if "client_ts_ms" in body else body.get("timestamp")
 
     req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
     if (
@@ -385,10 +392,14 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         request_tier=session_tier,
         request_user_name=session_user,
         request_role=session_role,
+        target_state=target_state,
+        client_seq=client_seq,
+        client_ts_ms=client_ts_ms,
     )
     res["tier"] = session_tier
     res["user_name"] = session_user
     res["rbac_blocked"] = not bool(res.get("ok"))
+    res["snapshot"] = _REST_ENGINE.get_snapshot(session=session)
     if not res.get("ok") and not res.get("error"):
         res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
     spoken_dev_ctrl = str(res.get("exact_spoken_reply") or res.get("error") or "").strip()
@@ -401,7 +412,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         summary=f"📱 [App/Web] {session_user} (Tầng {session_tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
         user_name=session_user,
         tier=session_tier,
-        details={"device_id": dev_id, "action": act, "result": res},
+        details={"device_id": dev_id, "action": act, "target_state": target_state, "client_seq": client_seq, "result": res},
     )
     await broadcast_rest_state_to_bridges()
     status_code = 200
@@ -410,9 +421,10 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     return JSONResponse(res, status_code=status_code)
 
 
+@router.post("/api/device/{device_id}")
 @router.post("/api/devices/{device_id}/control")
 async def api_control_device_by_path(device_id: str, request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Điều khiển bật/tắt thiết bị theo đường dẫn REST /api/devices/{device_id}/control."""
+    """Điều khiển bật/tắt thiết bị theo đường dẫn REST /api/devices/{device_id}/control hoặc /api/device/{device_id}."""
     body = dict(payload or {})
     body["device_id"] = device_id
     return await api_control_device(request, body)

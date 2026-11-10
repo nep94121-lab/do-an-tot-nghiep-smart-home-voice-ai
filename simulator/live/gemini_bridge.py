@@ -1129,7 +1129,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                     elif mtype == "manual_toggle":
                         dev_id = str(msg.get("device_id", ""))
-                        action = str(msg.get("action", ""))
+                        target_state = (
+                            msg.get("target_state")
+                            if "target_state" in msg
+                            else (msg.get("state") if "state" in msg else msg.get("desired_state"))
+                        )
+                        action = str(msg.get("action") or (target_state if target_state is not None else ""))
+                        client_seq = msg.get("client_seq") if "client_seq" in msg else msg.get("seq")
+                        client_ts_ms = msg.get("client_ts_ms") if "client_ts_ms" in msg else msg.get("timestamp")
                         req_role = str(msg.get("role", "") or "").strip()
                         if req_role:
                             self.engine.set_active_user(req_role)
@@ -1139,6 +1146,9 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             source="button_ui",
                             bypass_rbac=False,
                             trigger_chains=True,
+                            target_state=target_state,
+                            client_seq=client_seq,
+                            client_ts_ms=client_ts_ms,
                         )
                         if self.engine.on_event is None:
                             await self.send_ws_json({

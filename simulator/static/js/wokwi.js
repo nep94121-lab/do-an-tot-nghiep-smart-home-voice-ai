@@ -429,6 +429,24 @@
       }
     }
 
+    const wokwiControlState = {};
+    const WOKWI_DEBOUNCE_MS = 50;
+
+    function getWokwiControl(devId) {
+      if (!wokwiControlState[devId]) {
+        const initSt = devState[devId] || 'OFF';
+        wokwiControlState[devId] = {
+          seq: 0,
+          desiredState: initSt,
+          confirmedState: initSt,
+          pendingCount: 0,
+          debounceTimer: null,
+          lastClickTs: 0,
+        };
+      }
+      return wokwiControlState[devId];
+    }
+
     function formatHumanDeviceState(id, st, locked) {
       if (locked) return 'Đã khóa';
       if (id === 'main_door') return st === 'OPEN' ? 'Đang mở' : 'Đang đóng';
@@ -467,7 +485,17 @@
       if (Array.isArray(snap.devices)) {
         for (const d of snap.devices) {
           if (d && d.id && devState.hasOwnProperty(d.id)) {
-            devState[d.id] = d.state;
+            const ctrl = getWokwiControl(d.id);
+            const srvSeq = Number(d.last_client_seq || 0);
+            if ((ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) && srvSeq < ctrl.seq) {
+              devState[d.id] = ctrl.desiredState;
+            } else if (ctrl.seq > 0 && srvSeq > 0 && srvSeq < ctrl.seq) {
+              devState[d.id] = ctrl.desiredState;
+            } else {
+              devState[d.id] = d.state;
+              ctrl.confirmedState = d.state;
+              ctrl.desiredState = d.state;
+            }
           }
         }
       } else {
@@ -589,11 +617,30 @@
     }
 
     async function toggleDevice(devId) {
-      const cur = devState[devId] || 'OFF';
-      const nextAct = (cur === 'OPEN' || cur === 'ON') ? 'close' : 'open';
       if (!window._wokwiServerConnected && (devId === 'main_door' || devId === 'alarm_siren')) {
         logSerial(`Chặn lệnh ${devId}: Mạch đang ở chế độ độc lập, không mở cửa chính hoặc còi.`, 'warn');
-      } else if (devId === 'ac' || devId === 'fan') {
+        return;
+      }
+      const ctrl = getWokwiControl(devId);
+      const cur = (ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) ? ctrl.desiredState : (devState[devId] || 'OFF');
+      const isCurOn = cur === 'OPEN' || cur === 'ON';
+      const nextIsOn = !isCurOn;
+      const nextState = devId === 'main_door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
+      const nextAct = nextIsOn ? 'open' : 'close';
+
+      ctrl.seq += 1;
+      const mySeq = ctrl.seq;
+      const myTs = Date.now();
+      ctrl.lastClickTs = myTs;
+      ctrl.desiredState = nextState;
+      devState[devId] = nextState;
+
+      const btn = document.getElementById('btn_' + devId);
+      const lb = document.getElementById('st_' + devId);
+      if (btn) btn.classList.toggle('on', nextIsOn);
+      if (lb) lb.textContent = formatHumanDeviceState(devId, nextState, false);
+
+      if (devId === 'ac' || devId === 'fan') {
         const irLed = document.getElementById('w_led_ir');
         if (irLed) {
           irLed.value = true;
@@ -603,17 +650,51 @@
       } else {
         logSerial(`Cập nhật thiết bị ${devId} -> ${nextAct}`, 'cmd');
       }
-      const r = await fetch('/api/device', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: devId, action: nextAct })
-      });
-      const data = await r.json();
-      if (data.ok === false && data.error) {
-        logSerial(`[CHẶN] ${data.error}`, 'warn');
+
+      if (ctrl.debounceTimer !== null) {
+        clearTimeout(ctrl.debounceTimer);
+        ctrl.debounceTimer = null;
       }
-      if (data.snapshot) syncWokwiComponents(data.snapshot);
-      else fetchState();
+      return new Promise(resolve => {
+        ctrl.debounceTimer = setTimeout(async () => {
+          ctrl.debounceTimer = null;
+          if (mySeq < ctrl.seq) {
+            resolve();
+            return;
+          }
+          ctrl.pendingCount += 1;
+          try {
+            const r = await fetch('/api/device', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                device_id: devId,
+                action: nextAct,
+                target_state: nextState,
+                state: nextState,
+                client_seq: mySeq,
+                client_ts_ms: myTs,
+              }),
+            });
+            const data = await r.json();
+            ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+            if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+              resolve();
+              return;
+            }
+            if (data.ok === false && data.error) {
+              logSerial(`[CHẶN] ${data.error}`, 'warn');
+              devState[devId] = ctrl.confirmedState;
+              ctrl.desiredState = ctrl.confirmedState;
+            }
+            if (data.snapshot) syncWokwiComponents(data.snapshot);
+            else fetchState();
+          } catch (_) {
+            ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          }
+          resolve();
+        }, WOKWI_DEBOUNCE_MS);
+      });
     }
 
     function onSoilSlide(val) {
