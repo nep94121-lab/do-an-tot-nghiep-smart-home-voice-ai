@@ -387,22 +387,54 @@
 
   const DEVICE_DEBOUNCE_MS = 50;
   const PENDING_INTENT_HOLD_MS = 4000;
+  const WS_PENDING_TIMEOUT_MS = 15000;
+  const CLIENT_ID =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? `web_${crypto.randomUUID()}`
+      : `web_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const deviceControlState = {};
   let lastServerRevisionSeq = 0;
   let pollStateInFlight = false;
   if (typeof window !== "undefined") {
     window.__deviceControlState = deviceControlState;
+    window.__clientId = CLIENT_ID;
+  }
+
+  function recomputeDevicePendingCount(ctrl) {
+    if (!ctrl) return 0;
+    const wsCount = ctrl.wsPendingTimers ? Object.keys(ctrl.wsPendingTimers).length : 0;
+    ctrl.pendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0)) + wsCount;
+    return ctrl.pendingCount;
+  }
+
+  function clearWsPendingUpTo(ctrl, ackSeq) {
+    if (!ctrl || !ctrl.wsPendingTimers) return;
+    const targetSeq = Number(ackSeq || 0);
+    Object.keys(ctrl.wsPendingTimers).forEach((k) => {
+      const s = Number(k);
+      if (targetSeq <= 0 || s <= targetSeq) {
+        clearTimeout(ctrl.wsPendingTimers[k]);
+        delete ctrl.wsPendingTimers[k];
+        if (ctrl.wsPendingMeta) delete ctrl.wsPendingMeta[k];
+      }
+    });
+    recomputeDevicePendingCount(ctrl);
   }
 
   function getDeviceControlState(devId) {
     if (!deviceControlState[devId]) {
       const cur = latestDevicesMap[devId];
       const initSt = cur && cur.state ? String(cur.state).toUpperCase() : "OFF";
+      const sameCid = Boolean(cur && cur.last_client_id && cur.last_client_id === CLIENT_ID);
+      const initSeq = sameCid && cur && cur.last_client_seq ? Number(cur.last_client_seq) : 0;
       deviceControlState[devId] = {
-        seq: 0,
+        seq: initSeq,
         desiredState: initSt,
         confirmedState: initSt,
-        lastConfirmedSeq: 0,
+        lastConfirmedSeq: initSeq,
+        httpPendingCount: 0,
+        wsPendingTimers: {},
+        wsPendingMeta: {},
         pendingCount: 0,
         debounceTimer: null,
         lastClickTs: 0,
@@ -433,6 +465,7 @@
     const isTargetOn = targetState === "ON" || targetState === "OPEN";
     const action = dev.type === "door" ? (isTargetOn ? "open" : "close") : (isTargetOn ? "turn_on" : "turn_off");
     const roleVal = roleSelect && roleSelect.value ? roleSelect.value : "";
+    const reqId = `${CLIENT_ID}:${devId}:${mySeq}`;
 
     const rollbackIfLatest = () => {
       if (mySeq !== ctrl.seq) return;
@@ -442,18 +475,35 @@
     };
 
     if (ws && ws.readyState === WebSocket.OPEN) {
+      if (!ctrl.wsPendingTimers) ctrl.wsPendingTimers = {};
+      if (!ctrl.wsPendingMeta) ctrl.wsPendingMeta = {};
+      const seqKey = String(mySeq);
+      if (ctrl.wsPendingTimers[seqKey]) {
+        clearTimeout(ctrl.wsPendingTimers[seqKey]);
+      }
+      ctrl.wsPendingMeta[seqKey] = { seq: mySeq, targetState, ts: myTs };
+      ctrl.wsPendingTimers[seqKey] = setTimeout(() => {
+        delete ctrl.wsPendingTimers[seqKey];
+        if (ctrl.wsPendingMeta) delete ctrl.wsPendingMeta[seqKey];
+        recomputeDevicePendingCount(ctrl);
+      }, WS_PENDING_TIMEOUT_MS);
+      recomputeDevicePendingCount(ctrl);
+
       sendWs({
         type: "manual_toggle",
         device_id: devId,
         action,
         target_state: targetState,
         state: targetState,
+        client_id: CLIENT_ID,
         client_seq: mySeq,
         client_ts_ms: myTs,
+        request_id: reqId,
         role: roleVal,
       });
     } else {
-      ctrl.pendingCount += 1;
+      ctrl.httpPendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0)) + 1;
+      recomputeDevicePendingCount(ctrl);
       fetch("/api/device", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -462,16 +512,35 @@
           action,
           target_state: targetState,
           state: targetState,
+          client_id: CLIENT_ID,
           client_seq: mySeq,
           client_ts_ms: myTs,
+          request_id: reqId,
           source: "MANUAL_UI",
         }),
       })
         .then((r) => r.json())
         .then((data) => {
-          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
-          // Ignore stale out-of-order response if a newer click has occurred
-          if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+          ctrl.httpPendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0) - 1);
+          recomputeDevicePendingCount(ctrl);
+          // Ignore stale out-of-order response if a newer local click has occurred
+          if (mySeq < ctrl.seq) {
+            return;
+          }
+          if (data && data.stale_ignored) {
+            const authState = String((data && data.state) || ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")).toUpperCase();
+            ctrl.confirmedState = authState;
+            ctrl.desiredState = authState;
+            if (data.device_version !== undefined) {
+              ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+            }
+            if (data.revision_seq !== undefined) {
+              lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(data.revision_seq) || 0);
+            }
+            syncDeviceDOMToState(devId, authState);
+            if (data.snapshot) {
+              applySnapshot(data.snapshot);
+            }
             return;
           }
           if (data && (data.ok === false || data.error)) {
@@ -495,7 +564,8 @@
           }
         })
         .catch(() => {
-          ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+          ctrl.httpPendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0) - 1);
+          recomputeDevicePendingCount(ctrl);
           if (mySeq < ctrl.seq) return;
           rollbackIfLatest();
         });
@@ -578,13 +648,17 @@
       const ctrl = deviceControlState[dev.id];
       const serverSeq = Number(dev.last_client_seq || 0);
       const serverVer = Number(dev.version || 0);
+      const sameClient = Boolean(dev.last_client_id && dev.last_client_id === CLIENT_ID);
 
       if (!ctrl) {
         deviceControlState[dev.id] = {
-          seq: serverSeq,
+          seq: sameClient ? serverSeq : 0,
           desiredState: dev.state,
           confirmedState: dev.state,
-          lastConfirmedSeq: serverSeq,
+          lastConfirmedSeq: sameClient ? serverSeq : 0,
+          httpPendingCount: 0,
+          wsPendingTimers: {},
+          wsPendingMeta: {},
           pendingCount: 0,
           debounceTimer: null,
           lastClickTs: 0,
@@ -592,6 +666,10 @@
           lastUpdatedAt: Number(dev.updated_at || 0),
         };
         return dev;
+      }
+
+      if (sameClient && serverSeq >= ctrl.seq && ctrl.debounceTimer === null) {
+        clearWsPendingUpTo(ctrl, serverSeq);
       }
 
       const hasPendingLocalMutation = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
@@ -605,12 +683,25 @@
         return dev;
       }
 
-      if (hasPendingLocalMutation && serverSeq < ctrl.seq) {
+      if (hasPendingLocalMutation && !(sameClient && serverSeq >= ctrl.seq)) {
         dev.state = ctrl.desiredState;
         return dev;
       }
 
-      if (ctrl.seq > 0 && serverSeq > 0 && serverSeq < ctrl.seq) {
+      if (serverVer > 0 && ctrl.lastVersion > 0 && serverVer < ctrl.lastVersion) {
+        const curMem = latestDevicesMap[dev.id];
+        dev.state = (curMem && curMem.state) || ctrl.confirmedState || dev.state;
+        dev.version = ctrl.lastVersion;
+        return dev;
+      }
+
+      if (
+        sameClient &&
+        ctrl.lastConfirmedSeq > 0 &&
+        serverSeq > 0 &&
+        serverSeq < ctrl.lastConfirmedSeq &&
+        serverVer <= ctrl.lastVersion
+      ) {
         dev.state = ctrl.desiredState;
         return dev;
       }
@@ -618,6 +709,7 @@
       if (
         withinHoldWindow &&
         dev.state !== ctrl.desiredState &&
+        (!dev.last_client_id || sameClient) &&
         serverSeq < ctrl.seq &&
         serverVer <= ctrl.lastVersion
       ) {
@@ -629,11 +721,11 @@
       ctrl.confirmedState = dev.state;
       if (!hasPendingLocalMutation) {
         ctrl.desiredState = dev.state;
-        if (serverSeq > ctrl.seq) {
+        if (sameClient && serverSeq > ctrl.seq) {
           ctrl.seq = serverSeq;
         }
       }
-      if (serverSeq > ctrl.lastConfirmedSeq) {
+      if (sameClient && serverSeq > ctrl.lastConfirmedSeq) {
         ctrl.lastConfirmedSeq = serverSeq;
       }
       if (serverVer > ctrl.lastVersion) {
@@ -716,18 +808,27 @@
           </label>
         `;
 
-        // Single listener binding: Gán duy nhất 1 listener trên card, chặn hành vi mặc định của label/checkbox để không phát sinh sự kiện kép click+change
+        // Single listener binding: Gán duy nhất 1 listener trên card; khi click label/span ngoài checkbox thì chặn synthetic click kép, còn khi kích hoạt trực tiếp checkbox (click/Space) thì giữ nguyên checked đồng bộ với card
         if (!card.dataset.toggleListenerBound) {
           card.dataset.toggleListenerBound = "1";
           card._toggleListenerCount = (card._toggleListenerCount || 0) + 1;
           card.addEventListener("click", (e) => {
-            e.preventDefault();
+            const swInput = card.querySelector(".switch input");
+            const curDev = latestDevicesMap[dev.id] || dev;
             const locked =
               window._serverConnected === false &&
               (dev.id === "main_door" || dev.id === "alarm_siren");
-            if (!locked) {
-              toggleDeviceById(dev.id);
+            if (locked) {
+              e.preventDefault();
+              if (swInput) {
+                swInput.checked = curDev.state === "ON" || curDev.state === "OPEN";
+              }
+              return;
             }
+            if (e.target !== swInput) {
+              e.preventDefault();
+            }
+            toggleDeviceById(dev.id);
           });
         }
         devicesGrid.appendChild(card);
@@ -1191,6 +1292,58 @@
           applySnapshot(msg.snapshot);
           break;
 
+        case "manual_toggle_ack": {
+          const ackDevId = msg.device_id;
+          if (ackDevId && deviceControlState[ackDevId]) {
+            const ctrl = deviceControlState[ackDevId];
+            const ackSeq = Number(msg.client_seq || 0);
+            const sameCid = !msg.client_id || msg.client_id === CLIENT_ID;
+            if (sameCid && ackSeq > 0) {
+              clearWsPendingUpTo(ctrl, ackSeq);
+            }
+            if (sameCid && ackSeq >= ctrl.seq) {
+              const dev = latestDevicesMap[ackDevId];
+              if (msg.stale_ignored) {
+                const authState = String(
+                  msg.state || ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF")
+                ).toUpperCase();
+                ctrl.confirmedState = authState;
+                ctrl.desiredState = authState;
+                if (msg.device_version !== undefined && msg.device_version !== null) {
+                  ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(msg.device_version) || 0);
+                }
+                if (msg.revision_seq !== undefined && msg.revision_seq !== null) {
+                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(msg.revision_seq) || 0);
+                }
+                syncDeviceDOMToState(ackDevId, authState);
+              } else if (msg.ok === false || msg.rbac_blocked || msg.error) {
+                const revertState = ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF");
+                ctrl.desiredState = revertState;
+                syncDeviceDOMToState(ackDevId, revertState);
+                if (msg.error) setAiReplyText(msg.error);
+              } else {
+                const finalState = String(msg.state || ctrl.desiredState || "OFF").toUpperCase();
+                ctrl.confirmedState = finalState;
+                ctrl.desiredState = finalState;
+                if (ackSeq > 0) {
+                  ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, ackSeq);
+                }
+                if (msg.device_version !== undefined && msg.device_version !== null) {
+                  ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(msg.device_version) || 0);
+                }
+                if (msg.revision_seq !== undefined && msg.revision_seq !== null) {
+                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(msg.revision_seq) || 0);
+                }
+                syncDeviceDOMToState(ackDevId, finalState);
+              }
+            }
+            if (msg.snapshot) {
+              applySnapshot(msg.snapshot);
+            }
+          }
+          break;
+        }
+
         case "server_mode_changed":
           updateConnectionUI(msg.server_connected !== false);
           if (msg.message) {
@@ -1198,10 +1351,45 @@
           }
           break;
 
-        case "device_updated":
+        case "device_updated": {
+          const updDevId = msg.device_id;
+          if (updDevId && latestDevicesMap[updDevId]) {
+            const ctrl = getDeviceControlState(updDevId);
+            const msgVer = Number(msg.version || 0);
+            const msgSeq = Number(msg.last_client_seq || 0);
+            const msgRev = Number(msg.revision_seq || 0);
+            const sameCid = Boolean(msg.last_client_id && msg.last_client_id === CLIENT_ID);
+            if (sameCid && msgSeq >= ctrl.seq && ctrl.debounceTimer === null) {
+              clearWsPendingUpTo(ctrl, msgSeq);
+            }
+            const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
+            const isStaleUpd =
+              (msgRev > 0 && lastServerRevisionSeq > 0 && msgRev < lastServerRevisionSeq) ||
+              (msgVer > 0 && ctrl.lastVersion > 0 && msgVer < ctrl.lastVersion) ||
+              (sameCid && ctrl.lastConfirmedSeq > 0 && msgSeq > 0 && msgSeq < ctrl.lastConfirmedSeq && msgVer <= ctrl.lastVersion) ||
+              (hasPending && !(sameCid && msgSeq >= ctrl.seq));
+            if (isStaleUpd) {
+              break;
+            }
+            if (msg.new_state) {
+              const nextSt = String(msg.new_state).toUpperCase();
+              ctrl.confirmedState = nextSt;
+              if (!hasPending) {
+                ctrl.desiredState = nextSt;
+              }
+              if (msgVer > ctrl.lastVersion) ctrl.lastVersion = msgVer;
+              if (msgRev > lastServerRevisionSeq) lastServerRevisionSeq = msgRev;
+              if (sameCid && msgSeq > ctrl.lastConfirmedSeq) {
+                ctrl.lastConfirmedSeq = msgSeq;
+                ctrl.seq = Math.max(ctrl.seq, msgSeq);
+              }
+              syncDeviceDOMToState(updDevId, ctrl.desiredState);
+            }
+          }
           playRelayClick(msg.new_state === "ON" || msg.new_state === "OPEN");
           logEvent(`${msg.device_name}: ${msg.old_state} -> ${msg.new_state}`, "tool");
           break;
+        }
 
         case "rbac_blocked":
           setAiReplyText(msg.reason || "Xin lỗi, bạn không có quyền thực hiện lệnh này.");
@@ -1351,6 +1539,18 @@
 
     ws.onclose = () => {
       window._activeTransport = "HTTP Polling";
+      Object.keys(deviceControlState).forEach((devId) => {
+        const ctrl = deviceControlState[devId];
+        if (!ctrl || !ctrl.wsPendingTimers) return;
+        const pendingKeys = Object.keys(ctrl.wsPendingTimers);
+        if (pendingKeys.length === 0) return;
+        const maxSeq = Math.max(...pendingKeys.map((k) => Number(k) || 0));
+        const latestMeta = ctrl.wsPendingMeta ? ctrl.wsPendingMeta[String(maxSeq)] : null;
+        clearWsPendingUpTo(ctrl, maxSeq);
+        if (latestMeta && maxSeq === ctrl.seq && ctrl.debounceTimer === null) {
+          dispatchDeviceSetState(devId, latestMeta.seq, latestMeta.targetState, latestMeta.ts);
+        }
+      });
       fetch("/api/state")
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((snap) => {
@@ -2794,11 +2994,29 @@
       if (ok) {
         sendWs({ type: "reset_voice_strikes" });
 
-        fetch("/api/device/alarm_siren", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: "OFF" }),
-        }).catch(() => {});
+        if (latestDevicesMap["alarm_siren"]) {
+          toggleDeviceById("alarm_siren", "OFF");
+        } else {
+          const sirenCtrl = getDeviceControlState("alarm_siren");
+          sirenCtrl.seq += 1;
+          const sSeq = sirenCtrl.seq;
+          const sTs = Date.now();
+          sirenCtrl.desiredState = "OFF";
+          fetch("/api/device/alarm_siren", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "turn_off",
+              target_state: "OFF",
+              state: "OFF",
+              client_id: CLIENT_ID,
+              client_seq: sSeq,
+              client_ts_ms: sTs,
+              request_id: `${CLIENT_ID}:alarm_siren:${sSeq}`,
+              source: "SecurityLockdownModal",
+            }),
+          }).catch(() => {});
+        }
 
         if (voiceLockoutNotice) {
           voiceLockoutNotice.hidden = true;

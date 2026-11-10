@@ -66,11 +66,16 @@
     const pendingDeviceMutations = new Map();
     const MUTATION_GUARD_WINDOW_MS = 4000;
     const MOBILE_DEVICE_DEBOUNCE_MS = 50;
+    const MOBILE_CLIENT_ID =
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? `mob_${crypto.randomUUID()}`
+        : `mob_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const mobileDeviceControlState = {};
     let mobileLastRevisionSeq = 0;
     let mobilePollInFlight = false;
     if (typeof window !== 'undefined') {
       window.__mobileDeviceControlState = mobileDeviceControlState;
+      window.__mobileClientId = MOBILE_CLIENT_ID;
     }
     let mobileHistoryItems = [
       { time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }), event: 'Đồng bộ trạng thái nhà', result: 'Thành công', type: 'device' }
@@ -1204,6 +1209,7 @@
 
       const isTargetOn = targetState === 'ON' || targetState === 'OPEN';
       const action = dType === 'door' ? (isTargetOn ? 'open' : 'close') : (isTargetOn ? 'turn_on' : 'turn_off');
+      const reqId = `${MOBILE_CLIENT_ID}:${devId}:${mySeq}`;
       ctrl.pendingCount += 1;
 
       const rollbackIfLatest = () => {
@@ -1222,15 +1228,34 @@
           action,
           target_state: targetState,
           state: targetState,
+          client_id: MOBILE_CLIENT_ID,
           client_seq: mySeq,
           client_ts_ms: myTs,
+          request_id: reqId,
           source: 'mobile_app',
         }),
       })
         .then(res => res.json())
         .then(data => {
           ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
-          if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+          if (mySeq < ctrl.seq) {
+            return data;
+          }
+          if (data && data.stale_ignored) {
+            pendingDeviceMutations.delete(devId);
+            const authState = String((data && data.state) || ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF')).toUpperCase();
+            ctrl.confirmedState = authState;
+            ctrl.desiredState = authState;
+            if (data.device_version !== undefined) {
+              ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+            }
+            if (data.revision_seq !== undefined) {
+              mobileLastRevisionSeq = Math.max(mobileLastRevisionSeq, Number(data.revision_seq) || 0);
+            }
+            applyMobileDeviceOptimisticUI(devId, authState, btnEl);
+            if (data.snapshot) {
+              renderState(data.snapshot);
+            }
             return data;
           }
           if (data && (data.ok === false || data.error)) {
@@ -1338,27 +1363,53 @@
         const ctrl = getMobileDeviceControl(d.id, d.state);
         const serverSeq = Number(d.last_client_seq || 0);
         const serverVer = Number(d.version || 0);
+        const sameClient = Boolean(d.last_client_id && d.last_client_id === MOBILE_CLIENT_ID);
         const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
         const pendingMut = pendingDeviceMutations.get(d.id);
 
         if (isStaleRevision && latestSnap && Array.isArray(latestSnap.devices)) {
           const prevD = latestSnap.devices.find(x => x.id === d.id);
-          if (prevD && prevD.state) d.state = prevD.state;
+          if (prevD) {
+            if (prevD.state) d.state = prevD.state;
+            if (prevD.version !== undefined) d.version = prevD.version;
+            if (prevD.last_client_seq !== undefined) d.last_client_seq = prevD.last_client_seq;
+            if (prevD.last_client_id !== undefined) d.last_client_id = prevD.last_client_id;
+          }
           return d;
         }
 
-        if (hasPending && serverSeq < ctrl.seq) {
+        if (hasPending && !(sameClient && serverSeq >= ctrl.seq)) {
           d.state = ctrl.desiredState;
           return d;
         }
 
-        if (ctrl.seq > 0 && serverSeq > 0 && serverSeq < ctrl.seq) {
+        if (serverVer > 0 && ctrl.lastVersion > 0 && serverVer < ctrl.lastVersion) {
+          const prevD = (latestSnap && Array.isArray(latestSnap.devices))
+            ? latestSnap.devices.find(x => x.id === d.id)
+            : null;
+          d.state = (prevD && prevD.state) ? prevD.state : (ctrl.confirmedState || d.state);
+          d.version = ctrl.lastVersion;
+          return d;
+        }
+
+        if (
+          sameClient &&
+          ctrl.lastConfirmedSeq > 0 &&
+          serverSeq > 0 &&
+          serverSeq < ctrl.lastConfirmedSeq &&
+          serverVer <= ctrl.lastVersion
+        ) {
           d.state = ctrl.desiredState;
           return d;
         }
 
         if (pendingMut) {
-          if (now < pendingMut.expiresAt && serverSeq < ctrl.seq) {
+          if (
+            now < pendingMut.expiresAt &&
+            (!d.last_client_id || sameClient) &&
+            serverSeq < ctrl.seq &&
+            serverVer <= ctrl.lastVersion
+          ) {
             if (d.state === pendingMut.targetState && !hasPending) {
               pendingDeviceMutations.delete(d.id);
             } else {
@@ -1373,14 +1424,15 @@
         ctrl.confirmedState = d.state;
         if (!hasPending) {
           ctrl.desiredState = d.state;
-          if (serverSeq > ctrl.seq) ctrl.seq = serverSeq;
+          if (sameClient && serverSeq > ctrl.seq) ctrl.seq = serverSeq;
         }
-        if (serverSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = serverSeq;
+        if (sameClient && serverSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = serverSeq;
         if (serverVer > ctrl.lastVersion) ctrl.lastVersion = serverVer;
         return d;
       });
 
-      snap = Object.assign({}, snap, { devices: allDevices });
+      const effectiveSnapRev = isStaleRevision ? mobileLastRevisionSeq : Math.max(snapRev, mobileLastRevisionSeq);
+      snap = Object.assign({}, snap, { revision_seq: effectiveSnapRev, devices: allDevices });
       latestSnap = snap;
       const filtered = allDevices.filter(d => {
         const roomLabel = d.room || ROOM_NAMES[d.id] || 'Phòng khách';
@@ -2191,16 +2243,61 @@
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'state_snapshot') renderState(msg.snapshot);
-        if (msg.type === 'device_updated') {
-          /* Cập nhật device ngay lập tức trong latestSnap để render tức thì */
-          if (latestSnap && latestSnap.devices && msg.device_id) {
-            const dev = latestSnap.devices.find(d => d.id === msg.device_id);
-            if (dev) {
-              dev.state = msg.new_state;
-              renderState(latestSnap);
+        if (msg.type === 'device_updated' && msg.device_id) {
+          const devId = msg.device_id;
+          const ctrl = getMobileDeviceControl(devId, msg.new_state || 'OFF');
+          const msgVer = Number(msg.version || 0);
+          const msgSeq = Number(msg.last_client_seq || 0);
+          const msgRev = Number(msg.revision_seq || 0);
+          const sameClient = Boolean(msg.last_client_id && msg.last_client_id === MOBILE_CLIENT_ID);
+          const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
+          const pendingMut = pendingDeviceMutations.get(devId);
+          const hasActiveHold = Boolean(
+            pendingMut &&
+            Date.now() < pendingMut.expiresAt &&
+            (!msg.last_client_id || sameClient) &&
+            msgSeq < ctrl.seq &&
+            msgVer <= ctrl.lastVersion
+          );
+          const isStaleMsg =
+            (msgRev > 0 && mobileLastRevisionSeq > 0 && msgRev < mobileLastRevisionSeq) ||
+            (msgVer > 0 && ctrl.lastVersion > 0 && msgVer < ctrl.lastVersion) ||
+            (sameClient && ctrl.lastConfirmedSeq > 0 && msgSeq > 0 && msgSeq < ctrl.lastConfirmedSeq && msgVer <= ctrl.lastVersion) ||
+            (hasPending && !(sameClient && msgSeq >= ctrl.seq)) ||
+            hasActiveHold;
+
+          if (!isStaleMsg && msg.new_state) {
+            const nextSt = String(msg.new_state).toUpperCase();
+            if (msgVer > ctrl.lastVersion) ctrl.lastVersion = msgVer;
+            if (msgRev > mobileLastRevisionSeq) mobileLastRevisionSeq = msgRev;
+            if (sameClient && msgSeq > ctrl.lastConfirmedSeq) {
+              ctrl.lastConfirmedSeq = msgSeq;
+              if (msgSeq > ctrl.seq) ctrl.seq = msgSeq;
             }
+            ctrl.confirmedState = nextSt;
+            if (!hasPending) {
+              ctrl.desiredState = nextSt;
+              pendingDeviceMutations.delete(devId);
+            }
+            if (latestSnap && Array.isArray(latestSnap.devices)) {
+              const nextDevs = latestSnap.devices.map(d => {
+                if (!d || d.id !== devId) return d;
+                return Object.assign({}, d, {
+                  state: nextSt,
+                  version: msgVer > 0 ? Math.max(Number(d.version || 0), msgVer) : d.version,
+                  last_client_seq: msgSeq > 0 ? msgSeq : d.last_client_seq,
+                  last_client_id: msg.last_client_id || d.last_client_id,
+                });
+              });
+              renderState(Object.assign({}, latestSnap, {
+                revision_seq: msgRev > 0 ? Math.max(Number(latestSnap.revision_seq || 0), msgRev) : latestSnap.revision_seq,
+                devices: nextDevs,
+              }));
+            } else {
+              applyMobileDeviceOptimisticUI(devId, nextSt);
+            }
+            addLog(`${msg.device_name || devId}: ${nextSt}`, 'device');
           }
-          addLog(`${msg.device_name || msg.device_id}: ${msg.new_state}`, 'device');
         }
         if (msg.type === 'input_transcription') {
           showPwaVoiceResults(msg.full_text, null);

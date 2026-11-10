@@ -346,8 +346,10 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     )
     act = str(body.get("action") or (target_state if target_state is not None else "open")).strip() or "open"
     source = str(body.get("source") or "mobile_app").strip() or "mobile_app"
+    client_id = body.get("client_id") if "client_id" in body else body.get("clientId")
     client_seq = body.get("client_seq") if "client_seq" in body else body.get("seq")
     client_ts_ms = body.get("client_ts_ms") if "client_ts_ms" in body else body.get("timestamp")
+    request_id = body.get("request_id") if "request_id" in body else body.get("requestId")
 
     req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
     if (
@@ -393,8 +395,10 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         request_user_name=session_user,
         request_role=session_role,
         target_state=target_state,
+        client_id=client_id,
         client_seq=client_seq,
         client_ts_ms=client_ts_ms,
+        request_id=request_id,
     )
     res["tier"] = session_tier
     res["user_name"] = session_user
@@ -412,7 +416,15 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         summary=f"📱 [App/Web] {session_user} (Tầng {session_tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
         user_name=session_user,
         tier=session_tier,
-        details={"device_id": dev_id, "action": act, "target_state": target_state, "client_seq": client_seq, "result": res},
+        details={
+            "device_id": dev_id,
+            "action": act,
+            "target_state": target_state,
+            "client_id": client_id,
+            "client_seq": client_seq,
+            "request_id": request_id,
+            "result": res,
+        },
     )
     await broadcast_rest_state_to_bridges()
     status_code = 200

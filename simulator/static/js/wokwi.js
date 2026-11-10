@@ -431,12 +431,24 @@
 
     const wokwiControlState = {};
     const WOKWI_DEBOUNCE_MS = 50;
+    const WOKWI_CLIENT_ID =
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? `wokwi_${crypto.randomUUID()}`
+        : `wokwi_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    let wokwiLastRevisionSeq = 0;
+    let wokwiPollInFlight = false;
+    if (typeof window !== 'undefined') {
+      window.__wokwiControlState = wokwiControlState;
+      window.__wokwiClientId = WOKWI_CLIENT_ID;
+    }
 
     function getWokwiControl(devId) {
       if (!wokwiControlState[devId]) {
         const initSt = devState[devId] || 'OFF';
         wokwiControlState[devId] = {
           seq: 0,
+          lastConfirmedSeq: 0,
+          lastVersion: 0,
           desiredState: initSt,
           confirmedState: initSt,
           pendingCount: 0,
@@ -453,8 +465,39 @@
       return (st === 'ON' || st === 'OPEN') ? 'Đang bật' : 'Đang tắt';
     }
 
+    function applyWokwiSingleDeviceUI(id, st) {
+      devState[id] = st;
+      const btn = document.getElementById('btn_' + id);
+      const lb = document.getElementById('st_' + id);
+      const on = (st === 'OPEN' || st === 'ON');
+      const isLockedOffline = !window._wokwiServerConnected && (id === 'main_door' || id === 'alarm_siren');
+      if (btn) btn.classList.toggle('on', on);
+      if (lb) lb.textContent = formatHumanDeviceState(id, st, isLockedOffline);
+      if (id === 'main_door') {
+        const servoEl = document.getElementById('w_servo');
+        if (servoEl) servoEl.angle = (st === 'OPEN') ? 90 : 0;
+      } else if (id === 'living_room_light') {
+        const ledLiv = document.getElementById('w_led_living');
+        if (ledLiv) ledLiv.value = (st === 'ON');
+      } else if (id === 'bedroom_light') {
+        const ledBed = document.getElementById('w_led_bedroom');
+        if (ledBed) ledBed.value = (st === 'ON');
+      } else if (id === 'alarm_siren') {
+        const buzEl = document.getElementById('w_buzzer');
+        if (buzEl) buzEl.hasSignal = (st === 'ON');
+      }
+    }
+
     function syncWokwiComponents(snap) {
       if (!snap || !snap.devices) return;
+      const snapRev = Number(snap.revision_seq || 0);
+      if (snapRev > 0 && wokwiLastRevisionSeq > 0 && snapRev < wokwiLastRevisionSeq) {
+        return;
+      }
+      if (snapRev > wokwiLastRevisionSeq) {
+        wokwiLastRevisionSeq = snapRev;
+      }
+
       window._wokwiServerConnected = snap.server_connected !== false;
 
       const connDot = document.getElementById('wokwiConnDot');
@@ -482,25 +525,42 @@
         }
       }
 
-      if (Array.isArray(snap.devices)) {
-        for (const d of snap.devices) {
-          if (d && d.id && devState.hasOwnProperty(d.id)) {
-            const ctrl = getWokwiControl(d.id);
-            const srvSeq = Number(d.last_client_seq || 0);
-            if ((ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) && srvSeq < ctrl.seq) {
-              devState[d.id] = ctrl.desiredState;
-            } else if (ctrl.seq > 0 && srvSeq > 0 && srvSeq < ctrl.seq) {
-              devState[d.id] = ctrl.desiredState;
-            } else {
-              devState[d.id] = d.state;
-              ctrl.confirmedState = d.state;
+      const incomingList = Array.isArray(snap.devices)
+        ? snap.devices
+        : Object.keys(devState)
+            .filter(k => Boolean(snap.devices[k]))
+            .map(k => Object.assign({ id: k }, snap.devices[k]));
+
+      for (const d of incomingList) {
+        if (d && d.id && devState.hasOwnProperty(d.id)) {
+          const ctrl = getWokwiControl(d.id);
+          const srvSeq = Number(d.last_client_seq || 0);
+          const srvVer = Number(d.version || 0);
+          const sameClient = Boolean(d.last_client_id && d.last_client_id === WOKWI_CLIENT_ID);
+          const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
+
+          if (hasPending && !(sameClient && srvSeq >= ctrl.seq)) {
+            devState[d.id] = ctrl.desiredState;
+          } else if (srvVer > 0 && ctrl.lastVersion > 0 && srvVer < ctrl.lastVersion) {
+            devState[d.id] = ctrl.confirmedState;
+          } else if (
+            sameClient &&
+            ctrl.lastConfirmedSeq > 0 &&
+            srvSeq > 0 &&
+            srvSeq < ctrl.lastConfirmedSeq &&
+            srvVer <= ctrl.lastVersion
+          ) {
+            devState[d.id] = ctrl.desiredState;
+          } else {
+            devState[d.id] = d.state;
+            ctrl.confirmedState = d.state;
+            if (!hasPending) {
               ctrl.desiredState = d.state;
+              if (sameClient && srvSeq > ctrl.seq) ctrl.seq = srvSeq;
             }
+            if (sameClient && srvSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = srvSeq;
+            if (srvVer > ctrl.lastVersion) ctrl.lastVersion = srvVer;
           }
-        }
-      } else {
-        for (const k of Object.keys(devState)) {
-          if (snap.devices[k]) devState[k] = snap.devices[k].state;
         }
       }
 
@@ -609,11 +669,17 @@
     }
 
     async function fetchState() {
+      if (wokwiPollInFlight) return;
+      wokwiPollInFlight = true;
       try {
         const r = await fetch('/api/state');
+        if (!r.ok) return;
         const snap = await r.json();
         syncWokwiComponents(snap);
-      } catch (e) {}
+      } catch (e) {
+      } finally {
+        wokwiPollInFlight = false;
+      }
     }
 
     async function toggleDevice(devId) {
@@ -626,19 +692,15 @@
       const isCurOn = cur === 'OPEN' || cur === 'ON';
       const nextIsOn = !isCurOn;
       const nextState = devId === 'main_door' ? (nextIsOn ? 'OPEN' : 'CLOSED') : (nextIsOn ? 'ON' : 'OFF');
-      const nextAct = nextIsOn ? 'open' : 'close';
+      const nextAct = devId === 'main_door' ? (nextIsOn ? 'open' : 'close') : (nextIsOn ? 'turn_on' : 'turn_off');
 
       ctrl.seq += 1;
       const mySeq = ctrl.seq;
       const myTs = Date.now();
+      const reqId = `${WOKWI_CLIENT_ID}:${devId}:${mySeq}`;
       ctrl.lastClickTs = myTs;
       ctrl.desiredState = nextState;
-      devState[devId] = nextState;
-
-      const btn = document.getElementById('btn_' + devId);
-      const lb = document.getElementById('st_' + devId);
-      if (btn) btn.classList.toggle('on', nextIsOn);
-      if (lb) lb.textContent = formatHumanDeviceState(devId, nextState, false);
+      applyWokwiSingleDeviceUI(devId, nextState);
 
       if (devId === 'ac' || devId === 'fan') {
         const irLed = document.getElementById('w_led_ir');
@@ -672,25 +734,63 @@
                 action: nextAct,
                 target_state: nextState,
                 state: nextState,
+                client_id: WOKWI_CLIENT_ID,
                 client_seq: mySeq,
                 client_ts_ms: myTs,
+                request_id: reqId,
+                source: 'wokwi_ui',
               }),
             });
             const data = await r.json();
             ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
-            if (mySeq < ctrl.seq || (data && data.stale_ignored)) {
+            if (mySeq < ctrl.seq) {
               resolve();
               return;
             }
-            if (data.ok === false && data.error) {
-              logSerial(`[CHẶN] ${data.error}`, 'warn');
-              devState[devId] = ctrl.confirmedState;
-              ctrl.desiredState = ctrl.confirmedState;
+            if (data && data.stale_ignored) {
+              const authState = String((data && data.state) || ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF')).toUpperCase();
+              ctrl.confirmedState = authState;
+              ctrl.desiredState = authState;
+              if (data.device_version !== undefined) {
+                ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+              }
+              if (data.revision_seq !== undefined) {
+                wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, Number(data.revision_seq) || 0);
+              }
+              applyWokwiSingleDeviceUI(devId, authState);
+              if (data.snapshot) syncWokwiComponents(data.snapshot);
+              resolve();
+              return;
             }
-            if (data.snapshot) syncWokwiComponents(data.snapshot);
+            if (data && (data.ok === false || data.error)) {
+              if (data.error) logSerial(`[CHẶN] ${data.error}`, 'warn');
+              const revertState = ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF');
+              ctrl.desiredState = revertState;
+              applyWokwiSingleDeviceUI(devId, revertState);
+              if (data.snapshot) syncWokwiComponents(data.snapshot);
+              resolve();
+              return;
+            }
+            const finalState = String((data && data.state) || nextState).toUpperCase();
+            ctrl.confirmedState = finalState;
+            ctrl.desiredState = finalState;
+            ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
+            if (data && data.device_version !== undefined) {
+              ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+            }
+            if (data && data.revision_seq !== undefined) {
+              wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, Number(data.revision_seq) || 0);
+            }
+            applyWokwiSingleDeviceUI(devId, finalState);
+            if (data && data.snapshot) syncWokwiComponents(data.snapshot);
             else fetchState();
           } catch (_) {
             ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+            if (mySeq === ctrl.seq) {
+              const revertState = ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF');
+              ctrl.desiredState = revertState;
+              applyWokwiSingleDeviceUI(devId, revertState);
+            }
           }
           resolve();
         }, WOKWI_DEBOUNCE_MS);
@@ -888,8 +988,35 @@
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
-          if (msg.type === 'state_snapshot' && msg.snapshot) syncWokwiComponents(msg.snapshot);
-          else if (msg.type === 'device_actuated') fetchState();
+          if (msg.type === 'state_snapshot' && msg.snapshot) {
+            syncWokwiComponents(msg.snapshot);
+          } else if (msg.type === 'device_updated' && msg.device_id && devState.hasOwnProperty(msg.device_id)) {
+            const ctrl = getWokwiControl(msg.device_id);
+            const msgVer = Number(msg.version || 0);
+            const msgSeq = Number(msg.last_client_seq || 0);
+            const msgRev = Number(msg.revision_seq || 0);
+            const sameClient = Boolean(msg.last_client_id && msg.last_client_id === WOKWI_CLIENT_ID);
+            const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
+            const isStale =
+              (msgRev > 0 && wokwiLastRevisionSeq > 0 && msgRev < wokwiLastRevisionSeq) ||
+              (msgVer > 0 && ctrl.lastVersion > 0 && msgVer < ctrl.lastVersion) ||
+              (sameClient && ctrl.lastConfirmedSeq > 0 && msgSeq > 0 && msgSeq < ctrl.lastConfirmedSeq && msgVer <= ctrl.lastVersion) ||
+              (hasPending && !(sameClient && msgSeq >= ctrl.seq));
+            if (!isStale && msg.new_state) {
+              const nextSt = String(msg.new_state).toUpperCase();
+              if (msgVer > ctrl.lastVersion) ctrl.lastVersion = msgVer;
+              if (msgRev > wokwiLastRevisionSeq) wokwiLastRevisionSeq = msgRev;
+              if (sameClient && msgSeq > ctrl.lastConfirmedSeq) {
+                ctrl.lastConfirmedSeq = msgSeq;
+                if (msgSeq > ctrl.seq) ctrl.seq = msgSeq;
+              }
+              ctrl.confirmedState = nextSt;
+              if (!hasPending) ctrl.desiredState = nextSt;
+              applyWokwiSingleDeviceUI(msg.device_id, ctrl.desiredState);
+            }
+          } else if (msg.type === 'device_actuated') {
+            fetchState();
+          }
         } catch (e) {}
       };
     });

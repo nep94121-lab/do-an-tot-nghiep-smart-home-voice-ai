@@ -1141,8 +1141,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             else (msg.get("state") if "state" in msg else msg.get("desired_state"))
                         )
                         action = str(msg.get("action") or (target_state if target_state is not None else ""))
+                        client_id = msg.get("client_id") if "client_id" in msg else msg.get("clientId")
                         client_seq = msg.get("client_seq") if "client_seq" in msg else msg.get("seq")
                         client_ts_ms = msg.get("client_ts_ms") if "client_ts_ms" in msg else msg.get("timestamp")
+                        request_id = msg.get("request_id") if "request_id" in msg else msg.get("requestId")
                         ws_sess = self._resolve_ws_session(msg)
                         if ws_sess.is_authenticated and not ws_sess.is_expired():
                             self.engine.set_active_user(ws_sess.user_id)
@@ -1155,9 +1157,27 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             bypass_rbac=False,
                             trigger_chains=True,
                             target_state=target_state,
+                            client_id=client_id,
                             client_seq=client_seq,
                             client_ts_ms=client_ts_ms,
+                            request_id=request_id,
                         )
+                        if isinstance(res_toggle, dict):
+                            await self.send_ws_json({
+                                "type": "manual_toggle_ack",
+                                "ok": bool(res_toggle.get("ok", True)),
+                                "rbac_blocked": bool(res_toggle.get("rbac_blocked", False)),
+                                "device_id": res_toggle.get("device_id", dev_id),
+                                "state": res_toggle.get("state"),
+                                "device_version": res_toggle.get("device_version"),
+                                "revision_seq": res_toggle.get("revision_seq"),
+                                "client_id": res_toggle.get("client_id", client_id),
+                                "client_seq": res_toggle.get("client_seq", client_seq),
+                                "request_id": res_toggle.get("request_id", request_id),
+                                "stale_ignored": bool(res_toggle.get("stale_ignored", False)),
+                                "error": res_toggle.get("error"),
+                                "snapshot": res_toggle.get("snapshot"),
+                            })
                         if isinstance(res_toggle, dict) and (
                             not res_toggle.get("ok", True) or res_toggle.get("rbac_blocked")
                         ):

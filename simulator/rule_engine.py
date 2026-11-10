@@ -172,8 +172,12 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "min_role": str(v.get("min_role", DEFAULT_DEVICES.get(k, {}).get("min_role", "CHILD_GUEST"))),
                     "updated_at": float(v.get("updated_at", time.time())),
                     "version": int(v.get("version", 1)),
+                    "last_client_id": str(v.get("last_client_id", "")),
                     "last_client_seq": int(v.get("last_client_seq", 0)),
                     "last_client_ts_ms": int(v.get("last_client_ts_ms", 0)),
+                    "last_request_id": str(v.get("last_request_id", "")),
+                    "last_requested_state": str(v.get("last_requested_state", v.get("state", "OFF"))),
+                    "client_seqs": dict(v.get("client_seqs", {})) if isinstance(v.get("client_seqs"), dict) else {},
                 }
                 for k, v in self.devices.items()
             },
@@ -213,6 +217,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             return False
 
         dirty_ids = set(self._dirty_device_ids)
+        prev_synced_seq = self._last_synced_seq
+        prev_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
         self._applying_shared_state = True
         try:
             if "server_connected" in shared and not dirty_ids:
@@ -241,16 +247,40 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             int(self.devices[dev_id].get("version", 1)),
                             int(dev_data["version"]),
                         )
-                    if "last_client_seq" in dev_data:
-                        self.devices[dev_id]["last_client_seq"] = max(
-                            int(self.devices[dev_id].get("last_client_seq", 0)),
-                            int(dev_data["last_client_seq"]),
+                    remote_rev = int(shared.get("revision_seq", 0) or 0)
+                    local_rev = int(self._last_synced_seq or 0)
+                    remote_ts_ms = int(dev_data.get("last_client_ts_ms", 0) or 0)
+                    local_ts_ms = int(self.devices[dev_id].get("last_client_ts_ms", 0) or 0)
+                    if remote_rev >= local_rev or remote_ts_ms >= local_ts_ms:
+                        if "last_client_id" in dev_data:
+                            self.devices[dev_id]["last_client_id"] = str(dev_data["last_client_id"])
+                        if "last_client_seq" in dev_data:
+                            self.devices[dev_id]["last_client_seq"] = int(dev_data["last_client_seq"])
+                        if "last_client_ts_ms" in dev_data:
+                            self.devices[dev_id]["last_client_ts_ms"] = max(local_ts_ms, remote_ts_ms)
+                        if "last_request_id" in dev_data:
+                            self.devices[dev_id]["last_request_id"] = str(dev_data["last_request_id"])
+                        if "last_requested_state" in dev_data:
+                            self.devices[dev_id]["last_requested_state"] = str(dev_data["last_requested_state"])
+                    if isinstance(dev_data.get("client_seqs"), dict):
+                        merged_cseqs = (
+                            dict(self.devices[dev_id].get("client_seqs"))
+                            if isinstance(self.devices[dev_id].get("client_seqs"), dict)
+                            else {}
                         )
-                    if "last_client_ts_ms" in dev_data:
-                        self.devices[dev_id]["last_client_ts_ms"] = max(
-                            int(self.devices[dev_id].get("last_client_ts_ms", 0)),
-                            int(dev_data["last_client_ts_ms"]),
-                        )
+                        for cid_k, cid_v in dev_data["client_seqs"].items():
+                            if not isinstance(cid_v, dict):
+                                continue
+                            cur_v = merged_cseqs.get(cid_k)
+                            if not isinstance(cur_v, dict) or (
+                                int(cid_v.get("ts_ms", 0) or 0),
+                                int(cid_v.get("seq", 0) or 0),
+                            ) >= (
+                                int(cur_v.get("ts_ms", 0) or 0),
+                                int(cur_v.get("seq", 0) or 0),
+                            ):
+                                merged_cseqs[str(cid_k)] = dict(cid_v)
+                        self.devices[dev_id]["client_seqs"] = merged_cseqs
                 elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
                     merged_dev = dict(DEFAULT_DEVICES[dev_id])
                     merged_dev.update(dev_data)
@@ -271,10 +301,12 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             self._dirty_device_ids.clear()
             self.persist_to_shared_store()
         else:
-            try:
-                sync_engine_state_to_sqlite(self)
-            except Exception:
-                pass
+            cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
+            if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
+                try:
+                    sync_engine_state_to_sqlite(self)
+                except Exception:
+                    pass
         return True
 
     def _on_direct_device_mutation(self, dev_id: str) -> None:
@@ -713,8 +745,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_role: str | None = None,
         reason: str | None = None,
         target_state: Any = None,
+        client_id: str | None = None,
         client_seq: int | None = None,
         client_ts_ms: int | None = None,
+        request_id: str | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         if reason and source == "voice":
@@ -725,6 +759,22 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     target_state = kwargs[k]
                     break
         action = self._normalize_idempotent_action(action, target_state)
+
+        raw_cid = client_id
+        if raw_cid is None:
+            for k in ("clientId", "client_token"):
+                if k in kwargs and kwargs[k] is not None:
+                    raw_cid = kwargs[k]
+                    break
+        req_client_id = str(raw_cid).strip()[:96] if raw_cid is not None and str(raw_cid).strip() else ""
+
+        raw_req_id = request_id
+        if raw_req_id is None:
+            for k in ("requestId", "req_id"):
+                if k in kwargs and kwargs[k] is not None:
+                    raw_req_id = kwargs[k]
+                    break
+        req_id = str(raw_req_id).strip()[:128] if raw_req_id is not None and str(raw_req_id).strip() else ""
 
         raw_seq = client_seq
         if raw_seq is None:
@@ -842,52 +892,100 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
                         continue
 
-                prev_seq = int(dev.get("last_client_seq", 0) or 0)
-                prev_ts_ms = int(dev.get("last_client_ts_ms", 0) or 0)
-                is_fresh_client_epoch = (
-                    req_ts_ms > 0
-                    and prev_ts_ms > 0
-                    and (req_ts_ms >= prev_ts_ms + 3000 or abs(req_ts_ms - prev_ts_ms) > 86_400_000)
-                )
-                if req_seq > 0:
-                    if not is_fresh_client_epoch and (
-                        req_seq < prev_seq or (req_seq == prev_seq and req_ts_ms > 0 and req_ts_ms < prev_ts_ms)
-                    ):
-                        results.append({
-                            "ok": True,
-                            "device_id": dev_id,
-                            "device_name": dev["name"],
-                            "state": dev["state"],
-                            "already_in_state": True,
-                            "stale_ignored": True,
-                            "version": int(dev.get("version", 1) or 1),
-                            "last_client_seq": prev_seq,
-                        })
-                        continue
-                    dev["last_client_seq"] = req_seq
-                    if req_ts_ms > 0:
-                        dev["last_client_ts_ms"] = req_ts_ms if is_fresh_client_epoch else max(prev_ts_ms, req_ts_ms)
-                    self._state_dirty_in_tx = True
-                elif req_ts_ms > 0:
-                    if req_ts_ms < prev_ts_ms and (prev_ts_ms - req_ts_ms) < 86_400_000:
-                        results.append({
-                            "ok": True,
-                            "device_id": dev_id,
-                            "device_name": dev["name"],
-                            "state": dev["state"],
-                            "already_in_state": True,
-                            "stale_ignored": True,
-                            "version": int(dev.get("version", 1) or 1),
-                            "last_client_seq": prev_seq,
-                        })
-                        continue
-                    dev["last_client_ts_ms"] = req_ts_ms
-                    self._state_dirty_in_tx = True
-
                 if dev["type"] == "door":
                     new_state = "OPEN" if act in ("open", "turn_on", "on") else "CLOSED"
                 else:
                     new_state = "ON" if act in ("open", "turn_on", "on") else "OFF"
+
+                prev_global_seq = int(dev.get("last_client_seq", 0) or 0)
+                prev_global_ts = int(dev.get("last_client_ts_ms", 0) or 0)
+                prev_global_cid = str(dev.get("last_client_id", "") or "")
+                client_seqs_map: dict[str, dict[str, Any]] = (
+                    dict(dev.get("client_seqs")) if isinstance(dev.get("client_seqs"), dict) else {}
+                )
+                cid_key = req_client_id if req_client_id else "__anon__"
+                c_rec = client_seqs_map.get(cid_key)
+                if not isinstance(c_rec, dict):
+                    if cid_key == "__anon__" and not prev_global_cid and (prev_global_seq > 0 or prev_global_ts > 0):
+                        c_rec = {
+                            "seq": prev_global_seq,
+                            "ts_ms": prev_global_ts,
+                            "state": str(dev.get("last_requested_state", dev.get("state", ""))),
+                            "req_id": str(dev.get("last_request_id", "")),
+                        }
+                    else:
+                        c_rec = {"seq": 0, "ts_ms": 0, "state": "", "req_id": ""}
+
+                c_prev_seq = int(c_rec.get("seq", 0) or 0)
+                c_prev_ts = int(c_rec.get("ts_ms", 0) or 0)
+                c_prev_state = str(c_rec.get("state", "") or "")
+                c_prev_req_id = str(c_rec.get("req_id", "") or "")
+
+                is_clock_reset = (
+                    req_ts_ms > 0
+                    and prev_global_ts > 0
+                    and abs(req_ts_ms - prev_global_ts) > 86_400_000
+                )
+
+                is_stale_or_conflict = False
+                if req_seq > 0 or req_ts_ms > 0:
+                    if req_ts_ms > 0 and prev_global_ts > 0 and req_ts_ms < prev_global_ts and not is_clock_reset:
+                        is_stale_or_conflict = True
+                    elif req_seq > 0:
+                        is_anon_epoch_reset = (
+                            cid_key == "__anon__"
+                            and req_seq == 1
+                            and req_ts_ms > 0
+                            and (req_ts_ms > max(c_prev_ts, prev_global_ts) or is_clock_reset)
+                        )
+                        if not is_anon_epoch_reset and not is_clock_reset:
+                            if req_seq < c_prev_seq:
+                                is_stale_or_conflict = True
+                            elif req_seq == c_prev_seq and c_prev_seq > 0:
+                                if (req_ts_ms > 0 and c_prev_ts > 0 and req_ts_ms < c_prev_ts) or (
+                                    c_prev_state and new_state != c_prev_state
+                                ) or (
+                                    req_id and c_prev_req_id and req_id != c_prev_req_id and new_state != c_prev_state
+                                ):
+                                    is_stale_or_conflict = True
+
+                if is_stale_or_conflict:
+                    results.append({
+                        "ok": True,
+                        "device_id": dev_id,
+                        "device_name": dev["name"],
+                        "state": dev["state"],
+                        "already_in_state": True,
+                        "stale_ignored": True,
+                        "version": int(dev.get("version", 1) or 1),
+                        "last_client_seq": prev_global_seq,
+                        "last_client_id": prev_global_cid,
+                    })
+                    continue
+
+                if req_seq > 0 or req_ts_ms > 0:
+                    if req_seq > 0:
+                        dev["last_client_seq"] = req_seq
+                        dev["last_client_id"] = req_client_id
+                        dev["last_request_id"] = req_id
+                    dev["last_requested_state"] = new_state
+                    if req_ts_ms > 0:
+                        dev["last_client_ts_ms"] = req_ts_ms if is_clock_reset else max(prev_global_ts, req_ts_ms)
+                    client_seqs_map[cid_key] = {
+                        "seq": req_seq if req_seq > 0 else c_prev_seq,
+                        "ts_ms": req_ts_ms if req_ts_ms > 0 else c_prev_ts,
+                        "state": new_state,
+                        "req_id": req_id,
+                    }
+                    if len(client_seqs_map) > 32:
+                        oldest_keys = sorted(
+                            client_seqs_map.keys(),
+                            key=lambda k: int((client_seqs_map[k] or {}).get("ts_ms", 0) or 0),
+                        )[: len(client_seqs_map) - 32]
+                        for ok_del in oldest_keys:
+                            client_seqs_map.pop(ok_del, None)
+                    dev["client_seqs"] = client_seqs_map
+                    self._state_dirty_in_tx = True
 
                 if dev_id == "garden_pump" and not str(source).startswith("Cảm biến đất"):
                     prev_override = getattr(self, "pump_manual_override_off", False)
@@ -915,6 +1013,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         "already_in_state": True,
                         "version": int(dev.get("version", 1) or 1),
                         "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
+                        "last_client_id": str(dev.get("last_client_id", "") or ""),
                     })
                     continue
 
@@ -945,6 +1044,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "timestamp": dev["updated_at"],
                     "version": int(dev["version"]),
                     "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
+                    "last_client_id": str(dev.get("last_client_id", "") or ""),
                 })
 
                 results.append({
@@ -955,6 +1055,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "already_in_state": False,
                     "version": int(dev["version"]),
                     "last_client_seq": int(dev.get("last_client_seq", 0) or 0),
+                    "last_client_id": str(dev.get("last_client_id", "") or ""),
                 })
 
                 if trigger_chains and self.server_connected:
@@ -977,7 +1078,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "device_id": primary_res.get("device_id", DEVICE_ID_ALIASES.get(device_id, device_id)),
             "state": primary_res.get("state"),
             "device_version": primary_res.get("version"),
+            "client_id": req_client_id if req_client_id else None,
             "client_seq": req_seq if req_seq > 0 else None,
+            "request_id": req_id if req_id else None,
             "stale_ignored": bool(primary_res.get("stale_ignored", False)),
             "revision_seq": int(self._last_synced_seq),
             "revision_ts_ns": int(self._last_synced_ts_ns),
