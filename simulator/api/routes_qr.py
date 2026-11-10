@@ -19,6 +19,7 @@ import base64
 import copy
 import hmac
 import json
+import math
 import re
 import secrets
 import time
@@ -171,6 +172,17 @@ def _invalidate_any_nonce_bound_session(
             if isinstance(v, str) and v.strip():
                 cand_sid = v.strip()
                 break
+    if not cand_sid and raw_body:
+        try:
+            raw_text_sid = raw_body.decode("utf-8", errors="ignore")
+            m_sid = re.search(
+                r'"(?:session_id|guest_session_id|session_token)"\s*:\s*"([^"]{1,256})"',
+                raw_text_sid,
+            )
+            if m_sid and m_sid.group(1).strip():
+                cand_sid = m_sid.group(1).strip()
+        except Exception:
+            pass
     if not cand_sid:
         cand_sid = str(
             request.cookies.get(QR_SESSION_COOKIE_NAME)
@@ -240,12 +252,165 @@ def _invalidate_bound_session_on_malformed_payload(
     )
 
 
+_MAX_SAFE_JSON_INT = 10**12
+_MAX_JSON_DEPTH = 16
+
+_QR_BOUNDED_INT_RANGES: dict[str, tuple[int, int]] = {
+    "sample_index": (0, 20),
+    "total_samples": (1, 20),
+    "sample_count": (1, 20),
+    "target_tier": (1, 3),
+    "tier": (1, 3),
+    "issuer_tier": (1, 1),
+    "window": (0, 10**11),
+    "target_window": (0, 10**11),
+    "duration_seconds": (1, 315360000),
+    "lock_ttl_sec": (1, 3600),
+    "attempts": (0, 100),
+    "sr": (8000, 96000),
+    "sample_rate": (8000, 96000),
+}
+
+
+def _strict_parse_json_float(num_str: str) -> float:
+    """Chặn tuyệt đối số thực JSON tràn sang inf/-inf/nan (ví dụ 1e309, -1e309) hoặc vượt miền an toàn."""
+    val = float(num_str)
+    if not math.isfinite(val) or abs(val) > _MAX_SAFE_JSON_INT:
+        raise ValueError(f"Abnormal or non-finite JSON float: {num_str}")
+    return val
+
+
+def _strict_parse_json_int(num_str: str) -> int:
+    """Chặn tuyệt đối số nguyên JSON khổng lồ vượt ngưỡng an toàn (chống OverflowError)."""
+    digits = num_str.lstrip("+-")
+    if len(digits) > 15:
+        raise ValueError("JSON integer exceeds safe digit length")
+    val = int(num_str)
+    if abs(val) > _MAX_SAFE_JSON_INT:
+        raise ValueError("JSON integer exceeds safe range")
+    return val
+
+
+def _contains_abnormal_json_value(obj: Any, depth: int = 0) -> bool:
+    """Duyệt đệ quy cấu trúc JSON để chặn số không hữu hạn, số quá lớn hoặc lồng quá sâu."""
+    if depth > _MAX_JSON_DEPTH:
+        return True
+    if obj is None or isinstance(obj, (bool, str)):
+        return False
+    if isinstance(obj, float):
+        return (not math.isfinite(obj)) or abs(obj) > _MAX_SAFE_JSON_INT
+    if isinstance(obj, int):
+        return abs(obj) > _MAX_SAFE_JSON_INT
+    if isinstance(obj, dict):
+        return any(
+            not isinstance(k, str) or _contains_abnormal_json_value(v, depth + 1)
+            for k, v in obj.items()
+        )
+    if isinstance(obj, (list, tuple)):
+        return any(_contains_abnormal_json_value(item, depth + 1) for item in obj)
+    return True
+
+
+def _validate_strict_int_range(
+    val: Any,
+    min_val: int,
+    max_val: int,
+    *,
+    allow_digit_str: bool = True,
+) -> tuple[bool, int | None]:
+    """Kiểm tra nghiêm ngặt trường số nguyên trong đoạn [min_val, max_val] (không nhận bool, float, inf/nan, chuỗi rác)."""
+    if val is None:
+        return True, None
+    if isinstance(val, (bool, float)):
+        return False, None
+    if isinstance(val, int):
+        return (True, val) if min_val <= val <= max_val else (False, None)
+    if allow_digit_str and isinstance(val, str):
+        s = val.strip()
+        if not s or not re.fullmatch(r"[+-]?\d{1,12}", s):
+            return False, None
+        iv = int(s)
+        return (True, iv) if min_val <= iv <= max_val else (False, None)
+    return False, None
+
+
+def _has_abnormal_qr_query_numeric_params(request: Request) -> bool:
+    """Kiểm tra các tham số số trên query string để chặn 1e309/inf/nan/ngoài miền trên mọi endpoint QR."""
+    qp = getattr(request, "query_params", None)
+    if qp is None:
+        return False
+    qp_items = qp.multi_items() if hasattr(qp, "multi_items") else qp.items()
+    q_sample_idx: int | None = None
+    q_total_samples: int | None = None
+    for raw_k, raw_v in qp_items:
+        k = str(raw_k or "").strip()
+        if k not in _QR_BOUNDED_INT_RANGES:
+            continue
+        s_val = str(raw_v if raw_v is not None else "").strip()
+        if s_val == "" and k in ("window", "target_window"):
+            continue
+        lo, hi = _QR_BOUNDED_INT_RANGES[k]
+        ok, parsed_iv = _validate_strict_int_range(s_val, lo, hi, allow_digit_str=True)
+        if not ok:
+            return True
+        if k == "sample_index":
+            q_sample_idx = parsed_iv
+        elif k == "total_samples":
+            q_total_samples = parsed_iv
+    if q_sample_idx is not None and q_total_samples is not None and q_sample_idx > q_total_samples:
+        return True
+    return False
+
+
+def _has_abnormal_qr_payload_numeric_or_bool_fields(request: Request, payload: dict[str, Any]) -> bool:
+    """Kiểm tra mọi trường số nguyên và boolean trong payload + query của các API đăng ký khách QR."""
+    if _has_abnormal_qr_query_numeric_params(request):
+        return True
+    for bool_key in ("verify_only", "enforce_12s_gate"):
+        if bool_key in payload and payload[bool_key] is not None:
+            if not isinstance(payload[bool_key], bool):
+                return True
+    p_sample_idx: int | None = None
+    p_total_samples: int | None = None
+    for int_key, (lo, hi) in _QR_BOUNDED_INT_RANGES.items():
+        if int_key in payload and payload[int_key] is not None:
+            ok, parsed_iv = _validate_strict_int_range(payload[int_key], lo, hi, allow_digit_str=True)
+            if not ok:
+                return True
+            if int_key == "sample_index":
+                p_sample_idx = parsed_iv
+            elif int_key == "total_samples":
+                p_total_samples = parsed_iv
+    if p_sample_idx is not None and p_total_samples is not None and p_sample_idx > p_total_samples:
+        return True
+    return False
+
+
+def _has_malformed_otp_fields(payload: dict[str, Any]) -> bool:
+    """Kiểm tra các trường mã OTP (otp, otp_code, input_otp): chỉ nhận chuỗi ngắn <= 64 ký tự hoặc số nguyên 0..999999."""
+    for k in ("otp", "otp_code", "input_otp"):
+        if k in payload and payload[k] is not None:
+            v = payload[k]
+            if isinstance(v, (bool, float, dict, list, tuple, set)):
+                return True
+            if isinstance(v, int):
+                if v < 0 or v > 999999:
+                    return True
+            elif isinstance(v, str):
+                if len(v) > 64:
+                    return True
+            else:
+                return True
+    return False
+
+
 async def _parse_json_dict_or_invalidate(
     request: Request,
     mgr3: Any,
 ) -> tuple[dict[str, Any] | None, JSONResponse | None]:
     """Đọc và phân tích cú pháp JSON object trực tiếp từ request body (không qua Body(None) mặc định của FastAPI)
-    để đảm bảo mọi lỗi cú pháp JSON (422) đều hủy phiên quét đang gắn kết và buộc quét lại QR mới.
+    để đảm bảo mọi lỗi cú pháp JSON, số không hữu hạn (1e309, NaN, Infinity) hoặc tràn số đều hủy phiên quét đang gắn kết
+    và buộc quét lại QR mới, tuyệt đối không sinh lỗi HTTP 500.
     """
     try:
         raw_body = await request.body()
@@ -260,22 +425,23 @@ async def _parse_json_dict_or_invalidate(
         parsed = json.loads(
             text_body,
             parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"Invalid JSON constant: {c}")),
+            parse_float=_strict_parse_json_float,
+            parse_int=_strict_parse_json_int,
         )
     except Exception:
         return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
 
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed, dict) or _contains_abnormal_json_value(parsed):
         return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
 
     return parsed, None
 
 
 def _has_malformed_scalar_fields(payload: dict[str, Any], keys: tuple[str, ...]) -> bool:
-    """Kiểm tra các trường chuỗi đơn không bị truyền sai kiểu (dict, list, tuple, set, bool)."""
+    """Kiểm tra các trường chuỗi đơn bắt buộc là kiểu str (từ chối dict, list, tuple, set, bool, int, float)."""
     for k in keys:
         if k in payload and payload[k] is not None:
-            v = payload[k]
-            if isinstance(v, (dict, list, tuple, set, bool)):
+            if not isinstance(payload[k], str):
                 return True
     return False
 
@@ -476,165 +642,240 @@ def _resolve_and_verify_bound_qr_session(
 @router.get("/api/auth3/guest_qr_current")
 @router.get("/api/auth3/qr/generate")
 @router.post("/api/auth3/qr/generate")
-async def api_auth3_guest_qr_current(
-    request: Request,
-    payload: dict[str, Any] | None = None,
-    duration: str = "1d",
-    duration_type: str | None = None,
-    dur: str | None = None,
-    host: str = "localhost:8088",
-    host_url: str | None = None,
-    issuer_tier: int = 1,
-    target_tier: int = 3,
-    tier: int | None = None,
-) -> JSONResponse:
+async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế (Chỉ Chủ nhà Cấp 1)."""
-    session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
-    if (
-        session.role == "UNKNOWN"
-        or session.tier not in (1, 2, 3)
-        or str(session.user_id).strip().lower() == "unknown"
-    ):
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "tier": 99,
-                    "role": "UNKNOWN",
-                    "error": "Từ chối: Giọng nói hoặc danh tính chưa xác thực (UNKNOWN).",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
-    if not session.is_authenticated:
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "authenticated": False,
-                    "error": "Yêu cầu đăng nhập quyền Chủ nhà Cấp 1 để tạo mã QR Khách (HTTP 401 Unauthorized).",
-                    "status_code": 401,
-                }
-            ),
-            status_code=401,
-        )
-    if session.tier != 1 or session.role != "ADMIN":
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "authenticated": True,
-                    "rbac_blocked": True,
-                    "tier": session.tier,
-                    "role": session.role,
-                    "error": "Từ chối: Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền sinh mã QR Khách!",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
-
     mgr3 = get_auth_3layer_manager()
-    data = payload or {}
-    req_issuer_tier = int(data.get("issuer_tier", issuer_tier) or 1)
-    if req_issuer_tier != 1:
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền phát hành mã QR Khách!",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
-    chosen_dur = str(
-        dur
-        or duration_type
-        or duration
-        or data.get("duration")
-        or data.get("duration_type")
-        or "1d"
-    ).strip().lower()
-    if chosen_dur not in DURATION_MAP_SECONDS:
-        chosen_dur = "1d"
-
-    raw_tier = tier or data.get("target_tier") or data.get("tier") or target_tier or 3
     try:
-        chosen_tier = int(raw_tier)
-    except (ValueError, TypeError):
-        chosen_tier = 3
-    if chosen_tier not in (2, 3):
-        chosen_tier = 3
-    tier_label = "Thành viên gia đình (Cấp 2)" if chosen_tier == 2 else "Khách đến chơi nhà (Cấp 3)"
+        session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
+        if (
+            session.role == "UNKNOWN"
+            or session.tier not in (1, 2, 3)
+            or str(session.user_id).strip().lower() == "unknown"
+        ):
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "tier": 99,
+                        "role": "UNKNOWN",
+                        "error": "Từ chối: Giọng nói hoặc danh tính chưa xác thực (UNKNOWN).",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
+        if not session.is_authenticated:
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "authenticated": False,
+                        "error": "Yêu cầu đăng nhập quyền Chủ nhà Cấp 1 để tạo mã QR Khách (HTTP 401 Unauthorized).",
+                        "status_code": 401,
+                    }
+                ),
+                status_code=401,
+            )
+        if session.tier != 1 or session.role != "ADMIN":
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "authenticated": True,
+                        "rbac_blocked": True,
+                        "tier": session.tier,
+                        "role": session.role,
+                        "error": "Từ chối: Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền sinh mã QR Khách!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
 
-    chosen_host = str(host_url or host or data.get("host_url") or data.get("host") or "localhost:8088").strip()
-    if chosen_host in ("localhost:8088", "127.0.0.1:8088", "localhost", "127.0.0.1", "0.0.0.0:8088"):
-        base_host = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
-    elif chosen_host.startswith("http://") or chosen_host.startswith("https://"):
-        base_host = chosen_host.rstrip("/")
-    elif any(t_dom in chosen_host for t_dom in [".lhr.life", ".vercel.app", "trycloudflare.com", ".ngrok", ".loca.lt"]) or ":443" in chosen_host:
-        base_host = f"https://{chosen_host.rstrip('/')}"
-    else:
-        base_host = f"http://{chosen_host.rstrip('/')}"
+        data: dict[str, Any] = {}
+        raw_body = await request.body()
+        if raw_body and raw_body.strip():
+            try:
+                parsed_body = json.loads(
+                    raw_body.decode("utf-8"),
+                    parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"Invalid JSON constant: {c}")),
+                    parse_float=_strict_parse_json_float,
+                    parse_int=_strict_parse_json_int,
+                )
+            except Exception:
+                _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", raw_body=raw_body)
+                return JSONResponse(
+                    sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Payload JSON không hợp lệ hoặc chứa số vượt miền!"}),
+                    status_code=422,
+                )
+            if not isinstance(parsed_body, dict) or _contains_abnormal_json_value(parsed_body):
+                _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", raw_body=raw_body)
+                return JSONResponse(
+                    sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Payload JSON không hợp lệ hoặc chứa số vượt miền!"}),
+                    status_code=422,
+                )
+            data = parsed_body
 
-    gen_res = mgr3.generate_dynamic_qr_token(
-        issuer_tier=1,
-        duration_type=chosen_dur,
-        host_url=base_host,
-        owner_id=str(session.user_id or "tuan_anh"),
-        target_tier=chosen_tier,
-        invalidate_previous=True,
-    )
-    if not gen_res.get("ok"):
-        return JSONResponse(
-            sanitize_api_payload(gen_res),
-            status_code=int(gen_res.get("status_code", 403)),
+        if _has_malformed_scalar_fields(data, ("duration", "duration_type", "dur", "host", "host_url", "scan_nonce", "token", "qr_token")) or _has_malformed_otp_fields(data):
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", payload=data, raw_body=raw_body)
+            return JSONResponse(
+                sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Kiểu trường chuỗi trong payload không hợp lệ!"}),
+                status_code=422,
+            )
+
+        qp = request.query_params
+        for extra_num_k, (lo, hi) in _QR_BOUNDED_INT_RANGES.items():
+            if extra_num_k in ("issuer_tier", "tier", "target_tier"):
+                continue
+            if extra_num_k in qp:
+                q_raw = qp.get(extra_num_k)
+                if not (extra_num_k in ("window", "target_window") and str(q_raw or "").strip() == ""):
+                    ok_q, _ = _validate_strict_int_range(q_raw, lo, hi, allow_digit_str=True)
+                    if not ok_q:
+                        _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", payload=data, raw_body=raw_body)
+                        return JSONResponse(
+                            sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": f"Tham số {extra_num_k} không hợp lệ!"}),
+                            status_code=422,
+                        )
+            if extra_num_k in data and data[extra_num_k] is not None:
+                ok_b, _ = _validate_strict_int_range(data[extra_num_k], lo, hi, allow_digit_str=True)
+                if not ok_b:
+                    _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", payload=data, raw_body=raw_body)
+                    return JSONResponse(
+                        sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": f"Trường {extra_num_k} không hợp lệ!"}),
+                        status_code=422,
+                    )
+
+        raw_issuer = data["issuer_tier"] if "issuer_tier" in data and data["issuer_tier"] is not None else qp.get("issuer_tier")
+        if raw_issuer is not None:
+            ok_iss, parsed_iss = _validate_strict_int_range(raw_issuer, 1, 3, allow_digit_str=True)
+            if not ok_iss or parsed_iss is None:
+                _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", payload=data, raw_body=raw_body)
+                return JSONResponse(
+                    sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Thông số issuer_tier không hợp lệ!"}),
+                    status_code=422,
+                )
+            req_issuer_tier = parsed_iss
+        else:
+            req_issuer_tier = 1
+
+        if req_issuer_tier != 1:
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_RBAC_MISTAKE", payload=data, raw_body=raw_body)
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền phát hành mã QR Khách!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
+
+        chosen_dur = str(
+            qp.get("dur")
+            or qp.get("duration_type")
+            or qp.get("duration")
+            or data.get("dur")
+            or data.get("duration")
+            or data.get("duration_type")
+            or "1d"
+        ).strip().lower()
+        if chosen_dur not in DURATION_MAP_SECONDS:
+            chosen_dur = "1d"
+
+        chosen_tier = 3
+        for raw_t_cand in (qp.get("tier"), qp.get("target_tier"), data.get("target_tier"), data.get("tier")):
+            if raw_t_cand is not None:
+                ok_t, parsed_t = _validate_strict_int_range(raw_t_cand, 1, 3, allow_digit_str=True)
+                if not ok_t or parsed_t is None:
+                    _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_MISTAKE", payload=data, raw_body=raw_body)
+                    return JSONResponse(
+                        sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Thông số tier/target_tier không hợp lệ!"}),
+                        status_code=422,
+                    )
+                chosen_tier = parsed_t if parsed_t in (2, 3) else 3
+                break
+        tier_label = "Thành viên gia đình (Cấp 2)" if chosen_tier == 2 else "Khách đến chơi nhà (Cấp 3)"
+
+        chosen_host = str(
+            qp.get("host_url")
+            or qp.get("host")
+            or data.get("host_url")
+            or data.get("host")
+            or "localhost:8088"
+        ).strip()
+        if chosen_host in ("localhost:8088", "127.0.0.1:8088", "localhost", "127.0.0.1", "0.0.0.0:8088"):
+            base_host = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
+        elif chosen_host.startswith("http://") or chosen_host.startswith("https://"):
+            base_host = chosen_host.rstrip("/")
+        elif any(t_dom in chosen_host for t_dom in [".lhr.life", ".vercel.app", "trycloudflare.com", ".ngrok", ".loca.lt"]) or ":443" in chosen_host:
+            base_host = f"https://{chosen_host.rstrip('/')}"
+        else:
+            base_host = f"http://{chosen_host.rstrip('/')}"
+
+        gen_res = mgr3.generate_dynamic_qr_token(
+            issuer_tier=1,
+            duration_type=chosen_dur,
+            host_url=base_host,
+            owner_id=str(session.user_id or "tuan_anh"),
+            target_tier=chosen_tier,
+            invalidate_previous=True,
         )
+        if not gen_res.get("ok"):
+            return JSONResponse(
+                sanitize_api_payload(gen_res),
+                status_code=int(gen_res.get("status_code", 403)),
+            )
 
-    token = str(gen_res["token"])
-    window = int(gen_res["window"])
-    dur_sec = int(gen_res["duration_seconds"])
-    dur_label = str(gen_res["duration_label"])
-    remaining = int(gen_res["expires_in_sec"])
+        token = str(gen_res["token"])
+        window = int(gen_res["window"])
+        dur_sec = int(gen_res["duration_seconds"])
+        dur_label = str(gen_res["duration_label"])
+        remaining = int(gen_res["expires_in_sec"])
 
-    qr_url = f"/guest_enroll?token={token}&window={window}&dur={chosen_dur}"
-    guest_url = f"/guest?token={token}&window={window}&dur={chosen_dur}"
-    if chosen_tier == 2:
-        qr_url += "&tier=2"
-        guest_url += "&tier=2"
-    full_url = f"{base_host}{qr_url}"
-    guest_full_url = f"{base_host}{guest_url}"
-    public_guest_path = "/guest"
-    public_guest_url = f"{base_host}/guest"
+        qr_url = f"/guest_enroll?token={token}&window={window}&dur={chosen_dur}"
+        guest_url = f"/guest?token={token}&window={window}&dur={chosen_dur}"
+        if chosen_tier == 2:
+            qr_url += "&tier=2"
+            guest_url += "&tier=2"
+        full_url = f"{base_host}{qr_url}"
+        guest_full_url = f"{base_host}{guest_url}"
+        public_guest_path = "/guest"
+        public_guest_url = f"{base_host}/guest"
 
-    qr_svg = generate_qr_svg_string(full_url)
+        qr_svg = generate_qr_svg_string(full_url)
 
-    resp = {
-        "ok": True,
-        "token": token,
-        "issuer_tier": 1,
-        "owner_approved": True,
-        "target_tier": chosen_tier,
-        "tier_label": tier_label,
-        "duration": chosen_dur,
-        "duration_type": chosen_dur,
-        "duration_label": dur_label,
-        "duration_seconds": dur_sec,
-        "remaining_slot_sec": remaining,
-        "window": window,
-        "qr_url": qr_url,
-        "full_url": full_url,
-        "guest_url": guest_url,
-        "guest_full_url": guest_full_url,
-        "public_guest_path": public_guest_path,
-        "public_guest_url": public_guest_url,
-        "qr_svg": qr_svg,
-    }
-    return JSONResponse(sanitize_api_payload(resp), status_code=200)
+        resp = {
+            "ok": True,
+            "token": token,
+            "issuer_tier": 1,
+            "owner_approved": True,
+            "target_tier": chosen_tier,
+            "tier_label": tier_label,
+            "duration": chosen_dur,
+            "duration_type": chosen_dur,
+            "duration_label": dur_label,
+            "duration_seconds": dur_sec,
+            "remaining_slot_sec": remaining,
+            "window": window,
+            "qr_url": qr_url,
+            "full_url": full_url,
+            "guest_url": guest_url,
+            "guest_full_url": guest_full_url,
+            "public_guest_path": public_guest_path,
+            "public_guest_url": public_guest_url,
+            "qr_svg": qr_svg,
+        }
+        return JSONResponse(sanitize_api_payload(resp), status_code=200)
+    except Exception:
+        _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_UNEXPECTED_MISTAKE")
+        return JSONResponse(
+            sanitize_api_payload({"ok": False, "status": "MALFORMED_PAYLOAD", "must_rescan": True, "error": "Dữ liệu đầu vào không hợp lệ!"}),
+            status_code=422,
+        )
 
 
 @router.post("/api/auth3/guest_qr_handshake")
@@ -643,96 +884,125 @@ async def api_auth3_guest_qr_current(
 async def api_auth3_guest_qr_handshake(request: Request) -> JSONResponse:
     """Bắt tay xác thực mã QR 10 giây khi khách quét mã mở trang thu âm độc lập /guest_enroll."""
     mgr3 = get_auth_3layer_manager()
-    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
-    if malformed_resp is not None or payload is None:
-        return malformed_resp  # type: ignore[return-value]
-    raw_tok_field = payload.get("token")
-    token = str(raw_tok_field if isinstance(raw_tok_field, (str, int, float)) and not isinstance(raw_tok_field, bool) else "").strip()
-    target_window = payload.get("target_window", payload.get("window"))
-    if isinstance(target_window, (dict, list, tuple, set)):
-        _invalidate_any_nonce_bound_session(request, mgr3, "INVALID_TARGET_WINDOW_MISTAKE", payload=payload)
-        return JSONResponse(
-            sanitize_api_payload({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}),
-            status_code=400,
-        )
+    mgr3._ensure_qr_stores()
     try:
-        win_val = (
-            int(target_window)
-            if target_window is not None and not isinstance(target_window, bool) and str(target_window).strip() != ""
-            else None
+        payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+        if malformed_resp is not None or payload is None:
+            return malformed_resp  # type: ignore[return-value]
+
+        if _has_malformed_scalar_fields(
+            payload,
+            (
+                "token",
+                "qr_token",
+                "scan_nonce",
+                "duration",
+                "duration_type",
+                "dur",
+                "session_id",
+                "guest_session_id",
+                "session_token",
+                "post_scan_token",
+            ),
+        ) or _has_malformed_otp_fields(payload):
+            return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
+        win_val: int | None = None
+        for win_k in ("window", "target_window"):
+            if win_k in payload and payload[win_k] is not None:
+                raw_w = payload[win_k]
+                if isinstance(raw_w, str) and raw_w.strip() == "":
+                    continue
+                ok_w, parsed_w = _validate_strict_int_range(raw_w, -(10**11), 10**11, allow_digit_str=True)
+                if not ok_w:
+                    _invalidate_any_nonce_bound_session(request, mgr3, "INVALID_TARGET_WINDOW_MISTAKE", payload=payload)
+                    return JSONResponse(
+                        sanitize_api_payload(
+                            {
+                                "ok": False,
+                                "status": "INVALID_TARGET_WINDOW",
+                                "must_rescan": True,
+                                "error": "Thông số target_window không hợp lệ! Phiên đã bị hủy, vui lòng quét lại mã QR.",
+                            }
+                        ),
+                        status_code=400,
+                    )
+                win_val = parsed_w
+
+        payload_without_win = {k: v for k, v in payload.items() if k not in ("target_window", "window")}
+        if _has_abnormal_qr_payload_numeric_or_bool_fields(request, payload_without_win):
+            return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
+        token = str(payload.get("token") or "").strip()
+
+        dur_val = str(payload.get("duration") or payload.get("duration_type") or payload.get("dur") or "1d").strip()
+        scan_nonce = _extract_request_scan_nonce(request, payload)
+
+        res = mgr3.consume_guest_handshake(
+            token=token,
+            target_window=win_val,
+            duration_type=dur_val,
+            scan_nonce=scan_nonce,
+            user_agent=request.headers.get("user-agent", ""),
         )
-    except (ValueError, TypeError):
-        _invalidate_any_nonce_bound_session(request, mgr3, "INVALID_TARGET_WINDOW_MISTAKE", payload=payload)
-        return JSONResponse(
-            sanitize_api_payload({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}),
-            status_code=400,
-        )
-    dur_val = str(payload.get("duration") or payload.get("duration_type") or payload.get("dur") or "1d").strip()
-    scan_nonce = _extract_request_scan_nonce(request, payload)
+        if not res.get("ok"):
+            _invalidate_any_nonce_bound_session(request, mgr3, "HANDSHAKE_FAILED_MISTAKE", payload=payload)
+            return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
 
-    mgr3 = get_auth_3layer_manager()
-    res = mgr3.consume_guest_handshake(
-        token=token,
-        target_window=win_val,
-        duration_type=dur_val,
-        scan_nonce=scan_nonce,
-        user_agent=request.headers.get("user-agent", ""),
-    )
-    if not res.get("ok"):
-        return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
+        session_id = str(res.get("guest_session_id", "")).strip()
+        post_scan_token = str(res.get("post_scan_token", "")).strip()
+        post_scan_url = str(res.get("post_scan_url", f"/guest_enroll?session_id={session_id}&post_scan_token={post_scan_token}")).strip()
+        effective_nonce = str(res.get("scan_nonce", "")).strip()
+        dur_code = str(res.get("duration_type", dur_val)).strip()
+        dur_label = str(res.get("duration_label", dur_code)).strip()
+        dur_seconds = int(res.get("duration_seconds", 86400))
 
-    session_id = str(res.get("guest_session_id", "")).strip()
-    post_scan_token = str(res.get("post_scan_token", "")).strip()
-    post_scan_url = str(res.get("post_scan_url", f"/guest_enroll?session_id={session_id}&post_scan_token={post_scan_token}")).strip()
-    effective_nonce = str(res.get("scan_nonce", "")).strip()
-    dur_code = str(res.get("duration_type", dur_val)).strip()
-    dur_label = str(res.get("duration_label", dur_code)).strip()
-    dur_seconds = int(res.get("duration_seconds", 86400))
-
-    out = {
-        "ok": True,
-        "session": {
+        out = {
+            "ok": True,
+            "session": {
+                "session_id": session_id,
+                "post_scan_token": post_scan_token,
+                "post_scan_url": post_scan_url,
+                "duration_code": dur_code,
+                "duration_label": dur_label,
+                "duration_seconds": dur_seconds,
+                "lock_ttl_sec": int(QR_SHORT_EXPIRY_SEC),
+            },
             "session_id": session_id,
+            "guest_session_id": session_id,
             "post_scan_token": post_scan_token,
             "post_scan_url": post_scan_url,
             "duration_code": dur_code,
+            "duration_type": dur_code,
             "duration_label": dur_label,
             "duration_seconds": dur_seconds,
             "lock_ttl_sec": int(QR_SHORT_EXPIRY_SEC),
-        },
-        "session_id": session_id,
-        "guest_session_id": session_id,
-        "post_scan_token": post_scan_token,
-        "post_scan_url": post_scan_url,
-        "duration_code": dur_code,
-        "duration_type": dur_code,
-        "duration_label": dur_label,
-        "duration_seconds": dur_seconds,
-        "lock_ttl_sec": int(QR_SHORT_EXPIRY_SEC),
-        "session_expires_at": res.get("session_expires_at"),
-        "reading_prompt": res.get("reading_prompt"),
-        "message": res.get("message"),
-    }
-    response = JSONResponse(sanitize_api_payload(out), status_code=200)
-    if effective_nonce:
-        response.set_cookie(
-            key=QR_SCAN_COOKIE_NAME,
-            value=effective_nonce,
-            max_age=int(QR_SHORT_EXPIRY_SEC),
-            httponly=True,
-            samesite="lax",
-            path="/",
-        )
-    if session_id:
-        response.set_cookie(
-            key=QR_SESSION_COOKIE_NAME,
-            value=session_id,
-            max_age=int(QR_SHORT_EXPIRY_SEC),
-            httponly=True,
-            samesite="lax",
-            path="/",
-        )
-    return response
+            "session_expires_at": res.get("session_expires_at"),
+            "reading_prompt": res.get("reading_prompt"),
+            "message": res.get("message"),
+        }
+        response = JSONResponse(sanitize_api_payload(out), status_code=200)
+        if effective_nonce:
+            response.set_cookie(
+                key=QR_SCAN_COOKIE_NAME,
+                value=effective_nonce,
+                max_age=int(QR_SHORT_EXPIRY_SEC),
+                httponly=True,
+                samesite="lax",
+                path="/",
+            )
+        if session_id:
+            response.set_cookie(
+                key=QR_SESSION_COOKIE_NAME,
+                value=session_id,
+                max_age=int(QR_SHORT_EXPIRY_SEC),
+                httponly=True,
+                samesite="lax",
+                path="/",
+            )
+        return response
+    except Exception:
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
 
 
 @router.post("/api/auth3/guest_qr_complete_voice")
@@ -742,10 +1012,17 @@ async def api_auth3_guest_qr_complete_voice(request: Request) -> JSONResponse:
     Bắt buộc kiểm tra:
     - Single-Use Atomic Consumption (chỉ 1 lần đăng ký thành công duy nhất, chặn gửi lặp & gửi đồng thời).
     - Gắn kết phiên quét (chỉ thiết bị có cookie `sh_qr_scan_nonce` từ lúc quét mới được gửi).
-    - Nếu thao tác lỗi (JSON lỗi cú pháp, kiểu trường sai, audio ngắn, trùng giọng, email chủ nhà...), hủy phiên ngay lập tức và bắt buộc quét lại QR mới.
+    - Nếu thao tác lỗi (JSON lỗi cú pháp, kiểu trường sai, số vượt miền, audio ngắn, trùng giọng, email chủ nhà...), hủy phiên ngay lập tức và bắt buộc quét lại QR mới.
     """
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    try:
+        return await _impl_guest_qr_complete_voice(request, mgr3)
+    except Exception:
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+
+async def _impl_guest_qr_complete_voice(request: Request, mgr3: Any) -> JSONResponse:
     payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
     if malformed_resp is not None or payload is None:
         return malformed_resp  # type: ignore[return-value]
@@ -757,12 +1034,18 @@ async def api_auth3_guest_qr_complete_voice(request: Request) -> JSONResponse:
             "guest_session_id",
             "session_token",
             "post_scan_token",
+            "token",
+            "qr_token",
+            "scan_nonce",
             "guest_name",
             "speaker_name",
             "guest_email",
             "email",
             "duration",
             "duration_type",
+            "dur",
+            "role",
+            "role_code",
             "audio_pcm_b64",
             "pcm16k_b64",
             "audio_b64",
@@ -780,15 +1063,8 @@ async def api_auth3_guest_qr_complete_voice(request: Request) -> JSONResponse:
             ):
                 return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
-    for int_key in ("sample_index", "total_samples"):
-        if payload.get(int_key) is not None:
-            iv = payload[int_key]
-            if isinstance(iv, bool):
-                return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
-            try:
-                int(iv)
-            except (ValueError, TypeError):
-                return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+    if _has_abnormal_qr_payload_numeric_or_bool_fields(request, payload) or _has_malformed_otp_fields(payload):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     session_id = str(
         payload.get("session_id")
@@ -1013,8 +1289,11 @@ async def api_auth3_guest_qr_complete_voice(request: Request) -> JSONResponse:
     # 3. Lưu vào Cấp 3 kèm expires_at
     expires_at_ts = time.time() + float(dur_seconds)
     has_multi_samples = len(decoded_samples) >= 2
-    req_sample_idx = int(payload["sample_index"]) if payload.get("sample_index") is not None else None
-    req_total_samples = int(payload["total_samples"]) if payload.get("total_samples") is not None else None
+    ok_s_idx, req_sample_idx = _validate_strict_int_range(payload.get("sample_index"), 0, 20, allow_digit_str=True)
+    ok_t_smp, req_total_samples = _validate_strict_int_range(payload.get("total_samples"), 1, 20, allow_digit_str=True)
+    if not ok_s_idx or not ok_t_smp:
+        mgr3.invalidate_qr_session_on_mistake(bound_sid, "SAMPLE_INDEX_RANGE_MISTAKE")
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     # Nếu bản thu đơn mẫu đã vượt qua validate_voice_enrollment_quality nhưng khoảng lặng đầu < 22%,
     # đệm thêm 0.4s khoảng lặng đầu để bộ ước lượng nền P20 trong enroll_tier_voice_from_pcm16k ổn định.
@@ -1182,6 +1461,13 @@ async def api_auth3_guest_qr_send_otp(request: Request) -> JSONResponse:
     """Gửi OTP xác thực email khách sau khi kiểm tra phiên quét QR, so khớp 2 ô và kiểm tra DNS MX thực tế."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    try:
+        return await _impl_guest_qr_send_otp(request, mgr3)
+    except Exception:
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+
+async def _impl_guest_qr_send_otp(request: Request, mgr3: Any) -> JSONResponse:
     payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
     if malformed_resp is not None or payload is None:
         return malformed_resp  # type: ignore[return-value]
@@ -1193,15 +1479,23 @@ async def api_auth3_guest_qr_send_otp(request: Request) -> JSONResponse:
             "guest_session_id",
             "session_token",
             "post_scan_token",
+            "token",
+            "qr_token",
+            "scan_nonce",
             "guest_name",
+            "speaker_name",
             "email_1",
             "email",
             "email_2",
             "confirm_email",
             "duration",
             "duration_type",
+            "dur",
         ),
     ):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
+    if _has_abnormal_qr_payload_numeric_or_bool_fields(request, payload) or _has_malformed_otp_fields(payload):
         return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     session_id = str(
@@ -1340,6 +1634,13 @@ async def api_auth3_guest_qr_verify_otp(request: Request) -> JSONResponse:
     """Xác nhận mã OTP email của khách, tiêu thụ nguyên tử (Single-Use) phiên quét QR và kích hoạt tài khoản khách Cấp 3."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    try:
+        return await _impl_guest_qr_verify_otp(request, mgr3)
+    except Exception:
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+
+async def _impl_guest_qr_verify_otp(request: Request, mgr3: Any) -> JSONResponse:
     payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
     if malformed_resp is not None or payload is None:
         return malformed_resp  # type: ignore[return-value]
@@ -1351,22 +1652,32 @@ async def api_auth3_guest_qr_verify_otp(request: Request) -> JSONResponse:
             "guest_session_id",
             "session_token",
             "post_scan_token",
+            "token",
+            "qr_token",
+            "scan_nonce",
             "email",
             "confirm_email",
-            "otp",
-            "otp_code",
-            "input_otp",
+            "guest_name",
+            "duration",
+            "duration_type",
+            "dur",
         ),
     ):
         return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
+    if _has_abnormal_qr_payload_numeric_or_bool_fields(request, payload) or _has_malformed_otp_fields(payload):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
     email = str(payload.get("email") or payload.get("confirm_email") or "").strip().lower()
-    otp_input = str(
-        payload.get("otp")
-        or payload.get("otp_code")
-        or payload.get("input_otp")
-        or ""
-    ).strip()
+    raw_otp_val = next(
+        (payload[k] for k in ("otp", "otp_code", "input_otp") if k in payload and payload[k] is not None),
+        "",
+    )
+    otp_input = (
+        f"{raw_otp_val:06d}"
+        if isinstance(raw_otp_val, int) and not isinstance(raw_otp_val, bool)
+        else str(raw_otp_val).strip()
+    )
     explicit_client_sid = str(payload.get("guest_session_id") or payload.get("session_id") or "").strip()
 
     with _QR_ATOMIC_LOCK:

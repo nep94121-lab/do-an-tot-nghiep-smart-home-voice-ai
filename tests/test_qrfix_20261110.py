@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 from concurrent.futures import ThreadPoolExecutor
+import json
 import pathlib
 import re
 import sys
@@ -1051,6 +1052,285 @@ def test_round3_n2_json_body_token_fields_rejected_across_routes_and_methods(
 
     sess = resolve_request_session(payload=payload, engine=_REST_ENGINE)
     assert sess.is_authenticated is False
+
+
+# =============================================================================
+# FIX ROUND 4 REGRESSION TESTS (R3-N3: NUMERIC OVERFLOW / ABNORMAL INPUTS & R3-N4: QUERY SCAN_NONCE ISOLATION)
+# =============================================================================
+
+
+@pytest.mark.parametrize("field", ["sample_index", "total_samples"])
+def test_round4_r3_n3_numeric_overflow_1e309_rejected_4xx_invalidates_and_blocks_otp_retry(
+    field: str,
+) -> None:
+    """Counterexample R3-N3: JSON 1e309 in sample_index / total_samples must never give HTTP 500,
+    must invalidate the bound QR session, make post_scan_url 403, and block subsequent OTP send/verify without rescan.
+    """
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+
+    body = json.dumps({"session_id": hs["session_id"], "guest_name": "NumericMistake"})[:-1] + f',"{field}":1e309}}'
+    c = TestClient(app, raise_server_exceptions=False)
+    c.cookies.update(scanner.cookies)
+
+    bad = c.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=body,
+        headers={"content-type": "application/json"},
+    )
+    assert 400 <= bad.status_code < 500, f"Expected 4xx for {field}=1e309, got {bad.status_code}"
+    assert bad.json().get("ok") is False
+    assert bad.json().get("must_rescan") is True
+
+    inv = mgr.guest_qr_sessions[hs["session_id"]]["invalidated"]
+    assert inv is True
+
+    page = c.get(hs["post_scan_url"])
+    assert page.status_code == 403
+
+    email = f"round4-numeric-retry-{field}@example.invalid"
+    guest_name = f"Round4NumericRetry_{field}"
+    data = {
+        "session_id": hs["session_id"],
+        "email": email,
+        "confirm_email": email,
+        "guest_name": guest_name,
+    }
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        send = c.post("/api/auth3/guest_qr_send_otp", json=data)
+    otp = mgr.pending_guest_email_otps.get(email, {}).get("otp", "")
+    verify = c.post("/api/auth3/guest_qr_verify_otp", json={**data, "otp": otp})
+    added = any(v.get("name") == guest_name for v in _REST_ENGINE.users.values())
+
+    assert send.status_code in (400, 401, 403)
+    assert verify.status_code in (400, 401, 403)
+    assert verify.json().get("verified") is not True
+    assert added is False
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/auth3/guest_qr_complete_voice",
+        "/api/auth3/guest/enroll_voice",
+        "/api/auth3/guest_qr_send_otp",
+        "/api/auth3/guest_qr_verify_otp",
+        "/api/auth3/guest/verify_email",
+        "/api/auth3/guest_qr_handshake",
+        "/api/auth3/guest/handshake",
+    ],
+)
+def test_round4_r3_n3_abnormal_numbers_and_types_across_every_qr_post_endpoint(
+    endpoint: str,
+) -> None:
+    """Every numeric field across every QR POST endpoint rejects inf/nan/huge/float/negative/bool/wrong-type
+    with 4xx (never 500), invalidates the bound QR session, and makes post_scan_url return 403 (1,183 probes).
+    """
+    mgr = get_auth_3layer_manager()
+    fields = (
+        "sample_index",
+        "total_samples",
+        "sample_count",
+        "target_tier",
+        "tier",
+        "issuer_tier",
+        "window",
+        "target_window",
+        "duration_seconds",
+        "lock_ttl_sec",
+        "attempts",
+        "sr",
+        "sample_rate",
+    )
+    raw_json_literals = (
+        "1e309",
+        "-1e309",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "999999999999999999999999999999",
+        "-1",
+        "1.5",
+        "true",
+        '"1e309"',
+        '"not-a-number"',
+        "[]",
+        "{}",
+    )
+    for field in fields:
+        for raw_json_literal in raw_json_literals:
+            scanner, hs = _handshake_pair()
+            raw_body = (
+                json.dumps({"session_id": hs["session_id"], "guest_name": "AbnormalMatrix"})[:-1]
+                + f',"{field}":{raw_json_literal}}}'
+            )
+            c = TestClient(app, raise_server_exceptions=False)
+            c.cookies.update(scanner.cookies)
+
+            resp = c.post(endpoint, content=raw_body, headers={"content-type": "application/json"})
+            assert 400 <= resp.status_code < 500, (
+                f"Endpoint {endpoint} field {field}={raw_json_literal} returned {resp.status_code}"
+            )
+            assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+            assert c.get(hs["post_scan_url"]).status_code == 403
+
+
+def test_round4_r3_n3_otp_fields_query_params_and_qr_generate_abnormal_inputs() -> None:
+    """Covers OTP numeric/type edge cases, out-of-range ints (sample_index > total_samples, total_samples=0,
+    tier=0/4), /guest_enroll abnormal query params, and /api/auth3/guest_qr_current (/qr/generate).
+    """
+    mgr = get_auth_3layer_manager()
+
+    # 1. OTP fields (otp, otp_code, input_otp) with 1e309, float, negative, >999999, bool, list, dict
+    for otp_key in ("otp", "otp_code", "input_otp"):
+        for bad_lit in ("1e309", "-1", "1000000", "12.34", "true", "[]", "{}"):
+            scanner, hs = _handshake_pair()
+            c = TestClient(app, raise_server_exceptions=False)
+            c.cookies.update(scanner.cookies)
+            raw = (
+                json.dumps({"session_id": hs["session_id"], "email": "otp-bad@example.invalid"})[:-1]
+                + f',"{otp_key}":{bad_lit}}}'
+            )
+            r = c.post("/api/auth3/guest_qr_verify_otp", content=raw, headers={"content-type": "application/json"})
+            assert 400 <= r.status_code < 500
+            assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+            assert c.get(hs["post_scan_url"]).status_code == 403
+
+    # 2. Out-of-range integers & sample_index > total_samples on voice / send_otp / verify_otp
+    out_of_range_cases = [
+        {"sample_index": 21},
+        {"total_samples": 0},
+        {"total_samples": 25},
+        {"sample_index": 5, "total_samples": 3},
+        {"target_tier": 0},
+        {"target_tier": 4},
+        {"issuer_tier": 2},
+        {"verify_only": "yes"},
+        {"enforce_12s_gate": 123},
+    ]
+    for extra_fields in out_of_range_cases:
+        scanner, hs = _handshake_pair()
+        c = TestClient(app, raise_server_exceptions=False)
+        c.cookies.update(scanner.cookies)
+        r = c.post(
+            "/api/auth3/guest_qr_complete_voice",
+            json={"session_id": hs["session_id"], "guest_name": "RangeCheck", **extra_fields},
+        )
+        assert 400 <= r.status_code < 500, f"Case {extra_fields} returned {r.status_code}"
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert c.get(hs["post_scan_url"]).status_code == 403
+
+    # 3. Abnormal query params on /guest_enroll and POST endpoints invalidate bound session
+    for bad_qs in ("window=1e309", "sample_index=1e309", "total_samples=0", "tier=999", "target_tier=-5"):
+        scanner, hs = _handshake_pair()
+        c = TestClient(app, raise_server_exceptions=False)
+        c.cookies.update(scanner.cookies)
+        r_page = c.get(f"{hs['post_scan_url']}&{bad_qs}")
+        assert 400 <= r_page.status_code < 500
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert c.get(hs["post_scan_url"]).status_code == 403
+
+    # 4. /api/auth3/guest_qr_current and /api/auth3/qr/generate reject 1e309 / out-of-range without 500
+    owner = TestClient(
+        app,
+        headers={"Authorization": "Bearer sess_owner_t1_nep94121"},
+        raise_server_exceptions=False,
+    )
+    assert 400 <= owner.get("/api/auth3/guest_qr_current?window=1e309").status_code < 500
+    assert 400 <= owner.get("/api/auth3/guest_qr_current?tier=1e309").status_code < 500
+    assert 400 <= owner.get("/api/auth3/guest_qr_current?issuer_tier=999").status_code < 500
+    assert (
+        400
+        <= owner.post(
+            "/api/auth3/qr/generate",
+            content='{"issuer_tier": 1e309}',
+            headers={"content-type": "application/json"},
+        ).status_code
+        < 500
+    )
+
+
+def test_round4_r3_n4_query_scan_nonce_and_all_nonce_carriers_isolated_from_other_routes() -> None:
+    """Counterexample R3-N4: scan_nonce accepted as session-binding credential on registration API
+    (?scan_nonce=...) MUST be rejected 403 on /, /app, /api/state, /api/device, closed 1008 on /ws,
+    and rejected by resolve_request_session across query, headers, cookies, and JSON/form bodies.
+    """
+    from unittest.mock import patch
+    from starlette.websockets import WebSocketDisconnect
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+    from simulator.auth.session_store import resolve_request_session
+
+    scanner, hs = _handshake_pair()
+    nonce = scanner.cookies.get(QR_SCAN_COOKIE_NAME)
+    assert nonce
+
+    # 1. Exact R3-N4 counterexample: fresh client passes ?scan_nonce=<nonce> (no cookies)
+    c_fresh = TestClient(app)
+    email = "round4-query-nonce@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        send = c_fresh.post(
+            "/api/auth3/guest_qr_send_otp",
+            params={"scan_nonce": nonce},
+            json={
+                "session_id": hs["session_id"],
+                "email": email,
+                "confirm_email": email,
+                "guest_name": "Round4QueryNonce",
+            },
+        )
+    assert send.status_code == 200
+
+    other_routes = ("/", "/app", "/api/state", "/auth", "/logs", "/mobile", "/wokwi")
+    for p in other_routes:
+        r = c_fresh.get(p, params={"scan_nonce": nonce}, follow_redirects=False)
+        assert r.status_code == 403, f"Route {p}?scan_nonce=... returned {r.status_code}, expected 403"
+        assert r.json().get("status") == "QR_REGISTRATION_SESSION_ISOLATED"
+
+    # 2. All query/header/cookie/body/form/WS carriers carrying scan_nonce rejected on non-QR routes
+    for qk in ("scan_nonce", QR_SCAN_COOKIE_NAME, "token", "session_token", "sh_session_token", "session_id"):
+        cq = TestClient(app)
+        for p in ("/", "/app", "/api/state"):
+            assert cq.get(p, params={qk: nonce}, follow_redirects=False).status_code == 403
+        ws_accepted = False
+        ws_code = None
+        try:
+            with cq.websocket_connect(f"/ws?{qk}={nonce}"):
+                ws_accepted = True
+        except WebSocketDisconnect as exc:
+            ws_code = exc.code
+        assert not ws_accepted and ws_code == 1008
+
+    for hdr_k, hdr_v in (
+        ("x-qr-scan-nonce", nonce),
+        ("x-scan-nonce", nonce),
+        ("x-session-token", nonce),
+        ("authorization", f"Bearer {nonce}"),
+    ):
+        ch = TestClient(app, headers={hdr_k: hdr_v})
+        for p in ("/", "/app", "/api/state"):
+            assert ch.get(p, follow_redirects=False).status_code == 403
+
+    for ck_k in (QR_SCAN_COOKIE_NAME, "scan_nonce", "session_token", "sh_session_token"):
+        cc = TestClient(app)
+        cc.cookies.set(ck_k, nonce)
+        for p in ("/", "/app", "/api/state"):
+            assert cc.get(p, follow_redirects=False).status_code == 403
+
+    for body_k in ("scan_nonce", "session_token", "token", "post_scan_token", "session_id"):
+        cb = TestClient(app)
+        for p in ("/", "/app", "/api/state"):
+            assert cb.request("GET", p, json={body_k: nonce}, follow_redirects=False).status_code == 403
+            assert cb.request("GET", p, json={"session": {body_k: nonce}}, follow_redirects=False).status_code == 403
+            assert cb.request("GET", p, json={"nested": {"auth": {body_k: nonce}}}, follow_redirects=False).status_code == 403
+            assert cb.request("GET", p, data={body_k: nonce}, follow_redirects=False).status_code == 403
+        sess = resolve_request_session(payload={body_k: nonce}, engine=_REST_ENGINE)
+        assert sess.is_authenticated is False
+
 
 
 

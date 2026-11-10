@@ -54,6 +54,8 @@ def is_qr_registration_token_or_session(val: str | None, mgr3: Any = None) -> bo
         ):
             return True
         val_hash = hash_qr_scan_nonce(clean)
+        if val_hash and val_hash in getattr(mgr3, "known_qr_scan_nonce_hashes", set()):
+            return True
         for s_info in getattr(mgr3, "guest_qr_sessions", {}).values():
             if isinstance(s_info, dict):
                 if str(s_info.get("post_scan_token") or "") == clean:
@@ -79,6 +81,7 @@ class AuthQrTotpMixin:
     active_qr_tokens: dict[str, dict[str, Any]]
     guest_qr_sessions: dict[str, dict[str, Any]]
     pending_guest_email_otps: dict[str, dict[str, Any]]
+    known_qr_scan_nonce_hashes: set[str]
 
     def _ensure_qr_stores(self) -> None:
         if not hasattr(self, "used_qr_tokens") or self.used_qr_tokens is None:
@@ -89,6 +92,8 @@ class AuthQrTotpMixin:
             self.guest_qr_sessions = {}
         if not hasattr(self, "pending_guest_email_otps") or self.pending_guest_email_otps is None:
             self.pending_guest_email_otps = {}
+        if not hasattr(self, "known_qr_scan_nonce_hashes") or self.known_qr_scan_nonce_hashes is None:
+            self.known_qr_scan_nonce_hashes = set()
 
     def invalidate_previous_qr_tokens_and_sessions(
         self,
@@ -322,13 +327,37 @@ class AuthQrTotpMixin:
                 }
 
             token_win = int(tok_meta["window"])
-            if target_window is not None and int(target_window) != token_win:
-                return {
-                    "ok": False,
-                    "reason": "WINDOW_MISMATCH",
-                    "error": "Mã QR không khớp thông số cửa sổ thời gian!",
-                    "status_code": 401,
-                }
+            if target_window is not None:
+                if isinstance(target_window, (bool, float)):
+                    return {
+                        "ok": False,
+                        "reason": "INVALID_TARGET_WINDOW",
+                        "error": "Thông số cửa sổ thời gian không hợp lệ!",
+                        "status_code": 400,
+                    }
+                try:
+                    parsed_win = int(target_window)
+                except (ValueError, TypeError, OverflowError):
+                    return {
+                        "ok": False,
+                        "reason": "INVALID_TARGET_WINDOW",
+                        "error": "Thông số cửa sổ thời gian không hợp lệ!",
+                        "status_code": 400,
+                    }
+                if parsed_win < 0 or parsed_win > 10**11:
+                    return {
+                        "ok": False,
+                        "reason": "INVALID_TARGET_WINDOW",
+                        "error": "Thông số cửa sổ thời gian vượt ngoài phạm vi hợp lệ!",
+                        "status_code": 400,
+                    }
+                if parsed_win != token_win:
+                    return {
+                        "ok": False,
+                        "reason": "WINDOW_MISMATCH",
+                        "error": "Mã QR không khớp thông số cửa sổ thời gian!",
+                        "status_code": 401,
+                    }
 
             now_ts = time.time()
             cur_window = int(now_ts // 10)
@@ -359,6 +388,8 @@ class AuthQrTotpMixin:
                 effective_nonce = incoming_nonce or secrets.token_urlsafe(24)
                 nonce_hash = hash_qr_scan_nonce(effective_nonce)
                 tok_meta["bound_scan_nonce_hash"] = nonce_hash
+            if nonce_hash:
+                self.known_qr_scan_nonce_hashes.add(nonce_hash)
 
             # Thu hồi mọi phiên đăng ký QR cũ trước khi mở phiên mới
             self.invalidate_previous_qr_tokens_and_sessions(

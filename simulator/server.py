@@ -21,6 +21,7 @@ from __future__ import annotations
 import hmac
 import json
 import pathlib
+import re
 import secrets
 import time
 from typing import Any
@@ -108,7 +109,7 @@ _QR_ISOLATED_ALLOWED_PATHS: frozenset[str] = frozenset(
 
 
 def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
-    """Phát hiện request HTTP hoặc kết nối WebSocket mang session/token của luồng đăng ký QR cô lập
+    """Phát hiện request HTTP hoặc kết nối WebSocket mang session/token/scan_nonce của luồng đăng ký QR cô lập
     trên mọi carrier (cookies, headers, query params).
     """
     cookies = getattr(req_or_ws, "cookies", {}) or {}
@@ -116,19 +117,30 @@ def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
     query_params = getattr(req_or_ws, "query_params", {}) or {}
     mgr3 = get_auth_3layer_manager()
 
-    if cookies.get(QR_SCAN_COOKIE_NAME) or cookies.get(QR_SESSION_COOKIE_NAME):
-        return True
-    for ck_name in ("session_token", "sh_session_token"):
+    for strict_ck in (
+        QR_SCAN_COOKIE_NAME,
+        QR_SESSION_COOKIE_NAME,
+        "scan_nonce",
+        "post_scan_token",
+        "qr_token",
+        "guest_session_id",
+    ):
+        if str(cookies.get(strict_ck) or "").strip():
+            return True
+    for ck_name in ("session_token", "sh_session_token", "session_id", "token"):
         ck_val = str(cookies.get(ck_name) or "").strip()
         if ck_val and is_qr_registration_token_or_session(ck_val, mgr3=mgr3):
             return True
 
-    if (
-        headers.get("x-qr-scan-nonce")
-        or headers.get("x-qr-session-id")
-        or headers.get("x-qr-post-scan-token")
+    for strict_hdr in (
+        "x-qr-scan-nonce",
+        "x-scan-nonce",
+        "x-qr-session-id",
+        "x-qr-post-scan-token",
+        "x-qr-token",
     ):
-        return True
+        if str(headers.get(strict_hdr) or "").strip():
+            return True
 
     x_sess_tok = str(headers.get("x-session-token") or "").strip()
     if x_sess_tok and is_qr_registration_token_or_session(x_sess_tok, mgr3=mgr3):
@@ -140,53 +152,80 @@ def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
         if bearer_tok and is_qr_registration_token_or_session(bearer_tok, mgr3=mgr3):
             return True
 
-    if query_params.get("post_scan_token"):
-        return True
-    for qp_name in ("session_id", "guest_session_id", "token"):
-        qp_val = str(query_params.get(qp_name) or "").strip()
-        if qp_val and is_qr_registration_token_or_session(qp_val, mgr3=mgr3):
+    qp_items = (
+        query_params.multi_items()
+        if hasattr(query_params, "multi_items")
+        else query_params.items()
+    )
+    for raw_qk, raw_qv in qp_items:
+        qk = str(raw_qk or "").strip()
+        qv = str(raw_qv or "").strip()
+        if not qv:
+            continue
+        if qk in (
+            "scan_nonce",
+            QR_SCAN_COOKIE_NAME,
+            QR_SESSION_COOKIE_NAME,
+            "post_scan_token",
+            "qr_token",
+        ):
             return True
+        if qk in ("session_id", "guest_session_id", "token", "session_token", "sh_session_token"):
+            if is_qr_registration_token_or_session(qv, mgr3=mgr3):
+                return True
 
     return False
 
 
-def _is_qr_registration_payload_dict(payload: Any, mgr3: Any = None) -> bool:
-    """Phát hiện dict payload (JSON body / form body) mang bất kỳ trường token/session của luồng đăng ký QR
-    (session_token, guest_session_id, session_id, post_scan_token, token, qr_token, scan_nonce).
+def _is_qr_registration_payload_dict(payload: Any, mgr3: Any = None, _depth: int = 0) -> bool:
+    """Phát hiện cấu trúc payload (JSON body / form body, kể cả lồng nhau) mang bất kỳ trường token/session của luồng đăng ký QR
+    (session_token, sh_session_token, guest_session_id, session_id, post_scan_token, token, qr_token, scan_nonce).
     """
-    if not isinstance(payload, dict):
+    if _depth > 8:
         return False
     if mgr3 is None:
         mgr3 = get_auth_3layer_manager()
 
-    for strict_qr_key in ("post_scan_token", "scan_nonce", "qr_token"):
+    if isinstance(payload, (list, tuple)):
+        return any(_is_qr_registration_payload_dict(item, mgr3=mgr3, _depth=_depth + 1) for item in payload)
+
+    if not isinstance(payload, dict):
+        return False
+
+    for strict_qr_key in (
+        "post_scan_token",
+        "scan_nonce",
+        "qr_token",
+        QR_SCAN_COOKIE_NAME,
+        QR_SESSION_COOKIE_NAME,
+    ):
         raw_v = payload.get(strict_qr_key)
         if raw_v is not None and not isinstance(raw_v, bool) and str(raw_v).strip():
             return True
 
-    for tok_key in ("session_token", "guest_session_id", "session_id", "token"):
+    for tok_key in ("session_token", "sh_session_token", "guest_session_id", "session_id", "token"):
         raw_v = payload.get(tok_key)
         if isinstance(raw_v, (str, int, float)) and not isinstance(raw_v, bool):
             clean_v = str(raw_v).strip()
             if clean_v and is_qr_registration_token_or_session(clean_v, mgr3=mgr3):
                 return True
 
-    nested_sess = payload.get("session")
-    if isinstance(nested_sess, dict) and nested_sess is not payload:
-        if _is_qr_registration_payload_dict(nested_sess, mgr3=mgr3):
-            return True
+    for sub_v in payload.values():
+        if isinstance(sub_v, (dict, list, tuple)) and sub_v is not payload:
+            if _is_qr_registration_payload_dict(sub_v, mgr3=mgr3, _depth=_depth + 1):
+                return True
 
     return False
 
 
 def _is_qr_registration_raw_body(raw_body: bytes, mgr3: Any = None) -> bool:
-    """Phân tích body thô (JSON hoặc form-urlencoded) để chặn token/session đăng ký QR đi sang các route khác."""
+    """Phân tích body thô (JSON, form-urlencoded hoặc multipart/form-data) để chặn token/session đăng ký QR đi sang các route khác."""
     if not raw_body or not raw_body.strip():
         return False
     if mgr3 is None:
         mgr3 = get_auth_3layer_manager()
     try:
-        text = raw_body.decode("utf-8").strip()
+        text = raw_body.decode("utf-8", errors="ignore").strip()
     except Exception:
         return False
     if not text:
@@ -194,10 +233,21 @@ def _is_qr_registration_raw_body(raw_body: bytes, mgr3: Any = None) -> bool:
 
     try:
         parsed = json.loads(text)
-        if isinstance(parsed, dict) and _is_qr_registration_payload_dict(parsed, mgr3=mgr3):
+        if isinstance(parsed, (dict, list)) and _is_qr_registration_payload_dict(parsed, mgr3=mgr3):
             return True
     except Exception:
-        pass
+        if re.search(
+            r'"(?:scan_nonce|post_scan_token|qr_token|sh_qr_scan_nonce|sh_qr_session_id)"\s*:\s*"[^"]+"|guest_sess_[A-Za-z0-9_]+|qr_pst_[A-Za-z0-9_-]+',
+            text,
+        ):
+            return True
+
+    if "Content-Disposition:" in text and "name=" in text:
+        mp_map: dict[str, str] = {}
+        for m_mp in re.finditer(r'name="([^"]{1,128})"\r?\n\r?\n([^\r\n]{1,512})', text):
+            mp_map[m_mp.group(1)] = m_mp.group(2).strip()
+        if mp_map and _is_qr_registration_payload_dict(mp_map, mgr3=mgr3):
+            return True
 
     if "=" in text and not text.startswith("{"):
         try:
@@ -254,6 +304,22 @@ async def enforce_isolated_qr_registration_session(request: Request, call_next: 
                         sess = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
                         if sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN":
                             return await call_next(request)
+                from simulator.api.routes_qr import (
+                    _has_abnormal_qr_query_numeric_params,
+                    _invalidate_any_nonce_bound_session,
+                )
+
+                try:
+                    qr_raw_body = await request.body()
+                except Exception:
+                    qr_raw_body = b""
+                if _has_abnormal_qr_query_numeric_params(request) or (qr_raw_body and qr_raw_body.strip()):
+                    _invalidate_any_nonce_bound_session(
+                        request,
+                        get_auth_3layer_manager(),
+                        "QR_CURRENT_MALFORMED_OR_UNAUTHORIZED_MISTAKE",
+                        raw_body=qr_raw_body,
+                    )
             return JSONResponse(
                 {
                     "ok": False,
@@ -381,165 +447,181 @@ async def guest_enroll_page(request: Request) -> Response:
     - Kiểm tra gắn kết phiên quét (sh_qr_scan_nonce) nếu truy cập qua link sau quét.
     - Từ chối 403 nếu mở link đã sao chép từ trình duyệt/thiết bị khác, hoặc khi token/session đã dùng/hết hạn/hủy.
     """
+    from simulator.api.routes_qr import (
+        _has_abnormal_qr_query_numeric_params,
+        _invalidate_any_nonce_bound_session,
+        _invalidate_bound_session_on_malformed_payload,
+    )
+
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    try:
+        if _has_abnormal_qr_query_numeric_params(request):
+            return _invalidate_bound_session_on_malformed_payload(request, mgr3)
 
-    q_sid = str(request.query_params.get("session_id") or request.query_params.get("guest_session_id") or "").strip()
-    q_pst = str(request.query_params.get("post_scan_token") or "").strip()
-    q_tok = str(request.query_params.get("token") or "").strip()
-    incoming_nonce = str(
-        request.cookies.get(QR_SCAN_COOKIE_NAME)
-        or request.headers.get("x-qr-scan-nonce")
-        or ""
-    ).strip()
-    new_cookie_nonce: str | None = None
+        q_sid = str(request.query_params.get("session_id") or request.query_params.get("guest_session_id") or "").strip()
+        q_pst = str(request.query_params.get("post_scan_token") or "").strip()
+        q_tok = str(request.query_params.get("token") or "").strip()
+        incoming_nonce = str(
+            request.cookies.get(QR_SCAN_COOKIE_NAME)
+            or request.headers.get("x-qr-scan-nonce")
+            or request.query_params.get("scan_nonce")
+            or ""
+        ).strip()
+        new_cookie_nonce: str | None = None
 
-    with _QR_ATOMIC_LOCK:
-        if q_sid or q_pst:
-            sess_info = mgr3.guest_qr_sessions.get(q_sid) if q_sid else None
-            if sess_info is None and q_pst:
-                for cand in mgr3.guest_qr_sessions.values():
-                    if isinstance(cand, dict) and str(cand.get("post_scan_token") or "") == q_pst:
-                        sess_info = cand
-                        break
-            if not isinstance(sess_info, dict):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "INVALID_POST_SCAN_LINK",
-                        "reason": "SESSION_NOT_FOUND",
-                        "error": "Liên kết đăng ký không tồn tại hoặc không hợp lệ!",
-                    },
-                    status_code=403,
-                )
-            cur_status = str(sess_info.get("status") or "ACTIVE").upper()
-            if cur_status in ("INVALIDATED", "INVALIDATED_ON_ERROR") or sess_info.get("invalidated"):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "SESSION_INVALIDATED",
-                        "reason": sess_info.get("invalidated_reason", "MUST_RESCAN_QR"),
-                        "error": "Liên kết đăng ký đã bị thu hồi (do thao tác lỗi hoặc đã quét lại QR mới)!",
-                    },
-                    status_code=403,
-                )
-            if cur_status in ("CONSUMING", "CONSUMED") or sess_info.get("consumed"):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "TOKEN_ALREADY_CONSUMED",
-                        "reason": "SINGLE_USE_TOKEN_REUSED",
-                        "error": "Liên kết đăng ký một lần (Single-Use) này đã được sử dụng!",
-                    },
-                    status_code=403,
-                )
-            if time.time() > float(sess_info.get("session_expires_at") or 0.0):
-                sess_info["status"] = "EXPIRED"
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "SESSION_EXPIRED",
-                        "reason": "QR_SESSION_EXPIRED",
-                        "error": "Liên kết đăng ký đã hết hạn 180 giây!",
-                    },
-                    status_code=403,
-                )
-            expected_hash = str(sess_info.get("bound_scan_nonce_hash") or "").strip()
-            actual_hash = hash_qr_scan_nonce(incoming_nonce)
-            if not expected_hash or not actual_hash or not hmac.compare_digest(actual_hash, expected_hash):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "SESSION_BINDING_MISMATCH",
-                        "reason": "OTHER_SESSION_REJECTED",
-                        "error": "Từ chối: Không thể mở liên kết đăng ký đã sao chép trên trình duyệt hoặc thiết bị khác!",
-                    },
-                    status_code=403,
-                )
-            if q_pst:
-                expected_pst = str(sess_info.get("post_scan_token") or "").strip()
-                if expected_pst and not hmac.compare_digest(q_pst, expected_pst):
+        with _QR_ATOMIC_LOCK:
+            if q_sid or q_pst:
+                sess_info = mgr3.guest_qr_sessions.get(q_sid) if q_sid else None
+                if sess_info is None and q_pst:
+                    for cand in mgr3.guest_qr_sessions.values():
+                        if isinstance(cand, dict) and str(cand.get("post_scan_token") or "") == q_pst:
+                            sess_info = cand
+                            break
+                if not isinstance(sess_info, dict):
                     return JSONResponse(
                         {
                             "ok": False,
-                            "status": "POST_SCAN_TOKEN_MISMATCH",
-                            "error": "Mã token liên kết sau quét không khớp!",
+                            "status": "INVALID_POST_SCAN_LINK",
+                            "reason": "SESSION_NOT_FOUND",
+                            "error": "Liên kết đăng ký không tồn tại hoặc không hợp lệ!",
                         },
                         status_code=403,
                     )
-            sess_info["page_opened_count"] = int(sess_info.get("page_opened_count", 0)) + 1
-
-        elif q_tok:
-            tok_meta = mgr3.active_qr_tokens.get(q_tok)
-            if not isinstance(tok_meta, dict):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "TOKEN_INVALID",
-                        "error": "Mã QR trong liên kết không hợp lệ hoặc không tồn tại!",
-                    },
-                    status_code=403,
-                )
-            if tok_meta.get("status") in ("INVALIDATED", "CONSUMED") or tok_meta.get("invalidated"):
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "TOKEN_INVALIDATED_OR_CONSUMED",
-                        "error": "Liên kết QR đã được sử dụng hoặc đã bị vô hiệu hóa khi quét lại!",
-                    },
-                    status_code=403,
-                )
-            if time.time() > float(tok_meta.get("expires_at_ts") or 0.0):
-                tok_meta["status"] = "EXPIRED"
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "status": "TOKEN_EXPIRED",
-                        "error": "Liên kết QR đã hết hạn 180 giây!",
-                    },
-                    status_code=403,
-                )
-            existing_hash = str(tok_meta.get("bound_scan_nonce_hash") or "").strip()
-            if existing_hash:
+                cur_status = str(sess_info.get("status") or "ACTIVE").upper()
+                if cur_status in ("INVALIDATED", "INVALIDATED_ON_ERROR") or sess_info.get("invalidated"):
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "status": "SESSION_INVALIDATED",
+                            "reason": sess_info.get("invalidated_reason", "MUST_RESCAN_QR"),
+                            "error": "Liên kết đăng ký đã bị thu hồi (do thao tác lỗi hoặc đã quét lại QR mới)!",
+                        },
+                        status_code=403,
+                    )
+                if cur_status in ("CONSUMING", "CONSUMED") or sess_info.get("consumed"):
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "status": "TOKEN_ALREADY_CONSUMED",
+                            "reason": "SINGLE_USE_TOKEN_REUSED",
+                            "error": "Liên kết đăng ký một lần (Single-Use) này đã được sử dụng!",
+                        },
+                        status_code=403,
+                    )
+                if time.time() > float(sess_info.get("session_expires_at") or 0.0):
+                    sess_info["status"] = "EXPIRED"
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "status": "SESSION_EXPIRED",
+                            "reason": "QR_SESSION_EXPIRED",
+                            "error": "Liên kết đăng ký đã hết hạn 180 giây!",
+                        },
+                        status_code=403,
+                    )
+                expected_hash = str(sess_info.get("bound_scan_nonce_hash") or "").strip()
                 actual_hash = hash_qr_scan_nonce(incoming_nonce)
-                if not actual_hash or not hmac.compare_digest(actual_hash, existing_hash):
+                if not expected_hash or not actual_hash or not hmac.compare_digest(actual_hash, expected_hash):
                     return JSONResponse(
                         {
                             "ok": False,
                             "status": "SESSION_BINDING_MISMATCH",
                             "reason": "OTHER_SESSION_REJECTED",
-                            "error": "Từ chối: Liên kết QR này đã được gắn kết với thiết bị quét ban đầu, không thể mở từ trình duyệt/thiết bị khác!",
+                            "error": "Từ chối: Không thể mở liên kết đăng ký đã sao chép trên trình duyệt hoặc thiết bị khác!",
                         },
                         status_code=403,
                     )
-                if int(tok_meta.get("link_opened_count", 0)) >= 1 and q_tok in mgr3.used_qr_tokens:
+                if q_pst:
+                    expected_pst = str(sess_info.get("post_scan_token") or "").strip()
+                    if expected_pst and not hmac.compare_digest(q_pst, expected_pst):
+                        return JSONResponse(
+                            {
+                                "ok": False,
+                                "status": "POST_SCAN_TOKEN_MISMATCH",
+                                "error": "Mã token liên kết sau quét không khớp!",
+                            },
+                            status_code=403,
+                        )
+                sess_info["page_opened_count"] = int(sess_info.get("page_opened_count", 0)) + 1
+
+            elif q_tok:
+                tok_meta = mgr3.active_qr_tokens.get(q_tok)
+                if not isinstance(tok_meta, dict):
                     return JSONResponse(
                         {
                             "ok": False,
-                            "status": "SINGLE_USE_LINK_ALREADY_OPENED",
-                            "reason": "SINGLE_USE_TOKEN_REUSED",
-                            "error": "Liên kết sau quét chỉ được mở một lần duy nhất!",
+                            "status": "TOKEN_INVALID",
+                            "error": "Mã QR trong liên kết không hợp lệ hoặc không tồn tại!",
                         },
                         status_code=403,
                     )
-                tok_meta["link_opened_count"] = int(tok_meta.get("link_opened_count", 0)) + 1
-            else:
-                effective_nonce = incoming_nonce or secrets.token_urlsafe(24)
-                tok_meta["bound_scan_nonce_hash"] = hash_qr_scan_nonce(effective_nonce)
-                tok_meta["link_opened_count"] = 1
-                new_cookie_nonce = effective_nonce
+                if tok_meta.get("status") in ("INVALIDATED", "CONSUMED") or tok_meta.get("invalidated"):
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "status": "TOKEN_INVALIDATED_OR_CONSUMED",
+                            "error": "Liên kết QR đã được sử dụng hoặc đã bị vô hiệu hóa khi quét lại!",
+                        },
+                        status_code=403,
+                    )
+                if time.time() > float(tok_meta.get("expires_at_ts") or 0.0):
+                    tok_meta["status"] = "EXPIRED"
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "status": "TOKEN_EXPIRED",
+                            "error": "Liên kết QR đã hết hạn 180 giây!",
+                        },
+                        status_code=403,
+                    )
+                existing_hash = str(tok_meta.get("bound_scan_nonce_hash") or "").strip()
+                if existing_hash:
+                    actual_hash = hash_qr_scan_nonce(incoming_nonce)
+                    if not actual_hash or not hmac.compare_digest(actual_hash, existing_hash):
+                        return JSONResponse(
+                            {
+                                "ok": False,
+                                "status": "SESSION_BINDING_MISMATCH",
+                                "reason": "OTHER_SESSION_REJECTED",
+                                "error": "Từ chối: Liên kết QR này đã được gắn kết với thiết bị quét ban đầu, không thể mở từ trình duyệt/thiết bị khác!",
+                            },
+                            status_code=403,
+                        )
+                    if int(tok_meta.get("link_opened_count", 0)) >= 1 and q_tok in mgr3.used_qr_tokens:
+                        return JSONResponse(
+                            {
+                                "ok": False,
+                                "status": "SINGLE_USE_LINK_ALREADY_OPENED",
+                                "reason": "SINGLE_USE_TOKEN_REUSED",
+                                "error": "Liên kết sau quét chỉ được mở một lần duy nhất!",
+                            },
+                            status_code=403,
+                        )
+                    tok_meta["link_opened_count"] = int(tok_meta.get("link_opened_count", 0)) + 1
+                else:
+                    effective_nonce = incoming_nonce or secrets.token_urlsafe(24)
+                    nonce_hash = hash_qr_scan_nonce(effective_nonce)
+                    tok_meta["bound_scan_nonce_hash"] = nonce_hash
+                    if nonce_hash:
+                        mgr3.known_qr_scan_nonce_hashes.add(nonce_hash)
+                    tok_meta["link_opened_count"] = 1
+                    new_cookie_nonce = effective_nonce
 
-    resp = FileResponse(STATIC_DIR / "guest_enroll.html", media_type="text/html")
-    if new_cookie_nonce:
-        resp.set_cookie(
-            key=QR_SCAN_COOKIE_NAME,
-            value=new_cookie_nonce,
-            max_age=int(QR_SHORT_EXPIRY_SEC),
-            httponly=True,
-            samesite="lax",
-            path="/",
-        )
-    return resp
+        resp = FileResponse(STATIC_DIR / "guest_enroll.html", media_type="text/html")
+        if new_cookie_nonce:
+            resp.set_cookie(
+                key=QR_SCAN_COOKIE_NAME,
+                value=new_cookie_nonce,
+                max_age=int(QR_SHORT_EXPIRY_SEC),
+                httponly=True,
+                samesite="lax",
+                path="/",
+            )
+        return resp
+    except Exception:
+        _invalidate_any_nonce_bound_session(request, mgr3, reason="GUEST_PAGE_UNEXPECTED_INPUT_MISTAKE")
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
 
 
 @app.get("/archify")

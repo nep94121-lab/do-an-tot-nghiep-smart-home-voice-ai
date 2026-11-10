@@ -700,20 +700,33 @@ def resolve_request_session(
         if not token and hasattr(request, "query_params"):
             token = str(
                 request.query_params.get("token")
+                or request.query_params.get("session_token")
+                or request.query_params.get("sh_session_token")
                 or request.query_params.get("session_id")
                 or request.query_params.get("guest_session_id")
                 or request.query_params.get("post_scan_token")
+                or request.query_params.get("qr_token")
                 or ""
             ).strip()
 
     # 5. Body payload session_token hoặc guest_session_id
     if not token and payload and isinstance(payload, dict):
+        nested_sess = payload.get("session") if isinstance(payload.get("session"), dict) else {}
         token = str(
             payload.get("session_token")
+            or payload.get("sh_session_token")
             or payload.get("guest_session_id")
             or payload.get("session_id")
             or payload.get("post_scan_token")
+            or payload.get("qr_token")
             or payload.get("token")
+            or nested_sess.get("session_token")
+            or nested_sess.get("sh_session_token")
+            or nested_sess.get("guest_session_id")
+            or nested_sess.get("session_id")
+            or nested_sess.get("post_scan_token")
+            or nested_sess.get("qr_token")
+            or nested_sess.get("token")
             or ""
         ).strip()
 
@@ -756,12 +769,23 @@ def resolve_request_session(
 
         cookies = getattr(request, "cookies", {}) or {}
         headers = getattr(request, "headers", {}) or {}
+        query_params = getattr(request, "query_params", {}) or {}
         if (
             cookies.get(QR_SCAN_COOKIE_NAME)
             or cookies.get(QR_SESSION_COOKIE_NAME)
+            or cookies.get("scan_nonce")
+            or cookies.get("post_scan_token")
+            or cookies.get("qr_token")
             or headers.get("x-qr-scan-nonce")
+            or headers.get("x-scan-nonce")
             or headers.get("x-qr-session-id")
             or headers.get("x-qr-post-scan-token")
+            or headers.get("x-qr-token")
+            or query_params.get("scan_nonce")
+            or query_params.get(QR_SCAN_COOKIE_NAME)
+            or query_params.get(QR_SESSION_COOKIE_NAME)
+            or query_params.get("post_scan_token")
+            or query_params.get("qr_token")
         ):
             return UserSession(
                 session_id="qr_isolated_session_rejected",
@@ -775,6 +799,27 @@ def resolve_request_session(
                 source="qr_isolated_session_rejected",
                 is_authenticated=False,
             )
+
+    if payload and isinstance(payload, dict):
+        from simulator.auth.qr_totp_mixin import QR_SCAN_COOKIE_NAME, QR_SESSION_COOKIE_NAME
+
+        nested_sess = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+        for d in (payload, nested_sess):
+            for strict_k in ("scan_nonce", QR_SCAN_COOKIE_NAME, QR_SESSION_COOKIE_NAME, "post_scan_token", "qr_token"):
+                rv = d.get(strict_k)
+                if rv is not None and not isinstance(rv, bool) and str(rv).strip():
+                    return UserSession(
+                        session_id="qr_isolated_session_rejected",
+                        user_id="anonymous",
+                        email="",
+                        display_name="Khách (Phiên đăng ký QR cô lập)",
+                        tier=3,
+                        role="CHILD_GUEST",
+                        created_at=time.time(),
+                        expires_at=time.time() + 86400,
+                        source="qr_isolated_session_rejected",
+                        is_authenticated=False,
+                    )
 
     if has_explicit_identity and explicit_session is not None:
         return explicit_session
