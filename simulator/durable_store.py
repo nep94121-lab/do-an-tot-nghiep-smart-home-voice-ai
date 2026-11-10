@@ -40,6 +40,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -272,6 +273,8 @@ class DurableStateStore:
                 restored.append(clean_name)
         return restored
 
+    _oauth_token_cache: tuple[str, float] = ("", 0.0)
+
     @staticmethod
     def _get_gmail_credentials() -> tuple[str, str]:
         user = os.environ.get("SMTP_USER", "").strip() or "nep94121@gmail.com"
@@ -281,10 +284,153 @@ class DurableStateStore:
         )
         return user, pw
 
+    @classmethod
+    def _get_gmail_oauth_access_token(cls) -> str:
+        """Đổi GOOGLE_OAUTH_REFRESH_TOKEN sang access_token (có bộ nhớ đệm 50 phút, chỉ dùng thư viện chuẩn)."""
+        cid = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+        csec = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+        rtok = os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
+        if not cid or not csec or not rtok:
+            return ""
+        cached_tok, exp_ts = cls._oauth_token_cache
+        now = time.time()
+        if cached_tok and now < exp_ts:
+            return cached_tok
+        try:
+            form = urllib.parse.urlencode(
+                {
+                    "client_id": cid,
+                    "client_secret": csec,
+                    "refresh_token": rtok,
+                    "grant_type": "refresh_token",
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "https://oauth2.googleapis.com/token",
+                data=form,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=IMAP_TIMEOUT_SECONDS) as resp:
+                obj = json.loads(resp.read().decode("utf-8"))
+                tok = str(obj.get("access_token") or "").strip()
+                ttl = float(obj.get("expires_in") or 3500.0)
+                if tok:
+                    cls._oauth_token_cache = (tok, now + max(60.0, ttl - 300.0))
+                    return tok
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 token exchange skipped: %s", exc)
+        return ""
+
+    def _save_rfc822_via_gmail_oauth_drafts(self, msg_bytes: bytes) -> bool:
+        """Lưu/cập nhật bản nháp RFC822 `[SMARTHOME_DURABLE_STATE_V1]` qua Gmail REST API (0 gửi email, 100% miễn phí)."""
+        access_token = self._get_gmail_oauth_access_token()
+        if not access_token:
+            return False
+        raw_b64url = base64.urlsafe_b64encode(msg_bytes).decode("ascii")
+        payload_bytes = json.dumps({"message": {"raw": raw_b64url}}).encode("utf-8")
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            q = urllib.parse.quote(f'subject:"{DURABLE_IMAP_SUBJECT}"')
+            list_req = urllib.request.Request(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/drafts?q={q}&maxResults=1",
+                headers={"Authorization": f"Bearer {access_token}"},
+                method="GET",
+            )
+            existing_id = ""
+            with contextlib.suppress(Exception):
+                with urllib.request.urlopen(list_req, timeout=IMAP_TIMEOUT_SECONDS) as lresp:
+                    lobj = json.loads(lresp.read().decode("utf-8"))
+                    drafts = lobj.get("drafts") or []
+                    if drafts and isinstance(drafts[0], dict):
+                        existing_id = str(drafts[0].get("id") or "").strip()
+            if existing_id:
+                put_body = json.dumps({"id": existing_id, "message": {"raw": raw_b64url}}).encode("utf-8")
+                put_req = urllib.request.Request(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/drafts/{existing_id}",
+                    data=put_body,
+                    headers=headers,
+                    method="PUT",
+                )
+                with contextlib.suppress(Exception):
+                    with urllib.request.urlopen(put_req, timeout=IMAP_TIMEOUT_SECONDS) as presp:
+                        if 200 <= presp.status < 300:
+                            return True
+            post_req = urllib.request.Request(
+                "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+                data=payload_bytes,
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(post_req, timeout=IMAP_TIMEOUT_SECONDS) as cresp:
+                return 200 <= cresp.status < 300
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 Drafts save skipped: %s", exc)
+            return False
+
+    def _load_rfc822_via_gmail_oauth_drafts(self) -> dict[str, Any] | None:
+        """Tải bản nháp RFC822 `[SMARTHOME_DURABLE_STATE_V1]` mới nhất qua Gmail REST API."""
+        access_token = self._get_gmail_oauth_access_token()
+        if not access_token:
+            return None
+        try:
+            q = urllib.parse.quote(f'subject:"{DURABLE_IMAP_SUBJECT}"')
+            list_req = urllib.request.Request(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/drafts?q={q}&maxResults=5",
+                headers={"Authorization": f"Bearer {access_token}"},
+                method="GET",
+            )
+            with urllib.request.urlopen(list_req, timeout=IMAP_TIMEOUT_SECONDS) as lresp:
+                lobj = json.loads(lresp.read().decode("utf-8"))
+                drafts = lobj.get("drafts") or []
+            for d_item in drafts:
+                did = str((d_item or {}).get("id") or "").strip()
+                if not did:
+                    continue
+                get_req = urllib.request.Request(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/drafts/{did}?format=raw",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    method="GET",
+                )
+                with urllib.request.urlopen(get_req, timeout=IMAP_TIMEOUT_SECONDS) as gresp:
+                    gobj = json.loads(gresp.read().decode("utf-8"))
+                    raw_str = str(((gobj.get("message") or {}).get("raw")) or "").strip()
+                    if not raw_str:
+                        continue
+                    padded = raw_str + ("=" * (-len(raw_str) % 4))
+                    raw_email = base64.urlsafe_b64decode(padded.encode("ascii"))
+                    bundle = self._extract_bundle_from_rfc822_bytes(raw_email)
+                    if bundle:
+                        return bundle
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 Drafts fetch skipped: %s", exc)
+        return None
+
+    def _can_use_live_gmail_oauth(self) -> bool:
+        if self.offline_sandbox is True:
+            return False
+        if (
+            os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1"
+            or os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("PYTEST") == "1"
+        ):
+            return False
+        if getattr(imaplib.IMAP4_SSL, "__module__", "") != "imaplib":
+            return False
+        return bool(
+            os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+            and os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+            and os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
+        )
+
     def _save_bundle_to_gmail_imap(self, bundle: dict[str, Any]) -> bool:
-        """Lưu gói trạng thái nén vào Gmail thông qua `imap.append` (không gửi email, không thông báo)."""
+        """Lưu gói trạng thái nén vào Gmail Drafts (qua OAuth2 REST hoặc IMAP SSL, không gửi email, không thông báo)."""
         smtp_user, app_pw = self._get_gmail_credentials()
-        if not smtp_user or not app_pw:
+        can_oauth = self._can_use_live_gmail_oauth()
+        if (not smtp_user or not app_pw) and not can_oauth:
             return False
 
         encoded_payload = self.encode_bundle_gzip_b64(bundle)
@@ -292,8 +438,8 @@ class DurableStateStore:
 
         msg = EmailMessage()
         msg["Subject"] = DURABLE_IMAP_SUBJECT
-        msg["From"] = smtp_user
-        msg["To"] = smtp_user
+        msg["From"] = smtp_user or "nep94121@gmail.com"
+        msg["To"] = smtp_user or "nep94121@gmail.com"
         msg["Date"] = email.utils.formatdate(localtime=True)
         msg["X-SmartHome-Durable"] = "v1"
         msg["X-SmartHome-Sha256"] = payload_hash
@@ -302,6 +448,13 @@ class DurableStateStore:
             charset="utf-8",
         )
         msg_bytes = msg.as_bytes()
+        if can_oauth:
+            if self._save_rfc822_via_gmail_oauth_drafts(msg_bytes):
+                self._last_cloud_push_hash = payload_hash
+                return True
+
+        if not smtp_user or not app_pw:
+            return False
         imap_host = os.environ.get("IMAP_HOST", "").strip() or IMAP_HOST_DEFAULT
 
         try:
@@ -324,6 +477,10 @@ class DurableStateStore:
                     return True
         except Exception as exc:
             logger.debug("Gmail IMAP durable state append skipped: %s", exc)
+            if has_oauth and not imap_is_mocked:
+                if self._save_rfc822_via_gmail_oauth_drafts(msg_bytes):
+                    self._last_cloud_push_hash = payload_hash
+                    return True
         return False
 
     @classmethod
@@ -364,8 +521,17 @@ class DurableStateStore:
         return None
 
     def _load_bundle_from_gmail_imap(self) -> dict[str, Any] | None:
-        """Tải bản ghi `[SMARTHOME_DURABLE_STATE_V1]` mới nhất từ Gmail IMAP."""
+        """Tải bản ghi `[SMARTHOME_DURABLE_STATE_V1]` mới nhất từ Gmail Drafts (OAuth2 REST hoặc IMAP)."""
         smtp_user, app_pw = self._get_gmail_credentials()
+        can_oauth = self._can_use_live_gmail_oauth()
+        if (not smtp_user or not app_pw) and not can_oauth:
+            return None
+
+        if can_oauth:
+            bundle_oauth = self._load_rfc822_via_gmail_oauth_drafts()
+            if bundle_oauth:
+                return bundle_oauth
+
         if not smtp_user or not app_pw:
             return None
 
@@ -400,6 +566,8 @@ class DurableStateStore:
                         continue
         except Exception as exc:
             logger.debug("Gmail IMAP durable state fetch skipped: %s", exc)
+            if can_oauth:
+                return self._load_rfc822_via_gmail_oauth_drafts()
         return None
 
     def _save_bundle_to_upstash_kv(self, bundle: dict[str, Any]) -> bool:
@@ -581,13 +749,20 @@ def get_durable_store() -> DurableStateStore:
 def save_state_file(
     filename: str,
     data_bytes: bytes | str,
-    sync_cloud: bool = True,
+    sync_cloud: bool | None = None,
     data_dir: pathlib.Path | None = None,
 ) -> bool:
-    return get_durable_store().save_state_file(
+    target_store = get_durable_store()
+    if sync_cloud is None:
+        effective_sync_cloud = not (
+            bool(target_store.offline_sandbox) or is_offline_sandbox_or_test()
+        )
+    else:
+        effective_sync_cloud = bool(sync_cloud)
+    return target_store.save_state_file(
         filename=filename,
         data_bytes=data_bytes,
-        sync_cloud=sync_cloud,
+        sync_cloud=effective_sync_cloud,
         data_dir=data_dir,
     )
 

@@ -63,6 +63,7 @@ from simulator.live.prompt_builder import (
     make_live_config,
 )
 from simulator.live.tool_dispatcher_mixin import LiveToolDispatcherMixin
+from simulator.live.tts_rejection_vi import synthesize_aoede_phrase_audio
 from simulator.rule_engine import (
     SmartHomeEngine,
     append_audit_log,
@@ -191,15 +192,17 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.ws_session: UserSession = ws_session or resolve_strict_ws_session(self.ws)
         self.voice_auth = voice_auth or VoiceAuthManager(AUDIO_DIR)
         if engine is not None:
-            self.engine = engine
-            if self.engine is _REST_ENGINE or self.engine.on_event is None:
-                self.engine.on_event = (
-                    _emit_to_all_active_bridges
-                    if self.engine is _REST_ENGINE
-                    else self.send_ws_json
+            if engine is _REST_ENGINE:
+                self.engine = _REST_ENGINE.create_isolated_ws_view(
+                    on_event=self.send_ws_json,
+                    on_voice_reset=self.voice_auth.reset_to_owner_only,
                 )
-            if self.engine.on_voice_reset is None:
-                self.engine.on_voice_reset = self.voice_auth.reset_to_owner_only
+            else:
+                self.engine = engine
+                if self.engine.on_event is None:
+                    self.engine.on_event = self.send_ws_json
+                if self.engine.on_voice_reset is None:
+                    self.engine.on_voice_reset = self.voice_auth.reset_to_owner_only
         else:
             self.engine = SmartHomeEngine(
                 on_event=self.send_ws_json,
@@ -475,6 +478,21 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "reason": reason_tag,
         })
         if self.gemini_session is None:
+            try:
+                aoede_bundle = await synthesize_aoede_phrase_audio(spoken_phrase)
+                if aoede_bundle.get("pcm24k_b64"):
+                    await self.send_ws_json({
+                        "type": "audio_chunk",
+                        "voice": "Aoede",
+                        "sample_rate": 24000,
+                        "pcm24k_b64": aoede_bundle["pcm24k_b64"],
+                        "pcm_b64": aoede_bundle["pcm_b64"],
+                        "audio_b64": aoede_bundle["audio_b64"],
+                        "audio_wav_b64": aoede_bundle["audio_wav_b64"],
+                        "text": spoken_phrase,
+                    })
+            except Exception:
+                pass
             return
         try:
             await self.gemini_session.send_client_content(
@@ -946,7 +964,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
             }
 
-        if name in (
+        _admin_only_tools = (
             "grant_user_permission",
             "revoke_user_permission",
             "start_voice_enrollment",
@@ -954,8 +972,16 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "set_query_permission_policy",
             "admin_update_system_policy",
             "admin_upsert_knowledge_rag",
+            "factory_reset",
+            "request_factory_reset",
+            "confirm_factory_reset",
+            "factory_reset_rules",
+        )
+        if name in _admin_only_tools or (
+            name == "confirm_pending_action" and bool(getattr(self.engine, "pending_reset_confirmation", False))
         ):
-            if self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
+            ok_cap1_sess, _ = self._is_ws_cap1_authorized()
+            if not ok_cap1_sess or self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
                 rej_msg = FIXED_REJECTION_PHRASE_VI
                 await self.send_ws_json({
                     "type": "rbac_blocked",
@@ -976,14 +1002,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
         res = await super().handle_tool_call(fc)
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
-            res["error"] = FIXED_REJECTION_PHRASE_VI
-            res["message"] = FIXED_REJECTION_PHRASE_VI
-            res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
-            res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
-            res["instruction_for_ai"] = (
-                f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
-            )
-            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI, auth_res=self.last_mic_auth_result)
+            if res.get("status") != "DURABLE_PERSISTENCE_FAILED":
+                res["error"] = FIXED_REJECTION_PHRASE_VI
+                res["message"] = FIXED_REJECTION_PHRASE_VI
+                res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
+                res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
+                res["instruction_for_ai"] = (
+                    f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
+                )
+                await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI, auth_res=self.last_mic_auth_result)
         return res
 
     async def run(self) -> None:
@@ -1237,7 +1264,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             continue
                         pcm_bytes = base64.b64decode(msg.get("pcm16k_b64", ""))
                         self_check_b64 = str(
-                            msg.get("self_check_pcm16k_b64")
+                            msg.get("self_check_pcm_b64")
+                            or msg.get("self_check_pcm16k_b64")
                             or msg.get("self_check_audio_b64")
                             or ""
                         ).strip()
@@ -1288,7 +1316,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             continue
                         pcm_bytes = base64.b64decode(msg.get("pcm16k_b64", ""))
                         self_check_b64 = str(
-                            msg.get("self_check_pcm16k_b64")
+                            msg.get("self_check_pcm_b64")
+                            or msg.get("self_check_pcm16k_b64")
                             or msg.get("self_check_audio_b64")
                             or ""
                         ).strip()
@@ -1300,7 +1329,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         )
 
                     elif mtype == "aoede_speak_denial":
-                        await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                        req_phrase = (
+                            FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                            if str(msg.get("text", "")).strip() == FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                            else FIXED_REJECTION_PHRASE_VI
+                        )
+                        await self._trigger_aoede_fixed_denial(req_phrase)
 
                     elif mtype == "reset_voice_strikes":
                         ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)

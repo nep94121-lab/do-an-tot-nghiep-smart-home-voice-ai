@@ -35,6 +35,7 @@ Cấu trúc gói mô-đun (`simulator/auth/`):
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import math
 import os
@@ -51,8 +52,11 @@ _GLOBAL_OTP_LOCK = threading.RLock()
 _PATH_DURABLE_CACHE: dict[str, bytes] = {}
 
 
-def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
+def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> bool:
     target_path = Path(target_file) if not isinstance(target_file, Path) else target_file
+    prev_disk_bytes = target_path.read_bytes() if target_path.exists() else None
+    resolved_key = str(target_path.resolve())
+    prev_cache_bytes = _PATH_DURABLE_CACHE.get(resolved_key)
     tmp_path = target_path.with_suffix(f".tmp.{os.getpid()}_{threading.get_ident()}_{time.time_ns()}")
     wrote_ok = False
     for attempt in range(5):
@@ -72,10 +76,11 @@ def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
     if not wrote_ok:
         try:
             target_path.write_bytes(payload_bytes)
+            wrote_ok = True
         except Exception:
-            pass
+            return False
     try:
-        _PATH_DURABLE_CACHE[str(target_path.resolve())] = bytes(payload_bytes)
+        _PATH_DURABLE_CACHE[resolved_key] = bytes(payload_bytes)
         if target_path.name in (
             "voiceprints.json",
             "accounts_3layer.json",
@@ -84,17 +89,31 @@ def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
             "custom_rules_overlay.json",
             "user_sessions.json",
         ):
-            from simulator.durable_store import save_state_file
+            import simulator.durable_store as _ds
 
             if (
-                target_path.parent.name in ("data", "smarthome_data")
+                not _ds.is_offline_sandbox_or_test()
+                or target_path.parent.name in ("data", "smarthome_data")
                 or bool(os.environ.get("VERCEL"))
                 or bool(os.environ.get("SMARTHOME_DURABLE_DIR"))
                 or bool(os.environ.get("SIMULATOR_OFFLINE_SANDBOX"))
             ):
-                save_state_file(target_path.name, payload_bytes, data_dir=target_path.parent)
+                if not _ds.save_state_file(target_path.name, payload_bytes, data_dir=target_path.parent):
+                    if prev_disk_bytes is not None:
+                        target_path.write_bytes(prev_disk_bytes)
+                    if prev_cache_bytes is not None:
+                        _PATH_DURABLE_CACHE[resolved_key] = prev_cache_bytes
+                    else:
+                        _PATH_DURABLE_CACHE.pop(resolved_key, None)
+                    return False
+        return True
     except Exception:
-        pass
+        if prev_disk_bytes is not None:
+            try:
+                target_path.write_bytes(prev_disk_bytes)
+            except Exception:
+                pass
+        return False
 
 
 from simulator.auth import (
@@ -392,21 +411,21 @@ class ThreeLayerAuthManager(
                     else:
                         acc.pop("otp_failed_verify_attempts", None)
 
-    def _save_accounts(self) -> None:
+    def _save_accounts(self) -> bool:
         self._purge_throwaway_qa_accounts()
         payload = (json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         with _ACCOUNTS_FILE_LOCK:
-            _atomic_write_file(ACCOUNTS_FILE, payload)
+            return bool(_atomic_write_file(ACCOUNTS_FILE, payload))
 
-    def _save_family_allowlist(self) -> None:
+    def _save_family_allowlist(self) -> bool:
         payload = (json.dumps(self.family_email_allowlist, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         with _ACCOUNTS_FILE_LOCK:
-            _atomic_write_file(FAMILY_ALLOWLIST_FILE, payload)
+            return bool(_atomic_write_file(FAMILY_ALLOWLIST_FILE, payload))
 
-    def _save_invite_links(self) -> None:
+    def _save_invite_links(self) -> bool:
         payload = (json.dumps(self.invite_links, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         with _ACCOUNTS_FILE_LOCK:
-            _atomic_write_file(INVITE_LINKS_FILE, payload)
+            return bool(_atomic_write_file(INVITE_LINKS_FILE, payload))
 
     def _log_event(
         self,
@@ -1168,9 +1187,14 @@ class ThreeLayerAuthManager(
         password: str = "",
         source_device: str = "Samsung Galaxy S9 (App Android)",
         samples_b64: list[str] | None = None,
+        self_check_pcm_b64: str = "",
+        self_check_pcm_bytes: bytes | None = None,
     ) -> dict[str, Any]:
         """Lớp 3: Nhận bản thu âm giọng nói từ Điện thoại hoặc Web đẩy lên Server (WeSpeaker ResNet34 ONNX + Mel/Deep Quality Gate)."""
+        from simulator.voice.enrollment_quality import check_enrollment_quality_gate
+        from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
         from simulator.voice.wespeaker_onnx import (
+            _is_encoded_container_bytes,
             compute_multi_sample_mean_embedding,
             compute_wespeaker_cosine,
             evaluate_audio_quality_gate,
@@ -1189,6 +1213,9 @@ class ThreeLayerAuthManager(
                 s_clean = sb.split(",", 1)[1] if ("," in sb and sb.startswith("data:")) else sb
                 try:
                     b = base64.b64decode(s_clean)
+                    if (len(b) >= 44 and b[:4] == b"RIFF") or _is_encoded_container_bytes(b):
+                        arr_s, _ = decode_audio_bytes_to_pcm16k(b)
+                        b = arr_s.astype("int16").tobytes()
                     if len(b) >= 640:
                         decoded_samples.append(b)
                 except Exception:
@@ -1202,7 +1229,12 @@ class ThreeLayerAuthManager(
                 else pcm16k_b64
             )
             try:
-                pcm_bytes = base64.b64decode(clean_b64)
+                raw_dec = base64.b64decode(clean_b64)
+                if (len(raw_dec) >= 44 and raw_dec[:4] == b"RIFF") or _is_encoded_container_bytes(raw_dec):
+                    arr_p, _ = decode_audio_bytes_to_pcm16k(raw_dec)
+                    pcm_bytes = arr_p.astype("int16").tobytes()
+                else:
+                    pcm_bytes = raw_dec
             except Exception:
                 pcm_bytes = b""
         elif decoded_samples:
@@ -1211,9 +1243,46 @@ class ThreeLayerAuthManager(
         if len(pcm_bytes) < 640 and not decoded_samples:
             return {
                 "ok": False,
+                "status": "CHUA_DAT",
+                "status_code": 400,
                 "recognized": False,
                 "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế để xác thực giọng nói!",
             }
+
+        sc_bytes: bytes | None = self_check_pcm_bytes
+        if sc_bytes is None and self_check_pcm_b64:
+            sc_clean = (
+                self_check_pcm_b64.split(",", 1)[1]
+                if ("," in self_check_pcm_b64 and self_check_pcm_b64.startswith("data:"))
+                else self_check_pcm_b64
+            )
+            try:
+                raw_sc = base64.b64decode(sc_clean)
+                if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
+                    arr_sc, _ = decode_audio_bytes_to_pcm16k(raw_sc)
+                    sc_bytes = arr_sc.astype("int16").tobytes()
+                else:
+                    sc_bytes = raw_sc
+            except Exception:
+                sc_bytes = b""
+
+        if mode.strip().lower() == "enroll":
+            enroll_stream = pcm_bytes if pcm_bytes else b"".join(decoded_samples)
+            strict_gate = check_enrollment_quality_gate(
+                enroll_pcm=enroll_stream,
+                self_check_pcm=sc_bytes,
+                sr=16000,
+                require_self_check=True,
+            )
+            if not strict_gate.get("ok"):
+                return {
+                    **strict_gate,
+                    "ok": False,
+                    "status": "CHUA_DAT",
+                    "status_code": 400,
+                    "recognized": False,
+                    "error": strict_gate.get("message") or "Mẫu giọng đăng ký chưa đạt chuẩn chất lượng.",
+                }
 
         x_float = pcm_bytes_to_float32_16k(pcm_bytes, sr=16000)
         pure_tone = is_pure_synthetic_tone(x_float, sr=16000)
@@ -1238,6 +1307,7 @@ class ThreeLayerAuthManager(
         f0_val = acoustic["f0_hz"]
 
         if mode == "enroll":
+            prev_accounts_enroll = copy.deepcopy(self.accounts)
             acc = self.find_account(email) if email else None
             if not acc and target_name:
                 acc = self.find_account(target_name)
@@ -1311,7 +1381,17 @@ class ThreeLayerAuthManager(
                 "source_device": source_device,
                 "updated_at": _now_vn(),
             }
-            self._save_accounts()
+            if not self._save_accounts():
+                self.accounts[:] = prev_accounts_enroll
+                err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác đăng ký giọng nói!"
+                return {
+                    "ok": False,
+                    "status": "DURABLE_PERSISTENCE_FAILED",
+                    "status_code": 503,
+                    "reason": "DURABLE_PERSISTENCE_FAILED",
+                    "error": err_persist,
+                    "message": err_persist,
+                }
             self._log_event(
                 layer="Lớp 3 (Thu âm Đăng ký Giọng nói)",
                 action="voice_enrolled_on_server",

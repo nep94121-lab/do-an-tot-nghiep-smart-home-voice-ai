@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import wave
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -330,22 +331,27 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
 
     if TACH_CAU_DIR.exists():
         clips = sorted(TACH_CAU_DIR.glob("[0-9][0-9]_*.wav"))
-        recognized_01_10 = 0
+        recognized_valid = 0
+        safe_denied_short = 0
         for cp in clips:
             if cp.name.startswith("00_"):
                 continue
             res = va.verify_pcm16k_and_apply_strikes(cp.read_bytes())
-            if cp.name.startswith("11_"):
-                # 11_bat.wav is 0.20s active speech -> safe-denied as too short
-                assert res["authorized"] is False
+            if cp.name.startswith(("06_", "11_")):
+                # 06_mo_cua.wav (1.02s net speech + 0.69s digital silence) and 11_bat.wav (0.20s active speech)
+                # are both < ~1.5s active speech -> safe-denied as too short
+                assert res["authorized"] is False, f"Too-short clip {cp.name} must be safe-denied: {res}"
                 assert res["ask_repeat"] is True
+                assert res["reason"] == "AUDIO_TOO_SHORT"
                 assert res["message"] == SAFE_DENY_REPEAT_PHRASE_VI
+                safe_denied_short += 1
             else:
                 assert res["authorized"] is True, f"Held-out clip {cp.name} failed recognition: {res}"
                 assert res["tier"] == 1
                 assert res["user_id"] == OWNER_ID
-                recognized_01_10 += 1
-        assert recognized_01_10 == 10
+                recognized_valid += 1
+        assert safe_denied_short == 2
+        assert recognized_valid == 9
 
 
 def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
@@ -517,18 +523,23 @@ def test_req5_exclusive_cap1_rbac_and_server_session_checks() -> None:
             assert msg2["result"]["ok"] is False
             msg3 = ws_anon.receive_json()
             assert msg3["type"] == "aoede_voice_request"
+            msg3_aud = ws_anon.receive_json()
+            assert msg3_aud["type"] == "audio_chunk"
+            assert msg3_aud.get("voice") == "Aoede" and msg3_aud.get("pcm24k_b64")
 
             ws_anon.send_json({"type": "set_role", "role": "tuan_anh"})
             msg_role = ws_anon.receive_json()
             assert msg_role["type"] == "rbac_blocked"
             assert msg_role["action"] == "set_role"
             ws_anon.receive_json()  # aoede_voice_request
+            ws_anon.receive_json()  # audio_chunk
 
             ws_anon.send_json({"type": "grant_user_permission", "target_name": "Khách Z", "target_tier": 2})
             msg_grant = ws_anon.receive_json()
             assert msg_grant["type"] == "rbac_blocked"
             assert msg_grant["action"] == "grant_user_permission"
             ws_anon.receive_json()  # aoede_voice_request
+            ws_anon.receive_json()  # audio_chunk
 
         # Tier 2 WebSocket session -> still blocked on Cap 1 actions
         with client.websocket_connect(f"/ws?token={t2_sess.session_id}") as ws_t2:
@@ -727,3 +738,420 @@ def test_req8_concise_system_prompt_and_latency_measurement() -> None:
         assert mean_rec < 500.0, f"Mean recognition latency too high: {mean_rec:.1f}ms"
     mean_api = statistics.mean(api_latencies_ms)
     assert mean_api < 200.0, f"Mean API latency too high: {mean_api:.1f}ms"
+
+
+def test_round3_req2_active_speech_padded_short_clips() -> None:
+    """Round 3 Req 2: ~1.5s threshold MUST apply to active speech, NOT container length padded with silence/noise."""
+    va = VoiceAuthManager(AUDIO_DIR)
+    client = TestClient(app)
+
+    src_path = (
+        TACH_CAU_DIR / "01_bat_den_phong_khach.wav"
+        if (TACH_CAU_DIR / "01_bat_den_phong_khach.wav").exists()
+        else AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+    )
+    src_pcm = src_path.read_bytes()[44:]
+
+    rng = np.random.default_rng(123)
+    quiet_noise_2s = (rng.normal(0.0, 8e-5, 16000 * 2) * 32767.0).astype(np.int16).tobytes()
+
+    for offset_s, dur_s in ((0.0, 0.8), (0.2, 1.0), (0.4, 1.2), (1.0, 1.2)):
+        raw_slice = src_pcm[int(offset_s * 32000) : int((offset_s + dur_s) * 32000)]
+        padded_zero = raw_slice + b"\x00" * max(0, 64000 - len(raw_slice))
+        padded_noise = raw_slice + quiet_noise_2s[: max(0, 72000 - len(raw_slice))]
+
+        for label, candidate in (("zero_pad_2s", padded_zero), ("noise_pad_2.25s", padded_noise)):
+            q = evaluate_audio_quality_gate(candidate, sr=16000)
+            assert q["ok"] is False, f"{label} slice ({offset_s},{dur_s}) bypassed quality gate: {q}"
+            assert q["reason"] == "AUDIO_TOO_SHORT"
+
+            va.reset_strikes()
+            ver = va.verify_pcm16k_and_apply_strikes(candidate)
+            assert ver["authorized"] is False, f"{label} slice ({offset_s},{dur_s}) authorized: {ver}"
+            assert ver["ask_repeat"] is True
+            assert ver["reason"] == "AUDIO_TOO_SHORT"
+            assert ver["strikes"] == 0
+            assert ver["message"] == SAFE_DENY_REPEAT_PHRASE_VI
+
+    # Also verify HTTP /api/voice_command and /api/auth3/layer3_voice (mode=verify) enforce active speech >= ~1.5s
+    slice_1_2s_padded = src_pcm[int(0.4 * 32000) : int(1.6 * 32000)] + b"\x00" * (64000 - int(1.2 * 32000))
+    b64_padded = base64.b64encode(slice_1_2s_padded).decode("ascii")
+
+    r_vc = client.post("/api/voice_command", json={"pcm16k_b64": b64_padded})
+    assert r_vc.status_code == 200
+    vc_json = r_vc.json()
+    assert vc_json["authorized"] is False
+    assert vc_json["ask_repeat"] is True
+    assert vc_json["reason"] == "AUDIO_TOO_SHORT"
+    assert vc_json["exact_spoken_reply"] == SAFE_DENY_REPEAT_PHRASE_VI
+
+    r_l3 = client.post(
+        "/api/auth3/layer3_voice",
+        json={"mode": "verify", "email": OWNER_EMAIL, "pcm16k_b64": b64_padded},
+    )
+    l3_json = r_l3.json()
+    assert l3_json["ok"] is False
+    assert l3_json.get("ask_repeat") is True
+
+
+def test_round3_req3_mandatory_strict_enrollment_all_rest_and_qr_e2e() -> None:
+    """Round 3 Req 3: Strict >=12s + separate >=3s self-check mandatory on ALL REST/QR paths + Guest QR E2E success."""
+    import copy
+    from simulator.api.routes_auth import _BOOT_VOICE_AUTH
+    from simulator.voice.synthesis_augment import transform_pcm_by_pitch_factor
+
+    client = TestClient(app)
+    store = get_session_store()
+    mgr = get_auth_3layer_manager()
+
+    t1_sess = store.create_session(
+        user_id=OWNER_ID,
+        tier=1,
+        role="ADMIN",
+        display_name="Nguyễn Tuấn Anh",
+        email=OWNER_EMAIL,
+    )
+    t1_headers = {"Authorization": f"Bearer {t1_sess.session_id}"}
+
+    wav_00 = _load_owner_00_wav_bytes()
+    wav_sc = _load_owner_self_check_bytes()
+    short_5s_pcm = wav_00[44 : 44 + 16000 * 2 * 5]
+    short_b64 = base64.b64encode(short_5s_pcm).decode("ascii")
+    full_00_b64 = base64.b64encode(wav_00[44:]).decode("ascii")
+
+    from simulator.api.deps import ROOT, _REST_ENGINE
+    from simulator.durable_store import get_durable_store
+
+    vp_disk_path = ROOT / "simulator" / "data" / "voiceprints.json"
+    acc_disk_path = ROOT / "simulator" / "data" / "accounts_3layer.json"
+    saved_vp_bytes = vp_disk_path.read_bytes()
+    saved_acc_bytes = acc_disk_path.read_bytes()
+    saved_profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
+    saved_eng_profiles = copy.deepcopy(getattr(_REST_ENGINE, "voice_auth", _BOOT_VOICE_AUTH).profiles)
+    saved_accounts = copy.deepcopy(mgr.accounts)
+    try:
+        # 1. All REST enrollment endpoints MUST reject 5s audio (even with enforce_12s_gate=False) AND >=12s audio missing self-check
+        rest_cases = [
+            (
+                "/api/auth3/layer3_voice",
+                {"mode": "enroll", "email": OWNER_EMAIL, "pcm16k_b64": short_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/auth3/layer3_voice",
+                {"mode": "enroll", "email": OWNER_EMAIL, "pcm16k_b64": full_00_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/auth3/enroll_first_page_voice",
+                {"email": OWNER_EMAIL, "pcm16k_b64": short_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/auth3/enroll_first_page_voice",
+                {"email": OWNER_EMAIL, "pcm16k_b64": full_00_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/auth3/enroll_voice_sample",
+                {"email": OWNER_EMAIL, "pcm16k_b64": short_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/voice/enroll",
+                {"user_id": OWNER_ID, "tier": 1, "pcm16k_b64": short_b64, "enforce_12s_gate": False},
+            ),
+            (
+                "/api/mobile/enroll_voice",
+                {"user_id": OWNER_ID, "tier": 1, "pcm16k_b64": short_b64, "enforce_12s_gate": False},
+            ),
+        ]
+        for endpoint, payload in rest_cases:
+            resp = client.post(endpoint, json=payload, headers=t1_headers)
+            body = resp.json()
+            assert resp.status_code == 400, f"{endpoint} did not return 400 on invalid enroll: {resp.status_code} {body}"
+            assert body.get("ok") is False, f"{endpoint} accepted invalid enroll: {body}"
+
+        # 2. End-to-End Guest QR Enrollment:
+        #    Step A: Cap 1 generates dynamic QR token
+        r_qr = client.get("/api/auth3/guest_qr_current", headers=t1_headers)
+        assert r_qr.status_code == 200
+        qr_data = r_qr.json()
+        assert qr_data["ok"] is True
+
+        #    Step B: Guest scans QR and performs handshake
+        r_hs = client.post(
+            "/api/auth3/guest_qr_handshake",
+            json={
+                "token": qr_data["token"],
+                "window": qr_data["window"],
+                "duration": qr_data["duration"],
+            },
+        )
+        assert r_hs.status_code == 200
+        hs_data = r_hs.json()
+        assert hs_data["ok"] is True
+        guest_sess_id = hs_data["guest_session_id"]
+
+        #    Step C: Guest attempting 5s audio or missing self_check on /api/qr/guest_enroll MUST fail with 400
+        r_qr_bad1 = client.post(
+            "/api/qr/guest_enroll",
+            json={
+                "session_id": guest_sess_id,
+                "guest_name": "Khách Ngắn",
+                "pcm16k_b64": short_b64,
+                "enforce_12s_gate": False,
+            },
+        )
+        assert r_qr_bad1.status_code == 400
+        assert r_qr_bad1.json()["ok"] is False
+
+        #    Step D: Guest submits valid >=12s speech + >=3s separate self-check (real distinct human voice) -> succeeds E2E!
+        with wave.open(str(AUDIO_DIR / "giong_2_nguoi_la_mo_cua.wav"), "rb") as wf_guest:
+            stranger_pcm = wf_guest.readframes(wf_guest.getnframes())
+        quiet_pad = (np.sin(2.0 * np.pi * 200.0 * np.arange(8000) / 16000.0) * 8.0).astype(np.int16).tobytes()
+        guest_main_pcm = quiet_pad + (stranger_pcm * 9) + quiet_pad
+        guest_sc_pcm = quiet_pad + (stranger_pcm * 3) + quiet_pad
+        r_qr_verify = client.post(
+            "/api/qr/guest_enroll",
+            json={
+                "session_id": guest_sess_id,
+                "guest_name": "Khách QR Hợp Lệ",
+                "pcm16k_b64": base64.b64encode(guest_main_pcm).decode("ascii"),
+                "self_check_pcm_b64": base64.b64encode(guest_sc_pcm).decode("ascii"),
+                "verify_only": True,
+            },
+        )
+        assert r_qr_verify.status_code == 200, f"Guest QR verify_only failed: {r_qr_verify.text}"
+        assert r_qr_verify.json()["ok"] is True
+
+        r_qr_ok = client.post(
+            "/api/qr/guest_enroll",
+            json={
+                "session_id": guest_sess_id,
+                "guest_name": "Khách QR Hợp Lệ",
+                "pcm16k_b64": base64.b64encode(guest_main_pcm).decode("ascii"),
+                "self_check_pcm_b64": base64.b64encode(guest_sc_pcm).decode("ascii"),
+            },
+        )
+        assert r_qr_ok.status_code == 200, f"Guest QR final enroll failed: {r_qr_ok.text}"
+        qr_ok_body = r_qr_ok.json()
+        assert qr_ok_body["ok"] is True
+        assert qr_ok_body["tier"] == 3
+
+        #    Step E: Held-out guest command is recognized as Tier 3 Guest!
+        guest_cmd_pcm = stranger_pcm
+        _BOOT_VOICE_AUTH.reset_strikes()
+        ver_guest = _BOOT_VOICE_AUTH.verify_pcm16k_and_apply_strikes(guest_cmd_pcm)
+        assert ver_guest["authorized"] is True, f"Enrolled QR guest not recognized on held-out clip: {ver_guest}"
+        assert ver_guest["tier"] == 3
+    finally:
+        _BOOT_VOICE_AUTH.profiles = saved_profiles
+        if hasattr(_REST_ENGINE, "voice_auth"):
+            _REST_ENGINE.voice_auth.profiles = saved_eng_profiles
+        mgr.accounts = saved_accounts
+        vp_disk_path.write_bytes(saved_vp_bytes)
+        acc_disk_path.write_bytes(saved_acc_bytes)
+        get_durable_store().save_state_file("voiceprints.json", saved_vp_bytes, sync_cloud=False, data_dir=vp_disk_path.parent)
+        get_durable_store().save_state_file("accounts_3layer.json", saved_acc_bytes, sync_cloud=False, data_dir=acc_disk_path.parent)
+
+
+def test_round3_req4_aoede_audio_delivery_http_and_disconnected_wav() -> None:
+    """Round 3 Req 4: Real 24kHz Aoede audio MUST be returned on HTTP /api/voice_command AND disconnected WAV."""
+    import io
+    import wave
+
+    client = TestClient(app)
+
+    def _assert_valid_aoede_wav(payload: dict[str, Any]) -> None:
+        assert payload.get("audio_voice") == "Aoede"
+        assert payload.get("audio_sample_rate") == 24000
+        wav_b64 = payload.get("audio_wav_b64") or payload.get("audio_b64")
+        pcm_b64 = payload.get("pcm24k_b64") or payload.get("pcm_b64")
+        assert isinstance(wav_b64, str) and len(wav_b64) > 4000
+        assert isinstance(pcm_b64, str) and len(pcm_b64) > 4000
+        wav_bytes = base64.b64decode(wav_b64)
+        assert wav_bytes[:4] == b"RIFF" and wav_bytes[8:12] == b"WAVE"
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            assert wf.getframerate() == 24000
+            assert wf.getnchannels() == 1
+            assert wf.getsampwidth() == 2
+            frames = wf.readframes(wf.getnframes())
+            samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            dur_s = len(samples) / 24000.0
+            rms_db = 20.0 * np.log10(float(np.sqrt(np.mean(samples * samples))) + 1e-12)
+            assert dur_s >= 1.0, f"Aoede audio too short: {dur_s:.2f}s"
+            assert rms_db > -38.0, f"Aoede audio silent/too quiet: {rms_db:.1f} dBFS"
+
+    # 1. HTTP /api/voice_command on short 0.5s 80Hz tone -> ask_repeat + real Aoede audio
+    tone_05s = (np.sin(2 * np.pi * 80.0 * np.arange(8000) / 16000.0) * 4000).astype(np.int16).tobytes()
+    r_tone = client.post("/api/voice_command", json={"pcm16k_b64": base64.b64encode(tone_05s).decode("ascii")})
+    assert r_tone.status_code == 200
+    j_tone = r_tone.json()
+    assert j_tone["authorized"] is False
+    assert j_tone["ask_repeat"] is True
+    assert j_tone["exact_spoken_reply"] == SAFE_DENY_REPEAT_PHRASE_VI
+    _assert_valid_aoede_wav(j_tone)
+
+    # 2. HTTP /api/voice_command on stranger voice -> unified rejection phrase + real Aoede audio
+    stranger_pcm = (AUDIO_DIR / "giong_2_nguoi_la_mo_cua.wav").read_bytes()[44:]
+    r_str = client.post("/api/voice_command", json={"pcm16k_b64": base64.b64encode(stranger_pcm).decode("ascii")})
+    assert r_str.status_code == 200
+    j_str = r_str.json()
+    assert j_str["authorized"] is False
+    assert j_str["exact_spoken_reply"] == UNIFIED_REJECTION_PHRASE_VI
+    _assert_valid_aoede_wav(j_str)
+
+    # 3. Dedicated Aoede fixed-phrase endpoint for UI playback without /ws
+    r_phrase = client.post("/api/voice/aoede_phrase", json={"phrase": UNIFIED_REJECTION_PHRASE_VI})
+    assert r_phrase.status_code == 200
+    _assert_valid_aoede_wav(r_phrase.json())
+
+    r_bad_phrase = client.post("/api/voice/aoede_phrase", json={"phrase": "Arbitrary arbitrary text"})
+    assert r_bad_phrase.status_code == 400
+
+    # 4. Disconnected WAV sample with gemini_session=None and server_connected=False MUST emit audio_chunk
+    async def _check_wav_offline() -> None:
+        va = VoiceAuthManager(AUDIO_DIR)
+        bridge = GeminiLiveBridge(engine=SmartHomeEngine(), voice_auth=va)
+        bridge.engine.server_connected = False
+        bridge.send_ws_json = AsyncMock()
+        assert bridge.gemini_session is None
+        await bridge.stream_wav_sample("giong_2_nguoi_la_mo_cua")
+        events = [c.args[0] for c in bridge.send_ws_json.call_args_list]
+        audio_events = [e for e in events if e.get("type") == "audio_chunk"]
+        assert len(audio_events) >= 1, f"Expected audio_chunk events when gemini_session is None, got {[e.get('type') for e in events]}"
+        assert all(bool(e.get("audio_b64") and e.get("pcm_b64") and e.get("pcm24k_b64")) for e in audio_events)
+
+    asyncio.run(_check_wav_offline())
+
+
+def test_round3_req5_gemini_tool_call_session_guard_and_ws_isolation() -> None:
+    """Round 3 Req 5: Admin Gemini tool-calls require server-side Cap 1 session; no Cap 2 QR; per-WS identity isolation."""
+    from types import SimpleNamespace
+
+    # 1. Cap 2 cannot issue dynamic QR tokens in qr_totp_mixin
+    mgr = get_auth_3layer_manager()
+    r_qr_t2 = mgr.generate_dynamic_qr_token(issuer_tier=2, duration_type="1d")
+    assert r_qr_t2["ok"] is False
+
+    # 2. Gemini tool-call path MUST require server-side Cap 1 ws_session even if engine.current_tier == 1
+    async def _check_tool_guards() -> None:
+        va = VoiceAuthManager(AUDIO_DIR)
+        store = get_session_store()
+        t2_sess = store.create_session(
+            user_id="thanh_vien_a",
+            tier=2,
+            role="MEMBER",
+            display_name="Thành viên A",
+            email="thanhviena.hust@gmail.com",
+        )
+
+        for ws_sess in (None, t2_sess):
+            bridge = GeminiLiveBridge(engine=SmartHomeEngine(), voice_auth=va, ws_session=ws_sess)
+            bridge.engine.set_active_user(OWNER_ID)
+            assert bridge.engine.current_tier == 1
+            bridge.send_ws_json = AsyncMock()
+            bridge._sync_rules_context_to_gemini = AsyncMock()
+
+            admin_tools = [
+                ("grant_user_permission", {"target_name": "Probe Guest", "target_tier": 3}),
+                ("revoke_user_permission", {"target_name": "Khách C"}),
+                ("start_voice_enrollment", {"user_name": "Probe Guest", "tier": 3}),
+                ("finalize_voice_enrollment", {}),
+                ("set_query_permission_policy", {"allow_tier3_query": True}),
+                ("admin_update_system_policy", {"key": "test", "value": "1"}),
+                ("admin_upsert_knowledge_rag", {"topic": "t", "content": "c"}),
+                ("factory_reset", {}),
+            ]
+            with patch.object(
+                bridge.engine, "grant_user_permission", new=AsyncMock(return_value={"ok": False})
+            ) as mock_grant, patch.object(
+                bridge.engine, "revoke_user_permission", new=AsyncMock(return_value={"ok": False})
+            ) as mock_revoke:
+                for tool_name, args in admin_tools:
+                    res = await bridge.handle_tool_call(SimpleNamespace(id="tc_1", name=tool_name, args=args))
+                    assert res.get("ok") is False, f"Admin tool {tool_name} was not blocked without Cap1 session: {res}"
+                    assert res.get("rbac_blocked") is True
+                    assert res.get("message") == UNIFIED_REJECTION_PHRASE_VI
+                assert mock_grant.call_count == 0
+                assert mock_revoke.call_count == 0
+
+    asyncio.run(_check_tool_guards())
+
+    # 3. Per-WS connection identity isolation: Cap 1 set_role on WS1 MUST NOT leak Tier 1 to anonymous WS2
+    client = TestClient(app)
+    store = get_session_store()
+    t1_sess = store.create_session(
+        user_id=OWNER_ID,
+        tier=1,
+        role="ADMIN",
+        display_name="Nguyễn Tuấn Anh",
+        email=OWNER_EMAIL,
+    )
+    with patch.object(GeminiLiveBridge, "gemini_receive_loop", new=AsyncMock()), patch.object(
+        GeminiLiveBridge, "_periodic_timer_sync", new=AsyncMock()
+    ):
+        with client.websocket_connect(f"/ws?token={t1_sess.session_id}") as ws1:
+            for _ in range(3):
+                ws1.receive_json()
+            ws1.send_json({"type": "set_role", "role": "tuan_anh"})
+            snap1 = ws1.receive_json()
+            assert snap1["type"] == "state_snapshot"
+            assert snap1["snapshot"]["current_tier"] == 1
+
+            with client.websocket_connect("/ws") as ws2:
+                init_msgs = [ws2.receive_json() for _ in range(3)]
+                snaps2 = [m["snapshot"] for m in init_msgs if m.get("type") == "state_snapshot"]
+                assert len(snaps2) >= 1
+                assert snaps2[0]["current_tier"] != 1, f"WS1 Cap1 tier leaked to anonymous WS2: {snaps2[0]}"
+                assert snaps2[0]["role"] == "UNKNOWN"
+
+
+def test_round3_req7_cloud_persistence_failure_rolls_back_and_fails_closed() -> None:
+    """Round 3 Req 7: Cloud write failures MUST return False, roll back in-memory mutations, and return ok=False."""
+    import copy
+
+    va = VoiceAuthManager(AUDIO_DIR)
+    wav_00 = _load_owner_00_wav_bytes()
+    wav_sc = _load_owner_self_check_bytes()
+
+    # 1. _save_voiceprints_safe returns False when save_durable_json fails
+    with patch("simulator.durable_store.save_durable_json", return_value=False) as mock_save_json:
+        ret = va._save_voiceprints_safe()
+        assert mock_save_json.call_count == 1
+        assert ret is False
+
+    # 2. Full enrollment fails closed and rolls back profiles when both KV and IMAP cloud backends fail
+    before_profiles = copy.deepcopy(va.profiles)
+    with tempfile.TemporaryDirectory() as td:
+        st = DurableStateStore(vault_dir=pathlib.Path(td), offline_sandbox=False)
+        with patch.object(st, "_save_bundle_to_upstash_kv", return_value=False) as mock_kv, patch.object(
+            st, "_save_bundle_to_gmail_imap", return_value=False
+        ) as mock_imap, patch("simulator.durable_store.get_durable_store", return_value=st), patch(
+            "simulator.durable_store.is_offline_sandbox_or_test", return_value=False
+        ), patch.object(st, "save_state_file", wraps=st.save_state_file) as spy_save:
+            r_enr = va.enroll_tier_voice_from_pcm16k(
+                pcm_bytes=wav_00,
+                self_check_pcm_bytes=wav_sc,
+                user_id="cloud_fail_probe_user",
+                user_name="Cloud Fail Probe",
+                tier=3,
+                role="CHILD_GUEST",
+                check_duplicate=False,
+            )
+            assert r_enr["ok"] is False, f"Enrollment succeeded despite forced cloud write failure: {r_enr}"
+            assert r_enr["status"] == "DURABLE_PERSISTENCE_FAILED"
+            assert spy_save.call_count >= 1
+            assert mock_kv.call_count >= 1
+            assert mock_imap.call_count >= 1
+            assert "cloud_fail_probe_user" not in va.profiles
+            assert set(va.profiles.keys()) == set(before_profiles.keys())
+
+            # 3. Grant permission in SmartHomeEngine also fails closed and rolls back when cloud save fails
+            async def _check_grant_rollback() -> None:
+                engine = SmartHomeEngine()
+                engine.set_active_user(OWNER_ID)
+                before_users = copy.deepcopy(engine.users)
+                r_gr = await engine.grant_user_permission("Khách Cloud Lỗi", 3)
+                assert r_gr["ok"] is False, f"Grant succeeded despite cloud failure: {r_gr}"
+                assert r_gr.get("status") == "DURABLE_PERSISTENCE_FAILED"
+                assert engine.users == before_users
+
+            asyncio.run(_check_grant_rollback())
+

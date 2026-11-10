@@ -623,7 +623,7 @@ def evaluate_audio_quality_gate(
     audio: bytes | bytearray | np.ndarray,
     sr: int = SAMPLE_RATE_16K,
     min_duration_sec: float = 1.50,
-    min_active_speech_sec: float = 0.28,
+    min_active_speech_sec: float = 1.45,
     min_rms: float = 0.004,
     min_peak: float = 0.015,
     max_clip_ratio: float = 0.18,
@@ -673,13 +673,30 @@ def evaluate_audio_quality_gate(
     n = (len(x) // 320) * 320
     fr = x[:n].reshape(-1, 320) if n >= 320 else x.reshape(1, -1)
     e = np.sqrt((fr**2).mean(axis=1) + 1e-12)
-    active_mask = e > max(0.08 * float(e.max()), 3e-4)
-    active_speech_sec = float(int(active_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
-    x_active = fr[active_mask].reshape(-1) if (n >= 320 and active_mask.any()) else x
+    voiced_core_mask = e > max(0.08 * float(e.max()), 3e-4)
+    voiced_core_sec = float(int(voiced_core_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
 
     levels_db = 20.0 * np.log10(np.maximum(e, 1e-12))
     noise_floor_db = float(np.percentile(levels_db, 20))
-    speech_levels = levels_db[levels_db > max(-50.0, noise_floor_db + 10.0)]
+    peak_frame_db = float(np.max(levels_db)) if levels_db.size > 0 else -120.0
+    vad_thr_db = min(
+        max(-50.0, noise_floor_db + 10.0),
+        max(-42.0, peak_frame_db - 18.0),
+    )
+    vad_mask = levels_db > vad_thr_db
+    vad_speech_sec = float(int(vad_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
+
+    # Require substantive voiced core (>=0.28s) so micro-syllables + breath (e.g. 11_bat.wav)
+    # cannot accumulate room noise; otherwise measure 20ms Energy-VAD active speech (matching check_enroll.py).
+    if voiced_core_sec < 0.28:
+        active_speech_sec = voiced_core_sec
+        active_mask = voiced_core_mask
+    else:
+        active_speech_sec = vad_speech_sec
+        active_mask = vad_mask
+    x_active = fr[active_mask].reshape(-1) if (n >= 320 and active_mask.any()) else x
+
+    speech_levels = levels_db[vad_mask]
     snr_est_db = (
         float(np.mean(speech_levels) - noise_floor_db)
         if speech_levels.size > 0

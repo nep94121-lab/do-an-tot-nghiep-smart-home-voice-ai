@@ -7,6 +7,7 @@ va Kiem Soat Quyen "Qua Tam Ba Ban" (2-Strike Silent Ignore).
 
 from __future__ import annotations
 
+import copy
 import json
 import pathlib
 import time
@@ -646,8 +647,9 @@ class VoiceAuthManager:
         self._save_voiceprints_safe(data)
         return data
 
-    def _save_voiceprints_safe(self, data: dict[str, Any] | None = None) -> None:
+    def _save_voiceprints_safe(self, data: dict[str, Any] | None = None) -> bool:
         target = data if data is not None else self.profiles
+        prev_disk = VOICEPRINT_FILE.read_bytes() if VOICEPRINT_FILE.exists() else None
         try:
             VOICEPRINT_FILE.parent.mkdir(parents=True, exist_ok=True)
             VOICEPRINT_FILE.write_bytes(
@@ -657,11 +659,25 @@ class VoiceAuthManager:
         except Exception:
             pass
         try:
-            from simulator.durable_store import save_durable_json
+            import simulator.durable_store as _ds
 
-            save_durable_json("voiceprints.json", target, VOICEPRINT_FILE)
+            ok_saved = bool(_ds.save_durable_json("voiceprints.json", target, VOICEPRINT_FILE))
+            if not ok_saved:
+                if prev_disk is not None:
+                    VOICEPRINT_FILE.write_bytes(prev_disk)
+                    self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+                return False
+            if VOICEPRINT_FILE.exists():
+                self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+            return True
         except Exception:
-            pass
+            if prev_disk is not None:
+                try:
+                    VOICEPRINT_FILE.write_bytes(prev_disk)
+                    self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+                except Exception:
+                    pass
+            return False
 
     def _sync_voiceprints_from_disk(self) -> None:
         try:
@@ -1017,8 +1033,20 @@ class VoiceAuthManager:
         if expires_at is not None:
             new_prof["expires_at"] = float(expires_at)
 
+        prev_profiles = copy.deepcopy(self.profiles)
         self.profiles[prof_key] = new_prof
-        self._save_voiceprints_safe()
+        if not self._save_voiceprints_safe():
+            self.profiles.clear()
+            self.profiles.update(prev_profiles)
+            err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác đăng ký giọng nói!"
+            return {
+                "ok": False,
+                "status": "DURABLE_PERSISTENCE_FAILED",
+                "status_code": 503,
+                "reason": "DURABLE_PERSISTENCE_FAILED",
+                "error": err_persist,
+                "message": err_persist,
+            }
         self.unauthorized_strikes = 0
         return {
             "ok": True,
@@ -1253,24 +1281,43 @@ class VoiceAuthManager:
         # Quá ngắn (<~1.5s speech), âm đệm/tone tổng hợp, quá ồn, hoặc có từ 2 người nói chồng lấn -> KHÔNG ĐOÁN,
         # yêu cầu nói lại bằng câu ngắn cố định, KHÔNG tăng gậy phạt!
         is_true_multi_speaker = False
+        precomputed_wespk: np.ndarray | None = None
+        precomputed_wespk_ms: float = 0.0
         if multi_info.get("multi_speaker_detected"):
             from simulator.voice.wespeaker_onnx import vad_trim_16k
 
             flt_chk = pcm_raw.astype(np.float32) / 32768.0
             sp_chk = vad_trim_16k(flt_chk)
-            if len(sp_chk) >= 1600:
-                mid_idx = len(sp_chk) // 2
-                w_h1 = extract_wespeaker_embedding(sp_chk[:mid_idx], sr=16000, apply_vad=False)
-                w_h2 = extract_wespeaker_embedding(sp_chk[mid_idx:], sr=16000, apply_vad=False)
-                half_cos = compute_wespeaker_cosine(w_h1, w_h2)
-                if half_cos < 0.22:
-                    is_true_multi_speaker = True
+            if len(sp_chk) >= 19200:
+                t_pre = time.perf_counter()
+                precomputed_wespk = extract_wespeaker_embedding(sp_chk, sr=16000, apply_vad=False)
+                precomputed_wespk_ms = round((time.perf_counter() - t_pre) * 1000.0, 2)
+                best_pre_cos = 0.0
+                for prof_chk in self.profiles.values():
+                    if not prof_chk.get("authorized", False):
+                        continue
+                    ref_chk = prof_chk.get("wespeaker_embedding") or prof_chk.get("embedding_256d")
+                    if ref_chk and len(ref_chk) == 256:
+                        best_pre_cos = max(best_pre_cos, compute_wespeaker_cosine(precomputed_wespk, ref_chk))
+                if best_pre_cos < 0.65:
+                    mid_idx = len(sp_chk) // 2
+                    w_h1 = extract_wespeaker_embedding(sp_chk[:mid_idx], sr=16000, apply_vad=False)
+                    w_h2 = extract_wespeaker_embedding(sp_chk[mid_idx:], sr=16000, apply_vad=False)
+                    half_cos = compute_wespeaker_cosine(w_h1, w_h2)
+                    if half_cos < 0.22:
+                        is_true_multi_speaker = True
+                    else:
+                        multi_info["multi_speaker_detected"] = False
+                        multi_info["speaker_count"] = 1
+                        target_pcm = pcm_clean
                 else:
                     multi_info["multi_speaker_detected"] = False
                     multi_info["speaker_count"] = 1
                     target_pcm = pcm_clean
             else:
-                is_true_multi_speaker = True
+                multi_info["multi_speaker_detected"] = False
+                multi_info["speaker_count"] = 1
+                target_pcm = pcm_clean
 
         if is_true_multi_speaker:
             total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
@@ -1374,10 +1421,14 @@ class VoiceAuthManager:
             return res
 
         # Bước 4: Trích xuất đặc trưng WeSpeaker ResNet34 ONNX (16kHz mono, energy VAD trim, fbank80, 4 threads)
-        t_wespk_start = time.perf_counter()
-        cur_wespk = extract_wespeaker_embedding(pcm_raw, sr=16000, apply_vad=True)
+        if precomputed_wespk is not None:
+            cur_wespk = precomputed_wespk
+            wespk_ms = precomputed_wespk_ms
+        else:
+            t_wespk_start = time.perf_counter()
+            cur_wespk = extract_wespeaker_embedding(pcm_raw, sr=16000, apply_vad=True)
+            wespk_ms = round((time.perf_counter() - t_wespk_start) * 1000.0, 2)
         alt_wespk_list: list[np.ndarray] = []
-        wespk_ms = round((time.perf_counter() - t_wespk_start) * 1000.0, 2)
 
         deep_feat = extract_stage2_deep_features(target_pcm, 16000)
         formants_hz = deep_feat.get("formants_hz", [510.0, 1480.0, 2580.0, 3620.0])

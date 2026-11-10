@@ -885,12 +885,23 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
         for k in ("sample_id", "profile_id", "voiceprint")
     )
     if not raw_audio_b64 or len(decoded_audio) < 64 or (has_spoof_keys and not str(body.get("audio_pcm_b64") or body.get("wav_b64") or body.get("pcm16k_b64") or body.get("audio_b64") or "").strip()):
-        rej_msg = "Từ chối: Giọng nói người lạ không có quyền điều khiển ngôi nhà."
+        from simulator.live.tts_rejection_vi import (
+            FIXED_REJECTION_PHRASE_VI,
+            build_aoede_http_audio_fields,
+            synthesize_aoede_phrase_audio,
+        )
+
+        rej_msg = FIXED_REJECTION_PHRASE_VI
+        aoede_fields = build_aoede_http_audio_fields(
+            await synthesize_aoede_phrase_audio(rej_msg)
+        )
         raw_tx = str(body.get("transcript") or body.get("text") or "").strip()
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
                 "authorized": False,
+                "recognized": False,
+                "reason": "MISSING_OR_SPOOFED_AUDIO",
                 "level": 0,
                 "tier": 99,
                 "speaker_id": "intruder_voice_2",
@@ -909,6 +920,7 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
                 "reply": rej_msg,
                 "exact_spoken_reply": rej_msg,
                 "rejection_speech": rej_msg,
+                **aoede_fields,
                 "results": [],
                 "f0_hz": 0.0,
                 "similarity": 0.0,
@@ -956,6 +968,41 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
     )
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res, status_code=200)
+
+
+@router.post("/api/voice/aoede_phrase")
+async def api_voice_aoede_phrase(payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Trả về âm thanh 24kHz PCM/WAV của duy nhất giọng Aoede (Gemini Live) cho 2 câu cố định tiếng Việt."""
+    from simulator.live.tts_rejection_vi import (
+        FIXED_REJECTION_PHRASE_VI,
+        FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+        build_aoede_http_audio_fields,
+        synthesize_aoede_phrase_audio,
+    )
+
+    body = payload if isinstance(payload, dict) else {}
+    phrase = str(body.get("phrase") or body.get("text") or "").strip()
+    if phrase not in (FIXED_REJECTION_PHRASE_VI, FIXED_SAFE_DENY_REPEAT_PHRASE_VI):
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "error": "Chỉ hỗ trợ phát giọng Aoede cho 2 câu thoại từ chối / yêu cầu nói lại cố định!",
+                }
+            ),
+            status_code=400,
+        )
+    bundle = await synthesize_aoede_phrase_audio(phrase)
+    return JSONResponse(
+        sanitize_api_payload(
+            {
+                "ok": True,
+                "phrase": phrase,
+                **build_aoede_http_audio_fields(bundle),
+            }
+        ),
+        status_code=200,
+    )
 
 
 @router.get("/api/wokwi_files")
