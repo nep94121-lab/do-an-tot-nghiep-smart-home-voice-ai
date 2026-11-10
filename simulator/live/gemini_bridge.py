@@ -53,6 +53,7 @@ from simulator.api.deps import (
     load_key,
     safe_str,
 )
+from simulator.auth.session_store import UserSession, resolve_strict_ws_session
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
 from simulator.live.prompt_builder import (
     ALL_TOOLS,
@@ -184,8 +185,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         engine: SmartHomeEngine | None = None,
         voice_auth: VoiceAuthManager | None = None,
         knowledge_rag: SmartHomeKnowledgeRAG | None = None,
+        ws_session: UserSession | None = None,
     ):
         self.ws = ws or websocket
+        self.ws_session: UserSession = ws_session or resolve_strict_ws_session(self.ws)
         self.voice_auth = voice_auth or VoiceAuthManager(AUDIO_DIR)
         if engine is not None:
             self.engine = engine
@@ -240,6 +243,33 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self._closed = True
         if self in _ACTIVE_BRIDGES:
             _ACTIVE_BRIDGES.remove(self)
+
+    def _resolve_ws_session(self, msg: dict[str, Any] | None = None) -> UserSession:
+        """Xác định phiên WebSocket phía server từ Header/Cookie/Query/Token (tuyệt đối không tin role từ client)."""
+        sess = resolve_strict_ws_session(self.ws, msg=msg)
+        if sess.is_authenticated and not sess.is_expired():
+            self.ws_session = sess
+            return sess
+        if (
+            self.ws_session is not None
+            and self.ws_session.is_authenticated
+            and not self.ws_session.is_expired()
+        ):
+            return self.ws_session
+        return sess
+
+    def _is_ws_cap1_authorized(self, msg: dict[str, Any] | None = None) -> tuple[bool, UserSession]:
+        """Kiểm tra phiên WebSocket hiện tại có phải Chủ nhà Cấp 1 (Tuấn Anh) đã xác thực server-side hay không."""
+        sess = self._resolve_ws_session(msg)
+        is_cap1 = bool(
+            sess.is_authenticated
+            and not sess.is_expired()
+            and int(sess.tier) == 1
+            and str(sess.role).upper() == "ADMIN"
+            and str(sess.user_id) == OWNER_ID
+        )
+        return is_cap1, sess
+
 
     async def send_ws_json(self, payload: dict[str, Any]) -> None:
         if self._closed:
@@ -432,14 +462,20 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self, spoken_phrase: str, auth_res: dict[str, Any] | None = None
     ) -> None:
         """Yêu cầu Gemini Live (giọng Aoede duy nhất) đọc nguyên văn câu cố định khi từ chối hoặc yêu cầu nói lại (0 bytes audio gửi lên Gemini)."""
-        if self.gemini_session is None:
-            return
         role_tag = str((auth_res or {}).get("role") or "UNKNOWN")
         reason_tag = (
             "SAFE_DENY_ASK_REPEAT"
             if (auth_res or {}).get("ask_repeat")
             else "UNAUTHORIZED_STRANGER_OR_OVER_PERMISSION"
         )
+        await self.send_ws_json({
+            "type": "aoede_voice_request",
+            "voice": "Aoede",
+            "spoken_phrase": spoken_phrase,
+            "reason": reason_tag,
+        })
+        if self.gemini_session is None:
+            return
         try:
             await self.gemini_session.send_client_content(
                 turns=[
@@ -731,58 +767,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             data = w.readframes(w.getnframes())
 
         label = VOICE_SAMPLES_META.get(sample_id, sample_id)
-
-        if not self.engine.server_connected:
-            t0_off = time.perf_counter()
-            auth_off = self.voice_auth.verify_pcm16k_and_apply_strikes(data)
-            auth_off.pop("clean_pcm_bytes", None)
-            auth_off["filter_stage_used"] = "Tiny-DSP Flash ESP8266 (Tầng 1 & 2)"
-            await self.send_ws_json({
-                "type": "voice_auth_result",
-                "sample_id": sample_id,
-                "label": label,
-                "analysis": auth_off,
-            })
-            if not auth_off["authorized"] or int(auth_off.get("tier", 1)) >= 3:
-                self.last_mic_turn_blocked = True
-                rej_off = (
-                    f"🚫 [CHẶN GIỌNG LẠ OFFLINE - TINY-DSP {auth_off.get('stage1_ms', 16)}ms]: "
-                    f"Khi ngắt Server, mạch ESP8266 chỉ nhận giọng Tầng 1 (Chủ nhà) & Tầng 2 (Gia đình) đã lưu trong Flash! "
-                    f"Phát hiện {auth_off['speaker_label']} (F0={auth_off['f0_hz']}Hz) -> Từ chối điều khiển!"
-                )
-                await self.send_ws_json({"type": "input_transcription", "text": label, "full_text": label})
-                await self.send_ws_json({
-                    "type": "voice_auth_rejected",
-                    "sample_id": sample_id,
-                    "label": label,
-                    "strike_count": auth_off.get("strike_count", 1),
-                    "f0_hz": auth_off["f0_hz"],
-                    "rejection_speech": rej_off,
-                    "exact_spoken_reply": rej_off,
-                })
-                return
-            res_off = await self.engine.execute_offline_default_command(label, source="offline_default_wav")
-            tool_ms = max(1, int((time.perf_counter() - t0_off) * 1000))
-            reply_txt = str(res_off.get("exact_spoken_reply") or res_off.get("reply") or "")
-            await self.send_ws_json({"type": "input_transcription", "text": label, "full_text": label})
-            await self.send_ws_json({
-                "type": "tool_call_executed",
-                "name": "offline_default_mcu",
-                "args": {"command": label, "server_connected": False},
-                "result": res_off,
-                "tool_ms": tool_ms,
-            })
-            await self.send_ws_json({"type": "output_transcription", "text": reply_txt, "full_text": reply_txt})
-            await self.send_ws_json({
-                "type": "turn_complete",
-                "heard": label,
-                "said": reply_txt,
-                "tool_ms": tool_ms,
-                "audio_ms": None,
-                "lead_ms": None,
-            })
-            await _broadcast_rest_state_to_bridges()
-            return
 
         prev_strikes = getattr(self.voice_auth, "unauthorized_strikes", 0)
         auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(data)
@@ -1107,12 +1091,34 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                 )
 
                     elif mtype == "set_server_mode":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "set_server_mode",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         connected = bool(msg.get("server_connected", True))
                         await self.engine.set_server_connection_mode(connected)
                         _REST_ENGINE.server_connected = connected
                         await _broadcast_rest_state_to_bridges()
 
                     elif mtype == "set_role":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "set_role",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         new_role = str(msg.get("role") or "").strip()
                         self.engine.set_active_user(new_role)
                         _REST_ENGINE.set_active_user(new_role)
@@ -1137,10 +1143,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         action = str(msg.get("action") or (target_state if target_state is not None else ""))
                         client_seq = msg.get("client_seq") if "client_seq" in msg else msg.get("seq")
                         client_ts_ms = msg.get("client_ts_ms") if "client_ts_ms" in msg else msg.get("timestamp")
-                        req_role = str(msg.get("role", "") or "").strip()
-                        if req_role:
-                            self.engine.set_active_user(req_role)
-                        await self.engine.execute_device_action(
+                        ws_sess = self._resolve_ws_session(msg)
+                        if ws_sess.is_authenticated and not ws_sess.is_expired():
+                            self.engine.set_active_user(ws_sess.user_id)
+                        elif not self.mic_turn_verified:
+                            self.engine.set_active_user("khach_c")
+                        res_toggle = await self.engine.execute_device_action(
                             device_id=dev_id,
                             action=action,
                             source="button_ui",
@@ -1150,6 +1158,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             client_seq=client_seq,
                             client_ts_ms=client_ts_ms,
                         )
+                        if isinstance(res_toggle, dict) and (
+                            not res_toggle.get("ok", True) or res_toggle.get("rbac_blocked")
+                        ):
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
                         if self.engine.on_event is None:
                             await self.send_ws_json({
                                 "type": "state_snapshot",
@@ -1157,6 +1169,17 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             })
 
                     elif mtype == "manual_factory_reset":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "manual_factory_reset",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         self.voice_auth.reset_strikes()
                         self.last_mic_turn_blocked = False
                         self.mic_turn_verified = False
@@ -1164,8 +1187,73 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         await self.engine.factory_reset()
                         await self._sync_rules_context_to_gemini("Đã reset về mặc định gốc.")
 
+                    elif mtype in ("grant_user_permission", "grant"):
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "grant_user_permission",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
+                        self.engine.set_active_user(OWNER_ID)
+                        t_name = str(msg.get("target_name") or msg.get("user_name") or "").strip()
+                        t_tier = int(msg.get("target_tier") or msg.get("tier") or 3)
+                        res_grant = await self.engine.grant_user_permission(target_name=t_name, target_tier=t_tier)
+                        await self.send_ws_json({"type": "permission_granted", "result": res_grant})
+
+                    elif mtype in ("revoke_user_permission", "revoke"):
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "revoke_user_permission",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
+                        self.engine.set_active_user(OWNER_ID)
+                        t_name = str(msg.get("target_name") or msg.get("user_name") or "").strip()
+                        res_revoke = await self.engine.revoke_user_permission(target_name=t_name)
+                        await self.send_ws_json({"type": "permission_revoked", "result": res_revoke})
+
                     elif mtype == "enroll_owner_voice":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            rej_res = {
+                                "ok": False,
+                                "status": "FORBIDDEN_CAP1_ONLY",
+                                "rbac_blocked": True,
+                                "error": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            }
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "enroll_owner_voice",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self.send_ws_json({
+                                "type": "voice_enrolled",
+                                "result": rej_res,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         pcm_bytes = base64.b64decode(msg.get("pcm16k_b64", ""))
+                        self_check_b64 = str(
+                            msg.get("self_check_pcm16k_b64")
+                            or msg.get("self_check_audio_b64")
+                            or ""
+                        ).strip()
+                        self_check_bytes = (
+                            base64.b64decode(self_check_b64) if self_check_b64 else None
+                        )
                         target_uid = str(msg.get("user_id") or OWNER_ID)
                         if target_uid == "UNKNOWN":
                             target_uid = OWNER_ID
@@ -1175,6 +1263,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         t_role = str(u_info.get("role", "ADMIN"))
                         res = self.voice_auth.enroll_tier_voice_from_pcm16k(
                             pcm_bytes=pcm_bytes,
+                            self_check_pcm_bytes=self_check_bytes,
                             user_id=target_uid,
                             user_name=t_name,
                             tier=t_tier,
@@ -1196,10 +1285,45 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         })
 
                     elif mtype == "complete_voice_enrollment":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "complete_voice_enrollment",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         pcm_bytes = base64.b64decode(msg.get("pcm16k_b64", ""))
-                        await self._process_completed_voice_enrollment(pcm_bytes)
+                        self_check_b64 = str(
+                            msg.get("self_check_pcm16k_b64")
+                            or msg.get("self_check_audio_b64")
+                            or ""
+                        ).strip()
+                        self_check_bytes = (
+                            base64.b64decode(self_check_b64) if self_check_b64 else None
+                        )
+                        await self._process_completed_voice_enrollment(
+                            pcm_bytes, self_check_pcm_bytes=self_check_bytes
+                        )
+
+                    elif mtype == "aoede_speak_denial":
+                        await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
 
                     elif mtype == "reset_voice_strikes":
+                        ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
+                        if not ok_cap1:
+                            await self.send_ws_json({
+                                "type": "rbac_blocked",
+                                "action": "reset_voice_strikes",
+                                "role": ws_sess.role,
+                                "reason": FIXED_REJECTION_PHRASE_VI,
+                                "message": FIXED_REJECTION_PHRASE_VI,
+                            })
+                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            continue
                         self.voice_auth.reset_strikes()
                         self.last_mic_turn_blocked = False
                         self.mic_turn_verified = False

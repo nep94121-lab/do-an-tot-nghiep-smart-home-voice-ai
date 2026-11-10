@@ -1218,19 +1218,18 @@ class ThreeLayerAuthManager(
         x_float = pcm_bytes_to_float32_16k(pcm_bytes, sr=16000)
         pure_tone = is_pure_synthetic_tone(x_float, sr=16000)
 
-        if not pure_tone:
-            q_gate = evaluate_audio_quality_gate(pcm_bytes, sr=16000)
-            if not q_gate.get("ok"):
-                return {
-                    "ok": False,
-                    "recognized": False,
-                    "ask_repeat": True,
-                    "quality_gate_failed": True,
-                    "reason": q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
-                    "speaker_name": "Chưa rõ giọng (Yêu cầu nói lại)",
-                    "error": q_gate.get("message", "Âm thanh quá ngắn, quá nhỏ hoặc bị rè. Vui lòng nói lại rõ hơn!"),
-                    "message": q_gate.get("message", "Âm thanh quá ngắn, quá nhỏ hoặc bị rè. Vui lòng nói lại rõ hơn!"),
-                }
+        q_gate = evaluate_audio_quality_gate(pcm_bytes, sr=16000)
+        if pure_tone or not q_gate.get("ok"):
+            return {
+                "ok": False,
+                "recognized": False,
+                "ask_repeat": True,
+                "quality_gate_failed": True,
+                "reason": q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
+                "speaker_name": "Chưa rõ giọng (Yêu cầu nói lại)",
+                "error": q_gate.get("message", "Âm thanh chưa rõ, vui lòng nói lại."),
+                "message": q_gate.get("message", "Âm thanh chưa rõ, vui lòng nói lại."),
+            }
 
         acoustic = self.analyze_pcm16k_bytes(pcm_bytes)
         if measured_f0_hz is not None and float(measured_f0_hz) > 50.0:
@@ -1389,14 +1388,11 @@ class ThreeLayerAuthManager(
 
                 matched_expected = False
                 cosine_exp = 0.0
-                if not pure_tone and cur_wespk is not None:
+                if cur_wespk is not None:
                     ref_vec = _account_wespeaker_embedding(expected_acc)
                     if ref_vec:
                         cosine_exp = round(compute_wespeaker_cosine(cur_wespk, ref_vec), 4)
                         matched_expected = cosine_exp >= tier_thr
-                else:
-                    cosine_exp = round(max(0.15, min(0.98, 0.96 - (diff_exp / 85.0))), 2)
-                    matched_expected = diff_exp <= 30.0 and cosine_exp >= 0.68
 
                 if matched_expected:
                     key = expected_acc["email"].lower()
@@ -1466,9 +1462,8 @@ class ThreeLayerAuthManager(
 
         best_acc: dict[str, Any] | None = None
         best_cosine = -1.0
-        best_diff = 999.0
 
-        if not pure_tone and cur_wespk is not None:
+        if cur_wespk is not None:
             for acc in self.accounts:
                 vp = acc.get("voiceprint", {})
                 if not vp.get("enrolled"):
@@ -1481,23 +1476,9 @@ class ThreeLayerAuthManager(
                 if c_val >= t_thr and c_val > best_cosine:
                     best_cosine = c_val
                     best_acc = acc
-        else:
-            for acc in self.accounts:
-                vp = acc.get("voiceprint", {})
-                if not vp.get("enrolled"):
-                    continue
-                mean_f0 = float(vp.get("f0_mean_hz", 126.0))
-                diff = abs(f0_val - mean_f0)
-                if diff < best_diff:
-                    best_diff = diff
-                    best_acc = acc
 
-        if best_acc is not None and ((not pure_tone and best_cosine >= get_tier_wespeaker_threshold(int(best_acc.get("tier", 1)))) or (pure_tone and best_diff <= 26.0)):
-            cosine_score = (
-                round(best_cosine, 4)
-                if not pure_tone
-                else round(max(0.70, min(0.97, 0.95 - (best_diff / 90.0))), 2)
-            )
+        if best_acc is not None and best_cosine >= get_tier_wespeaker_threshold(int(best_acc.get("tier", 1))):
+            cosine_score = round(best_cosine, 4)
             if not best_acc.get("permission_active", True):
                 msg_rev = (
                     f"🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Server nhận diện đúng giọng {best_acc['display_name']} (F0={f0_val}Hz), "

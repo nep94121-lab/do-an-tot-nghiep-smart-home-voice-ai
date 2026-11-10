@@ -1706,15 +1706,7 @@
           }
         } catch (_) {}
       }
-      const cleanTxt = String(fallbackText || '').trim();
-      if (cleanTxt && typeof window !== 'undefined' && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function') {
-        try {
-          window.speechSynthesis.cancel();
-          const utt = new window.SpeechSynthesisUtterance(cleanTxt);
-          utt.lang = 'vi-VN';
-          window.speechSynthesis.speak(utt);
-        } catch (_) {}
-      }
+      // Chỉ phát âm thanh 24kHz PCM từ giọng Aoede của Gemini Live (không dùng browser TTS fallback)
     }
 
     async function executeMobileVoiceCommandHttp(payload) {

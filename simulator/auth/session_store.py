@@ -136,7 +136,7 @@ class SessionStore:
                 "sessions": active_list[-100:],
             }
             raw = (json.dumps(payload_obj, ensure_ascii=False) + "\n").encode("utf-8")
-            save_state_file("user_sessions.json", raw, data_dir=self.db_path.parent)
+            save_state_file("user_sessions.json", raw, sync_cloud=False, data_dir=self.db_path.parent)
         except Exception:
             pass
 
@@ -765,3 +765,58 @@ def resolve_request_session(
         source="unauthenticated",
         is_authenticated=False,
     )
+
+
+def resolve_strict_ws_session(
+    ws: Any | None = None,
+    msg: dict[str, Any] | None = None,
+) -> UserSession:
+    """Xác thực nghiêm ngặt phiên WebSocket từ Header / Cookie / Query / Token trong message.
+    Tuyệt đối KHÔNG tin tưởng `role`, `tier`, `user_id` tự khai từ phía client hay trạng thái engine toàn cục.
+    """
+    store = get_session_store()
+    token = ""
+
+    if ws is not None:
+        headers = getattr(ws, "headers", None)
+        if headers is not None and hasattr(headers, "get"):
+            auth_header = str(headers.get("authorization", "") or "")
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header[7:].strip()
+            if not token:
+                token = str(headers.get("x-session-token", "") or "").strip()
+
+        cookies = getattr(ws, "cookies", None)
+        if not token and cookies is not None and hasattr(cookies, "get"):
+            token = str(
+                cookies.get("sh_session_token") or cookies.get("session_token") or ""
+            ).strip()
+
+        query_params = getattr(ws, "query_params", None)
+        if not token and query_params is not None and hasattr(query_params, "get"):
+            token = str(
+                query_params.get("token") or query_params.get("session_token") or ""
+            ).strip()
+
+    if not token and isinstance(msg, dict):
+        token = str(msg.get("session_token") or msg.get("token") or "").strip()
+
+    if token:
+        sess = store.get_session(token)
+        if sess is not None and not sess.is_expired() and sess.is_authenticated:
+            return sess
+
+    now = time.time()
+    return UserSession(
+        session_id="ws_unauthenticated",
+        user_id="anonymous",
+        email="",
+        display_name="Khách (Chưa xác thực phiên WebSocket)",
+        tier=3,
+        role="CHILD_GUEST",
+        created_at=now,
+        expires_at=now + 3600,
+        source="ws_unauthenticated",
+        is_authenticated=False,
+    )
+

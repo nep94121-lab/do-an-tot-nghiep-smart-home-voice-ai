@@ -13,6 +13,8 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges as _broadcast_rest_state_to_bridges,
 )
+from simulator.voice.enrollment_quality import check_enrollment_quality_gate
+
 
 
 class LiveToolDispatcherMixin:
@@ -53,11 +55,15 @@ class LiveToolDispatcherMixin:
         except Exception:
             pass
 
-    async def _process_completed_voice_enrollment(self, pcm_bytes: bytes) -> None:
+    async def _process_completed_voice_enrollment(
+        self,
+        pcm_bytes: bytes,
+        self_check_pcm_bytes: bytes | None = None,
+    ) -> dict[str, Any]:
         if not self.engine.pending_voice_enrollment:
-            return
+            return {"ok": False, "status": "NO_PENDING_ENROLLMENT"}
         if self.engine.pending_voice_enrollment.get("step") != "RECORDING":
-            return
+            return {"ok": False, "status": "INVALID_ENROLLMENT_STEP"}
 
         self.engine.pending_voice_enrollment["step"] = "ANALYZING"
         sig_dev = str(
@@ -68,8 +74,34 @@ class LiveToolDispatcherMixin:
         await self.engine.blink_signal_light(sig_dev, pulse_sec=0.25)
         await self.send_ws_json({
             "type": "voice_enrollment_captured",
-            "message": "✅ Đã thu âm đủ! Đang phân tích tần số giọng nói...",
+            "message": "✅ Đã thu âm! Đang kiểm định chất lượng mẫu đăng ký (12s + câu kiểm tra 3s)...",
         })
+
+        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (12s + self-check 3s)
+        gate_res = check_enrollment_quality_gate(
+            enroll_pcm=pcm_bytes,
+            self_check_pcm=self_check_pcm_bytes,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not gate_res.get("ok"):
+            self.engine.pending_voice_enrollment = None
+            rej_spoken = str(gate_res.get("message") or "Mẫu giọng đăng ký không đạt chuẩn chất lượng, vui lòng thu âm lại.")
+            await self.send_ws_json({
+                "type": "voice_enrollment_rejected_quality",
+                "reason": gate_res.get("reason"),
+                "message": rej_spoken,
+                "result": gate_res,
+            })
+            if self.gemini_session is not None:
+                try:
+                    await self.gemini_session.send_client_content(
+                        turns=[types.Content(role="user", parts=[types.Part(text=f"BẮT BUỘC nói đúng câu: '{rej_spoken}'")])],
+                        turn_complete=True,
+                    )
+                except Exception:
+                    pass
+            return gate_res
 
         target_tier_req = int(self.engine.pending_voice_enrollment.get("target_tier", 3))
         if pcm_bytes and len(pcm_bytes) >= 3200:
@@ -98,27 +130,32 @@ class LiveToolDispatcherMixin:
                         )
                     except Exception:
                         pass
-                return
+                return {"ok": False, "status": "DUPLICATE_VOICE", "reason": dup_res.reason, "message": rej_spoken}
 
         analysis = self.voice_auth.analyze_voice_pcm16k(pcm_bytes)
         res = await self.engine.stage_voice_enrollment_analysis(
             f0_hz=analysis["f0_hz"],
             centroid_hz=analysis["centroid_hz"],
             embedding=analysis["embedding"],
-            duration_sec=analysis.get("duration_sec", 5.0),
+            duration_sec=analysis.get("duration_sec", 12.0),
         )
+        if self.engine.pending_voice_enrollment is not None:
+            self.engine.pending_voice_enrollment["quality_gate_passed"] = True
+            self.engine.pending_voice_enrollment["verified_pcm_bytes"] = pcm_bytes
+            self.engine.pending_voice_enrollment["verified_self_check_bytes"] = self_check_pcm_bytes
 
         if res.get("status") == "VOICE_ENROLLMENT_COMPLETED" and res.get("target_user"):
             u = res["target_user"]
-            self.voice_auth.register_enrolled_user_profile(
+            enroll_res = self.voice_auth.enroll_tier_voice_from_pcm16k(
+                pcm_bytes=pcm_bytes,
+                self_check_pcm_bytes=self_check_pcm_bytes,
                 user_id=u["id"],
                 user_name=u["name"],
                 tier=u["tier"],
                 role=u["role"],
-                f0_hz=res.get("f0_hz", 185.0),
-                centroid_hz=res.get("centroid_hz", 1520.0),
-                embedding=res.get("embedding", [0.15] * 26),
             )
+            if not enroll_res.get("ok"):
+                return enroll_res
 
         spoken_msg = res.get("exact_spoken_reply", "Đã thu âm đủ và phân tích xong. Người ấy tên là gì?")
         await self._sync_rules_context_to_gemini(spoken_msg)
@@ -145,6 +182,7 @@ class LiveToolDispatcherMixin:
                 )
             except Exception:
                 pass
+        return res
 
     async def handle_tool_call(self, fc: Any) -> dict[str, Any]:
         name = fc.name
@@ -301,21 +339,33 @@ class LiveToolDispatcherMixin:
         if name == "finalize_voice_enrollment":
             target_name = str(args.get("target_name", "") or "")
             target_tier = int(args.get("target_tier", 0) or 0)
+            p_info = dict(self.engine.pending_voice_enrollment or {})
+            v_pcm = p_info.get("verified_pcm_bytes") or b""
+            v_sc = p_info.get("verified_self_check_bytes")
+            gate_res = check_enrollment_quality_gate(
+                enroll_pcm=v_pcm,
+                self_check_pcm=v_sc,
+                sr=16000,
+                require_self_check=True,
+            )
+            if not gate_res.get("ok"):
+                return gate_res
             res = await self.engine.finalize_voice_enrollment(
                 target_name=target_name,
                 target_tier=target_tier,
             )
             if res.get("ok") and res.get("target_user"):
                 u = res["target_user"]
-                self.voice_auth.register_enrolled_user_profile(
+                enroll_res = self.voice_auth.enroll_tier_voice_from_pcm16k(
+                    pcm_bytes=v_pcm,
+                    self_check_pcm_bytes=v_sc,
                     user_id=u["id"],
                     user_name=u["name"],
                     tier=u["tier"],
                     role=u["role"],
-                    f0_hz=res.get("f0_hz", 185.0),
-                    centroid_hz=res.get("centroid_hz", 1520.0),
-                    embedding=res.get("embedding", [0.15] * 26),
                 )
+                if not enroll_res.get("ok"):
+                    return enroll_res
                 await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu giọng nói và cấp quyền."))
             return res
 
@@ -326,21 +376,33 @@ class LiveToolDispatcherMixin:
                 self.engine.pending_voice_enrollment
                 and self.engine.pending_voice_enrollment.get("step") == "AWAITING_NAME"
             ):
+                p_info = dict(self.engine.pending_voice_enrollment or {})
+                v_pcm = p_info.get("verified_pcm_bytes") or b""
+                v_sc = p_info.get("verified_self_check_bytes")
+                gate_res = check_enrollment_quality_gate(
+                    enroll_pcm=v_pcm,
+                    self_check_pcm=v_sc,
+                    sr=16000,
+                    require_self_check=True,
+                )
+                if not gate_res.get("ok"):
+                    return gate_res
                 res = await self.engine.finalize_voice_enrollment(
                     target_name=target_name,
                     target_tier=target_tier,
                 )
                 if res.get("ok") and res.get("target_user"):
                     u = res["target_user"]
-                    self.voice_auth.register_enrolled_user_profile(
+                    enroll_res = self.voice_auth.enroll_tier_voice_from_pcm16k(
+                        pcm_bytes=v_pcm,
+                        self_check_pcm_bytes=v_sc,
                         user_id=u["id"],
                         user_name=u["name"],
                         tier=u["tier"],
                         role=u["role"],
-                        f0_hz=res.get("f0_hz", 185.0),
-                        centroid_hz=res.get("centroid_hz", 1520.0),
-                        embedding=res.get("embedding", [0.15] * 26),
                     )
+                    if not enroll_res.get("ok"):
+                        return enroll_res
                     await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu giọng nói và cấp quyền."))
                 return res
 

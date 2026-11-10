@@ -572,36 +572,34 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
         or payload.get("self_check_b64")
         or ""
     ).strip()
-    enforce_12s_sample = bool(payload.get("enforce_12s_gate", False) or self_check_b64_sample)
-    if enforce_12s_sample:
-        from simulator.voice_auth import check_enrollment_quality_gate
+    from simulator.voice_auth import check_enrollment_quality_gate
 
-        sc_bytes_s: bytes | None = None
-        if self_check_b64_sample:
-            sc_clean = (
-                self_check_b64_sample.split(",", 1)[1]
-                if ("," in self_check_b64_sample and self_check_b64_sample.startswith("data:"))
-                else self_check_b64_sample
-            )
-            try:
-                from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
-
-                raw_sc = base64.b64decode(sc_clean)
-                if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
-                    sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
-                    sc_bytes_s = sc_arr.astype("int16").tobytes()
-                else:
-                    sc_bytes_s = raw_sc
-            except Exception:
-                sc_bytes_s = b""
-        gate_12s = check_enrollment_quality_gate(
-            enroll_pcm=pcm_bytes,
-            self_check_pcm=sc_bytes_s,
-            sr=16000,
-            require_self_check=True,
+    sc_bytes_s: bytes | None = None
+    if self_check_b64_sample:
+        sc_clean = (
+            self_check_b64_sample.split(",", 1)[1]
+            if ("," in self_check_b64_sample and self_check_b64_sample.startswith("data:"))
+            else self_check_b64_sample
         )
-        if not gate_12s.get("ok"):
-            return JSONResponse(sanitize_api_payload(gate_12s), status_code=400)
+        try:
+            from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
+            raw_sc = base64.b64decode(sc_clean)
+            if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
+                sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
+                sc_bytes_s = sc_arr.astype("int16").tobytes()
+            else:
+                sc_bytes_s = raw_sc
+        except Exception:
+            sc_bytes_s = b""
+    gate_12s = check_enrollment_quality_gate(
+        enroll_pcm=pcm_bytes if pcm_bytes else b"".join(decoded_samples),
+        self_check_pcm=sc_bytes_s,
+        sr=16000,
+        require_self_check=True,
+    )
+    if not gate_12s.get("ok"):
+        return JSONResponse(sanitize_api_payload(gate_12s), status_code=400)
 
     mgr3 = get_auth_3layer_manager()
     if speaker_name or target_tier is not None:
@@ -807,7 +805,7 @@ async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, An
                 self_check_pcm_bytes = raw_sc
         except Exception:
             self_check_pcm_bytes = b""
-    enforce_12s_gate = bool(payload.get("enforce_12s_gate", False) or self_check_b64)
+    enforce_12s_gate = True
 
     res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
         pcm_bytes=pcm_bytes,

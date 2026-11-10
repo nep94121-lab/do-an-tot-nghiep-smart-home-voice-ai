@@ -18,7 +18,9 @@ Hiến pháp Spec Kit (scripts/speckit_converge.py - Điều 3 Zero-Drop Live Br
 
 from __future__ import annotations
 
+import os
 import pathlib
+import subprocess
 from typing import Any
 
 import uvicorn
@@ -40,6 +42,7 @@ from simulator.api import (
     logs_router,
     qr_router,
 )
+from simulator.auth.session_store import resolve_strict_ws_session
 from simulator.live import (
     ALL_TOOLS,
     LiveBridgeSession,
@@ -246,15 +249,65 @@ async def page_403() -> FileResponse:
     return FileResponse(STATIC_DIR / "403.html", status_code=403, media_type="text/html")
 
 
+def _resolve_deployment_version_info() -> dict[str, Any]:
+    commit_sha = (
+        os.environ.get("APP_GIT_COMMIT_SHA", "").strip()
+        or os.environ.get("VERCEL_GIT_COMMIT_SHA", "").strip()
+        or os.environ.get("GIT_COMMIT_SHA", "").strip()
+    )
+    branch = (
+        os.environ.get("APP_GIT_BRANCH", "").strip()
+        or os.environ.get("VERCEL_GIT_COMMIT_REF", "").strip()
+    )
+    if not commit_sha:
+        try:
+            commit_sha = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(ROOT),
+                stderr=subprocess.DEVNULL,
+                timeout=2.0,
+            ).decode("utf-8").strip()
+        except Exception:
+            commit_sha = "unknown"
+    if not branch:
+        try:
+            branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=str(ROOT),
+                stderr=subprocess.DEVNULL,
+                timeout=2.0,
+            ).decode("utf-8").strip()
+        except Exception:
+            branch = "master"
+    return {
+        "ok": True,
+        "commit_sha": commit_sha,
+        "short_sha": commit_sha[:7] if commit_sha and commit_sha != "unknown" else commit_sha,
+        "branch": branch,
+        "version": "3.8.0",
+        "voice_model": MODEL,
+        "single_voice": "Aoede",
+    }
+
+
+@app.get("/api/version")
+@app.get("/api/health/version")
+async def api_version() -> JSONResponse:
+    """Trả về mã băm commit SHA triển khai hiện tại (Deployment SHA Proof)."""
+    return JSONResponse(_resolve_deployment_version_info())
+
+
 # Cầu nối WebSocket Gemini 3.8 Live Bidirectional Streaming
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
-    """Tiếp nhận kết nối WebSocket từ trình duyệt Web 3D / Micro thu âm, ủy quyền sang LiveBridgeSession."""
+    """Tiếp nhận kết nối WebSocket từ trình duyệt Web 3D / Micro thu âm, xác thực phiên server-side và ủy quyền sang LiveBridgeSession."""
     await websocket.accept()
+    ws_session = resolve_strict_ws_session(websocket)
     session = LiveBridgeSession(
         websocket=websocket,
         engine=_REST_ENGINE,
         voice_auth=_BOOT_VOICE_AUTH,
+        ws_session=ws_session,
     )
     if session not in _ACTIVE_BRIDGES:
         _ACTIVE_BRIDGES.append(session)
@@ -266,6 +319,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         session._closed = True
         while session in _ACTIVE_BRIDGES:
             _ACTIVE_BRIDGES.remove(session)
+
 
 
 if __name__ == "__main__":
