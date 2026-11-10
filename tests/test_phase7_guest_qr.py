@@ -175,15 +175,29 @@ def test_guest_qr_current_returns_public_guest_link(client: TestClient) -> None:
     assert "<svg" in data["qr_svg"] and "</svg>" in data["qr_svg"]
 
 
+def _owner_qr_and_handshake(scanner_client: TestClient, duration: str = "1d") -> dict:
+    """Chủ nhà Cấp 1 phát hành QR và thiết bị khách thực hiện bắt tay gắn kết phiên quét."""
+    owner_client = TestClient(app, headers={"Authorization": "Bearer sess_owner_t1_nep94121"})
+    qr_res = owner_client.get(f"/api/auth3/guest_qr_current?duration={duration}&host=localhost:8088")
+    assert qr_res.status_code == 200
+    tok = qr_res.json()["token"]
+    hs_res = scanner_client.post("/api/auth3/guest_qr_handshake", json={"token": tok, "duration": duration})
+    assert hs_res.status_code == 200
+    return hs_res.json()
+
+
 def test_guest_enroll_name_email_and_voice_saved_as_level3_no_login(client: TestClient) -> None:
     """Khách nhập Họ tên + Email và thu âm giọng nói trên /guest được lưu thành công ở Cấp 3, không cần login."""
     b64_pcm = _make_valid_guest_pcm_b64(f0_hz=238.0)
     guest_name = "Lê Hoàng Khách P7"
     guest_email = "lehoang.p7guest@gmail.com"
+    hs = _owner_qr_and_handshake(client, duration="1d")
 
     res = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={
+            "session_id": hs["session_id"],
+            "post_scan_token": hs["post_scan_token"],
             "guest_name": guest_name,
             "guest_email": guest_email,
             "target_tier": 3,
@@ -224,10 +238,13 @@ def test_guest_cannot_spoof_owner_email_or_escalate_to_tier1(client: TestClient)
     """Chặn khách dùng email Chủ nhà (nep94121@gmail.com) hoặc tự nâng quyền lên Cấp 1."""
     b64_pcm = _make_valid_guest_pcm_b64(f0_hz=242.0)
 
-    # 1. Cố tình gửi email Chủ nhà
+    # 1. Cố tình gửi email Chủ nhà -> bị từ chối 400 và hủy phiên
+    hs1 = _owner_qr_and_handshake(client, duration="1d")
     res_owner_email = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={
+            "session_id": hs1["session_id"],
+            "post_scan_token": hs1["post_scan_token"],
             "guest_name": "Kẻ Giả Mạo",
             "guest_email": "nep94121@gmail.com",
             "target_tier": 3,
@@ -237,10 +254,13 @@ def test_guest_cannot_spoof_owner_email_or_escalate_to_tier1(client: TestClient)
     assert res_owner_email.status_code == 400
     assert res_owner_email.json()["ok"] is False
 
-    # 2. Cố tình gửi target_tier=1 với email khách -> Hệ thống phải ép về Cấp 3
+    # 2. Cố tình gửi target_tier=1 với email khách trên phiên quét mới -> Hệ thống phải ép về Cấp 3
+    hs2 = _owner_qr_and_handshake(client, duration="1d")
     res_tier1 = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={
+            "session_id": hs2["session_id"],
+            "post_scan_token": hs2["post_scan_token"],
             "guest_name": "Khách Thử Leo Quyền",
             "guest_email": "escalate.p7guest@gmail.com",
             "target_tier": 1,
@@ -346,9 +366,12 @@ def test_guest_qr_complete_voice_enforces_tier3_and_wav_support(client: TestClie
     """POST /api/auth3/guest_qr_complete_voice luôn lưu Cấp 3 (CHILD_GUEST) và hỗ trợ giải mã file WAV container."""
     # A. Client gửi target_tier = 2 -> máy chủ ép về Cấp 3
     b64_pcm = _make_valid_guest_pcm_b64(f0_hz=230.0)
+    hs_a = _owner_qr_and_handshake(client, duration="1d")
     res_tier2 = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={
+            "session_id": hs_a["session_id"],
+            "post_scan_token": hs_a["post_scan_token"],
             "guest_name": "Khách Thử Chọn Cấp 2",
             "guest_email": "tier2_test.p7guest@gmail.com",
             "target_tier": 2,
@@ -365,11 +388,14 @@ def test_guest_qr_complete_voice_enforces_tier3_and_wav_support(client: TestClie
     # Reset trạng thái về owner-only để tránh trùng giọng với tài khoản vừa test ở phần A
     _BOOT_VOICE_AUTH.reset_to_owner_only()
 
-    # B. Client gửi âm thanh dạng WAV container (b"RIFF" header)
+    # B. Client gửi âm thanh dạng WAV container (b"RIFF" header) trên phiên quét mới
     b64_wav = _make_valid_guest_wav_b64(f0_hz=175.0)
+    hs_b = _owner_qr_and_handshake(client, duration="1d")
     res_wav = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={
+            "session_id": hs_b["session_id"],
+            "post_scan_token": hs_b["post_scan_token"],
             "guest_name": "Khách Tải File WAV",
             "guest_email": "wav_upload.p7guest@gmail.com",
             "target_tier": 3,

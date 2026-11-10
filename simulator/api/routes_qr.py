@@ -22,7 +22,7 @@ import secrets
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
 from simulator.api.deps import (
@@ -132,6 +132,45 @@ def _extract_request_scan_nonce(request: Request, payload: dict[str, Any] | None
         if body_val:
             return body_val
     return ""
+
+
+def _invalidate_bound_session_on_malformed_payload(request: Request, mgr3: Any) -> JSONResponse:
+    """Nếu thiết bị đang gắn phiên quét QR gửi payload sai cấu trúc (ví dụ json=[]),
+    lập tức hủy phiên của thiết bị đó và bắt buộc quét lại QR mới (Requirement 3).
+    """
+    incoming_nonce = _extract_request_scan_nonce(request, None)
+    incoming_hash = hash_qr_scan_nonce(incoming_nonce)
+    cand_sid = str(
+        request.cookies.get(QR_SESSION_COOKIE_NAME)
+        or request.headers.get("x-qr-session-id")
+        or request.query_params.get("session_id")
+        or ""
+    ).strip()
+    with _QR_ATOMIC_LOCK:
+        mgr3._ensure_qr_stores()
+        if cand_sid and cand_sid in mgr3.guest_qr_sessions:
+            s_meta = mgr3.guest_qr_sessions.get(cand_sid)
+            if isinstance(s_meta, dict):
+                exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
+                if not exp_hash or (incoming_hash and hmac.compare_digest(incoming_hash, exp_hash)):
+                    mgr3.invalidate_qr_session_on_mistake(cand_sid, "MALFORMED_REQUEST_BODY_MISTAKE")
+        elif incoming_hash:
+            for sid, s_meta in list(mgr3.guest_qr_sessions.items()):
+                if isinstance(s_meta, dict) and hmac.compare_digest(
+                    str(s_meta.get("bound_scan_nonce_hash") or ""), incoming_hash
+                ):
+                    mgr3.invalidate_qr_session_on_mistake(sid, "MALFORMED_REQUEST_BODY_MISTAKE")
+    return JSONResponse(
+        sanitize_api_payload(
+            {
+                "ok": False,
+                "status": "MALFORMED_PAYLOAD",
+                "must_rescan": True,
+                "error": "Dữ liệu gửi lên không đúng định dạng JSON object. Phiên đã bị hủy, vui lòng quét lại mã QR của Chủ nhà!",
+            }
+        ),
+        status_code=422,
+    )
 
 
 def _resolve_and_verify_bound_qr_session(
@@ -462,8 +501,8 @@ async def api_auth3_guest_qr_current(
         guest_url += "&tier=2"
     full_url = f"{base_host}{qr_url}"
     guest_full_url = f"{base_host}{guest_url}"
-    public_guest_path = guest_url
-    public_guest_url = guest_full_url
+    public_guest_path = "/guest"
+    public_guest_url = f"{base_host}/guest"
 
     qr_svg = generate_qr_svg_string(full_url)
 
@@ -494,8 +533,11 @@ async def api_auth3_guest_qr_current(
 @router.post("/api/auth3/guest_qr_handshake")
 @router.post("/api/auth3/guest_handshake")
 @router.post("/api/auth3/guest/handshake")
-async def api_auth3_guest_qr_handshake(request: Request, payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_guest_qr_handshake(request: Request, payload: Any = Body(None)) -> JSONResponse:
     """Bắt tay xác thực mã QR 10 giây khi khách quét mã mở trang thu âm độc lập /guest_enroll."""
+    mgr3 = get_auth_3layer_manager()
+    if not isinstance(payload, dict):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
     token = str(payload.get("token") or "").strip()
     target_window = payload.get("target_window", payload.get("window"))
     try:
@@ -575,7 +617,7 @@ async def api_auth3_guest_qr_handshake(request: Request, payload: dict[str, Any]
 
 @router.post("/api/auth3/guest_qr_complete_voice")
 @router.post("/api/auth3/guest/enroll_voice")
-async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_guest_qr_complete_voice(request: Request, payload: Any = Body(None)) -> JSONResponse:
     """Tiếp nhận bản thu âm PCM 16kHz của khách trên trang độc lập /guest_enroll.
     Bắt buộc kiểm tra:
     - Single-Use Atomic Consumption (chỉ 1 lần đăng ký thành công duy nhất, chặn gửi lặp & gửi đồng thời).
@@ -584,6 +626,8 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
     """
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    if not isinstance(payload, dict):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
 
     session_id = str(
         payload.get("session_id")
@@ -855,12 +899,51 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
                 acc["voiceprint"]["embedding_256d"] = prof_w
             mgr3._save_accounts()
 
-    prev_uid = _REST_ENGINE.current_user_id
-    _REST_ENGINE.set_active_user("tuan_anh")
+    owner_id = str(sess_info.get("owner_id") or "tuan_anh")
+    if (
+        int(sess_info.get("issuer_tier", 0)) != 1
+        or not sess_info.get("owner_approved", False)
+        or not mgr3.verify_owner_cap1_permission(owner_id)
+    ):
+        mgr3.invalidate_qr_session_on_mistake(bound_sid, "OWNER_CAP1_APPROVAL_INVALID")
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "status": "OWNER_CAP1_APPROVAL_REQUIRED",
+                    "reason": "ONLY_CAP1_GRANTS",
+                    "error": "Từ chối: Chỉ Chủ nhà Cấp 1 mới có quyền phê duyệt đăng ký qua mã QR!",
+                }
+            ),
+            status_code=403,
+        )
+
+    prev_uid = _REST_ENGINE._current_user_id
+    prev_role = _REST_ENGINE._current_role
+    prev_explicit = getattr(_REST_ENGINE, "_explicit_test_user_set", False)
+    _REST_ENGINE._current_user_id = owner_id
+    _REST_ENGINE._current_role = "ADMIN"
     try:
-        await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
+        grant_res = await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
     finally:
-        _REST_ENGINE.set_active_user(prev_uid)
+        _REST_ENGINE._current_user_id = prev_uid
+        _REST_ENGINE._current_role = prev_role
+        _REST_ENGINE._explicit_test_user_set = prev_explicit
+
+    if not isinstance(grant_res, dict) or not grant_res.get("ok"):
+        mgr3.invalidate_qr_session_on_mistake(bound_sid, "GRANT_USER_PERMISSION_FAILED")
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "status": "GRANT_PERMISSION_FAILED",
+                    "error": str((grant_res or {}).get("error") or "Không thể cấp quyền khách Cấp 3!"),
+                }
+            ),
+            status_code=403,
+        )
     for br in list(_ACTIVE_BRIDGES):
         br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
     try:
@@ -933,18 +1016,29 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
 
 
 @router.post("/api/auth3/guest_qr_send_otp")
-async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
-    """Gửi OTP xác thực email khách sau khi kiểm tra so khớp 2 ô và kiểm tra DNS MX thực tế."""
+async def api_auth3_guest_qr_send_otp(request: Request, payload: Any = Body(None)) -> JSONResponse:
+    """Gửi OTP xác thực email khách sau khi kiểm tra phiên quét QR, so khớp 2 ô và kiểm tra DNS MX thực tế."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
-    session_id = str(payload.get("session_id") or payload.get("guest_session_id") or "").strip()
+    if not isinstance(payload, dict):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+    session_id = str(
+        payload.get("session_id")
+        or payload.get("guest_session_id")
+        or payload.get("session_token")
+        or request.cookies.get(QR_SESSION_COOKIE_NAME)
+        or request.headers.get("x-qr-session-id")
+        or ""
+    ).strip()
     guest_name = str(payload.get("guest_name") or "Khách Quét QR").strip()
     e1 = str(payload.get("email_1") or payload.get("email") or "").strip()
     e2 = str(payload.get("email_2") or payload.get("confirm_email") or "").strip()
     dur_type = str(payload.get("duration") or payload.get("duration_type") or "1d").strip().lower()
 
+    bound_sess_info: dict[str, Any] | None = None
     if session_id and session_id in mgr3.guest_qr_sessions:
-        _, err_resp = _resolve_and_verify_bound_qr_session(
+        bound_sess_info, err_resp = _resolve_and_verify_bound_qr_session(
             request=request,
             payload=payload,
             mgr3=mgr3,
@@ -953,9 +1047,11 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
         if err_resp is not None:
             return err_resp
 
+    verified_sid = str((bound_sess_info or {}).get("session_id") or "")
+
     if not e1 or not e2:
-        if session_id:
-            mgr3.invalidate_qr_session_on_mistake(session_id, "EMAIL_EMPTY_MISTAKE")
+        if verified_sid:
+            mgr3.invalidate_qr_session_on_mistake(verified_sid, "EMAIL_EMPTY_MISTAKE")
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
@@ -967,8 +1063,8 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
         )
 
     if e1.lower() != e2.lower():
-        if session_id:
-            mgr3.invalidate_qr_session_on_mistake(session_id, "EMAIL_MISMATCH_MISTAKE")
+        if verified_sid:
+            mgr3.invalidate_qr_session_on_mistake(verified_sid, "EMAIL_MISMATCH_MISTAKE")
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
@@ -980,8 +1076,8 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
         )
 
     if e1.lower() == "nep94121@gmail.com":
-        if session_id:
-            mgr3.invalidate_qr_session_on_mistake(session_id, "OWNER_EMAIL_FORBIDDEN_MISTAKE")
+        if verified_sid:
+            mgr3.invalidate_qr_session_on_mistake(verified_sid, "OWNER_EMAIL_FORBIDDEN_MISTAKE")
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
@@ -994,12 +1090,24 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
 
     mx_ok, mx_msg = validate_dns_mx_record(e1)
     if not mx_ok:
-        if session_id:
-            mgr3.invalidate_qr_session_on_mistake(session_id, "EMAIL_MX_INVALID_MISTAKE")
+        if verified_sid:
+            mgr3.invalidate_qr_session_on_mistake(verified_sid, "EMAIL_MX_INVALID_MISTAKE")
         return JSONResponse(
             sanitize_api_payload({"ok": False, "must_rescan": True, "error": mx_msg, "status_code": 400}),
             status_code=400,
         )
+
+    # Bắt buộc phiên quét QR thật và hợp lệ trước khi phát hành OTP (chặn tuyệt đối missing/fake session_id)
+    if bound_sess_info is None:
+        bound_sess_info, err_resp = _resolve_and_verify_bound_qr_session(
+            request=request,
+            payload=payload,
+            mgr3=mgr3,
+            consume_atomically=False,
+        )
+        if err_resp is not None or bound_sess_info is None:
+            return err_resp  # type: ignore[return-value]
+        verified_sid = str(bound_sess_info.get("session_id") or "")
 
     clean_email = e1.lower()
     otp_code = f"{secrets.randbelow(900000) + 100000}"
@@ -1009,9 +1117,10 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
         "generated_at": time.time(),
         "expires_at": time.time() + 300.0,
         "attempts": 0,
-        "session_id": session_id,
+        "session_id": verified_sid,
+        "bound_scan_nonce_hash": str(bound_sess_info.get("bound_scan_nonce_hash") or ""),
         "guest_name": guest_name,
-        "duration": dur_type,
+        "duration": str(bound_sess_info.get("duration_type") or dur_type or "1d"),
     }
 
     dur_label = DURATION_LABELS_VN.get(dur_type, dur_type)
@@ -1021,13 +1130,14 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
         summary=f"📧 Gửi OTP xác thực email khách: {clean_email} (MX hợp lệ)",
         user_name=clean_email,
         tier=3,
-        details={"email": clean_email, "session_id": session_id, "duration": dur_type},
+        details={"email": clean_email, "session_id": verified_sid, "duration": dur_type},
     )
 
     resp_data: dict[str, Any] = {
         "ok": True,
         "otp_dispatched": True,
         "email": clean_email,
+        "session_id": verified_sid,
         "duration_label": dur_label,
         "mx_detail": mx_msg,
         "message": f"Đã kiểm tra tên miền MX hợp lệ và gửi mã xác nhận OTP 6 số về hộp thư {clean_email}!",
@@ -1040,10 +1150,13 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
 
 @router.post("/api/auth3/guest_qr_verify_otp")
 @router.post("/api/auth3/guest/verify_email")
-async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
-    """Xác nhận mã OTP email của khách và kích hoạt tài khoản khách."""
+async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(None)) -> JSONResponse:
+    """Xác nhận mã OTP email của khách, tiêu thụ nguyên tử (Single-Use) phiên quét QR và kích hoạt tài khoản khách Cấp 3."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
+    if not isinstance(payload, dict):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
     email = str(payload.get("email") or payload.get("confirm_email") or "").strip().lower()
     otp_input = str(
         payload.get("otp")
@@ -1051,80 +1164,189 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any], request: Reques
         or payload.get("input_otp")
         or ""
     ).strip()
+    explicit_client_sid = str(payload.get("guest_session_id") or payload.get("session_id") or "").strip()
 
-    record = mgr3.pending_guest_email_otps.get(email)
-    req_sid = str(payload.get("guest_session_id") or payload.get("session_id") or (record or {}).get("session_id") or "").strip()
+    with _QR_ATOMIC_LOCK:
+        record = mgr3.pending_guest_email_otps.get(email)
+        if not isinstance(record, dict):
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "verified": False,
+                        "status": "OTP_RECORD_OR_QR_SESSION_MISSING",
+                        "reason": "QR_SESSION_AND_OTP_REQUIRED",
+                        "error": "Từ chối: Chưa có phiên quét QR hợp lệ hoặc chưa phát hành mã OTP cho email này!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
 
-    if req_sid and req_sid in mgr3.guest_qr_sessions:
-        _, err_resp = _resolve_and_verify_bound_qr_session(
+        record_sid = str(record.get("session_id") or "").strip()
+        if not record_sid or record_sid not in mgr3.guest_qr_sessions:
+            mgr3.pending_guest_email_otps.pop(email, None)
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "verified": False,
+                        "status": "INVALID_QR_SESSION",
+                        "reason": "SESSION_NOT_FOUND",
+                        "error": "Từ chối: Phiên đăng ký QR của mã OTP không tồn tại hoặc không hợp lệ!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
+
+        # Chặn tuyệt đối hành vi truyền session_id giả/khác để bypass kiểm tra phiên gốc của OTP
+        if explicit_client_sid and explicit_client_sid != record_sid:
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "verified": False,
+                        "status": "SESSION_BINDING_MISMATCH",
+                        "reason": "SESSION_ID_OVERRIDE_REJECTED",
+                        "error": "Từ chối: session_id gửi lên không khớp với phiên quét QR đã gắn kết của mã OTP!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
+
+        sess_info, err_resp = _resolve_and_verify_bound_qr_session(
             request=request,
-            payload={**payload, "session_id": req_sid},
+            payload={**payload, "session_id": record_sid},
             mgr3=mgr3,
             consume_atomically=False,
         )
-        if err_resp is not None:
-            return err_resp
+        if err_resp is not None or sess_info is None:
+            return err_resp  # type: ignore[return-value]
 
-    if not record:
-        confirm_email = str(payload.get("confirm_email") or email).strip()
-        send_gmail = bool(payload.get("send_gmail", False))
-        res = mgr3.send_and_verify_email_otp(
-            email=email,
-            confirm_email=confirm_email,
-            input_otp=otp_input if otp_input else None,
-            session_id=req_sid,
-            send_gmail=send_gmail,
-        )
-        if not is_test_otp_fields_allowed(getattr(request, "app", None)):
-            res.pop("otp_code_for_test", None)
-            res.pop("demo_otp_preview", None)
-        status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
-        return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+        rec_nonce_hash = str(record.get("bound_scan_nonce_hash") or "").strip()
+        req_nonce_hash = hash_qr_scan_nonce(_extract_request_scan_nonce(request, payload))
+        if rec_nonce_hash and (not req_nonce_hash or not hmac.compare_digest(req_nonce_hash, rec_nonce_hash)):
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "verified": False,
+                        "status": "SESSION_BINDING_MISMATCH",
+                        "reason": "OTHER_SESSION_REJECTED",
+                        "error": "Từ chối: Mã OTP này được gắn kết độc quyền với thiết bị đã quét mã QR!",
+                        "status_code": 403,
+                    }
+                ),
+                status_code=403,
+            )
 
-    if time.time() > float(record.get("expires_at", 0)):
-        if req_sid:
-            mgr3.invalidate_qr_session_on_mistake(req_sid, "OTP_EXPIRED_MISTAKE")
+        if time.time() > float(record.get("expires_at", 0)):
+            mgr3.pending_guest_email_otps.pop(email, None)
+            mgr3.invalidate_qr_session_on_mistake(record_sid, "OTP_EXPIRED_MISTAKE")
+            return JSONResponse(
+                sanitize_api_payload({
+                    "ok": False,
+                    "verified": False,
+                    "must_rescan": True,
+                    "error": "Mã OTP đã hết hạn sau 5 phút, vui lòng quét lại mã QR và yêu cầu mã mới!",
+                    "status_code": 400,
+                }),
+                status_code=400,
+            )
+
+        if not otp_input or not hmac.compare_digest(otp_input, str(record.get("otp", ""))):
+            record["attempts"] = int(record.get("attempts", 0)) + 1
+            mgr3.invalidate_qr_session_on_mistake(record_sid, "WRONG_OTP_MISTAKE")
+            return JSONResponse(
+                sanitize_api_payload({
+                    "ok": False,
+                    "verified": False,
+                    "must_rescan": True,
+                    "error": f"Mã xác nhận chưa đúng (Lần thử {record['attempts']})! Phiên đã bị hủy, vui lòng quét lại mã QR.",
+                    "status_code": 400,
+                }),
+                status_code=400,
+            )
+
+        # Tiêu thụ nguyên tử (Atomic Single-Use) ngay khi OTP hợp lệ dưới _QR_ATOMIC_LOCK
+        sess_info["status"] = "CONSUMING"
+        sess_info["consumed"] = True
+        sess_info["consuming_started_at"] = time.time()
+
+        # Xóa toàn bộ OTP đang chờ thuộc cùng phiên quét để chặn tuyệt đối xác minh email thứ 2
+        for k_mail, k_rec in list(mgr3.pending_guest_email_otps.items()):
+            if k_mail == email or (isinstance(k_rec, dict) and str(k_rec.get("session_id") or "") == record_sid):
+                mgr3.pending_guest_email_otps.pop(k_mail, None)
+
+        guest_name = str(record.get("guest_name", "Khách Đến Chơi")).strip()
+        dur_type = str(record.get("duration") or sess_info.get("duration_type") or "1d").strip().lower()
+        if dur_type not in DURATION_MAP_SECONDS:
+            dur_type = "1d"
+        dur_sec = DURATION_MAP_SECONDS.get(dur_type, 86400)
+        dur_label = DURATION_LABELS_VN.get(dur_type, dur_type)
+        expires_at = time.time() + float(dur_sec)
+        owner_id = str(sess_info.get("owner_id") or "tuan_anh")
+
+    if (
+        int(sess_info.get("issuer_tier", 0)) != 1
+        or not sess_info.get("owner_approved", False)
+        or not mgr3.verify_owner_cap1_permission(owner_id)
+    ):
+        mgr3.invalidate_qr_session_on_mistake(record_sid, "OWNER_CAP1_APPROVAL_INVALID")
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
-                "must_rescan": True,
-                "error": "Mã OTP đã hết hạn sau 5 phút, vui lòng yêu cầu mã mới!",
-                "status_code": 400,
+                "verified": False,
+                "rbac_blocked": True,
+                "status": "OWNER_CAP1_APPROVAL_REQUIRED",
+                "reason": "ONLY_CAP1_GRANTS",
+                "error": "Từ chối: Chỉ Chủ nhà Cấp 1 mới có quyền phê duyệt đăng ký qua mã QR!",
+                "status_code": 403,
             }),
-            status_code=400,
+            status_code=403,
         )
 
-    if otp_input != str(record.get("otp", "")):
-        record["attempts"] = int(record.get("attempts", 0)) + 1
-        if req_sid:
-            mgr3.invalidate_qr_session_on_mistake(req_sid, "WRONG_OTP_MISTAKE")
+    prev_uid = _REST_ENGINE._current_user_id
+    prev_role = _REST_ENGINE._current_role
+    prev_explicit = getattr(_REST_ENGINE, "_explicit_test_user_set", False)
+    _REST_ENGINE._current_user_id = owner_id
+    _REST_ENGINE._current_role = "ADMIN"
+    try:
+        grant_res = await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=3)
+    finally:
+        _REST_ENGINE._current_user_id = prev_uid
+        _REST_ENGINE._current_role = prev_role
+        _REST_ENGINE._explicit_test_user_set = prev_explicit
+
+    if not isinstance(grant_res, dict) or not grant_res.get("ok"):
+        mgr3.invalidate_qr_session_on_mistake(record_sid, "GRANT_USER_PERMISSION_FAILED")
         return JSONResponse(
             sanitize_api_payload({
                 "ok": False,
-                "must_rescan": bool(req_sid),
-                "error": f"Mã xác nhận chưa đúng (Lần thử {record['attempts']})!",
-                "status_code": 400,
+                "verified": False,
+                "rbac_blocked": True,
+                "status": "GRANT_PERMISSION_FAILED",
+                "error": str((grant_res or {}).get("error") or "Không thể cấp quyền khách Cấp 3!"),
+                "status_code": 403,
             }),
-            status_code=400,
+            status_code=403,
         )
 
-    session_id = str(record.get("session_id", "")).strip()
-    guest_name = str(record.get("guest_name", "Khách Đến Chơi")).strip()
-    dur_type = str(record.get("duration", "1d")).strip().lower()
-    if dur_type not in DURATION_MAP_SECONDS:
-        dur_type = "1d"
-    dur_sec = DURATION_MAP_SECONDS.get(dur_type, 86400)
-    dur_label = DURATION_LABELS_VN.get(dur_type, dur_type)
-    expires_at = time.time() + float(dur_sec)
+    with _QR_ATOMIC_LOCK:
+        sess_info["status"] = "CONSUMED"
+        sess_info["consumed"] = True
+        sess_info["consumed_at"] = time.time()
+        sess_info["email_verified"] = True
+        sess_info["email"] = email
+        sess_info["expires_at"] = expires_at
+        tok_ref = str(sess_info.get("token") or "").strip()
+        if tok_ref:
+            mgr3.used_qr_tokens.add(tok_ref)
+            if tok_ref in mgr3.active_qr_tokens and isinstance(mgr3.active_qr_tokens[tok_ref], dict):
+                mgr3.active_qr_tokens[tok_ref]["status"] = "CONSUMED"
 
-    mgr3.pending_guest_email_otps.pop(email, None)
-
-    if session_id and session_id in mgr3.guest_qr_sessions:
-        mgr3.guest_qr_sessions[session_id]["email_verified"] = True
-        mgr3.guest_qr_sessions[session_id]["email"] = email
-        mgr3.guest_qr_sessions[session_id]["expires_at"] = expires_at
-
-    await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=3)
     await broadcast_rest_state_to_bridges()
 
     append_audit_log(
@@ -1133,12 +1355,14 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any], request: Reques
         summary=f"✅ Xác thực OTP email thành công cho khách '{guest_name}' ({email}) - Cấp quyền 3 ({dur_label})",
         user_name=guest_name,
         tier=3,
-        details={"email": email, "session_id": session_id, "duration": dur_type, "expires_at": expires_at},
+        details={"email": email, "session_id": record_sid, "duration": dur_type, "expires_at": expires_at},
     )
 
     return JSONResponse(sanitize_api_payload({
         "ok": True,
         "verified": True,
+        "single_use_consumed": True,
+        "session_id": record_sid,
         "email": email,
         "guest_name": guest_name,
         "duration_code": dur_type,

@@ -698,13 +698,42 @@ def resolve_request_session(
 
         # 4. Query param token
         if not token and hasattr(request, "query_params"):
-            token = str(request.query_params.get("token") or "").strip()
+            token = str(
+                request.query_params.get("token")
+                or request.query_params.get("session_id")
+                or request.query_params.get("guest_session_id")
+                or request.query_params.get("post_scan_token")
+                or ""
+            ).strip()
 
     # 5. Body payload session_token hoặc guest_session_id
     if not token and payload and isinstance(payload, dict):
-        token = str(payload.get("session_token") or payload.get("guest_session_id") or payload.get("token") or "").strip()
+        token = str(
+            payload.get("session_token")
+            or payload.get("guest_session_id")
+            or payload.get("session_id")
+            or payload.get("post_scan_token")
+            or payload.get("token")
+            or ""
+        ).strip()
 
+    # Chặn tuyệt đối mọi token/session thuộc luồng đăng ký QR cô lập trên mọi carrier
     if token:
+        from simulator.auth.qr_totp_mixin import is_qr_registration_token_or_session
+
+        if is_qr_registration_token_or_session(token):
+            return UserSession(
+                session_id="qr_isolated_token_rejected",
+                user_id="anonymous",
+                email="",
+                display_name="Khách (Token đăng ký QR cô lập)",
+                tier=3,
+                role="CHILD_GUEST",
+                created_at=time.time(),
+                expires_at=time.time() + 86400,
+                source="qr_isolated_token_rejected",
+                is_authenticated=False,
+            )
         sess = store.get_session(token)
         if sess and not sess.is_expired():
             return sess
@@ -721,6 +750,31 @@ def resolve_request_session(
             source="invalid_token",
             is_authenticated=False,
         )
+
+    if request is not None:
+        from simulator.auth.qr_totp_mixin import QR_SCAN_COOKIE_NAME, QR_SESSION_COOKIE_NAME
+
+        cookies = getattr(request, "cookies", {}) or {}
+        headers = getattr(request, "headers", {}) or {}
+        if (
+            cookies.get(QR_SCAN_COOKIE_NAME)
+            or cookies.get(QR_SESSION_COOKIE_NAME)
+            or headers.get("x-qr-scan-nonce")
+            or headers.get("x-qr-session-id")
+            or headers.get("x-qr-post-scan-token")
+        ):
+            return UserSession(
+                session_id="qr_isolated_session_rejected",
+                user_id="anonymous",
+                email="",
+                display_name="Khách (Phiên đăng ký QR cô lập)",
+                tier=3,
+                role="CHILD_GUEST",
+                created_at=time.time(),
+                expires_at=time.time() + 86400,
+                source="qr_isolated_session_rejected",
+                is_authenticated=False,
+            )
 
     if has_explicit_identity and explicit_session is not None:
         return explicit_session

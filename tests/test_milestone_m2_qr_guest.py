@@ -296,8 +296,14 @@ def test_send_otp_nonexistent_domain_rejected(client: TestClient) -> None:
 
 
 def test_send_otp_valid_mx_domain_success(client: TestClient) -> None:
+    cur_res = client.get("/api/auth3/guest_qr_current?duration=1d")
+    assert cur_res.status_code == 200
+    hs_res = client.post("/api/auth3/guest_qr_handshake", json={"token": cur_res.json()["token"], "duration": "1d"})
+    assert hs_res.status_code == 200
+    sess_id = hs_res.json()["session_id"]
+
     res = client.post("/api/auth3/guest_qr_send_otp", json={
-        "session_id": "test_sess_otp",
+        "session_id": sess_id,
         "guest_name": "Khách Test",
         "email_1": "khach_moi.hust@gmail.com",
         "email_2": "khach_moi.hust@gmail.com",
@@ -317,9 +323,13 @@ def test_send_otp_valid_mx_domain_success(client: TestClient) -> None:
 
 def test_verify_otp_wrong_and_correct_flow(client: TestClient) -> None:
     target_email = "khach_otp_verify@gmail.com"
-    # Gửi OTP
+    # Lần 1: Quét QR & Gửi OTP
+    cur1 = client.get("/api/auth3/guest_qr_current?duration=2d").json()
+    hs1 = client.post("/api/auth3/guest_qr_handshake", json={"token": cur1["token"], "duration": "2d"}).json()
+    sid1 = hs1["session_id"]
+
     send_res = client.post("/api/auth3/guest_qr_send_otp", json={
-        "session_id": "test_sess_verify",
+        "session_id": sid1,
         "guest_name": "Khách OTP Verify",
         "email_1": target_email,
         "email_2": target_email,
@@ -328,8 +338,9 @@ def test_verify_otp_wrong_and_correct_flow(client: TestClient) -> None:
     assert send_res.status_code == 200
     valid_otp = send_res.json()["demo_otp_preview"]
 
-    # 1. Thử mã OTP sai
+    # 1. Thử mã OTP sai -> Từ chối 400 và hủy phiên sid1 (bắt buộc quét lại QR mới)
     wrong_res = client.post("/api/auth3/guest_qr_verify_otp", json={
+        "session_id": sid1,
         "email": target_email,
         "otp": "000000" if valid_otp != "000000" else "111111",
     })
@@ -337,10 +348,24 @@ def test_verify_otp_wrong_and_correct_flow(client: TestClient) -> None:
     assert wrong_res.json()["ok"] is False
     assert "chưa đúng" in wrong_res.json()["error"] or "không chính xác" in wrong_res.json()["error"]
 
-    # 2. Nhập mã OTP đúng
+    # 2. Quét lại mã QR mới sau khi nhập sai, gửi OTP và nhập mã OTP đúng
+    cur2 = client.get("/api/auth3/guest_qr_current?duration=2d").json()
+    hs2 = client.post("/api/auth3/guest_qr_handshake", json={"token": cur2["token"], "duration": "2d"}).json()
+    sid2 = hs2["session_id"]
+    send_res2 = client.post("/api/auth3/guest_qr_send_otp", json={
+        "session_id": sid2,
+        "guest_name": "Khách OTP Verify",
+        "email_1": target_email,
+        "email_2": target_email,
+        "duration": "2d",
+    })
+    assert send_res2.status_code == 200
+    valid_otp2 = send_res2.json()["demo_otp_preview"]
+
     correct_res = client.post("/api/auth3/guest_qr_verify_otp", json={
+        "session_id": sid2,
         "email": target_email,
-        "otp": valid_otp,
+        "otp": valid_otp2,
     })
     assert correct_res.status_code == 200
     c_data = correct_res.json()

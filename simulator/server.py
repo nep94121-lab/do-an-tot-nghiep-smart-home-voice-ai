@@ -49,6 +49,7 @@ from simulator.auth.qr_totp_mixin import (
     QR_SHORT_EXPIRY_SEC,
     _QR_ATOMIC_LOCK,
     hash_qr_scan_nonce,
+    is_qr_registration_token_or_session,
 )
 from simulator.auth.session_store import resolve_request_session
 from simulator.auth_3layer import get_auth_3layer_manager
@@ -103,37 +104,46 @@ _QR_ISOLATED_ALLOWED_PATHS: frozenset[str] = frozenset(
 )
 
 
-def _is_qr_registration_session_request(request: Request) -> bool:
-    """Phát hiện request mang session/token của luồng đăng ký QR cô lập."""
-    if request.cookies.get(QR_SCAN_COOKIE_NAME) or request.cookies.get(QR_SESSION_COOKIE_NAME):
+def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
+    """Phát hiện request HTTP hoặc kết nối WebSocket mang session/token của luồng đăng ký QR cô lập
+    trên mọi carrier (cookies, headers, query params).
+    """
+    cookies = getattr(req_or_ws, "cookies", {}) or {}
+    headers = getattr(req_or_ws, "headers", {}) or {}
+    query_params = getattr(req_or_ws, "query_params", {}) or {}
+    mgr3 = get_auth_3layer_manager()
+
+    if cookies.get(QR_SCAN_COOKIE_NAME) or cookies.get(QR_SESSION_COOKIE_NAME):
         return True
+    for ck_name in ("session_token", "sh_session_token"):
+        ck_val = str(cookies.get(ck_name) or "").strip()
+        if ck_val and is_qr_registration_token_or_session(ck_val, mgr3=mgr3):
+            return True
+
     if (
-        request.headers.get("x-qr-scan-nonce")
-        or request.headers.get("x-qr-session-id")
-        or request.headers.get("x-qr-post-scan-token")
+        headers.get("x-qr-scan-nonce")
+        or headers.get("x-qr-session-id")
+        or headers.get("x-qr-post-scan-token")
     ):
         return True
-    q_sid = str(request.query_params.get("session_id") or request.query_params.get("guest_session_id") or "").strip()
-    if q_sid.startswith("guest_sess_"):
-        return True
-    if request.query_params.get("post_scan_token"):
+
+    x_sess_tok = str(headers.get("x-session-token") or "").strip()
+    if x_sess_tok and is_qr_registration_token_or_session(x_sess_tok, mgr3=mgr3):
         return True
 
-    auth_hdr = str(request.headers.get("authorization") or "").strip()
+    auth_hdr = str(headers.get("authorization") or "").strip()
     if auth_hdr.lower().startswith("bearer "):
         bearer_tok = auth_hdr[7:].strip()
-        if bearer_tok.startswith("guest_sess_"):
+        if bearer_tok and is_qr_registration_token_or_session(bearer_tok, mgr3=mgr3):
             return True
-        mgr3 = get_auth_3layer_manager()
-        if (
-            bearer_tok in getattr(mgr3, "active_qr_tokens", {})
-            or bearer_tok in getattr(mgr3, "used_qr_tokens", set())
-            or bearer_tok in getattr(mgr3, "guest_qr_sessions", {})
-        ):
+
+    if query_params.get("post_scan_token"):
+        return True
+    for qp_name in ("session_id", "guest_session_id", "token"):
+        qp_val = str(query_params.get(qp_name) or "").strip()
+        if qp_val and is_qr_registration_token_or_session(qp_val, mgr3=mgr3):
             return True
-        for s_info in getattr(mgr3, "guest_qr_sessions", {}).values():
-            if isinstance(s_info, dict) and str(s_info.get("post_scan_token") or "") == bearer_tok:
-                return True
+
     return False
 
 
@@ -506,7 +516,12 @@ async def page_403() -> FileResponse:
 # Cầu nối WebSocket Gemini 3.8 Live Bidirectional Streaming
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
-    """Tiếp nhận kết nối WebSocket từ trình duyệt Web 3D / Micro thu âm, ủy quyền sang LiveBridgeSession."""
+    """Tiếp nhận kết nối WebSocket từ trình duyệt Web 3D / Micro thu âm, ủy quyền sang LiveBridgeSession.
+    Cô lập tuyệt đối phiên đăng ký QR: từ chối ngay lập tức mọi kết nối /ws mang cookie/token đăng ký QR.
+    """
+    if _is_qr_registration_session_request(websocket):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     session = LiveBridgeSession(
         websocket=websocket,

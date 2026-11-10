@@ -549,3 +549,307 @@ def test_req6_server_refuses_registration_token_or_session_access_to_other_route
     pst_bearer_client = TestClient(app, headers={"Authorization": f"Bearer {post_scan_token}"})
     assert pst_bearer_client.get("/app").status_code == 403
     assert pst_bearer_client.post("/api/device", json={"device": "light", "state": True}).status_code == 403
+
+
+# =============================================================================
+# FIX ROUND 2 REGRESSION TESTS (F1: OTP BINDING/SINGLE-USE/CAP1 & F2: ALL CARRIERS + WS)
+# =============================================================================
+
+def _handshake_pair(nonce: str | None = None) -> tuple[TestClient, dict]:
+    owner = _make_owner_client()
+    scanner = _make_scanner_client()
+    qr = owner.get("/api/auth3/guest_qr_current?duration=1d").json()
+    payload = {"token": qr["token"], "duration": "1d"}
+    if nonce:
+        payload["scan_nonce"] = nonce
+    hs = scanner.post("/api/auth3/guest_qr_handshake", json=payload)
+    assert hs.status_code == 200
+    return scanner, hs.json()
+
+
+def test_round2_f1_otp_without_qr_or_binding_rejected_and_never_adds_guest() -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    mgr = get_auth_3layer_manager()
+    anon = TestClient(app)
+    name = "Round2NoQrGuest"
+    email = "round2-noqr@example.invalid"
+    before = name in [v.get("name") for v in _REST_ENGINE.users.values()]
+
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        send_res = anon.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={"email": email, "confirm_email": email, "guest_name": name},
+        )
+    assert send_res.status_code in (401, 403)
+    assert email not in mgr.pending_guest_email_otps
+
+    verify_res = anon.post("/api/auth3/guest_qr_verify_otp", json={"email": email, "otp": "123456"})
+    after = name in [v.get("name") for v in _REST_ENGINE.users.values()]
+    assert verify_res.status_code in (401, 403)
+    assert verify_res.json().get("verified") is not True
+    assert not before and not after
+
+
+def test_round2_f1_otp_single_use_consumed_atomically_multiple_registrations_rejected() -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    codes = []
+    for i in range(2):
+        email = f"round2-bound-{i}@example.invalid"
+        payload = {
+            "session_id": hs["session_id"],
+            "post_scan_token": hs["post_scan_token"],
+            "email": email,
+            "confirm_email": email,
+            "guest_name": f"Round2BoundGuest{i}",
+        }
+        with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+            sent = scanner.post("/api/auth3/guest_qr_send_otp", json=payload)
+        otp = mgr.pending_guest_email_otps.get(email, {}).get("otp", "")
+        r = scanner.post("/api/auth3/guest_qr_verify_otp", json={**payload, "otp": otp})
+        codes.append(r.status_code)
+
+    state = mgr.guest_qr_sessions[hs["session_id"]]
+    assert codes[0] == 200
+    assert codes[1] in (400, 403)
+    assert state["status"] == "CONSUMED"
+    assert state["consumed"] is True
+
+
+def test_round2_f1_otp_other_session_or_fake_session_id_override_rejected() -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    email = "round2-forward@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        s_res = scanner.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={
+                "session_id": hs["session_id"],
+                "email": email,
+                "confirm_email": email,
+                "guest_name": "Round2OtherSession",
+            },
+        )
+    assert s_res.status_code == 200
+    otp = mgr.pending_guest_email_otps[email]["otp"]
+
+    other = TestClient(app)
+    r_fake_sid = other.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": "not-a-real-session", "email": email, "otp": otp},
+    )
+    assert r_fake_sid.status_code in (401, 403)
+    assert r_fake_sid.json().get("verified") is not True
+
+    r_real_sid_no_cookie = other.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": hs["session_id"], "email": email, "otp": otp},
+    )
+    assert r_real_sid_no_cookie.status_code in (401, 403)
+    assert r_real_sid_no_cookie.json().get("verified") is not True
+
+
+@pytest.mark.parametrize("revocation", ["expired", "rescan"])
+def test_round2_f1_otp_expired_or_rescanned_session_override_rejected(revocation: str) -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    email = f"round2-{revocation}@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        scanner.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={
+                "session_id": hs["session_id"],
+                "email": email,
+                "confirm_email": email,
+                "guest_name": "Round2Expired",
+            },
+        )
+    otp = mgr.pending_guest_email_otps[email]["otp"]
+    if revocation == "expired":
+        mgr.guest_qr_sessions[hs["session_id"]]["session_expires_at"] = time.time() - 1.0
+    else:
+        _handshake_pair()
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+
+    r_override = TestClient(app).post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": "not-a-real-session", "email": email, "otp": otp},
+    )
+    assert r_override.status_code in (400, 401, 403)
+
+    r_scanner = scanner.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": hs["session_id"], "email": email, "otp": otp},
+    )
+    assert r_scanner.status_code in (400, 401, 403)
+
+
+def test_round2_f1_otp_concurrent_two_registrations_same_scan_only_one_succeeds() -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    payloads = []
+    for i in range(2):
+        email = f"round2-concurrent-{i}@example.invalid"
+        with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+            s_res = scanner.post(
+                "/api/auth3/guest_qr_send_otp",
+                json={
+                    "session_id": hs["session_id"],
+                    "email": email,
+                    "confirm_email": email,
+                    "guest_name": f"Round2Concurrent{i}",
+                },
+            )
+            assert s_res.status_code == 200
+        payloads.append(
+            {
+                "session_id": hs["session_id"],
+                "email": email,
+                "otp": mgr.pending_guest_email_otps[email]["otp"],
+            }
+        )
+    cookies = dict(scanner.cookies)
+    barrier = threading.Barrier(2)
+
+    def _submit(p: dict) -> int:
+        c = TestClient(app)
+        c.cookies.update(cookies)
+        barrier.wait(timeout=5.0)
+        r = c.post("/api/auth3/guest_qr_verify_otp", json=p)
+        return r.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        codes = list(pool.map(_submit, payloads))
+
+    assert sum(c == 200 for c in codes) == 1
+    assert mgr.guest_qr_sessions[hs["session_id"]]["consumed"] is True
+
+
+def test_round2_req3_malformed_body_retry_invalidates_bound_session() -> None:
+    scanner, hs = _handshake_pair()
+    bad = scanner.post("/api/auth3/guest_qr_complete_voice", json=[])
+    assert bad.status_code in (400, 422)
+    page = scanner.get(hs["post_scan_url"])
+    assert page.status_code == 403
+
+
+@pytest.mark.parametrize("carrier", ["query_token", "x_session_token", "session_cookie", "sh_session_cookie"])
+def test_round2_f2_alternative_token_carriers_and_auth_layer_rejected(carrier: str) -> None:
+    from simulator.auth.session_store import resolve_request_session
+    from simulator.api.deps import _REST_ENGINE
+
+    _, hs = _handshake_pair()
+    other = TestClient(app)
+    kwargs: dict = {}
+    if carrier == "query_token":
+        kwargs["params"] = {"token": hs["session_id"]}
+    elif carrier == "x_session_token":
+        kwargs["headers"] = {"x-session-token": hs["session_id"]}
+    elif carrier == "session_cookie":
+        other.cookies.set("session_token", hs["session_id"])
+    else:
+        other.cookies.set("sh_session_token", hs["session_id"])
+
+    r = other.get("/app", follow_redirects=False, **kwargs)
+    assert r.status_code == 403
+
+    # Kiểm chứng trực tiếp tại tầng auth session_store
+    sess = resolve_request_session(request=None, payload={"token": hs["session_id"]}, engine=_REST_ENGINE)
+    assert sess.is_authenticated is False
+
+
+def test_round2_f2_websocket_rejected_for_qr_session_cookies_and_tokens() -> None:
+    scanner, hs = _handshake_pair()
+    accepted_cookie = False
+    try:
+        with scanner.websocket_connect("/ws"):
+            accepted_cookie = True
+    except Exception:
+        pass
+    assert not accepted_cookie
+
+    other = TestClient(app)
+    accepted_query = False
+    try:
+        with other.websocket_connect(f"/ws?token={hs['session_id']}"):
+            accepted_query = True
+    except Exception:
+        pass
+    assert not accepted_query
+
+
+def test_round2_f1_otp_requires_cap1_owner_and_checks_grant_result() -> None:
+    from unittest.mock import AsyncMock, patch
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    # 1. Nếu phiên bị hạ issuer_tier != 1 hoặc owner_approved = False -> từ chối 403
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    email1 = "round2-cap1-check@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        s1 = scanner.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={
+                "session_id": hs["session_id"],
+                "email": email1,
+                "confirm_email": email1,
+                "guest_name": "Round2Cap1Check",
+            },
+        )
+        assert s1.status_code == 200
+    otp1 = mgr.pending_guest_email_otps[email1]["otp"]
+    mgr.guest_qr_sessions[hs["session_id"]]["issuer_tier"] = 2
+
+    v1 = scanner.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": hs["session_id"], "email": email1, "otp": otp1},
+    )
+    assert v1.status_code == 403
+    assert v1.json().get("verified") is not True
+
+    # 2. Nếu grant_user_permission trả về ok=False -> verify_otp phải kiểm tra kết quả và từ chối 403
+    scanner2, hs2 = _handshake_pair()
+    email2 = "round2-grant-fail@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        s2 = scanner2.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={
+                "session_id": hs2["session_id"],
+                "email": email2,
+                "confirm_email": email2,
+                "guest_name": "Round2GrantFail",
+            },
+        )
+        assert s2.status_code == 200
+    otp2 = mgr.pending_guest_email_otps[email2]["otp"]
+
+    with patch.object(
+        _REST_ENGINE,
+        "grant_user_permission",
+        new=AsyncMock(return_value={"ok": False, "error": "Simulated Cap1 grant rejection"}),
+    ):
+        v2 = scanner2.post(
+            "/api/auth3/guest_qr_verify_otp",
+            json={"session_id": hs2["session_id"], "email": email2, "otp": otp2},
+        )
+    assert v2.status_code == 403
+    assert v2.json().get("ok") is False
+    assert v2.json().get("verified") is not True
+
+

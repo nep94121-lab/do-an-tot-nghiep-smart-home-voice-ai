@@ -33,6 +33,36 @@ def hash_qr_scan_nonce(nonce: str | None) -> str:
     return hashlib.sha256(clean.encode("utf-8")).hexdigest()
 
 
+def is_qr_registration_token_or_session(val: str | None, mgr3: Any = None) -> bool:
+    """Kiểm tra một giá trị token/session_id có thuộc luồng đăng ký QR cô lập hay không."""
+    clean = str(val or "").strip()
+    if not clean:
+        return False
+    if clean.startswith("guest_sess_"):
+        return True
+    if mgr3 is None:
+        try:
+            from simulator.auth_3layer import get_auth_3layer_manager
+            mgr3 = get_auth_3layer_manager()
+        except Exception:
+            mgr3 = None
+    if mgr3 is not None:
+        if (
+            clean in getattr(mgr3, "active_qr_tokens", {})
+            or clean in getattr(mgr3, "used_qr_tokens", set())
+            or clean in getattr(mgr3, "guest_qr_sessions", {})
+        ):
+            return True
+        for s_info in getattr(mgr3, "guest_qr_sessions", {}).values():
+            if isinstance(s_info, dict):
+                if str(s_info.get("post_scan_token") or "") == clean:
+                    return True
+                if str(s_info.get("token") or "") == clean:
+                    return True
+    return False
+
+
+
 class AuthQrTotpMixin:
     """Mixin xử lý QR Động 10 giây (TOTP), Single-Use Handshake gắn phiên quét và xác thực Email OTP kèm DNS MX."""
 
