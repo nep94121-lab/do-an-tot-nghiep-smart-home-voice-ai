@@ -53,11 +53,20 @@ def is_qr_registration_token_or_session(val: str | None, mgr3: Any = None) -> bo
             or clean in getattr(mgr3, "guest_qr_sessions", {})
         ):
             return True
+        val_hash = hash_qr_scan_nonce(clean)
         for s_info in getattr(mgr3, "guest_qr_sessions", {}).values():
             if isinstance(s_info, dict):
                 if str(s_info.get("post_scan_token") or "") == clean:
                     return True
                 if str(s_info.get("token") or "") == clean:
+                    return True
+                exp_hash = str(s_info.get("bound_scan_nonce_hash") or "").strip()
+                if val_hash and exp_hash and hmac.compare_digest(val_hash, exp_hash):
+                    return True
+        for t_info in getattr(mgr3, "active_qr_tokens", {}).values():
+            if isinstance(t_info, dict):
+                t_hash = str(t_info.get("bound_scan_nonce_hash") or "").strip()
+                if val_hash and t_hash and hmac.compare_digest(val_hash, t_hash):
                     return True
     return False
 
@@ -134,6 +143,8 @@ class AuthQrTotpMixin:
             s_meta = self.guest_qr_sessions.get(clean_sid)
             if not isinstance(s_meta, dict):
                 return False
+            if str(s_meta.get("status") or "").upper() == "CONSUMED":
+                return False
             now_ts = time.time()
             s_meta["status"] = "INVALIDATED_ON_ERROR"
             s_meta["invalidated"] = True
@@ -144,9 +155,10 @@ class AuthQrTotpMixin:
             if tok_ref:
                 self.used_qr_tokens.add(tok_ref)
                 if tok_ref in self.active_qr_tokens and isinstance(self.active_qr_tokens[tok_ref], dict):
-                    self.active_qr_tokens[tok_ref]["status"] = "INVALIDATED"
-                    self.active_qr_tokens[tok_ref]["invalidated"] = True
-                    self.active_qr_tokens[tok_ref]["invalidated_reason"] = reason
+                    if str(self.active_qr_tokens[tok_ref].get("status") or "").upper() != "CONSUMED":
+                        self.active_qr_tokens[tok_ref]["status"] = "INVALIDATED"
+                        self.active_qr_tokens[tok_ref]["invalidated"] = True
+                        self.active_qr_tokens[tok_ref]["invalidated_reason"] = reason
             return True
 
     def verify_owner_cap1_permission(self, owner_id: str = "tuan_anh") -> bool:

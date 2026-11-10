@@ -18,11 +18,13 @@ from __future__ import annotations
 import base64
 import copy
 import hmac
+import json
+import re
 import secrets
 import time
 from typing import Any
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from simulator.api.deps import (
@@ -120,57 +122,162 @@ def generate_qr_svg_string(content: str) -> str:
 
 
 def _extract_request_scan_nonce(request: Request, payload: dict[str, Any] | None = None) -> str:
-    """Lấy mã định danh phiên quét (scan_nonce) từ HttpOnly Cookie hoặc Header."""
+    """Lấy mã định danh phiên quét (scan_nonce) từ HttpOnly Cookie, Header, Query hoặc Payload."""
     cookie_val = str(request.cookies.get(QR_SCAN_COOKIE_NAME) or "").strip()
     if cookie_val:
         return cookie_val
     hdr_val = str(request.headers.get("x-qr-scan-nonce") or "").strip()
     if hdr_val:
         return hdr_val
+    qp_val = str(request.query_params.get("scan_nonce") or "").strip()
+    if qp_val:
+        return qp_val
     if isinstance(payload, dict):
-        body_val = str(payload.get("scan_nonce") or "").strip()
-        if body_val:
-            return body_val
+        raw_body_nonce = payload.get("scan_nonce")
+        if isinstance(raw_body_nonce, str) and raw_body_nonce.strip():
+            return raw_body_nonce.strip()
     return ""
 
 
-def _invalidate_bound_session_on_malformed_payload(request: Request, mgr3: Any) -> JSONResponse:
-    """Nếu thiết bị đang gắn phiên quét QR gửi payload sai cấu trúc (ví dụ json=[]),
-    lập tức hủy phiên của thiết bị đó và bắt buộc quét lại QR mới (Requirement 3).
+def _invalidate_any_nonce_bound_session(
+    request: Request,
+    mgr3: Any,
+    reason: str = "MALFORMED_REQUEST_BODY_MISTAKE",
+    payload: dict[str, Any] | None = None,
+    raw_body: bytes | None = None,
+) -> bool:
+    """Hủy ngay lập tức mọi phiên/token QR đang gắn kết với đúng thiết bị quét (khớp scan_nonce)
+    khi thiết bị đó gửi dữ liệu sai cú pháp, sai kiểu hoặc thao tác lỗi.
+    Đảm bảo kẻ tấn công bên thứ 3 không có scan_nonce không thể DoS phiên của người quét thật.
     """
-    incoming_nonce = _extract_request_scan_nonce(request, None)
-    incoming_hash = hash_qr_scan_nonce(incoming_nonce)
-    cand_sid = str(
-        request.cookies.get(QR_SESSION_COOKIE_NAME)
-        or request.headers.get("x-qr-session-id")
-        or request.query_params.get("session_id")
-        or ""
-    ).strip()
+    candidate_nonces: list[str] = []
+    req_nonce = _extract_request_scan_nonce(request, payload)
+    if req_nonce:
+        candidate_nonces.append(req_nonce)
+    if raw_body:
+        try:
+            raw_text = raw_body.decode("utf-8", errors="ignore")
+            for m in re.finditer(r'"scan_nonce"\s*:\s*"([^"]{1,256})"', raw_text):
+                if m.group(1).strip():
+                    candidate_nonces.append(m.group(1).strip())
+        except Exception:
+            pass
+
+    nonce_hashes = {hash_qr_scan_nonce(n) for n in candidate_nonces if n}
+    cand_sid = ""
+    if isinstance(payload, dict):
+        for k in ("session_id", "guest_session_id", "session_token"):
+            v = payload.get(k)
+            if isinstance(v, str) and v.strip():
+                cand_sid = v.strip()
+                break
+    if not cand_sid:
+        cand_sid = str(
+            request.cookies.get(QR_SESSION_COOKIE_NAME)
+            or request.headers.get("x-qr-session-id")
+            or request.query_params.get("session_id")
+            or ""
+        ).strip()
+
+    invalidated_any = False
+    _terminal_or_inflight = ("CONSUMED", "CONSUMING", "INVALIDATED", "INVALIDATED_ON_ERROR")
     with _QR_ATOMIC_LOCK:
         mgr3._ensure_qr_stores()
         if cand_sid and cand_sid in mgr3.guest_qr_sessions:
             s_meta = mgr3.guest_qr_sessions.get(cand_sid)
-            if isinstance(s_meta, dict):
+            if isinstance(s_meta, dict) and str(s_meta.get("status") or "ACTIVE").upper() not in _terminal_or_inflight:
                 exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
-                if not exp_hash or (incoming_hash and hmac.compare_digest(incoming_hash, exp_hash)):
-                    mgr3.invalidate_qr_session_on_mistake(cand_sid, "MALFORMED_REQUEST_BODY_MISTAKE")
-        elif incoming_hash:
+                if not exp_hash or any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
+                    if mgr3.invalidate_qr_session_on_mistake(cand_sid, reason):
+                        invalidated_any = True
+
+        if nonce_hashes:
             for sid, s_meta in list(mgr3.guest_qr_sessions.items()):
-                if isinstance(s_meta, dict) and hmac.compare_digest(
-                    str(s_meta.get("bound_scan_nonce_hash") or ""), incoming_hash
-                ):
-                    mgr3.invalidate_qr_session_on_mistake(sid, "MALFORMED_REQUEST_BODY_MISTAKE")
+                if isinstance(s_meta, dict) and str(s_meta.get("status") or "ACTIVE").upper() not in _terminal_or_inflight:
+                    exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
+                    if exp_hash and any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
+                        if mgr3.invalidate_qr_session_on_mistake(sid, reason):
+                            invalidated_any = True
+            for tok, t_meta in list(mgr3.active_qr_tokens.items()):
+                if isinstance(t_meta, dict) and str(t_meta.get("status") or "ACTIVE").upper() not in ("CONSUMED", "INVALIDATED"):
+                    t_hash = str(t_meta.get("bound_scan_nonce_hash") or "").strip()
+                    if t_hash and any(hmac.compare_digest(nh, t_hash) for nh in nonce_hashes):
+                        t_meta["status"] = "INVALIDATED"
+                        t_meta["invalidated"] = True
+                        t_meta["invalidated_reason"] = reason
+                        mgr3.used_qr_tokens.add(tok)
+                        invalidated_any = True
+    return invalidated_any
+
+
+def _invalidate_bound_session_on_malformed_payload(
+    request: Request,
+    mgr3: Any,
+    raw_body: bytes | None = None,
+    payload: dict[str, Any] | None = None,
+) -> JSONResponse:
+    """Nếu thiết bị đang gắn phiên quét QR gửi payload lỗi cú pháp JSON, UTF-8 hỏng, rỗng
+    hoặc sai cấu trúc/kiểu trường, lập tức hủy phiên của thiết bị đó và bắt buộc quét lại QR mới (Requirement 3 / Fix N1).
+    """
+    _invalidate_any_nonce_bound_session(
+        request=request,
+        mgr3=mgr3,
+        reason="MALFORMED_REQUEST_BODY_MISTAKE",
+        payload=payload,
+        raw_body=raw_body,
+    )
     return JSONResponse(
         sanitize_api_payload(
             {
                 "ok": False,
+                "verified": False,
                 "status": "MALFORMED_PAYLOAD",
                 "must_rescan": True,
-                "error": "Dữ liệu gửi lên không đúng định dạng JSON object. Phiên đã bị hủy, vui lòng quét lại mã QR của Chủ nhà!",
+                "error": "Dữ liệu gửi lên không đúng định dạng JSON hợp lệ. Phiên đã bị hủy, vui lòng quét lại mã QR của Chủ nhà!",
             }
         ),
         status_code=422,
     )
+
+
+async def _parse_json_dict_or_invalidate(
+    request: Request,
+    mgr3: Any,
+) -> tuple[dict[str, Any] | None, JSONResponse | None]:
+    """Đọc và phân tích cú pháp JSON object trực tiếp từ request body (không qua Body(None) mặc định của FastAPI)
+    để đảm bảo mọi lỗi cú pháp JSON (422) đều hủy phiên quét đang gắn kết và buộc quét lại QR mới.
+    """
+    try:
+        raw_body = await request.body()
+    except Exception:
+        return None, _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+    if not raw_body or not raw_body.strip():
+        return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
+
+    try:
+        text_body = raw_body.decode("utf-8")
+        parsed = json.loads(
+            text_body,
+            parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"Invalid JSON constant: {c}")),
+        )
+    except Exception:
+        return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
+
+    if not isinstance(parsed, dict):
+        return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
+
+    return parsed, None
+
+
+def _has_malformed_scalar_fields(payload: dict[str, Any], keys: tuple[str, ...]) -> bool:
+    """Kiểm tra các trường chuỗi đơn không bị truyền sai kiểu (dict, list, tuple, set, bool)."""
+    for k in keys:
+        if k in payload and payload[k] is not None:
+            v = payload[k]
+            if isinstance(v, (dict, list, tuple, set, bool)):
+                return True
+    return False
 
 
 def _resolve_and_verify_bound_qr_session(
@@ -533,16 +640,29 @@ async def api_auth3_guest_qr_current(
 @router.post("/api/auth3/guest_qr_handshake")
 @router.post("/api/auth3/guest_handshake")
 @router.post("/api/auth3/guest/handshake")
-async def api_auth3_guest_qr_handshake(request: Request, payload: Any = Body(None)) -> JSONResponse:
+async def api_auth3_guest_qr_handshake(request: Request) -> JSONResponse:
     """Bắt tay xác thực mã QR 10 giây khi khách quét mã mở trang thu âm độc lập /guest_enroll."""
     mgr3 = get_auth_3layer_manager()
-    if not isinstance(payload, dict):
-        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
-    token = str(payload.get("token") or "").strip()
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    if malformed_resp is not None or payload is None:
+        return malformed_resp  # type: ignore[return-value]
+    raw_tok_field = payload.get("token")
+    token = str(raw_tok_field if isinstance(raw_tok_field, (str, int, float)) and not isinstance(raw_tok_field, bool) else "").strip()
     target_window = payload.get("target_window", payload.get("window"))
+    if isinstance(target_window, (dict, list, tuple, set)):
+        _invalidate_any_nonce_bound_session(request, mgr3, "INVALID_TARGET_WINDOW_MISTAKE", payload=payload)
+        return JSONResponse(
+            sanitize_api_payload({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}),
+            status_code=400,
+        )
     try:
-        win_val = int(target_window) if target_window is not None and str(target_window).strip() != "" else None
+        win_val = (
+            int(target_window)
+            if target_window is not None and not isinstance(target_window, bool) and str(target_window).strip() != ""
+            else None
+        )
     except (ValueError, TypeError):
+        _invalidate_any_nonce_bound_session(request, mgr3, "INVALID_TARGET_WINDOW_MISTAKE", payload=payload)
         return JSONResponse(
             sanitize_api_payload({"ok": False, "error": "Thông số target_window không hợp lệ (phải là số nguyên)!"}),
             status_code=400,
@@ -617,17 +737,58 @@ async def api_auth3_guest_qr_handshake(request: Request, payload: Any = Body(Non
 
 @router.post("/api/auth3/guest_qr_complete_voice")
 @router.post("/api/auth3/guest/enroll_voice")
-async def api_auth3_guest_qr_complete_voice(request: Request, payload: Any = Body(None)) -> JSONResponse:
+async def api_auth3_guest_qr_complete_voice(request: Request) -> JSONResponse:
     """Tiếp nhận bản thu âm PCM 16kHz của khách trên trang độc lập /guest_enroll.
     Bắt buộc kiểm tra:
     - Single-Use Atomic Consumption (chỉ 1 lần đăng ký thành công duy nhất, chặn gửi lặp & gửi đồng thời).
     - Gắn kết phiên quét (chỉ thiết bị có cookie `sh_qr_scan_nonce` từ lúc quét mới được gửi).
-    - Nếu thao tác lỗi (audio ngắn, trùng giọng, email chủ nhà...), hủy phiên ngay lập tức và bắt buộc quét lại QR mới.
+    - Nếu thao tác lỗi (JSON lỗi cú pháp, kiểu trường sai, audio ngắn, trùng giọng, email chủ nhà...), hủy phiên ngay lập tức và bắt buộc quét lại QR mới.
     """
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
-    if not isinstance(payload, dict):
-        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    if malformed_resp is not None or payload is None:
+        return malformed_resp  # type: ignore[return-value]
+
+    if _has_malformed_scalar_fields(
+        payload,
+        (
+            "session_id",
+            "guest_session_id",
+            "session_token",
+            "post_scan_token",
+            "guest_name",
+            "speaker_name",
+            "guest_email",
+            "email",
+            "duration",
+            "duration_type",
+            "audio_pcm_b64",
+            "pcm16k_b64",
+            "audio_b64",
+            "self_check_pcm_b64",
+            "self_check_wav_b64",
+            "self_check_b64",
+        ),
+    ):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
+    for s_list_key in ("samples_b64", "samples_pcm_b64", "samples_wav_b64"):
+        if s_list_key in payload and payload[s_list_key] is not None:
+            if not isinstance(payload[s_list_key], (list, tuple)) or any(
+                not isinstance(item, str) for item in payload[s_list_key] if item is not None
+            ):
+                return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+
+    for int_key in ("sample_index", "total_samples"):
+        if payload.get(int_key) is not None:
+            iv = payload[int_key]
+            if isinstance(iv, bool):
+                return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
+            try:
+                int(iv)
+            except (ValueError, TypeError):
+                return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     session_id = str(
         payload.get("session_id")
@@ -707,6 +868,7 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: Any = Bod
         consume_atomically=not verify_only,
     )
     if err_resp is not None or sess_info is None:
+        _invalidate_any_nonce_bound_session(request, mgr3, "VOICE_SESSION_MISTAKE", payload=payload)
         return err_resp  # type: ignore[return-value]
 
     bound_sid = str(sess_info.get("session_id") or session_id)
@@ -1016,12 +1178,31 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: Any = Bod
 
 
 @router.post("/api/auth3/guest_qr_send_otp")
-async def api_auth3_guest_qr_send_otp(request: Request, payload: Any = Body(None)) -> JSONResponse:
+async def api_auth3_guest_qr_send_otp(request: Request) -> JSONResponse:
     """Gửi OTP xác thực email khách sau khi kiểm tra phiên quét QR, so khớp 2 ô và kiểm tra DNS MX thực tế."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
-    if not isinstance(payload, dict):
-        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    if malformed_resp is not None or payload is None:
+        return malformed_resp  # type: ignore[return-value]
+
+    if _has_malformed_scalar_fields(
+        payload,
+        (
+            "session_id",
+            "guest_session_id",
+            "session_token",
+            "post_scan_token",
+            "guest_name",
+            "email_1",
+            "email",
+            "email_2",
+            "confirm_email",
+            "duration",
+            "duration_type",
+        ),
+    ):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     session_id = str(
         payload.get("session_id")
@@ -1037,7 +1218,11 @@ async def api_auth3_guest_qr_send_otp(request: Request, payload: Any = Body(None
     dur_type = str(payload.get("duration") or payload.get("duration_type") or "1d").strip().lower()
 
     bound_sess_info: dict[str, Any] | None = None
-    if session_id and session_id in mgr3.guest_qr_sessions:
+    if (
+        (session_id and session_id in mgr3.guest_qr_sessions)
+        or payload.get("post_scan_token")
+        or _extract_request_scan_nonce(request, payload)
+    ):
         bound_sess_info, err_resp = _resolve_and_verify_bound_qr_session(
             request=request,
             payload=payload,
@@ -1045,6 +1230,7 @@ async def api_auth3_guest_qr_send_otp(request: Request, payload: Any = Body(None
             consume_atomically=False,
         )
         if err_resp is not None:
+            _invalidate_any_nonce_bound_session(request, mgr3, "SEND_OTP_SESSION_MISTAKE", payload=payload)
             return err_resp
 
     verified_sid = str((bound_sess_info or {}).get("session_id") or "")
@@ -1150,12 +1336,29 @@ async def api_auth3_guest_qr_send_otp(request: Request, payload: Any = Body(None
 
 @router.post("/api/auth3/guest_qr_verify_otp")
 @router.post("/api/auth3/guest/verify_email")
-async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(None)) -> JSONResponse:
+async def api_auth3_guest_qr_verify_otp(request: Request) -> JSONResponse:
     """Xác nhận mã OTP email của khách, tiêu thụ nguyên tử (Single-Use) phiên quét QR và kích hoạt tài khoản khách Cấp 3."""
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
-    if not isinstance(payload, dict):
-        return _invalidate_bound_session_on_malformed_payload(request, mgr3)
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    if malformed_resp is not None or payload is None:
+        return malformed_resp  # type: ignore[return-value]
+
+    if _has_malformed_scalar_fields(
+        payload,
+        (
+            "session_id",
+            "guest_session_id",
+            "session_token",
+            "post_scan_token",
+            "email",
+            "confirm_email",
+            "otp",
+            "otp_code",
+            "input_otp",
+        ),
+    ):
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, payload=payload)
 
     email = str(payload.get("email") or payload.get("confirm_email") or "").strip().lower()
     otp_input = str(
@@ -1169,11 +1372,13 @@ async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(No
     with _QR_ATOMIC_LOCK:
         record = mgr3.pending_guest_email_otps.get(email)
         if not isinstance(record, dict):
+            was_inv = _invalidate_any_nonce_bound_session(request, mgr3, "OTP_VERIFY_MISSING_RECORD_MISTAKE", payload=payload)
             return JSONResponse(
                 sanitize_api_payload(
                     {
                         "ok": False,
                         "verified": False,
+                        "must_rescan": bool(was_inv),
                         "status": "OTP_RECORD_OR_QR_SESSION_MISSING",
                         "reason": "QR_SESSION_AND_OTP_REQUIRED",
                         "error": "Từ chối: Chưa có phiên quét QR hợp lệ hoặc chưa phát hành mã OTP cho email này!",
@@ -1186,6 +1391,7 @@ async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(No
         record_sid = str(record.get("session_id") or "").strip()
         if not record_sid or record_sid not in mgr3.guest_qr_sessions:
             mgr3.pending_guest_email_otps.pop(email, None)
+            _invalidate_any_nonce_bound_session(request, mgr3, "OTP_VERIFY_INVALID_SESSION_MISTAKE", payload=payload)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -1202,6 +1408,7 @@ async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(No
 
         # Chặn tuyệt đối hành vi truyền session_id giả/khác để bypass kiểm tra phiên gốc của OTP
         if explicit_client_sid and explicit_client_sid != record_sid:
+            _invalidate_any_nonce_bound_session(request, mgr3, "OTP_VERIFY_SID_OVERRIDE_MISTAKE", payload=payload)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -1223,6 +1430,7 @@ async def api_auth3_guest_qr_verify_otp(request: Request, payload: Any = Body(No
             consume_atomically=False,
         )
         if err_resp is not None or sess_info is None:
+            _invalidate_any_nonce_bound_session(request, mgr3, "OTP_VERIFY_BOUND_SESSION_MISTAKE", payload=payload)
             return err_resp  # type: ignore[return-value]
 
         rec_nonce_hash = str(record.get("bound_scan_nonce_hash") or "").strip()

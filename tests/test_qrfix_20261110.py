@@ -853,3 +853,204 @@ def test_round2_f1_otp_requires_cap1_owner_and_checks_grant_result() -> None:
     assert v2.json().get("verified") is not True
 
 
+# =============================================================================
+# FIX ROUND 3 REGRESSION TESTS (N1: MALFORMED JSON INVALIDATION & N2: BODY CARRIERS)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/auth3/guest_qr_complete_voice",
+        "/api/auth3/guest/enroll_voice",
+        "/api/auth3/guest_qr_send_otp",
+        "/api/auth3/guest_qr_verify_otp",
+        "/api/auth3/guest/verify_email",
+    ],
+)
+@pytest.mark.parametrize(
+    "raw_body,content_type",
+    [
+        (b'{"', "application/json"),
+        (b"", "application/json"),
+        (b"\xff\xfe\xfd", "application/json"),
+        (b"123", "application/json"),
+        (b'{"bad_const": NaN}', "application/json"),
+        (b"session_id=not_json_form", "application/x-www-form-urlencoded"),
+    ],
+)
+def test_round3_n1_malformed_json_invalidates_session_and_requires_rescan(
+    endpoint: str, raw_body: bytes, content_type: str
+) -> None:
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+
+    bad = scanner.post(endpoint, content=raw_body, headers={"content-type": content_type})
+    assert bad.status_code == 422
+    assert bad.json().get("ok") is False
+    assert bad.json().get("must_rescan") is True
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+
+    old_page = scanner.get(hs["post_scan_url"])
+    assert old_page.status_code == 403
+
+
+def test_round3_n1_invalid_json_blocks_subsequent_otp_and_voice_until_rescan() -> None:
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    # Case A: Malformed JSON on voice -> cannot proceed to send_otp / verify_otp / voice without rescan
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    bad = scanner.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content='{"',
+        headers={"content-type": "application/json"},
+    )
+    assert bad.status_code == 422
+
+    email = "round3-json-retry@example.invalid"
+    guest_name = "Round3JsonRetryBlocked"
+    data = {
+        "session_id": hs["session_id"],
+        "email": email,
+        "confirm_email": email,
+        "guest_name": guest_name,
+    }
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        send = scanner.post("/api/auth3/guest_qr_send_otp", json=data)
+    otp = mgr.pending_guest_email_otps.get(email, {}).get("otp", "")
+    verify = scanner.post("/api/auth3/guest_qr_verify_otp", json={**data, "otp": otp})
+    voice_retry = scanner.post(
+        "/api/auth3/guest_qr_complete_voice",
+        json={
+            "session_id": hs["session_id"],
+            "post_scan_token": hs["post_scan_token"],
+            "guest_name": guest_name,
+            "duration": "1d",
+            "audio_pcm_b64": _generate_valid_guest_pcm_b64(f0=240.0),
+        },
+    )
+    added = any(v.get("name") == guest_name for v in _REST_ENGINE.users.values())
+    assert send.status_code in (400, 401, 403)
+    assert verify.status_code in (400, 401, 403)
+    assert verify.json().get("verified") is not True
+    assert voice_retry.status_code in (400, 401, 403)
+    assert not added
+
+    # Case B: Send OTP valid first -> malformed JSON on verify_otp -> subsequent valid verify_otp rejected
+    scanner2, hs2 = _handshake_pair()
+    email2 = "round3-after-send@example.invalid"
+    guest_name2 = "Round3AfterSendBlocked"
+    data2 = {
+        "session_id": hs2["session_id"],
+        "email": email2,
+        "confirm_email": email2,
+        "guest_name": guest_name2,
+    }
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        send2 = scanner2.post("/api/auth3/guest_qr_send_otp", json=data2)
+    assert send2.status_code == 200
+    real_otp2 = mgr.pending_guest_email_otps[email2]["otp"]
+
+    bad_verify = scanner2.post(
+        "/api/auth3/guest_qr_verify_otp",
+        content='{"email":',
+        headers={"content-type": "application/json"},
+    )
+    assert bad_verify.status_code == 422
+    assert scanner2.get(hs2["post_scan_url"]).status_code == 403
+
+    retry_verify2 = scanner2.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={**data2, "otp": real_otp2},
+    )
+    assert retry_verify2.status_code in (400, 401, 403)
+    assert retry_verify2.json().get("verified") is not True
+    assert not any(v.get("name") == guest_name2 for v in _REST_ENGINE.users.values())
+
+    # Rescan with new QR succeeds cleanly
+    scanner3, hs3 = _handshake_pair()
+    email3 = "round3-rescan-ok@example.invalid"
+    data3 = {
+        "session_id": hs3["session_id"],
+        "email": email3,
+        "confirm_email": email3,
+        "guest_name": "Round3RescanSuccess",
+    }
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no DNS/mail")):
+        s3 = scanner3.post("/api/auth3/guest_qr_send_otp", json=data3)
+    assert s3.status_code == 200
+    v3 = scanner3.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={**data3, "otp": mgr.pending_guest_email_otps[email3]["otp"]},
+    )
+    assert v3.status_code == 200
+    assert v3.json().get("verified") is True
+
+
+def test_round3_n1_malformed_field_types_and_third_party_dos_protection() -> None:
+    mgr = get_auth_3layer_manager()
+
+    # 1. Third-party client without scan_nonce sending broken JSON cannot DoS real scanner's session
+    scanner, hs = _handshake_pair()
+    attacker = TestClient(app)
+    att_res = attacker.post(
+        f"/api/auth3/guest_qr_complete_voice?session_id={hs['session_id']}",
+        content='{"',
+        headers={"content-type": "application/json"},
+    )
+    assert att_res.status_code == 422
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is False
+    assert scanner.get(hs["post_scan_url"]).status_code == 200
+
+    # 2. Scanner sending invalid field types (e.g. non-int sample_index or list email) invalidates session, no 500
+    bad_field = scanner.post(
+        "/api/auth3/guest_qr_complete_voice",
+        json={
+            "session_id": hs["session_id"],
+            "guest_name": "BadSampleIdx",
+            "audio_pcm_b64": _generate_valid_guest_pcm_b64(f0=240.0),
+            "sample_index": "not-an-int",
+        },
+    )
+    assert bad_field.status_code in (400, 422)
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+    # 3. Scanner sending empty verify_otp dict {} invalidates bound session
+    scanner_b, hs_b = _handshake_pair()
+    empty_v = scanner_b.post("/api/auth3/guest_qr_verify_otp", json={})
+    assert empty_v.status_code in (400, 403, 422)
+    assert mgr.guest_qr_sessions[hs_b["session_id"]]["invalidated"] is True
+    assert scanner_b.get(hs_b["post_scan_url"]).status_code == 403
+
+
+@pytest.mark.parametrize("key", ["session_token", "guest_session_id", "session_id", "post_scan_token", "token"])
+@pytest.mark.parametrize("value_kind", ["session_id", "post_scan_token"])
+def test_round3_n2_json_body_token_fields_rejected_across_routes_and_methods(
+    key: str, value_kind: str
+) -> None:
+    from simulator.auth.session_store import resolve_request_session
+    from simulator.api.deps import _REST_ENGINE
+
+    _, hs = _handshake_pair()
+    value = hs[value_kind]
+    payload = {key: value}
+
+    c = TestClient(app)
+    for route in ("/", "/app", "/api/state"):
+        r_get = c.request("GET", route, json=payload, follow_redirects=False)
+        assert r_get.status_code == 403, f"Expected 403 on GET {route} with body {key} ({value_kind}), got {r_get.status_code}"
+        assert r_get.json().get("status") == "QR_REGISTRATION_SESSION_ISOLATED"
+
+    r_post_dev = c.post("/api/device", json={**payload, "device_id": "living_room_light", "action": "turn_on"})
+    assert r_post_dev.status_code == 403
+    assert r_post_dev.json().get("status") == "QR_REGISTRATION_SESSION_ISOLATED"
+
+    sess = resolve_request_session(payload=payload, engine=_REST_ENGINE)
+    assert sess.is_authenticated is False
+
+
+

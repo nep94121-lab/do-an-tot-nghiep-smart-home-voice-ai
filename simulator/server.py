@@ -19,13 +19,16 @@ Hiến pháp Spec Kit (scripts/speckit_converge.py - Điều 3 Zero-Drop Live Br
 from __future__ import annotations
 
 import hmac
+import json
 import pathlib
 import secrets
 import time
 from typing import Any
+from urllib.parse import parse_qs
 
 import uvicorn
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -147,6 +150,66 @@ def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
     return False
 
 
+def _is_qr_registration_payload_dict(payload: Any, mgr3: Any = None) -> bool:
+    """Phát hiện dict payload (JSON body / form body) mang bất kỳ trường token/session của luồng đăng ký QR
+    (session_token, guest_session_id, session_id, post_scan_token, token, qr_token, scan_nonce).
+    """
+    if not isinstance(payload, dict):
+        return False
+    if mgr3 is None:
+        mgr3 = get_auth_3layer_manager()
+
+    for strict_qr_key in ("post_scan_token", "scan_nonce", "qr_token"):
+        raw_v = payload.get(strict_qr_key)
+        if raw_v is not None and not isinstance(raw_v, bool) and str(raw_v).strip():
+            return True
+
+    for tok_key in ("session_token", "guest_session_id", "session_id", "token"):
+        raw_v = payload.get(tok_key)
+        if isinstance(raw_v, (str, int, float)) and not isinstance(raw_v, bool):
+            clean_v = str(raw_v).strip()
+            if clean_v and is_qr_registration_token_or_session(clean_v, mgr3=mgr3):
+                return True
+
+    nested_sess = payload.get("session")
+    if isinstance(nested_sess, dict) and nested_sess is not payload:
+        if _is_qr_registration_payload_dict(nested_sess, mgr3=mgr3):
+            return True
+
+    return False
+
+
+def _is_qr_registration_raw_body(raw_body: bytes, mgr3: Any = None) -> bool:
+    """Phân tích body thô (JSON hoặc form-urlencoded) để chặn token/session đăng ký QR đi sang các route khác."""
+    if not raw_body or not raw_body.strip():
+        return False
+    if mgr3 is None:
+        mgr3 = get_auth_3layer_manager()
+    try:
+        text = raw_body.decode("utf-8").strip()
+    except Exception:
+        return False
+    if not text:
+        return False
+
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and _is_qr_registration_payload_dict(parsed, mgr3=mgr3):
+            return True
+    except Exception:
+        pass
+
+    if "=" in text and not text.startswith("{"):
+        try:
+            qs_map = {k: v[0] for k, v in parse_qs(text, keep_blank_values=False).items() if v}
+            if qs_map and _is_qr_registration_payload_dict(qs_map, mgr3=mgr3):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
 app = FastAPI(
     title="Smart Home Voice AI Simulator",
     description="Nhà thông minh điều khiển giọng nói tiếng Việt với Gemini 3.8 Live & NodeMCU ESP8266",
@@ -164,21 +227,33 @@ app.add_middleware(
 
 @app.middleware("http")
 async def enforce_isolated_qr_registration_session(request: Request, call_next: Any) -> Response:
-    """Cô lập tuyệt đối phiên/token đăng ký QR (Requirement 6):
-    Phiên hoặc token đăng ký QR chỉ được phép truy cập trang đăng ký độc lập (/guest, /guest_enroll, /guest-qr)
+    """Cô lập tuyệt đối phiên/token đăng ký QR (Requirement 6 & Fix N2):
+    Phiên hoặc token đăng ký QR (trên mọi carrier: cookie, header, query, JSON/form body)
+    chỉ được phép truy cập trang đăng ký độc lập (/guest, /guest_enroll, /guest-qr)
     và các API đăng ký khách tương ứng; từ chối 403 đối với mọi route khác trong hệ thống.
     """
     path = request.url.path.rstrip("/") or "/"
-    if _is_qr_registration_session_request(request):
-        if path not in _QR_ISOLATED_ALLOWED_PATHS:
+    if path not in _QR_ISOLATED_ALLOWED_PATHS:
+        is_qr_isolated = _is_qr_registration_session_request(request)
+        if not is_qr_isolated:
+            try:
+                raw_body = await request.body()
+            except Exception:
+                raw_body = b""
+            if raw_body:
+                is_qr_isolated = _is_qr_registration_raw_body(raw_body)
+
+        if is_qr_isolated:
             # Chỉ cho phép ngoại lệ duy nhất khi chính Chủ nhà Cấp 1 (mang Bearer token Admin Cấp 1 hợp lệ)
             # gọi endpoint phát hành mã QR mới trên cùng TestClient.
             if path in ("/api/auth3/guest_qr_current", "/api/auth3/qr/generate"):
                 auth_hdr = str(request.headers.get("authorization") or "").strip()
-                if auth_hdr.lower().startswith("bearer ") and not auth_hdr[7:].strip().startswith("guest_sess_"):
-                    sess = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
-                    if sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN":
-                        return await call_next(request)
+                if auth_hdr.lower().startswith("bearer "):
+                    bearer_tok = auth_hdr[7:].strip()
+                    if bearer_tok and not is_qr_registration_token_or_session(bearer_tok):
+                        sess = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
+                        if sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN":
+                            return await call_next(request)
             return JSONResponse(
                 {
                     "ok": False,
@@ -189,6 +264,24 @@ async def enforce_isolated_qr_registration_session(request: Request, call_next: 
                 status_code=403,
             )
     return await call_next(request)
+
+
+@app.exception_handler(RequestValidationError)
+async def custom_validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
+    """Defense-in-depth (Fix N1): Nếu bất kỳ route đăng ký khách QR nào phát sinh RequestValidationError (422),
+    tự động hủy phiên quét đang gắn kết và bắt buộc quét lại QR mới.
+    """
+    path = request.url.path.rstrip("/") or "/"
+    if path in _QR_ISOLATED_ALLOWED_PATHS or path.startswith("/api/auth3/guest"):
+        from simulator.api.routes_qr import _invalidate_bound_session_on_malformed_payload
+
+        mgr3 = get_auth_3layer_manager()
+        try:
+            raw_body = await request.body()
+        except Exception:
+            raw_body = b""
+        return _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
 
 
 @app.middleware("http")
