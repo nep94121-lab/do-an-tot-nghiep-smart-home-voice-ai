@@ -1,4 +1,5 @@
 let lockedSessionId = '';
+let lockedPostScanToken = '';
 let guestDurationCode = '1d';
 let guestDurationLabel = '1 ngày';
 let guestTargetTier = 3;
@@ -49,11 +50,32 @@ function setButtonLoading(btn, isLoading, loadingText) {
   }
 }
 
+function lockGuestFormRequiringRescan(reasonText) {
+  lockedSessionId = '';
+  lockedPostScanToken = '';
+  lastValidGuestPcmB64 = '';
+  lastVerifiedGuestData = null;
+  const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
+  const recBtn = document.getElementById('btnRecordGuestVoice');
+  const badge = document.getElementById('handshakeBadge');
+  const box = document.getElementById('handshakeStatus');
+  if (okBtn) okBtn.disabled = true;
+  if (recBtn) recBtn.disabled = true;
+  if (badge) {
+    badge.className = 'badge badge-err';
+    badge.textContent = 'Yêu cầu quét lại QR';
+  }
+  if (box) {
+    box.style.borderColor = 'var(--red-border)';
+    box.style.background = 'var(--red-soft)';
+    box.textContent = reasonText || 'Phiên đăng ký không hợp lệ, đã hết hạn hoặc bị hủy do thao tác lỗi. Vui lòng quét lại mã QR của Chủ nhà để lấy token mới!';
+  }
+}
+
 function onGuestTierChange(val) {
   const t = parseInt(val || '3', 10);
   guestTargetTier = (t === 2) ? 2 : 3;
   updateGuestPromptByRole();
-  refreshGuestQrNow();
 }
 
 function updateGuestPromptByRole(sampleIdx) {
@@ -76,47 +98,11 @@ function updateGuestPromptByRole(sampleIdx) {
 
 function onDurationChange(val) {
   guestDurationCode = val || '1d';
-  refreshGuestQrNow();
 }
 
 async function refreshGuestQrNow() {
-  try {
-    const sel = document.getElementById('guestDurationSelect');
-    const dur = (sel && sel.value) ? sel.value : (guestDurationCode || '1d');
-    guestDurationCode = dur;
-    guestTargetTier = 3;
-    const res = await fetch(`/api/auth3/guest_qr_current?duration=${encodeURIComponent(dur)}&target_tier=3&host=${encodeURIComponent(location.host)}`);
-    const data = await res.json();
-    if (!data.ok) return;
-
-    currentGuestToken = data.token;
-    const box = document.getElementById('guestQrSvgBox');
-    if (box && data.qr_svg) {
-      box.innerHTML = data.qr_svg;
-      const svgEl = box.querySelector('svg');
-      if (svgEl) {
-        svgEl.setAttribute('width', '96');
-        svgEl.setAttribute('height', '96');
-        svgEl.style.width = '96px';
-        svgEl.style.height = '96px';
-        svgEl.style.display = 'block';
-      }
-    }
-    const badge = document.getElementById('guestQrCountdownBadge');
-    if (badge) {
-      const rem = data.remaining_slot_sec || data.remaining_Slot_sec || 10;
-      badge.textContent = `Còn ${rem}s`;
-      badge.className = rem <= 3 ? 'badge badge-warn' : 'badge badge-ok';
-    }
-    const tokBox = document.getElementById('guestQrTokenBox');
-    if (tokBox) {
-      tokBox.textContent = `Token: ${data.token} · Cấp 3 (Khách)`;
-    }
-
-    if (!lockedSessionId) {
-      await doGuestHandshake(data.token, dur);
-    }
-  } catch (e) {}
+  // Trang đăng ký khách độc lập tuyệt đối không tự gọi cấp mã QR mới của Chủ nhà
+  return;
 }
 
 async function doGuestHandshake(token, dur, targetWindow) {
@@ -137,38 +123,53 @@ async function doGuestHandshake(token, dur, targetWindow) {
 
     if (data.ok) {
       lockedSessionId = data.session ? data.session.session_id : data.session_id;
+      lockedPostScanToken = (data.session && data.session.post_scan_token) ? data.session.post_scan_token : (data.post_scan_token || '');
       guestDurationCode = data.session ? data.session.duration_code : (data.duration_code || dur || '1d');
       guestDurationLabel = data.session ? data.session.duration_label : (data.duration_label || '1 ngày');
       if (badge) {
         badge.className = 'badge badge-ok';
-        badge.textContent = 'Khách · Cấp 3';
+        badge.textContent = 'Phiên Quét QR · Cấp 3';
       }
       if (durBadge) durBadge.textContent = guestDurationLabel;
       if (box && !lastValidGuestPcmB64) {
         box.style.borderColor = '#cce5e3';
         box.style.background = 'var(--accent-soft)';
-        box.textContent = `Sẵn sàng đăng ký Khách Cấp 3 (Thời hạn: ${guestDurationLabel}). Hãy nhập Họ tên, Email và bấm Thu âm giọng nói.`;
+        box.textContent = `Sẵn sàng đăng ký Khách Cấp 3 một lần (Thời hạn: ${guestDurationLabel}). Hãy nhập Họ tên, Email và bấm Thu âm giọng nói.`;
       }
     } else {
-      await refreshGuestQrNow();
+      lockGuestFormRequiringRescan(data.error || 'Liên kết QR không hợp lệ hoặc đã được sử dụng. Vui lòng quét lại mã QR mới của Chủ nhà!');
     }
-  } catch (err) {}
+  } catch (err) {
+    lockGuestFormRequiringRescan('Không thể xác thực phiên quét QR. Vui lòng quét lại mã QR của Chủ nhà!');
+  }
 }
 
 async function initQrHandshake() {
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token');
+  const urlSessionId = params.get('session_id') || params.get('guest_session_id');
+  const urlPostScanToken = params.get('post_scan_token');
   const urlWindow = params.get('window');
   const dur = params.get('dur') || '1d';
   guestDurationCode = dur;
   guestTargetTier = 3;
-  const sel = document.getElementById('guestDurationSelect');
-  if (sel) sel.value = dur;
-  const tierSel = document.getElementById('guestTierSelect');
-  if (tierSel) tierSel.value = '3';
   updateGuestPromptByRole();
 
-  if (urlToken) {
+  if (urlSessionId) {
+    lockedSessionId = urlSessionId;
+    lockedPostScanToken = urlPostScanToken || '';
+    const badge = document.getElementById('handshakeBadge');
+    const box = document.getElementById('handshakeStatus');
+    if (badge) {
+      badge.className = 'badge badge-ok';
+      badge.textContent = 'Phiên Quét QR · Cấp 3';
+    }
+    if (box) {
+      box.style.borderColor = '#cce5e3';
+      box.style.background = 'var(--accent-soft)';
+      box.textContent = 'Phiên đăng ký một lần đã gắn kết với thiết bị này. Hãy nhập Họ tên, Email và thu âm giọng nói.';
+    }
+  } else if (urlToken) {
     currentGuestToken = urlToken;
     const tokBox = document.getElementById('guestQrTokenBox');
     if (tokBox) {
@@ -176,70 +177,26 @@ async function initQrHandshake() {
     }
     await doGuestHandshake(urlToken, dur, urlWindow);
   } else {
-    let hasSession = false;
-    try {
-      hasSession = Boolean(
-        (window.localStorage && (window.localStorage.getItem('session_token') || window.localStorage.getItem('smarthome_auth_session'))) ||
-        (document.cookie && (document.cookie.includes('sh_session_token=') || document.cookie.includes('session_token=')))
-      );
-    } catch (_) {}
-    if (hasSession) {
-      await refreshGuestQrNow();
-    } else {
-      const badge = document.getElementById('handshakeBadge');
-      const box = document.getElementById('handshakeStatus');
-      const durBadge = document.getElementById('durationBadge');
-      if (badge) {
-        badge.className = 'badge badge-ok';
-        badge.textContent = 'Khách · Cấp 3';
-      }
-      if (durBadge) durBadge.textContent = guestDurationLabel;
-      if (box && !lastValidGuestPcmB64) {
-        box.style.borderColor = '#cce5e3';
-        box.style.background = 'var(--accent-soft)';
-        box.textContent = `Sẵn sàng đăng ký Khách Cấp 3 (Thời hạn: ${guestDurationLabel}). Hãy nhập Họ tên, Email và bấm Thu âm giọng nói.`;
-      }
-    }
+    lockGuestFormRequiringRescan('Yêu cầu quét mã QR của Chủ nhà (Cấp 1) để mở phiên đăng ký một lần gắn kết thiết bị!');
   }
 }
 
 function recreateInvite() {
-  lockedSessionId = '';
-  lastValidGuestPcmB64 = '';
-  const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
-  if (okBtn) okBtn.disabled = true;
-  refreshGuestQrNow();
+  lockGuestFormRequiringRescan('Để thử lại hoặc tạo phiên mới, vui lòng quét lại trực tiếp mã QR của Chủ nhà!');
 }
 
 async function copyInviteLink() {
-  const box = document.getElementById('handshakeStatus');
-  try {
-    await navigator.clipboard.writeText(window.location.origin + '/guest');
-    if (box) box.textContent = 'Đã sao chép liên kết /guest vào bộ nhớ tạm.';
-  } catch (_) {
-    if (box) box.textContent = 'Đã sẵn sàng sao chép liên kết /guest.';
-  }
+  // Chặn sao chép liên kết sau quét vì liên kết gắn chặt với phiên thiết bị quét
+  return;
 }
 
 function cancelInvite() {
-  lockedSessionId = '';
-  lastValidGuestPcmB64 = '';
-  const badge = document.getElementById('handshakeBadge');
-  const box = document.getElementById('handshakeStatus');
-  const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
-  if (okBtn) okBtn.disabled = true;
-  if (badge) {
-    badge.className = 'badge badge-err';
-    badge.textContent = 'Đã hủy';
-  }
-  if (box) box.textContent = 'Đã hủy phiên đăng ký hiện tại.';
+  lockGuestFormRequiringRescan('Đã hủy phiên đăng ký hiện tại. Vui lòng quét lại mã QR của Chủ nhà nếu cần đăng ký!');
 }
 
 function revokeGuestAccess(name) {
-  if (window.confirm(`Bạn muốn thu hồi quyền truy cập của ${name}?`)) {
-    const box = document.getElementById('handshakeStatus');
-    if (box) box.textContent = `Đã thu hồi quyền truy cập của ${name}.`;
-  }
+  const box = document.getElementById('handshakeStatus');
+  if (box) box.textContent = `Đã thu hồi quyền truy cập của ${name}.`;
 }
 
 async function toggleGuestMicRecording() {
@@ -640,6 +597,7 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: lockedSessionId,
+        post_scan_token: lockedPostScanToken,
         guest_name: guestName,
         guest_email: guestEmail,
         target_tier: 3,
@@ -673,20 +631,14 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
         statusBox.textContent = `Giọng nói hợp lệ! Đã lưu quyền Khách (Cấp 3) cho "${guestName}"${emailSuffix}.`;
       }
     } else {
-      lastValidGuestPcmB64 = '';
-      lastVerifiedGuestData = null;
-      if (okBtn) okBtn.disabled = true;
-      if (badge) {
-        badge.className = 'badge badge-warn';
-        badge.textContent = 'Cần thu lại';
-      }
+      lockGuestFormRequiringRescan(data.message || data.error || 'Thao tác lỗi hoặc giọng nói chưa đạt chuẩn. Phiên đăng ký đã bị hủy, vui lòng quét lại mã QR của Chủ nhà để lấy token mới!');
       if (box) {
         box.style.borderColor = 'var(--red-border)';
         box.style.background = 'var(--red-soft)';
         if (data.status === 'DUPLICATE_VOICE_REJECTED') {
-          box.textContent = `❌ KHÔNG ĐẠT: ${data.message || 'Trùng giọng người đã có trong nhà'} — Vui lòng bấm "Thu lại"!`;
+          box.textContent = `❌ KHÔNG ĐẠT: ${data.message || 'Trùng giọng người đã có trong nhà'} — Vui lòng quét lại mã QR mới của Chủ nhà!`;
         } else {
-          box.textContent = `⚠️ CHƯA ĐẠT: ${data.message || data.error || 'Chưa nhận rõ giọng nói hoặc quá ngắn.'} Vui lòng bấm "Thu lại"!`;
+          box.textContent = `⚠️ CHƯA ĐẠT: ${data.message || data.error || 'Chưa nhận rõ giọng nói hoặc quá ngắn.'} Vui lòng quét lại mã QR mới của Chủ nhà!`;
         }
       }
     }
@@ -794,16 +746,7 @@ async function retryGuestVoiceRecording() {
   if (isGuestRecording) {
     await stopGuestMicRecording();
   }
-  lastValidGuestPcmB64 = '';
-  const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
-  if (okBtn) okBtn.disabled = true;
-  const box = document.getElementById('voiceEnrollResult');
-  if (box) {
-    box.style.borderColor = 'var(--line)';
-    box.style.background = '#fcfdfe';
-    box.textContent = 'Đang mở micro thu âm lại...';
-  }
-  await startGuestMicRecording();
+  lockGuestFormRequiringRescan('Để thử lại, bạn bắt buộc phải quét lại mã QR của Chủ nhà (Cấp 1) để lấy token mới!');
 }
 
 async function submitDoubleEmailOtp() {
@@ -820,6 +763,7 @@ async function submitDoubleEmailOtp() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: lockedSessionId,
+      post_scan_token: lockedPostScanToken,
       guest_name: guestName,
       email_1: email1,
       email_2: email2,
@@ -838,10 +782,11 @@ async function submitDoubleEmailOtp() {
       box.textContent = `Đã gửi mã xác nhận tới ${email1}.`;
     }
   } else {
+    lockGuestFormRequiringRescan(data.error || 'Email chưa hợp lệ. Vui lòng quét lại mã QR của Chủ nhà!');
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = data.error || 'Email chưa hợp lệ. Vui lòng kiểm tra lại.';
+      box.textContent = data.error || 'Email chưa hợp lệ. Vui lòng quét lại mã QR của Chủ nhà.';
     }
   }
 }
@@ -857,7 +802,12 @@ async function verifyGuestEmailOtp() {
   const res = await fetch('/api/auth3/guest_qr_verify_otp', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: email1, otp })
+    body: JSON.stringify({
+      session_id: lockedSessionId,
+      post_scan_token: lockedPostScanToken,
+      email: email1,
+      otp
+    })
   });
   const data = await res.json();
   if (data.ok) {
@@ -871,10 +821,11 @@ async function verifyGuestEmailOtp() {
       box.textContent = 'Đã kích hoạt tài khoản khách.';
     }
   } else {
+    lockGuestFormRequiringRescan(data.error || 'Mã xác nhận chưa đúng. Vui lòng quét lại mã QR của Chủ nhà!');
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = data.error || 'Mã xác nhận chưa đúng. Vui lòng thử lại.';
+      box.textContent = data.error || 'Mã xác nhận chưa đúng. Vui lòng quét lại mã QR của Chủ nhà.';
     }
   }
 }

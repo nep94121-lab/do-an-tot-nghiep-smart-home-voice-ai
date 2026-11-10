@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Đăng ký Khách (Cấp 3) · Nhà thông minh</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <title>Đăng ký Khách Độc lập (Cấp 3) · Phiên Quét QR Một Lần</title>
   <link rel="stylesheet" href="/static/css/guest_enroll.css" />
 </head>
 <body>
@@ -14,28 +11,14 @@
     <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
   </svg>
 
-  <header class="guesttop">
-    <a class="brand" href="/">Nhà thông minh</a>
-    <nav class="top-links" aria-label="Điều hướng chính">
-      <a href="/" class="text-link">Tổng quan</a>
-      <a href="/auth" class="text-link">Xác thực</a>
-      <a href="/wokwi" class="text-link">Phần cứng</a>
-      <a href="/logs" class="text-link">Nhật ký</a>
-      <a href="/app" class="text-link">Ứng dụng</a>
-      <a href="/guest_enroll" class="text-link active" aria-current="page">Khách</a>
-      <a href="/login" class="text-link">Đăng nhập</a>
-      <a href="/register" class="text-link">Đăng ký</a>
-      <span class="badge badge-ok" id="handshakeBadge">Khách · Cấp 3</span>
-    </nav>
-  </header>
-
   <main class="guest">
     <section class="card" id="voiceEnrollCard">
       <div class="header-row">
         <h1>Đăng ký Khách (Cấp 3)</h1>
+        <span class="badge badge-ok" id="handshakeBadge">Phiên Quét QR · Cấp 3</span>
       </div>
       <p class="lead-desc">
-        Nhập họ tên, email và thu âm giọng nói để nhận quyền Khách Cấp 3 (điều khiển đèn, quạt cơ bản) — không cần đăng nhập.
+        Trang đăng ký độc lập dành riêng cho thiết bị vừa quét mã QR của Chủ nhà (Cấp 1). Liên kết chỉ có hiệu lực một lần duy nhất; nếu nhập sai vui lòng quét lại mã QR mới.
       </p>
 
       <label class="field-label" for="guestNameInput">1. Họ và tên khách</label>
@@ -50,7 +33,7 @@
           <span class="badge badge-ok" id="guestSampleProgressBadge">Mẫu 1/5 · 3–5 giây/mẫu</span>
         </div>
         <p class="sub-hint">
-          Đọc 5 câu mẫu riêng biệt bên dưới (mỗi mẫu 3–5 giây) để đăng ký giọng nói Khách Cấp 3 bằng WeSpeaker ResNet34 ONNX.
+          Đọc câu mẫu bên dưới (3–5 giây) để đăng ký giọng nói Khách Cấp 3 bằng WeSpeaker ResNet34 ONNX.
         </p>
         <div class="prompt-box" id="readingPromptBox">
           "Mẫu 1/5 (3–5s): Xin chào ngôi nhà, tôi là Khách đến chơi nhà đăng ký quyền Khách đến chơi nhà (Cấp 3) để điều khiển thiết bị bằng giọng nói."
@@ -60,13 +43,10 @@
             <svg class="icon"><use href="#i-mic"/></svg>
             <span id="btnRecordGuestVoiceText">🎤 Bấm để Thu âm giọng nói</span>
           </button>
-          <button id="btnRetryGuestVoice" type="button" class="btn btn-secondary" onclick="retryGuestVoiceRecording()">🔄 Thu lại</button>
         </div>
 
-        <!-- Khung Cảnh Báo Lỗi Microphone (Tiếng Việt) -->
         <div id="micErrorAlert" class="alert-box alert-error" style="display:none;" role="alert"></div>
 
-        <!-- Khung Trạng Thái Ghi Âm Trực Quan (Live Recording Indicator) -->
         <div id="recordingIndicatorBox" class="recording-state-box" style="display:none;" aria-live="polite">
           <div class="recording-badge">
             <span class="blinking-red-dot" id="recordingDot" aria-hidden="true"></span>
@@ -80,7 +60,6 @@
 
         <div id="voiceEnrollResult" class="status-box">Nhấn "Bấm để Thu âm giọng nói" để ghi mẫu giọng của bạn.</div>
 
-        <!-- Khối Tải Lên Tệp Âm Thanh Dự Phòng (Audio File Upload Fallback) -->
         <div class="audio-upload-container" id="audioUploadContainer">
           <div class="upload-separator"><span>HOẶC TẢI LÊN TỆP ÂM THANH</span></div>
           <label for="guestAudioFileInput" class="btn btn-secondary btn-upload" id="btnUploadAudioLabel">
@@ -97,33 +76,13 @@
             ✅ Lưu &amp; Kích hoạt quyền Khách (Cấp 3)
           </button>
         </div>
-        <!-- Khung Thông Báo Kết Quả Sau Khi Lưu -->
         <div id="saveFeedbackAlert" class="alert-box" style="display:none;" role="status"></div>
         <div id="handshakeStatus" class="status-box">Nhập Họ tên, Email và thu âm giọng nói ở trên để kích hoạt quyền Khách Cấp 3.</div>
       </div>
 
-      <!-- Khung ẩn giữ tương thích ngược 100% với các selector DOM cũ -->
       <div id="guestLegacyCompatContainer" hidden>
-        <div id="guestQrSvgBox"></div>
-        <span id="guestQrCountdownBadge">10s</span>
-        <div id="guestQrTokenBox"></div>
-        <select id="guestTierSelect" onchange="onGuestTierChange(this.value)">
-          <option value="3" selected>Khách đến chơi nhà (Cấp 3)</option>
-          <option value="2">Thành viên gia đình (Cấp 2)</option>
-        </select>
-        <select id="guestDurationSelect" onchange="onDurationChange(this.value)">
-          <option value="1d" selected>1 ngày</option>
-          <option value="2d">2 ngày</option>
-          <option value="1w">1 tuần</option>
-          <option value="1m">1 tháng</option>
-          <option value="1y">1 năm</option>
-        </select>
         <span id="durationBadge">1 ngày</span>
-        <div id="inviteCreatedActions">
-          <button type="button" onclick="recreateInvite()">Làm mới mã QR</button>
-          <button type="button" onclick="copyInviteLink()">Sao chép liên kết QR</button>
-          <button type="button" onclick="cancelInvite()">Hủy</button>
-        </div>
+        <div id="guestQrTokenBox"></div>
         <input type="email" id="guestEmail1" value="" />
         <input type="email" id="guestEmail2" value="" />
         <button type="button" onclick="submitDoubleEmailOtp()">Gửi mã OTP</button>

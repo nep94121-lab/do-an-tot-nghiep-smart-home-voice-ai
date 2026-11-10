@@ -1604,6 +1604,9 @@ class ThreeLayerAuthManager(
             issuer_tier=1,
             duration_type=dur_val,
             host_url=host_val,
+            owner_id=kwargs.get("owner_id"),
+            target_tier=int(kwargs.get("target_tier", 3)),
+            invalidate_previous=bool(kwargs.get("invalidate_previous", True)),
         )
 
     def consume_guest_handshake(
@@ -1648,6 +1651,7 @@ class ThreeLayerAuthManager(
             target_window=target_window,
             used_token_store=used_token_store,
             duration_type=duration_type,
+            **kwargs,
         )
         if res.get("ok"):
             gsid = str(res.get("guest_session_id") or "")

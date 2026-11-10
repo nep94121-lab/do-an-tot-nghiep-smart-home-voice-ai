@@ -59,7 +59,10 @@ class TestTOTPHandshakeAdversarial:
 
     def test_valid_handshake_succeeds(self, client: TestClient) -> None:
         """Token hợp lệ sinh ra từ server phải handshake thành công (HTTP 200)."""
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d")
+        cur = client.get(
+            "/api/auth3/guest_qr_current?duration=1d",
+            headers={"Authorization": "Bearer sess_owner_t1_nep94121"},
+        )
         assert cur.status_code == 200
         tok = cur.json()["token"]
         win = cur.json()["window"]
@@ -105,7 +108,10 @@ class TestTOTPHandshakeAdversarial:
 
     def test_genuine_token_with_mismatched_target_window_rejected_401(self, client: TestClient) -> None:
         """Token thật nhưng bị gửi kèm target_window bịa đặt/sai lệch -> Bị từ chối với HTTP 401."""
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d").json()
+        cur = client.get(
+            "/api/auth3/guest_qr_current?duration=1d",
+            headers={"Authorization": "Bearer sess_owner_t1_nep94121"},
+        ).json()
         tok = cur["token"]
         real_win = cur["window"]
 
@@ -142,7 +148,10 @@ class TestTOTPHandshakeAdversarial:
         """Tấn công Replay: Token đã bị đốt (burned) sau lần handshake đầu tiên.
         Lần 2, 3 bắt buộc bị từ chối với HTTP 400 (Single-Use Token).
         """
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d").json()
+        cur = client.get(
+            "/api/auth3/guest_qr_current?duration=1d",
+            headers={"Authorization": "Bearer sess_owner_t1_nep94121"},
+        ).json()
         tok = cur["token"]
 
         # Lần 1: Thành công
