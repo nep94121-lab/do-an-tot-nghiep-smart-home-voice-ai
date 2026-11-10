@@ -517,6 +517,19 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
             assert r_anon_old_48h["stale_ignored"] is True
             assert r_anon_old_48h["state"] == "OFF"
 
+            # Same named client_id ("same-tab") omitting / zeroing client_seq after c_prev_seq=11 must also be rejected
+            r_zero_seq_same_cid = await e1.execute_device_action(
+                "fan",
+                target_state="ON",
+                client_id="same-tab",
+                client_seq=0,
+                client_ts_ms=t + 5_000,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_zero_seq_same_cid["stale_ignored"] is True
+            assert r_zero_seq_same_cid["state"] == "OFF"
+
     asyncio.run(_run())
 
     # Also verify via FastAPI HTTP /api/device endpoint
@@ -1731,11 +1744,68 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
 
             intercept_mode = ""
             fulfilled_evt = asyncio.Event()
+            held_overlap_req1: list[tuple[Any, Any]] = []
+            overlap_req1_seen = asyncio.Event()
 
             async def handle_route(route: Any, request: Any) -> None:
                 nonlocal intercept_mode
                 if not request.url.startswith(base_url):
                     await route.abort()
+                    return
+                if intercept_mode == "overlap_hold_first" and "/api/device" in request.url and request.method == "POST":
+                    intercept_mode = "overlap_handle_second"
+                    held_overlap_req1.append((route, request))
+                    overlap_req1_seen.set()
+                    return
+                if intercept_mode == "overlap_handle_second" and "/api/device" in request.url and request.method == "POST":
+                    intercept_mode = ""
+                    route1, _ = held_overlap_req1.pop(0)
+                    resp_1 = await route1.fetch()
+                    body_1 = json.loads((await resp_1.body()).decode("utf-8"))
+                    resp_2 = await route.fetch()
+                    body_2 = json.loads((await resp_2.body()).decode("utf-8"))
+                    active_st = "OPEN" if dev_id == "main_door" else "ON"
+                    body_ext = await asyncio.to_thread(
+                        _api_post,
+                        {
+                            "device_id": dev_id,
+                            "target_state": active_st,
+                            "client_id": f"f7_http_overlap_ext_{dev_id}",
+                            "client_seq": 1,
+                            "client_ts_ms": int(time.time() * 1000) + 50,
+                        },
+                    )
+                    assert body_ext["device_version"] > body_2["device_version"] >= body_1["device_version"]
+                    await page.evaluate(
+                        "(arg) => window[arg.fn](arg.snap)",
+                        {"fn": render_fn, "snap": body_ext["snapshot"]},
+                    )
+                    await asyncio.sleep(0.05)
+                    # Fulfill newer request #2 FIRST (pendingCount 2 -> 1), then older request #1 SECOND (pendingCount 1 -> 0)
+                    await route.fulfill(response=resp_2)
+                    await asyncio.sleep(0.05)
+                    await route1.fulfill(response=resp_1)
+                    fulfilled_evt.set()
+                    return
+                if intercept_mode == "fail_after_newer_snap" and "/api/device" in request.url and request.method == "POST":
+                    intercept_mode = ""
+                    body_ext_off = await asyncio.to_thread(
+                        _api_post,
+                        {
+                            "device_id": dev_id,
+                            "target_state": inactive_st,
+                            "client_id": f"f7_http_fail_ext_{dev_id}",
+                            "client_seq": 1,
+                            "client_ts_ms": int(time.time() * 1000) + 80,
+                        },
+                    )
+                    await page.evaluate(
+                        "(arg) => window[arg.fn](arg.snap)",
+                        {"fn": render_fn, "snap": body_ext_off["snapshot"]},
+                    )
+                    await asyncio.sleep(0.05)
+                    await route.abort("failed")
+                    fulfilled_evt.set()
                     return
                 if intercept_mode and "/api/device" in request.url and request.method == "POST":
                     mode_now = intercept_mode
@@ -1806,12 +1876,35 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
             await asyncio.sleep(0.08)
             assert (await _read_ui_is_active()) is False, f"Pending-interleaved stale HTTP response stuck on {path}"
 
+            # Phase 3: 2 overlapping HTTP requests (#1 ON, #2 OFF) + newer Snapshot ON (v4) while both pending,
+            # resolved out-of-order (#2 first: pending 2->1, #1 second: pending 1->0) must converge to ON (v4)
+            fulfilled_evt.clear()
+            overlap_req1_seen.clear()
+            intercept_mode = "overlap_hold_first"
+            await page.click(click_sel)
+            await asyncio.wait_for(overlap_req1_seen.wait(), timeout=10.0)
+            await page.click(click_sel)
+            await asyncio.wait_for(fulfilled_evt.wait(), timeout=10.0)
+            await asyncio.sleep(0.08)
+            assert (await _read_ui_is_active()) is True, f"Overlapping out-of-order HTTP responses stuck at OFF on {path}"
+            if path == "/wokwi" and dev_id == "garden_pump":
+                pump_txt = await page.locator("#pump_state_txt").text_content()
+                assert pump_txt is not None and "ON" in pump_txt, f"Wokwi garden_pump SVG out of sync: {pump_txt}"
+
+            # Phase 4: Click OFF while ON, newer Snapshot OFF arrives while pending, then request fails -> stays OFF
+            fulfilled_evt.clear()
+            intercept_mode = "fail_after_newer_snap"
+            await page.click(click_sel)
+            await asyncio.wait_for(fulfilled_evt.wait(), timeout=10.0)
+            await asyncio.sleep(0.08)
+            assert (await _read_ui_is_active()) is False, f"Rollback overwrote newer serverKnownState on {path}"
+
             await page.unroute_all(behavior="ignoreErrors")
             await ctx.close()
 
         await asyncio.gather(
             _check_ui("/", "#dev-card-bedroom_light", "bedroom_light", "OFF", "applySnapshot", True),
             _check_ui("/app", "#mobileQuickBtnFan", "fan", "OFF", "renderState", True),
-            _check_ui("/wokwi", "#btn_living_room_light", "living_room_light", "OFF", "syncWokwiComponents", True),
+            _check_ui("/wokwi", "#btn_garden_pump", "garden_pump", "OFF", "syncWokwiComponents", True),
         )
         await browser.close()

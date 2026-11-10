@@ -942,9 +942,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 c_prev_req_id = str(c_rec.get("req_id", "") or "")
 
                 is_stale_or_conflict = False
-                if req_seq > 0 or req_ts_ms > 0:
+                if req_seq > 0 or req_ts_ms > 0 or (cid_key != "__anon__" and c_prev_seq > 0):
                     if cid_key != "__anon__":
-                        if req_seq > 0:
+                        if req_seq > 0 or c_prev_seq > 0:
                             if req_seq < c_prev_seq:
                                 is_stale_or_conflict = True
                             elif req_seq == c_prev_seq and c_prev_seq > 0:

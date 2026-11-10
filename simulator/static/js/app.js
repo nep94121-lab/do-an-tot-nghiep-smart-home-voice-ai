@@ -435,6 +435,7 @@
         serverKnownState: initSt,
         serverKnownVersion: initVer,
         serverKnownRevisionSeq: lastServerRevisionSeq,
+        needsServerKnownSync: false,
         lastConfirmedSeq: initSeq,
         httpPendingCount: 0,
         wsPendingTimers: {},
@@ -461,6 +462,28 @@
     }
   }
 
+  function reconcileIdleDeviceToServerKnown(devId, ctrl) {
+    if (!ctrl || ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) return false;
+    const knownVer = Number(ctrl.serverKnownVersion || 0);
+    const curVer = Number(ctrl.lastVersion || 0);
+    if (!ctrl.needsServerKnownSync && !(knownVer > 0 && knownVer > curVer)) {
+      return false;
+    }
+    const dev = latestDevicesMap[devId];
+    const authNewer = String(
+      ctrl.serverKnownState || ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF")
+    ).toUpperCase();
+    ctrl.confirmedState = authNewer;
+    ctrl.desiredState = authNewer;
+    ctrl.lastVersion = Math.max(curVer, knownVer);
+    ctrl.needsServerKnownSync = false;
+    if (dev) {
+      dev.version = ctrl.lastVersion;
+    }
+    syncDeviceDOMToState(devId, authNewer);
+    return true;
+  }
+
   function dispatchDeviceSetState(devId, mySeq, targetState, myTs) {
     const dev = latestDevicesMap[devId];
     const ctrl = getDeviceControlState(devId);
@@ -472,9 +495,23 @@
     const reqId = `${CLIENT_ID}:${devId}:${mySeq}`;
 
     const rollbackIfLatest = () => {
-      if (mySeq !== ctrl.seq) return;
-      const revertState = ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF");
+      if (mySeq !== ctrl.seq) {
+        reconcileIdleDeviceToServerKnown(devId, ctrl);
+        return;
+      }
+      const hasNewerKnown =
+        Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
+      const revertState = String(
+        hasNewerKnown
+          ? ctrl.serverKnownState
+          : ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")
+      ).toUpperCase();
+      ctrl.confirmedState = revertState;
       ctrl.desiredState = revertState;
+      if (hasNewerKnown) {
+        ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+      }
+      ctrl.needsServerKnownSync = false;
       syncDeviceDOMToState(devId, revertState);
     };
 
@@ -490,6 +527,7 @@
         delete ctrl.wsPendingTimers[seqKey];
         if (ctrl.wsPendingMeta) delete ctrl.wsPendingMeta[seqKey];
         recomputeDevicePendingCount(ctrl);
+        reconcileIdleDeviceToServerKnown(devId, ctrl);
       }, WS_PENDING_TIMEOUT_MS);
       recomputeDevicePendingCount(ctrl);
 
@@ -529,6 +567,7 @@
           recomputeDevicePendingCount(ctrl);
           // Ignore stale out-of-order response if a newer local click has occurred
           if (mySeq < ctrl.seq) {
+            reconcileIdleDeviceToServerKnown(devId, ctrl);
             return;
           }
           const respVer = Number(
@@ -554,18 +593,8 @@
               (respVer === 0 || maxKnownVer === 0 || respVer <= maxKnownVer));
           if (isSupersededResponse) {
             ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, mySeq);
-            if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
-              const authNewer = String(
-                ctrl.serverKnownState || ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")
-              ).toUpperCase();
-              ctrl.confirmedState = authNewer;
-              ctrl.desiredState = authNewer;
-              ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
-              if (latestDevicesMap[devId]) {
-                latestDevicesMap[devId].version = ctrl.lastVersion;
-              }
-              syncDeviceDOMToState(devId, authNewer);
-            }
+            ctrl.needsServerKnownSync = true;
+            reconcileIdleDeviceToServerKnown(devId, ctrl);
             return;
           }
           if (data && data.stale_ignored) {
@@ -575,6 +604,7 @@
             ctrl.confirmedState = authState;
             ctrl.desiredState = authState;
             ctrl.serverKnownState = authState;
+            ctrl.needsServerKnownSync = false;
             if (respVer > 0) {
               ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
               ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
@@ -597,6 +627,7 @@
           const finalState = String((data && data.state) || targetState).toUpperCase();
           ctrl.confirmedState = finalState;
           ctrl.serverKnownState = finalState;
+          ctrl.needsServerKnownSync = false;
           ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
           if (respVer > 0) {
             ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
@@ -615,7 +646,10 @@
         .catch(() => {
           ctrl.httpPendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0) - 1);
           recomputeDevicePendingCount(ctrl);
-          if (mySeq < ctrl.seq) return;
+          if (mySeq < ctrl.seq) {
+            reconcileIdleDeviceToServerKnown(devId, ctrl);
+            return;
+          }
           rollbackIfLatest();
         });
     }
@@ -707,6 +741,7 @@
           serverKnownState: String(dev.state || "").toUpperCase(),
           serverKnownVersion: serverVer,
           serverKnownRevisionSeq: snapRevisionSeq,
+          needsServerKnownSync: false,
           lastConfirmedSeq: sameClient ? serverSeq : 0,
           httpPendingCount: 0,
           wsPendingTimers: {},
@@ -720,6 +755,13 @@
         return dev;
       }
 
+      if (sameClient && serverSeq >= ctrl.seq && ctrl.debounceTimer === null) {
+        clearWsPendingUpTo(ctrl, serverSeq);
+      }
+
+      const hasPendingLocalMutation = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
+      const withinHoldWindow = ctrl.seq > 0 && nowMs - ctrl.lastClickTs < PENDING_INTENT_HOLD_MS;
+
       if (
         !isStaleSnapshotRevision &&
         (serverVer > Number(ctrl.serverKnownVersion || 0) ||
@@ -731,16 +773,14 @@
           ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRevisionSeq);
         }
         if (rawDev.state) {
-          ctrl.serverKnownState = String(rawDev.state).toUpperCase();
+          const nextKnownSt = String(rawDev.state).toUpperCase();
+          ctrl.serverKnownState = nextKnownSt;
+          ctrl.confirmedState = nextKnownSt;
+        }
+        if (hasPendingLocalMutation && !(sameClient && serverSeq >= ctrl.seq)) {
+          ctrl.needsServerKnownSync = true;
         }
       }
-
-      if (sameClient && serverSeq >= ctrl.seq && ctrl.debounceTimer === null) {
-        clearWsPendingUpTo(ctrl, serverSeq);
-      }
-
-      const hasPendingLocalMutation = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
-      const withinHoldWindow = ctrl.seq > 0 && nowMs - ctrl.lastClickTs < PENDING_INTENT_HOLD_MS;
 
       if (isStaleSnapshotRevision) {
         const curMem = latestDevicesMap[dev.id];
@@ -787,6 +827,7 @@
       // Server state is authoritative and caught up
       ctrl.confirmedState = dev.state;
       ctrl.serverKnownState = String(dev.state || "").toUpperCase();
+      ctrl.needsServerKnownSync = false;
       if (!hasPendingLocalMutation) {
         ctrl.desiredState = dev.state;
         if (sameClient && serverSeq > ctrl.seq) {
@@ -1399,23 +1440,16 @@
               if (sameCid && ackSeq > 0) {
                 ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, ackSeq);
               }
-              if (sameCid && ackSeq >= ctrl.seq && ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
-                const dev = latestDevicesMap[ackDevId];
-                const authNewer = String(
-                  ctrl.serverKnownState || ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF")
-                ).toUpperCase();
-                ctrl.confirmedState = authNewer;
-                ctrl.desiredState = authNewer;
-                ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
-                if (dev) {
-                  dev.version = ctrl.lastVersion;
-                }
-                syncDeviceDOMToState(ackDevId, authNewer);
+              if (sameCid && ackSeq >= ctrl.seq) {
+                ctrl.needsServerKnownSync = true;
               }
+              reconcileIdleDeviceToServerKnown(ackDevId, ctrl);
               break;
             }
 
-            if (sameCid && ackSeq >= ctrl.seq) {
+            if (sameCid && ackSeq < ctrl.seq) {
+              reconcileIdleDeviceToServerKnown(ackDevId, ctrl);
+            } else if (sameCid && ackSeq >= ctrl.seq) {
               const dev = latestDevicesMap[ackDevId];
               if (msg.stale_ignored) {
                 const authState = String(
@@ -1424,6 +1458,7 @@
                 ctrl.confirmedState = authState;
                 ctrl.desiredState = authState;
                 ctrl.serverKnownState = authState;
+                ctrl.needsServerKnownSync = false;
                 if (ackVer > 0) {
                   ctrl.lastVersion = Math.max(ctrl.lastVersion, ackVer);
                   ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, ackVer);
@@ -1434,8 +1469,19 @@
                 }
                 syncDeviceDOMToState(ackDevId, authState);
               } else if (msg.ok === false || msg.rbac_blocked || msg.error) {
-                const revertState = ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF");
+                const hasNewerKnown =
+                  Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
+                const revertState = String(
+                  hasNewerKnown
+                    ? ctrl.serverKnownState
+                    : ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF")
+                ).toUpperCase();
+                ctrl.confirmedState = revertState;
                 ctrl.desiredState = revertState;
+                if (hasNewerKnown) {
+                  ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+                }
+                ctrl.needsServerKnownSync = false;
                 syncDeviceDOMToState(ackDevId, revertState);
                 if (msg.error) setAiReplyText(msg.error);
               } else {
@@ -1443,6 +1489,7 @@
                 ctrl.confirmedState = finalState;
                 ctrl.desiredState = finalState;
                 ctrl.serverKnownState = finalState;
+                ctrl.needsServerKnownSync = false;
                 if (ackSeq > 0) {
                   ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, ackSeq);
                 }
@@ -1482,6 +1529,7 @@
             if (sameCid && msgSeq >= ctrl.seq && ctrl.debounceTimer === null) {
               clearWsPendingUpTo(ctrl, msgSeq);
             }
+            const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
             if (
               msgVer > Number(ctrl.serverKnownVersion || 0) ||
               (msgRev > Number(ctrl.serverKnownRevisionSeq || 0) && msgVer >= Number(ctrl.serverKnownVersion || 0))
@@ -1491,10 +1539,14 @@
                 ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), msgRev);
               }
               if (msg.new_state) {
-                ctrl.serverKnownState = String(msg.new_state).toUpperCase();
+                const nextKnownSt = String(msg.new_state).toUpperCase();
+                ctrl.serverKnownState = nextKnownSt;
+                ctrl.confirmedState = nextKnownSt;
+              }
+              if (hasPending && !(sameCid && msgSeq >= ctrl.seq)) {
+                ctrl.needsServerKnownSync = true;
               }
             }
-            const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
             const isStaleUpd =
               (msgRev > 0 && lastServerRevisionSeq > 0 && msgRev < lastServerRevisionSeq) ||
               (msgVer > 0 && ctrl.lastVersion > 0 && msgVer < ctrl.lastVersion) ||
@@ -1508,6 +1560,7 @@
               ctrl.confirmedState = nextSt;
               if (!hasPending) {
                 ctrl.desiredState = nextSt;
+                ctrl.needsServerKnownSync = false;
               }
               if (msgVer > ctrl.lastVersion) ctrl.lastVersion = msgVer;
               if (msgRev > lastServerRevisionSeq) lastServerRevisionSeq = msgRev;

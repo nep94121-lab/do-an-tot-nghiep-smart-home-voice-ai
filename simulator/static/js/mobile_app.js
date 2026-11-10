@@ -1164,6 +1164,7 @@
           serverKnownState: initSt,
           serverKnownVersion: 0,
           serverKnownRevisionSeq: mobileLastRevisionSeq,
+          needsServerKnownSync: false,
           lastConfirmedSeq: 0,
           pendingCount: 0,
           debounceTimer: null,
@@ -1206,6 +1207,32 @@
       }
     }
 
+    function reconcileMobileIdleToServerKnown(devId, ctrl, dType = 'light', btnEl = null) {
+      if (!ctrl || ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) return false;
+      const knownVer = Number(ctrl.serverKnownVersion || 0);
+      const curVer = Number(ctrl.lastVersion || 0);
+      if (!ctrl.needsServerKnownSync && !(knownVer > 0 && knownVer > curVer)) {
+        return false;
+      }
+      pendingDeviceMutations.delete(devId);
+      const authNewer = String(
+        ctrl.serverKnownState || ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF')
+      ).toUpperCase();
+      ctrl.confirmedState = authNewer;
+      ctrl.desiredState = authNewer;
+      ctrl.lastVersion = Math.max(curVer, knownVer);
+      ctrl.needsServerKnownSync = false;
+      if (latestSnap && Array.isArray(latestSnap.devices)) {
+        const sd = latestSnap.devices.find(x => x.id === devId);
+        if (sd) {
+          sd.state = authNewer;
+          sd.version = ctrl.lastVersion;
+        }
+      }
+      applyMobileDeviceOptimisticUI(devId, authNewer, btnEl);
+      return true;
+    }
+
     function dispatchMobileDeviceSetState(devId, dName, dType, mySeq, targetState, myTs, btnEl = null) {
       const ctrl = getMobileDeviceControl(devId, targetState);
       if (mySeq < ctrl.seq) return Promise.resolve(null);
@@ -1216,10 +1243,22 @@
       ctrl.pendingCount += 1;
 
       const rollbackIfLatest = () => {
-        if (mySeq !== ctrl.seq) return;
+        if (mySeq !== ctrl.seq) {
+          reconcileMobileIdleToServerKnown(devId, ctrl, dType, btnEl);
+          return;
+        }
         pendingDeviceMutations.delete(devId);
-        const revertState = ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF');
+        const hasNewerKnown =
+          Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
+        const revertState = String(
+          hasNewerKnown ? ctrl.serverKnownState : (ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF'))
+        ).toUpperCase();
+        ctrl.confirmedState = revertState;
         ctrl.desiredState = revertState;
+        if (hasNewerKnown) {
+          ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+        }
+        ctrl.needsServerKnownSync = false;
         applyMobileDeviceOptimisticUI(devId, revertState, btnEl);
       };
 
@@ -1242,6 +1281,7 @@
         .then(data => {
           ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
           if (mySeq < ctrl.seq) {
+            reconcileMobileIdleToServerKnown(devId, ctrl, dType, btnEl);
             return data;
           }
           const respVer = Number(
@@ -1265,23 +1305,8 @@
               (respVer === 0 || maxKnownVer === 0 || respVer <= maxKnownVer));
           if (isSupersededResponse) {
             ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, mySeq);
-            if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
-              pendingDeviceMutations.delete(devId);
-              const authNewer = String(
-                ctrl.serverKnownState || ctrl.confirmedState || (dType === 'door' ? 'CLOSED' : 'OFF')
-              ).toUpperCase();
-              ctrl.confirmedState = authNewer;
-              ctrl.desiredState = authNewer;
-              ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
-              if (latestSnap && Array.isArray(latestSnap.devices)) {
-                const sd = latestSnap.devices.find(x => x.id === devId);
-                if (sd) {
-                  sd.state = authNewer;
-                  sd.version = ctrl.lastVersion;
-                }
-              }
-              applyMobileDeviceOptimisticUI(devId, authNewer, btnEl);
-            }
+            ctrl.needsServerKnownSync = true;
+            reconcileMobileIdleToServerKnown(devId, ctrl, dType, btnEl);
             return data;
           }
           if (data && data.stale_ignored) {
@@ -1290,6 +1315,7 @@
             ctrl.confirmedState = authState;
             ctrl.desiredState = authState;
             ctrl.serverKnownState = authState;
+            ctrl.needsServerKnownSync = false;
             if (respVer > 0) {
               ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
               ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
@@ -1313,6 +1339,7 @@
           ctrl.confirmedState = finalState;
           ctrl.desiredState = finalState;
           ctrl.serverKnownState = finalState;
+          ctrl.needsServerKnownSync = false;
           ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
           if (respVer > 0) {
             ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
@@ -1334,7 +1361,10 @@
         })
         .catch(() => {
           ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
-          if (mySeq < ctrl.seq) return null;
+          if (mySeq < ctrl.seq) {
+            reconcileMobileIdleToServerKnown(devId, ctrl, dType, btnEl);
+            return null;
+          }
           rollbackIfLatest();
           addLog(`${dName}: Lỗi kết nối`, 'device', 'Thất bại');
           return null;
@@ -1427,7 +1457,12 @@
             ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRev);
           }
           if (rawD.state) {
-            ctrl.serverKnownState = String(rawD.state).toUpperCase();
+            const nextKnownSt = String(rawD.state).toUpperCase();
+            ctrl.serverKnownState = nextKnownSt;
+            ctrl.confirmedState = nextKnownSt;
+          }
+          if (hasPending && !(sameClient && serverSeq >= ctrl.seq)) {
+            ctrl.needsServerKnownSync = true;
           }
         }
 
@@ -1489,6 +1524,7 @@
         ctrl.serverKnownState = String(d.state || '').toUpperCase();
         if (!hasPending) {
           ctrl.desiredState = d.state;
+          ctrl.needsServerKnownSync = false;
           if (sameClient && serverSeq > ctrl.seq) ctrl.seq = serverSeq;
         }
         if (sameClient && serverSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = serverSeq;
@@ -2319,6 +2355,7 @@
           const msgSeq = Number(msg.last_client_seq || 0);
           const msgRev = Number(msg.revision_seq || 0);
           const sameClient = Boolean(msg.last_client_id && msg.last_client_id === MOBILE_CLIENT_ID);
+          const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
           if (
             msgVer > Number(ctrl.serverKnownVersion || 0) ||
             (msgRev > Number(ctrl.serverKnownRevisionSeq || 0) && msgVer >= Number(ctrl.serverKnownVersion || 0))
@@ -2328,10 +2365,14 @@
               ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), msgRev);
             }
             if (msg.new_state) {
-              ctrl.serverKnownState = String(msg.new_state).toUpperCase();
+              const nextKnownSt = String(msg.new_state).toUpperCase();
+              ctrl.serverKnownState = nextKnownSt;
+              ctrl.confirmedState = nextKnownSt;
+            }
+            if (hasPending && !(sameClient && msgSeq >= ctrl.seq)) {
+              ctrl.needsServerKnownSync = true;
             }
           }
-          const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
           const pendingMut = pendingDeviceMutations.get(devId);
           const hasActiveHold = Boolean(
             pendingMut &&
@@ -2358,6 +2399,7 @@
             ctrl.confirmedState = nextSt;
             if (!hasPending) {
               ctrl.desiredState = nextSt;
+              ctrl.needsServerKnownSync = false;
               pendingDeviceMutations.delete(devId);
             }
             if (latestSnap && Array.isArray(latestSnap.devices)) {

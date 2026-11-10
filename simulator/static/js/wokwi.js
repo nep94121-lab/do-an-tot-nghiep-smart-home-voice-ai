@@ -452,6 +452,7 @@
           serverKnownState: String(initSt).toUpperCase(),
           serverKnownVersion: 0,
           serverKnownRevisionSeq: wokwiLastRevisionSeq,
+          needsServerKnownSync: false,
           desiredState: initSt,
           confirmedState: initSt,
           pendingCount: 0,
@@ -488,7 +489,44 @@
       } else if (id === 'alarm_siren') {
         const buzEl = document.getElementById('w_buzzer');
         if (buzEl) buzEl.hasSignal = (st === 'ON');
+      } else if (id === 'garden_pump') {
+        const pumpOn = (st === 'ON');
+        const rLed = document.getElementById('relay_act_led');
+        const pTxt = document.getElementById('pump_state_txt');
+        if (rLed) rLed.setAttribute('fill', pumpOn ? '#ef4444' : '#450a0a');
+        if (pTxt) {
+          pTxt.textContent = pumpOn ? 'ĐANG BƠM (ON)' : 'ĐANG TẮT (OFF)';
+          pTxt.setAttribute('fill', pumpOn ? '#0284c7' : '#64748b');
+        }
+        if (pumpOn && !pumpTimer) {
+          pumpTimer = setInterval(() => {
+            pumpDeg = (pumpDeg + 35) % 360;
+            const w = document.getElementById('pump_wheel');
+            if (w) w.setAttribute('transform', `rotate(${pumpDeg}, 116, 30)`);
+          }, 60);
+        } else if (!pumpOn && pumpTimer) {
+          clearInterval(pumpTimer);
+          pumpTimer = null;
+        }
       }
+    }
+
+    function reconcileWokwiIdleToServerKnown(devId, ctrl) {
+      if (!ctrl || ctrl.pendingCount > 0 || ctrl.debounceTimer !== null) return false;
+      const knownVer = Number(ctrl.serverKnownVersion || 0);
+      const curVer = Number(ctrl.lastVersion || 0);
+      if (!ctrl.needsServerKnownSync && !(knownVer > 0 && knownVer > curVer)) {
+        return false;
+      }
+      const authNewer = String(
+        ctrl.serverKnownState || ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF')
+      ).toUpperCase();
+      ctrl.confirmedState = authNewer;
+      ctrl.desiredState = authNewer;
+      ctrl.lastVersion = Math.max(curVer, knownVer);
+      ctrl.needsServerKnownSync = false;
+      applyWokwiSingleDeviceUI(devId, authNewer);
+      return true;
     }
 
     function syncWokwiComponents(snap) {
@@ -552,7 +590,12 @@
               ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRev);
             }
             if (d.state) {
-              ctrl.serverKnownState = String(d.state).toUpperCase();
+              const nextKnownSt = String(d.state).toUpperCase();
+              ctrl.serverKnownState = nextKnownSt;
+              ctrl.confirmedState = nextKnownSt;
+            }
+            if (hasPending && !(sameClient && srvSeq >= ctrl.seq)) {
+              ctrl.needsServerKnownSync = true;
             }
           }
 
@@ -574,6 +617,7 @@
             ctrl.serverKnownState = String(d.state || '').toUpperCase();
             if (!hasPending) {
               ctrl.desiredState = d.state;
+              ctrl.needsServerKnownSync = false;
               if (sameClient && srvSeq > ctrl.seq) ctrl.seq = srvSeq;
             }
             if (sameClient && srvSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = srvSeq;
@@ -766,6 +810,7 @@
             const data = await r.json();
             ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
             if (mySeq < ctrl.seq) {
+              reconcileWokwiIdleToServerKnown(devId, ctrl);
               resolve();
               return;
             }
@@ -790,15 +835,8 @@
                 (respVer === 0 || maxKnownVer === 0 || respVer <= maxKnownVer));
             if (isSupersededResponse) {
               ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, mySeq);
-              if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
-                const authNewer = String(
-                  ctrl.serverKnownState || ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF')
-                ).toUpperCase();
-                ctrl.confirmedState = authNewer;
-                ctrl.desiredState = authNewer;
-                ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
-                applyWokwiSingleDeviceUI(devId, authNewer);
-              }
+              ctrl.needsServerKnownSync = true;
+              reconcileWokwiIdleToServerKnown(devId, ctrl);
               resolve();
               return;
             }
@@ -807,6 +845,7 @@
               ctrl.confirmedState = authState;
               ctrl.desiredState = authState;
               ctrl.serverKnownState = authState;
+              ctrl.needsServerKnownSync = false;
               if (respVer > 0) {
                 ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
                 ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
@@ -822,8 +861,17 @@
             }
             if (data && (data.ok === false || data.error)) {
               if (data.error) logSerial(`[CHẶN] ${data.error}`, 'warn');
-              const revertState = ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF');
+              const hasNewerKnown =
+                Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
+              const revertState = String(
+                hasNewerKnown ? ctrl.serverKnownState : (ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF'))
+              ).toUpperCase();
+              ctrl.confirmedState = revertState;
               ctrl.desiredState = revertState;
+              if (hasNewerKnown) {
+                ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+              }
+              ctrl.needsServerKnownSync = false;
               applyWokwiSingleDeviceUI(devId, revertState);
               if (data.snapshot) syncWokwiComponents(data.snapshot);
               resolve();
@@ -833,6 +881,7 @@
             ctrl.confirmedState = finalState;
             ctrl.desiredState = finalState;
             ctrl.serverKnownState = finalState;
+            ctrl.needsServerKnownSync = false;
             ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
             if (respVer > 0) {
               ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
@@ -847,9 +896,20 @@
             else fetchState();
           } catch (_) {
             ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
-            if (mySeq === ctrl.seq) {
-              const revertState = ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF');
+            if (mySeq < ctrl.seq) {
+              reconcileWokwiIdleToServerKnown(devId, ctrl);
+            } else if (mySeq === ctrl.seq) {
+              const hasNewerKnown =
+                Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
+              const revertState = String(
+                hasNewerKnown ? ctrl.serverKnownState : (ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF'))
+              ).toUpperCase();
+              ctrl.confirmedState = revertState;
               ctrl.desiredState = revertState;
+              if (hasNewerKnown) {
+                ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+              }
+              ctrl.needsServerKnownSync = false;
               applyWokwiSingleDeviceUI(devId, revertState);
             }
           }
@@ -1057,6 +1117,7 @@
             const msgSeq = Number(msg.last_client_seq || 0);
             const msgRev = Number(msg.revision_seq || 0);
             const sameClient = Boolean(msg.last_client_id && msg.last_client_id === WOKWI_CLIENT_ID);
+            const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
             if (
               msgVer > Number(ctrl.serverKnownVersion || 0) ||
               (msgRev > Number(ctrl.serverKnownRevisionSeq || 0) && msgVer >= Number(ctrl.serverKnownVersion || 0))
@@ -1066,10 +1127,14 @@
                 ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), msgRev);
               }
               if (msg.new_state) {
-                ctrl.serverKnownState = String(msg.new_state).toUpperCase();
+                const nextKnownSt = String(msg.new_state).toUpperCase();
+                ctrl.serverKnownState = nextKnownSt;
+                ctrl.confirmedState = nextKnownSt;
+              }
+              if (hasPending && !(sameClient && msgSeq >= ctrl.seq)) {
+                ctrl.needsServerKnownSync = true;
               }
             }
-            const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
             const isStale =
               (msgRev > 0 && wokwiLastRevisionSeq > 0 && msgRev < wokwiLastRevisionSeq) ||
               (msgVer > 0 && ctrl.lastVersion > 0 && msgVer < ctrl.lastVersion) ||
@@ -1084,7 +1149,10 @@
                 if (msgSeq > ctrl.seq) ctrl.seq = msgSeq;
               }
               ctrl.confirmedState = nextSt;
-              if (!hasPending) ctrl.desiredState = nextSt;
+              if (!hasPending) {
+                ctrl.desiredState = nextSt;
+                ctrl.needsServerKnownSync = false;
+              }
               applyWokwiSingleDeviceUI(msg.device_id, ctrl.desiredState);
             }
           } else if (msg.type === 'device_actuated') {
