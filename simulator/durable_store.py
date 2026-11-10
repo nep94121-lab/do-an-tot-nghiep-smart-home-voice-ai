@@ -24,7 +24,9 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import email
 from email.message import EmailMessage
+import email.policy
 import email.utils
 import gzip
 import hashlib
@@ -116,6 +118,7 @@ class DurableStateStore:
         self.vault_dir = vault_dir or durable_dir or _resolve_durable_vault_dir()
         self.offline_sandbox = offline_sandbox
         self.sqlite_path = self.vault_dir / "durable_kv_store.sqlite3"
+        self._memory_vault: dict[str, bytes] = {}
         self._last_cloud_pull_ts: float = 0.0
         self._last_cloud_push_hash: str = ""
         self._init_sqlite()
@@ -138,17 +141,20 @@ class DurableStateStore:
         except Exception as exc:
             logger.debug("Durable SQLite init skipped: %s", exc)
 
-    def _write_local_sqlite_and_file(self, filename: str, raw_bytes: bytes) -> None:
+    def _write_local_sqlite_and_file(self, filename: str, raw_bytes: bytes) -> bool:
         clean_name = pathlib.Path(filename).name
         b64_str = base64.b64encode(raw_bytes).decode("ascii")
         digest = hashlib.sha256(raw_bytes).hexdigest()
         now = time.time()
+        file_ok = False
+        sql_ok = False
         with self._lock:
-            _MEMORY_VAULT[clean_name] = raw_bytes
+            self._memory_vault[clean_name] = raw_bytes
             try:
                 self.vault_dir.mkdir(parents=True, exist_ok=True)
                 bak_file = self.vault_dir / clean_name
                 bak_file.write_bytes(raw_bytes)
+                file_ok = True
             except Exception:
                 pass
             try:
@@ -161,14 +167,16 @@ class DurableStateStore:
                         (clean_name, b64_str, digest, now),
                     )
                     conn.commit()
+                    sql_ok = True
             except Exception:
                 pass
+        return bool(file_ok or sql_ok)
 
     def _read_local_sqlite_or_file(self, filename: str) -> bytes | None:
         clean_name = pathlib.Path(filename).name
         with self._lock:
-            if clean_name in _MEMORY_VAULT:
-                return _MEMORY_VAULT[clean_name]
+            if clean_name in self._memory_vault:
+                return self._memory_vault[clean_name]
             try:
                 if self.sqlite_path.exists():
                     with contextlib.closing(sqlite3.connect(str(self.sqlite_path), timeout=5.0)) as conn:
@@ -179,7 +187,7 @@ class DurableStateStore:
                         row = cur.fetchone()
                         if row and row[0]:
                             raw = base64.b64decode(row[0].encode("ascii"))
-                            _MEMORY_VAULT[clean_name] = raw
+                            self._memory_vault[clean_name] = raw
                             return raw
             except Exception:
                 pass
@@ -187,7 +195,7 @@ class DurableStateStore:
                 bak_file = self.vault_dir / clean_name
                 if bak_file.exists():
                     raw = bak_file.read_bytes()
-                    _MEMORY_VAULT[clean_name] = raw
+                    self._memory_vault[clean_name] = raw
                     return raw
             except Exception:
                 pass
@@ -281,8 +289,6 @@ class DurableStateStore:
 
         encoded_payload = self.encode_bundle_gzip_b64(bundle)
         payload_hash = hashlib.sha256(encoded_payload.encode("ascii")).hexdigest()
-        if payload_hash == self._last_cloud_push_hash:
-            return True
 
         msg = EmailMessage()
         msg["Subject"] = DURABLE_IMAP_SUBJECT
@@ -320,6 +326,43 @@ class DurableStateStore:
             logger.debug("Gmail IMAP durable state append skipped: %s", exc)
         return False
 
+    @classmethod
+    def _extract_bundle_from_rfc822_bytes(cls, raw_email: bytes) -> dict[str, Any] | None:
+        """Giải mã RFC822 MIME email (hỗ trợ base64, quoted-printable, multipart) để trích xuất gói trạng thái."""
+        if not raw_email:
+            return None
+        candidate_texts: list[str] = []
+        try:
+            parsed_msg = email.message_from_bytes(raw_email, policy=email.policy.default)
+            parts = list(parsed_msg.walk()) if parsed_msg.is_multipart() else [parsed_msg]
+            for p in parts:
+                if p.get_content_maintype() == "multipart":
+                    continue
+                with contextlib.suppress(Exception):
+                    c = p.get_content()
+                    if isinstance(c, str):
+                        candidate_texts.append(c)
+                    elif isinstance(c, (bytes, bytearray)):
+                        candidate_texts.append(bytes(c).decode("utf-8", errors="ignore"))
+                with contextlib.suppress(Exception):
+                    dec = p.get_payload(decode=True)
+                    if isinstance(dec, (bytes, bytearray)):
+                        candidate_texts.append(bytes(dec).decode("utf-8", errors="ignore"))
+        except Exception:
+            pass
+        candidate_texts.append(raw_email.decode("utf-8", errors="ignore"))
+
+        pattern = rf"{re.escape(DURABLE_MARKER_START)}\s*(.+?)\s*{re.escape(DURABLE_MARKER_END)}"
+        for text in candidate_texts:
+            if not text:
+                continue
+            m = re.search(pattern, text, flags=re.DOTALL)
+            if m:
+                bundle = cls.decode_bundle_gzip_b64(m.group(1))
+                if bundle:
+                    return bundle
+        return None
+
     def _load_bundle_from_gmail_imap(self) -> dict[str, Any] | None:
         """Tải bản ghi `[SMARTHOME_DURABLE_STATE_V1]` mới nhất từ Gmail IMAP."""
         smtp_user, app_pw = self._get_gmail_credentials()
@@ -350,18 +393,9 @@ class DurableStateStore:
                             if isinstance(part, tuple) and len(part) >= 2 and isinstance(part[1], (bytes, bytearray)):
                                 raw_email = bytes(part[1])
                                 break
-                        if not raw_email:
-                            continue
-                        text = raw_email.decode("utf-8", errors="ignore")
-                        m = re.search(
-                            rf"{re.escape(DURABLE_MARKER_START)}\s*(.+?)\s*{re.escape(DURABLE_MARKER_END)}",
-                            text,
-                            flags=re.DOTALL,
-                        )
-                        if m:
-                            bundle = self.decode_bundle_gzip_b64(m.group(1))
-                            if bundle:
-                                return bundle
+                        bundle = self._extract_bundle_from_rfc822_bytes(raw_email)
+                        if bundle:
+                            return bundle
                     except Exception:
                         continue
         except Exception as exc:
@@ -418,10 +452,12 @@ class DurableStateStore:
         sync_cloud: bool = True,
         data_dir: pathlib.Path | None = None,
     ) -> bool:
-        """Lưu một tệp trạng thái vào Durable Store (SQLite + Memory + Cloud IMAP/KV)."""
+        """Lưu một tệp trạng thái vào Durable Store (SQLite + Memory + Cloud IMAP/KV).
+        Nếu `sync_cloud=True`, bắt buộc ít nhất một kênh lưu trữ Cloud (Upstash KV hoặc Gmail IMAP) thành công mới trả về `True`.
+        """
         clean_name = pathlib.Path(filename).name
         raw = data_bytes.encode("utf-8") if isinstance(data_bytes, str) else bytes(data_bytes)
-        self._write_local_sqlite_and_file(clean_name, raw)
+        local_ok = self._write_local_sqlite_and_file(clean_name, raw)
 
         # Đồng bộ kèm voiceprints.json và custom_rules_overlay.json nếu có trong cùng thư mục
         if data_dir is not None:
@@ -434,11 +470,13 @@ class DurableStateStore:
                         except Exception:
                             pass
 
-        if sync_cloud and not is_offline_sandbox_or_test():
+        if sync_cloud:
             bundle = self._collect_current_bundle(data_dir=data_dir)
-            self._save_bundle_to_upstash_kv(bundle)
-            self._save_bundle_to_gmail_imap(bundle)
-        return True
+            kv_ok = self._save_bundle_to_upstash_kv(bundle)
+            imap_ok = self._save_bundle_to_gmail_imap(bundle)
+            cloud_ok = bool(kv_ok or imap_ok)
+            return bool(local_ok and cloud_ok)
+        return bool(local_ok)
 
     def load_state_file(
         self,
@@ -452,9 +490,9 @@ class DurableStateStore:
         if local_raw is not None and not sync_cloud:
             return local_raw
 
-        if (sync_cloud or local_raw is None) and not (self.offline_sandbox or is_offline_sandbox_or_test()):
+        if sync_cloud or local_raw is None:
             now = time.time()
-            if (now - self._last_cloud_pull_ts) >= CLOUD_SYNC_TTL_SECONDS:
+            if sync_cloud or local_raw is None or (now - self._last_cloud_pull_ts) >= CLOUD_SYNC_TTL_SECONDS:
                 self._last_cloud_pull_ts = now
                 bundle = self._load_bundle_from_upstash_kv() or self._load_bundle_from_gmail_imap()
                 if bundle:
@@ -475,7 +513,7 @@ class DurableStateStore:
             imap_ok = self._save_bundle_to_gmail_imap(bundle)
             cloud_saved = bool(kv_ok or imap_ok)
         return {
-            "ok": True,
+            "ok": True if not force_cloud else cloud_saved,
             "files_saved": list(bundle.get("files", {}).keys()),
             "cloud_saved": cloud_saved,
         }
@@ -488,9 +526,10 @@ class DurableStateStore:
     ) -> dict[str, Any]:
         """Khôi phục các tệp trạng thái từ Durable Store về `data_dir` (phục hồi sau cold-start)."""
         cloud_loaded = False
-        if force_cloud or not is_offline_sandbox_or_test():
+        has_any_local = any(self._read_local_sqlite_or_file(f) is not None for f in TRACKED_STATE_FILES)
+        if force_cloud or not has_any_local or not is_offline_sandbox_or_test():
             now = time.time()
-            if force_cloud or (now - self._last_cloud_pull_ts) >= CLOUD_SYNC_TTL_SECONDS:
+            if force_cloud or not has_any_local or (now - self._last_cloud_pull_ts) >= CLOUD_SYNC_TTL_SECONDS:
                 self._last_cloud_pull_ts = now
                 bundle = self._load_bundle_from_upstash_kv() or self._load_bundle_from_gmail_imap()
                 if bundle:
@@ -565,6 +604,92 @@ def load_state_file(
     )
 
 
+def load_durable_json(
+    filename: str,
+    path_or_default: Any = None,
+    *,
+    data_dir: pathlib.Path | None = None,
+    sync_cloud: bool = False,
+    store: DurableStateStore | None = None,
+) -> Any:
+    """Đọc cấu trúc JSON từ DurableStateStore (hoặc tệp đĩa dự phòng)."""
+    resolved_data_dir = data_dir
+    fallback_path: pathlib.Path | None = None
+    default_val: Any = None
+
+    if isinstance(path_or_default, (pathlib.Path, str)):
+        p = pathlib.Path(path_or_default)
+        if p.suffix:
+            fallback_path = p
+            if resolved_data_dir is None:
+                resolved_data_dir = p.parent
+        else:
+            if resolved_data_dir is None:
+                resolved_data_dir = p
+    else:
+        default_val = path_or_default
+
+    target_store = store or get_durable_store()
+    raw = target_store.load_state_file(
+        filename=filename,
+        sync_cloud=sync_cloud,
+        data_dir=resolved_data_dir,
+    )
+    if raw is None and fallback_path is not None and fallback_path.exists():
+        with contextlib.suppress(Exception):
+            raw = fallback_path.read_bytes()
+    if raw is not None:
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except Exception:
+            return default_val
+    return default_val
+
+
+def save_durable_json(
+    filename: str,
+    payload: Any,
+    path_or_data_dir: pathlib.Path | str | None = None,
+    *,
+    data_dir: pathlib.Path | None = None,
+    sync_cloud: bool | None = None,
+    store: DurableStateStore | None = None,
+) -> bool:
+    """Lưu cấu trúc JSON vào DurableStateStore và tệp đích (nếu được truyền vào)."""
+    resolved_data_dir = data_dir
+    target_file: pathlib.Path | None = None
+    if isinstance(path_or_data_dir, (pathlib.Path, str)):
+        p = pathlib.Path(path_or_data_dir)
+        if p.suffix:
+            target_file = p
+            if resolved_data_dir is None:
+                resolved_data_dir = p.parent
+        else:
+            if resolved_data_dir is None:
+                resolved_data_dir = p
+
+    raw_bytes = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if target_file is not None:
+        with contextlib.suppress(Exception):
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_bytes(raw_bytes)
+
+    target_store = store or get_durable_store()
+    if sync_cloud is None:
+        effective_sync_cloud = not (
+            bool(target_store.offline_sandbox) or is_offline_sandbox_or_test()
+        )
+    else:
+        effective_sync_cloud = bool(sync_cloud)
+
+    return target_store.save_state_file(
+        filename=filename,
+        data_bytes=raw_bytes,
+        sync_cloud=effective_sync_cloud,
+        data_dir=resolved_data_dir,
+    )
+
+
 def sync_to_durable_store(
     data_dir: pathlib.Path | None = None,
     force_cloud: bool = False,
@@ -598,7 +723,9 @@ __all__ = [
     "DurableStateStore",
     "get_durable_store",
     "is_offline_sandbox_or_test",
+    "load_durable_json",
     "load_state_file",
+    "save_durable_json",
     "save_state_file",
     "simulate_cold_start_recovery",
     "sync_from_durable_store",

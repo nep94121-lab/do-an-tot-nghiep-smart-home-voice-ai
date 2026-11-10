@@ -5,22 +5,31 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import pathlib
 import statistics
+import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from simulator import durable_store
 from simulator.server import app
 from simulator.auth.constants_and_crypto import DEFAULT_INVITE_LINKS
 from simulator.auth.session_store import get_session_store
 from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.durable_store import DurableStateStore, simulate_cold_start_recovery
+from simulator.durable_store import (
+    DurableStateStore,
+    load_durable_json,
+    save_durable_json,
+    simulate_cold_start_recovery,
+)
 from simulator.live.gemini_bridge import GeminiLiveBridge, StatefulPcmFramingBuffer
 from simulator.live.prompt_builder import build_system_instruction
 from simulator.live.tts_rejection_vi import (
@@ -31,6 +40,7 @@ from simulator.rule_engine import SmartHomeEngine
 from simulator.voice.enrollment_quality import check_enrollment_quality_gate
 from simulator.voice.wespeaker_onnx import (
     _is_encoded_container_bytes,
+    evaluate_audio_quality_gate,
     extract_wespeaker_embedding,
     pcm_bytes_to_float32_16k,
 )
@@ -79,17 +89,16 @@ def _load_owner_00_wav_bytes() -> bytes:
 
 
 def _load_owner_self_check_bytes() -> bytes:
-    if TACH_CAU_DIR.exists():
-        clips = sorted(TACH_CAU_DIR.glob("[0-9][0-9]_*.wav"))
-        parts = [c.read_bytes()[44:] for c in clips[1:5]]
-        if parts:
-            return b"".join(parts)
+    """Nạp câu tự kiểm tra độc lập (không trùng bất kỳ clip held-out 01..11 hay 00_*.wav)."""
+    indep_sc = AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav"
+    if indep_sc.exists():
+        return indep_sc.read_bytes()
     raw_00 = _load_owner_00_wav_bytes()
     return raw_00[44 + 16000 * 2 * 14 :]
 
 
 def test_req1_gate_audio_zero_bytes_stranger_and_owner_authorized() -> None:
-    """Req 1: Buffer mic audio server-side; run speaker recognition FIRST; send 0 bytes to Gemini for strangers."""
+    """Req 1: Buffer mic audio server-side; run speaker recognition FIRST; send 0 bytes to Gemini for strangers and synthetic tones."""
     async def _run() -> None:
         ws_sent: list[dict[str, Any]] = []
 
@@ -133,7 +142,26 @@ def test_req1_gate_audio_zero_bytes_stranger_and_owner_authorized() -> None:
         )
         assert mock_session.send_client_content.call_count >= 1
 
-        # 1C. Owner Tuấn Anh mic chunks -> buffered first (0 bytes during handle_mic_chunk),
+        # 1C. Round-2 regression: 0.5s synthetic tones (80..160Hz) MUST NOT authorize or reach Gemini
+        for hz in (80, 85, 90, 95, 150, 155, 160):
+            tone_pcm = (
+                np.sin(2 * np.pi * hz * np.arange(8000) / 16000.0) * 4000
+            ).astype(np.int16).tobytes()
+            va.reset_strikes()
+            r_tone = va.verify_pcm16k_and_apply_strikes(tone_pcm)
+            assert r_tone["authorized"] is False, f"{hz}Hz 0.5s tone must not authorize: {r_tone}"
+            assert r_tone["ask_repeat"] is True
+            assert r_tone["message"] == SAFE_DENY_REPEAT_PHRASE_VI
+
+            mock_session.send_realtime_input.reset_mock()
+            await bridge.handle_mic_chunk(tone_pcm)
+            await bridge.mic_speech_ended()
+            assert mock_session.send_realtime_input.call_count == 0, (
+                f"{hz}Hz 0.5s tone must send 0 bytes to Gemini"
+            )
+            assert bridge.last_mic_turn_blocked is True
+
+        # 1D. Owner Tuấn Anh mic chunks -> buffered first (0 bytes during handle_mic_chunk),
         # then recognized as Tier 1 in mic_speech_ended, bound server-side, and flushed in 640B frames
         mock_session.send_realtime_input.reset_mock()
         mock_session.send_client_content.reset_mock()
@@ -152,28 +180,36 @@ def test_req1_gate_audio_zero_bytes_stranger_and_owner_authorized() -> None:
         assert bridge.engine.current_tier == 1
         assert bridge.engine.current_user_id == OWNER_ID
         assert mock_session.send_realtime_input.call_count > 0
+        if bridge._mic_silence_task:
+            bridge._mic_silence_task.cancel()
 
     asyncio.run(_run())
 
 
 def test_req2_safe_deny_short_noisy_and_overlapping_speakers() -> None:
-    """Req 2: Too-short, noisy, or overlapping-speaker audio -> do not guess; ask to repeat with fixed Vietnamese phrase."""
+    """Req 2: Too-short (<~1.5s), noisy, or overlapping-speaker audio -> do not guess; ask to repeat with fixed Vietnamese phrase."""
     va = VoiceAuthManager(AUDIO_DIR)
 
-    # 2A. Too-short audio (11_bat.wav = 0.20s active speech)
+    # 2A. Default evaluate_audio_quality_gate enforces >= 1.5s minimum duration
+    for sub_sec in (0.35, 0.50, 0.85, 1.20):
+        sub_pcm = (
+            np.sin(2 * np.pi * 135.0 * np.arange(int(sub_sec * 16000)) / 16000.0) * 6000
+        ).astype(np.int16).tobytes()
+        q_sub = evaluate_audio_quality_gate(sub_pcm, sr=16000)
+        assert q_sub["ok"] is False
+        assert q_sub["reason"] == "AUDIO_TOO_SHORT"
+        r_sub = va.verify_pcm16k_and_apply_strikes(sub_pcm)
+        assert r_sub["authorized"] is False
+        assert r_sub["ask_repeat"] is True
+        assert r_sub["message"] == SAFE_DENY_REPEAT_PHRASE_VI
+
+    # 2B. Too-short audio (11_bat.wav = 0.20s active speech)
     if (TACH_CAU_DIR / "11_bat.wav").exists():
         res_11 = va.verify_pcm16k_and_apply_strikes((TACH_CAU_DIR / "11_bat.wav").read_bytes())
         assert res_11["authorized"] is False
         assert res_11["ask_repeat"] is True
         assert res_11["message"] == SAFE_DENY_REPEAT_PHRASE_VI
         assert res_11["strikes"] == 0
-
-    # 2B. Synthetic too-short audio (0.15s)
-    short_pcm = (np.sin(2 * np.pi * 140.0 * np.arange(int(0.15 * 16000)) / 16000.0) * 8000).astype(np.int16).tobytes()
-    res_short = va.verify_pcm16k_and_apply_strikes(short_pcm)
-    assert res_short["authorized"] is False
-    assert res_short["ask_repeat"] is True
-    assert res_short["message"] == SAFE_DENY_REPEAT_PHRASE_VI
 
     # 2C. Low SNR / noisy audio
     rng = np.random.default_rng(42)
@@ -264,8 +300,24 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
     assert fail_sc["require_rerecord"] is True
     assert "kiểm tra" in fail_sc["message"].lower() or "self-check" in fail_sc["message"].lower()
 
-    # 3C. Enroll Owner Tuấn Anh (Cap 1) and test held-out clips 01..11
+    # 3C. Round-2 regression: Default enroll_tier_voice_from_pcm16k WITHOUT enforce_12s_gate or self_check MUST fail
     va = VoiceAuthManager(AUDIO_DIR)
+    with patch(
+        "simulator.voice_auth.check_enrollment_quality_gate",
+        wraps=check_enrollment_quality_gate,
+    ) as strict_spy:
+        default_5s = va.enroll_tier_voice_from_pcm16k(
+            pcm_bytes=short_5s,
+            user_id="verify_only",
+            user_name="Verify Only",
+            tier=3,
+            role="CHILD_GUEST",
+            check_duplicate=False,
+        )
+        assert default_5s["ok"] is False
+        assert strict_spy.call_count >= 1
+
+    # 3D. Enroll Owner Tuấn Anh (Cap 1) with independent self-check and test held-out clips 01..11
     enr_res = va.enroll_tier_voice_from_pcm16k(
         pcm_bytes=wav_00,
         user_id=OWNER_ID,
@@ -273,7 +325,6 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
         tier=1,
         role="ADMIN",
         self_check_pcm_bytes=wav_sc,
-        enforce_12s_gate=True,
     )
     assert enr_res["ok"] is True
 
@@ -298,7 +349,7 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
 
 
 def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
-    """Req 4: One fixed Vietnamese rejection phrase for strangers AND over-permission requests, spoken by Aoede."""
+    """Req 4: One fixed Vietnamese rejection phrase for strangers AND over-permission requests, spoken by Aoede only."""
     va = VoiceAuthManager(AUDIO_DIR)
     stranger_bytes = (AUDIO_DIR / "giong_2_nguoi_la_mo_cua.wav").read_bytes()
 
@@ -311,7 +362,16 @@ def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
         assert res["silent_ignore"] is False
         assert res["message"] == UNIFIED_REJECTION_PHRASE_VI
 
-    # 4B. Over-permission requests in SmartHomeEngine
+    # 4B. Verify zero browser speechSynthesis fallback and zero non-Aoede TTS (Edge HoaiMyNeural) in codebase
+    app_js = (ROOT_DIR / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    mobile_js = (ROOT_DIR / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+    tts_py = (ROOT_DIR / "simulator" / "live" / "tts_rejection_vi.py").read_text(encoding="utf-8")
+    assert "speechSynthesis" not in app_js and "SpeechSynthesisUtterance" not in app_js
+    assert "speechSynthesis" not in mobile_js and "SpeechSynthesisUtterance" not in mobile_js
+    assert "edge_tts" not in tts_py and "HoaiMyNeural" not in tts_py
+    assert not (ROOT_DIR / "simulator" / "live" / "tts_rejection_precache_24k.npz").exists()
+
+    # 4C. Over-permission requests in SmartHomeEngine + WAV path triggers Aoede
     async def _run_rbac() -> None:
         engine = SmartHomeEngine()
         # Tier 2 trying to open main_door (ADMIN only)
@@ -360,11 +420,18 @@ def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
         assert res_tc["message"] == UNIFIED_REJECTION_PHRASE_VI
         assert mock_session.send_client_content.call_count >= 1
 
+        # Even if server_connected is False, WAV sample still triggers Aoede send_client_content (never no-audio branch)
+        mock_session.send_client_content.reset_mock()
+        bridge.engine.server_connected = False
+        await bridge.stream_wav_sample("giong_2_nguoi_la_mo_cua")
+        assert mock_session.send_client_content.call_count >= 1
+        bridge.engine.server_connected = True
+
     asyncio.run(_run_rbac())
 
 
 def test_req5_exclusive_cap1_rbac_and_server_session_checks() -> None:
-    """Req 5: Only Cap 1 (Tuan Anh) can grant/revoke permissions and enroll voices; all Cap 2 invite paths removed."""
+    """Req 5: Only Cap 1 (Tuan Anh) can grant/revoke permissions and enroll voices; /ws resolves session server-side."""
     # 5A. INV-T2-TO-TIER3 completely removed
     assert "INV-T2-TO-TIER3" not in DEFAULT_INVITE_LINKS
     mgr = get_auth_3layer_manager()
@@ -372,7 +439,7 @@ def test_req5_exclusive_cap1_rbac_and_server_session_checks() -> None:
     assert inv_t2["can_invite"] is False
     assert inv_t2["allowed_target_tiers"] == []
 
-    # 5B. Server-side session checks on endpoints
+    # 5B. Server-side session checks on HTTP endpoints
     client = TestClient(app)
     store = get_session_store()
 
@@ -430,6 +497,57 @@ def test_req5_exclusive_cap1_rbac_and_server_session_checks() -> None:
     assert r_inv_t1.status_code == 200
     assert r_inv_t1.json()["ok"] is True
 
+    # 5C. Real WebSocket /ws tests: unauthenticated & Tier 2 blocked on enroll_owner_voice, set_role, grant, revoke
+    with patch.object(
+        GeminiLiveBridge, "gemini_receive_loop", new=AsyncMock()
+    ), patch.object(
+        GeminiLiveBridge, "_periodic_timer_sync", new=AsyncMock()
+    ):
+        # Unauthenticated WebSocket
+        with client.websocket_connect("/ws") as ws_anon:
+            for _ in range(3):
+                ws_anon.receive_json()
+            ws_anon.send_json({"type": "enroll_owner_voice", "pcm16k_b64": "AAAA", "tier": 1})
+            msg1 = ws_anon.receive_json()
+            assert msg1["type"] == "rbac_blocked"
+            assert msg1["action"] == "enroll_owner_voice"
+            assert msg1["message"] == UNIFIED_REJECTION_PHRASE_VI
+            msg2 = ws_anon.receive_json()
+            assert msg2["type"] == "voice_enrolled"
+            assert msg2["result"]["ok"] is False
+            msg3 = ws_anon.receive_json()
+            assert msg3["type"] == "aoede_voice_request"
+
+            ws_anon.send_json({"type": "set_role", "role": "tuan_anh"})
+            msg_role = ws_anon.receive_json()
+            assert msg_role["type"] == "rbac_blocked"
+            assert msg_role["action"] == "set_role"
+            ws_anon.receive_json()  # aoede_voice_request
+
+            ws_anon.send_json({"type": "grant_user_permission", "target_name": "Khách Z", "target_tier": 2})
+            msg_grant = ws_anon.receive_json()
+            assert msg_grant["type"] == "rbac_blocked"
+            assert msg_grant["action"] == "grant_user_permission"
+            ws_anon.receive_json()  # aoede_voice_request
+
+        # Tier 2 WebSocket session -> still blocked on Cap 1 actions
+        with client.websocket_connect(f"/ws?token={t2_sess.session_id}") as ws_t2:
+            for _ in range(3):
+                ws_t2.receive_json()
+            ws_t2.send_json({"type": "enroll_owner_voice", "pcm16k_b64": "AAAA", "tier": 1})
+            m_t2 = ws_t2.receive_json()
+            assert m_t2["type"] == "rbac_blocked"
+            assert m_t2["role"] == "MEMBER"
+
+        # Tier 1 Owner WebSocket session -> allowed on set_role
+        with client.websocket_connect(f"/ws?token={t1_sess.session_id}") as ws_t1:
+            for _ in range(3):
+                ws_t1.receive_json()
+            ws_t1.send_json({"type": "set_role", "role": "tuan_anh"})
+            m_t1 = ws_t1.receive_json()
+            assert m_t1["type"] == "state_snapshot"
+            assert m_t1["snapshot"]["current_tier"] == 1
+
 
 def test_req6_no_pcm_zero_padding_and_no_false_mp3_detection() -> None:
     """Req 6: Remove mid-utterance PCM zero-padding and false MP3 sync-word detection on PCM frames."""
@@ -458,45 +576,133 @@ def test_req6_no_pcm_zero_padding_and_no_false_mp3_detection() -> None:
 
 
 def test_req7_durable_free_persistence_cold_start_recovery() -> None:
-    """Req 7: Durable FREE persistence survives simulated Vercel serverless cold-start (/tmp wipe)."""
+    """Req 7: Durable FREE persistence (MIME IMAP round-trip, cloud-fail return False, cross-process cold-start)."""
+    assert hasattr(durable_store, "load_durable_json")
+    assert hasattr(durable_store, "save_durable_json")
+
     with tempfile.TemporaryDirectory() as tmp_root:
         root_p = pathlib.Path(tmp_root)
-        vault_dir = root_p / "durable_vault"
+        vault_dir_1 = root_p / "durable_vault_1"
+        vault_dir_2 = root_p / "durable_vault_2"
         tmp_data_dir = root_p / "tmp_smarthome_data"
         tmp_data_dir.mkdir(parents=True, exist_ok=True)
 
-        store = DurableStateStore(vault_dir=vault_dir, offline_sandbox=True)
+        store1 = DurableStateStore(vault_dir=vault_dir_1, offline_sandbox=True)
+
+        # 7A. save_state_file(sync_cloud=True) MUST return False when cloud write fails
+        with patch.object(store1, "_save_bundle_to_upstash_kv", return_value=False), patch.object(
+            store1, "_save_bundle_to_gmail_imap", return_value=False
+        ):
+            ok_fail = store1.save_state_file("voiceprints.json", b"{}", sync_cloud=True)
+            assert ok_fail is False, "save_state_file must return False when cloud write fails!"
+
+        # 7B. Gmail IMAP MIME round-trip (save + load across two separate DurableStateStore instances & directories)
+        captured_rfc822: list[bytes] = []
+
+        class FakeImap:
+            def __init__(self, *a: Any, **k: Any) -> None:
+                pass
+
+            def __enter__(self) -> "FakeImap":
+                return self
+
+            def __exit__(self, *a: Any) -> None:
+                pass
+
+            def login(self, *a: Any) -> None:
+                pass
+
+            def select(self, *a: Any, **k: Any) -> tuple[str, list[Any]]:
+                return ("OK", [])
+
+            def append(self, folder: str, flags: str, date: Any, msg: bytes) -> tuple[str, list[Any]]:
+                captured_rfc822.append(msg)
+                return ("OK", [])
+
+            def search(self, *a: Any) -> tuple[str, list[bytes]]:
+                return ("OK", [b"1"] if captured_rfc822 else [b""])
+
+            def fetch(self, *a: Any) -> tuple[str, list[tuple[bytes, bytes]]]:
+                return ("OK", [(b"1 (RFC822)", captured_rfc822[-1])])
 
         vp_payload = {"tuan_anh": {"tier": 1, "f0_hz": 115.6, "wespeaker_embedding": [0.123] * 256}}
         acc_payload = [{"account_id": "tuan_anh", "email": OWNER_EMAIL, "tier": 1}]
-
         vp_bytes = json.dumps(vp_payload).encode("utf-8")
         acc_bytes = json.dumps(acc_payload).encode("utf-8")
 
         (tmp_data_dir / "voiceprints.json").write_bytes(vp_bytes)
         (tmp_data_dir / "accounts_3layer.json").write_bytes(acc_bytes)
 
-        store.save_state_file("voiceprints.json", vp_bytes, sync_cloud=False, data_dir=tmp_data_dir)
-        store.save_state_file("accounts_3layer.json", acc_bytes, sync_cloud=False, data_dir=tmp_data_dir)
+        with patch.object(
+            DurableStateStore, "_get_gmail_credentials", return_value=("unit@example.invalid", "app-pw-test")
+        ), patch("imaplib.IMAP4_SSL", FakeImap):
+            ok_cloud = store1.save_state_file(
+                "voiceprints.json", vp_bytes, sync_cloud=True, data_dir=tmp_data_dir
+            )
+            assert ok_cloud is True
+            assert len(captured_rfc822) == 1
 
-        # Simulate Vercel cold-start: wipe tmp_data_dir completely
-        rec = simulate_cold_start_recovery(tmp_data_dir, store=store)
-        assert rec["ok"] is True
-        assert "voiceprints.json" in rec["restored_files"]
-        assert "accounts_3layer.json" in rec["restored_files"]
-        assert (tmp_data_dir / "voiceprints.json").read_bytes() == vp_bytes
-        assert (tmp_data_dir / "accounts_3layer.json").read_bytes() == acc_bytes
+            # Brand-new DurableStateStore in a different empty directory recovers from FakeImap
+            store2 = DurableStateStore(vault_dir=vault_dir_2, offline_sandbox=False)
+            fresh_target = root_p / "fresh_cold_start_dir"
+            rec_cloud = simulate_cold_start_recovery(fresh_target, store=store2)
+            assert rec_cloud["ok"] is True
+            assert rec_cloud["cloud_loaded"] is True
+            assert (fresh_target / "voiceprints.json").read_bytes() == vp_bytes
+            assert (fresh_target / "accounts_3layer.json").read_bytes() == acc_bytes
+
+        # 7C. Cold-start recovery in a brand-new Python subprocess using vault_dir_1
+        cold_sub_dir = root_p / "subprocess_cold_start_dir"
+        env_sub = os.environ.copy()
+        env_sub["PYTHONPATH"] = str(ROOT_DIR)
+        env_sub["SMARTHOME_DURABLE_DIR"] = str(vault_dir_1)
+        env_sub["SIMULATOR_OFFLINE_SANDBOX"] = "1"
+        sub_code = (
+            "import pathlib, json; "
+            "from simulator.durable_store import DurableStateStore, simulate_cold_start_recovery; "
+            f"st = DurableStateStore(vault_dir=pathlib.Path(r'{vault_dir_1}'), offline_sandbox=True); "
+            f"res = simulate_cold_start_recovery(pathlib.Path(r'{cold_sub_dir}'), store=st); "
+            "print(json.dumps(res))"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-X", "utf8", "-c", sub_code],
+            env=env_sub,
+            capture_output=True,
+            text=True,
+            timeout=15.0,
+            check=True,
+        )
+        sub_res = json.loads(proc.stdout.strip().splitlines()[-1])
+        assert sub_res["ok"] is True
+        assert (cold_sub_dir / "voiceprints.json").read_bytes() == vp_bytes
+        assert (cold_sub_dir / "accounts_3layer.json").read_bytes() == acc_bytes
+
+        # 7D. load_durable_json & save_durable_json round-trip
+        json_file = tmp_data_dir / "custom_rules_overlay.json"
+        assert save_durable_json("custom_rules_overlay.json", {"test_rule": 123}, json_file, sync_cloud=False, store=store1) is True
+        loaded_json = load_durable_json("custom_rules_overlay.json", json_file, store=store1)
+        assert loaded_json == {"test_rule": 123}
 
 
 def test_req8_concise_system_prompt_and_latency_measurement() -> None:
-    """Req 8: Concise complete Gemini system prompt + latency benchmark for recognition & API."""
+    """Req 8: Concise complete Gemini system prompt + /api/version + latency benchmark for recognition & API."""
     engine = SmartHomeEngine()
     prompt = build_system_instruction(engine)
     lines = [ln for ln in prompt.strip().splitlines() if ln.strip()]
     assert len(lines) <= 45, f"System prompt should be concise (<=45 non-empty lines), got {len(lines)}"
     assert UNIFIED_REJECTION_PHRASE_VI in prompt
     assert SAFE_DENY_REPEAT_PHRASE_VI in prompt
+    assert "Tôi có thể giúp gì cho bạn?" not in prompt
     assert "main_door" in prompt and "living_room_light" in prompt
+
+    # Verify /api/version endpoint for Deployment SHA Proof
+    client = TestClient(app)
+    r_ver = client.get("/api/version")
+    assert r_ver.status_code == 200
+    ver_json = r_ver.json()
+    assert ver_json["ok"] is True
+    assert len(str(ver_json.get("commit_sha", ""))) >= 7
+    assert ver_json.get("single_voice") == "Aoede"
 
     # Measure speaker recognition latency across held-out clips
     va = VoiceAuthManager(AUDIO_DIR)
@@ -509,7 +715,6 @@ def test_req8_concise_system_prompt_and_latency_measurement() -> None:
             rec_latencies_ms.append((time.perf_counter() - t0) * 1000.0)
 
     # Measure REST API latency
-    client = TestClient(app)
     api_latencies_ms: list[float] = []
     for _ in range(5):
         t0 = time.perf_counter()

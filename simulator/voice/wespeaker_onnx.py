@@ -622,15 +622,15 @@ SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
 def evaluate_audio_quality_gate(
     audio: bytes | bytearray | np.ndarray,
     sr: int = SAMPLE_RATE_16K,
-    min_duration_sec: float = 0.35,
-    min_active_speech_sec: float = 0.26,
+    min_duration_sec: float = 1.50,
+    min_active_speech_sec: float = 0.28,
     min_rms: float = 0.004,
     min_peak: float = 0.015,
     max_clip_ratio: float = 0.18,
 ) -> dict[str, Any]:
     """Evaluate audio quality using mel26 + deep64 + signal metrics ONLY as a quality gate.
 
-    When audio is too short (<~1.5s speech / single-syllable <0.42s active), silent, noisy,
+    When audio is too short (<~1.5s speech), synthetic tone/filler, silent, noisy,
     or clipped, returns ok=False, ask_repeat=True with the fixed Vietnamese phrase
     'Âm thanh chưa rõ, vui lòng nói lại.' — NEVER classifying as 'Người lạ'
     and NEVER incrementing security strikes.
@@ -675,6 +675,7 @@ def evaluate_audio_quality_gate(
     e = np.sqrt((fr**2).mean(axis=1) + 1e-12)
     active_mask = e > max(0.08 * float(e.max()), 3e-4)
     active_speech_sec = float(int(active_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
+    x_active = fr[active_mask].reshape(-1) if (n >= 320 and active_mask.any()) else x
 
     levels_db = 20.0 * np.log10(np.maximum(e, 1e-12))
     noise_floor_db = float(np.percentile(levels_db, 20))
@@ -722,6 +723,28 @@ def evaluate_audio_quality_gate(
             "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
+    if (
+        is_pure_synthetic_tone(x, SAMPLE_RATE_16K)
+        or is_pure_synthetic_tone(x_active, SAMPLE_RATE_16K)
+        or not feat1.get("valid", True)
+        or not feat1.get("is_live_human", True)
+        or bool(feat1.get("is_filler_only", False))
+    ):
+        return {
+            "ok": False,
+            "ask_repeat": True,
+            "reason": "AUDIO_NOT_CLEAR_SPEECH",
+            "duration_sec": round(duration_sec, 3),
+            "active_speech_sec": round(active_speech_sec, 3),
+            "rms": round(rms, 5),
+            "peak": round(peak, 5),
+            "clip_ratio": round(clip_ratio, 4),
+            "f0_hz": round(float(f0_hz), 1),
+            "mel26": mel26,
+            "deep64": deep64,
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
+        }
+
     if clip_ratio > max_clip_ratio:
         return {
             "ok": False,
@@ -738,7 +761,7 @@ def evaluate_audio_quality_gate(
             "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
-    if noise_floor_db > -26.0 and snr_est_db < 6.0 and not is_pure_synthetic_tone(x, SAMPLE_RATE_16K):
+    if noise_floor_db > -26.0 and snr_est_db < 6.0:
         return {
             "ok": False,
             "ask_repeat": True,

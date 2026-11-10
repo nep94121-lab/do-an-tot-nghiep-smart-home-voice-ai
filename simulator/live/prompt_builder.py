@@ -647,7 +647,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         "2. QUY TẮC NGÔN NGỮ & PHẠM VI:\n"
         "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn.\n"
         "- Cấm ngoại ngữ: Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngôn ngữ khác.\n"
-        "- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm ('ừm', 'ờ', 'à', 'aló') chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn, đáp: 'Tôi có thể giúp gì cho bạn?'.\n"
+        f'- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm (\'ừm\', \'ờ\', \'à\', \'alô\') đi kèm lệnh rõ ràng thì chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn/quá ngắn, chỉ đáp đúng câu: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
         "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh:\n"
         "  + Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3).\n"
         "  + Ngoài phạm vi nhà thông minh, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"

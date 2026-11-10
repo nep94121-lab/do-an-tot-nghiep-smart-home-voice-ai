@@ -754,11 +754,11 @@ class VoiceAuthManager:
         sample_index: int | None = None,
         total_samples: int | None = None,
         self_check_pcm_bytes: bytes | np.ndarray | None = None,
-        enforce_12s_gate: bool = False,
+        enforce_12s_gate: bool = True,
     ) -> dict[str, Any]:
         """Thu âm giọng nói thật từ Microphone (16kHz PCM) và lưu vector trung bình WeSpeaker ResNet34 ONNX
         cho Cấp 1, Cấp 2 hoặc Cấp 3. Bắt buộc qua Cổng Chống Trùng Giọng Trong Nhà.
-        Hỗ trợ cả cổng kiểm định 12s + self-check 3s (ENROLL_QUALITY.md) và thu đa mẫu / đơn mẫu.
+        Bắt buộc 100% qua cổng kiểm định nghiêm ngặt 12s + self-check 3s (ENROLL_QUALITY.md) phía server.
         """
         if (user_id == OWNER_ID or custom_label == "owner_voice_1") and int(tier) != 1:
             return {
@@ -772,15 +772,26 @@ class VoiceAuthManager:
                 "message": "Không thể hạ cấp quyền Chủ nhà Cấp 1.",
             }
 
-        if enforce_12s_gate or self_check_pcm_bytes is not None:
-            gate_res = check_enrollment_quality_gate(
-                enroll_pcm=pcm_bytes,
-                self_check_pcm=self_check_pcm_bytes,
-                sr=16000,
-                require_self_check=True,
-            )
-            if not gate_res.get("ok"):
-                return gate_res
+        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (không cho phép opt-in/tắt từ client)
+        enroll_pcm_for_gate: bytes | np.ndarray = pcm_bytes
+        if (not isinstance(pcm_bytes, (bytes, bytearray)) or len(pcm_bytes) == 0) and samples_pcm16k:
+            joined_chunks: list[bytes] = []
+            for s_item in samples_pcm16k:
+                if isinstance(s_item, (bytes, bytearray)):
+                    joined_chunks.append(bytes(s_item))
+                elif isinstance(s_item, np.ndarray):
+                    joined_chunks.append(s_item.astype(np.int16).tobytes())
+            if joined_chunks:
+                enroll_pcm_for_gate = b"".join(joined_chunks)
+
+        gate_res = check_enrollment_quality_gate(
+            enroll_pcm=enroll_pcm_for_gate,
+            self_check_pcm=self_check_pcm_bytes,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not gate_res.get("ok"):
+            return gate_res
 
         # Hỗ trợ thu âm lũy tiến từng mẫu 1..5 (Progressive 5-Sample Enrollment)
         if (
@@ -1237,105 +1248,9 @@ class VoiceAuthManager:
         intruder_prof = self.profiles.get("intruder_voice_2", {})
         best_auth_prof = self.profiles.get("owner_voice_1", {})
 
-        # Xử lý âm đệm ngập ngừng đơn lẻ ("ừm", "ờ", vocal fry không kèm câu lệnh):
-        if feat_s1.get("is_filler_only"):
-            total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
-            is_owner_filler = bool(
-                (
-                    70.0 <= feat_s1["f0_hz"] <= 98.0
-                    or 145.0 <= feat_s1["f0_hz"] <= 165.0
-                )
-                and feat_s1["centroid_hz"] <= 350.0
-                and self.unauthorized_strikes == 0
-            )
-            if is_owner_filler:
-                matched_prof = self.profiles.get("owner_voice_1", best_auth_prof)
-                s_owner = cosine_sim(
-                    feat_s1["embedding"],
-                    matched_prof.get("baseline_embedding")
-                    or matched_prof.get("embedding", [0.2] * 26),
-                )
-                sim_val = round(float(np.clip(s_owner, 0.50, 0.99)), 2)
-                res = {
-                    "authorized": True,
-                    "speaker_id": matched_prof["id"],
-                    "user_id": str(matched_prof.get("user_id", OWNER_ID)),
-                    "role": str(matched_prof.get("role", ROLE_MAP.get(1, "ADMIN"))),
-                    "speaker_label": matched_prof["name"],
-                    "tier": 1,
-                    "f0_hz": feat_s1["f0_hz"],
-                    "centroid_hz": feat_s1["centroid_hz"],
-                    "formants_hz": [510.0, 1480.0, 2580.0, 3620.0],
-                    "similarity": sim_val,
-                    "wespeaker_cosine": sim_val,
-                    "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
-                    "stage1_confidence": sim_val,
-                    "stage2_triggered": False,
-                    "stage2_confidence": None,
-                    "filter_stage_used": "Bộ Lọc Âm Đệm (Filler-Aware VAD)",
-                    "denoise_ms": denoise_info["denoise_ms"],
-                    "stage1_ms": feat_s1["stage1_ms"],
-                    "stage2_ms": 0.0,
-                    "diarization_ms": multi_info["diarization_ms"],
-                    "total_ms": total_ms,
-                    "noise_removed_db": denoise_info["noise_removed_db"],
-                    "fan_noise_detected": denoise_info["fan_noise_detected"],
-                    "multi_speaker_detected": False,
-                    "speaker_count": 1,
-                    "priority_reason": "Âm đệm ngập ngừng của Chủ nhà Cấp 1.",
-                    "clean_pcm_bytes": pcm_clean.tobytes(),
-                    "strike_count": self.unauthorized_strikes,
-                    "deferred_strike": True,
-                    "should_reply": True,
-                    "silent_ignore": False,
-                    "rejection_speech": "",
-                }
-            else:
-                res = {
-                    "authorized": False,
-                    "ask_repeat": True,
-                    "quality_gate_passed": False,
-                    "speaker_id": "none",
-                    "user_id": "UNKNOWN",
-                    "role": "UNKNOWN",
-                    "speaker_label": "Âm đệm ngập ngừng — Yêu cầu nói lại câu lệnh đầy đủ",
-                    "tier": 99,
-                    "f0_hz": feat_s1["f0_hz"],
-                    "centroid_hz": feat_s1["centroid_hz"],
-                    "formants_hz": [],
-                    "similarity": 0.0,
-                    "wespeaker_cosine": 0.0,
-                    "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
-                    "stage1_confidence": 0.0,
-                    "stage2_triggered": False,
-                    "stage2_confidence": None,
-                    "filter_stage_used": "Bộ Lọc Âm Đệm (Filler-Aware VAD)",
-                    "denoise_ms": denoise_info["denoise_ms"],
-                    "stage1_ms": feat_s1["stage1_ms"],
-                    "stage2_ms": 0.0,
-                    "diarization_ms": multi_info["diarization_ms"],
-                    "total_ms": total_ms,
-                    "noise_removed_db": denoise_info["noise_removed_db"],
-                    "fan_noise_detected": denoise_info["fan_noise_detected"],
-                    "multi_speaker_detected": False,
-                    "speaker_count": 1,
-                    "priority_reason": "Âm đệm không đủ thông tin sinh trắc học hoàn chỉnh.",
-                    "clean_pcm_bytes": pcm_clean.tobytes(),
-                    "strike_count": self.unauthorized_strikes,
-                    "strikes": self.unauthorized_strikes,
-                    "deferred_strike": True,
-                    "should_reply": True,
-                    "silent_ignore": False,
-                    "rejection_speech": SAFE_DENY_REPEAT_PHRASE_VI,
-                    "message": SAFE_DENY_REPEAT_PHRASE_VI,
-                }
-            self.last_analysis = {
-                k: v for k, v in res.items() if k != "clean_pcm_bytes"
-            }
-            return res
-
-        # Bước 3: SAFE-DENY GATE (Mel26 + Deep64 Quality Gate + Multi-Speaker Overlap Gate)
-        # Quá ngắn (<~1.5s speech), quá ồn, hoặc có từ 2 người nói chồng lấn -> KHÔNG ĐOÁN,
+        # Bước 3: SAFE-DENY GATE BẮT BUỘC TRƯỚC MỌI NHẬN DIỆN (Mel26 + Deep64 Quality Gate + Overlap Gate)
+        # Tuyệt đối KHÔNG gán quyền Chủ nhà bằng heuristic F0/centroid/amplitude cho âm đệm hoặc tín hiệu <~1.5s.
+        # Quá ngắn (<~1.5s speech), âm đệm/tone tổng hợp, quá ồn, hoặc có từ 2 người nói chồng lấn -> KHÔNG ĐOÁN,
         # yêu cầu nói lại bằng câu ngắn cố định, KHÔNG tăng gậy phạt!
         is_true_multi_speaker = False
         if multi_info.get("multi_speaker_detected"):
@@ -1409,6 +1324,7 @@ class VoiceAuthManager:
             not q_gate["ok"]
             or not feat_s1.get("valid", True)
             or not feat_s1.get("is_live_human", True)
+            or bool(feat_s1.get("is_filler_only", False))
         ):
             total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
             repeat_msg = SAFE_DENY_REPEAT_PHRASE_VI

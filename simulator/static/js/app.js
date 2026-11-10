@@ -340,17 +340,13 @@
     }
   }
 
-  function speakVietnameseFallback(text) {
+  function requestAoedeSpokenPhrase(text) {
     if (chkPlayAiVoice && chkPlayAiVoice.checked === false) return;
     const cleanText = String(text || "").trim();
     if (!cleanText) return;
     try {
-      if (typeof window !== "undefined" && window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function") {
-        window.speechSynthesis.cancel();
-        const utt = new window.SpeechSynthesisUtterance(cleanText);
-        utt.lang = "vi-VN";
-        utt.rate = 1.0;
-        window.speechSynthesis.speak(utt);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "aoede_speak_denial", text: cleanText }));
       }
     } catch (_) {}
   }
@@ -818,7 +814,7 @@
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
         if (spokenReply) {
-          speakVietnameseFallback(spokenReply);
+          requestAoedeSpokenPhrase(spokenReply);
         }
       }
       if (data.snapshot) {
