@@ -35,6 +35,8 @@ from simulator.api.deps import (
     broadcast_rest_state_to_bridges,
 )
 from simulator.auth.qr_totp_mixin import (
+    MAX_HTTP_BODY_BYTES,
+    MAX_QR_SMALL_JSON_BODY_BYTES,
     QR_SCAN_COOKIE_NAME,
     QR_SESSION_COOKIE_NAME,
     QR_SHORT_EXPIRY_SEC,
@@ -42,6 +44,7 @@ from simulator.auth.qr_totp_mixin import (
     _iter_header_pairs,
     extract_all_request_qr_credentials,
     hash_qr_scan_nonce,
+    read_and_scan_request_body,
 )
 from simulator.auth.session_store import resolve_request_session
 from simulator.auth_3layer import (
@@ -437,17 +440,56 @@ def _has_malformed_otp_fields(payload: dict[str, Any]) -> bool:
 async def _parse_json_dict_or_invalidate(
     request: Request,
     mgr3: Any,
+    *,
+    max_body_bytes: int = MAX_HTTP_BODY_BYTES,
 ) -> tuple[dict[str, Any] | None, JSONResponse | None]:
-    """Đọc và phân tích cú pháp JSON object trực tiếp từ request body (không qua Body(None) mặc định của FastAPI)
-    để đảm bảo mọi lỗi cú pháp JSON, số không hữu hạn (1e309, NaN, Infinity), \\uXXXX escape hoặc tràn số đều
-    nhận diện phiên TRƯỚC khi kiểm tra body, hủy phiên quét đang gắn kết và buộc quét lại QR mới, tuyệt đối không sinh lỗi HTTP 500.
+    """Đọc và phân tích cú pháp JSON object trực tiếp từ request body với giới hạn kích thước cứng & quét luồng O(1)
+    để đảm bảo mọi body vượt ngưỡng (413), framing lỗi (400), lỗi cú pháp JSON, số không hữu hạn (1e309, NaN, Infinity),
+    \\uXXXX escape hoặc tràn số đều nhận diện phiên TRƯỚC khi kiểm tra body, hủy phiên quét đang gắn kết và buộc quét lại QR mới.
     """
     try:
-        raw_body = await request.body()
+        scan_info = await read_and_scan_request_body(
+            request,
+            max_body_bytes=max_body_bytes,
+            mgr3=mgr3,
+        )
     except Exception:
         _precompute_request_qr_credentials(request)
         return None, _invalidate_bound_session_on_malformed_payload(request, mgr3)
 
+    if scan_info["malformed_framing"]:
+        _invalidate_any_nonce_bound_session(request, mgr3, "MALFORMED_HTTP_FRAMING_MISTAKE")
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "verified": False,
+                    "status": "MALFORMED_HTTP_FRAMING",
+                    "must_rescan": True,
+                    "error": "Cấu trúc độ dài/chunked của yêu cầu HTTP không hợp lệ! Phiên đã bị hủy, vui lòng quét lại mã QR.",
+                }
+            ),
+            status_code=400,
+        )
+
+    if scan_info["is_oversize"]:
+        _invalidate_any_nonce_bound_session(request, mgr3, "REQUEST_BODY_TOO_LARGE_MISTAKE")
+        return None, JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "verified": False,
+                    "status": "PAYLOAD_TOO_LARGE",
+                    "reason": "REQUEST_BODY_TOO_LARGE",
+                    "must_rescan": True,
+                    "max_body_bytes": max_body_bytes,
+                    "error": "Kích thước dữ liệu gửi lên vượt quá giới hạn an toàn cho phép! Phiên đã bị hủy, vui lòng quét lại mã QR của Chủ nhà!",
+                }
+            ),
+            status_code=413,
+        )
+
+    raw_body: bytes = scan_info["raw_body"]
     _precompute_request_qr_credentials(request, raw_body=raw_body)
 
     if not raw_body or not raw_body.strip():
@@ -691,8 +733,31 @@ async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế (Chỉ Chủ nhà Cấp 1)."""
     mgr3 = get_auth_3layer_manager()
     try:
-        raw_body = await request.body()
-        _precompute_request_qr_credentials(request, raw_body=raw_body)
+        scan_info = await read_and_scan_request_body(
+            request,
+            max_body_bytes=MAX_QR_SMALL_JSON_BODY_BYTES,
+            mgr3=mgr3,
+        )
+        raw_body: bytes = scan_info["raw_body"]
+        _precompute_request_qr_credentials(request, raw_body=raw_body if raw_body else None)
+        if scan_info["malformed_framing"]:
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_MALFORMED_FRAMING_MISTAKE")
+            return JSONResponse(
+                sanitize_api_payload({"ok": False, "status": "MALFORMED_HTTP_FRAMING", "must_rescan": True, "error": "Cấu trúc độ dài/chunked không hợp lệ!"}),
+                status_code=400,
+            )
+        if request.method.upper() in ("GET", "HEAD", "OPTIONS") and scan_info["has_any_body"]:
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_GET_BODY_MISTAKE")
+            return JSONResponse(
+                sanitize_api_payload({"ok": False, "status": "BODY_NOT_ALLOWED_ON_GET", "must_rescan": True, "error": "Phương thức GET không được phép đính kèm body!"}),
+                status_code=413 if scan_info["is_oversize"] else 400,
+            )
+        if scan_info["is_oversize"]:
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_OVERSIZE_MISTAKE")
+            return JSONResponse(
+                sanitize_api_payload({"ok": False, "status": "PAYLOAD_TOO_LARGE", "must_rescan": True, "error": "Kích thước dữ liệu gửi lên vượt quá giới hạn an toàn!"}),
+                status_code=413,
+            )
         session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
         if (
             session.role == "UNKNOWN"
@@ -935,7 +1000,11 @@ async def api_auth3_guest_qr_handshake(request: Request) -> JSONResponse:
     mgr3 = get_auth_3layer_manager()
     mgr3._ensure_qr_stores()
     try:
-        payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+        payload, malformed_resp = await _parse_json_dict_or_invalidate(
+            request,
+            mgr3,
+            max_body_bytes=MAX_QR_SMALL_JSON_BODY_BYTES,
+        )
         if malformed_resp is not None or payload is None:
             return malformed_resp  # type: ignore[return-value]
 
@@ -1521,7 +1590,11 @@ async def api_auth3_guest_qr_send_otp(request: Request) -> JSONResponse:
 
 
 async def _impl_guest_qr_send_otp(request: Request, mgr3: Any) -> JSONResponse:
-    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(
+        request,
+        mgr3,
+        max_body_bytes=MAX_QR_SMALL_JSON_BODY_BYTES,
+    )
     if malformed_resp is not None or payload is None:
         return malformed_resp  # type: ignore[return-value]
 
@@ -1695,7 +1768,11 @@ async def api_auth3_guest_qr_verify_otp(request: Request) -> JSONResponse:
 
 
 async def _impl_guest_qr_verify_otp(request: Request, mgr3: Any) -> JSONResponse:
-    payload, malformed_resp = await _parse_json_dict_or_invalidate(request, mgr3)
+    payload, malformed_resp = await _parse_json_dict_or_invalidate(
+        request,
+        mgr3,
+        max_body_bytes=MAX_QR_SMALL_JSON_BODY_BYTES,
+    )
     if malformed_resp is not None or payload is None:
         return malformed_resp  # type: ignore[return-value]
 

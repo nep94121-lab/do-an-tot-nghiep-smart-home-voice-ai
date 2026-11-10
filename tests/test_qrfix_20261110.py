@@ -1741,6 +1741,399 @@ def test_round5_rfc8259_unescape_surrogates_404_405_and_third_party_anti_dos() -
     assert scanner_real.get(hs_real["post_scan_url"]).status_code == 200
 
 
+# =============================================================================
+# FIX ROUND 6 REGRESSION TESTS (R5-N1, R5-N2, HARD 413 LIMITS & CHUNKED STREAMING)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "overflow",
+        "overflow_total",
+        "truncated",
+        "wrong_method",
+        "missing_email",
+        "wrong_otp",
+        "odd_quote_parity",
+        "utf16le_bom_after_2mb",
+    ],
+)
+def test_round6_r5_n1_nonce_after_2mb_stream_scanned_and_invalidated(kind: str) -> None:
+    """R5-N1 Regression: Placing session_id and \\uXXXX-escaped scan_nonce after > 2,000,000 bytes
+    (leading whitespace, JSON string padding, odd-quote parity shift, or UTF-16LE BOM) MUST never
+    escape credential extraction: server rejects 4xx/413, atomically invalidates the scan session,
+    purges pending OTP, kills post_scan_url (403), and blocks subsequent OTP verify.
+    """
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    assert nonce
+    mgr = get_auth_3layer_manager()
+    c = TestClient(app, raise_server_exceptions=False)
+
+    email = f"r6-n1-{kind}@example.invalid"
+    guest_name = f"R6N1_{kind}"
+    send_payload = {
+        "session_id": hs["session_id"],
+        "scan_nonce": nonce,
+        "guest_name": guest_name,
+        "email": email,
+        "confirm_email": email,
+    }
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        proof = c.post("/api/auth3/guest_qr_send_otp", json=send_payload)
+    assert proof.status_code == 200
+    saved_otp = mgr.pending_guest_email_otps[email]["otp"]
+
+    esc_nonce = _escape_json_u_all(nonce, upper_every_other=True)
+    pad_len = 2_000_100
+    method = "POST"
+    path = "/api/auth3/guest_qr_complete_voice"
+
+    if kind == "overflow":
+        raw_bytes = (
+            " " * pad_len
+            + f'{{"padding":"","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}","sample_index":1e309}}'
+        ).encode("utf-8")
+    elif kind == "overflow_total":
+        raw_bytes = (
+            f'{{"padding":"{"x" * pad_len}","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}","total_samples":1e309}}'
+        ).encode("utf-8")
+    elif kind == "truncated":
+        raw_bytes = (
+            f'{{"padding":"{"x" * pad_len}","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}","broken":'
+        ).encode("utf-8")
+    elif kind == "wrong_method":
+        method = "DELETE"
+        raw_bytes = (
+            " " * pad_len
+            + f'{{"padding":"","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}"}}'
+        ).encode("utf-8")
+    elif kind == "missing_email":
+        path = "/api/auth3/guest_qr_send_otp"
+        raw_bytes = (
+            f'{{"padding":"{"x" * pad_len}","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}"}}'
+        ).encode("utf-8")
+    elif kind == "wrong_otp":
+        path = "/api/auth3/guest_qr_verify_otp"
+        raw_bytes = (
+            f'{{"padding":"{"x" * pad_len}","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}","email":{json.dumps(email)},"otp":"000000"}}'
+        ).encode("utf-8")
+    elif kind == "odd_quote_parity":
+        # Leading unclosed quote flips quote parity across every 64 KiB sliding window
+        raw_bytes = (
+            '"unclosed_quote_'
+            + ("z" * pad_len)
+            + f'","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}"}}'
+        ).encode("utf-8")
+    else:
+        # UTF-16LE BOM with > 2MB body (1,050,000 UTF-16 code units = 2,100,000+ bytes)
+        u16_text = (
+            " " * 1_050_000
+            + f'{{"session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}","sample_index":1e309}}'
+        )
+        raw_bytes = b"\xff\xfe" + u16_text.encode("utf-16-le")
+
+    assert len(raw_bytes) > 2_000_000
+    bad_resp = c.request(
+        method,
+        path,
+        content=raw_bytes,
+        headers={"content-type": "application/json"},
+        follow_redirects=False,
+    )
+    assert bad_resp.status_code == 413
+    assert bad_resp.json().get("status") == "PAYLOAD_TOO_LARGE"
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+    retry = c.post("/api/auth3/guest_qr_verify_otp", json={**send_payload, "otp": saved_otp})
+    assert retry.status_code >= 400
+    assert retry.json().get("verified") is False
+    assert not any(v.get("name") == guest_name for v in _REST_ENGINE.users.values())
+
+
+def test_round6_r5_n2_padded_get_head_options_bodies_fail_closed_and_isolate() -> None:
+    """R5-N2 Regression:
+    1. GET/HEAD/OPTIONS carrying a padded (> 2MB) or small body with QR credentials to /, /app, /api/state,
+       /api/device, /auth, /logs MUST return 403 (route isolation) and MUST invalidate the bound session.
+    2. GET/HEAD/OPTIONS carrying any body WITHOUT QR credentials MUST fail closed with 400 (small) or 413 (oversize),
+       NEVER 200 OK.
+    3. GET to /guest_enroll with scanner cookie AND an unexpected body MUST reject 400/413 and invalidate the session.
+    """
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    mgr = get_auth_3layer_manager()
+
+    # 1. Padded > 2MB GET bodies carrying QR credentials to non-QR routes -> 403 + invalidated
+    for route in ("/", "/app", "/api/state", "/api/device", "/auth", "/logs"):
+        scanner, hs = _handshake_pair()
+        nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_nonce = _escape_json_u_all(nonce, upper_every_other=True)
+        email = f"r6-get-{route.strip('/') or 'root'}-{hs['session_id'][-4:]}@example.invalid"
+        with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+            assert (
+                scanner.post(
+                    "/api/auth3/guest_qr_send_otp",
+                    json={"session_id": hs["session_id"], "email": email, "confirm_email": email, "guest_name": "R6Get"},
+                ).status_code
+                == 200
+            )
+
+        padded_body = (
+            '{"padding":"'
+            + ("p" * 2_000_100)
+            + f'","session_id":{json.dumps(hs["session_id"])},"scan_nonce":"{esc_nonce}"}}'
+        ).encode("utf-8")
+        c_fresh = TestClient(app, raise_server_exceptions=False)
+        resp = c_fresh.request(
+            "GET",
+            route,
+            content=padded_body,
+            headers={"content-type": "application/json"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 403, f"Padded GET on {route} returned {resp.status_code}"
+        assert resp.json().get("status") == "QR_REGISTRATION_SESSION_ISOLATED"
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert email not in mgr.pending_guest_email_otps
+        assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+    # 2. Non-QR GET / HEAD / OPTIONS requests carrying small or oversize bodies -> fail closed (400 / 413, never 200)
+    c_plain = TestClient(app, raise_server_exceptions=False)
+    for method in ("GET", "HEAD", "OPTIONS"):
+        for route in ("/", "/app", "/api/state", "/guest_enroll"):
+            r_small = c_plain.request(
+                method,
+                route,
+                content=b'{"unexpected":"body"}',
+                headers={"content-type": "application/json"},
+                follow_redirects=False,
+            )
+            assert r_small.status_code == 400, f"{method} {route} with body returned {r_small.status_code}"
+        r_huge = c_plain.request(
+            method,
+            "/api/state",
+            content=b" " * 2_000_100 + b"{}",
+            headers={"content-type": "application/json"},
+            follow_redirects=False,
+        )
+        assert r_huge.status_code == 413
+
+    # 3. GET to /guest_enroll with valid scanner cookie + unexpected body -> 400 + session invalidated
+    scanner_ge, hs_ge = _handshake_pair()
+    r_ge_body = scanner_ge.request(
+        "GET",
+        hs_ge["post_scan_url"],
+        content=b'{"unexpected":1}',
+        headers={"content-type": "application/json"},
+    )
+    assert r_ge_body.status_code == 400
+    assert mgr.guest_qr_sessions[hs_ge["session_id"]]["invalidated"] is True
+    assert scanner_ge.get(hs_ge["post_scan_url"]).status_code == 403
+
+
+def test_round6_hard_oversize_limits_413_and_anti_dos_preservation() -> None:
+    """Verify per-route hard body size limits (64 KiB on JSON OTP/handshake/qr_generate; 1.5 MiB on voice),
+    session invalidation when valid scan_nonce is anywhere in oversize body, positive voice compatibility
+    below 1.5 MiB, and anti-DoS protection when attacker lacks valid scan_nonce.
+    """
+    from simulator.auth.qr_totp_mixin import MAX_HTTP_BODY_BYTES, MAX_QR_SMALL_JSON_BODY_BYTES
+
+    mgr = get_auth_3layer_manager()
+
+    # 1. > 64 KiB on small JSON QR endpoints -> 413 + invalidates bound session
+    for small_ep in (
+        "/api/auth3/guest_qr_handshake",
+        "/api/auth3/guest_qr_send_otp",
+        "/api/auth3/guest_qr_verify_otp",
+        "/api/auth3/qr/generate",
+    ):
+        scanner, hs = _handshake_pair()
+        nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_nonce = _escape_json_u_all(nonce)
+        over_64k = (
+            '{"pad":"'
+            + ("a" * (MAX_QR_SMALL_JSON_BODY_BYTES + 2048))
+            + f'","session_id":"{hs["session_id"]}","scan_nonce":"{esc_nonce}"}}'
+        ).encode("utf-8")
+        c = TestClient(app, raise_server_exceptions=False)
+        hdrs = {"content-type": "application/json"}
+        if small_ep == "/api/auth3/qr/generate":
+            hdrs["Authorization"] = "Bearer sess_owner_t1_nep94121"
+        r = c.post(small_ep, content=over_64k, headers=hdrs)
+        assert r.status_code == 413, f"{small_ep} did not return 413 on >64KB body: {r.status_code}"
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+    # 2. > 1.5 MiB (up to 4.2 MB) on voice endpoint with nonce at tail -> 413 + invalidates bound session
+    scanner_v, hs_v = _handshake_pair()
+    nonce_v = str(scanner_v.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    over_voice = (
+        '{"pad":"'
+        + ("v" * (MAX_HTTP_BODY_BYTES + 600_000))
+        + f'","session_id":"{hs_v["session_id"]}","scan_nonce":"{_escape_json_u_all(nonce_v)}"}}'
+    ).encode("utf-8")
+    c_v = TestClient(app, raise_server_exceptions=False)
+    r_v = c_v.post("/api/auth3/guest_qr_complete_voice", content=over_voice, headers={"content-type": "application/json"})
+    assert r_v.status_code == 413
+    assert mgr.guest_qr_sessions[hs_v["session_id"]]["invalidated"] is True
+    assert scanner_v.get(hs_v["post_scan_url"]).status_code == 403
+
+    # 3. Anti-DoS: third party knowing ONLY session_id (no valid scan_nonce) sends 2.2 MB body -> 413/403, real session stays valid!
+    scanner_keep, hs_keep = _handshake_pair()
+    attacker = TestClient(app, raise_server_exceptions=False)
+    atk_body = (
+        '{"pad":"'
+        + ("k" * 2_200_000)
+        + f'","session_id":"{hs_keep["session_id"]}","scan_nonce":"forged_wrong_nonce_000000000"}}'
+    ).encode("utf-8")
+    r_atk_voice = attacker.post("/api/auth3/guest_qr_complete_voice", content=atk_body, headers={"content-type": "application/json"})
+    assert r_atk_voice.status_code == 413
+    r_atk_app = attacker.request("GET", "/app", content=atk_body, headers={"content-type": "application/json"})
+    assert r_atk_app.status_code == 403
+    assert mgr.guest_qr_sessions[hs_keep["session_id"]]["invalidated"] is False
+    assert scanner_keep.get(hs_keep["post_scan_url"]).status_code == 200
+
+    # Real scanner can still complete legitimate voice enrollment (< 1.5 MiB)
+    audio_b64 = _generate_valid_guest_pcm_b64(f0=238.0, duration_sec=3.0)
+    ok_voice = scanner_keep.post(
+        "/api/auth3/guest_qr_complete_voice",
+        json={
+            "session_id": hs_keep["session_id"],
+            "post_scan_token": hs_keep["post_scan_token"],
+            "guest_name": "Khách Hợp Lệ Sau AntiDoS",
+            "duration": "1d",
+            "audio_pcm_b64": audio_b64,
+        },
+    )
+    assert ok_voice.status_code == 200
+    assert ok_voice.json().get("ok") is True
+
+
+def test_round6_chunked_transfer_encoding_split_boundary_and_malformed_framing() -> None:
+    """Verify Transfer-Encoding: chunked streaming:
+    1. Oversize (> 2.2 MiB) chunked POST where \\uXXXX scan_nonce is split across 7-byte chunk boundaries
+       returns 413 and invalidates the bound session.
+    2. Oversize (> 2.1 MiB) chunked GET to /, /app, /api/state with split credentials returns 403 and invalidates.
+    3. Valid small chunked POST to /api/auth3/guest_qr_send_otp succeeds 200 OK.
+    4. Malformed framing (conflicting Content-Length or CL + Transfer-Encoding) returns 400 and invalidates.
+    """
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    mgr = get_auth_3layer_manager()
+
+    # 1. Chunked > 2.2 MiB POST with \uXXXX scan_nonce split across 7-byte chunks -> 413 + invalidated
+    scanner1, hs1 = _handshake_pair()
+    nonce1 = str(scanner1.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    esc_nonce1 = _escape_json_u_all(nonce1, upper_every_other=True)
+    email1 = "r6-chunked-voice@example.invalid"
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        assert (
+            scanner1.post(
+                "/api/auth3/guest_qr_send_otp",
+                json={"session_id": hs1["session_id"], "email": email1, "confirm_email": email1, "guest_name": "R6Chunk1"},
+            ).status_code
+            == 200
+        )
+
+    tail_bytes = f'","session_id":"{hs1["session_id"]}","scan_nonce":"{esc_nonce1}","sample_index":1e309}}'.encode("utf-8")
+
+    def _gen_oversize_split_chunks():
+        yield b'{"padding":"'
+        for _ in range(35):
+            yield b"c" * 65_536
+        # Split tail_bytes (including \uXXXX escapes) into tiny 7-byte chunks across boundaries
+        for idx in range(0, len(tail_bytes), 7):
+            yield tail_bytes[idx : idx + 7]
+
+    c1 = TestClient(app, raise_server_exceptions=False)
+    r_chunk_post = c1.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=_gen_oversize_split_chunks(),
+        headers={"content-type": "application/json"},
+    )
+    assert r_chunk_post.status_code == 413
+    assert mgr.guest_qr_sessions[hs1["session_id"]]["invalidated"] is True
+    assert email1 not in mgr.pending_guest_email_otps
+    assert scanner1.get(hs1["post_scan_url"]).status_code == 403
+
+    # 2. Chunked > 2.1 MiB GET to /, /app, /api/state -> 403 + invalidated
+    for route in ("/", "/app", "/api/state"):
+        scanner2, hs2 = _handshake_pair()
+        nonce2 = str(scanner2.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_n2 = _escape_json_u_all(nonce2)
+        tail2 = f'","post_scan_token":"{hs2["post_scan_token"]}","scan_nonce":"{esc_n2}"}}'.encode("utf-8")
+
+        def _gen_get_chunks(t_bytes: bytes = tail2):
+            yield b'{"pad":"'
+            for _ in range(33):
+                yield b"g" * 65_536
+            for idx in range(0, len(t_bytes), 9):
+                yield t_bytes[idx : idx + 9]
+
+        c2 = TestClient(app, raise_server_exceptions=False)
+        r_chunk_get = c2.request(
+            "GET",
+            route,
+            content=_gen_get_chunks(),
+            headers={"content-type": "application/json"},
+            follow_redirects=False,
+        )
+        assert r_chunk_get.status_code == 403
+        assert mgr.guest_qr_sessions[hs2["session_id"]]["invalidated"] is True
+        assert scanner2.get(hs2["post_scan_url"]).status_code == 403
+
+    # 3. Valid small chunked POST to /api/auth3/guest_qr_send_otp -> 200 OK
+    scanner3, hs3 = _handshake_pair()
+    nonce3 = str(scanner3.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    valid_small = json.dumps(
+        {
+            "session_id": hs3["session_id"],
+            "scan_nonce": nonce3,
+            "guest_name": "ChunkedSmallValid",
+            "email": "r6-small-chunk@example.invalid",
+            "confirm_email": "r6-small-chunk@example.invalid",
+        }
+    ).encode("utf-8")
+    c3 = TestClient(app, raise_server_exceptions=False)
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        r_small_chunk = c3.post(
+            "/api/auth3/guest_qr_send_otp",
+            content=(valid_small[i : i + 11] for i in range(0, len(valid_small), 11)),
+            headers={"content-type": "application/json"},
+        )
+    assert r_small_chunk.status_code == 200
+    assert r_small_chunk.json().get("ok") is True
+
+    # 4. Malformed HTTP framing (CL + Transfer-Encoding smuggling / invalid Content-Length) -> 400 + invalidated
+    scanner4, hs4 = _handshake_pair()
+    nonce4 = str(scanner4.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    body4 = json.dumps({"session_id": hs4["session_id"], "scan_nonce": nonce4}).encode("utf-8")
+    c4 = TestClient(app, raise_server_exceptions=False)
+    r_smuggle = c4.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=body4,
+        headers=[
+            ("content-type", "application/json"),
+            ("content-length", str(len(body4))),
+            ("transfer-encoding", "chunked"),
+        ],
+    )
+    assert r_smuggle.status_code == 400
+    assert r_smuggle.json().get("status") == "MALFORMED_HTTP_FRAMING"
+    assert mgr.guest_qr_sessions[hs4["session_id"]]["invalidated"] is True
+    assert scanner4.get(hs4["post_scan_url"]).status_code == 403
+
+
+
 
 
 

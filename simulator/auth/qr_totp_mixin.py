@@ -27,6 +27,40 @@ QR_SCAN_COOKIE_NAME = "sh_qr_scan_nonce"
 QR_SESSION_COOKIE_NAME = "sh_qr_session_id"
 QR_SHORT_EXPIRY_SEC = 180.0
 
+# Giới hạn cứng kích thước HTTP request body & cửa sổ trượt quét luồng bộ nhớ hằng số O(1) (Fix Round 6)
+MAX_HTTP_BODY_BYTES = 1_572_864          # 1.5 MiB (đủ cho 5 mẫu giọng nói 16kHz PCM16 base64; chặn < 2MB)
+MAX_QR_SMALL_JSON_BODY_BYTES = 65_536    # 64 KiB cho các API JSON nhỏ (handshake, send_otp, verify_otp, qr/generate)
+MAX_STREAM_CREDENTIAL_SCAN_BYTES = 33_554_432  # 32 MiB trần rút luồng chống DoS
+_STREAM_WINDOW_BLOCK_BYTES = 65_536      # 64 KiB kích thước khối quét cửa sổ trượt
+_STREAM_WINDOW_OVERLAP_BYTES = 16_384    # 16 KiB vùng chồng lấp chia hết cho 4 byte (bảo toàn UTF-8/UTF-16/UTF-32 & \uXXXX)
+
+_STRICT_QR_CREDENTIAL_KEYS: frozenset[str] = frozenset(
+    {
+        "post_scan_token",
+        "scan_nonce",
+        "qr_token",
+        QR_SCAN_COOKIE_NAME,
+        QR_SESSION_COOKIE_NAME,
+    }
+)
+_SHARED_QR_TOKEN_KEYS: frozenset[str] = frozenset(
+    {
+        "session_token",
+        "sh_session_token",
+        "guest_session_id",
+        "session_id",
+        "token",
+    }
+)
+
+# Biểu thức chính quy unrolled tuyến tính O(N) — không bao giờ catastrophic backtracking trên chuỗi triệu ký tự
+_RE_UNESCAPED_QUOTE = re.compile(r'(?<!\\)(?:\\\\)*"')
+_RE_JSON_KV_STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"')
+_RE_JSON_KV_NUM = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*([+-]?\d{1,64})\b')
+_RE_JSON_STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+_RE_BOUNDED_TOKEN_RUN = re.compile(r"(?<![A-Za-z0-9_\-\\+%])[A-Za-z0-9_\-\\+%]{8,1024}(?![A-Za-z0-9_\-\\+%])")
+_RE_MULTIPART_FIELD = re.compile(r'name="([^"]{1,256})"(?:;[^\r\n]*)?\r?\n\r?\n([^\r\n]{1,1024})')
+
 
 def hash_qr_scan_nonce(nonce: str | None) -> str:
     """Băm SHA-256 cho device/session scan nonce để đối chiếu an toàn."""
@@ -65,6 +99,7 @@ _NON_CREDENTIAL_HTTP_HEADERS: frozenset[str] = frozenset(
         "connection",
         "content-type",
         "content-length",
+        "transfer-encoding",
         "origin",
         "referer",
         "cache-control",
@@ -132,11 +167,16 @@ def unescape_json_string_literal(raw_inner: str) -> str:
     return "".join(out)
 
 
-def decode_raw_body_texts(raw_body: bytes | None) -> list[str]:
-    """Giải mã khoan dung raw_body sang danh sách chuỗi văn bản (hỗ trợ UTF-8, UTF-8-SIG và UTF-16/UTF-32 có BOM/NUL)."""
+def decode_raw_body_texts(
+    raw_body: bytes | None,
+    *,
+    forced_encoding: str | None = None,
+) -> list[str]:
+    """Giải mã khoan dung toàn bộ raw_body (KHÔNG cắt prefix 2MB) sang danh sách chuỗi văn bản
+    (hỗ trợ UTF-8, UTF-8-SIG và UTF-16/UTF-32 có BOM/NUL).
+    """
     if not raw_body:
         return []
-    bounded = raw_body[:2_000_000]
     texts: list[str] = []
 
     def _add_text(t: str) -> None:
@@ -144,20 +184,28 @@ def decode_raw_body_texts(raw_body: bytes | None) -> list[str]:
         if cleaned and cleaned not in texts:
             texts.append(cleaned)
 
-    if bounded.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
-        enc = "utf-32-le" if bounded.startswith(b"\xff\xfe\x00\x00") else "utf-32-be"
-        _add_text(bounded[4:].decode(enc, errors="ignore"))
-    elif bounded.startswith((b"\xff\xfe", b"\xfe\xff")):
-        enc = "utf-16-le" if bounded.startswith(b"\xff\xfe") else "utf-16-be"
-        _add_text(bounded[2:].decode(enc, errors="ignore"))
+    if forced_encoding:
+        try:
+            _add_text(raw_body.decode(forced_encoding, errors="ignore"))
+        except Exception:
+            pass
 
-    _add_text(bounded.decode("utf-8", errors="ignore"))
+    if raw_body.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        enc = "utf-32-le" if raw_body.startswith(b"\xff\xfe\x00\x00") else "utf-32-be"
+        _add_text(raw_body[4:].decode(enc, errors="ignore"))
+    elif raw_body.startswith((b"\xff\xfe", b"\xfe\xff")):
+        enc = "utf-16-le" if raw_body.startswith(b"\xff\xfe") else "utf-16-be"
+        _add_text(raw_body[2:].decode(enc, errors="ignore"))
 
-    sample = bounded[:64]
+    _add_text(raw_body.decode("utf-8", errors="ignore"))
+
+    sample = raw_body[:128]
     if b"\x00" in sample:
         for alt_enc in ("utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"):
+            if alt_enc == forced_encoding:
+                continue
             try:
-                _add_text(bounded.decode(alt_enc, errors="ignore"))
+                _add_text(raw_body.decode(alt_enc, errors="ignore"))
             except Exception:
                 pass
     return texts
@@ -166,9 +214,14 @@ def decode_raw_body_texts(raw_body: bytes | None) -> list[str]:
 def extract_tolerant_raw_body_pairs_and_strings(
     raw_body: bytes | None = None,
     payload: Any = None,
+    *,
+    forced_encoding: str | None = None,
 ) -> tuple[list[tuple[str, str]], list[str]]:
     """Trích xuất khoan dung toàn bộ cặp (khóa, giá trị) và các chuỗi ngắn từ payload/raw_body TRƯỚC và ĐỘC LẬP với
     bước kiểm tra số học/cấu trúc JSON nghiêm ngặt:
+    - Tuyến tính O(N) không cắt prefix, không backtracking trên chuỗi triệu ký tự.
+    - Quét cả hai pha dấu ngoặc kép (Parity 0 & Parity 1) + token độc lập ngoặc kép để miễn nhiễm hoàn toàn
+      với chuỗi đệm khổng lồ bị cắt giữa cửa sổ trượt hoặc dấu ngoặc kép lẻ làm lệch pha.
     - Giải mã đầy đủ \\uXXXX cho cả khóa và giá trị kể cả khi cùng body có 1e309, -1e309, NaN, Infinity, số khổng lồ, khóa trùng hoặc JSON gãy dở.
     - Giải mã %XX cho application/x-www-form-urlencoded và multipart/form-data.
     """
@@ -228,43 +281,63 @@ def extract_tolerant_raw_body_pairs_and_strings(
         if isinstance(node, str) and not isinstance(node, _RawJsonLiteral):
             _rec_str(node)
 
+    def _scan_broken_or_window_text(segment: str) -> None:
+        for m_kv in _RE_JSON_KV_STR.finditer(segment):
+            raw_k, raw_v = m_kv.group(1), m_kv.group(2)
+            if len(raw_k) <= 1024 and 1 <= len(raw_v) <= 4096:
+                _rec_pair(
+                    unescape_json_string_literal(raw_k),
+                    unescape_json_string_literal(raw_v),
+                )
+        for m_kn in _RE_JSON_KV_NUM.finditer(segment):
+            raw_k, raw_num = m_kn.group(1), m_kn.group(2)
+            if len(raw_k) <= 1024:
+                _rec_pair(unescape_json_string_literal(raw_k), raw_num)
+        for m_str in _RE_JSON_STR.finditer(segment):
+            raw_s = m_str.group(1)
+            if 1 <= len(raw_s) <= 4096:
+                _rec_str(unescape_json_string_literal(raw_s))
+
     if payload is not None:
         _walk_obj(payload, 0)
 
-    for text in decode_raw_body_texts(raw_body):
+    for text in decode_raw_body_texts(raw_body, forced_encoding=forced_encoding):
         parsed_ok = False
-        try:
-            tolerant_ast = json.loads(
-                text,
-                object_pairs_hook=_JsonObjectPairs,
-                parse_float=_RawJsonLiteral,
-                parse_int=_RawJsonLiteral,
-                parse_constant=_RawJsonLiteral,
-            )
-            _walk_obj(tolerant_ast, 0)
-            parsed_ok = True
-        except Exception:
-            parsed_ok = False
+        if text[:1] in ("{", "["):
+            try:
+                tolerant_ast = json.loads(
+                    text,
+                    object_pairs_hook=_JsonObjectPairs,
+                    parse_float=_RawJsonLiteral,
+                    parse_int=_RawJsonLiteral,
+                    parse_constant=_RawJsonLiteral,
+                )
+                _walk_obj(tolerant_ast, 0)
+                parsed_ok = True
+            except Exception:
+                parsed_ok = False
 
         if not parsed_ok:
-            for m_kv in re.finditer(r'"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"', text):
-                raw_k, raw_v = m_kv.group(1), m_kv.group(2)
-                if len(raw_k) <= 1024 and 1 <= len(raw_v) <= 4096:
-                    _rec_pair(
-                        unescape_json_string_literal(raw_k),
-                        unescape_json_string_literal(raw_v),
-                    )
-            for m_kn in re.finditer(r'"((?:[^"\\]|\\.)*)"\s*:\s*([+-]?\d{1,64})\b', text):
-                raw_k, raw_num = m_kn.group(1), m_kn.group(2)
-                if len(raw_k) <= 1024:
-                    _rec_pair(unescape_json_string_literal(raw_k), raw_num)
-            for m_str in re.finditer(r'"((?:[^"\\]|\\.)*)"', text):
-                raw_s = m_str.group(1)
-                if 1 <= len(raw_s) <= 4096:
-                    _rec_str(unescape_json_string_literal(raw_s))
+            # Quét cả Pha 0 (từ đầu chuỗi) và Pha 1 (sau dấu ngoặc kép không-escape đầu tiên)
+            _scan_broken_or_window_text(text)
+            m_first_q = _RE_UNESCAPED_QUOTE.search(text)
+            if m_first_q is not None and m_first_q.end() < len(text):
+                _scan_broken_or_window_text(text[m_first_q.end() :])
+
+            # Quét bổ sung các chuỗi token độc lập pha ngoặc kép (URL-safe / \uXXXX / %XX)
+            for m_run in _RE_BOUNDED_TOKEN_RUN.finditer(text):
+                tok = m_run.group(0)
+                _rec_str(tok)
+                if "\\" in tok:
+                    _rec_str(unescape_json_string_literal(tok))
+                if "%" in tok or "+" in tok:
+                    unq = unquote_plus(tok)
+                    _rec_str(unq)
+                    if "\\" in unq:
+                        _rec_str(unescape_json_string_literal(unq))
 
         if "Content-Disposition:" in text and "name=" in text:
-            for m_mp in re.finditer(r'name="([^"]{1,256})"(?:;[^\r\n]*)?\r?\n\r?\n([^\r\n]{1,1024})', text):
+            for m_mp in _RE_MULTIPART_FIELD.finditer(text):
                 raw_mp_k = m_mp.group(1)
                 raw_mp_v = m_mp.group(2).strip()
                 mp_k = unquote_plus(unescape_json_string_literal(raw_mp_k))
@@ -280,6 +353,36 @@ def extract_tolerant_raw_body_pairs_and_strings(
                 pass
 
     return pairs, strings
+
+
+def has_qr_credentials_in_pairs_or_strings(
+    pairs: list[tuple[str, str]],
+    strings: list[str],
+    mgr3: Any = None,
+) -> bool:
+    """Kiểm tra cặp (key, value) hoặc danh sách chuỗi trích xuất từ body/stream có chứa bất kỳ credential đăng ký QR nào không."""
+    if not pairs and not strings:
+        return False
+    if mgr3 is None:
+        try:
+            from simulator.auth_3layer import get_auth_3layer_manager
+            mgr3 = get_auth_3layer_manager()
+        except Exception:
+            mgr3 = None
+
+    for bk, bv in pairs:
+        if not bv:
+            continue
+        if bk in _STRICT_QR_CREDENTIAL_KEYS:
+            return True
+        if bk in _SHARED_QR_TOKEN_KEYS and is_qr_registration_token_or_session(bv, mgr3=mgr3):
+            return True
+
+    for bs in strings:
+        if bs and is_qr_registration_token_or_session(bs, mgr3=mgr3):
+            return True
+
+    return False
 
 
 def _iter_header_pairs(headers: Any) -> list[tuple[str, str]]:
@@ -312,7 +415,8 @@ def extract_all_request_qr_credentials(
     raw_body: bytes | None = None,
 ) -> dict[str, list[str]]:
     """Thu thập toàn diện mọi thông tin định danh phiên/token/scan_nonce trên tất cả carrier:
-    Cookies, Headers (kể cả trùng lặp & Bearer), Query Params (multi_items), và Raw Body khoan dung (JSON \\uXXXX, form, multipart).
+    Cookies, Headers (kể cả trùng lặp & Bearer), Query Params (multi_items), dữ liệu luồng đã quét trước (request.state)
+    và Raw Body khoan dung (JSON \\uXXXX, form, multipart).
     """
     nonces: list[str] = []
     session_ids: list[str] = []
@@ -329,8 +433,22 @@ def extract_all_request_qr_credentials(
                 all_secrets.append(c)
 
     if request is not None:
+        state_obj = getattr(request, "state", None)
+        prev_creds = getattr(state_obj, "qr_extracted_creds", None)
+        if isinstance(prev_creds, dict):
+            for v in prev_creds.get("nonces", ()):
+                _push(nonces, str(v))
+            for v in prev_creds.get("session_ids", ()):
+                _push(session_ids, str(v))
+            for v in prev_creds.get("post_scan_tokens", ()):
+                _push(post_scan_tokens, str(v))
+            for v in prev_creds.get("qr_tokens", ()):
+                _push(qr_tokens, str(v))
+            for v in prev_creds.get("all_candidate_secrets", ()):
+                _push(all_secrets, str(v))
+
         if raw_body is None:
-            cached = getattr(getattr(request, "state", None), "qr_raw_body", None)
+            cached = getattr(state_obj, "qr_raw_body", None)
             if isinstance(cached, (bytes, bytearray)):
                 raw_body = bytes(cached)
             else:
@@ -417,6 +535,262 @@ def extract_all_request_qr_credentials(
         "qr_tokens": qr_tokens,
         "all_candidate_secrets": all_secrets,
     }
+
+
+async def read_and_scan_request_body(
+    request: Any,
+    max_body_bytes: int = MAX_HTTP_BODY_BYTES,
+    mgr3: Any = None,
+) -> dict[str, Any]:
+    """Đọc và quét HTTP request body theo luồng (streaming) với giới hạn cứng kích thước & cửa sổ trượt bộ nhớ hằng số O(1):
+    1. Phân giải Cookie / Header / Query TRƯỚC khi chạm vào body.
+    2. Nếu tổng kích thước luồng <= max_body_bytes và header framing hợp lệ:
+       - Lưu đầy đủ raw_body, gán request._body = raw_body để Starlette/FastAPI downstream đọc lại không mất luồng,
+         và trích xuất 100% credential mà KHÔNG có bất kỳ giới hạn cắt prefix ngầm nào.
+    3. Nếu vượt quá max_body_bytes (Content-Length lớn hoặc chunked vượt ngưỡng) hoặc framing lỗi:
+       - Đánh dấu is_oversize / malformed_framing, ngừng tăng bộ đệm RAM đầy đủ, và rút luồng qua cửa sổ trượt 64KB
+         (overlap 16KB căn chỉnh 4 byte, tối đa 32 MiB) để bắt trọn mọi credential ở bất kỳ vị trí nào (sau 2MB, 5MB,
+         hay bị cắt giữa 2 chunk), phục vụ hủy phiên nguyên tử và chặn cô lập route (403 / 413).
+    """
+    state_obj = getattr(request, "state", None)
+    cached_scan = getattr(state_obj, "qr_stream_scan_meta", None)
+    if isinstance(cached_scan, dict):
+        # Đánh giá lại ngưỡng max_body_bytes nếu một handler kiểm tra ngưỡng chặt hơn middleware
+        eff_oversize = bool(
+            cached_scan.get("is_oversize")
+            or int(cached_scan.get("total_bytes", 0)) > max_body_bytes
+            or int(cached_scan.get("declared_cl", 0)) > max_body_bytes
+        )
+        if eff_oversize and not cached_scan.get("is_oversize"):
+            raw_prev = cached_scan.get("raw_body") or b""
+            if raw_prev:
+                w_pairs, w_strings = extract_tolerant_raw_body_pairs_and_strings(raw_body=raw_prev)
+                if has_qr_credentials_in_pairs_or_strings(w_pairs, w_strings, mgr3=mgr3):
+                    cached_scan["has_qr_body_cred"] = True
+            cached_scan = {**cached_scan, "is_oversize": True, "raw_body": b""}
+            if state_obj is not None:
+                try:
+                    state_obj.qr_raw_body = b""
+                    state_obj.qr_has_body_cred = bool(cached_scan.get("has_qr_body_cred"))
+                    state_obj.qr_stream_scan_meta = cached_scan
+                except Exception:
+                    pass
+        return cached_scan
+
+    if mgr3 is None:
+        try:
+            from simulator.auth_3layer import get_auth_3layer_manager
+            mgr3 = get_auth_3layer_manager()
+        except Exception:
+            mgr3 = None
+
+    # 1. Kiểm tra Content-Length / Transfer-Encoding framing (chặn CL.TE / TE.CL smuggling)
+    malformed_framing = False
+    declared_cl = 0
+    has_any_body = False
+    cl_values: list[str] = []
+    has_chunked_te = False
+    for hk, hv in _iter_header_pairs(getattr(request, "headers", None)):
+        if hk == "content-length":
+            if not hv or not hv.isdigit() or len(hv) > 20:
+                malformed_framing = True
+            elif hv not in cl_values:
+                cl_values.append(hv)
+        elif hk == "transfer-encoding" and hv:
+            has_chunked_te = True
+            has_any_body = True
+
+    if cl_values and has_chunked_te:
+        malformed_framing = True
+
+    if len(cl_values) > 1:
+        malformed_framing = True
+    elif len(cl_values) == 1:
+        declared_cl = int(cl_values[0])
+        if declared_cl > 0:
+            has_any_body = True
+
+    is_oversize = declared_cl > max_body_bytes
+
+    # 2. Khởi tạo bộ thu thập credential từ Cookie / Header / Query trước khi đọc body
+    base_creds = extract_all_request_qr_credentials(request=request, payload=None, raw_body=b"")
+    nonces = list(base_creds["nonces"])
+    session_ids = list(base_creds["session_ids"])
+    post_scan_tokens = list(base_creds["post_scan_tokens"])
+    qr_tokens = list(base_creds["qr_tokens"])
+    all_secrets = list(base_creds["all_candidate_secrets"])
+    has_qr_body_cred = False
+
+    def _push_cred(target: list[str], val: str) -> None:
+        c = val.strip()
+        if c and len(c) <= 512:
+            if c not in target:
+                target.append(c)
+            if c not in all_secrets:
+                all_secrets.append(c)
+
+    def _ingest_window_bytes(buf_bytes: bytes, forced_enc: str | None) -> None:
+        nonlocal has_qr_body_cred
+        if not buf_bytes:
+            return
+        w_pairs, w_strings = extract_tolerant_raw_body_pairs_and_strings(
+            raw_body=buf_bytes,
+            forced_encoding=forced_enc,
+        )
+        if not has_qr_body_cred and has_qr_credentials_in_pairs_or_strings(w_pairs, w_strings, mgr3=mgr3):
+            has_qr_body_cred = True
+        for bk, bv in w_pairs:
+            if bk in ("scan_nonce", QR_SCAN_COOKIE_NAME):
+                _push_cred(nonces, bv)
+            elif bk in (QR_SESSION_COOKIE_NAME, "session_id", "guest_session_id", "session_token", "sh_session_token"):
+                _push_cred(session_ids, bv)
+            elif bk == "post_scan_token":
+                _push_cred(post_scan_tokens, bv)
+            elif bk in ("token", "qr_token"):
+                _push_cred(qr_tokens, bv)
+            else:
+                _push_cred(all_secrets, bv)
+        for bs in w_strings:
+            _push_cred(all_secrets, bs)
+
+    full_chunks: list[bytes] = []
+    window_buf = bytearray()
+    total_bytes = 0
+    saw_first_nonempty_chunk = False
+    detected_alt_enc: str | None = None
+
+    try:
+        async for chunk in request.stream():
+            if not chunk:
+                continue
+            has_any_body = True
+            chunk_bytes = bytes(chunk)
+
+            if not saw_first_nonempty_chunk:
+                saw_first_nonempty_chunk = True
+                if chunk_bytes.startswith(b"\xff\xfe\x00\x00"):
+                    detected_alt_enc = "utf-32-le"
+                elif chunk_bytes.startswith(b"\x00\x00\xfe\xff"):
+                    detected_alt_enc = "utf-32-be"
+                elif chunk_bytes.startswith(b"\xff\xfe"):
+                    detected_alt_enc = "utf-16-le"
+                elif chunk_bytes.startswith(b"\xfe\xff"):
+                    detected_alt_enc = "utf-16-be"
+
+            next_total = total_bytes + len(chunk_bytes)
+
+            if not is_oversize and not malformed_framing and next_total <= max_body_bytes:
+                full_chunks.append(chunk_bytes)
+                total_bytes = next_total
+                continue
+
+            # Chuyển sang chế độ cửa sổ trượt bộ nhớ hằng số O(1) ngay khi vượt max_body_bytes hoặc framing lỗi
+            if not is_oversize and not malformed_framing and next_total > max_body_bytes:
+                is_oversize = True
+                if full_chunks:
+                    seeded = b"".join(full_chunks)
+                    full_chunks.clear()
+                    if detected_alt_enc in ("utf-32-le", "utf-32-be") and len(seeded) >= 4:
+                        seeded = seeded[4:]
+                    elif detected_alt_enc in ("utf-16-le", "utf-16-be") and len(seeded) >= 2:
+                        seeded = seeded[2:]
+                    window_buf.extend(seeded)
+                    if len(window_buf) >= _STREAM_WINDOW_BLOCK_BYTES:
+                        _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
+                        drop = (len(window_buf) - _STREAM_WINDOW_OVERLAP_BYTES) & ~3
+                        if drop > 0:
+                            del window_buf[:drop]
+            elif total_bytes == 0 and detected_alt_enc is not None:
+                # Loại bỏ BOM ngay đầu cửa sổ trượt để luôn giữ căn chỉnh bội số 2/4 byte
+                if detected_alt_enc in ("utf-32-le", "utf-32-be") and len(chunk_bytes) >= 4:
+                    chunk_bytes = chunk_bytes[4:]
+                elif detected_alt_enc in ("utf-16-le", "utf-16-be") and len(chunk_bytes) >= 2:
+                    chunk_bytes = chunk_bytes[2:]
+
+            total_bytes = next_total
+            if total_bytes <= MAX_STREAM_CREDENTIAL_SCAN_BYTES + len(chunk_bytes):
+                window_buf.extend(chunk_bytes)
+                if len(window_buf) >= _STREAM_WINDOW_BLOCK_BYTES:
+                    _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
+                    drop = (len(window_buf) - _STREAM_WINDOW_OVERLAP_BYTES) & ~3
+                    if drop > 0:
+                        del window_buf[:drop]
+            if total_bytes >= MAX_STREAM_CREDENTIAL_SCAN_BYTES:
+                break
+    except Exception:
+        malformed_framing = True
+
+    if not is_oversize and not malformed_framing:
+        raw_body = b"".join(full_chunks)
+        full_chunks.clear()
+        if raw_body:
+            _ingest_window_bytes(raw_body, detected_alt_enc)
+        if len(cl_values) == 1 and len(raw_body) != declared_cl:
+            malformed_framing = True
+            raw_body = b""
+            try:
+                request._body = b""
+            except Exception:
+                pass
+        else:
+            try:
+                request._body = raw_body
+            except Exception:
+                pass
+    else:
+        if full_chunks:
+            rem_full = b"".join(full_chunks)
+            full_chunks.clear()
+            if detected_alt_enc in ("utf-32-le", "utf-32-be") and len(rem_full) >= 4:
+                rem_full = rem_full[4:]
+            elif detected_alt_enc in ("utf-16-le", "utf-16-be") and len(rem_full) >= 2:
+                rem_full = rem_full[2:]
+            _ingest_window_bytes(rem_full, detected_alt_enc)
+        if window_buf:
+            _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
+            window_buf.clear()
+        raw_body = b""
+        try:
+            request._body = b""
+        except Exception:
+            pass
+
+    merged_creds = {
+        "nonces": nonces,
+        "session_ids": session_ids,
+        "post_scan_tokens": post_scan_tokens,
+        "qr_tokens": qr_tokens,
+        "all_candidate_secrets": all_secrets,
+    }
+    nonce_hashes = {hash_qr_scan_nonce(s) for s in all_secrets if s}
+
+    result = {
+        "raw_body": raw_body,
+        "total_bytes": total_bytes,
+        "declared_cl": declared_cl,
+        "has_chunked_te": has_chunked_te,
+        "has_any_body": has_any_body or (total_bytes > 0),
+        "is_oversize": is_oversize,
+        "malformed_framing": malformed_framing,
+        "creds": merged_creds,
+        "nonce_hashes": nonce_hashes,
+        "has_qr_body_cred": has_qr_body_cred,
+    }
+
+    if state_obj is not None:
+        try:
+            state_obj.qr_raw_body = raw_body
+            state_obj.qr_extracted_creds = merged_creds
+            existing_nh = getattr(state_obj, "qr_nonce_hashes", None)
+            if isinstance(existing_nh, set):
+                nonce_hashes |= existing_nh
+            state_obj.qr_nonce_hashes = nonce_hashes
+            state_obj.qr_has_body_cred = has_qr_body_cred
+            state_obj.qr_stream_scan_meta = result
+        except Exception:
+            pass
+
+    return result
 
 
 def is_qr_registration_token_or_session(val: str | None, mgr3: Any = None) -> bool:

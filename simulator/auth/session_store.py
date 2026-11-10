@@ -789,8 +789,11 @@ def resolve_request_session(
         cookies = getattr(request, "cookies", {}) or {}
         headers = getattr(request, "headers", {}) or {}
         query_params = getattr(request, "query_params", {}) or {}
+        state_obj = getattr(request, "state", None)
+        has_scanned_qr_body = bool(getattr(state_obj, "qr_has_body_cred", False))
         if (
-            cookies.get(QR_SCAN_COOKIE_NAME)
+            has_scanned_qr_body
+            or cookies.get(QR_SCAN_COOKIE_NAME)
             or cookies.get(QR_SESSION_COOKIE_NAME)
             or cookies.get("scan_nonce")
             or cookies.get("post_scan_token")
