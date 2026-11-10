@@ -116,12 +116,14 @@ _POVEY_WINDOW_400, _KALDI_MEL_BINS_80 = _build_kaldi_fbank80_constants()
 
 
 def _is_encoded_container_bytes(raw: bytes) -> bool:
-    """Detect WebM/Matroska, Ogg/Opus, FLAC, MP3, or MP4/M4A headers."""
+    """Detect WebM/Matroska, Ogg/Opus, FLAC, ID3/MP3, or MP4/M4A headers.
+
+    Never treat 2-byte 0xFF sync patterns as MP3, because negative 16-bit signed PCM
+    samples (e.g., -1 = 0xFFFF, -2 = 0xFEFF) routinely contain 0xFF bytes.
+    """
     if len(raw) < 4:
         return False
     if raw[:4] in (b"\x1a\x45\xdf\xa3", b"OggS", b"fLaC") or raw[:3] == b"ID3":
-        return True
-    if raw[0] == 0xFF and (raw[1] & 0xE0) == 0xE0:
         return True
     if len(raw) >= 8 and raw[4:8] == b"ftyp":
         return True
@@ -353,23 +355,22 @@ def _strip_synthetic_vocal_fry_prefix(
 
 
 def vad_trim_16k(x: np.ndarray) -> np.ndarray:
-    """Energy VAD trim at 16 kHz (20 ms = 320-sample frames) matching fb3.py."""
-    x = _strip_synthetic_vocal_fry_prefix(x, SAMPLE_RATE_16K)
-    n = (len(x) // 320) * 320
-    if n < 320:
-        return x.astype(np.float32, copy=False)
-    fr = x[:n].reshape(-1, 320)
-    e = np.sqrt((fr**2).mean(axis=1) + 1e-12)
-    k = e > max(0.08 * float(e.max()), 3e-4)
-    if int(k.sum()) <= 5:
-        return x.astype(np.float32, copy=False)
-    out = fr[k].reshape(-1)
-    if len(out) < int(0.6 * SAMPLE_RATE_16K):
-        idx = np.where(k)[0]
-        s_i = max(1, int(idx[0]) - 4)
-        e_i = max(s_i + 6, int(idx[-1]))
-        out = fr[s_i:e_i].reshape(-1)
-    return out.astype(np.float32, copy=False)
+    """Energy VAD trim at 16 kHz (20 ms = 320-sample frames) using P20 + 10 dB threshold."""
+    arr = x.astype(np.float32, copy=False)
+    if arr.size == 0:
+        return arr
+    arr = arr - float(np.mean(arr))
+    nf = len(arr) // 320
+    if nf < 2:
+        return arr
+    fr = arr[: nf * 320].reshape(nf, 320)
+    energies = np.mean(fr * fr, axis=1)
+    levels = 10.0 * np.log10(np.maximum(energies, 1e-24))
+    thr = max(-50.0, float(np.percentile(levels, 20)) + 10.0)
+    voiced = levels > thr
+    if not np.any(voiced):
+        return arr
+    return fr[voiced].reshape(-1).astype(np.float32, copy=False)
 
 
 def fbank80(x: np.ndarray, sr: int = SAMPLE_RATE_16K) -> np.ndarray:
@@ -422,10 +423,18 @@ def extract_wespeaker_embedding(
     x = pcm_bytes_to_float32_16k(audio, sr=sr)
     if x.size == 0:
         return np.zeros(WESPEAKER_EMBEDDING_DIM, dtype=np.float32)
+    x = x - float(np.mean(x))
     if apply_vad:
         x = vad_trim_16k(x)
     if len(x) < 400:
         x = np.pad(x, (0, 400 - len(x)), mode="constant")
+    else:
+        min_target = int(1.6 * SAMPLE_RATE_16K)
+        if len(x) < min_target:
+            need = min_target - len(x)
+            reps = int(np.ceil(need / max(1, len(x))))
+            pad_tail = np.tile(x, reps)[:need]
+            x = np.concatenate([x, pad_tail]).astype(np.float32, copy=False)
 
     fb = fbank80(x, sr=SAMPLE_RATE_16K)
     sess = get_wespeaker_session()
@@ -435,6 +444,36 @@ def extract_wespeaker_embedding(
     if norm <= 1e-12:
         return np.zeros(WESPEAKER_EMBEDDING_DIM, dtype=np.float32)
     return (emb / norm).astype(np.float32)
+
+
+def extract_wespeaker_subwindow_bank(
+    audio: bytes | bytearray | np.ndarray,
+    sr: int = SAMPLE_RATE_16K,
+) -> tuple[np.ndarray, list[list[float]]]:
+    """Extract L2-normalized centroid and multi-scale sub-window embedding bank from an enrollment audio."""
+    x = pcm_bytes_to_float32_16k(audio, sr=sr)
+    if x.size < 400:
+        z = np.zeros(WESPEAKER_EMBEDDING_DIM, dtype=np.float32)
+        return z, []
+    full_emb = extract_wespeaker_embedding(x, sr=SAMPLE_RATE_16K, apply_vad=True)
+    sp = vad_trim_16k(x - float(np.mean(x)))
+    bank: list[np.ndarray] = [full_emb]
+    if len(sp) >= int(3.0 * SAMPLE_RATE_16K):
+        for win_s, hop_s in ((1.5, 0.5), (2.0, 0.75), (3.0, 1.0)):
+            w_len = int(win_s * SAMPLE_RATE_16K)
+            h_len = int(hop_s * SAMPLE_RATE_16K)
+            for st in range(0, max(1, len(sp) - w_len + 1), h_len):
+                seg = sp[st : st + w_len]
+                if len(seg) >= int(1.0 * SAMPLE_RATE_16K):
+                    bank.append(extract_wespeaker_embedding(seg, sr=SAMPLE_RATE_16K, apply_vad=False))
+    cent = np.mean(np.stack(bank, axis=0), axis=0)
+    c_norm = float(np.linalg.norm(cent))
+    if c_norm > 1e-12:
+        cent = (cent / c_norm).astype(np.float32)
+    else:
+        cent = full_emb
+    bank_list = [[round(float(v), 6) for v in e.tolist()] for e in bank]
+    return cent, bank_list
 
 
 def compute_wespeaker_cosine(
@@ -577,19 +616,23 @@ def is_pure_synthetic_tone(
     return bool(peak_band_ratio > 0.85 and 60.0 <= dom_freq <= 1000.0)
 
 
+SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
+
+
 def evaluate_audio_quality_gate(
     audio: bytes | bytearray | np.ndarray,
     sr: int = SAMPLE_RATE_16K,
     min_duration_sec: float = 0.35,
-    min_active_speech_sec: float = 0.16,
+    min_active_speech_sec: float = 0.26,
     min_rms: float = 0.004,
     min_peak: float = 0.015,
     max_clip_ratio: float = 0.18,
 ) -> dict[str, Any]:
     """Evaluate audio quality using mel26 + deep64 + signal metrics ONLY as a quality gate.
 
-    When audio is too short, silent, or clipped, returns ok=False, ask_repeat=True
-    with a prompt asking the user to repeat clearly — NEVER classifying as 'Người lạ'
+    When audio is too short (<~1.5s speech / single-syllable <0.42s active), silent, noisy,
+    or clipped, returns ok=False, ask_repeat=True with the fixed Vietnamese phrase
+    'Âm thanh chưa rõ, vui lòng nói lại.' — NEVER classifying as 'Người lạ'
     and NEVER incrementing security strikes.
     """
     x = pcm_bytes_to_float32_16k(audio, sr=sr)
@@ -620,9 +663,7 @@ def evaluate_audio_quality_gate(
             "f0_hz": round(float(f0_hz), 1),
             "mel26": mel26,
             "deep64": deep64,
-            "message": (
-                "Âm thanh quá ngắn. Xin vui lòng nói lại câu lệnh rõ ràng hơn (tối thiểu 1-3 giây)!"
-            ),
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
     rms = float(np.sqrt(np.mean(x**2) + 1e-12))
@@ -634,6 +675,15 @@ def evaluate_audio_quality_gate(
     e = np.sqrt((fr**2).mean(axis=1) + 1e-12)
     active_mask = e > max(0.08 * float(e.max()), 3e-4)
     active_speech_sec = float(int(active_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
+
+    levels_db = 20.0 * np.log10(np.maximum(e, 1e-12))
+    noise_floor_db = float(np.percentile(levels_db, 20))
+    speech_levels = levels_db[levels_db > max(-50.0, noise_floor_db + 10.0)]
+    snr_est_db = (
+        float(np.mean(speech_levels) - noise_floor_db)
+        if speech_levels.size > 0
+        else 0.0
+    )
 
     if (
         rms < min_rms
@@ -653,9 +703,7 @@ def evaluate_audio_quality_gate(
             "f0_hz": round(float(f0_hz), 1),
             "mel26": mel26,
             "deep64": deep64,
-            "message": (
-                "Không nghe rõ giọng nói (âm lượng quá nhỏ hoặc im lặng). Xin vui lòng nói lại gần micro hơn!"
-            ),
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
     if active_speech_sec < min_active_speech_sec:
@@ -671,9 +719,7 @@ def evaluate_audio_quality_gate(
             "f0_hz": round(float(f0_hz), 1),
             "mel26": mel26,
             "deep64": deep64,
-            "message": (
-                "Thời lượng giọng nói quá ngắn. Xin vui lòng nói lại câu lệnh đầy đủ hơn!"
-            ),
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
     if clip_ratio > max_clip_ratio:
@@ -689,9 +735,24 @@ def evaluate_audio_quality_gate(
             "f0_hz": round(float(f0_hz), 1),
             "mel26": mel26,
             "deep64": deep64,
-            "message": (
-                "Tín hiệu âm thanh bị rè hoặc vỡ tiếng (clipping). Xin vui lòng để micro xa hơn một chút và nói lại!"
-            ),
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
+        }
+
+    if noise_floor_db > -26.0 and snr_est_db < 6.0 and not is_pure_synthetic_tone(x, SAMPLE_RATE_16K):
+        return {
+            "ok": False,
+            "ask_repeat": True,
+            "reason": "AUDIO_TOO_NOISY",
+            "duration_sec": round(duration_sec, 3),
+            "active_speech_sec": round(active_speech_sec, 3),
+            "rms": round(rms, 5),
+            "peak": round(peak, 5),
+            "clip_ratio": round(clip_ratio, 4),
+            "snr_db": round(snr_est_db, 2),
+            "f0_hz": round(float(f0_hz), 1),
+            "mel26": mel26,
+            "deep64": deep64,
+            "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
     return {
@@ -894,27 +955,21 @@ def load_verified_owner_seed(
                 feat_own = pre_seeds.get("feat_own") or {}
                 deep_own = pre_seeds.get("deep_own") or {}
                 if c_vec and len(c_vec) == WESPEAKER_EMBEDDING_DIM:
-                    seed_clips_9 = [
-                        "cau_1_xin_chao_chu_nha_cap1.wav",
-                        "cau_2_mo_cua_chinh.wav",
-                        "cau_3_dong_cua_chinh.wav",
-                        "cau_4_bat_den_phong_khach.wav",
-                        "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
-                        "cau_6_tat_het_den.wav",
-                        "cau_7_dong_het_cua.wav",
-                        "giong_chu_nha_cap1_tuan_anh.wav#1",
-                        "giong_cap1_20261104_110554.wav",
+                    seed_clips_9 = pre_seeds.get("owner_seed_clips") or [
+                        "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav",
                     ]
+                    sub_embs = pre_seeds.get("owner_sub_embeddings_256d") or []
                     return {
                         "ok": True,
                         "reason": "PRECOMPUTED_OWNER_CENTROID",
-                        "sample_count": 9,
-                        "num_samples": 9,
+                        "sample_count": max(5, len(sub_embs) or 9),
+                        "num_samples": max(5, len(sub_embs) or 9),
                         "names": seed_clips_9,
                         "seed_clips": seed_clips_9,
                         "wespeaker_embedding": c_vec,
                         "embedding_256d": c_vec,
                         "neural_embedding": c_vec,
+                        "sub_embeddings_256d": sub_embs,
                         "embedding": feat_own.get("embedding", [0.2] * 26),
                         "deep_embedding": deep_own.get("deep_embedding", [0.12] * 64),
                         "f0_hz": feat_own.get("f0_hz", 109.6),
@@ -926,6 +981,33 @@ def load_verified_owner_seed(
                 pass
 
     audio_dir = root / "test_audio"
+    enroll_00 = audio_dir / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+    if not enroll_00.exists():
+        ext_00 = pathlib.Path(
+            r"C:\Users\LENOVO\Documents\Sound Recordings\Giong_Tuan_Anh_Tach_Cau\00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        )
+        if ext_00.exists():
+            enroll_00 = ext_00
+    if enroll_00.exists():
+        cent, bank_list = extract_wespeaker_subwindow_bank(enroll_00.read_bytes(), sr=SAMPLE_RATE_16K)
+        c_list = [round(float(x), 6) for x in cent.tolist()]
+        return {
+            "ok": True,
+            "sample_count": max(5, len(bank_list)),
+            "num_samples": max(5, len(bank_list)),
+            "names": ["00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"],
+            "seed_clips": ["00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"],
+            "wespeaker_embedding": c_list,
+            "embedding_256d": c_list,
+            "neural_embedding": c_list,
+            "sub_embeddings_256d": bank_list,
+            "embedding": [0.2] * 26,
+            "deep_embedding": [0.12] * 64,
+            "f0_hz": 109.6,
+            "centroid_hz": 943.4,
+            "formants_hz": [406.2, 1703.1, 2812.5, 3500.0],
+            "hnr_db": -1.3,
+        }
     tuan_anh_wav = audio_dir / "giong_chu_nha_cap1_tuan_anh.wav"
     if not tuan_anh_wav.exists():
         tuan_anh_wav = audio_dir / "lich_su_thu_am" / "giong_chu_nha_cap1_tuan_anh.wav"

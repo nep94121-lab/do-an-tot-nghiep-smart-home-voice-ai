@@ -604,6 +604,10 @@ ALL_TOOLS = [
 ]
 
 
+FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
+
+
 def build_system_instruction(engine: SmartHomeEngine) -> str:
     pools = engine.get_pools_summary()
     words = engine.get_word_mappings()
@@ -611,77 +615,57 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
     if_else_list = engine.get_if_else_rules()
     cur_user = engine.get_current_user_name()
     cur_tier = engine.current_tier
-    q_mode = engine.query_permission_mode
-    pol = engine.system_policies
+    cur_role = engine.current_role
+    dht = getattr(getattr(engine, "mqtt_bridge", None), "dht11_telemetry", {}) or {}
+    soil = getattr(getattr(engine, "mqtt_bridge", None), "soil_moisture_telemetry", {}) or {}
 
-    words_txt = (
-        ", ".join(f"'{k}' => {v}" for k, v in words.items())
-        if words
-        else "Chưa có"
-    )
+    devs_txt = ", ".join(f"{k}={v.get('state')}" for k, v in engine.devices.items())
+    words_txt = ", ".join(f"'{k}'=>{v}" for k, v in words.items()) if words else "Chưa có"
     alias_txt = (
-        ", ".join(
-            f"'{k}' => [{', '.join(s['device_id'] + ':' + s['action'] for s in steps)}]"
-            for k, steps in aliases.items()
-        )
-        if aliases
-        else "Chưa có"
+        ", ".join(f"'{k}'=>[{','.join(s['device_id']+':'+s['action'] for s in steps)}]" for k, steps in aliases.items())
+        if aliases else "Chưa có"
     )
     ifelse_txt = (
         "; ".join(
             f"NẾU {r['when_device_id']}={r['when_state']} THÌ {r['then_device_id']}:{r['then_action']}"
-            + (f" (ELSE {r['else_device_id']}:{r['else_action']})" if r.get("else_device_id") else " [1 CHIỀU - ngược lại giữ nguyên]")
+            + (f" (ELSE {r['else_device_id']}:{r['else_action']})" if r.get("else_device_id") else " [1 CHIỀU]")
             for r in if_else_list
-        )
-        if if_else_list
-        else "Chưa có"
+        ) if if_else_list else "Chưa có"
     )
-    timers_txt = (
-        "; ".join(pools["timer_pool_items"])
-        if pools["timer_pool_items"]
-        else "Đang trống (0 hẹn giờ)"
-    )
-
-    if q_mode == "open_all":
-        query_policy_txt = (
-            "Mở toàn bộ ('open_all'): ai hỏi cũng được trả lời ngắn gọn mọi thông tin biết được."
-        )
-    else:
-        query_policy_txt = (
-            "Giới hạn theo cấp ('tier_restricted'): Cấp 1 được trả lời mọi câu hỏi; "
-            "Cấp 2 chỉ được trả lời thông tin thuộc quyền Cấp 2 và Cấp 3 (không tiết lộ lịch hẹn hay luật riêng của Cấp 1); "
-            "Cấp 3 chỉ được hỏi về lệnh đóng mở thiết bị cơ bản (nếu hỏi ngoài quyền, đáp: 'Bạn ở Cấp 3, chỉ được hỏi về lệnh đóng mở thiết bị cơ bản.')."
-        )
-
-    custom_directives = pol.get("custom_system_directives", [])
-    custom_directives_txt = (
-        "; ".join(str(d) for d in custom_directives)
-        if custom_directives
-        else "Chưa có"
-    )
-    dev_tiers_txt = ", ".join(
-        f"{k}:<=Cấp {v}" for k, v in pol.get("device_min_tiers", {}).items()
-    )
+    timers_txt = "; ".join(pools["timer_pool_items"]) if pools["timer_pool_items"] else "0 hẹn giờ"
 
     return (
-        "Bạn là trợ lý ảo điều khiển nhà thông minh do Nguyễn Tuấn Anh tạo ra.\n"
-        f"- Người dùng hiện tại: {cur_user} (Cấp {cur_tier} — Vai trò: {engine.current_role}). "
-        "Nếu có bản tin cập nhật `[CONTEXT NHẬN DIỆN GIỌNG NÓI LƯỢT NÀY]`, hãy áp dụng đúng cấp quyền và câu phản hồi cố định trong bản tin đó.\n"
-        "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn. Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngoại ngữ khác.\n"
-        "- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm ('ừm', 'ờ', 'à', 'ừ', 'ê', 'aló', 'chờ tí', 'đợi tí') hoặc tiếng ồn, không dịch sang ngoại ngữ mà chỉ trích xuất lệnh tiếng Việt. Nếu cả câu chỉ là âm đệm hoặc tiếng ồn, giữ im lặng hoặc hỏi: 'Tôi có thể giúp gì cho bạn?'.\n"
-        "- Phạm vi nhà thông minh (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3) và giải đáp phân quyền 3 tầng. Với chủ đề ngoài phạm vi, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
-        "- Trả lời ngắn gọn: Hỏi gì đáp nấy trong 1 câu ngắn (dưới 20 từ), không liệt kê thiết bị khác hay chân GPIO trừ khi được hỏi, không dùng từ rườm rà ('Dạ', 'Vâng ạ', 'Thưa bạn'). Khi công cụ trả về `exact_spoken_reply`, chỉ đọc đúng câu đó (ví dụ: 'Cửa chính đã mở.', 'Đèn phòng khách đã bật.', 'Cửa chính đã mở sẵn rồi.', 'Bạn không có quyền thực hiện lệnh này.').\n"
-        "- Phân quyền 3 tầng & đặc quyền Cấp 1 (Nguyễn Tuấn Anh):\n"
-        "  + Chỉ Cấp 1 (Nguyễn Tuấn Anh) mới có quyền cấp quyền (`grant_user_permission`), thu hồi quyền (`revoke_user_permission`), thu âm giọng nói mới (`start_voice_enrollment`, `finalize_voice_enrollment`), sửa chính sách hệ thống (`admin_update_system_policy`), chỉnh chế độ hỏi đáp (`set_query_permission_policy`) và cập nhật tri thức RAG (`admin_upsert_knowledge_rag`).\n"
-        "  + Cấp 2 (Thành viên gia đình) và Cấp 3 (Khách) chỉ điều khiển thiết bị trong phạm vi cấp của mình; không có quyền cấp/thu hồi quyền hay thu âm thêm người mới.\n"
-        f"  + Cấu hình hiện tại: Cấp 3 hẹn giờ={pol.get('tier3_can_schedule_timer')}, Cấp 3 đặt luật={pol.get('tier3_can_custom_rules')}, Cấp 2 ghi đè Cấp 1={pol.get('tier2_can_override_tier1')}, xác nhận luật={pol.get('require_rule_confirmation')}, xác nhận reset={pol.get('require_reset_confirmation')}, đèn nháy thu âm={pol.get('enrollment_signal_device_id')} ({pol.get('enrollment_duration_seconds')}s), quyền thiết bị=[{dev_tiers_txt}], chỉ thị riêng=[{custom_directives_txt}].\n"
-        f"  + Chế độ hỏi đáp: {query_policy_txt}\n"
-        "- Thu âm cấp quyền giọng nói: Khi yêu cầu thêm người mới hoặc bật ghi âm cấp quyền (Cấp 2/Cấp 3), gọi `start_voice_enrollment(target_tier=..., target_name=...)`; khi trả lời tên người vừa thu âm, gọi `finalize_voice_enrollment(target_name=...)`.\n"
-        f"- Bể 1 (Hẹn giờ — {pools['timer_pool_count']} mục: {timers_txt}): Mặc định hẹn 1 lần (`repeat='once'`), hoặc `'daily'`, `'weekly'`, `'hourly'`, `'monthly'`. Đếm ngược gọi `schedule_action(device_id, action, seconds=...)`; giờ cụ thể truyền `vn_time_ampm` ('8:00 AM', '8:00 PM', hoặc '8:00' cho cả sáng và tối) kèm `vn_date` nếu có.\n"
-        f"- Bể 2 (Luật riêng của {cur_user}): Đổi từ (`set_word_mapping`), gán khẩu lệnh (`create_alias_rule`), đặt luật IF (`set_if_else_rule`); khi người dùng xác nhận ('Đúng rồi', 'Ok', 'Có', 'Đồng ý'), gọi `confirm_pending_action(confirmed=True)`. Từ đã đổi: {words_txt} | Khẩu lệnh: {alias_txt} | Luật IF: {ifelse_txt}.\n"
-        "- Truy vấn, cảm biến, RAG & Reset:\n"
-        "  + Hỏi hẹn giờ/luật/lệnh thiết bị -> `query_pools`; hỏi thông tin chung -> `query_knowledge_rag`; đọc hoặc giả lập nhiệt độ/độ ẩm -> `set_or_query_sensors`.\n"
-        "  + Reset 4 phạm vi (`scope='voice'|'timers'|'rules'|'all'`) -> `request_factory_reset`, khi xác nhận gọi `confirm_pending_action(confirmed=True)`."
+        "Bạn là trợ lý giọng nói Nhà Thông Minh Bách Khoa do Nguyễn Tuấn Anh tạo ra.\n"
+        "Giọng đọc mặc định duy nhất: Aoede (24kHz). Luôn trả lời ngắn gọn trong 1 câu tiếng Việt tự nhiên.\n"
+        "\n"
+        "1. DANH TÍNH & CẤP QUYỀN HIỆN TẠI (ĐÃ XÁC THỰC SERVER-SIDE):\n"
+        f"- Người đang nói: {cur_user} (Cấp {cur_tier} — Vai trò: {cur_role}).\n"
+        "- Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - ADMIN): Toàn quyền mọi thiết bị, hẹn giờ, luật IF-ELSE, đổi từ/lệnh, và ĐỘC QUYỀN cấp/thu hồi quyền (`grant_user_permission`, `revoke_user_permission`) & đăng ký giọng nói (`start_voice_enrollment`, `finalize_voice_enrollment`).\n"
+        "- Cấp 2 (Thành viên - MEMBER): Điều khiển đèn, quạt, điều hòa, máy bơm, hẹn giờ, luật IF-ELSE. CẤM mở/đóng cửa chính (`main_door`), còi báo động (`alarm_siren`), và CẤM cấp/thu hồi quyền hoặc đăng ký giọng nói.\n"
+        "- Cấp 3 (Khách - CHILD_GUEST): Chỉ bật/tắt đèn (`living_room_light`, `bedroom_light`, `all_lights`) và quạt (`fan`). CẤM cửa chính, còi, điều hòa, máy bơm, hẹn giờ, luật, cấp quyền.\n"
+        "\n"
+        "2. QUY TẮC NGÔN NGỮ & PHẠM VI:\n"
+        "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn.\n"
+        "- Cấm ngoại ngữ: Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngôn ngữ khác.\n"
+        "- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm ('ừm', 'ờ', 'à', 'aló') chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn, đáp: 'Tôi có thể giúp gì cho bạn?'.\n"
+        "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh:\n"
+        "  + Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3).\n"
+        "  + Ngoài phạm vi nhà thông minh, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
+        "\n"
+        "3. TRẠNG THÁI HỆ THỐNG, CẢM BIẾN & LUẬT CÁ NHÂN:\n"
+        f"- Trạng thái thiết bị: [{devs_txt}].\n"
+        f"- Cảm biến hiện tại: Nhiệt độ {dht.get('temp_c', 28.5)}°C, Độ ẩm không khí {dht.get('humidity_pct', 65.0)}%, Độ ẩm đất {soil.get('soil_moisture_pct', 55.0)}%.\n"
+        f"- Bể 1 (Hẹn giờ đang chạy): {timers_txt}.\n"
+        f"- Bể 2 (Từ vựng ánh xạ của {cur_user}): {words_txt}.\n"
+        f"- Bể 2 (Khẩu lệnh gộp của {cur_user}): {alias_txt}.\n"
+        f"- Bể 2 (Luật tự động IF-ELSE của {cur_user}): {ifelse_txt}.\n"
+        "\n"
+        "4. QUY TẮC THỰC THI TOOL & TỪ CHỐI CỐ ĐỊNH:\n"
+        "- Khi được phép, gọi Function Tool ngay lập tức rồi mới phản hồi âm thanh ngắn gọn.\n"
+        "- Nếu kết quả tool trả về có trường `exact_spoken_reply`, BẮT BUỘC đọc đúng nguyên văn câu đó.\n"
+        f'- Nếu người nói là Người lạ hoặc yêu cầu vượt quyền của cấp hiện tại, TUYỆT ĐỐI KHÔNG gọi tool thực thi mà chỉ nói đúng nguyên văn câu cố định: "{FIXED_REJECTION_PHRASE_VI}".\n'
+        f'- Khi âm thanh quá ngắn/ồn/nói đè (Safe-Deny), chỉ nói đúng câu cố định: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
+        '- Nếu nhận lệnh hệ thống `[SYSTEM_SAY_EXACT_FIXED_DENIAL]: "<câu>"`, chỉ đọc nguyên văn `<câu>` đó.'
     )
 
 

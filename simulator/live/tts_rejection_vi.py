@@ -23,21 +23,29 @@ SAMPLE_RATE = 24000  # 24kHz chuẩn của Gemini Live và Web Audio API
 DEFAULT_EDGE_VOICE = "vi-VN-HoaiMyNeural"
 _PRECACHE_NPZ_PATH = pathlib.Path(__file__).resolve().parent / "tts_rejection_precache_24k.npz"
 
+FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
+UNIFIED_REJECTION_PHRASE_VI = FIXED_REJECTION_PHRASE_VI
+SAFE_DENY_REPEAT_PHRASE_VI = FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+
 REJECTION_SCRIPTS: dict[str, str] = {
-    "STRANGER_BLOCKED": "Tôi không được phép nhận lệnh từ người lạ.",
-    "STRANGER_BLOCKED_2": "Tôi sẽ không trả lời bạn lần nữa.",
+    "STRANGER_BLOCKED": FIXED_REJECTION_PHRASE_VI,
+    "STRANGER_BLOCKED_2": FIXED_REJECTION_PHRASE_VI,
     "DUPLICATE_VOICE": "Trùng giọng người đã có trong nhà - Từ chối lưu.",
-    "VOICE_EXPIRED": "Quyền truy cập của bạn đã hết hạn.",
+    "VOICE_EXPIRED": FIXED_REJECTION_PHRASE_VI,
     "RATE_LIMITED": "Thao tác quá nhanh, vui lòng thử lại sau.",
-    "TIER3_PERMISSION_DENIED": "Khách chỉ được điều khiển đèn và quạt.",
-    "TIER2_PERMISSION_DENIED": "Chỉ chủ nhà mới có quyền mở cửa chính và còi báo động.",
-    "VAD_BLOCKED": "Hệ thống chỉ tiếp nhận khẩu lệnh tiếng Việt.",
+    "TIER3_PERMISSION_DENIED": FIXED_REJECTION_PHRASE_VI,
+    "TIER2_PERMISSION_DENIED": FIXED_REJECTION_PHRASE_VI,
+    "OVER_PERMISSION_DENIED": FIXED_REJECTION_PHRASE_VI,
+    "SAFE_DENY_REPEAT": FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+    "VAD_BLOCKED": FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
 }
 
 EXTENDED_TTS_SCRIPTS: dict[str, str] = {
     **REJECTION_SCRIPTS,
-    "REST_STRANGER_BLOCKED": "Từ chối: Giọng nói người lạ không có quyền điều khiển ngôi nhà.",
-    "VAD_NOISE_BLOCKED": "Phát hiện tiếng ồn hoặc âm thanh không hợp lệ, vui lòng nói lại bằng tiếng Việt.",
+    "REST_STRANGER_BLOCKED": FIXED_REJECTION_PHRASE_VI,
+    "VAD_NOISE_BLOCKED": FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+    "ASK_REPEAT_AUDIO_QUALITY": FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
     "OPEN_MAIN_DOOR": "Cửa chính đã mở.",
     "CLOSE_MAIN_DOOR": "Cửa chính đã đóng.",
     "TURN_ON_LIVING_ROOM_LIGHT": "Đèn phòng khách đã bật.",
@@ -194,9 +202,20 @@ def _init_precache() -> None:
         except Exception:
             pass
 
+    fallback_deny_pcm = _PRECACHED_AUDIO_PCM.get("STRANGER_BLOCKED", b"")
+    fallback_repeat_pcm = (
+        _PRECACHED_AUDIO_PCM.get("VAD_NOISE_BLOCKED")
+        or _PRECACHED_AUDIO_PCM.get("VAD_BLOCKED")
+        or fallback_deny_pcm
+    )
     for key, text in EXTENDED_TTS_SCRIPTS.items():
         if key not in loaded_from_npz or key not in _PRECACHED_AUDIO_PCM:
-            pcm = _generate_vietnamese_speech_pcm24k(text)
+            if key in ("SAFE_DENY_REPEAT", "ASK_REPEAT_AUDIO_QUALITY", "VAD_NOISE_BLOCKED", "VAD_BLOCKED") and fallback_repeat_pcm:
+                pcm = fallback_repeat_pcm
+            elif fallback_deny_pcm:
+                pcm = fallback_deny_pcm
+            else:
+                pcm = _generate_vietnamese_speech_pcm24k(text)
             _register_precache_entry(key, text, pcm)
 
 
@@ -217,10 +236,10 @@ def _resolve_rejection_key(reason_code_or_text: str) -> str:
     low = raw.lower()
     if "lần nữa" in low or "stranger_blocked_2" in low:
         return "STRANGER_BLOCKED_2"
-    if "không có quyền điều khiển ngôi nhà" in low or "rest_stranger_blocked" in low:
+    if "không có quyền thực hiện lệnh này" in low or "không có quyền điều khiển ngôi nhà" in low or "rest_stranger_blocked" in low:
         return "REST_STRANGER_BLOCKED" if "REST_STRANGER_BLOCKED" in _PRECACHED_AUDIO_PCM else "STRANGER_BLOCKED"
-    if "tiếng ồn" in low or "âm thanh không hợp lệ" in low or "vad_noise_blocked" in low:
-        return "VAD_NOISE_BLOCKED" if "VAD_NOISE_BLOCKED" in _PRECACHED_AUDIO_PCM else "VAD_BLOCKED"
+    if "âm thanh chưa rõ" in low or "vui lòng nói lại" in low or "tiếng ồn" in low or "âm thanh không hợp lệ" in low or "vad_noise_blocked" in low or "safe_deny" in low:
+        return "SAFE_DENY_REPEAT" if "SAFE_DENY_REPEAT" in _PRECACHED_AUDIO_PCM else "VAD_BLOCKED"
     if "khách chỉ được" in low or "tier3" in low:
         return "TIER3_PERMISSION_DENIED"
     if "chỉ chủ nhà" in low or "cửa chính và còi" in low or "tier2" in low:
@@ -273,8 +292,13 @@ def get_cached_speech_audio_b64(text: str, fallback_reason_code: str = "") -> st
 
 
 def get_rejection_speech_text(reason_code: str) -> str:
-    """Trả về nội dung văn bản tiếng Việt của câu từ chối."""
-    return EXTENDED_TTS_SCRIPTS.get(
-        reason_code,
-        REJECTION_SCRIPTS.get(reason_code, "Tôi không được phép nhận lệnh từ người lạ."),
-    )
+    """Trả về nội dung văn bản tiếng Việt của câu từ chối cố định."""
+    code = (reason_code or "").strip()
+    if code in EXTENDED_TTS_SCRIPTS:
+        return EXTENDED_TTS_SCRIPTS[code]
+    if code in REJECTION_SCRIPTS:
+        return REJECTION_SCRIPTS[code]
+    low = code.lower()
+    if any(k in low for k in ("safe_deny", "ask_repeat", "vad", "noise", "chưa rõ", "nói lại", "quá ngắn", "nói đè")):
+        return FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+    return FIXED_REJECTION_PHRASE_VI

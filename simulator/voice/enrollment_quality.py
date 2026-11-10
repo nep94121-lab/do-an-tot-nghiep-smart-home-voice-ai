@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import pathlib
 from typing import Any
+import wave
 import numpy as np
 
 from simulator.voice.dsp_features import (
@@ -10,24 +13,413 @@ from simulator.voice.dsp_features import (
     extract_voice_features,
     extract_stage2_deep_features,
 )
+from simulator.voice.biometrics_neural import (
+    extract_neural_embedding_256d,
+    compute_neural_similarity,
+)
+
+SR = 16000
+ENROLL_QUALITY_RULES: dict[str, float] = {
+    "min_speech_s": 12.0,
+    "max_silence_ratio": 0.60,
+    "min_rms_dbfs": -30.0,
+    "max_rms_dbfs": -12.0,
+    "max_clip_pct": 0.1,
+    "min_snr_db": 15.0,
+    "min_pair_cosine": 0.85,
+    "mean_pair_cosine": 0.90,
+    "min_self_speech_s": 3.0,
+    "min_self_cosine": 0.88,
+    "self_cosine_margin": 0.03,
+}
+
+
+def _db(value: float) -> float:
+    return float(20.0 * np.log10(max(float(value), 1e-12)))
+
+
+def _coerce_pcm16_16k(audio: bytes | bytearray | np.ndarray | str | pathlib.Path, sr: int = SR) -> np.ndarray:
+    """Chuyển đổi bytes/WAV/ndarray/Path sang mảng int16 mono 16kHz."""
+    if isinstance(audio, (str, pathlib.Path)):
+        p = pathlib.Path(audio)
+        with wave.open(str(p), "rb") as w:
+            if (w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getcomptype()) != (sr, 1, 2, "NONE"):
+                from simulator.voice.wespeaker_onnx import pcm_bytes_to_float32_16k
+
+                flt = pcm_bytes_to_float32_16k(p.read_bytes(), sr=sr)
+                return np.clip(flt * 32767.0, -32768, 32767).astype(np.int16)
+            return np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").copy()
+    if isinstance(audio, (bytes, bytearray)):
+        raw_b = bytes(audio)
+        if len(raw_b) >= 44 and raw_b[:4] == b"RIFF" and raw_b[8:12] == b"WAVE":
+            try:
+                import io
+
+                with wave.open(io.BytesIO(raw_b), "rb") as w:
+                    if (w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getcomptype()) == (sr, 1, 2, "NONE"):
+                        return np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").copy()
+            except Exception:
+                pass
+            from simulator.voice.wespeaker_onnx import pcm_bytes_to_float32_16k
+
+            flt = pcm_bytes_to_float32_16k(raw_b, sr=sr)
+            return np.clip(flt * 32767.0, -32768, 32767).astype(np.int16)
+        usable = (len(raw_b) // 2) * 2
+        if usable == 0:
+            return np.array([], dtype=np.int16)
+        return np.frombuffer(raw_b[:usable], dtype=np.int16).copy()
+    if isinstance(audio, np.ndarray):
+        if audio.size == 0:
+            return np.array([], dtype=np.int16)
+        if np.issubdtype(audio.dtype, np.floating) and float(np.max(np.abs(audio))) <= 1.05:
+            return np.clip(audio * 32767.0, -32768, 32767).astype(np.int16)
+        return audio.astype(np.int16).copy()
+    return np.array([], dtype=np.int16)
+
+
+def measure_enrollment_audio(
+    pcm16: bytes | bytearray | np.ndarray | str | pathlib.Path,
+    offset_db: float = 10.0,
+    sr: int = SR,
+) -> tuple[dict[str, Any], np.ndarray]:
+    """Đo lường chất lượng âm học theo chuẩn ENROLL_QUALITY.md & check_enroll.py.
+
+    Energy VAD khung 20ms không chồng lấp, ngưỡng max(-50 dBFS, P20 + 10 dB).
+    SNR ước lượng trên các khung nền cách tiếng nói ít nhất 60ms (tối thiểu 0.3s nền).
+    """
+    x = _coerce_pcm16_16k(pcm16, sr=sr)
+    frame_samples = max(1, int(0.02 * sr))
+    if x.size < frame_samples:
+        empty_metrics = {
+            "duration_s": float(x.size / max(1, sr)),
+            "net_speech_s": 0.0,
+            "silence_ratio": 1.0,
+            "silence_pct": 100.0,
+            "rms_dbfs": -120.0,
+            "speech_rms_dbfs": -120.0,
+            "peak_dbfs": -120.0,
+            "clipping_pct": 0.0,
+            "near_clip_pct": 0.0,
+            "estimated_snr_db": None,
+            "noise_reference_s": 0.0,
+            "noise_rms_dbfs": -120.0,
+            "vad_threshold_dbfs": -50.0,
+            "speech_intervals_s": [],
+        }
+        return empty_metrics, np.array([], dtype=np.int16)
+
+    y = x.astype(np.float64) / 32768.0
+    frames = [y[i : i + frame_samples] for i in range(0, len(y), frame_samples)]
+    energies = np.array([np.mean(f * f) for f in frames], dtype=np.float64)
+    levels = 10.0 * np.log10(np.maximum(energies, 1e-24))
+    threshold = max(-50.0, float(np.percentile(levels, 20)) + float(offset_db))
+    voiced = levels > threshold
+    mask = np.repeat(voiced, frame_samples)[: len(y)]
+    speech = x[mask]
+
+    protected = (
+        np.convolve(voiced.astype(int), np.ones(7, dtype=int), mode="full")[
+            3 : 3 + len(voiced)
+        ]
+        > 0
+    )
+    noise_mask = np.repeat(~protected, frame_samples)[: len(y)]
+    noise = y[noise_mask]
+    ps = float(np.mean(y[mask] ** 2)) if speech.size else 0.0
+    pn = float(np.mean(noise ** 2)) if noise.size else 0.0
+    snr = (
+        float(10.0 * np.log10(max(ps - pn, 1e-24) / max(pn, 1e-24)))
+        if noise.size >= int(0.3 * sr) and pn > 0.0 and ps > pn
+        else None
+    )
+    silence_ratio = float(1.0 - len(speech) / len(x))
+    near_clip_pct = float(100.0 * np.mean(np.abs(y) >= 0.999))
+    hard_clip_pct = float(100.0 * np.mean((x == -32768) | (x == 32767)))
+    clip_pct = max(hard_clip_pct, near_clip_pct)
+
+    edges = np.diff(np.r_[False, voiced, False].astype(int))
+    intervals = [
+        [float(a * 0.02), min(float(b * 0.02), len(x) / sr)]
+        for a, b in zip(np.where(edges == 1)[0], np.where(edges == -1)[0])
+    ]
+    metrics: dict[str, Any] = {
+        "duration_s": float(len(x) / sr),
+        "net_speech_s": float(len(speech) / sr),
+        "silence_ratio": silence_ratio,
+        "silence_pct": round(silence_ratio * 100.0, 2),
+        "rms_dbfs": _db(np.sqrt(np.mean(y * y))),
+        "speech_rms_dbfs": _db(np.sqrt(ps)) if speech.size else -120.0,
+        "peak_dbfs": _db(np.max(np.abs(y))),
+        "clipping_pct": clip_pct,
+        "near_clip_pct": near_clip_pct,
+        "estimated_snr_db": snr,
+        "noise_reference_s": float(len(noise) / sr),
+        "noise_rms_dbfs": _db(np.sqrt(pn)) if noise.size else -120.0,
+        "vad_threshold_dbfs": threshold,
+        "speech_intervals_s": intervals,
+    }
+    return metrics, speech
+
+
+def _pair_hybrid_cosine(seg_a: np.ndarray, seg_b: np.ndarray, sr: int = SR) -> float:
+    """Tính cosine giữa 2 phân đoạn 3s kết hợp đặc trưng 256D và WeSpeaker ResNet34 ONNX.
+
+    Nếu 2 đoạn thuộc 2 người nói khác nhau (WeSpeaker cosine < 0.36), phạt điểm xuống < 0.85
+    để chặn ghép nhiều người nói hoặc nhiễu giọng lạ trong bản thu đăng ký.
+    """
+    emb_a = extract_neural_embedding_256d(seg_a, sr=sr)
+    emb_b = extract_neural_embedding_256d(seg_b, sr=sr)
+    cos_spec = float(compute_neural_similarity(emb_a, emb_b))
+    try:
+        from simulator.voice.wespeaker_onnx import (
+            extract_wespeaker_embedding,
+            compute_wespeaker_cosine,
+        )
+
+        w_a = extract_wespeaker_embedding(seg_a, sr=sr, apply_vad=False)
+        w_b = extract_wespeaker_embedding(seg_b, sr=sr, apply_vad=False)
+        cos_w = float(compute_wespeaker_cosine(w_a, w_b))
+        if cos_w < 0.36:
+            return float(min(cos_spec, 0.45 + max(0.0, cos_w)))
+    except Exception:
+        pass
+    return cos_spec
+
+
+def measure_segment_consistency(speech: np.ndarray, sr: int = SR) -> dict[str, Any]:
+    """Đo độ nhất quán giữa các phân đoạn ~3 giây trong bản thu đăng ký."""
+    if len(speech) < 2 * sr:
+        return {
+            "segment_seconds": [],
+            "pair_count": 0,
+            "mean_cosine": None,
+            "min_cosine": None,
+        }
+    n_chunks = max(2, int(np.floor(len(speech) / sr / 3.0 + 0.5)))
+    chunks = np.array_split(speech, n_chunks)
+    pairs = [
+        _pair_hybrid_cosine(a, b, sr=sr)
+        for i, a in enumerate(chunks)
+        for b in chunks[i + 1 :]
+    ]
+    return {
+        "segment_seconds": [float(len(c) / sr) for c in chunks],
+        "pair_count": len(pairs),
+        "mean_cosine": float(np.mean(pairs)) if pairs else None,
+        "min_cosine": float(min(pairs)) if pairs else None,
+    }
+
+
+measure = measure_enrollment_audio
+consistency = measure_segment_consistency
+
+
+def check_enrollment_quality_gate(
+    enroll_pcm: bytes | bytearray | np.ndarray | str | pathlib.Path,
+    self_check_pcm: bytes | bytearray | np.ndarray | str | pathlib.Path | None = None,
+    sr: int = SR,
+    require_self_check: bool = True,
+) -> dict[str, Any]:
+    """Cổng kiểm định chất lượng mẫu đăng ký giọng nói (Chủ nhà Cấp 1 & Khách/Thành viên).
+
+    Tiêu chuẩn bắt buộc (ENROLL_QUALITY.md & check_enroll.py):
+      1. Tiếng nói thực tế (net speech): >= 12.0s
+      2. Tỷ lệ khoảng lặng (silence ratio): <= 60.0%
+      3. Âm lượng tiếng nói (speech RMS): -30.0 dBFS .. -12.0 dBFS
+      4. Tỷ lệ vỡ tiếng (clipping): <= 0.1%
+      5. Tỷ số tín hiệu trên nhiễu (SNR): >= 15.0 dB (cần >= 0.3s khoảng lặng nền để đo)
+      6. Độ nhất quán các phân đoạn 3s: mean cosine >= 0.90 & min cosine >= 0.85
+      7. Câu kiểm tra độc lập (self-check): net speech >= 3.0s & cosine >= 0.88 (khác bản thu chính)
+    """
+    r = ENROLL_QUALITY_RULES
+    x_enroll = _coerce_pcm16_16k(enroll_pcm, sr=sr)
+    if x_enroll.size < int(0.02 * sr):
+        reason_msg = "Dữ liệu âm thanh thu âm rỗng hoặc quá ngắn (< 20ms). Vui lòng thu âm lại!"
+        return {
+            "ok": False,
+            "pass_gate": False,
+            "verified": False,
+            "require_rerecord": True,
+            "ask_repeat": True,
+            "status": "CHUA_DAT",
+            "reason": reason_msg,
+            "reasons": [reason_msg],
+            "message": reason_msg,
+            "error": reason_msg,
+            "checks": {},
+            "rules": r,
+            "metrics": {},
+            "consistency": {},
+            "self_check": None,
+        }
+
+    metrics, speech = measure_enrollment_audio(x_enroll, offset_db=10.0, sr=sr)
+    stable = measure_segment_consistency(speech, sr=sr)
+
+    self_result: dict[str, Any] | None = None
+    self_same_recording = False
+    if self_check_pcm is not None:
+        x_self = _coerce_pcm16_16k(self_check_pcm, sr=sr)
+        if x_self.size > 0:
+            h_enroll = hashlib.sha256(x_enroll.tobytes()).hexdigest()
+            h_self = hashlib.sha256(x_self.tobytes()).hexdigest()
+            if h_enroll == h_self:
+                self_same_recording = True
+            m_sc, sp_sc = measure_enrollment_audio(x_self, offset_db=10.0, sr=sr)
+            cos_sc = _pair_hybrid_cosine(x_enroll, x_self, sr=sr) if x_self.size >= 400 else 0.0
+            vad_cos_sc = (
+                _pair_hybrid_cosine(speech, sp_sc, sr=sr)
+                if (speech.size >= 400 and sp_sc.size >= 400)
+                else 0.0
+            )
+            self_result = {
+                "duration_s": m_sc["duration_s"],
+                "net_speech_s": m_sc["net_speech_s"],
+                "cosine": cos_sc,
+                "vad_cosine": vad_cos_sc,
+                "same_as_enroll": self_same_recording,
+            }
+
+    checks: dict[str, bool] = {
+        "net_speech": float(metrics["net_speech_s"]) >= r["min_speech_s"],
+        "silence": float(metrics["silence_ratio"]) <= r["max_silence_ratio"],
+        "level": r["min_rms_dbfs"] <= float(metrics["speech_rms_dbfs"]) <= r["max_rms_dbfs"],
+        "clipping": float(metrics["clipping_pct"]) <= r["max_clip_pct"],
+        "snr": (
+            metrics["estimated_snr_db"] is not None
+            and float(metrics["estimated_snr_db"]) >= r["min_snr_db"]
+        ),
+        "segment_mean": (
+            stable["mean_cosine"] is not None
+            and float(stable["mean_cosine"]) >= r["mean_pair_cosine"]
+        ),
+        "segment_min": (
+            stable["min_cosine"] is not None
+            and float(stable["min_cosine"]) >= r["min_pair_cosine"]
+        ),
+    }
+    if require_self_check or self_check_pcm is not None:
+        checks["heldout"] = bool(
+            self_result is not None
+            and not self_same_recording
+            and float(self_result["net_speech_s"]) >= r["min_self_speech_s"]
+            and float(self_result["cosine"]) >= r["min_self_cosine"]
+        )
+
+    reasons: list[str] = []
+    if not checks["net_speech"]:
+        reasons.append(
+            f"Thời lượng tiếng nói thực tế quá ngắn ({metrics['net_speech_s']:.2f}s < {r['min_speech_s']:.1f}s). "
+            "Vui lòng thu âm lại ít nhất 12 giây tiếng nói rõ ràng!"
+        )
+    if not checks["silence"]:
+        reasons.append(
+            f"Tỷ lệ khoảng lặng quá cao ({metrics['silence_pct']:.1f}% > {r['max_silence_ratio'] * 100.0:.0f}%). "
+            "Vui lòng nói liên tục hơn và thu âm lại!"
+        )
+    if not checks["level"]:
+        if float(metrics["speech_rms_dbfs"]) < r["min_rms_dbfs"]:
+            reasons.append(
+                f"Âm lượng giọng nói quá nhỏ ({metrics['speech_rms_dbfs']:.1f} dBFS < {r['min_rms_dbfs']:.1f} dBFS). "
+                "Vui lòng đưa micro lại gần, nói to rõ hơn và thu âm lại!"
+            )
+        else:
+            reasons.append(
+                f"Âm lượng giọng nói quá lớn ({metrics['speech_rms_dbfs']:.1f} dBFS > {r['max_rms_dbfs']:.1f} dBFS). "
+                "Vui lòng để micro xa hơn một chút và thu âm lại!"
+            )
+    if not checks["clipping"]:
+        reasons.append(
+            f"Tín hiệu âm thanh bị rè/vỡ tiếng (clipping {metrics['clipping_pct']:.3f}% > {r['max_clip_pct']:.1f}%). "
+            "Vui lòng giảm âm lượng micro và thu âm lại!"
+        )
+    if not checks["snr"]:
+        if metrics["estimated_snr_db"] is None:
+            reasons.append(
+                "Không đo được nền yên tĩnh để tính SNR (cần ít nhất 0.3s khoảng lặng đầu/cuối câu). "
+                "Vui lòng thu âm lại ở nơi yên tĩnh!"
+            )
+        else:
+            reasons.append(
+                f"Môi trường quá ồn (SNR = {metrics['estimated_snr_db']:.1f} dB < {r['min_snr_db']:.1f} dB). "
+                "Vui lòng thu âm lại tại nơi yên tĩnh hơn!"
+            )
+    if not checks["segment_mean"] or not checks["segment_min"]:
+        m_val = stable["mean_cosine"] if stable["mean_cosine"] is not None else 0.0
+        min_val = stable["min_cosine"] if stable["min_cosine"] is not None else 0.0
+        reasons.append(
+            f"Độ nhất quán giọng nói giữa các đoạn 3 giây không đạt (mean cosine = {m_val:.3f} < 0.90 "
+            f"hoặc min cosine = {min_val:.3f} < 0.85; có thể lẫn tạp âm hoặc giọng người khác). "
+            "Vui lòng thu âm lại bằng một giọng duy nhất!"
+        )
+    if "heldout" in checks and not checks["heldout"]:
+        if self_result is None:
+            reasons.append(
+                "Thiếu câu kiểm tra độc lập (self-check >= 3.0s tiếng nói). Vui lòng đọc thêm câu xác nhận và thu âm lại!"
+            )
+        elif self_same_recording:
+            reasons.append(
+                "Câu kiểm tra độc lập (self-check) bị trùng hoàn toàn với bản thu chính. Vui lòng đọc một câu kiểm tra mới và thu âm lại!"
+            )
+        elif float(self_result["net_speech_s"]) < r["min_self_speech_s"]:
+            reasons.append(
+                f"Câu kiểm tra độc lập (self-check) quá ngắn ({self_result['net_speech_s']:.2f}s < {r['min_self_speech_s']:.1f}s tiếng nói). "
+                "Vui lòng đọc câu kiểm tra dài ít nhất 3 giây và thu âm lại!"
+            )
+        else:
+            reasons.append(
+                f"Câu kiểm tra độc lập (self-check) không khớp với mẫu giọng đăng ký (cosine = {self_result['cosine']:.3f} < {r['min_self_cosine']:.2f}). "
+                "Vui lòng thu âm lại!"
+            )
+
+    pass_gate = all(checks.values())
+    combined_reason = " ".join(reasons) if reasons else "Mẫu giọng đăng ký đạt tất cả tiêu chuẩn chất lượng."
+    return {
+        "ok": pass_gate,
+        "pass_gate": pass_gate,
+        "verified": pass_gate,
+        "require_rerecord": not pass_gate,
+        "ask_repeat": not pass_gate,
+        "status": "DA_DAT" if pass_gate else "CHUA_DAT",
+        "reason": combined_reason,
+        "reasons": reasons,
+        "message": combined_reason,
+        "error": "" if pass_gate else combined_reason,
+        "checks": checks,
+        "rules": r,
+        "metrics": metrics,
+        "consistency": stable,
+        "self_check": self_result,
+    }
+
+
+evaluate_enrollment_quality_gate = check_enrollment_quality_gate
+
 
 def validate_voice_enrollment_quality(
-    pcm16: np.ndarray | bytes, sr: int = 16000
+    pcm16: np.ndarray | bytes,
+    sr: int = 16000,
+    self_check_pcm: np.ndarray | bytes | None = None,
+    strict_12s: bool = False,
 ) -> dict[str, Any]:
     """Kiểm định chất lượng giọng thu âm ban đầu (First-Page Voice Enrollment Quality Gate).
+    Nếu truyền `self_check_pcm` hoặc `strict_12s=True`, áp dụng cổng nghiêm ngặt 12s + self-check 3s.
     Đo đạc 6 tiêu chuẩn âm học khắt khe:
-      1. Thời lượng thu âm: >= 2.0s
-      2. Năng lượng RMS: >= 0.020
-      3. Tỷ lệ khung tiếng nói có thanh (Voiced Frame Ratio): >= 35.0%
+      1. Thời lượng thu âm: >= 2.0s (hoặc net_speech >= 12.0s khi bật strict_12s)
+      2. Năng lượng RMS: >= 0.020 (-30..-12 dBFS)
+      3. Tỷ lệ khung tiếng nói có thanh (Voiced Frame Ratio): >= 35.0% (silence <= 60%)
       4. Tần số cơ bản F0 trung bình: 75.0 Hz <= F0 <= 340.0 Hz
       5. Độ ổn định cao độ (Pitch Std Dev): <= 38.0 Hz
       6. Tỷ số tín hiệu trên nhiễu (SNR): >= 10.0 dB
-
-    Nếu CHƯA ĐẠT (im lặng, quá ngắn, quá ồn, méo tiếng):
-      Trả về {"ok": False, "verified": False, "status": "CHUA_DAT", "message": "Giọng thu âm chưa đạt chuẩn (Chưa được)", "reason": "...", "details": {...}}
-    Nếu ĐÃ ĐẠT:
-      Trả về {"ok": True, "verified": True, "status": "DA_DAT", "message": "Giọng chính đã đạt chuẩn (Đã được)", ...}
     """
+    if strict_12s or self_check_pcm is not None:
+        return check_enrollment_quality_gate(
+            enroll_pcm=pcm16,
+            self_check_pcm=self_check_pcm,
+            sr=sr,
+            require_self_check=bool(self_check_pcm is not None or strict_12s),
+        )
+
     if isinstance(pcm16, (bytes, bytearray)):
         if len(pcm16) % 2 != 0:
             pcm16 = pcm16[:len(pcm16) - (len(pcm16) % 2)]

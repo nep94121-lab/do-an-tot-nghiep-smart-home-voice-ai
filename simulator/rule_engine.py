@@ -705,7 +705,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "tier": 99,
                     "role": "UNKNOWN",
                     "error": UNKNOWN_REJECTION_REASON,
-                    "exact_spoken_reply": UNKNOWN_SPOKEN_REPLY,
+                    "message": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+                    "rejection_speech": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+                    "exact_spoken_reply": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
                 }
 
         with self.state_transaction():
@@ -764,7 +766,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             "role": effective_role,
                             "reason": reason,
                         })
-                        results.append({"ok": False, "device_id": dev_id, "error": reason})
+                        results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
                         continue
 
                 if dev["type"] == "door":
@@ -837,14 +839,25 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         all_ok = all(r["ok"] for r in results) if results else False
-        concise_reply = self._build_concise_spoken_reply(results)
-        return {
+        any_rbac_blocked = any(bool(r.get("rbac_blocked")) for r in results)
+        concise_reply = (
+            "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+            if any_rbac_blocked and not all_ok
+            else self._build_concise_spoken_reply(results)
+        )
+        out_res: dict[str, Any] = {
             "ok": all_ok,
+            "rbac_blocked": any_rbac_blocked and not all_ok,
             "results": results,
+            "message": concise_reply,
             "exact_spoken_reply": concise_reply,
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'",
             "summary": concise_reply,
         }
+        if any_rbac_blocked and not all_ok:
+            out_res["error"] = concise_reply
+            out_res["rejection_speech"] = concise_reply
+        return out_res
 
     async def sync_edge_flash(self) -> dict[str, Any]:
         """Đồng bộ bản sao 2 Bể (Bể 1 Hẹn giờ & Bể 2 Luật IF-ELSE) xuống Flash LittleFS của ESP8266."""

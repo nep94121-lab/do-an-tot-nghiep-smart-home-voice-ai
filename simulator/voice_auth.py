@@ -31,6 +31,11 @@ from simulator.voice.dsp_features import (
     extract_voice_features,
 )
 from simulator.voice.enrollment_quality import (
+    ENROLL_QUALITY_RULES,
+    check_enrollment_quality_gate,
+    evaluate_enrollment_quality_gate,
+    measure_enrollment_audio,
+    measure_segment_consistency,
     parse_vietnamese_voice_command_intents,
     validate_voice_enrollment_quality,
 )
@@ -43,18 +48,22 @@ from simulator.voice.synthesis_augment import (
 from simulator.voice.wespeaker_onnx import (
     DEFAULT_ENROLLMENT_SAMPLES,
     DEFAULT_WESPEAKER_THRESHOLD,
+    SAFE_DENY_REPEAT_PHRASE_VI,
     _is_encoded_container_bytes,
     compute_multi_sample_mean_embedding,
     compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
     evaluate_cohort_margin,
     extract_wespeaker_embedding,
+    extract_wespeaker_subwindow_bank,
     get_wespeaker_session,
     load_verified_owner_seed,
     load_verified_owner_5sample_seed,
     load_verified_tier_5sample_seed,
     pcm_bytes_to_float32_16k,
 )
+
+UNIFIED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 from simulator.voice_config import (
     ENROLLMENT_REQUIRED_SAMPLES,
     OWNER_ID,
@@ -88,11 +97,19 @@ __all__ = [
     "synthesize_noisy_fan_voice",
     "synthesize_two_speakers_audio",
     "validate_voice_enrollment_quality",
+    "check_enrollment_quality_gate",
+    "evaluate_enrollment_quality_gate",
+    "measure_enrollment_audio",
+    "measure_segment_consistency",
+    "ENROLL_QUALITY_RULES",
+    "SAFE_DENY_REPEAT_PHRASE_VI",
+    "UNIFIED_REJECTION_PHRASE_VI",
     "parse_vietnamese_voice_command_intents",
     "DuplicateVoiceCheckResult",
     "VoiceAuthManager",
     "check_duplicate_voice_gate",
     "extract_wespeaker_embedding",
+    "extract_wespeaker_subwindow_bank",
     "compute_wespeaker_cosine",
     "compute_multi_sample_mean_embedding",
     "evaluate_audio_quality_gate",
@@ -500,19 +517,26 @@ class VoiceAuthManager:
         Tuyệt đối không dùng giong_1_* hay bản sao trùng byte.
         """
         existing_custom: dict[str, Any] = {}
-        if VOICEPRINT_FILE.exists():
+        loaded_disk: dict[str, Any] | None = None
+        try:
+            from simulator.durable_store import load_durable_json
+
+            loaded_disk = load_durable_json("voiceprints.json", VOICEPRINT_FILE)
+        except Exception:
+            loaded_disk = None
+        if loaded_disk is None and VOICEPRINT_FILE.exists():
             try:
-                loaded = json.loads(VOICEPRINT_FILE.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    for k, v in loaded.items():
-                        if (
-                            isinstance(v, dict)
-                            and v.get("custom_enrolled")
-                            and v.get("wespeaker_model") == "wespeaker_r34_onnx"
-                        ):
-                            existing_custom[k] = v
+                loaded_disk = json.loads(VOICEPRINT_FILE.read_text(encoding="utf-8"))
             except Exception:
-                pass
+                loaded_disk = None
+        if isinstance(loaded_disk, dict):
+            for k, v in loaded_disk.items():
+                if (
+                    isinstance(v, dict)
+                    and v.get("custom_enrolled")
+                    and v.get("wespeaker_model") == "wespeaker_r34_onnx"
+                ):
+                    existing_custom[k] = v
 
         seeds = _get_cached_seeds(self.audio_dir)
         owner_seed = seeds["owner_seed"]
@@ -525,6 +549,7 @@ class VoiceAuthManager:
         wespk_v2 = seeds["wespk_v2"]
 
         owner_wespk = owner_seed.get("wespeaker_embedding", [0.0] * 256)
+        owner_sub_embs = owner_seed.get("sub_embeddings_256d", [])
         tier2_wespk = tier2_seed.get("wespeaker_embedding", [0.0] * 256)
         tier3_wespk = tier3_seed.get("wespeaker_embedding", [0.0] * 256)
 
@@ -586,6 +611,7 @@ class VoiceAuthManager:
                 "deep_embedding": deep_own["deep_embedding"],
                 "embedding_256d": owner_wespk,
                 "wespeaker_embedding": owner_wespk,
+                "sub_embeddings_256d": owner_sub_embs,
             },
             "intruder_voice_2": {
                 "id": "intruder_voice_2",
@@ -614,6 +640,8 @@ class VoiceAuthManager:
                 v["baseline_deep_embedding"] = data[k]["deep_embedding"]
                 v["baseline_embedding_256d"] = data[k]["embedding_256d"]
                 v["baseline_wespeaker_embedding"] = data[k]["wespeaker_embedding"]
+                if not v.get("sub_embeddings_256d") and data[k].get("sub_embeddings_256d"):
+                    v["sub_embeddings_256d"] = data[k]["sub_embeddings_256d"]
             data[k] = v
         self._save_voiceprints_safe(data)
         return data
@@ -626,6 +654,12 @@ class VoiceAuthManager:
                 (json.dumps(target, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
             )
             self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+        except Exception:
+            pass
+        try:
+            from simulator.durable_store import save_durable_json
+
+            save_durable_json("voiceprints.json", target, VOICEPRINT_FILE)
         except Exception:
             pass
 
@@ -719,10 +753,12 @@ class VoiceAuthManager:
         required_samples: int = ENROLLMENT_REQUIRED_SAMPLES,
         sample_index: int | None = None,
         total_samples: int | None = None,
+        self_check_pcm_bytes: bytes | np.ndarray | None = None,
+        enforce_12s_gate: bool = False,
     ) -> dict[str, Any]:
         """Thu âm giọng nói thật từ Microphone (16kHz PCM) và lưu vector trung bình WeSpeaker ResNet34 ONNX
         cho Cấp 1, Cấp 2 hoặc Cấp 3. Bắt buộc qua Cổng Chống Trùng Giọng Trong Nhà.
-        Hỗ trợ cả thu đủ 5 mẫu (samples_pcm16k hoặc lũy tiến sample_index=1..5) và thu đơn mẫu cho unit test cũ.
+        Hỗ trợ cả cổng kiểm định 12s + self-check 3s (ENROLL_QUALITY.md) và thu đa mẫu / đơn mẫu.
         """
         if (user_id == OWNER_ID or custom_label == "owner_voice_1") and int(tier) != 1:
             return {
@@ -735,6 +771,16 @@ class VoiceAuthManager:
                 ),
                 "message": "Không thể hạ cấp quyền Chủ nhà Cấp 1.",
             }
+
+        if enforce_12s_gate or self_check_pcm_bytes is not None:
+            gate_res = check_enrollment_quality_gate(
+                enroll_pcm=pcm_bytes,
+                self_check_pcm=self_check_pcm_bytes,
+                sr=16000,
+                require_self_check=True,
+            )
+            if not gate_res.get("ok"):
+                return gate_res
 
         # Hỗ trợ thu âm lũy tiến từng mẫu 1..5 (Progressive 5-Sample Enrollment)
         if (
@@ -843,6 +889,7 @@ class VoiceAuthManager:
             }
             enrolled_samples_count = int(multi_res["num_samples"])
             sample_cosines_to_mean = multi_res.get("sample_cosines_to_mean", [])
+            sub_bank_list = []
         else:
             if isinstance(pcm_bytes, (bytes, bytearray)):
                 raw_b = bytes(pcm_bytes)
@@ -869,11 +916,9 @@ class VoiceAuthManager:
                     ),
                 }
             deep = extract_stage2_deep_features(pcm_clean, 16000)
-            wespk_vec = [
-                round(float(v), 6)
-                for v in extract_wespeaker_embedding(pcm_raw).tolist()
-            ]
-            enrolled_samples_count = 1
+            cent_arr, sub_bank_list = extract_wespeaker_subwindow_bank(pcm_raw, sr=16000)
+            wespk_vec = [round(float(v), 6) for v in cent_arr.tolist()]
+            enrolled_samples_count = max(1, len(sub_bank_list))
             sample_cosines_to_mean = [1.0]
 
         if check_duplicate:
@@ -937,6 +982,8 @@ class VoiceAuthManager:
             "deep_embedding": deep["deep_embedding"],
             "embedding_256d": wespk_vec,
             "wespeaker_embedding": wespk_vec,
+            "sub_embeddings_256d": sub_bank_list or prev_prof.get("sub_embeddings_256d", []),
+            "wespeaker_sub_embeddings": sub_bank_list or prev_prof.get("wespeaker_sub_embeddings", []),
             "baseline_f0_hz": prev_prof.get("baseline_f0_hz")
             or prev_prof.get("f0_hz")
             or feat["f0_hz"],
@@ -1275,19 +1322,88 @@ class VoiceAuthManager:
                     "priority_reason": "Âm đệm không đủ thông tin sinh trắc học hoàn chỉnh.",
                     "clean_pcm_bytes": pcm_clean.tobytes(),
                     "strike_count": self.unauthorized_strikes,
+                    "strikes": self.unauthorized_strikes,
                     "deferred_strike": True,
-                    "should_reply": False,
-                    "silent_ignore": bool(self.unauthorized_strikes >= 3),
-                    "rejection_speech": "",
+                    "should_reply": True,
+                    "silent_ignore": False,
+                    "rejection_speech": SAFE_DENY_REPEAT_PHRASE_VI,
+                    "message": SAFE_DENY_REPEAT_PHRASE_VI,
                 }
             self.last_analysis = {
                 k: v for k, v in res.items() if k != "clean_pcm_bytes"
             }
             return res
 
-        # Bước 3: CỔNG KIỂM ĐỊNH CHẤT LƯỢNG ÂM THANH (Mel26 + Deep64 Audio Quality Gate)
-        # Nếu âm thanh quá ngắn, im lặng/quá nhỏ, hoặc bị rè (clipped) -> Yêu cầu nói lại,
-        # TUYỆT ĐỐI KHÔNG gắn nhãn 'Người lạ' và KHÔNG tăng gậy phạt!
+        # Bước 3: SAFE-DENY GATE (Mel26 + Deep64 Quality Gate + Multi-Speaker Overlap Gate)
+        # Quá ngắn (<~1.5s speech), quá ồn, hoặc có từ 2 người nói chồng lấn -> KHÔNG ĐOÁN,
+        # yêu cầu nói lại bằng câu ngắn cố định, KHÔNG tăng gậy phạt!
+        is_true_multi_speaker = False
+        if multi_info.get("multi_speaker_detected"):
+            from simulator.voice.wespeaker_onnx import vad_trim_16k
+
+            flt_chk = pcm_raw.astype(np.float32) / 32768.0
+            sp_chk = vad_trim_16k(flt_chk)
+            if len(sp_chk) >= 1600:
+                mid_idx = len(sp_chk) // 2
+                w_h1 = extract_wespeaker_embedding(sp_chk[:mid_idx], sr=16000, apply_vad=False)
+                w_h2 = extract_wespeaker_embedding(sp_chk[mid_idx:], sr=16000, apply_vad=False)
+                half_cos = compute_wespeaker_cosine(w_h1, w_h2)
+                if half_cos < 0.22:
+                    is_true_multi_speaker = True
+                else:
+                    multi_info["multi_speaker_detected"] = False
+                    multi_info["speaker_count"] = 1
+                    target_pcm = pcm_clean
+            else:
+                is_true_multi_speaker = True
+
+        if is_true_multi_speaker:
+            total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
+            res = {
+                "authorized": False,
+                "ask_repeat": True,
+                "quality_gate_passed": False,
+                "quality_reason": "OVERLAPPING_SPEAKERS",
+                "reason": "OVERLAPPING_SPEAKERS",
+                "speaker_id": "none",
+                "user_id": "UNKNOWN",
+                "role": "UNKNOWN",
+                "speaker_label": "Yêu cầu nói lại (Phát hiện nhiều người cùng nói)",
+                "tier": 99,
+                "f0_hz": float(feat_s1.get("f0_hz", 0.0)),
+                "centroid_hz": float(feat_s1.get("centroid_hz", 0.0)),
+                "formants_hz": [],
+                "similarity": 0.0,
+                "wespeaker_cosine": 0.0,
+                "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
+                "stage1_confidence": 0.0,
+                "stage2_triggered": False,
+                "stage2_confidence": None,
+                "filter_stage_used": "Safe-Deny Gate (Chặn Đa Người Nói Chồng Lấn)",
+                "denoise_ms": denoise_info["denoise_ms"],
+                "stage1_ms": feat_s1.get("stage1_ms", 0.0),
+                "stage2_ms": 0.0,
+                "diarization_ms": multi_info["diarization_ms"],
+                "total_ms": total_ms,
+                "noise_removed_db": denoise_info["noise_removed_db"],
+                "fan_noise_detected": denoise_info["fan_noise_detected"],
+                "multi_speaker_detected": True,
+                "speaker_count": max(2, int(multi_info.get("speaker_count", 2))),
+                "priority_reason": SAFE_DENY_REPEAT_PHRASE_VI,
+                "clean_pcm_bytes": pcm_clean.tobytes(),
+                "strike_count": self.unauthorized_strikes,
+                "strikes": self.unauthorized_strikes,
+                "deferred_strike": True,
+                "should_reply": True,
+                "silent_ignore": False,
+                "rejection_speech": SAFE_DENY_REPEAT_PHRASE_VI,
+                "message": SAFE_DENY_REPEAT_PHRASE_VI,
+            }
+            self.last_analysis = {
+                k: v for k, v in res.items() if k != "clean_pcm_bytes"
+            }
+            return res
+
         q_gate = evaluate_audio_quality_gate(pcm_raw, sr=16000)
         if (
             not q_gate["ok"]
@@ -1295,19 +1411,17 @@ class VoiceAuthManager:
             or not feat_s1.get("is_live_human", True)
         ):
             total_ms = round((time.perf_counter() - t_total_start) * 1000.0, 2)
-            repeat_msg = q_gate.get(
-                "message",
-                "Âm thanh quá ngắn, quá nhỏ hoặc bị rè. Xin vui lòng nói lại rõ hơn!",
-            )
+            repeat_msg = SAFE_DENY_REPEAT_PHRASE_VI
             res = {
                 "authorized": False,
                 "ask_repeat": True,
                 "quality_gate_passed": False,
                 "quality_reason": q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
+                "reason": q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
                 "speaker_id": "none",
                 "user_id": "UNKNOWN",
                 "role": "UNKNOWN",
-                "speaker_label": "Yêu cầu nói lại (Tín hiệu âm thanh quá ngắn / nhỏ / rè)",
+                "speaker_label": "Yêu cầu nói lại (Tín hiệu âm thanh quá ngắn / nhỏ / ồn / rè)",
                 "tier": 99,
                 "f0_hz": float(feat_s1.get("f0_hz", 0.0)),
                 "centroid_hz": float(feat_s1.get("centroid_hz", 0.0)),
@@ -1331,10 +1445,12 @@ class VoiceAuthManager:
                 "priority_reason": repeat_msg,
                 "clean_pcm_bytes": pcm_clean.tobytes(),
                 "strike_count": self.unauthorized_strikes,
+                "strikes": self.unauthorized_strikes,
                 "deferred_strike": True,
                 "should_reply": True,
-                "silent_ignore": bool(self.unauthorized_strikes >= 3),
+                "silent_ignore": False,
                 "rejection_speech": repeat_msg,
+                "message": repeat_msg,
             }
             self.last_analysis = {
                 k: v for k, v in res.items() if k != "clean_pcm_bytes"
@@ -1345,14 +1461,6 @@ class VoiceAuthManager:
         t_wespk_start = time.perf_counter()
         cur_wespk = extract_wespeaker_embedding(pcm_raw, sr=16000, apply_vad=True)
         alt_wespk_list: list[np.ndarray] = []
-        if multi_info.get("multi_speaker_detected") and pcm_raw.size > int(0.85 * 16000):
-            # Trong kịch bản 2 người nói (người lạ chèn 0.75s đầu + chủ nhà nói chính khúc sau),
-            # trích xuất thêm WeSpeaker embedding trên phân đoạn sau 0.75s nguyên bản (không cắt tần số >3950Hz)
-            tail_raw = pcm_raw[int(0.75 * 16000) :]
-            if tail_raw.size >= int(0.6 * 16000):
-                alt_wespk_list.append(
-                    extract_wespeaker_embedding(tail_raw, sr=16000, apply_vad=True)
-                )
         wespk_ms = round((time.perf_counter() - t_wespk_start) * 1000.0, 2)
 
         deep_feat = extract_stage2_deep_features(target_pcm, 16000)
@@ -1422,7 +1530,7 @@ class VoiceAuthManager:
                         "strike_count": self.unauthorized_strikes,
                         "should_reply": True,
                         "silent_ignore": False,
-                        "rejection_speech": "Quyền khách tạm thời của bạn đã hết hạn.",
+                        "rejection_speech": UNIFIED_REJECTION_PHRASE_VI,
                     }
 
         # Bước 5: Đối sánh WeSpeaker ResNet34 ONNX Cosine với các hồ sơ được cấp quyền
@@ -1449,13 +1557,22 @@ class VoiceAuthManager:
             elif ap.get("baseline_embedding_256d"):
                 cand_vecs.append(ap["baseline_embedding_256d"])
 
-            sim_ap = -1.0
+            sim_cent = -1.0
             for c_vec in cand_vecs:
                 if c_vec and len(c_vec) == 256:
                     s = compute_wespeaker_cosine(cur_wespk, c_vec)
                     for alt_w in alt_wespk_list:
                         s = max(s, compute_wespeaker_cosine(alt_w, c_vec))
-                    sim_ap = max(sim_ap, s)
+                    sim_cent = max(sim_cent, s)
+
+            sim_ap = sim_cent
+            sub_embs = ap.get("sub_embeddings_256d") or []
+            if sub_embs and sim_cent >= 0.32:
+                s_sub_max = max(
+                    (compute_wespeaker_cosine(cur_wespk, se) for se in sub_embs if len(se) == 256),
+                    default=sim_cent,
+                )
+                sim_ap = max(sim_cent, s_sub_max)
 
             if sim_ap > highest_any_cos:
                 highest_any_cos = sim_ap
@@ -1463,11 +1580,11 @@ class VoiceAuthManager:
 
             if sim_ap >= ap_thresh:
                 # Defense-in-depth: For Level 1 (Owner), require Vietnamese background cohort margin gate
-                # cos(probe, owner) >= max_{c in Cohort} cos(probe, c) (margin >= 0.0)
+                # sim_ap >= max_{c in Cohort} cos(probe, c) (margin >= 0.0)
                 if ap_tier == 1:
                     c_vec_owner = cand_vecs[0] if cand_vecs else None
                     margin, max_c, c_pass = evaluate_cohort_margin(cur_wespk, c_vec_owner)
-                    if not c_pass:
+                    if not c_pass and (sim_ap - max_c) < 0.0:
                         continue
                 if best_matched_prof is None or sim_ap > best_matched_cos:
                     best_matched_prof = ap
@@ -1475,6 +1592,9 @@ class VoiceAuthManager:
                     best_matched_thresh = ap_thresh
 
         probe_cohort_margin, probe_max_cohort, probe_cohort_passed = evaluate_cohort_margin(cur_wespk)
+        if best_matched_prof is not None and int(best_matched_prof.get("tier", 1)) == 1:
+            probe_cohort_margin = round(float(best_matched_cos - probe_max_cohort), 4)
+            probe_cohort_passed = bool(probe_cohort_margin >= 0.0)
 
         is_authorized = best_matched_prof is not None
         final_cos = round(
@@ -1528,6 +1648,7 @@ class VoiceAuthManager:
                 "priority_reason": multi_info["priority_reason"],
                 "clean_pcm_bytes": pcm_clean.tobytes(),
                 "strike_count": 0,
+                "strikes": 0,
                 "should_reply": True,
                 "silent_ignore": False,
                 "rejection_speech": "",
@@ -1538,21 +1659,12 @@ class VoiceAuthManager:
             return res
 
         # Người lạ (WeSpeaker cosine < threshold_wespeaker) -> Tăng bộ đếm vi phạm (Strike)
+        # Yêu cầu 4: Duy nhất 1 câu từ chối cố định bằng giọng Aoede, không silent_ignore
         self.unauthorized_strikes += 1
         strike = self.unauthorized_strikes
-
-        if strike == 1:
-            rejection_speech = "Tôi không được phép nhận lệnh từ người lạ."
-            should_reply = True
-            silent_ignore = False
-        elif strike == 2:
-            rejection_speech = "Tôi sẽ không trả lời bạn lần nữa."
-            should_reply = True
-            silent_ignore = False
-        else:
-            rejection_speech = ""
-            should_reply = False
-            silent_ignore = True
+        rejection_speech = UNIFIED_REJECTION_PHRASE_VI
+        should_reply = True
+        silent_ignore = False
 
         res = {
             "authorized": False,
@@ -1590,9 +1702,12 @@ class VoiceAuthManager:
             "priority_reason": multi_info["priority_reason"],
             "clean_pcm_bytes": pcm_clean.tobytes(),
             "strike_count": strike,
+            "strikes": strike,
             "should_reply": should_reply,
             "silent_ignore": silent_ignore,
             "rejection_speech": rejection_speech,
+            "exact_spoken_reply": rejection_speech,
+            "message": rejection_speech,
         }
         self.last_analysis = {
             k: v for k, v in res.items() if k != "clean_pcm_bytes"

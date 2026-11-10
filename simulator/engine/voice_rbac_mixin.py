@@ -22,12 +22,13 @@ from simulator.voice_config import (
     is_throwaway_qa_identity,
 )
 
+FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
+
 UNKNOWN_REJECTION_REASON = (
     "🚫 NGƯỜI LẠ / VAI TRÒ KHÔNG XÁC ĐỊNH: Từ chối toàn bộ quyền điều khiển thiết bị!"
 )
-UNKNOWN_SPOKEN_REPLY = (
-    "Xin lỗi, hệ thống không nhận diện được danh tính của bạn nên từ chối điều khiển thiết bị."
-)
+UNKNOWN_SPOKEN_REPLY = FIXED_REJECTION_PHRASE_VI
 
 
 class PermissionCheckResult(dict):
@@ -35,6 +36,12 @@ class PermissionCheckResult(dict):
     - Truy cập như dict: res['allowed'], res['reason'], res['tier'], res['role'], res == {...}
     - Unpack 2 phần tử: allowed, reason = eng.check_device_permission(...)
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        if not self.get("allowed", False):
+            self.setdefault("exact_spoken_reply", FIXED_REJECTION_PHRASE_VI)
+            self.setdefault("rejection_speech", FIXED_REJECTION_PHRASE_VI)
 
     def __iter__(self):
         yield bool(self.get("allowed", False))
@@ -58,6 +65,29 @@ class EngineVoiceRbacMixin:
     _current_role: str
     pending_voice_enrollment: dict[str, Any] | None
     mqtt_bridge: Any
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        orig_exec = cls.__dict__.get("execute_device_action")
+        if orig_exec is not None and not getattr(orig_exec, "_rbac_wrapped", False):
+            async def _wrapped_execute_device_action(self: Any, *a: Any, **kw: Any) -> dict[str, Any]:
+                res = await orig_exec(self, *a, **kw)
+                if isinstance(res, dict) and not res.get("ok", True):
+                    err_txt = str(res.get("exact_spoken_reply") or res.get("error") or "")
+                    if "không tồn tại" not in err_txt and not err_txt.startswith("🔒"):
+                        res["rbac_blocked"] = True
+                        res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
+                        res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
+                        res["summary"] = FIXED_REJECTION_PHRASE_VI
+                        res["instruction_for_ai"] = (
+                            f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
+                        )
+                    elif err_txt.startswith("🔒"):
+                        res.setdefault("rejection_speech", FIXED_REJECTION_PHRASE_VI)
+                return res
+
+            _wrapped_execute_device_action._rbac_wrapped = True  # type: ignore[attr-defined]
+            setattr(cls, "execute_device_action", _wrapped_execute_device_action)
 
     @property
     def system_policies(self) -> dict[str, Any]:
@@ -105,10 +135,17 @@ class EngineVoiceRbacMixin:
 
     async def set_query_permission_policy(self, mode: str) -> dict[str, Any]:
         """Thay đổi quy tắc phân quyền hỏi đáp (CHỈ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi)."""
-        if self.current_tier > 1:
-            msg = "Từ chối truy cập! Chỉ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi quy định trả lời câu hỏi của hệ thống."
+        if self.current_tier != 1 or self.current_role != "ADMIN":
+            msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "set_query_permission_policy", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "message": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         m_low = (mode or "").strip().lower()
         if m_low in ("open_all", "all", "everyone", "tat_ca", "open", "true", "allow"):
@@ -141,10 +178,17 @@ class EngineVoiceRbacMixin:
         target_device_id: str = "",
     ) -> dict[str, Any]:
         """Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) sửa BẤT KỲ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3."""
-        if self.current_tier > 1:
-            msg = "Từ chối truy cập! Chỉ Admin Cấp 1 Nguyễn Tuấn Anh mới có quyền sửa quy tắc và phân quyền hệ thống bằng giọng nói."
+        if self.current_tier != 1 or self.current_role != "ADMIN":
+            msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "admin_update_system_policy", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "message": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         key = (policy_key or "").strip().lower()
         val_str = (policy_value or "").strip()
@@ -597,10 +641,17 @@ class EngineVoiceRbacMixin:
         duration_sec: int | None = None,
     ) -> dict[str, Any]:
         pol = self.system_policies
-        if self.current_tier > 1:
-            msg = "Từ chối truy cập! Bạn không có quyền thu âm cấp quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền đăng ký giọng mới."
+        if self.current_tier != 1 or self.current_role != "ADMIN":
+            msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "start_voice_enrollment", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "message": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         target_tier = int(target_tier or 3)
         if target_tier not in (2, 3):
@@ -748,10 +799,17 @@ class EngineVoiceRbacMixin:
     ) -> dict[str, Any]:
         if tier is not None:
             target_tier = int(tier)
-        if self.current_tier > 1:
-            msg = "Từ chối truy cập! Bạn không có quyền cấp quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền cấp quyền."
+        if self.current_tier != 1 or self.current_role != "ADMIN":
+            msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "message": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         target_tier = int(target_tier)
         if target_tier not in (2, 3):
@@ -760,7 +818,12 @@ class EngineVoiceRbacMixin:
         uid, existing = self._find_or_slug_user(target_name)
         if uid == OWNER_ID:
             msg = f"{OWNER_DISPLAY_NAME} đã là Admin tối cao Tầng 1."
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "error": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         role_code = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
         disp_name = existing["name"] if existing else target_name.strip()
@@ -797,20 +860,38 @@ class EngineVoiceRbacMixin:
         }
 
     async def revoke_user_permission(self, target_name: str) -> dict[str, Any]:
-        if self.current_tier > 1:
-            msg = "Từ chối truy cập! Bạn không có quyền hủy quyền; chỉ Chủ nhà Cấp 1 Nguyễn Tuấn Anh mới có quyền hủy quyền."
+        if self.current_tier != 1 or self.current_role != "ADMIN":
+            msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "message": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         uid, existing = self._find_or_slug_user(target_name)
         if not existing:
             msg = f"Không tìm thấy người dùng '{target_name}'."
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "error": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         if uid == OWNER_ID or existing.get("tier") == 1:
             msg = f"Không ai được phép hủy quyền của Tầng 1 {OWNER_DISPLAY_NAME}."
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": msg,
+                "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
+                "rejection_speech": FIXED_REJECTION_PHRASE_VI,
+            }
 
         existing["active"] = False
         existing["role"] = "UNKNOWN"

@@ -80,6 +80,65 @@ class SessionStore:
         self._revoked_sids: set[str] = set()
         self._init_sqlite()
         self._seed_deterministic_test_sessions()
+        self._load_durable_sessions()
+
+    def _load_durable_sessions(self) -> None:
+        try:
+            from simulator.durable_store import load_state_file
+
+            raw = load_state_file("user_sessions.json", data_dir=self.db_path.parent)
+            if not raw:
+                return
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                return
+            revoked = data.get("revoked_sids")
+            if isinstance(revoked, list):
+                self._revoked_sids.update(str(s) for s in revoked if s)
+            sessions = data.get("sessions")
+            now = time.time()
+            if isinstance(sessions, list):
+                for item in sessions:
+                    if not isinstance(item, dict):
+                        continue
+                    sid = str(item.get("session_id") or "").strip()
+                    exp = float(item.get("expires_at") or 0.0)
+                    if not sid or sid in self._revoked_sids or exp <= now:
+                        continue
+                    sess = UserSession(
+                        session_id=sid,
+                        user_id=str(item.get("user_id") or ""),
+                        email=str(item.get("email") or ""),
+                        display_name=str(item.get("display_name") or ""),
+                        tier=int(item.get("tier") or 3),
+                        role=str(item.get("role") or "CHILD_GUEST"),
+                        created_at=float(item.get("created_at") or now),
+                        expires_at=exp,
+                        source=str(item.get("source") or "durable"),
+                        is_authenticated=bool(item.get("is_authenticated", True)),
+                    )
+                    self._memory_cache[sid] = sess
+        except Exception:
+            pass
+
+    def _save_durable_sessions(self) -> None:
+        try:
+            from simulator.durable_store import save_state_file
+
+            now = time.time()
+            active_list = [
+                s.to_dict()
+                for s in self._memory_cache.values()
+                if s.source != "seed" and not s.is_expired() and s.expires_at > now
+            ]
+            payload_obj = {
+                "revoked_sids": sorted(list(self._revoked_sids))[-200:],
+                "sessions": active_list[-100:],
+            }
+            raw = (json.dumps(payload_obj, ensure_ascii=False) + "\n").encode("utf-8")
+            save_state_file("user_sessions.json", raw, data_dir=self.db_path.parent)
+        except Exception:
+            pass
 
     def _init_sqlite(self) -> None:
         try:
@@ -269,6 +328,8 @@ class SessionStore:
                     conn.commit()
             except Exception:
                 pass
+            if source != "seed":
+                self._save_durable_sessions()
         return sess
 
     def get_session(self, session_id: str) -> UserSession | None:
@@ -335,6 +396,7 @@ class SessionStore:
             if sid in self._memory_cache:
                 del self._memory_cache[sid]
             db_deleted = self._delete_sqlite_session(sid)
+            self._save_durable_sessions()
             return existed or db_deleted or self._decode_signed_token(sid) is not None
 
     def _delete_sqlite_session(self, session_id: str) -> bool:

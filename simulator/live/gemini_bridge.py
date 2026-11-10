@@ -56,6 +56,8 @@ from simulator.api.deps import (
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
 from simulator.live.prompt_builder import (
     ALL_TOOLS,
+    FIXED_REJECTION_PHRASE_VI,
+    FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
     build_system_instruction,
     make_live_config,
 )
@@ -75,9 +77,57 @@ from simulator.voice_config import OWNER_ID
 MODEL = "gemini-3.8-live"
 CHUNK_MS = 20
 CHUNK_SAMPLES = 16000 * CHUNK_MS // 1000  # 320 mẫu
+PCM_FRAME_BYTES = CHUNK_SAMPLES * 2  # 640 bytes
 SILENCE = b"\x00\x00" * CHUNK_SAMPLES
 
 KEY = load_key()
+
+
+class StatefulPcmFramingBuffer:
+    """Bộ đệm đóng khung PCM 16kHz 16-bit mono chuẩn 640 bytes (20ms = 320 mẫu Int16).
+    Tuyệt đối không pad 0x00 vào giữa câu nói; chỉ pad 0x00 một lần ở flush_utterance_tail() cuối câu nói.
+    """
+
+    def __init__(self, frame_bytes: int = 640):
+        self.frame_bytes = int(frame_bytes)
+        self._buf = bytearray()
+
+    def push_chunk(self, raw_pcm_bytes: bytes) -> list[bytes]:
+        if not raw_pcm_bytes:
+            return []
+        self._buf.extend(raw_pcm_bytes)
+        frames: list[bytes] = []
+        while len(self._buf) >= self.frame_bytes:
+            frames.append(bytes(self._buf[: self.frame_bytes]))
+            del self._buf[: self.frame_bytes]
+        return frames
+
+    def push(self, raw_pcm_bytes: bytes) -> list[bytes]:
+        return self.push_chunk(raw_pcm_bytes)
+
+    def flush_utterance_tail(self) -> bytes | None:
+        if not self._buf:
+            return None
+        aligned_len = len(self._buf) & ~1
+        if aligned_len <= 0:
+            self._buf.clear()
+            return None
+        tail = bytes(self._buf[:aligned_len]).ljust(self.frame_bytes, b"\x00")
+        self._buf.clear()
+        return tail
+
+    def flush_remainder(self, pad_final: bool = False) -> bytes:
+        if not self._buf:
+            return b""
+        if pad_final:
+            t = self.flush_utterance_tail()
+            return t or b""
+        rem = bytes(self._buf)
+        self._buf.clear()
+        return rem
+
+    def clear(self) -> None:
+        self._buf.clear()
 
 
 def _sanitize_vietnamese_input_transcript(raw_text: str, tools_called: list[str] | None = None) -> str:
@@ -162,6 +212,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.knowledge_rag = knowledge_rag or get_knowledge_rag()
         self.mic_utterance_pcm = bytearray()
         self.mic_recent_pcm = bytearray()
+        self.pcm_framing_buffer = StatefulPcmFramingBuffer(frame_bytes=PCM_FRAME_BYTES)
         self.mic_turn_verified: bool = False
         self.mic_utterance_active: bool = False
         self.last_mic_auth_result: dict[str, Any] | None = None
@@ -280,7 +331,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
         if auth_res.get("authorized"):
             matched_uid = str(auth_res.get("user_id") or OWNER_ID)
-            matched_tier = int(auth_res.get("tier", 1))
             acc_list = mgr3.accounts.values() if isinstance(mgr3.accounts, dict) else mgr3.accounts
             acc_3layer = next(
                 (a for a in acc_list if isinstance(a, dict) and a.get("account_id") == matched_uid),
@@ -293,6 +343,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             if is_revoked:
                 uname = (acc_3layer or {}).get("display_name") or (eng_user or {}).get("name") or matched_uid
                 auth_res["authorized"] = False
+                auth_res["ask_repeat"] = False
                 auth_res["user_id"] = "UNKNOWN"
                 auth_res["role"] = "UNKNOWN"
                 auth_res["tier"] = 99
@@ -300,7 +351,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 auth_res["strike_count"] = max(1, int(auth_res.get("strike_count", 0)) + 1)
                 auth_res["silent_ignore"] = False
                 auth_res["should_reply"] = True
-                auth_res["rejection_speech"] = f"Từ chối truy cập! Tài khoản {uname} đang bị xóa cấp quyền."
+                auth_res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
+                auth_res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
                 self.engine.set_active_user("UNKNOWN")
                 self.last_mic_turn_blocked = True
                 self.last_mic_turn_silent_ignore = False
@@ -308,13 +360,24 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 self.engine.set_active_user(matched_uid)
                 self.last_mic_turn_blocked = False
                 self.last_mic_turn_silent_ignore = False
+                auth_res["silent_ignore"] = False
+                auth_res["should_reply"] = True
                 auth_res["active_user_id"] = self.engine.current_user_id
                 auth_res["active_user_name"] = self.engine.get_current_user_name()
                 auth_res["active_tier"] = self.engine.current_tier
         else:
             self.engine.set_active_user("UNKNOWN")
             self.last_mic_turn_blocked = True
-            self.last_mic_turn_silent_ignore = bool(auth_res.get("silent_ignore", False))
+            self.last_mic_turn_silent_ignore = False
+            auth_res["silent_ignore"] = False
+            auth_res["should_reply"] = True
+            fixed_phrase = (
+                FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                if auth_res.get("ask_repeat")
+                else FIXED_REJECTION_PHRASE_VI
+            )
+            auth_res["rejection_speech"] = fixed_phrase
+            auth_res["exact_spoken_reply"] = fixed_phrase
             auth_res["active_user_id"] = "UNKNOWN"
             auth_res["active_user_name"] = "Người lạ (Chặn toàn bộ)"
             auth_res["active_tier"] = 4
@@ -330,7 +393,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "type": "state_snapshot",
             "snapshot": self.engine.get_snapshot(),
         })
-        if self.gemini_session is not None:
+        if self.gemini_session is not None and auth_res.get("authorized"):
             try:
                 active_user = self.engine.get_current_user_name()
                 active_tier = self.engine.current_tier
@@ -342,9 +405,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     else "BỊ CHẶN HOÀN TOÀN (Người lạ/Chưa cấp quyền)"
                 )
                 extra_rule = (
-                    "KHÔNG gọi bất kỳ tool điều khiển nào; trả lời đúng câu cố định: 'Tôi không nhận ra giọng của bạn.'"
-                    if active_tier >= 4 or active_role == "UNKNOWN"
-                    else "TUYỆT ĐỐI tuân thủ phân quyền; nếu vượt quyền chỉ nói: 'Bạn không có quyền thực hiện lệnh này.'"
+                    f"TUYỆT ĐỐI tuân thủ phân quyền; nếu vượt quyền chỉ nói: '{FIXED_REJECTION_PHRASE_VI}'"
                 )
                 await self.gemini_session.send_client_content(
                     turns=[
@@ -367,122 +428,129 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 pass
         return auth_res
 
+    async def _trigger_aoede_fixed_denial(
+        self, spoken_phrase: str, auth_res: dict[str, Any] | None = None
+    ) -> None:
+        """Yêu cầu Gemini Live (giọng Aoede duy nhất) đọc nguyên văn câu cố định khi từ chối hoặc yêu cầu nói lại (0 bytes audio gửi lên Gemini)."""
+        if self.gemini_session is None:
+            return
+        role_tag = str((auth_res or {}).get("role") or "UNKNOWN")
+        reason_tag = (
+            "SAFE_DENY_ASK_REPEAT"
+            if (auth_res or {}).get("ask_repeat")
+            else "UNAUTHORIZED_STRANGER_OR_OVER_PERMISSION"
+        )
+        try:
+            await self.gemini_session.send_client_content(
+                turns=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                text=(
+                                    f"[CẬP NHẬT PHÂN QUYỀN GIỌNG NÓI ({format_vn_time_ampm()})]: "
+                                    f"NGƯỜI LẠ / KHÔNG ĐƯỢC PHÉP (Role={role_tag}, Reason={reason_tag}).\n"
+                                    f'[SYSTEM_SAY_EXACT_FIXED_DENIAL]: "{spoken_phrase}"\n'
+                                    f"TUYỆT ĐỐI KHÔNG gọi bất kỳ tool điều khiển nào; chỉ đọc to, rõ ràng bằng giọng Aoede đúng nguyên văn câu cố định: \"{spoken_phrase}\""
+                                )
+                            )
+                        ],
+                    )
+                ],
+                turn_complete=True,
+            )
+        except Exception:
+            pass
+
     async def _ensure_current_mic_utterance_verified(self) -> None:
-        """Kiểm tra giọng nói của câu đang nói qua Mic đúng 1 lần duy nhất trước khi cho phép bất kỳ tool_call hoặc âm thanh AI nào phát ra."""
+        """Kiểm tra giọng nói của câu đang nói qua Mic đúng 1 lần duy nhất trước khi gửi bất kỳ byte PCM nào sang Gemini Live."""
         if self.mic_turn_verified:
             return
-        if len(self.mic_utterance_pcm) >= 3200:
+        if len(self.mic_utterance_pcm) > 0:
             raw_utt = bytes(self.mic_utterance_pcm)
-        elif len(self.mic_recent_pcm) >= 3200:
+        elif len(self.mic_recent_pcm) > 0:
             raw_utt = bytes(self.mic_recent_pcm)
         else:
             return
-
-        if len(raw_utt) < 16000 and len(self.mic_recent_pcm) >= 16000:
-            raw_utt = bytes(self.mic_recent_pcm[-32000:])
+        raw_utt = raw_utt[: len(raw_utt) & ~1]
+        if not raw_utt:
+            return
 
         self.mic_turn_verified = True
+        self.mic_utterance_active = False
         self.mic_utterance_pcm.clear()
         self.mic_recent_pcm.clear()
 
-        # Tầng 2 VAD: Tiền kiểm tra ngữ âm tiếng Việt toàn bộ câu thoại trước khi vào Sinh trắc học
-        is_vi_speech, vad_reason, vad_info = is_vietnamese_speech(raw_utt, sr=16000)
-        if not is_vi_speech:
-            # Nếu chỉ là khoảng lặng ngắn (< 0.5s tức < 16000 bytes) hoặc âm yếu, hoãn khóa turn để tránh chặn oan người dùng
-            if len(raw_utt) < 16000 and vad_reason in ("IM_LANG", "LOW_ENERGY"):
-                self.last_mic_turn_blocked = False
-                return
+        prev_strikes = getattr(self.voice_auth, "unauthorized_strikes", 0)
+        auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(raw_utt)
+        clean_pcm_bytes = auth_res.pop("clean_pcm_bytes", raw_utt)
 
+        if auth_res.get("ask_repeat") or auth_res.get("quality_gate_failed") or not auth_res.get("quality_gate_passed", True):
+            self.voice_auth.unauthorized_strikes = prev_strikes
+            auth_res["strike_count"] = prev_strikes
+            auth_res["ask_repeat"] = True
+            auth_res["authorized"] = False
+
+        auth_res["silent_ignore"] = False
+        auth_res["should_reply"] = True
+
+        auth_res = await self._apply_voice_tier_and_sync(
+            auth_res, sample_id="live_mic", label="Giọng nói trực tiếp qua Mic"
+        )
+
+        if not auth_res.get("authorized"):
+            # ZERO bytes (0 frames, 0 bytes) gửi tới gemini_session.send_realtime_input!
             self.last_mic_turn_blocked = True
             self.last_mic_turn_silent_ignore = False
-            print(f"[VAD Gate] Blocked non-Vietnamese or noise utterance: {vad_reason} ({vad_info})")
-            append_audit_log(
-                category="VOICE_AUTH",
-                event_type="vad_blocked",
-                summary=f"🚫 Chặn Âm Thanh Không Hợp Lệ ({vad_reason}): Vui lòng nói lại bằng tiếng Việt.",
-                user_name="VAD Gate",
-                tier=99,
-                details={"vad_reason": vad_reason, "vad_info": vad_info},
+            rej_text = (
+                FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                if auth_res.get("ask_repeat")
+                else FIXED_REJECTION_PHRASE_VI
             )
-            vad_msg = "Phát hiện tiếng ồn hoặc âm thanh không hợp lệ, vui lòng nói lại bằng tiếng Việt."
+            auth_res["rejection_speech"] = rej_text
+            auth_res["exact_spoken_reply"] = rej_text
+            self.last_mic_auth_result = dict(auth_res)
+            self._reset_turn_metrics(anchor_ts=time.perf_counter())
+            self.turn_in_tx.append(f"[{auth_res.get('speaker_label', 'Người lạ')} qua Mic]")
             await self.send_ws_json({
                 "type": "voice_auth_rejected",
                 "sample_id": "live_mic",
                 "label": "Giọng nói trực tiếp qua Mic",
-                "strike_count": 0,
-                "reason": vad_reason,
-                "rejection_speech": vad_msg,
-                "exact_spoken_reply": vad_msg,
+                "strike_count": int(auth_res.get("strike_count", 0)),
+                "f0_hz": auth_res.get("f0_hz", 0.0),
+                "ask_repeat": bool(auth_res.get("ask_repeat", False)),
+                "rejection_speech": rej_text,
+                "exact_spoken_reply": rej_text,
             })
+            await self._trigger_aoede_fixed_denial(rej_text, auth_res=auth_res)
             return
 
-        prev_strikes = getattr(self.voice_auth, "unauthorized_strikes", 0)
-        auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(raw_utt)
-        auth_res.pop("clean_pcm_bytes", None)
+        # Người nói hợp lệ (Tier 1, Tier 2, hoặc Tier 3) -> Đóng khung 640 bytes chuẩn và gửi sang Gemini Live
+        self.pcm_framing_buffer.clear()
+        stream_pcm = clean_pcm_bytes if len(clean_pcm_bytes) >= PCM_FRAME_BYTES else raw_utt
+        frames = self.pcm_framing_buffer.push_chunk(stream_pcm)
+        tail_frame = self.pcm_framing_buffer.flush_utterance_tail()
+        if tail_frame is not None:
+            frames.append(tail_frame)
 
-        if auth_res.get("ask_repeat") or auth_res.get("quality_gate_failed"):
-            self.voice_auth.unauthorized_strikes = prev_strikes
-            auth_res["strike_count"] = prev_strikes
-            self.last_mic_turn_blocked = True
-            self.last_mic_turn_silent_ignore = False
-            self.last_mic_auth_result = dict(auth_res)
-            await self.send_ws_json({
-                "type": "voice_auth_result",
-                "sample_id": "live_mic_quality_gate",
-                "label": "Yêu cầu nói lại (Cổng chất lượng Mel/Deep)",
-                "analysis": auth_res,
-            })
-            return
-
-        is_short = len(raw_utt) < 16000
-        f0_val = float(auth_res.get("f0_hz") or 0.0)
-        is_vocal_fry = len(raw_utt) < 25600 and (0 < f0_val < 105.0)
-
-        if not auth_res.get("authorized") and (is_short or is_vocal_fry):
-            self.voice_auth.unauthorized_strikes = prev_strikes
-            auth_res["strike_count"] = prev_strikes
-            auth_res["deferred_strike"] = True
-            auth_res["ask_repeat"] = True
-            auth_res["speaker_label"] = "⚠️ Âm đệm / Tiếng thở ngập ngừng (Yêu cầu nói lại)"
-            self.last_mic_turn_blocked = False
-            self.last_mic_turn_silent_ignore = False
-            self.last_mic_auth_result = dict(auth_res)
-            await self.send_ws_json({
-                "type": "voice_auth_result",
-                "sample_id": "live_mic_hesitation",
-                "label": "Âm đệm ngập ngừng qua Mic",
-                "analysis": auth_res,
-            })
-            return
-
-        auth_res = await self._apply_voice_tier_and_sync(auth_res, sample_id="live_mic", label="Giọng nói trực tiếp qua Mic")
-
-        if not auth_res["authorized"]:
-            self.last_mic_turn_blocked = True
-            self.last_mic_turn_silent_ignore = bool(auth_res.get("silent_ignore", False))
-            strike = auth_res["strike_count"]
-            if auth_res["silent_ignore"]:
-                await self.send_ws_json({
-                    "type": "voice_auth_silent_ignored",
-                    "sample_id": "live_mic",
-                    "label": "Giọng nói trực tiếp qua Mic",
-                    "strike_count": strike,
-                    "f0_hz": auth_res["f0_hz"],
-                    "message": f"Đã nghe Người lạ qua Mic (Lần {strike}) nhưng IM LẶNG TUYỆT ĐỐI (quá 2 lần cảnh báo).",
-                })
+        for frame in frames:
+            if self.gemini_session is not None:
+                try:
+                    await self.gemini_session.send_realtime_input(
+                        audio=types.Blob(data=frame, mime_type="audio/pcm;rate=16000")
+                    )
+                except Exception:
+                    pass
             else:
-                rej_text = auth_res.get("rejection_speech") or "Tôi không nhận ra giọng của bạn."
-                self._reset_turn_metrics(anchor_ts=time.perf_counter())
-                self.turn_in_tx.append(f"[{auth_res['speaker_label']} qua Mic]")
-                await self.send_ws_json({
-                    "type": "voice_auth_rejected",
-                    "sample_id": "live_mic",
-                    "label": "Giọng nói trực tiếp qua Mic",
-                    "strike_count": strike,
-                    "f0_hz": auth_res["f0_hz"],
-                    "rejection_speech": rej_text,
-                    "exact_spoken_reply": rej_text,
-                })
+                if not self._mic_in_flight_queue.full():
+                    await self._mic_in_flight_queue.put(frame)
+
+        if self.gemini_session is not None:
+            if self._mic_silence_task and not self._mic_silence_task.done():
+                self._mic_silence_task.cancel()
+            self._mic_silence_task = asyncio.create_task(
+                self._flush_mic_silence_to_gemini()
+            )
 
     async def gemini_receive_loop(self) -> None:
         """Zero-Drop Reconnect Loop: Duy trì kết nối liên tục tới Gemini 3.8 Live."""
@@ -716,44 +784,54 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             await _broadcast_rest_state_to_bridges()
             return
 
+        prev_strikes = getattr(self.voice_auth, "unauthorized_strikes", 0)
         auth_res = self.voice_auth.verify_pcm16k_and_apply_strikes(data)
         clean_pcm_bytes = auth_res.pop("clean_pcm_bytes", data)
+        if auth_res.get("ask_repeat") or auth_res.get("quality_gate_failed") or not auth_res.get("quality_gate_passed", True):
+            self.voice_auth.unauthorized_strikes = prev_strikes
+            auth_res["strike_count"] = prev_strikes
+            auth_res["ask_repeat"] = True
+            auth_res["authorized"] = False
+        auth_res["silent_ignore"] = False
+        auth_res["should_reply"] = True
+
         auth_res = await self._apply_voice_tier_and_sync(auth_res, sample_id=sample_id, label=label)
 
-        if not auth_res["authorized"]:
+        if not auth_res.get("authorized"):
+            # ZERO bytes (0 frames, 0 bytes) gửi tới send_realtime_input!
             self.last_mic_turn_blocked = True
-            self.last_mic_turn_silent_ignore = bool(auth_res.get("silent_ignore", False))
-            strike = auth_res["strike_count"]
-            if auth_res["silent_ignore"]:
-                await self.send_ws_json({
-                    "type": "voice_auth_silent_ignored",
-                    "sample_id": sample_id,
-                    "label": label,
-                    "strike_count": strike,
-                    "f0_hz": auth_res["f0_hz"],
-                    "message": f"Đã nghe Giọng 2 (Lần {strike}) nhưng IM LẶNG TUYỆT ĐỐI (quá 2 lần cảnh báo).",
-                })
-                return
-
-            rej_text = auth_res.get("rejection_speech") or "Tôi không nhận ra giọng của bạn."
+            self.last_mic_turn_silent_ignore = False
+            strike = int(auth_res.get("strike_count", 1))
+            rej_text = (
+                FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                if auth_res.get("ask_repeat")
+                else FIXED_REJECTION_PHRASE_VI
+            )
+            auth_res["rejection_speech"] = rej_text
+            auth_res["exact_spoken_reply"] = rej_text
+            self.last_mic_auth_result = dict(auth_res)
             self._reset_turn_metrics(anchor_ts=time.perf_counter())
-            self.turn_in_tx.append(f"[{auth_res['speaker_label']}]: {label}")
+            self.turn_in_tx.append(f"[{auth_res.get('speaker_label', 'Người lạ')}]: {label}")
             await self.send_ws_json({
                 "type": "voice_auth_rejected",
                 "sample_id": sample_id,
                 "label": label,
                 "strike_count": strike,
-                "f0_hz": auth_res["f0_hz"],
+                "f0_hz": auth_res.get("f0_hz", 0.0),
+                "ask_repeat": bool(auth_res.get("ask_repeat", False)),
                 "rejection_speech": rej_text,
                 "exact_spoken_reply": rej_text,
             })
+            await self._trigger_aoede_fixed_denial(rej_text, auth_res=auth_res)
             return
 
-        step = CHUNK_SAMPLES * 2
+        step = PCM_FRAME_BYTES
         stream_data = clean_pcm_bytes if len(clean_pcm_bytes) >= step else data
-        chunks = [stream_data[i : i + step] for i in range(0, len(stream_data), step)]
-        if chunks:
-            chunks[-1] = chunks[-1].ljust(step, b"\x00")
+        framer = StatefulPcmFramingBuffer(frame_bytes=step)
+        chunks = framer.push_chunk(stream_data)
+        tail = framer.flush_utterance_tail()
+        if tail is not None:
+            chunks.append(tail)
 
         await self.send_ws_json({
             "type": "wav_stream_started",
@@ -779,78 +857,150 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "label": label,
         })
 
-        sil_100ms = SILENCE * 5
         sil_start = time.perf_counter()
         for i in range(13):
             if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
                 break
-            delay = sil_start + i * 0.01 - time.perf_counter()
+            delay = sil_start + (i + 1) * 0.01 - time.perf_counter()
             if delay > 0:
                 await asyncio.sleep(delay)
             if self.gemini_session is not None:
-                await self.gemini_session.send_realtime_input(
-                    audio=types.Blob(data=sil_100ms, mime_type="audio/pcm;rate=16000")
-                )
+                for _ in range(5):
+                    await self.gemini_session.send_realtime_input(
+                        audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
+                    )
 
     async def _flush_mic_silence_to_gemini(self) -> None:
         try:
-            sil_100ms = SILENCE * 5
             sil_start = time.perf_counter()
             for i in range(13):
                 if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
                     break
                 if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
                     break
-                delay = sil_start + i * 0.01 - time.perf_counter()
+                delay = sil_start + (i + 1) * 0.01 - time.perf_counter()
                 if delay > 0:
                     await asyncio.sleep(delay)
                 if self._closed or self.gemini_session is None:
                     break
-                await self.gemini_session.send_realtime_input(
-                    audio=types.Blob(data=sil_100ms, mime_type="audio/pcm;rate=16000")
-                )
+                for _ in range(5):
+                    await self.gemini_session.send_realtime_input(
+                        audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
+                    )
         except asyncio.CancelledError:
             raise
         except Exception:
             pass
 
     async def handle_mic_chunk(self, pcm_bytes: bytes, is_sp: bool = True) -> None:
-        is_voice, vad_reason = self.vad_stream_filter.process_chunk(pcm_bytes)
-        if not is_voice and vad_reason in ("TAP_AM_HOAC_NGOAI_NGU", "NON_VOICE_SPECTRUM"):
+        """Chỉ lưu pcm_bytes vào bộ đệm server-side để xác thực trước; TUYỆT ĐỐI KHÔNG gửi sang Gemini trong hàm này."""
+        if not pcm_bytes:
             return
 
         self.mic_recent_pcm.extend(pcm_bytes)
-        if len(self.mic_recent_pcm) > 80000:
-            del self.mic_recent_pcm[:-80000]
+        if len(self.mic_recent_pcm) > 160000:
+            del self.mic_recent_pcm[:-160000]
         if is_sp:
             if self._mic_silence_task and not self._mic_silence_task.done():
                 self._mic_silence_task.cancel()
             if self.mic_turn_verified:
                 self.mic_utterance_pcm.clear()
+                self.pcm_framing_buffer.clear()
                 self.mic_turn_verified = False
                 self.last_mic_turn_blocked = False
+                self.last_mic_turn_silent_ignore = False
+            self.mic_utterance_active = True
             self.speech_end_ts = time.perf_counter()
             self.turn_first_tool_ts = None
             self.turn_first_audio_ts = None
             self.mic_utterance_pcm.extend(pcm_bytes)
+        elif self.mic_utterance_active and len(self.mic_utterance_pcm) > 0:
+            self.mic_utterance_pcm.extend(pcm_bytes)
 
-        step = CHUNK_SAMPLES * 2
-        out_pcm = pcm_bytes if is_sp else (b"\x00" * len(pcm_bytes))
-        for idx in range(0, len(out_pcm), step):
-            sub = out_pcm[idx : idx + step]
-            if len(sub) < step:
-                sub = sub.ljust(step, b"\x00")
-            if self.gemini_session is not None:
-                try:
-                    await self.gemini_session.send_realtime_input(
-                        audio=types.Blob(data=sub, mime_type="audio/pcm;rate=16000")
-                    )
-                except Exception:
-                    pass
-            else:
-                # Lưu vào hàng đợi in-flight đệm cho Zero-Drop Reconnect
-                if not self._mic_in_flight_queue.full():
-                    await self._mic_in_flight_queue.put(sub)
+    async def mic_speech_ended(self) -> None:
+        """Kết thúc lượt nói từ Mic: chạy nhận diện người nói server-side TRƯỚC, sau đó mới gửi PCM sang Gemini nếu được phép."""
+        self.vad_stream_filter.reset()
+        self._reset_turn_metrics(anchor_ts=time.perf_counter())
+        await self._ensure_current_mic_utterance_verified()
+        if self.gemini_session is not None and not self.last_mic_turn_blocked:
+            if self._mic_silence_task is None or self._mic_silence_task.done():
+                self._mic_silence_task = asyncio.create_task(
+                    self._flush_mic_silence_to_gemini()
+                )
+        await self.send_ws_json({
+            "type": "speech_ended_marker",
+            "source": "live_mic",
+        })
+
+    async def handle_tool_call(self, fc: Any) -> dict[str, Any]:
+        """Điều phối Tool Call với kiểm tra nghiêm ngặt Cấp 1 cho cấp/hủy quyền & thu âm, và chuẩn hóa câu từ chối cố định Aoede."""
+        name = fc.name
+        await self._ensure_current_mic_utterance_verified()
+
+        if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
+            rej_info = self.last_mic_auth_result or {}
+            rej_msg = (
+                FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                if rej_info.get("ask_repeat")
+                else FIXED_REJECTION_PHRASE_VI
+            )
+            f0_val = rej_info.get("f0_hz", 0.0)
+            await self.send_ws_json({
+                "type": "rbac_blocked",
+                "action": name,
+                "role": "UNKNOWN",
+                "reason": f"🚫 Chặn giọng nói không có quyền (F0={f0_val}Hz): {rej_msg}",
+            })
+            await self._trigger_aoede_fixed_denial(rej_msg, auth_res=rej_info)
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": rej_msg,
+                "message": rej_msg,
+                "rejection_speech": rej_msg,
+                "exact_spoken_reply": rej_msg,
+                "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
+            }
+
+        if name in (
+            "grant_user_permission",
+            "revoke_user_permission",
+            "start_voice_enrollment",
+            "finalize_voice_enrollment",
+            "set_query_permission_policy",
+            "admin_update_system_policy",
+            "admin_upsert_knowledge_rag",
+        ):
+            if self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
+                rej_msg = FIXED_REJECTION_PHRASE_VI
+                await self.send_ws_json({
+                    "type": "rbac_blocked",
+                    "action": name,
+                    "role": self.engine.current_role,
+                    "reason": rej_msg,
+                })
+                await self._trigger_aoede_fixed_denial(rej_msg, auth_res=self.last_mic_auth_result)
+                return {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "error": rej_msg,
+                    "message": rej_msg,
+                    "rejection_speech": rej_msg,
+                    "exact_spoken_reply": rej_msg,
+                    "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
+                }
+
+        res = await super().handle_tool_call(fc)
+        if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
+            res["error"] = FIXED_REJECTION_PHRASE_VI
+            res["message"] = FIXED_REJECTION_PHRASE_VI
+            res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
+            res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
+            res["instruction_for_ai"] = (
+                f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
+            )
+            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI, auth_res=self.last_mic_auth_result)
+        return res
 
     async def run(self) -> None:
         await self.send_ws_json({
@@ -886,11 +1036,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         self._reset_turn_metrics(anchor_ts=time.perf_counter())
                         await self._ensure_current_mic_utterance_verified()
                         if self.gemini_session is not None and not self.last_mic_turn_blocked:
-                            if self._mic_silence_task and not self._mic_silence_task.done():
-                                self._mic_silence_task.cancel()
-                            self._mic_silence_task = asyncio.create_task(
-                                self._flush_mic_silence_to_gemini()
-                            )
+                            if self._mic_silence_task is None or self._mic_silence_task.done():
+                                self._mic_silence_task = asyncio.create_task(
+                                    self._flush_mic_silence_to_gemini()
+                                )
                         await self.send_ws_json({
                             "type": "speech_ended_marker",
                             "source": "live_mic",

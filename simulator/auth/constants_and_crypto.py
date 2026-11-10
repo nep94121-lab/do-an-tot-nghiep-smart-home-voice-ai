@@ -117,7 +117,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         },
         "permissions": [
             "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
-            "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
+            "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
     },
@@ -149,7 +149,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         },
         "permissions": [
             "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
-            "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
+            "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
     },
@@ -166,7 +166,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         "permission_label": "CÓ QUYỀN (Tầng 3 - Khách)",
         "password_hash": UNSET_PASSWORD_SENTINEL_HASH,
         "google_linked": True,
-        "invited_by": "thanhviena.hust@gmail.com (Cấp 2)",
+        "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
         "needs_first_page_voice_enroll": False,
         "reading_prompt": build_reading_prompt("Khách C", 3),
         "voiceprint": {
@@ -213,7 +213,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         },
         "permissions": [
             "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
-            "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
+            "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
     },
@@ -274,18 +274,6 @@ DEFAULT_INVITE_LINKS: dict[str, dict[str, Any]] = {
         "url_path": "/auth?invite=INV-T1-TO-TIER3",
         "full_url": "http://localhost:8088/auth?invite=INV-T1-TO-TIER3",
         "description": "Link do Cấp 1 gửi xuống để đăng ký tài khoản Cấp 3 (Khách)",
-        "created_at": "02/11/2026",
-    },
-    "INV-T2-TO-TIER3": {
-        "invite_code": "INV-T2-TO-TIER3",
-        "issuer_email": "thanhviena.hust@gmail.com",
-        "issuer_name": "Thành viên A (Cấp 2)",
-        "issuer_tier": 2,
-        "target_tier": 3,
-        "target_role_label": "Khách (Tầng 3)",
-        "url_path": "/auth?invite=INV-T2-TO-TIER3",
-        "full_url": "http://localhost:8088/auth?invite=INV-T2-TO-TIER3",
-        "description": "Link do Cấp 2 gửi xuống để đăng ký tài khoản Cấp 3 (Khách)",
         "created_at": "02/11/2026",
     },
 }

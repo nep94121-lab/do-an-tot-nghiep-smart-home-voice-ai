@@ -117,7 +117,7 @@ def extract_neural_embedding_256d(pcm_16k_mono: bytes | np.ndarray, sr: int = 16
             float(np.mean(be / (b_next + 1e-6))),
             float(np.mean(be / (b_prev + 1e-6))),
             float(np.percentile(be, 75) - np.percentile(be, 25)),
-            float(np.max(be)),
+            float(np.percentile(be, 90)),
             float(np.median(be)),
         ])
     v_form = np.array(v_form[:64], dtype=np.float32)

@@ -104,6 +104,18 @@ def _require_tier_session(request: Request, max_tier: int = 2) -> tuple[UserSess
     return sess, None
 
 
+def _sync_voiceprints_to_durable_store() -> None:
+    try:
+        from simulator.auth.constants_and_crypto import DATA_DIR
+        from simulator.durable_store import save_state_file
+
+        vp_path = DATA_DIR / "voiceprints.json"
+        if vp_path.exists():
+            save_state_file("voiceprints.json", vp_path.read_bytes(), data_dir=DATA_DIR)
+    except Exception:
+        pass
+
+
 @router.get("/api/auth3/overview")
 async def api_auth3_overview(request: Request, email: str = OWNER_EMAIL) -> JSONResponse:
     """Tổng quan trạng thái phân quyền và tài khoản (Chỉ Admin Cấp 1)."""
@@ -119,19 +131,20 @@ async def api_auth3_overview(request: Request, email: str = OWNER_EMAIL) -> JSON
 
 @router.get("/api/auth3/invite_links")
 async def api_auth3_invite_links(request: Request, email: str = OWNER_EMAIL) -> JSONResponse:
-    """Danh sách link mời còn hiệu lực (Yêu cầu Cấp 1 hoặc Cấp 2)."""
-    sess, err_resp = _require_tier_session(request, max_tier=2)
+    """Danh sách link mời còn hiệu lực (Chỉ Chủ nhà Admin Cấp 1)."""
+    sess, err_resp = _require_admin_session(request)
     if err_resp is not None:
         return err_resp
-    target_email = email
-    if sess and sess.tier == 2 and sess.email:
-        target_email = sess.email
+    target_email = (sess.email if sess and sess.email else email) or OWNER_EMAIL
     return JSONResponse(sanitize_api_payload(get_auth_3layer_manager().get_invite_links_for_account(target_email)))
 
 
 @router.post("/api/auth3/send_invite_email")
-async def api_auth3_send_invite_email(payload: dict[str, Any]) -> JSONResponse:
-    """Gửi link mời qua Gmail thực tế."""
+async def api_auth3_send_invite_email(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Gửi link mời qua Gmail thực tế (Chỉ Chủ nhà Admin Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     invite_code = str(payload.get("invite_code", "INV-T1-TO-TIER2")).strip()
     recipient_email = str(payload.get("recipient_email", OWNER_EMAIL)).strip()
     res = get_auth_3layer_manager().send_invite_link_via_gmail(
@@ -139,13 +152,17 @@ async def api_auth3_send_invite_email(payload: dict[str, Any]) -> JSONResponse:
         recipient_email=recipient_email,
         source="Web Portal (/auth)",
     )
-    return JSONResponse(sanitize_api_payload(res))
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 403))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
 @router.post("/api/auth3/create_invite_link")
-async def api_auth3_create_invite_link(payload: dict[str, Any]) -> JSONResponse:
-    """Tạo link mời theo phân quyền."""
-    issuer_email = str(payload.get("issuer_email", OWNER_EMAIL)).strip()
+async def api_auth3_create_invite_link(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Tạo link mời theo phân quyền (Chỉ Chủ nhà Admin Cấp 1, lấy issuer từ session server-side)."""
+    sess, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+    issuer_email = (sess.email if sess and sess.email else OWNER_EMAIL).strip() or OWNER_EMAIL
     target_tier = int(payload.get("target_tier", 2) or 2)
     source = str(payload.get("source", "Web/App")).strip()
     res = get_auth_3layer_manager().create_custom_invite_link(
@@ -161,25 +178,52 @@ async def api_auth3_create_invite_link(payload: dict[str, Any]) -> JSONResponse:
         tier=target_tier if res.get("ok") else 99,
         details=res,
     )
-    return JSONResponse(sanitize_api_payload(res))
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 403))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
 @router.post("/api/auth3/add_family_email")
 @router.post("/api/auth3/family_allowlist/add")
-async def api_auth3_add_family_email(payload: dict[str, Any]) -> JSONResponse:
-    """Thêm email vào allowlist gia đình (Hỗ trợ alias chống 404)."""
-    actor_id = str(payload.get("actor_id") or payload.get("actor_email") or payload.get("issuer_email") or "").strip()
-    if not actor_id:
-        err_res = {"ok": False, "status_code": 401, "error": "Thiếu thông tin người thêm (actor_id)"}
+async def api_auth3_add_family_email(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Thêm email vào allowlist gia đình (Bắt buộc phiên Chủ nhà Admin Cấp 1 server-side)."""
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated:
+        err_res = {
+            "ok": False,
+            "authenticated": False,
+            "status_code": 401,
+            "error": "Yêu cầu đăng nhập quyền Chủ nhà (Admin Cấp 1) để thêm thành viên gia đình!",
+        }
         append_audit_log(
             category="AUTH_3LAYER",
             event_type="add_family_email_unauthorized",
-            summary="Thiếu thông tin người thêm (actor_id)",
+            summary=err_res["error"],
             user_name="ANONYMOUS",
             tier=99,
             details=err_res,
         )
         return JSONResponse(sanitize_api_payload(err_res), status_code=401)
+    if sess.tier != 1 or sess.role != "ADMIN":
+        err_res = {
+            "ok": False,
+            "authenticated": True,
+            "rbac_blocked": True,
+            "status_code": 403,
+            "tier": sess.tier,
+            "role": sess.role,
+            "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền thêm thành viên hoặc cấp quyền!",
+        }
+        append_audit_log(
+            category="AUTH_3LAYER",
+            event_type="add_family_email_forbidden",
+            summary=err_res["error"],
+            user_name=sess.user_id or sess.email or "NON_ADMIN",
+            tier=sess.tier,
+            details=err_res,
+        )
+        return JSONResponse(sanitize_api_payload(err_res), status_code=403)
+
+    actor_id = str(payload.get("actor_id") or payload.get("actor_email") or sess.user_id or sess.email or OWNER_ID).strip()
     target_email = str(payload.get("target_email", "")).strip()
     target_tier = int(payload.get("target_tier", 2) or 2)
     source = str(payload.get("source", "Web/App")).strip()
@@ -244,7 +288,8 @@ async def api_auth3_invite_oauth_start(payload: dict[str, Any], request: Request
         tier=int(res.get("target_tier", 2)) if res.get("ok") else 99,
         details=sanitize_overview_and_logs_payload(res),
     )
-    return JSONResponse(sanitize_api_payload(res))
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 200))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
 @router.post("/api/auth3/invite_verify_otp")
@@ -316,8 +361,11 @@ def _decode_b64_samples_to_pcm16k_list(raw_list: Any) -> list[bytes]:
 
 
 @router.post("/api/auth3/enroll_first_page_voice")
-async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm giọng nói câu mẫu trang đầu (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
+async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Thu âm giọng nói câu mẫu trang đầu (Chỉ Chủ nhà Cấp 1 - Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
 
     email = str(payload.get("email", "")).strip()
@@ -449,12 +497,16 @@ async def api_auth3_enroll_first_page_voice(payload: dict[str, Any]) -> JSONResp
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
+        _sync_voiceprints_to_durable_store()
     return JSONResponse(sanitize_api_payload(res))
 
 
 @router.post("/api/auth3/enroll_voice_sample")
-async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse:
-    """Kiểm định chất lượng và thu âm mẫu giọng chính (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
+async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Kiểm định chất lượng và thu âm mẫu giọng chính (Chỉ Chủ nhà Cấp 1 - Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     email = str(payload.get("email", "")).strip()
     speaker_name = str(payload.get("speaker_name") or payload.get("display_name") or "").strip()
     raw_tier = payload.get("target_tier", payload.get("tier"))
@@ -513,6 +565,43 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
             ),
             status_code=200,
         )
+
+    self_check_b64_sample = str(
+        payload.get("self_check_pcm_b64")
+        or payload.get("self_check_wav_b64")
+        or payload.get("self_check_b64")
+        or ""
+    ).strip()
+    enforce_12s_sample = bool(payload.get("enforce_12s_gate", False) or self_check_b64_sample)
+    if enforce_12s_sample:
+        from simulator.voice_auth import check_enrollment_quality_gate
+
+        sc_bytes_s: bytes | None = None
+        if self_check_b64_sample:
+            sc_clean = (
+                self_check_b64_sample.split(",", 1)[1]
+                if ("," in self_check_b64_sample and self_check_b64_sample.startswith("data:"))
+                else self_check_b64_sample
+            )
+            try:
+                from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
+                raw_sc = base64.b64decode(sc_clean)
+                if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
+                    sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
+                    sc_bytes_s = sc_arr.astype("int16").tobytes()
+                else:
+                    sc_bytes_s = raw_sc
+            except Exception:
+                sc_bytes_s = b""
+        gate_12s = check_enrollment_quality_gate(
+            enroll_pcm=pcm_bytes,
+            self_check_pcm=sc_bytes_s,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not gate_12s.get("ok"):
+            return JSONResponse(sanitize_api_payload(gate_12s), status_code=400)
 
     mgr3 = get_auth_3layer_manager()
     if speaker_name or target_tier is not None:
@@ -580,12 +669,16 @@ async def api_auth3_enroll_voice_sample(payload: dict[str, Any]) -> JSONResponse
         )
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
+        _sync_voiceprints_to_durable_store()
     return JSONResponse(sanitize_api_payload(res), status_code=200)
 
 
 @router.post("/api/mobile/enroll_voice")
-async def api_mobile_enroll_voice(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm & đăng ký mẫu giọng từ App Android."""
+async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Thu âm & đăng ký mẫu giọng từ App Android (Chỉ Chủ nhà Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     target_name = str(payload.get("target_name", "Thành viên mới")).strip()
     target_tier = int(payload.get("target_tier", 2) or 2)
     f0_hz = float(payload.get("f0_hz", 195.0) or 195.0)
@@ -631,8 +724,11 @@ async def api_voice_auth_profiles(request: Request) -> JSONResponse:
 @router.post("/api/voice_auth/enroll_tier_pcm")
 @router.post("/api/voice_enroll")
 @router.post("/api/voice/enroll")
-async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm giọng nói thật 16kHz PCM hoặc WAV từ mic/file lưu làm profile server (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
+async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Thu âm giọng nói thật 16kHz PCM hoặc WAV từ mic/file lưu làm profile server (Chỉ Chủ nhà Cấp 1)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
 
     b64_pcm = str(
@@ -687,6 +783,32 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
             status_code=200,
         )
 
+    self_check_b64 = str(
+        payload.get("self_check_pcm_b64")
+        or payload.get("self_check_wav_b64")
+        or payload.get("self_check_b64")
+        or ""
+    ).strip()
+    self_check_pcm_bytes: bytes | None = None
+    if self_check_b64:
+        sc_clean = (
+            self_check_b64.split(",", 1)[1]
+            if ("," in self_check_b64 and self_check_b64.startswith("data:"))
+            else self_check_b64
+        )
+        try:
+            from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
+            raw_sc = base64.b64decode(sc_clean)
+            if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
+                sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
+                self_check_pcm_bytes = sc_arr.astype("int16").tobytes()
+            else:
+                self_check_pcm_bytes = raw_sc
+        except Exception:
+            self_check_pcm_bytes = b""
+    enforce_12s_gate = bool(payload.get("enforce_12s_gate", False) or self_check_b64)
+
     res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
         pcm_bytes=pcm_bytes,
         user_id=user_id,
@@ -697,6 +819,8 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
         samples_pcm16k=decoded_samples if decoded_samples else None,
         sample_index=int(sample_index) if sample_index is not None else None,
         total_samples=total_samples,
+        self_check_pcm_bytes=self_check_pcm_bytes,
+        enforce_12s_gate=enforce_12s_gate,
     )
     if res.get("ok") and res.get("profile"):
         prof = res["profile"]
@@ -719,20 +843,60 @@ async def api_voice_auth_enroll_tier_pcm(payload: dict[str, Any]) -> JSONRespons
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
             br.engine.set_active_user(user_id)
+        _sync_voiceprints_to_durable_store()
         await broadcast_rest_state_to_bridges()
     return JSONResponse(sanitize_api_payload(res))
 
 
+@router.post("/api/voice/grant")
+@router.post("/api/users/grant")
+async def api_voice_or_user_grant(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Cấp quyền cho người dùng (Bắt buộc phiên Chủ nhà Cấp 1 server-side)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+    target_name = str(payload.get("target_name") or payload.get("display_name") or payload.get("email") or "Khách").strip()
+    target_tier = int(payload.get("target_tier") or payload.get("tier") or 3)
+    prev_uid = _REST_ENGINE.current_user_id
+    _REST_ENGINE.set_active_user(OWNER_ID)
+    try:
+        res = await _REST_ENGINE.grant_user_permission(target_name=target_name, target_tier=target_tier)
+    finally:
+        _REST_ENGINE.set_active_user(prev_uid)
+    await broadcast_rest_state_to_bridges()
+    status_code = 200 if res.get("ok") else 403
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+
+
+@router.post("/api/voice/revoke")
+@router.post("/api/users/revoke")
+async def api_voice_or_user_revoke(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Thu hồi quyền người dùng (Bắt buộc phiên Chủ nhà Cấp 1 server-side)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
+    target_name = str(payload.get("target_name") or payload.get("display_name") or payload.get("email") or "").strip()
+    prev_uid = _REST_ENGINE.current_user_id
+    _REST_ENGINE.set_active_user(OWNER_ID)
+    try:
+        res = await _REST_ENGINE.revoke_user_permission(target_name=target_name)
+    finally:
+        _REST_ENGINE.set_active_user(prev_uid)
+    await broadcast_rest_state_to_bridges()
+    status_code = 200 if res.get("ok") else 403
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+
+
 @router.post("/api/auth3/voice_permission_command")
-async def api_auth3_voice_permission_command(payload: dict[str, Any]) -> JSONResponse:
-    """Khẩu lệnh phân quyền hoặc thu hồi quyền bằng giọng nói."""
+async def api_auth3_voice_permission_command(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Khẩu lệnh phân quyền hoặc thu hồi quyền bằng giọng nói (Chỉ Chủ nhà Cấp 1)."""
+    sess, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     mgr = get_auth_3layer_manager()
     spoken_text = str(payload.get("spoken_text") or payload.get("command_text") or "").strip()
     target_identifier = str(payload.get("target_identifier", "")).strip()
-    try:
-        actor_tier = int(payload.get("actor_tier") or payload.get("caller_tier") or 1)
-    except (ValueError, TypeError):
-        actor_tier = 1
+    actor_tier = int(sess.tier if sess else 1)
     source_device = str(payload.get("source_device", "Mic Giọng Nói Thiết Bị")).strip()
 
     if target_identifier and "enable_permission" in payload:
@@ -775,7 +939,8 @@ async def api_auth3_voice_permission_command(payload: dict[str, Any]) -> JSONRes
         tier=actor_tier,
         details=res,
     )
-    return JSONResponse(sanitize_api_payload(res))
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 200))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
 @router.post("/api/auth3/layer1_login")
@@ -978,9 +1143,13 @@ async def api_auth3_forgot_password_reset(payload: dict[str, Any]) -> JSONRespon
 
 
 @router.post("/api/auth3/layer3_voice")
-async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_layer3_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Xác thực Lớp 3 (Sinh trắc học giọng nói WeSpeaker ResNet34 ONNX + 5-Sample Mean Enrollment)."""
     mode = str(payload.get("mode", "recognize")).strip()
+    if mode.lower() == "enroll":
+        _, err_resp = _require_admin_session(request)
+        if err_resp is not None:
+            return err_resp
     pcm16k_b64 = str(
         payload.get("audio_pcm_b64")
         or payload.get("pcm16k_b64")
@@ -1045,6 +1214,8 @@ async def api_auth3_layer3_voice(payload: dict[str, Any]) -> JSONResponse:
         source_device=source_device,
         samples_b64=normalized_samples_b64 if normalized_samples_b64 else None,
     )
+    if res.get("ok") and mode.lower() == "enroll":
+        _sync_voiceprints_to_durable_store()
     if res.get("ok") and res.get("recognized"):
         tier_val = int(res.get("tier", 1))
         role_map = USER_ROLE_MAP

@@ -52,6 +52,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 VOICES_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\voices")
 SIGNATURES_JSON_PATH = pathlib.Path(__file__).resolve().parent / "real_voices_signatures.json"
 
+FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
+
 _CACHED_SIGNATURES_DATA: dict[str, Any] | None = None
 
 
@@ -270,23 +273,38 @@ async def process_voice_command_pipeline(
 
     pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
 
-    # 1. CỔNG KIỂM ĐỊNH CHẤT LƯỢNG ÂM THANH (Mel26 + Deep64 Quality Gate)
-    # Quá ngắn / quá nhỏ / bị rè -> Yêu cầu nói lại, KHÔNG kết luận là 'Người lạ'!
+    # 1. CỔNG KIỂM ĐỊNH CHẤT LƯỢNG ÂM THANH (Mel26 + Deep64 Quality Gate & Overlap Safe-Deny)
+    # Quá ngắn / quá nhỏ / bị rè / nói đè -> Yêu cầu nói lại, KHÔNG kết luận là 'Người lạ'!
     q_gate = evaluate_audio_quality_gate(pcm16, sr=16000)
-    if not q_gate["ok"]:
+    va_ask_repeat = False
+    va_reason = ""
+    if q_gate["ok"] and voice_auth is not None and hasattr(voice_auth, "verify_pcm16k_and_apply_strikes"):
+        prev_strikes = getattr(voice_auth, "unauthorized_strikes", 0)
+        try:
+            va_res = voice_auth.verify_pcm16k_and_apply_strikes(pcm16)
+            if isinstance(va_res, dict) and va_res.get("ask_repeat"):
+                va_ask_repeat = True
+                va_reason = str(va_res.get("reason") or va_res.get("quality_reason") or "SAFE_DENY_ASK_REPEAT")
+        except Exception:
+            pass
+        finally:
+            if hasattr(voice_auth, "unauthorized_strikes"):
+                voice_auth.unauthorized_strikes = prev_strikes
+
+    if not q_gate["ok"] or va_ask_repeat:
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-        repeat_msg = q_gate["message"]
+        repeat_msg = FIXED_SAFE_DENY_REPEAT_PHRASE_VI
         return {
             "ok": False,
             "authorized": False,
             "ask_repeat": True,
             "quality_gate_passed": False,
-            "quality_reason": q_gate["reason"],
+            "quality_reason": va_reason or q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
             "level": 0,
             "tier": 99,
             "speaker_id": "none",
             "user_id": "UNKNOWN",
-            "speaker_name": "Yêu cầu nói lại (Tín hiệu quá ngắn / nhỏ / rè)",
+            "speaker_name": "Yêu cầu nói lại (Tín hiệu quá ngắn / nhỏ / rè / nói đè)",
             "role": "UNKNOWN",
             "recognized_text": explicit_transcript,
             "transcript": explicit_transcript,
@@ -298,6 +316,7 @@ async def process_voice_command_pipeline(
             "action": "ASK_REPEAT_AUDIO_QUALITY",
             "reply": repeat_msg,
             "exact_spoken_reply": repeat_msg,
+            "rejection_speech": repeat_msg,
             "results": [],
             "f0_hz": round(float(q_gate.get("f0_hz", 0.0)), 1),
             "similarity": 0.0,
@@ -442,9 +461,7 @@ async def process_voice_command_pipeline(
     # 5. Kiem tra Voice Auth & RBAC va Thuc thi Hanh dong Thiet bi
     if not authorized:
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-        rejection_msg = (
-            "Từ chối: Giọng nói người lạ không có quyền điều khiển ngôi nhà."
-        )
+        rejection_msg = FIXED_REJECTION_PHRASE_VI
         return {
             "ok": False,
             "authorized": False,
@@ -572,10 +589,13 @@ async def process_voice_command_pipeline(
             device_results.extend(res.get("results", []))
 
     permission_str = "DENIED" if any_blocked else "ALLOWED"
-    final_reply = (
-        " ".join(spoken_replies).strip()
-        or f"Đã xử lý khẩu lệnh: {recognized_text}"
-    )
+    if any_blocked:
+        final_reply = FIXED_REJECTION_PHRASE_VI
+    else:
+        final_reply = (
+            " ".join(spoken_replies).strip()
+            or f"Đã xử lý khẩu lệnh: {recognized_text}"
+        )
     action_str = "; ".join(action_summaries)
     latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
 
@@ -600,7 +620,7 @@ async def process_voice_command_pipeline(
         "action": action_str,
         "reply": final_reply,
         "exact_spoken_reply": final_reply,
-        "rejection_speech": final_reply if any_blocked else "",
+        "rejection_speech": FIXED_REJECTION_PHRASE_VI if any_blocked else "",
         "results": device_results,
         "device_states": {k: v.get("state") for k, v in engine.devices.items()},
         "f0_hz": round(f0_hz, 1),

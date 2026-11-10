@@ -82,40 +82,34 @@ class AuthInviteGmailMixin:
         actor_tier = int(actor.get("tier", 3))
         target_tier = int(target_tier)
 
-        if actor_tier >= 3:
-            msg = "Cấp 3 không có quyền thêm thành viên"
+        if actor_tier != 1:
+            msg = "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền thêm thành viên hoặc cấp quyền!"
             self._log_event(
                 layer="Email Allowlist",
-                action="add_email_blocked_tier3",
+                action=f"add_email_blocked_tier{actor_tier}",
                 email=actor["email"],
                 status="FAIL",
-                detail=f"Cấp 3 ({actor['display_name']}) cố thêm email {target_email} -> BỊ CHẶN.",
+                detail=f"Cấp {actor_tier} ({actor['display_name']}) cố thêm email {target_email} vào Cấp {target_tier} -> BỊ CHẶN.",
                 source=source,
             )
-            return {"ok": False, "error": msg, "status_code": 403}
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+            }
 
         if not actor.get("permission_active", True):
             return {
                 "ok": False,
-                "error": f"🚫 Tài khoản {actor['display_name']} hiện đang bị thu hồi quyền, không thể thêm thành viên!",
                 "status_code": 403,
+                "rbac_blocked": True,
+                "error": f"🚫 Tài khoản {actor['display_name']} hiện đang bị thu hồi quyền, không thể thêm thành viên!",
             }
 
-        if actor_tier == 2 and target_tier != 3:
-            msg = "Cấp 2 chỉ có quyền thêm thành viên Cấp 3"
-            self._log_event(
-                layer="Email Allowlist",
-                action="add_email_blocked_tier2",
-                email=actor["email"],
-                status="FAIL",
-                detail=f"Cấp 2 ({actor['display_name']}) cố thêm email {target_email} vào Cấp {target_tier} -> BỊ CHẶN.",
-                source=source,
-            )
-            return {"ok": False, "error": msg, "status_code": 403}
-
-        if actor_tier == 1 and target_tier not in (2, 3):
+        if target_tier not in (2, 3):
             msg = "Cấp 1 chỉ có quyền thêm Cấp 2 hoặc Cấp 3"
-            return {"ok": False, "error": msg, "status_code": 403}
+            return {"ok": False, "status_code": 403, "rbac_blocked": True, "error": msg}
 
         clean_email = target_email.strip().lower()
         if not clean_email or "@" not in clean_email:
@@ -192,7 +186,7 @@ class AuthInviteGmailMixin:
                 "permissions": (
                     [
                         "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-                        "Chỉ thêm được Email Cấp 3 (Khách)",
+                        "Không có quyền thêm thành viên hoặc gửi link mời",
                         "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
                     ]
                     if target_tier == 2
@@ -474,31 +468,18 @@ class AuthInviteGmailMixin:
                 "issuer_email": acc["email"],
                 "issuer_tier": 1,
                 "allowed_target_tiers": [2, 3],
-                "rule_explanation": "Cấp 1 (Chủ nhà) có 2 đường link mời xuống Cấp 2 (Người nhà) và Cấp 3 (Khách).",
-                "links": links,
-            }
-        if tier == 2:
-            links = [
-                self.invite_links.get("INV-T2-TO-TIER3", DEFAULT_INVITE_LINKS["INV-T2-TO-TIER3"]),
-            ]
-            return {
-                "ok": True,
-                "can_invite": True,
-                "issuer": acc["display_name"],
-                "issuer_email": acc["email"],
-                "issuer_tier": 2,
-                "allowed_target_tiers": [3],
-                "rule_explanation": "Cấp 2 (Người nhà) chỉ có 1 đường link mời xuống Cấp 3 (Khách).",
+                "rule_explanation": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền mời thành viên Cấp 2 (Người nhà) và Cấp 3 (Khách).",
                 "links": links,
             }
         return {
             "ok": True,
             "can_invite": False,
+            "rbac_blocked": True,
             "issuer": acc["display_name"],
             "issuer_email": acc["email"],
-            "issuer_tier": 3,
+            "issuer_tier": tier,
             "allowed_target_tiers": [],
-            "rule_explanation": "Cấp 3 (Khách) không có phần gửi link mời cấp dưới.",
+            "rule_explanation": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền tạo và gửi đường link mời.",
             "links": [],
         }
 
@@ -508,10 +489,14 @@ class AuthInviteGmailMixin:
         target_tier: int,
         source: str = "Web/App",
     ) -> dict[str, Any]:
-        """Kiểm tra chặt chẽ phân quyền tạo link mời."""
+        """Kiểm tra chặt chẽ phân quyền tạo link mời (Chỉ Chủ nhà Cấp 1 mới có quyền)."""
         acc = self.find_account(issuer_identifier)
         if not acc:
-            return {"ok": False, "error": f"Không tìm thấy người tạo link '{issuer_identifier}'."}
+            return {
+                "ok": False,
+                "status_code": 404,
+                "error": f"Không tìm thấy người tạo link '{issuer_identifier}'.",
+            }
 
         if not acc.get("permission_active", True):
             msg = f"🚫 Tài khoản {acc['display_name']} đang ở trạng thái KHÔNG CÓ QUYỀN (Đã bị Chủ nhà thu hồi quyền)!"
@@ -523,38 +508,34 @@ class AuthInviteGmailMixin:
                 detail=msg,
                 source=source,
             )
-            return {"ok": False, "error": msg}
+            return {"ok": False, "status_code": 403, "rbac_blocked": True, "error": msg}
 
         issuer_tier = int(acc["tier"])
         target_tier = int(target_tier)
 
-        if issuer_tier >= 3:
-            msg = f"🚫 Từ chối: Tài khoản Cấp 3 ({acc['display_name']}) không có quyền tạo hay gửi link mời!"
+        if issuer_tier != 1:
+            msg = (
+                f"🚫 Từ chối: Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền tạo hoặc gửi link mời! "
+                f"Tài khoản Cấp {issuer_tier} ({acc['display_name']}) không có quyền mời."
+            )
             self._log_event(
                 layer="Phân cấp Link Mời",
-                action="tier3_invite_blocked",
+                action=f"tier{issuer_tier}_invite_blocked",
                 email=acc["email"],
                 status="FAIL",
                 detail=msg,
                 source=source,
             )
-            return {"ok": False, "error": msg}
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+            }
 
-        if issuer_tier == 2 and target_tier != 3:
-            msg = f"🚫 Từ chối: Tài khoản Cấp 2 ({acc['display_name']}) chỉ được gửi link mời xuống Cấp 3, không được mời Cấp {target_tier}!"
-            self._log_event(
-                layer="Phân cấp Link Mời",
-                action="tier2_invite_tier2_blocked",
-                email=acc["email"],
-                status="FAIL",
-                detail=msg,
-                source=source,
-            )
-            return {"ok": False, "error": msg}
-
-        if issuer_tier == 1 and target_tier not in (2, 3):
+        if target_tier not in (2, 3):
             msg = "Cấp 1 chỉ tạo đường link mời xuống Cấp 2 hoặc Cấp 3."
-            return {"ok": False, "error": msg}
+            return {"ok": False, "status_code": 400, "error": msg}
 
         code = f"INV-T{issuer_tier}-TO-TIER{target_tier}"
         role_lbl = "Người nhà (Tầng 2)" if target_tier == 2 else "Khách (Tầng 3)"
@@ -583,6 +564,7 @@ class AuthInviteGmailMixin:
         )
         return {
             "ok": True,
+            "status_code": 200,
             "invite_link": link_obj,
             "message": f"✅ Đã tạo đường link mời Cấp {target_tier}: {link_obj['full_url']}",
         }
@@ -594,13 +576,39 @@ class AuthInviteGmailMixin:
         source: str = "Web Portal",
     ) -> dict[str, Any]:
         """Gửi trực tiếp đường Link Mời đăng ký xuống Gmail của người cấp dưới qua `gws gmail`."""
-        code = invite_code.strip().upper()
+        code = (invite_code or "").strip().upper()
+        if code == "INV-T2-TO-TIER3":
+            msg = "🚫 Đường link mời Cấp 2 (INV-T2-TO-TIER3) đã bị vô hiệu hóa. Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền gửi lời mời!"
+            if hasattr(self, "_log_event"):
+                self._log_event(
+                    layer="Phân cấp Link Mời",
+                    action="tier2_invite_email_blocked",
+                    email=(recipient_email or "").strip().lower(),
+                    status="FAIL",
+                    detail=msg,
+                    source=source,
+                )
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "sent_real_gmail": False,
+                "error": msg,
+            }
+
         inv = self.invite_links.get(code) or DEFAULT_INVITE_LINKS.get(code)
-        if not inv:
-            return {"ok": False, "error": f"Không tìm thấy đường link mời '{invite_code}'!"}
+        if inv and int(inv.get("issuer_tier", 1)) != 1:
+            msg = "🚫 Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền phát hành và gửi đường link mời!"
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "sent_real_gmail": False,
+                "error": msg,
+            }
 
         to_addr = (recipient_email or "").strip().lower()
-        if not is_email_allowlisted_for_real_send(to_addr):
+        if to_addr != "nep94121@gmail.com" or not is_email_allowlisted_for_real_send(to_addr):
             if hasattr(self, "_log_event"):
                 self._log_event(
                     layer="Email Allowlist Protection Gate",
@@ -612,12 +620,21 @@ class AuthInviteGmailMixin:
                 )
             return {
                 "ok": False,
+                "status_code": 403,
                 "sent_real_gmail": False,
                 "blocked_by_allowlist": True,
                 "recipient": to_addr,
                 "status": "BLOCKED_NOT_ALLOWLISTED",
                 "error": f"Email '{to_addr}' không nằm trong REAL_EMAIL_ALLOWLIST! Chặn gửi an toàn.",
                 "message": f"Chặn gửi thư mời an toàn: '{to_addr}' không nằm trong REAL_EMAIL_ALLOWLIST.",
+            }
+
+        if not inv:
+            return {
+                "ok": False,
+                "status_code": 404,
+                "sent_real_gmail": False,
+                "error": f"Không tìm thấy đường link mời '{invite_code}'!",
             }
 
         sender_name = "Smart Home Voice AI"
@@ -744,7 +761,7 @@ class AuthInviteGmailMixin:
         invite_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         recipient = (target_email or "").strip().lower()
-        if not is_email_allowlisted_for_real_send(recipient):
+        if recipient != "nep94121@gmail.com" or not is_email_allowlisted_for_real_send(recipient):
             if hasattr(self, "_log_event"):
                 self._log_event(
                     layer="Email Allowlist Protection Gate",
@@ -1039,32 +1056,77 @@ class AuthInviteGmailMixin:
         source: str = "Web Invite Link",
     ) -> dict[str, Any]:
         """Khi cấp dưới bấm vào đường link mời (`/auth?invite=...`) và chọn Đăng nhập bằng Google OAuth (Gmail)."""
-        code = invite_code.strip().upper()
-        inv = self.invite_links.get(code)
+        code = (invite_code or "").strip().upper()
+        if code == "INV-T2-TO-TIER3":
+            msg = "🚫 Mã đường link mời Cấp 2 (INV-T2-TO-TIER3) đã bị vô hiệu hóa. Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền mời thành viên!"
+            if hasattr(self, "_log_event"):
+                self._log_event(
+                    layer="Link Mời + Google OAuth",
+                    action="tier2_invite_oauth_blocked",
+                    email=(google_email or "").strip().lower(),
+                    status="FAIL",
+                    detail=msg,
+                    source=source,
+                )
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+            }
+
+        inv = self.invite_links.get(code) or DEFAULT_INVITE_LINKS.get(code)
         if not inv:
             return {
                 "ok": False,
+                "status_code": 404,
                 "error": f"Mã đường link mời '{invite_code}' không tồn tại hoặc không hợp lệ!",
+            }
+
+        if int(inv.get("issuer_tier", 1)) != 1:
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": "Chỉ đường link mời do Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) phát hành mới hợp lệ!",
             }
 
         target_tier = int(inv["target_tier"])
         clean_email = google_email.strip().lower()
         if not clean_email or "@" not in clean_email:
-            return {"ok": False, "error": "Vui lòng nhập hoặc chọn địa chỉ Gmail hợp lệ!"}
+            return {"ok": False, "status_code": 400, "error": "Vui lòng nhập hoặc chọn địa chỉ Gmail hợp lệ!"}
 
         issued_password = custom_password.strip() or secrets.token_urlsafe(10)
         otp_code = f"{random.randint(100000, 999999)}"
         name_clean = display_name.strip() or clean_email.split("@")[0].replace(".", " ").title()
 
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": OWNER_EMAIL}
+        gmail_res = {"sent_real_gmail": False, "actual_recipient": clean_email, "blocked_by_allowlist": clean_email != "nep94121@gmail.com"}
         if send_gmail:
-            gmail_res = self.send_real_gmail_otp(
-                target_email=clean_email,
-                otp_code=otp_code,
-                display_name=name_clean,
-                issued_password=issued_password,
-                invite_info=inv,
-            )
+            if clean_email == "nep94121@gmail.com":
+                gmail_res = self.send_real_gmail_otp(
+                    target_email=clean_email,
+                    otp_code=otp_code,
+                    display_name=name_clean,
+                    issued_password=issued_password,
+                    invite_info=inv,
+                )
+            else:
+                if hasattr(self, "_log_event"):
+                    self._log_event(
+                        layer="Email Allowlist Protection Gate",
+                        action="blocked_non_allowlisted_email",
+                        email=clean_email,
+                        status="BLOCKED",
+                        detail=f"Chặn gửi thư thật tới '{clean_email}' vì không thuộc REAL_EMAIL_ALLOWLIST (Chống bounce mail).",
+                        source="EmailProtectionGate",
+                    )
+                gmail_res = {
+                    "sent_real_gmail": False,
+                    "blocked_by_allowlist": True,
+                    "actual_recipient": clean_email,
+                    "status": "BLOCKED_NOT_ALLOWLISTED",
+                    "message": f"Địa chỉ '{clean_email}' không thuộc danh sách REAL_EMAIL_ALLOWLIST. Chặn gửi an toàn.",
+                }
 
         self.pending_invite_registrations[clean_email] = {
             "invite_code": code,
@@ -1170,7 +1232,7 @@ class AuthInviteGmailMixin:
                 "permissions": (
                     [
                         "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-                        "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
+                        "Không có quyền thêm thành viên hoặc gửi link mời",
                         "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
                     ]
                     if target_tier == 2
@@ -1301,7 +1363,13 @@ class AuthInviteGmailMixin:
                 detail=msg,
                 source=source_device,
             )
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+                "exact_spoken_reply": msg,
+            }
 
         acc = self.find_account(target_identifier)
         if not acc:
@@ -1401,6 +1469,24 @@ class AuthInviteGmailMixin:
         is_restore = any(k in t_low for k in restore_keywords)
         if not is_revoke and not is_restore:
             return None
+
+        if int(actor_tier) != 1:
+            msg = "🚫 Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền xóa cấp quyền hoặc bật lại quyền bằng giọng nói!"
+            self._log_event(
+                layer="Quản lý Quyền Bằng Giọng Nói",
+                action="voice_permission_denied",
+                email="unknown",
+                status="FAIL",
+                detail=msg,
+                source=source_device,
+            )
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+                "exact_spoken_reply": msg,
+            }
 
         matched_acc: dict[str, Any] | None = None
         for acc in self.accounts:

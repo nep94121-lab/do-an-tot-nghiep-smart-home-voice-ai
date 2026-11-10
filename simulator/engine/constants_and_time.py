@@ -24,6 +24,12 @@ def resolve_data_dir() -> pathlib.Path:
     if os.environ.get("VERCEL"):
         tmp_data = pathlib.Path("/tmp/smarthome_data")
         tmp_data.mkdir(parents=True, exist_ok=True)
+        try:
+            from simulator import durable_store
+
+            durable_store.sync_from_durable_store(data_dir=tmp_data, only_missing=False)
+        except Exception:
+            pass
         if repo_data.exists():
             for src in repo_data.iterdir():
                 if src.is_file():
@@ -32,6 +38,12 @@ def resolve_data_dir() -> pathlib.Path:
                         shutil.copy2(src, dst)
         return tmp_data
     repo_data.mkdir(parents=True, exist_ok=True)
+    try:
+        from simulator import durable_store
+
+        durable_store.sync_from_durable_store(data_dir=repo_data, only_missing=True)
+    except Exception:
+        pass
     return repo_data
 
 

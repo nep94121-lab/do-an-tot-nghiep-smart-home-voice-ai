@@ -130,8 +130,8 @@ async def api_auth3_guest_qr_current(
     target_tier: int = 3,
     tier: int | None = None,
 ) -> JSONResponse:
-    """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế cho Khách (Cấp 3) hoặc Gia đình (Cấp 2)."""
-    session = resolve_request_session(request, payload=payload or {}, engine=_REST_ENGINE)
+    """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế (Chỉ Chủ nhà Cấp 1)."""
+    session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
     if (
         session.role == "UNKNOWN"
         or session.tier not in (1, 2, 3)
@@ -155,15 +155,44 @@ async def api_auth3_guest_qr_current(
             sanitize_api_payload(
                 {
                     "ok": False,
-                    "error": "Yêu cầu đăng nhập để tạo mã QR Khách (HTTP 401 Unauthorized).",
+                    "authenticated": False,
+                    "error": "Yêu cầu đăng nhập quyền Chủ nhà Cấp 1 để tạo mã QR Khách (HTTP 401 Unauthorized).",
                     "status_code": 401,
                 }
             ),
             status_code=401,
         )
+    if session.tier != 1 or session.role != "ADMIN":
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": True,
+                    "rbac_blocked": True,
+                    "tier": session.tier,
+                    "role": session.role,
+                    "error": "Từ chối: Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền sinh mã QR Khách!",
+                    "status_code": 403,
+                }
+            ),
+            status_code=403,
+        )
 
     mgr3 = get_auth_3layer_manager()
     data = payload or {}
+    req_issuer_tier = int(data.get("issuer_tier", issuer_tier) or 1)
+    if req_issuer_tier != 1:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền phát hành mã QR Khách!",
+                    "status_code": 403,
+                }
+            ),
+            status_code=403,
+        )
     chosen_dur = str(
         dur
         or duration_type
@@ -218,7 +247,7 @@ async def api_auth3_guest_qr_current(
     mgr3.active_qr_tokens[token] = {
         "token": token,
         "window": window,
-        "issuer_tier": int(data.get("issuer_tier", issuer_tier) or 1),
+        "issuer_tier": 1,
         "target_tier": chosen_tier,
         "duration_type": chosen_dur,
         "duration_label": dur_label,
@@ -302,10 +331,54 @@ async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
 
 @router.post("/api/auth3/guest_qr_complete_voice")
 @router.post("/api/auth3/guest/enroll_voice")
-async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResponse:
-    """Tiếp nhận bản thu âm PCM 16kHz của khách / thành viên trên trang /guest_enroll."""
+async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
+    """Tiếp nhận bản thu âm PCM 16kHz của khách trên trang /guest_enroll (Yêu cầu phiên QR Cấp 1 hợp lệ hoặc phiên Admin Cấp 1)."""
     mgr3 = get_auth_3layer_manager()
-    session_id = str(payload.get("session_id") or payload.get("guest_session_id") or "").strip()
+    session_id = str(
+        payload.get("session_id")
+        or payload.get("guest_session_id")
+        or payload.get("session_token")
+        or ""
+    ).strip()
+    guest_qr_map = getattr(mgr3, "guest_qr_sessions", {})
+    sess_info = guest_qr_map.get(session_id) if (session_id and isinstance(guest_qr_map, dict)) else None
+    now_check = time.time()
+    has_valid_qr_handshake = bool(
+        isinstance(sess_info, dict)
+        and int(sess_info.get("issuer_tier", 1)) == 1
+        and float(sess_info.get("session_expires_at", now_check + 1.0)) > now_check
+    )
+    if not has_valid_qr_handshake:
+        req_sess = resolve_request_session(request, payload=None, engine=None)
+        if not req_sess.is_authenticated:
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "authenticated": False,
+                        "rbac_blocked": True,
+                        "status_code": 401,
+                        "error": "Yêu cầu phiên bắt tay mã QR hợp lệ do Chủ nhà Cấp 1 phát hành hoặc đăng nhập quyền Chủ nhà (Admin Cấp 1) để đăng ký giọng nói!",
+                    }
+                ),
+                status_code=401,
+            )
+        if req_sess.tier != 1 or req_sess.role != "ADMIN":
+            return JSONResponse(
+                sanitize_api_payload(
+                    {
+                        "ok": False,
+                        "authenticated": True,
+                        "rbac_blocked": True,
+                        "tier": req_sess.tier,
+                        "role": req_sess.role,
+                        "status_code": 403,
+                        "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) hoặc phiên bắt tay QR hợp lệ từ Chủ nhà Cấp 1 mới được phép đăng ký giọng nói!",
+                    }
+                ),
+                status_code=403,
+            )
+    sess_info = sess_info or {}
     guest_name = str(payload.get("guest_name") or payload.get("speaker_name") or "Khách Quét QR").strip()
     guest_email = str(payload.get("guest_email") or payload.get("email") or "").strip().lower()
     if guest_email == "nep94121@gmail.com":
@@ -355,7 +428,6 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
             except Exception:
                 pass
 
-    sess_info = getattr(mgr3, "guest_qr_sessions", {}).get(session_id, {})
     if sess_info:
         dur_type = str(sess_info.get("duration_type", dur_type))
     if dur_type not in DURATION_MAP_SECONDS:
@@ -395,6 +467,39 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         )
 
     # 1. Kiểm định chất lượng âm học
+    self_check_b64_qr = str(
+        payload.get("self_check_pcm_b64")
+        or payload.get("self_check_wav_b64")
+        or payload.get("self_check_b64")
+        or ""
+    ).strip()
+    enforce_12s_qr = bool(payload.get("enforce_12s_gate", False) or self_check_b64_qr)
+    if enforce_12s_qr:
+        from simulator.voice_auth import check_enrollment_quality_gate
+
+        sc_bytes_qr: bytes | None = None
+        if self_check_b64_qr:
+            sc_clean = (
+                self_check_b64_qr.split(",", 1)[1]
+                if ("," in self_check_b64_qr and self_check_b64_qr.startswith("data:"))
+                else self_check_b64_qr
+            )
+            try:
+                raw_sc = base64.b64decode(sc_clean)
+                if raw_sc.startswith(b"RIFF"):
+                    raw_sc = _decode_container_audio_to_pcm16k(raw_sc)
+                sc_bytes_qr = raw_sc
+            except Exception:
+                sc_bytes_qr = b""
+        gate_12s_qr = check_enrollment_quality_gate(
+            enroll_pcm=pcm_bytes,
+            self_check_pcm=sc_bytes_qr,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not gate_12s_qr.get("ok"):
+            return JSONResponse(sanitize_api_payload(gate_12s_qr), status_code=400)
+
     q_res = validate_voice_enrollment_quality(pcm_bytes, 16000)
     if not q_res.get("ok"):
         return JSONResponse(
@@ -496,6 +601,15 @@ async def api_auth3_guest_qr_complete_voice(payload: dict[str, Any]) -> JSONResp
         _REST_ENGINE.set_active_user(prev_uid)
     for br in list(_ACTIVE_BRIDGES):
         br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
+    try:
+        from simulator.auth.constants_and_crypto import DATA_DIR
+        from simulator.durable_store import save_state_file
+
+        vp_path = DATA_DIR / "voiceprints.json"
+        if vp_path.exists():
+            save_state_file("voiceprints.json", vp_path.read_bytes(), data_dir=DATA_DIR)
+    except Exception:
+        pass
     await broadcast_rest_state_to_bridges()
 
     if sess_info:

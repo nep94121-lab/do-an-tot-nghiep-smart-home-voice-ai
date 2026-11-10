@@ -248,16 +248,28 @@
     } catch (_) {}
   }
 
+  let _resamplePhase = 0.0;
+  let _resampleLastSr = 0;
+
   function resampleFloat32AntiAliased(rawInput, actualSr, targetSr = 16000) {
     if (!actualSr || actualSr === targetSr || !rawInput || rawInput.length === 0) {
       return rawInput;
     }
-    const outLen = Math.max(1, Math.round((rawInput.length * targetSr) / actualSr));
+    if (_resampleLastSr !== actualSr) {
+      _resamplePhase = 0.0;
+      _resampleLastSr = actualSr;
+    }
+    const step = actualSr / targetSr;
+    const avail = rawInput.length - _resamplePhase;
+    if (avail <= 0) {
+      _resamplePhase -= rawInput.length;
+      return new Float32Array(0);
+    }
+    const outLen = Math.max(1, Math.floor(avail / step));
     const output = new Float32Array(outLen);
-    const ratio = rawInput.length / outLen;
     for (let i = 0; i < outLen; i++) {
-      const start = i * ratio;
-      const end = (i + 1) * ratio;
+      const start = _resamplePhase + i * step;
+      const end = start + step;
       const idxStart = Math.max(0, Math.floor(start));
       const idxEnd = Math.min(rawInput.length - 1, Math.ceil(end) - 1);
       if (idxEnd <= idxStart) {
@@ -272,6 +284,10 @@
         output[i] = sum / cnt;
       }
     }
+    _resamplePhase = (_resamplePhase + outLen * step) - rawInput.length;
+    if (_resamplePhase < 0 || !Number.isFinite(_resamplePhase)) {
+      _resamplePhase = 0.0;
+    }
     return output;
   }
 
@@ -285,9 +301,10 @@
         audioCtxOut.resume();
       }
       const binaryStr = atob(base64Data);
-      const len = binaryStr.length;
-      const int16Arr = new Int16Array(len / 2);
-      for (let i = 0; i < len; i += 2) {
+      const evenLen = binaryStr.length - (binaryStr.length % 2);
+      if (evenLen <= 0) return;
+      const int16Arr = new Int16Array(evenLen / 2);
+      for (let i = 0; i < evenLen; i += 2) {
         int16Arr[i / 2] = binaryStr.charCodeAt(i) | (binaryStr.charCodeAt(i + 1) << 8);
       }
       const float32Arr = new Float32Array(int16Arr.length);
@@ -1013,7 +1030,7 @@
           break;
 
         case "rbac_blocked":
-          setAiReplyText(msg.reason || "Bạn chưa có quyền thực hiện thao tác này.");
+          setAiReplyText(msg.reason || "Xin lỗi, bạn không có quyền thực hiện lệnh này.");
           logEvent(msg.reason, "err");
           renderDevices(Object.values(latestDevicesMap));
           break;
@@ -1080,9 +1097,7 @@
         }
 
         case "voice_auth_rejected": {
-          const rejSpeech = msg.rejection_speech || (msg.strike_count === 1
-            ? "Tôi không nhận ra giọng của bạn."
-            : "Tôi sẽ không trả lời bạn lần nữa.");
+          const rejSpeech = msg.rejection_speech || "Xin lỗi, bạn không có quyền thực hiện lệnh này.";
           if (msg.label && msg.label !== "Giọng nói trực tiếp qua Mic") {
             setUserTranscriptText(msg.label);
           }
@@ -1094,13 +1109,6 @@
           if (msg.strike_count && msg.strike_count >= 3) {
             triggerSecurityLockdown();
           }
-          const rejectTs = performance.now();
-          setTimeout(() => {
-            const lastChunkTs = window._lastGeminiAudioChunkTs || 0;
-            if (lastChunkTs < rejectTs) {
-              speakVietnameseFallback(rejSpeech);
-            }
-          }, 650);
           break;
         }
 

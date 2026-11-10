@@ -167,8 +167,8 @@ async def api_get_state(request: Request) -> JSONResponse:
 
 
 @router.post("/api/session/role")
-async def api_set_session_role(payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Đồng bộ vai trò phiên hiện tại trên _REST_ENGINE (dành cho Web/Mobile UI switch)."""
+async def api_set_session_role(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Đồng bộ vai trò phiên hiện tại trên _REST_ENGINE (dành cho Web/Mobile UI switch, chặn leo thang đặc quyền)."""
     from simulator.auth_3layer import get_auth_3layer_manager
 
     data = payload if isinstance(payload, dict) else {}
@@ -263,6 +263,43 @@ async def api_set_session_role(payload: dict[str, Any] = Body(default={})) -> JS
 
     if not resolved_target:
         return await _reject_unknown_session_role()
+
+    t_low = resolved_target.strip().lower()
+    t_up = resolved_target.strip().upper()
+    if t_up == "ADMIN" or t_low in (OWNER_ID.lower(), OWNER_EMAIL.lower(), "owner_root_t1", "1", "tier1", "tier_1"):
+        target_tier = 1
+    elif t_up == "MEMBER" or t_low in ("2", "tier2", "tier_2"):
+        target_tier = 2
+    elif t_up == "CHILD_GUEST" or t_low in ("3", "tier3", "tier_3"):
+        target_tier = 3
+    elif t_low in _REST_ENGINE.users:
+        target_tier = int(_REST_ENGINE.users[t_low].get("tier", 3))
+    else:
+        acc_target = mgr.find_account(resolved_target)
+        target_tier = int((acc_target or {}).get("tier", 3))
+
+    existing_sess = resolve_request_session(request, payload=None, engine=None)
+    if not existing_sess.is_authenticated and data.get("session_token"):
+        tok_body = str(data.get("session_token") or "").strip()
+        if tok_body:
+            existing_sess = get_session_store().get_session(tok_body) or existing_sess
+
+    if not existing_sess.is_authenticated or existing_sess.tier != 1 or existing_sess.source == "invalid_token":
+        if target_tier == 1 or (existing_sess.is_authenticated and target_tier < existing_sess.tier):
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "active_user_id": existing_sess.user_id,
+                    "role": existing_sess.role,
+                    "tier": existing_sess.tier,
+                    "error": (
+                        f"🚫 Từ chối leo thang đặc quyền: Phiên hiện tại đang ở Cấp {existing_sess.tier} ({existing_sess.role}) "
+                        f"không được phép tự nâng quyền lên Cấp {target_tier} qua /api/session/role mà không qua đăng nhập Lớp 1/Lớp 2!"
+                    ),
+                },
+                status_code=403,
+            )
 
     snap_user = _REST_ENGINE.set_active_user(resolved_target)
     if (

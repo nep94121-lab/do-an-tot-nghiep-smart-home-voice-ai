@@ -48,16 +48,19 @@ from typing import Any
 
 _ACCOUNTS_FILE_LOCK = threading.RLock()
 _GLOBAL_OTP_LOCK = threading.RLock()
+_PATH_DURABLE_CACHE: dict[str, bytes] = {}
 
 
 def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
     target_path = Path(target_file) if not isinstance(target_file, Path) else target_file
     tmp_path = target_path.with_suffix(f".tmp.{os.getpid()}_{threading.get_ident()}_{time.time_ns()}")
+    wrote_ok = False
     for attempt in range(5):
         try:
             tmp_path.write_bytes(payload_bytes)
             os.replace(tmp_path, target_path)
-            return
+            wrote_ok = True
+            break
         except OSError:
             time.sleep(0.01 * (attempt + 1))
         finally:
@@ -66,8 +69,30 @@ def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> None:
                     tmp_path.unlink()
                 except Exception:
                     pass
+    if not wrote_ok:
+        try:
+            target_path.write_bytes(payload_bytes)
+        except Exception:
+            pass
     try:
-        target_path.write_bytes(payload_bytes)
+        _PATH_DURABLE_CACHE[str(target_path.resolve())] = bytes(payload_bytes)
+        if target_path.name in (
+            "voiceprints.json",
+            "accounts_3layer.json",
+            "invite_links_3layer.json",
+            "family_email_allowlist.json",
+            "custom_rules_overlay.json",
+            "user_sessions.json",
+        ):
+            from simulator.durable_store import save_state_file
+
+            if (
+                target_path.parent.name in ("data", "smarthome_data")
+                or bool(os.environ.get("VERCEL"))
+                or bool(os.environ.get("SMARTHOME_DURABLE_DIR"))
+                or bool(os.environ.get("SIMULATOR_OFFLINE_SANDBOX"))
+            ):
+                save_state_file(target_path.name, payload_bytes, data_dir=target_path.parent)
     except Exception:
         pass
 
@@ -252,8 +277,34 @@ class ThreeLayerAuthManager(
             self._save_family_allowlist()
             return {"ok": True, "accounts": self.accounts}
 
+    def _restore_missing_file_from_durable_store(self, fpath: Path) -> None:
+        if fpath.exists():
+            return
+        try:
+            resolved_key = str(fpath.resolve())
+            raw = _PATH_DURABLE_CACHE.get(resolved_key)
+            if raw is None and (
+                fpath.parent == DATA_DIR
+                or fpath.parent.name == "smarthome_data"
+                or bool(os.environ.get("VERCEL"))
+                or bool(os.environ.get("SMARTHOME_DURABLE_DIR"))
+                or bool(os.environ.get("SIMULATOR_OFFLINE_SANDBOX"))
+            ):
+                from simulator.durable_store import load_state_file
+
+                raw = load_state_file(fpath.name, data_dir=fpath.parent)
+            if raw:
+                fpath.parent.mkdir(parents=True, exist_ok=True)
+                fpath.write_bytes(raw)
+        except Exception:
+            pass
+
     def _load_state(self) -> None:
         with _ACCOUNTS_FILE_LOCK:
+            self._restore_missing_file_from_durable_store(ACCOUNTS_FILE)
+            self._restore_missing_file_from_durable_store(FAMILY_ALLOWLIST_FILE)
+            self._restore_missing_file_from_durable_store(INVITE_LINKS_FILE)
+
             if ACCOUNTS_FILE.exists():
                 try:
                     data = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
@@ -292,7 +343,15 @@ class ThreeLayerAuthManager(
                 try:
                     inv = json.loads(INVITE_LINKS_FILE.read_text(encoding="utf-8"))
                     if isinstance(inv, dict) and inv:
-                        self.invite_links = inv
+                        self.invite_links = {
+                            k: v
+                            for k, v in inv.items()
+                            if k != "INV-T2-TO-TIER3"
+                            and isinstance(v, dict)
+                            and int(v.get("issuer_tier", 1)) == 1
+                        }
+                        if not self.invite_links:
+                            self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
                     else:
                         self.invite_links = json.loads(json.dumps(DEFAULT_INVITE_LINKS))
                 except Exception:
@@ -1514,6 +1573,132 @@ class ThreeLayerAuthManager(
             "source_device": source_device,
             "error": f"🚫 Server phát hiện Giọng Người Lạ (F0={f0_val}Hz, Cosine={rej_cos} < 0.435) từ [{source_device}] -> Từ chối điều khiển!",
         }
+
+    def generate_dynamic_qr_token(
+        self,
+        issuer_tier: int = 1,
+        duration_type: str = "1d",
+        host_url: str = "http://localhost:8088",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới được phép sinh mã QR Khách."""
+        if int(issuer_tier) != 1:
+            msg = "🚫 Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền sinh mã QR Khách!"
+            self._log_event(
+                layer="QR Code Động 10s (RBAC)",
+                action="qr_generate_blocked_non_owner",
+                email="unknown",
+                status="FAIL",
+                detail=msg,
+                source="Dynamic QR Portal",
+            )
+            return {
+                "ok": False,
+                "status_code": 403,
+                "rbac_blocked": True,
+                "error": msg,
+            }
+        dur_val = str(kwargs.get("duration_key") or duration_type or "1d")
+        host_val = str(kwargs.get("base_url") or host_url or "http://localhost:8088")
+        return super().generate_dynamic_qr_token(
+            issuer_tier=1,
+            duration_type=dur_val,
+            host_url=host_val,
+        )
+
+    def consume_guest_handshake(
+        self,
+        token: str,
+        target_window: int | None = None,
+        used_token_store: set[str] | None = None,
+        duration_type: str = "1d",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Xác thực mã QR một lần và kiểm tra mã QR phải do Chủ nhà Cấp 1 phát hành."""
+        import hashlib
+        import hmac
+
+        tok_clean = (token or "").strip()
+        active_tokens = getattr(self, "active_qr_tokens", {})
+        if tok_clean in active_tokens:
+            meta = active_tokens[tok_clean]
+            if int(meta.get("issuer_tier", 1)) != 1:
+                return {
+                    "ok": False,
+                    "status_code": 403,
+                    "rbac_blocked": True,
+                    "error": "Mã QR không hợp lệ vì không do Chủ nhà Cấp 1 phát hành!",
+                }
+        elif tok_clean:
+            cur_window = int(time.time() // 10)
+            secret = os.environ.get("SMARTHOME_TOTP_SECRET", "bk_smarthome_totp_salt_2026")
+            for w_chk in range(cur_window + 2, cur_window - 19, -1):
+                for d_key, d_sec in DURATION_MAP_SECONDS.items():
+                    raw_p2 = f"{w_chk}:2:{d_key}:{d_sec}"
+                    cand2 = hmac.new(secret.encode("utf-8"), raw_p2.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+                    if cand2 == tok_clean:
+                        return {
+                            "ok": False,
+                            "status_code": 403,
+                            "rbac_blocked": True,
+                            "error": "Mã QR Cấp 2 đã bị vô hiệu hóa. Chỉ Chủ nhà Cấp 1 mới có quyền phát hành mã QR Khách!",
+                        }
+        res = super().consume_guest_handshake(
+            token=token,
+            target_window=target_window,
+            used_token_store=used_token_store,
+            duration_type=duration_type,
+        )
+        if res.get("ok"):
+            gsid = str(res.get("guest_session_id") or "")
+            if gsid and hasattr(self, "guest_qr_sessions") and gsid in self.guest_qr_sessions:
+                self.guest_qr_sessions[gsid]["issuer_tier"] = 1
+        return res
+
+    def run_automated_3layer_test_suite(
+        self,
+        send_real_email_on_test1: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Chạy bộ kiểm thử tự động 14 kịch bản với quy tắc RBAC mới (Chỉ Cấp 1 có quyền mời)."""
+        send_flag = bool(send_real_email_on_test1 or kwargs.get("send_real_gmail_in_test", False))
+        report = super().run_automated_3layer_test_suite(send_real_email_on_test1=send_flag)
+        if not isinstance(report, dict) or not isinstance(report.get("cases"), list):
+            return report
+        inv_t2 = self.get_invite_links_for_account("thanhviena.hust@gmail.com")
+        blk_t2_to_t3 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=3, source="AutoTest-Suite")
+        blk_t2_to_t2 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=2, source="AutoTest-Suite")
+        p06 = (
+            not inv_t2.get("can_invite")
+            and inv_t2.get("allowed_target_tiers", []) == []
+            and not blk_t2_to_t3.get("ok")
+            and not blk_t2_to_t2.get("ok")
+        )
+        for item in report["cases"]:
+            if isinstance(item, dict) and item.get("test_id") == "TEST-06":
+                item["passed"] = p06
+                item["status"] = "PASS" if p06 else "FAIL"
+                item["expected"] = "Cấp 2 không có quyền tạo/gửi link mời (Chỉ Chủ nhà Cấp 1 mới có quyền mời)"
+                item["actual"] = (
+                    f"can_invite={inv_t2.get('can_invite')} | allowed_tiers={inv_t2.get('allowed_target_tiers')} | "
+                    f"Chặn mời T3={not blk_t2_to_t3.get('ok')} | Chặn mời T2={not blk_t2_to_t2.get('ok')}"
+                )
+        cases = report["cases"]
+        passed_cnt = sum(1 for r in cases if isinstance(r, dict) and r.get("passed"))
+        total_cnt = len(cases)
+        report["ok"] = passed_cnt == total_cnt
+        report["passed"] = passed_cnt
+        report["passed_cases"] = passed_cnt
+        report["passed_count"] = passed_cnt
+        report["failed_count"] = total_cnt - passed_cnt
+        report["pass_rate"] = f"{round((passed_cnt / max(1, total_cnt)) * 100, 1)}%"
+        report["all_passed"] = passed_cnt == total_cnt
+        report["summary"] = (
+            f"Đạt {passed_cnt}/{total_cnt} kịch bản kiểm thử toàn diện "
+            f"(3 Lớp + Phân cấp Link Mời + OAuth Gmail OTP + Thu âm Trang Đầu + Giọng nói Xóa/Bật Quyền)"
+        )
+        self.latest_test_report = report
+        return report
 
 
 _AUTH_MANAGER: ThreeLayerAuthManager | None = None
