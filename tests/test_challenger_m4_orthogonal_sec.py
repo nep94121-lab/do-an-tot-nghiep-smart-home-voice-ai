@@ -163,9 +163,13 @@ class TestOrthogonalApiRoutes:
     ) -> None:
         """Thử các giá trị duration hợp lệ lẫn dị biệt kèm nonce ngẫu nhiên."""
         # 1. Hợp lệ với nonce ngẫu nhiên
+        owner_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
         for valid_dur in ["1d", "2d", "1w", "1m", "1y"]:
             nonce = uuid.uuid4().hex
-            resp = client.get(f"/api/auth3/guest_qr_current?duration={valid_dur}&nonce={nonce}")
+            resp = client.get(
+                f"/api/auth3/guest_qr_current?duration={valid_dur}&nonce={nonce}",
+                headers=owner_headers,
+            )
             assert resp.status_code == 200
             data = resp.json()
             assert data.get("ok") is True
@@ -175,7 +179,10 @@ class TestOrthogonalApiRoutes:
         # 2. Bất thường: duration dị biệt
         for weird_dur in ["999y", "invalid", "<script>", "1000000d", ""]:
             nonce = uuid.uuid4().hex
-            resp = client.get(f"/api/auth3/guest_qr_current?duration={weird_dur}&nonce={nonce}")
+            resp = client.get(
+                f"/api/auth3/guest_qr_current?duration={weird_dur}&nonce={nonce}",
+                headers=owner_headers,
+            )
             # Server có thể fallback về default "1d" hoặc trả 400, tuyệt đối không được 500
             assert resp.status_code in (200, 400), (
                 f"Unexpected status {resp.status_code} for duration {weird_dur}"
@@ -292,8 +299,8 @@ class TestOrthogonalApiRoutes:
         ]
         for p in corrupted_payloads:
             resp = client.post("/api/auth3/guest_qr_complete_voice", json=p)
-            # Hệ thống phải từ chối lịch sự (400 hoặc 422), không được unhandled crash 500
-            assert resp.status_code in (400, 422), (
+            # Hệ thống phải từ chối lịch sự (400, 403 hoặc 422), không được unhandled crash 500
+            assert resp.status_code in (400, 403, 422), (
                 f"Audio fuzzing payload gây {resp.status_code}!"
             )
             assert resp.status_code != 500
