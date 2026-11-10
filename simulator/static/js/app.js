@@ -427,10 +427,14 @@
       const initSt = cur && cur.state ? String(cur.state).toUpperCase() : "OFF";
       const sameCid = Boolean(cur && cur.last_client_id && cur.last_client_id === CLIENT_ID);
       const initSeq = sameCid && cur && cur.last_client_seq ? Number(cur.last_client_seq) : 0;
+      const initVer = cur && cur.version ? Number(cur.version) : 0;
       deviceControlState[devId] = {
         seq: initSeq,
         desiredState: initSt,
         confirmedState: initSt,
+        serverKnownState: initSt,
+        serverKnownVersion: initVer,
+        serverKnownRevisionSeq: lastServerRevisionSeq,
         lastConfirmedSeq: initSeq,
         httpPendingCount: 0,
         wsPendingTimers: {},
@@ -438,7 +442,7 @@
         pendingCount: 0,
         debounceTimer: null,
         lastClickTs: 0,
-        lastVersion: cur && cur.version ? Number(cur.version) : 0,
+        lastVersion: initVer,
         lastUpdatedAt: cur && cur.updated_at ? Number(cur.updated_at) : 0,
       };
     }
@@ -527,15 +531,57 @@
           if (mySeq < ctrl.seq) {
             return;
           }
+          const respVer = Number(
+            data && data.device_version !== undefined && data.device_version !== null ? data.device_version : 0
+          );
+          const respRev = Number(
+            data && data.revision_seq !== undefined && data.revision_seq !== null
+              ? data.revision_seq
+              : data && data.snapshot && data.snapshot.revision_seq
+              ? data.snapshot.revision_seq
+              : 0
+          );
+          const maxKnownVer = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+          const maxKnownDevRev = Math.max(
+            Number(lastServerRevisionSeq || 0),
+            Number(ctrl.serverKnownRevisionSeq || 0)
+          );
+          const isSupersededResponse =
+            (respVer > 0 && maxKnownVer > 0 && respVer < maxKnownVer) ||
+            (respRev > 0 &&
+              maxKnownDevRev > 0 &&
+              respRev < maxKnownDevRev &&
+              (respVer === 0 || maxKnownVer === 0 || respVer <= maxKnownVer));
+          if (isSupersededResponse) {
+            ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, mySeq);
+            if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
+              const authNewer = String(
+                ctrl.serverKnownState || ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")
+              ).toUpperCase();
+              ctrl.confirmedState = authNewer;
+              ctrl.desiredState = authNewer;
+              ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
+              if (latestDevicesMap[devId]) {
+                latestDevicesMap[devId].version = ctrl.lastVersion;
+              }
+              syncDeviceDOMToState(devId, authNewer);
+            }
+            return;
+          }
           if (data && data.stale_ignored) {
-            const authState = String((data && data.state) || ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")).toUpperCase();
+            const authState = String(
+              (data && data.state) || ctrl.confirmedState || (dev.type === "door" ? "CLOSED" : "OFF")
+            ).toUpperCase();
             ctrl.confirmedState = authState;
             ctrl.desiredState = authState;
-            if (data.device_version !== undefined) {
-              ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+            ctrl.serverKnownState = authState;
+            if (respVer > 0) {
+              ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
+              ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
             }
-            if (data.revision_seq !== undefined) {
-              lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(data.revision_seq) || 0);
+            if (respRev > 0) {
+              lastServerRevisionSeq = Math.max(lastServerRevisionSeq, respRev);
+              ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, respRev);
             }
             syncDeviceDOMToState(devId, authState);
             if (data.snapshot) {
@@ -550,12 +596,15 @@
           }
           const finalState = String((data && data.state) || targetState).toUpperCase();
           ctrl.confirmedState = finalState;
+          ctrl.serverKnownState = finalState;
           ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
-          if (data && data.device_version !== undefined) {
-            ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+          if (respVer > 0) {
+            ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
+            ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
           }
-          if (data && data.revision_seq !== undefined) {
-            lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(data.revision_seq) || 0);
+          if (respRev > 0) {
+            lastServerRevisionSeq = Math.max(lastServerRevisionSeq, respRev);
+            ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, respRev);
           }
           ctrl.desiredState = finalState;
           syncDeviceDOMToState(devId, finalState);
@@ -655,6 +704,9 @@
           seq: sameClient ? serverSeq : 0,
           desiredState: dev.state,
           confirmedState: dev.state,
+          serverKnownState: String(dev.state || "").toUpperCase(),
+          serverKnownVersion: serverVer,
+          serverKnownRevisionSeq: snapRevisionSeq,
           lastConfirmedSeq: sameClient ? serverSeq : 0,
           httpPendingCount: 0,
           wsPendingTimers: {},
@@ -666,6 +718,21 @@
           lastUpdatedAt: Number(dev.updated_at || 0),
         };
         return dev;
+      }
+
+      if (
+        !isStaleSnapshotRevision &&
+        (serverVer > Number(ctrl.serverKnownVersion || 0) ||
+          (snapRevisionSeq > Number(ctrl.serverKnownRevisionSeq || 0) &&
+            serverVer >= Number(ctrl.serverKnownVersion || 0)))
+      ) {
+        ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), serverVer);
+        if (snapRevisionSeq > 0) {
+          ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRevisionSeq);
+        }
+        if (rawDev.state) {
+          ctrl.serverKnownState = String(rawDev.state).toUpperCase();
+        }
       }
 
       if (sameClient && serverSeq >= ctrl.seq && ctrl.debounceTimer === null) {
@@ -719,6 +786,7 @@
 
       // Server state is authoritative and caught up
       ctrl.confirmedState = dev.state;
+      ctrl.serverKnownState = String(dev.state || "").toUpperCase();
       if (!hasPendingLocalMutation) {
         ctrl.desiredState = dev.state;
         if (sameClient && serverSeq > ctrl.seq) {
@@ -730,6 +798,10 @@
       }
       if (serverVer > ctrl.lastVersion) {
         ctrl.lastVersion = serverVer;
+      }
+      ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), ctrl.lastVersion);
+      if (snapRevisionSeq > 0) {
+        ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRevisionSeq);
       }
       return dev;
     });
@@ -1301,6 +1373,48 @@
             if (sameCid && ackSeq > 0) {
               clearWsPendingUpTo(ctrl, ackSeq);
             }
+            const ackVer = Number(
+              msg.device_version !== undefined && msg.device_version !== null ? msg.device_version : 0
+            );
+            const ackRev = Number(
+              msg.revision_seq !== undefined && msg.revision_seq !== null
+                ? msg.revision_seq
+                : msg.snapshot && msg.snapshot.revision_seq
+                ? msg.snapshot.revision_seq
+                : 0
+            );
+            const maxKnownVer = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+            const maxKnownDevRev = Math.max(
+              Number(lastServerRevisionSeq || 0),
+              Number(ctrl.serverKnownRevisionSeq || 0)
+            );
+            const isStaleAck =
+              (ackVer > 0 && maxKnownVer > 0 && ackVer < maxKnownVer) ||
+              (ackRev > 0 &&
+                maxKnownDevRev > 0 &&
+                ackRev < maxKnownDevRev &&
+                (ackVer === 0 || maxKnownVer === 0 || ackVer <= maxKnownVer));
+
+            if (isStaleAck) {
+              if (sameCid && ackSeq > 0) {
+                ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, ackSeq);
+              }
+              if (sameCid && ackSeq >= ctrl.seq && ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
+                const dev = latestDevicesMap[ackDevId];
+                const authNewer = String(
+                  ctrl.serverKnownState || ctrl.confirmedState || (dev && dev.type === "door" ? "CLOSED" : "OFF")
+                ).toUpperCase();
+                ctrl.confirmedState = authNewer;
+                ctrl.desiredState = authNewer;
+                ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
+                if (dev) {
+                  dev.version = ctrl.lastVersion;
+                }
+                syncDeviceDOMToState(ackDevId, authNewer);
+              }
+              break;
+            }
+
             if (sameCid && ackSeq >= ctrl.seq) {
               const dev = latestDevicesMap[ackDevId];
               if (msg.stale_ignored) {
@@ -1309,11 +1423,14 @@
                 ).toUpperCase();
                 ctrl.confirmedState = authState;
                 ctrl.desiredState = authState;
-                if (msg.device_version !== undefined && msg.device_version !== null) {
-                  ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(msg.device_version) || 0);
+                ctrl.serverKnownState = authState;
+                if (ackVer > 0) {
+                  ctrl.lastVersion = Math.max(ctrl.lastVersion, ackVer);
+                  ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, ackVer);
                 }
-                if (msg.revision_seq !== undefined && msg.revision_seq !== null) {
-                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(msg.revision_seq) || 0);
+                if (ackRev > 0) {
+                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, ackRev);
+                  ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, ackRev);
                 }
                 syncDeviceDOMToState(ackDevId, authState);
               } else if (msg.ok === false || msg.rbac_blocked || msg.error) {
@@ -1325,14 +1442,17 @@
                 const finalState = String(msg.state || ctrl.desiredState || "OFF").toUpperCase();
                 ctrl.confirmedState = finalState;
                 ctrl.desiredState = finalState;
+                ctrl.serverKnownState = finalState;
                 if (ackSeq > 0) {
                   ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, ackSeq);
                 }
-                if (msg.device_version !== undefined && msg.device_version !== null) {
-                  ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(msg.device_version) || 0);
+                if (ackVer > 0) {
+                  ctrl.lastVersion = Math.max(ctrl.lastVersion, ackVer);
+                  ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, ackVer);
                 }
-                if (msg.revision_seq !== undefined && msg.revision_seq !== null) {
-                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, Number(msg.revision_seq) || 0);
+                if (ackRev > 0) {
+                  lastServerRevisionSeq = Math.max(lastServerRevisionSeq, ackRev);
+                  ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, ackRev);
                 }
                 syncDeviceDOMToState(ackDevId, finalState);
               }
@@ -1361,6 +1481,18 @@
             const sameCid = Boolean(msg.last_client_id && msg.last_client_id === CLIENT_ID);
             if (sameCid && msgSeq >= ctrl.seq && ctrl.debounceTimer === null) {
               clearWsPendingUpTo(ctrl, msgSeq);
+            }
+            if (
+              msgVer > Number(ctrl.serverKnownVersion || 0) ||
+              (msgRev > Number(ctrl.serverKnownRevisionSeq || 0) && msgVer >= Number(ctrl.serverKnownVersion || 0))
+            ) {
+              ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), msgVer);
+              if (msgRev > 0) {
+                ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), msgRev);
+              }
+              if (msg.new_state) {
+                ctrl.serverKnownState = String(msg.new_state).toUpperCase();
+              }
             }
             const hasPending = ctrl.debounceTimer !== null || ctrl.pendingCount > 0;
             const isStaleUpd =

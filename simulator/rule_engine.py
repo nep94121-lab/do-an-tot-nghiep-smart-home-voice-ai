@@ -272,13 +272,33 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             if not isinstance(cid_v, dict):
                                 continue
                             cur_v = merged_cseqs.get(cid_k)
-                            if not isinstance(cur_v, dict) or (
-                                int(cid_v.get("ts_ms", 0) or 0),
-                                int(cid_v.get("seq", 0) or 0),
-                            ) >= (
-                                int(cur_v.get("ts_ms", 0) or 0),
-                                int(cur_v.get("seq", 0) or 0),
-                            ):
+                            if str(cid_k) == "__anon__":
+                                incoming_key = (
+                                    int(cid_v.get("ts_ms", 0) or 0),
+                                    int(cid_v.get("seq", 0) or 0),
+                                )
+                                existing_key = (
+                                    (
+                                        int(cur_v.get("ts_ms", 0) or 0),
+                                        int(cur_v.get("seq", 0) or 0),
+                                    )
+                                    if isinstance(cur_v, dict)
+                                    else (-1, -1)
+                                )
+                            else:
+                                incoming_key = (
+                                    int(cid_v.get("seq", 0) or 0),
+                                    int(cid_v.get("ts_ms", 0) or 0),
+                                )
+                                existing_key = (
+                                    (
+                                        int(cur_v.get("seq", 0) or 0),
+                                        int(cur_v.get("ts_ms", 0) or 0),
+                                    )
+                                    if isinstance(cur_v, dict)
+                                    else (-1, -1)
+                                )
+                            if not isinstance(cur_v, dict) or incoming_key >= existing_key:
                                 merged_cseqs[str(cid_k)] = dict(cid_v)
                         self.devices[dev_id]["client_seqs"] = merged_cseqs
                 elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
@@ -921,33 +941,52 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 c_prev_state = str(c_rec.get("state", "") or "")
                 c_prev_req_id = str(c_rec.get("req_id", "") or "")
 
-                is_clock_reset = (
-                    req_ts_ms > 0
-                    and prev_global_ts > 0
-                    and abs(req_ts_ms - prev_global_ts) > 86_400_000
-                )
-
                 is_stale_or_conflict = False
                 if req_seq > 0 or req_ts_ms > 0:
-                    if req_ts_ms > 0 and prev_global_ts > 0 and req_ts_ms < prev_global_ts and not is_clock_reset:
-                        is_stale_or_conflict = True
-                    elif req_seq > 0:
-                        is_anon_epoch_reset = (
-                            cid_key == "__anon__"
-                            and req_seq == 1
-                            and req_ts_ms > 0
-                            and (req_ts_ms > max(c_prev_ts, prev_global_ts) or is_clock_reset)
-                        )
-                        if not is_anon_epoch_reset and not is_clock_reset:
+                    if cid_key != "__anon__":
+                        if req_seq > 0:
                             if req_seq < c_prev_seq:
                                 is_stale_or_conflict = True
                             elif req_seq == c_prev_seq and c_prev_seq > 0:
-                                if (req_ts_ms > 0 and c_prev_ts > 0 and req_ts_ms < c_prev_ts) or (
-                                    c_prev_state and new_state != c_prev_state
-                                ) or (
-                                    req_id and c_prev_req_id and req_id != c_prev_req_id and new_state != c_prev_state
+                                if (
+                                    (req_ts_ms > 0 and c_prev_ts > 0 and req_ts_ms < c_prev_ts)
+                                    or (c_prev_state and new_state != c_prev_state)
+                                    or (req_id and c_prev_req_id and req_id != c_prev_req_id and new_state != c_prev_state)
                                 ):
                                     is_stale_or_conflict = True
+                        same_active_client_advancing_seq = (
+                            bool(prev_global_cid)
+                            and req_client_id == prev_global_cid
+                            and req_seq > 0
+                            and req_seq > c_prev_seq
+                        )
+                        if (
+                            not is_stale_or_conflict
+                            and not same_active_client_advancing_seq
+                            and req_ts_ms > 0
+                            and prev_global_ts > 0
+                            and req_ts_ms < prev_global_ts
+                        ):
+                            is_stale_or_conflict = True
+                    else:
+                        if req_ts_ms > 0 and prev_global_ts > 0 and req_ts_ms < prev_global_ts:
+                            is_stale_or_conflict = True
+                        elif req_seq > 0:
+                            is_anon_epoch_reset = (
+                                req_seq == 1
+                                and req_ts_ms > 0
+                                and req_ts_ms > max(c_prev_ts, prev_global_ts)
+                            )
+                            if not is_anon_epoch_reset:
+                                if req_seq < c_prev_seq:
+                                    is_stale_or_conflict = True
+                                elif req_seq == c_prev_seq and c_prev_seq > 0:
+                                    if (
+                                        (req_ts_ms > 0 and c_prev_ts > 0 and req_ts_ms < c_prev_ts)
+                                        or (c_prev_state and new_state != c_prev_state)
+                                        or (req_id and c_prev_req_id and req_id != c_prev_req_id and new_state != c_prev_state)
+                                    ):
+                                        is_stale_or_conflict = True
 
                 if is_stale_or_conflict:
                     results.append({
@@ -970,18 +1009,18 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         dev["last_request_id"] = req_id
                     dev["last_requested_state"] = new_state
                     if req_ts_ms > 0:
-                        dev["last_client_ts_ms"] = req_ts_ms if is_clock_reset else max(prev_global_ts, req_ts_ms)
+                        dev["last_client_ts_ms"] = max(prev_global_ts, req_ts_ms)
                     client_seqs_map[cid_key] = {
                         "seq": req_seq if req_seq > 0 else c_prev_seq,
-                        "ts_ms": req_ts_ms if req_ts_ms > 0 else c_prev_ts,
+                        "ts_ms": max(c_prev_ts, req_ts_ms) if req_ts_ms > 0 else c_prev_ts,
                         "state": new_state,
                         "req_id": req_id,
                     }
-                    if len(client_seqs_map) > 32:
+                    if len(client_seqs_map) > 128:
                         oldest_keys = sorted(
                             client_seqs_map.keys(),
                             key=lambda k: int((client_seqs_map[k] or {}).get("ts_ms", 0) or 0),
-                        )[: len(client_seqs_map) - 32]
+                        )[: len(client_seqs_map) - 128]
                         for ok_del in oldest_keys:
                             client_seqs_map.pop(ok_del, None)
                     dev["client_seqs"] = client_seqs_map

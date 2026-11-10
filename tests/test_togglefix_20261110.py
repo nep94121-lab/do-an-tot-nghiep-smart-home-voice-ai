@@ -1,14 +1,16 @@
-"""Regression tests for device toggle oscillation fix (togglefix-20261110, Round 2).
+"""Regression tests for device toggle oscillation fix (togglefix-20261110, Round 4).
 
 Covers:
-1. Idempotent set-state API across all 7 default devices and all REST aliases (/api/device, /api/devices/{id}/control, /api/device/{id}).
+1. Idempotent set-state API across all 7 default devices and all 4 REST aliases (/api/device, /api/device_control, /api/devices/{id}/control, /api/device/{id}).
 2. Per-device sequencing, multi-client/epoch switching, late out-of-order request rejection, and equal-seq conflict rejection (F3).
-3. Single listener binding verified via EventTarget.prototype.addEventListener instrumentation + direct native checkbox click & Spacebar activation parity (F6).
-4. Stale HTTP poll (GET /api/state) and push snapshot protection with 10s (102 samples @ 100ms) zero oscillation.
-5. Mobile raw WebSocket `device_updated` stale version / pending intent filtering with 10s zero oscillation (F1).
-6. Wokwi fresh client bootstrap after high server seq, authoritative rollback on `stale_ignored`, and stale `revision_seq`/`version` rejection with 10s zero oscillation (F2, F4).
-7. Main UI WebSocket `manual_toggle` pending tracking >4.3s against zero-revision/zero-seq echo until ACK, with 10s zero oscillation (F5).
-8. Rapid double-click and rapid triple-click with slow/out-of-order backend responses on `/` and `/app`, each verified over a full 10s (102 samples @ 100ms) window.
+3. Sequence-based per-client guard rejecting lower-seq and >24h (>48h, >30d) stale requests without any clock-reset bypass (F8).
+4. Single listener binding verified via EventTarget.prototype.addEventListener instrumentation + direct native checkbox click & Spacebar activation parity (F6).
+5. Stale HTTP poll (GET /api/state) and push snapshot protection with 10s (102 samples @ 100ms) zero oscillation.
+6. Mobile raw WebSocket `device_updated` stale version / pending intent filtering with 10s zero oscillation (F1).
+7. Wokwi fresh client bootstrap after high server seq, authoritative rollback on `stale_ignored`, and stale `revision_seq`/`version` rejection with 10s zero oscillation (F2, F4).
+8. Main UI WebSocket `manual_toggle` pending tracking >4.3s against zero-revision/zero-seq echo until ACK, with 10s zero oscillation (F5).
+9. Stale WebSocket `manual_toggle_ack` and stale HTTP `POST /api/device` responses arriving after a newer accepted snapshot never overwrite newer state, with 10s zero oscillation (F7).
+10. Rapid double-click and rapid triple-click with slow/out-of-order backend responses on `/` and `/app`, each verified over a full 10s (102 samples @ 100ms) window.
 """
 
 from __future__ import annotations
@@ -60,9 +62,12 @@ def _create_admin_session_cookies(client: TestClient) -> dict[str, str]:
 def test_idempotent_set_state_and_device_versioning() -> None:
     client = TestClient(app)
     headers = _create_admin_session_cookies(client)
-    base_ts = int(time.time() * 1000) - 400
+    base_ts = int(time.time() * 1000) - 2000
     cid = f"pytest_idemp_{base_ts}"
+    seq_counter = 10
+    ts_cursor = base_ts
 
+    # Verify all 4 REST aliases on living_room_light
     r0 = client.post(
         "/api/device",
         json={
@@ -70,8 +75,8 @@ def test_idempotent_set_state_and_device_versioning() -> None:
             "action": "turn_off",
             "target_state": "OFF",
             "client_id": cid,
-            "client_seq": 10,
-            "client_ts_ms": base_ts,
+            "client_seq": seq_counter,
+            "client_ts_ms": ts_cursor,
         },
         headers=headers,
     )
@@ -83,15 +88,17 @@ def test_idempotent_set_state_and_device_versioning() -> None:
     assert d0["snapshot"]["revision_seq"] >= 1
     v0 = d0["device_version"]
 
+    seq_counter += 1
+    ts_cursor += 20
     r1 = client.post(
-        "/api/device",
+        "/api/device_control",
         json={
             "device_id": "living_room_light",
             "action": "toggle",
             "target_state": "ON",
             "client_id": cid,
-            "client_seq": 11,
-            "client_ts_ms": base_ts + 100,
+            "client_seq": seq_counter,
+            "client_ts_ms": ts_cursor,
         },
         headers=headers,
     )
@@ -101,14 +108,16 @@ def test_idempotent_set_state_and_device_versioning() -> None:
     assert d1["state"] == "ON"
     assert d1["device_version"] == v0 + 1
 
+    seq_counter += 1
+    ts_cursor += 20
     r2 = client.post(
         "/api/devices/living_room_light/control",
         json={
             "action": "toggle",
             "target_state": "ON",
             "client_id": cid,
-            "client_seq": 12,
-            "client_ts_ms": base_ts + 200,
+            "client_seq": seq_counter,
+            "client_ts_ms": ts_cursor,
         },
         headers=headers,
     )
@@ -118,18 +127,105 @@ def test_idempotent_set_state_and_device_versioning() -> None:
     assert d2["state"] == "ON"
     assert d2["device_version"] == d1["device_version"]
 
+    seq_counter += 1
+    ts_cursor += 20
     r3 = client.post(
         "/api/device/living_room_light",
         json={
             "target_state": "OFF",
             "client_id": cid,
-            "client_seq": 13,
-            "client_ts_ms": base_ts + 300,
+            "client_seq": seq_counter,
+            "client_ts_ms": ts_cursor,
         },
         headers=headers,
     )
     assert r3.status_code == 200
     assert r3.json()["state"] == "OFF"
+
+    # Verify idempotent set-state + monotonic version stability across all 5 Tier-2 REST devices via HTTP
+    tier2_devices = [
+        ("living_room_light", "ON", "OFF"),
+        ("bedroom_light", "ON", "OFF"),
+        ("fan", "ON", "OFF"),
+        ("ac", "ON", "OFF"),
+        ("garden_pump", "ON", "OFF"),
+    ]
+    for dev_id, active_st, inactive_st in tier2_devices:
+        seq_counter += 1
+        ts_cursor += 20
+        ra = client.post(
+            "/api/device",
+            json={
+                "device_id": dev_id,
+                "target_state": active_st,
+                "client_id": cid,
+                "client_seq": seq_counter,
+                "client_ts_ms": ts_cursor,
+            },
+            headers=headers,
+        ).json()
+        assert ra["ok"] is True and ra["state"] == active_st
+
+        seq_counter += 1
+        ts_cursor += 20
+        rb = client.post(
+            "/api/device",
+            json={
+                "device_id": dev_id,
+                "target_state": active_st,
+                "client_id": cid,
+                "client_seq": seq_counter,
+                "client_ts_ms": ts_cursor,
+            },
+            headers=headers,
+        ).json()
+        assert rb["ok"] is True and rb["state"] == active_st
+        assert rb["device_version"] == ra["device_version"], f"Idempotent repeat incremented version for {dev_id}"
+
+        seq_counter += 1
+        ts_cursor += 20
+        rc = client.post(
+            "/api/device",
+            json={
+                "device_id": dev_id,
+                "target_state": inactive_st,
+                "client_id": cid,
+                "client_seq": seq_counter,
+                "client_ts_ms": ts_cursor,
+            },
+            headers=headers,
+        ).json()
+        assert rc["ok"] is True and rc["state"] == inactive_st
+        assert rc["device_version"] == ra["device_version"] + 1
+
+    # Also verify all 7 default devices (including Tier-1 main_door OPEN/CLOSED & alarm_siren) on SmartHomeEngine
+    async def _verify_all_7_engine() -> None:
+        with tempfile.TemporaryDirectory() as td:
+            eng = SmartHomeEngine(state_backend=FileStateBackend(Path(td) / "idemp7.json"))
+            eng.server_connected = True
+            for dev_id, active_st, inactive_st in [
+                ("main_door", "OPEN", "CLOSED"),
+                ("living_room_light", "ON", "OFF"),
+                ("bedroom_light", "ON", "OFF"),
+                ("fan", "ON", "OFF"),
+                ("ac", "ON", "OFF"),
+                ("alarm_siren", "ON", "OFF"),
+                ("garden_pump", "ON", "OFF"),
+            ]:
+                ea = await eng.execute_device_action(
+                    dev_id, target_state=active_st, bypass_rbac=True, trigger_chains=False
+                )
+                eb = await eng.execute_device_action(
+                    dev_id, target_state=active_st, bypass_rbac=True, trigger_chains=False
+                )
+                ec = await eng.execute_device_action(
+                    dev_id, target_state=inactive_st, bypass_rbac=True, trigger_chains=False
+                )
+                assert ea["state"] == active_st and eb["state"] == active_st and ec["state"] == inactive_st
+                assert eb["device_version"] == ea["device_version"]
+                assert ec["device_version"] == ea["device_version"] + 1
+
+    asyncio.run(_verify_all_7_engine())
 
 
 def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
@@ -304,6 +400,150 @@ def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
             assert g["state"] == "OFF"
 
     asyncio.run(_run())
+
+
+def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew() -> None:
+    """Covers Codex F8 counterexample and sequence-based ordering invariants:
+    1. Exact F8 counterexample: same `client_id='same-tab'` sends OFF (seq=10, ts=t) then a delayed
+       2-day-old ON (seq=1, ts=t - 2*86400000) -> MUST be rejected (`stale_ignored: True`, `state: 'OFF'`)
+       and MUST NOT lower `last_client_ts_ms`.
+    2. Lower-seq requests on a named `client_id` are rejected strictly by sequence regardless of timestamp
+       (25h old, 30d old, equal timestamp, or 3 days in the future).
+    3. Higher-seq requests from the currently active `client_id` succeed by monotonic sequence even if
+       that client's clock jumped backward, and `sync_from_shared_store` merges per-client state by `(seq, ts_ms)`.
+    4. Cross-client and anonymous stale requests older than 24h (>25h, >48h) are rejected (`stale_ignored: True`).
+    """
+
+    async def _run() -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            backend = FileStateBackend(Path(tmpdir) / "f8_state.json")
+            e1 = SmartHomeEngine(state_backend=backend)
+            e2 = SmartHomeEngine(state_backend=backend)
+            e1.server_connected = True
+            e2.server_connected = True
+
+            t = int(time.time() * 1000)
+
+            r_latest = await e1.execute_device_action(
+                "fan",
+                target_state="OFF",
+                client_id="same-tab",
+                client_seq=10,
+                client_ts_ms=t,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_latest["state"] == "OFF"
+            assert r_latest["stale_ignored"] is False
+
+            # 1 & 2: Lower seq from same-tab across >24h old, >2d old, >30d old, equal ts, and +3d future ts
+            for bad_seq, bad_ts in [
+                (1, t - 2 * 86_400_000),
+                (9, t - 25 * 3_600_000),
+                (5, t - 30 * 86_400_000),
+                (9, t),
+                (2, t + 3 * 86_400_000),
+            ]:
+                r_stale = await e1.execute_device_action(
+                    "fan",
+                    target_state="ON",
+                    client_id="same-tab",
+                    client_seq=bad_seq,
+                    client_ts_ms=bad_ts,
+                    bypass_rbac=True,
+                    trigger_chains=False,
+                )
+                assert r_stale["stale_ignored"] is True, f"Accepted stale seq={bad_seq}, ts_delta={bad_ts - t}"
+                assert r_stale["state"] == "OFF"
+                assert int(e1.devices["fan"].get("last_client_ts_ms", 0)) >= t
+
+            # 3: Same active client advancing seq=11 with backward clock skew succeeds, and shared sync preserves seq=11
+            r_seq11 = await e1.execute_device_action(
+                "fan",
+                target_state="ON",
+                client_id="same-tab",
+                client_seq=11,
+                client_ts_ms=t - 5_000,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_seq11["stale_ignored"] is False
+            assert r_seq11["state"] == "ON"
+
+            r_seq10_on_e2 = await e2.execute_device_action(
+                "fan",
+                target_state="OFF",
+                client_id="same-tab",
+                client_seq=10,
+                client_ts_ms=t,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_seq10_on_e2["stale_ignored"] is True
+            assert r_seq10_on_e2["state"] == "ON"
+
+            # 4: Newer client sets OFF at t+1000; >24h old cross-client and anonymous requests MUST be rejected
+            r_other_new = await e2.execute_device_action(
+                "fan",
+                target_state="OFF",
+                client_id="second-tab",
+                client_seq=1,
+                client_ts_ms=t + 1_000,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_other_new["stale_ignored"] is False and r_other_new["state"] == "OFF"
+
+            r_cross_old_25h = await e1.execute_device_action(
+                "fan",
+                target_state="ON",
+                client_id="ancient-tab",
+                client_seq=1,
+                client_ts_ms=t - 25 * 3_600_000,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_cross_old_25h["stale_ignored"] is True
+            assert r_cross_old_25h["state"] == "OFF"
+
+            r_anon_old_48h = await e1.execute_device_action(
+                "fan",
+                target_state="ON",
+                client_seq=1,
+                client_ts_ms=t - 2 * 86_400_000,
+                bypass_rbac=True,
+                trigger_chains=False,
+            )
+            assert r_anon_old_48h["stale_ignored"] is True
+            assert r_anon_old_48h["state"] == "OFF"
+
+    asyncio.run(_run())
+
+    # Also verify via FastAPI HTTP /api/device endpoint
+    client = TestClient(app)
+    headers = _create_admin_session_cookies(client)
+    now_ms = int(time.time() * 1000)
+    cid = f"http_f8_{now_ms}"
+    ok_res = client.post(
+        "/api/device",
+        json={"device_id": "fan", "target_state": "OFF", "client_id": cid, "client_seq": 10, "client_ts_ms": now_ms},
+        headers=headers,
+    ).json()
+    assert ok_res["state"] == "OFF" and ok_res["stale_ignored"] is False
+
+    old_2d = client.post(
+        "/api/device",
+        json={
+            "device_id": "fan",
+            "target_state": "ON",
+            "client_id": cid,
+            "client_seq": 1,
+            "client_ts_ms": now_ms - 2 * 86_400_000,
+        },
+        headers=headers,
+    ).json()
+    assert old_2d["stale_ignored"] is True
+    assert old_2d["state"] == "OFF"
 
 
 def test_vercel_blob_403_circuit_breaker_fast_fail() -> None:
@@ -1251,5 +1491,327 @@ async def _run_e2e_rapid_clicks_10s(info: dict[str, str]) -> None:
         await asyncio.gather(
             _exercise_surface("/", "#dev-card-living_room_light", "living_room_light", "applySnapshot"),
             _exercise_surface("/app", "#mobileQuickBtnFan", "fan", "renderState"),
+        )
+        await browser.close()
+
+
+def test_e2e_f7_stale_ws_ack_after_newer_snapshot_10s_stability(live_server_info: dict[str, str]) -> None:
+    """Covers Codex F7 counterexample:
+    1. UI sends `manual_toggle` ON (version vA, revision rA) over WebSocket; snapshot A confirms ON;
+       another client commits OFF on the real server (version vB > vA, revision rB > rA) and snapshot B
+       sets UI to OFF; then delayed `manual_toggle_ack` for version vA arrives (including both normal ACK
+       and `stale_ignored` ACK carrying stale version vA). UI MUST stay OFF across 102 samples @ 100ms (>10s)
+       matching authoritative server state OFF.
+    2. Also verifies when snapshot B (vB > vA) arrives WHILE `manual_toggle` A is still pending (before
+       snapshot A ever arrived), followed by late ACK A (vA < vB): clearing pending converges immediately to OFF.
+    """
+    asyncio.run(_run_e2e_f7_stale_ws_ack(live_server_info))
+
+
+async def _run_e2e_f7_stale_ws_ack(info: dict[str, str]) -> None:
+    from playwright.async_api import async_playwright
+
+    base_url = info["base_url"]
+    token = info["session_token"]
+
+    def _api_post(payload: dict[str, Any]) -> dict[str, Any]:
+        req = urllib.request.Request(
+            f"{base_url}/api/device",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Session-Token": token},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return dict(json.loads(resp.read().decode("utf-8")))
+
+    def _api_state() -> dict[str, Any]:
+        req = urllib.request.Request(
+            f"{base_url}/api/state",
+            headers={"X-Session-Token": token},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return dict(json.loads(resp.read().decode("utf-8")))
+
+    dev = "living_room_light"
+    _api_post(
+        {
+            "device_id": dev,
+            "target_state": "OFF",
+            "client_id": "f7_setup",
+            "client_seq": 1,
+            "client_ts_ms": int(time.time() * 1000),
+        }
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True, channel="chrome")
+        ctx = await browser.new_context()
+        await ctx.add_cookies(
+            [{"name": n, "value": token, "url": base_url} for n in ("sh_session_token", "session_token")]
+        )
+        page = await ctx.new_page()
+        await page.add_init_script(info["ws_auth_script"])
+
+        sockets: list[Any] = []
+        sent_ws: list[dict[str, Any]] = []
+
+        def on_ws(ws: Any) -> None:
+            sockets.append(ws)
+            ws.on_message(lambda raw: sent_ws.append(json.loads(raw)))
+
+        await page.route_web_socket("**/ws", on_ws)
+
+        async def route_local(route: Any, request: Any) -> None:
+            if not request.url.startswith(base_url):
+                await route.abort()
+                return
+            await route.continue_()
+
+        await page.route("**/*", route_local)
+        await page.goto(f"{base_url}/", wait_until="domcontentloaded")
+        await page.wait_for_selector(f"#dev-card-{dev}", timeout=15000)
+        await asyncio.sleep(0.35)
+        assert len(sockets) >= 1
+
+        init_snap = _api_state()
+        sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": init_snap}))
+        await asyncio.sleep(0.1)
+        assert await page.get_attribute(f"#dev-card-{dev}", "data-state") == "off"
+
+        # Phase 1: Exact Codex F7 counterexample
+        await page.click(f"#dev-card-{dev}")
+        await asyncio.sleep(0.15)
+        manual_1 = [m for m in sent_ws if m.get("type") == "manual_toggle"][-1]
+        res_a = _api_post(manual_1)
+        assert res_a["state"] == "ON"
+
+        sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": res_a["snapshot"]}))
+        await asyncio.sleep(0.1)
+        assert await page.get_attribute(f"#dev-card-{dev}", "data-state") == "on"
+
+        res_b = _api_post(
+            {
+                "device_id": dev,
+                "target_state": "OFF",
+                "client_id": "f7_second_real_client",
+                "client_seq": 1,
+                "client_ts_ms": int(time.time() * 1000) + 20,
+            }
+        )
+        assert res_b["state"] == "OFF"
+        assert res_b["device_version"] > res_a["device_version"]
+        assert res_b["revision_seq"] > res_a["revision_seq"]
+
+        sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": res_b["snapshot"]}))
+        await asyncio.sleep(0.1)
+        assert await page.get_attribute(f"#dev-card-{dev}", "data-state") == "off"
+
+        ack_fields = [
+            "ok",
+            "device_id",
+            "state",
+            "device_version",
+            "revision_seq",
+            "client_id",
+            "client_seq",
+            "request_id",
+            "stale_ignored",
+            "snapshot",
+        ]
+        stale_ack = {k: res_a.get(k) for k in ack_fields}
+        stale_ack["type"] = "manual_toggle_ack"
+        sockets[-1].send(json.dumps(stale_ack))
+
+        # Also test stale_ignored=True carrying an older version/state than res_b
+        stale_ignored_ack = dict(stale_ack, stale_ignored=True)
+        sockets[-1].send(json.dumps(stale_ignored_ack))
+
+        samples: list[str] = []
+        checked_samples: list[bool] = []
+        for _ in range(102):
+            dom_pair = await page.locator(f"#dev-card-{dev}").evaluate(
+                "(el) => ({ state: el.dataset.state, checked: el.querySelector('input').checked })"
+            )
+            samples.append(str(dom_pair["state"]))
+            checked_samples.append(bool(dom_pair["checked"]))
+            await asyncio.sleep(0.1)
+
+        srv_now = next(d["state"] for d in _api_state()["devices"] if d["id"] == dev)
+        assert srv_now == "OFF"
+        assert all(s == "off" for s in samples), f"F7 stale ACK overwrote newer OFF state: {samples[:10]}"
+        assert all(c is False for c in checked_samples)
+
+        # Phase 2: Snapshot B arrives WHILE manual_toggle A2 is still pending on WS, then stale ACK A2 arrives
+        await page.click(f"#dev-card-{dev}")
+        await asyncio.sleep(0.15)
+        manual_2 = [m for m in sent_ws if m.get("type") == "manual_toggle"][-1]
+        res_a2 = _api_post(manual_2)
+        assert res_a2["state"] == "ON"
+        res_b2 = _api_post(
+            {
+                "device_id": dev,
+                "target_state": "OFF",
+                "client_id": "f7_second_real_client",
+                "client_seq": 2,
+                "client_ts_ms": int(time.time() * 1000) + 50,
+            }
+        )
+        assert res_b2["state"] == "OFF" and res_b2["device_version"] > res_a2["device_version"]
+
+        # Deliver ONLY snapshot B2 while manual_2 is still pending, then deliver late ACK A2
+        sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": res_b2["snapshot"]}))
+        await asyncio.sleep(0.08)
+        stale_ack_2 = {k: res_a2.get(k) for k in ack_fields}
+        stale_ack_2["type"] = "manual_toggle_ack"
+        sockets[-1].send(json.dumps(stale_ack_2))
+        await asyncio.sleep(0.12)
+
+        assert await page.get_attribute(f"#dev-card-{dev}", "data-state") == "off"
+        await page.unroute_all(behavior="ignoreErrors")
+        await ctx.close()
+        await browser.close()
+
+
+def test_e2e_f7_stale_http_response_after_newer_snapshot_across_all_uis(
+    live_server_info: dict[str, str],
+) -> None:
+    """Verifies across all 3 UIs (`/` bedroom_light, `/app` fan, `/wokwi` living_room_light) that when
+    an HTTP `POST /api/device` executes at version vA, a newer server state vB > vA arrives via snapshot
+    before the HTTP response resolves in the browser, the late HTTP response (vA < vB) never overwrites vB,
+    and `/` `bedroom_light` holds `OFF` across 102 samples @ 100ms (>10s) with 0 oscillation.
+    """
+    asyncio.run(_run_e2e_f7_stale_http_all_uis(live_server_info))
+
+
+async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
+    from playwright.async_api import async_playwright
+
+    base_url = info["base_url"]
+    token = info["session_token"]
+
+    def _api_post(payload: dict[str, Any]) -> dict[str, Any]:
+        req = urllib.request.Request(
+            f"{base_url}/api/device",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Session-Token": token},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return dict(json.loads(resp.read().decode("utf-8")))
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True, channel="chrome")
+
+        async def _check_ui(
+            path: str,
+            click_sel: str,
+            dev_id: str,
+            inactive_st: str,
+            render_fn: str,
+            observe_10s: bool,
+        ) -> None:
+            _api_post(
+                {
+                    "device_id": dev_id,
+                    "target_state": inactive_st,
+                    "client_id": f"f7_http_init_{dev_id}",
+                    "client_seq": 1,
+                    "client_ts_ms": int(time.time() * 1000),
+                }
+            )
+            ctx = await browser.new_context()
+            await ctx.add_cookies(
+                [{"name": n, "value": token, "url": base_url} for n in ("sh_session_token", "session_token")]
+            )
+            page = await ctx.new_page()
+            await page.add_init_script(info["auth_init_script"])
+            if path == "/wokwi":
+                await page.route_web_socket("**/ws", lambda ws: None)
+
+            intercept_mode = ""
+            fulfilled_evt = asyncio.Event()
+
+            async def handle_route(route: Any, request: Any) -> None:
+                nonlocal intercept_mode
+                if not request.url.startswith(base_url):
+                    await route.abort()
+                    return
+                if intercept_mode and "/api/device" in request.url and request.method == "POST":
+                    mode_now = intercept_mode
+                    intercept_mode = ""
+                    resp_a = await route.fetch()
+                    body_a = json.loads((await resp_a.body()).decode("utf-8"))
+                    body_b = await asyncio.to_thread(
+                        _api_post,
+                        {
+                            "device_id": dev_id,
+                            "target_state": inactive_st,
+                            "client_id": f"f7_http_other_{dev_id}_{mode_now}",
+                            "client_seq": 1,
+                            "client_ts_ms": int(time.time() * 1000) + 30,
+                        },
+                    )
+                    assert body_b["device_version"] > body_a["device_version"]
+                    if mode_now == "after_both_snapshots":
+                        await page.evaluate(
+                            "(arg) => window[arg.fn](arg.snap)",
+                            {"fn": render_fn, "snap": body_a["snapshot"]},
+                        )
+                    await page.evaluate(
+                        "(arg) => window[arg.fn](arg.snap)",
+                        {"fn": render_fn, "snap": body_b["snapshot"]},
+                    )
+                    await asyncio.sleep(0.05)
+                    await route.fulfill(response=resp_a)
+                    fulfilled_evt.set()
+                    return
+                await route.continue_()
+
+            await page.route("**/*", handle_route)
+            await page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
+            await page.wait_for_selector(click_sel, timeout=15000)
+            await page.evaluate(
+                f"async () => {{ const s = await (await fetch('/api/state')).json(); window[{json.dumps(render_fn)}](s); }}"
+            )
+            await asyncio.sleep(0.1)
+
+            async def _read_ui_is_active() -> bool:
+                if path == "/wokwi":
+                    return bool(await page.locator(click_sel).evaluate("(el) => el.classList.contains('on')"))
+                st = await page.get_attribute(click_sel, "data-state")
+                return st == "on"
+
+            # Phase 1: Snapshot A + newer Snapshot B arrive, then stale HTTP response A resolves -> 102 samples (>10s)
+            fulfilled_evt.clear()
+            intercept_mode = "after_both_snapshots"
+            await page.click(click_sel)
+            await asyncio.wait_for(fulfilled_evt.wait(), timeout=10.0)
+            await asyncio.sleep(0.08)
+
+            if observe_10s:
+                samples: list[bool] = []
+                for _ in range(102):
+                    samples.append(await _read_ui_is_active())
+                    await asyncio.sleep(0.1)
+                assert all(x is False for x in samples), f"Stale HTTP response overwrote newer state on {path}: {samples[:10]}"
+            else:
+                assert (await _read_ui_is_active()) is False, f"Stale HTTP response overwrote newer state on {path}"
+
+            # Phase 2: Newer Snapshot B arrives while HTTP A is still in flight (without Snapshot A), then HTTP A resolves
+            fulfilled_evt.clear()
+            intercept_mode = "while_pending"
+            await page.click(click_sel)
+            await asyncio.wait_for(fulfilled_evt.wait(), timeout=10.0)
+            await asyncio.sleep(0.08)
+            assert (await _read_ui_is_active()) is False, f"Pending-interleaved stale HTTP response stuck on {path}"
+
+            await page.unroute_all(behavior="ignoreErrors")
+            await ctx.close()
+
+        await asyncio.gather(
+            _check_ui("/", "#dev-card-bedroom_light", "bedroom_light", "OFF", "applySnapshot", True),
+            _check_ui("/app", "#mobileQuickBtnFan", "fan", "OFF", "renderState", True),
+            _check_ui("/wokwi", "#btn_living_room_light", "living_room_light", "OFF", "syncWokwiComponents", True),
         )
         await browser.close()

@@ -449,6 +449,9 @@
           seq: 0,
           lastConfirmedSeq: 0,
           lastVersion: 0,
+          serverKnownState: String(initSt).toUpperCase(),
+          serverKnownVersion: 0,
+          serverKnownRevisionSeq: wokwiLastRevisionSeq,
           desiredState: initSt,
           confirmedState: initSt,
           pendingCount: 0,
@@ -539,6 +542,20 @@
           const sameClient = Boolean(d.last_client_id && d.last_client_id === WOKWI_CLIENT_ID);
           const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
 
+          if (
+            srvVer > Number(ctrl.serverKnownVersion || 0) ||
+            (snapRev > Number(ctrl.serverKnownRevisionSeq || 0) &&
+              srvVer >= Number(ctrl.serverKnownVersion || 0))
+          ) {
+            ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), srvVer);
+            if (snapRev > 0) {
+              ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRev);
+            }
+            if (d.state) {
+              ctrl.serverKnownState = String(d.state).toUpperCase();
+            }
+          }
+
           if (hasPending && !(sameClient && srvSeq >= ctrl.seq)) {
             devState[d.id] = ctrl.desiredState;
           } else if (srvVer > 0 && ctrl.lastVersion > 0 && srvVer < ctrl.lastVersion) {
@@ -554,12 +571,17 @@
           } else {
             devState[d.id] = d.state;
             ctrl.confirmedState = d.state;
+            ctrl.serverKnownState = String(d.state || '').toUpperCase();
             if (!hasPending) {
               ctrl.desiredState = d.state;
               if (sameClient && srvSeq > ctrl.seq) ctrl.seq = srvSeq;
             }
             if (sameClient && srvSeq > ctrl.lastConfirmedSeq) ctrl.lastConfirmedSeq = srvSeq;
             if (srvVer > ctrl.lastVersion) ctrl.lastVersion = srvVer;
+            ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), ctrl.lastVersion);
+            if (snapRev > 0) {
+              ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRev);
+            }
           }
         }
       }
@@ -747,15 +769,51 @@
               resolve();
               return;
             }
+            const respVer = Number(
+              data && data.device_version !== undefined && data.device_version !== null ? data.device_version : 0
+            );
+            const respRev = Number(
+              data && data.revision_seq !== undefined && data.revision_seq !== null
+                ? data.revision_seq
+                : (data && data.snapshot && data.snapshot.revision_seq ? data.snapshot.revision_seq : 0)
+            );
+            const maxKnownVer = Math.max(Number(ctrl.lastVersion || 0), Number(ctrl.serverKnownVersion || 0));
+            const maxKnownDevRev = Math.max(
+              Number(wokwiLastRevisionSeq || 0),
+              Number(ctrl.serverKnownRevisionSeq || 0)
+            );
+            const isSupersededResponse =
+              (respVer > 0 && maxKnownVer > 0 && respVer < maxKnownVer) ||
+              (respRev > 0 &&
+                maxKnownDevRev > 0 &&
+                respRev < maxKnownDevRev &&
+                (respVer === 0 || maxKnownVer === 0 || respVer <= maxKnownVer));
+            if (isSupersededResponse) {
+              ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq || 0, mySeq);
+              if (ctrl.pendingCount === 0 && ctrl.debounceTimer === null) {
+                const authNewer = String(
+                  ctrl.serverKnownState || ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF')
+                ).toUpperCase();
+                ctrl.confirmedState = authNewer;
+                ctrl.desiredState = authNewer;
+                ctrl.lastVersion = Math.max(ctrl.lastVersion || 0, maxKnownVer);
+                applyWokwiSingleDeviceUI(devId, authNewer);
+              }
+              resolve();
+              return;
+            }
             if (data && data.stale_ignored) {
               const authState = String((data && data.state) || ctrl.confirmedState || (devId === 'main_door' ? 'CLOSED' : 'OFF')).toUpperCase();
               ctrl.confirmedState = authState;
               ctrl.desiredState = authState;
-              if (data.device_version !== undefined) {
-                ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+              ctrl.serverKnownState = authState;
+              if (respVer > 0) {
+                ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
+                ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
               }
-              if (data.revision_seq !== undefined) {
-                wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, Number(data.revision_seq) || 0);
+              if (respRev > 0) {
+                wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, respRev);
+                ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, respRev);
               }
               applyWokwiSingleDeviceUI(devId, authState);
               if (data.snapshot) syncWokwiComponents(data.snapshot);
@@ -774,12 +832,15 @@
             const finalState = String((data && data.state) || nextState).toUpperCase();
             ctrl.confirmedState = finalState;
             ctrl.desiredState = finalState;
+            ctrl.serverKnownState = finalState;
             ctrl.lastConfirmedSeq = Math.max(ctrl.lastConfirmedSeq, mySeq);
-            if (data && data.device_version !== undefined) {
-              ctrl.lastVersion = Math.max(ctrl.lastVersion, Number(data.device_version) || 0);
+            if (respVer > 0) {
+              ctrl.lastVersion = Math.max(ctrl.lastVersion, respVer);
+              ctrl.serverKnownVersion = Math.max(ctrl.serverKnownVersion || 0, respVer);
             }
-            if (data && data.revision_seq !== undefined) {
-              wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, Number(data.revision_seq) || 0);
+            if (respRev > 0) {
+              wokwiLastRevisionSeq = Math.max(wokwiLastRevisionSeq, respRev);
+              ctrl.serverKnownRevisionSeq = Math.max(ctrl.serverKnownRevisionSeq || 0, respRev);
             }
             applyWokwiSingleDeviceUI(devId, finalState);
             if (data && data.snapshot) syncWokwiComponents(data.snapshot);
@@ -996,6 +1057,18 @@
             const msgSeq = Number(msg.last_client_seq || 0);
             const msgRev = Number(msg.revision_seq || 0);
             const sameClient = Boolean(msg.last_client_id && msg.last_client_id === WOKWI_CLIENT_ID);
+            if (
+              msgVer > Number(ctrl.serverKnownVersion || 0) ||
+              (msgRev > Number(ctrl.serverKnownRevisionSeq || 0) && msgVer >= Number(ctrl.serverKnownVersion || 0))
+            ) {
+              ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), msgVer);
+              if (msgRev > 0) {
+                ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), msgRev);
+              }
+              if (msg.new_state) {
+                ctrl.serverKnownState = String(msg.new_state).toUpperCase();
+              }
+            }
             const hasPending = ctrl.pendingCount > 0 || ctrl.debounceTimer !== null;
             const isStale =
               (msgRev > 0 && wokwiLastRevisionSeq > 0 && msgRev < wokwiLastRevisionSeq) ||
