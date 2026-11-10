@@ -52,6 +52,8 @@ from simulator.auth.qr_totp_mixin import (
     QR_SESSION_COOKIE_NAME,
     QR_SHORT_EXPIRY_SEC,
     _QR_ATOMIC_LOCK,
+    _iter_header_pairs,
+    extract_tolerant_raw_body_pairs_and_strings,
     hash_qr_scan_nonce,
     is_qr_registration_token_or_session,
 )
@@ -132,25 +134,23 @@ def _is_qr_registration_session_request(req_or_ws: Request | WebSocket) -> bool:
         if ck_val and is_qr_registration_token_or_session(ck_val, mgr3=mgr3):
             return True
 
-    for strict_hdr in (
-        "x-qr-scan-nonce",
-        "x-scan-nonce",
-        "x-qr-session-id",
-        "x-qr-post-scan-token",
-        "x-qr-token",
-    ):
-        if str(headers.get(strict_hdr) or "").strip():
+    for hk, hv in _iter_header_pairs(headers):
+        if not hv:
+            continue
+        if hk in (
+            "x-qr-scan-nonce",
+            "x-scan-nonce",
+            "x-qr-session-id",
+            "x-qr-post-scan-token",
+            "x-qr-token",
+        ):
             return True
-
-    x_sess_tok = str(headers.get("x-session-token") or "").strip()
-    if x_sess_tok and is_qr_registration_token_or_session(x_sess_tok, mgr3=mgr3):
-        return True
-
-    auth_hdr = str(headers.get("authorization") or "").strip()
-    if auth_hdr.lower().startswith("bearer "):
-        bearer_tok = auth_hdr[7:].strip()
-        if bearer_tok and is_qr_registration_token_or_session(bearer_tok, mgr3=mgr3):
+        if hk == "x-session-token" and is_qr_registration_token_or_session(hv, mgr3=mgr3):
             return True
+        if hk == "authorization" and hv.lower().startswith("bearer "):
+            bearer_tok = hv[7:].strip()
+            if bearer_tok and is_qr_registration_token_or_session(bearer_tok, mgr3=mgr3):
+                return True
 
     qp_items = (
         query_params.multi_items()
@@ -219,43 +219,35 @@ def _is_qr_registration_payload_dict(payload: Any, mgr3: Any = None, _depth: int
 
 
 def _is_qr_registration_raw_body(raw_body: bytes, mgr3: Any = None) -> bool:
-    """Phân tích body thô (JSON, form-urlencoded hoặc multipart/form-data) để chặn token/session đăng ký QR đi sang các route khác."""
+    """Phân tích khoan dung body thô (JSON chuẩn/gãy dở, \\uXXXX escape cho cả khóa & giá trị, số tràn 1e309/NaN,
+    form-urlencoded %XX hoặc multipart/form-data) để chặn mọi token/session/scan_nonce đăng ký QR đi sang các route khác.
+    """
     if not raw_body or not raw_body.strip():
         return False
     if mgr3 is None:
         mgr3 = get_auth_3layer_manager()
-    try:
-        text = raw_body.decode("utf-8", errors="ignore").strip()
-    except Exception:
-        return False
-    if not text:
-        return False
 
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, (dict, list)) and _is_qr_registration_payload_dict(parsed, mgr3=mgr3):
-            return True
-    except Exception:
-        if re.search(
-            r'"(?:scan_nonce|post_scan_token|qr_token|sh_qr_scan_nonce|sh_qr_session_id)"\s*:\s*"[^"]+"|guest_sess_[A-Za-z0-9_]+|qr_pst_[A-Za-z0-9_-]+',
-            text,
-        ):
-            return True
+    pairs, strings = extract_tolerant_raw_body_pairs_and_strings(raw_body=raw_body)
+    strict_qr_keys = (
+        "post_scan_token",
+        "scan_nonce",
+        "qr_token",
+        QR_SCAN_COOKIE_NAME,
+        QR_SESSION_COOKIE_NAME,
+    )
+    tok_keys = ("session_token", "sh_session_token", "guest_session_id", "session_id", "token")
 
-    if "Content-Disposition:" in text and "name=" in text:
-        mp_map: dict[str, str] = {}
-        for m_mp in re.finditer(r'name="([^"]{1,128})"\r?\n\r?\n([^\r\n]{1,512})', text):
-            mp_map[m_mp.group(1)] = m_mp.group(2).strip()
-        if mp_map and _is_qr_registration_payload_dict(mp_map, mgr3=mgr3):
+    for bk, bv in pairs:
+        if not bv:
+            continue
+        if bk in strict_qr_keys:
+            return True
+        if bk in tok_keys and is_qr_registration_token_or_session(bv, mgr3=mgr3):
             return True
 
-    if "=" in text and not text.startswith("{"):
-        try:
-            qs_map = {k: v[0] for k, v in parse_qs(text, keep_blank_values=False).items() if v}
-            if qs_map and _is_qr_registration_payload_dict(qs_map, mgr3=mgr3):
-                return True
-        except Exception:
-            pass
+    for bs in strings:
+        if bs and is_qr_registration_token_or_session(bs, mgr3=mgr3):
+            return True
 
     return False
 
@@ -277,23 +269,33 @@ app.add_middleware(
 
 @app.middleware("http")
 async def enforce_isolated_qr_registration_session(request: Request, call_next: Any) -> Response:
-    """Cô lập tuyệt đối phiên/token đăng ký QR (Requirement 6 & Fix N2):
-    Phiên hoặc token đăng ký QR (trên mọi carrier: cookie, header, query, JSON/form body)
-    chỉ được phép truy cập trang đăng ký độc lập (/guest, /guest_enroll, /guest-qr)
-    và các API đăng ký khách tương ứng; từ chối 403 đối với mọi route khác trong hệ thống.
+    """Cô lập tuyệt đối phiên/token đăng ký QR & Hủy phiên gốc trên mọi lỗi 4xx/422/parse/validation (Req 3, Req 6, Fix N1, N2, R4-N1):
+    1. Trích xuất khoan dung phiên/scan_nonce từ MỌI carrier (cookie, header, query, JSON/form/multipart body kể cả \\uXXXX escape)
+       TRƯỚC và ĐỘC LẬP với bước phân tích/kiểm tra body của route.
+    2. Phiên/token đăng ký QR chỉ được truy cập trang đăng ký độc lập (/guest, /guest_enroll, /guest-qr) và API đăng ký khách;
+       mọi route khác bị từ chối 403.
+    3. Bất kỳ phản hồi lỗi >= 400 hoặc ngoại lệ phân tích/kiểm tra nào khi đã nhận diện đúng phiên quét đều hủy phiên đó ngay lập tức.
     """
+    from simulator.api.routes_qr import (
+        _invalidate_any_nonce_bound_session,
+        _invalidate_bound_session_on_malformed_payload,
+        _precompute_request_qr_credentials,
+    )
+
     path = request.url.path.rstrip("/") or "/"
+    try:
+        raw_body = await request.body()
+    except Exception:
+        raw_body = b""
+    _precompute_request_qr_credentials(request, raw_body=raw_body)
+
     if path not in _QR_ISOLATED_ALLOWED_PATHS:
         is_qr_isolated = _is_qr_registration_session_request(request)
-        if not is_qr_isolated:
-            try:
-                raw_body = await request.body()
-            except Exception:
-                raw_body = b""
-            if raw_body:
-                is_qr_isolated = _is_qr_registration_raw_body(raw_body)
+        if not is_qr_isolated and raw_body:
+            is_qr_isolated = _is_qr_registration_raw_body(raw_body)
 
         if is_qr_isolated:
+            allow_owner_qr_generate = False
             # Chỉ cho phép ngoại lệ duy nhất khi chính Chủ nhà Cấp 1 (mang Bearer token Admin Cấp 1 hợp lệ)
             # gọi endpoint phát hành mã QR mới trên cùng TestClient.
             if path in ("/api/auth3/guest_qr_current", "/api/auth3/qr/generate"):
@@ -303,49 +305,64 @@ async def enforce_isolated_qr_registration_session(request: Request, call_next: 
                     if bearer_tok and not is_qr_registration_token_or_session(bearer_tok):
                         sess = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
                         if sess.is_authenticated and sess.tier == 1 and sess.role == "ADMIN":
-                            return await call_next(request)
-                from simulator.api.routes_qr import (
-                    _has_abnormal_qr_query_numeric_params,
-                    _invalidate_any_nonce_bound_session,
+                            allow_owner_qr_generate = True
+            if not allow_owner_qr_generate:
+                _invalidate_any_nonce_bound_session(
+                    request,
+                    get_auth_3layer_manager(),
+                    "ISOLATED_OTHER_ROUTE_FORBIDDEN_MISTAKE",
+                    raw_body=raw_body,
+                )
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "status": "QR_REGISTRATION_SESSION_ISOLATED",
+                        "reason": "OTHER_ROUTE_FORBIDDEN_FOR_QR_SESSION",
+                        "error": "Từ chối truy cập: Phiên/token đăng ký QR bị cô lập hoàn toàn, không được phép truy cập bất kỳ route nào khác ngoài luồng đăng ký!",
+                    },
+                    status_code=403,
                 )
 
-                try:
-                    qr_raw_body = await request.body()
-                except Exception:
-                    qr_raw_body = b""
-                if _has_abnormal_qr_query_numeric_params(request) or (qr_raw_body and qr_raw_body.strip()):
-                    _invalidate_any_nonce_bound_session(
-                        request,
-                        get_auth_3layer_manager(),
-                        "QR_CURRENT_MALFORMED_OR_UNAUTHORIZED_MISTAKE",
-                        raw_body=qr_raw_body,
-                    )
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "status": "QR_REGISTRATION_SESSION_ISOLATED",
-                    "reason": "OTHER_ROUTE_FORBIDDEN_FOR_QR_SESSION",
-                    "error": "Từ chối truy cập: Phiên/token đăng ký QR bị cô lập hoàn toàn, không được phép truy cập bất kỳ route nào khác ngoài luồng đăng ký!",
-                },
-                status_code=403,
-            )
-    return await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        mgr3 = get_auth_3layer_manager()
+        _invalidate_any_nonce_bound_session(
+            request,
+            mgr3,
+            "UNHANDLED_REQUEST_ERROR_MISTAKE",
+            raw_body=raw_body,
+        )
+        if path in _QR_ISOLATED_ALLOWED_PATHS or path.startswith("/api/auth3/"):
+            return _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
+        raise
+
+    if response.status_code >= 400:
+        _invalidate_any_nonce_bound_session(
+            request,
+            get_auth_3layer_manager(),
+            f"HTTP_{response.status_code}_ERROR_MISTAKE",
+            raw_body=raw_body,
+        )
+    return response
 
 
 @app.exception_handler(RequestValidationError)
 async def custom_validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
-    """Defense-in-depth (Fix N1): Nếu bất kỳ route đăng ký khách QR nào phát sinh RequestValidationError (422),
-    tự động hủy phiên quét đang gắn kết và bắt buộc quét lại QR mới.
-    """
-    path = request.url.path.rstrip("/") or "/"
-    if path in _QR_ISOLATED_ALLOWED_PATHS or path.startswith("/api/auth3/guest"):
-        from simulator.api.routes_qr import _invalidate_bound_session_on_malformed_payload
+    """Defense-in-depth (Fix N1 & R4-N1): Mọi RequestValidationError (422) đều hủy phiên quét đang gắn kết nếu có."""
+    from simulator.api.routes_qr import (
+        _invalidate_any_nonce_bound_session,
+        _invalidate_bound_session_on_malformed_payload,
+    )
 
-        mgr3 = get_auth_3layer_manager()
-        try:
-            raw_body = await request.body()
-        except Exception:
-            raw_body = b""
+    path = request.url.path.rstrip("/") or "/"
+    mgr3 = get_auth_3layer_manager()
+    try:
+        raw_body = await request.body()
+    except Exception:
+        raw_body = b""
+    _invalidate_any_nonce_bound_session(request, mgr3, "VALIDATION_ERROR_MISTAKE", raw_body=raw_body)
+    if path in _QR_ISOLATED_ALLOWED_PATHS or path.startswith("/api/auth3/guest"):
         return _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
     return JSONResponse({"detail": exc.errors()}, status_code=422)
 
@@ -364,6 +381,21 @@ async def disable_static_cache(request: Request, call_next: Any) -> Response:
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: Exception) -> Response:
     status_code = getattr(exc, "status_code", 404)
+    if status_code >= 400:
+        try:
+            from simulator.api.routes_qr import _invalidate_any_nonce_bound_session
+
+            raw_body = getattr(getattr(request, "state", None), "qr_raw_body", None)
+            if not isinstance(raw_body, (bytes, bytearray)):
+                raw_body = await request.body()
+            _invalidate_any_nonce_bound_session(
+                request,
+                get_auth_3layer_manager(),
+                f"HTTP_EXCEPTION_{status_code}_MISTAKE",
+                raw_body=bytes(raw_body) if raw_body else None,
+            )
+        except Exception:
+            pass
     if status_code == 404:
         accept = request.headers.get("accept", "")
         # Nếu là gọi API (/api/*) hoặc client không yêu cầu HTML: trả JSON chuẩn
@@ -448,6 +480,7 @@ async def guest_enroll_page(request: Request) -> Response:
     - Từ chối 403 nếu mở link đã sao chép từ trình duyệt/thiết bị khác, hoặc khi token/session đã dùng/hết hạn/hủy.
     """
     from simulator.api.routes_qr import (
+        _extract_request_scan_nonce,
         _has_abnormal_qr_query_numeric_params,
         _invalidate_any_nonce_bound_session,
         _invalidate_bound_session_on_malformed_payload,
@@ -462,12 +495,7 @@ async def guest_enroll_page(request: Request) -> Response:
         q_sid = str(request.query_params.get("session_id") or request.query_params.get("guest_session_id") or "").strip()
         q_pst = str(request.query_params.get("post_scan_token") or "").strip()
         q_tok = str(request.query_params.get("token") or "").strip()
-        incoming_nonce = str(
-            request.cookies.get(QR_SCAN_COOKIE_NAME)
-            or request.headers.get("x-qr-scan-nonce")
-            or request.query_params.get("scan_nonce")
-            or ""
-        ).strip()
+        incoming_nonce = _extract_request_scan_nonce(request)
         new_cookie_nonce: str | None = None
 
         with _QR_ATOMIC_LOCK:
@@ -479,6 +507,7 @@ async def guest_enroll_page(request: Request) -> Response:
                             sess_info = cand
                             break
                 if not isinstance(sess_info, dict):
+                    _invalidate_any_nonce_bound_session(request, mgr3, reason="INVALID_POST_SCAN_LINK_MISTAKE")
                     return JSONResponse(
                         {
                             "ok": False,
@@ -509,8 +538,9 @@ async def guest_enroll_page(request: Request) -> Response:
                         },
                         status_code=403,
                     )
-                if time.time() > float(sess_info.get("session_expires_at") or 0.0):
+                if cur_status == "EXPIRED" or time.time() > float(sess_info.get("session_expires_at") or 0.0):
                     sess_info["status"] = "EXPIRED"
+                    mgr3._purge_pending_otps_for_sessions({str(sess_info.get("session_id") or q_sid)})
                     return JSONResponse(
                         {
                             "ok": False,
@@ -523,6 +553,7 @@ async def guest_enroll_page(request: Request) -> Response:
                 expected_hash = str(sess_info.get("bound_scan_nonce_hash") or "").strip()
                 actual_hash = hash_qr_scan_nonce(incoming_nonce)
                 if not expected_hash or not actual_hash or not hmac.compare_digest(actual_hash, expected_hash):
+                    _invalidate_any_nonce_bound_session(request, mgr3, reason="GUEST_PAGE_NONCE_MISMATCH_MISTAKE")
                     return JSONResponse(
                         {
                             "ok": False,
@@ -535,6 +566,7 @@ async def guest_enroll_page(request: Request) -> Response:
                 if q_pst:
                     expected_pst = str(sess_info.get("post_scan_token") or "").strip()
                     if expected_pst and not hmac.compare_digest(q_pst, expected_pst):
+                        _invalidate_any_nonce_bound_session(request, mgr3, reason="POST_SCAN_TOKEN_MISMATCH_MISTAKE")
                         return JSONResponse(
                             {
                                 "ok": False,
@@ -548,6 +580,7 @@ async def guest_enroll_page(request: Request) -> Response:
             elif q_tok:
                 tok_meta = mgr3.active_qr_tokens.get(q_tok)
                 if not isinstance(tok_meta, dict):
+                    _invalidate_any_nonce_bound_session(request, mgr3, reason="TOKEN_INVALID_MISTAKE")
                     return JSONResponse(
                         {
                             "ok": False,
@@ -610,14 +643,17 @@ async def guest_enroll_page(request: Request) -> Response:
 
         resp = FileResponse(STATIC_DIR / "guest_enroll.html", media_type="text/html")
         if new_cookie_nonce:
-            resp.set_cookie(
-                key=QR_SCAN_COOKIE_NAME,
-                value=new_cookie_nonce,
-                max_age=int(QR_SHORT_EXPIRY_SEC),
-                httponly=True,
-                samesite="lax",
-                path="/",
-            )
+            try:
+                resp.set_cookie(
+                    key=QR_SCAN_COOKIE_NAME,
+                    value=new_cookie_nonce,
+                    max_age=int(QR_SHORT_EXPIRY_SEC),
+                    httponly=True,
+                    samesite="lax",
+                    path="/",
+                )
+            except Exception:
+                pass
         return resp
     except Exception:
         _invalidate_any_nonce_bound_session(request, mgr3, reason="GUEST_PAGE_UNEXPECTED_INPUT_MISTAKE")

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
+import re
 import secrets
 import threading
 import time
 from typing import Any
+from urllib.parse import parse_qsl, unquote_plus
 
 from simulator.auth.constants_and_crypto import (
     DURATION_LABELS_VN,
@@ -30,7 +33,390 @@ def hash_qr_scan_nonce(nonce: str | None) -> str:
     clean = str(nonce or "").strip()
     if not clean:
         return ""
-    return hashlib.sha256(clean.encode("utf-8")).hexdigest()
+    return hashlib.sha256(clean.encode("utf-8", errors="surrogatepass")).hexdigest()
+
+
+class _JsonObjectPairs(list):
+    """Lưu danh sách cặp (key, value) của JSON object để giữ nguyên các khóa trùng lặp khi phân tích khoan dung."""
+
+
+class _RawJsonLiteral(str):
+    """Đại diện nguyên văn cho số thực/số nguyên/hằng số JSON (kể cả 1e309, NaN, Infinity, số nguyên khổng lồ)."""
+
+
+_HEX_DIGITS_SET: frozenset[str] = frozenset("0123456789abcdefABCDEF")
+_JSON_SIMPLE_ESCAPES: dict[str, str] = {
+    '"': '"',
+    "\\": "\\",
+    "/": "/",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+}
+_NON_CREDENTIAL_HTTP_HEADERS: frozenset[str] = frozenset(
+    {
+        "host",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "accept-language",
+        "connection",
+        "content-type",
+        "content-length",
+        "origin",
+        "referer",
+        "cache-control",
+        "pragma",
+        "cookie",
+        "sec-fetch-dest",
+        "sec-fetch-mode",
+        "sec-fetch-site",
+        "upgrade",
+        "sec-websocket-key",
+        "sec-websocket-version",
+        "sec-websocket-extensions",
+    }
+)
+
+
+def unescape_json_string_literal(raw_inner: str) -> str:
+    """Giải mã đầy đủ chuỗi JSON (kể cả \\uXXXX, cặp surrogate UTF-16, \\\", \\\\) độc lập với lỗi cú pháp bên ngoài."""
+    if not raw_inner:
+        return ""
+    if "\\" not in raw_inner:
+        return raw_inner
+    try:
+        decoded = json.loads(f'"{raw_inner}"')
+        if isinstance(decoded, str):
+            return decoded
+    except Exception:
+        pass
+
+    out: list[str] = []
+    n = len(raw_inner)
+    i = 0
+    while i < n:
+        ch = raw_inner[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        if i + 1 >= n:
+            break
+        esc = raw_inner[i + 1]
+        if esc in _JSON_SIMPLE_ESCAPES:
+            out.append(_JSON_SIMPLE_ESCAPES[esc])
+            i += 2
+            continue
+        if esc == "u" and i + 6 <= n and all(c in _HEX_DIGITS_SET for c in raw_inner[i + 2 : i + 6]):
+            code = int(raw_inner[i + 2 : i + 6], 16)
+            if (
+                0xD800 <= code <= 0xDBFF
+                and i + 12 <= n
+                and raw_inner[i + 6 : i + 8] == "\\u"
+                and all(c in _HEX_DIGITS_SET for c in raw_inner[i + 8 : i + 12])
+            ):
+                low = int(raw_inner[i + 8 : i + 12], 16)
+                if 0xDC00 <= low <= 0xDFFF:
+                    combined = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                    out.append(chr(combined))
+                    i += 12
+                    continue
+            out.append(chr(code))
+            i += 6
+            continue
+        out.append(esc)
+        i += 2
+    return "".join(out)
+
+
+def decode_raw_body_texts(raw_body: bytes | None) -> list[str]:
+    """Giải mã khoan dung raw_body sang danh sách chuỗi văn bản (hỗ trợ UTF-8, UTF-8-SIG và UTF-16/UTF-32 có BOM/NUL)."""
+    if not raw_body:
+        return []
+    bounded = raw_body[:2_000_000]
+    texts: list[str] = []
+
+    def _add_text(t: str) -> None:
+        cleaned = t.lstrip("\ufeff").strip()
+        if cleaned and cleaned not in texts:
+            texts.append(cleaned)
+
+    if bounded.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        enc = "utf-32-le" if bounded.startswith(b"\xff\xfe\x00\x00") else "utf-32-be"
+        _add_text(bounded[4:].decode(enc, errors="ignore"))
+    elif bounded.startswith((b"\xff\xfe", b"\xfe\xff")):
+        enc = "utf-16-le" if bounded.startswith(b"\xff\xfe") else "utf-16-be"
+        _add_text(bounded[2:].decode(enc, errors="ignore"))
+
+    _add_text(bounded.decode("utf-8", errors="ignore"))
+
+    sample = bounded[:64]
+    if b"\x00" in sample:
+        for alt_enc in ("utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"):
+            try:
+                _add_text(bounded.decode(alt_enc, errors="ignore"))
+            except Exception:
+                pass
+    return texts
+
+
+def extract_tolerant_raw_body_pairs_and_strings(
+    raw_body: bytes | None = None,
+    payload: Any = None,
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Trích xuất khoan dung toàn bộ cặp (khóa, giá trị) và các chuỗi ngắn từ payload/raw_body TRƯỚC và ĐỘC LẬP với
+    bước kiểm tra số học/cấu trúc JSON nghiêm ngặt:
+    - Giải mã đầy đủ \\uXXXX cho cả khóa và giá trị kể cả khi cùng body có 1e309, -1e309, NaN, Infinity, số khổng lồ, khóa trùng hoặc JSON gãy dở.
+    - Giải mã %XX cho application/x-www-form-urlencoded và multipart/form-data.
+    """
+    pairs: list[tuple[str, str]] = []
+    strings: list[str] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    seen_strings: set[str] = set()
+
+    def _rec_pair(k: str, v: str) -> None:
+        ck = k.strip()
+        cv = v.strip()
+        if not cv or len(cv) > 512:
+            return
+        if ck and len(ck) <= 256 and (ck, cv) not in seen_pairs:
+            seen_pairs.add((ck, cv))
+            pairs.append((ck, cv))
+        if cv not in seen_strings:
+            seen_strings.add(cv)
+            strings.append(cv)
+
+    def _rec_str(v: str) -> None:
+        cv = v.strip()
+        if cv and len(cv) <= 512 and cv not in seen_strings:
+            seen_strings.add(cv)
+            strings.append(cv)
+
+    def _walk_obj(node: Any, depth: int = 0) -> None:
+        if depth > 64 or node is None or isinstance(node, bool):
+            return
+        if isinstance(node, _JsonObjectPairs):
+            for k, v in node:
+                ks = str(k or "")
+                if isinstance(v, str):
+                    _rec_pair(ks, str(v))
+                elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                    _rec_pair(ks, str(v))
+                else:
+                    _walk_obj(v, depth + 1)
+            return
+        if isinstance(node, dict):
+            for k, v in node.items():
+                ks = str(k or "")
+                if isinstance(v, str):
+                    _rec_pair(ks, v)
+                elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                    _rec_pair(ks, str(v))
+                else:
+                    _walk_obj(v, depth + 1)
+            return
+        if isinstance(node, (list, tuple)):
+            for item in node:
+                if isinstance(item, str) and not isinstance(item, _RawJsonLiteral):
+                    _rec_str(item)
+                else:
+                    _walk_obj(item, depth + 1)
+            return
+        if isinstance(node, str) and not isinstance(node, _RawJsonLiteral):
+            _rec_str(node)
+
+    if payload is not None:
+        _walk_obj(payload, 0)
+
+    for text in decode_raw_body_texts(raw_body):
+        parsed_ok = False
+        try:
+            tolerant_ast = json.loads(
+                text,
+                object_pairs_hook=_JsonObjectPairs,
+                parse_float=_RawJsonLiteral,
+                parse_int=_RawJsonLiteral,
+                parse_constant=_RawJsonLiteral,
+            )
+            _walk_obj(tolerant_ast, 0)
+            parsed_ok = True
+        except Exception:
+            parsed_ok = False
+
+        if not parsed_ok:
+            for m_kv in re.finditer(r'"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"', text):
+                raw_k, raw_v = m_kv.group(1), m_kv.group(2)
+                if len(raw_k) <= 1024 and 1 <= len(raw_v) <= 4096:
+                    _rec_pair(
+                        unescape_json_string_literal(raw_k),
+                        unescape_json_string_literal(raw_v),
+                    )
+            for m_kn in re.finditer(r'"((?:[^"\\]|\\.)*)"\s*:\s*([+-]?\d{1,64})\b', text):
+                raw_k, raw_num = m_kn.group(1), m_kn.group(2)
+                if len(raw_k) <= 1024:
+                    _rec_pair(unescape_json_string_literal(raw_k), raw_num)
+            for m_str in re.finditer(r'"((?:[^"\\]|\\.)*)"', text):
+                raw_s = m_str.group(1)
+                if 1 <= len(raw_s) <= 4096:
+                    _rec_str(unescape_json_string_literal(raw_s))
+
+        if "Content-Disposition:" in text and "name=" in text:
+            for m_mp in re.finditer(r'name="([^"]{1,256})"(?:;[^\r\n]*)?\r?\n\r?\n([^\r\n]{1,1024})', text):
+                raw_mp_k = m_mp.group(1)
+                raw_mp_v = m_mp.group(2).strip()
+                mp_k = unquote_plus(unescape_json_string_literal(raw_mp_k))
+                _rec_pair(raw_mp_k, raw_mp_v)
+                _rec_pair(mp_k, raw_mp_v)
+                _rec_pair(mp_k, unescape_json_string_literal(raw_mp_v))
+
+        if "=" in text and not text.startswith("{"):
+            try:
+                for fq_k, fq_v in parse_qsl(text, keep_blank_values=False):
+                    _rec_pair(fq_k, fq_v)
+            except Exception:
+                pass
+
+    return pairs, strings
+
+
+def _iter_header_pairs(headers: Any) -> list[tuple[str, str]]:
+    """Đọc toàn bộ cặp header (kể cả các header trùng tên) dưới dạng (lower_name, value)."""
+    if headers is None:
+        return []
+    out: list[tuple[str, str]] = []
+    raw_list = getattr(headers, "raw", None)
+    if isinstance(raw_list, (list, tuple)) and raw_list:
+        for item in raw_list:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                hk = item[0].decode("latin-1", errors="ignore") if isinstance(item[0], (bytes, bytearray)) else str(item[0])
+                hv = item[1].decode("latin-1", errors="ignore") if isinstance(item[1], (bytes, bytearray)) else str(item[1])
+                out.append((hk.strip().lower(), hv.strip()))
+        return out
+    if hasattr(headers, "keys") and hasattr(headers, "getlist"):
+        for hk in headers.keys():
+            for hv in headers.getlist(hk):
+                out.append((str(hk).strip().lower(), str(hv or "").strip()))
+        return out
+    if hasattr(headers, "items"):
+        for hk, hv in headers.items():
+            out.append((str(hk).strip().lower(), str(hv or "").strip()))
+    return out
+
+
+def extract_all_request_qr_credentials(
+    request: Any | None = None,
+    payload: Any = None,
+    raw_body: bytes | None = None,
+) -> dict[str, list[str]]:
+    """Thu thập toàn diện mọi thông tin định danh phiên/token/scan_nonce trên tất cả carrier:
+    Cookies, Headers (kể cả trùng lặp & Bearer), Query Params (multi_items), và Raw Body khoan dung (JSON \\uXXXX, form, multipart).
+    """
+    nonces: list[str] = []
+    session_ids: list[str] = []
+    post_scan_tokens: list[str] = []
+    qr_tokens: list[str] = []
+    all_secrets: list[str] = []
+
+    def _push(target: list[str], val: str) -> None:
+        c = val.strip()
+        if c and len(c) <= 512:
+            if c not in target:
+                target.append(c)
+            if c not in all_secrets:
+                all_secrets.append(c)
+
+    if request is not None:
+        if raw_body is None:
+            cached = getattr(getattr(request, "state", None), "qr_raw_body", None)
+            if isinstance(cached, (bytes, bytearray)):
+                raw_body = bytes(cached)
+            else:
+                priv_body = getattr(request, "_body", None)
+                if isinstance(priv_body, (bytes, bytearray)):
+                    raw_body = bytes(priv_body)
+
+        cookies = getattr(request, "cookies", None) or {}
+        if hasattr(cookies, "items"):
+            for ck_k, ck_v in cookies.items():
+                k = str(ck_k or "").strip()
+                v = str(ck_v or "").strip()
+                if not v:
+                    continue
+                _push(all_secrets, v)
+                if k in (QR_SCAN_COOKIE_NAME, "scan_nonce"):
+                    _push(nonces, v)
+                elif k in (QR_SESSION_COOKIE_NAME, "guest_session_id", "session_id", "session_token", "sh_session_token"):
+                    _push(session_ids, v)
+                elif k == "post_scan_token":
+                    _push(post_scan_tokens, v)
+                elif k in ("token", "qr_token"):
+                    _push(qr_tokens, v)
+
+        for hk, hv in _iter_header_pairs(getattr(request, "headers", None)):
+            if not hv:
+                continue
+            if hk == "authorization":
+                if hv.lower().startswith("bearer "):
+                    bt = hv[7:].strip()
+                    if bt:
+                        _push(session_ids, bt)
+                else:
+                    _push(all_secrets, hv)
+                continue
+            if hk in ("x-qr-scan-nonce", "x-scan-nonce"):
+                _push(nonces, hv)
+            elif hk in ("x-qr-session-id", "x-session-token"):
+                _push(session_ids, hv)
+            elif hk == "x-qr-post-scan-token":
+                _push(post_scan_tokens, hv)
+            elif hk == "x-qr-token":
+                _push(qr_tokens, hv)
+            elif hk not in _NON_CREDENTIAL_HTTP_HEADERS:
+                _push(all_secrets, hv)
+
+        qp = getattr(request, "query_params", None)
+        if qp is not None:
+            qp_items = qp.multi_items() if hasattr(qp, "multi_items") else qp.items()
+            for raw_qk, raw_qv in qp_items:
+                qk = str(raw_qk or "").strip()
+                qv = str(raw_qv or "").strip()
+                if not qv:
+                    continue
+                _push(all_secrets, qv)
+                if qk in ("scan_nonce", QR_SCAN_COOKIE_NAME):
+                    _push(nonces, qv)
+                elif qk in (QR_SESSION_COOKIE_NAME, "session_id", "guest_session_id", "session_token", "sh_session_token"):
+                    _push(session_ids, qv)
+                elif qk == "post_scan_token":
+                    _push(post_scan_tokens, qv)
+                elif qk in ("token", "qr_token"):
+                    _push(qr_tokens, qv)
+
+    body_pairs, body_strings = extract_tolerant_raw_body_pairs_and_strings(raw_body=raw_body, payload=payload)
+    for bk, bv in body_pairs:
+        if bk in ("scan_nonce", QR_SCAN_COOKIE_NAME):
+            _push(nonces, bv)
+        elif bk in (QR_SESSION_COOKIE_NAME, "session_id", "guest_session_id", "session_token", "sh_session_token"):
+            _push(session_ids, bv)
+        elif bk == "post_scan_token":
+            _push(post_scan_tokens, bv)
+        elif bk in ("token", "qr_token"):
+            _push(qr_tokens, bv)
+        else:
+            _push(all_secrets, bv)
+    for bs in body_strings:
+        _push(all_secrets, bs)
+
+    return {
+        "nonces": nonces,
+        "session_ids": session_ids,
+        "post_scan_tokens": post_scan_tokens,
+        "qr_tokens": qr_tokens,
+        "all_candidate_secrets": all_secrets,
+    }
 
 
 def is_qr_registration_token_or_session(val: str | None, mgr3: Any = None) -> bool:
@@ -95,6 +481,19 @@ class AuthQrTotpMixin:
         if not hasattr(self, "known_qr_scan_nonce_hashes") or self.known_qr_scan_nonce_hashes is None:
             self.known_qr_scan_nonce_hashes = set()
 
+    def _purge_pending_otps_for_sessions(self, session_ids: set[str]) -> int:
+        """Xóa tức thì mọi mã OTP email đang chờ thuộc các phiên QR đã bị hủy hoặc hết hạn."""
+        if not session_ids:
+            return 0
+        with _QR_ATOMIC_LOCK:
+            self._ensure_qr_stores()
+            purged = 0
+            for mail_k, rec in list(self.pending_guest_email_otps.items()):
+                if isinstance(rec, dict) and str(rec.get("session_id") or "").strip() in session_ids:
+                    self.pending_guest_email_otps.pop(mail_k, None)
+                    purged += 1
+            return purged
+
     def invalidate_previous_qr_tokens_and_sessions(
         self,
         reason: str = "RESCANNED_NEW_TOKEN_ISSUED",
@@ -106,6 +505,7 @@ class AuthQrTotpMixin:
             self._ensure_qr_stores()
             now_ts = time.time()
             invalidated_count = 0
+            purged_sids: set[str] = set()
 
             for tok, meta in list(self.active_qr_tokens.items()):
                 if tok == exclude_token:
@@ -130,8 +530,11 @@ class AuthQrTotpMixin:
                     tok_ref = str(s_meta.get("token") or "").strip()
                     if tok_ref:
                         self.used_qr_tokens.add(tok_ref)
+                    purged_sids.add(sid)
                     invalidated_count += 1
 
+            if purged_sids:
+                self._purge_pending_otps_for_sessions(purged_sids)
             return invalidated_count
 
     def invalidate_qr_session_on_mistake(
@@ -139,7 +542,7 @@ class AuthQrTotpMixin:
         session_id: str,
         reason: str = "REGISTRATION_ATTEMPT_FAILED_MUST_RESCAN",
     ) -> bool:
-        """Hủy tức thì phiên/token sau khi người quét thao tác sai hoặc gửi dữ liệu lỗi (bắt buộc quét lại QR mới)."""
+        """Hủy tức thì phiên/token và mọi OTP đang chờ sau khi người quét thao tác sai hoặc gửi dữ liệu lỗi (bắt buộc quét lại QR mới)."""
         clean_sid = str(session_id or "").strip()
         if not clean_sid:
             return False
@@ -148,7 +551,8 @@ class AuthQrTotpMixin:
             s_meta = self.guest_qr_sessions.get(clean_sid)
             if not isinstance(s_meta, dict):
                 return False
-            if str(s_meta.get("status") or "").upper() == "CONSUMED":
+            cur_st = str(s_meta.get("status") or "").upper()
+            if cur_st in ("CONSUMED", "EXPIRED"):
                 return False
             now_ts = time.time()
             s_meta["status"] = "INVALIDATED_ON_ERROR"
@@ -164,6 +568,7 @@ class AuthQrTotpMixin:
                         self.active_qr_tokens[tok_ref]["status"] = "INVALIDATED"
                         self.active_qr_tokens[tok_ref]["invalidated"] = True
                         self.active_qr_tokens[tok_ref]["invalidated_reason"] = reason
+            self._purge_pending_otps_for_sessions({clean_sid})
             return True
 
     def verify_owner_cap1_permission(self, owner_id: str = "tuan_anh") -> bool:

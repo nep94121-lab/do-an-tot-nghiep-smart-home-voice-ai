@@ -683,33 +683,46 @@ def resolve_request_session(
             return explicit_session
 
     if request is not None:
-        # 1. Header Authorization Bearer
-        auth_header = str(request.headers.get("authorization", "") or "")
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
+        from simulator.auth.qr_totp_mixin import _iter_header_pairs
 
-        # 2. Header X-Session-Token
-        if not token:
-            token = str(request.headers.get("x-session-token", "") or "").strip()
+        # 1. Header Authorization Bearer & 2. Header X-Session-Token (kể cả header trùng tên)
+        for hk, hv in _iter_header_pairs(getattr(request, "headers", None)):
+            if not hv:
+                continue
+            if hk == "authorization" and hv.lower().startswith("bearer "):
+                cand_bt = hv[7:].strip()
+                if cand_bt and not token:
+                    token = cand_bt
+            elif hk == "x-session-token" and not token:
+                token = hv
 
         # 3. Cookie sh_session_token hoặc session_token
         if not token and hasattr(request, "cookies"):
             token = str(request.cookies.get("sh_session_token") or request.cookies.get("session_token") or "").strip()
 
-        # 4. Query param token
+        # 4. Query param token (multi_items để không bị che bởi tham số rỗng đứng trước)
         if not token and hasattr(request, "query_params"):
-            token = str(
-                request.query_params.get("token")
-                or request.query_params.get("session_token")
-                or request.query_params.get("sh_session_token")
-                or request.query_params.get("session_id")
-                or request.query_params.get("guest_session_id")
-                or request.query_params.get("post_scan_token")
-                or request.query_params.get("qr_token")
-                or ""
-            ).strip()
+            qp = request.query_params
+            qp_items = qp.multi_items() if hasattr(qp, "multi_items") else qp.items()
+            for raw_qk, raw_qv in qp_items:
+                qk = str(raw_qk or "").strip()
+                qv = str(raw_qv or "").strip()
+                if qv and qk in (
+                    "token",
+                    "session_token",
+                    "sh_session_token",
+                    "session_id",
+                    "guest_session_id",
+                    "post_scan_token",
+                    "qr_token",
+                    "scan_nonce",
+                    "sh_qr_scan_nonce",
+                    "sh_qr_session_id",
+                ):
+                    token = qv
+                    break
 
-    # 5. Body payload session_token hoặc guest_session_id
+    # 5. Body payload session_token hoặc guest_session_id / scan_nonce
     if not token and payload and isinstance(payload, dict):
         nested_sess = payload.get("session") if isinstance(payload.get("session"), dict) else {}
         token = str(
@@ -719,6 +732,9 @@ def resolve_request_session(
             or payload.get("session_id")
             or payload.get("post_scan_token")
             or payload.get("qr_token")
+            or payload.get("scan_nonce")
+            or payload.get("sh_qr_scan_nonce")
+            or payload.get("sh_qr_session_id")
             or payload.get("token")
             or nested_sess.get("session_token")
             or nested_sess.get("sh_session_token")
@@ -726,6 +742,9 @@ def resolve_request_session(
             or nested_sess.get("session_id")
             or nested_sess.get("post_scan_token")
             or nested_sess.get("qr_token")
+            or nested_sess.get("scan_nonce")
+            or nested_sess.get("sh_qr_scan_nonce")
+            or nested_sess.get("sh_qr_session_id")
             or nested_sess.get("token")
             or ""
         ).strip()

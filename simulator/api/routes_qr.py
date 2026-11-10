@@ -39,6 +39,8 @@ from simulator.auth.qr_totp_mixin import (
     QR_SESSION_COOKIE_NAME,
     QR_SHORT_EXPIRY_SEC,
     _QR_ATOMIC_LOCK,
+    _iter_header_pairs,
+    extract_all_request_qr_credentials,
     hash_qr_scan_nonce,
 )
 from simulator.auth.session_store import resolve_request_session
@@ -127,17 +129,59 @@ def _extract_request_scan_nonce(request: Request, payload: dict[str, Any] | None
     cookie_val = str(request.cookies.get(QR_SCAN_COOKIE_NAME) or "").strip()
     if cookie_val:
         return cookie_val
-    hdr_val = str(request.headers.get("x-qr-scan-nonce") or "").strip()
-    if hdr_val:
-        return hdr_val
-    qp_val = str(request.query_params.get("scan_nonce") or "").strip()
-    if qp_val:
-        return qp_val
+
+    hdr_vals: list[str] = []
+    for hk, hv in _iter_header_pairs(getattr(request, "headers", None)):
+        if hk == "x-qr-scan-nonce" and hv and hv not in hdr_vals:
+            hdr_vals.append(hv)
+    if len(hdr_vals) > 1:
+        return ""
+    if len(hdr_vals) == 1:
+        return hdr_vals[0]
+
+    qp = getattr(request, "query_params", None)
+    if qp is not None:
+        qp_items = qp.multi_items() if hasattr(qp, "multi_items") else qp.items()
+        qp_vals: list[str] = []
+        for raw_qk, raw_qv in qp_items:
+            if str(raw_qk or "").strip() == "scan_nonce":
+                qv = str(raw_qv or "").strip()
+                if qv and qv not in qp_vals:
+                    qp_vals.append(qv)
+        if len(qp_vals) > 1:
+            return ""
+        if len(qp_vals) == 1:
+            return qp_vals[0]
+
     if isinstance(payload, dict):
         raw_body_nonce = payload.get("scan_nonce")
         if isinstance(raw_body_nonce, str) and raw_body_nonce.strip():
             return raw_body_nonce.strip()
     return ""
+
+
+def _precompute_request_qr_credentials(
+    request: Request,
+    raw_body: bytes | None = None,
+    payload: Any = None,
+) -> tuple[dict[str, list[str]], set[str]]:
+    """Trích xuất và lưu bộ nhớ đệm toàn bộ thông tin phiên/nonce từ mọi carrier TRƯỚC bước phân tích/kiểm tra body."""
+    if raw_body is not None:
+        try:
+            request.state.qr_raw_body = raw_body
+        except Exception:
+            pass
+    creds = extract_all_request_qr_credentials(request=request, payload=payload, raw_body=raw_body)
+    nonce_hashes = {hash_qr_scan_nonce(s) for s in creds["all_candidate_secrets"] if s}
+    try:
+        existing_hashes = getattr(request.state, "qr_nonce_hashes", None)
+        if isinstance(existing_hashes, set):
+            nonce_hashes |= existing_hashes
+        request.state.qr_nonce_hashes = nonce_hashes
+        request.state.qr_extracted_creds = creds
+    except Exception:
+        pass
+    return creds, nonce_hashes
 
 
 def _invalidate_any_nonce_bound_session(
@@ -147,71 +191,49 @@ def _invalidate_any_nonce_bound_session(
     payload: dict[str, Any] | None = None,
     raw_body: bytes | None = None,
 ) -> bool:
-    """Hủy ngay lập tức mọi phiên/token QR đang gắn kết với đúng thiết bị quét (khớp scan_nonce)
-    khi thiết bị đó gửi dữ liệu sai cú pháp, sai kiểu hoặc thao tác lỗi.
+    """Hủy ngay lập tức mọi phiên/token QR và OTP đang chờ gắn kết với đúng thiết bị quét (khớp scan_nonce)
+    khi thiết bị đó gửi dữ liệu sai cú pháp, số vượt miền (1e309/NaN/Infinity), \\uXXXX escape, sai kiểu hoặc thao tác lỗi.
     Đảm bảo kẻ tấn công bên thứ 3 không có scan_nonce không thể DoS phiên của người quét thật.
     """
-    candidate_nonces: list[str] = []
+    creds, nonce_hashes = _precompute_request_qr_credentials(
+        request=request,
+        raw_body=raw_body,
+        payload=payload,
+    )
     req_nonce = _extract_request_scan_nonce(request, payload)
     if req_nonce:
-        candidate_nonces.append(req_nonce)
-    if raw_body:
-        try:
-            raw_text = raw_body.decode("utf-8", errors="ignore")
-            for m in re.finditer(r'"scan_nonce"\s*:\s*"([^"]{1,256})"', raw_text):
-                if m.group(1).strip():
-                    candidate_nonces.append(m.group(1).strip())
-        except Exception:
-            pass
+        nh_direct = hash_qr_scan_nonce(req_nonce)
+        if nh_direct:
+            nonce_hashes.add(nh_direct)
 
-    nonce_hashes = {hash_qr_scan_nonce(n) for n in candidate_nonces if n}
-    cand_sid = ""
-    if isinstance(payload, dict):
-        for k in ("session_id", "guest_session_id", "session_token"):
-            v = payload.get(k)
-            if isinstance(v, str) and v.strip():
-                cand_sid = v.strip()
-                break
-    if not cand_sid and raw_body:
-        try:
-            raw_text_sid = raw_body.decode("utf-8", errors="ignore")
-            m_sid = re.search(
-                r'"(?:session_id|guest_session_id|session_token)"\s*:\s*"([^"]{1,256})"',
-                raw_text_sid,
-            )
-            if m_sid and m_sid.group(1).strip():
-                cand_sid = m_sid.group(1).strip()
-        except Exception:
-            pass
-    if not cand_sid:
-        cand_sid = str(
-            request.cookies.get(QR_SESSION_COOKIE_NAME)
-            or request.headers.get("x-qr-session-id")
-            or request.query_params.get("session_id")
-            or ""
-        ).strip()
-
+    candidate_sids = list(creds["session_ids"])
     invalidated_any = False
-    _terminal_or_inflight = ("CONSUMED", "CONSUMING", "INVALIDATED", "INVALIDATED_ON_ERROR")
+    own_consuming_sid = str(getattr(getattr(request, "state", None), "qr_consuming_sid", "") or "").strip()
+    _terminal_states = ("CONSUMED", "INVALIDATED", "INVALIDATED_ON_ERROR", "EXPIRED")
     with _QR_ATOMIC_LOCK:
         mgr3._ensure_qr_stores()
-        if cand_sid and cand_sid in mgr3.guest_qr_sessions:
-            s_meta = mgr3.guest_qr_sessions.get(cand_sid)
-            if isinstance(s_meta, dict) and str(s_meta.get("status") or "ACTIVE").upper() not in _terminal_or_inflight:
-                exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
-                if not exp_hash or any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
-                    if mgr3.invalidate_qr_session_on_mistake(cand_sid, reason):
-                        invalidated_any = True
+        for cand_sid in candidate_sids:
+            if cand_sid and cand_sid in mgr3.guest_qr_sessions:
+                s_meta = mgr3.guest_qr_sessions.get(cand_sid)
+                if isinstance(s_meta, dict):
+                    cur_st = str(s_meta.get("status") or "ACTIVE").upper()
+                    if cur_st not in _terminal_states and not (cur_st == "CONSUMING" and cand_sid != own_consuming_sid):
+                        exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
+                        if not exp_hash or any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
+                            if mgr3.invalidate_qr_session_on_mistake(cand_sid, reason):
+                                invalidated_any = True
 
         if nonce_hashes:
             for sid, s_meta in list(mgr3.guest_qr_sessions.items()):
-                if isinstance(s_meta, dict) and str(s_meta.get("status") or "ACTIVE").upper() not in _terminal_or_inflight:
-                    exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
-                    if exp_hash and any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
-                        if mgr3.invalidate_qr_session_on_mistake(sid, reason):
-                            invalidated_any = True
+                if isinstance(s_meta, dict):
+                    cur_st = str(s_meta.get("status") or "ACTIVE").upper()
+                    if cur_st not in _terminal_states and not (cur_st == "CONSUMING" and sid != own_consuming_sid):
+                        exp_hash = str(s_meta.get("bound_scan_nonce_hash") or "").strip()
+                        if exp_hash and any(hmac.compare_digest(nh, exp_hash) for nh in nonce_hashes):
+                            if mgr3.invalidate_qr_session_on_mistake(sid, reason):
+                                invalidated_any = True
             for tok, t_meta in list(mgr3.active_qr_tokens.items()):
-                if isinstance(t_meta, dict) and str(t_meta.get("status") or "ACTIVE").upper() not in ("CONSUMED", "INVALIDATED"):
+                if isinstance(t_meta, dict) and str(t_meta.get("status") or "ACTIVE").upper() not in ("CONSUMED", "INVALIDATED", "EXPIRED"):
                     t_hash = str(t_meta.get("bound_scan_nonce_hash") or "").strip()
                     if t_hash and any(hmac.compare_digest(nh, t_hash) for nh in nonce_hashes):
                         t_meta["status"] = "INVALIDATED"
@@ -219,6 +241,14 @@ def _invalidate_any_nonce_bound_session(
                         t_meta["invalidated_reason"] = reason
                         mgr3.used_qr_tokens.add(tok)
                         invalidated_any = True
+            for mail_k, otp_rec in list(mgr3.pending_guest_email_otps.items()):
+                if isinstance(otp_rec, dict):
+                    rec_nh = str(otp_rec.get("bound_scan_nonce_hash") or "").strip()
+                    rec_sid = str(otp_rec.get("session_id") or "").strip()
+                    rec_sess = mgr3.guest_qr_sessions.get(rec_sid) if rec_sid else None
+                    sess_dead = (not isinstance(rec_sess, dict)) or bool(rec_sess.get("invalidated")) or str(rec_sess.get("status") or "").upper() in ("INVALIDATED", "INVALIDATED_ON_ERROR", "EXPIRED")
+                    if sess_dead and rec_nh and any(hmac.compare_digest(nh, rec_nh) for nh in nonce_hashes):
+                        mgr3.pending_guest_email_otps.pop(mail_k, None)
     return invalidated_any
 
 
@@ -409,13 +439,16 @@ async def _parse_json_dict_or_invalidate(
     mgr3: Any,
 ) -> tuple[dict[str, Any] | None, JSONResponse | None]:
     """Đọc và phân tích cú pháp JSON object trực tiếp từ request body (không qua Body(None) mặc định của FastAPI)
-    để đảm bảo mọi lỗi cú pháp JSON, số không hữu hạn (1e309, NaN, Infinity) hoặc tràn số đều hủy phiên quét đang gắn kết
-    và buộc quét lại QR mới, tuyệt đối không sinh lỗi HTTP 500.
+    để đảm bảo mọi lỗi cú pháp JSON, số không hữu hạn (1e309, NaN, Infinity), \\uXXXX escape hoặc tràn số đều
+    nhận diện phiên TRƯỚC khi kiểm tra body, hủy phiên quét đang gắn kết và buộc quét lại QR mới, tuyệt đối không sinh lỗi HTTP 500.
     """
     try:
         raw_body = await request.body()
     except Exception:
+        _precompute_request_qr_credentials(request)
         return None, _invalidate_bound_session_on_malformed_payload(request, mgr3)
+
+    _precompute_request_qr_credentials(request, raw_body=raw_body)
 
     if not raw_body or not raw_body.strip():
         return None, _invalidate_bound_session_on_malformed_payload(request, mgr3, raw_body=raw_body)
@@ -500,6 +533,7 @@ def _resolve_and_verify_bound_qr_session(
                     sanitize_api_payload(
                         {
                             "ok": False,
+                            "verified": False,
                             "status": "QR_BINDING_REQUIRED",
                             "reason": "OWNER_QR_CANNOT_REGISTER_DIRECTLY",
                             "error": "Từ chối: Mã QR của Chủ nhà không tự cấp quyền đăng ký nếu chưa qua bước quét gắn kết phiên thiết bị (Session Binding)!",
@@ -512,6 +546,7 @@ def _resolve_and_verify_bound_qr_session(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "status": "INVALID_QR_SESSION",
                         "reason": "SESSION_NOT_FOUND",
                         "error": "Từ chối: Phiên đăng ký QR không tồn tại hoặc chưa được khởi tạo từ thiết bị quét!",
@@ -532,6 +567,7 @@ def _resolve_and_verify_bound_qr_session(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "rbac_blocked": True,
                         "status": "OWNER_CAP1_APPROVAL_REQUIRED",
                         "reason": "ONLY_CAP1_GRANTS",
@@ -551,6 +587,7 @@ def _resolve_and_verify_bound_qr_session(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "status": "SESSION_INVALIDATED",
                         "reason": inv_reason,
                         "must_rescan": True,
@@ -567,6 +604,7 @@ def _resolve_and_verify_bound_qr_session(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "status": "TOKEN_ALREADY_CONSUMED",
                         "reason": "SINGLE_USE_TOKEN_REUSED",
                         "must_rescan": True,
@@ -580,13 +618,14 @@ def _resolve_and_verify_bound_qr_session(
         # Kiểm tra thời hạn ngắn 180s của phiên quét (Requirement 2 & 5)
         now_ts = time.time()
         expires_at = float(sess_info.get("session_expires_at") or 0.0)
-        if now_ts > expires_at:
+        if cur_status == "EXPIRED" or now_ts > expires_at:
             sess_info["status"] = "EXPIRED"
-            sess_info["invalidated"] = True
+            mgr3._purge_pending_otps_for_sessions({str(sess_info.get("session_id") or session_id)})
             return None, JSONResponse(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "status": "SESSION_EXPIRED",
                         "reason": "QR_SESSION_EXPIRED",
                         "must_rescan": True,
@@ -606,6 +645,7 @@ def _resolve_and_verify_bound_qr_session(
                 sanitize_api_payload(
                     {
                         "ok": False,
+                        "verified": False,
                         "status": "SESSION_BINDING_MISMATCH",
                         "reason": "OTHER_SESSION_REJECTED",
                         "error": "Từ chối truy cập: Liên kết đăng ký này được gắn kết độc quyền với phiên/thiết bị đã quét mã QR. Không thể mở hoặc gửi từ trình duyệt/thiết bị khác!",
@@ -622,6 +662,7 @@ def _resolve_and_verify_bound_qr_session(
                     sanitize_api_payload(
                         {
                             "ok": False,
+                            "verified": False,
                             "status": "POST_SCAN_TOKEN_MISMATCH",
                             "reason": "INVALID_POST_SCAN_TOKEN",
                             "error": "Từ chối: Mã token sau quét không hợp lệ!",
@@ -635,6 +676,10 @@ def _resolve_and_verify_bound_qr_session(
             sess_info["status"] = "CONSUMING"
             sess_info["consumed"] = True
             sess_info["consuming_started_at"] = now_ts
+            try:
+                request.state.qr_consuming_sid = str(sess_info.get("session_id") or session_id)
+            except Exception:
+                pass
 
         return sess_info, None
 
@@ -646,12 +691,15 @@ async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế (Chỉ Chủ nhà Cấp 1)."""
     mgr3 = get_auth_3layer_manager()
     try:
+        raw_body = await request.body()
+        _precompute_request_qr_credentials(request, raw_body=raw_body)
         session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
         if (
             session.role == "UNKNOWN"
             or session.tier not in (1, 2, 3)
             or str(session.user_id).strip().lower() == "unknown"
         ):
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_RBAC_MISTAKE", raw_body=raw_body)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -666,6 +714,7 @@ async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
                 status_code=403,
             )
         if not session.is_authenticated:
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_UNAUTH_MISTAKE", raw_body=raw_body)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -678,6 +727,7 @@ async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
                 status_code=401,
             )
         if session.tier != 1 or session.role != "ADMIN":
+            _invalidate_any_nonce_bound_session(request, mgr3, "QR_GENERATE_RBAC_MISTAKE", raw_body=raw_body)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -694,7 +744,6 @@ async def api_auth3_guest_qr_current(request: Request) -> JSONResponse:
             )
 
         data: dict[str, Any] = {}
-        raw_body = await request.body()
         if raw_body and raw_body.strip():
             try:
                 parsed_body = json.loads(
@@ -983,14 +1032,17 @@ async def api_auth3_guest_qr_handshake(request: Request) -> JSONResponse:
         }
         response = JSONResponse(sanitize_api_payload(out), status_code=200)
         if effective_nonce:
-            response.set_cookie(
-                key=QR_SCAN_COOKIE_NAME,
-                value=effective_nonce,
-                max_age=int(QR_SHORT_EXPIRY_SEC),
-                httponly=True,
-                samesite="lax",
-                path="/",
-            )
+            try:
+                response.set_cookie(
+                    key=QR_SCAN_COOKIE_NAME,
+                    value=effective_nonce,
+                    max_age=int(QR_SHORT_EXPIRY_SEC),
+                    httponly=True,
+                    samesite="lax",
+                    path="/",
+                )
+            except Exception:
+                pass
         if session_id:
             response.set_cookie(
                 key=QR_SESSION_COOKIE_NAME,
@@ -1123,6 +1175,7 @@ async def _impl_guest_qr_complete_voice(request: Request, mgr3: Any) -> JSONResp
     # Nếu truyền session_id giả định cho test kiểm tra audio rỗng/ngắn đơn thuần
     if session_id in ("test_sess_empty", "test_sess_short") and session_id not in mgr3.guest_qr_sessions:
         if (not pcm_bytes or len(pcm_bytes) < 16000) and not decoded_samples:
+            _invalidate_any_nonce_bound_session(request, mgr3, "AUDIO_EMPTY_OR_SHORT_MISTAKE", payload=payload)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -1586,6 +1639,7 @@ async def _impl_guest_qr_send_otp(request: Request, mgr3: Any) -> JSONResponse:
             consume_atomically=False,
         )
         if err_resp is not None or bound_sess_info is None:
+            _invalidate_any_nonce_bound_session(request, mgr3, "SEND_OTP_SESSION_MISTAKE", payload=payload)
             return err_resp  # type: ignore[return-value]
         verified_sid = str(bound_sess_info.get("session_id") or "")
 
@@ -1747,6 +1801,7 @@ async def _impl_guest_qr_verify_otp(request: Request, mgr3: Any) -> JSONResponse
         rec_nonce_hash = str(record.get("bound_scan_nonce_hash") or "").strip()
         req_nonce_hash = hash_qr_scan_nonce(_extract_request_scan_nonce(request, payload))
         if rec_nonce_hash and (not req_nonce_hash or not hmac.compare_digest(req_nonce_hash, rec_nonce_hash)):
+            _invalidate_any_nonce_bound_session(request, mgr3, "OTP_VERIFY_NONCE_MISMATCH_MISTAKE", payload=payload)
             return JSONResponse(
                 sanitize_api_payload(
                     {
@@ -1793,6 +1848,10 @@ async def _impl_guest_qr_verify_otp(request: Request, mgr3: Any) -> JSONResponse
         sess_info["status"] = "CONSUMING"
         sess_info["consumed"] = True
         sess_info["consuming_started_at"] = time.time()
+        try:
+            request.state.qr_consuming_sid = record_sid
+        except Exception:
+            pass
 
         # Xóa toàn bộ OTP đang chờ thuộc cùng phiên quét để chặn tuyệt đối xác minh email thứ 2
         for k_mail, k_rec in list(mgr3.pending_guest_email_otps.items()):

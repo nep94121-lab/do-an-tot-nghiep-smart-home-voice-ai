@@ -1332,5 +1332,415 @@ def test_round4_r3_n4_query_scan_nonce_and_all_nonce_carriers_isolated_from_othe
         assert sess.is_authenticated is False
 
 
+# =============================================================================
+# FIX ROUND 5 REGRESSION TESTS (R4-N1: UNICODE-ESCAPED NONCE + 1e309 & ALL CARRIERS/ENDPOINTS)
+# =============================================================================
+
+
+def _escape_json_u_all(val: str, *, upper_every_other: bool = False) -> str:
+    out: list[str] = []
+    for idx, ch in enumerate(val):
+        cp = ord(ch)
+        if cp <= 0xFFFF:
+            fmt = "\\u%04X" if (upper_every_other and idx % 2 == 1) else "\\u%04x"
+            out.append(fmt % cp)
+        else:
+            cp_adj = cp - 0x10000
+            hi = 0xD800 + (cp_adj >> 10)
+            lo = 0xDC00 + (cp_adj & 0x3FF)
+            out.append(f"\\u{hi:04x}\\u{lo:04x}")
+    return "".join(out)
+
+
+@pytest.mark.parametrize("field", ["sample_index", "total_samples"])
+@pytest.mark.parametrize(
+    "carrier",
+    [
+        "cookie",
+        "header",
+        "duplicate_header",
+        "query",
+        "duplicate_query",
+        "body",
+        "escaped_body",
+        "escaped_key_and_body",
+        "mixed_case_hex_escaped_body",
+        "duplicate_key_escaped_body",
+        "percent_form_body",
+        "multipart_body",
+    ],
+)
+def test_round5_r4_n1_unicode_escaped_body_nonce_and_all_carriers_overflow_invalidation(
+    carrier: str,
+    field: str,
+) -> None:
+    """Counterexample R4-N1 & extended carrier matrix:
+    A request carrying a valid scan_nonce (including \\uXXXX Unicode-escaped JSON body/key,
+    duplicate headers/queries, %XX form, or multipart) alongside sample_index/total_samples=1e309
+    MUST return 4xx (never 500), MUST atomically invalidate the bound session, MUST purge any
+    pre-issued pending OTP, MUST reject reopening post_scan_url (403), and MUST reject OTP verify
+    without adding any guest.
+    """
+    from unittest.mock import patch
+    from urllib.parse import quote
+    from simulator.api import routes_qr
+    from simulator.api.deps import _REST_ENGINE
+
+    scanner, hs = _handshake_pair()
+    mgr = get_auth_3layer_manager()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    assert nonce
+
+    c = TestClient(app, raise_server_exceptions=False)
+    send_headers: list[tuple[str, str]] = [("content-type", "application/json")]
+    send_params: list[tuple[str, str]] = []
+    bad_headers: list[tuple[str, str]] = [("content-type", "application/json")]
+    bad_params: list[tuple[str, str]] = []
+    verify_extra: dict = {}
+
+    email = f"r5-{carrier}-{field}@example.invalid"
+    guest_name = f"R5Guest_{carrier}_{field}"
+
+    esc_nonce_lower = _escape_json_u_all(nonce, upper_every_other=False)
+    esc_nonce_mixed = _escape_json_u_all(nonce, upper_every_other=True)
+    esc_key = _escape_json_u_all("scan_nonce", upper_every_other=True)
+    esc_sid = _escape_json_u_all(hs["session_id"], upper_every_other=True)
+
+    send_base = {
+        "session_id": hs["session_id"],
+        "email": email,
+        "confirm_email": email,
+        "guest_name": guest_name,
+    }
+
+    if carrier == "cookie":
+        c.cookies.set(QR_SCAN_COOKIE_NAME, nonce)
+        send_raw = json.dumps(send_base).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "{field}": 1e309}}'.encode("utf-8")
+    elif carrier == "header":
+        send_headers.append(("x-qr-scan-nonce", nonce))
+        bad_headers.append(("x-qr-scan-nonce", nonce))
+        send_raw = json.dumps(send_base).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "{field}": 1e309}}'.encode("utf-8")
+    elif carrier == "duplicate_header":
+        send_headers.extend([("x-qr-scan-nonce", ""), ("x-qr-scan-nonce", nonce)])
+        bad_headers.extend([("x-qr-scan-nonce", ""), ("x-qr-scan-nonce", nonce)])
+        send_raw = json.dumps(send_base).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "{field}": 1e309}}'.encode("utf-8")
+    elif carrier == "query":
+        send_params.append(("scan_nonce", nonce))
+        bad_params.append(("scan_nonce", nonce))
+        send_raw = json.dumps(send_base).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "{field}": 1e309}}'.encode("utf-8")
+    elif carrier == "duplicate_query":
+        send_params.extend([("scan_nonce", ""), ("scan_nonce", nonce)])
+        bad_params.extend([("scan_nonce", ""), ("scan_nonce", nonce)])
+        send_raw = json.dumps(send_base).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "{field}": 1e309}}'.encode("utf-8")
+    elif carrier == "body":
+        send_raw = json.dumps({**send_base, "scan_nonce": nonce}).encode("utf-8")
+        bad_raw = f'{{"session_id": "{hs["session_id"]}", "scan_nonce": "{nonce}", "{field}": 1e309}}'.encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+    elif carrier == "escaped_body":
+        send_raw = (
+            "{"
+            f'"session_id": "{hs["session_id"]}", '
+            f'"scan_nonce": "{esc_nonce_lower}", '
+            f'"email": "{email}", "confirm_email": "{email}", "guest_name": "{guest_name}"'
+            "}"
+        ).encode("utf-8")
+        bad_raw = (
+            "{"
+            f'"session_id": "{hs["session_id"]}", '
+            f'"scan_nonce": "{esc_nonce_lower}", '
+            f'"{field}": 1e309'
+            "}"
+        ).encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+    elif carrier == "escaped_key_and_body":
+        send_raw = (
+            "{"
+            f'"session_id": "{esc_sid}", '
+            f'"{esc_key}": "{esc_nonce_lower}", '
+            f'"email": "{email}", "confirm_email": "{email}", "guest_name": "{guest_name}"'
+            "}"
+        ).encode("utf-8")
+        bad_raw = (
+            "{"
+            f'"session_id": "{esc_sid}", '
+            f'"{esc_key}": "{esc_nonce_lower}", '
+            f'"{_escape_json_u_all(field)}": 1e309'
+            "}"
+        ).encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+    elif carrier == "mixed_case_hex_escaped_body":
+        send_raw = (
+            "{"
+            f'"session_id": "{hs["session_id"]}", '
+            f'"scan_nonce": "{esc_nonce_mixed}", '
+            f'"email": "{email}", "confirm_email": "{email}", "guest_name": "{guest_name}"'
+            "}"
+        ).encode("utf-8")
+        bad_raw = (
+            "{"
+            f'"session_id": "{hs["session_id"]}", '
+            f'"scan_nonce": "{esc_nonce_mixed}", '
+            f'"{field}": 1e309'
+            "}"
+        ).encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+    elif carrier == "duplicate_key_escaped_body":
+        send_raw = json.dumps({**send_base, "scan_nonce": nonce}).encode("utf-8")
+        bad_raw = (
+            "{"
+            f'"session_id": "{hs["session_id"]}", '
+            f'"scan_nonce": "{esc_nonce_mixed}", '
+            f'"scan_nonce": "wrong_override_after_valid", '
+            f'"{field}": 1e309'
+            "}"
+        ).encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+    elif carrier == "percent_form_body":
+        send_raw = json.dumps({**send_base, "scan_nonce": nonce}).encode("utf-8")
+        bad_headers = [("content-type", "application/x-www-form-urlencoded")]
+        pct_nonce = "".join(f"%{b:02X}" for b in nonce.encode("utf-8"))
+        bad_raw = f"session_id={quote(hs['session_id'])}&scan_nonce={pct_nonce}&{field}=1e309".encode("ascii")
+        verify_extra = {"scan_nonce": nonce}
+    else:
+        send_raw = json.dumps({**send_base, "scan_nonce": nonce}).encode("utf-8")
+        boundary = "----R5MultipartBoundary"
+        bad_headers = [("content-type", f"multipart/form-data; boundary={boundary}")]
+        bad_raw = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="session_id"\r\n\r\n{hs["session_id"]}\r\n'
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="scan_nonce"\r\n\r\n{nonce}\r\n'
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="{field}"\r\n\r\n1e309\r\n'
+            f"--{boundary}--\r\n"
+        ).encode("utf-8")
+        verify_extra = {"scan_nonce": nonce}
+
+    # 1. Positive proof: carrier dispatches OTP 200 on the real scan session
+    with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+        send_resp = c.post(
+            "/api/auth3/guest_qr_send_otp",
+            content=send_raw,
+            headers=send_headers,
+            params=send_params,
+        )
+    assert send_resp.status_code == 200, f"Positive send failed for {carrier}: {send_resp.status_code}"
+    saved_otp = mgr.pending_guest_email_otps[email]["otp"]
+
+    # 2. Malformed/overflow request with 1e309 -> 4xx, invalidates session, purges pending OTP
+    bad_resp = c.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=bad_raw,
+        headers=bad_headers,
+        params=bad_params,
+    )
+    assert 400 <= bad_resp.status_code < 500, f"Expected 4xx for {carrier}/{field}, got {bad_resp.status_code}"
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+
+    # 3. Old post_scan_url is dead (403) and saved OTP cannot verify (verified=False, guest_added=False)
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    verify_resp = c.post(
+        "/api/auth3/guest_qr_verify_otp",
+        json={"session_id": hs["session_id"], "email": email, "otp": saved_otp, **verify_extra},
+        headers=[h for h in send_headers if h[0] != "content-type"],
+        params=send_params,
+    )
+    assert verify_resp.status_code in (400, 401, 403)
+    assert verify_resp.json().get("verified") is False
+    assert not any(v.get("name") == guest_name for v in _REST_ENGINE.users.values())
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/auth3/guest_qr_complete_voice",
+        "/api/auth3/guest/enroll_voice",
+        "/api/auth3/guest_qr_send_otp",
+        "/api/auth3/guest_qr_verify_otp",
+        "/api/auth3/guest/verify_email",
+        "/api/auth3/guest_qr_handshake",
+        "/api/auth3/guest_handshake",
+        "/api/auth3/guest/handshake",
+        "/api/auth3/qr/generate",
+    ],
+)
+def test_round5_escaped_nonce_abnormal_numbers_and_syntax_errors_across_all_qr_endpoints(endpoint: str) -> None:
+    """Every QR endpoint receiving a body-only \\uXXXX-escaped scan_nonce (without cookies/headers/query)
+    alongside 1e309, -1e309, NaN, Infinity, huge int, truncated JSON, or bad scalar type MUST return 4xx,
+    invalidate the bound session, and purge pending OTPs.
+    """
+    from unittest.mock import patch
+    from simulator.api import routes_qr
+
+    mgr = get_auth_3layer_manager()
+    esc_key = _escape_json_u_all("scan_nonce", upper_every_other=True)
+
+    payload_templates = [
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","sample_index":1e309}}'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","total_samples":-1e309}}'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","window":NaN}}'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","target_tier":Infinity}}'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","sample_index":999999999999999999999999999}}'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","broken_tail":'.encode("utf-8"),
+        lambda sid, en: f'{{"session_id":"{sid}","{esc_key}":"{en}","duration":["bad_list"]}}'.encode("utf-8"),
+        lambda sid, en: b"\xef\xbb\xbf" + f'{{"session_id":"{sid}","{esc_key}":"{en}","sample_index":1e309}}'.encode("utf-8"),
+        lambda sid, en: b"\xff\xfe" + f'{{"session_id":"{sid}","{esc_key}":"{en}","sample_index":1e309}}'.encode("utf-16-le"),
+    ]
+
+    for idx, build_raw in enumerate(payload_templates):
+        scanner, hs = _handshake_pair()
+        nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_nonce = _escape_json_u_all(nonce, upper_every_other=(idx % 2 == 0))
+        email = f"r5-ep-{idx}@example.invalid"
+        with patch.object(routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")):
+            assert (
+                scanner.post(
+                    "/api/auth3/guest_qr_send_otp",
+                    json={"session_id": hs["session_id"], "email": email, "confirm_email": email, "guest_name": "R5Ep"},
+                ).status_code
+                == 200
+            )
+
+        c_fresh = TestClient(app, raise_server_exceptions=False)
+        headers = {"content-type": "application/json"}
+        if endpoint == "/api/auth3/qr/generate":
+            headers["Authorization"] = "Bearer sess_owner_t1_nep94121"
+
+        r = c_fresh.post(endpoint, content=build_raw(hs["session_id"], esc_nonce), headers=headers)
+        assert 400 <= r.status_code < 500, f"{endpoint} template #{idx} returned {r.status_code}"
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert email not in mgr.pending_guest_email_otps
+        assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+
+def test_round5_escaped_json_and_raw_body_carriers_isolated_on_non_qr_routes_and_invalidate() -> None:
+    """Any non-QR route (/, /app, /api/state, /api/device, /auth, /logs) receiving a QR credential
+    encoded with \\uXXXX JSON escapes (even inside broken/1e309 JSON, UTF-16 BOM, %XX form, multipart,
+    or duplicate headers) MUST return 403 and MUST invalidate any bound QR session.
+    """
+    mgr = get_auth_3layer_manager()
+    non_qr_routes = ("/", "/app", "/api/state", "/api/device", "/auth", "/logs")
+
+    for route in non_qr_routes:
+        # 1. Unicode-escaped key & value + 1e309 in JSON body
+        scanner1, hs1 = _handshake_pair()
+        nonce1 = str(scanner1.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_k = _escape_json_u_all("scan_nonce", upper_every_other=True)
+        esc_v = _escape_json_u_all(nonce1, upper_every_other=True)
+        c1 = TestClient(app, raise_server_exceptions=False)
+        r1 = c1.request(
+            "POST" if route.startswith("/api/") else "GET",
+            route,
+            content=f'{{"{esc_k}":"{esc_v}","overflow":1e309}}'.encode("utf-8"),
+            headers={"content-type": "application/json"},
+            follow_redirects=False,
+        )
+        assert r1.status_code == 403, f"Route {route} allowed escaped+1e309 body: {r1.status_code}"
+        assert mgr.guest_qr_sessions[hs1["session_id"]]["invalidated"] is True
+        assert scanner1.get(hs1["post_scan_url"]).status_code == 403
+
+        # 2. Truncated syntax-broken JSON carrying escaped post_scan_token + scan_nonce
+        scanner2, hs2 = _handshake_pair()
+        nonce2 = str(scanner2.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_pst = _escape_json_u_all(hs2["post_scan_token"])
+        esc_n2 = _escape_json_u_all(nonce2)
+        c2 = TestClient(app, raise_server_exceptions=False)
+        r2 = c2.request(
+            "GET",
+            route,
+            content=f'{{"post_scan_token":"{esc_pst}","scan_nonce":"{esc_n2}","broken":'.encode("utf-8"),
+            headers={"content-type": "application/json"},
+            follow_redirects=False,
+        )
+        assert r2.status_code == 403
+        assert mgr.guest_qr_sessions[hs2["session_id"]]["invalidated"] is True
+
+        # 3. Duplicate headers where first header is empty and second header carries scan_nonce
+        scanner3, hs3 = _handshake_pair()
+        nonce3 = str(scanner3.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        c3 = TestClient(app, raise_server_exceptions=False)
+        r3 = c3.get(
+            route,
+            headers=[("x-qr-scan-nonce", ""), ("x-qr-scan-nonce", nonce3)],
+            follow_redirects=False,
+        )
+        assert r3.status_code == 403
+        assert mgr.guest_qr_sessions[hs3["session_id"]]["invalidated"] is True
+
+
+def test_round5_rfc8259_unescape_surrogates_404_405_and_third_party_anti_dos() -> None:
+    """Verify RFC 8259 surrogate pairs, lone-surrogate crash safety (zero 500s), 404/405 error-path
+    invalidation on /api/auth3/*, and anti-DoS guarantee (third party knowing only session_id cannot
+    invalidate the real scanner's session by sending 1e309 without the valid scan_nonce).
+    """
+    from simulator.auth.qr_totp_mixin import (
+        extract_tolerant_raw_body_pairs_and_strings,
+        unescape_json_string_literal,
+    )
+
+    # 1. Unit verification of RFC 8259 unescaping (ASCII, Vietnamese, emoji surrogate pair, escapes, lone surrogate)
+    original = 'nonce_việt_🔐_quote"_bs\\_tab\t_slash/'
+    escaped = _escape_json_u_all(original, upper_every_other=True)
+    assert unescape_json_string_literal(escaped) == original
+
+    # Lone surrogate \ud800 must never crash or raise 500
+    lone = unescape_json_string_literal(r"prefix_\ud800_suffix")
+    assert lone.startswith("prefix_") and lone.endswith("_suffix")
+
+    pairs, strs = extract_tolerant_raw_body_pairs_and_strings(
+        raw_body=f'{{"{_escape_json_u_all("scan_nonce")}":"{escaped}","sample_index":1e309}}'.encode("utf-8"),
+    )
+    assert ("scan_nonce", original) in pairs
+    assert original in strs
+
+    c_surrogate = TestClient(app, raise_server_exceptions=False)
+    r_lone = c_surrogate.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=b'{"session_id":"fake","scan_nonce":"\\ud800","sample_index":1e309}',
+        headers={"content-type": "application/json"},
+    )
+    assert 400 <= r_lone.status_code < 500
+
+    # 2. 405 Method Not Allowed & 404 Unknown /api/auth3/* subroute with escaped nonce invalidate bound session
+    mgr = get_auth_3layer_manager()
+    for method, bad_path in (
+        ("DELETE", "/api/auth3/guest_qr_complete_voice"),
+        ("POST", "/api/auth3/nonexistent_round5_probe"),
+    ):
+        scanner, hs = _handshake_pair()
+        nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+        esc_n = _escape_json_u_all(nonce)
+        c_err = TestClient(app, raise_server_exceptions=False)
+        r_err = c_err.request(
+            method,
+            bad_path,
+            content=f'{{"scan_nonce":"{esc_n}","sample_index":1e309}}'.encode("utf-8"),
+            headers={"content-type": "application/json"},
+        )
+        assert 400 <= r_err.status_code < 500
+        assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+        assert scanner.get(hs["post_scan_url"]).status_code == 403
+
+    # 3. Anti-DoS guarantee: attacker knowing ONLY session_id (no valid scan_nonce) sends 1e309 + forged escaped nonce
+    scanner_real, hs_real = _handshake_pair()
+    attacker = TestClient(app, raise_server_exceptions=False)
+    forged_esc = _escape_json_u_all("forged_attacker_nonce_value_999")
+    r_atk = attacker.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=f'{{"session_id":"{hs_real["session_id"]}","scan_nonce":"{forged_esc}","sample_index":1e309}}'.encode("utf-8"),
+        headers={"content-type": "application/json"},
+    )
+    assert r_atk.status_code == 422
+    assert mgr.guest_qr_sessions[hs_real["session_id"]]["invalidated"] is False
+    assert scanner_real.get(hs_real["post_scan_url"]).status_code == 200
+
+
+
 
 
