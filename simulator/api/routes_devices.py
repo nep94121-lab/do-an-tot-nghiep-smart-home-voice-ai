@@ -881,117 +881,23 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 @router.post("/api/voice_command")
 @router.post("/api/voice/command")
 async def api_voice_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Endpoint Stateless Voice Command cho Vercel Serverless & Web/Mobile Mic Capture:
-    Audio Upload (wav_b64 / pcm16k_b64 / audio_pcm_b64) -> Biometric Speaker Verification -> STT -> Intent -> 3-Level Voice Auth & RBAC -> Device Action -> Snapshot.
-    """
+    """Lệnh giọng nói theo phiên: STT/transcript -> ý định -> RBAC phiên (không nhận dạng người nói)."""
     body = payload if isinstance(payload, dict) else {}
+    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    from simulator.voice.session_voice_command import process_session_voice_command
 
-    raw_audio_b64 = str(
-        body.get("audio_pcm_b64")
-        or body.get("wav_b64")
-        or body.get("pcm16k_b64")
-        or body.get("audio_b64")
-        or ""
-    ).strip()
-
-    decoded_audio = b""
-    if raw_audio_b64:
-        clean_b64 = raw_audio_b64
-        if "," in clean_b64 and clean_b64.startswith("data:"):
-            clean_b64 = clean_b64.split(",", 1)[1]
-        try:
-            decoded_audio = base64.b64decode(clean_b64)
-        except Exception:
-            decoded_audio = b""
-
-    has_spoof_keys = any(
-        k in body and body.get(k) not in (None, "", {})
-        for k in ("sample_id", "profile_id", "voiceprint")
-    )
-    if not raw_audio_b64 or len(decoded_audio) < 64 or (has_spoof_keys and not str(body.get("audio_pcm_b64") or body.get("wav_b64") or body.get("pcm16k_b64") or body.get("audio_b64") or "").strip()):
-        from simulator.live.tts_rejection_vi import (
-            FIXED_REJECTION_PHRASE_VI,
-            build_aoede_http_audio_fields,
-            synthesize_aoede_phrase_audio,
-        )
-
-        rej_msg = FIXED_REJECTION_PHRASE_VI
-        aoede_fields = build_aoede_http_audio_fields(
-            await synthesize_aoede_phrase_audio(rej_msg)
-        )
-        raw_tx = str(body.get("transcript") or body.get("text") or "").strip()
-        return JSONResponse(
-            sanitize_api_payload({
-                "ok": False,
-                "authorized": False,
-                "recognized": False,
-                "reason": "MISSING_OR_SPOOFED_AUDIO",
-                "level": 0,
-                "tier": 99,
-                "speaker_id": "intruder_voice_2",
-                "user_id": "UNKNOWN",
-                "speaker_name": "Người lạ (Không được phép)",
-                "role": "UNKNOWN",
-                "recognized_text": raw_tx,
-                "transcript": raw_tx,
-                "canonical_command": raw_tx,
-                "intent": "UNKNOWN_INTENT",
-                "intents": [],
-                "permission": "DENIED",
-                "rbac_blocked": True,
-                "action": "BLOCKED_UNAUTHORIZED_VOICE",
-                "error": "🚫 Từ chối xác thực giọng nói: Bắt buộc phải cung cấp dữ liệu âm thanh PCM/WAV thực tế (không tin cậy sample_id/profile_id/voiceprint từ client)!",
-                "reply": rej_msg,
-                "exact_spoken_reply": rej_msg,
-                "rejection_speech": rej_msg,
-                **aoede_fields,
-                "results": [],
-                "f0_hz": 0.0,
-                "similarity": 0.0,
-                "latency_ms": 0.1,
-                "snapshot": _REST_ENGINE.get_public_device_snapshot(),
-            }),
-            status_code=403,
-        )
-
-    # Tuyệt đối không tin cậy các trường định danh / vân giọng do client tự gửi lên
-    sanitized_voice_input: dict[str, Any] = {
-        "wav_b64": raw_audio_b64,
-        "pcm16k_b64": raw_audio_b64,
-        "audio_b64": raw_audio_b64,
-        "transcript": str(body.get("transcript") or body.get("text") or "").strip(),
-        "is_live_mic": bool(body.get("is_live_mic", False)),
-    }
-
-    res = await process_voice_command_pipeline(
-        sanitized_voice_input,
+    result, status = await process_session_voice_command(
         engine=_REST_ENGINE,
-        voice_auth=_BOOT_VOICE_AUTH,
-        session_tier=None,
-        session_user=None,
-        session_role=None,
+        session=session,
+        payload=body,
+        source=str(body.get("source") or "web_voice"),
     )
-    res = sanitize_api_payload(res)
-
-    append_audit_log(
-        category="VOICE_COMMAND",
-        event_type="voice_command_executed" if res.get("ok") else "voice_command_blocked",
-        summary=(
-            f"🎙️ [Voice L{res.get('level')}] {res.get('speaker_name')}: "
-            f"'{res.get('recognized_text')}' -> {res.get('intent')} ({res.get('permission')}, {res.get('latency_ms')}ms)"
-        ),
-        user_name=str(res.get("speaker_name") or "Người lạ"),
-        tier=int(res.get("tier") or 99),
-        details={
-            "recognized_text": res.get("recognized_text"),
-            "intent": res.get("intent"),
-            "permission": res.get("permission"),
-            "action": res.get("action"),
-            "latency_ms": res.get("latency_ms"),
-        },
-    )
-    await broadcast_rest_state_to_bridges()
-    return JSONResponse(res, status_code=200)
+    if "snapshot" not in result and hasattr(_REST_ENGINE, "get_snapshot") and session is not None:
+        try:
+            result["snapshot"] = _REST_ENGINE.get_snapshot(session=session)
+        except Exception:
+            pass
+    return JSONResponse(result, status_code=status)
 
 
 @router.post("/api/voice/aoede_phrase")

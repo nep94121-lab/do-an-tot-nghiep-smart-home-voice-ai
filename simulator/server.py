@@ -43,6 +43,8 @@ from simulator.api import (
     qr_router,
 )
 from simulator.auth.session_store import resolve_strict_ws_session
+from simulator.api.routes_guest import router as guest_invite_router
+from simulator.api.enrollment_gone import EnrollmentGoneMiddleware
 from simulator.live import (
     ALL_TOOLS,
     LiveBridgeSession,
@@ -130,6 +132,8 @@ app.include_router(devices_router)
 app.include_router(auth_router)
 app.include_router(qr_router)
 app.include_router(logs_router)
+app.include_router(guest_invite_router)
+app.add_middleware(EnrollmentGoneMiddleware)
 
 # Mount các thư mục tài nguyên tĩnh
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -178,9 +182,9 @@ async def auth_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "auth.html")
 
 
-@app.get("/guest")
-@app.get("/guest_enroll")
-@app.get("/guest-qr")
+@app.get("/guest_legacy_removed")
+@app.get("/guest_enroll_legacy_removed")
+@app.get("/guest-qr_legacy_removed")
 async def guest_enroll_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "guest_enroll.html")
 

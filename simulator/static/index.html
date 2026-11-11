@@ -40,7 +40,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        <a href="/guest_enroll">Khách</a>
+        
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -208,23 +208,25 @@
 
           <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
             <div class="panel-head">
-              <h2 id="guest-qr-title">Mã QR Khách (Cấp 3)</h2>
-              <span class="status" id="ownerGuestQrBadge">Cấp 3 · Công khai</span>
+              <h2 id="guest-qr-title">Mã QR khách</h2>
             </div>
-            <div class="guest-qr-card">
-              <div id="ownerDashboardQrBox" class="guest-qr-svg-wrap" role="img" aria-label="Mã QR đăng ký Khách Cấp 3"></div>
-              <div class="guest-qr-info">
-                <p class="subtle">Khách quét mã QR để mở trang <strong>/guest</strong> trên điện thoại, nhập Họ tên + Email và thu âm giọng nói (Cấp 3, không cần đăng nhập).</p>
-                <div class="guest-qr-url-box">
-                  <code id="ownerGuestLinkText">/guest</code>
-                </div>
-                <div class="guest-qr-actions">
-                  <a id="ownerGuestOpenLink" class="btn btn-primary" href="/guest">Mở trang Khách (/guest)</a>
-                  <button type="button" id="btnCopyOwnerGuestLink" class="btn btn-secondary" onclick="window.copyOwnerGuestLink()">Sao chép liên kết</button>
-                </div>
+            <div class="guest-qr-card" id="ownerDashboardQrBox">
+              <p class="muted">Chủ nhà tạo mã QR mời (Cấp 2 hoặc Cấp 3). Khách quét mã để mở trang điều khiển riêng. Không có đường dẫn công khai cố định.</p>
+              <div class="row" style="gap:0.6rem;flex-wrap:wrap;align-items:center;">
+                <label>Cấp
+                  <select id="ownerGuestInviteTier">
+                    <option value="3" selected>Cấp 3</option>
+                    <option value="2">Cấp 2</option>
+                  </select>
+                </label>
+                <button type="button" id="ownerGuestQrGenerateBtn" class="quick">Tạo / làm mới mã QR</button>
+                <button type="button" id="ownerGuestQrRevokeBtn" class="quick">Thu hồi mã hiện tại</button>
               </div>
+              <div id="ownerGuestQrSvg" class="qr-box" style="margin-top:0.8rem;min-height:8rem;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;border-radius:12px;padding:0.6rem;"></div>
+              <p id="ownerGuestQrMeta" class="muted"></p>
             </div>
           </section>
+
         </div>
       </main>
     </div>

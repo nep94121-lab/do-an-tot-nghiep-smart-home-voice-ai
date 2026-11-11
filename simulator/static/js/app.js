@@ -291,6 +291,18 @@
     return output;
   }
 
+  const TTS_HOLDOFF_SEC = 0.9;
+
+  function isTtsPlaybackActive() {
+    return Boolean(audioCtxOut && nextPlayTime > audioCtxOut.currentTime + 0.05);
+  }
+
+  function pauseMicForTts() {
+    try { if (typeof stopBrowserSpeechRecognitionVi === "function") stopBrowserSpeechRecognitionVi(); } catch (_) {}
+    wasSpeaking = false;
+    silenceStartMs = 0;
+  }
+
   function playPcm24kChunk(base64Data) {
     if (chkPlayAiVoice && chkPlayAiVoice.checked === false) return;
     try {
@@ -325,6 +337,7 @@
       }
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;
+      pauseMicForTts();
     } catch (err) {
       console.error("Audio playback error:", err);
     }
@@ -1200,6 +1213,7 @@
           res = await fetch("/api/voice_command", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify(reqBody),
           });
           if (res) break;
@@ -1214,13 +1228,17 @@
         setUserTranscriptText(data.recognized_text);
       }
       const spokenReply = data.exact_spoken_reply || data.reply || data.rejection_speech || "";
-      if (spokenReply) {
+      const isRepeatPhrase = /vui lòng nói lại|âm thanh chưa rõ/i.test(String(spokenReply || ""));
+      const allowSpeak = Boolean(spokenReply) && data.silent !== true && data.ask_repeat !== true && data.should_reply !== false && !isRepeatPhrase && data.no_reprompt !== true;
+      if (allowSpeak) {
         setAiReplyText(spokenReply);
+      } else if (data.silent || data.no_reprompt) {
+        /* Im lặng: không phát TTS, không vòng nhắc nói lại. */
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
-        if (data.pcm24k_b64) {
+        if (data.pcm24k_b64 && allowSpeak) {
           playPcm24kChunk(data.pcm24k_b64);
-        } else if (spokenReply) {
+        } else if (allowSpeak) {
           requestAoedeSpokenPhrase(spokenReply);
         }
       }
@@ -1876,12 +1894,14 @@
   }
 
   async function flushServerlessMicVoiceCommand() {
+    if (typeof isTtsPlaybackActive === "function" && isTtsPlaybackActive()) return;
     if (serverlessVoiceInFlight) return;
     const chunks = activeMicPcmChunks.slice(0);
     activeMicPcmChunks = [];
     const transcriptHint = (liveSpeechTranscript || "").trim();
     liveSpeechTranscript = "";
     if (chunks.length === 0 && !transcriptHint) return;
+    if (!transcriptHint) return;
 
     serverlessVoiceInFlight = true;
     try {
@@ -1951,9 +1971,11 @@
         }
 
         const aiBusy = Boolean(
-          audioCtxOut && nextPlayTime > audioCtxOut.currentTime + 0.08
+          audioCtxOut && nextPlayTime > audioCtxOut.currentTime + TTS_HOLDOFF_SEC
         );
         if (aiBusy) {
+          wasSpeaking = false;
+          silenceStartMs = 0;
           return;
         }
 
@@ -2031,8 +2053,11 @@
         });
       };
 
+      const micSilentGain = micAudioCtx.createGain();
+      micSilentGain.gain.value = 0;
       source.connect(micProcessor);
-      micProcessor.connect(micAudioCtx.destination);
+      micProcessor.connect(micSilentGain);
+      micSilentGain.connect(micAudioCtx.destination);
       setMicListeningState(true);
     } catch (err) {
       liveAiTranscript.textContent = "Không thể mở microphone. Vui lòng kiểm tra quyền truy cập.";
@@ -2069,6 +2094,8 @@
   }
 
   async function runBrowserVoiceEnrollmentCapture(durationSec = 5) {
+    return; // enrollment removed: permissions come from the account/session
+    durationSec;
     isCapturingEnrollment = true;
     enrollmentChunks = [];
     let tempStream = null;
@@ -2134,6 +2161,94 @@
       });
     }, durationSec * 1000);
   }
+
+
+  let ownerGuestCurrentInviteId = "";
+
+  function renderOwnerGuestQrSvg(svgText) {
+    const box = document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrSvg");
+    if (!box) return;
+    const svg = String(svgText || "").trim();
+    if (!svg || svg.indexOf("<svg") < 0) {
+      box.innerHTML = "<span class=\"muted\">Chưa có mã QR</span>";
+      return;
+    }
+    box.innerHTML = svg;
+    const el = box.querySelector("svg");
+    if (el) {
+      el.style.width = "220px";
+      el.style.height = "220px";
+      el.style.maxWidth = "100%";
+      el.setAttribute("aria-label", "Mã QR mời khách");
+    }
+  }
+
+  async function loadOwnerDashboardGuestQr() {
+    const box = document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrSvg");
+    const meta = document.getElementById("ownerGuestQrMeta");
+    const tierEl = document.getElementById("ownerGuestInviteTier");
+    if (!box) return;
+    const tier = Number((tierEl && tierEl.value) || 3);
+    try {
+      const res = await fetch("/api/auth3/guest_invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tier: tier, ttl_sec: 600 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        renderOwnerGuestQrSvg("");
+        if (meta) meta.textContent = data.error || "Đăng nhập tài khoản chủ nhà để tạo mã QR khách.";
+        ownerGuestCurrentInviteId = "";
+        return;
+      }
+      ownerGuestCurrentInviteId = data.invite_id || "";
+      renderOwnerGuestQrSvg(data.qr_svg || "");
+      if (meta) {
+        const exp = data.expires_at ? new Date(Number(data.expires_at) * 1000) : null;
+        const expLabel = exp ? exp.toLocaleTimeString("vi-VN") : "";
+        meta.textContent = "Cấp " + data.tier + (expLabel ? " · Hết hạn lúc " + expLabel : " · 10 phút") + ". Khách quét mã — không có nút sao chép liên kết.";
+      }
+    } catch (err) {
+      renderOwnerGuestQrSvg("");
+      if (meta) meta.textContent = "Không tạo được mã QR khách.";
+    }
+  }
+
+  async function revokeOwnerGuestQr() {
+    const meta = document.getElementById("ownerGuestQrMeta");
+    if (!ownerGuestCurrentInviteId) {
+      if (meta) meta.textContent = "Chưa có mã để thu hồi.";
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth3/guest_invites/" + encodeURIComponent(ownerGuestCurrentInviteId) + "/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      renderOwnerGuestQrSvg("");
+      ownerGuestCurrentInviteId = "";
+      if (meta) meta.textContent = data.ok ? "Đã thu hồi mã mời hiện tại." : (data.error || "Không thu hồi được mã.");
+    } catch (err) {
+      if (meta) meta.textContent = "Không thu hồi được mã.";
+    }
+  }
+
+
+
+  (function bindOwnerGuestQrUi() {
+    const gen = document.getElementById("ownerGuestQrGenerateBtn");
+    const rev = document.getElementById("ownerGuestQrRevokeBtn");
+    if (gen) gen.addEventListener("click", () => { loadOwnerDashboardGuestQr(); });
+    if (rev) rev.addEventListener("click", () => { revokeOwnerGuestQr(); });
+    if (document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrBox")) {
+      /* Không tự tạo mã khi vừa mở trang: chủ nhà bấm "Tạo / làm mới". */
+    }
+  })();
 
   btnMicToggle.addEventListener("click", () => {
     if (isRecording) stopMic();
@@ -3306,68 +3421,7 @@
     }
   });
 
-  async function loadOwnerDashboardGuestQr(retryCount = 0) {
-    const qrBox = byId("ownerDashboardQrBox");
-    const linkText = byId("ownerGuestLinkText");
-    const openLink = byId("ownerGuestOpenLink");
-    const fallbackUrl = (typeof location !== "undefined" && location.origin) ? `${location.origin}/guest` : "/guest";
-    if (linkText) linkText.textContent = fallbackUrl;
-    if (openLink) openLink.href = "/guest";
-    if (!qrBox) return;
-    try {
-      const hostParam = (typeof location !== "undefined" && location.host) ? location.host : "localhost:8088";
-      let tok = (inMemoryUserSession && inMemoryUserSession.session_token) ? inMemoryUserSession.session_token : "";
-      if (!tok) {
-        try {
-          tok = (window.localStorage && window.localStorage.getItem("session_token")) ||
-                (window.sessionStorage && window.sessionStorage.getItem("session_token")) || "";
-          if (!tok && window.localStorage) {
-            const rawSess = window.localStorage.getItem("smarthome_auth_session");
-            if (rawSess) {
-              const parsed = JSON.parse(rawSess);
-              if (parsed && parsed.session_token) tok = parsed.session_token;
-            }
-          }
-        } catch (_) {}
-      }
-      const fetchOpts = tok ? { headers: { Authorization: `Bearer ${tok}` } } : {};
-      const res = await fetch(`/api/auth3/guest_qr_current?duration=1d&target_tier=3&host=${encodeURIComponent(hostParam)}`, fetchOpts);
-      const data = await res.json();
-      if (data && data.ok) {
-        if (data.qr_svg) {
-          qrBox.innerHTML = data.qr_svg;
-          const svgEl = qrBox.querySelector("svg");
-          if (svgEl) {
-            svgEl.setAttribute("width", "96");
-            svgEl.setAttribute("height", "96");
-          }
-        }
-        if (linkText) {
-          linkText.textContent = data.public_guest_url || fallbackUrl;
-        }
-      } else if (retryCount < 3) {
-        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
-      }
-    } catch (_) {
-      if (retryCount < 3) {
-        setTimeout(() => loadOwnerDashboardGuestQr(retryCount + 1), 800);
-      }
-    }
-  }
 
-  async function copyOwnerGuestLink() {
-    const linkText = byId("ownerGuestLinkText");
-    const badge = byId("ownerGuestQrBadge");
-    const urlToCopy = (linkText && linkText.textContent) ? linkText.textContent.trim() : `${location.origin}/guest`;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(urlToCopy);
-      }
-      if (badge) badge.textContent = "Đã sao chép link";
-    } catch (_) {
-      if (badge) badge.textContent = "Link: /guest";
-    }
-  }
 
   // Export M7 functions to window
   window.retryWsConnection = retryWsConnection;
@@ -3389,8 +3443,6 @@
   window.updateConnectionUI = updateConnectionUI;
   window.connectWebSocket = connectWebSocket;
   window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
-  window.copyOwnerGuestLink = copyOwnerGuestLink;
-
   loadVoiceSamples();
   loadOwnerDashboardGuestQr();
   pollRestStateFallback();

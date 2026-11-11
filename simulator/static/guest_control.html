@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Trang khách — Nhà thông minh</title>
+  <link rel="stylesheet" href="/static/guest_control.css"/>
+</head>
+<body class="guest-only">
+  <main class="guest-shell" id="guestApp" hidden>
+    <header>
+      <h1>Trang điều khiển khách</h1>
+      <p>Chỉ các thiết bị được phép theo cấp của mã mời. Trang này không có menu điều hướng trang chủ.</p>
+      <div class="guest-badge" id="guestTierBadge">Đang mở phiên khách…</div>
+    </header>
+    <section class="voice-box">
+      <button type="button" id="guestMicBtn">Nói lệnh</button>
+      <p class="voice-status" id="guestVoiceStatus">Có thể dùng giọng nói hoặc nút. Mọi giọng đều được nhận nếu đã có phiên khách.</p>
+    </section>
+    <section class="device-grid" id="guestDeviceGrid"></section>
+    <p class="guest-msg" id="guestMsg"></p>
+  </main>
+  <main class="guest-invalid" id="guestInvalid" hidden>
+    <h1>Liên kết khách không hợp lệ hoặc đã hết hạn</h1>
+    <p>Hãy nhờ chủ nhà tạo mã QR hoặc liên kết mời mới. Không có đường dẫn công khai cố định.</p>
+  </main>
+  <script src="/static/js/guest_control.js"></script>
+</body>
+</html>

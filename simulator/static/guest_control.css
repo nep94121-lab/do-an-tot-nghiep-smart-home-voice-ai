@@ -1,0 +1,30 @@
+:root {
+  --bg: #0f1720;
+  --card: #18222d;
+  --text: #e8eef4;
+  --muted: #93a4b3;
+  --accent: #3db8a0;
+  --danger: #e37a7a;
+  --line: #2a3846;
+  --ok: #7dce9a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; }
+body.guest-only { min-height: 100vh; }
+.guest-invalid { max-width: 40rem; margin: 12vh auto; padding: 2rem; background: var(--card); border-radius: 16px; border: 1px solid var(--line); }
+.guest-invalid h1 { margin-top: 0; font-size: 1.4rem; }
+.guest-shell { max-width: 52rem; margin: 0 auto; padding: 1.4rem 1.1rem 3rem; }
+.guest-shell header h1 { margin: 0 0 0.25rem; font-size: 1.35rem; }
+.guest-shell header p { margin: 0; color: var(--muted); }
+.guest-badge { display: inline-block; margin-top: 0.7rem; padding: 0.2rem 0.65rem; border-radius: 999px; background: #21463f; color: #c9f3e8; font-size: 0.85rem; }
+.device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.85rem; margin-top: 1.2rem; }
+.device-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.95rem; }
+.device-card h2 { margin: 0 0 0.4rem; font-size: 1.02rem; }
+.device-card .state { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.7rem; }
+.device-card button { width: 100%; border: 0; border-radius: 10px; padding: 0.55rem 0.7rem; background: var(--accent); color: #06231d; font-weight: 700; cursor: pointer; }
+.device-card button[disabled] { opacity: 0.45; cursor: not-allowed; }
+.voice-box { margin-top: 1.2rem; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; }
+.voice-box button { border: 0; border-radius: 10px; padding: 0.6rem 0.9rem; background: var(--accent); color: #06231d; font-weight: 700; cursor: pointer; }
+.voice-status, .guest-msg { margin: 0.6rem 0 0; color: var(--muted); min-height: 1.2em; }
+.guest-msg.error { color: var(--danger); }
+.guest-msg.ok { color: var(--ok); }
