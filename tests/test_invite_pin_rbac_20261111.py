@@ -314,3 +314,62 @@ def test_guest_page_markup_has_only_dynamic_grid() -> None:
     assert "guestDeviceGrid" in client.get("/guest").text or "guest" in html.lower() or True
     page = client.get("/static/js/guest_control.js").text
     assert "allowedDevices" in page
+
+
+def test_first_use_pin_requires_explicit_confirm() -> None:
+    client = _client()
+    headers = _auth(OWNER_SEED)
+    cookies = {"sh_session_token": OWNER_SEED, "session_token": OWNER_SEED}
+    missing = client.post(
+        "/api/auth3/guest_invites",
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert missing.status_code in (400, 428), missing.text
+    assert missing.json().get("ok") is False
+    assert missing.json().get("needs_pin_setup") is True
+    assert not missing.json().get("token")
+    mismatch = client.post(
+        "/api/auth3/guest_invites",
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "1357"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert mismatch.status_code == 400, mismatch.text
+    assert mismatch.json().get("ok") is False
+    created = client.post(
+        "/api/auth3/guest_invites",
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert created.status_code == 200, created.text
+    assert created.json().get("ok") is True
+    assert "<svg" in str(created.json().get("qr_svg") or "")
+
+
+def test_forgot_pin_mailer_receives_real_otp_outside_sandbox(monkeypatch) -> None:
+    client = _client()
+    headers = _auth(OWNER_SEED)
+    cookies = {"sh_session_token": OWNER_SEED, "session_token": OWNER_SEED}
+    client.post(
+        "/api/auth3/guest_invites",
+        json={"tier": 3, "pin": "2468", "pin_confirm": "2468"},
+        headers=headers,
+        cookies=cookies,
+    )
+    captured: dict[str, str] = {}
+
+    def fake_send(otp_code: str):
+        captured["otp"] = otp_code
+        return {"ok": True, "method": "stub", "sent": True}
+
+    monkeypatch.setattr("simulator.auth.owner_pin.send_reset_email", fake_send)
+    monkeypatch.delenv("SIMULATOR_OFFLINE_SANDBOX", raising=False)
+    forgot = client.post("/api/auth3/owner_pin/forgot", json={}, headers=headers, cookies=cookies)
+    assert forgot.status_code == 200, forgot.text
+    assert captured.get("otp") and str(captured["otp"]).isdigit() and len(str(captured["otp"])) == 6
+    # Outside sandbox the HTTP body must not leak the OTP just because a test stub ran.
+    assert forgot.json().get("otp_code_for_test") in (None, "")
+

@@ -184,7 +184,7 @@ def issue_reset_otp() -> dict[str, Any]:
     }
     if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1":
         result["otp_code_for_test"] = code
-    return result
+    return result, code
 
 
 def allowed_reset_recipient(email: str) -> bool:

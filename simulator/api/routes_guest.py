@@ -142,7 +142,17 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
     pin_val = body.get("pin")
     pin_confirm = body.get("pin_confirm")
     if not status.get("pin_set"):
-        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm or pin_val or ""))
+        if pin_confirm is None or str(pin_confirm).strip() == "":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "needs_pin_setup": True,
+                    "status_code": 400,
+                    "error": "Hãy đặt mã PIN 4 số lần đầu (nhập hai lần: pin và pin_confirm) rồi tạo mã.",
+                },
+                status_code=400,
+            )
+        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm))
         if not setup.get("ok"):
             setup["needs_pin_setup"] = True
             return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
@@ -209,7 +219,17 @@ async def api_guest_qr_current_compat(request: Request, payload: dict[str, Any] 
     pin_val = body.get("pin")
     pin_confirm = body.get("pin_confirm")
     if not status.get("pin_set"):
-        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm or pin_val or ""))
+        if pin_confirm is None or str(pin_confirm).strip() == "":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "needs_pin_setup": True,
+                    "status_code": 400,
+                    "error": "Hãy đặt mã PIN 4 số lần đầu (nhập hai lần: pin và pin_confirm) rồi tạo mã.",
+                },
+                status_code=400,
+            )
+        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm))
         if not setup.get("ok"):
             setup["needs_pin_setup"] = True
             return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))

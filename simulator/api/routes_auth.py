@@ -1374,8 +1374,8 @@ async def api_owner_pin_forgot(request: Request, payload: dict[str, Any] | None 
     sess = resolve_request_session(request, payload=payload, engine=None)
     if not sess.is_authenticated or int(sess.tier or 99) != 1:
         return JSONResponse({"ok": False, "error": "Chỉ chủ nhà mới đặt lại được PIN."}, status_code=401)
-    issued = issue_reset_otp()
-    send_res = send_reset_email(issued.get("otp_code_for_test") or "")
+    issued, otp_code = issue_reset_otp()
+    send_res = send_reset_email(otp_code)
     if send_res.get("ok") is False and not issued.get("otp_code_for_test"):
         return JSONResponse({"ok": False, "error": send_res.get("error") or "Không gửi được email."}, status_code=500)
     if not is_test_otp_fields_allowed(getattr(request, "app", None)) and os.environ.get("SIMULATOR_OFFLINE_SANDBOX") != "1":
