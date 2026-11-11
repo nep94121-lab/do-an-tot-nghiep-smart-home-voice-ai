@@ -383,6 +383,7 @@ class EngineRulesMixin:
         t1_pool = self._get_user_pool("tuan_anh")
         should_include_users = bool(include_users) if include_users is not None else (tier == 1 and role == "ADMIN")
         snap: dict[str, Any] = {
+            "ok": True,
             "revision_seq": int(getattr(self, "_last_synced_seq", 0)),
             "revision_ts_ns": int(getattr(self, "_last_synced_ts_ns", 0)),
             "vn_time_now": format_vn_time_ampm(),
@@ -416,6 +417,21 @@ class EngineRulesMixin:
                 and not is_throwaway_qa_identity(u.get("email"))
                 and not is_throwaway_qa_identity(u.get("name"))
             ]
+        if session is not None and getattr(session, "is_authenticated", False) and getattr(session, "source", "") not in (
+            "unauthenticated",
+            "invalid_token",
+            "rejected_unknown",
+        ):
+            snap["authenticated"] = True
+            snap["public_only"] = False
+            email = str(getattr(session, "email", "") or "")
+            if not email:
+                try:
+                    email = str((u_obj or {}).get("email") or "")
+                except Exception:
+                    email = ""
+            if email:
+                snap["current_user_email"] = email
         return sanitize_api_payload(snap)
 
     async def set_word_mapping(

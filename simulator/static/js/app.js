@@ -647,6 +647,12 @@
           }
           if (data && (data.ok === false || data.error)) {
             rollbackIfLatest();
+            if (data.authenticated === false || (typeof isAuthDenialStatus === "function" && isAuthDenialStatus(0, data))) {
+              serverSessionConfirmed = false;
+              if (typeof clearAuthState === "function") clearAuthState();
+              if (typeof openLoginGateModal === "function") openLoginGateModal();
+              if (typeof showGuestQrLoginPrompt === "function") showGuestQrLoginPrompt();
+            }
             if (data.error) setAiReplyText(data.error);
             return;
           }
@@ -684,6 +690,12 @@
   function toggleDeviceById(devId, explicitTargetState = null) {
     const dev = latestDevicesMap[devId];
     if (!dev) return;
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      const gateBox = document.getElementById("gateStatusBox");
+      if (gateBox) gateBox.textContent = "Hãy đăng nhập";
+      return;
+    }
     const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
     if (isOfflineLocked) return;
 
@@ -1084,6 +1096,9 @@
   }
 
   function applySnapshot(snap) {
+    if (snap && typeof snap === "object" && typeof syncAuthFromSnapshot === "function") {
+      syncAuthFromSnapshot(snap);
+    }
     if (Array.isArray(snap.users) && roleSelect && roleSelect.options) {
       snap.users.forEach((u) => {
         if (!u || !u.id) return;
@@ -2183,11 +2198,29 @@
     }
   }
 
+  function isAuthDenialStatus(status, data) {
+    const code = Number(status || 0);
+    if (code === 401 || code === 403) return true;
+    const err = String((data && (data.error || data.message)) || "").toLowerCase();
+    return err.indexOf("đăng nhập") >= 0 || err.indexOf("dang nhap") >= 0 || err.indexOf("unauthorized") >= 0;
+  }
+
+  function showGuestQrLoginPrompt() {
+    renderOwnerGuestQrSvg("");
+    const meta = document.getElementById("ownerGuestQrMeta");
+    if (meta) meta.textContent = "Hãy đăng nhập";
+    if (typeof openLoginGateModal === "function") openLoginGateModal();
+  }
+
   async function loadOwnerDashboardGuestQr() {
     const box = document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrSvg");
     const meta = document.getElementById("ownerGuestQrMeta");
     const tierEl = document.getElementById("ownerGuestInviteTier");
     if (!box) return;
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      showGuestQrLoginPrompt();
+      return;
+    }
     const tier = Number((tierEl && tierEl.value) || 3);
     try {
       const res = await fetch("/api/auth3/guest_invites", {
@@ -2199,8 +2232,16 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         renderOwnerGuestQrSvg("");
-        if (meta) meta.textContent = data.error || "Đăng nhập tài khoản chủ nhà để tạo mã QR khách.";
         ownerGuestCurrentInviteId = "";
+        if (res.status === 401 || (data && data.authenticated === false) || !hasValidLoginSession()) {
+          showGuestQrLoginPrompt();
+          return;
+        }
+        if (res.status === 403) {
+          if (meta) meta.textContent = data.error || "Chỉ chủ nhà mới tạo được mã QR khách.";
+          return;
+        }
+        if (meta) meta.textContent = data.error || "Không tạo được mã QR khách.";
         return;
       }
       ownerGuestCurrentInviteId = data.invite_id || "";
@@ -2212,6 +2253,10 @@
       }
     } catch (err) {
       renderOwnerGuestQrSvg("");
+      if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+        showGuestQrLoginPrompt();
+        return;
+      }
       if (meta) meta.textContent = "Không tạo được mã QR khách.";
     }
   }
@@ -2632,25 +2677,111 @@
 
   function setDeviceAreaLockdown(isLocked) {
     const devSec = document.getElementById("secDevices") || document.querySelector(".panel.devices");
-    if (!devSec) return;
+    const house = document.getElementById("house3dViewport");
+    const labels = document.getElementById("house3dLabels");
+    const targets = [devSec, house, labels].filter(Boolean);
+    const bodyEl = document.body;
+    const rootEl = document.documentElement;
+    if (bodyEl && bodyEl.classList) {
+      bodyEl.classList.toggle("dashboard-logged-out", !!isLocked);
+      bodyEl.classList.toggle("login-gate-open", !!isLocked);
+    }
+    if (rootEl && rootEl.classList) {
+      rootEl.classList.toggle("login-gate-open", !!isLocked);
+    }
+    targets.forEach((el) => {
+      if (isLocked) {
+        el.classList.add("devices-logged-out");
+        el.setAttribute("aria-hidden", "true");
+        el.setAttribute("inert", "");
+      } else {
+        el.classList.remove("devices-logged-out");
+        el.removeAttribute("aria-hidden");
+        el.removeAttribute("inert");
+      }
+    });
+    document.querySelectorAll(".pin-3d").forEach((pin) => {
+      pin.classList.toggle("pin-3d-locked", !!isLocked);
+      if (isLocked) {
+        pin.setAttribute("aria-disabled", "true");
+        pin.setAttribute("tabindex", "-1");
+      } else {
+        pin.removeAttribute("aria-disabled");
+        pin.removeAttribute("tabindex");
+      }
+    });
+    document.querySelectorAll("#secDevices .switch input").forEach((input) => {
+      input.disabled = !!isLocked;
+    });
     if (isLocked) {
-      devSec.classList.add("devices-logged-out");
-      devSec.setAttribute("aria-hidden", "true");
-      devSec.setAttribute("inert", "");
-    } else {
-      devSec.classList.remove("devices-logged-out");
-      devSec.removeAttribute("aria-hidden");
-      devSec.removeAttribute("inert");
+      const meta = document.getElementById("ownerGuestQrMeta");
+      if (meta && !hasValidLoginSession()) meta.textContent = "Hãy đăng nhập";
+      if (typeof renderOwnerGuestQrSvg === "function" && !hasValidLoginSession()) {
+        renderOwnerGuestQrSvg("");
+      }
     }
   }
   window.setDeviceAreaLockdown = setDeviceAreaLockdown;
 
   let inMemoryUserSession = null;
+  let serverSessionConfirmed = false;
+
+  function setSessionCookies(token) {
+    const tok = String(token || "").trim();
+    if (!tok) return;
+    try {
+      const secure = (typeof location !== "undefined" && location.protocol === "https:") ? "; Secure" : "";
+      document.cookie = "sh_session_token=" + tok + "; path=/; SameSite=Lax" + secure;
+      document.cookie = "session_token=" + tok + "; path=/; SameSite=Lax" + secure;
+    } catch (_) {}
+  }
+
+  function hasClientAuthHint() {
+    if (inMemoryUserSession && (inMemoryUserSession.email || inMemoryUserSession.session_token)) return true;
+    try {
+      if (window.sessionStorage && window.sessionStorage.getItem("session_token")) return true;
+      if (window.localStorage && window.localStorage.getItem("session_token")) return true;
+      const raw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
+      if (!raw) return false;
+      const user = JSON.parse(raw);
+      return !!(user && (user.email || user.session_token));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function syncAuthFromSnapshot(snap) {
+    if (!snap || typeof snap !== "object") return;
+    if (snap.authenticated === true) {
+      serverSessionConfirmed = true;
+      const userObj = {
+        email: snap.current_user_email || (inMemoryUserSession && inMemoryUserSession.email) || "",
+        display_name: snap.current_user_name || (inMemoryUserSession && inMemoryUserSession.display_name) || "",
+        tier: snap.current_tier || (inMemoryUserSession && inMemoryUserSession.tier) || 3,
+        role: snap.role || (inMemoryUserSession && inMemoryUserSession.role) || "",
+        session_token: (inMemoryUserSession && inMemoryUserSession.session_token) || "",
+      };
+      applyLoggedInUserBanner(userObj);
+      if (typeof closeLoginGateModal === "function" && hasValidLoginSession()) {
+        if (homeLoginGateModal) homeLoginGateModal.classList.add("hidden");
+        setDeviceAreaLockdown(false);
+      }
+      return;
+    }
+    if (snap.authenticated === false || snap.public_only === true) {
+      if (serverSessionConfirmed) {
+        return;
+      }
+      serverSessionConfirmed = false;
+      setDeviceAreaLockdown(true);
+    }
+  }
 
   function applyLoggedInUserBanner(userObj) {
     if (!userObj) return;
     inMemoryUserSession = userObj;
-    setDeviceAreaLockdown(false);
+    if (userObj.session_token) setSessionCookies(userObj.session_token);
+    if (serverSessionConfirmed) setDeviceAreaLockdown(false);
     const tierNum = userObj.tier || 1;
     const rolePrefix = tierNum === 1 ? "👑 Cấp 1 · Chủ nhà" : (tierNum === 2 ? "🏠 Cấp 2 · Gia đình" : "🎫 Cấp 3 · Khách");
     if (homeCurrentAccountBadge) {
@@ -2673,11 +2804,11 @@
         durationBadge.textContent = userObj.validity || "Hiệu lực 24 giờ";
       }
     }
-    loadOwnerDashboardGuestQr();
   }
 
   function clearAuthState() {
     inMemoryUserSession = null;
+    serverSessionConfirmed = false;
     setDeviceAreaLockdown(true);
     try {
       if (window.localStorage) {
@@ -2730,15 +2861,7 @@
   }
 
   function hasValidLoginSession() {
-    if (inMemoryUserSession && inMemoryUserSession.email) return true;
-    try {
-      const raw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
-      if (!raw) return false;
-      const user = JSON.parse(raw);
-      return !!(user && user.email);
-    } catch (_) {
-      return false;
-    }
+    return !!serverSessionConfirmed;
   }
 
   function togglePasswordVisibility(inputId, btn) {
@@ -2881,8 +3004,10 @@
             window.sessionStorage.setItem("session_token", data.session_token);
           }
         } catch (_) {}
+        if (userSession.session_token) setSessionCookies(userSession.session_token);
+        serverSessionConfirmed = !!userSession.session_token;
         applyLoggedInUserBanner(userSession);
-        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
         if (gateStatusBox) {
           gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
         }
@@ -2956,8 +3081,10 @@
             window.sessionStorage.setItem("session_token", data.session_token);
           }
         } catch (_) {}
+        if (userSession.session_token) setSessionCookies(userSession.session_token);
+        serverSessionConfirmed = !!userSession.session_token;
         applyLoggedInUserBanner(userSession);
-        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
         if (gateStatusBox) {
           gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
         }
@@ -3131,19 +3258,43 @@
     btnSubmitForgotReset.addEventListener("click", handleForgotResetSubmit);
   }
 
-  // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (tự mở Login Gate nếu chưa có session hợp lệ)
+  // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (chỉ tin session phía máy chủ)
+  async function confirmServerSessionFromApi() {
+    try {
+      const res = await fetch("/api/state", { credentials: "include" });
+      const snap = await res.json().catch(() => ({}));
+      if (res.status === 401 || snap.authenticated === false || snap.public_only === true) {
+        serverSessionConfirmed = false;
+        setDeviceAreaLockdown(true);
+        openLoginGateModal();
+        return false;
+      }
+      if (typeof applySnapshot === "function") applySnapshot(snap);
+      return !!serverSessionConfirmed;
+    } catch (_) {
+      serverSessionConfirmed = false;
+      setDeviceAreaLockdown(true);
+      openLoginGateModal();
+      return false;
+    }
+  }
+
   try {
-    const savedRaw = window.localStorage ? window.localStorage.getItem("smarthome_auth_session") : null;
     const forceLoginModal = window.location && window.location.search && window.location.search.includes("login=1");
-    const user = savedRaw ? JSON.parse(savedRaw) : null;
-    if (user && user.email && !forceLoginModal) {
-      applyLoggedInUserBanner(user);
-      if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
-    } else {
-      clearAuthState();
-      if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+    serverSessionConfirmed = false;
+    setDeviceAreaLockdown(true);
+    if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+    if (!hasClientAuthHint() || forceLoginModal) {
       openLoginGateModal();
     }
+    confirmServerSessionFromApi().then((ok) => {
+      if (!ok || forceLoginModal) {
+        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+        openLoginGateModal();
+      } else if (btnCloseLoginGateModal) {
+        btnCloseLoginGateModal.hidden = false;
+      }
+    });
   } catch (_) {
     clearAuthState();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
@@ -3444,7 +3595,6 @@
   window.connectWebSocket = connectWebSocket;
   window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
   loadVoiceSamples();
-  loadOwnerDashboardGuestQr();
   pollRestStateFallback();
   setInterval(pollRestStateFallback, 4000);
   connectWebSocket();

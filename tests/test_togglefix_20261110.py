@@ -685,6 +685,20 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
                     pass
 
 
+
+async def _wait_for_authenticated_home(page: Any, selector: str, timeout: int = 15000) -> None:
+    """Wait until the home device card is present and the login-gate lockdown has lifted."""
+    await page.wait_for_selector(selector, timeout=timeout)
+    await page.wait_for_function(
+        """() => {
+            const sec = document.getElementById('secDevices');
+            if (!sec) return true;
+            return !sec.classList.contains('devices-logged-out')
+                && !document.body.classList.contains('dashboard-logged-out');
+        }""",
+        timeout=timeout,
+    )
+
 def test_e2e_duplicate_listener_check_and_direct_checkbox_parity(live_server_info: dict[str, str]) -> None:
     """Verifies single listener via independent EventTarget.prototype.addEventListener hook
     AND Codex F6 (direct native `input.click()` & Spacebar keep `checked` in sync with `data-state`).
@@ -726,7 +740,7 @@ async def _run_e2e_listener_and_checkbox(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/", wait_until="domcontentloaded")
-        await page.wait_for_selector("#dev-card-living_room_light", timeout=15000)
+        await _wait_for_authenticated_home(page, "#dev-card-living_room_light", 15000)
 
         # Ensure OFF initially and render 10 times
         await page.evaluate(
@@ -845,7 +859,7 @@ async def _run_e2e_stale_poll_and_10s_hold(info: dict[str, str]) -> None:
 
         await page.route("**/*", handle_route)
         await page.goto(f"{base_url}/", wait_until="domcontentloaded")
-        await page.wait_for_selector("#dev-card-living_room_light", timeout=15000)
+        await _wait_for_authenticated_home(page, "#dev-card-living_room_light", 15000)
 
         await page.evaluate(
             """async () => {
@@ -926,7 +940,7 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/app", wait_until="domcontentloaded")
-        await page.wait_for_selector("#mobileQuickBtnFan", timeout=15000)
+        await _wait_for_authenticated_home(page, "#mobileQuickBtnFan", 15000)
         await asyncio.sleep(0.4)
         assert len(sockets) >= 1
 
@@ -1073,7 +1087,7 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/wokwi", wait_until="domcontentloaded")
-        await page.wait_for_selector("#btn_fan", timeout=15000)
+        await _wait_for_authenticated_home(page, "#btn_fan", 15000)
         await page.evaluate("async () => syncWokwiComponents(await (await fetch('/api/state')).json())")
 
         # 1. Fresh Wokwi client clicks #btn_fan -> must turn ON on BOTH server and button (F2)
@@ -1186,7 +1200,7 @@ async def _run_e2e_f5_root_ws(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/", wait_until="domcontentloaded")
-        await page.wait_for_selector("#dev-card-living_room_light", timeout=15000)
+        await _wait_for_authenticated_home(page, "#dev-card-living_room_light", 15000)
         await asyncio.sleep(0.3)
         assert len(root_sockets) >= 1
 
@@ -1323,8 +1337,8 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         await page_b.route("**/*", route_b)
         await page_a.goto(f"{base_url}/", wait_until="domcontentloaded")
         await page_b.goto(f"{base_url}/app", wait_until="domcontentloaded")
-        await page_a.wait_for_selector("#dev-card-fan", timeout=15000)
-        await page_b.wait_for_selector("#mobileQuickBtnFan", timeout=15000)
+        await _wait_for_authenticated_home(page_a, "#dev-card-fan", 15000)
+        await _wait_for_authenticated_home(page_b, "#mobileQuickBtnFan", 15000)
 
         # Ensure fan starts OFF on both UIs and server
         init_req = urllib.request.Request(
@@ -1441,7 +1455,7 @@ async def _run_e2e_rapid_clicks_10s(info: dict[str, str]) -> None:
 
             await page.route("**/*", handle_route)
             await page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
-            await page.wait_for_selector(selector, timeout=15000)
+            await _wait_for_authenticated_home(page, selector, 15000)
 
             await page.evaluate(
                 f"""async () => {{
@@ -1583,7 +1597,7 @@ async def _run_e2e_f7_stale_ws_ack(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_local)
         await page.goto(f"{base_url}/", wait_until="domcontentloaded")
-        await page.wait_for_selector(f"#dev-card-{dev}", timeout=15000)
+        await _wait_for_authenticated_home(page, f"#dev-card-{dev}", 15000)
         await asyncio.sleep(0.35)
         assert len(sockets) >= 1
 
@@ -1840,7 +1854,7 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
 
             await page.route("**/*", handle_route)
             await page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
-            await page.wait_for_selector(click_sel, timeout=15000)
+            await _wait_for_authenticated_home(page, click_sel, 15000)
             await page.evaluate(
                 f"async () => {{ const s = await (await fetch('/api/state')).json(); window[{json.dumps(render_fn)}](s); }}"
             )
