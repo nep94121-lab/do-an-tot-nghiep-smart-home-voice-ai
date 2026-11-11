@@ -698,7 +698,7 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
 
 @router.post("/api/mobile/enroll_voice")
 async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm & đăng ký mẫu giọng từ App Android (Chỉ Chủ nhà Cấp 1 - Bắt buộc qua cổng chất lượng 12s + self-check 3s)."""
+    """Thu âm & đăng ký mẫu giọng từ App Android (Chỉ Chủ nhà Cấp 1 - Bắt buộc qua cổng chất lượng 11s + self-check 3s)."""
     _, err_resp = _require_admin_session(request)
     if err_resp is not None:
         return err_resp

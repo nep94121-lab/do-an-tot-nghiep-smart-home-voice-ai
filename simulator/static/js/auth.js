@@ -599,7 +599,7 @@
           measured_f0_hz: f0,
           snr_db: isGood ? 19.5 : 4.2,
           hold_duration_sec: holdSec,
-          source_device: 'Web Xác thực (Micro thật · 12s+ & Self-check 3s+)',
+          source_device: 'Web Xác thực (Micro thật · 11s+ & Self-check 3s+)',
           audio_pcm_b64: mainEnrollB64,
           pcm16k_b64: mainEnrollB64,
           self_check_pcm_b64: selfCheckEnrollB64,

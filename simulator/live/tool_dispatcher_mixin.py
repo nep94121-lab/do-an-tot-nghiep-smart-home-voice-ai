@@ -75,10 +75,10 @@ class LiveToolDispatcherMixin:
         await self.engine.blink_signal_light(sig_dev, pulse_sec=0.25)
         await self.send_ws_json({
             "type": "voice_enrollment_captured",
-            "message": "✅ Đã thu âm! Đang kiểm định chất lượng mẫu đăng ký (12s + câu kiểm tra 3s)...",
+            "message": "✅ Đã thu âm! Đang kiểm định chất lượng mẫu đăng ký (11s + câu kiểm tra 3s)...",
         })
 
-        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (12s + self-check 3s)
+        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (11s + self-check 3s)
         gate_res = check_enrollment_quality_gate(
             enroll_pcm=pcm_bytes,
             self_check_pcm=self_check_pcm_bytes,

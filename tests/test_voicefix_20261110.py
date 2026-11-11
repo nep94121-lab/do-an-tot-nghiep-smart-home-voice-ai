@@ -248,7 +248,7 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
     )
     assert gate_pass["ok"] is True, f"Expected PASS on 00_*.wav, got: {gate_pass}"
     assert gate_pass["require_rerecord"] is False
-    assert gate_pass["metrics"]["net_speech_s"] >= 12.0
+    assert gate_pass["metrics"]["net_speech_s"] >= 11.0
     assert gate_pass["metrics"]["silence_ratio"] <= 0.60
     assert -30.0 <= gate_pass["metrics"]["speech_rms_dbfs"] <= -12.0
     assert gate_pass["metrics"]["clipping_pct"] <= 0.1
@@ -259,12 +259,56 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
     assert gate_pass["self_check"]["cosine"] >= 0.88
 
     # 3B. Fail cases on check_enrollment_quality_gate
-    # Fail 1: Net speech < 12s (first 5 seconds of 00_*.wav)
+    # Fail 1: Net speech < 11s (first 5 seconds of 00_*.wav)
     short_5s = wav_00[44 : 44 + 16000 * 2 * 5]
     fail_short = check_enrollment_quality_gate(short_5s, wav_sc, sr=16000)
     assert fail_short["ok"] is False
     assert fail_short["require_rerecord"] is True
-    assert "12" in fail_short["message"]
+    assert "11" in fail_short["message"]
+
+    # Boundary: 10.9s net speech rejected; 11.0s net speech accepted for the duration check.
+    from simulator.voice.enrollment_quality import ENROLL_QUALITY_RULES, measure_enrollment_audio
+
+    def _prefix_near_net_speech(src: bytes, target_s: float, sr: int = 16000):
+        x = pcm_bytes_to_float32_16k(src, sr)
+        lo, hi = 0, int(x.size)
+        best = x[: max(sr, 1)]
+        best_err = 1e9
+        best_net = 0.0
+        for _ in range(28):
+            mid = (lo + hi) // 2
+            if mid < sr // 2:
+                lo = mid + 1
+                continue
+            metrics, _speech = measure_enrollment_audio(x[:mid], sr=sr)
+            net = float(metrics["net_speech_s"])
+            err = abs(net - target_s)
+            if err < best_err:
+                best_err = err
+                best = x[:mid]
+                best_net = net
+            if net < target_s:
+                lo = mid + 1
+            else:
+                hi = mid
+        return best, best_net
+
+    prefix_109, net_109 = _prefix_near_net_speech(wav_00, 10.90)
+    assert 10.80 <= net_109 <= 10.949, f"could not trim to ~10.9s net, got {net_109}"
+    fail_109 = check_enrollment_quality_gate(prefix_109, wav_sc, sr=16000, require_self_check=True)
+    assert fail_109["ok"] is False
+    assert fail_109["require_rerecord"] is True
+    assert fail_109["checks"]["net_speech"] is False
+    assert "11" in fail_109["message"]
+
+    prefix_110, net_110 = _prefix_near_net_speech(wav_00, 11.00)
+    assert 11.00 <= net_110 <= 11.12, f"could not trim to ~11.0s net, got {net_110}"
+    gate_110 = check_enrollment_quality_gate(prefix_110, wav_sc, sr=16000, require_self_check=True)
+    assert gate_110["checks"]["net_speech"] is True, f"11.0s net must pass duration check: {gate_110}"
+    assert float(gate_110["metrics"]["net_speech_s"]) >= float(ENROLL_QUALITY_RULES["min_speech_s"])
+    if not gate_110.get("ok"):
+        assert "quá ngắn" not in str(gate_110.get("message") or "").lower()
+        assert gate_110["checks"]["net_speech"] is True
 
     # Fail 2: Silence > 60% (22.2s speech padded with 35s quiet room noise -> 66.5% silence > 60%)
     x_00 = pcm_bytes_to_float32_16k(wav_00, 16000)
@@ -930,7 +974,7 @@ def test_round3_req2_active_speech_padded_short_clips() -> None:
 
 
 def test_round3_req3_mandatory_strict_enrollment_all_rest_and_qr_e2e() -> None:
-    """Round 3 Req 3: Strict >=12s + separate >=3s self-check mandatory on ALL REST/QR paths + Guest QR E2E success."""
+    """Round 3 Req 3: Strict >=11s + separate >=3s self-check mandatory on ALL REST/QR paths + Guest QR E2E success."""
     import copy
     from simulator.api.routes_auth import _BOOT_VOICE_AUTH
     from simulator.voice.synthesis_augment import transform_pcm_by_pitch_factor
@@ -965,7 +1009,7 @@ def test_round3_req3_mandatory_strict_enrollment_all_rest_and_qr_e2e() -> None:
     saved_eng_profiles = copy.deepcopy(getattr(_REST_ENGINE, "voice_auth", _BOOT_VOICE_AUTH).profiles)
     saved_accounts = copy.deepcopy(mgr.accounts)
     try:
-        # 1. All REST enrollment endpoints MUST reject 5s audio (even with enforce_12s_gate=False) AND >=12s audio missing self-check
+        # 1. All REST enrollment endpoints MUST reject 5s audio (even with enforce_12s_gate=False) AND >=11s audio missing self-check
         rest_cases = [
             (
                 "/api/auth3/layer3_voice",
@@ -1036,7 +1080,7 @@ def test_round3_req3_mandatory_strict_enrollment_all_rest_and_qr_e2e() -> None:
         assert r_qr_bad1.status_code == 400
         assert r_qr_bad1.json()["ok"] is False
 
-        #    Step D: Guest submits valid >=12s speech + >=3s separate self-check (real distinct human voice) -> succeeds E2E!
+        #    Step D: Guest submits valid >=11s speech + >=3s separate self-check (real distinct human voice) -> succeeds E2E!
         with wave.open(str(AUDIO_DIR / "giong_2_nguoi_la_mo_cua.wav"), "rb") as wf_guest:
             stranger_pcm = wf_guest.readframes(wf_guest.getnframes())
         quiet_pad = (np.sin(2.0 * np.pi * 200.0 * np.arange(8000) / 16000.0) * 8.0).astype(np.int16).tobytes()

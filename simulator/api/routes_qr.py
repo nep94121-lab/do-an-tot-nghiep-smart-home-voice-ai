@@ -467,7 +467,7 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
             status_code=400,
         )
 
-    # 1. Kiểm định chất lượng âm học nghiêm ngặt (BẮT BUỘC >=12s net speech + câu self-check >=3s độc lập)
+    # 1. Kiểm định chất lượng âm học nghiêm ngặt (BẮT BUỘC >=11s net speech + câu self-check >=3s độc lập)
     from simulator.voice_auth import check_enrollment_quality_gate
 
     self_check_b64_qr = str(
@@ -556,7 +556,7 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
             "message": f"✅ Giọng nói của '{guest_name}' ĐẠT CHUẨN xác thực WeSpeaker ResNet34 (F0 = {q_res.get('f0_hz')} Hz · {role_label_vn}). Nhấn nút 'OK · Xác nhận & Kích hoạt' bên dưới để lưu lên máy chủ!",
         }))
 
-    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (Hỗ trợ cả 1 mẫu >=12s + self-check >=3s và 5 mẫu WeSpeaker ResNet34 ONNX)
+    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (Hỗ trợ cả 1 mẫu >=11s + self-check >=3s và 5 mẫu WeSpeaker ResNet34 ONNX)
     expires_at_ts = time.time() + float(dur_seconds)
     prev_qr_profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
     raw_sample_idx = payload.get("sample_index")

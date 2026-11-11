@@ -827,7 +827,7 @@ class VoiceAuthManager:
     ) -> dict[str, Any]:
         """Thu âm giọng nói thật từ Microphone (16kHz PCM) và lưu vector trung bình WeSpeaker ResNet34 ONNX
         cho Cấp 1, Cấp 2 hoặc Cấp 3. Bắt buộc qua Cổng Chống Trùng Giọng Trong Nhà.
-        Bắt buộc 100% qua cổng kiểm định nghiêm ngặt 12s + self-check 3s (ENROLL_QUALITY.md) phía server.
+        Bắt buộc 100% qua cổng kiểm định nghiêm ngặt 11s + self-check 3s (ENROLL_QUALITY.md) phía server.
         """
         if (user_id == OWNER_ID or custom_label == "owner_voice_1") and int(tier) != 1:
             return {
