@@ -380,3 +380,40 @@ def test_enrollment_and_speaker_endpoints_are_gone(client):
         assert res.status_code == 410, f"{path} -> {res.status_code}"
         body = res.json()
         assert body.get("ok") is False
+
+def test_json_user_id_cannot_bypass_authentication(client):
+    """Không token thì user_id/role/tier trong JSON không được thành chủ nhà."""
+    for body, path in (
+        ({"transcript": "mo cua chinh", "user_id": "tuan_anh"}, "/api/voice_command"),
+        ({"transcript": "mo cua chinh", "role": "ADMIN"}, "/api/voice_command"),
+        ({"transcript": "mo cua chinh", "tier": 1}, "/api/voice_command"),
+        ({"device_id": "main_door", "action": "open", "user_id": "tuan_anh"}, "/api/device"),
+        ({"tier": 3, "user_id": "tuan_anh"}, "/api/auth3/guest_invites"),
+    ):
+        res = client.post(path, json=body)
+        assert res.status_code in (401, 403), (path, body, res.status_code, res.text)
+        payload = res.json()
+        assert payload.get("ok") is not True
+        assert payload.get("executed") is not True
+
+
+def test_speaker_id_cannot_veto_valid_session(client):
+    """Metadata speaker_id không được phủ quyết phiên chủ nhà hợp lệ."""
+    res = client.post(
+        "/api/voice_command",
+        json={"transcript": "bat quat", "speaker_id": "stranger", "source": "test"},
+        headers=_auth(OWNER_SESSION),
+        cookies=_cookies(OWNER_SESSION),
+    )
+    body = res.json()
+    assert res.status_code == 200, body
+    assert body.get("ok") is True
+    assert body.get("tier") == 1
+    assert body.get("ask_repeat") is not True
+
+
+def test_additional_enrollment_aliases_are_gone(client):
+    for path in ("/api/auth3/guest/enroll_voice", "/api/qr/guest_enroll"):
+        res = client.post(path, json={})
+        assert res.status_code == 410, f"{path} -> {res.status_code} {res.text}"
+        assert res.json().get("ok") is False

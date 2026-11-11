@@ -19,6 +19,8 @@ ENROLLMENT_GONE_PATHS = frozenset(
         "/api/auth3/enroll_voice",
         "/api/auth/enroll_voice",
         "/api/auth3/layer3_verify_voice",
+        "/api/auth3/guest/enroll_voice",
+        "/api/qr/guest_enroll",
     }
 )
 
@@ -36,7 +38,7 @@ def is_enrollment_gone_path(path: str) -> bool:
     # Một số alias kết thúc bằng /enroll_voice hoặc layer3_voice
     if raw.endswith("/enroll_first_page_voice") or raw.endswith("/enroll_voice_sample"):
         return True
-    if raw.endswith("/guest_qr_complete_voice"):
+    if raw.endswith("/guest_qr_complete_voice") or raw.endswith("/enroll_voice") or raw.endswith("/guest_enroll"):
         return True
     return raw in ENROLLMENT_GONE_PATHS
 

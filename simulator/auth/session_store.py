@@ -439,7 +439,7 @@ def get_session_store() -> SessionStore:
     return _SESSION_STORE
 
 
-_IDENTITY_PAYLOAD_KEYS = ("role", "user_id", "speaker_id", "speaker", "email")
+_IDENTITY_PAYLOAD_KEYS = ("role", "user_id", "email")
 _REJECTED_IDENTITY_LITERALS = frozenset(
     {
         "",
@@ -675,13 +675,8 @@ def resolve_request_session(
     store = get_session_store()
     token = ""
 
-    has_explicit_identity = False
-    explicit_session: UserSession | None = None
-    if payload and isinstance(payload, dict):
-        has_explicit_identity, explicit_session = _resolve_explicit_payload_identity(payload, engine=engine)
-        if has_explicit_identity and explicit_session is not None and not explicit_session.is_authenticated:
-            return explicit_session
-
+    # Quyền chỉ đến từ cookie/header phiên (hoặc mã mời đã đổi lấy phiên).
+    # user_id/role/tier/speaker_id trong JSON không được cấp quyền và không được phủ quyết phiên hợp lệ.
     if request is not None:
         # 1. Header Authorization Bearer
         auth_header = str(request.headers.get("authorization", "") or "")
@@ -722,10 +717,7 @@ def resolve_request_session(
             is_authenticated=False,
         )
 
-    if has_explicit_identity and explicit_session is not None:
-        return explicit_session
-
-    # 6. Nếu không có token và không có định danh trong payload, kiểm tra nếu engine đang ở trạng thái UNKNOWN
+    # 6. Không có token: không tin identity tự khai trong payload. Kiểm tra engine UNKNOWN.
     if engine is not None and (
         str(getattr(engine, "_current_role", "")).upper() == "UNKNOWN"
         or str(getattr(engine, "_current_user_id", "")).strip().lower() == "unknown"
