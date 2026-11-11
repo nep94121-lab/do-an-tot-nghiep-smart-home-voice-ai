@@ -1290,3 +1290,94 @@ def test_round3_req7_cloud_persistence_failure_rolls_back_and_fails_closed() -> 
 
             asyncio.run(_check_grant_rollback())
 
+def _guest_tach_cau_dir() -> pathlib.Path | None:
+    """Locate the stranger/guest held-out WAV folder by path only (do not move or copy files)."""
+    candidates = [
+        pathlib.Path(r"C:\Users\LENOVO\Documents\Sound Recordings\Giong_Khach_Nguoi_La_Tach_Cau"),
+    ]
+    desktop = pathlib.Path(r"C:\Users\LENOVO\Desktop")
+    if desktop.is_dir():
+        for child in desktop.iterdir():
+            cand = child / "test_audio" / "giong_khach_nguoi_la_tach_cau"
+            if cand.is_dir():
+                candidates.append(cand)
+    for p in candidates:
+        if p.is_dir() and any(p.glob("08_*.wav")):
+            return p
+    return None
+
+
+def test_stranger_guest_clips_must_not_authorize_as_owner() -> None:
+    """Regression: 12 guest/stranger WAVs must never be authorized as Cap 1 / owner.
+
+    Files are referenced by path and must not be modified, moved, or committed.
+    Privileged grant/revoke require a stricter WeSpeaker threshold than ordinary commands.
+    """
+    from simulator.voice.biometrics_neural import verify_speaker_identity_256d
+    from simulator.voice_config import (
+        THRESHOLD_WESPEAKER_PRIVILEGED,
+        THRESHOLD_WESPEAKER_TIER1,
+    )
+
+    guest_dir = _guest_tach_cau_dir()
+    if guest_dir is None:
+        pytest.skip("guest/stranger held-out folder not present on this machine")
+
+    va = VoiceAuthManager(AUDIO_DIR)
+    stranger_official_as_owner = []
+    stranger_helper_as_owner = []
+    official_scores: dict[str, float] = {}
+    clips = sorted(guest_dir.glob("[0-9][0-9]_*.wav"))
+    assert len(clips) == 12, f"expected 12 guest clips in {guest_dir}, got {len(clips)}"
+
+    for cp in clips:
+        raw = cp.read_bytes()
+        ver = va.verify_pcm16k_and_apply_strikes(raw)
+        official_scores[cp.name] = float(ver.get("wespeaker_cosine") or 0.0)
+        if ver.get("authorized") is True and int(ver.get("tier") or 0) == 1:
+            stranger_official_as_owner.append((cp.name, ver))
+        authorized, speaker_id, tier, _sim = verify_speaker_identity_256d(raw, va.profiles)
+        if authorized and int(tier) == 1 and speaker_id == "owner_voice_1":
+            stranger_helper_as_owner.append((cp.name, authorized, speaker_id, tier, _sim))
+        # Privileged gate must also refuse (including mid-threshold fake owner scores).
+        priv = va.evaluate_privileged_voice_gate(analysis=ver)
+        assert priv.get("ok") is False, f"privileged gate must refuse stranger {cp.name}: {priv}"
+        if cp.name.startswith("08_") or cp.name.startswith("09_"):
+            assert ver.get("authorized") is not True
+            assert int(ver.get("tier") or 99) != 1
+
+    assert stranger_official_as_owner == [], f"official verifier authorized strangers as owner: {stranger_official_as_owner}"
+    assert stranger_helper_as_owner == [], f"256d helper authorized strangers as owner: {stranger_helper_as_owner}"
+
+    # Owner held-out must still pass the official verifier (except the known too-short 11_bat).
+    if TACH_CAU_DIR.exists():
+        owner_ok = 0
+        for cp in sorted(TACH_CAU_DIR.glob("[0-9][0-9]_*.wav")):
+            if cp.name.startswith("00_"):
+                continue
+            res = va.verify_pcm16k_and_apply_strikes(cp.read_bytes())
+            if cp.name.startswith("11_"):
+                assert res.get("authorized") is False
+                assert res.get("reason") == "AUDIO_TOO_SHORT"
+                continue
+            assert res.get("authorized") is True, f"owner held-out failed: {cp.name} {res}"
+            assert res.get("tier") == 1
+            owner_ok += 1
+            if cp.name.startswith("08_") or cp.name.startswith("09_"):
+                priv = va.evaluate_privileged_voice_gate(analysis=res)
+                assert priv.get("ok") is True, f"owner privileged clip must pass tighter gate: {cp.name} {priv}"
+                assert float(priv.get("wespeaker_cosine") or 0.0) >= THRESHOLD_WESPEAKER_PRIVILEGED
+        assert owner_ok == 10
+
+    # Defense in depth: a bare 0.435-0.59 'owner' score must not unlock grant/revoke.
+    mid = va.evaluate_privileged_voice_gate(
+        analysis={
+            "authorized": True,
+            "tier": 1,
+            "user_id": OWNER_ID,
+            "wespeaker_cosine": max(THRESHOLD_WESPEAKER_TIER1, 0.45),
+        }
+    )
+    assert mid.get("ok") is False
+    assert mid.get("reason") == "PRIVILEGED_VOICE_THRESHOLD"
+    assert THRESHOLD_WESPEAKER_PRIVILEGED >= 0.55

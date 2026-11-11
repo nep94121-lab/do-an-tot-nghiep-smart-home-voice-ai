@@ -708,6 +708,61 @@ class VoiceAuthManager:
             w.setframerate(16000)
             w.writeframes(pcm16.tobytes())
 
+    def evaluate_privileged_voice_gate(
+        self,
+        *,
+        analysis: dict[str, Any] | None = None,
+        threshold: float | None = None,
+    ) -> dict[str, Any]:
+        """Cổng WeSpeaker chặt hơn cho lệnh đặc quyền (cấp/thu hồi quyền, đăng ký giọng).
+
+        Không thay ngưỡng lệnh thường (0.435). Thiếu bằng chứng lượt mic hiện tại thì fail-closed.
+        """
+        from simulator.voice_config import THRESHOLD_WESPEAKER_PRIVILEGED
+
+        info = dict(analysis or {})
+        thr = float(THRESHOLD_WESPEAKER_PRIVILEGED if threshold is None else threshold)
+        if not info:
+            return {
+                "ok": False,
+                "authorized": False,
+                "rbac_blocked": True,
+                "reason": "PRIVILEGED_VOICE_NO_UTTERANCE",
+                "wespeaker_cosine": 0.0,
+                "threshold_wespeaker_privileged": thr,
+                "message": UNIFIED_REJECTION_PHRASE_VI,
+            }
+        authorized = bool(info.get("authorized"))
+        try:
+            tier = int(info.get("tier") or 99)
+        except (TypeError, ValueError):
+            tier = 99
+        raw_cos = info.get("wespeaker_cosine")
+        if raw_cos is None:
+            raw_cos = info.get("similarity") or 0.0
+        try:
+            cosine = float(raw_cos)
+        except (TypeError, ValueError):
+            cosine = 0.0
+        if authorized and tier == 1 and cosine >= thr:
+            return {
+                "ok": True,
+                "authorized": True,
+                "tier": tier,
+                "wespeaker_cosine": cosine,
+                "threshold_wespeaker_privileged": thr,
+            }
+        return {
+            "ok": False,
+            "authorized": False,
+            "rbac_blocked": True,
+            "reason": "PRIVILEGED_VOICE_THRESHOLD",
+            "tier": tier,
+            "wespeaker_cosine": cosine,
+            "threshold_wespeaker_privileged": thr,
+            "message": UNIFIED_REJECTION_PHRASE_VI,
+        }
+
     def enroll_owner_from_pcm16k(
         self,
         pcm_bytes: bytes | None = None,

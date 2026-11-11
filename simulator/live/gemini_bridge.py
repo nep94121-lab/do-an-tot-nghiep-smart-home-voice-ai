@@ -1000,6 +1000,43 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
                 }
 
+            _privileged_voice_tools = (
+                "grant_user_permission",
+                "revoke_user_permission",
+                "start_voice_enrollment",
+                "finalize_voice_enrollment",
+            )
+            if name in _privileged_voice_tools:
+                gate = self.voice_auth.evaluate_privileged_voice_gate(
+                    analysis=self.last_mic_auth_result
+                )
+                if not gate.get("ok"):
+                    rej_msg = FIXED_REJECTION_PHRASE_VI
+                    await self.send_ws_json({
+                        "type": "rbac_blocked",
+                        "action": name,
+                        "role": self.engine.current_role,
+                        "reason": rej_msg,
+                        "privileged_voice_gate": {
+                            "reason": gate.get("reason"),
+                            "wespeaker_cosine": gate.get("wespeaker_cosine"),
+                            "threshold_wespeaker_privileged": gate.get("threshold_wespeaker_privileged"),
+                        },
+                    })
+                    await self._trigger_aoede_fixed_denial(rej_msg, auth_res=self.last_mic_auth_result)
+                    return {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "reason": gate.get("reason"),
+                        "error": rej_msg,
+                        "message": rej_msg,
+                        "rejection_speech": rej_msg,
+                        "exact_spoken_reply": rej_msg,
+                        "wespeaker_cosine": gate.get("wespeaker_cosine"),
+                        "threshold_wespeaker_privileged": gate.get("threshold_wespeaker_privileged"),
+                        "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
+                    }
+
         res = await super().handle_tool_call(fc)
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
             if res.get("status") != "DURABLE_PERSISTENCE_FAILED":
