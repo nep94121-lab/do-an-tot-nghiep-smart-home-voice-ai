@@ -762,6 +762,20 @@ def evaluate_audio_quality_gate(
             or voiced_core_sec < 0.35
         ):
             is_audio_too_short = True
+        else:
+            # Mid-utterance hard cut: after trimming near-zero edges, a fragment
+            # sliced from the middle of a longer phrase often starts at high energy.
+            # Natural compact commands (e.g. 06_mo_cua.wav) start/end softly.
+            # This does not close every split-padding case whose cut lands on a quiet
+            # boundary; those remain in conflict with accepting ~1.0s complete commands.
+            nz = np.where(np.abs(x) > 1e-4)[0]
+            if nz.size >= 640:
+                xt = x[int(nz[0]) : int(nz[-1]) + 1]
+                mid_rms = float(np.sqrt(np.mean(xt[len(xt)//4 : 3*len(xt)//4] ** 2) + 1e-12))
+                start20_rms = float(np.sqrt(np.mean(xt[:320] ** 2) + 1e-12))
+                end20_rms = float(np.sqrt(np.mean(xt[-320:] ** 2) + 1e-12))
+                if mid_rms > 1e-6 and max(start20_rms / mid_rms, end20_rms / mid_rms) >= 0.80:
+                    is_audio_too_short = True
 
     if is_audio_too_short:
         return {

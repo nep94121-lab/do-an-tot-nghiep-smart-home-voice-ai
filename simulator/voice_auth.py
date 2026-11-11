@@ -8,6 +8,7 @@ va Kiem Soat Quyen "Qua Tam Ba Ban" (2-Strike Silent Ignore).
 from __future__ import annotations
 
 import copy
+import contextlib
 import json
 import pathlib
 import time
@@ -647,36 +648,33 @@ class VoiceAuthManager:
         self._save_voiceprints_safe(data)
         return data
 
+    def _restore_voiceprint_file(self, prev_disk: bytes | None) -> None:
+        if prev_disk is not None:
+            with contextlib.suppress(Exception):
+                VOICEPRINT_FILE.write_bytes(prev_disk)
+                self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+            return
+        if VOICEPRINT_FILE.exists():
+            with contextlib.suppress(Exception):
+                VOICEPRINT_FILE.unlink(missing_ok=True)
+            self._voiceprint_mtime_ns = 0
+
     def _save_voiceprints_safe(self, data: dict[str, Any] | None = None) -> bool:
         target = data if data is not None else self.profiles
         prev_disk = VOICEPRINT_FILE.read_bytes() if VOICEPRINT_FILE.exists() else None
         try:
             VOICEPRINT_FILE.parent.mkdir(parents=True, exist_ok=True)
-            VOICEPRINT_FILE.write_bytes(
-                (json.dumps(target, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            )
-            self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
-        except Exception:
-            pass
-        try:
             import simulator.durable_store as _ds
 
             ok_saved = bool(_ds.save_durable_json("voiceprints.json", target, VOICEPRINT_FILE))
             if not ok_saved:
-                if prev_disk is not None:
-                    VOICEPRINT_FILE.write_bytes(prev_disk)
-                    self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
+                self._restore_voiceprint_file(prev_disk)
                 return False
             if VOICEPRINT_FILE.exists():
                 self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
             return True
         except Exception:
-            if prev_disk is not None:
-                try:
-                    VOICEPRINT_FILE.write_bytes(prev_disk)
-                    self._voiceprint_mtime_ns = VOICEPRINT_FILE.stat().st_mtime_ns
-                except Exception:
-                    pass
+            self._restore_voiceprint_file(prev_disk)
             return False
 
     def _sync_voiceprints_from_disk(self) -> None:

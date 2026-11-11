@@ -871,10 +871,13 @@ def save_durable_json(
     if target_file is not None and target_file.exists():
         with contextlib.suppress(Exception):
             prev_disk_bytes = target_file.read_bytes()
+    # Do not write the destination file until the durable commit is acknowledged.
+    # Snapshot must happen before any caller-side write as well (wrappers must not
+    # pre-write the candidate). On failure restore the previous bytes, or unlink
+    # the file when it did not exist.
     if target_file is not None:
         with contextlib.suppress(Exception):
             target_file.parent.mkdir(parents=True, exist_ok=True)
-            target_file.write_bytes(raw_bytes)
 
     target_store = store or get_durable_store()
     if sync_cloud is None:
@@ -890,13 +893,18 @@ def save_durable_json(
         sync_cloud=effective_sync_cloud,
         data_dir=resolved_data_dir,
     )
-    if not saved_ok and target_file is not None:
+    if saved_ok:
+        if target_file is not None:
+            with contextlib.suppress(Exception):
+                target_file.write_bytes(raw_bytes)
+        return True
+    if target_file is not None:
         with contextlib.suppress(Exception):
             if prev_disk_bytes is not None:
                 target_file.write_bytes(prev_disk_bytes)
-            else:
+            elif target_file.exists():
                 target_file.unlink(missing_ok=True)
-    return saved_ok
+    return False
 
 
 def sync_to_durable_store(

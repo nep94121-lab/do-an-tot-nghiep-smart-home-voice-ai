@@ -409,17 +409,21 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.overlay_rules["users"] = self.users
         prev_disk = OVERLAY_FILE.read_bytes() if OVERLAY_FILE.exists() else None
         raw_bytes = (json.dumps(self.overlay_rules, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        OVERLAY_FILE.write_bytes(raw_bytes)
+        def _restore_overlay_file() -> None:
+            if prev_disk is not None:
+                with contextlib.suppress(Exception):
+                    OVERLAY_FILE.write_bytes(prev_disk)
+            elif OVERLAY_FILE.exists():
+                with contextlib.suppress(Exception):
+                    OVERLAY_FILE.unlink(missing_ok=True)
         try:
             import simulator.durable_store as _ds
 
             if not _ds.save_durable_json("custom_rules_overlay.json", self.overlay_rules, OVERLAY_FILE):
-                if prev_disk is not None:
-                    OVERLAY_FILE.write_bytes(prev_disk)
+                _restore_overlay_file()
                 return False
         except Exception:
-            if prev_disk is not None:
-                OVERLAY_FILE.write_bytes(prev_disk)
+            _restore_overlay_file()
             return False
         try:
             sync_engine_state_to_sqlite(self)

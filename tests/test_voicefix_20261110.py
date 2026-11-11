@@ -764,6 +764,59 @@ def test_req7_durable_free_persistence_cold_start_recovery() -> None:
             restored_ov = json.loads(f_ov.read_text(encoding="utf-8"))
             assert "khach_hong_cloud" not in restored_ov.get("users", {})
 
+        # 7G. Destination file did not exist: failed cloud write must not leave a new file
+        # (Codex ROUND 4 F2). Child process must also not see the failed candidate.
+        f_vp_new = tmp_data_dir / "voiceprints_newfile_probe.json"
+        if f_vp_new.exists():
+            f_vp_new.unlink()
+        cand_new = {"failed_probe": {"marker": "must_not_survive_new_file"}}
+        st_new = DurableStateStore(vault_dir=root_p / "rb_vault_vp_new", offline_sandbox=False)
+        with patch.object(simulator.voice_auth, "VOICEPRINT_FILE", f_vp_new), \
+             patch("simulator.durable_store.get_durable_store", return_value=st_new), \
+             patch("simulator.durable_store.is_offline_sandbox_or_test", return_value=False), \
+             patch.object(st_new, "_save_bundle_to_upstash_kv", return_value=False), \
+             patch.object(st_new, "_save_bundle_to_gmail_imap", return_value=False), \
+             patch.object(st_new, "_load_bundle_from_upstash_kv", return_value=None), \
+             patch.object(st_new, "_load_bundle_from_gmail_imap", return_value=None):
+            ret_new = va_test._save_voiceprints_safe(cand_new)
+            assert ret_new is False
+            assert not f_vp_new.exists(), "Failed new-file voiceprint save left a destination file"
+            fresh_new = DurableStateStore(vault_dir=root_p / "rb_vault_vp_new", offline_sandbox=True)
+            fresh_new_cached = json.loads(fresh_new.load_state_file("voiceprints.json", sync_cloud=False) or b"{}")
+            assert "failed_probe" not in fresh_new_cached
+            child = subprocess.run(
+                [sys.executable, "-c", "import pathlib,sys; p=pathlib.Path(sys.argv[1]); sys.exit(0 if not p.exists() else 1)", str(f_vp_new)],
+                check=False,
+            )
+            assert child.returncode == 0
+
+        # 7H. Grant when overlay file did not exist: no leftover user on disk or in a new process
+        f_ov_new = tmp_data_dir / "custom_rules_overlay_newfile_probe.json"
+        if f_ov_new.exists():
+            f_ov_new.unlink()
+        e_new = SmartHomeEngine()
+        e_new.set_active_user(OWNER_ID)
+        e_new.emit = AsyncMock()
+        st_grant_new = DurableStateStore(vault_dir=root_p / "rb_vault_grant_new", offline_sandbox=False)
+        with patch.object(simulator.rule_engine, "OVERLAY_FILE", f_ov_new), \
+             patch("simulator.durable_store.get_durable_store", return_value=st_grant_new), \
+             patch("simulator.durable_store.is_offline_sandbox_or_test", return_value=False), \
+             patch.object(st_grant_new, "_save_bundle_to_upstash_kv", return_value=False), \
+             patch.object(st_grant_new, "_save_bundle_to_gmail_imap", return_value=False), \
+             patch.object(st_grant_new, "_load_bundle_from_upstash_kv", return_value=None), \
+             patch.object(st_grant_new, "_load_bundle_from_gmail_imap", return_value=None):
+            r_new = asyncio.run(e_new.grant_user_permission("Khach File Moi", 3))
+            assert r_new.get("ok") is False
+            assert r_new.get("status") == "DURABLE_PERSISTENCE_FAILED"
+            assert not f_ov_new.exists(), "Failed new-file grant left an overlay file"
+            blob = f_ov_new.read_text(encoding="utf-8") if f_ov_new.exists() else ""
+            assert "khach_file_moi" not in blob.lower() and "Khach File Moi" not in blob
+            child2 = subprocess.run(
+                [sys.executable, "-c", "import pathlib,sys; p=pathlib.Path(sys.argv[1]); sys.exit(0 if not p.exists() else 1)", str(f_ov_new)],
+                check=False,
+            )
+            assert child2.returncode == 0
+
 
 def test_req8_concise_system_prompt_and_latency_measurement() -> None:
     """Req 8: Concise complete Gemini system prompt + /api/version + latency benchmark for recognition & API."""
@@ -862,6 +915,18 @@ def test_round3_req2_active_speech_padded_short_clips() -> None:
     l3_json = r_l3.json()
     assert l3_json["ok"] is False
     assert l3_json.get("ask_repeat") is True
+
+    # Mid-utterance hard cut (Codex ROUND 4 F1, offset 1.0s into clip 01): must still safe-deny.
+    hard_slice = src_pcm[int(1.0 * 32000) : int(2.2 * 32000)]
+    hard_padded = (b"\x00" * int(0.4 * 32000)) + hard_slice + (b"\x00" * int(0.4 * 32000))
+    q_hard = evaluate_audio_quality_gate(hard_padded, sr=16000)
+    assert q_hard["ok"] is False
+    assert q_hard["reason"] == "AUDIO_TOO_SHORT"
+    va.reset_strikes()
+    ver_hard = va.verify_pcm16k_and_apply_strikes(hard_padded)
+    assert ver_hard["authorized"] is False
+    assert ver_hard["ask_repeat"] is True
+    assert ver_hard["reason"] == "AUDIO_TOO_SHORT"
 
 
 def test_round3_req3_mandatory_strict_enrollment_all_rest_and_qr_e2e() -> None:
