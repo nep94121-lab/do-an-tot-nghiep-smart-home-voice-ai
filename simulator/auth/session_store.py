@@ -724,26 +724,6 @@ def resolve_request_session(
     ):
         return _make_rejected_unknown_session()
 
-    # 7. Engine test fallback: trường hợp bài test Phase 1 đã gọi tường minh eng.set_active_user(...)
-    if engine is not None and getattr(engine, "_explicit_test_user_set", False):
-        tier_val = int(getattr(engine, "current_tier", 3))
-        if tier_val not in (1, 2, 3):
-            return _make_rejected_unknown_session()
-        user_val = engine.get_current_user_name() if hasattr(engine, "get_current_user_name") else "user"
-        uid_val = getattr(engine, "_current_user_id", "user")
-        return UserSession(
-            session_id="legacy_test",
-            user_id=uid_val,
-            email="",
-            display_name=user_val,
-            tier=tier_val,
-            role=ROLE_MAP.get(tier_val, "CHILD_GUEST"),
-            created_at=time.time(),
-            expires_at=time.time() + 86400,
-            source="legacy_test",
-            is_authenticated=True,
-        )
-
     # 8. Fallback mặc định cho client chưa đăng nhập: Tầng 3 (Khách)
     return UserSession(
         session_id="anonymous",

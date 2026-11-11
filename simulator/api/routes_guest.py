@@ -135,6 +135,21 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
     if not _is_owner_session(session):
         return JSONResponse({"ok": False, "error": "Chỉ chủ nhà (đã đăng nhập) mới tạo được mã mời khách."}, status_code=401)
     body = payload if isinstance(payload, dict) else {}
+    body = payload if isinstance(payload, dict) else {}
+    from simulator.auth.owner_pin import pin_status, setup_or_replace_pin, verify_pin
+
+    status = pin_status()
+    pin_val = body.get("pin")
+    pin_confirm = body.get("pin_confirm")
+    if not status.get("pin_set"):
+        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm or pin_val or ""))
+        if not setup.get("ok"):
+            setup["needs_pin_setup"] = True
+            return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
+    else:
+        checked = verify_pin(str(pin_val or ""))
+        if not checked.get("ok"):
+            return JSONResponse(checked, status_code=int(checked.get("status_code") or 403))
     try:
         invite = create_invite(
             owner_user_id=session.user_id,
@@ -187,6 +202,21 @@ async def api_guest_qr_current_compat(request: Request, payload: dict[str, Any] 
     body = payload if isinstance(payload, dict) else {}
     tier = body.get("tier") or request.query_params.get("tier") or 3
     ttl = body.get("ttl_sec") or request.query_params.get("ttl_sec") or INVITE_TTL_DEFAULT_SEC
+    body = payload if isinstance(payload, dict) else {}
+    from simulator.auth.owner_pin import pin_status, setup_or_replace_pin, verify_pin
+
+    status = pin_status()
+    pin_val = body.get("pin")
+    pin_confirm = body.get("pin_confirm")
+    if not status.get("pin_set"):
+        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm or pin_val or ""))
+        if not setup.get("ok"):
+            setup["needs_pin_setup"] = True
+            return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
+    else:
+        checked = verify_pin(str(pin_val or ""))
+        if not checked.get("ok"):
+            return JSONResponse(checked, status_code=int(checked.get("status_code") or 403))
     try:
         invite = create_invite(
             owner_user_id=session.user_id,

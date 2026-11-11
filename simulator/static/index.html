@@ -219,6 +219,19 @@
                     <option value="2">Cấp 2</option>
                   </select>
                 </label>
+                <label>PIN 4 số
+                  <input type="password" id="ownerGuestQrPin" inputmode="numeric" maxlength="4" autocomplete="off" style="width:6rem;" />
+                </label>
+                <label id="ownerGuestQrPinConfirmWrap" hidden>Nhập lại PIN
+                  <input type="password" id="ownerGuestQrPinConfirm" inputmode="numeric" maxlength="4" autocomplete="off" style="width:6rem;" />
+                </label>
+                <button type="button" id="ownerGuestQrForgotPinBtn" class="quick">Quên PIN</button>
+                <span id="ownerGuestPinForgotBox" hidden>
+                  <input type="text" id="ownerGuestPinOtp" inputmode="numeric" maxlength="6" placeholder="Mã Gmail" style="width:7rem;" />
+                  <input type="password" id="ownerGuestPinNew" inputmode="numeric" maxlength="4" placeholder="PIN mới" style="width:6rem;" />
+                  <input type="password" id="ownerGuestPinNewConfirm" inputmode="numeric" maxlength="4" placeholder="Nhập lại" style="width:6rem;" />
+                  <button type="button" id="ownerGuestPinResetBtn" class="quick">Đặt lại PIN</button>
+                </span>
                 <button type="button" id="ownerGuestQrGenerateBtn" class="quick">Tạo / làm mới mã QR</button>
                 <button type="button" id="ownerGuestQrRevokeBtn" class="quick">Thu hồi mã hiện tại</button>
               </div>
@@ -345,7 +358,7 @@
 
       <!-- TAB 2: TẠO TÀI KHOẢN / ĐẶT MẬT KHẨU (CÓ 2 Ô MẬT KHẨU XÁC NHẬN LẠI) -->
       <form id="gatePanelRegister" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
-        <div>
+        <div hidden aria-hidden="true">
           <label for="gateRegTier" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ tài khoản</label>
           <select id="gateRegTier" class="input-text" style="width:100%;">
             <option value="1">Cấp 1 · Chủ nhà Nguyễn Tuấn Anh (nep94121@gmail.com)</option>

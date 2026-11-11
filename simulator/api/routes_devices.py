@@ -168,169 +168,27 @@ async def api_get_state(request: Request) -> JSONResponse:
 
 @router.post("/api/session/role")
 async def api_set_session_role(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Đồng bộ vai trò phiên hiện tại trên _REST_ENGINE (dành cho Web/Mobile UI switch, chặn leo thang đặc quyền)."""
-    from simulator.auth_3layer import get_auth_3layer_manager
-
-    data = payload if isinstance(payload, dict) else {}
-    raw_role = str(data.get("role") if "role" in data else (data.get("user_id") or "")).strip()
-    email = str(data.get("email") or "").strip().lower()
-
-    async def _reject_unknown_session_role(
-        err_msg: str = "Vai trò hoặc người nói không xác định — Từ chối quyền điều khiển!",
-    ) -> JSONResponse:
-        _REST_ENGINE.set_active_user("unknown")
-        await broadcast_rest_state_to_bridges()
+    """Phiên khách/thành viên chỉ được tạo bằng đăng nhập hoặc mã mời của chủ nhà."""
+    existing_sess = resolve_request_session(request, payload=None, engine=None)
+    if not existing_sess.is_authenticated or existing_sess.source in ("invalid_token", "unauthenticated"):
         return JSONResponse(
             {
                 "ok": False,
-                "rbac_blocked": True,
-                "active_user_id": "unknown",
-                "role": "UNKNOWN",
-                "tier": 99,
-                "error": err_msg,
+                "authenticated": False,
+                "error": "Hãy đăng nhập hoặc dùng mã mời của chủ nhà.",
             },
-            status_code=403,
+            status_code=401,
         )
-
-    if is_throwaway_qa_identity(raw_role) or is_throwaway_qa_identity(email):
-        return await _reject_unknown_session_role("Tài khoản thử nghiệm QA tạm thời đã bị thu hồi vĩnh viễn!")
-
-    if (not raw_role and not email) or raw_role.lower() in (
-        "unknown",
-        "stranger",
-        "stranger_1",
-        "none",
-        "null",
-        "intruder",
-        "unauthorized",
-    ):
-        return await _reject_unknown_session_role()
-
-    mgr = get_auth_3layer_manager()
-    resolved_target = ""
-
-    if email:
-        acc = mgr.find_account(email)
-        acc_email = str((acc or {}).get("email") or "").strip().lower()
-        acc_id = str((acc or {}).get("account_id") or "").strip().lower()
-        is_valid_email_match = bool(
-            acc
-            and (email in (acc_email, acc_id) or email == "khach.hust@gmail.com")
-            and acc.get("permission_active", True)
-        )
-        if not is_valid_email_match:
-            return await _reject_unknown_session_role()
-        resolved_target = str(acc.get("account_id") or acc.get("role") or "").strip()
-
-    if raw_role and not resolved_target:
-        r_low = raw_role.lower()
-        r_up = raw_role.upper()
-        role_alias_map = {
-            "member_1": USER_ROLE_MAP.get(2, "thanh_vien_a"),
-            "member_2": "thanh_vien_b",
-            "guest_1": USER_ROLE_MAP.get(3, "khach_c"),
-            "guest_2": "khach_d",
-        }
-        lookup_role = role_alias_map.get(r_low, r_low)
-
-        if lookup_role in _REST_ENGINE.users:
-            u_eng = _REST_ENGINE.users[lookup_role]
-            if not u_eng.get("active", True):
-                return await _reject_unknown_session_role()
-            acc_chk = mgr.find_account(lookup_role)
-            if acc_chk and str(acc_chk.get("account_id", "")).lower() == lookup_role and not acc_chk.get("permission_active", True):
-                return await _reject_unknown_session_role()
-            resolved_target = lookup_role
-        elif r_up in ("ADMIN", "MEMBER", "CHILD_GUEST"):
-            resolved_target = r_up
-        else:
-            acc_role = mgr.find_account(raw_role)
-            acc_email = str((acc_role or {}).get("email") or "").strip().lower()
-            acc_id = str((acc_role or {}).get("account_id") or "").strip().lower()
-            acc_name = str((acc_role or {}).get("display_name") or "").strip().lower()
-            is_valid_acc_match = bool(
-                acc_role
-                and (
-                    r_low in (acc_email, acc_id, acc_name)
-                    or r_low.replace(" ", "_") == acc_id
-                    or r_low in ("khach.hust@gmail.com", "khach_hust", "guest_1", "member_1")
-                )
-                and acc_role.get("permission_active", True)
-            )
-            if not is_valid_acc_match:
-                return await _reject_unknown_session_role()
-            resolved_target = str(acc_role.get("account_id") or acc_role.get("role") or "").strip()
-
-    if not resolved_target:
-        return await _reject_unknown_session_role()
-
-    t_low = resolved_target.strip().lower()
-    t_up = resolved_target.strip().upper()
-    if t_up == "ADMIN" or t_low in (OWNER_ID.lower(), OWNER_EMAIL.lower(), "owner_root_t1", "1", "tier1", "tier_1"):
-        target_tier = 1
-    elif t_up == "MEMBER" or t_low in ("2", "tier2", "tier_2"):
-        target_tier = 2
-    elif t_up == "CHILD_GUEST" or t_low in ("3", "tier3", "tier_3"):
-        target_tier = 3
-    elif t_low in _REST_ENGINE.users:
-        target_tier = int(_REST_ENGINE.users[t_low].get("tier", 3))
-    else:
-        acc_target = mgr.find_account(resolved_target)
-        target_tier = int((acc_target or {}).get("tier", 3))
-
-    existing_sess = resolve_request_session(request, payload=None, engine=None)
-    if not existing_sess.is_authenticated and data.get("session_token"):
-        tok_body = str(data.get("session_token") or "").strip()
-        if tok_body:
-            existing_sess = get_session_store().get_session(tok_body) or existing_sess
-
-    if not existing_sess.is_authenticated or existing_sess.tier != 1 or existing_sess.source == "invalid_token":
-        if target_tier == 1 or (existing_sess.is_authenticated and target_tier < existing_sess.tier):
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "active_user_id": existing_sess.user_id,
-                    "role": existing_sess.role,
-                    "tier": existing_sess.tier,
-                    "error": (
-                        f"🚫 Từ chối leo thang đặc quyền: Phiên hiện tại đang ở Cấp {existing_sess.tier} ({existing_sess.role}) "
-                        f"không được phép tự nâng quyền lên Cấp {target_tier} qua /api/session/role mà không qua đăng nhập Lớp 1/Lớp 2!"
-                    ),
-                },
-                status_code=403,
-            )
-
-    snap_user = _REST_ENGINE.set_active_user(resolved_target)
-    if (
-        _REST_ENGINE.current_role == "UNKNOWN"
-        or _REST_ENGINE.current_user_id == "unknown"
-        or _REST_ENGINE.current_tier not in (1, 2, 3)
-    ):
-        return await _reject_unknown_session_role()
-
-    await broadcast_rest_state_to_bridges()
-    sess_obj = get_session_store().create_session(
-        user_id=_REST_ENGINE.current_user_id,
-        tier=_REST_ENGINE.current_tier,
-        role=_REST_ENGINE.current_role,
-        display_name=_REST_ENGINE.get_current_user_name(),
-        email=email or (OWNER_EMAIL if _REST_ENGINE.current_tier == 1 else ""),
-        source="session_role_switch",
-    )
-    resp = JSONResponse(
+    return JSONResponse(
         {
             "ok": True,
-            "active_user": snap_user,
-            "active_user_id": _REST_ENGINE.current_user_id,
-            "role": _REST_ENGINE.current_role,
-            "tier": _REST_ENGINE.current_tier,
-            "session_token": sess_obj.session_id,
+            "authenticated": True,
+            "active_user_id": existing_sess.user_id,
+            "role": existing_sess.role,
+            "tier": existing_sess.tier,
+            "message": "Phiên giữ nguyên theo tài khoản đã đăng nhập. Không thể đổi cấp tại đây.",
         }
     )
-    resp.set_cookie("sh_session_token", sess_obj.session_id, path="/", httponly=True, samesite="lax", max_age=86400)
-    resp.set_cookie("session_token", sess_obj.session_id, path="/", httponly=False, samesite="lax", max_age=86400)
-    return resp
 
 
 @router.post("/api/device")
@@ -351,7 +209,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     client_ts_ms = body.get("client_ts_ms") if "client_ts_ms" in body else body.get("timestamp")
     request_id = body.get("request_id") if "request_id" in body else body.get("requestId")
 
-    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)
@@ -450,7 +308,7 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
     act = str(body.get("action") or "turn_on").strip() or "turn_on"
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
-    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)
@@ -540,7 +398,7 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
 async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Học lệnh điều khiển hồng ngoại IR từ xa."""
     body = payload if isinstance(payload, dict) else {}
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    session = resolve_request_session(request, payload=body, engine=None)
     if not session.is_authenticated:
         return JSONResponse(
             {
@@ -599,7 +457,7 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
     body = payload if isinstance(payload, dict) else {}
     text = str(body.get("text", "")).strip()
 
-    req_sess = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    req_sess = resolve_request_session(request, payload=body, engine=None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)
@@ -883,7 +741,7 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 async def api_voice_command(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Lệnh giọng nói theo phiên: STT/transcript -> ý định -> RBAC phiên (không nhận dạng người nói)."""
     body = payload if isinstance(payload, dict) else {}
-    session = resolve_request_session(request, payload=body, engine=_REST_ENGINE)
+    session = resolve_request_session(request, payload=body, engine=None)
     from simulator.voice.session_voice_command import process_session_voice_command
 
     result, status = await process_session_voice_command(

@@ -47,6 +47,14 @@
       return Number(tier) <= Number(DEVICE_MIN_TIERS[id]);
     });
   }
+  fetch("/api/auth3/permissions").then(function (res) { return res.json(); }).then(function (data) {
+    if (data && data.device_min_tiers) {
+      Object.keys(data.device_min_tiers).forEach(function (id) {
+        DEVICE_MIN_TIERS[id] = Number(data.device_min_tiers[id]);
+      });
+      renderDevices();
+    }
+  }).catch(function () {});
   function authHeaders() {
     var h = { "Content-Type": "application/json" };
     if (sessionToken) {

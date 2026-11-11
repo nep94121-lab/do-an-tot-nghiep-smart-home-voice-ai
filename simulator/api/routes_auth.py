@@ -1107,22 +1107,36 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
     password = str(payload.get("password", "")).strip()
     confirm_password = str(payload.get("confirm_password", "")).strip()
     display_name = str(payload.get("display_name") or payload.get("name") or "").strip()
-    try:
-        target_tier = int(payload.get("target_tier") or payload.get("tier") or 2)
-    except (ValueError, TypeError):
-        target_tier = 2
+    invited = False
+    target_tier = 3
+    invite_token = str(payload.get("invite_token") or payload.get("token") or "").strip()
+    if invite_token:
+        from simulator.auth.guest_invites import inspect_token
+
+        checked = inspect_token(invite_token)
+        if not checked.get("valid"):
+            return JSONResponse(
+                {"ok": False, "error": checked.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn."},
+                status_code=403,
+            )
+        invited = True
+        try:
+            target_tier = int(checked.get("tier") or 3)
+        except (TypeError, ValueError):
+            target_tier = 3
     res = get_auth_3layer_manager().register_or_update_password(
         email=email,
         password=password,
         confirm_password=confirm_password,
         display_name=display_name,
         target_tier=target_tier,
+        invited=invited,
         source=str(payload.get("source", "Web Login Gate")),
     )
     session_token = None
-    if res.get("ok") and res.get("account"):
+    if res.get("ok") and res.get("account") and res.get("permission_active", res["account"].get("permission_active", True)):
         acc = res["account"]
-        tier_val = int(acc.get("tier", target_tier) or 2)
+        tier_val = int(acc.get("tier", target_tier) or 3)
         acc_id = str(acc.get("account_id") or "")
         role_name = str(acc.get("role") or ROLE_MAP.get(tier_val, "CHILD_GUEST"))
         disp_name = str(acc.get("display_name") or display_name or email)
@@ -1330,3 +1344,57 @@ async def api_list_voice_samples() -> JSONResponse:
                 dur = round(w.getnframes() / float(w.getframerate()), 2)
             samples.append({"id": key, "label": label, "duration_sec": dur})
     return JSONResponse(sanitize_api_payload({"samples": samples}))
+
+
+
+@router.get("/api/auth3/permissions")
+async def api_auth3_permissions() -> JSONResponse:
+    """Bảng quyền cố định theo cấp — công khai để UI khách/gia đình chỉ hiện điều khiển được phép."""
+    from simulator.auth.tier_permissions import permission_table_payload
+
+    return JSONResponse(permission_table_payload())
+
+
+@router.get("/api/auth3/owner_pin/status")
+async def api_owner_pin_status(request: Request) -> JSONResponse:
+    from simulator.auth.owner_pin import pin_status
+    from simulator.auth.session_store import resolve_request_session
+
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated or int(sess.tier or 99) != 1:
+        return JSONResponse({"ok": False, "authenticated": sess.is_authenticated, "error": "Chỉ chủ nhà mới xem được trạng thái PIN."}, status_code=401)
+    return JSONResponse(pin_status())
+
+
+@router.post("/api/auth3/owner_pin/forgot")
+async def api_owner_pin_forgot(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    import os
+    from simulator.auth.owner_pin import issue_reset_otp, send_reset_email
+
+    sess = resolve_request_session(request, payload=payload, engine=None)
+    if not sess.is_authenticated or int(sess.tier or 99) != 1:
+        return JSONResponse({"ok": False, "error": "Chỉ chủ nhà mới đặt lại được PIN."}, status_code=401)
+    issued = issue_reset_otp()
+    send_res = send_reset_email(issued.get("otp_code_for_test") or "")
+    if send_res.get("ok") is False and not issued.get("otp_code_for_test"):
+        return JSONResponse({"ok": False, "error": send_res.get("error") or "Không gửi được email."}, status_code=500)
+    if not is_test_otp_fields_allowed(getattr(request, "app", None)) and os.environ.get("SIMULATOR_OFFLINE_SANDBOX") != "1":
+        issued.pop("otp_code_for_test", None)
+    return JSONResponse(issued)
+
+
+@router.post("/api/auth3/owner_pin/reset")
+async def api_owner_pin_reset(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    from simulator.auth.owner_pin import reset_pin_with_otp
+    from simulator.auth.session_store import resolve_request_session
+
+    sess = resolve_request_session(request, payload=payload, engine=None)
+    if not sess.is_authenticated or int(sess.tier or 99) != 1:
+        return JSONResponse({"ok": False, "error": "Chỉ chủ nhà mới đặt lại được PIN."}, status_code=401)
+    body = payload if isinstance(payload, dict) else {}
+    res = reset_pin_with_otp(
+        str(body.get("otp") or body.get("otp_code") or ""),
+        str(body.get("pin") or body.get("new_pin") or ""),
+        str(body.get("pin_confirm") or body.get("confirm_pin") or ""),
+    )
+    return JSONResponse(res, status_code=int(res.get("status_code") or (200 if res.get("ok") else 400)))

@@ -43,17 +43,7 @@ from simulator.server import app
 
 
 def _create_admin_session_cookies(client: TestClient) -> dict[str, str]:
-    resp = client.post(
-        "/api/session/role",
-        json={"role": "chu_nha", "email": "nep94121@gmail.com"},
-    )
-    if resp.status_code != 200:
-        resp = client.post(
-            "/api/session/role",
-            json={"role": "thanh_vien_a", "email": "thanhviena.hust@gmail.com"},
-        )
-    assert resp.status_code == 200
-    tok = resp.json().get("session_token", "")
+    tok = "sess_owner_t1_nep94121"
     client.cookies.set("sh_session_token", tok)
     client.cookies.set("session_token", tok)
     return {"X-Session-Token": tok}
@@ -637,15 +627,7 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
         )
         try:
             _wait_for_server(base_url)
-            req = urllib.request.Request(
-                f"{base_url}/api/session/role",
-                data=json.dumps({"role": "thanh_vien_a", "email": "thanhviena.hust@gmail.com"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                sess_data = json.loads(resp.read().decode("utf-8"))
-                session_token = sess_data.get("session_token", "")
+            session_token = "sess_family_t2_member_a"
 
             ws_auth_script = f"""
                 sessionStorage.setItem('session_token', {json.dumps(session_token)});

@@ -694,7 +694,8 @@ class ThreeLayerAuthManager(
         password: str,
         confirm_password: str,
         display_name: str = "",
-        target_tier: int = 2,
+        target_tier: int = 3,
+        invited: bool = False,
         source: str = "Web",
     ) -> dict[str, Any]:
         """Tạo tài khoản hoặc đặt/đổi mật khẩu với bắt buộc 2 ô mật khẩu (Mật khẩu & Xác nhận lại mật khẩu)."""
@@ -713,9 +714,27 @@ class ThreeLayerAuthManager(
         if len(pw1) < 4:
             return {"ok": False, "error": "Mật khẩu phải có từ 4 ký tự trở lên!"}
 
+        domain = clean_email.rsplit("@", 1)[-1]
+        if domain not in ("gmail.com", "googlemail.com"):
+            return {"ok": False, "status_code": 400, "error": "Chỉ đăng ký bằng địa chỉ Gmail."}
+
         acc = self.find_account(clean_email)
         is_owner = clean_email == OWNER_EMAIL.lower() or (acc and acc.get("account_id") == OWNER_ID)
-        safe_tier = 1 if is_owner else (2 if int(target_tier or 2) == 2 else 3)
+        if is_owner:
+            safe_tier = 1
+        elif acc:
+            safe_tier = int(acc.get("tier") or acc.get("saved_tier") or 3)
+            if safe_tier not in (1, 2, 3):
+                safe_tier = 3
+        elif invited and int(target_tier or 0) in (2, 3):
+            safe_tier = int(target_tier)
+        else:
+            return {
+                "ok": False,
+                "status_code": 403,
+                "permission_active": False,
+                "error": "Cần mã mời từ chủ nhà để được cấp quyền điều khiển.",
+            }
 
         if not acc:
             clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())

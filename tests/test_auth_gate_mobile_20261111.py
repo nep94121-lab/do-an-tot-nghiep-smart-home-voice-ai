@@ -53,7 +53,7 @@ def test_owner_session_can_create_guest_qr() -> None:
     client = _app_client()
     resp = client.post(
         "/api/auth3/guest_invites",
-        json={"tier": 3, "ttl_sec": 600},
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
         headers={"X-Session-Token": OWNER_SEED},
         cookies={"sh_session_token": OWNER_SEED, "session_token": OWNER_SEED},
     )
@@ -67,7 +67,7 @@ def test_owner_session_can_create_guest_qr() -> None:
 
 def test_unauthenticated_guest_qr_is_rejected() -> None:
     client = _app_client()
-    resp = client.post("/api/auth3/guest_invites", json={"tier": 3, "ttl_sec": 600})
+    resp = client.post("/api/auth3/guest_invites", json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"})
     assert resp.status_code in (401, 403), resp.text
     data = resp.json()
     assert data.get("ok") is False
@@ -285,6 +285,14 @@ def test_e2e_mobile_owner_can_generate_guest_qr(live_server: str) -> None:
                 }""",
                 timeout=15000,
             )
+            await page.evaluate("""() => {
+              const pin = document.getElementById('ownerGuestQrPin');
+              const confirm = document.getElementById('ownerGuestQrPinConfirm');
+              const wrap = document.getElementById('ownerGuestQrPinConfirmWrap');
+              if (wrap) wrap.hidden = false;
+              if (pin) pin.value = '2468';
+              if (confirm) confirm.value = '2468';
+            }""")
             await page.locator("#ownerGuestQrGenerateBtn").click()
             await page.wait_for_function(
                 """() => {

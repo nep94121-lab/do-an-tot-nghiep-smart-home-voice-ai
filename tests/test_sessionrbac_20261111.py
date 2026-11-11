@@ -198,12 +198,12 @@ def test_dummy_audio_without_transcript_does_not_speak_repeat(client):
 
 
 def test_create_invite_requires_owner_login(client):
-    anon = client.post("/api/auth3/guest_invites", json={"tier": 3, "ttl_sec": 600})
+    anon = client.post("/api/auth3/guest_invites", json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"})
     assert anon.status_code in (401, 403)
 
     guest = client.post(
         "/api/auth3/guest_invites",
-        json={"tier": 3, "ttl_sec": 600},
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
         headers=_auth(GUEST_SESSION),
         cookies=_cookies(GUEST_SESSION),
     )
@@ -211,7 +211,7 @@ def test_create_invite_requires_owner_login(client):
 
     owner = client.post(
         "/api/auth3/guest_invites",
-        json={"tier": 3, "ttl_sec": 600},
+        json={"tier": 3, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
         headers=_auth(OWNER_SESSION),
         cookies=_cookies(OWNER_SESSION),
     )
@@ -230,7 +230,7 @@ def test_create_invite_requires_owner_login(client):
 def test_invite_tier_2_and_invalid_tier_rejected(client):
     bad = client.post(
         "/api/auth3/guest_invites",
-        json={"tier": 1, "ttl_sec": 600},
+        json={"tier": 1, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
         headers=_auth(OWNER_SESSION),
         cookies=_cookies(OWNER_SESSION),
     )
@@ -238,7 +238,7 @@ def test_invite_tier_2_and_invalid_tier_rejected(client):
 
     ok = client.post(
         "/api/auth3/guest_invites",
-        json={"tier": 2, "ttl_sec": 600},
+        json={"tier": 2, "ttl_sec": 600, "pin": "2468", "pin_confirm": "2468"},
         headers=_auth(OWNER_SESSION),
         cookies=_cookies(OWNER_SESSION),
     )

@@ -2222,12 +2222,16 @@
       return;
     }
     const tier = Number((tierEl && tierEl.value) || 3);
+    const pinEl = document.getElementById("ownerGuestQrPin");
+    const pinConfirmEl = document.getElementById("ownerGuestQrPinConfirm");
+    const pin = pinEl ? String(pinEl.value || "").trim() : "";
+    const pinConfirm = pinConfirmEl ? String(pinConfirmEl.value || "").trim() : "";
     try {
       const res = await fetch("/api/auth3/guest_invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ tier: tier, ttl_sec: 600 }),
+        body: JSON.stringify({ tier: tier, ttl_sec: 600, pin: pin, pin_confirm: pinConfirm }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -2235,6 +2239,16 @@
         ownerGuestCurrentInviteId = "";
         if (res.status === 401 || (data && data.authenticated === false) || !hasValidLoginSession()) {
           showGuestQrLoginPrompt();
+          return;
+        }
+        if (data && data.needs_pin_setup) {
+          const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
+          if (wrap) wrap.hidden = false;
+          if (meta) meta.textContent = data.error || "Hãy đặt mã PIN 4 số lần đầu (nhập hai lần) rồi tạo mã.";
+          return;
+        }
+        if (data && data.locked) {
+          if (meta) meta.textContent = data.error || "PIN đã bị khóa. Hãy dùng Quên PIN.";
           return;
         }
         if (res.status === 403) {
@@ -2290,6 +2304,50 @@
     const rev = document.getElementById("ownerGuestQrRevokeBtn");
     if (gen) gen.addEventListener("click", () => { loadOwnerDashboardGuestQr(); });
     if (rev) rev.addEventListener("click", () => { revokeOwnerGuestQr(); });
+    const forgotBtn = document.getElementById("ownerGuestQrForgotPinBtn");
+    const resetBtn = document.getElementById("ownerGuestPinResetBtn");
+    const forgotBox = document.getElementById("ownerGuestPinForgotBox");
+    const metaEl = document.getElementById("ownerGuestQrMeta");
+    if (forgotBtn) {
+      forgotBtn.addEventListener("click", async () => {
+        if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+          if (typeof showGuestQrLoginPrompt === "function") showGuestQrLoginPrompt();
+          return;
+        }
+        if (forgotBox) forgotBox.hidden = false;
+        try {
+          const res = await fetch("/api/auth3/owner_pin/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: "{}" });
+          const data = await res.json().catch(() => ({}));
+          if (metaEl) metaEl.textContent = data.error || data.message || "Đã gửi mã xác nhận tới Gmail chủ nhà.";
+        } catch (_) {
+          if (metaEl) metaEl.textContent = "Không gửi được mã xác nhận PIN.";
+        }
+      });
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener("click", async () => {
+        const otp = (document.getElementById("ownerGuestPinOtp") || {}).value || "";
+        const pin = (document.getElementById("ownerGuestPinNew") || {}).value || "";
+        const pin2 = (document.getElementById("ownerGuestPinNewConfirm") || {}).value || "";
+        try {
+          const res = await fetch("/api/auth3/owner_pin/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ otp: otp, pin: pin, pin_confirm: pin2 }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (metaEl) metaEl.textContent = data.error || data.message || "Đã đặt lại PIN.";
+          if (data && data.ok && forgotBox) forgotBox.hidden = true;
+        } catch (_) {
+          if (metaEl) metaEl.textContent = "Không đặt lại được PIN.";
+        }
+      });
+    }
+    fetch("/api/auth3/owner_pin/status", { credentials: "include" }).then((r) => r.json()).then((data) => {
+      const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
+      if (wrap && data && data.pin_set === false) wrap.hidden = false;
+    }).catch(() => {});
     if (document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrBox")) {
       /* Không tự tạo mã khi vừa mở trang: chủ nhà bấm "Tạo / làm mới". */
     }
@@ -2352,20 +2410,10 @@
     });
   });
 
-  roleSelect.addEventListener("change", async () => {
-    const newRole = roleSelect.value;
-    if (isWsOpen()) {
-      sendWs({ type: "set_role", role: newRole });
-      return;
-    }
-    try {
-      await fetch("/api/session/role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
-      });
-      await pollRestStateFallback();
-    } catch (_) {}
+  if (roleSelect) roleSelect.disabled = true;
+  if (roleSelect) roleSelect.addEventListener("change", async () => {
+    // Display-only: phien giu theo dang nhap hoac ma moi, khong doi cap tai day.
+    return;
   });
 
   btnFactoryReset.addEventListener("click", async () => {
@@ -3064,7 +3112,6 @@
         body: JSON.stringify({
           email,
           display_name: displayName,
-          target_tier: tier,
           password,
           confirm_password: confirmPassword,
         }),

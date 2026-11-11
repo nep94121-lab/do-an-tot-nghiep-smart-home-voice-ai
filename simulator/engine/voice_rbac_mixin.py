@@ -555,7 +555,11 @@ class EngineVoiceRbacMixin:
         dev = self.devices.get(canonical_id, {})
         default_tier_map = {"ADMIN": 1, "MEMBER": 2, "CHILD_GUEST": 3}
         fallback_tier = default_tier_map.get(dev.get("min_role", "CHILD_GUEST"), 3)
-        min_tier = int(self.system_policies.get("device_min_tiers", {}).get(canonical_id, fallback_tier))
+        from simulator.auth.tier_permissions import enforce_fixed_policy, min_tier_for_device
+        if isinstance(getattr(self, "system_policies", None), dict):
+            enforce_fixed_policy(self.system_policies)
+        min_tier = min_tier_for_device(canonical_id)
+
         if self.current_tier > min_tier:
             dname = dev.get("name", dev_id)
             return PermissionCheckResult({

@@ -432,6 +432,16 @@ class EngineRulesMixin:
                     email = ""
             if email:
                 snap["current_user_email"] = email
+        if session is not None and getattr(session, "is_authenticated", False) and getattr(session, "source", "") not in (
+            "unauthenticated",
+            "invalid_token",
+            "rejected_unknown",
+        ):
+            from simulator.auth.tier_permissions import filter_device_list, permission_table_payload
+
+            snap["devices"] = filter_device_list(list(snap.get("devices") or []), int(tier))
+            snap["permission_table"] = permission_table_payload()
+            snap["allowed_device_ids"] = [d["id"] for d in snap["devices"] if isinstance(d, dict) and d.get("id")]
         return sanitize_api_payload(snap)
 
     async def set_word_mapping(
