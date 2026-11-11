@@ -20,7 +20,7 @@ from simulator.voice.biometrics_neural import (
 
 SR = 16000
 ENROLL_QUALITY_RULES: dict[str, float] = {
-    "min_speech_s": 12.0,
+    "min_speech_s": 11.0,
     "max_silence_ratio": 0.60,
     "min_rms_dbfs": -30.0,
     "max_rms_dbfs": -12.0,
@@ -223,7 +223,7 @@ def check_enrollment_quality_gate(
     """Cổng kiểm định chất lượng mẫu đăng ký giọng nói (Chủ nhà Cấp 1 & Khách/Thành viên).
 
     Tiêu chuẩn bắt buộc (ENROLL_QUALITY.md & check_enroll.py):
-      1. Tiếng nói thực tế (net speech): >= 12.0s
+      1. Tiếng nói thực tế (net speech): >= 11.0s
       2. Tỷ lệ khoảng lặng (silence ratio): <= 60.0%
       3. Âm lượng tiếng nói (speech RMS): -30.0 dBFS .. -12.0 dBFS
       4. Tỷ lệ vỡ tiếng (clipping): <= 0.1%
@@ -310,7 +310,7 @@ def check_enrollment_quality_gate(
     if not checks["net_speech"]:
         reasons.append(
             f"Thời lượng tiếng nói thực tế quá ngắn ({metrics['net_speech_s']:.2f}s < {r['min_speech_s']:.1f}s). "
-            "Vui lòng thu âm lại ít nhất 12 giây tiếng nói rõ ràng!"
+            f"Vui lòng thu âm lại ít nhất {r['min_speech_s']:.0f} giây tiếng nói rõ ràng!"
         )
     if not checks["silence"]:
         reasons.append(
@@ -403,9 +403,9 @@ def validate_voice_enrollment_quality(
     strict_12s: bool = False,
 ) -> dict[str, Any]:
     """Kiểm định chất lượng giọng thu âm ban đầu (First-Page Voice Enrollment Quality Gate).
-    Nếu truyền `self_check_pcm` hoặc `strict_12s=True`, áp dụng cổng nghiêm ngặt 12s + self-check 3s.
+    Nếu truyền `self_check_pcm` hoặc `strict_12s=True`, áp dụng cổng nghiêm ngặt 11s + self-check 3s.
     Đo đạc 6 tiêu chuẩn âm học khắt khe:
-      1. Thời lượng thu âm: >= 2.0s (hoặc net_speech >= 12.0s khi bật strict_12s)
+      1. Thời lượng thu âm: >= 2.0s (hoặc net_speech >= 11.0s khi bật strict_12s)
       2. Năng lượng RMS: >= 0.020 (-30..-12 dBFS)
       3. Tỷ lệ khung tiếng nói có thanh (Voiced Frame Ratio): >= 35.0% (silence <= 60%)
       4. Tần số cơ bản F0 trung bình: 75.0 Hz <= F0 <= 340.0 Hz

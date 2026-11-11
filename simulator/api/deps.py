@@ -65,17 +65,24 @@ def get_active_bridges() -> list[Any]:
 
 
 async def broadcast_rest_state_to_bridges() -> None:
-    """Đồng bộ trạng thái REST Engine sang toàn bộ các kết nối WebSocket đang hoạt động."""
-    snap = _REST_ENGINE.get_public_device_snapshot()
+    """Đồng bộ trạng thái thiết bị vật lý của REST Engine sang các kết nối WebSocket đang hoạt động mà không ghi đè danh tính người nói riêng của từng phiên."""
+    pub_snap = _REST_ENGINE.get_public_device_snapshot()
     for br in list(_ACTIVE_BRIDGES):
         try:
             br.engine.server_connected = _REST_ENGINE.server_connected
-            br.engine.devices = copy.deepcopy(_REST_ENGINE.devices)
-            br.engine.mqtt_bridge.esp8266_status = copy.deepcopy(_REST_ENGINE.mqtt_bridge.esp8266_status)
-            br.engine.mqtt_bridge.dht11_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.dht11_telemetry)
-            br.engine.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.soil_moisture_telemetry)
-            br.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
-            await br.send_ws_json({"type": "state_snapshot", "snapshot": snap})
+            if br.engine.devices is not _REST_ENGINE.devices:
+                br.engine.devices = copy.deepcopy(_REST_ENGINE.devices)
+            if br.engine.mqtt_bridge is not _REST_ENGINE.mqtt_bridge:
+                br.engine.mqtt_bridge.esp8266_status = copy.deepcopy(_REST_ENGINE.mqtt_bridge.esp8266_status)
+                br.engine.mqtt_bridge.dht11_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.dht11_telemetry)
+                br.engine.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.soil_moisture_telemetry)
+                br.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
+            snap_for_br = (
+                br.engine.get_snapshot()
+                if getattr(br.engine, "current_tier", 99) == 1
+                else pub_snap
+            )
+            await br.send_ws_json({"type": "state_snapshot", "snapshot": snap_for_br})
         except Exception:
             pass
 

@@ -161,6 +161,14 @@ def load_voice_auth_config() -> dict[str, Any]:
             raw.get("threshold_wespeaker_tier3", 0.385),
         )
     )
+    # Grant/revoke/enroll by voice need a higher score than ordinary commands (door/lights).
+    # Tuned on held-out owner 08/09 (~0.72) vs stranger max official cosine (~0.41).
+    threshold_wespeaker_privileged = float(
+        os.environ.get(
+            "VOICE_AUTH_THRESHOLD_WESPEAKER_PRIVILEGED",
+            raw.get("threshold_wespeaker_privileged", 0.60),
+        )
+    )
     enrollment_required_samples = int(
         os.environ.get(
             "VOICE_AUTH_ENROLLMENT_SAMPLES",
@@ -181,6 +189,7 @@ def load_voice_auth_config() -> dict[str, Any]:
         "threshold_wespeaker_tier1": threshold_wespeaker_tier1,
         "threshold_wespeaker_tier2": threshold_wespeaker_tier2,
         "threshold_wespeaker_tier3": threshold_wespeaker_tier3,
+        "threshold_wespeaker_privileged": threshold_wespeaker_privileged,
         "enrollment_required_samples": enrollment_required_samples,
     }
 
@@ -198,6 +207,7 @@ THRESHOLD_WESPEAKER: float = _CFG["threshold_wespeaker"]
 THRESHOLD_WESPEAKER_TIER1: float = _CFG["threshold_wespeaker_tier1"]
 THRESHOLD_WESPEAKER_TIER2: float = _CFG["threshold_wespeaker_tier2"]
 THRESHOLD_WESPEAKER_TIER3: float = _CFG["threshold_wespeaker_tier3"]
+THRESHOLD_WESPEAKER_PRIVILEGED: float = _CFG["threshold_wespeaker_privileged"]
 ENROLLMENT_REQUIRED_SAMPLES: int = _CFG["enrollment_required_samples"]
 
 
@@ -209,6 +219,11 @@ def get_tier_wespeaker_threshold(tier: int) -> float:
     if t == 2:
         return THRESHOLD_WESPEAKER_TIER2
     return THRESHOLD_WESPEAKER_TIER3
+
+
+def get_privileged_wespeaker_threshold() -> float:
+    """Stricter WeSpeaker cosine required for voice grant/revoke/enroll."""
+    return THRESHOLD_WESPEAKER_PRIVILEGED
 
 
 def sanitize_api_payload(obj: Any) -> Any:

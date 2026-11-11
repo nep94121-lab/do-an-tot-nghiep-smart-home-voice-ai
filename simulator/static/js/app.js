@@ -347,7 +347,20 @@
     try {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "aoede_speak_denial", text: cleanText }));
+        return;
       }
+      fetch("/api/voice/aoede_phrase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phrase: cleanText }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d && d.pcm24k_b64) {
+            playPcm24kChunk(d.pcm24k_b64);
+          }
+        })
+        .catch(() => {});
     } catch (_) {}
   }
 
@@ -1205,7 +1218,9 @@
         setAiReplyText(spokenReply);
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
-        if (spokenReply) {
+        if (data.pcm24k_b64) {
+          playPcm24kChunk(data.pcm24k_b64);
+        } else if (spokenReply) {
           requestAoedeSpokenPhrase(spokenReply);
         }
       }

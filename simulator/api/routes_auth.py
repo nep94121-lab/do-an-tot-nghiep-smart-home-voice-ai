@@ -360,6 +360,33 @@ def _decode_b64_samples_to_pcm16k_list(raw_list: Any) -> list[bytes]:
     return out
 
 
+def _decode_self_check_from_payload(payload: dict[str, Any]) -> bytes | None:
+    """Decode independent self-check audio (>=3s net speech) from payload to 16kHz PCM16 bytes."""
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+    from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
+    sc_b64 = str(
+        payload.get("self_check_pcm_b64")
+        or payload.get("self_check_pcm16k_b64")
+        or payload.get("self_check_wav_b64")
+        or payload.get("self_check_audio_b64")
+        or payload.get("self_check_b64")
+        or ""
+    ).strip()
+    if not sc_b64:
+        return None
+    if "," in sc_b64 and sc_b64.startswith("data:"):
+        sc_b64 = sc_b64.split(",", 1)[1]
+    try:
+        raw_sc = base64.b64decode(sc_b64)
+        if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
+            sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
+            return sc_arr.astype("int16").tobytes()
+        return raw_sc
+    except Exception:
+        return b""
+
+
 @router.post("/api/auth3/enroll_first_page_voice")
 async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Thu âm giọng nói câu mẫu trang đầu (Chỉ Chủ nhà Cấp 1 - Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)."""
@@ -425,6 +452,18 @@ async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str,
             status_code=400,
         )
 
+    from simulator.voice.enrollment_quality import check_enrollment_quality_gate
+
+    sc_bytes_fp = _decode_self_check_from_payload(payload)
+    gate_fp = check_enrollment_quality_gate(
+        enroll_pcm=pcm_bytes if pcm_bytes else b"".join(decoded_samples),
+        self_check_pcm=sc_bytes_fp,
+        sr=16000,
+        require_self_check=True,
+    )
+    if not gate_fp.get("ok"):
+        return JSONResponse(sanitize_api_payload(gate_fp), status_code=400)
+
     mgr3 = get_auth_3layer_manager()
     acc_pre = mgr3.find_account(email)
     pre_tier = int((acc_pre or {}).get("tier", 2))
@@ -458,6 +497,7 @@ async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str,
         hold_duration_sec=hold_duration_sec,
         source_device=source_device,
         samples_b64=normalized_samples_b64 if normalized_samples_b64 else None,
+        self_check_pcm_bytes=sc_bytes_fp,
     )
     append_audit_log(
         category="AUTH_3LAYER",
@@ -467,6 +507,8 @@ async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str,
         tier=int(res.get("account", {}).get("tier", 2)) if res.get("ok") else 99,
         details=sanitize_api_payload(res),
     )
+    if not res.get("ok"):
+        return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
     if res.get("ok") and res.get("account"):
         acc = res["account"]
         uid = str(acc.get("account_id", "thanh_vien_a"))
@@ -498,7 +540,7 @@ async def api_auth3_enroll_first_page_voice(request: Request, payload: dict[str,
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
         _sync_voiceprints_to_durable_store()
-    return JSONResponse(sanitize_api_payload(res))
+    return JSONResponse(sanitize_api_payload(res), status_code=200)
 
 
 @router.post("/api/auth3/enroll_voice_sample")
@@ -563,35 +605,12 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
                     "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế!",
                 }
             ),
-            status_code=200,
+            status_code=400,
         )
 
-    self_check_b64_sample = str(
-        payload.get("self_check_pcm_b64")
-        or payload.get("self_check_wav_b64")
-        or payload.get("self_check_b64")
-        or ""
-    ).strip()
     from simulator.voice_auth import check_enrollment_quality_gate
 
-    sc_bytes_s: bytes | None = None
-    if self_check_b64_sample:
-        sc_clean = (
-            self_check_b64_sample.split(",", 1)[1]
-            if ("," in self_check_b64_sample and self_check_b64_sample.startswith("data:"))
-            else self_check_b64_sample
-        )
-        try:
-            from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
-
-            raw_sc = base64.b64decode(sc_clean)
-            if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
-                sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
-                sc_bytes_s = sc_arr.astype("int16").tobytes()
-            else:
-                sc_bytes_s = raw_sc
-        except Exception:
-            sc_bytes_s = b""
+    sc_bytes_s = _decode_self_check_from_payload(payload)
     gate_12s = check_enrollment_quality_gate(
         enroll_pcm=pcm_bytes if pcm_bytes else b"".join(decoded_samples),
         self_check_pcm=sc_bytes_s,
@@ -640,6 +659,7 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
         pcm_bytes=pcm_bytes,
         source_device=source_device,
         samples_pcm=decoded_samples if decoded_samples else None,
+        self_check_pcm_bytes=sc_bytes_s,
     )
     append_audit_log(
         category="AUTH_3LAYER",
@@ -649,14 +669,17 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
         tier=int(res.get("account", {}).get("tier", 2)) if res.get("ok") else 99,
         details=sanitize_api_payload(res),
     )
+    if not res.get("ok"):
+        return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
     if res.get("ok") and res.get("status") == "DA_DAT" and res.get("account"):
         acc = res["account"]
         uid = str(acc.get("account_id", "member"))
         uname = str(acc.get("display_name", uid))
         utier = int(acc.get("tier", 2))
         urole = str(acc.get("role", ROLE_MAP.get(utier, "MEMBER")))
-        _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
+        va_enr = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
             pcm_bytes=pcm_bytes,
+            self_check_pcm_bytes=sc_bytes_s,
             user_id=uid,
             user_name=uname,
             tier=utier,
@@ -665,6 +688,8 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
             samples_pcm16k=decoded_samples if (decoded_samples and len(decoded_samples) >= 2) else None,
             required_samples=len(decoded_samples) if (decoded_samples and len(decoded_samples) >= 2) else 1,
         )
+        if not va_enr.get("ok"):
+            return JSONResponse(sanitize_api_payload(va_enr), status_code=int(va_enr.get("status_code", 400)))
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
         _sync_voiceprints_to_durable_store()
@@ -673,19 +698,53 @@ async def api_auth3_enroll_voice_sample(request: Request, payload: dict[str, Any
 
 @router.post("/api/mobile/enroll_voice")
 async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
-    """Thu âm & đăng ký mẫu giọng từ App Android (Chỉ Chủ nhà Cấp 1)."""
+    """Thu âm & đăng ký mẫu giọng từ App Android (Chỉ Chủ nhà Cấp 1 - Bắt buộc qua cổng chất lượng 11s + self-check 3s)."""
     _, err_resp = _require_admin_session(request)
     if err_resp is not None:
         return err_resp
+    from simulator.voice.enrollment_quality import check_enrollment_quality_gate
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
+    from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
+
     target_name = str(payload.get("target_name", "Thành viên mới")).strip()
-    target_tier = int(payload.get("target_tier", 2) or 2)
+    target_tier = int(payload.get("target_tier", payload.get("tier", 2)) or 2)
     f0_hz = float(payload.get("f0_hz", 195.0) or 195.0)
     email = str(payload.get("email", "")).strip()
     password = str(payload.get("password", "")).strip()
-    res = await _REST_ENGINE.grant_user_permission(target_name=target_name, target_tier=target_tier)
+    raw_b64 = str(
+        payload.get("pcm16k_b64")
+        or payload.get("audio_pcm_b64")
+        or payload.get("wav_b64")
+        or payload.get("audio_b64")
+        or ""
+    ).strip()
+    pcm_bytes = b""
+    if raw_b64:
+        clean_b64 = raw_b64.split(",", 1)[1] if ("," in raw_b64 and raw_b64.startswith("data:")) else raw_b64
+        try:
+            dec = base64.b64decode(clean_b64)
+            if (len(dec) >= 44 and dec[:4] == b"RIFF") or _is_encoded_container_bytes(dec):
+                arr_m, _ = decode_audio_bytes_to_pcm16k(dec)
+                pcm_bytes = arr_m.astype("int16").tobytes()
+            else:
+                pcm_bytes = dec
+        except Exception:
+            pcm_bytes = b""
+    sc_bytes_m = _decode_self_check_from_payload(payload)
+    gate_mob = check_enrollment_quality_gate(
+        enroll_pcm=pcm_bytes,
+        self_check_pcm=sc_bytes_m,
+        sr=16000,
+        require_self_check=True,
+    )
+    if not gate_mob.get("ok"):
+        return JSONResponse(sanitize_api_payload(gate_mob), status_code=400)
+
     auth_mgr = get_auth_3layer_manager()
     auth_res = auth_mgr.recognize_or_enroll_voice_from_device(
         mode="enroll",
+        pcm16k_b64=base64.b64encode(pcm_bytes).decode("ascii"),
+        self_check_pcm_bytes=sc_bytes_m,
         measured_f0_hz=f0_hz,
         email=email,
         target_name=target_name,
@@ -693,6 +752,14 @@ async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> 
         password=password,
         source_device=str(payload.get("source_device", "Samsung Galaxy S9 (App Android)")),
     )
+    if not auth_res.get("ok"):
+        return JSONResponse(sanitize_api_payload(auth_res), status_code=int(auth_res.get("status_code", 400)))
+    prev_uid = _REST_ENGINE.current_user_id
+    _REST_ENGINE.set_active_user(OWNER_ID)
+    try:
+        res = await _REST_ENGINE.grant_user_permission(target_name=target_name, target_tier=target_tier)
+    finally:
+        _REST_ENGINE.set_active_user(prev_uid)
     append_audit_log(
         category="VOICE_AUTH",
         event_type="mobile_voice_enrolled",
@@ -702,7 +769,7 @@ async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> 
         details={"target_name": target_name, "target_tier": target_tier, "f0_hz": f0_hz, "result": res, "auth3": auth_res},
     )
     await broadcast_rest_state_to_bridges()
-    return JSONResponse(sanitize_api_payload({"ok": True, "f0_hz": f0_hz, "result": res, "auth3": auth_res}))
+    return JSONResponse(sanitize_api_payload({"ok": True, "f0_hz": f0_hz, "result": res, "auth3": auth_res}), status_code=200)
 
 
 @router.get("/api/voice_auth/profiles")
@@ -778,33 +845,10 @@ async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, An
                     "error": "Thiếu dữ liệu âm thanh PCM 16kHz thực tế!",
                 }
             ),
-            status_code=200,
+            status_code=400,
         )
 
-    self_check_b64 = str(
-        payload.get("self_check_pcm_b64")
-        or payload.get("self_check_wav_b64")
-        or payload.get("self_check_b64")
-        or ""
-    ).strip()
-    self_check_pcm_bytes: bytes | None = None
-    if self_check_b64:
-        sc_clean = (
-            self_check_b64.split(",", 1)[1]
-            if ("," in self_check_b64 and self_check_b64.startswith("data:"))
-            else self_check_b64
-        )
-        try:
-            from simulator.voice.wespeaker_onnx import _is_encoded_container_bytes
-
-            raw_sc = base64.b64decode(sc_clean)
-            if (len(raw_sc) >= 44 and raw_sc[:4] == b"RIFF") or _is_encoded_container_bytes(raw_sc):
-                sc_arr, _ = decode_audio_bytes_to_pcm16k(raw_sc)
-                self_check_pcm_bytes = sc_arr.astype("int16").tobytes()
-            else:
-                self_check_pcm_bytes = raw_sc
-        except Exception:
-            self_check_pcm_bytes = b""
+    self_check_pcm_bytes = _decode_self_check_from_payload(payload)
     enforce_12s_gate = True
 
     res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
@@ -820,6 +864,8 @@ async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, An
         self_check_pcm_bytes=self_check_pcm_bytes,
         enforce_12s_gate=enforce_12s_gate,
     )
+    if not res.get("ok"):
+        return JSONResponse(sanitize_api_payload(res), status_code=int(res.get("status_code", 400)))
     if res.get("ok") and res.get("profile"):
         prof = res["profile"]
         email_map = {
@@ -829,7 +875,7 @@ async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, An
             "khach_c": "khachc.guest@gmail.com",
         }
         target_email = str(payload.get("email") or email_map.get(user_id, f"{user_id}@gmail.com"))
-        get_auth_3layer_manager().complete_first_page_voice_enrollment(
+        enr_3l = get_auth_3layer_manager().complete_first_page_voice_enrollment(
             email=target_email,
             spoken_text=str(payload.get("spoken_text", f"Thu âm giọng thật Cấp {tier} ({user_name})")),
             pcm16k_b64=base64.b64encode(pcm_bytes).decode("ascii") if pcm_bytes else "",
@@ -837,13 +883,15 @@ async def api_voice_auth_enroll_tier_pcm(request: Request, payload: dict[str, An
             hold_duration_sec=float(res.get("duration_sec", 4.0)),
             source_device="Microphone Trực Tiếp (16kHz PCM)",
             samples_b64=[base64.b64encode(b).decode("ascii") for b in decoded_samples] if decoded_samples else None,
+            self_check_pcm_bytes=self_check_pcm_bytes,
         )
+        if isinstance(enr_3l, dict) and enr_3l.get("status") == "DURABLE_PERSISTENCE_FAILED":
+            return JSONResponse(sanitize_api_payload(enr_3l), status_code=503)
         for br in list(_ACTIVE_BRIDGES):
             br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
-            br.engine.set_active_user(user_id)
         _sync_voiceprints_to_durable_store()
         await broadcast_rest_state_to_bridges()
-    return JSONResponse(sanitize_api_payload(res))
+    return JSONResponse(sanitize_api_payload(res), status_code=200)
 
 
 @router.post("/api/voice/grant")
@@ -862,7 +910,7 @@ async def api_voice_or_user_grant(request: Request, payload: dict[str, Any]) -> 
     finally:
         _REST_ENGINE.set_active_user(prev_uid)
     await broadcast_rest_state_to_bridges()
-    status_code = 200 if res.get("ok") else 403
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 403))
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
@@ -881,7 +929,7 @@ async def api_voice_or_user_revoke(request: Request, payload: dict[str, Any]) ->
     finally:
         _REST_ENGINE.set_active_user(prev_uid)
     await broadcast_rest_state_to_bridges()
-    status_code = 200 if res.get("ok") else 403
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 403))
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
@@ -1201,6 +1249,19 @@ async def api_auth3_layer3_voice(request: Request, payload: dict[str, Any]) -> J
     password = str(payload.get("password", "")).strip()
     source_device = str(payload.get("source_device", "Samsung Galaxy S9 (App Android)")).strip()
 
+    sc_bytes_l3 = _decode_self_check_from_payload(payload)
+    if mode.lower() == "enroll":
+        from simulator.voice.enrollment_quality import check_enrollment_quality_gate
+
+        gate_l3 = check_enrollment_quality_gate(
+            enroll_pcm=pcm_bytes if pcm_bytes else b"".join(decoded_samples),
+            self_check_pcm=sc_bytes_l3,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not gate_l3.get("ok"):
+            return JSONResponse(sanitize_api_payload(gate_l3), status_code=400)
+
     res = get_auth_3layer_manager().recognize_or_enroll_voice_from_device(
         mode=mode,
         pcm16k_b64=pcm16k_b64,
@@ -1211,6 +1272,7 @@ async def api_auth3_layer3_voice(request: Request, payload: dict[str, Any]) -> J
         password=password,
         source_device=source_device,
         samples_b64=normalized_samples_b64 if normalized_samples_b64 else None,
+        self_check_pcm_bytes=sc_bytes_l3,
     )
     if res.get("ok") and mode.lower() == "enroll":
         _sync_voiceprints_to_durable_store()
@@ -1228,7 +1290,10 @@ async def api_auth3_layer3_voice(request: Request, payload: dict[str, Any]) -> J
         tier=int(res.get("tier", target_tier)),
         details=sanitize_api_payload(res),
     )
-    return JSONResponse(sanitize_api_payload(res))
+    status_l3 = 200
+    if mode.lower() == "enroll" and not res.get("ok"):
+        status_l3 = int(res.get("status_code", 400))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_l3)
 
 
 @router.post("/api/auth3/run_tests")

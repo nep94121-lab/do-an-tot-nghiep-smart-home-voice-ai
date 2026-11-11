@@ -134,6 +134,48 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         except Exception:
             pass
 
+    def create_isolated_ws_view(
+        self,
+        on_event: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
+        on_voice_reset: Callable[[], dict[str, Any]] | None = None,
+    ) -> "SmartHomeEngine":
+        """Tạo một khung nhìn Engine cô lập danh tính người nói (_current_user_id, _current_role)
+        cho từng kết nối WebSocket /ws riêng biệt, trong khi vẫn chia sẻ trực tiếp trạng thái vật lý
+        (devices, mqtt_bridge, active_timers, overlay_rules, users) với _REST_ENGINE.
+        """
+        view = object.__new__(SmartHomeEngine)
+        object.__setattr__(view, "_applying_shared_state", True)
+        object.__setattr__(view, "_initialized_devices", False)
+        object.__setattr__(view, "_state_backend", self._state_backend)
+        object.__setattr__(view, "_mutation_depth", 0)
+        object.__setattr__(view, "_state_dirty_in_tx", False)
+        object.__setattr__(view, "_dirty_device_ids", self._dirty_device_ids)
+        object.__setattr__(view, "_last_synced_seq", self._last_synced_seq)
+        object.__setattr__(view, "_last_synced_ts_ns", self._last_synced_ts_ns)
+        object.__setattr__(view, "on_event", on_event)
+        object.__setattr__(view, "on_voice_reset", on_voice_reset or self.on_voice_reset)
+        object.__setattr__(view, "_current_user_id", "UNKNOWN")
+        object.__setattr__(view, "_current_role", "UNKNOWN")
+        object.__setattr__(view, "_explicit_test_user_set", False)
+        object.__setattr__(view, "devices", self.devices)
+        object.__setattr__(view, "factory_rules", self.factory_rules)
+        object.__setattr__(view, "overlay_rules", self.overlay_rules)
+        object.__setattr__(view, "users", self.users)
+        object.__setattr__(view, "active_timers", self.active_timers)
+        object.__setattr__(view, "_timer_tasks", self._timer_tasks)
+        object.__setattr__(view, "_timer_seq", self._timer_seq)
+        object.__setattr__(view, "pending_reset_confirmation", False)
+        object.__setattr__(view, "pending_reset_scope", "all")
+        object.__setattr__(view, "pending_rule", None)
+        object.__setattr__(view, "pending_voice_enrollment", None)
+        object.__setattr__(view, "server_connected", self.server_connected)
+        object.__setattr__(view, "pump_manual_override_off", self.pump_manual_override_off)
+        object.__setattr__(view, "mqtt_bridge", self.mqtt_bridge)
+        object.__setattr__(view, "_applying_shared_state", False)
+        object.__setattr__(view, "_initialized_devices", True)
+        view.set_active_user("UNKNOWN")
+        return view
+
     def __setattr__(self, name: str, value: Any) -> None:
         if name == "devices" and isinstance(value, dict):
             wrapped = {
@@ -428,18 +470,36 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         pools[uid].setdefault("if_else_rules", [])
         return pools[uid]
 
-    def _save_overlay(self) -> None:
+    def _save_overlay(self) -> bool:
         self._purge_throwaway_qa_users()
         t1_pool = self._get_user_pool(OWNER_ID)
         self.overlay_rules["word_mappings"] = dict(t1_pool.get("word_mappings", {}))
         self.overlay_rules["aliases"] = dict(t1_pool.get("aliases", {}))
         self.overlay_rules["if_else_rules"] = list(t1_pool.get("if_else_rules", []))
         self.overlay_rules["users"] = self.users
-        OVERLAY_FILE.write_bytes((json.dumps(self.overlay_rules, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+        prev_disk = OVERLAY_FILE.read_bytes() if OVERLAY_FILE.exists() else None
+        raw_bytes = (json.dumps(self.overlay_rules, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        def _restore_overlay_file() -> None:
+            if prev_disk is not None:
+                with contextlib.suppress(Exception):
+                    OVERLAY_FILE.write_bytes(prev_disk)
+            elif OVERLAY_FILE.exists():
+                with contextlib.suppress(Exception):
+                    OVERLAY_FILE.unlink(missing_ok=True)
+        try:
+            import simulator.durable_store as _ds
+
+            if not _ds.save_durable_json("custom_rules_overlay.json", self.overlay_rules, OVERLAY_FILE):
+                _restore_overlay_file()
+                return False
+        except Exception:
+            _restore_overlay_file()
+            return False
         try:
             sync_engine_state_to_sqlite(self)
         except Exception:
             pass
+        return True
 
     async def emit(self, event: dict[str, Any]) -> None:
         if self.on_event is not None:

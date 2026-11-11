@@ -825,6 +825,11 @@ class EngineVoiceRbacMixin:
                 "rejection_speech": FIXED_REJECTION_PHRASE_VI,
             }
 
+        prev_users = {k: dict(v) for k, v in self.users.items()}
+        prev_overlay = {
+            k: (dict(v) if isinstance(v, dict) else list(v) if isinstance(v, list) else v)
+            for k, v in self.overlay_rules.items()
+        }
         role_code = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
         disp_name = existing["name"] if existing else target_name.strip()
         self.users[uid] = {
@@ -839,7 +844,20 @@ class EngineVoiceRbacMixin:
         }
         if target_tier == 2:
             self._get_user_pool(uid)
-        self._save_overlay()
+        if not self._save_overlay():
+            self.users.clear()
+            self.users.update(prev_users)
+            self.overlay_rules.clear()
+            self.overlay_rules.update(prev_overlay)
+            err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác cấp quyền!"
+            return {
+                "ok": False,
+                "status": "DURABLE_PERSISTENCE_FAILED",
+                "status_code": 503,
+                "reason": "DURABLE_PERSISTENCE_FAILED",
+                "error": err_persist,
+                "message": err_persist,
+            }
 
         tier_label = "Tầng 2 (Thành viên gia đình)" if target_tier == 2 else "Tầng 3 (Khách)"
         spoken = f"Đã cấp quyền {tier_label} cho {disp_name}."
@@ -893,9 +911,22 @@ class EngineVoiceRbacMixin:
                 "rejection_speech": FIXED_REJECTION_PHRASE_VI,
             }
 
+        prev_active = existing.get("active", True)
+        prev_role = existing.get("role", "CHILD_GUEST")
         existing["active"] = False
         existing["role"] = "UNKNOWN"
-        self._save_overlay()
+        if not self._save_overlay():
+            existing["active"] = prev_active
+            existing["role"] = prev_role
+            err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác thu hồi quyền!"
+            return {
+                "ok": False,
+                "status": "DURABLE_PERSISTENCE_FAILED",
+                "status_code": 503,
+                "reason": "DURABLE_PERSISTENCE_FAILED",
+                "error": err_persist,
+                "message": err_persist,
+            }
 
         spoken = f"Đã hủy quyền của {existing['name']}."
         await self.emit({

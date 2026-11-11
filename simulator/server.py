@@ -303,9 +303,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     """Tiếp nhận kết nối WebSocket từ trình duyệt Web 3D / Micro thu âm, xác thực phiên server-side và ủy quyền sang LiveBridgeSession."""
     await websocket.accept()
     ws_session = resolve_strict_ws_session(websocket)
+    isolated_engine = _REST_ENGINE.create_isolated_ws_view()
     session = LiveBridgeSession(
         websocket=websocket,
-        engine=_REST_ENGINE,
+        engine=isolated_engine,
         voice_auth=_BOOT_VOICE_AUTH,
         ws_session=ws_session,
     )

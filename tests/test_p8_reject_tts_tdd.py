@@ -75,12 +75,12 @@ def test_anchor2_gemini_bridge_injects_tier_and_name_into_gemini_live_context():
                     injected_texts.append(p.text)
     combined_ctx = "\n".join(injected_texts)
     assert "NGƯỜI LẠ" in combined_ctx or "UNKNOWN" in combined_ctx
-    assert "Tôi không nhận ra giọng của bạn." in combined_ctx
+    assert "Xin lỗi, bạn không có quyền thực hiện lệnh này." in combined_ctx
 
 
-def test_anchor3_rest_voice_command_and_tool_call_return_fixed_vietnamese_sentences_without_pcm24k():
-    """Anchor 3: POST /api/voice_command and POST /api/device return fixed Vietnamese
-    exact_spoken_reply / rejection_speech without separate pcm24k_b64 bloat.
+def test_anchor3_rest_voice_command_and_tool_call_return_fixed_vietnamese_sentences_with_aoede_audio():
+    """Anchor 3: POST /api/voice_command returns fixed Vietnamese Aoede spoken audio without external TTS,
+    and POST /api/device returns fixed Vietnamese rejection_speech.
     """
     client = TestClient(app)
 
@@ -93,15 +93,17 @@ def test_anchor3_rest_voice_command_and_tool_call_return_fixed_vietnamese_senten
     assert resp_rej.status_code == 200
     data_rej = resp_rej.json()
     assert data_rej.get("authorized") is False
-    assert "pcm24k_b64" not in data_rej
-    assert data_rej.get("exact_spoken_reply")
+    assert data_rej.get("audio_voice") == "Aoede"
+    assert data_rej.get("audio_wav_b64")
+    assert data_rej.get("exact_spoken_reply") == "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
     resp_403 = client.post("/api/voice_command", json={"transcript": "bật phòng ngủ lên"})
     assert resp_403.status_code == 403
     data_403 = resp_403.json()
     assert data_403.get("authorized") is False
-    assert "pcm24k_b64" not in data_403
-    assert data_403.get("exact_spoken_reply")
+    assert data_403.get("audio_voice") == "Aoede"
+    assert data_403.get("audio_wav_b64")
+    assert data_403.get("exact_spoken_reply") == "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
     resp_401 = client.post("/api/device", json={"device_id": "main_door", "action": "open"})
     assert resp_401.status_code == 401
@@ -115,7 +117,8 @@ def test_anchor3_rest_voice_command_and_tool_call_return_fixed_vietnamese_senten
     assert fn_start != -1, "executeVoiceCommandHttp not found in app.js"
     fn_end = app_js.find("window.executeVoiceCommandHttp =", fn_start)
     fn_body = app_js[fn_start:fn_end]
-    assert "speakVietnameseFallback" in fn_body
+    assert "requestAoedeSpokenPhrase" in fn_body
+    assert "speechSynthesis" not in app_js
 
 
 def test_anchor4_android_main_screen_speaks_server_rejection_and_exact_spoken_reply():

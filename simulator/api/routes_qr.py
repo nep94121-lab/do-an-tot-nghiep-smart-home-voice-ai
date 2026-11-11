@@ -331,6 +331,7 @@ async def api_auth3_guest_qr_handshake(payload: dict[str, Any]) -> JSONResponse:
 
 @router.post("/api/auth3/guest_qr_complete_voice")
 @router.post("/api/auth3/guest/enroll_voice")
+@router.post("/api/qr/guest_enroll")
 async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Tiếp nhận bản thu âm PCM 16kHz của khách trên trang /guest_enroll (Yêu cầu phiên QR Cấp 1 hợp lệ hoặc phiên Admin Cấp 1)."""
     mgr3 = get_auth_3layer_manager()
@@ -466,39 +467,40 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
             status_code=400,
         )
 
-    # 1. Kiểm định chất lượng âm học
+    # 1. Kiểm định chất lượng âm học nghiêm ngặt (BẮT BUỘC >=11s net speech + câu self-check >=3s độc lập)
+    from simulator.voice_auth import check_enrollment_quality_gate
+
     self_check_b64_qr = str(
         payload.get("self_check_pcm_b64")
+        or payload.get("self_check_pcm16k_b64")
         or payload.get("self_check_wav_b64")
+        or payload.get("self_check_audio_b64")
         or payload.get("self_check_b64")
         or ""
     ).strip()
-    enforce_12s_qr = bool(payload.get("enforce_12s_gate", False) or self_check_b64_qr)
-    if enforce_12s_qr:
-        from simulator.voice_auth import check_enrollment_quality_gate
-
-        sc_bytes_qr: bytes | None = None
-        if self_check_b64_qr:
-            sc_clean = (
-                self_check_b64_qr.split(",", 1)[1]
-                if ("," in self_check_b64_qr and self_check_b64_qr.startswith("data:"))
-                else self_check_b64_qr
-            )
-            try:
-                raw_sc = base64.b64decode(sc_clean)
-                if raw_sc.startswith(b"RIFF"):
-                    raw_sc = _decode_container_audio_to_pcm16k(raw_sc)
-                sc_bytes_qr = raw_sc
-            except Exception:
-                sc_bytes_qr = b""
-        gate_12s_qr = check_enrollment_quality_gate(
-            enroll_pcm=pcm_bytes,
-            self_check_pcm=sc_bytes_qr,
-            sr=16000,
-            require_self_check=True,
+    sc_bytes_qr: bytes | None = None
+    if self_check_b64_qr:
+        sc_clean = (
+            self_check_b64_qr.split(",", 1)[1]
+            if ("," in self_check_b64_qr and self_check_b64_qr.startswith("data:"))
+            else self_check_b64_qr
         )
-        if not gate_12s_qr.get("ok"):
-            return JSONResponse(sanitize_api_payload(gate_12s_qr), status_code=400)
+        try:
+            raw_sc = base64.b64decode(sc_clean)
+            if raw_sc.startswith(b"RIFF"):
+                raw_sc = _decode_container_audio_to_pcm16k(raw_sc)
+            sc_bytes_qr = raw_sc
+        except Exception:
+            sc_bytes_qr = b""
+
+    gate_12s_qr = check_enrollment_quality_gate(
+        enroll_pcm=pcm_bytes if pcm_bytes else b"".join(decoded_samples),
+        self_check_pcm=sc_bytes_qr,
+        sr=16000,
+        require_self_check=True,
+    )
+    if not gate_12s_qr.get("ok"):
+        return JSONResponse(sanitize_api_payload(gate_12s_qr), status_code=400)
 
     q_res = validate_voice_enrollment_quality(pcm_bytes, 16000)
     if not q_res.get("ok"):
@@ -554,10 +556,14 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
             "message": f"✅ Giọng nói của '{guest_name}' ĐẠT CHUẨN xác thực WeSpeaker ResNet34 (F0 = {q_res.get('f0_hz')} Hz · {role_label_vn}). Nhấn nút 'OK · Xác nhận & Kích hoạt' bên dưới để lưu lên máy chủ!",
         }))
 
-    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (Hỗ trợ 5 mẫu WeSpeaker ResNet34 ONNX)
+    # 3. Lưu vào Cấp 2 / Cấp 3 kèm expires_at (Hỗ trợ cả 1 mẫu >=11s + self-check >=3s và 5 mẫu WeSpeaker ResNet34 ONNX)
     expires_at_ts = time.time() + float(dur_seconds)
+    prev_qr_profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
+    raw_sample_idx = payload.get("sample_index")
+    raw_total_samples = payload.get("total_samples")
     enroll_res = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
         pcm_bytes=pcm_bytes,
+        self_check_pcm_bytes=sc_bytes_qr,
         user_id=guest_uid,
         user_name=guest_name,
         tier=target_tier,
@@ -565,12 +571,13 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
         expires_at=expires_at_ts,
         check_duplicate=False,
         samples_pcm16k=decoded_samples if len(decoded_samples) >= 2 else None,
-        sample_index=int(payload.get("sample_index") or max(1, len(decoded_samples))),
-        total_samples=int(payload.get("total_samples") or 5),
+        sample_index=int(raw_sample_idx) if raw_sample_idx is not None else None,
+        total_samples=int(raw_total_samples) if raw_total_samples is not None else None,
     )
     if not enroll_res.get("ok"):
-        return JSONResponse(sanitize_api_payload(enroll_res), status_code=400)
+        return JSONResponse(sanitize_api_payload(enroll_res), status_code=int(enroll_res.get("status_code", 400)))
 
+    prev_accounts_qr = copy.deepcopy(mgr3.accounts)
     if guest_email:
         acc = mgr3.upsert_speaker_account_for_voice(
             email=guest_email,
@@ -591,14 +598,33 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
                 acc["voiceprint"]["enrollment_samples_count"] = enroll_res.get("enrollment_samples_count", 1)
                 acc["voiceprint"]["wespeaker_embedding"] = prof_w
                 acc["voiceprint"]["embedding_256d"] = prof_w
-            mgr3._save_accounts()
+            if not mgr3._save_accounts():
+                mgr3.accounts[:] = prev_accounts_qr
+                _BOOT_VOICE_AUTH.profiles.clear()
+                _BOOT_VOICE_AUTH.profiles.update(prev_qr_profiles)
+                return JSONResponse(
+                    sanitize_api_payload(
+                        {
+                            "ok": False,
+                            "status": "DURABLE_PERSISTENCE_FAILED",
+                            "status_code": 503,
+                            "error": "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác đăng ký QR!",
+                        }
+                    ),
+                    status_code=503,
+                )
 
     prev_uid = _REST_ENGINE.current_user_id
     _REST_ENGINE.set_active_user("tuan_anh")
     try:
-        await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
+        grant_res = await _REST_ENGINE.grant_user_permission(target_name=guest_name, target_tier=target_tier)
     finally:
         _REST_ENGINE.set_active_user(prev_uid)
+    if not grant_res.get("ok") and grant_res.get("status") == "DURABLE_PERSISTENCE_FAILED":
+        mgr3.accounts[:] = prev_accounts_qr
+        _BOOT_VOICE_AUTH.profiles.clear()
+        _BOOT_VOICE_AUTH.profiles.update(prev_qr_profiles)
+        return JSONResponse(sanitize_api_payload(grant_res), status_code=503)
     for br in list(_ACTIVE_BRIDGES):
         br.voice_auth.profiles = copy.deepcopy(_BOOT_VOICE_AUTH.profiles)
     try:

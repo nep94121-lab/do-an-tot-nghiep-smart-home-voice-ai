@@ -292,14 +292,25 @@ async def process_voice_command_pipeline(
                 voice_auth.unauthorized_strikes = prev_strikes
 
     if not q_gate["ok"] or va_ask_repeat:
-        latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+        from simulator.live.tts_rejection_vi import (
+            build_aoede_http_audio_fields,
+            synthesize_aoede_phrase_audio,
+        )
+
         repeat_msg = FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+        aoede_fields = build_aoede_http_audio_fields(
+            await synthesize_aoede_phrase_audio(repeat_msg)
+        )
+        latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+        reason_code = va_reason or q_gate.get("reason", "AUDIO_QUALITY_FAILED")
         return {
             "ok": False,
             "authorized": False,
+            "recognized": False,
             "ask_repeat": True,
             "quality_gate_passed": False,
-            "quality_reason": va_reason or q_gate.get("reason", "AUDIO_QUALITY_FAILED"),
+            "quality_reason": reason_code,
+            "reason": reason_code,
             "level": 0,
             "tier": 99,
             "speaker_id": "none",
@@ -317,6 +328,7 @@ async def process_voice_command_pipeline(
             "reply": repeat_msg,
             "exact_spoken_reply": repeat_msg,
             "rejection_speech": repeat_msg,
+            **aoede_fields,
             "results": [],
             "f0_hz": round(float(q_gate.get("f0_hz", 0.0)), 1),
             "similarity": 0.0,
@@ -460,11 +472,21 @@ async def process_voice_command_pipeline(
 
     # 5. Kiem tra Voice Auth & RBAC va Thuc thi Hanh dong Thiet bi
     if not authorized:
-        latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+        from simulator.live.tts_rejection_vi import (
+            build_aoede_http_audio_fields,
+            synthesize_aoede_phrase_audio,
+        )
+
         rejection_msg = FIXED_REJECTION_PHRASE_VI
+        aoede_fields = build_aoede_http_audio_fields(
+            await synthesize_aoede_phrase_audio(rejection_msg)
+        )
+        latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         return {
             "ok": False,
             "authorized": False,
+            "recognized": False,
+            "reason": "STRANGER_BLOCKED",
             "ask_repeat": False,
             "quality_gate_passed": True,
             "level": 0,
@@ -484,6 +506,7 @@ async def process_voice_command_pipeline(
             "reply": rejection_msg,
             "exact_spoken_reply": rejection_msg,
             "rejection_speech": rejection_msg,
+            **aoede_fields,
             "results": [],
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 4),
@@ -589,8 +612,17 @@ async def process_voice_command_pipeline(
             device_results.extend(res.get("results", []))
 
     permission_str = "DENIED" if any_blocked else "ALLOWED"
+    aoede_overperm_fields: dict[str, Any] = {}
     if any_blocked:
+        from simulator.live.tts_rejection_vi import (
+            build_aoede_http_audio_fields,
+            synthesize_aoede_phrase_audio,
+        )
+
         final_reply = FIXED_REJECTION_PHRASE_VI
+        aoede_overperm_fields = build_aoede_http_audio_fields(
+            await synthesize_aoede_phrase_audio(FIXED_REJECTION_PHRASE_VI)
+        )
     else:
         final_reply = (
             " ".join(spoken_replies).strip()
@@ -602,6 +634,7 @@ async def process_voice_command_pipeline(
     return {
         "ok": all_ok,
         "authorized": True,
+        "recognized": True,
         "ask_repeat": False,
         "quality_gate_passed": True,
         "level": level,
@@ -621,6 +654,7 @@ async def process_voice_command_pipeline(
         "reply": final_reply,
         "exact_spoken_reply": final_reply,
         "rejection_speech": FIXED_REJECTION_PHRASE_VI if any_blocked else "",
+        **aoede_overperm_fields,
         "results": device_results,
         "device_states": {k: v.get("state") for k, v in engine.devices.items()},
         "f0_hz": round(f0_hz, 1),

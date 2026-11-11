@@ -13,6 +13,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges as _broadcast_rest_state_to_bridges,
 )
+from simulator.live.prompt_builder import FIXED_REJECTION_PHRASE_VI
 from simulator.voice.enrollment_quality import check_enrollment_quality_gate
 
 
@@ -74,10 +75,10 @@ class LiveToolDispatcherMixin:
         await self.engine.blink_signal_light(sig_dev, pulse_sec=0.25)
         await self.send_ws_json({
             "type": "voice_enrollment_captured",
-            "message": "✅ Đã thu âm! Đang kiểm định chất lượng mẫu đăng ký (12s + câu kiểm tra 3s)...",
+            "message": "✅ Đã thu âm! Đang kiểm định chất lượng mẫu đăng ký (11s + câu kiểm tra 3s)...",
         })
 
-        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (12s + self-check 3s)
+        # Bắt buộc 100% kiểm định chất lượng nghiêm ngặt phía server (11s + self-check 3s)
         gate_res = check_enrollment_quality_gate(
             enroll_pcm=pcm_bytes,
             self_check_pcm=self_check_pcm_bytes,
@@ -189,6 +190,43 @@ class LiveToolDispatcherMixin:
         args = dict(fc.args or {})
 
         await self._ensure_current_mic_utterance_verified()
+
+        _admin_tools = (
+            "grant_user_permission",
+            "revoke_user_permission",
+            "start_voice_enrollment",
+            "finalize_voice_enrollment",
+            "set_query_permission_policy",
+            "admin_update_system_policy",
+            "admin_upsert_knowledge_rag",
+            "factory_reset",
+            "request_factory_reset",
+            "confirm_factory_reset",
+            "factory_reset_rules",
+        )
+        if name in _admin_tools or (
+            name == "confirm_pending_action" and bool(getattr(self.engine, "pending_reset_confirmation", False))
+        ):
+            ok_cap1_sess = True
+            if hasattr(self, "_is_ws_cap1_authorized"):
+                ok_cap1_sess, _ = self._is_ws_cap1_authorized()
+            if not ok_cap1_sess or self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
+                rej_msg = FIXED_REJECTION_PHRASE_VI
+                await self.send_ws_json({
+                    "type": "rbac_blocked",
+                    "action": name,
+                    "role": self.engine.current_role,
+                    "reason": rej_msg,
+                })
+                return {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "error": rej_msg,
+                    "message": rej_msg,
+                    "rejection_speech": rej_msg,
+                    "exact_spoken_reply": rej_msg,
+                    "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
+                }
 
         if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
             rej_info = self.last_mic_auth_result or {}

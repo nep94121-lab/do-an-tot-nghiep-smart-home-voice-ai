@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import email.utils
 import json
 import os
@@ -267,8 +268,10 @@ class AuthInviteGmailMixin:
         source_device: str = "Voice Enrollment (Audio Upload)",
         check_duplicate: bool = True,
         samples_pcm: list[bytes] | None = None,
+        self_check_pcm_bytes: bytes | None = None,
     ) -> dict[str, Any]:
         """Kiểm định chất lượng âm thanh, kiểm tra chống trùng giọng trong nhà và lưu hồ sơ giọng chính (WeSpeaker ResNet34 ONNX + 5-Sample Mean)."""
+        from simulator.voice.enrollment_quality import check_enrollment_quality_gate
         from simulator.voice.wespeaker_onnx import (
             compute_multi_sample_mean_embedding,
             extract_wespeaker_embedding,
@@ -282,6 +285,7 @@ class AuthInviteGmailMixin:
             return {
                 "ok": False,
                 "status": "CHUA_DAT",
+                "status_code": 400,
                 "message": f"Không tìm thấy tài khoản '{email}'!",
                 "error": f"Không tìm thấy tài khoản '{email}'!",
             }
@@ -293,6 +297,21 @@ class AuthInviteGmailMixin:
                 pcm_data = pcm_bytes.encode("utf-8")
         else:
             pcm_data = bytes(pcm_bytes)
+
+        strict_gate = check_enrollment_quality_gate(
+            enroll_pcm=pcm_data if pcm_data else b"".join(samples_pcm or []),
+            self_check_pcm=self_check_pcm_bytes,
+            sr=16000,
+            require_self_check=True,
+        )
+        if not strict_gate.get("ok"):
+            return {
+                **strict_gate,
+                "ok": False,
+                "status": "CHUA_DAT",
+                "status_code": 400,
+                "error": strict_gate.get("message") or "Mẫu giọng đăng ký chưa đạt chuẩn chất lượng.",
+            }
 
         val_res = validate_voice_enrollment_quality(pcm_data, sr=16000)
 
@@ -383,6 +402,7 @@ class AuthInviteGmailMixin:
                     "matched_name": dup_res.matched_name,
                 }
 
+        prev_accounts = copy.deepcopy(self.accounts)
         f0_val = float(val_res.get("f0_hz", 126.0))
         tier_thr = get_tier_wespeaker_threshold(acc_tier)
         acc["voice_verified"] = True
@@ -404,7 +424,17 @@ class AuthInviteGmailMixin:
             "embedding": val_res.get("embedding", []),
             "deep_embedding": val_res.get("deep_embedding", []),
         }
-        self._save_accounts()
+        if not self._save_accounts():
+            self.accounts[:] = prev_accounts
+            err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác đăng ký giọng nói!"
+            return {
+                "ok": False,
+                "status": "DURABLE_PERSISTENCE_FAILED",
+                "status_code": 503,
+                "reason": "DURABLE_PERSISTENCE_FAILED",
+                "error": err_persist,
+                "message": err_persist,
+            }
 
         self._log_event(
             layer="Thu Âm Giọng Chính",
@@ -1295,11 +1325,17 @@ class AuthInviteGmailMixin:
         hold_duration_sec: float = 3.2,
         source_device: str = "Trang Đầu Web / App Samsung S9 (Nhấn & Giữ)",
         samples_b64: list[str] | None = None,
+        self_check_pcm_b64: str = "",
+        self_check_pcm_bytes: bytes | None = None,
     ) -> dict[str, Any]:
         """Khi người dùng mới vào Trang Đầu, đọc dòng chữ mẫu hiển thị trên màn hình và giữ nút thu âm."""
         acc = self.find_account(email)
         if not acc:
-            return {"ok": False, "error": f"Không tìm thấy tài khoản '{email}' để lưu mẫu giọng trang đầu!"}
+            return {
+                "ok": False,
+                "status_code": 400,
+                "error": f"Không tìm thấy tài khoản '{email}' để lưu mẫu giọng trang đầu!",
+            }
 
         enr_res = self.recognize_or_enroll_voice_from_device(
             mode="enroll",
@@ -1311,14 +1347,27 @@ class AuthInviteGmailMixin:
             password="",
             source_device=source_device,
             samples_b64=samples_b64,
+            self_check_pcm_b64=self_check_pcm_b64,
+            self_check_pcm_bytes=self_check_pcm_bytes,
         )
         if not enr_res.get("ok"):
             return enr_res
+        prev_acc_state = copy.deepcopy(self.accounts)
         acc["needs_first_page_voice_enroll"] = False
         acc["voiceprint"]["reading_prompt_verified"] = True
         acc["voiceprint"]["enrolled_phrase"] = spoken_text.strip() or acc.get("reading_prompt", "")
         acc["voiceprint"]["hold_duration_sec"] = round(float(hold_duration_sec or 3.0), 2)
-        self._save_accounts()
+        if not self._save_accounts():
+            self.accounts[:] = prev_acc_state
+            err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác đăng ký giọng nói!"
+            return {
+                "ok": False,
+                "status": "DURABLE_PERSISTENCE_FAILED",
+                "status_code": 503,
+                "reason": "DURABLE_PERSISTENCE_FAILED",
+                "error": err_persist,
+                "message": err_persist,
+            }
 
         self._log_event(
             layer="Trang Đầu (Đọc Câu Mẫu & Giữ Thu Âm)",
@@ -1380,12 +1429,22 @@ class AuthInviteGmailMixin:
             msg = "Không thể xóa cấp quyền của Chủ nhà Cấp 1 Nguyễn Tuấn Anh!"
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
+        prev_perm_accounts = copy.deepcopy(self.accounts)
         if not enable_permission:
             acc["saved_tier"] = int(acc.get("saved_tier") or acc.get("tier") or 2)
             acc["permission_active"] = False
             acc["permission_status"] = "REVOKED"
             acc["permission_label"] = "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà xóa/tạm thu hồi quyền)"
-            self._save_accounts()
+            if not self._save_accounts():
+                self.accounts[:] = prev_perm_accounts
+                err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác thu hồi quyền!"
+                return {
+                    "ok": False,
+                    "status": "DURABLE_PERSISTENCE_FAILED",
+                    "status_code": 503,
+                    "error": err_persist,
+                    "exact_spoken_reply": err_persist,
+                }
 
             spoken = (
                 f"Đã xóa cấp quyền của {acc['display_name']}. "
@@ -1413,7 +1472,16 @@ class AuthInviteGmailMixin:
             acc["permission_active"] = True
             acc["permission_status"] = "ACTIVE"
             acc["permission_label"] = f"CÓ QUYỀN (Tầng {restored_tier})"
-            self._save_accounts()
+            if not self._save_accounts():
+                self.accounts[:] = prev_perm_accounts
+                err_persist = "Lỗi lưu trữ bền vững đám mây (Durable Store). Đã hoàn tác bật lại quyền!"
+                return {
+                    "ok": False,
+                    "status": "DURABLE_PERSISTENCE_FAILED",
+                    "status_code": 503,
+                    "error": err_persist,
+                    "exact_spoken_reply": err_persist,
+                }
 
             spoken = (
                 f"Đã bật lại quyền Tầng {restored_tier} cho {acc['display_name']}. "

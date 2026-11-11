@@ -40,6 +40,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -50,7 +51,7 @@ DURABLE_MARKER_START = "SMARTHOME_STATE_GZIP_B64_START"
 DURABLE_MARKER_END = "SMARTHOME_STATE_GZIP_B64_END"
 IMAP_HOST_DEFAULT = "imap.gmail.com"
 IMAP_TIMEOUT_SECONDS = 6.0
-CLOUD_SYNC_TTL_SECONDS = 5.0
+CLOUD_SYNC_TTL_SECONDS = 30.0
 
 TRACKED_STATE_FILES: tuple[str, ...] = (
     "voiceprints.json",
@@ -232,7 +233,6 @@ class DurableStateStore:
                     if candidate.exists():
                         try:
                             raw = candidate.read_bytes()
-                            self._write_local_sqlite_and_file(fname, raw)
                         except Exception:
                             raw = None
                 if raw is None:
@@ -272,6 +272,8 @@ class DurableStateStore:
                 restored.append(clean_name)
         return restored
 
+    _oauth_token_cache: tuple[str, float] = ("", 0.0)
+
     @staticmethod
     def _get_gmail_credentials() -> tuple[str, str]:
         user = os.environ.get("SMTP_USER", "").strip() or "nep94121@gmail.com"
@@ -281,10 +283,153 @@ class DurableStateStore:
         )
         return user, pw
 
+    @classmethod
+    def _get_gmail_oauth_access_token(cls) -> str:
+        """Đổi GOOGLE_OAUTH_REFRESH_TOKEN sang access_token (có bộ nhớ đệm 50 phút, chỉ dùng thư viện chuẩn)."""
+        cid = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+        csec = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+        rtok = os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
+        if not cid or not csec or not rtok:
+            return ""
+        cached_tok, exp_ts = cls._oauth_token_cache
+        now = time.time()
+        if cached_tok and now < exp_ts:
+            return cached_tok
+        try:
+            form = urllib.parse.urlencode(
+                {
+                    "client_id": cid,
+                    "client_secret": csec,
+                    "refresh_token": rtok,
+                    "grant_type": "refresh_token",
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "https://oauth2.googleapis.com/token",
+                data=form,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=IMAP_TIMEOUT_SECONDS) as resp:
+                obj = json.loads(resp.read().decode("utf-8"))
+                tok = str(obj.get("access_token") or "").strip()
+                ttl = float(obj.get("expires_in") or 3500.0)
+                if tok:
+                    cls._oauth_token_cache = (tok, now + max(60.0, ttl - 300.0))
+                    return tok
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 token exchange skipped: %s", exc)
+        return ""
+
+    def _save_rfc822_via_gmail_oauth_drafts(self, msg_bytes: bytes) -> bool:
+        """Lưu/cập nhật bản nháp RFC822 `[SMARTHOME_DURABLE_STATE_V1]` qua Gmail REST API (0 gửi email, 100% miễn phí)."""
+        access_token = self._get_gmail_oauth_access_token()
+        if not access_token:
+            return False
+        raw_b64url = base64.urlsafe_b64encode(msg_bytes).decode("ascii")
+        payload_bytes = json.dumps({"message": {"raw": raw_b64url}}).encode("utf-8")
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            q = urllib.parse.quote(f'subject:"{DURABLE_IMAP_SUBJECT}"')
+            list_req = urllib.request.Request(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/drafts?q={q}&maxResults=1",
+                headers={"Authorization": f"Bearer {access_token}"},
+                method="GET",
+            )
+            existing_id = ""
+            with contextlib.suppress(Exception):
+                with urllib.request.urlopen(list_req, timeout=IMAP_TIMEOUT_SECONDS) as lresp:
+                    lobj = json.loads(lresp.read().decode("utf-8"))
+                    drafts = lobj.get("drafts") or []
+                    if drafts and isinstance(drafts[0], dict):
+                        existing_id = str(drafts[0].get("id") or "").strip()
+            if existing_id:
+                put_body = json.dumps({"id": existing_id, "message": {"raw": raw_b64url}}).encode("utf-8")
+                put_req = urllib.request.Request(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/drafts/{existing_id}",
+                    data=put_body,
+                    headers=headers,
+                    method="PUT",
+                )
+                with contextlib.suppress(Exception):
+                    with urllib.request.urlopen(put_req, timeout=IMAP_TIMEOUT_SECONDS) as presp:
+                        if 200 <= presp.status < 300:
+                            return True
+            post_req = urllib.request.Request(
+                "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+                data=payload_bytes,
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(post_req, timeout=IMAP_TIMEOUT_SECONDS) as cresp:
+                return 200 <= cresp.status < 300
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 Drafts save skipped: %s", exc)
+            return False
+
+    def _load_rfc822_via_gmail_oauth_drafts(self) -> dict[str, Any] | None:
+        """Tải bản nháp RFC822 `[SMARTHOME_DURABLE_STATE_V1]` mới nhất qua Gmail REST API."""
+        access_token = self._get_gmail_oauth_access_token()
+        if not access_token:
+            return None
+        try:
+            q = urllib.parse.quote(f'subject:"{DURABLE_IMAP_SUBJECT}"')
+            list_req = urllib.request.Request(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/drafts?q={q}&maxResults=5",
+                headers={"Authorization": f"Bearer {access_token}"},
+                method="GET",
+            )
+            with urllib.request.urlopen(list_req, timeout=IMAP_TIMEOUT_SECONDS) as lresp:
+                lobj = json.loads(lresp.read().decode("utf-8"))
+                drafts = lobj.get("drafts") or []
+            for d_item in drafts:
+                did = str((d_item or {}).get("id") or "").strip()
+                if not did:
+                    continue
+                get_req = urllib.request.Request(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/drafts/{did}?format=raw",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    method="GET",
+                )
+                with urllib.request.urlopen(get_req, timeout=IMAP_TIMEOUT_SECONDS) as gresp:
+                    gobj = json.loads(gresp.read().decode("utf-8"))
+                    raw_str = str(((gobj.get("message") or {}).get("raw")) or "").strip()
+                    if not raw_str:
+                        continue
+                    padded = raw_str + ("=" * (-len(raw_str) % 4))
+                    raw_email = base64.urlsafe_b64decode(padded.encode("ascii"))
+                    bundle = self._extract_bundle_from_rfc822_bytes(raw_email)
+                    if bundle:
+                        return bundle
+        except Exception as exc:
+            logger.debug("Gmail OAuth2 Drafts fetch skipped: %s", exc)
+        return None
+
+    def _can_use_live_gmail_oauth(self) -> bool:
+        if self.offline_sandbox is True:
+            return False
+        if (
+            os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1"
+            or os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("PYTEST") == "1"
+        ):
+            return False
+        if getattr(imaplib.IMAP4_SSL, "__module__", "") != "imaplib":
+            return False
+        return bool(
+            os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+            and os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+            and os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
+        )
+
     def _save_bundle_to_gmail_imap(self, bundle: dict[str, Any]) -> bool:
-        """Lưu gói trạng thái nén vào Gmail thông qua `imap.append` (không gửi email, không thông báo)."""
+        """Lưu gói trạng thái nén vào Gmail Drafts (qua OAuth2 REST hoặc IMAP SSL, không gửi email, không thông báo)."""
         smtp_user, app_pw = self._get_gmail_credentials()
-        if not smtp_user or not app_pw:
+        can_oauth = self._can_use_live_gmail_oauth()
+        if (not smtp_user or not app_pw) and not can_oauth:
             return False
 
         encoded_payload = self.encode_bundle_gzip_b64(bundle)
@@ -292,8 +437,8 @@ class DurableStateStore:
 
         msg = EmailMessage()
         msg["Subject"] = DURABLE_IMAP_SUBJECT
-        msg["From"] = smtp_user
-        msg["To"] = smtp_user
+        msg["From"] = smtp_user or "nep94121@gmail.com"
+        msg["To"] = smtp_user or "nep94121@gmail.com"
         msg["Date"] = email.utils.formatdate(localtime=True)
         msg["X-SmartHome-Durable"] = "v1"
         msg["X-SmartHome-Sha256"] = payload_hash
@@ -302,6 +447,13 @@ class DurableStateStore:
             charset="utf-8",
         )
         msg_bytes = msg.as_bytes()
+        if can_oauth:
+            if self._save_rfc822_via_gmail_oauth_drafts(msg_bytes):
+                self._last_cloud_push_hash = payload_hash
+                return True
+
+        if not smtp_user or not app_pw:
+            return False
         imap_host = os.environ.get("IMAP_HOST", "").strip() or IMAP_HOST_DEFAULT
 
         try:
@@ -324,6 +476,10 @@ class DurableStateStore:
                     return True
         except Exception as exc:
             logger.debug("Gmail IMAP durable state append skipped: %s", exc)
+            if has_oauth and not imap_is_mocked:
+                if self._save_rfc822_via_gmail_oauth_drafts(msg_bytes):
+                    self._last_cloud_push_hash = payload_hash
+                    return True
         return False
 
     @classmethod
@@ -364,8 +520,17 @@ class DurableStateStore:
         return None
 
     def _load_bundle_from_gmail_imap(self) -> dict[str, Any] | None:
-        """Tải bản ghi `[SMARTHOME_DURABLE_STATE_V1]` mới nhất từ Gmail IMAP."""
+        """Tải bản ghi `[SMARTHOME_DURABLE_STATE_V1]` mới nhất từ Gmail Drafts (OAuth2 REST hoặc IMAP)."""
         smtp_user, app_pw = self._get_gmail_credentials()
+        can_oauth = self._can_use_live_gmail_oauth()
+        if (not smtp_user or not app_pw) and not can_oauth:
+            return None
+
+        if can_oauth:
+            bundle_oauth = self._load_rfc822_via_gmail_oauth_drafts()
+            if bundle_oauth:
+                return bundle_oauth
+
         if not smtp_user or not app_pw:
             return None
 
@@ -400,6 +565,8 @@ class DurableStateStore:
                         continue
         except Exception as exc:
             logger.debug("Gmail IMAP durable state fetch skipped: %s", exc)
+            if can_oauth:
+                return self._load_rfc822_via_gmail_oauth_drafts()
         return None
 
     def _save_bundle_to_upstash_kv(self, bundle: dict[str, Any]) -> bool:
@@ -454,14 +621,36 @@ class DurableStateStore:
     ) -> bool:
         """Lưu một tệp trạng thái vào Durable Store (SQLite + Memory + Cloud IMAP/KV).
         Nếu `sync_cloud=True`, bắt buộc ít nhất một kênh lưu trữ Cloud (Upstash KV hoặc Gmail IMAP) thành công mới trả về `True`.
+        Cơ chế Cloud-First / Atomic Multi-layer Rollback: Không ghi đè SQLite hoặc Memory Vault nếu Cloud ghi thất bại!
         """
         clean_name = pathlib.Path(filename).name
         raw = data_bytes.encode("utf-8") if isinstance(data_bytes, str) else bytes(data_bytes)
-        local_ok = self._write_local_sqlite_and_file(clean_name, raw)
 
-        # Đồng bộ kèm voiceprints.json và custom_rules_overlay.json nếu có trong cùng thư mục
+        if sync_cloud:
+            bundle = self._collect_current_bundle(data_dir=data_dir)
+            bundle.setdefault("files", {})[clean_name] = base64.b64encode(raw).decode("ascii")
+            if data_dir is not None:
+                for extra_name in TRACKED_STATE_FILES:
+                    if extra_name != clean_name:
+                        extra_path = data_dir / extra_name
+                        if extra_path.exists():
+                            try:
+                                bundle.setdefault("files", {})[extra_name] = base64.b64encode(
+                                    extra_path.read_bytes()
+                                ).decode("ascii")
+                            except Exception:
+                                pass
+            kv_ok = self._save_bundle_to_upstash_kv(bundle)
+            imap_ok = self._save_bundle_to_gmail_imap(bundle)
+            cloud_ok = bool(kv_ok or imap_ok)
+            if not cloud_ok:
+                # Cloud write failed: do NOT write or mutate local SQLite / vault / memory!
+                return False
+
+        # If sync_cloud is False or cloud write succeeded, commit to local SQLite & memory vault
+        local_ok = self._write_local_sqlite_and_file(clean_name, raw)
         if data_dir is not None:
-            for extra_name in ("voiceprints.json", "custom_rules_overlay.json"):
+            for extra_name in TRACKED_STATE_FILES:
                 if extra_name != clean_name:
                     extra_path = data_dir / extra_name
                     if extra_path.exists():
@@ -469,13 +658,6 @@ class DurableStateStore:
                             self._write_local_sqlite_and_file(extra_name, extra_path.read_bytes())
                         except Exception:
                             pass
-
-        if sync_cloud:
-            bundle = self._collect_current_bundle(data_dir=data_dir)
-            kv_ok = self._save_bundle_to_upstash_kv(bundle)
-            imap_ok = self._save_bundle_to_gmail_imap(bundle)
-            cloud_ok = bool(kv_ok or imap_ok)
-            return bool(local_ok and cloud_ok)
         return bool(local_ok)
 
     def load_state_file(
@@ -498,6 +680,13 @@ class DurableStateStore:
                 if bundle:
                     self._apply_bundle_to_local(bundle, target_dir=data_dir)
                     local_raw = self._read_local_sqlite_or_file(clean_name)
+        if local_raw is None and clean_name in TRACKED_STATE_FILES:
+            if data_dir is not None and (data_dir / clean_name).exists():
+                try:
+                    return (data_dir / clean_name).read_bytes()
+                except Exception:
+                    pass
+            return b"{}"
         return local_raw
 
     def sync_to_durable_store(
@@ -543,6 +732,8 @@ class DurableStateStore:
                 dst = data_dir / fname
                 if only_missing and dst.exists():
                     continue
+                if force_cloud and not cloud_loaded and dst.exists():
+                    continue
                 raw = self._read_local_sqlite_or_file(fname)
                 if raw is not None:
                     try:
@@ -581,13 +772,20 @@ def get_durable_store() -> DurableStateStore:
 def save_state_file(
     filename: str,
     data_bytes: bytes | str,
-    sync_cloud: bool = True,
+    sync_cloud: bool | None = None,
     data_dir: pathlib.Path | None = None,
 ) -> bool:
-    return get_durable_store().save_state_file(
+    target_store = get_durable_store()
+    if sync_cloud is None:
+        effective_sync_cloud = not (
+            bool(target_store.offline_sandbox) or is_offline_sandbox_or_test()
+        )
+    else:
+        effective_sync_cloud = bool(sync_cloud)
+    return target_store.save_state_file(
         filename=filename,
         data_bytes=data_bytes,
-        sync_cloud=sync_cloud,
+        sync_cloud=effective_sync_cloud,
         data_dir=data_dir,
     )
 
@@ -669,10 +867,17 @@ def save_durable_json(
                 resolved_data_dir = p
 
     raw_bytes = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    prev_disk_bytes: bytes | None = None
+    if target_file is not None and target_file.exists():
+        with contextlib.suppress(Exception):
+            prev_disk_bytes = target_file.read_bytes()
+    # Do not write the destination file until the durable commit is acknowledged.
+    # Snapshot must happen before any caller-side write as well (wrappers must not
+    # pre-write the candidate). On failure restore the previous bytes, or unlink
+    # the file when it did not exist.
     if target_file is not None:
         with contextlib.suppress(Exception):
             target_file.parent.mkdir(parents=True, exist_ok=True)
-            target_file.write_bytes(raw_bytes)
 
     target_store = store or get_durable_store()
     if sync_cloud is None:
@@ -682,12 +887,24 @@ def save_durable_json(
     else:
         effective_sync_cloud = bool(sync_cloud)
 
-    return target_store.save_state_file(
+    saved_ok = target_store.save_state_file(
         filename=filename,
         data_bytes=raw_bytes,
         sync_cloud=effective_sync_cloud,
         data_dir=resolved_data_dir,
     )
+    if saved_ok:
+        if target_file is not None:
+            with contextlib.suppress(Exception):
+                target_file.write_bytes(raw_bytes)
+        return True
+    if target_file is not None:
+        with contextlib.suppress(Exception):
+            if prev_disk_bytes is not None:
+                target_file.write_bytes(prev_disk_bytes)
+            elif target_file.exists():
+                target_file.unlink(missing_ok=True)
+    return False
 
 
 def sync_to_durable_store(

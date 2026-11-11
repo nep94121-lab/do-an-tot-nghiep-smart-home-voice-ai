@@ -621,6 +621,38 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
     ? samplesListB64
     : (b64Pcm ? [b64Pcm] : []);
 
+  const concatPcmB64List = (b64Arr) => {
+    const byteChunks = [];
+    let totalBytes = 0;
+    for (const item of b64Arr) {
+      if (!item) continue;
+      const bin = window.atob(item);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      byteChunks.push(u8);
+      totalBytes += u8.length;
+    }
+    const merged = new Uint8Array(totalBytes);
+    let off = 0;
+    for (const c of byteChunks) {
+      merged.set(c, off);
+      off += c.length;
+    }
+    let outBin = '';
+    const CHUNK = 8192;
+    for (let i = 0; i < merged.length; i += CHUNK) {
+      outBin += String.fromCharCode.apply(null, merged.subarray(i, i + CHUNK));
+    }
+    return window.btoa(outBin);
+  };
+
+  let mainPcmB64 = b64Pcm;
+  let selfCheckB64 = '';
+  if (effectiveSamples.length >= 2) {
+    mainPcmB64 = concatPcmB64List(effectiveSamples.slice(0, effectiveSamples.length - 1));
+    selfCheckB64 = effectiveSamples[effectiveSamples.length - 1] || '';
+  }
+
   if (!guestName) {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
@@ -644,7 +676,9 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
         guest_email: guestEmail,
         target_tier: 3,
         duration: guestDurationCode || '1d',
-        audio_pcm_b64: b64Pcm,
+        audio_pcm_b64: mainPcmB64,
+        pcm16k_b64: mainPcmB64,
+        self_check_pcm_b64: selfCheckB64,
         samples_b64: effectiveSamples,
         sample_count: effectiveSamples.length,
         sample_index: effectiveSamples.length,

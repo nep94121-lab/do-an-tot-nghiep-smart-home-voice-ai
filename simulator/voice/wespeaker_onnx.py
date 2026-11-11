@@ -623,7 +623,7 @@ def evaluate_audio_quality_gate(
     audio: bytes | bytearray | np.ndarray,
     sr: int = SAMPLE_RATE_16K,
     min_duration_sec: float = 1.50,
-    min_active_speech_sec: float = 0.28,
+    min_active_speech_sec: float = 1.45,
     min_rms: float = 0.004,
     min_peak: float = 0.015,
     max_clip_ratio: float = 0.18,
@@ -673,13 +673,30 @@ def evaluate_audio_quality_gate(
     n = (len(x) // 320) * 320
     fr = x[:n].reshape(-1, 320) if n >= 320 else x.reshape(1, -1)
     e = np.sqrt((fr**2).mean(axis=1) + 1e-12)
-    active_mask = e > max(0.08 * float(e.max()), 3e-4)
-    active_speech_sec = float(int(active_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
-    x_active = fr[active_mask].reshape(-1) if (n >= 320 and active_mask.any()) else x
+    voiced_core_mask = e > max(0.08 * float(e.max()), 3e-4)
+    voiced_core_sec = float(int(voiced_core_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
 
     levels_db = 20.0 * np.log10(np.maximum(e, 1e-12))
     noise_floor_db = float(np.percentile(levels_db, 20))
-    speech_levels = levels_db[levels_db > max(-50.0, noise_floor_db + 10.0)]
+    peak_frame_db = float(np.max(levels_db)) if levels_db.size > 0 else -120.0
+    vad_thr_db = min(
+        max(-50.0, noise_floor_db + 10.0),
+        max(-42.0, peak_frame_db - 18.0),
+    )
+    vad_mask = levels_db > vad_thr_db
+    vad_speech_sec = float(int(vad_mask.sum()) * 320) / float(SAMPLE_RATE_16K)
+
+    # Require substantive voiced core (>=0.28s) so micro-syllables + breath (e.g. 11_bat.wav)
+    # cannot accumulate room noise; otherwise measure 20ms Energy-VAD active speech (matching check_enroll.py).
+    if voiced_core_sec < 0.28:
+        active_speech_sec = voiced_core_sec
+        active_mask = voiced_core_mask
+    else:
+        active_speech_sec = vad_speech_sec
+        active_mask = vad_mask
+    x_active = fr[active_mask].reshape(-1) if (n >= 320 and active_mask.any()) else x
+
+    speech_levels = levels_db[vad_mask]
     snr_est_db = (
         float(np.mean(speech_levels) - noise_floor_db)
         if speech_levels.size > 0
@@ -707,7 +724,60 @@ def evaluate_audio_quality_gate(
             "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
-    if active_speech_sec < min_active_speech_sec:
+    # Check for too-short speech vs legitimate compact commands.
+    # A legitimate compact command (e.g. '06_mo_cua.wav': 1.75s total duration, 1.02s active speech, 0.44s voiced core)
+    # has natural cadence (silence ratio < 50%, no artificial padding streak >= 0.65s).
+    # Conversely, short speech artificially padded with silence/noise to 2.0s (e.g. 0.8s, 1.0s, 1.2s slices)
+    # exhibits an abnormally long trailing or continuous silence block (>= 0.65s) or low speech ratio (< 50%).
+    silent_frames = ~vad_mask
+    end_streak = 0
+    for s in reversed(silent_frames):
+        if s:
+            end_streak += 1
+        else:
+            break
+    end_sil_sec = float(end_streak * 320) / float(SAMPLE_RATE_16K)
+
+    cur_streak = 0
+    max_streak = 0
+    for s in silent_frames:
+        if s:
+            cur_streak += 1
+        else:
+            if cur_streak > max_streak:
+                max_streak = cur_streak
+            cur_streak = 0
+    if cur_streak > max_streak:
+        max_streak = cur_streak
+    max_sil_sec = float(max_streak * 320) / float(SAMPLE_RATE_16K)
+
+    is_audio_too_short = False
+    if active_speech_sec < 0.95 or voiced_core_sec < 0.28:
+        is_audio_too_short = True
+    elif active_speech_sec < min_active_speech_sec:
+        if (
+            end_sil_sec >= 0.65
+            or max_sil_sec >= 0.65
+            or (active_speech_sec / max(duration_sec, 0.01)) < 0.50
+            or voiced_core_sec < 0.35
+        ):
+            is_audio_too_short = True
+        else:
+            # Mid-utterance hard cut: after trimming near-zero edges, a fragment
+            # sliced from the middle of a longer phrase often starts at high energy.
+            # Natural compact commands (e.g. 06_mo_cua.wav) start/end softly.
+            # This does not close every split-padding case whose cut lands on a quiet
+            # boundary; those remain in conflict with accepting ~1.0s complete commands.
+            nz = np.where(np.abs(x) > 1e-4)[0]
+            if nz.size >= 640:
+                xt = x[int(nz[0]) : int(nz[-1]) + 1]
+                mid_rms = float(np.sqrt(np.mean(xt[len(xt)//4 : 3*len(xt)//4] ** 2) + 1e-12))
+                start20_rms = float(np.sqrt(np.mean(xt[:320] ** 2) + 1e-12))
+                end20_rms = float(np.sqrt(np.mean(xt[-320:] ** 2) + 1e-12))
+                if mid_rms > 1e-6 and max(start20_rms / mid_rms, end20_rms / mid_rms) >= 0.80:
+                    is_audio_too_short = True
+
+    if is_audio_too_short:
         return {
             "ok": False,
             "ask_repeat": True,

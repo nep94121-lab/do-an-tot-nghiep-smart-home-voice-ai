@@ -242,11 +242,24 @@ def verify_speaker_identity_256d(
     pcm_16k_mono: bytes | np.ndarray,
     profiles: dict[str, Any] | None = None,
 ) -> tuple[bool, str, int, float]:
-    """Xác thực danh tính người nói qua mô hình 256 chiều.
-    
-    Hợp đồng giao diện theo PROJECT.md:
+    """Xác thực danh tính người nói.
+
+    Trước đây hàm này so khớp *hand-crafted* spectral envelope 256-D
+    (`extract_neural_embedding_256d`) với ngưỡng cứng 0.78 — không đủ phân biệt
+    người nói (FAR cao trên snapshot voiceprints cũ). Nay dùng cùng WeSpeaker
+    ResNet34 ONNX và ngưỡng chính thức với `VoiceAuthManager`.
     Output: Tuple[bool, str, int, float] -> (authorized, speaker_id, tier, similarity)
     """
+    from simulator.voice.wespeaker_onnx import (
+        compute_wespeaker_cosine,
+        evaluate_audio_quality_gate,
+        extract_wespeaker_embedding,
+    )
+    from simulator.voice_config import (
+        THRESHOLD_WESPEAKER_TIER1,
+        get_tier_wespeaker_threshold,
+    )
+
     if profiles is None:
         try:
             if VOICEPRINT_FILE.exists():
@@ -256,48 +269,53 @@ def verify_speaker_identity_256d(
         except Exception:
             profiles = {}
 
-    cur_emb = extract_neural_embedding_256d(pcm_16k_mono)
+    quality = evaluate_audio_quality_gate(pcm_16k_mono, sr=16000)
+    if not quality.get("ok"):
+        return False, "intruder_voice_2", 99, 0.0
 
-    # 1. So khớp với Chủ nhà Cấp 1
+    cur_emb = extract_wespeaker_embedding(pcm_16k_mono)
+
+    def _wespeaker_vec(prof: dict[str, Any]) -> np.ndarray | None:
+        raw = prof.get("wespeaker_embedding")
+        if raw is None and str(prof.get("wespeaker_model") or "") == "wespeaker_r34_onnx":
+            raw = prof.get("embedding_256d")
+        if raw is None:
+            return None
+        vec = np.asarray(raw, dtype=np.float32)
+        if vec.size < 8:
+            return None
+        return vec
+
     owner_prof = profiles.get("owner_voice_1")
-    if owner_prof and owner_prof.get("authorized", True):
-        owner_raw = owner_prof.get("embedding_256d")
-        if owner_raw is None:
-            owner_wav = ROOT_DIR / "test_audio" / "mo_cua_chinh.wav"
-            if owner_wav.exists():
-                import wave
-                with wave.open(str(owner_wav), "rb") as w:
-                    raw_b = w.readframes(w.getnframes())
-                owner_raw = extract_neural_embedding_256d(raw_b).tolist()
-                owner_prof["embedding_256d"] = owner_raw
-        if owner_raw is not None:
-            owner_vec = np.asarray(owner_raw, dtype=np.float32)
-            sim_owner = compute_neural_similarity(cur_emb, owner_vec)
-            if sim_owner >= 0.78:
+    if isinstance(owner_prof, dict) and owner_prof.get("authorized", True):
+        owner_vec = _wespeaker_vec(owner_prof)
+        if owner_vec is not None:
+            sim_owner = float(compute_wespeaker_cosine(cur_emb, owner_vec))
+            if sim_owner >= float(THRESHOLD_WESPEAKER_TIER1):
                 return True, "owner_voice_1", 1, round(sim_owner, 3)
 
-    # 2. So khớp với các thành viên khác
     best_sim = -1.0
     best_id = "intruder_voice_2"
     best_tier = 99
     now_ts = time.time()
 
-    for pid, prof in profiles.items():
-        if pid == "owner_voice_1" or not prof.get("authorized", False):
+    for pid, prof in (profiles or {}).items():
+        if pid == "owner_voice_1" or not isinstance(prof, dict) or not prof.get("authorized", False):
             continue
         exp = prof.get("expires_at")
         if exp is not None and now_ts > float(exp):
             continue
+        p_vec = _wespeaker_vec(prof)
+        if p_vec is None:
+            continue
+        sim = float(compute_wespeaker_cosine(cur_emb, p_vec))
+        if sim > best_sim:
+            best_sim = sim
+            best_id = str(pid)
+            best_tier = int(prof.get("tier", 99))
 
-        p_emb = prof.get("embedding_256d")
-        if p_emb is not None:
-            sim = compute_neural_similarity(cur_emb, np.asarray(p_emb, dtype=np.float32))
-            if sim > best_sim:
-                best_sim = sim
-                best_id = pid
-                best_tier = int(prof.get("tier", 99))
-
-    if best_sim >= 0.85:
+    if best_sim >= float(get_tier_wespeaker_threshold(best_tier)):
         return True, best_id, best_tier, round(best_sim, 3)
 
     return False, "intruder_voice_2", 99, round(max(0.0, best_sim), 3)
+

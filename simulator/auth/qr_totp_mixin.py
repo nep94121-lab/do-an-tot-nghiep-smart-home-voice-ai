@@ -38,10 +38,11 @@ class AuthQrTotpMixin:
         if not hasattr(self, "guest_qr_sessions"):
             self.guest_qr_sessions = {}
 
-        if int(issuer_tier) not in (1, 2):
+        if int(issuer_tier) != 1:
             return {
                 "ok": False,
-                "error": "Chỉ Cấp 1 (Chủ nhà) hoặc Cấp 2 (Thành viên gia đình) mới có quyền tạo mã QR động cho khách!",
+                "rbac_blocked": True,
+                "error": "Chỉ Cấp 1 (Chủ nhà Nguyễn Tuấn Anh) mới có quyền tạo mã QR động cho khách!",
                 "status_code": 403,
             }
 
@@ -141,7 +142,7 @@ class AuthQrTotpMixin:
                     pass
 
             for w_chk in w_candidates:
-                for t_chk in (1, 2):
+                for t_chk in (1,):
                     for d_key, d_sec in DURATION_MAP_SECONDS.items():
                         raw_p = f"{w_chk}:{t_chk}:{d_key}:{d_sec}"
                         cand = hmac.new(secret.encode("utf-8"), raw_p.encode("utf-8"), hashlib.sha256).hexdigest()[:16]

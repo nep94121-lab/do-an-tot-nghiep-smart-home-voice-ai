@@ -559,7 +559,36 @@
             samplesB64.push(generateAuthSynthetic16kPcmB64(isGood, f0, idx));
           }
         }
-        pcmB64 = samplesB64[0];
+        const concatAuthPcmB64 = (arr) => {
+          const chunks = [];
+          let total = 0;
+          for (const s of arr) {
+            if (!s) continue;
+            const bin = window.atob(s);
+            const u8 = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            chunks.push(u8);
+            total += u8.length;
+          }
+          const merged = new Uint8Array(total);
+          let off = 0;
+          for (const c of chunks) {
+            merged.set(c, off);
+            off += c.length;
+          }
+          let out = '';
+          for (let i = 0; i < merged.length; i += 8192) {
+            out += String.fromCharCode.apply(null, merged.subarray(i, i + 8192));
+          }
+          return window.btoa(out);
+        };
+        const mainEnrollB64 = samplesB64.length >= 2
+          ? concatAuthPcmB64(samplesB64.slice(0, samplesB64.length - 1))
+          : samplesB64[0];
+        const selfCheckEnrollB64 = samplesB64.length >= 2
+          ? samplesB64[samplesB64.length - 1]
+          : '';
+        pcmB64 = mainEnrollB64;
         recordedAuthSamplesB64 = samplesB64.slice();
 
         const payload = {
@@ -570,9 +599,10 @@
           measured_f0_hz: f0,
           snr_db: isGood ? 19.5 : 4.2,
           hold_duration_sec: holdSec,
-          source_device: 'Web Xác thực (Micro thật · 5 mẫu WeSpeaker)',
-          audio_pcm_b64: pcmB64,
-          pcm16k_b64: pcmB64,
+          source_device: 'Web Xác thực (Micro thật · 11s+ & Self-check 3s+)',
+          audio_pcm_b64: mainEnrollB64,
+          pcm16k_b64: mainEnrollB64,
+          self_check_pcm_b64: selfCheckEnrollB64,
           samples_b64: samplesB64,
           sample_count: samplesB64.length,
         };
