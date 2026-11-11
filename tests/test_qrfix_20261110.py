@@ -19,6 +19,8 @@ import re
 import sys
 import threading
 import time
+import uuid
+from unittest.mock import patch
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -30,6 +32,8 @@ if str(ROOT) not in sys.path:
 from simulator.auth.qr_totp_mixin import QR_SCAN_COOKIE_NAME, QR_SESSION_COOKIE_NAME
 from simulator.auth_3layer import get_auth_3layer_manager
 from simulator.server import _BOOT_VOICE_AUTH, app
+from simulator.api import routes_qr
+from simulator.api.deps import _REST_ENGINE
 
 
 @pytest.fixture(autouse=True)
@@ -2131,6 +2135,184 @@ def test_round6_chunked_transfer_encoding_split_boundary_and_malformed_framing()
     assert r_smuggle.json().get("status") == "MALFORMED_HTTP_FRAMING"
     assert mgr.guest_qr_sessions[hs4["session_id"]]["invalidated"] is True
     assert scanner4.get(hs4["post_scan_url"]).status_code == 403
+
+
+# =============================================================================
+# FIX ROUND 7 REGRESSION TESTS (R6-N1 LONG LITERAL, R6-N2 DEEP NESTING, R6-N3 34MB STREAM)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "endpoint,spaces",
+    [
+        ("/api/auth3/guest_qr_complete_voice", 700),
+        ("/api/auth3/guest_qr_send_otp", 700),
+        ("/api/auth3/guest_qr_verify_otp", 700),
+    ],
+)
+def test_round7_r6_n1_long_literal_escaped_nonce_requires_rescan(
+    endpoint: str, spaces: int
+) -> None:
+    """R6-N1: Top-level body nonce written as a long literal (700 x \\u0020 escapes + escaped nonce)
+    accepted as valid credential (proof 200), but when same body ends malformed (422) on voice/send-OTP/verify-OTP,
+    session MUST be invalidated, pending OTP deleted, post-scan link 403, and retry verify rejected.
+    """
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    c = TestClient(app, raise_server_exceptions=False)
+    mgr = get_auth_3layer_manager()
+    name = "R7Literal_" + uuid.uuid4().hex[:8]
+    email = "r7-literal@example.invalid"
+    data = {
+        "session_id": hs["session_id"],
+        "guest_name": name,
+        "email": email,
+        "confirm_email": email,
+    }
+    literal = "\\u0020" * spaces + "".join("\\u%04x" % ord(ch) for ch in nonce)
+    base = json.dumps(data)[:-1] + ',"scan_nonce":"' + literal + '"'
+    with patch.object(
+        routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")
+    ):
+        proof = c.post(
+            "/api/auth3/guest_qr_send_otp",
+            content=base + "}",
+            headers={"content-type": "application/json"},
+        )
+    assert proof.status_code == 200
+    saved = mgr.pending_guest_email_otps[email]["otp"]
+    raw = base + ',"broken":'
+    bad = c.post(endpoint, content=raw, headers={"content-type": "application/json"})
+    assert bad.status_code == 422
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    retry = c.post(
+        "/api/auth3/guest_qr_verify_otp", json={**data, "scan_nonce": nonce, "otp": saved}
+    )
+    assert retry.status_code >= 400
+    assert not retry.json().get("verified")
+    assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
+
+
+@pytest.mark.parametrize("depth", [64, 65, 80, 100])
+def test_round7_r6_n2_deep_nested_nonce_requires_rescan(depth: int) -> None:
+    """R6-N2: Nonce inside deeply nested JSON objects (>64 levels) must not lose invalidation
+    when error occurs.
+    """
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    mgr = get_auth_3layer_manager()
+    c = TestClient(app, raise_server_exceptions=False)
+    name = "R7Depth_" + uuid.uuid4().hex[:8]
+    email = "r7-depth@example.invalid"
+    data = {
+        "session_id": hs["session_id"],
+        "scan_nonce": nonce,
+        "guest_name": name,
+        "email": email,
+        "confirm_email": email,
+    }
+    with patch.object(
+        routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")
+    ):
+        proof = c.post("/api/auth3/guest_qr_send_otp", json=data)
+    assert proof.status_code == 200
+    saved = mgr.pending_guest_email_otps[email]["otp"]
+    nested = {"scan_nonce": nonce}
+    for _ in range(depth):
+        nested = {"n": nested}
+    raw = (
+        json.dumps({"session_id": hs["session_id"], "nested": nested})[:-1]
+        + ',"sample_index":1e309}'
+    )
+    bad = c.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=raw,
+        headers={"content-type": "application/json"},
+    )
+    assert 400 <= bad.status_code < 500
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    retry = c.post(
+        "/api/auth3/guest_qr_verify_otp", json={**data, "otp": saved}
+    )
+    assert retry.status_code >= 400
+    assert not retry.json().get("verified")
+    assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
+
+
+@pytest.mark.parametrize(
+    "padding,chunk_size",
+    [(34 * 1024 * 1024, 65536), (34 * 1024 * 1024, 40 * 1024 * 1024)],
+)
+def test_round7_r6_n3_stream_34mb_requires_rescan(
+    padding: int, chunk_size: int
+) -> None:
+    """R6-N3: Stream exceeding 32 MiB with tail credentials must be scanned within the 80 MiB stream
+    scan window, returning 413 and invalidating the bound QR session.
+    """
+    import asyncio, httpx
+
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    c = TestClient(app, raise_server_exceptions=False)
+    mgr = get_auth_3layer_manager()
+    name = "R7Stream_" + uuid.uuid4().hex[:8]
+    email = "r7-stream@example.invalid"
+    data = {
+        "session_id": hs["session_id"],
+        "scan_nonce": nonce,
+        "guest_name": name,
+        "email": email,
+        "confirm_email": email,
+    }
+    with patch.object(
+        routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")
+    ):
+        proof = c.post("/api/auth3/guest_qr_send_otp", json=data)
+    assert proof.status_code == 200
+    saved = mgr.pending_guest_email_otps[email]["otp"]
+    esc = "".join("\\u%04x" % ord(ch) for ch in nonce)
+    tail = (
+        '{"session_id":'
+        + json.dumps(hs["session_id"])
+        + ',"scan_nonce":"'
+        + esc
+        + '","sample_index":1e309}'
+    ).encode()
+
+    async def chunks():
+        remaining = padding
+        while remaining:
+            size = min(remaining, chunk_size)
+            remaining -= size
+            yield b" " * size
+        yield tail
+
+    async def send():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://testserver",
+        ) as ac:
+            return await ac.post(
+                "/api/auth3/guest_qr_complete_voice",
+                content=chunks(),
+                headers={"content-type": "application/json"},
+            )
+
+    bad = asyncio.run(send())
+    assert bad.status_code == 413
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    retry = c.post(
+        "/api/auth3/guest_qr_verify_otp", json={**data, "otp": saved}
+    )
+    assert retry.status_code >= 400
+    assert not retry.json().get("verified")
+    assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
 
 
 

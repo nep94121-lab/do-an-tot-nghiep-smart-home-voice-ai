@@ -30,7 +30,7 @@ QR_SHORT_EXPIRY_SEC = 180.0
 # Giới hạn cứng kích thước HTTP request body & cửa sổ trượt quét luồng bộ nhớ hằng số O(1) (Fix Round 6)
 MAX_HTTP_BODY_BYTES = 1_572_864          # 1.5 MiB (đủ cho 5 mẫu giọng nói 16kHz PCM16 base64; chặn < 2MB)
 MAX_QR_SMALL_JSON_BODY_BYTES = 65_536    # 64 KiB cho các API JSON nhỏ (handshake, send_otp, verify_otp, qr/generate)
-MAX_STREAM_CREDENTIAL_SCAN_BYTES = 33_554_432  # 32 MiB trần rút luồng chống DoS
+MAX_STREAM_CREDENTIAL_SCAN_BYTES = 83_886_080  # 80 MiB trần rút luồng chống DoS (đảm bảo quét trọn vẹn stream 34 MiB)
 _STREAM_WINDOW_BLOCK_BYTES = 65_536      # 64 KiB kích thước khối quét cửa sổ trượt
 _STREAM_WINDOW_OVERLAP_BYTES = 16_384    # 16 KiB vùng chồng lấp chia hết cho 4 byte (bảo toàn UTF-8/UTF-16/UTF-32 & \uXXXX)
 
@@ -58,7 +58,7 @@ _RE_UNESCAPED_QUOTE = re.compile(r'(?<!\\)(?:\\\\)*"')
 _RE_JSON_KV_STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"')
 _RE_JSON_KV_NUM = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*([+-]?\d{1,64})\b')
 _RE_JSON_STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
-_RE_BOUNDED_TOKEN_RUN = re.compile(r"(?<![A-Za-z0-9_\-\\+%])[A-Za-z0-9_\-\\+%]{8,1024}(?![A-Za-z0-9_\-\\+%])")
+_RE_BOUNDED_TOKEN_RUN = re.compile(r"(?<![A-Za-z0-9_\-\\+%])[A-Za-z0-9_\-\\+%]{8,65536}(?![A-Za-z0-9_\-\\+%])")
 _RE_MULTIPART_FIELD = re.compile(r'name="([^"]{1,256})"(?:;[^\r\n]*)?\r?\n\r?\n([^\r\n]{1,1024})')
 
 
@@ -248,54 +248,57 @@ def extract_tolerant_raw_body_pairs_and_strings(
             seen_strings.add(cv)
             strings.append(cv)
 
-    def _walk_obj(node: Any, depth: int = 0) -> None:
-        if depth > 64 or node is None or isinstance(node, bool):
-            return
-        if isinstance(node, _JsonObjectPairs):
-            for k, v in node:
-                ks = str(k or "")
-                if isinstance(v, str):
-                    _rec_pair(ks, str(v))
-                elif isinstance(v, (int, float)) and not isinstance(v, bool):
-                    _rec_pair(ks, str(v))
-                else:
-                    _walk_obj(v, depth + 1)
-            return
-        if isinstance(node, dict):
-            for k, v in node.items():
-                ks = str(k or "")
-                if isinstance(v, str):
-                    _rec_pair(ks, v)
-                elif isinstance(v, (int, float)) and not isinstance(v, bool):
-                    _rec_pair(ks, str(v))
-                else:
-                    _walk_obj(v, depth + 1)
-            return
-        if isinstance(node, (list, tuple)):
-            for item in node:
-                if isinstance(item, str) and not isinstance(item, _RawJsonLiteral):
-                    _rec_str(item)
-                else:
-                    _walk_obj(item, depth + 1)
-            return
-        if isinstance(node, str) and not isinstance(node, _RawJsonLiteral):
-            _rec_str(node)
+    def _walk_obj(root: Any, depth: int = 0, max_depth: int = 2000) -> None:
+        stack = [(root, 0)]
+        while stack:
+            node, depth = stack.pop()
+            if depth > max_depth or node is None or isinstance(node, bool):
+                continue
+            if isinstance(node, _JsonObjectPairs):
+                for k, v in node:
+                    ks = str(k or "")
+                    if isinstance(v, str):
+                        _rec_pair(ks, str(v))
+                    elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                        _rec_pair(ks, str(v))
+                    elif isinstance(v, (dict, list, tuple, _JsonObjectPairs)):
+                        stack.append((v, depth + 1))
+                continue
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    ks = str(k or "")
+                    if isinstance(v, str):
+                        _rec_pair(ks, str(v))
+                    elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                        _rec_pair(ks, str(v))
+                    elif isinstance(v, (dict, list, tuple, _JsonObjectPairs)):
+                        stack.append((v, depth + 1))
+                continue
+            if isinstance(node, (list, tuple)):
+                for item in node:
+                    if isinstance(item, str) and not isinstance(item, _RawJsonLiteral):
+                        _rec_str(item)
+                    elif isinstance(item, (dict, list, tuple, _JsonObjectPairs)):
+                        stack.append((item, depth + 1))
+                continue
+            if isinstance(node, str) and not isinstance(node, _RawJsonLiteral):
+                _rec_str(node)
 
     def _scan_broken_or_window_text(segment: str) -> None:
         for m_kv in _RE_JSON_KV_STR.finditer(segment):
             raw_k, raw_v = m_kv.group(1), m_kv.group(2)
-            if len(raw_k) <= 1024 and 1 <= len(raw_v) <= 4096:
+            if len(raw_k) <= 4096 and 1 <= len(raw_v) <= 65536:
                 _rec_pair(
                     unescape_json_string_literal(raw_k),
                     unescape_json_string_literal(raw_v),
                 )
         for m_kn in _RE_JSON_KV_NUM.finditer(segment):
             raw_k, raw_num = m_kn.group(1), m_kn.group(2)
-            if len(raw_k) <= 1024:
+            if len(raw_k) <= 4096:
                 _rec_pair(unescape_json_string_literal(raw_k), raw_num)
         for m_str in _RE_JSON_STR.finditer(segment):
             raw_s = m_str.group(1)
-            if 1 <= len(raw_s) <= 4096:
+            if 1 <= len(raw_s) <= 65536:
                 _rec_str(unescape_json_string_literal(raw_s))
 
     if payload is not None:

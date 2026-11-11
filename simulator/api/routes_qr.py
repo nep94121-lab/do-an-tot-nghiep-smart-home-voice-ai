@@ -177,6 +177,14 @@ def _precompute_request_qr_credentials(
     creds = extract_all_request_qr_credentials(request=request, payload=payload, raw_body=raw_body)
     nonce_hashes = {hash_qr_scan_nonce(s) for s in creds["all_candidate_secrets"] if s}
     try:
+        existing_creds = getattr(request.state, "qr_extracted_creds", None)
+        if isinstance(existing_creds, dict):
+            for k in ("nonces", "session_ids", "post_scan_tokens", "qr_tokens", "all_candidate_secrets"):
+                if k in existing_creds:
+                    creds[k] = list(dict.fromkeys(creds[k] + list(existing_creds[k])))
+            for s in creds["all_candidate_secrets"]:
+                if s:
+                    nonce_hashes.add(hash_qr_scan_nonce(s))
         existing_hashes = getattr(request.state, "qr_nonce_hashes", None)
         if isinstance(existing_hashes, set):
             nonce_hashes |= existing_hashes
@@ -250,7 +258,7 @@ def _invalidate_any_nonce_bound_session(
                     rec_sid = str(otp_rec.get("session_id") or "").strip()
                     rec_sess = mgr3.guest_qr_sessions.get(rec_sid) if rec_sid else None
                     sess_dead = (not isinstance(rec_sess, dict)) or bool(rec_sess.get("invalidated")) or str(rec_sess.get("status") or "").upper() in ("INVALIDATED", "INVALIDATED_ON_ERROR", "EXPIRED")
-                    if sess_dead and rec_nh and any(hmac.compare_digest(nh, rec_nh) for nh in nonce_hashes):
+                    if sess_dead or (rec_nh and any(hmac.compare_digest(nh, rec_nh) for nh in nonce_hashes)):
                         mgr3.pending_guest_email_otps.pop(mail_k, None)
     return invalidated_any
 
