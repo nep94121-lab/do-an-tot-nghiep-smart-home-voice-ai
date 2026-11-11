@@ -2315,6 +2315,190 @@ def test_round7_r6_n3_stream_34mb_requires_rescan(
     assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
 
 
+# =============================================================================
+# FIX ROUND 8 REGRESSION TESTS (R7-N1 11_000 ESCAPES, R7-N2 82 MiB STREAM)
+# =============================================================================
+
+
+
+def test_round8_streaming_scanner_recovers_nonce_split_across_64kib() -> None:
+    """Máy trạng thái phải ghép scan_nonce bị cắt đúng giữa literal 66 KiB (mốc 64 KiB)."""
+    from simulator.auth.qr_totp_mixin import _StreamingQrCredentialScanner
+
+    nonce = "scanNonceValue_R8_split_abcXYZ"
+    literal = "\\u0020" * 11000 + "".join("\\u%04x" % ord(ch) for ch in nonce)
+    raw = (
+        '{"session_id":"guest_sess_dummy","scan_nonce":"' + literal + '","broken":'
+    ).encode("utf-8")
+    assert len(raw) > 65_536
+    sc = _StreamingQrCredentialScanner()
+    sc.feed_bytes(raw[:65_536])
+    sc.feed_bytes(raw[65_536:])
+    sc.finish()
+    pairs, strings = sc.drain_pairs_and_strings()
+    assert ("session_id", "guest_sess_dummy") in pairs
+    assert ("scan_nonce", nonce) in pairs
+    assert nonce in strings
+
+
+def test_round8_extract_11000_escaped_spaces_from_truncated_json() -> None:
+    """Bộ quét khoan dung phải khôi phục scan_nonce sau 11.000 escape \\u0020 trong JSON cắt cụt (~66 KiB)."""
+    from simulator.auth.qr_totp_mixin import extract_tolerant_raw_body_pairs_and_strings
+
+    nonce = "scanNonceValue_R8_11000_abcXYZ"
+    literal = "\\u0020" * 11000 + "".join("\\u%04x" % ord(ch) for ch in nonce)
+    raw = (
+        '{"session_id":"guest_sess_dummy","scan_nonce":"' + literal + '","broken":'
+    ).encode("utf-8")
+    assert len(raw) > 65_536
+    pairs, strings = extract_tolerant_raw_body_pairs_and_strings(raw_body=raw)
+    assert ("scan_nonce", nonce) in pairs
+    assert nonce in strings
+
+
+@pytest.mark.parametrize(
+    "endpoint,spaces",
+    [
+        ("/api/auth3/guest_qr_complete_voice", 11000),
+        ("/api/auth3/guest_qr_send_otp", 11000),
+        ("/api/auth3/guest_qr_verify_otp", 11000),
+    ],
+)
+def test_round8_r7_n1_11000_escaped_spaces_malformed_requires_rescan(
+    endpoint: str, spaces: int
+) -> None:
+    """R7-N1: Biểu diễn scan_nonce bằng ~11.000 escape \\u0020 vẫn được API chấp nhận (proof 200),
+    nhưng JSON cắt cụt (~66 KB, dưới trần body voice 1,5 MiB) phải 422, hủy phiên, xóa OTP,
+    link cũ 403, verify cũ bị từ chối, không thêm khách.
+    """
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    c = TestClient(app, raise_server_exceptions=False)
+    mgr = get_auth_3layer_manager()
+    name = "R8Literal_" + uuid.uuid4().hex[:8]
+    email = "r8-literal@example.invalid"
+    data = {
+        "session_id": hs["session_id"],
+        "guest_name": name,
+        "email": email,
+        "confirm_email": email,
+    }
+    literal = "\\u0020" * spaces + "".join("\\u%04x" % ord(ch) for ch in nonce)
+    base = json.dumps(data)[:-1] + ',"scan_nonce":"' + literal + '"'
+    with patch.object(
+        routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")
+    ):
+        proof = c.post(
+            "/api/auth3/guest_qr_send_otp",
+            json={**data, "scan_nonce": nonce},
+        )
+    assert proof.status_code == 200
+    saved = mgr.pending_guest_email_otps[email]["otp"]
+    proof_raw = (
+        base
+        + ',"verify_only":true,"audio_pcm_b64":'
+        + json.dumps(_generate_valid_guest_pcm_b64(f0=240.0))
+        + "}"
+    )
+    voice_proof = c.post(
+        "/api/auth3/guest_qr_complete_voice",
+        content=proof_raw,
+        headers={"content-type": "application/json"},
+    )
+    assert voice_proof.status_code == 200
+    raw = base + ',"broken":'
+    assert len(raw.encode("utf-8")) > 65_536
+    bad = c.post(endpoint, content=raw, headers={"content-type": "application/json"})
+    # Voice cho phep toi 1.5 MiB (422 JSON gay); send_otp/verify_otp tran 64 KiB nen 413. Ca hai deu phai huy phien.
+    if endpoint.rstrip('/').endswith('guest_qr_complete_voice'):
+        assert bad.status_code == 422
+    else:
+        assert bad.status_code == 413
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    retry = c.post(
+        "/api/auth3/guest_qr_verify_otp", json={**data, "scan_nonce": nonce, "otp": saved}
+    )
+    assert retry.status_code >= 400
+    assert not retry.json().get("verified")
+    assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
+
+
+@pytest.mark.parametrize(
+    "padding,chunk_size",
+    [
+        (82 * 1024 * 1024, 65536),
+        (82 * 1024 * 1024, 90 * 1024 * 1024),
+    ],
+)
+def test_round8_r7_n2_stream_82mb_requires_rescan(
+    padding: int, chunk_size: int
+) -> None:
+    """R7-N2: Padding 82 MiB (chunk 64 KiB, hoặc một chunk lớn rồi credential ở chunk sau)
+    phải trả 413 và hủy phiên; không được coi trần quét luồng là lối thoát.
+    """
+    import asyncio
+    import httpx
+
+    scanner, hs = _handshake_pair()
+    nonce = str(scanner.cookies.get(QR_SCAN_COOKIE_NAME) or "")
+    c = TestClient(app, raise_server_exceptions=False)
+    mgr = get_auth_3layer_manager()
+    name = "R8Stream_" + uuid.uuid4().hex[:8]
+    email = "r8-stream@example.invalid"
+    data = {
+        "session_id": hs["session_id"],
+        "scan_nonce": nonce,
+        "guest_name": name,
+        "email": email,
+        "confirm_email": email,
+    }
+    with patch.object(
+        routes_qr, "validate_dns_mx_record", return_value=(True, "mocked; no mail")
+    ):
+        proof = c.post("/api/auth3/guest_qr_send_otp", json=data)
+    assert proof.status_code == 200
+    saved = mgr.pending_guest_email_otps[email]["otp"]
+    esc = "".join("\\u%04x" % ord(ch) for ch in nonce)
+    tail = (
+        '{"session_id":'
+        + json.dumps(hs["session_id"])
+        + ',"scan_nonce":"'
+        + esc
+        + '","sample_index":1e309}'
+    ).encode()
+
+    async def chunks():
+        remaining = padding
+        while remaining:
+            size = min(remaining, chunk_size)
+            remaining -= size
+            yield b" " * size
+        yield tail
+
+    async def send():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://testserver",
+        ) as ac:
+            return await ac.post(
+                "/api/auth3/guest_qr_complete_voice",
+                content=chunks(),
+                headers={"content-type": "application/json"},
+            )
+
+    bad = asyncio.run(send())
+    assert bad.status_code == 413
+    assert mgr.guest_qr_sessions[hs["session_id"]]["invalidated"] is True
+    assert email not in mgr.pending_guest_email_otps
+    assert scanner.get(hs["post_scan_url"]).status_code == 403
+    retry = c.post("/api/auth3/guest_qr_verify_otp", json={**data, "otp": saved})
+    assert retry.status_code >= 400
+    assert not retry.json().get("verified")
+    assert not any(v.get("name") == name for v in _REST_ENGINE.users.values())
+
+
 
 
 

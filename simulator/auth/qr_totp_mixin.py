@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import hashlib
 import hmac
 import json
@@ -30,7 +31,8 @@ QR_SHORT_EXPIRY_SEC = 180.0
 # Giới hạn cứng kích thước HTTP request body & cửa sổ trượt quét luồng bộ nhớ hằng số O(1) (Fix Round 6)
 MAX_HTTP_BODY_BYTES = 1_572_864          # 1.5 MiB (đủ cho 5 mẫu giọng nói 16kHz PCM16 base64; chặn < 2MB)
 MAX_QR_SMALL_JSON_BODY_BYTES = 65_536    # 64 KiB cho các API JSON nhỏ (handshake, send_otp, verify_otp, qr/generate)
-MAX_STREAM_CREDENTIAL_SCAN_BYTES = 83_886_080  # 80 MiB trần rút luồng chống DoS (đảm bảo quét trọn vẹn stream 34 MiB)
+# Không đặt trần byte khi quét credential trên luồng đã bị từ chối (quá cỡ / framing lỗi):
+# quét tới EOF bằng cửa sổ trượt bộ nhớ O(1) để credential ở bất kỳ vị trí nào đều bị bắt.
 _STREAM_WINDOW_BLOCK_BYTES = 65_536      # 64 KiB kích thước khối quét cửa sổ trượt
 _STREAM_WINDOW_OVERLAP_BYTES = 16_384    # 16 KiB vùng chồng lấp chia hết cho 4 byte (bảo toàn UTF-8/UTF-16/UTF-32 & \uXXXX)
 
@@ -287,18 +289,19 @@ def extract_tolerant_raw_body_pairs_and_strings(
     def _scan_broken_or_window_text(segment: str) -> None:
         for m_kv in _RE_JSON_KV_STR.finditer(segment):
             raw_k, raw_v = m_kv.group(1), m_kv.group(2)
-            if len(raw_k) <= 4096 and 1 <= len(raw_v) <= 65536:
+            # Không cắt raw literal theo hằng số độ dài: unescape rồi strip; _rec_pair/_rec_str đã chặn giá trị sạch > 512.
+            if raw_k and raw_v:
                 _rec_pair(
                     unescape_json_string_literal(raw_k),
                     unescape_json_string_literal(raw_v),
                 )
         for m_kn in _RE_JSON_KV_NUM.finditer(segment):
             raw_k, raw_num = m_kn.group(1), m_kn.group(2)
-            if len(raw_k) <= 4096:
+            if raw_k:
                 _rec_pair(unescape_json_string_literal(raw_k), raw_num)
         for m_str in _RE_JSON_STR.finditer(segment):
             raw_s = m_str.group(1)
-            if 1 <= len(raw_s) <= 65536:
+            if raw_s:
                 _rec_str(unescape_json_string_literal(raw_s))
 
     if payload is not None:
@@ -540,6 +543,216 @@ def extract_all_request_qr_credentials(
     }
 
 
+_JSON_SIMPLE_ESCAPES: dict[str, str] = {
+    '"': '"',
+    "\\": "\\",
+    "/": "/",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+}
+
+
+class _StreamingQrCredentialScanner:
+    """Máy trạng thái O(1) trích cặp key/value JSON xuyên chunk.
+
+    Không phụ thuộc cửa sổ trượt, trần độ dài literal hay độ sâu lồng nhau:
+    khi gặp khóa credential, unescape và strip giá trị trên đường đi, chỉ giữ tối đa 512 ký tự sạch.
+    """
+
+    __slots__ = (
+        "_encoding",
+        "_decoder",
+        "_state",
+        "_key",
+        "_value",
+        "_esc",
+        "_uni",
+        "_capture",
+        "_pairs",
+        "_strings",
+        "_finished",
+    )
+
+    def __init__(self) -> None:
+        self._encoding: str | None = None
+        self._decoder: codecs.IncrementalDecoder | None = None
+        self._state = "idle"  # idle, in_key, after_key, after_colon, in_val
+        self._key = ""
+        self._value = ""
+        self._esc = False
+        self._uni = ""
+        self._capture = False
+        self._pairs: list[tuple[str, str]] = []
+        self._strings: list[str] = []
+        self._finished = False
+
+    def set_encoding(self, encoding: str | None) -> None:
+        enc = encoding or "utf-8"
+        if self._decoder is not None and self._encoding == enc:
+            return
+        # Do not rebuild the decoder mid-stream if encoding is unchanged; first assignment only.
+        if self._decoder is not None:
+            return
+        self._encoding = enc
+        self._decoder = codecs.getincrementaldecoder(enc)("replace")
+
+    def feed_bytes(self, data: bytes) -> None:
+        if not data or self._finished:
+            return
+        if self._decoder is None:
+            self.set_encoding(self._encoding or "utf-8")
+        assert self._decoder is not None
+        step = _STREAM_WINDOW_BLOCK_BYTES
+        for i in range(0, len(data), step):
+            piece = data[i:i + step]
+            text = self._decoder.decode(piece, final=False)
+            if text:
+                self._feed_text(text)
+
+    def finish(self) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        if self._decoder is None:
+            return
+        text = self._decoder.decode(b"", final=True)
+        self._decoder = None
+        if text:
+            self._feed_text(text)
+
+    def drain_pairs_and_strings(self) -> tuple[list[tuple[str, str]], list[str]]:
+        pairs, strings = self._pairs, self._strings
+        self._pairs = []
+        self._strings = []
+        return pairs, strings
+
+    def _emit_key_char(self, ch: str) -> None:
+        if len(self._key) < 256:
+            self._key += ch
+
+    def _emit_val_char(self, ch: str) -> None:
+        if not self._capture:
+            return
+        if not self._value and ch in " \t\r\n":
+            return
+        if len(self._value) < 512:
+            self._value += ch
+
+    def _close_string_as_key(self) -> None:
+        self._key = self._key.strip()
+        self._state = "after_key"
+        self._esc = False
+        self._uni = ""
+
+    def _close_string_as_value(self) -> None:
+        val = self._value.strip()
+        key = self._key
+        if key in (_STRICT_QR_CREDENTIAL_KEYS | _SHARED_QR_TOKEN_KEYS) and val:
+            self._pairs.append((key, val))
+            self._strings.append(val)
+        elif val and 8 <= len(val) <= 512:
+            self._strings.append(val)
+        self._key = ""
+        self._value = ""
+        self._capture = False
+        self._state = "idle"
+        self._esc = False
+        self._uni = ""
+
+    def _handle_escape_char(self, ch: str, in_key: bool) -> None:
+        if self._uni != "" or ch == "u":
+            if ch == "u" and self._uni == "":
+                self._uni = "u"
+                return
+            self._uni += ch
+            if len(self._uni) == 5:
+                hexpart = self._uni[1:]
+                self._uni = ""
+                self._esc = False
+                try:
+                    decoded = chr(int(hexpart, 16))
+                except ValueError:
+                    decoded = ""
+                if decoded:
+                    if in_key:
+                        self._emit_key_char(decoded)
+                    else:
+                        self._emit_val_char(decoded)
+            return
+        self._esc = False
+        mapped = _JSON_SIMPLE_ESCAPES.get(ch, ch)
+        if in_key:
+            self._emit_key_char(mapped)
+        else:
+            self._emit_val_char(mapped)
+
+    def _feed_text(self, text: str) -> None:
+        for ch in text:
+            state = self._state
+            if state == "idle":
+                if ch == '"':
+                    self._key = ""
+                    self._state = "in_key"
+                    self._esc = False
+                    self._uni = ""
+                continue
+            if state == "in_key":
+                if self._esc:
+                    self._handle_escape_char(ch, in_key=True)
+                    continue
+                if ch == "\\":
+                    self._esc = True
+                    continue
+                if ch == '"':
+                    self._close_string_as_key()
+                    continue
+                self._emit_key_char(ch)
+                continue
+            if state == "after_key":
+                if ch in " \t\r\n":
+                    continue
+                if ch == ":":
+                    self._state = "after_colon"
+                    continue
+                if ch == '"':
+                    self._key = ""
+                    self._state = "in_key"
+                    self._esc = False
+                    self._uni = ""
+                    continue
+                self._key = ""
+                self._state = "idle"
+                continue
+            if state == "after_colon":
+                if ch in " \t\r\n":
+                    continue
+                if ch == '"':
+                    self._value = ""
+                    self._capture = self._key in (_STRICT_QR_CREDENTIAL_KEYS | _SHARED_QR_TOKEN_KEYS)
+                    self._state = "in_val"
+                    self._esc = False
+                    self._uni = ""
+                    continue
+                self._key = ""
+                self._state = "idle"
+                continue
+            if state == "in_val":
+                if self._esc:
+                    self._handle_escape_char(ch, in_key=False)
+                    continue
+                if ch == "\\":
+                    self._esc = True
+                    continue
+                if ch == '"':
+                    self._close_string_as_value()
+                    continue
+                self._emit_val_char(ch)
+                continue
+
+
 async def read_and_scan_request_body(
     request: Any,
     max_body_bytes: int = MAX_HTTP_BODY_BYTES,
@@ -552,8 +765,8 @@ async def read_and_scan_request_body(
          và trích xuất 100% credential mà KHÔNG có bất kỳ giới hạn cắt prefix ngầm nào.
     3. Nếu vượt quá max_body_bytes (Content-Length lớn hoặc chunked vượt ngưỡng) hoặc framing lỗi:
        - Đánh dấu is_oversize / malformed_framing, ngừng tăng bộ đệm RAM đầy đủ, và rút luồng qua cửa sổ trượt 64KB
-         (overlap 16KB căn chỉnh 4 byte, tối đa 32 MiB) để bắt trọn mọi credential ở bất kỳ vị trí nào (sau 2MB, 5MB,
-         hay bị cắt giữa 2 chunk), phục vụ hủy phiên nguyên tử và chặn cô lập route (403 / 413).
+         (overlap 16KB căn chỉnh 4 byte) TỚI EOF, không trần byte, để bắt trọn mọi credential ở bất kỳ vị trí nào
+         (sau 2MB, 34MB, 82MB, hay bị cắt giữa 2 chunk), phục vụ hủy phiên nguyên tử và chặn cô lập route (403 / 413).
     """
     state_obj = getattr(request, "state", None)
     cached_scan = getattr(state_obj, "qr_stream_scan_meta", None)
@@ -656,6 +869,48 @@ async def read_and_scan_request_body(
         for bs in w_strings:
             _push_cred(all_secrets, bs)
 
+    cred_scanner = _StreamingQrCredentialScanner()
+
+    def _collect_scanner_hits() -> None:
+        nonlocal has_qr_body_cred
+        s_pairs, s_strings = cred_scanner.drain_pairs_and_strings()
+        if not s_pairs and not s_strings:
+            return
+        if not has_qr_body_cred and has_qr_credentials_in_pairs_or_strings(s_pairs, s_strings, mgr3=mgr3):
+            has_qr_body_cred = True
+        for bk, bv in s_pairs:
+            if bk in ("scan_nonce", QR_SCAN_COOKIE_NAME):
+                _push_cred(nonces, bv)
+            elif bk in (QR_SESSION_COOKIE_NAME, "session_id", "guest_session_id", "session_token", "sh_session_token"):
+                _push_cred(session_ids, bv)
+            elif bk == "post_scan_token":
+                _push_cred(post_scan_tokens, bv)
+            elif bk in ("token", "qr_token"):
+                _push_cred(qr_tokens, bv)
+            else:
+                _push_cred(all_secrets, bv)
+        for bs in s_strings:
+            _push_cred(all_secrets, bs)
+
+    def _feed_window(buf_bytes: bytes, forced_enc: str | None) -> None:
+        """Đưa byte vào cửa sổ trượt theo từng khối 64 KiB, bộ nhớ O(1), quét không phụ thuộc trần kích thước luồng."""
+        if not buf_bytes:
+            return
+        cred_scanner.set_encoding(forced_enc)
+        cred_scanner.feed_bytes(buf_bytes)
+        _collect_scanner_hits()
+        offset = 0
+        length = len(buf_bytes)
+        while offset < length:
+            take = min(_STREAM_WINDOW_BLOCK_BYTES, length - offset)
+            window_buf.extend(buf_bytes[offset:offset + take])
+            offset += take
+            if len(window_buf) >= _STREAM_WINDOW_BLOCK_BYTES:
+                _ingest_window_bytes(bytes(window_buf), forced_enc)
+                drop = (len(window_buf) - _STREAM_WINDOW_OVERLAP_BYTES) & ~3
+                if drop > 0:
+                    del window_buf[:drop]
+
     full_chunks: list[bytes] = []
     window_buf = bytearray()
     total_bytes = 0
@@ -697,12 +952,7 @@ async def read_and_scan_request_body(
                         seeded = seeded[4:]
                     elif detected_alt_enc in ("utf-16-le", "utf-16-be") and len(seeded) >= 2:
                         seeded = seeded[2:]
-                    window_buf.extend(seeded)
-                    if len(window_buf) >= _STREAM_WINDOW_BLOCK_BYTES:
-                        _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
-                        drop = (len(window_buf) - _STREAM_WINDOW_OVERLAP_BYTES) & ~3
-                        if drop > 0:
-                            del window_buf[:drop]
+                    _feed_window(seeded, detected_alt_enc)
             elif total_bytes == 0 and detected_alt_enc is not None:
                 # Loại bỏ BOM ngay đầu cửa sổ trượt để luôn giữ căn chỉnh bội số 2/4 byte
                 if detected_alt_enc in ("utf-32-le", "utf-32-be") and len(chunk_bytes) >= 4:
@@ -711,15 +961,8 @@ async def read_and_scan_request_body(
                     chunk_bytes = chunk_bytes[2:]
 
             total_bytes = next_total
-            if total_bytes <= MAX_STREAM_CREDENTIAL_SCAN_BYTES + len(chunk_bytes):
-                window_buf.extend(chunk_bytes)
-                if len(window_buf) >= _STREAM_WINDOW_BLOCK_BYTES:
-                    _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
-                    drop = (len(window_buf) - _STREAM_WINDOW_OVERLAP_BYTES) & ~3
-                    if drop > 0:
-                        del window_buf[:drop]
-            if total_bytes >= MAX_STREAM_CREDENTIAL_SCAN_BYTES:
-                break
+            # Quét tới EOF: không break theo trần byte, không để chunk lớn làm phình RAM.
+            _feed_window(chunk_bytes, detected_alt_enc)
     except Exception:
         malformed_framing = True
 
@@ -748,7 +991,11 @@ async def read_and_scan_request_body(
                 rem_full = rem_full[4:]
             elif detected_alt_enc in ("utf-16-le", "utf-16-be") and len(rem_full) >= 2:
                 rem_full = rem_full[2:]
+            cred_scanner.set_encoding(detected_alt_enc)
+            cred_scanner.feed_bytes(rem_full)
             _ingest_window_bytes(rem_full, detected_alt_enc)
+        cred_scanner.finish()
+        _collect_scanner_hits()
         if window_buf:
             _ingest_window_bytes(bytes(window_buf), detected_alt_enc)
             window_buf.clear()
