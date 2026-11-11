@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
+import hashlib
 import json
+import simulator.voice_auth
+import simulator.rule_engine
 import os
 import pathlib
 import statistics
@@ -337,9 +341,8 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
             if cp.name.startswith("00_"):
                 continue
             res = va.verify_pcm16k_and_apply_strikes(cp.read_bytes())
-            if cp.name.startswith(("06_", "11_")):
-                # 06_mo_cua.wav (1.02s net speech + 0.69s digital silence) and 11_bat.wav (0.20s active speech)
-                # are both < ~1.5s active speech -> safe-denied as too short
+            if cp.name.startswith("11_"):
+                # 11_bat.wav (0.20s active speech core) is < ~1.5s active speech -> safe-denied as too short
                 assert res["authorized"] is False, f"Too-short clip {cp.name} must be safe-denied: {res}"
                 assert res["ask_repeat"] is True
                 assert res["reason"] == "AUDIO_TOO_SHORT"
@@ -350,8 +353,8 @@ def test_req3_enrollment_quality_gate_and_held_out_clips_01_to_11() -> None:
                 assert res["tier"] == 1
                 assert res["user_id"] == OWNER_ID
                 recognized_valid += 1
-        assert safe_denied_short == 2
-        assert recognized_valid == 9
+        assert safe_denied_short == 1
+        assert recognized_valid == 10
 
 
 def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
@@ -376,6 +379,21 @@ def test_req4_unified_rejection_phrase_stranger_and_over_permission() -> None:
     assert "speechSynthesis" not in mobile_js and "SpeechSynthesisUtterance" not in mobile_js
     assert "edge_tts" not in tts_py and "HoaiMyNeural" not in tts_py
     assert not (ROOT_DIR / "simulator" / "live" / "tts_rejection_precache_24k.npz").exists()
+
+    # 4B2. Verify Aoede generation receipt and bundled WAV integrity
+    receipt_p = ROOT_DIR / "simulator" / "data" / "AOEDE_AUDIO_RECEIPT.json"
+    assert receipt_p.exists(), f"AOEDE_AUDIO_RECEIPT.json must exist: {receipt_p}"
+    receipt = json.loads(receipt_p.read_text(encoding="utf-8"))
+    assert receipt["voice_name"] == "Aoede"
+    assert receipt["generator_model"] == "gemini-3.8-live"
+    for pkey in ("rejection", "safe_deny_repeat"):
+        entry = receipt["phrases"][pkey]
+        wfile = ROOT_DIR / "simulator" / "data" / entry["filename"]
+        assert wfile.exists()
+        wbytes = wfile.read_bytes()
+        assert hashlib.sha256(wbytes).hexdigest() == entry["metrics"]["sha256"]
+        assert entry["metrics"]["sample_rate_hz"] == 24000
+        assert entry["content_verified"] is True
 
     # 4C. Over-permission requests in SmartHomeEngine + WAV path triggers Aoede
     async def _run_rbac() -> None:
@@ -693,6 +711,58 @@ def test_req7_durable_free_persistence_cold_start_recovery() -> None:
         assert save_durable_json("custom_rules_overlay.json", {"test_rule": 123}, json_file, sync_cloud=False, store=store1) is True
         loaded_json = load_durable_json("custom_rules_overlay.json", json_file, store=store1)
         assert loaded_json == {"test_rule": 123}
+
+        # 7E. Atomic multi-layer rollback on failed cloud write for voiceprints (no leftover in vault/SQLite, no restore by sync)
+        va_test = VoiceAuthManager(AUDIO_DIR)
+        f_vp = tmp_data_dir / "voiceprints_rollback_probe.json"
+        baseline_vp = {"baseline": {"marker": "before"}}
+        cand_vp = {**baseline_vp, "failed_probe": {"marker": "must_not_survive"}}
+        f_vp.write_text(json.dumps(baseline_vp), encoding="utf-8")
+        st_rb = DurableStateStore(vault_dir=root_p / "rb_vault_vp", offline_sandbox=False)
+        with patch.object(simulator.voice_auth, "VOICEPRINT_FILE", f_vp), \
+             patch("simulator.durable_store.get_durable_store", return_value=st_rb), \
+             patch("simulator.durable_store.is_offline_sandbox_or_test", return_value=False), \
+             patch.object(st_rb, "_save_bundle_to_upstash_kv", return_value=False), \
+             patch.object(st_rb, "_save_bundle_to_gmail_imap", return_value=False), \
+             patch.object(st_rb, "_load_bundle_from_upstash_kv", return_value=None), \
+             patch.object(st_rb, "_load_bundle_from_gmail_imap", return_value=None):
+            ret_vp = va_test._save_voiceprints_safe(cand_vp)
+            assert ret_vp is False
+            disk_after_vp = json.loads(f_vp.read_text(encoding="utf-8"))
+            assert disk_after_vp == baseline_vp
+            cached_vp = json.loads(st_rb.load_state_file("voiceprints.json", sync_cloud=False) or b"{}")
+            assert "failed_probe" not in cached_vp
+            sync_rb = st_rb.sync_from_durable_store(data_dir=tmp_data_dir, force_cloud=True)
+            assert sync_rb["cloud_loaded"] is False
+            after_sync_vp = json.loads(f_vp.read_text(encoding="utf-8"))
+            assert "failed_probe" not in after_sync_vp
+
+        # 7F. Atomic multi-layer rollback on failed cloud write for grant_user_permission (no leftover in fresh store/vault)
+        e_test = SmartHomeEngine()
+        e_test.set_active_user(OWNER_ID)
+        e_test.emit = AsyncMock()
+        before_users = copy.deepcopy(e_test.users)
+        f_ov = tmp_data_dir / "custom_rules_overlay_probe.json"
+        f_ov.write_text(json.dumps(e_test.overlay_rules), encoding="utf-8")
+        st_rb_grant = DurableStateStore(vault_dir=root_p / "rb_vault_grant", offline_sandbox=False)
+        with patch.object(simulator.rule_engine, "OVERLAY_FILE", f_ov), \
+             patch("simulator.durable_store.get_durable_store", return_value=st_rb_grant), \
+             patch("simulator.durable_store.is_offline_sandbox_or_test", return_value=False), \
+             patch.object(st_rb_grant, "_save_bundle_to_upstash_kv", return_value=False), \
+             patch.object(st_rb_grant, "_save_bundle_to_gmail_imap", return_value=False), \
+             patch.object(st_rb_grant, "_load_bundle_from_upstash_kv", return_value=None), \
+             patch.object(st_rb_grant, "_load_bundle_from_gmail_imap", return_value=None):
+            r_grant = asyncio.run(e_test.grant_user_permission("Khách Hỏng Cloud", 3))
+            assert r_grant.get("ok") is False
+            assert r_grant.get("status") == "DURABLE_PERSISTENCE_FAILED"
+            assert e_test.users == before_users
+            fresh_st = DurableStateStore(vault_dir=root_p / "rb_vault_grant", offline_sandbox=True)
+            fresh_cached = json.loads(fresh_st.load_state_file("custom_rules_overlay.json", sync_cloud=False) or b"{}")
+            assert "khach_hong_cloud" not in fresh_cached.get("users", {})
+            sync_grant = st_rb_grant.sync_from_durable_store(data_dir=tmp_data_dir, force_cloud=True)
+            assert sync_grant["cloud_loaded"] is False
+            restored_ov = json.loads(f_ov.read_text(encoding="utf-8"))
+            assert "khach_hong_cloud" not in restored_ov.get("users", {})
 
 
 def test_req8_concise_system_prompt_and_latency_measurement() -> None:

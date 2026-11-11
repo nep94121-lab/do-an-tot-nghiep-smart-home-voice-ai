@@ -233,7 +233,6 @@ class DurableStateStore:
                     if candidate.exists():
                         try:
                             raw = candidate.read_bytes()
-                            self._write_local_sqlite_and_file(fname, raw)
                         except Exception:
                             raw = None
                 if raw is None:
@@ -622,14 +621,36 @@ class DurableStateStore:
     ) -> bool:
         """Lưu một tệp trạng thái vào Durable Store (SQLite + Memory + Cloud IMAP/KV).
         Nếu `sync_cloud=True`, bắt buộc ít nhất một kênh lưu trữ Cloud (Upstash KV hoặc Gmail IMAP) thành công mới trả về `True`.
+        Cơ chế Cloud-First / Atomic Multi-layer Rollback: Không ghi đè SQLite hoặc Memory Vault nếu Cloud ghi thất bại!
         """
         clean_name = pathlib.Path(filename).name
         raw = data_bytes.encode("utf-8") if isinstance(data_bytes, str) else bytes(data_bytes)
-        local_ok = self._write_local_sqlite_and_file(clean_name, raw)
 
-        # Đồng bộ kèm voiceprints.json và custom_rules_overlay.json nếu có trong cùng thư mục
+        if sync_cloud:
+            bundle = self._collect_current_bundle(data_dir=data_dir)
+            bundle.setdefault("files", {})[clean_name] = base64.b64encode(raw).decode("ascii")
+            if data_dir is not None:
+                for extra_name in TRACKED_STATE_FILES:
+                    if extra_name != clean_name:
+                        extra_path = data_dir / extra_name
+                        if extra_path.exists():
+                            try:
+                                bundle.setdefault("files", {})[extra_name] = base64.b64encode(
+                                    extra_path.read_bytes()
+                                ).decode("ascii")
+                            except Exception:
+                                pass
+            kv_ok = self._save_bundle_to_upstash_kv(bundle)
+            imap_ok = self._save_bundle_to_gmail_imap(bundle)
+            cloud_ok = bool(kv_ok or imap_ok)
+            if not cloud_ok:
+                # Cloud write failed: do NOT write or mutate local SQLite / vault / memory!
+                return False
+
+        # If sync_cloud is False or cloud write succeeded, commit to local SQLite & memory vault
+        local_ok = self._write_local_sqlite_and_file(clean_name, raw)
         if data_dir is not None:
-            for extra_name in ("voiceprints.json", "custom_rules_overlay.json"):
+            for extra_name in TRACKED_STATE_FILES:
                 if extra_name != clean_name:
                     extra_path = data_dir / extra_name
                     if extra_path.exists():
@@ -637,13 +658,6 @@ class DurableStateStore:
                             self._write_local_sqlite_and_file(extra_name, extra_path.read_bytes())
                         except Exception:
                             pass
-
-        if sync_cloud:
-            bundle = self._collect_current_bundle(data_dir=data_dir)
-            kv_ok = self._save_bundle_to_upstash_kv(bundle)
-            imap_ok = self._save_bundle_to_gmail_imap(bundle)
-            cloud_ok = bool(kv_ok or imap_ok)
-            return bool(local_ok and cloud_ok)
         return bool(local_ok)
 
     def load_state_file(
@@ -666,6 +680,13 @@ class DurableStateStore:
                 if bundle:
                     self._apply_bundle_to_local(bundle, target_dir=data_dir)
                     local_raw = self._read_local_sqlite_or_file(clean_name)
+        if local_raw is None and clean_name in TRACKED_STATE_FILES:
+            if data_dir is not None and (data_dir / clean_name).exists():
+                try:
+                    return (data_dir / clean_name).read_bytes()
+                except Exception:
+                    pass
+            return b"{}"
         return local_raw
 
     def sync_to_durable_store(
@@ -710,6 +731,8 @@ class DurableStateStore:
             for fname in TRACKED_STATE_FILES:
                 dst = data_dir / fname
                 if only_missing and dst.exists():
+                    continue
+                if force_cloud and not cloud_loaded and dst.exists():
                     continue
                 raw = self._read_local_sqlite_or_file(fname)
                 if raw is not None:
@@ -844,6 +867,10 @@ def save_durable_json(
                 resolved_data_dir = p
 
     raw_bytes = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    prev_disk_bytes: bytes | None = None
+    if target_file is not None and target_file.exists():
+        with contextlib.suppress(Exception):
+            prev_disk_bytes = target_file.read_bytes()
     if target_file is not None:
         with contextlib.suppress(Exception):
             target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -857,12 +884,19 @@ def save_durable_json(
     else:
         effective_sync_cloud = bool(sync_cloud)
 
-    return target_store.save_state_file(
+    saved_ok = target_store.save_state_file(
         filename=filename,
         data_bytes=raw_bytes,
         sync_cloud=effective_sync_cloud,
         data_dir=resolved_data_dir,
     )
+    if not saved_ok and target_file is not None:
+        with contextlib.suppress(Exception):
+            if prev_disk_bytes is not None:
+                target_file.write_bytes(prev_disk_bytes)
+            else:
+                target_file.unlink(missing_ok=True)
+    return saved_ok
 
 
 def sync_to_durable_store(

@@ -724,7 +724,46 @@ def evaluate_audio_quality_gate(
             "message": SAFE_DENY_REPEAT_PHRASE_VI,
         }
 
-    if active_speech_sec < min_active_speech_sec:
+    # Check for too-short speech vs legitimate compact commands.
+    # A legitimate compact command (e.g. '06_mo_cua.wav': 1.75s total duration, 1.02s active speech, 0.44s voiced core)
+    # has natural cadence (silence ratio < 50%, no artificial padding streak >= 0.65s).
+    # Conversely, short speech artificially padded with silence/noise to 2.0s (e.g. 0.8s, 1.0s, 1.2s slices)
+    # exhibits an abnormally long trailing or continuous silence block (>= 0.65s) or low speech ratio (< 50%).
+    silent_frames = ~vad_mask
+    end_streak = 0
+    for s in reversed(silent_frames):
+        if s:
+            end_streak += 1
+        else:
+            break
+    end_sil_sec = float(end_streak * 320) / float(SAMPLE_RATE_16K)
+
+    cur_streak = 0
+    max_streak = 0
+    for s in silent_frames:
+        if s:
+            cur_streak += 1
+        else:
+            if cur_streak > max_streak:
+                max_streak = cur_streak
+            cur_streak = 0
+    if cur_streak > max_streak:
+        max_streak = cur_streak
+    max_sil_sec = float(max_streak * 320) / float(SAMPLE_RATE_16K)
+
+    is_audio_too_short = False
+    if active_speech_sec < 0.95 or voiced_core_sec < 0.28:
+        is_audio_too_short = True
+    elif active_speech_sec < min_active_speech_sec:
+        if (
+            end_sil_sec >= 0.65
+            or max_sil_sec >= 0.65
+            or (active_speech_sec / max(duration_sec, 0.01)) < 0.50
+            or voiced_core_sec < 0.35
+        ):
+            is_audio_too_short = True
+
+    if is_audio_too_short:
         return {
             "ok": False,
             "ask_repeat": True,

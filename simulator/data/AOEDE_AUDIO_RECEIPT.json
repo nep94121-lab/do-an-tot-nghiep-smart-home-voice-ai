@@ -1,0 +1,46 @@
+{
+  "generator_model": "gemini-3.8-live",
+  "voice_name": "Aoede",
+  "language_code": "vi-VN",
+  "created_at_utc": "2026-11-11T03:52:09Z",
+  "phrases": {
+    "rejection": {
+      "phrase_text": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+      "filename": "aoede_rejection_24k.wav",
+      "metrics": {
+        "channels": 1,
+        "sample_width_bytes": 2,
+        "sample_rate_hz": 24000,
+        "total_frames": 82321,
+        "duration_sec": 3.43,
+        "rms": 0.14279,
+        "rms_dbfs": -16.91,
+        "peak": 0.82535,
+        "peak_dbfs": -1.67,
+        "sha256": "ddef7211339e57532e1f53419a3615d5e20b8dc89acee6200b4d3dc1304f3331",
+        "byte_length": 164686
+      },
+      "independent_transcription": "Xin lỗi, bạn không có quyền thực hiện lệnh này",
+      "content_verified": true
+    },
+    "safe_deny_repeat": {
+      "phrase_text": "Âm thanh chưa rõ, vui lòng nói lại.",
+      "filename": "aoede_repeat_24k.wav",
+      "metrics": {
+        "channels": 1,
+        "sample_width_bytes": 2,
+        "sample_rate_hz": 24000,
+        "total_frames": 72001,
+        "duration_sec": 3.0,
+        "rms": 0.14162,
+        "rms_dbfs": -16.98,
+        "peak": 0.8511,
+        "peak_dbfs": -1.4,
+        "sha256": "b9594d9c3a550a0aea1516f2a77ac302f42a8dddd95050f39faca7967fd6a98d",
+        "byte_length": 144046
+      },
+      "independent_transcription": "Âm thanh chưa rõ vui lòng nói lại",
+      "content_verified": true
+    }
+  }
+}
