@@ -186,11 +186,6 @@
       const password = passwordInput ? passwordInput.value : '';
       const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
 
-      if (!name) {
-        showStatus(statusBox, 'Vui lòng nhập họ và tên.', true);
-        if (nameInput) nameInput.focus();
-        return;
-      }
       if (!email) {
         showStatus(statusBox, 'Vui lòng nhập địa chỉ email.', true);
         if (emailInput) emailInput.focus();
@@ -228,7 +223,7 @@
             email: email,
             password: password,
             confirm_password: confirmPassword,
-            target_tier: 2,
+            invite_token: new URLSearchParams(window.location.search).get("invite_token") || new URLSearchParams(window.location.search).get("token") || "",
             source: 'dedicated_web_register',
           }),
         });

@@ -962,7 +962,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
                         continue
 
-                if not bypass_rbac and self.server_connected:
+                if not bypass_rbac:
                     allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
                     if not allowed:
                         await self.emit({

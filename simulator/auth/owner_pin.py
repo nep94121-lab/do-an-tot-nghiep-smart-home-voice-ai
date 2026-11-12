@@ -10,6 +10,8 @@ import threading
 import time
 from typing import Any
 
+from simulator.auth.security_state import cloud_required, load_security_state, save_security_state, SecurityStateUnavailable, atomic_security
+
 OWNER_PIN_FILE = "owner_pin.json"
 MAX_FAILURES = 5
 OTP_TTL_SEC = 300
@@ -28,38 +30,33 @@ def _data_dir():
 
 def _load() -> dict[str, Any]:
     global _CACHE
-    if _CACHE is not None:
+    if _CACHE is not None and not cloud_required():
         return dict(_CACHE)
     data: dict[str, Any] = {}
     try:
-        from simulator.durable_store import load_state_file
-
-        raw = load_state_file(OWNER_PIN_FILE, data_dir=_data_dir())
+        raw = load_security_state(OWNER_PIN_FILE, _data_dir())
         if raw:
             parsed = json.loads(raw.decode("utf-8"))
             if isinstance(parsed, dict):
                 data = parsed
-    except Exception:
-        data = {}
+    except SecurityStateUnavailable:
+        raise
+    except Exception as exc:
+        raise SecurityStateUnavailable("Invalid security state") from exc
     _CACHE = dict(data)
     return data
 
 
 def _save(data: dict[str, Any]) -> None:
     global _CACHE
+    payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    save_security_state(OWNER_PIN_FILE, payload, _data_dir())
     _CACHE = dict(data)
-    try:
-        from simulator.durable_store import save_state_file
-
-        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        save_state_file(OWNER_PIN_FILE, payload, sync_cloud=False, data_dir=_data_dir())
-    except Exception:
-        pass
 
 
 def normalize_pin(value: Any) -> str | None:
     text = str(value or "").strip()
-    if len(text) == 4 and text.isdigit():
+    if len(text) == 4 and text.isascii() and text.isdigit():
         return text
     return None
 
@@ -110,6 +107,7 @@ def _set_pin_record(data: dict[str, Any], pin: str) -> dict[str, Any]:
     return data
 
 
+@atomic_security("owner_pin.json")
 def setup_or_replace_pin(pin: str, pin_confirm: str, *, allow_replace: bool = False) -> dict[str, Any]:
     p1 = normalize_pin(pin)
     p2 = normalize_pin(pin_confirm)
@@ -126,6 +124,7 @@ def setup_or_replace_pin(pin: str, pin_confirm: str, *, allow_replace: bool = Fa
     return {"ok": True, "pin_set": True, "locked": False, "message": "Đã lưu mã PIN."}
 
 
+@atomic_security("owner_pin.json")
 def verify_pin(pin: str) -> dict[str, Any]:
     p = normalize_pin(pin)
     with _LOCK:
@@ -164,16 +163,20 @@ def verify_pin(pin: str) -> dict[str, Any]:
     return {"ok": True, "locked": False}
 
 
-def issue_reset_otp() -> dict[str, Any]:
+@atomic_security("owner_pin.json")
+def issue_reset_otp() -> tuple[dict[str, Any], str]:
     code = f"{secrets.randbelow(1_000_000):06d}"
     salt, hashed = _hash_secret(code)
     expires = time.time() + OTP_TTL_SEC
     with _LOCK:
         data = _load()
+        if time.time() - float(data.get("otp_issued_at") or 0) < 60:
+            return {"ok": False, "status_code": 429, "error": "Hãy chờ 60 giây trước khi gửi lại mã."}, ""
         data["otp_salt"] = salt
         data["otp_hash"] = hashed
         data["otp_expires_at"] = expires
         data["otp_used"] = False
+        data["otp_failed_attempts"] = 0
         data["otp_issued_at"] = time.time()
         _save(data)
     result: dict[str, Any] = {
@@ -182,7 +185,7 @@ def issue_reset_otp() -> dict[str, Any]:
         "expires_in_sec": OTP_TTL_SEC,
         "message": f"Đã gửi mã xác nhận một lần tới {OWNER_RESET_EMAIL}. Mã hết hạn sau 5 phút.",
     }
-    if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1":
+    if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1" and not os.environ.get("VERCEL"):
         result["otp_code_for_test"] = code
     return result, code
 
@@ -193,20 +196,22 @@ def allowed_reset_recipient(email: str) -> bool:
 
 def send_reset_email(otp_code: str) -> dict[str, Any]:
     """Send the PIN-reset code only to the owner Gmail allowlist address."""
-    if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1":
+    if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1" and not os.environ.get("VERCEL"):
         return {"ok": True, "method": "sandbox", "sent": False}
     try:
         from simulator.auth_3layer import get_auth_3layer_manager
 
-        return get_auth_3layer_manager().send_real_gmail_otp(
+        delivery = get_auth_3layer_manager().send_real_gmail_otp(
             target_email=OWNER_RESET_EMAIL,
             otp_code=otp_code,
             display_name="Chủ nhà",
         )
-    except Exception as exc:
-        return {"ok": False, "error": f"Không gửi được email: {str(exc)[:150]}"}
+        return {"ok": bool(delivery.get("sent_real_gmail")), "sent": bool(delivery.get("sent_real_gmail"))}
+    except Exception:
+        return {"ok": False, "error": "Không gửi được email xác nhận."}
 
 
+@atomic_security("owner_pin.json")
 def reset_pin_with_otp(otp: str, pin: str, pin_confirm: str) -> dict[str, Any]:
     code = str(otp or "").strip()
     if not (len(code) == OTP_DIGITS and code.isdigit()):
@@ -222,9 +227,13 @@ def reset_pin_with_otp(otp: str, pin: str, pin_confirm: str) -> dict[str, Any]:
         if data.get("otp_used"):
             return {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
         expires = float(data.get("otp_expires_at") or 0)
+        if int(data.get("otp_failed_attempts") or 0) >= MAX_FAILURES:
+            return {"ok": False, "status_code": 423, "error": "Mã xác nhận đã bị khóa. Hãy yêu cầu mã mới."}
         if expires <= time.time():
             return {"ok": False, "status_code": 400, "error": "Mã xác nhận đã hết hạn. Hãy gửi lại mã mới."}
         if not _verify_secret(code, str(data.get("otp_salt") or ""), str(data.get("otp_hash") or "")):
+            data["otp_failed_attempts"] = int(data.get("otp_failed_attempts") or 0) + 1
+            _save(data)
             return {"ok": False, "status_code": 403, "error": "Mã xác nhận không đúng."}
         data["otp_used"] = True
         _set_pin_record(data, p1)

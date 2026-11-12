@@ -21,6 +21,14 @@ ENROLLMENT_GONE_PATHS = frozenset(
         "/api/auth3/layer3_verify_voice",
         "/api/auth3/guest/enroll_voice",
         "/api/qr/guest_enroll",
+        "/api/auth3/invite_oauth_start",
+        "/api/auth3/invite_verify_otp",
+        "/api/auth3/guest_qr_handshake",
+        "/api/auth3/guest_handshake",
+        "/api/auth3/guest/handshake",
+        "/api/auth3/guest_qr_send_otp",
+        "/api/auth3/guest_qr_verify_otp",
+        "/api/auth3/guest/verify_email",
     }
 )
 

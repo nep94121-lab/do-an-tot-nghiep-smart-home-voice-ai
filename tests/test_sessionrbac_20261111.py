@@ -301,6 +301,10 @@ def test_invite_token_validate_redeem_expiry_and_revocation(client):
     record = __import__("simulator.auth.guest_invites", fromlist=["get_invite"]).get_invite(fresh["invite_id"])
     assert record is not None
     record["expires_at"] = time.time() - 10
+    from simulator.auth import guest_invites
+    records = guest_invites._load()
+    records[fresh["invite_id"]] = record
+    guest_invites._save(records)
     expired = inspect_token(fresh["token"])
     assert expired.get("valid") is False
     assert expired.get("reason") == "expired"

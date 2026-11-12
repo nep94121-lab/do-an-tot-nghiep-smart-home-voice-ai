@@ -65,7 +65,7 @@
   }
   function deviceState(id) {
     var devices = (snapshot && snapshot.devices) || snapshot || {};
-    var rec = devices[id] || {};
+    var rec = Array.isArray(devices) ? devices.find(function (dev) { return dev.id === id || dev.device_id === id; }) || {} : devices[id] || {};
     return rec.state || rec.status || rec.power || rec.value || "";
   }
   function renderDevices() {
@@ -76,7 +76,13 @@
       card.className = "device-card";
       card.setAttribute("data-device-id", id);
       var state = String(deviceState(id) || "—");
-      card.innerHTML = "<h2>" + (DEVICE_LABELS[id] || id) + "</h2><div class=\"state\">Trạng thái: " + state + "</div>";
+      var title = document.createElement("h2");
+      title.textContent = DEVICE_LABELS[id] || id;
+      var stateText = document.createElement("div");
+      stateText.className = "state";
+      stateText.textContent = "Trạng thái: " + state;
+      card.appendChild(title);
+      card.appendChild(stateText);
       var btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = "Bật / Tắt";

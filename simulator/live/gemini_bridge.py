@@ -53,7 +53,7 @@ from simulator.api.deps import (
     load_key,
     safe_str,
 )
-from simulator.auth.session_store import UserSession, resolve_strict_ws_session
+from simulator.auth.session_store import UserSession, resolve_strict_ws_session, session_is_current, get_session_store
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
 from simulator.live.prompt_builder import (
     ALL_TOOLS,
@@ -255,8 +255,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             return sess
         if (
             self.ws_session is not None
-            and self.ws_session.is_authenticated
-            and not self.ws_session.is_expired()
+            and session_is_current(get_session_store().get_session(self.ws_session.session_id))
         ):
             return self.ws_session
         return sess
@@ -280,6 +279,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 _ACTIVE_BRIDGES.remove(self)
             return
         ptype = str(payload.get("type", ""))
+        if isinstance(payload.get("snapshot"), dict):
+            from simulator.auth.tier_permissions import restrict_guest_snapshot
+            payload = dict(payload)
+            payload["snapshot"] = restrict_guest_snapshot(payload["snapshot"], self._resolve_ws_session())
         if ptype == "turn_complete":
             heard = str(payload.get("heard", "")).strip()
             said = str(payload.get("said", "")).strip()
@@ -608,6 +611,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
     async def gemini_receive_loop(self) -> None:
         """Zero-Drop Reconnect Loop: Duy trì kết nối liên tục tới Gemini 3.8 Live."""
+        if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1":
+            return
         try:
             while not self._closed:
                 t0 = time.perf_counter()
@@ -937,6 +942,16 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
     async def handle_tool_call(self, fc: Any) -> dict[str, Any]:
         """Điều phối Tool Call với kiểm tra nghiêm ngặt Cấp 1 cho cấp/hủy quyền & thu âm, và chuẩn hóa câu từ chối cố định Aoede."""
         name = fc.name
+        actor = self._resolve_ws_session()
+        if not actor.is_authenticated or (actor.tier > 1 and name not in {"control_device", "query_pools", "query_knowledge_rag"}):
+            return {"ok": False, "rbac_blocked": True, "error": FIXED_REJECTION_PHRASE_VI}
+        if name == "control_device":
+            args = dict(fc.args or {})
+            return await self.engine.execute_device_action(
+                device_id=str(args.get("device_id") or ""), action=str(args.get("action") or ""),
+                source="session_voice", request_tier=actor.tier,
+                request_role=actor.role, request_user_name=actor.display_name,
+            )
         await self._ensure_current_mic_utterance_verified()
 
         if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
@@ -1073,6 +1088,11 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 try:
                     msg = json.loads(raw)
                     mtype = msg.get("type")
+                    actor = self._resolve_ws_session(msg)
+                    guest_messages = {"manual_toggle", "send_text", "mic_chunk", "mic_speech_ended"}
+                    if not actor.is_authenticated or (actor.tier > 1 and mtype not in guest_messages):
+                        await self.send_ws_json({"type": "rbac_blocked", "ok": False, "action": mtype, "reason": FIXED_REJECTION_PHRASE_VI})
+                        continue
 
                     if mtype == "mic_chunk":
                         pcm_bytes = base64.b64decode(msg["pcm16k_b64"])
@@ -1210,15 +1230,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         client_ts_ms = msg.get("client_ts_ms") if "client_ts_ms" in msg else msg.get("timestamp")
                         request_id = msg.get("request_id") if "request_id" in msg else msg.get("requestId")
                         ws_sess = self._resolve_ws_session(msg)
-                        if ws_sess.is_authenticated and not ws_sess.is_expired():
-                            self.engine.set_active_user(ws_sess.user_id)
-                        elif not self.mic_turn_verified:
-                            self.engine.set_active_user("khach_c")
                         res_toggle = await self.engine.execute_device_action(
                             device_id=dev_id,
                             action=action,
                             source="button_ui",
                             bypass_rbac=False,
+                            request_tier=ws_sess.tier,
+                            request_role=ws_sess.role,
+                            request_user_name=ws_sess.display_name,
                             trigger_chains=True,
                             target_state=target_state,
                             client_id=client_id,

@@ -44,6 +44,28 @@ from simulator.voice_config import (
 router = APIRouter(tags=["auth"])
 
 
+def _account_session(account: dict[str, Any], email: str, source: str) -> UserSession:
+    import time
+    invite_id = account.get("guest_invite_id")
+    ttl = 86400
+    if invite_id:
+        from simulator.auth.guest_invites import get_invite
+
+        record = get_invite(str(invite_id))
+        if not record or record.get("revoked") or float(record.get("expires_at") or 0) <= time.time():
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=403, detail="Mã mời đã hết hạn hoặc bị thu hồi.")
+        source = f"guest_invite:{invite_id}"
+        ttl = max(1, int(record["expires_at"] - time.time()))
+    tier = int(account.get("tier") or 3)
+    return get_session_store().create_session(
+        user_id=str(account.get("account_id") or email), email=email,
+        display_name=str(account.get("display_name") or email), tier=tier,
+        role=ROLE_MAP[tier], source=source, ttl_sec=ttl,
+    )
+
+
 def _require_admin_session(request: Request) -> tuple[UserSession | None, JSONResponse | None]:
     sess = resolve_request_session(request, payload=None, engine=None)
     if not sess.is_authenticated:
@@ -159,27 +181,10 @@ async def api_auth3_send_invite_email(request: Request, payload: dict[str, Any])
 @router.post("/api/auth3/create_invite_link")
 async def api_auth3_create_invite_link(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Tạo link mời theo phân quyền (Chỉ Chủ nhà Admin Cấp 1, lấy issuer từ session server-side)."""
-    sess, err_resp = _require_admin_session(request)
-    if err_resp is not None:
-        return err_resp
-    issuer_email = (sess.email if sess and sess.email else OWNER_EMAIL).strip() or OWNER_EMAIL
-    target_tier = int(payload.get("target_tier", 2) or 2)
-    source = str(payload.get("source", "Web/App")).strip()
-    res = get_auth_3layer_manager().create_custom_invite_link(
-        issuer_identifier=issuer_email,
-        target_tier=target_tier,
-        source=source,
-    )
-    append_audit_log(
-        category="AUTH_3LAYER",
-        event_type="create_invite_link",
-        summary=res.get("message") or res.get("error") or "Tạo link mời phân cấp",
-        user_name=issuer_email,
-        tier=target_tier if res.get("ok") else 99,
-        details=res,
-    )
-    status_code = 200 if res.get("ok") else int(res.get("status_code", 403))
-    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+    from simulator.api.routes_guest import api_create_guest_invite
+    body = dict(payload)
+    body["tier"] = body.get("target_tier", body.get("tier", 3))
+    return await api_create_guest_invite(request, body)
 
 
 @router.post("/api/auth3/add_family_email")
@@ -995,6 +1000,8 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
     email = str(payload.get("email", OWNER_EMAIL)).strip()
     password = str(payload.get("password", "")).strip()
     login_method = str(payload.get("login_method", "password")).strip()
+    if login_method != "password":
+        return JSONResponse({"ok": False, "error": "Hãy đăng nhập bằng mật khẩu."}, status_code=401)
     source = str(payload.get("source", "Web Portal")).strip()
     send_gmail = bool(payload.get("send_gmail", True))
     res = get_auth_3layer_manager().layer1_login(
@@ -1017,20 +1024,10 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
         role_name = acc.get("role") or role_map.get(tier_val, "CHILD_GUEST")
         disp_name = acc.get("display_name") or email
         store = get_session_store()
-        sess = store.create_session(
-            user_id=acc_id or email,
-            tier=tier_val,
-            role=role_name,
-            display_name=disp_name,
-            email=email,
-            source=source,
-        )
+        sess = _account_session(get_auth_3layer_manager().find_account(email) or acc, email, "password_login")
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
-        engine_role_map = USER_ROLE_MAP
-        if not is_throwaway_qa_identity(email) and not is_throwaway_qa_identity(acc_id):
-            _REST_ENGINE.set_active_user(acc_id or engine_role_map.get(tier_val, OWNER_ID))
         await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
@@ -1068,14 +1065,7 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
         role_name = acc_obj.get("role") or role_map.get(tier_val, "CHILD_GUEST")
         disp_name = acc_obj.get("display_name") or email
         store = get_session_store()
-        sess = store.create_session(
-            user_id=acc_id or email,
-            tier=tier_val,
-            role=role_name,
-            display_name=disp_name,
-            email=email,
-            source=source,
-        )
+        sess = _account_session(acc_obj, email, "otp_login")
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
@@ -1104,10 +1094,14 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
 async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONResponse:
     """Tạo tài khoản hoặc đặt/đổi mật khẩu với 2 ô mật khẩu xác nhận."""
     email = str(payload.get("email", "")).strip()
+    # Public registration is never a password-change or recovery mechanism.
+    if get_auth_3layer_manager().find_account(email):
+        return JSONResponse({"ok": False, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}, status_code=409)
     password = str(payload.get("password", "")).strip()
     confirm_password = str(payload.get("confirm_password", "")).strip()
     display_name = str(payload.get("display_name") or payload.get("name") or "").strip()
     invited = False
+    checked: dict[str, Any] = {}
     target_tier = 3
     invite_token = str(payload.get("invite_token") or payload.get("token") or "").strip()
     if invite_token:
@@ -1132,28 +1126,29 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
         target_tier=target_tier,
         invited=invited,
         source=str(payload.get("source", "Web Login Gate")),
+        create_only=True,
+        guest_invite_id=str(checked.get("invite_id") or ""),
     )
     session_token = None
-    if res.get("ok") and res.get("account") and res.get("permission_active", res["account"].get("permission_active", True)):
+    if res.get("ok") and invited and res.get("account"):
         acc = res["account"]
-        tier_val = int(acc.get("tier", target_tier) or 3)
-        acc_id = str(acc.get("account_id") or "")
-        role_name = str(acc.get("role") or ROLE_MAP.get(tier_val, "CHILD_GUEST"))
-        disp_name = str(acc.get("display_name") or display_name or email)
-        sess = get_session_store().create_session(
-            user_id=acc_id or email,
-            tier=tier_val,
-            role=role_name,
-            display_name=disp_name,
-            email=email,
-            source=str(payload.get("source", "Web Login Gate")),
-        )
-        if sess.is_authenticated:
-            res["session_token"] = sess.session_id
-            res["session"] = sess.to_dict()
-            session_token = sess.session_id
-        await _REST_ENGINE.grant_user_permission(target_name=acc["display_name"], target_tier=int(acc["tier"]))
-        await broadcast_rest_state_to_bridges()
+        manager = get_auth_3layer_manager()
+        sess = None
+        try:
+            sess = _account_session(acc, email, "invite_registration")
+            if not sess.is_authenticated or not manager.activate_registration(str(acc["account_id"])):
+                raise RuntimeError("Registration activation failed")
+        except Exception:
+            if sess is not None:
+                get_session_store().revoke_session(sess.session_id)
+            manager.rollback_registration(str(acc["account_id"]))
+            return JSONResponse({"ok": False, "error": "Không hoàn tất được đăng ký. Tài khoản chưa được cấp quyền."}, status_code=503)
+        active_account = manager.find_account(email) or acc
+        res["account"] = active_account
+        res["permission_active"] = True
+        res["session_token"] = sess.session_id
+        res["session"] = sess.to_dict()
+        session_token = sess.session_id
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
     if session_token:
@@ -1374,10 +1369,15 @@ async def api_owner_pin_forgot(request: Request, payload: dict[str, Any] | None 
     sess = resolve_request_session(request, payload=payload, engine=None)
     if not sess.is_authenticated or int(sess.tier or 99) != 1:
         return JSONResponse({"ok": False, "error": "Chỉ chủ nhà mới đặt lại được PIN."}, status_code=401)
+    from simulator.auth.owner_pin import allowed_reset_recipient
+    if payload and payload.get("email") and not allowed_reset_recipient(str(payload["email"])):
+        return JSONResponse({"ok": False, "error": "Chỉ gửi mã tới Gmail chủ nhà."}, status_code=400)
     issued, otp_code = issue_reset_otp()
+    if not issued.get("ok"):
+        return JSONResponse(issued, status_code=int(issued.get("status_code") or 429))
     send_res = send_reset_email(otp_code)
-    if send_res.get("ok") is False and not issued.get("otp_code_for_test"):
-        return JSONResponse({"ok": False, "error": send_res.get("error") or "Không gửi được email."}, status_code=500)
+    if not send_res.get("ok"):
+        return JSONResponse({"ok": False, "error": "Không gửi được email xác nhận."}, status_code=503)
     if not is_test_otp_fields_allowed(getattr(request, "app", None)) and os.environ.get("SIMULATOR_OFFLINE_SANDBOX") != "1":
         issued.pop("otp_code_for_test", None)
     return JSONResponse(issued)

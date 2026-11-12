@@ -442,7 +442,8 @@ class EngineRulesMixin:
             snap["devices"] = filter_device_list(list(snap.get("devices") or []), int(tier))
             snap["permission_table"] = permission_table_payload()
             snap["allowed_device_ids"] = [d["id"] for d in snap["devices"] if isinstance(d, dict) and d.get("id")]
-        return sanitize_api_payload(snap)
+        from simulator.auth.tier_permissions import restrict_guest_snapshot
+        return sanitize_api_payload(restrict_guest_snapshot(snap, session))
 
     async def set_word_mapping(
         self, custom_word: str, target_meaning: str, require_confirmation: bool = False

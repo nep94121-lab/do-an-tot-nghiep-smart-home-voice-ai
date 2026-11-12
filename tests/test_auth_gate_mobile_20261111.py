@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 OWNER_SEED = "sess_owner_t1_nep94121"
 OWNER_EMAIL = "nep94121@gmail.com"
+LIVE_OWNER_TOKENS: dict[str, str] = {}
 
 
 def _app_client() -> TestClient:
@@ -94,6 +95,7 @@ def _wait_for_server(base_url: str, timeout_s: float = 20.0) -> None:
 @pytest.fixture()
 def live_server() -> Generator[str, None, None]:
     with tempfile.TemporaryDirectory() as tmpdir:
+        from live_auth_helpers import prepare_live_auth, login_live_owner
         port = _find_free_port()
         base_url = f"http://127.0.0.1:{port}"
         env = os.environ.copy()
@@ -101,6 +103,7 @@ def live_server() -> Generator[str, None, None]:
         env["SIMULATOR_OFFLINE_SANDBOX"] = "1"
         env["SMARTHOME_STATE_BACKEND"] = "file"
         env["SMARTHOME_STATE_FILE"] = str(Path(tmpdir) / "live_test_state.json")
+        password = prepare_live_auth(env, tmpdir)
         for key in list(env):
             if any(s in key.upper() for s in ("BLOB_READ_WRITE_TOKEN", "VERCEL_OIDC_TOKEN")):
                 env.pop(key, None)
@@ -122,6 +125,7 @@ def live_server() -> Generator[str, None, None]:
         )
         try:
             _wait_for_server(base_url)
+            LIVE_OWNER_TOKENS[base_url] = login_live_owner(base_url, password)
             yield base_url
         finally:
             proc.terminate()
@@ -131,8 +135,8 @@ def live_server() -> Generator[str, None, None]:
                 proc.kill()
 
 
-def _owner_init_script() -> str:
-    token = json.dumps(OWNER_SEED)
+def _owner_init_script(base_url: str) -> str:
+    token = json.dumps(LIVE_OWNER_TOKENS[base_url])
     email = json.dumps(OWNER_EMAIL)
     return f"""
         sessionStorage.setItem('session_token', {token});
@@ -269,12 +273,12 @@ def test_e2e_mobile_owner_can_generate_guest_qr(live_server: str) -> None:
             ctx = await browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
             await ctx.add_cookies(
                 [
-                    {"name": "sh_session_token", "value": OWNER_SEED, "url": live_server},
-                    {"name": "session_token", "value": OWNER_SEED, "url": live_server},
+                    {"name": "sh_session_token", "value": LIVE_OWNER_TOKENS[live_server], "url": live_server},
+                    {"name": "session_token", "value": LIVE_OWNER_TOKENS[live_server], "url": live_server},
                 ]
             )
             page = await ctx.new_page()
-            await page.add_init_script(_owner_init_script())
+            await page.add_init_script(_owner_init_script(live_server))
             await page.goto(f"{live_server}/", wait_until="domcontentloaded")
             await page.wait_for_function(
                 """() => {

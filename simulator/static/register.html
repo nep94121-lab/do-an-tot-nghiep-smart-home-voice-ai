@@ -56,7 +56,7 @@
           <form id="registerForm" class="auth-form" autocomplete="on">
             <div class="form-group">
               <label for="pageRegisterName">Họ và tên</label>
-              <input type="text" id="pageRegisterName" name="name" placeholder="Nguyễn Văn A" value="" required autocomplete="name" />
+              <input type="text" id="pageRegisterName" name="name" placeholder="Nguyễn Văn A" value="" autocomplete="name" />
             </div>
 
             <div class="form-group">
@@ -66,12 +66,12 @@
 
             <div class="form-group">
               <label for="pageRegisterPassword">Mật khẩu</label>
-              <input type="password" id="pageRegisterPassword" name="password" placeholder="Tối thiểu 6 ký tự" value="" required autocomplete="new-password" />
+              <input type="password" id="pageRegisterPassword" name="password" placeholder="Tối thiểu 6 ký tự" value="" required minlength="6" autocomplete="new-password" />
             </div>
 
             <div class="form-group">
               <label for="pageRegisterConfirmPassword">Xác nhận mật khẩu</label>
-              <input type="password" id="pageRegisterConfirmPassword" name="confirm_password" placeholder="Nhập lại mật khẩu" value="" required autocomplete="new-password" />
+              <input type="password" id="pageRegisterConfirmPassword" name="confirm_password" placeholder="Nhập lại mật khẩu" value="" required minlength="6" autocomplete="new-password" />
             </div>
 
             <div class="auth-links">
@@ -82,7 +82,7 @@
             <button type="submit" id="pageRegisterSubmitBtn" class="auth-btn-submit">Đăng ký</button>
           </form>
 
-          <div id="registerStatusBox" class="status-box" style="display:none;margin-top:16px;"></div>
+          <div id="registerStatusBox" role="status" aria-live="polite" class="status-box" style="display:none;margin-top:16px;"></div>
         </div>
       </div>
     </main>

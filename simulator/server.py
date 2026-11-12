@@ -135,6 +135,13 @@ app.include_router(logs_router)
 app.include_router(guest_invite_router)
 app.add_middleware(EnrollmentGoneMiddleware)
 
+from simulator.auth.security_state import SecurityStateUnavailable
+
+
+@app.exception_handler(SecurityStateUnavailable)
+async def security_store_unavailable(request: Request, exc: SecurityStateUnavailable) -> JSONResponse:
+    return JSONResponse({"ok": False, "error": "Kho bảo mật tạm thời không khả dụng. Hãy thử lại sau."}, status_code=503)
+
 # Mount các thư mục tài nguyên tĩnh
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/test_audio", StaticFiles(directory=str(AUDIO_DIR)), name="test_audio")

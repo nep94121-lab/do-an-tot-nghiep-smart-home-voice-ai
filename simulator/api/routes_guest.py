@@ -60,6 +60,8 @@ def _request_origin(request: Request) -> str:
 
 @router.get("/guest", response_class=HTMLResponse)
 @router.get("/guest/", response_class=HTMLResponse)
+@router.get("/guest_enroll", response_class=HTMLResponse)
+@router.get("/guest-qr", response_class=HTMLResponse)
 async def guest_page(request: Request) -> HTMLResponse:
     token = str(request.query_params.get("token") or request.query_params.get("invite") or "").strip()
     if not token:
@@ -135,7 +137,6 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
     if not _is_owner_session(session):
         return JSONResponse({"ok": False, "error": "Chỉ chủ nhà (đã đăng nhập) mới tạo được mã mời khách."}, status_code=401)
     body = payload if isinstance(payload, dict) else {}
-    body = payload if isinstance(payload, dict) else {}
     from simulator.auth.owner_pin import pin_status, setup_or_replace_pin, verify_pin
 
     status = pin_status()
@@ -206,6 +207,8 @@ async def api_revoke_guest_invite(invite_id: str, request: Request, payload: dic
 @router.get("/api/auth3/guest_qr_current")
 async def api_guest_qr_current_compat(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Tương thích panel chủ nhà cũ: tạo (hoặc trả) mã QR khách cấp 2/3, không lộ URL tĩnh /guest."""
+    if request.method == "GET":
+        return JSONResponse({"ok": False, "error": "Hãy dùng POST với mã PIN."}, status_code=405)
     session = resolve_request_session(request, payload=payload)
     if not _is_owner_session(session):
         return JSONResponse({"ok": False, "error": "Chỉ chủ nhà (đã đăng nhập) mới tạo được mã QR khách."}, status_code=401)

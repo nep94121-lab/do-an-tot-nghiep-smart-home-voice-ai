@@ -598,6 +598,7 @@ def _wait_for_server(base_url: str, timeout_s: float = 20.0) -> None:
 @pytest.fixture(scope="module")
 def live_server_info() -> Generator[dict[str, str], None, None]:
     with tempfile.TemporaryDirectory() as tmpdir:
+        from live_auth_helpers import prepare_live_auth, login_live_owner, invite_live_member
         port = _find_free_port()
         base_url = f"http://127.0.0.1:{port}"
         env = os.environ.copy()
@@ -605,6 +606,7 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
         env["SIMULATOR_OFFLINE_SANDBOX"] = "1"
         env["SMARTHOME_STATE_BACKEND"] = "file"
         env["SMARTHOME_STATE_FILE"] = str(Path(tmpdir) / "live_test_state.json")
+        password = prepare_live_auth(env, tmpdir)
         for key in list(env):
             if any(s in key.upper() for s in ("BLOB_READ_WRITE_TOKEN", "VERCEL_OIDC_TOKEN")):
                 env.pop(key, None)
@@ -627,7 +629,7 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
         )
         try:
             _wait_for_server(base_url)
-            session_token = "sess_family_t2_member_a"
+            session_token = invite_live_member(base_url, login_live_owner(base_url, password))
 
             ws_auth_script = f"""
                 sessionStorage.setItem('session_token', {json.dumps(session_token)});

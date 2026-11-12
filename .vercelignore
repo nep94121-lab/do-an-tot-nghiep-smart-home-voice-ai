@@ -1,4 +1,5 @@
 .git
+.env*
 .agents
 .specify
 specs
@@ -9,6 +10,11 @@ docs/tai_lieu_tham_khao
 test_audio/lich_su_thu_am
 __pycache__
 *.pyc
+simulator/data/owner_pin.json
+simulator/data/guest_invites.json
+simulator/data/user_sessions.json
+simulator/data/*-wal
+simulator/data/*-shm
 .pytest_cache
 .pytest_temp*
 dist

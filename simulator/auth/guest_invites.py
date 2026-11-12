@@ -11,6 +11,8 @@ import threading
 import time
 from typing import Any
 
+from simulator.auth.security_state import cloud_required, load_security_state, save_security_state, SecurityStateUnavailable, atomic_security
+
 from simulator.auth.session_store import (
     SessionStore,
     UserSession,
@@ -34,13 +36,11 @@ def _data_dir():
 
 def _load() -> dict[str, dict[str, Any]]:
     global _CACHE
-    if _CACHE is not None:
-        return _CACHE
+    if _CACHE is not None and not cloud_required():
+        return {key: dict(value) for key, value in _CACHE.items()}
     data: dict[str, dict[str, Any]] = {}
     try:
-        from simulator.durable_store import load_state_file
-
-        raw = load_state_file("guest_invites.json", data_dir=_data_dir())
+        raw = load_security_state("guest_invites.json", _data_dir())
         if raw:
             parsed = json.loads(raw.decode("utf-8"))
             items = parsed.get("invites") if isinstance(parsed, dict) else parsed
@@ -52,34 +52,26 @@ def _load() -> dict[str, dict[str, Any]]:
                 for key, item in items.items():
                     if isinstance(item, dict):
                         data[str(item.get("jti") or key)] = item
-    except Exception:
-        data = {}
+    except SecurityStateUnavailable:
+        raise
+    except Exception as exc:
+        raise SecurityStateUnavailable("Invalid security state") from exc
     _CACHE = data
     return data
 
 
 def _save(data: dict[str, dict[str, Any]]) -> None:
     global _CACHE
+    items = list(data.values())
+    payload = json.dumps({"invites": items}, ensure_ascii=False).encode("utf-8")
+    save_security_state("guest_invites.json", payload, _data_dir())
     _CACHE = data
-    try:
-        from simulator.durable_store import save_state_file
-
-        now = time.time()
-        items = [
-            item
-            for item in data.values()
-            if isinstance(item, dict) and float(item.get("expires_at") or 0) > now - 86400
-        ]
-        payload = json.dumps({"invites": items[-200:]}, ensure_ascii=False).encode("utf-8")
-        save_state_file("guest_invites.json", payload, sync_cloud=False, data_dir=_data_dir())
-    except Exception:
-        pass
 
 
 def _encode_token(payload: dict[str, Any]) -> str:
     raw_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     b64_part = base64.urlsafe_b64encode(raw_json).decode("ascii").rstrip("=")
-    sig = hmac.new(_get_session_hmac_key(), b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
+    sig = hmac.new(_get_session_hmac_key(), b"invite:" + b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
     return f"{_INVITE_PREFIX}{b64_part}.{sig}"
 
 
@@ -90,7 +82,7 @@ def _decode_token(token: str) -> dict[str, Any] | None:
     body_part, sig_part = text[len(_INVITE_PREFIX) :].rsplit(".", 1)
     if not body_part or not sig_part:
         return None
-    expected = hmac.new(_get_session_hmac_key(), body_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
+    expected = hmac.new(_get_session_hmac_key(), b"invite:" + body_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
     if not hmac.compare_digest(sig_part, expected):
         return None
     try:
@@ -115,6 +107,7 @@ def normalize_guest_tier(value: Any) -> int | None:
     return None
 
 
+@atomic_security("guest_invites.json")
 def create_invite(
     *,
     owner_user_id: str,
@@ -194,7 +187,8 @@ def list_invites(*, include_expired: bool = False) -> list[dict[str, Any]]:
     return out
 
 
-def revoke_invite(jti: str, store: SessionStore | None = None) -> dict[str, Any]:
+@atomic_security("guest_invites.json")
+def _mark_invite_revoked(jti: str) -> dict[str, Any]:
     key = str(jti or "").strip()
     if not key:
         return {"ok": False, "error": "missing_invite_id"}
@@ -207,8 +201,14 @@ def revoke_invite(jti: str, store: SessionStore | None = None) -> dict[str, Any]
         record["revoked_at"] = time.time()
         data[key] = record
         _save(data)
-    revoked_sessions = _revoke_bound_sessions(key, store or get_session_store())
-    return {"ok": True, "invite_id": key, "revoked": True, "revoked_sessions": revoked_sessions}
+    return {"ok": True, "invite_id": key, "revoked": True}
+
+
+def revoke_invite(jti: str, store: SessionStore | None = None) -> dict[str, Any]:
+    result = _mark_invite_revoked(jti)
+    if result.get("ok"):
+        result["revoked_sessions"] = _revoke_bound_sessions(jti, store or get_session_store())
+    return result
 
 
 def _revoke_bound_sessions(jti: str, store: SessionStore) -> int:
@@ -268,42 +268,31 @@ def inspect_token(token: str) -> dict[str, Any]:
     }
 
 
-def redeem_token(token: str, store: SessionStore | None = None) -> dict[str, Any]:
+@atomic_security("guest_invites.json")
+def _claim_invite_redemption(token: str) -> dict[str, Any]:
     checked = inspect_token(token)
     if not checked.get("valid"):
         return checked
-    jti = str(checked["invite_id"])
-    tier = int(checked["tier"])
-    role = str(checked["role"])
-    expires_at = float(checked["expires_at"])
-    ttl = max(30, int(expires_at - time.time()))
-    sess_store = store or get_session_store()
-    session = sess_store.create_session(
-        user_id=f"guest_{jti[:12]}",
-        email="",
-        display_name=f"Khách (Cấp {tier})",
-        tier=tier,
-        role=role,
-        ttl_sec=ttl,
-        source=f"guest_invite:{jti}",
-    )
     with _LOCK:
         data = _load()
-        record = data.get(jti)
-        if record is not None:
-            record["redeem_count"] = int(record.get("redeem_count") or 0) + 1
-            record["last_redeem_at"] = time.time()
-            data[jti] = record
-            _save(data)
-    return {
-        "ok": True,
-        "valid": True,
-        "invite_id": jti,
-        "tier": tier,
-        "role": role,
-        "expires_at": expires_at,
-        "session": session,
-    }
+        record = data[checked["invite_id"]]
+        record["redeem_count"] = int(record.get("redeem_count") or 0) + 1
+        record["last_redeem_at"] = time.time()
+        _save(data)
+    return checked
+
+
+def redeem_token(token: str, store: SessionStore | None = None) -> dict[str, Any]:
+    checked = _claim_invite_redemption(token)
+    if not checked.get("valid"):
+        return checked
+    jti = str(checked["invite_id"])
+    session = (store or get_session_store()).create_session(
+        user_id=f"guest_{jti[:12]}", email="", display_name=f"Guest tier {checked['tier']}",
+        tier=int(checked["tier"]), role=str(checked["role"]),
+        ttl_sec=max(1, int(checked["expires_at"] - time.time())), source=f"guest_invite:{jti}",
+    )
+    return {**checked, "session": session}
 
 
 def reset_invite_store_for_tests() -> None:

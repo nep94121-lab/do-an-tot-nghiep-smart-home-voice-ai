@@ -105,4 +105,23 @@ def enforce_fixed_policy(pol: dict[str, Any] | None) -> dict[str, Any]:
     """Force system_policies.device_min_tiers to the fixed table."""
     data = pol if isinstance(pol, dict) else {}
     data["device_min_tiers"] = dict(DEVICE_MIN_TIER)
+    data["tier3_can_schedule_timer"] = False
+    data["tier3_can_custom_rules"] = False
     return data
+
+
+def restrict_guest_snapshot(snapshot: dict[str, Any], session: Any) -> dict[str, Any]:
+    if session is None or int(getattr(session, "tier", 99)) == 1:
+        return snapshot
+    snap = dict(snapshot)
+    tier = int(getattr(session, "tier", 99)) if getattr(session, "is_authenticated", False) else 99
+    snap["devices"] = filter_device_list(list(snap.get("devices") or []), tier)
+    snap["allowed_device_ids"] = [device["id"] for device in snap["devices"]]
+    for key in ("users", "system_policies", "pending_reset_confirmation", "pending_rule", "pending_voice_enrollment", "word_mappings", "factory_aliases", "custom_aliases", "if_else_rules", "t1_global_if_else_rules", "chains"):
+        snap.pop(key, None)
+    snap["current_tier"] = tier
+    snap["role"] = getattr(session, "role", "UNKNOWN")
+    snap["current_user_id"] = session.user_id
+    snap["current_user_name"] = session.display_name
+    snap["timers"] = [timer for timer in snap.get("timers", []) if timer.get("device_id") in snap["allowed_device_ids"]] if tier <= 2 else []
+    return snap

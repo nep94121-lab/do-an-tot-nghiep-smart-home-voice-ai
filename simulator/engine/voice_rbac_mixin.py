@@ -127,7 +127,8 @@ class EngineVoiceRbacMixin:
                 pol["device_min_tiers"].setdefault(dk, dv)
         if not isinstance(pol.get("custom_system_directives"), list):
             pol["custom_system_directives"] = []
-        return pol
+        from simulator.auth.tier_permissions import enforce_fixed_policy
+        return enforce_fixed_policy(pol)
 
     @property
     def query_permission_mode(self) -> str:

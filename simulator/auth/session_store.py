@@ -13,10 +13,12 @@ import dataclasses
 import hashlib
 import hmac
 import json
+import os
 import pathlib
 import secrets
 import sqlite3
 import threading
+import sys
 import time
 from typing import Any
 
@@ -31,23 +33,21 @@ from simulator.voice_config import (
 )
 
 DB_PATH = DATA_DIR / "smarthome.db"
+_LOCAL_SESSION_KEY = secrets.token_bytes(32)
+
+
+def _test_sessions_allowed() -> bool:
+    return "pytest" in sys.modules and not os.environ.get("VERCEL")
 
 
 def _get_session_hmac_key() -> bytes:
-    """Derive an internal HMAC key from stored owner hash in accounts_3layer.json."""
-    acc_path = DATA_DIR / "accounts_3layer.json"
-    seed = f"sh_session_hmac_v2:{OWNER_ID}:{OWNER_EMAIL}"
-    if acc_path.exists():
-        try:
-            items = json.loads(acc_path.read_text(encoding="utf-8"))
-            if isinstance(items, list):
-                for item in items:
-                    if isinstance(item, dict) and int(item.get("tier", 0)) == 1 and item.get("password_hash"):
-                        seed += f":{item['password_hash']}"
-                        break
-        except Exception:
-            pass
-    return hashlib.sha256(seed.encode("utf-8")).digest()
+    """Use a deployment secret; repository contents must never allow token forgery."""
+    secret = os.environ.get("SMARTHOME_SESSION_SECRET") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD")
+    if secret:
+        return hashlib.sha256(b"smarthome-session-v3:" + secret.encode("utf-8")).digest()
+    if os.environ.get("VERCEL"):
+        raise RuntimeError("Session signing secret is not configured")
+    return _LOCAL_SESSION_KEY
 
 
 @dataclasses.dataclass
@@ -79,7 +79,8 @@ class SessionStore:
         self._memory_cache: dict[str, UserSession] = {}
         self._revoked_sids: set[str] = set()
         self._init_sqlite()
-        self._seed_deterministic_test_sessions()
+        if _test_sessions_allowed():
+            self._seed_deterministic_test_sessions()
         self._load_durable_sessions()
 
     def _load_durable_sessions(self) -> None:
@@ -161,19 +162,16 @@ class SessionStore:
                         source TEXT
                     )
                 """)
-                conn.execute(
-                    "DELETE FROM user_sessions WHERE user_id = ? OR email = ?",
-                    ("qa_app_1793876716", "qa.app.1793876716@example.com"),
-                )
                 conn.commit()
         except Exception:
             pass
 
     @staticmethod
     def _encode_signed_token(payload_dict: dict[str, Any]) -> str:
+        payload_dict = {**payload_dict, "typ": "session"}
         raw_json = json.dumps(payload_dict, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         b64_part = base64.urlsafe_b64encode(raw_json).decode("ascii").rstrip("=")
-        sig = hmac.new(_get_session_hmac_key(), b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
+        sig = hmac.new(_get_session_hmac_key(), b"session:" + b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
         return f"sess_{b64_part}.{sig}"
 
     @staticmethod
@@ -183,7 +181,7 @@ class SessionStore:
         body_part, sig_part = token[5:].rsplit(".", 1)
         if not body_part or not sig_part:
             return None
-        expected_sig = hmac.new(_get_session_hmac_key(), body_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
+        expected_sig = hmac.new(_get_session_hmac_key(), b"session:" + body_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
         if not hmac.compare_digest(sig_part, expected_sig):
             return None
         try:
@@ -193,6 +191,11 @@ class SessionStore:
                 return None
             uid = str(data.get("u") or "")
             email = str(data.get("e") or "")
+            tier = int(data.get("t") or 99)
+            if data.get("typ") != "session" or not uid or uid.lower() in ("unknown", "anonymous", "stranger"):
+                return None
+            if tier not in (1, 2, 3) or data.get("r") != ROLE_MAP[tier]:
+                return None
             if is_throwaway_qa_identity(uid) or is_throwaway_qa_identity(email):
                 return None
             sess = UserSession(
@@ -336,6 +339,12 @@ class SessionStore:
         if not session_id or not isinstance(session_id, str):
             return None
         sid = session_id.strip()
+        # Never accept predictable fixtures, including old persisted rows, outside pytest.
+        if sid in {"sess_owner_t1_nep94121", "sess_family_t2_member_a", "sess_guest_t3_visitor_c"} and not _test_sessions_allowed():
+            return None
+        if os.environ.get("VERCEL") and self._decode_signed_token(sid) is None:
+            # Existing rows minted by the old unauthenticated role endpoint are invalid too.
+            return None
         with self._lock:
             if sid in self._revoked_sids:
                 return None
@@ -437,6 +446,31 @@ _SESSION_STORE = SessionStore()
 
 def get_session_store() -> SessionStore:
     return _SESSION_STORE
+
+
+def session_is_current(sess: UserSession | None) -> bool:
+    """Recheck revocation and invite lifetime on every HTTP/WS action."""
+    if sess is None or not sess.is_authenticated or sess.is_expired():
+        return False
+    if sess.source.startswith("guest_invite:"):
+        from simulator.auth.guest_invites import get_invite
+
+        record = get_invite(sess.source.split(":", 1)[1])
+        if not record or record.get("revoked") or float(record.get("expires_at") or 0) <= time.time():
+            return False
+    if sess.email and sess.source != "seed":
+        from simulator.auth_3layer import get_auth_3layer_manager
+
+        account = get_auth_3layer_manager().find_account(sess.email)
+        if account and (not account.get("permission_active", True) or int(account.get("tier") or 99) != sess.tier):
+            return False
+    if sess.source != "seed":
+        from simulator.api.deps import _REST_ENGINE
+
+        user = _REST_ENGINE.users.get(sess.user_id)
+        if user and not user.get("active", True):
+            return False
+    return True
 
 
 _IDENTITY_PAYLOAD_KEYS = ("role", "user_id", "email")
@@ -701,7 +735,7 @@ def resolve_request_session(
 
     if token:
         sess = store.get_session(token)
-        if sess and not sess.is_expired():
+        if session_is_current(sess):
             return sess
         # Token provided but expired, revoked, or invalid -> strictly Tier 3 unauthenticated
         return UserSession(
@@ -716,13 +750,6 @@ def resolve_request_session(
             source="invalid_token",
             is_authenticated=False,
         )
-
-    # 6. Không có token: không tin identity tự khai trong payload. Kiểm tra engine UNKNOWN.
-    if engine is not None and (
-        str(getattr(engine, "_current_role", "")).upper() == "UNKNOWN"
-        or str(getattr(engine, "_current_user_id", "")).strip().lower() == "unknown"
-    ):
-        return _make_rejected_unknown_session()
 
     # 8. Fallback mặc định cho client chưa đăng nhập: Tầng 3 (Khách)
     return UserSession(
@@ -775,7 +802,7 @@ def resolve_strict_ws_session(
 
     if token:
         sess = store.get_session(token)
-        if sess is not None and not sess.is_expired() and sess.is_authenticated:
+        if session_is_current(sess):
             return sess
 
     now = time.time()

@@ -29,7 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DATA_DIR = ROOT / "simulator" / "data"
+DATA_DIR = pathlib.Path(os.environ.get("SMARTHOME_DATA_DIR") or ROOT / "simulator" / "data")
 _TRACKED_DATA_FILES = (
     "accounts_3layer.json",
     "auth_3layer_events.json",
@@ -160,6 +160,14 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
         pass
     if "VERCEL" in os.environ:
         monkeypatch.delenv("VERCEL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def isolate_invites_and_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    from simulator.auth import guest_invites, owner_pin
+
+    monkeypatch.setattr(guest_invites, "_CACHE", {})
+    monkeypatch.setattr(owner_pin, "_CACHE", {})
 
 
 @pytest.fixture(autouse=True)

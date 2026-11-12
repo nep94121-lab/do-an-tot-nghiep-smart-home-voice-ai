@@ -115,7 +115,6 @@ def generate_qr_svg_string(content: str) -> str:
         return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="10" y="50" font-size="8">{content[:20]}</text></svg>'
 
 
-@router.get("/api/auth3/guest_qr_current")
 @router.get("/api/auth3/qr/generate")
 @router.post("/api/auth3/qr/generate")
 async def api_auth3_guest_qr_current(
@@ -131,153 +130,11 @@ async def api_auth3_guest_qr_current(
     tier: int | None = None,
 ) -> JSONResponse:
     """Sinh mã QR Động xoay vòng mỗi 10 giây (TOTP 10s) kèm SVG QR thực tế (Chỉ Chủ nhà Cấp 1)."""
-    session = resolve_request_session(request, payload=None, engine=_REST_ENGINE)
-    if (
-        session.role == "UNKNOWN"
-        or session.tier not in (1, 2, 3)
-        or str(session.user_id).strip().lower() == "unknown"
-    ):
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "tier": 99,
-                    "role": "UNKNOWN",
-                    "error": "Từ chối: Giọng nói hoặc danh tính chưa xác thực (UNKNOWN).",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
-    if not session.is_authenticated:
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "authenticated": False,
-                    "error": "Yêu cầu đăng nhập quyền Chủ nhà Cấp 1 để tạo mã QR Khách (HTTP 401 Unauthorized).",
-                    "status_code": 401,
-                }
-            ),
-            status_code=401,
-        )
-    if session.tier != 1 or session.role != "ADMIN":
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "authenticated": True,
-                    "rbac_blocked": True,
-                    "tier": session.tier,
-                    "role": session.role,
-                    "error": "Từ chối: Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền sinh mã QR Khách!",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
+    from simulator.api.routes_guest import api_create_guest_invite
 
-    mgr3 = get_auth_3layer_manager()
-    data = payload or {}
-    req_issuer_tier = int(data.get("issuer_tier", issuer_tier) or 1)
-    if req_issuer_tier != 1:
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "error": "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền phát hành mã QR Khách!",
-                    "status_code": 403,
-                }
-            ),
-            status_code=403,
-        )
-    chosen_dur = str(
-        dur
-        or duration_type
-        or duration
-        or data.get("duration")
-        or data.get("duration_type")
-        or "1d"
-    ).strip().lower()
-    if chosen_dur not in DURATION_MAP_SECONDS:
-        chosen_dur = "1d"
-    dur_sec = DURATION_MAP_SECONDS[chosen_dur]
-    dur_label = DURATION_LABELS_VN.get(chosen_dur, chosen_dur)
-
-    raw_tier = tier or data.get("target_tier") or data.get("tier") or target_tier or 3
-    try:
-        chosen_tier = int(raw_tier)
-    except (ValueError, TypeError):
-        chosen_tier = 3
-    if chosen_tier not in (2, 3):
-        chosen_tier = 3
-    tier_label = "Thành viên gia đình (Cấp 2)" if chosen_tier == 2 else "Khách đến chơi nhà (Cấp 3)"
-
-    chosen_host = str(host_url or host or data.get("host_url") or data.get("host") or "localhost:8088").strip()
-    if chosen_host in ("localhost:8088", "127.0.0.1:8088", "localhost", "127.0.0.1", "0.0.0.0:8088"):
-        base_host = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
-    elif chosen_host.startswith("http://") or chosen_host.startswith("https://"):
-        base_host = chosen_host.rstrip("/")
-    elif any(t_dom in chosen_host for t_dom in [".lhr.life", ".vercel.app", "trycloudflare.com", ".ngrok", ".loca.lt"]) or ":443" in chosen_host:
-        base_host = f"https://{chosen_host.rstrip('/')}"
-    else:
-        base_host = f"http://{chosen_host.rstrip('/')}"
-
-    now_ts = time.time()
-    window = int(now_ts // 10)
-    remaining = max(1, 10 - int(now_ts % 10))
-    secret = "bk_smarthome_totp_salt_2026"
-    raw_payload = f"{window}:1:{chosen_dur}:{dur_sec}"
-    token = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
-
-    qr_url = f"/guest_enroll?token={token}&window={window}&dur={chosen_dur}"
-    guest_url = f"/guest?token={token}&window={window}&dur={chosen_dur}"
-    if chosen_tier == 2:
-        qr_url += "&tier=2"
-        guest_url += "&tier=2"
-    full_url = f"{base_host}{qr_url}"
-    guest_full_url = f"{base_host}{guest_url}"
-    public_guest_path = "/guest"
-    public_guest_url = f"{base_host}{public_guest_path}"
-
-    if not hasattr(mgr3, "active_qr_tokens"):
-        mgr3.active_qr_tokens = {}
-    mgr3.active_qr_tokens[token] = {
-        "token": token,
-        "window": window,
-        "issuer_tier": 1,
-        "target_tier": chosen_tier,
-        "duration_type": chosen_dur,
-        "duration_label": dur_label,
-        "duration_seconds": dur_sec,
-        "created_at_ts": now_ts,
-    }
-
-    qr_svg = generate_qr_svg_string(public_guest_url)
-
-    resp = {
-        "ok": True,
-        "token": token,
-        "target_tier": chosen_tier,
-        "tier_label": tier_label,
-        "duration": chosen_dur,
-        "duration_type": chosen_dur,
-        "duration_label": dur_label,
-        "duration_seconds": dur_sec,
-        "remaining_slot_sec": remaining,
-        "window": window,
-        "qr_url": qr_url,
-        "full_url": full_url,
-        "guest_url": guest_url,
-        "guest_full_url": guest_full_url,
-        "public_guest_path": public_guest_path,
-        "public_guest_url": public_guest_url,
-        "qr_svg": qr_svg,
-    }
-    return JSONResponse(sanitize_api_payload(resp), status_code=200)
-
+    if request.method == "GET":
+        return JSONResponse({"ok": False, "error": "Hãy dùng POST với mã PIN."}, status_code=405)
+    return await api_create_guest_invite(request, payload or {})
 
 @router.post("/api/auth3/guest_qr_handshake")
 @router.post("/api/auth3/guest_handshake")

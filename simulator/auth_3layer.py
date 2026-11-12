@@ -42,6 +42,7 @@ import os
 from pathlib import Path
 import random
 import re
+import secrets
 import struct
 import threading
 import time
@@ -101,6 +102,8 @@ def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> bool:
                 if not _ds.save_state_file(target_path.name, payload_bytes, data_dir=target_path.parent):
                     if prev_disk_bytes is not None:
                         target_path.write_bytes(prev_disk_bytes)
+                    else:
+                        target_path.unlink(missing_ok=True)
                     if prev_cache_bytes is not None:
                         _PATH_DURABLE_CACHE[resolved_key] = prev_cache_bytes
                     else:
@@ -113,6 +116,12 @@ def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> bool:
                 target_path.write_bytes(prev_disk_bytes)
             except Exception:
                 pass
+        else:
+            target_path.unlink(missing_ok=True)
+        if prev_cache_bytes is not None:
+            _PATH_DURABLE_CACHE[resolved_key] = prev_cache_bytes
+        else:
+            _PATH_DURABLE_CACHE.pop(resolved_key, None)
         return False
 
 
@@ -214,17 +223,28 @@ class ThreeLayerAuthManager(
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
         acc.pop("password_plain_hint", None)
-        if str(acc.get("account_id", "")).lower() == OWNER_ID or str(acc.get("email", "")).lower() == OWNER_EMAIL.lower():
+        if str(acc.get("email", "")).strip().lower() == OWNER_EMAIL.lower():
             acc["account_id"] = OWNER_ID
             acc["tier"] = 1
             acc["saved_tier"] = 1
             acc["role"] = "ADMIN"
             acc["permission_active"] = True
             acc["permission_status"] = "ACTIVE"
+        elif str(acc.get("account_id", "")).lower() == OWNER_ID or int(acc.get("tier") or 3) == 1:
+            acc["account_id"] = "user_" + secrets.token_hex(16)
+            acc["id"] = acc["account_id"]
+            acc["user_id"] = acc["account_id"]
+            acc["tier"] = 3
+            acc["saved_tier"] = 3
+            acc["role"] = "CHILD_GUEST"
+            acc["permission_active"] = False
+            acc["permission_status"] = "REVOKED"
         if str(acc.get("password_hash") or "").strip() in _LEGACY_DEFAULT_HASHES:
             acc["password_hash"] = ""
         acc.setdefault("password_hash", "")
         tier = int(acc.get("tier", 3) or 3)
+        if str(acc.get("email", "")).strip().lower() != OWNER_EMAIL.lower():
+            acc["role"] = "MEMBER" if tier == 2 else "CHILD_GUEST"
         acc.setdefault("saved_tier", tier)
         acc.setdefault("id", acc.get("account_id", ""))
         acc.setdefault("user_id", acc.get("account_id", ""))
@@ -241,7 +261,7 @@ class ThreeLayerAuthManager(
                 else "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà thu hồi quyền)"
             )
         acc.setdefault("invited_by", "SYSTEM_ROOT" if tier == 1 else f"{OWNER_EMAIL} (Cấp 1)")
-        acc.setdefault("needs_first_page_voice_enroll", False)
+        acc["needs_first_page_voice_enroll"] = False
         acc.setdefault("voice_verified", not acc.get("needs_first_page_voice_enroll", False))
         acc.setdefault("reading_prompt", build_reading_prompt(acc.get("display_name", "Thành viên"), tier))
         vp = acc.setdefault("voiceprint", {})
@@ -500,53 +520,6 @@ class ThreeLayerAuthManager(
         if is_throwaway_qa_identity(clean_email):
             return {"ok": False, "layer": 1, "error": "Tài khoản thử nghiệm QA tạm thời đã bị thu hồi vĩnh viễn."}
         acc = self.find_account(clean_email)
-        if not acc and clean_email in self.family_email_allowlist:
-            item = self.family_email_allowlist[clean_email]
-            target_tier = int(item["target_tier"])
-            clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())
-            role_lbl = "Người nhà (Tầng 2)" if target_tier == 2 else "Khách (Tầng 3)"
-            role_str = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
-            acc = {
-                "account_id": clean_id,
-                "email": clean_email,
-                "display_name": clean_email.split("@")[0].replace(".", " ").title(),
-                "tier": target_tier,
-                "saved_tier": target_tier,
-                "role": role_str,
-                "role_label": f"{role_lbl} - Thiết bị sinh hoạt" if target_tier == 2 else f"{role_lbl} được cấp quyền",
-                "permission_active": True,
-                "permission_status": "ACTIVE",
-                "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                "password_hash": hash_password(password) if (login_method == "password" and password) else "",
-                "google_linked": True,
-                "invited_by": item.get("added_by", "Chủ nhà Cấp 1"),
-                "needs_first_page_voice_enroll": True,
-                "voice_verified": False,
-                "reading_prompt": build_reading_prompt(clean_email.split("@")[0].replace(".", " ").title(), target_tier),
-                "voiceprint": {
-                    "enrolled": False,
-                    "f0_mean_hz": 0.0,
-                    "reading_prompt_verified": False,
-                    "source_device": "Chờ thu âm giọng chính",
-                    "updated_at": _now_vn(),
-                },
-                "permissions": (
-                    [
-                        "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-                        "Chỉ thêm được Email Cấp 3 (Khách)",
-                        "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
-                    ]
-                    if target_tier == 2
-                    else [
-                        "Chỉ bật/tắt đèn & quạt cơ bản",
-                        "Không có quyền thêm thành viên",
-                    ]
-                ),
-            }
-            self._normalize_account_fields(acc)
-            self.accounts.append(acc)
-            self._save_accounts()
-
         if not acc:
             self._log_event(
                 layer="Lớp 1 (Tài khoản/Mật khẩu)",
@@ -566,32 +539,29 @@ class ThreeLayerAuthManager(
                 "error": "Tài khoản Chủ nhà bắt buộc đăng nhập bằng mật khẩu mã hóa!",
             }
 
-        if not is_owner_acc and login_method in ("google_oauth", "email_allowlist", "family_allowlist"):
-            acc["google_linked"] = True
-        else:
-            stored_hash = str(acc.get("password_hash") or "").strip()
-            if not stored_hash or stored_hash == "0" * 64:
-                return {
-                    "ok": False,
-                    "layer": 1,
-                    "needs_password_reset": True,
-                    "error": f"Tài khoản {acc['email']} chưa thiết lập mật khẩu mã hóa. Vui lòng dùng Quên mật khẩu / OTP để đặt mật khẩu!",
-                }
-            pw_ok = verify_password_hash(password, stored_hash)
-            if not pw_ok:
-                self._log_event(
-                    layer="Lớp 1 (Tài khoản/Mật khẩu)",
-                    action="password_check",
-                    email=acc["email"],
-                    status="FAIL",
-                    detail=f"Nhập sai mật khẩu cho tài khoản {acc['display_name']} (Tầng {acc['tier']}).",
-                    source=source,
-                )
-                return {
-                    "ok": False,
-                    "layer": 1,
-                    "error": f"Sai mật khẩu cho tài khoản {acc['email']}!",
-                }
+        stored_hash = str(acc.get("password_hash") or "").strip()
+        if not stored_hash or stored_hash == "0" * 64:
+            return {
+                "ok": False,
+                "layer": 1,
+                "needs_password_reset": True,
+                "error": f"Tài khoản {acc['email']} chưa thiết lập mật khẩu mã hóa. Vui lòng dùng Quên mật khẩu / OTP để đặt mật khẩu!",
+            }
+        pw_ok = verify_password_hash(password, stored_hash)
+        if not pw_ok:
+            self._log_event(
+                layer="Lớp 1 (Tài khoản/Mật khẩu)",
+                action="password_check",
+                email=acc["email"],
+                status="FAIL",
+                detail=f"Nhập sai mật khẩu cho tài khoản {acc['display_name']} (Tầng {acc['tier']}).",
+                source=source,
+            )
+            return {
+                "ok": False,
+                "layer": 1,
+                "error": f"Sai mật khẩu cho tài khoản {acc['email']}!",
+            }
 
         if not acc.get("permission_active", True):
             self._log_event(
@@ -697,6 +667,8 @@ class ThreeLayerAuthManager(
         target_tier: int = 3,
         invited: bool = False,
         source: str = "Web",
+        create_only: bool = False,
+        guest_invite_id: str = "",
     ) -> dict[str, Any]:
         """Tạo tài khoản hoặc đặt/đổi mật khẩu với bắt buộc 2 ô mật khẩu (Mật khẩu & Xác nhận lại mật khẩu)."""
         self._purge_throwaway_qa_accounts()
@@ -711,97 +683,113 @@ class ThreeLayerAuthManager(
             return {"ok": False, "error": "Vui lòng nhập đầy đủ cả 2 ô: Mật khẩu và Xác nhận lại mật khẩu!"}
         if pw1 != pw2:
             return {"ok": False, "error": "Hai ô mật khẩu (Mật khẩu và Xác nhận lại mật khẩu) không khớp nhau!"}
-        if len(pw1) < 4:
-            return {"ok": False, "error": "Mật khẩu phải có từ 4 ký tự trở lên!"}
+        if len(pw1) < 6:
+            return {"ok": False, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
 
-        domain = clean_email.rsplit("@", 1)[-1]
-        if domain not in ("gmail.com", "googlemail.com"):
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9._+\-]*[a-z0-9])?@(?:gmail|googlemail)\.com", clean_email):
             return {"ok": False, "status_code": 400, "error": "Chỉ đăng ký bằng địa chỉ Gmail."}
 
-        acc = self.find_account(clean_email)
-        is_owner = clean_email == OWNER_EMAIL.lower() or (acc and acc.get("account_id") == OWNER_ID)
-        if is_owner:
-            safe_tier = 1
-        elif acc:
-            safe_tier = int(acc.get("tier") or acc.get("saved_tier") or 3)
-            if safe_tier not in (1, 2, 3):
-                safe_tier = 3
-        elif invited and int(target_tier or 0) in (2, 3):
-            safe_tier = int(target_tier)
-        else:
-            return {
-                "ok": False,
-                "status_code": 403,
-                "permission_active": False,
-                "error": "Cần mã mời từ chủ nhà để được cấp quyền điều khiển.",
-            }
-
-        if not acc:
-            clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())
-            name_clean = display_name.strip() or clean_email.split("@")[0].replace(".", " ").title()
-            role_str = "MEMBER" if safe_tier == 2 else "CHILD_GUEST"
-            role_lbl = "Người nhà (Tầng 2 - Thiết bị sinh hoạt)" if safe_tier == 2 else "Khách được cấp quyền (Tầng 3)"
-            acc = {
-                "account_id": clean_id,
-                "email": clean_email,
-                "display_name": name_clean,
-                "tier": safe_tier,
-                "saved_tier": safe_tier,
-                "role": role_str,
-                "role_label": role_lbl,
-                "permission_active": True,
-                "permission_status": "ACTIVE",
-                "permission_label": f"CÓ QUYỀN (Tầng {safe_tier})",
-                "password_hash": hash_password(pw1),
-                "google_linked": True,
-                "invited_by": f"{OWNER_EMAIL} (Cấp 1)",
-                "needs_first_page_voice_enroll": True,
-                "voice_verified": False,
-                "reading_prompt": build_reading_prompt(name_clean, safe_tier),
-                "voiceprint": {
-                    "enrolled": False,
-                    "f0_mean_hz": 0.0,
-                    "reading_prompt_verified": False,
-                    "source_device": "Chờ thu âm giọng nói",
-                    "updated_at": _now_vn(),
-                },
-                "permissions": (
-                    [
-                        "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-                        "Chỉ gửi được 1 đường link mời xuống Cấp 3 (Khách)",
-                    ]
-                    if safe_tier == 2
-                    else ["Chỉ bật/tắt đèn & quạt cơ bản"]
-                ),
-            }
-            self._normalize_account_fields(acc)
-            self.accounts.append(acc)
-        else:
-            acc.pop("password_plain_hint", None)
-            acc["password_hash"] = hash_password(pw1)
-            if display_name.strip() and not is_owner:
-                acc["display_name"] = display_name.strip()
-                acc["name"] = display_name.strip()
-            if not is_owner:
+        with _ACCOUNTS_FILE_LOCK:
+            existing = next((account for account in self.accounts if str(account.get("email") or "").strip().lower() == clean_email), None)
+            if create_only and (existing is not None or clean_email == OWNER_EMAIL.lower()):
+                return {"ok": False, "status_code": 409, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}
+            previous_accounts = self.accounts
+            accounts = copy.deepcopy(self.accounts)
+            acc = next((account for account in accounts if str(account.get("email") or "").strip().lower() == clean_email), None)
+            is_owner = clean_email == OWNER_EMAIL.lower()
+            if acc is not None:
+                safe_tier = 1 if is_owner else int(acc.get("tier") or acc.get("saved_tier") or 3)
+                if not is_owner and safe_tier not in (2, 3):
+                    safe_tier = 3
+                acc["password_hash"] = hash_password(pw1)
+                if display_name.strip() and not is_owner:
+                    acc["display_name"] = display_name.strip()
+                    acc["name"] = display_name.strip()
                 acc["tier"] = safe_tier
                 acc["saved_tier"] = safe_tier
+            else:
+                safe_tier = int(target_tier) if invited and int(target_tier or 0) in (2, 3) else 3
+                existing_ids = {str(account.get("account_id") or "") for account in accounts} | {OWNER_ID}
+                clean_id = "user_" + secrets.token_hex(16)
+                while clean_id in existing_ids:
+                    clean_id = "user_" + secrets.token_hex(16)
+                active = bool(invited) and not create_only
+                acc = {
+                    "account_id": clean_id,
+                    "email": clean_email,
+                    "display_name": display_name.strip() or clean_email.split("@")[0].replace(".", " ").title(),
+                    "tier": safe_tier,
+                    "saved_tier": safe_tier,
+                    "role": "MEMBER" if safe_tier == 2 else "CHILD_GUEST",
+                    "role_label": f"Cấp {safe_tier}",
+                    "permission_active": active,
+                    "permission_status": "ACTIVE" if active else "PENDING",
+                    "permission_label": f"CÓ QUYỀN (Tầng {safe_tier})" if active else "Chờ chủ nhà cấp quyền",
+                    "password_hash": hash_password(pw1),
+                    "google_linked": False,
+                    "needs_first_page_voice_enroll": False,
+                    "voice_verified": False,
+                    "reading_prompt": "",
+                }
+                if guest_invite_id:
+                    acc["guest_invite_id"] = guest_invite_id
+                accounts.append(acc)
             self._normalize_account_fields(acc)
+            self.accounts = accounts
+            try:
+                saved = self._save_accounts()
+            except Exception:
+                saved = False
+            if not saved:
+                self.accounts = previous_accounts
+                return {"ok": False, "status_code": 503, "error": "Không lưu được tài khoản. Hãy thử lại sau."}
+            self._log_event(
+                layer="Quản lý Tài khoản & Mật khẩu", action="password_set_confirmed",
+                email=clean_email, status="PASS", detail=f"Đã lưu tài khoản Cấp {acc['tier']}.", source=source,
+            )
+            return {
+                "ok": True, "account": acc, "tier": acc["tier"],
+                "permission_active": bool(acc.get("permission_active")),
+                "message": "Đã lưu tài khoản." if acc.get("permission_active") else "Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.",
+            }
 
-        self._save_accounts()
-        self._log_event(
-            layer="Quản lý Tài khoản & Mật khẩu",
-            action="password_set_confirmed",
-            email=clean_email,
-            status="PASS",
-            detail=f"Đã xác nhận 2 ô mật khẩu và lưu mật khẩu cho {acc['display_name']} (Cấp {acc['tier']}).",
-            source=source,
-        )
-        return {
-            "ok": True,
-            "account": acc,
-            "tier": acc["tier"],
-            "message": f"✅ Đã lưu mật khẩu thành công cho {acc['display_name']} (Cấp {acc['tier']})!",
-        }
+    def rollback_registration(self, account_id: str) -> bool:
+        with _ACCOUNTS_FILE_LOCK:
+            previous_accounts = self.accounts
+            account = next((item for item in previous_accounts if item.get("account_id") == account_id), None)
+            if account is None:
+                return True
+            if account.get("permission_active") or account.get("email", "").lower() == OWNER_EMAIL.lower():
+                return False
+            self.accounts = [item for item in previous_accounts if item.get("account_id") != account_id]
+            try:
+                saved = self._save_accounts()
+            except Exception:
+                saved = False
+            if not saved:
+                self.accounts = previous_accounts
+            return bool(saved)
+
+    def activate_registration(self, account_id: str) -> bool:
+        """Publish an invited account only after session creation succeeds."""
+        with _ACCOUNTS_FILE_LOCK:
+            previous_accounts = self.accounts
+            accounts = copy.deepcopy(previous_accounts)
+            acc = next((account for account in accounts if account.get("account_id") == account_id), None)
+            if acc is None or not acc.get("guest_invite_id") or int(acc.get("tier") or 99) not in (2, 3):
+                return False
+            acc["permission_active"] = True
+            acc["permission_status"] = "ACTIVE"
+            acc["permission_label"] = f"CÓ QUYỀN (Tầng {acc['tier']})"
+            self.accounts = accounts
+            try:
+                saved = self._save_accounts()
+            except Exception:
+                saved = False
+            if not saved:
+                self.accounts = previous_accounts
+                return False
+            return True
 
     def request_password_reset_otp(
         self,
@@ -962,6 +950,7 @@ class ThreeLayerAuthManager(
         if res.get("ok"):
             with self._otp_lock:
                 self.pending_otps.pop(clean_email, None)
+                acc = self.find_account(clean_email)
                 if acc:
                     acc.pop("pending_otp", None)
                     acc.pop("otp_cooldown_started_at", None)

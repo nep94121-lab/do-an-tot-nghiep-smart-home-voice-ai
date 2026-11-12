@@ -50,6 +50,15 @@ UNKNOWN_DEVICE_REJECTION_ERROR = (
 router = APIRouter(tags=["devices"])
 
 
+def _owner_error(request: Request, payload: dict[str, Any]) -> JSONResponse | None:
+    sess = resolve_request_session(request, payload=payload)
+    if not sess.is_authenticated:
+        return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
+    if sess.tier != 1 or sess.role != "ADMIN":
+        return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà được thay đổi cài đặt."}, status_code=403)
+    return None
+
+
 def _parse_text_device_targets(t_low: str) -> list[str]:
     """Trích xuất danh sách device_id từ câu lệnh tiếng Việt (hỗ trợ cả có dấu, không dấu và word_mappings)."""
     mapped_text = t_low
@@ -408,6 +417,9 @@ async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default=
             },
             status_code=401,
         )
+    error = _owner_error(request, body)
+    if error is not None:
+        return error
     dev_name = str(body.get("device_name") or "Điều hòa Casper")
     act = str(body.get("command_action") or "open")
     res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
@@ -416,9 +428,12 @@ async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default=
 
 
 @router.post("/api/dht11")
-async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
+async def api_update_dht11(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật thông số cảm biến nhiệt độ & độ ẩm không khí DHT11 (chân D6)."""
     body = payload if isinstance(payload, dict) else {}
+    error = _owner_error(request, body)
+    if error is not None:
+        return error
     temp_c = body.get("temp_c", 28.5)
     hum_pct = body.get("humidity_pct", 65.0)
     rssi = body.get("wifi_rssi_dbm", -52)
@@ -428,9 +443,12 @@ async def api_update_dht11(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.post("/api/soil_moisture")
-async def api_update_soil_moisture(payload: dict[str, Any]) -> JSONResponse:
+async def api_update_soil_moisture(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật cảm biến độ ẩm đất YL-69 (A0) và tự động bật/tắt bơm vườn."""
     body = payload if isinstance(payload, dict) else {}
+    error = _owner_error(request, body)
+    if error is not None:
+        return error
     pct = body.get("soil_moisture_pct", 62.0)
     res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
     await broadcast_rest_state_to_bridges()
@@ -438,8 +456,11 @@ async def api_update_soil_moisture(payload: dict[str, Any]) -> JSONResponse:
 
 
 @router.post("/api/server_mode")
-async def api_set_server_mode(payload: dict[str, Any]) -> JSONResponse:
+async def api_set_server_mode(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Chuyển đổi chế độ Online Gemini Live <-> Offline Mạch độc lập."""
+    error = _owner_error(request, payload)
+    if error is not None:
+        return error
     connected = bool(payload.get("server_connected", True))
     res = await _REST_ENGINE.set_server_connection_mode(connected)
     for br in list(_ACTIVE_BRIDGES):
@@ -481,10 +502,8 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
     effective_user = session.display_name
     effective_role = session.role
 
-    if not _REST_ENGINE.server_connected:
-        res = await _REST_ENGINE.execute_offline_default_command(text, source="offline_default")
-        await broadcast_rest_state_to_bridges()
-        return JSONResponse(res)
+    if not session.is_authenticated:
+        return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
 
     from simulator.auth_3layer import get_auth_3layer_manager
     perm_voice_res = get_auth_3layer_manager().parse_and_execute_voice_permission_command(
@@ -512,6 +531,9 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
     if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
         m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
         if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+            error = _owner_error(request, body)
+            if error is not None:
+                return error
             res_soil = await _REST_ENGINE.update_soil_moisture_telemetry(float(m_soil.group(1)))
             await broadcast_rest_state_to_bridges()
             return JSONResponse({"ok": True, "reply": res_soil["exact_spoken_reply"], "exact_spoken_reply": res_soil["exact_spoken_reply"]})
@@ -583,6 +605,9 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
         if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+            error = _owner_error(request, body)
+            if error is not None:
+                return error
             cur_dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
             m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_low)
             m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_low)
@@ -596,11 +621,17 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
 
     if "học lệnh" in t_low or "remote" in t_low:
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
         res = await _REST_ENGINE.learn_ir_remote_command("Điều hòa", "open")
         return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
 
     for phrase in _REST_ENGINE.get_merged_aliases():
         if phrase in t_low:
+            error = _owner_error(request, body)
+            if error is not None:
+                return error
             res = await _REST_ENGINE.execute_alias_rule(phrase)
             await broadcast_rest_state_to_bridges()
             return JSONResponse({
@@ -679,6 +710,9 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
 
     tn_cmd = strip_vietnamese_diacritics(t_low)
     if any(k in tn_cmd for k in ("reset he thong", "khoi phuc cai dat goc", "factory reset")):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
         res_rst = await _REST_ENGINE.manual_factory_reset()
         await broadcast_rest_state_to_bridges()
         spoken_rst = res_rst.get("exact_spoken_reply") or "Đã khôi phục cài đặt gốc toàn hệ thống."

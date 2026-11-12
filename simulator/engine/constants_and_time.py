@@ -21,6 +21,10 @@ from simulator.voice_config import (
 
 def resolve_data_dir() -> pathlib.Path:
     repo_data = pathlib.Path(__file__).resolve().parent.parent / "data"
+    if not os.environ.get("VERCEL") and os.environ.get("SMARTHOME_DATA_DIR"):
+        test_data = pathlib.Path(os.environ["SMARTHOME_DATA_DIR"])
+        test_data.mkdir(parents=True, exist_ok=True)
+        return test_data
     if os.environ.get("VERCEL"):
         tmp_data = pathlib.Path("/tmp/smarthome_data")
         tmp_data.mkdir(parents=True, exist_ok=True)
