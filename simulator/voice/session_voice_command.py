@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 from typing import Any
 
+import numpy as np
+
 from simulator.auth.session_store import UserSession
+from simulator.live.tts_rejection_vi import (
+    build_aoede_http_audio_fields,
+    synthesize_aoede_phrase_audio,
+)
 from simulator.voice.enrollment_quality import parse_vietnamese_voice_command_intents
 
 LOG = logging.getLogger("simulator.voice.session_command")
@@ -147,9 +155,53 @@ def _first_spoken(result: dict[str, Any]) -> str:
     return ""
 
 
+def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
+    """Trích xuất khẩu lệnh từ audio WAV/PCM16 catalog offline (chỉ lấy transcript, KHÔNG bỏ qua RBAC)."""
+    body = payload if isinstance(payload, dict) else {}
+    b64_val = str(
+        body.get("wav_b64") or body.get("audio_b64") or body.get("pcm16k_b64") or ""
+    ).strip()
+    if not b64_val:
+        return ""
+    if "," in b64_val:
+        b64_val = b64_val.split(",", 1)[1].strip()
+    if len(b64_val) < 64:
+        return ""
+    try:
+        raw_bytes = base64.b64decode(b64_val, validate=False)
+    except (binascii.Error, ValueError):
+        return ""
+    if not raw_bytes or len(raw_bytes) < 64:
+        return ""
+    try:
+        from simulator.voice.stt_pipeline import (
+            decode_audio_bytes_to_pcm16k,
+            match_signature_from_catalog,
+        )
+
+        pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
+        if pcm16.size < 1600:
+            return ""
+        rms = float(np.sqrt(np.mean(pcm16.astype(np.float64) ** 2)))
+        if not np.isfinite(rms) or rms < 40.0:
+            return ""
+        matched_sig, _score = match_signature_from_catalog(pcm16, decoded_raw)
+        if matched_sig is not None:
+            text = str(
+                matched_sig.get("recognized_text")
+                or matched_sig.get("canonical_command")
+                or ""
+            ).strip()
+            if text:
+                return text
+    except Exception as exc:
+        LOG.debug("offline wav transcript lookup skipped: %s", exc)
+    return ""
+
+
 def _strip_legacy_repeat_speech(result: dict[str, Any]) -> dict[str, Any]:
     """Đảm bảo đường lệnh session không phát lại cụm 'vui lòng nói lại'."""
-    for key in ("exact_spoken_reply", "rejection_speech", "reply_text", "message", "tts_text"):
+    for key in ("exact_spoken_reply", "rejection_speech", "reply_text", "message", "tts_text", "reply"):
         value = result.get(key)
         if isinstance(value, str) and any(marker in value.lower() for marker in _LEGACY_REPEAT_MARKERS):
             result[key] = ""
@@ -162,10 +214,12 @@ def _strip_legacy_repeat_speech(result: dict[str, Any]) -> dict[str, Any]:
     )
     if not result.get("should_reply"):
         result["play_audio"] = False
-        result["pcm24k_b64"] = result.get("pcm24k_b64") if result.get("ok") else ""
-        if not result.get("ok"):
-            result["pcm24k_b64"] = ""
-            result["audio_b64"] = ""
+        result["pcm24k_b64"] = ""
+        result["pcm_b64"] = ""
+        result["audio_b64"] = ""
+        result["audio_wav_b64"] = ""
+    else:
+        result["play_audio"] = bool(result.get("pcm24k_b64"))
     return result
 
 
@@ -183,6 +237,8 @@ async def execute_session_voice_intents(
             {
                 "ok": False,
                 "executed": False,
+                "authorized": True,
+                "permission": "ALLOWED",
                 "silent": True,
                 "should_reply": False,
                 "ask_repeat": False,
@@ -190,8 +246,10 @@ async def execute_session_voice_intents(
                 "no_reprompt": True,
                 "reason": "no_intent",
                 "error": "no_intent",
+                "recognized_text": transcript,
                 "transcript": transcript,
                 "intents": [],
+                "reply": "",
                 "exact_spoken_reply": "",
                 "rejection_speech": "",
                 "reply_text": "",
@@ -230,14 +288,27 @@ async def execute_session_voice_intents(
         results.append(last)
 
     spoken = _first_spoken(last)
+    aoede_fields: dict[str, Any] = {}
+    if spoken and not any(marker in spoken.lower() for marker in _LEGACY_REPEAT_MARKERS):
+        try:
+            aoede_bundle = await synthesize_aoede_phrase_audio(spoken)
+            aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
+        except Exception as exc:
+            LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
+
+    authorized_flag = not (any_blocked and not all_ok)
+    permission_label = "ALLOWED" if authorized_flag else "DENIED"
     payload = {
         "ok": all_ok,
         "executed": all_ok,
+        "authorized": authorized_flag,
+        "permission": permission_label,
         "silent": False,
         "should_reply": bool(spoken),
         "ask_repeat": False,
-        "play_audio": False,
+        "play_audio": bool(spoken and aoede_fields.get("pcm24k_b64")),
         "no_reprompt": True,
+        "recognized_text": transcript,
         "transcript": transcript,
         "intents": intents,
         "results": results,
@@ -246,14 +317,15 @@ async def execute_session_voice_intents(
         "user_name": session.display_name,
         "rbac_blocked": any_blocked and not all_ok,
         "error": "" if all_ok else (last.get("error") or "command_failed"),
-        "exact_spoken_reply": spoken if all_ok or any_blocked else spoken,
+        "reply": spoken,
+        "exact_spoken_reply": spoken,
         "rejection_speech": spoken if any_blocked else "",
         "reply_text": spoken,
         "pcm24k_b64": "",
         "audio_b64": "",
+        **aoede_fields,
         "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
     }
-    # Chỉ phát TTS khi engine đã cung cấp lời (từ chối quyền / xác nhận). Không tự sinh 'nói lại'.
     return _strip_legacy_repeat_speech(payload)
 
 
@@ -267,7 +339,7 @@ async def process_session_voice_command(
     if not is_authenticated_control_session(session):
         return unauthenticated_voice_response()
     assert session is not None
-    transcript = extract_command_transcript(payload)
+    transcript = extract_command_transcript(payload) or _extract_offline_wav_transcript(payload)
     if not transcript:
         LOG.info("voice_command silent: empty transcript (no speaker check, no reprompt)")
         return silent_no_transcript_response(session=session), 200

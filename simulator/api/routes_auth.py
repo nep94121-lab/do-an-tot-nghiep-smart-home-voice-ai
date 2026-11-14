@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import os
 import wave
 from typing import Any
 
@@ -26,7 +27,14 @@ from simulator.api.deps import (
     broadcast_rest_state_to_bridges,
 )
 from simulator.auth.constants_and_crypto import canonical_gmail_mailbox
-from simulator.auth.session_store import UserSession, get_session_store, resolve_request_session
+from simulator.auth.session_store import (
+    TRUSTED_DEVICE_COOKIE_NAME,
+    TRUSTED_DEVICE_TTL_SECONDS,
+    UserSession,
+    get_session_store,
+    mint_trusted_device_token,
+    resolve_request_session,
+)
 from simulator.auth_3layer import get_auth_3layer_manager, is_test_otp_fields_allowed
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
 from simulator.rule_engine import append_audit_log
@@ -1008,9 +1016,23 @@ def normalize_client_ip(request: Request) -> str:
     return host or "unknown"
 
 
+def _is_https_request(request: Request | None) -> bool:
+    """Xác định request đi qua HTTPS (production Vercel hoặc proxy header) để gắn cờ Secure cho cookie."""
+    if request is not None:
+        xf_proto = str(request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+        if xf_proto in ("https", "http"):
+            return xf_proto == "https"
+        scheme = str(getattr(getattr(request, "url", None), "scheme", "") or "").strip().lower()
+        if scheme == "https":
+            return True
+        if scheme == "http" and not os.environ.get("VERCEL"):
+            return False
+    return bool(os.environ.get("VERCEL"))
+
+
 @router.post("/api/auth3/layer1_login")
 async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> JSONResponse:
-    """Xác thực Lớp 1 (Mật khẩu PBKDF2): Tầng 2/3 vào ngay; Chủ nhà Cấp 1 bắt buộc OTP Lớp 2."""
+    """Xác thực Lớp 1 (Mật khẩu PBKDF2): Tầng 2/3 vào ngay; Chủ nhà Cấp 1 bắt buộc OTP Lớp 2 trừ khi thiết bị tin cậy còn hạn 30 ngày."""
     email = str(payload.get("email") or "").strip()
     password = str(payload.get("password") or "").strip()
     login_method = str(payload.get("login_method") or "password").strip()
@@ -1020,6 +1042,8 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
     send_gmail = bool(payload.get("send_gmail", True))
     req_app = getattr(request, "app", None)
     client_ip = normalize_client_ip(request)
+    ua_header = str(request.headers.get("user-agent") or "").strip()
+    trusted_cookie = str(request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME) or "").strip() if hasattr(request, "cookies") else ""
     res = get_auth_3layer_manager().layer1_login(
         email=email,
         password=password,
@@ -1028,6 +1052,8 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
         send_gmail=send_gmail,
         client_ip=client_ip,
         app=req_app,
+        trusted_device_token=trusted_cookie,
+        user_agent=ua_header,
     )
     if not is_test_otp_fields_allowed(req_app):
         res.pop("otp_code_for_test_table", None)
@@ -1036,13 +1062,16 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
 
     acc = res.get("account") or {}
     res_tier = int(acc.get("tier") or res.get("tier") or 3) if res.get("ok") else 99
-    requires_otp = bool(res.get("otp_required")) or (res.get("ok") and res_tier == 1)
+    requires_otp = bool(res.get("otp_required")) or (
+        bool(res.get("ok")) and res_tier == 1 and not bool(res.get("trusted_device"))
+    )
     session_token = None
     canonical_email = str(acc.get("email") or email)
     if res.get("ok") and not requires_otp:
         resolved_acc = get_auth_3layer_manager().find_account(canonical_email) or acc
         canonical_email = str(resolved_acc.get("email") or canonical_email)
-        sess = _account_session(resolved_acc, canonical_email, "password_login")
+        sess_src = "trusted_device_login" if res.get("trusted_device") else "password_login"
+        sess = _account_session(resolved_acc, canonical_email, sess_src)
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
@@ -1153,6 +1182,7 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request)
         client_ip=client_ip,
     )
     session_token = None
+    trusted_device_token = None
     canonical_email = email
     should_mint_session = bool(res.get("ok")) and str(res.get("verified_purpose") or "layer2_login") == "layer2_login"
     if should_mint_session:
@@ -1162,6 +1192,16 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request)
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
+        tier_val = int(acc_obj.get("tier") or res.get("tier") or 1)
+        if tier_val == 1:
+            trusted_device_token = mint_trusted_device_token(
+                account_id=str(acc_obj.get("account_id") or OWNER_ID),
+                email=canonical_email,
+                password_hash=str(acc_obj.get("password_hash") or ""),
+                user_agent=str(request.headers.get("user-agent") or "").strip(),
+            )
+            res["trusted_device_established"] = True
+            res["trusted_device_days"] = 30
         await broadcast_rest_state_to_bridges()
     if str(expected_purpose or "").strip().lower() == "forgot_password" or str(res.get("verified_purpose") or "") == "forgot_password":
         _scrub_forgot_password_identity(res, email)
@@ -1180,6 +1220,16 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request)
         resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
         resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
         resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+        if trusted_device_token:
+            resp.set_cookie(
+                TRUSTED_DEVICE_COOKIE_NAME,
+                trusted_device_token,
+                path="/",
+                httponly=True,
+                secure=_is_https_request(request),
+                samesite="lax",
+                max_age=TRUSTED_DEVICE_TTL_SECONDS,
+            )
     return resp
 
 
@@ -1196,12 +1246,31 @@ async def api_auth_logout(request: Request) -> JSONResponse:
         token = str(request.cookies.get("sh_session_token") or request.cookies.get("session_token") or "").strip()
     if token and token not in {"sess_owner_t1_nep94121", "sess_family_t2_member_a", "sess_guest_t3_visitor_c"}:
         get_session_store().revoke_session(token)
+    revoke_trusted = False
+    try:
+        raw_body = await request.body()
+        if raw_body:
+            import json as _json
+
+            parsed = _json.loads(raw_body.decode("utf-8"))
+            if isinstance(parsed, dict) and parsed.get("revoke_trusted_device") is True:
+                revoke_trusted = True
+    except Exception:
+        pass
     resp = JSONResponse({"ok": True, "logged_out": True})
     resp.delete_cookie("sh_session_token", path="/", httponly=True, samesite="lax")
     resp.delete_cookie("session_token", path="/", httponly=False, samesite="lax")
     resp.delete_cookie("smarthome_session", path="/", httponly=False, samesite="lax")
     resp.delete_cookie("mobileLoggedIn", path="/", httponly=False, samesite="lax")
     resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=False, samesite="lax")
+    if revoke_trusted:
+        resp.delete_cookie(
+            TRUSTED_DEVICE_COOKIE_NAME,
+            path="/",
+            httponly=True,
+            secure=_is_https_request(request),
+            samesite="lax",
+        )
     return resp
 
 

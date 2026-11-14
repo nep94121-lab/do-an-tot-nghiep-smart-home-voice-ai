@@ -20,6 +20,7 @@
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
     <symbol id="i-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4M14 21h3"/></symbol>
   </svg>
 
   <div class="app">
@@ -88,6 +89,14 @@
       </div>
     </main>
   </div>
+
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+    <a href="/guest_guide"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
+  </nav>
 
   <script src="/static/js/auth_pages.js"></script>
 </body>

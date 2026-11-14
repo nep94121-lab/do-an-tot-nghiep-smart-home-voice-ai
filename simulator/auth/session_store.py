@@ -34,6 +34,8 @@ from simulator.voice_config import (
 
 DB_PATH = DATA_DIR / "smarthome.db"
 _LOCAL_SESSION_KEY = secrets.token_bytes(32)
+TRUSTED_DEVICE_COOKIE_NAME = "sh_trusted_device"
+TRUSTED_DEVICE_TTL_SECONDS = 30 * 86400
 
 
 def _test_sessions_allowed() -> bool:
@@ -698,6 +700,93 @@ def _resolve_explicit_payload_identity(
         source="explicit_payload",
         is_authenticated=True,
     )
+
+
+def _password_fingerprint(password_hash: str) -> str:
+    """Rút trích dấu vân tay mật khẩu một chiều (đổi mật khẩu sẽ tự vô hiệu hóa token cũ)."""
+    return hashlib.sha256(b"tdev-pwf-v1:" + str(password_hash or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _ua_fingerprint(user_agent: str) -> str:
+    """Rút trích dấu vân tay User-Agent tách miền (chặn copy cookie sang thiết bị/trình duyệt khác)."""
+    norm_ua = str(user_agent or "").strip().lower()[:256]
+    return hashlib.sha256(b"tdev-uaf-v1:" + norm_ua.encode("utf-8")).hexdigest()[:16]
+
+
+def mint_trusted_device_token(
+    account_id: str,
+    email: str,
+    password_hash: str,
+    user_agent: str = "",
+    *,
+    ttl_seconds: int = TRUSTED_DEVICE_TTL_SECONDS,
+    now: float | None = None,
+) -> str:
+    """Sinh token thiết bị tin cậy 30 ngày ký HMAC-SHA256 tách miền riêng (tdev_)."""
+    issued_at = float(now if now is not None else time.time())
+    ttl = max(60, min(int(ttl_seconds), TRUSTED_DEVICE_TTL_SECONDS))
+    payload = {
+        "typ": "trusted_device",
+        "u": str(account_id or "").strip(),
+        "e": str(email or "").strip().lower(),
+        "pwf": _password_fingerprint(password_hash),
+        "uaf": _ua_fingerprint(user_agent),
+        "c": round(issued_at, 3),
+        "x": round(issued_at + ttl, 3),
+        "n": secrets.token_hex(8),
+    }
+    raw_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    b64_part = base64.urlsafe_b64encode(raw_json).decode("ascii").rstrip("=")
+    sig = hmac.new(_get_session_hmac_key(), b"trusted_device:" + b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
+    return f"tdev_{b64_part}.{sig}"
+
+
+def verify_trusted_device_token(
+    token: str | None,
+    *,
+    expected_account_id: str,
+    expected_email: str,
+    expected_password_hash: str,
+    expected_user_agent: str = "",
+    now: float | None = None,
+) -> bool:
+    """Xác thực token thiết bị tin cậy tdev_ đúng tài khoản, mật khẩu, User-Agent và chưa quá 30 ngày."""
+    raw = str(token or "").strip()
+    if not raw.startswith("tdev_") or "." not in raw:
+        return False
+    body_part, sig_part = raw[5:].rsplit(".", 1)
+    if not body_part or not sig_part:
+        return False
+    expected_sig = hmac.new(
+        _get_session_hmac_key(), b"trusted_device:" + body_part.encode("ascii"), hashlib.sha256
+    ).hexdigest()[:28]
+    if not hmac.compare_digest(sig_part, expected_sig):
+        return False
+    try:
+        pad = "=" * ((4 - len(body_part) % 4) % 4)
+        data = json.loads(base64.urlsafe_b64decode(body_part + pad).decode("utf-8"))
+        if not isinstance(data, dict) or data.get("typ") != "trusted_device":
+            return False
+        check_now = float(now if now is not None else time.time())
+        created_at = float(data.get("c") or 0.0)
+        expires_at = float(data.get("x") or 0.0)
+        if created_at <= 0.0 or expires_at <= 0.0:
+            return False
+        if created_at > check_now + 60.0 or expires_at <= check_now:
+            return False
+        if (expires_at - created_at) > TRUSTED_DEVICE_TTL_SECONDS + 60.0:
+            return False
+        if str(data.get("u") or "").strip() != str(expected_account_id or "").strip():
+            return False
+        if str(data.get("e") or "").strip().lower() != str(expected_email or "").strip().lower():
+            return False
+        if not hmac.compare_digest(str(data.get("pwf") or ""), _password_fingerprint(expected_password_hash)):
+            return False
+        if not hmac.compare_digest(str(data.get("uaf") or ""), _ua_fingerprint(expected_user_agent)):
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def resolve_request_session(

@@ -43,8 +43,10 @@ from simulator.engine.state_store import (
     get_default_state_backend,
     set_default_state_backend,
 )
+from simulator.auth.session_store import UserSession, get_session_store
 from simulator.rule_engine import SmartHomeEngine
 from simulator.server import app
+from simulator.voice.session_voice_command import process_session_voice_command
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -52,6 +54,47 @@ AUDIO_DIR = ROOT / "test_audio"
 SEP_DIR = AUDIO_DIR / "cac_cau_lenh_cua_sep"
 VOICES_DIR = ROOT.parent / "voices"
 ROLE_DIR = VOICES_DIR if VOICES_DIR.exists() else (AUDIO_DIR / "role_commands")
+
+_LEVEL_TO_SESSION = {
+    1: "sess_owner_t1_nep94121",
+    2: "sess_family_t2_member_a",
+    3: "sess_guest_t3_visitor_c",
+}
+_ROLE_TO_SESSION = {
+    "tuan_anh": "sess_owner_t1_nep94121",
+    "thanh_vien_a": "sess_family_t2_member_a",
+    "khach_c": "sess_guest_t3_visitor_c",
+}
+
+
+def _session_for(*, level: int = 1, role: str | None = None) -> UserSession:
+    sid = _ROLE_TO_SESSION.get(str(role or "").strip().lower()) or _LEVEL_TO_SESSION.get(
+        int(level), "sess_owner_t1_nep94121"
+    )
+    store = get_session_store()
+    sess = store.get_session(sid)
+    if sess is not None:
+        return sess
+    tier_map = {
+        "sess_owner_t1_nep94121": ("tuan_anh", "nep94121@gmail.com", 1, "ADMIN", "Chủ nhà"),
+        "sess_family_t2_member_a": ("thanh_vien_a", "thanhvien.a@gmail.com", 2, "MEMBER", "Thành viên A"),
+        "sess_guest_t3_visitor_c": ("khach_c", "khach.c@gmail.com", 3, "CHILD_GUEST", "Khách C"),
+    }
+    uid, email, tier, r_name, d_name = tier_map[sid]
+    return store.create_session(
+        user_id=uid,
+        email=email,
+        tier=tier,
+        role=r_name,
+        display_name=d_name,
+        session_id=sid,
+        source="seed",
+    )
+
+
+def _headers_for(*, level: int = 1, role: str | None = None) -> dict[str, str]:
+    sess = _session_for(level=level, role=role)
+    return {"X-Session-Token": sess.session_id}
 
 
 def _wav_b64(path: pathlib.Path) -> str:
@@ -376,13 +419,14 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     instance_reader = SmartHomeEngine(state_backend=shared_backend)
 
     # 1. Owner cau_5: Bật quạt trần và điều hòa trên instance_cmd_1 -> Đọc trên instance_reader
-    res_cau5 = asyncio.run(
-        process_voice_command_pipeline(
-            {"wav_b64": _wav_b64(SEP_DIR / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav")},
+    res_cau5, status_cau5 = asyncio.run(
+        process_session_voice_command(
             engine=instance_cmd_1,
-            voice_auth=api_deps._BOOT_VOICE_AUTH,
+            session=_session_for(level=1),
+            payload={"wav_b64": _wav_b64(SEP_DIR / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav")},
         )
     )
+    assert status_cau5 == 200
     assert res_cau5["authorized"] is True
     assert res_cau5["permission"] == "ALLOWED"
     state_after_cau5 = _devices_map_from_snapshot(instance_reader.get_snapshot())
@@ -394,13 +438,14 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert _devices_map_from_snapshot(instance_reader.get_snapshot())["living_room_light"] == "OFF"
 
     # 2. Level 2: Bật đèn phòng khách trên instance_cmd_2 -> Đọc trên instance_reader
-    res_l2 = asyncio.run(
-        process_voice_command_pipeline(
-            {"wav_b64": _wav_b64(ROLE_DIR / "level2_bat_den_phong_khach.wav")},
+    res_l2, status_l2 = asyncio.run(
+        process_session_voice_command(
             engine=instance_cmd_2,
-            voice_auth=api_deps._BOOT_VOICE_AUTH,
+            session=_session_for(level=2),
+            payload={"wav_b64": _wav_b64(ROLE_DIR / "level2_bat_den_phong_khach.wav")},
         )
     )
+    assert status_l2 == 200
     assert res_l2["authorized"] is True
     assert res_l2["permission"] == "ALLOWED"
     state_after_l2 = _devices_map_from_snapshot(instance_reader.get_snapshot())
@@ -414,13 +459,14 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert _devices_map_from_snapshot(instance_cmd_3.get_snapshot())["living_room_light"] == "OFF"
 
     # 3. Level 3: Bật đèn phòng khách trên instance_cmd_3 -> Đọc trên instance newly spawned (cold start)
-    res_l3 = asyncio.run(
-        process_voice_command_pipeline(
-            {"wav_b64": _wav_b64(ROLE_DIR / "level3_bat_den_phong_khach.wav")},
+    res_l3, status_l3 = asyncio.run(
+        process_session_voice_command(
             engine=instance_cmd_3,
-            voice_auth=api_deps._BOOT_VOICE_AUTH,
+            session=_session_for(level=3),
+            payload={"wav_b64": _wav_b64(ROLE_DIR / "level3_bat_den_phong_khach.wav")},
         )
     )
+    assert status_l3 == 200
     assert res_l3["authorized"] is True
     assert res_l3["permission"] == "ALLOWED"
 
@@ -521,17 +567,23 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
             resp = client.post(
                 "/api/voice_command",
                 json={"wav_b64": _wav_b64(c["wav"])},
+                headers=_headers_for(level=c["level"]),
             )
-            assert resp.status_code == 200, f"Cycle {idx} voice HTTP status != 200"
             body = resp.json()
             if c["type"] == "voice":
+                assert resp.status_code == 200, f"Cycle {idx} voice HTTP status != 200: {resp.text}"
                 assert body["authorized"] is True, f"Cycle {idx} unauthorized: {body}"
                 assert body["permission"] == "ALLOWED", f"Cycle {idx} permission != ALLOWED: {body}"
             else:
+                assert resp.status_code == 403, f"Cycle {idx} denied HTTP status != 403: {resp.text}"
                 assert body["permission"] == "DENIED", f"Cycle {idx} expected DENIED: {body}"
         elif c["type"] == "text":
             cmd_eng.set_active_user(c["role"])
-            resp = client.post("/api/text_command", json={"text": c["text"]})
+            resp = client.post(
+                "/api/text_command",
+                json={"text": c["text"]},
+                headers=_headers_for(role=c["role"]),
+            )
             assert resp.status_code == 200, f"Cycle {idx} text HTTP status != 200"
             assert resp.json()["ok"] is True
         elif c["type"] == "device":
@@ -539,13 +591,14 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
             resp = client.post(
                 "/api/device",
                 json={"device_id": c["device_id"], "action": c["action"]},
+                headers=_headers_for(role=c["role"]),
             )
             assert resp.status_code == 200, f"Cycle {idx} device HTTP status != 200"
             assert resp.json()["ok"] is True
 
         # Và bước ĐỌC trạng thái ngay sau đó chạy trên 1 serverless instance MỚI KHÁC (Cold-start reader)
         _swap_to_fresh_serverless_instance()
-        state_resp = client.get("/api/state")
+        state_resp = client.get("/api/state", headers=_headers_for(level=1))
         assert state_resp.status_code == 200
         dev_map = _devices_map_from_snapshot(state_resp.json())
         for exp_dev, exp_state in c["expect"].items():
@@ -707,6 +760,7 @@ def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
     resp_owner = client.post(
         "/api/voice_command",
         json={"wav_b64": _wav_b64(SEP_DIR / "cau_3_dong_cua_chinh.wav")},
+        headers=_headers_for(level=1),
     )
     assert resp_owner.status_code == 200, f"Owner command failed with status {resp_owner.status_code}: {resp_owner.text}"
     body_owner = resp_owner.json()
@@ -719,12 +773,13 @@ def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
     assert suspended_backend._cached_state["devices"]["main_door"]["state"] == "CLOSED"
     assert suspended_backend.fallback_backend.load_state()["devices"]["main_door"]["state"] == "CLOSED"
 
-    # 2. Thành viên Cấp 2 cố mở cửa chính -> RBAC DENIED, cửa vẫn đóng (Không bypass RBAC)
+    # 2. Thành viên Cấp 2 cố mở cửa chính -> RBAC DENIED (HTTP 403), cửa vẫn đóng (Không bypass RBAC)
     resp_l2 = client.post(
         "/api/voice_command",
         json={"wav_b64": _wav_b64(ROLE_DIR / "level2_mo_cua_chinh.wav")},
+        headers=_headers_for(level=2),
     )
-    assert resp_l2.status_code == 200
+    assert resp_l2.status_code == 403
     body_l2 = resp_l2.json()
     assert body_l2["permission"] == "DENIED"
     assert test_engine.devices["main_door"]["state"] == "CLOSED"

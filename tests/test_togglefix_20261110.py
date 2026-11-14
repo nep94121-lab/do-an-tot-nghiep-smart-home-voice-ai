@@ -587,7 +587,7 @@ def _wait_for_server(base_url: str, timeout_s: float = 20.0) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(f"{base_url}/api/state", timeout=2.0) as resp:
+            with urllib.request.urlopen(f"{base_url}/api/version", timeout=2.0) as resp:
                 if resp.status == 200:
                     return
         except Exception:
@@ -1043,8 +1043,13 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
                 return
             if "/api/device" in request.url and request.method == "POST":
                 if force_stale_reject:
+                    snap_req = urllib.request.Request(
+                        f"{base_url}/api/state",
+                        headers={"X-Session-Token": token},
+                        method="GET",
+                    )
                     snap_now = json.loads(
-                        urllib.request.urlopen(f"{base_url}/api/state", timeout=5).read().decode("utf-8")
+                        urllib.request.urlopen(snap_req, timeout=5).read().decode("utf-8")
                     )
                     await route.fulfill(
                         status=200,

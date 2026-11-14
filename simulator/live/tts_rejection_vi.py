@@ -99,11 +99,12 @@ def _wrap_pcm24k_to_wav(pcm24k: bytes) -> bytes:
 
 def _load_bundled_aoede_pcm24k(phrase: str) -> bytes:
     """Đọc bản thu âm chuẩn 24kHz của giọng Aoede (gemini-3.8-live) lưu trong simulator/data/."""
-    wav_file = (
-        _AOEDE_REPEAT_WAV_FILE
-        if phrase == FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-        else _AOEDE_REJECTION_WAV_FILE
-    )
+    if phrase == FIXED_SAFE_DENY_REPEAT_PHRASE_VI:
+        wav_file = _AOEDE_REPEAT_WAV_FILE
+    elif phrase == FIXED_REJECTION_PHRASE_VI:
+        wav_file = _AOEDE_REJECTION_WAV_FILE
+    else:
+        return b""
     if wav_file.exists():
         raw = wav_file.read_bytes()
         with wave.open(io.BytesIO(raw), "rb") as wf:
@@ -167,11 +168,8 @@ async def synthesize_aoede_phrase_audio(
     phrase: str, *, allow_live_refresh: bool = True
 ) -> dict[str, Any]:
     """Trả về gói âm thanh PCM16 24kHz & WAV chuẩn của duy nhất giọng Aoede (Gemini Live)."""
-    target_phrase = (
-        FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-        if (phrase or "").strip() == FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-        else FIXED_REJECTION_PHRASE_VI
-    )
+    clean_phrase = (phrase or "").strip()
+    target_phrase = clean_phrase or FIXED_REJECTION_PHRASE_VI
     pcm24k = _LIVE_AOEDE_SESSION_CACHE.get(target_phrase, b"")
 
     is_offline = (
@@ -187,7 +185,7 @@ async def synthesize_aoede_phrase_audio(
             live_pcm = await asyncio.wait_for(
                 _fetch_live_aoede_pcm24k(target_phrase, api_key), timeout=5.5
             )
-            if len(live_pcm) >= SAMPLE_RATE * 2:
+            if len(live_pcm) >= 2400:
                 pcm24k = live_pcm
                 _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
         except Exception:
@@ -195,12 +193,15 @@ async def synthesize_aoede_phrase_audio(
 
     if not pcm24k:
         pcm24k = _load_bundled_aoede_pcm24k(target_phrase)
-        if pcm24k:
+        if pcm24k and target_phrase in (
+            FIXED_REJECTION_PHRASE_VI,
+            FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+        ):
             _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
 
-    wav24k = _wrap_pcm24k_to_wav(pcm24k)
-    pcm_b64 = base64.b64encode(pcm24k).decode("ascii")
-    wav_b64 = base64.b64encode(wav24k).decode("ascii")
+    wav24k = _wrap_pcm24k_to_wav(pcm24k) if pcm24k else b""
+    pcm_b64 = base64.b64encode(pcm24k).decode("ascii") if pcm24k else ""
+    wav_b64 = base64.b64encode(wav24k).decode("ascii") if wav24k else ""
     return {
         "pcm24k_bytes": pcm24k,
         "wav24k_bytes": wav24k,

@@ -997,6 +997,8 @@ class ThreeLayerAuthManager(
         send_gmail: bool = True,
         client_ip: str = "unknown",
         app: Any = None,
+        trusted_device_token: str | None = None,
+        user_agent: str = "",
     ) -> dict[str, Any]:
         """Lớp 1: Kiểm tra Email/Mật khẩu + rate limit -> Kiểm tra Quyền -> Yêu cầu Lớp 2 OTP cho Cấp 1."""
         self._purge_throwaway_qa_accounts()
@@ -1146,6 +1148,46 @@ class ThreeLayerAuthManager(
 
         acc_email_key = str(acc.get("email") or clean_email).strip().lower()
         if is_owner_acc:
+            if trusted_device_token:
+                from simulator.auth.session_store import verify_trusted_device_token
+
+                if verify_trusted_device_token(
+                    trusted_device_token,
+                    expected_account_id=str(acc.get("account_id") or OWNER_ID),
+                    expected_email=str(acc.get("email") or acc_email_key),
+                    expected_password_hash=stored_hash,
+                    expected_user_agent=user_agent,
+                ):
+                    self._clear_login_failures(clean_email, client_ip, account_id=exact_acc_id)
+                    invite_bundle = self.get_invite_links_for_account(acc["email"])
+                    self._log_event(
+                        layer="Lớp 1 + Thiết bị tin cậy",
+                        action="layer1_trusted_device_login_success",
+                        email=acc["email"],
+                        status="PASS",
+                        detail=f"Đăng nhập Chủ nhà qua thiết bị tin cậy 30 ngày ({source}).",
+                        source=source,
+                        extra={"tier": acc["tier"], "trusted_device": True},
+                    )
+                    return {
+                        "ok": True,
+                        "layer": 1,
+                        "otp_required": False,
+                        "authenticated": True,
+                        "trusted_device": True,
+                        "account": {
+                            "account_id": acc["account_id"],
+                            "email": acc["email"],
+                            "display_name": acc["display_name"],
+                            "tier": acc["tier"],
+                            "role_label": acc["role_label"],
+                            "permission_active": acc.get("permission_active", True),
+                            "permission_status": acc.get("permission_status", "ACTIVE"),
+                        },
+                        "tier": acc["tier"],
+                        "invite_links_bundle": invite_bundle,
+                        "message": f"✅ Đăng nhập thành công trên thiết bị tin cậy ({acc['role_label']}).",
+                    }
             otp_code = f"{random.randint(100000, 999999)}"
             now = time.time()
             otp_salt, otp_hash = self._hash_otp_code(otp_code)

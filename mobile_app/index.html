@@ -56,8 +56,9 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-top:2px;">
           <button type="button" id="btnMobileForgotPassword" class="text-link" onclick="openForgotPassword()" style="font-size:12px;">Quên mật khẩu?</button>
+          <a href="/guest_guide" id="mobileGateGuestGuideLink" class="text-link" style="font-size:12px; text-decoration:none;">Hướng dẫn Khách</a>
           <a href="/register" class="text-link" style="font-size:12px; text-decoration:none;">Đăng ký</a>
         </div>
         <div id="mobileLoginMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
@@ -198,7 +199,7 @@
       <div id="mobileHomeVoiceBanner" class="card" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;"></div>
       <div class="btn-row" id="mobileHomeQuickDevices" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
         <button type="button" class="btn secondary toggle" id="mobileQuickBtnLight" data-device="living_room_light" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('living_room_light', this)">Đèn phòng khách</button>
-        <button type="button" class="btn secondary toggle" id="mobileQuickBtnFan" data-device="fan" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('fan', this)">Quạt</button>
+        <button type="button" class="btn secondary toggle" id="mobileQuickBtnFan" data-device="fan" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('fan', this)">Quạt trần</button>
         <button type="button" class="btn secondary toggle" id="mobileQuickBtnDoor" data-device="main_door" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('main_door', this)">Cửa chính</button>
       </div>
 
@@ -281,6 +282,7 @@
         </div>
         <div class="filter-pills" id="roomFilterPills">
           <button type="button" class="pill active" onclick="filterDevicesByRoom('all', this)">Tất cả</button>
+          <button type="button" class="pill" onclick="filterDevicesByRoom('Toàn nhà', this)">Toàn nhà</button>
           <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng khách', this)">Phòng khách</button>
           <button type="button" class="pill" onclick="filterDevicesByRoom('Phòng ngủ', this)">Phòng ngủ</button>
           <button type="button" class="pill" onclick="filterDevicesByRoom('Lối vào', this)">Lối vào</button>
@@ -301,7 +303,7 @@
             <option value="Đèn phòng khách">Đèn phòng khách</option>
             <option value="Quạt trần">Quạt trần</option>
             <option value="Điều hòa">Điều hòa</option>
-            <option value="Tưới cây">Tưới cây</option>
+            <option value="Máy bơm tưới cây">Máy bơm tưới cây</option>
           </select>
           <select id="pwaSchedAction">
             <option value="Bật">Bật</option>

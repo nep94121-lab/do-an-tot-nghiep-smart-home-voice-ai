@@ -66,8 +66,23 @@
       const adminSummary = document.getElementById('logsAdminSummary');
       const adminPanel = document.getElementById('logsAdminPanel');
       const adminHint = document.getElementById('logsAdminHint');
+      const headerActions = document.getElementById('logsHeaderActions');
+      const adminShell = document.getElementById('logsAdminShell');
+      const accessGate = document.getElementById('logsAccessDeniedGate');
 
       if (!isLogsAdminAuthorized) {
+        if (headerActions) {
+          headerActions.hidden = true;
+          if (headerActions.style) headerActions.style.display = 'none';
+        }
+        if (adminShell) {
+          adminShell.hidden = true;
+          if (adminShell.style) adminShell.style.display = 'none';
+        }
+        if (accessGate) {
+          accessGate.hidden = false;
+          if (accessGate.style) accessGate.style.display = '';
+        }
         if (adminMenu) {
           adminMenu.open = false;
           adminMenu.className = 'menu is-disabled';
@@ -86,6 +101,18 @@
           adminSummary.setAttribute('aria-disabled', 'true');
         }
       } else {
+        if (headerActions) {
+          headerActions.hidden = false;
+          if (headerActions.style) headerActions.style.display = '';
+        }
+        if (adminShell) {
+          adminShell.hidden = false;
+          if (adminShell.style) adminShell.style.display = '';
+        }
+        if (accessGate) {
+          accessGate.hidden = true;
+          if (accessGate.style) accessGate.style.display = 'none';
+        }
         if (adminMenu) adminMenu.className = 'menu';
         if (adminPanel) {
           adminPanel.hidden = false;
@@ -176,6 +203,9 @@
     }
 
     function renderLogsPage() {
+      if (!isLogsAdminAuthorized) {
+        return false;
+      }
       const logTbody = document.getElementById('auditLogsTbody');
       const mobileCards = document.getElementById('mobileLogCards');
       if (!logTbody || !mobileCards) return;
@@ -253,8 +283,13 @@
     }
 
     function loadMoreLogs() {
+      if (!isLogsAdminAuthorized) {
+        showLogsActionStatus('Yêu cầu đăng nhập quyền Chủ nhà (Cấp 1) để xem thêm sự kiện.', true);
+        return false;
+      }
       currentPage = 999999;
       renderLogsPage();
+      return true;
     }
 
     async function loadDashboard() {
@@ -267,6 +302,8 @@
         setLogsAdminUiState(false);
         lastLoadedLogs = [];
         const errMsg = maskSensitiveLogText((data && data.error) || `Yêu cầu đăng nhập quyền Chủ nhà (HTTP ${res.status})`);
+        const gateMsg = document.getElementById('logsAccessDeniedMsg');
+        if (gateMsg) gateMsg.textContent = errMsg;
         const logTbody = document.getElementById('auditLogsTbody');
         const mobileCards = document.getElementById('mobileLogCards');
         if (logTbody) {

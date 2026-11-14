@@ -361,6 +361,7 @@ function runWebCase(apiPayload) {
   global.window = { localStorage: store, sessionStorage: store, location: { search: '' }, addEventListener: () => {} };
   global.location = { protocol: 'http:', host: 'localhost:8000', search: '' };
   global.WebSocket = class { addEventListener(){} send(){} close(){} };
+  global.BroadcastChannel = class { postMessage(){} close(){} addEventListener(){} };
   global.setInterval = () => 1;
   global.clearInterval = () => {};
   global.clearTimeout = () => {};
@@ -419,6 +420,7 @@ function runMobileCase(apiPayload) {
   global.window = { fetch: global.fetch, sessionStorage: sessStore, localStorage: sessStore, location: { search: '' }, addEventListener: () => {} };
   global.location = { protocol: 'http:', host: 'localhost:8000', search: '' };
   global.WebSocket = class { addEventListener(){} send(){} close(){} };
+  global.BroadcastChannel = class { postMessage(){} close(){} addEventListener(){} };
   global.setInterval = () => 1;
   global.clearInterval = () => {};
   global.clearTimeout = () => {};
@@ -535,7 +537,7 @@ def test_logout_endpoint_revokes_session_and_clears_httponly_cookie(monkeypatch,
         assert "sh_session_token=" in set_cookie_hdr
 
         after_state = client.get("/api/state")
-        assert after_state.status_code == 200
+        assert after_state.status_code == 401
         assert after_state.json()["authenticated"] is False
 
         replay = client.post(

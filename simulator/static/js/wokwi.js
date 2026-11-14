@@ -801,7 +801,13 @@
       if (wokwiPollInFlight) return;
       wokwiPollInFlight = true;
       try {
-        const r = await fetch('/api/state');
+        const r = await fetch('/api/state', { credentials: 'same-origin' });
+        if (r.status === 401 || r.status === 403) {
+          if (typeof window._stopWokwiHttpPolling === 'function') {
+            window._stopWokwiHttpPolling();
+          }
+          return;
+        }
         if (!r.ok) return;
         const snap = await r.json();
         syncWokwiComponents(snap);
@@ -1189,6 +1195,12 @@
       }
 
       let wokwiHttpPollTimer = null;
+      window._stopWokwiHttpPolling = () => {
+        if (wokwiHttpPollTimer) {
+          clearInterval(wokwiHttpPollTimer);
+          wokwiHttpPollTimer = null;
+        }
+      };
       const startWokwiHttpPolling = () => {
         const connDot = document.getElementById('wokwiConnDot');
         if (connDot) {

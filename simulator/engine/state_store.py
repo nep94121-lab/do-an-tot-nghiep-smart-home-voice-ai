@@ -163,15 +163,19 @@ class FileStateBackend:
                     return copy.deepcopy(self._cached_state)
             return None
 
-    def save_state(self, state: dict[str, Any]) -> dict[str, Any]:
+    def save_state(self, state: dict[str, Any], *, preserve_revision: bool = False) -> dict[str, Any]:
         with self._GLOBAL_LOCK, self._lock:
             snap = copy.deepcopy(state)
-            seq = max(int(snap.get("revision_seq", 0)), self._last_seq) + 1
-            ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0)), self._last_ts_ns + 1)
+            if preserve_revision and int(snap.get("revision_seq", 0)) > 0:
+                seq = int(snap["revision_seq"])
+                ts_ns = int(snap.get("revision_ts_ns") or time.time_ns())
+            else:
+                seq = max(int(snap.get("revision_seq", 0)), self._last_seq) + 1
+                ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0)), self._last_ts_ns + 1)
             snap["revision_seq"] = seq
             snap["revision_ts_ns"] = ts_ns
-            self._last_seq = seq
-            self._last_ts_ns = ts_ns
+            self._last_seq = max(self._last_seq, seq)
+            self._last_ts_ns = max(self._last_ts_ns, ts_ns)
             self._cached_state = copy.deepcopy(snap)
 
             payload_bytes = (json.dumps(snap, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -319,37 +323,90 @@ class VercelBlobStateBackend:
         except Exception:
             pass
 
+    def _select_newest_state(self, *candidates: dict[str, Any] | None) -> dict[str, Any] | None:
+        best: dict[str, Any] | None = None
+        best_key = (-1, -1)
+        for item in candidates:
+            if not isinstance(item, dict) or "devices" not in item:
+                continue
+            key = (int(item.get("revision_seq") or 0), int(item.get("revision_ts_ns") or 0))
+            if key > best_key:
+                best_key = key
+                best = item
+        return copy.deepcopy(best) if best is not None else None
+
+    def _load_durable_state(self) -> dict[str, Any] | None:
+        try:
+            from simulator.durable_store import load_durable_json
+
+            data = load_durable_json("shared_device_state.json", None)
+            if isinstance(data, dict):
+                by_prefix = data.get("by_prefix")
+                if isinstance(by_prefix, dict):
+                    scoped = by_prefix.get(self.prefix)
+                    if isinstance(scoped, dict) and "devices" in scoped:
+                        return scoped
+                if "devices" in data and self.prefix == "smarthome_shared_state_v1/":
+                    return data
+        except Exception:
+            pass
+        return None
+
+    def _save_durable_state(self, snap: dict[str, Any]) -> None:
+        try:
+            from simulator.durable_store import is_offline_sandbox_or_test, load_durable_json, save_durable_json
+
+            existing = load_durable_json("shared_device_state.json", {})
+            if not isinstance(existing, dict):
+                existing = {}
+            by_prefix = existing.get("by_prefix")
+            if not isinstance(by_prefix, dict):
+                by_prefix = {}
+            by_prefix[self.prefix] = copy.deepcopy(snap)
+            payload = {"by_prefix": by_prefix}
+            sync_cloud = not is_offline_sandbox_or_test()
+            save_durable_json("shared_device_state.json", payload, sync_cloud=sync_cloud)
+        except Exception:
+            pass
+
+    def _load_local_and_durable_best(self) -> dict[str, Any] | None:
+        fb_state = None
+        if self._fallback_backend is not None:
+            try:
+                fb_state = self._fallback_backend.load_state()
+            except Exception:
+                fb_state = None
+        durable_state = self._load_durable_state()
+        return self._select_newest_state(self._cached_state, fb_state, durable_state)
+
     def load_state(self) -> dict[str, Any] | None:
         with self._lock:
             try:
                 blobs = self._list_blobs()
             except Exception as exc:
-                logger.warning("Vercel Blob _list_blobs failed: %s; falling back to RAM cache / local file", exc)
-                if self._cached_state is not None:
-                    return copy.deepcopy(self._cached_state)
-                if self._fallback_backend is not None:
-                    try:
-                        fb = self._fallback_backend.load_state()
-                        if fb is not None:
-                            self._cached_state = copy.deepcopy(fb)
-                            self._last_seq = max(self._last_seq, int(fb.get("revision_seq", 0)))
-                            self._last_ts_ns = max(self._last_ts_ns, int(fb.get("revision_ts_ns", 0)))
-                            return copy.deepcopy(fb)
-                    except Exception:
-                        pass
-                return None
+                logger.warning("Vercel Blob _list_blobs failed: %s; falling back to RAM cache / local file / durable store", exc)
+                best = self._load_local_and_durable_best()
+                if best is not None:
+                    self._cached_state = copy.deepcopy(best)
+                    self._last_seq = max(self._last_seq, int(best.get("revision_seq", 0)))
+                    self._last_ts_ns = max(self._last_ts_ns, int(best.get("revision_ts_ns", 0)))
+                return best
 
             self._known_blobs = blobs
             if not blobs:
-                return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
+                return self._load_local_and_durable_best()
 
             latest = blobs[-1]
             latest_pathname = str(latest.get("pathname") or "")
             latest_url = str(latest.get("url") or latest.get("downloadUrl") or "")
             sort_ts_ns, sort_seq, _ = _extract_blob_sort_key(latest)
 
-            if self._cached_state is not None and self._last_seq > sort_seq:
-                return copy.deepcopy(self._cached_state)
+            local_best = self._load_local_and_durable_best()
+            if local_best is not None and int(local_best.get("revision_seq") or 0) > sort_seq:
+                self._cached_state = copy.deepcopy(local_best)
+                self._last_seq = max(self._last_seq, int(local_best.get("revision_seq", 0)))
+                self._last_ts_ns = max(self._last_ts_ns, int(local_best.get("revision_ts_ns", 0)))
+                return local_best
 
             self._last_ts_ns = max(self._last_ts_ns, sort_ts_ns)
             self._last_seq = max(self._last_seq, sort_seq)
@@ -358,14 +415,7 @@ class VercelBlobStateBackend:
                 return copy.deepcopy(self._cached_state)
 
             if not latest_url:
-                if self._cached_state is not None:
-                    return copy.deepcopy(self._cached_state)
-                if self._fallback_backend is not None:
-                    try:
-                        return self._fallback_backend.load_state()
-                    except Exception:
-                        pass
-                return None
+                return self._load_local_and_durable_best()
 
             try:
                 data = self._request_json(
@@ -379,21 +429,16 @@ class VercelBlobStateBackend:
                 if isinstance(data, dict) and "devices" in data:
                     self._cached_pathname = latest_pathname
                     self._cached_url = latest_url
-                    self._cached_state = copy.deepcopy(data)
-                    self._last_seq = max(self._last_seq, int(data.get("revision_seq", 0)), sort_seq)
-                    self._last_ts_ns = max(self._last_ts_ns, int(data.get("revision_ts_ns", 0)), sort_ts_ns)
-                    return copy.deepcopy(data)
+                    best = self._select_newest_state(data, local_best)
+                    if best is not None:
+                        self._cached_state = copy.deepcopy(best)
+                        self._last_seq = max(self._last_seq, int(best.get("revision_seq", 0)), sort_seq)
+                        self._last_ts_ns = max(self._last_ts_ns, int(best.get("revision_ts_ns", 0)), sort_ts_ns)
+                    return best if best is not None else copy.deepcopy(data)
             except Exception as exc:
                 logger.warning("Vercel Blob read latest blob failed: %s", exc)
 
-            if self._cached_state is not None:
-                return copy.deepcopy(self._cached_state)
-            if self._fallback_backend is not None:
-                try:
-                    return self._fallback_backend.load_state()
-                except Exception:
-                    pass
-            return None
+            return self._load_local_and_durable_best()
 
     def save_state(self, state: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -411,9 +456,12 @@ class VercelBlobStateBackend:
             # Save fallback snapshot to /tmp/smarthome_shared_device_state.json via local FileStateBackend
             if self._fallback_backend is not None:
                 try:
-                    self._fallback_backend.save_state(snap)
+                    self._fallback_backend.save_state(snap, preserve_revision=True)
                 except Exception as fb_exc:
                     logger.warning("Local fallback FileStateBackend.save_state failed: %s", fb_exc)
+
+            # Always preserve snapshot in durable store (Upstash KV / Memory / IMAP) scoped by prefix
+            self._save_durable_state(snap)
 
             nonce = secrets.token_hex(4)
             pathname = f"{self.prefix}st_{ts_ns:021d}_{seq:010d}_{nonce}.json"
@@ -477,6 +525,15 @@ class VercelBlobStateBackend:
                     self._fallback_backend.clear()
                 except Exception:
                     pass
+            try:
+                from simulator.durable_store import is_offline_sandbox_or_test, load_durable_json, save_durable_json
+
+                existing = load_durable_json("shared_device_state.json", {})
+                if isinstance(existing, dict) and isinstance(existing.get("by_prefix"), dict):
+                    existing["by_prefix"].pop(self.prefix, None)
+                    save_durable_json("shared_device_state.json", existing, sync_cloud=not is_offline_sandbox_or_test())
+            except Exception:
+                pass
 
 
 _DEFAULT_BACKEND: StateBackend | None = None

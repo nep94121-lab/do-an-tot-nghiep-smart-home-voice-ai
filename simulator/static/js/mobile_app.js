@@ -56,7 +56,7 @@
       bedroom_light: 'Phòng ngủ',
       ac: 'Phòng ngủ',
       fan: 'Phòng khách',
-      alarm_siren: 'Lối vào',
+      alarm_siren: 'Toàn nhà',
       garden_pump: 'Sân vườn'
     };
 
@@ -73,6 +73,48 @@
     const mobileDeviceControlState = {};
     let mobileLastRevisionSeq = 0;
     let mobilePollInFlight = false;
+    let _mobileSyncChannel = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        _mobileSyncChannel = new BroadcastChannel('smarthome_realtime_sync');
+        if (typeof _mobileSyncChannel.unref === 'function') _mobileSyncChannel.unref();
+        _mobileSyncChannel.onmessage = (ev) => {
+          const payload = ev && ev.data ? ev.data : null;
+          if (!payload || payload.type !== 'state_changed' || payload.origin === MOBILE_CLIENT_ID) return;
+          if (!mobileLoggedIn) return;
+          if (payload.snapshot && payload.snapshot.devices) {
+            renderState(payload.snapshot);
+          }
+          pollMobileSecurityAndTimers(true);
+        };
+      }
+    } catch (_) {
+      _mobileSyncChannel = null;
+    }
+    function publishMobileRealtimeSync(snapshot = null) {
+      try {
+        if (_mobileSyncChannel) {
+          _mobileSyncChannel.postMessage({
+            type: 'state_changed',
+            origin: MOBILE_CLIENT_ID,
+            ts: Date.now(),
+            snapshot: snapshot && snapshot.devices ? snapshot : null,
+          });
+        }
+      } catch (_) {}
+    }
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && mobileLoggedIn) {
+          pollMobileSecurityAndTimers(true);
+        }
+      });
+    }
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('focus', () => {
+        if (mobileLoggedIn) pollMobileSecurityAndTimers(true);
+      });
+    }
     if (typeof window !== 'undefined') {
       window.__mobileDeviceControlState = mobileDeviceControlState;
       window.__mobileClientId = MOBILE_CLIENT_ID;
@@ -342,6 +384,7 @@
       try {
         const res = await fetch('/api/auth3/layer2_verify_otp', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, otp_code: otpCode, purpose: 'layer2_login', source: 'Mobile App' }),
         });
@@ -483,6 +526,7 @@
       try {
         const res = await fetch('/api/auth3/layer1_login', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, login_method: 'password', source: 'Mobile App', send_gmail: false }),
         });
@@ -1153,6 +1197,7 @@
       try {
         const res = await fetch('/api/auth3/layer2_verify_otp', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: forgotEmail,
@@ -1943,6 +1988,9 @@
           applyMobileDeviceOptimisticUI(devId, finalState, btnEl);
           if (data && data.snapshot) {
             renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          } else {
+            publishMobileRealtimeSync(null);
           }
           addLog(`${dName}: ${isTargetOn ? 'Bật' : 'Tắt'}`, 'device', 'Thành công');
           return data;
@@ -2416,6 +2464,8 @@
     }
 
     function playMobilePcm24kOrSpeakVi(pcm24kB64, fallbackText) {
+      const ttsToggle = document.getElementById('ttsSpeakToggle');
+      if (ttsToggle && ttsToggle.checked === false) return;
       if (pcm24kB64) {
         try {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -2424,7 +2474,9 @@
               mobileOutAudioCtx = new AudioCtx({ sampleRate: 24000 });
             }
             if (mobileOutAudioCtx.state === 'suspended') {
-              mobileOutAudioCtx.resume();
+              try {
+                Promise.resolve(mobileOutAudioCtx.resume()).catch(() => {});
+              } catch (_) {}
             }
             const binaryStr = window.atob(pcm24kB64);
             const len = binaryStr.length;
@@ -2447,11 +2499,36 @@
             }
             source.start(mobileNextPlayTime);
             mobileNextPlayTime += audioBuffer.duration;
+            if (typeof window !== 'undefined') {
+              window.__aoedePlayedChunksCount = Number(window.__aoedePlayedChunksCount || 0) + 1;
+              window.__lastPlayedAoedeAudio = {
+                voice: 'Aoede',
+                sampleRate: 24000,
+                bytes: len,
+                text: String(fallbackText || ''),
+                ts: Date.now(),
+              };
+            }
             return;
           }
         } catch (_) {}
       }
-      // Chỉ phát âm thanh 24kHz PCM từ giọng Aoede của Gemini Live (không dùng browser TTS fallback)
+      const cleanPhrase = String(fallbackText || '').trim();
+      if (cleanPhrase && typeof fetch === 'function') {
+        fetch('/api/voice/aoede_phrase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phrase: cleanPhrase }),
+        })
+          .then((r) => (r && r.ok ? r.json() : null))
+          .then((d) => {
+            if (d && d.pcm24k_b64) {
+              playMobilePcm24kOrSpeakVi(d.pcm24k_b64, '');
+            }
+          })
+          .catch(() => {});
+      }
+      // Chỉ phát âm thanh 24kHz PCM từ giọng Aoede của Gemini Live (tuyệt đối không dùng browser speechSynthesis)
     }
 
     async function executeMobileVoiceCommandHttp(payload) {
@@ -2500,18 +2577,25 @@
             handleMobileUnauthorized(errReply);
           } else {
             showMobileActionError(errReply, false);
+            if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+              playMobilePcm24kOrSpeakVi(data.pcm24k_b64, errReply);
+            }
           }
           return Object.assign({ ok: false, authorized: false, _httpStatus: res.status, error: errReply }, data);
         }
         const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(saidText, replyText);
-        playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
+        if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
+        }
         if (badge) badge.textContent = 'Sẵn sàng';
         addLog(saidText, 'voice', 'Thành công');
         if (data.snapshot) {
           renderState(data.snapshot);
+          publishMobileRealtimeSync(data.snapshot);
         } else {
           await fetchInitial();
+          publishMobileRealtimeSync(null);
         }
         return data;
       } catch (err) {
@@ -2671,15 +2755,27 @@
             handleMobileUnauthorized(errReply);
           } else {
             showMobileActionError(errReply, false);
+            if (data.silent !== true && data.should_reply !== false) {
+              playMobilePcm24kOrSpeakVi(data.pcm24k_b64, errReply);
+            }
           }
           return Object.assign({ ok: false, _httpStatus: res.status, error: errReply }, data);
         }
         const reply = data.said || data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(text, reply);
+        if (data.silent !== true && data.should_reply !== false) {
+          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, reply);
+        }
         if (badge) badge.textContent = 'Sẵn sàng';
         addLog(text, 'voice', 'Thành công');
         showMobileActionError('');
-        fetchInitial().catch(() => {});
+        if (data.snapshot) {
+          renderState(data.snapshot);
+          publishMobileRealtimeSync(data.snapshot);
+        } else {
+          await fetchInitial();
+          publishMobileRealtimeSync(null);
+        }
         return data;
       } catch (err) {
         if (badge) badge.textContent = 'Thất bại';
@@ -2707,6 +2803,7 @@
         'Đèn phòng khách': 'living_room_light',
         'Quạt trần': 'fan',
         'Điều hòa': 'ac',
+        'Máy bơm tưới cây': 'garden_pump',
         'Tưới cây': 'garden_pump'
       };
       const mSec = t.match(/(\d+(?:\.\d+)?)/);
@@ -3116,24 +3213,28 @@
       if (btn) { btn.disabled = false; btn.textContent = 'Tạo lời mời QR'; }
     }
 
-    async function pollMobileSecurityAndTimers() {
+    async function pollMobileSecurityAndTimers(force = false) {
       if (!mobileLoggedIn) {
         updateMobileAuthUiState(false);
         return;
       }
-      if (mobilePollInFlight) return;
+      if (mobilePollInFlight && !force) return;
       mobilePollInFlight = true;
       try {
-        const r2 = await fetch('/api/state');
+        const r2 = await fetch('/api/state', { credentials: 'same-origin' });
+        if (r2.status === 401) {
+          handleMobileUnauthorized('Phiên đăng nhập đã hết hạn.');
+          return;
+        }
         const d2 = await r2.json().catch(() => ({}));
         let d1 = {};
         if (mobileLoggedIn && Number(mobileTier) === 1) {
           try {
-            const r1 = await fetch('/api/auth3/overview');
+            const r1 = await fetch('/api/auth3/overview', { credentials: 'same-origin' });
             if (r1.ok) d1 = await r1.json();
           } catch (_) {}
         }
-        if (d2 && d2.devices) {
+        if (r2.ok && d2 && d2.devices) {
           renderState(d2);
         }
         const stBadge = document.getElementById('mobileStrikeBadge');
@@ -3183,7 +3284,7 @@
       fetchInitial().catch(() => {});
       renderMobileHistory();
       if (!mobilePollIntervalId) {
-        mobilePollIntervalId = setInterval(pollMobileSecurityAndTimers, 2000);
+        mobilePollIntervalId = setInterval(() => pollMobileSecurityAndTimers(false), 1500);
       }
     }
 

@@ -306,13 +306,8 @@
 
   function playPcm24kChunk(base64Data) {
     if (chkPlayAiVoice && chkPlayAiVoice.checked === false) return;
+    if (!base64Data) return;
     try {
-      if (!audioCtxOut) {
-        audioCtxOut = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-      }
-      if (audioCtxOut.state === "suspended") {
-        audioCtxOut.resume();
-      }
       const binaryStr = atob(base64Data);
       const evenLen = binaryStr.length - (binaryStr.length % 2);
       if (evenLen <= 0) return;
@@ -323,6 +318,27 @@
       const float32Arr = new Float32Array(int16Arr.length);
       for (let i = 0; i < int16Arr.length; i++) {
         float32Arr[i] = int16Arr[i] / 32768.0;
+      }
+
+      if (typeof window !== "undefined") {
+        window.__aoedePlayedChunksCount = (window.__aoedePlayedChunksCount || 0) + 1;
+        window.__lastPlayedAoedeAudio = {
+          sampleRate: 24000,
+          frames: float32Arr.length,
+          voice: "Aoede",
+          ts: Date.now(),
+        };
+      }
+
+      if (!audioCtxOut && (window.AudioContext || window.webkitAudioContext)) {
+        audioCtxOut = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      }
+      if (!audioCtxOut) return;
+      if (audioCtxOut.state === "suspended" && typeof audioCtxOut.resume === "function") {
+        try {
+          const r = audioCtxOut.resume();
+          if (r && typeof r.catch === "function") r.catch(() => {});
+        } catch (_) {}
       }
 
       const audioBuffer = audioCtxOut.createBuffer(1, float32Arr.length, 24000);
@@ -422,6 +438,38 @@
   const deviceControlState = {};
   let lastServerRevisionSeq = 0;
   let pollStateInFlight = false;
+  let _realtimeSyncChannel = null;
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      _realtimeSyncChannel = new BroadcastChannel("smarthome_realtime_sync");
+      if (typeof _realtimeSyncChannel.unref === "function") _realtimeSyncChannel.unref();
+      _realtimeSyncChannel.onmessage = (ev) => {
+        const payload = ev && ev.data ? ev.data : null;
+        if (!payload || payload.type !== "state_changed" || payload.origin === CLIENT_ID) return;
+        if (!serverSessionConfirmed) return;
+        if (payload.snapshot && payload.snapshot.devices) {
+          applySnapshot(payload.snapshot);
+        }
+        pollRestStateFallback(true);
+      };
+    }
+  } catch (_) {
+    _realtimeSyncChannel = null;
+  }
+
+  function publishRealtimeSync(snapshot = null) {
+    try {
+      if (_realtimeSyncChannel) {
+        _realtimeSyncChannel.postMessage({
+          type: "state_changed",
+          origin: CLIENT_ID,
+          ts: Date.now(),
+          snapshot: snapshot && snapshot.devices ? snapshot : null,
+        });
+      }
+    } catch (_) {}
+  }
+
   if (typeof window !== "undefined") {
     window.__deviceControlState = deviceControlState;
     window.__clientId = CLIENT_ID;
@@ -588,8 +636,11 @@
           source: "MANUAL_UI",
         }),
       })
-        .then((r) => r.json())
-        .then((data) => {
+        .then(async (r) => {
+          const parsed = await r.json().catch(() => ({}));
+          return { httpStatus: Number(r.status || 200), httpOk: Boolean(r.ok), data: parsed };
+        })
+        .then(({ httpStatus, httpOk, data }) => {
           ctrl.httpPendingCount = Math.max(0, Number(ctrl.httpPendingCount || 0) - 1);
           recomputeDevicePendingCount(ctrl);
           // Ignore stale out-of-order response if a newer local click has occurred
@@ -646,15 +697,16 @@
             }
             return;
           }
-          if (data && (data.ok === false || data.error)) {
+          if (!httpOk || (data && (data.ok === false || data.error))) {
             rollbackIfLatest();
-            if (data.authenticated === false || (typeof isAuthDenialStatus === "function" && isAuthDenialStatus(0, data))) {
+            if (httpStatus === 401 || (data && data.authenticated === false)) {
               serverSessionConfirmed = false;
               if (typeof clearAuthState === "function") clearAuthState();
               if (typeof openLoginGateModal === "function") openLoginGateModal();
               if (typeof showGuestQrLoginPrompt === "function") showGuestQrLoginPrompt();
             }
-            if (data.error) setAiReplyText(data.error);
+            const errSpoken = (data && (data.exact_spoken_reply || data.rejection_speech || data.error)) || "";
+            if (errSpoken) setAiReplyText(errSpoken);
             return;
           }
           const finalState = String((data && data.state) || targetState).toUpperCase();
@@ -674,6 +726,9 @@
           syncDeviceDOMToState(devId, finalState);
           if (data && data.snapshot) {
             applySnapshot(data.snapshot);
+            publishRealtimeSync(data.snapshot);
+          } else {
+            publishRealtimeSync(null);
           }
         })
         .catch(() => {
@@ -1249,7 +1304,7 @@
       if (!res) throw lastFetchErr || new Error("fetch_failed");
       const data = await res.json().catch(() => ({}));
       voiceCommandEpoch += 1;
-      if (res.status === 401 || res.status === 403 || data.authenticated === false) {
+      if (res.status === 401 || data.authenticated === false) {
         serverSessionConfirmed = false;
         if (typeof clearAuthState === "function") clearAuthState();
         if (typeof openLoginGateModal === "function") openLoginGateModal();
@@ -1261,10 +1316,10 @@
       }
       const spokenReply = data.exact_spoken_reply || data.reply || data.rejection_speech || "";
       const isRepeatPhrase = /vui lòng nói lại|âm thanh chưa rõ/i.test(String(spokenReply || ""));
-      const allowSpeak = Boolean(spokenReply) && data.silent !== true && data.ask_repeat !== true && data.should_reply !== false && !isRepeatPhrase && data.no_reprompt !== true;
+      const allowSpeak = Boolean(spokenReply) && data.silent !== true && data.ask_repeat !== true && data.should_reply !== false && !isRepeatPhrase;
       if (allowSpeak) {
         setAiReplyText(spokenReply);
-      } else if (data.silent || data.no_reprompt) {
+      } else if (data.silent) {
         /* Im lặng: không phát TTS, không vòng nhắc nói lại. */
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
@@ -1276,8 +1331,10 @@
       }
       if (data.snapshot) {
         applySnapshot(data.snapshot);
+        publishRealtimeSync(data.snapshot);
       } else {
-        await pollRestStateFallback();
+        await pollRestStateFallback(true);
+        publishRealtimeSync(null);
       }
       logEvent(
         `🎙️ [Voice L${data.level || 1}] ${data.recognized_text || ""} -> ${data.intent || ""} (${data.permission || "ALLOWED"}, ${data.latency_ms || 0}ms)`,
@@ -1421,6 +1478,7 @@
   }
 
   function connectWebSocket() {
+    if (!serverSessionConfirmed) return;
     if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
       window._activeTransport = "HTTP Polling";
       updateConnectionUI(true, "HTTP Polling");
@@ -1576,6 +1634,7 @@
             }
             if (msg.snapshot) {
               applySnapshot(msg.snapshot);
+              publishRealtimeSync(msg.snapshot);
             }
           }
           break;
@@ -1789,14 +1848,26 @@
           dispatchDeviceSetState(devId, latestMeta.seq, latestMeta.targetState, latestMeta.ts);
         }
       });
-      fetch("/api/state")
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
+      if (!serverSessionConfirmed) {
+        window._serverConnected = false;
+        return;
+      }
+      fetch("/api/state", { credentials: "same-origin" })
+        .then((r) => {
+          if (r.status === 401) {
+            if (typeof clearAuthState === "function") clearAuthState();
+            if (typeof openLoginGateModal === "function") openLoginGateModal();
+            return Promise.reject({ unauth: true });
+          }
+          return r.ok ? r.json() : Promise.reject();
+        })
         .then((snap) => {
           updateConnectionUI(true, "HTTP Polling");
           applySnapshot(snap);
           hideWsReconnectBanner();
         })
-        .catch(() => {
+        .catch((err) => {
+          if (err && err.unauth) return;
           updateConnectionUI(false, "Mất kết nối");
           wsRetryCount = Math.min(WS_MAX_RETRIES, wsRetryCount + 1);
           showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
@@ -1814,13 +1885,22 @@
     window.renderDevices = renderDevices;
   }
 
-  function pollRestStateFallback() {
-    if (typeof ws !== "undefined" && ws && ws.readyState === 1) return;
+  function pollRestStateFallback(force = false) {
+    if (!serverSessionConfirmed) return;
+    if (!force && typeof ws !== "undefined" && ws && ws.readyState === 1) return;
     if (voiceCommandBusy || pollStateInFlight) return;
     const pollEpoch = voiceCommandEpoch;
     pollStateInFlight = true;
-    fetch("/api/state")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+    fetch("/api/state", { credentials: "same-origin" })
+      .then((r) => {
+        if (r.status === 401) {
+          pollStateInFlight = false;
+          if (typeof clearAuthState === "function") clearAuthState();
+          if (typeof openLoginGateModal === "function") openLoginGateModal();
+          return Promise.reject({ unauth: true });
+        }
+        return r.ok ? r.json() : Promise.reject();
+      })
       .then((snap) => {
         pollStateInFlight = false;
         if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
@@ -1830,13 +1910,26 @@
         applySnapshot(snap);
         hideWsReconnectBanner();
       })
-      .catch(() => {
+      .catch((err) => {
         pollStateInFlight = false;
+        if (err && err.unauth) return;
         if (voiceCommandBusy || pollEpoch !== voiceCommandEpoch) return;
         window._activeTransport = "Mất kết nối";
         updateConnectionUI(false, "Mất kết nối");
         showWsReconnectBanner(wsRetryCount, WS_MAX_RETRIES);
       });
+  }
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && serverSessionConfirmed) {
+        pollRestStateFallback(true);
+      }
+    });
+  }
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("focus", () => {
+      if (serverSessionConfirmed) pollRestStateFallback(true);
+    });
   }
 
   function sendWs(payload) {
@@ -2338,20 +2431,31 @@
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401 || res.status === 403 || data.authenticated === false) {
+      if (res.status === 401 || data.authenticated === false) {
         serverSessionConfirmed = false;
         if (typeof clearAuthState === "function") clearAuthState();
         if (typeof openLoginGateModal === "function") openLoginGateModal();
         setAiReplyText(data.error || "Vui lòng đăng nhập để điều khiển thiết bị.");
         return;
       }
-      setAiReplyText(data.exact_spoken_reply || data.reply || data.error || "Đã xử lý lệnh.");
+      const spokenReply = data.exact_spoken_reply || data.reply || data.error || "Đã xử lý lệnh.";
+      setAiReplyText(spokenReply);
+      const isRepeatPhrase = /vui lòng nói lại|âm thanh chưa rõ/i.test(String(spokenReply || ""));
+      if ((!chkPlayAiVoice || chkPlayAiVoice.checked !== false) && spokenReply && !isRepeatPhrase) {
+        if (data.pcm24k_b64) {
+          playPcm24kChunk(data.pcm24k_b64);
+        } else {
+          requestAoedeSpokenPhrase(spokenReply);
+        }
+      }
       if (data.snapshot) {
         applySnapshot(data.snapshot);
+        publishRealtimeSync(data.snapshot);
       } else {
-        await pollRestStateFallback();
+        await pollRestStateFallback(true);
+        publishRealtimeSync(null);
       }
-      logEvent(`💬 ${data.exact_spoken_reply || data.reply || cmd}`, data.ok === false ? "error" : "tool");
+      logEvent(`💬 ${spokenReply || cmd}`, data.ok === false ? "error" : "tool");
     } catch (_) {
       setAiReplyText("Không thể gửi lệnh tới máy chủ.");
     }
@@ -2618,10 +2722,84 @@
     }
   }
 
+  const homeAppShellEl = byId("homeAppShell");
+  let homeAppShellAnchor = null;
+  let home3dInitialized = false;
+
+  function ensureHome3dInitialized() {
+    if (home3dInitialized) return;
+    if (!byId("house3dViewport")) return;
+    if (typeof window !== "undefined" && window.SmartHome3D) {
+      home3dInitialized = true;
+      window.SmartHome3D.init("house3dViewport", "house3dLabels", toggleDeviceById);
+    }
+  }
+
+  function unmountOwnerDashboardDom() {
+    try {
+      const tEl = byId("tempVal");
+      if (tEl) tEl.textContent = "--°C";
+      const hEl = byId("humVal");
+      if (hEl) hEl.textContent = "--%";
+      const sEl = byId("soilVal");
+      if (sEl) sEl.textContent = "--%";
+      if (devicesGrid && devicesGrid !== noopEl) devicesGrid.innerHTML = "";
+      latestDevicesMap = {};
+      if (!homeAppShellEl) return;
+      homeAppShellEl.hidden = true;
+      if (typeof homeAppShellEl.setAttribute === "function") {
+        homeAppShellEl.setAttribute("hidden", "");
+      }
+      if (homeAppShellEl.parentNode && typeof homeAppShellEl.parentNode.removeChild === "function") {
+        if (
+          !homeAppShellAnchor &&
+          typeof document !== "undefined" &&
+          typeof document.createComment === "function" &&
+          typeof homeAppShellEl.parentNode.insertBefore === "function"
+        ) {
+          homeAppShellAnchor = document.createComment("homeAppShell-anchor");
+          homeAppShellEl.parentNode.insertBefore(homeAppShellAnchor, homeAppShellEl);
+        }
+        homeAppShellEl.parentNode.removeChild(homeAppShellEl);
+      }
+    } catch (_) {}
+  }
+
+  function mountOwnerDashboardDom() {
+    try {
+      if (homeAppShellEl) {
+        if (
+          !homeAppShellEl.parentNode &&
+          homeAppShellAnchor &&
+          homeAppShellAnchor.parentNode &&
+          typeof homeAppShellAnchor.parentNode.insertBefore === "function"
+        ) {
+          homeAppShellAnchor.parentNode.insertBefore(homeAppShellEl, homeAppShellAnchor);
+        }
+        homeAppShellEl.hidden = false;
+        if (typeof homeAppShellEl.removeAttribute === "function") {
+          homeAppShellEl.removeAttribute("hidden");
+        }
+      }
+      ensureHome3dInitialized();
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof Event === "function") {
+        window.dispatchEvent(new Event("resize"));
+      }
+    } catch (_) {}
+  }
+
+  function startAuthenticatedRealtimeFlows() {
+    mountOwnerDashboardDom();
+    loadVoiceSamples();
+    pollRestStateFallback(true);
+    connectWebSocket();
+  }
+
   function syncAuthFromSnapshot(snap) {
     if (!snap || typeof snap !== "object") return;
     if (snap.authenticated === true) {
       serverSessionConfirmed = true;
+      mountOwnerDashboardDom();
       const userObj = {
         email: snap.current_user_email || (inMemoryUserSession && inMemoryUserSession.email) || "",
         display_name: snap.current_user_name || (inMemoryUserSession && inMemoryUserSession.display_name) || "",
@@ -2642,6 +2820,7 @@
       }
       serverSessionConfirmed = false;
       setDeviceAreaLockdown(true);
+      unmountOwnerDashboardDom();
     }
   }
 
@@ -2677,12 +2856,23 @@
   function clearAuthState() {
     inMemoryUserSession = null;
     serverSessionConfirmed = false;
+    try {
+      if (typeof ws !== "undefined" && ws) {
+        try { ws.onclose = null; ws.close(); } catch (_) {}
+        ws = null;
+      }
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+    } catch (_) {}
     hideGateOtpPanel();
     if (forgotOtpCooldownTimer) {
       clearInterval(forgotOtpCooldownTimer);
       forgotOtpCooldownTimer = null;
     }
     setDeviceAreaLockdown(true);
+    unmountOwnerDashboardDom();
     try {
       if (window.localStorage) {
         window.localStorage.removeItem("smarthome_auth_session");
@@ -2852,6 +3042,9 @@
     } catch (_) {}
     if (userSession.session_token) setSessionCookies(userSession.session_token);
     serverSessionConfirmed = !!userSession.session_token;
+    if (serverSessionConfirmed) {
+      mountOwnerDashboardDom();
+    }
     applyLoggedInUserBanner(userSession);
     hideGateOtpPanel();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
@@ -2860,14 +3053,7 @@
     }
     closeLoginGateModal();
     if (serverSessionConfirmed) {
-      try {
-        fetch("/api/state", { credentials: "include" })
-          .then((r) => (r && r.ok ? r.json() : null))
-          .then((snap) => {
-            if (snap && typeof applySnapshot === "function") applySnapshot(snap);
-          })
-          .catch(() => {});
-      } catch (_) {}
+      startAuthenticatedRealtimeFlows();
       if (Number(userSession.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
         checkOwnerPinStatusIfOwner();
       }
@@ -2903,6 +3089,7 @@
     try {
       const res = await fetch("/api/auth3/layer1_login", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, login_method: "password", method: "password", send_gmail: false }),
       });
@@ -3037,6 +3224,7 @@
     try {
       const res = await fetch("/api/auth3/layer2_verify_otp", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp_code: otpCode, purpose: "layer2_login", source: "Web Home Login Gate" }),
       });
@@ -3141,11 +3329,13 @@
           } catch (_) {}
           setSessionCookies(userSession.session_token);
           serverSessionConfirmed = true;
+          mountOwnerDashboardDom();
           applyLoggedInUserBanner(userSession);
           if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
           if (gateStatusBox) {
             gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
           }
+          startAuthenticatedRealtimeFlows();
           setTimeout(closeLoginGateModal, 600);
         } else {
           serverSessionConfirmed = false;
@@ -3358,6 +3548,7 @@
         inMemoryUserSession = null;
         serverSessionConfirmed = false;
         setDeviceAreaLockdown(true);
+        unmountOwnerDashboardDom();
         if (homeCurrentAccountBadge) {
           homeCurrentAccountBadge.textContent = "Chưa đăng nhập";
         }
@@ -3369,6 +3560,7 @@
         return false;
       }
       serverSessionConfirmed = true;
+      mountOwnerDashboardDom();
       const userObj = {
         email: roleData.email || (inMemoryUserSession && inMemoryUserSession.email) || "",
         display_name: roleData.display_name || (inMemoryUserSession && inMemoryUserSession.display_name) || roleData.email || "",
@@ -3379,13 +3571,7 @@
       applyLoggedInUserBanner(userObj);
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
       if (!keepGateOpen) closeLoginGateModal();
-      try {
-        const res = await fetch("/api/state", { credentials: "include" });
-        const snap = await res.json().catch(() => ({}));
-        if (res.ok && snap && typeof applySnapshot === "function") {
-          applySnapshot(snap);
-        }
-      } catch (_) {}
+      startAuthenticatedRealtimeFlows();
       if (Number(userObj.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
         checkOwnerPinStatusIfOwner();
       }
@@ -3394,15 +3580,18 @@
       inMemoryUserSession = null;
       serverSessionConfirmed = false;
       setDeviceAreaLockdown(true);
+      unmountOwnerDashboardDom();
       openLoginGateModal();
       return false;
     }
   }
 
   try {
+    initCameraToolbar();
     const forceLoginModal = window.location && window.location.search && window.location.search.includes("login=1");
     serverSessionConfirmed = false;
     setDeviceAreaLockdown(true);
+    unmountOwnerDashboardDom();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
     if (!hasClientAuthHint() || forceLoginModal) {
       openLoginGateModal();
@@ -3410,6 +3599,7 @@
     confirmServerSessionFromApi(Boolean(forceLoginModal)).then((ok) => {
       if (!ok || forceLoginModal) {
         if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+        if (!ok) unmountOwnerDashboardDom();
         openLoginGateModal();
       } else if (btnCloseLoginGateModal) {
         btnCloseLoginGateModal.hidden = false;
@@ -3419,10 +3609,6 @@
     clearAuthState();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
     openLoginGateModal();
-  }
-
-  if (window.SmartHome3D) {
-    window.SmartHome3D.init("house3dViewport", "house3dLabels", toggleDeviceById);
   }
 
   // Gắn sự kiện chọn góc nhìn Camera 3D cho thanh nút preset
@@ -3739,10 +3925,12 @@
   window.updateConnectionUI = updateConnectionUI;
   window.connectWebSocket = connectWebSocket;
   window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
-  loadVoiceSamples();
-  pollRestStateFallback();
-  setInterval(pollRestStateFallback, 4000);
-  connectWebSocket();
+  setInterval(() => {
+    if (serverSessionConfirmed) pollRestStateFallback();
+  }, 1500);
+  if (serverSessionConfirmed) {
+    startAuthenticatedRealtimeFlows();
+  }
 
   // Service Worker Registration (Zero-Inline-Script Compliance)
   if (typeof window !== "undefined" && "serviceWorker" in navigator) {

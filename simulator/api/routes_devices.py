@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import base64
 import copy
+import hmac
+import os
 import re
 from typing import Any
 
@@ -145,6 +147,18 @@ def _parse_text_action(t_low: str) -> str | None:
     return None
 
 
+def _has_valid_hardware_key(request: Request) -> bool:
+    expected = str(os.environ.get("SMARTHOME_HARDWARE_API_KEY") or "").strip()
+    if not expected:
+        return False
+    provided = str(request.headers.get("x-hardware-key") or "").strip()
+    if not provided:
+        auth_h = str(request.headers.get("authorization") or "").strip()
+        if auth_h.lower().startswith("bearer "):
+            provided = auth_h[7:].strip()
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
 @router.get("/api/state")
 async def api_get_state(request: Request) -> JSONResponse:
     """Trả về snapshot trạng thái theo phiên người dùng đang xác thực (hoặc bản rút gọn thiết bị công khai nếu chưa đăng nhập)."""
@@ -165,8 +179,18 @@ async def api_get_state(request: Request) -> JSONResponse:
             headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
         )
     if not sess.is_authenticated:
+        if _has_valid_hardware_key(request):
+            return JSONResponse(
+                _REST_ENGINE.get_public_device_snapshot(),
+                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+            )
         return JSONResponse(
-            _REST_ENGINE.get_public_device_snapshot(),
+            {
+                "ok": False,
+                "authenticated": False,
+                "error": "Vui lòng đăng nhập để xem trạng thái thiết bị và cảm biến.",
+            },
+            status_code=401,
             headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
         )
     return JSONResponse(
@@ -767,6 +791,19 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
         )
         await broadcast_rest_state_to_bridges()
         spoken_dev = res_dev.get("exact_spoken_reply") or f"Đã xử lý lệnh: {text}"
+        aoede_fields_dev: dict[str, Any] = {}
+        if spoken_dev:
+            try:
+                from simulator.live.tts_rejection_vi import (
+                    build_aoede_http_audio_fields,
+                    synthesize_aoede_phrase_audio,
+                )
+
+                aoede_fields_dev = build_aoede_http_audio_fields(
+                    await synthesize_aoede_phrase_audio(spoken_dev)
+                )
+            except Exception:
+                aoede_fields_dev = {}
         status_code = 200 if (res_dev.get("ok") or session.source == "legacy_test") else 403
         return JSONResponse({
             "ok": bool(res_dev.get("ok")),
@@ -775,14 +812,31 @@ async def api_text_command(request: Request, payload: dict[str, Any] = Body(defa
             "reply": spoken_dev,
             "exact_spoken_reply": spoken_dev,
             "rejection_speech": spoken_dev if not res_dev.get("ok") else "",
+            "play_audio": bool(aoede_fields_dev.get("pcm24k_b64")),
+            **aoede_fields_dev,
             "results": res_dev.get("results", []),
             "snapshot": _REST_ENGINE.get_snapshot(session=session),
         }, status_code=status_code)
 
+    default_reply = f"Đã nhận lệnh: {text}"
+    aoede_fields_default: dict[str, Any] = {}
+    try:
+        from simulator.live.tts_rejection_vi import (
+            build_aoede_http_audio_fields,
+            synthesize_aoede_phrase_audio,
+        )
+
+        aoede_fields_default = build_aoede_http_audio_fields(
+            await synthesize_aoede_phrase_audio(default_reply)
+        )
+    except Exception:
+        aoede_fields_default = {}
     return JSONResponse({
         "ok": True,
-        "reply": f"Đã nhận lệnh: {text}",
-        "exact_spoken_reply": f"Đã nhận lệnh: {text}",
+        "reply": default_reply,
+        "exact_spoken_reply": default_reply,
+        "play_audio": bool(aoede_fields_default.get("pcm24k_b64")),
+        **aoede_fields_default,
         "snapshot": _REST_ENGINE.get_snapshot(session=session),
     })
 
@@ -801,7 +855,15 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
         payload=body,
         source=str(body.get("source") or "web_voice"),
     )
-    if "snapshot" not in result and hasattr(_REST_ENGINE, "get_snapshot") and session is not None:
+    if status != 401 and (result.get("ok") or result.get("executed")):
+        await broadcast_rest_state_to_bridges()
+    if (
+        status != 401
+        and "snapshot" not in result
+        and hasattr(_REST_ENGINE, "get_snapshot")
+        and session is not None
+        and getattr(session, "is_authenticated", False)
+    ):
         try:
             result["snapshot"] = _REST_ENGINE.get_snapshot(session=session)
         except Exception:
@@ -810,8 +872,8 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
 
 
 @router.post("/api/voice/aoede_phrase")
-async def api_voice_aoede_phrase(payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Trả về âm thanh 24kHz PCM/WAV của duy nhất giọng Aoede (Gemini Live) cho 2 câu cố định tiếng Việt."""
+async def api_voice_aoede_phrase(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Trả về âm thanh 24kHz PCM/WAV của duy nhất giọng Aoede (Gemini Live)."""
     from simulator.live.tts_rejection_vi import (
         FIXED_REJECTION_PHRASE_VI,
         FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
@@ -821,12 +883,24 @@ async def api_voice_aoede_phrase(payload: dict[str, Any] = Body(default={})) -> 
 
     body = payload if isinstance(payload, dict) else {}
     phrase = str(body.get("phrase") or body.get("text") or "").strip()
-    if phrase not in (FIXED_REJECTION_PHRASE_VI, FIXED_SAFE_DENY_REPEAT_PHRASE_VI):
+    session = resolve_request_session(request, payload=body, engine=None)
+    is_auth = session is not None and bool(getattr(session, "is_authenticated", False))
+    if not is_auth and phrase not in (FIXED_REJECTION_PHRASE_VI, FIXED_SAFE_DENY_REPEAT_PHRASE_VI):
         return JSONResponse(
             sanitize_api_payload(
                 {
                     "ok": False,
                     "error": "Chỉ hỗ trợ phát giọng Aoede cho 2 câu thoại từ chối / yêu cầu nói lại cố định!",
+                }
+            ),
+            status_code=400,
+        )
+    if not phrase or len(phrase) > 300:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "error": "Nội dung câu thoại phát giọng Aoede không hợp lệ.",
                 }
             ),
             status_code=400,

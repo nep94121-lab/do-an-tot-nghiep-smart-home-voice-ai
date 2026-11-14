@@ -316,12 +316,12 @@
         bottom: 0;
         left: 0;
         right: 0;
-        z-index: 50;
+        z-index: 450;
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         background: #ffffff;
         border-top: 1px solid var(--line);
-        padding: 7px 8px max(8px, env(safe-area-inset-bottom));
+        padding: 6px 4px max(8px, env(safe-area-inset-bottom));
         box-shadow: 0 -3px 16px rgba(31, 58, 62, 0.04);
       }
       .mobile-nav a {
@@ -335,6 +335,8 @@
         font-size: 10px;
         font-weight: 500;
         border-radius: 9px;
+        white-space: nowrap;
+        overflow: hidden;
       }
       .mobile-nav a.active {
         background: var(--accent-soft);

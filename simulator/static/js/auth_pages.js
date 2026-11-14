@@ -200,6 +200,7 @@
       try {
         const response = await fetch('/api/auth3/layer1_login', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -283,6 +284,7 @@
         try {
           const vResp = await fetch('/api/auth3/layer2_verify_otp', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: activeEmail,

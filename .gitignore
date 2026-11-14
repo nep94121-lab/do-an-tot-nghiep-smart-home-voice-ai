@@ -38,12 +38,18 @@ simulator/data/auth3_accounts_state.json
 simulator/data/login_rate_limit.json
 auth3_accounts_state.json
 login_rate_limit.json
+simulator/data/shared_device_state.json
+simulator/data/user_sessions.json
+
 
 .vercel
 simulator/data/auth3_accounts_state.json
 simulator/data/login_rate_limit.json
 auth3_accounts_state.json
 login_rate_limit.json
+simulator/data/shared_device_state.json
+simulator/data/user_sessions.json
+
 .env*
 
 .vercel
@@ -51,3 +57,6 @@ simulator/data/auth3_accounts_state.json
 simulator/data/login_rate_limit.json
 auth3_accounts_state.json
 login_rate_limit.json
+simulator/data/shared_device_state.json
+simulator/data/user_sessions.json
+

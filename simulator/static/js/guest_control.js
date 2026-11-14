@@ -113,6 +113,36 @@
       setMsg("Không gửi được lệnh.", "error");
     }
   }
+  var _guestAudioCtx = null;
+  function playGuestPcm24k(base64Data) {
+    if (!base64Data) return;
+    try {
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!_guestAudioCtx || _guestAudioCtx.state === "closed") {
+        _guestAudioCtx = new AudioCtx({ sampleRate: 24000 });
+      }
+      if (_guestAudioCtx.state === "suspended" && typeof _guestAudioCtx.resume === "function") {
+        _guestAudioCtx.resume().catch(function () {});
+      }
+      var bin = atob(base64Data);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      var n = Math.floor(bytes.byteLength / 2);
+      if (n <= 0) return;
+      var buf = _guestAudioCtx.createBuffer(1, n, 24000);
+      var ch = buf.getChannelData(0);
+      for (var j = 0; j < n; j++) {
+        ch[j] = view.getInt16(j * 2, true) / 32768.0;
+      }
+      var src = _guestAudioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(_guestAudioCtx.destination);
+      src.start();
+    } catch (_) {}
+  }
+
   async function sendVoiceCommand(transcript) {
     var text = String(transcript || "").trim();
     if (!text) {
@@ -130,6 +160,9 @@
       if (data && data.snapshot) snapshot = data.snapshot;
       if (data && data.ask_repeat) {
         /* Máy chủ không được phép phát vòng nhắc nói lại. */
+      }
+      if (data && data.pcm24k_b64 && data.play_audio !== false && !data.silent && !data.ask_repeat) {
+        playGuestPcm24k(data.pcm24k_b64);
       }
       if (!res.ok || data.ok === false) {
         setMsg(data.error || data.reply_text || "Lệnh không được phép hoặc không hiểu.", "error");

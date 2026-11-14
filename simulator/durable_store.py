@@ -60,6 +60,7 @@ TRACKED_STATE_FILES: tuple[str, ...] = (
     "family_email_allowlist.json",
     "custom_rules_overlay.json",
     "user_sessions.json",
+    "shared_device_state.json",
 )
 
 _STORE_LOCK = threading.RLock()

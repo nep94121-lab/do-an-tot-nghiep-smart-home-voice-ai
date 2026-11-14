@@ -188,37 +188,19 @@ def test_e2e_mobile_unauthenticated_home_shows_login_and_blocks_controls(live_se
             await page.wait_for_function(
                 """() => {
                     const modal = document.getElementById('homeLoginGateModal');
-                    const sec = document.getElementById('secDevices');
                     return !!(modal && !modal.classList.contains('hidden')
-                        && sec && sec.classList.contains('devices-logged-out')
-                        && document.body.classList.contains('dashboard-logged-out'));
+                        && document.body.classList.contains('dashboard-logged-out')
+                        && document.getElementById('homeAppShell') === null
+                        && document.getElementById('secDevices') === null
+                        && document.getElementById('ownerGuestQrMeta') === null);
                 }""",
                 timeout=15000,
             )
-            meta = await page.locator("#ownerGuestQrMeta").text_content()
-            assert meta is not None and "Hãy đăng nhập" in meta
-            card = page.locator("#dev-card-living_room_light")
-            if await card.count():
-                try:
-                    await card.click(timeout=2000, force=True)
-                except Exception:
-                    pass
-            pins = page.locator(".pin-3d")
-            if await pins.count():
-                try:
-                    await pins.first.click(timeout=2000, force=True)
-                except Exception:
-                    pass
-            gen = page.locator("#ownerGuestQrGenerateBtn")
-            if await gen.count():
-                try:
-                    await gen.click(timeout=2000, force=True)
-                except Exception:
-                    pass
-            await page.wait_for_timeout(800)
-            meta_after = await page.locator("#ownerGuestQrMeta").text_content()
-            assert meta_after is not None and "Hãy đăng nhập" in meta_after
-            assert "Không tạo được mã QR khách." not in (meta_after or "")
+            await page.wait_for_timeout(400)
+            assert await page.locator("#homeAppShell").count() == 0
+            assert await page.locator("#secDevices").count() == 0
+            assert await page.locator("#dev-card-living_room_light").count() == 0
+            assert await page.locator("#ownerGuestQrGenerateBtn").count() == 0
             assert posts == []
             visible_gate = await page.locator("#homeLoginGateModal").is_visible()
             assert visible_gate is True
@@ -249,15 +231,16 @@ def test_e2e_mobile_stale_localstorage_still_shows_login(live_server: str) -> No
             await page.wait_for_function(
                 """() => {
                     const modal = document.getElementById('homeLoginGateModal');
-                    const sec = document.getElementById('secDevices');
                     return !!(modal && !modal.classList.contains('hidden')
-                        && sec && sec.classList.contains('devices-logged-out'));
+                        && document.body.classList.contains('dashboard-logged-out')
+                        && document.getElementById('homeAppShell') === null
+                        && document.getElementById('secDevices') === null
+                        && document.getElementById('ownerGuestQrMeta') === null);
                 }""",
                 timeout=15000,
             )
-            meta = await page.locator("#ownerGuestQrMeta").text_content()
-            assert meta is not None and "Hãy đăng nhập" in meta
-            assert "Không tạo được mã QR khách." not in (meta or "")
+            assert await page.locator("#homeLoginGateModal").is_visible() is True
+            assert await page.locator("#homeAppShell").count() == 0
             await browser.close()
 
     asyncio.run(_run())

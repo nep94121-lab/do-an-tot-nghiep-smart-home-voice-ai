@@ -236,8 +236,8 @@ setTimeout(async () => {
 
 
 def test_first_page_voice_modal_and_record_button_node_vm():
-    """Kiểm tra mở modal #firstPageVoiceModal và kích hoạt nút #btnHoldRecordVoice trong app.js."""
-    node_script = """
+    """Kiểm tra luồng cổng đăng nhập #homeLoginGateModal, gắn/gỡ #homeAppShell và gửi lệnh #textCmdForm trong app.js."""
+    node_script = r"""
 const fs = require('fs');
 const vm = require('vm');
 
@@ -245,8 +245,9 @@ const jsCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
 
 class MockElement {
   constructor(tag, id = '') {
-    this.tagName = tag.toUpperCase();
+    this.tagName = String(tag || 'DIV').toUpperCase();
     this.id = id;
+    this.nodeType = tag === '#comment' ? 8 : 1;
     this.classList = {
       _classes: new Set(),
       add: (...cls) => cls.forEach(c => this.classList._classes.add(c)),
@@ -255,26 +256,81 @@ class MockElement {
       contains: (c) => this.classList._classes.has(c)
     };
     this.value = '';
+    this.checked = false;
+    this.disabled = false;
     this.textContent = '';
+    this.innerText = '';
     this.innerHTML = '';
     this.style = {};
     this.hidden = false;
     this.attrs = {};
+    this.dataset = {};
+    this.children = [];
+    this.childNodes = this.children;
+    this.parentNode = null;
+    this.nextSibling = null;
     this._listeners = {};
   }
-  setAttribute(k, v) { this.attrs[k] = v; }
-  getAttribute(k) { return this.attrs[k] || null; }
+  _unlink(node) {
+    if (!node || !node.parentNode) return;
+    const arr = node.parentNode.children;
+    const idx = arr.indexOf(node);
+    if (idx !== -1) arr.splice(idx, 1);
+    node.parentNode = null;
+  }
+  appendChild(node) {
+    this._unlink(node);
+    node.parentNode = this;
+    this.children.push(node);
+    return node;
+  }
+  insertBefore(node, refNode) {
+    this._unlink(node);
+    node.parentNode = this;
+    if (!refNode) {
+      this.children.push(node);
+      return node;
+    }
+    const idx = this.children.indexOf(refNode);
+    if (idx === -1) this.children.push(node);
+    else this.children.splice(idx, 0, node);
+    return node;
+  }
+  removeChild(node) {
+    const idx = this.children.indexOf(node);
+    if (idx !== -1) {
+      this.children.splice(idx, 1);
+      node.parentNode = null;
+    }
+    return node;
+  }
+  contains(node) {
+    if (node === this) return true;
+    return this.children.some(ch => typeof ch.contains === 'function' ? ch.contains(node) : ch === node);
+  }
+  setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'hidden') this.hidden = true; }
+  getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; }
+  removeAttribute(k) { delete this.attrs[k]; if (k === 'hidden') this.hidden = false; }
+  querySelector(sel) {
+    if (typeof sel === 'string' && sel.startsWith('#')) return getEl(sel.slice(1));
+    return null;
+  }
+  querySelectorAll() { return []; }
+  closest() { return null; }
+  focus() {}
+  reset() {}
   addEventListener(event, handler) {
     if (!this._listeners[event]) this._listeners[event] = [];
     this._listeners[event].push(handler);
   }
   trigger(event, e = {}) {
+    const ev = Object.assign({ preventDefault: () => {}, stopPropagation: () => {}, target: this }, e);
     if (this._listeners[event]) {
-      this._listeners[event].forEach(fn => fn(e));
+      this._listeners[event].forEach(fn => fn(ev));
     }
   }
   click() {
-    this.trigger('click', { preventDefault: () => {} });
+    this.trigger('click');
   }
 }
 
@@ -284,48 +340,124 @@ function getEl(id) {
   return elements[id];
 }
 
-// Pre-create modal elements
-const modal = getEl('firstPageVoiceModal');
-modal.classList.add('modal', 'hidden');
+const mockBody = getEl('__body__');
+const homeAppShell = getEl('homeAppShell');
+mockBody.appendChild(homeAppShell);
 
-const btnOpen = getEl('btnOpenFirstVoiceModal');
-const btnClose = getEl('btnCloseFirstVoiceModal');
-const btnCancel = getEl('btnCancelFirstVoiceModal');
-const btnRecord = getEl('btnHoldRecordVoice');
-const resultBox = getEl('firstVoiceResultBox');
-const emailInput = getEl('firstVoiceEmailInput');
-emailInput.value = 'nep94121@gmail.com';
+const gateModal = getEl('homeLoginGateModal');
+gateModal.classList.add('modal', 'hidden');
+mockBody.appendChild(gateModal);
+
+const gateEmailInput = getEl('gateLoginEmail');
+const gatePasswordInput = getEl('gateLoginPassword');
+const btnSubmitGateLogin = getEl('btnSubmitGateLogin');
+const textCmdForm = getEl('textCmdForm');
+const txtCommand = getEl('txtCommand');
 
 let fetchCalls = [];
+let authedSession = false;
+const storageMap = new Map();
+const mockStorage = {
+  getItem: (k) => (storageMap.has(k) ? storageMap.get(k) : null),
+  setItem: (k, v) => storageMap.set(k, String(v)),
+  removeItem: (k) => storageMap.delete(k),
+  clear: () => storageMap.clear(),
+};
+
 const mockWindow = {
-  location: { href: 'http://localhost:8088', search: '', protocol: 'http:', host: 'localhost:8088', pathname: '/' },
+  location: { href: 'http://localhost:8088/', search: '', protocol: 'http:', host: 'localhost:8088', pathname: '/', hash: '' },
   document: {
-    getElementById: (id) => getEl(id),
-    querySelector: (sel) => getEl(sel.replace('#', '')),
+    body: mockBody,
+    visibilityState: 'visible',
+    hidden: false,
+    getElementById: (id) => (Object.prototype.hasOwnProperty.call(elements, id) ? elements[id] : getEl(id)),
+    querySelector: (sel) => (typeof sel === 'string' && sel.startsWith('#') ? getEl(sel.slice(1)) : null),
     querySelectorAll: () => [],
     createElement: (tag) => new MockElement(tag),
+    createComment: (txt) => new MockElement('#comment', txt || ''),
     addEventListener: () => {}
   },
   addEventListener: () => {},
-  fetch: async (url, opts) => {
-    fetchCalls.push({ url, opts });
-    if (url === '/api/auth3/enroll_voice_sample') {
+  fetch: async (url, opts = {}) => {
+    fetchCalls.push({ url: String(url), opts });
+    if (String(url).startsWith('/api/auth3/session') || String(url).startsWith('/api/session/role')) {
       return {
         ok: true,
+        status: 200,
+        json: async () => authedSession
+          ? { ok: true, authenticated: true, user_id: 'tuan_anh', email: 'nep94121@gmail.com', tier: 1, role: 'OWNER', user_name: 'Chủ nhà', session_token: 'sess_owner_t1_nep94121' }
+          : { ok: true, authenticated: false, tier: 99, role: 'UNKNOWN' }
+      };
+    }
+    if (String(url) === '/api/auth3/layer1_login') {
+      authedSession = true;
+      return {
+        ok: true,
+        status: 200,
         json: async () => ({
           ok: true,
-          status: 'DA_DAT',
-          message: 'Đã lưu mẫu giọng thành công!'
+          trusted_device_skip_otp: true,
+          session_token: 'sess_owner_t1_nep94121',
+          user_id: 'tuan_anh',
+          email: 'nep94121@gmail.com',
+          tier: 1,
+          role: 'OWNER',
+          user_name: 'Chủ nhà'
         })
       };
     }
-    return { ok: true, json: async () => ({ ok: true, devices: {}, voice_samples: [] }) };
+    if (String(url).startsWith('/api/state')) {
+      if (!authedSession) {
+        return { ok: false, status: 401, json: async () => ({ ok: false, error: 'Unauthorized' }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          authenticated: true,
+          user_id: 'tuan_anh',
+          email: 'nep94121@gmail.com',
+          tier: 1,
+          auth_tier: 1,
+          role: 'OWNER',
+          user_name: 'Chủ nhà',
+          devices: [
+            { id: 'living_room_light', name: 'Đèn phòng khách', room: 'Phòng khách', state: 'OFF' }
+          ],
+          sensors: { temperature: 27, humidity: 65, soil_moisture: 55 },
+          server_connected: true
+        })
+      };
+    }
+    if (String(url) === '/api/text_command') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          reply: 'Đèn phòng khách đã bật.',
+          exact_spoken_reply: 'Đèn phòng khách đã bật.',
+          snapshot: { devices: [{ id: 'living_room_light', state: 'ON' }] }
+        })
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
   },
-  WebSocket: class { constructor() {} addEventListener() {} send() {} close() {} },
+  WebSocket: Object.assign(
+    class { constructor() { this.readyState = 3; } addEventListener() {} send() {} close() {} },
+    { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 }
+  ),
+  BroadcastChannel: class { constructor() {} addEventListener() {} postMessage() {} close() {} },
+  localStorage: mockStorage,
+  sessionStorage: mockStorage,
+  requestAnimationFrame: (cb) => setTimeout(cb, 0),
+  cancelAnimationFrame: (id) => clearTimeout(id),
   setTimeout: global.setTimeout,
   clearTimeout: global.clearTimeout,
   setInterval: () => 1,
   clearInterval: () => {},
+  confirm: () => true,
   navigator: {
     mediaDevices: {
       getUserMedia: async () => ({
@@ -334,7 +466,7 @@ const mockWindow = {
     }
   },
   AudioContext: class {
-    constructor() { this.state = 'running'; }
+    constructor() { this.state = 'running'; this.sampleRate = 24000; this.currentTime = 0; this.destination = {}; }
     createMediaStreamSource() { return { connect() {} }; }
     createScriptProcessor() {
       return {
@@ -343,10 +475,16 @@ const mockWindow = {
         set onaudioprocess(fn) {}
       };
     }
+    createBuffer() { return { copyToChannel() {}, duration: 0.1 }; }
+    createBufferSource() { return { connect() {}, start() {}, buffer: null, onended: null }; }
+    resume() { return Promise.resolve(); }
     close() {}
   },
+  atob: (s) => Buffer.from(s, 'base64').toString('binary'),
   btoa: (str) => Buffer.from(str, 'binary').toString('base64'),
-  performance: { now: () => Date.now() }
+  performance: { now: () => Date.now() },
+  AbortController: global.AbortController,
+  URLSearchParams: global.URLSearchParams,
 };
 mockWindow.window = mockWindow;
 mockWindow.globalThis = mockWindow;
@@ -356,47 +494,52 @@ vm.runInContext(jsCode, ctx);
 
 setTimeout(async () => {
   try {
-    // 1. Initial state: modal has 'hidden' class
-    if (!modal.classList.contains('hidden')) throw new Error('Modal should initially be hidden');
+    await new Promise(r => setTimeout(r, 40));
 
-    // 2. Click btnOpenFirstVoiceModal -> modal should NOT have 'hidden'
-    btnOpen.click();
-    if (modal.classList.contains('hidden')) throw new Error('Modal should be open after btnOpen click');
+    // 1. Trạng thái ẩn danh ban đầu: #homeAppShell đã bị gỡ khỏi DOM và cổng đăng nhập mở
+    if (mockBody.contains(homeAppShell)) {
+      throw new Error('homeAppShell should be unmounted from DOM when anonymous');
+    }
+    if (gateModal.classList.contains('hidden')) {
+      throw new Error('homeLoginGateModal should be visible when anonymous');
+    }
 
-    // 3. Click btnCloseFirstVoiceModal -> modal should have 'hidden'
-    btnClose.click();
-    if (!modal.classList.contains('hidden')) throw new Error('Modal should be hidden after btnClose click');
+    // 2. Đăng nhập qua gate (#gatePanelLogin -> /api/auth3/layer1_login)
+    gateEmailInput.value = 'nep94121@gmail.com';
+    gatePasswordInput.value = 'test-pass';
+    btnSubmitGateLogin.click();
+    await new Promise(r => setTimeout(r, 80));
 
-    // 4. Reopen and click btnCancelFirstVoiceModal -> modal should have 'hidden'
-    btnOpen.click();
-    btnCancel.click();
-    if (!modal.classList.contains('hidden')) throw new Error('Modal should be hidden after btnCancel click');
+    const loginCalls = fetchCalls.filter(c => c.url === '/api/auth3/layer1_login');
+    if (loginCalls.length < 1) {
+      throw new Error('POST /api/auth3/layer1_login was not called');
+    }
+    if (!mockBody.contains(homeAppShell)) {
+      throw new Error('homeAppShell should be mounted back into DOM after login');
+    }
+    if (!gateModal.classList.contains('hidden')) {
+      throw new Error('homeLoginGateModal should be hidden after login');
+    }
 
-    // 5. Reopen and click btnHoldRecordVoice
-    btnOpen.click();
-    btnRecord.click(); // Start recording
+    // 3. Gửi lệnh văn bản qua #textCmdForm -> POST /api/text_command
+    txtCommand.value = 'Bật đèn phòng khách';
+    textCmdForm.trigger('submit');
+    await new Promise(r => setTimeout(r, 60));
 
-    // Click again to finish recording and submit
-    await new Promise(r => setTimeout(r, 50));
-    btnRecord.click(); // Stop & submit
-
-    await new Promise(r => setTimeout(r, 100));
-    const enrollCalls = fetchCalls.filter(c => c.url === '/api/auth3/enroll_voice_sample');
-    if (enrollCalls.length < 1) throw new Error('POST /api/auth3/enroll_voice_sample was not called');
-    
-    const reqBody = JSON.parse(enrollCalls[0].opts.body);
-    if (!reqBody.email) throw new Error('Missing email in enroll payload');
-    if (!reqBody.audio_pcm_b64) throw new Error('Missing audio_pcm_b64 in enroll payload');
-    if (!reqBody.pcm16k_b64) throw new Error('Missing pcm16k_b64 in enroll payload');
-    if (!resultBox.textContent.includes('Đã lưu mẫu giọng thành công')) {
-      throw new Error('Result box was not updated with success message: ' + resultBox.textContent);
+    const cmdCalls = fetchCalls.filter(c => c.url === '/api/text_command');
+    if (cmdCalls.length < 1) {
+      throw new Error('POST /api/text_command was not called');
+    }
+    const reqBody = JSON.parse(cmdCalls[0].opts.body);
+    if (reqBody.text !== 'Bật đèn phòng khách') {
+      throw new Error('Unexpected text command payload: ' + JSON.stringify(reqBody));
     }
 
     process.stdout.write(JSON.stringify({ ok: true, payload_keys: Object.keys(reqBody) }));
   } catch (err) {
-    process.stdout.write(JSON.stringify({ ok: false, error: err.message }));
+    process.stdout.write(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }));
   }
-}, 50);
+}, 30);
 """
     proc = subprocess.run(
         ["node", "-e", node_script],
@@ -407,4 +550,4 @@ setTimeout(async () => {
     )
     assert proc.returncode == 0, f"Node process exited with code {proc.returncode}: {proc.stderr}"
     res = json.loads(proc.stdout)
-    assert res.get("ok") is True, f"Modal & record button test failed: {res.get('error')}"
+    assert res.get("ok") is True, f"Home gate & command VM test failed: {res.get('error')}"
