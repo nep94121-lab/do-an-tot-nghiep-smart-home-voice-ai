@@ -653,6 +653,81 @@ class TestP2_5AndP2_6PendingVsRevokedAndGmailCanonical:
         assert b_revoked.get("permission_status") == "REVOKED"
         assert "xóa cấp quyền" in b_revoked.get("error", "")
 
+    def test_family_allowlist_add_activates_pending_account_for_login_and_password_reset(
+        self, client: TestClient
+    ):
+        target_email = "pending.allowlist.20261114@gmail.com"
+        initial_pw = "PendingAllow#123"
+        reset_pw = "PendingReset#456"
+
+        reg = client.post(
+            "/api/auth3/register_or_set_password",
+            json={
+                "email": target_email,
+                "password": initial_pw,
+                "confirm_password": initial_pw,
+                "display_name": "Pending Allowlist Member",
+            },
+        )
+        assert reg.status_code == 200
+        assert reg.json().get("permission_status") == "PENDING"
+
+        r_pending = client.post(
+            "/api/auth3/layer1_login",
+            json={"email": target_email, "password": initial_pw, "send_gmail": False},
+        )
+        assert r_pending.status_code == 403
+        assert r_pending.json().get("permission_status") == "PENDING"
+
+        owner_hdr = {"X-Session-Token": "sess_owner_t1_nep94121"}
+        r_add = client.post(
+            "/api/auth3/family_allowlist/add",
+            headers=owner_hdr,
+            json={"target_email": target_email, "target_tier": 2},
+        )
+        assert r_add.status_code == 200, r_add.text
+        d_add = r_add.json()
+        assert d_add.get("ok") is True
+        assert d_add["account"].get("permission_active") is True
+        assert d_add["account"].get("permission_status") == "ACTIVE"
+        assert d_add["account"].get("tier") == 2
+
+        r_login = client.post(
+            "/api/auth3/layer1_login",
+            json={"email": target_email, "password": initial_pw, "send_gmail": False},
+        )
+        assert r_login.status_code == 200, r_login.text
+        d_login = r_login.json()
+        assert d_login.get("authenticated") is True
+        assert bool(d_login.get("session_token"))
+
+        r_otp = client.post(
+            "/api/auth3/forgot_password_send_otp",
+            json={"email": target_email, "send_gmail": False},
+        )
+        assert r_otp.status_code == 200, r_otp.text
+        mgr = get_auth_3layer_manager()
+        otp_code = mgr.pending_otps[target_email]["otp_code"]
+
+        r_rst = client.post(
+            "/api/auth3/forgot_password_reset",
+            json={
+                "email": target_email,
+                "otp_code": otp_code,
+                "new_password": reset_pw,
+                "confirm_password": reset_pw,
+            },
+        )
+        assert r_rst.status_code == 200, r_rst.text
+        assert r_rst.json().get("ok") is True
+
+        r_new_login = client.post(
+            "/api/auth3/layer1_login",
+            json={"email": target_email, "password": reset_pw, "send_gmail": False},
+        )
+        assert r_new_login.status_code == 200, r_new_login.text
+        assert r_new_login.json().get("authenticated") is True
+
     @pytest.mark.parametrize(
         "alias_email",
         [

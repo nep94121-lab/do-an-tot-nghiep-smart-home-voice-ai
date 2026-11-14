@@ -83,163 +83,185 @@ class AuthInviteGmailMixin:
         source: str = "Web/App",
     ) -> dict[str, Any]:
         """Thêm Email Gia Đình (Email Allowlist) theo phân quyền 3 tầng."""
-        actor = self.find_account(actor_id)
-        if not actor:
-            return {"ok": False, "error": f"Không tìm thấy tài khoản người thêm '{actor_id}'!", "status_code": 404}
+        def _mutate() -> dict[str, Any]:
+            actor = self.find_account(actor_id)
+            if not actor:
+                return {"ok": False, "error": f"Không tìm thấy tài khoản người thêm '{actor_id}'!", "status_code": 404}
 
-        actor_tier = int(actor.get("tier", 3))
-        target_tier = int(target_tier)
+            actor_tier = int(actor.get("tier", 3))
+            tier_int = int(target_tier)
 
-        if actor_tier != 1:
-            msg = "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền thêm thành viên hoặc cấp quyền!"
+            if actor_tier != 1:
+                msg = "Chỉ Chủ nhà Cấp 1 (Nguyễn Tuấn Anh) mới có quyền thêm thành viên hoặc cấp quyền!"
+                self._log_event(
+                    layer="Email Allowlist",
+                    action=f"add_email_blocked_tier{actor_tier}",
+                    email=actor["email"],
+                    status="FAIL",
+                    detail=f"Cấp {actor_tier} ({actor['display_name']}) cố thêm email {target_email} vào Cấp {tier_int} -> BỊ CHẶN.",
+                    source=source,
+                )
+                return {
+                    "ok": False,
+                    "status_code": 403,
+                    "rbac_blocked": True,
+                    "error": msg,
+                }
+
+            if not actor.get("permission_active", True):
+                return {
+                    "ok": False,
+                    "status_code": 403,
+                    "rbac_blocked": True,
+                    "error": f"🚫 Tài khoản {actor['display_name']} hiện đang bị thu hồi quyền, không thể thêm thành viên!",
+                }
+
+            if tier_int not in (2, 3):
+                msg = "Cấp 1 chỉ có quyền thêm Cấp 2 hoặc Cấp 3"
+                return {"ok": False, "status_code": 403, "rbac_blocked": True, "error": msg}
+
+            clean_email = target_email.strip().lower()
+            if not clean_email or "@" not in clean_email:
+                return {"ok": False, "error": "Địa chỉ email không hợp lệ!", "status_code": 400}
+
+            existing_acc = self.find_account(clean_email)
+            if existing_acc:
+                existing_tier = int(existing_acc.get("tier", 99))
+                if existing_tier == 1:
+                    msg = "Không thể hạ cấp hoặc thay đổi tài khoản Chủ nhà Cấp 1"
+                    self._log_event(
+                        layer="Email Allowlist",
+                        action="add_email_blocked_c1_override",
+                        email=actor["email"],
+                        status="FAIL",
+                        detail=f"Tài khoản {actor['display_name']} (Cấp {actor_tier}) cố thay đổi tài khoản Chủ nhà Cấp 1 ({clean_email}) -> BỊ CHẶN.",
+                        source=source,
+                    )
+                    return {"ok": False, "error": msg, "status_code": 403}
+                if actor_tier >= existing_tier:
+                    msg = "Không có quyền sửa đổi tài khoản có cấp bậc cao hơn hoặc bằng"
+                    self._log_event(
+                        layer="Email Allowlist",
+                        action="add_email_blocked_privilege_escalation",
+                        email=actor["email"],
+                        status="FAIL",
+                        detail=f"Tài khoản {actor['display_name']} (Cấp {actor_tier}) không có quyền sửa đổi tài khoản {clean_email} (Cấp {existing_tier}) -> BỊ CHẶN.",
+                        source=source,
+                    )
+                    return {"ok": False, "error": msg, "status_code": 403}
+
+            previous_accounts = copy.deepcopy(self.accounts)
+            previous_allowlist = copy.deepcopy(self.family_email_allowlist)
+            role_lbl = "Người nhà (Tầng 2)" if tier_int == 2 else "Khách (Tầng 3)"
+            role_str = "MEMBER" if tier_int == 2 else "CHILD_GUEST"
+            tier_permissions = (
+                [
+                    "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
+                    "Không có quyền thêm thành viên hoặc gửi link mời",
+                    "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
+                ]
+                if tier_int == 2
+                else [
+                    "Chỉ bật/tắt đèn & quạt cơ bản",
+                    "Không có quyền thêm thành viên",
+                ]
+            )
+            allow_entry = {
+                "email": clean_email,
+                "target_tier": tier_int,
+                "target_role_label": role_lbl,
+                "added_by": actor["email"],
+                "added_by_name": actor["display_name"],
+                "added_by_tier": actor_tier,
+                "added_at": _now_vn(),
+            }
+            self.family_email_allowlist[clean_email] = allow_entry
+
+            clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())
+            reading_prompt = build_reading_prompt(clean_email.split("@")[0].replace(".", " ").title(), tier_int)
+            acc = self.find_account(clean_email)
+            if not acc:
+                acc = {
+                    "account_id": clean_id,
+                    "email": clean_email,
+                    "display_name": clean_email.split("@")[0].replace(".", " ").title(),
+                    "tier": tier_int,
+                    "saved_tier": tier_int,
+                    "role": role_str,
+                    "role_label": f"{role_lbl} - Thiết bị sinh hoạt" if tier_int == 2 else f"{role_lbl} được cấp quyền",
+                    "permission_active": True,
+                    "permission_status": "ACTIVE",
+                    "permission_label": f"CÓ QUYỀN (Tầng {tier_int})",
+                    "password_hash": "",
+                    "google_linked": True,
+                    "invited_by": f"{actor['display_name']} (Cấp {actor_tier})",
+                    "needs_first_page_voice_enroll": True,
+                    "voice_verified": False,
+                    "reading_prompt": reading_prompt,
+                    "voiceprint": {
+                        "enrolled": False,
+                        "f0_mean_hz": 0.0,
+                        "reading_prompt_verified": False,
+                        "source_device": "Chờ thu âm giọng chính",
+                        "updated_at": _now_vn(),
+                    },
+                    "permissions": tier_permissions,
+                }
+                self.accounts.append(acc)
+            else:
+                acc["tier"] = tier_int
+                acc["saved_tier"] = tier_int
+                acc["role"] = role_str
+                acc["role_label"] = f"{role_lbl} - Thiết bị sinh hoạt" if tier_int == 2 else f"{role_lbl} được cấp quyền"
+                acc["permission_active"] = True
+                acc["permission_status"] = "ACTIVE"
+                acc["permission_label"] = f"CÓ QUYỀN (Tầng {tier_int})"
+                acc.pop("revoked_at", None)
+                acc.pop("revoked_by", None)
+                acc["permissions"] = tier_permissions
+                acc["invited_by"] = f"{actor['display_name']} (Cấp {actor_tier})"
+                acc["needs_first_page_voice_enroll"] = True
+                acc["voice_verified"] = False
+                acc["reading_prompt"] = reading_prompt
+
+            if not self._save_accounts():
+                self.accounts[:] = previous_accounts
+                self.family_email_allowlist = previous_allowlist
+                return {
+                    "ok": False,
+                    "status_code": 503,
+                    "error": "Không lưu được danh sách tài khoản. Hãy thử lại sau.",
+                }
+            self._save_family_allowlist()
+
             self._log_event(
                 layer="Email Allowlist",
-                action=f"add_email_blocked_tier{actor_tier}",
-                email=actor["email"],
-                status="FAIL",
-                detail=f"Cấp {actor_tier} ({actor['display_name']}) cố thêm email {target_email} vào Cấp {target_tier} -> BỊ CHẶN.",
+                action="family_email_added",
+                email=clean_email,
+                status="PASS",
+                detail=f"{actor['display_name']} (Cấp {actor_tier}) đã thêm email {clean_email} vào {role_lbl}.",
                 source=source,
+                extra=allow_entry,
             )
+
             return {
-                "ok": False,
-                "status_code": 403,
-                "rbac_blocked": True,
-                "error": msg,
-            }
-
-        if not actor.get("permission_active", True):
-            return {
-                "ok": False,
-                "status_code": 403,
-                "rbac_blocked": True,
-                "error": f"🚫 Tài khoản {actor['display_name']} hiện đang bị thu hồi quyền, không thể thêm thành viên!",
-            }
-
-        if target_tier not in (2, 3):
-            msg = "Cấp 1 chỉ có quyền thêm Cấp 2 hoặc Cấp 3"
-            return {"ok": False, "status_code": 403, "rbac_blocked": True, "error": msg}
-
-        clean_email = target_email.strip().lower()
-        if not clean_email or "@" not in clean_email:
-            return {"ok": False, "error": "Địa chỉ email không hợp lệ!", "status_code": 400}
-
-        existing_acc = self.find_account(clean_email)
-        if existing_acc:
-            existing_tier = int(existing_acc.get("tier", 99))
-            if existing_tier == 1:
-                msg = "Không thể hạ cấp hoặc thay đổi tài khoản Chủ nhà Cấp 1"
-                self._log_event(
-                    layer="Email Allowlist",
-                    action="add_email_blocked_c1_override",
-                    email=actor["email"],
-                    status="FAIL",
-                    detail=f"Tài khoản {actor['display_name']} (Cấp {actor_tier}) cố thay đổi tài khoản Chủ nhà Cấp 1 ({clean_email}) -> BỊ CHẶN.",
-                    source=source,
-                )
-                return {"ok": False, "error": msg, "status_code": 403}
-            if actor_tier >= existing_tier:
-                msg = "Không có quyền sửa đổi tài khoản có cấp bậc cao hơn hoặc bằng"
-                self._log_event(
-                    layer="Email Allowlist",
-                    action="add_email_blocked_privilege_escalation",
-                    email=actor["email"],
-                    status="FAIL",
-                    detail=f"Tài khoản {actor['display_name']} (Cấp {actor_tier}) không có quyền sửa đổi tài khoản {clean_email} (Cấp {existing_tier}) -> BỊ CHẶN.",
-                    source=source,
-                )
-                return {"ok": False, "error": msg, "status_code": 403}
-
-        role_lbl = "Người nhà (Tầng 2)" if target_tier == 2 else "Khách (Tầng 3)"
-        role_str = "MEMBER" if target_tier == 2 else "CHILD_GUEST"
-        allow_entry = {
-            "email": clean_email,
-            "target_tier": target_tier,
-            "target_role_label": role_lbl,
-            "added_by": actor["email"],
-            "added_by_name": actor["display_name"],
-            "added_by_tier": actor_tier,
-            "added_at": _now_vn(),
-        }
-        self.family_email_allowlist[clean_email] = allow_entry
-        self._save_family_allowlist()
-
-        clean_id = re.sub(r"[^a-z0-9_]", "_", clean_email.split("@")[0].lower())
-        reading_prompt = build_reading_prompt(clean_email.split("@")[0].replace(".", " ").title(), target_tier)
-        acc = self.find_account(clean_email)
-        if not acc:
-            acc = {
-                "account_id": clean_id,
-                "email": clean_email,
-                "display_name": clean_email.split("@")[0].replace(".", " ").title(),
-                "tier": target_tier,
-                "saved_tier": target_tier,
-                "role": role_str,
-                "role_label": f"{role_lbl} - Thiết bị sinh hoạt" if target_tier == 2 else f"{role_lbl} được cấp quyền",
-                "permission_active": True,
-                "permission_status": "ACTIVE",
-                "permission_label": f"CÓ QUYỀN (Tầng {target_tier})",
-                "password_hash": "",
-                "google_linked": True,
-                "invited_by": f"{actor['display_name']} (Cấp {actor_tier})",
-                "needs_first_page_voice_enroll": True,
+                "ok": True,
+                "status_code": 200,
+                "target_email": clean_email,
+                "target_tier": tier_int,
+                "target_role_label": role_lbl,
+                "added_by": actor["email"],
                 "voice_verified": False,
-                "reading_prompt": reading_prompt,
-                "voiceprint": {
-                    "enrolled": False,
-                    "f0_mean_hz": 0.0,
-                    "reading_prompt_verified": False,
-                    "source_device": "Chờ thu âm giọng chính",
-                    "updated_at": _now_vn(),
-                },
-                "permissions": (
-                    [
-                        "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
-                        "Không có quyền thêm thành viên hoặc gửi link mời",
-                        "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
-                    ]
-                    if target_tier == 2
-                    else [
-                        "Chỉ bật/tắt đèn & quạt cơ bản",
-                        "Không có quyền thêm thành viên",
-                    ]
-                ),
+                "needs_first_page_voice_enroll": True,
+                "account": acc,
+                "entry": allow_entry,
+                "message": f"✅ Đã thêm email {clean_email} vào danh sách Cấp {tier_int} ({role_lbl}) thành công!",
             }
-            self.accounts.append(acc)
-        else:
-            acc["tier"] = target_tier
-            acc["saved_tier"] = target_tier
-            acc["role"] = role_str
-            acc["role_label"] = f"{role_lbl} - Thiết bị sinh hoạt" if target_tier == 2 else f"{role_lbl} được cấp quyền"
-            acc["invited_by"] = f"{actor['display_name']} (Cấp {actor_tier})"
-            acc["needs_first_page_voice_enroll"] = True
-            acc["voice_verified"] = False
-            acc["reading_prompt"] = reading_prompt
 
-        self._save_accounts()
-
-        self._log_event(
-            layer="Email Allowlist",
-            action="family_email_added",
-            email=clean_email,
-            status="PASS",
-            detail=f"{actor['display_name']} (Cấp {actor_tier}) đã thêm email {clean_email} vào {role_lbl}.",
-            source=source,
-            extra=allow_entry,
-        )
-
-        return {
-            "ok": True,
-            "status_code": 200,
-            "target_email": clean_email,
-            "target_tier": target_tier,
-            "target_role_label": role_lbl,
-            "added_by": actor["email"],
-            "voice_verified": False,
-            "needs_first_page_voice_enroll": True,
-            "account": acc,
-            "entry": allow_entry,
-            "message": f"✅ Đã thêm email {clean_email} vào danh sách Cấp {target_tier} ({role_lbl}) thành công!",
-        }
+        with_cas = getattr(self, "_with_cas_accounts", None)
+        if callable(with_cas):
+            return with_cas(_mutate)
+        return _mutate()
 
     def get_family_email_allowlist(self) -> list[dict[str, Any]]:
         """Trả về toàn bộ danh sách Email Gia Đình đã được cấp quyền."""
