@@ -95,76 +95,43 @@ class InMemoryStateBackend:
                 return None
             return copy.deepcopy(self._state)
 
-    def save_state(self, state: dict[str, Any]) -> dict[str, Any]:
+    supports_cas: bool = True
+    authoritative_cas: bool = True
+
+    def read_cas(self) -> tuple[dict[str, Any] | None, int, str]:
         with self._lock:
+            if self._state is None:
+                return None, 0, ""
+            rev = int(self._state.get("revision_seq", 0) or 0)
+            return copy.deepcopy(self._state), rev, str(rev)
+
+    def compare_and_swap(
+        self,
+        state: dict[str, Any],
+        *,
+        expected_revision: int,
+        expected_token: str = "",
+    ) -> tuple[bool, dict[str, Any]]:
+        with self._lock:
+            cur_rev = int(self._state.get("revision_seq", 0) or 0) if self._state is not None else 0
+            if self._state is None:
+                if int(expected_revision) != 0 or expected_token:
+                    return False, {}
+            else:
+                if cur_rev != int(expected_revision) or (expected_token and expected_token != str(cur_rev)):
+                    return False, copy.deepcopy(self._state)
             snap = copy.deepcopy(state)
-            seq = max(int(snap.get("revision_seq", 0)), self._last_seq) + 1
-            ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0)), self._last_ts_ns + 1)
+            seq = int(expected_revision) + 1
+            ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0) or 0), self._last_ts_ns + 1)
             snap["revision_seq"] = seq
             snap["revision_ts_ns"] = ts_ns
-            self._last_seq = seq
-            self._last_ts_ns = ts_ns
+            self._last_seq = max(self._last_seq, seq)
+            self._last_ts_ns = max(self._last_ts_ns, ts_ns)
             self._state = copy.deepcopy(snap)
-            return snap
-
-    def clear(self) -> None:
-        with self._lock:
-            self._state = None
-            self._last_seq = 0
-            self._last_ts_ns = 0
-
-
-class FileStateBackend:
-    """Kho lưu trữ trạng thái chia sẻ qua tệp JSON cục bộ (Local Fallback cho Dev & Tests)."""
-
-    is_remote: bool = False
-    _GLOBAL_LOCK = threading.RLock()
-
-    def __init__(self, file_path: pathlib.Path | None = None) -> None:
-        if file_path is None:
-            import hashlib
-
-            wt_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
-            wt_hash = hashlib.sha256(wt_root.encode("utf-8")).hexdigest()[:12]
-            file_path = pathlib.Path(tempfile.gettempdir()) / f"smarthome_shared_device_state_{wt_hash}.json"
-        self.file_path = file_path
-        self._lock = threading.RLock()
-        self._cached_state: dict[str, Any] | None = None
-        self._cached_mtime_ns: int = -1
-        self._cached_size: int = -1
-        self._last_seq: int = 0
-        self._last_ts_ns: int = 0
-
-    def load_state(self) -> dict[str, Any] | None:
-        with self._GLOBAL_LOCK, self._lock:
-            if not self.file_path.exists():
-                return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
-            try:
-                st = self.file_path.stat()
-                if (
-                    self._cached_state is not None
-                    and st.st_mtime_ns == self._cached_mtime_ns
-                    and st.st_size == self._cached_size
-                ):
-                    return copy.deepcopy(self._cached_state)
-                raw = self.file_path.read_text(encoding="utf-8")
-                if not raw.strip():
-                    return copy.deepcopy(self._cached_state) if self._cached_state is not None else None
-                data = json.loads(raw)
-                if isinstance(data, dict) and "devices" in data:
-                    self._cached_state = copy.deepcopy(data)
-                    self._cached_mtime_ns = st.st_mtime_ns
-                    self._cached_size = st.st_size
-                    self._last_seq = max(self._last_seq, int(data.get("revision_seq", 0)))
-                    self._last_ts_ns = max(self._last_ts_ns, int(data.get("revision_ts_ns", 0)))
-                    return copy.deepcopy(data)
-            except Exception:
-                if self._cached_state is not None:
-                    return copy.deepcopy(self._cached_state)
-            return None
+            return True, snap
 
     def save_state(self, state: dict[str, Any], *, preserve_revision: bool = False) -> dict[str, Any]:
-        with self._GLOBAL_LOCK, self._lock:
+        with self._lock:
             snap = copy.deepcopy(state)
             if preserve_revision and int(snap.get("revision_seq", 0)) > 0:
                 seq = int(snap["revision_seq"])
@@ -176,23 +143,205 @@ class FileStateBackend:
             snap["revision_ts_ns"] = ts_ns
             self._last_seq = max(self._last_seq, seq)
             self._last_ts_ns = max(self._last_ts_ns, ts_ns)
-            self._cached_state = copy.deepcopy(snap)
-
-            payload_bytes = (json.dumps(snap, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            self.file_path.parent.mkdir(parents=True, exist_ok=True)
-            for _ in range(5):
-                try:
-                    self.file_path.write_bytes(payload_bytes)
-                    st = self.file_path.stat()
-                    self._cached_mtime_ns = st.st_mtime_ns
-                    self._cached_size = st.st_size
-                    break
-                except OSError:
-                    time.sleep(0.005)
+            self._state = copy.deepcopy(snap)
             return snap
 
     def clear(self) -> None:
-        with self._GLOBAL_LOCK, self._lock:
+        with self._lock:
+            self._state = None
+            self._last_seq = 0
+            self._last_ts_ns = 0
+
+
+class StateConflictError(Exception):
+    """Lỗi xung đột Compare-And-Swap khi có phiên bản mới hơn đã được ghi trước đó."""
+
+
+import contextlib as _contextlib
+
+
+@_contextlib.contextmanager
+def _interprocess_file_lock(lock_path: pathlib.Path, timeout_sec: float = 5.0):
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+    acquired = False
+    deadline = time.monotonic() + timeout_sec
+    try:
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"Timed out waiting for file lock: {lock_path}") from None
+                time.sleep(0.005)
+        yield
+    finally:
+        if acquired:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        os.close(fd)
+
+
+class FileStateBackend:
+    """Kho lưu trữ trạng thái chia sẻ qua tệp JSON cục bộ với khóa liên tiến trình và CAS."""
+
+    is_remote: bool = False
+    supports_cas: bool = True
+    authoritative_cas: bool = True
+    _GLOBAL_LOCK = threading.RLock()
+
+    def __init__(self, file_path: pathlib.Path | None = None) -> None:
+        if file_path is None:
+            import hashlib
+
+            wt_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
+            wt_hash = hashlib.sha256(wt_root.encode("utf-8")).hexdigest()[:12]
+            file_path = pathlib.Path(tempfile.gettempdir()) / f"smarthome_shared_device_state_{wt_hash}.json"
+        self.file_path = file_path
+        self._lock_path = self.file_path.with_suffix(self.file_path.suffix + ".lock")
+        self._lock = threading.RLock()
+        self._cached_state: dict[str, Any] | None = None
+        self._cached_mtime_ns: int = -1
+        self._cached_size: int = -1
+        self._last_seq: int = 0
+        self._last_ts_ns: int = 0
+
+    def _read_cas_unlocked(self) -> tuple[dict[str, Any] | None, int, str]:
+        import hashlib
+
+        if not self.file_path.exists():
+            self._cached_state = None
+            return None, 0, ""
+        try:
+            raw_bytes = self.file_path.read_bytes()
+            if not raw_bytes.strip():
+                return None, 0, ""
+            tok = hashlib.sha1(raw_bytes).hexdigest()
+            data = json.loads(raw_bytes.decode("utf-8"))
+            if isinstance(data, dict) and "devices" in data:
+                rev = int(data.get("revision_seq", 0) or 0)
+                self._cached_state = copy.deepcopy(data)
+                self._last_seq = max(self._last_seq, rev)
+                self._last_ts_ns = max(self._last_ts_ns, int(data.get("revision_ts_ns", 0) or 0))
+                return copy.deepcopy(data), rev, tok
+        except Exception:
+            return None, 0, ""
+        return None, 0, ""
+
+    def _write_bytes_atomic_unlocked(self, payload_bytes: bytes) -> None:
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.file_path.with_name(
+            f".{self.file_path.name}.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}.tmp"
+        )
+        for _ in range(5):
+            try:
+                tmp_path.write_bytes(payload_bytes)
+                os.replace(tmp_path, self.file_path)
+                st = self.file_path.stat()
+                self._cached_mtime_ns = st.st_mtime_ns
+                self._cached_size = st.st_size
+                return
+            except OSError:
+                time.sleep(0.005)
+            finally:
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except OSError:
+                        pass
+        self.file_path.write_bytes(payload_bytes)
+
+    def read_cas(self) -> tuple[dict[str, Any] | None, int, str]:
+        with self._GLOBAL_LOCK, self._lock, _interprocess_file_lock(self._lock_path):
+            return self._read_cas_unlocked()
+
+    def load_state(self) -> dict[str, Any] | None:
+        with self._GLOBAL_LOCK, self._lock, _interprocess_file_lock(self._lock_path):
+            data, _rev, _tok = self._read_cas_unlocked()
+            return data
+
+    def compare_and_swap(
+        self,
+        state: dict[str, Any],
+        *,
+        expected_revision: int,
+        expected_token: str = "",
+    ) -> tuple[bool, dict[str, Any]]:
+        with self._GLOBAL_LOCK, self._lock, _interprocess_file_lock(self._lock_path):
+            cur_data, cur_rev, cur_tok = self._read_cas_unlocked()
+            if cur_data is None:
+                if int(expected_revision) != 0 or expected_token:
+                    return False, {}
+                cur_ts_ns = 0
+            else:
+                if cur_rev != int(expected_revision) or (expected_token and cur_tok != expected_token):
+                    return False, copy.deepcopy(cur_data)
+                cur_ts_ns = int(cur_data.get("revision_ts_ns", 0) or 0)
+            snap = copy.deepcopy(state)
+            seq = int(expected_revision) + 1
+            ts_ns = max(
+                time.time_ns(),
+                int(snap.get("revision_ts_ns", 0) or 0),
+                cur_ts_ns + 1,
+                self._last_ts_ns + 1,
+            )
+            snap["revision_seq"] = seq
+            snap["revision_ts_ns"] = ts_ns
+            self._last_seq = max(self._last_seq, seq)
+            self._last_ts_ns = max(self._last_ts_ns, ts_ns)
+            self._cached_state = copy.deepcopy(snap)
+            payload_bytes = (json.dumps(snap, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            self._write_bytes_atomic_unlocked(payload_bytes)
+            return True, snap
+
+    def save_state(self, state: dict[str, Any], *, preserve_revision: bool = False) -> dict[str, Any]:
+        with self._GLOBAL_LOCK, self._lock, _interprocess_file_lock(self._lock_path):
+            cur_data, cur_rev, _cur_tok = self._read_cas_unlocked()
+            cur_ts_ns = int((cur_data or {}).get("revision_ts_ns", 0) or 0)
+            snap = copy.deepcopy(state)
+            if preserve_revision and int(snap.get("revision_seq", 0)) > 0:
+                seq = int(snap["revision_seq"])
+                ts_ns = int(snap.get("revision_ts_ns") or time.time_ns())
+            else:
+                seq = max(int(snap.get("revision_seq", 0)), cur_rev, self._last_seq) + 1
+                ts_ns = max(
+                    time.time_ns(),
+                    int(snap.get("revision_ts_ns", 0)),
+                    cur_ts_ns + 1,
+                    self._last_ts_ns + 1,
+                )
+            snap["revision_seq"] = seq
+            snap["revision_ts_ns"] = ts_ns
+            self._last_seq = max(self._last_seq, seq)
+            self._last_ts_ns = max(self._last_ts_ns, ts_ns)
+            self._cached_state = copy.deepcopy(snap)
+
+            payload_bytes = (json.dumps(snap, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            self._write_bytes_atomic_unlocked(payload_bytes)
+            return snap
+
+    def clear(self) -> None:
+        with self._GLOBAL_LOCK, self._lock, _interprocess_file_lock(self._lock_path):
             self._cached_state = None
             self._cached_mtime_ns = -1
             self._cached_size = -1
@@ -225,13 +374,18 @@ class VercelBlobStateBackend:
         self,
         token: str,
         prefix: str = "smarthome_shared_state_v1/",
-        api_base: str = "https://blob.vercel-storage.com",
+        api_base: str | None = None,
         timeout_sec: float = 8.0,
         fallback_file_path: pathlib.Path | None = None,
     ) -> None:
         self._token = token.strip().strip('"')
         self.prefix = prefix.rstrip("/") + "/"
-        self.api_base = api_base.rstrip("/")
+        resolved_base = (
+            api_base
+            if api_base is not None
+            else os.environ.get("SMARTHOME_BLOB_API_BASE", "https://blob.vercel-storage.com")
+        )
+        self.api_base = (resolved_base.strip() or "https://blob.vercel-storage.com").rstrip("/")
         self.timeout_sec = timeout_sec
         self._lock = threading.RLock()
         self._cached_pathname: str = ""
@@ -536,25 +690,193 @@ class VercelBlobStateBackend:
                 pass
 
 
+class GitHubCasStateBackend:
+    """Kho lưu trữ trạng thái chia sẻ qua GitHub Private Repo Contents API với Compare-And-Swap (CAS)."""
+
+    is_remote: bool = True
+    supports_cas: bool = True
+    authoritative_cas: bool = True
+
+    def __init__(
+        self,
+        repository: str,
+        token: str,
+        filename: str = "shared_device_state.json",
+        api_base: str = "",
+    ) -> None:
+        from simulator.auth.security_state import GitHubSecurityState
+
+        self.repository = (repository or "").strip().strip('"').strip("'").strip()
+        clean_token = (token or "").strip().strip('"').strip("'").strip()
+        clean_base = (api_base or "").strip().strip('"').strip("'").strip()
+        self.filename = (filename or "shared_device_state.json").strip()
+        self._gh = GitHubSecurityState(
+            repository=self.repository,
+            token=clean_token,
+            api_base=clean_base or None,
+        )
+        self._lock = threading.RLock()
+        self._migration_attempted = False
+
+    def read_cas(self) -> tuple[dict[str, Any] | None, int, str]:
+        with self._lock:
+            raw, sha, doc_rev = self._gh.read(self.filename)
+            if (
+                not sha
+                and int(doc_rev or 0) == 0
+                and not self._migration_attempted
+                and bool(os.environ.get("VERCEL"))
+                and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            ):
+                self._migration_attempted = True
+                try:
+                    from simulator.durable_store import load_durable_json
+
+                    legacy = load_durable_json("shared_device_state.json", None)
+                    seed_state: dict[str, Any] | None = None
+                    if isinstance(legacy, dict):
+                        by_prefix = legacy.get("by_prefix")
+                        if isinstance(by_prefix, dict):
+                            cand = by_prefix.get("smarthome_shared_state_v1/")
+                            if isinstance(cand, dict) and isinstance(cand.get("devices"), dict):
+                                seed_state = cand
+                        if seed_state is None and isinstance(legacy.get("devices"), dict):
+                            seed_state = legacy
+                    if seed_state is not None:
+                        seed_rev = max(0, int(seed_state.get("revision_seq", 0) or 0))
+                        try:
+                            self.compare_and_swap(
+                                seed_state,
+                                expected_revision=seed_rev,
+                                expected_token="",
+                            )
+                        except Exception:
+                            pass
+                        raw, sha, doc_rev = self._gh.read(self.filename)
+                except Exception:
+                    pass
+            if not raw or raw == b"{}":
+                return None, int(doc_rev or 0), sha
+            try:
+                data = json.loads(raw.decode("utf-8"))
+            except Exception:
+                return None, int(doc_rev or 0), sha
+            if not isinstance(data, dict) or "devices" not in data:
+                return None, int(doc_rev or 0), sha
+            rev = max(int(data.get("revision_seq", 0) or 0), int(doc_rev or 0))
+            data["revision_seq"] = rev
+            return data, rev, sha
+
+    def load_state(self) -> dict[str, Any] | None:
+        data, _rev, _sha = self.read_cas()
+        return data
+
+    def compare_and_swap(
+        self,
+        state: dict[str, Any],
+        *,
+        expected_revision: int,
+        expected_token: str = "",
+    ) -> tuple[bool, dict[str, Any]]:
+        from simulator.auth.security_state import StateConflict
+
+        with self._lock:
+            snap = copy.deepcopy(state)
+            seq = int(expected_revision) + 1
+            ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0) or 0), 1)
+            snap["revision_seq"] = seq
+            snap["revision_ts_ns"] = ts_ns
+            raw_bytes = json.dumps(snap, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            try:
+                self._gh.compare_and_swap(
+                    self.filename,
+                    raw_bytes,
+                    expected_token,
+                    int(expected_revision),
+                )
+                return True, snap
+            except StateConflict:
+                fresh, _r, _s = self.read_cas()
+                return False, fresh or {}
+
+    def save_state(self, state: dict[str, Any], *, preserve_revision: bool = False) -> dict[str, Any]:
+        import secrets as _secrets
+
+        for attempt in range(10):
+            cur, cur_rev, cur_sha = self.read_cas()
+            snap = copy.deepcopy(state)
+            if preserve_revision and cur is None and int(snap.get("revision_seq", 0)) > 0:
+                target_rev = max(0, int(snap["revision_seq"]) - 1)
+            else:
+                target_rev = cur_rev
+            ok, committed = self.compare_and_swap(
+                snap,
+                expected_revision=target_rev,
+                expected_token=cur_sha,
+            )
+            if ok:
+                return committed
+            time.sleep(0.01 * (attempt + 1) + _secrets.randbelow(20) / 1000.0)
+        raise StateConflictError("GitHub CAS save_state exceeded 10 retry attempts")
+
+    def clear(self) -> None:
+        from simulator.auth.security_state import StateConflict
+
+        for _ in range(3):
+            try:
+                _raw, sha, rev = self._gh.read(self.filename)
+                if not sha:
+                    return
+                self._gh.compare_and_swap(self.filename, b"{}", sha, rev)
+                return
+            except StateConflict:
+                continue
+            except Exception:
+                return
+
+
 _DEFAULT_BACKEND: StateBackend | None = None
 _BACKEND_LOCK = threading.RLock()
 
 
 def create_state_backend_from_env() -> StateBackend:
-    """Tự động chọn VercelBlobStateBackend trên Vercel Serverless hoặc FileStateBackend khi chạy Local/Pytest."""
+    """Ưu tiên GitHubCasStateBackend (CAS miễn phí) trước VercelBlobStateBackend, fallback FileStateBackend."""
     forced_mode = os.environ.get("SMARTHOME_STATE_BACKEND", "").strip().lower()
-    blob_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    blob_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip().strip('"').strip("'").strip()
     blob_prefix = os.environ.get("SMARTHOME_BLOB_PREFIX", "smarthome_shared_state_v1/").strip()
+
+    sec_repo = os.environ.get("SMARTHOME_SECURITY_REPO", "").strip().strip('"').strip("'").strip()
+    sec_token = os.environ.get("SMARTHOME_SECURITY_TOKEN", "").strip().strip('"').strip("'").strip()
+    sec_api_base = os.environ.get("SMARTHOME_SECURITY_API_BASE", "").strip().strip('"').strip("'").strip()
+    sec_file = os.environ.get("SMARTHOME_STATE_GITHUB_FILE", "shared_device_state.json").strip() or "shared_device_state.json"
 
     running_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
     force_blob = os.environ.get("SMARTHOME_FORCE_BLOB_STORE", "").strip() == "1"
+    force_gh = os.environ.get("SMARTHOME_FORCE_GITHUB_CAS", "").strip() == "1"
 
     if forced_mode == "memory":
         return InMemoryStateBackend()
     if forced_mode == "file":
         custom_path = os.environ.get("SMARTHOME_STATE_FILE", "").strip()
         return FileStateBackend(pathlib.Path(custom_path) if custom_path else None)
-    if (forced_mode == "blob" or (blob_token and (not running_pytest or force_blob))) and blob_token:
+    if forced_mode in ("github", "github_cas") and sec_repo and sec_token:
+        return GitHubCasStateBackend(
+            repository=sec_repo,
+            token=sec_token,
+            filename=sec_file,
+            api_base=sec_api_base,
+        )
+    if forced_mode == "blob" and blob_token:
+        return VercelBlobStateBackend(token=blob_token, prefix=blob_prefix)
+
+    if sec_repo and sec_token and (not running_pytest or force_gh or bool(sec_api_base)):
+        return GitHubCasStateBackend(
+            repository=sec_repo,
+            token=sec_token,
+            filename=sec_file,
+            api_base=sec_api_base,
+        )
+    if blob_token and (not running_pytest or force_blob):
         return VercelBlobStateBackend(token=blob_token, prefix=blob_prefix)
 
     custom_path = os.environ.get("SMARTHOME_STATE_FILE", "").strip()

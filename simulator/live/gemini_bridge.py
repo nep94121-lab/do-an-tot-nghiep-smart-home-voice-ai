@@ -291,7 +291,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             append_audit_log(
                 category="VOICE_CMD",
                 event_type="turn_complete",
-                summary=f"👤 Nói: '{heard}' ➔ 🤖 AI đáp: '{said}' (Tool: {t_ms or '--'}ms, Audio: {a_ms or '--'}ms)",
+                summary=f"Nói: '{heard}' -> AI đáp: '{said}' (Tool: {t_ms or '--'}ms, Audio: {a_ms or '--'}ms)",
                 user_name=self.engine.get_current_user_name(),
                 tier=self.engine.current_tier,
                 details=payload,
@@ -304,7 +304,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             append_audit_log(
                 category=cat,
                 event_type="tool_call_executed",
-                summary=f"⚙️ Gọi Tool `{tname}`({json.dumps(targs, ensure_ascii=False)}) trong {t_ms or '--'}ms",
+                summary=f"Gọi Tool `{tname}`({json.dumps(targs, ensure_ascii=False)}) trong {t_ms or '--'}ms",
                 user_name=self.engine.get_current_user_name(),
                 tier=self.engine.current_tier,
                 details=payload,
@@ -313,7 +313,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             append_audit_log(
                 category="VOICE_AUTH",
                 event_type=ptype,
-                summary=f"🚫 Chặn Giọng Lạ (Lần {payload.get('strike_count', 1)}, F0={payload.get('f0_hz')}Hz): {payload.get('rejection_speech') or payload.get('message')}",
+                summary=f"Chặn Giọng Lạ (Lần {payload.get('strike_count', 1)}, F0={payload.get('f0_hz')}Hz): {payload.get('rejection_speech') or payload.get('message')}",
                 user_name="Người lạ (Unauthorized)",
                 tier=99,
                 details=payload,
@@ -1458,14 +1458,27 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 self._mic_silence_task.cancel()
 
     async def _periodic_timer_sync(self) -> None:
+        last_pushed_seq = int(getattr(self.engine, "_last_synced_seq", 0) or 0)
+        tick = 0
         try:
             while not self._closed:
                 await asyncio.sleep(0.5)
-                if self.engine.active_timers:
-                    await self.send_ws_json({
-                        "type": "state_snapshot",
-                        "snapshot": self.engine.get_snapshot(),
-                    })
+                tick += 1
+                try:
+                    synced_seq = last_pushed_seq
+                    if (tick % 2) == 0 and hasattr(self.engine, "sync_from_shared_store"):
+                        self.engine.sync_from_shared_store()
+                        synced_seq = int(getattr(self.engine, "_last_synced_seq", 0) or 0)
+                    if self.engine.active_timers or synced_seq != last_pushed_seq:
+                        last_pushed_seq = synced_seq
+                        await self.send_ws_json({
+                            "type": "state_snapshot",
+                            "snapshot": self.engine.get_snapshot(sync=False),
+                        })
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    pass
         except asyncio.CancelledError:
             raise
 

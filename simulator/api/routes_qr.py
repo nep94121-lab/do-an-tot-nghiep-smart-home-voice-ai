@@ -503,7 +503,7 @@ async def api_auth3_guest_qr_complete_voice(request: Request, payload: dict[str,
     append_audit_log(
         category="VOICE_AUTH",
         event_type="guest_qr_voice_enrolled",
-        summary=f"🎫 '{guest_name}' quét QR động & thu âm thành công {role_label_vn} (Hạn: {dur_label}, F0={q_res.get('f0_hz')}Hz)",
+        summary=f"'{guest_name}' quét QR động & thu âm thành công {role_label_vn} (Hạn: {dur_label}, F0={q_res.get('f0_hz')}Hz)",
         user_name=guest_name,
         tier=target_tier,
         details=sanitize_overview_and_logs_payload(
@@ -594,7 +594,7 @@ async def api_auth3_guest_qr_send_otp(payload: dict[str, Any], request: Request)
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="guest_qr_otp_dispatched",
-        summary=f"📧 Gửi OTP xác thực email khách: {clean_email} (MX hợp lệ)",
+        summary=f"Gửi OTP xác thực email khách: {clean_email} (MX hợp lệ)",
         user_name=clean_email,
         tier=3,
         details={"email": clean_email, "session_id": session_id, "duration": dur_type},
@@ -687,7 +687,7 @@ async def api_auth3_guest_qr_verify_otp(payload: dict[str, Any], request: Reques
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="guest_qr_otp_verified",
-        summary=f"✅ Xác thực OTP email thành công cho khách '{guest_name}' ({email}) - Cấp quyền 3 ({dur_label})",
+        summary=f"Xác thực OTP email thành công cho khách '{guest_name}' ({email}) - Cấp quyền 3 ({dur_label})",
         user_name=guest_name,
         tier=3,
         details={"email": email, "session_id": session_id, "duration": dur_type, "expires_at": expires_at},

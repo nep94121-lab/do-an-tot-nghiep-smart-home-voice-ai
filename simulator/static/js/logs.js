@@ -164,6 +164,15 @@
     let currentPage = 1;
     const pageSize = 20;
 
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function maskSensitiveLogText(text) {
       if (!text) return '';
       return String(text)
@@ -175,7 +184,11 @@
         .replace(/(Gợi ý mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
         .replace(/(Mật khẩu:\s*)([^\s\)]+)/gi, '$1******')
         .replace(/((?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|mat_khau|mk)["']?\s*[:=]\s*["'])([^"']+)(["'])/gi, '$1******$3')
-        .replace(/(\b(?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|mat_khau|mk)\b["']?\s*[:=]\s*)(?!["'])([^\s,;}\]\)"']+)/gi, '$1******');
+        .replace(/(\b(?:password|password_plain_hint|password_hint|hint|secret|token|otp|otp_code|mat_khau|mk)\b["']?\s*[:=]\s*)(?!["'])([^\s,;}\]\)"']+)/gi, '$1******')
+        .replace(/\u2794/g, '->')
+        .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF\u231A-\u23FF\u200D\u2139\uFE0F]+\s*/gu, '')
+        .replace(/ {2,}/g, ' ')
+        .trim();
     }
 
     function toggleLogDetailRow(idx) {
@@ -245,13 +258,17 @@
           const evText = maskSensitiveLogText(item.event || 'Sự kiện');
           const actorText = maskSensitiveLogText(item.actor || 'Hệ thống');
           const detText = maskSensitiveLogText(item.detail || 'Không có mô tả bổ sung.');
+          const safeTime = escapeHtml(item.time || '—');
+          const safeEv = escapeHtml(evText);
+          const safeActor = escapeHtml(actorText);
+          const safeDet = escapeHtml(detText);
           const tr = document.createElement('tr');
           tr.className = 'log-row';
           tr.onclick = () => toggleLogDetailRow(idx);
           tr.innerHTML = `
-            <td>${item.time || '—'}</td>
-            <td style="font-weight:500;">${evText}</td>
-            <td>${actorText}</td>
+            <td>${safeTime}</td>
+            <td style="font-weight:500;">${safeEv}</td>
+            <td>${safeActor}</td>
             <td><span class="result-text ${status.cls}">${status.label}</span></td>
           `;
           const detailTr = document.createElement('tr');
@@ -259,7 +276,7 @@
           detailTr.id = `log-detail-${idx}`;
           detailTr.innerHTML = `
             <td colspan="4">
-              <div>${detText}</div>
+              <div>${safeDet}</div>
             </td>
           `;
           logTbody.appendChild(tr);
@@ -269,12 +286,12 @@
           mCard.className = 'mobile-log-card';
           mCard.innerHTML = `
             <div class="mobile-log-line1">
-              <span>${evText}</span>
+              <span>${safeEv}</span>
               <span class="result-text ${status.cls}">${status.label}</span>
             </div>
             <div class="mobile-log-line2">
-              <span>${actorText}</span>
-              <span>${item.time || '—'}</span>
+              <span>${safeActor}</span>
+              <span>${safeTime}</span>
             </div>
           `;
           mobileCards.appendChild(mCard);
@@ -306,11 +323,12 @@
         if (gateMsg) gateMsg.textContent = errMsg;
         const logTbody = document.getElementById('auditLogsTbody');
         const mobileCards = document.getElementById('mobileLogCards');
+        const safeErr = escapeHtml(errMsg);
         if (logTbody) {
-          logTbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">${errMsg}</td></tr>`;
+          logTbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">${safeErr}</td></tr>`;
         }
         if (mobileCards) {
-          mobileCards.innerHTML = `<div style="color:var(--danger);">${errMsg}</div>`;
+          mobileCards.innerHTML = `<div style="color:var(--danger);">${safeErr}</div>`;
         }
         return false;
       }
@@ -561,7 +579,7 @@
         const msg = res.status === 401 || res.status === 403
           ? ((data && data.error) || 'Bạn cần đăng nhập quyền Chủ nhà để truy vấn dữ liệu')
           : resolveLogsHttpError(res, data, 'Không thực thi được truy vấn SQL');
-        tbody.innerHTML = `<tr><td style="color:var(--danger);">${maskSensitiveLogText(msg)}</td></tr>`;
+        tbody.innerHTML = `<tr><td style="color:var(--danger);">${escapeHtml(maskSensitiveLogText(msg))}</td></tr>`;
         if (res.status === 401 || res.status === 403) {
           showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để truy vấn nhật ký', true);
         }
@@ -573,10 +591,10 @@
         return;
       }
       const cols = Object.keys(rows[0]);
-      thead.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+      thead.innerHTML = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = cols.map(c => `<td><code>${r[c] !== null && r[c] !== undefined ? maskSensitiveLogText(String(r[c])) : '—'}</code></td>`).join('');
+        tr.innerHTML = cols.map(c => `<td><code>${r[c] !== null && r[c] !== undefined ? escapeHtml(maskSensitiveLogText(String(r[c]))) : '—'}</code></td>`).join('');
         tbody.appendChild(tr);
       });
     }

@@ -777,7 +777,7 @@ async def api_mobile_enroll_voice(request: Request, payload: dict[str, Any]) -> 
     append_audit_log(
         category="VOICE_AUTH",
         event_type="mobile_voice_enrolled",
-        summary=f"🎙️ [App Android] Đã thu âm & đăng ký mẫu giọng '{target_name}' (Tầng {target_tier}, F0={f0_hz:.1f}Hz)",
+        summary=f"[App Android] Đã thu âm & đăng ký mẫu giọng '{target_name}' (Tầng {target_tier}, F0={f0_hz:.1f}Hz)",
         user_name="Nguyễn Tuấn Anh (Admin Cấp 1)",
         tier=1,
         details={"target_name": target_name, "target_tier": target_tier, "f0_hz": f0_hz, "result": res, "auth3": auth_res},
@@ -1543,7 +1543,7 @@ async def api_auth3_run_tests(request: Request, payload: dict[str, Any] | None =
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="auth3_test_suite_executed",
-        summary=f"🧪 Chạy Kiểm thử 3 Lớp: {rep.get('summary')}",
+        summary=f"Chạy Kiểm thử 3 Lớp: {rep.get('summary')}",
         user_name="Nguyễn Tuấn Anh (Admin Cấp 1)",
         tier=1,
         details=sanitize_overview_and_logs_payload(rep),

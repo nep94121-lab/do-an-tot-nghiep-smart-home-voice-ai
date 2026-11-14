@@ -1085,10 +1085,17 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
 
         # 1. Fresh Wokwi client clicks #btn_fan -> must turn ON on BOTH server and button (F2)
         await page.click("#btn_fan")
-        await asyncio.sleep(0.35)
+        for _ in range(30):
+            if len(replies) >= 1:
+                break
+            await asyncio.sleep(0.1)
         assert len(replies) == 1
         assert replies[0]["stale_ignored"] is False
         assert replies[0]["state"] == "ON"
+        for _ in range(15):
+            if await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')") is True:
+                break
+            await asyncio.sleep(0.05)
         assert await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')") is True
 
         # 2. If server returns stale_ignored=True (authoritative state still ON while user clicked OFF),

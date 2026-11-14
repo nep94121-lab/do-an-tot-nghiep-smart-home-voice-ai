@@ -74,7 +74,23 @@ def _mask_string_secrets_and_emails(raw_str: str) -> str:
         flags=re.IGNORECASE,
     )
     t = redact_otp_and_secrets_in_text(t)
+    t = strip_decorative_log_emojis(t)
     return t
+
+
+_LOG_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u231A-\u23FF\u200D\u2139\uFE0F]+\\s*",
+    flags=re.UNICODE,
+)
+
+
+def strip_decorative_log_emojis(text: str) -> str:
+    """Loại bỏ emoji/icon trang trí khỏi chuỗi nhật ký khi đọc và hiển thị."""
+    if not text:
+        return text
+    cleaned = str(text).replace("\u2794", "->")
+    cleaned = _LOG_EMOJI_RE.sub("", cleaned)
+    return re.sub(r" {2,}", " ", cleaned).strip(" ")
 
 
 def mask_sensitive_log_data(text: Any) -> Any:

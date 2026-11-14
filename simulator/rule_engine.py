@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import json
 import logging
 import re
@@ -266,73 +267,82 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 pass
             return saved
 
-    def sync_from_shared_store(self, force: bool = False) -> bool:
-        """Đồng bộ trạng thái thiết bị mới nhất từ tầng lưu trữ chia sẻ về RAM của instance hiện tại."""
-        root = getattr(self, "_root_engine", self)
-        if root is not self:
-            ok = root.sync_from_shared_store(force=force)
-            self.server_connected = root.server_connected
-            self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
-            self._last_synced_seq = root._last_synced_seq
-            self._last_synced_ts_ns = root._last_synced_ts_ns
-            return ok
-        with self._state_sync_lock:
-            if not force and self._mutation_depth > 0:
-                return False
-            shared = self.state_backend.load_state()
-            if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
-                if self._dirty_device_ids:
-                    self.persist_to_shared_store()
-                return False
+    def _apply_shared_dict(
+        self,
+        shared: dict[str, Any],
+        *,
+        authoritative: bool = False,
+        dirty_ids: set[str] | None = None,
+    ) -> bool:
+        """Áp dụng payload trạng thái chia sẻ vào RAM của engine hiện tại (thread-safe nếu gọi dưới _state_sync_lock)."""
+        if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
+            return False
+        dirty = dirty_ids or set()
+        prev_synced_seq = self._last_synced_seq
+        prev_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
+        self._applying_shared_state_depth += 1
+        self._applying_shared_state = True
+        try:
+            if "server_connected" in shared and not dirty:
+                self.server_connected = bool(shared["server_connected"])
+                if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                    self.mqtt_bridge.esp8266_status["online"] = self.server_connected
+                    self.mqtt_bridge.esp8266_status["power_mode"] = (
+                        "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
+                    )
+            if "pump_manual_override_off" in shared and "garden_pump" not in dirty:
+                self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
 
-            dirty_ids = set(self._dirty_device_ids)
-            prev_synced_seq = self._last_synced_seq
-            prev_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
-            self._applying_shared_state_depth += 1
-            self._applying_shared_state = True
-            try:
-                if "server_connected" in shared and not dirty_ids:
-                    self.server_connected = bool(shared["server_connected"])
-                    if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
-                        self.mqtt_bridge.esp8266_status["online"] = self.server_connected
-                        self.mqtt_bridge.esp8266_status["power_mode"] = (
-                            "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
-                        )
-                if "pump_manual_override_off" in shared and "garden_pump" not in dirty_ids:
-                    self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
-
-                remote_devices = shared.get("devices", {})
-                for dev_id, dev_data in remote_devices.items():
-                    if dev_id in dirty_ids:
-                        continue
-                    if dev_id in self.devices and isinstance(dev_data, dict):
-                        if "state" in dev_data:
-                            self.devices[dev_id]["state"] = str(dev_data["state"])
-                        if "updated_at" in dev_data:
-                            self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
-                        if "min_role" in dev_data:
-                            self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
-                        if "version" in dev_data:
+            remote_rev = int(shared.get("revision_seq", 0) or 0)
+            local_rev = int(self._last_synced_seq or 0)
+            remote_devices = shared.get("devices", {})
+            for dev_id, dev_data in remote_devices.items():
+                if dev_id in dirty:
+                    continue
+                if dev_id in self.devices and isinstance(dev_data, dict):
+                    if "state" in dev_data:
+                        self.devices[dev_id]["state"] = str(dev_data["state"])
+                    if "updated_at" in dev_data:
+                        self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
+                    if "min_role" in dev_data:
+                        self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
+                    if "version" in dev_data:
+                        if authoritative:
+                            self.devices[dev_id]["version"] = int(dev_data["version"])
+                        else:
                             self.devices[dev_id]["version"] = max(
                                 int(self.devices[dev_id].get("version", 1)),
                                 int(dev_data["version"]),
                             )
-                        remote_rev = int(shared.get("revision_seq", 0) or 0)
-                        local_rev = int(self._last_synced_seq or 0)
-                        remote_ts_ms = int(dev_data.get("last_client_ts_ms", 0) or 0)
-                        local_ts_ms = int(self.devices[dev_id].get("last_client_ts_ms", 0) or 0)
-                        if remote_rev >= local_rev or remote_ts_ms >= local_ts_ms:
-                            if "last_client_id" in dev_data:
-                                self.devices[dev_id]["last_client_id"] = str(dev_data["last_client_id"])
-                            if "last_client_seq" in dev_data:
-                                self.devices[dev_id]["last_client_seq"] = int(dev_data["last_client_seq"])
-                            if "last_client_ts_ms" in dev_data:
-                                self.devices[dev_id]["last_client_ts_ms"] = max(local_ts_ms, remote_ts_ms)
-                            if "last_request_id" in dev_data:
-                                self.devices[dev_id]["last_request_id"] = str(dev_data["last_request_id"])
-                            if "last_requested_state" in dev_data:
-                                self.devices[dev_id]["last_requested_state"] = str(dev_data["last_requested_state"])
-                        if isinstance(dev_data.get("client_seqs"), dict):
+                    remote_ts_ms = int(dev_data.get("last_client_ts_ms", 0) or 0)
+                    local_ts_ms = int(self.devices[dev_id].get("last_client_ts_ms", 0) or 0)
+                    if authoritative or remote_rev >= local_rev or remote_ts_ms >= local_ts_ms:
+                        if "last_client_id" in dev_data:
+                            self.devices[dev_id]["last_client_id"] = str(dev_data["last_client_id"])
+                        elif authoritative:
+                            self.devices[dev_id].pop("last_client_id", None)
+                        if "last_client_seq" in dev_data:
+                            self.devices[dev_id]["last_client_seq"] = int(dev_data["last_client_seq"])
+                        elif authoritative:
+                            self.devices[dev_id].pop("last_client_seq", None)
+                        if "last_client_ts_ms" in dev_data:
+                            self.devices[dev_id]["last_client_ts_ms"] = (
+                                remote_ts_ms if authoritative else max(local_ts_ms, remote_ts_ms)
+                            )
+                        elif authoritative:
+                            self.devices[dev_id].pop("last_client_ts_ms", None)
+                        if "last_request_id" in dev_data:
+                            self.devices[dev_id]["last_request_id"] = str(dev_data["last_request_id"])
+                        elif authoritative:
+                            self.devices[dev_id].pop("last_request_id", None)
+                        if "last_requested_state" in dev_data:
+                            self.devices[dev_id]["last_requested_state"] = str(dev_data["last_requested_state"])
+                        elif authoritative:
+                            self.devices[dev_id].pop("last_requested_state", None)
+                    if isinstance(dev_data.get("client_seqs"), dict):
+                        if authoritative:
+                            self.devices[dev_id]["client_seqs"] = copy.deepcopy(dev_data["client_seqs"])
+                        else:
                             merged_cseqs = (
                                 dict(self.devices[dev_id].get("client_seqs"))
                                 if isinstance(self.devices[dev_id].get("client_seqs"), dict)
@@ -371,33 +381,64 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                                 if not isinstance(cur_v, dict) or incoming_key >= existing_key:
                                     merged_cseqs[str(cid_k)] = dict(cid_v)
                             self.devices[dev_id]["client_seqs"] = merged_cseqs
-                    elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
-                        merged_dev = dict(DEFAULT_DEVICES[dev_id])
-                        merged_dev.update(dev_data)
-                        self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
+                    elif authoritative:
+                        self.devices[dev_id].pop("client_seqs", None)
+                elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
+                    merged_dev = dict(DEFAULT_DEVICES[dev_id])
+                    merged_dev.update(dev_data)
+                    self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
 
-                if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
-                    if isinstance(shared.get("dht11_telemetry"), dict):
-                        self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
-                    if isinstance(shared.get("soil_moisture_telemetry"), dict):
-                        self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
+            if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                if isinstance(shared.get("dht11_telemetry"), dict):
+                    self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
+                if isinstance(shared.get("soil_moisture_telemetry"), dict):
+                    self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
 
-                self._last_synced_seq = max(self._last_synced_seq, int(shared.get("revision_seq", 0)))
-                self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(shared.get("revision_ts_ns", 0)))
-            finally:
-                self._applying_shared_state_depth = max(0, self._applying_shared_state_depth - 1)
-                self._applying_shared_state = self._applying_shared_state_depth > 0
+            if authoritative:
+                self._last_synced_seq = int(shared.get("revision_seq", 0) or 0)
+                self._last_synced_ts_ns = int(shared.get("revision_ts_ns", 0) or 0)
+            else:
+                self._last_synced_seq = max(self._last_synced_seq, int(shared.get("revision_seq", 0) or 0))
+                self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(shared.get("revision_ts_ns", 0) or 0))
+        finally:
+            self._applying_shared_state_depth = max(0, self._applying_shared_state_depth - 1)
+            self._applying_shared_state = self._applying_shared_state_depth > 0
+
+        if not dirty:
+            cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
+            if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
+                try:
+                    sync_engine_state_to_sqlite(self)
+                except Exception:
+                    pass
+        return True
+
+    def sync_from_shared_store(self, force: bool = False) -> bool:
+        """Đồng bộ trạng thái thiết bị mới nhất từ tầng lưu trữ chia sẻ về RAM của instance hiện tại."""
+        root = getattr(self, "_root_engine", self)
+        if root is not self:
+            ok = root.sync_from_shared_store(force=force)
+            self.server_connected = root.server_connected
+            self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+            self._last_synced_seq = root._last_synced_seq
+            self._last_synced_ts_ns = root._last_synced_ts_ns
+            return ok
+        with self._state_sync_lock:
+            if not force and self._mutation_depth > 0:
+                return False
+            shared = self.state_backend.load_state()
+            if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
+                if self._dirty_device_ids:
+                    self.persist_to_shared_store()
+                return False
+
+            dirty_ids = set(self._dirty_device_ids)
+            is_authoritative = bool(getattr(self.state_backend, "authoritative_cas", False)) and not dirty_ids
+            self._apply_shared_dict(shared, authoritative=is_authoritative, dirty_ids=dirty_ids)
 
             if dirty_ids:
                 self._dirty_device_ids.clear()
                 self.persist_to_shared_store()
-            else:
-                cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
-                if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
-                    try:
-                        sync_engine_state_to_sqlite(self)
-                    except Exception:
-                        pass
             return True
 
     def _on_direct_device_mutation(self, dev_id: str) -> None:
@@ -546,6 +587,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         return True
 
     async def emit(self, event: dict[str, Any]) -> None:
+        buf = getattr(self, "_cas_emit_buffer", None)
+        if buf is not None:
+            buf.append(event)
+            return
         if self.on_event is not None:
             await self.on_event(event)
         ev_type = str(event.get("type", ""))
@@ -861,7 +906,251 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             return "close"
         return act_low or "open"
 
+    async def _execute_with_cas_retry(self, op_factory: Any) -> dict[str, Any]:
+        """Thực thi chuyển đổi trạng thái dưới vòng lặp Compare-And-Swap, chỉ phát side-effects sau khi commit."""
+        import secrets as _secrets
+
+        root = getattr(self, "_root_engine", self)
+        backend = root.state_backend
+        last_result: dict[str, Any] = {"ok": False, "error": "CAS conflict"}
+        for attempt in range(10):
+            shared, exp_rev, exp_tok = backend.read_cas()
+            with root._state_sync_lock:
+                if isinstance(shared, dict) and isinstance(shared.get("devices"), dict):
+                    root._apply_shared_dict(shared, authoritative=True, dirty_ids=set())
+                else:
+                    root._last_synced_seq = 0
+                    root._last_synced_ts_ns = 0
+                if root is not self:
+                    self.server_connected = root.server_connected
+                    self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                    self._last_synced_seq = root._last_synced_seq
+                    self._last_synced_ts_ns = root._last_synced_ts_ns
+
+            emit_buf: list[dict[str, Any]] = []
+            mqtt_buf: list[dict[str, Any]] = []
+            root._dirty_device_ids.clear()
+            root._state_dirty_in_tx = False
+            prev_depth = root._mutation_depth
+            root._mutation_depth = prev_depth + 1
+            self._cas_emit_buffer = emit_buf
+            self._cas_mqtt_buffer = mqtt_buf
+            if root is not self:
+                root._cas_emit_buffer = emit_buf
+                root._cas_mqtt_buffer = mqtt_buf
+
+            try:
+                last_result = await op_factory()
+            finally:
+                self._cas_emit_buffer = None
+                self._cas_mqtt_buffer = None
+                if root is not self:
+                    root._cas_emit_buffer = None
+                    root._cas_mqtt_buffer = None
+                root._mutation_depth = prev_depth
+
+            if root is not self:
+                root.server_connected = self.server_connected
+                root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+
+            needs_commit = bool(root._state_dirty_in_tx or root._dirty_device_ids)
+            root._state_dirty_in_tx = False
+            root._dirty_device_ids.clear()
+
+            if needs_commit:
+                payload = root._build_shared_state_payload()
+                ok_cas, committed = backend.compare_and_swap(
+                    payload,
+                    expected_revision=exp_rev,
+                    expected_token=exp_tok,
+                )
+                if not ok_cas:
+                    if isinstance(committed, dict) and isinstance(committed.get("devices"), dict):
+                        with root._state_sync_lock:
+                            root._apply_shared_dict(committed, authoritative=True, dirty_ids=set())
+                    await asyncio.sleep(0.01 * (attempt + 1) + _secrets.randbelow(20) / 1000.0)
+                    continue
+
+                root._last_synced_seq = max(
+                    root._last_synced_seq,
+                    int((committed or {}).get("revision_seq", exp_rev + 1) or 0),
+                )
+                root._last_synced_ts_ns = max(
+                    root._last_synced_ts_ns,
+                    int((committed or {}).get("revision_ts_ns", root._last_synced_ts_ns) or 0),
+                )
+                if root is not self:
+                    self._last_synced_seq = root._last_synced_seq
+                    self._last_synced_ts_ns = root._last_synced_ts_ns
+                try:
+                    sync_engine_state_to_sqlite(root)
+                except Exception:
+                    pass
+
+            for m_kw in mqtt_buf:
+                await self.mqtt_bridge.publish_actuate_command(**m_kw)
+
+            fresh_snap: dict[str, Any] | None = None
+            if (isinstance(last_result, dict) and "snapshot" in last_result) or any(
+                ev.get("type") == "state_snapshot" for ev in emit_buf
+            ):
+                fresh_snap = self.get_snapshot(sync=False)
+                if isinstance(last_result, dict) and "snapshot" in last_result:
+                    last_result["snapshot"] = fresh_snap
+            if isinstance(last_result, dict):
+                if "revision_seq" in last_result:
+                    last_result["revision_seq"] = root._last_synced_seq
+                if "revision_ts_ns" in last_result:
+                    last_result["revision_ts_ns"] = root._last_synced_ts_ns
+
+            for ev in emit_buf:
+                if ev.get("type") == "state_snapshot" and fresh_snap is not None:
+                    ev = {**ev, "snapshot": fresh_snap}
+                await self.emit(ev)
+            return last_result
+
+    async def _commit_shared_state_mutation(
+        self,
+        mutate_fn: Callable[["SmartHomeEngine"], Any],
+    ) -> Any:
+        """Thực thi đột biến trạng thái mức engine (chế độ kết nối / reset) nguyên tử qua CAS."""
+        import secrets as _secrets
+
+        root = getattr(self, "_root_engine", self)
+        backend = getattr(root, "state_backend", None)
+        if not getattr(backend, "supports_cas", False):
+            with root._state_sync_lock:
+                root.sync_from_shared_store(force=True)
+                if root is not self:
+                    self.server_connected = root.server_connected
+                    self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                res = mutate_fn(root)
+                if root is not self:
+                    self.server_connected = root.server_connected
+                    self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                root.persist_to_shared_store()
+                if root is not self:
+                    self._last_synced_seq = root._last_synced_seq
+                    self._last_synced_ts_ns = root._last_synced_ts_ns
+                return res
+
+        last_res: Any = None
+        for attempt in range(12):
+            conflict_sleep = False
+            with root._state_sync_lock:
+                cur, exp_rev, exp_tok = backend.read_cas()
+                if isinstance(cur, dict) and isinstance(cur.get("devices"), dict):
+                    root._apply_shared_dict(cur, authoritative=True, dirty_ids=set())
+                last_res = mutate_fn(root)
+                if root is not self:
+                    self.server_connected = root.server_connected
+                    self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                payload = root._build_shared_state_payload()
+                try:
+                    ok_cas, committed = backend.compare_and_swap(
+                        payload,
+                        expected_revision=exp_rev,
+                        expected_token=exp_tok,
+                    )
+                except Exception as exc:
+                    logger.warning("_commit_shared_state_mutation CAS error: %s", exc)
+                    root.persist_to_shared_store()
+                    if root is not self:
+                        self._last_synced_seq = root._last_synced_seq
+                        self._last_synced_ts_ns = root._last_synced_ts_ns
+                    return last_res
+
+                if ok_cas:
+                    root._dirty_device_ids.clear()
+                    root._last_synced_seq = max(
+                        root._last_synced_seq,
+                        int((committed or {}).get("revision_seq", exp_rev + 1) or 0),
+                    )
+                    root._last_synced_ts_ns = max(
+                        root._last_synced_ts_ns,
+                        int((committed or {}).get("revision_ts_ns", root._last_synced_ts_ns) or 0),
+                    )
+                    if root is not self:
+                        self._last_synced_seq = root._last_synced_seq
+                        self._last_synced_ts_ns = root._last_synced_ts_ns
+                    try:
+                        sync_engine_state_to_sqlite(root)
+                    except Exception:
+                        pass
+                    return last_res
+
+                if isinstance(committed, dict) and isinstance(committed.get("devices"), dict):
+                    root._apply_shared_dict(committed, authoritative=True, dirty_ids=set())
+                conflict_sleep = True
+            if conflict_sleep:
+                await asyncio.sleep(0.01 * (attempt + 1) + _secrets.randbelow(20) / 1000.0)
+
+        root.persist_to_shared_store()
+        if root is not self:
+            self._last_synced_seq = root._last_synced_seq
+            self._last_synced_ts_ns = root._last_synced_ts_ns
+        return last_res
+
+        raise RuntimeError("Concurrent CAS update conflict exceeded 10 retry attempts")
+
     async def execute_device_action(
+        self,
+        device_id: str,
+        action: str = "",
+        source: str = "voice",
+        bypass_rbac: bool = False,
+        trigger_chains: bool = True,
+        request_tier: int | None = None,
+        request_user_name: str | None = None,
+        request_role: str | None = None,
+        reason: str | None = None,
+        target_state: Any = None,
+        client_id: str | None = None,
+        client_seq: int | None = None,
+        client_ts_ms: int | None = None,
+        request_id: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        root = getattr(self, "_root_engine", self)
+        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+            return await self._execute_with_cas_retry(
+                lambda: self._execute_device_action_once(
+                    device_id=device_id,
+                    action=action,
+                    source=source,
+                    bypass_rbac=bypass_rbac,
+                    trigger_chains=trigger_chains,
+                    request_tier=request_tier,
+                    request_user_name=request_user_name,
+                    request_role=request_role,
+                    reason=reason,
+                    target_state=target_state,
+                    client_id=client_id,
+                    client_seq=client_seq,
+                    client_ts_ms=client_ts_ms,
+                    request_id=request_id,
+                    **kwargs,
+                )
+            )
+        return await self._execute_device_action_once(
+            device_id=device_id,
+            action=action,
+            source=source,
+            bypass_rbac=bypass_rbac,
+            trigger_chains=trigger_chains,
+            request_tier=request_tier,
+            request_user_name=request_user_name,
+            request_role=request_role,
+            reason=reason,
+            target_state=target_state,
+            client_id=client_id,
+            client_seq=client_seq,
+            client_ts_ms=client_ts_ms,
+            request_id=request_id,
+            **kwargs,
+        )
+
+    async def _execute_device_action_once(
         self,
         device_id: str,
         action: str = "",
@@ -1171,14 +1460,19 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 dev["version"] = max(int(dev.get("version", 1) or 1), prev_ver + 1)
                 self._state_dirty_in_tx = True
 
-                await self.mqtt_bridge.publish_actuate_command(
-                    device_id=dev_id,
-                    state=new_state,
-                    action=act,
-                    source=source,
-                    user_name=effective_user,
-                    tier=effective_tier,
-                )
+                mqtt_args = {
+                    "device_id": dev_id,
+                    "state": new_state,
+                    "action": act,
+                    "source": source,
+                    "user_name": effective_user,
+                    "tier": effective_tier,
+                }
+                mqtt_buf = getattr(self, "_cas_mqtt_buffer", None)
+                if mqtt_buf is not None:
+                    mqtt_buf.append(mqtt_args)
+                else:
+                    await self.mqtt_bridge.publish_actuate_command(**mqtt_args)
 
                 await self.emit({
                     "type": "device_updated",
@@ -1257,6 +1551,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     async def update_sensor_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
+        root = getattr(self, "_root_engine", self)
+        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+            return await self._execute_with_cas_retry(
+                lambda: self._update_sensor_telemetry_once(temp_c, humidity_pct, wifi_rssi_dbm)
+            )
+        return await self._update_sensor_telemetry_once(temp_c, humidity_pct, wifi_rssi_dbm)
+
+    async def _update_sensor_telemetry_once(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
+        """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
             self._state_dirty_in_tx = True
@@ -1281,6 +1584,28 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         }
 
     async def update_soil_moisture_telemetry(
+        self,
+        soil_moisture_pct: Any,
+        auto_pump_below_pct: float = 40.0,
+        auto_stop_above_pct: float = 70.0,
+    ) -> dict[str, Any]:
+        """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
+        root = getattr(self, "_root_engine", self)
+        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+            return await self._execute_with_cas_retry(
+                lambda: self._update_soil_moisture_telemetry_once(
+                    soil_moisture_pct,
+                    auto_pump_below_pct=auto_pump_below_pct,
+                    auto_stop_above_pct=auto_stop_above_pct,
+                )
+            )
+        return await self._update_soil_moisture_telemetry_once(
+            soil_moisture_pct,
+            auto_pump_below_pct=auto_pump_below_pct,
+            auto_stop_above_pct=auto_stop_above_pct,
+        )
+
+    async def _update_soil_moisture_telemetry_once(
         self,
         soil_moisture_pct: Any,
         auto_pump_below_pct: float = 40.0,

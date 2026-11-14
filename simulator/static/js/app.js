@@ -4041,9 +4041,17 @@
   window.updateConnectionUI = updateConnectionUI;
   window.connectWebSocket = connectWebSocket;
   window.loadOwnerDashboardGuestQr = loadOwnerDashboardGuestQr;
+  let _homeRestPollTick = 0;
   setInterval(() => {
+    _homeRestPollTick += 1;
+    if (typeof document !== 'undefined' && document.hidden && (_homeRestPollTick % 2) !== 0) return;
     if (serverSessionConfirmed) pollRestStateFallback();
-  }, 1500);
+  }, 1000);
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && serverSessionConfirmed) pollRestStateFallback(true);
+    });
+  }
   if (serverSessionConfirmed) {
     startAuthenticatedRealtimeFlows();
   }

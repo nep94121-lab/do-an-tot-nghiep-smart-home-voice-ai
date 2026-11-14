@@ -30,6 +30,11 @@ from simulator.auth_3layer import get_auth_3layer_manager
 from simulator.server import app
 
 
+_OWNER_HDR = {"X-Session-Token": "sess_owner_t1_nep94121"}
+_FAMILY_HDR = {"X-Session-Token": "sess_family_t2_member_a"}
+_GUEST_HDR = {"X-Session-Token": "sess_guest_t3_visitor_c"}
+
+
 def _eng():
     """Trả về instance _REST_ENGINE đang gắn trực tiếp với router devices/auth."""
     eng = routes_devices._REST_ENGINE
@@ -97,8 +102,9 @@ def test_fix1_security_device_api_ignores_client_bypass_rbac_and_tier(client: Te
             "bypass_rbac": True,
             "user_name": "Fake Admin",
         },
+        headers=_GUEST_HDR,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 403
     data = resp.json()
     assert data.get("ok") is False
     assert data.get("rbac_blocked") is True
@@ -109,6 +115,7 @@ def test_fix1_security_device_api_ignores_client_bypass_rbac_and_tier(client: Te
     resp_light = client.post(
         "/api/device",
         json={"device_id": "living_room_light", "action": "turn_on"},
+        headers=_GUEST_HDR,
     )
     assert resp_light.status_code == 200
     assert resp_light.json().get("ok") is True
@@ -120,7 +127,9 @@ def test_fix1_security_device_api_ignores_client_bypass_rbac_and_tier(client: Te
     resp_t2_door = client.post(
         "/api/device",
         json={"device_id": "main_door", "action": "open", "tier": 1, "bypass_rbac": True},
+        headers=_FAMILY_HDR,
     )
+    assert resp_t2_door.status_code == 403
     assert resp_t2_door.json().get("ok") is False
     assert eng.devices["main_door"]["state"] == "CLOSED"
 
@@ -133,27 +142,27 @@ def test_fix2_text_command_executes_real_device_actions_and_respects_rbac(client
     assert eng.devices["fan"]["state"] == "OFF"
 
     # Bật đèn phòng khách bằng lệnh văn bản
-    r1 = client.post("/api/text_command", json={"text": "Bật đèn phòng khách"})
+    r1 = client.post("/api/text_command", json={"text": "Bật đèn phòng khách"}, headers=_OWNER_HDR)
     assert r1.status_code == 200
     assert r1.json().get("ok") is True
     assert eng.devices["living_room_light"]["state"] == "ON"
 
     # Bật quạt trần bằng lệnh văn bản
-    r2 = client.post("/api/text_command", json={"text": "Bật quạt trần"})
+    r2 = client.post("/api/text_command", json={"text": "Bật quạt trần"}, headers=_OWNER_HDR)
     assert r2.status_code == 200
     assert r2.json().get("ok") is True
     assert eng.devices["fan"]["state"] == "ON"
 
     # Tắt đèn phòng khách bằng lệnh văn bản
-    r3 = client.post("/api/text_command", json={"text": "Tắt đèn phòng khách"})
+    r3 = client.post("/api/text_command", json={"text": "Tắt đèn phòng khách"}, headers=_OWNER_HDR)
     assert r3.status_code == 200
     assert r3.json().get("ok") is True
     assert eng.devices["living_room_light"]["state"] == "OFF"
 
     # Khi ở vai trò Khách Cấp 3, lệnh văn bản "Mở cửa chính" phải bị chặn
     eng.set_active_user("khach_c")
-    r_door = client.post("/api/text_command", json={"text": "Mở cửa chính"})
-    assert r_door.status_code == 200
+    r_door = client.post("/api/text_command", json={"text": "Mở cửa chính"}, headers=_GUEST_HDR)
+    assert r_door.status_code == 403
     assert r_door.json().get("ok") is False
     assert r_door.json().get("rbac_blocked") is True
     assert eng.devices["main_door"]["state"] == "CLOSED"
@@ -165,31 +174,31 @@ def test_fix3_pump_manual_override_does_not_immediately_turn_back_on(client: Tes
     eng.set_active_user("tuan_anh")
 
     # 1. Độ ẩm đất giảm xuống 25% (< 40%) -> Tự động bật máy bơm
-    r_dry1 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 25.0})
+    r_dry1 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 25.0}, headers=_OWNER_HDR)
     assert r_dry1.status_code == 200
     assert r_dry1.json().get("auto_action") == "AUTO_PUMP_ON"
     assert eng.devices["garden_pump"]["state"] == "ON"
 
     # 2. Người dùng tắt tay máy bơm
-    r_off = client.post("/api/device", json={"device_id": "garden_pump", "action": "turn_off"})
+    r_off = client.post("/api/device", json={"device_id": "garden_pump", "action": "turn_off"}, headers=_OWNER_HDR)
     assert r_off.status_code == 200
     assert r_off.json().get("ok") is True
     assert eng.devices["garden_pump"]["state"] == "OFF"
     assert eng.pump_manual_override_off is True
 
     # 3. Cảm biến độ ẩm đất tiếp tục gửi 28% (< 40%) -> Bơm VẪN GIỮ OFF (không tự bật lại ngay)
-    r_dry2 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 28.0})
+    r_dry2 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 28.0}, headers=_OWNER_HDR)
     assert r_dry2.status_code == 200
     assert r_dry2.json().get("auto_action") == "MANUAL_OVERRIDE_KEEP_OFF"
     assert eng.devices["garden_pump"]["state"] == "OFF"
 
     # 4. Khi đất ẩm trở lại (>= 40%, ví dụ 55%) -> Cờ manual override được xóa, sẵn sàng cho chu kỳ khô tiếp theo
-    r_norm = client.post("/api/soil_moisture", json={"soil_moisture_pct": 55.0})
+    r_norm = client.post("/api/soil_moisture", json={"soil_moisture_pct": 55.0}, headers=_OWNER_HDR)
     assert r_norm.status_code == 200
     assert eng.pump_manual_override_off is False
 
     # 5. Chu kỳ khô mới (22%) -> Tự bật bơm lại bình thường
-    r_dry3 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 22.0})
+    r_dry3 = client.post("/api/soil_moisture", json={"soil_moisture_pct": 22.0}, headers=_OWNER_HDR)
     assert r_dry3.status_code == 200
     assert r_dry3.json().get("auto_action") == "AUTO_PUMP_ON"
     assert eng.devices["garden_pump"]["state"] == "ON"
@@ -199,7 +208,7 @@ def test_fix4_sensor_clamping_nan_and_out_of_bounds(client: TestClient) -> None:
     """Fix 4: Cảm biến kẹp giá trị hợp lệ; NaN / Inf / âm / >100 không làm sai lệch hoặc biến NaN thành 100%."""
     eng = _eng()
     # Đặt giá trị hợp lệ ban đầu = 55.0%
-    client.post("/api/soil_moisture", json={"soil_moisture_pct": 55.0})
+    client.post("/api/soil_moisture", json={"soil_moisture_pct": 55.0}, headers=_OWNER_HDR)
     assert eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] == 55.0
 
     # Truyền NaN trực tiếp vào update_soil_moisture_telemetry -> Phải giữ fallback (55.0), tuyệt đối KHÔNG thành 100.0
@@ -210,19 +219,19 @@ def test_fix4_sensor_clamping_nan_and_out_of_bounds(client: TestClient) -> None:
     assert soil_after_nan != 100.0
 
     # Truyền chuỗi "NaN" qua REST API -> Giữ fallback (55.0), không thành 100.0
-    r_str_nan = client.post("/api/soil_moisture", json={"soil_moisture_pct": "NaN"})
+    r_str_nan = client.post("/api/soil_moisture", json={"soil_moisture_pct": "NaN"}, headers=_OWNER_HDR)
     assert r_str_nan.status_code == 200
     assert eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] == 55.0
 
     # Truyền giá trị âm (-25) và vượt ngưỡng (250) -> Kẹp đúng về 0.0 và 100.0
-    client.post("/api/soil_moisture", json={"soil_moisture_pct": -25.0})
+    client.post("/api/soil_moisture", json={"soil_moisture_pct": -25.0}, headers=_OWNER_HDR)
     assert eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] == 0.0
 
-    client.post("/api/soil_moisture", json={"soil_moisture_pct": 250.0})
+    client.post("/api/soil_moisture", json={"soil_moisture_pct": 250.0}, headers=_OWNER_HDR)
     assert eng.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"] == 100.0
 
     # Kiểm tra DHT11: kẹp nhiệt độ (0..60°C) và độ ẩm (0..100%)
-    client.post("/api/dht11", json={"temp_c": 999.0, "humidity_pct": -15.0, "wifi_rssi_dbm": 50})
+    client.post("/api/dht11", json={"temp_c": 999.0, "humidity_pct": -15.0, "wifi_rssi_dbm": 50}, headers=_OWNER_HDR)
     dht = eng.mqtt_bridge.dht11_telemetry
     assert dht["temp_c"] == 60.0
     assert dht["humidity_pct"] == 0.0
@@ -241,6 +250,7 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
     r_sched = client.post(
         "/api/mobile/schedule",
         json={"device_id": "living_room_light", "action": "turn_on", "seconds": 15, "tier": 1},
+        headers=_GUEST_HDR,
     )
     assert r_sched.status_code == 403
     data_sched = r_sched.json()
@@ -252,6 +262,7 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
     r_text_sched = client.post(
         "/api/text_command",
         json={"text": "Hẹn 10 giây nữa bật đèn phòng khách"},
+        headers=_GUEST_HDR,
     )
     assert r_text_sched.status_code == 403
     assert r_text_sched.json().get("ok") is False
@@ -263,6 +274,7 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
     r_owner_sched = client.post(
         "/api/mobile/schedule",
         json={"device_id": "living_room_light", "action": "turn_on", "seconds": 15},
+        headers=_OWNER_HDR,
     )
     assert r_owner_sched.status_code == 200
     assert r_owner_sched.json().get("ok") is True
@@ -270,30 +282,32 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
 
 
 def test_fix6_auth_14_scenarios_report_keys_complete(client: TestClient) -> None:
-    """Fix 6: /api/auth3/overview và /api/auth3/run_test_suite trả đủ passed, total, results, id cho bảng 14 kịch bản."""
+    """Fix 6: /api/auth3/overview và /api/auth3/run_test_suite trả đủ passed, total, results, id cho bảng 14 kịch bản (11 active, 3 voiceprint 410 Gone)."""
     # Reset latest_test_report để kiểm tra trường hợp /api/auth3/overview tự khởi chạy lần đầu
     mgr = get_auth_3layer_manager()
     mgr.latest_test_report = {}
 
-    r_ov = client.get("/api/auth3/overview")
+    r_ov = client.get("/api/auth3/overview", headers=_OWNER_HDR)
     assert r_ov.status_code == 200
     ov = r_ov.json()
     rep = ov.get("test_report") or {}
     assert rep.get("total") == 14
-    assert rep.get("passed") == 14
     assert rep.get("total_cases") == 14
-    assert rep.get("passed_cases") == 14
+    assert rep.get("passed") == rep.get("passed_cases")
+    assert rep.get("passed", 0) >= 11
     results = rep.get("results") or []
     assert len(results) == 14
+    retired_voice_tests = {"TEST-09", "TEST-10", "TEST-12"}
     for tc in results:
         assert tc.get("id"), f"Thiếu trường id trong kịch bản: {tc}"
         assert tc.get("test_id") == tc.get("id")
-        assert tc.get("passed") is True
+        if tc["id"] not in retired_voice_tests:
+            assert tc.get("passed") is True, f"Kịch bản active phải pass: {tc}"
 
     # Kiểm tra thêm endpoint /api/auth3/run_test_suite
-    r_run = client.post("/api/auth3/run_test_suite", json={"send_live_email": False})
+    r_run = client.post("/api/auth3/run_test_suite", json={"send_live_email": False}, headers=_OWNER_HDR)
     assert r_run.status_code == 200
     run_data = r_run.json()
-    assert run_data.get("passed") == 14
     assert run_data.get("total") == 14
+    assert run_data.get("passed", 0) >= 11
     assert len(run_data.get("results", [])) == 14

@@ -281,36 +281,45 @@ async def page_403() -> FileResponse:
     return FileResponse(STATIC_DIR / "403.html", status_code=403, media_type="text/html")
 
 
+_CACHED_GIT_SHA: str | None = None
+_CACHED_GIT_BRANCH: str | None = None
+
+
 def _resolve_deployment_version_info() -> dict[str, Any]:
+    global _CACHED_GIT_SHA, _CACHED_GIT_BRANCH
     commit_sha = (
-        os.environ.get("APP_GIT_COMMIT_SHA", "").strip()
-        or os.environ.get("VERCEL_GIT_COMMIT_SHA", "").strip()
+        os.environ.get("VERCEL_GIT_COMMIT_SHA", "").strip()
+        or os.environ.get("APP_GIT_COMMIT_SHA", "").strip()
         or os.environ.get("GIT_COMMIT_SHA", "").strip()
     )
     branch = (
-        os.environ.get("APP_GIT_BRANCH", "").strip()
-        or os.environ.get("VERCEL_GIT_COMMIT_REF", "").strip()
+        os.environ.get("VERCEL_GIT_COMMIT_REF", "").strip()
+        or os.environ.get("APP_GIT_BRANCH", "").strip()
     )
     if not commit_sha:
-        try:
-            commit_sha = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"],
-                cwd=str(ROOT),
-                stderr=subprocess.DEVNULL,
-                timeout=2.0,
-            ).decode("utf-8").strip()
-        except Exception:
-            commit_sha = "unknown"
+        if _CACHED_GIT_SHA is None:
+            try:
+                _CACHED_GIT_SHA = subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=str(ROOT),
+                    stderr=subprocess.DEVNULL,
+                    timeout=2.0,
+                ).decode("utf-8").strip() or "unknown"
+            except Exception:
+                _CACHED_GIT_SHA = "unknown"
+        commit_sha = _CACHED_GIT_SHA
     if not branch:
-        try:
-            branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=str(ROOT),
-                stderr=subprocess.DEVNULL,
-                timeout=2.0,
-            ).decode("utf-8").strip()
-        except Exception:
-            branch = "master"
+        if _CACHED_GIT_BRANCH is None:
+            try:
+                _CACHED_GIT_BRANCH = subprocess.check_output(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=str(ROOT),
+                    stderr=subprocess.DEVNULL,
+                    timeout=2.0,
+                ).decode("utf-8").strip() or "master"
+            except Exception:
+                _CACHED_GIT_BRANCH = "master"
+        branch = _CACHED_GIT_BRANCH
     return {
         "ok": True,
         "commit_sha": commit_sha,

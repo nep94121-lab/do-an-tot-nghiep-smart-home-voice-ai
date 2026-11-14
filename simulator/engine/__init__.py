@@ -32,8 +32,10 @@ from .constants_and_time import (
 from .rules_pool import EngineRulesMixin
 from .state_store import (
     FileStateBackend,
+    GitHubCasStateBackend,
     InMemoryStateBackend,
     StateBackend,
+    StateConflictError,
     TrackedDeviceDict,
     VercelBlobStateBackend,
     build_default_shared_state_payload,
@@ -73,9 +75,11 @@ __all__ = [
     "parse_vn_time_string",
     "ensure_factory_file",
     "StateBackend",
+    "StateConflictError",
     "TrackedDeviceDict",
     "InMemoryStateBackend",
     "FileStateBackend",
+    "GitHubCasStateBackend",
     "VercelBlobStateBackend",
     "create_state_backend_from_env",
     "get_default_state_backend",

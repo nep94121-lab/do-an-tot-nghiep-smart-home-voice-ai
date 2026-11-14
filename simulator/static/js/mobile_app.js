@@ -3188,22 +3188,8 @@
           return;
         }
         const d2 = await r2.json().catch(() => ({}));
-        let d1 = {};
-        if (mobileLoggedIn && Number(mobileTier) === 1) {
-          try {
-            const r1 = await fetch('/api/auth3/overview', { credentials: 'same-origin' });
-            if (r1.ok) d1 = await r1.json();
-          } catch (_) {}
-        }
         if (r2.ok && d2 && d2.devices) {
           renderState(d2);
-        }
-        const stBadge = document.getElementById('mobileStrikeBadge');
-        if (stBadge && d1.security_status) {
-          const st = d1.security_status;
-          const fails = st.failed_voice_attempts ?? st.failed_attempts ?? 0;
-          const maxAtt = st.max_attempts ?? 3;
-          stBadge.textContent = `${fails}/${maxAtt}`;
         }
         const schedInline = document.getElementById('upcomingScheduleInline');
         if (schedInline && d2.timers) {
@@ -3213,6 +3199,23 @@
           } else {
             schedInline.textContent = 'Chưa có lịch';
           }
+        }
+        const nowMs = Date.now();
+        if (mobileLoggedIn && Number(mobileTier) === 1 && (force || (nowMs - _lastMobileOverviewPollMs) >= 10000)) {
+          _lastMobileOverviewPollMs = nowMs;
+          try {
+            const r1 = await fetch('/api/auth3/overview', { credentials: 'same-origin' });
+            if (r1.ok) {
+              const d1 = await r1.json();
+              const stBadge = document.getElementById('mobileStrikeBadge');
+              if (stBadge && d1.security_status) {
+                const st = d1.security_status;
+                const fails = st.failed_voice_attempts ?? st.failed_attempts ?? 0;
+                const maxAtt = st.max_attempts ?? 3;
+                stBadge.textContent = `${fails}/${maxAtt}`;
+              }
+            }
+          } catch (_) {}
         }
       } catch (e) {
         updateMobileAuthUiState(false);
@@ -3226,6 +3229,8 @@
       if (statusEl) statusEl.textContent = '';
     }
 
+    let _lastMobileOverviewPollMs = 0;
+    let _mobilePollTick = 0;
     let _mobileAppInited = false;
     function initMobileApp() {
       if (_mobileAppInited) return;
@@ -3234,7 +3239,16 @@
       fetchInitial().catch(() => {});
       renderMobileHistory();
       if (!mobilePollIntervalId) {
-        mobilePollIntervalId = setInterval(() => pollMobileSecurityAndTimers(false), 1500);
+        mobilePollIntervalId = setInterval(() => {
+          _mobilePollTick += 1;
+          if (typeof document !== 'undefined' && document.hidden && (_mobilePollTick % 2) !== 0) return;
+          pollMobileSecurityAndTimers(false);
+        }, 1000);
+      }
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden && mobileLoggedIn) pollMobileSecurityAndTimers(true);
+        });
       }
     }
 

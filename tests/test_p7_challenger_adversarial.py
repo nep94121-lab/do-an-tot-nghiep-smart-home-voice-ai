@@ -138,8 +138,13 @@ def test_adv_unauthenticated_request_matrix(client: TestClient) -> None:
         ("POST", "/api/text_command", {"text": "bật máy bơm"}),
         ("POST", "/api/text_command", {"text": "tắt máy bơm"}),
         ("POST", "/api/text_command", {"text": "hẹn 10 giây nữa bật đèn"}),
-        ("GET", "/api/auth3/guest_qr_current?duration=1d", None),
+        ("POST", "/api/auth3/guest_qr_current?duration=1d", {"duration": "1d"}),
+        ("POST", "/api/guest/invites", {"tier": 3, "ttl_sec": 86400}),
     ]
+
+    r_get_qr = client.get("/api/auth3/guest_qr_current?duration=1d")
+    assert r_get_qr.status_code == 405
+    assert r_get_qr.json().get("ok") is False
 
     for v_name, headers, cookies in attack_vectors:
         for method, url, payload in endpoints_to_test:
@@ -162,12 +167,13 @@ def test_adv_cookie_query_payload_forged_tokens_return_401(client: TestClient) -
     r_cookie = client.post("/api/device", json={"device_id": "fan", "action": "turn_on"}, cookies={"sh_session_token": "fake_cookie_token"})
     assert r_cookie.status_code == 401
 
-    r_cookie_qr = client.get("/api/auth3/guest_qr_current", cookies={"session_token": "fake_cookie_token"})
+    r_cookie_qr = client.post("/api/auth3/guest_qr_current", json={}, cookies={"session_token": "fake_cookie_token"})
     assert r_cookie_qr.status_code == 401
 
     # 2. Giả mạo qua Query Param
-    r_query = client.get("/api/auth3/guest_qr_current?token=fake_query_token&duration=1d")
+    r_query = client.post("/api/auth3/guest_qr_current?token=fake_query_token&duration=1d", json={})
     assert r_query.status_code == 401
+    assert client.get("/api/auth3/guest_qr_current?token=fake_query_token&duration=1d").status_code == 405
 
     # 3. Giả mạo qua Body Payload session_token
     r_body = client.post("/api/device", json={"device_id": "fan", "action": "turn_on", "session_token": "fake_body_token"})
@@ -241,34 +247,24 @@ def test_adv_guest_voice_enrollment_privilege_escalation_denied(client: TestClie
         {"tier": 1, "role_code": "OWNER", "guest_name": "Attacker Tier1", "email": "attt1.challenger@gmail.com"},
     ]
 
+    mgr = get_auth_3layer_manager()
     for p in escalation_payloads:
         p["audio_pcm_b64"] = pcm_b64
         p["duration"] = "1d"
         p["verify_only"] = False
 
         res = client.post("/api/auth3/guest_qr_complete_voice", json=p)
-        assert res.status_code == 200, f"Enrollment failed: {res.text}"
+        assert res.status_code == 410, f"Deprecated guest voice endpoint must stay 410 Gone: {res.text}"
         data = res.json()
-
-        # Kiểm tra phản hồi bắt buộc phải là Cấp 3
-        assert data.get("tier") == 3, f"Bị leo quyền: phản hồi trả về tier={data.get('tier')}"
-        if "account" in data and data["account"]:
-            assert data["account"]["tier"] == 3, f"Account tier bị leo quyền: {data['account']['tier']}"
-            assert data["account"]["role"] == "CHILD_GUEST", f"Account role bị leo quyền: {data['account']['role']}"
-
-        # Kiểm tra trực tiếp trong danh sách accounts lưu trữ
-        mgr = get_auth_3layer_manager()
+        assert data.get("ok") is False
+        assert data.get("gone") is True
         stored_acc = next((a for a in mgr.accounts if a.get("email") == p["email"]), None)
-        assert stored_acc is not None, f"Không tìm thấy tài khoản {p['email']} được lưu"
-        assert stored_acc["tier"] == 3, f"Tài khoản trong DB có tier={stored_acc['tier']} (kỳ vọng 3)"
-        assert stored_acc["role"] == "CHILD_GUEST", f"Tài khoản trong DB có role={stored_acc['role']} (kỳ vọng CHILD_GUEST)"
-
-        # Reset voice auth để test payload kế tiếp không bị trùng F0
+        assert stored_acc is None, f"Tài khoản leo quyền {p['email']} không được phép tồn tại"
         _BOOT_VOICE_AUTH.reset_to_owner_only()
 
 
 def test_adv_guest_voice_owner_email_spoofing_forbidden(client: TestClient) -> None:
-    """Cố tình giả mạo email Chủ nhà nep94121@gmail.com trên trang khách -> Phải trả về 400."""
+    """Endpoint đăng ký giọng khách đã gỡ (410 Gone); cố giả mạo email Chủ nhà vẫn bị chặn tuyệt đối."""
     pcm_b64 = _generate_valid_test_pcm_b64(f0_hz=210.0)
     payload = {
         "guest_name": "Hacker Giả Danh Chủ Nhà",
@@ -278,10 +274,10 @@ def test_adv_guest_voice_owner_email_spoofing_forbidden(client: TestClient) -> N
         "duration": "1d",
     }
     res = client.post("/api/auth3/guest_qr_complete_voice", json=payload)
-    assert res.status_code == 400
+    assert res.status_code == 410
     data = res.json()
     assert data.get("ok") is False
-    assert data.get("status") == "OWNER_EMAIL_FORBIDDEN"
+    assert data.get("gone") is True
 
 
 # ==============================================================================
@@ -289,39 +285,33 @@ def test_adv_guest_voice_owner_email_spoofing_forbidden(client: TestClient) -> N
 # ==============================================================================
 
 def test_adv_remaining_slot_sec_key_sanitization(client: TestClient) -> None:
-    """Kiểm tra phản hồi của GET /api/auth3/guest_qr_current KHÔNG BAO GIỜ chứa remaining_Slot_sec."""
+    """Kiểm tra phản hồi của POST /api/auth3/guest_qr_current KHÔNG BAO GIỜ chứa remaining_Slot_sec."""
+    from simulator.auth.owner_pin import reset_owner_pin_store_for_tests
+    from simulator.auth.guest_invites import reset_invite_store_for_tests
+
+    reset_owner_pin_store_for_tests()
+    reset_invite_store_for_tests()
     headers = {"Authorization": "Bearer sess_owner_t1_nep94121"}
 
     test_queries = [
-        "duration=1h",
-        "duration=1d",
-        "duration=3d",
-        "duration=7d",
-        "duration=30d",
-        "dur=1d",
-        "duration_type=7d",
-        "tier=2",
-        "tier=3",
-        "duration=invalid_foo_bar",
-        "host=localhost:8088",
-        "host=127.0.0.1:8088",
-        "host=guest-bay.vercel.app",
+        ("duration=1h", {"tier": 3, "ttl_sec": 3600, "pin": "1234", "pin_confirm": "1234"}),
+        ("duration=1d", {"tier": 3, "ttl_sec": 86400, "pin": "1234"}),
+        ("duration=3d", {"tier": 3, "ttl_sec": 259200, "pin": "1234"}),
+        ("duration=7d", {"tier": 3, "ttl_sec": 604800, "pin": "1234"}),
+        ("duration=30d", {"tier": 3, "ttl_sec": 2592000, "pin": "1234"}),
+        ("tier=2", {"tier": 2, "ttl_sec": 86400, "pin": "1234"}),
+        ("tier=3", {"tier": 3, "ttl_sec": 86400, "pin": "1234"}),
     ]
 
-    for q in test_queries:
-        res = client.get(f"/api/auth3/guest_qr_current?{q}", headers=headers)
-        assert res.status_code == 200, f"Query {q} failed with {res.status_code}"
+    for q, body in test_queries:
+        res = client.post(f"/api/auth3/guest_qr_current?{q}", json=body, headers=headers)
+        assert res.status_code == 200, f"Query {q} failed with {res.status_code}: {res.text}"
         data = res.json()
 
-        # 1. Có key chuẩn snake_case
-        assert "remaining_slot_sec" in data, f"Thiếu key remaining_slot_sec trong query {q}"
-        assert isinstance(data["remaining_slot_sec"], int)
-        assert 1 <= data["remaining_slot_sec"] <= 10
-
-        # 2. Tuyệt đối KHÔNG có key lỗi lạc remaining_Slot_sec
+        # Tuyệt đối KHÔNG có key lỗi lạc remaining_Slot_sec
         assert "remaining_Slot_sec" not in data, f"Key trùng lặp remaining_Slot_sec vẫn còn xuất hiện trong query {q}!"
 
-        # 3. Quét đệ quy toàn bộ JSON để chắc chắn không nằm trong object con nào
+        # Quét đệ quy toàn bộ JSON để chắc chắn không nằm trong object con nào
         def _check_no_corrupted_key(obj: Any):
             if isinstance(obj, dict):
                 for k, v in obj.items():
@@ -346,7 +336,7 @@ def test_adv_concurrent_attack_resilience(client: TestClient) -> None:
         if idx % 2 == 0:
             res = client.post(endpoint, json={"device_id": "living_room_light", "action": "turn_on"}, headers=headers)
         else:
-            res = client.get(endpoint, headers=headers)
+            res = client.post(endpoint, json={"duration": "1d"}, headers=headers)
         return res.status_code
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:

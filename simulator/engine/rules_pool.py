@@ -294,10 +294,10 @@ class EngineRulesMixin:
         )
         return {k: u[k] for k in allowed_keys if k in u}
 
-    def get_public_device_snapshot(self) -> dict[str, Any]:
+    def get_public_device_snapshot(self, *, sync: bool = True) -> dict[str, Any]:
         if hasattr(self, "_purge_throwaway_qa_users"):
             self._purge_throwaway_qa_users()
-        if getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
+        if sync and getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
             self.sync_from_shared_store()
         mqtt_raw = self.mqtt_bridge.get_summary() if hasattr(self, "mqtt_bridge") and self.mqtt_bridge else {}
         public_mqtt = {
@@ -306,11 +306,13 @@ class EngineRulesMixin:
             "soil_moisture_telemetry": dict(mqtt_raw.get("soil_moisture_telemetry", {})) if isinstance(mqtt_raw.get("soil_moisture_telemetry"), dict) else {},
             "ir_devices_count": int(mqtt_raw.get("ir_devices_count", 0) or 0),
         }
+        rev_seq = int(getattr(self, "_last_synced_seq", 0))
         return sanitize_api_payload({
             "ok": True,
             "authenticated": False,
             "public_only": True,
-            "revision_seq": int(getattr(self, "_last_synced_seq", 0)),
+            "revision_seq": rev_seq,
+            "state_revision": rev_seq,
             "revision_ts_ns": int(getattr(self, "_last_synced_ts_ns", 0)),
             "vn_time_now": format_vn_time_ampm(),
             "server_connected": self.server_connected,
@@ -324,20 +326,22 @@ class EngineRulesMixin:
         session: Any | None = None,
         include_users: bool | None = None,
         public_only: bool = False,
+        *,
+        sync: bool = True,
     ) -> dict[str, Any]:
         if hasattr(self, "_purge_throwaway_qa_users"):
             self._purge_throwaway_qa_users()
         if public_only:
-            return self.get_public_device_snapshot()
+            return self.get_public_device_snapshot(sync=sync)
         if session is not None:
             if not getattr(session, "is_authenticated", False) or getattr(session, "source", "") in (
                 "unauthenticated",
                 "invalid_token",
                 "rejected_unknown",
             ):
-                return self.get_public_device_snapshot()
+                return self.get_public_device_snapshot(sync=sync)
 
-        if getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
+        if sync and getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
             self.sync_from_shared_store()
 
         if session is not None:
@@ -385,6 +389,7 @@ class EngineRulesMixin:
         snap: dict[str, Any] = {
             "ok": True,
             "revision_seq": int(getattr(self, "_last_synced_seq", 0)),
+            "state_revision": int(getattr(self, "_last_synced_seq", 0)),
             "revision_ts_ns": int(getattr(self, "_last_synced_ts_ns", 0)),
             "vn_time_now": format_vn_time_ampm(),
             "server_connected": self.server_connected,
@@ -573,31 +578,56 @@ class EngineRulesMixin:
         }
 
     async def set_server_connection_mode(self, connected: bool) -> dict[str, Any]:
-        if hasattr(self, "sync_from_shared_store"):
-            self.sync_from_shared_store(force=True)
-        self.server_connected = bool(connected)
-        self.mqtt_bridge.esp8266_status["online"] = self.server_connected
-        self.mqtt_bridge.esp8266_status["power_mode"] = (
-            "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
-        )
-        auto_closed_door = False
-        if not self.server_connected and self.devices.get("main_door", {}).get("state") == "OPEN":
-            self.devices["main_door"]["state"] = "CLOSED"
-            self.devices["main_door"]["updated_at"] = time.time()
-            auto_closed_door = True
-            await self.emit({
-                "type": "device_updated",
-                "device_id": "main_door",
-                "device_name": self.devices["main_door"]["name"],
-                "gpio": self.devices["main_door"]["gpio"],
-                "old_state": "OPEN",
-                "new_state": "CLOSED",
-                "source": "Tự động khóa cửa khi mất kết nối Server (Offline Fail-Safe)",
-                "timestamp": self.devices["main_door"]["updated_at"],
-            })
+        target_connected = bool(connected)
 
-        if hasattr(self, "persist_to_shared_store"):
-            self.persist_to_shared_store()
+        def _apply_mode(target_root: Any) -> dict[str, Any] | None:
+            target_root.server_connected = target_connected
+            if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
+                target_root.mqtt_bridge.esp8266_status["online"] = target_root.server_connected
+                target_root.mqtt_bridge.esp8266_status["power_mode"] = (
+                    "SERVER_ONLINE_FULL_AI" if target_root.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
+                )
+            closed_event: dict[str, Any] | None = None
+            door = target_root.devices.get("main_door")
+            if not target_root.server_connected and isinstance(door, dict) and door.get("state") == "OPEN":
+                target_root._applying_shared_state_depth = getattr(target_root, "_applying_shared_state_depth", 0) + 1
+                target_root._applying_shared_state = True
+                try:
+                    prev_ts = float(door.get("updated_at", 0.0) or 0.0)
+                    now_ts = max(time.time(), prev_ts + 1e-6)
+                    door["state"] = "CLOSED"
+                    door["updated_at"] = now_ts
+                    door["version"] = int(door.get("version", 1) or 1) + 1
+                finally:
+                    target_root._applying_shared_state_depth = max(
+                        0, getattr(target_root, "_applying_shared_state_depth", 1) - 1
+                    )
+                    target_root._applying_shared_state = target_root._applying_shared_state_depth > 0
+                closed_event = {
+                    "type": "device_updated",
+                    "device_id": "main_door",
+                    "device_name": door["name"],
+                    "gpio": door["gpio"],
+                    "old_state": "OPEN",
+                    "new_state": "CLOSED",
+                    "source": "Tự động khóa cửa khi mất kết nối Server (Offline Fail-Safe)",
+                    "timestamp": door["updated_at"],
+                }
+            return closed_event
+
+        closed_event: dict[str, Any] | None = None
+        if hasattr(self, "_commit_shared_state_mutation"):
+            closed_event = await self._commit_shared_state_mutation(_apply_mode)
+        else:
+            if hasattr(self, "sync_from_shared_store"):
+                self.sync_from_shared_store(force=True)
+            closed_event = _apply_mode(self)
+            if hasattr(self, "persist_to_shared_store"):
+                self.persist_to_shared_store()
+
+        auto_closed_door = closed_event is not None
+        if closed_event is not None:
+            await self.emit(closed_event)
 
         if self.server_connected:
             msg = "🟢 Đã kết nối Server Laptop: Khôi phục đầy đủ AI Giọng nói, Khẩu lệnh tùy chỉnh và quyền mở Cửa chính."
@@ -1195,16 +1225,56 @@ class EngineRulesMixin:
             self._save_overlay()
 
         if norm_scope == "all":
-            self._applying_shared_state = True
-            try:
-                self.devices = {
-                    k: dict(v, updated_at=time.time()) for k, v in DEFAULT_DEVICES.items()
-                }
-                self.pump_manual_override_off = False
-            finally:
-                self._applying_shared_state = False
-            if hasattr(self, "persist_to_shared_store"):
-                self.persist_to_shared_store()
+            from simulator.engine.state_store import TrackedDeviceDict
+
+            def _apply_reset_all(target_root: Any) -> None:
+                now_ts = time.time()
+                target_root._applying_shared_state_depth = getattr(target_root, "_applying_shared_state_depth", 0) + 1
+                target_root._applying_shared_state = True
+                try:
+                    for extra_k in [k for k in list(target_root.devices.keys()) if k not in DEFAULT_DEVICES]:
+                        target_root.devices.pop(extra_k, None)
+                    for k, default_v in DEFAULT_DEVICES.items():
+                        existing = target_root.devices.get(k)
+                        next_ver = (int(existing.get("version", 1) or 1) + 1) if isinstance(existing, dict) else 1
+                        if isinstance(existing, TrackedDeviceDict):
+                            existing.clear()
+                            existing.update(default_v)
+                            existing["updated_at"] = now_ts
+                            existing["version"] = next_ver
+                            existing["last_client_seq"] = 0
+                            existing["last_client_ts_ms"] = 0
+                            existing["last_client_id"] = ""
+                            existing["last_request_id"] = ""
+                            existing["last_requested_state"] = str(default_v.get("state", "OFF"))
+                            existing["client_seqs"] = {}
+                        else:
+                            td = TrackedDeviceDict(default_v, updated_at=now_ts, _engine=target_root)
+                            td["version"] = next_ver
+                            td["last_client_seq"] = 0
+                            td["last_client_ts_ms"] = 0
+                            td["last_client_id"] = ""
+                            td["last_request_id"] = ""
+                            td["last_requested_state"] = str(default_v.get("state", "OFF"))
+                            td["client_seqs"] = {}
+                            target_root.devices[k] = td
+                    target_root.server_connected = True
+                    target_root.pump_manual_override_off = False
+                    if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
+                        target_root.mqtt_bridge.esp8266_status["online"] = True
+                        target_root.mqtt_bridge.esp8266_status["power_mode"] = "SERVER_ONLINE_FULL_AI"
+                finally:
+                    target_root._applying_shared_state_depth = max(
+                        0, getattr(target_root, "_applying_shared_state_depth", 1) - 1
+                    )
+                    target_root._applying_shared_state = target_root._applying_shared_state_depth > 0
+
+            if hasattr(self, "_commit_shared_state_mutation"):
+                await self._commit_shared_state_mutation(_apply_reset_all)
+            else:
+                _apply_reset_all(getattr(self, "_root_engine", self))
+                if hasattr(self, "persist_to_shared_store"):
+                    self.persist_to_shared_store()
 
         spoken_map = {
             "voice": "Đã reset giọng nói chỉ về của bạn.",
