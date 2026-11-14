@@ -212,7 +212,7 @@ def test_u1_u2_u3_u4_playwright_layout_and_flows(
             def _on_console(msg) -> None:
                 if msg.type != "error":
                     return
-                if allow_unauth_401 and "401 (Unauthorized)" in msg.text:
+                if allow_unauth_401 and "status of 401" in msg.text:
                     return
                 console_errors.append(msg.text)
 
@@ -350,7 +350,7 @@ def test_u5_production_public_pages_playwright(viewport: dict[str, int]) -> None
         page.on(
             "console",
             lambda m: console_errors.append(m.text)
-            if (m.type == "error" and "401 (Unauthorized)" not in m.text)
+            if (m.type == "error" and "status of 401" not in m.text)
             else None,
         )
         page.on(
