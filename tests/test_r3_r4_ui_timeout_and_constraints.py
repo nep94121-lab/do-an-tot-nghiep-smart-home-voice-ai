@@ -160,13 +160,19 @@ class TestR3InstantUiFeedback:
         assert "btn-spinner" in pre_fetch, "Button must display .btn-spinner synchronously before fetch in auth.js"
 
     def test_auth_html_defines_btn_spinner_and_keyframes(self):
-        """Verify auth.html defines .btn-spinner and @keyframes btn-spin in style block."""
+        """Verify auth.html links /static/css/auth.css (no inline <style>) and auth.css defines .btn-spinner and btn-spin."""
         html_file = ROOT / "simulator" / "static" / "auth.html"
+        css_file = ROOT / "simulator" / "static" / "css" / "auth.css"
         assert html_file.exists(), f"Missing file: {html_file}"
-        content = html_file.read_text(encoding="utf-8")
+        assert css_file.exists(), f"Missing file: {css_file}"
 
-        assert ".btn-spinner" in content, "auth.html must define .btn-spinner CSS class"
-        assert "btn-spin" in content, "auth.html must define btn-spin CSS keyframes animation"
+        html_content = html_file.read_text(encoding="utf-8")
+        css_content = css_file.read_text(encoding="utf-8")
+
+        assert "<style" not in html_content.lower(), "auth.html must not contain inline <style>"
+        assert "/static/css/auth.css" in html_content, "auth.html must link /static/css/auth.css"
+        assert ".btn-spinner" in css_content, "auth.css must define .btn-spinner CSS class"
+        assert "btn-spin" in css_content, "auth.css must define btn-spin CSS keyframes animation"
 
 
 # ============================================================================

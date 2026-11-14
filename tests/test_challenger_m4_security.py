@@ -31,12 +31,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, app
+from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
 
 
 @pytest.fixture(autouse=True)
 def clean_system_state():
-    """Làm sạch bộ nhớ đệm token, phiên ma active bridges và reset voice auth."""
+    """Làm sạch bộ nhớ đệm token, phiên ma active bridges, timer cũ và reset voice auth."""
     mgr = get_auth_3layer_manager()
     if hasattr(mgr, "used_qr_tokens"):
         mgr.used_qr_tokens.clear()
@@ -45,6 +45,7 @@ def clean_system_state():
     if hasattr(mgr, "guest_qr_sessions"):
         mgr.guest_qr_sessions.clear()
     _ACTIVE_BRIDGES.clear()
+    _REST_ENGINE.active_timers.clear()
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     yield
     if hasattr(mgr, "used_qr_tokens"):
@@ -54,6 +55,7 @@ def clean_system_state():
     if hasattr(mgr, "guest_qr_sessions"):
         mgr.guest_qr_sessions.clear()
     _ACTIVE_BRIDGES.clear()
+    _REST_ENGINE.active_timers.clear()
     _BOOT_VOICE_AUTH.reset_to_owner_only()
 
 
@@ -68,7 +70,7 @@ def client() -> TestClient:
 
 
 class TestTargetWindowFuzzingAdversarial:
-    """Kiểm thử Fuzzing đối kháng đầu vào target_window nhằm kích nổ các lỗi ép kiểu unhandled ValueError/TypeError."""
+    """Kiểm thử Fuzzing đối kháng đầu vào trên route 410 cũ và endpoint mã mời khách đang hoạt động."""
 
     @pytest.mark.parametrize(
         "malformed_input",
@@ -96,9 +98,9 @@ class TestTargetWindowFuzzingAdversarial:
     def test_target_window_malformed_string_types_rejected_400(
         self, client: TestClient, malformed_input: Any
     ) -> None:
-        """Gửi các giá trị chuỗi/cấu trúc dị biệt vào target_window:
-
-        BẮT BUỘC nhận HTTP 400 Bad Request, TUYỆT ĐỐI KHÔNG phát sinh crash HTTP 500.
+        """Gửi các giá trị chuỗi/cấu trúc dị biệt:
+        - Route cũ /api/auth3/guest_qr_handshake trả về 410 Gone (không crash 500).
+        - Endpoint đang hoạt động /api/guest/invite/validate và /api/guest/redeem từ chối sạch 400/403 (ok=False).
         """
         resp = client.post(
             "/api/auth3/guest_qr_handshake",
@@ -108,12 +110,23 @@ class TestTargetWindowFuzzingAdversarial:
                 "duration": "1d",
             },
         )
-        assert resp.status_code == 400, (
-            f"Fuzz vector '{malformed_input}' trả về {resp.status_code} thay vì 400 Bad Request!"
+        assert resp.status_code == 410, (
+            f"Retired handshake returned {resp.status_code} instead of 410 Gone!"
         )
         data = resp.json()
         assert data.get("ok") is False
-        assert "không hợp lệ" in data.get("error", "")
+        assert data.get("gone") is True
+
+        r_val_tok = malformed_input if isinstance(malformed_input, (str, int, float, bool)) else str(malformed_input)
+        r_val = client.get("/api/guest/invite/validate", params={} if malformed_input is None else {"token": r_val_tok})
+        assert r_val.status_code in (400, 403), (
+            f"GET /api/guest/invite/validate unexpected status {r_val.status_code} for {malformed_input!r}"
+        )
+        r_act = client.post("/api/guest/redeem", json={"token": malformed_input})
+        assert r_act.status_code in (400, 403), (
+            f"Fuzz vector on POST /api/guest/redeem returned {r_act.status_code} instead of 400/403!"
+        )
+        assert r_act.json().get("ok") is False
 
     @pytest.mark.parametrize(
         "out_of_bounds_input",
@@ -128,10 +141,9 @@ class TestTargetWindowFuzzingAdversarial:
     def test_target_window_out_of_bounds_rejected_401(
         self, client: TestClient, out_of_bounds_input: Any
     ) -> None:
-        """Gửi các giá trị số nguyên âm hoặc siêu lớn (out of bounds) vào target_window:
-
-        BẮT BUỘC nhận HTTP 401 Unauthorized (do lệch cửa sổ TOTP hoặc token không hợp lệ),
-        TUYỆT ĐỐI KHÔNG crash HTTP 500.
+        """Gửi các giá trị số nguyên âm hoặc siêu lớn (out of bounds):
+        - Route cũ /api/auth3/guest_qr_handshake trả 410 Gone (0 crash 500).
+        - Endpoint đang hoạt động /api/guest/redeem từ chối 400/403 (ok=False).
         """
         resp = client.post(
             "/api/auth3/guest_qr_handshake",
@@ -141,19 +153,21 @@ class TestTargetWindowFuzzingAdversarial:
                 "duration": "1d",
             },
         )
-        assert resp.status_code == 401, (
-            f"Bounds vector '{out_of_bounds_input}' trả về {resp.status_code} thay vì 401 Unauthorized!"
+        assert resp.status_code == 410, (
+            f"Bounds vector returned {resp.status_code} instead of 410 Gone!"
         )
         data = resp.json()
         assert data.get("ok") is False
+        assert data.get("gone") is True
+
+        r_red = client.post("/api/guest/redeem", json={"token": out_of_bounds_input})
+        assert r_red.status_code in (400, 403)
+        assert r_red.json().get("ok") is False
 
     def test_target_window_empty_and_none_graceful_handling(
         self, client: TestClient
     ) -> None:
-        """Gửi target_window là chuỗi rỗng '' hoặc None:
-
-        Hệ thống phân giải thành None an toàn, không phát sinh ngoại lệ HTTP 500.
-        """
+        """Gửi chuỗi rỗng '' hoặc None: xử lý an toàn 410 trên route cũ và 400/403 trên route mới, không crash 500."""
         for empty_val in ("", "   ", None):
             resp = client.post(
                 "/api/auth3/guest_qr_handshake",
@@ -163,74 +177,50 @@ class TestTargetWindowFuzzingAdversarial:
                     "duration": "1d",
                 },
             )
-            # Với token giả, trả về 401 hợp lệ
-            assert resp.status_code == 401
+            assert resp.status_code == 410
             assert resp.json().get("ok") is False
+            assert resp.json().get("gone") is True
+
+            r_red = client.post("/api/guest/redeem", json={"token": empty_val})
+            assert r_red.status_code in (400, 403)
+            assert r_red.json().get("ok") is False
 
     def test_fuzzing_against_valid_server_generated_token(
         self, client: TestClient
     ) -> None:
-        """Kiểm thử tương tác đối kháng giữa một mã token THẬT (do server vừa sinh) và các vector target_window dị biệt."""
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d").json()
-        assert cur.get("ok") is True
-        real_tok = cur["token"]
-        real_win = cur["window"]
+        """Kiểm thử hợp đồng QR/Invite hiện hành: route QR cũ trả 405/410, mã mời thực tế dùng 1 lần chống replay."""
+        cur = client.get("/api/auth3/guest_qr_current?duration=1d")
+        assert cur.status_code == 405
+        assert cur.json().get("ok") is False
 
-        # 1. Thử gửi target_window chuỗi dị thường với token thật -> 400 Bad Request
-        for bad_str in ["abc", "{}", "null", "NaN", "1e99"]:
-            r = client.post(
-                "/api/auth3/guest_qr_handshake",
-                json={
-                    "token": real_tok,
-                    "target_window": bad_str,
-                    "duration": "1d",
-                },
-            )
-            assert r.status_code == 400, (
-                f"Expected 400 for bad string '{bad_str}', got {r.status_code}"
-            )
-            assert "không hợp lệ" in r.json().get("error", "")
+        gone_hs = client.post("/api/auth3/guest_qr_handshake", json={"token": "x", "target_window": 1})
+        assert gone_hs.status_code == 410
+        assert gone_hs.json().get("gone") is True
 
-        # 2. Thử gửi target_window số âm hoặc sai lệch với token thật -> 401 Unauthorized
-        for bad_win in [-1, real_win + 5, real_win - 5, str(10**100)]:
-            r = client.post(
-                "/api/auth3/guest_qr_handshake",
-                json={
-                    "token": real_tok,
-                    "target_window": bad_win,
-                    "duration": "1d",
-                },
-            )
-            assert r.status_code == 401, (
-                f"Expected 401 for mismatched window '{bad_win}', got {r.status_code}"
-            )
-            assert "không khớp" in r.json().get("error", "")
+        from simulator.auth.guest_invites import create_invite
 
-        # 3. Thử bắt tay chuẩn với window chính xác -> 200 OK
-        r_ok = client.post(
-            "/api/auth3/guest_qr_handshake",
-            json={
-                "token": real_tok,
-                "target_window": real_win,
-                "duration": "1d",
-            },
-        )
+        inv = create_invite(owner_user_id="tuan_anh", tier=3, ttl_sec=600)
+        real_tok = inv["token"]
+
+        for bad_tok in ["abc", "inv_bad.sig", real_tok + "x", "null", "NaN"]:
+            r = client.get("/api/guest/invite/validate", params={"token": bad_tok})
+            assert r.status_code in (400, 403)
+            assert r.json().get("ok") is False
+
+        r_ok = client.post("/api/guest/redeem", json={"token": real_tok})
         assert r_ok.status_code == 200
         data_ok = r_ok.json()
         assert data_ok.get("ok") is True
-        assert "guest_session_id" in data_ok
+        assert data_ok.get("session_token")
 
-        # 4. Thử replay lại token vừa đốt -> 400 Bad Request (Single-Use Token)
-        r_replay = client.post(
-            "/api/auth3/guest_qr_handshake",
-            json={
-                "token": real_tok,
-                "target_window": real_win,
-                "duration": "1d",
-            },
-        )
-        assert r_replay.status_code == 400
-        assert "Single-Use" in r_replay.json().get("error", "") or "đã được sử dụng" in r_replay.json().get("error", "")
+        # Máy khác (client mới không có cookie của lần redeem đầu) replay lại token -> 403 (Single-Use)
+        replay_client = TestClient(app, raise_server_exceptions=False)
+        r_replay = replay_client.post("/api/guest/redeem", json={"token": real_tok})
+        assert r_replay.status_code == 403
+        replay_data = r_replay.json()
+        assert replay_data.get("ok") is False
+        assert replay_data.get("reason") == "used"
+        assert "đã được sử dụng" in replay_data.get("error", "")
 
 
 # =============================================================================
@@ -368,11 +358,17 @@ class TestWebSocketLifecycleAndGhostSessionLeaks:
 class TestStaticResourceServingAndContentTypes:
     """Kiểm thử phục vụ 18 routes tài nguyên tĩnh (6 HTML, 6 CSS, 6 JS) trả về HTTP 200 OK kèm đúng Content-Type."""
 
+    def test_retired_guest_enroll_returns_410_html(self, client: TestClient) -> None:
+        """Route cũ /guest_enroll trả về HTTP 410 Gone HTML sau khi gỡ voice enrollment."""
+        resp = client.get("/guest_enroll")
+        assert resp.status_code == 410
+        assert "text/html" in resp.headers.get("content-type", "").lower()
+
     ROUTES_SPEC = [
         # 6 Trang HTML
         ("/", "text/html"),
         ("/auth", "text/html"),
-        ("/guest_enroll", "text/html"),
+        ("/guest_guide", "text/html"),
         ("/wokwi", "text/html"),
         ("/logs", "text/html"),
         ("/app", "text/html"),

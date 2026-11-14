@@ -196,7 +196,23 @@ _LEGACY_DEFAULT_HASHES = frozenset(
         "a513440d7305d47120ad7cf065279770b696403290c2c4e0a270e53414e2eaaa",
     }
 )
+LEGACY_DEFAULT_PASSWORD_ERROR = "Mật khẩu này là mật khẩu mặc định cũ, hãy chọn mật khẩu khác"
 _TIMING_DUMMY_HASH = hash_password("timing_pad_do_not_match")
+
+
+def _is_legacy_default_password(password: str) -> bool:
+    pw = str(password or "").strip()
+    return bool(pw) and hash_password(pw) in _LEGACY_DEFAULT_HASHES
+
+
+def _mask_email_for_notice(email: str) -> str:
+    clean = str(email or "").strip().lower()
+    if "@" not in clean:
+        return clean
+    local, domain = clean.split("@", 1)
+    if not local:
+        return f"***@{domain}"
+    return f"{local[0]}***@{domain}"
 
 
 def is_test_otp_fields_allowed(app: Any = None) -> bool:
@@ -652,11 +668,13 @@ class ThreeLayerAuthManager(
         return _tx()
 
     @staticmethod
-    def _login_rate_limit_key(email: str, client_ip: str = "unknown") -> str:
-        raw_email = str(email or "").strip().lower()
-        canon = canonical_gmail_mailbox(raw_email) or raw_email or "empty"
+    def _login_rate_limit_key(email: str, client_ip: str = "unknown", account_id: str = "") -> str:
         ip_norm = str(client_ip or "unknown").strip().lower() or "unknown"
-        return f"{canon}|{ip_norm}"
+        acct_id = str(account_id or "").strip().lower()
+        if acct_id:
+            return f"acct:{acct_id}|{ip_norm}"
+        raw_email = str(email or "").strip().lower() or "empty"
+        return f"raw:{raw_email}|{ip_norm}"
 
     @staticmethod
     def _prune_rate_limit_buckets(buckets: dict[str, Any], now: float) -> dict[str, Any]:
@@ -704,8 +722,10 @@ class ThreeLayerAuthManager(
             pass
         return {}
 
-    def _check_login_rate_limit(self, email: str, client_ip: str = "unknown") -> dict[str, Any] | None:
-        key = self._login_rate_limit_key(email, client_ip)
+    def _check_login_rate_limit(
+        self, email: str, client_ip: str = "unknown", account_id: str = ""
+    ) -> dict[str, Any] | None:
+        key = self._login_rate_limit_key(email, client_ip, account_id=account_id)
         now = time.time()
         buckets = self._read_rate_limit_buckets()
         rec = buckets.get(key)
@@ -715,8 +735,10 @@ class ThreeLayerAuthManager(
                 return self._locked_error_payload(locked_until, now)
         return None
 
-    def _record_login_failure(self, email: str, client_ip: str = "unknown") -> dict[str, Any] | None:
-        key = self._login_rate_limit_key(email, client_ip)
+    def _record_login_failure(
+        self, email: str, client_ip: str = "unknown", account_id: str = ""
+    ) -> dict[str, Any] | None:
+        key = self._login_rate_limit_key(email, client_ip, account_id=account_id)
         if not _should_use_cas_store():
             with self._otp_lock:
                 now = time.time()
@@ -787,8 +809,8 @@ class ThreeLayerAuthManager(
 
         return _tx()
 
-    def _clear_login_failures(self, email: str, client_ip: str = "unknown") -> None:
-        key = self._login_rate_limit_key(email, client_ip)
+    def _clear_login_failures(self, email: str, client_ip: str = "unknown", account_id: str = "") -> None:
+        key = self._login_rate_limit_key(email, client_ip, account_id=account_id)
         if not _should_use_cas_store():
             with self._otp_lock:
                 self._login_rate_limits.pop(key, None)
@@ -911,7 +933,12 @@ class ThreeLayerAuthManager(
         self._sync_accounts_from_cas_if_enabled()
         return super().get_overview(*args, **kwargs)
 
-    def find_account(self, identifier: str) -> dict[str, Any] | None:
+    def _lookup_account(
+        self,
+        identifier: str,
+        *,
+        allow_canonical_gmail_fallback: bool = True,
+    ) -> dict[str, Any] | None:
         self._sync_accounts_from_cas_if_enabled()
         self._purge_throwaway_qa_accounts()
         ident = identifier.strip().lower()
@@ -928,14 +955,15 @@ class ThreeLayerAuthManager(
             if acc["email"].lower() in (ident, ident_lookup):
                 return acc
         if "@" in ident or "@" in ident_lookup:
-            ident_canon = canonical_gmail_mailbox(ident_lookup) or canonical_gmail_mailbox(ident)
-            if ident_canon:
-                for acc in self.accounts:
-                    if str(acc.get("email") or "").strip().lower() == ident_canon:
-                        return acc
-                for acc in self.accounts:
-                    if canonical_gmail_mailbox(acc.get("email")) == ident_canon:
-                        return acc
+            if allow_canonical_gmail_fallback:
+                ident_canon = canonical_gmail_mailbox(ident_lookup) or canonical_gmail_mailbox(ident)
+                if ident_canon:
+                    for acc in self.accounts:
+                        if str(acc.get("email") or "").strip().lower() == ident_canon:
+                            return acc
+                    for acc in self.accounts:
+                        if canonical_gmail_mailbox(acc.get("email")) == ident_canon:
+                            return acc
             return None
         ident_slug = ident.replace(" ", "_")
         for acc in self.accounts:
@@ -950,6 +978,12 @@ class ThreeLayerAuthManager(
             if acc.get("permission_active", True) and ident in acc["display_name"].lower():
                 return acc
         return None
+
+    def find_exact_account(self, identifier: str) -> dict[str, Any] | None:
+        return self._lookup_account(identifier, allow_canonical_gmail_fallback=False)
+
+    def find_account(self, identifier: str) -> dict[str, Any] | None:
+        return self._lookup_account(identifier, allow_canonical_gmail_fallback=True)
 
     # =========================================================================
     # XÁC THỰC 3 LỚP (ĐĂNG NHẬP MẬT KHẨU/GOOGLE -> GMAIL OTP -> GIỌNG NÓI)
@@ -972,12 +1006,25 @@ class ThreeLayerAuthManager(
         if is_throwaway_qa_identity(clean_email):
             return {"ok": False, "layer": 1, "status_code": 401, "error": UNIFORM_INVALID_LOGIN_ERROR}
 
-        lock_err = self._check_login_rate_limit(clean_email, client_ip)
+        self._sync_accounts_from_cas_if_enabled()
+        exact_acc = self.find_exact_account(clean_email)
+        exact_acc_id = str(exact_acc.get("account_id") or "") if exact_acc else ""
+
+        lock_err = self._check_login_rate_limit(clean_email, client_ip, account_id=exact_acc_id)
         if lock_err is not None:
             return lock_err
+        if exact_acc is None:
+            canon_acc = self.find_account(clean_email)
+            if canon_acc is not None:
+                canon_lock = self._check_login_rate_limit(
+                    str(canon_acc.get("email") or clean_email),
+                    client_ip,
+                    account_id=str(canon_acc.get("account_id") or ""),
+                )
+                if canon_lock is not None:
+                    return canon_lock
 
-        self._sync_accounts_from_cas_if_enabled()
-        acc = self.find_account(clean_email)
+        acc = exact_acc
         if not acc:
             verify_password_hash(password, _TIMING_DUMMY_HASH)
             self._log_event(
@@ -988,7 +1035,7 @@ class ThreeLayerAuthManager(
                 detail="Đăng nhập thất bại (thông tin không hợp lệ).",
                 source=source,
             )
-            lock_res = self._record_login_failure(clean_email, client_ip)
+            lock_res = self._record_login_failure(clean_email, client_ip, account_id="")
             if lock_res is not None:
                 return lock_res
             return {"ok": False, "layer": 1, "status_code": 401, "error": UNIFORM_INVALID_LOGIN_ERROR}
@@ -1005,7 +1052,7 @@ class ThreeLayerAuthManager(
         stored_hash = str(acc.get("password_hash") or "").strip()
         if not stored_hash or stored_hash == "0" * 64:
             verify_password_hash(password, _TIMING_DUMMY_HASH)
-            lock_res = self._record_login_failure(clean_email, client_ip)
+            lock_res = self._record_login_failure(clean_email, client_ip, account_id=exact_acc_id)
             if lock_res is not None:
                 return lock_res
             return {
@@ -1024,7 +1071,7 @@ class ThreeLayerAuthManager(
                 detail=f"Nhập sai mật khẩu cho tài khoản {acc['display_name']} (Tầng {acc['tier']}).",
                 source=source,
             )
-            lock_res = self._record_login_failure(clean_email, client_ip)
+            lock_res = self._record_login_failure(clean_email, client_ip, account_id=exact_acc_id)
             if lock_res is not None:
                 return lock_res
             return {
@@ -1035,7 +1082,7 @@ class ThreeLayerAuthManager(
             }
 
         if not acc.get("permission_active", True):
-            self._clear_login_failures(clean_email, client_ip)
+            self._clear_login_failures(clean_email, client_ip, account_id=exact_acc_id)
             p_status = str(acc.get("permission_status") or "").strip().upper()
             if p_status == "REVOKED" or acc.get("revoked_at") or acc.get("revoked_by"):
                 self._log_event(
@@ -1182,13 +1229,24 @@ class ThreeLayerAuthManager(
                 source=source,
                 extra={"tier": acc["tier"]},
             )
+            masked_email = _mask_email_for_notice(acc["email"])
+            otp_sent_ok = bool(gmail_res.get("sent_real_gmail"))
+            first_msg = (
+                f"Đã gửi mã OTP 6 số tới {masked_email}, hiệu lực 5 phút"
+                if otp_sent_ok
+                else "Lớp 1 hợp lệ. Đang gửi mã OTP 6 số xác thực Lớp 2..."
+            )
+            cooldown_rem = max(0, int(60.0 - (time.time() - now))) if otp_sent_ok else 0
             res_payload: dict[str, Any] = {
                 "ok": True,
                 "layer": 1,
                 "next_layer": 2,
                 "otp_required": True,
                 "authenticated": False,
-                "otp_sent": bool(gmail_res.get("sent_real_gmail")),
+                "otp_sent": otp_sent_ok,
+                "cooldown_active": False,
+                "cooldown_remaining_seconds": cooldown_rem,
+                "masked_email": masked_email,
                 "account": {
                     "account_id": acc["account_id"],
                     "email": acc["email"],
@@ -1200,7 +1258,7 @@ class ThreeLayerAuthManager(
                 },
                 "tier": acc["tier"],
                 "gmail_delivery": gmail_res,
-                "message": "Lớp 1 hợp lệ. Vui lòng nhập mã OTP 6 số gửi về Gmail Chủ nhà để hoàn tất Lớp 2.",
+                "message": first_msg,
             }
             if is_test_otp_fields_allowed(app) and (not send_gmail or gmail_res.get("sent_real_gmail")):
                 res_payload["otp_code_for_test"] = otp_code
@@ -1209,7 +1267,7 @@ class ThreeLayerAuthManager(
             return res_payload
 
         # Tier 2 / Tier 3 active accounts complete authentication after password verification
-        self._clear_login_failures(clean_email, client_ip)
+        self._clear_login_failures(clean_email, client_ip, account_id=exact_acc_id)
         invite_bundle = self.get_invite_links_for_account(acc["email"])
         self._log_event(
             layer="Lớp 1 (Tài khoản/Mật khẩu)",
@@ -1248,6 +1306,7 @@ class ThreeLayerAuthManager(
         if not acc or not (str(acc.get("account_id", "")).lower() == OWNER_ID or int(acc.get("tier", 3)) == 1):
             return {"ok": False, "status_code": 403, "error": "Chỉ áp dụng OTP Lớp 2 cho tài khoản Chủ nhà Cấp 1."}
         acc_email_key = str(acc.get("email") or clean_email).strip().lower()
+        masked_email = _mask_email_for_notice(acc_email_key)
         now = time.time()
         issued: dict[str, Any] = {}
 
@@ -1278,6 +1337,7 @@ class ThreeLayerAuthManager(
                         "cooldown_active": True,
                         "cooldown_remaining_seconds": rem,
                         "email": acc_email_key,
+                        "masked_email": masked_email,
                         "message": f"Mã OTP Lớp 2 đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc đợi {rem}s.",
                     }
                 otp_code = f"{random.randint(100000, 999999)}"
@@ -1324,9 +1384,11 @@ class ThreeLayerAuthManager(
         resp = {
             "ok": True,
             "email": acc_email_key,
+            "masked_email": masked_email,
+            "cooldown_active": False,
             "cooldown_remaining_seconds": 60,
             "gmail_delivery": gmail_res,
-            "message": f"✅ Đã gửi mã OTP 6 số về Gmail Chủ nhà ({gmail_res.get('actual_recipient', acc_email_key)}).",
+            "message": f"Đã gửi mã OTP 6 số tới {masked_email}, hiệu lực 5 phút",
         }
         if is_test_otp_fields_allowed(app):
             resp["otp_code_for_test"] = issued["otp_code"]
@@ -1361,6 +1423,8 @@ class ThreeLayerAuthManager(
             return {"ok": False, "status_code": 400, "error": "Hai ô mật khẩu (Mật khẩu và Xác nhận lại mật khẩu) không khớp nhau!"}
         if len(pw1) < 6:
             return {"ok": False, "status_code": 400, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
+        if _is_legacy_default_password(pw1):
+            return {"ok": False, "status_code": 400, "error": LEGACY_DEFAULT_PASSWORD_ERROR}
 
         if not strict_single_email_ascii(raw_email) or not re.fullmatch(
             r"[a-z0-9](?:[a-z0-9._+\-]*[a-z0-9])?@(?:gmail|googlemail)\.com", clean_email
@@ -1763,6 +1827,8 @@ class ThreeLayerAuthManager(
             return {"ok": False, "status_code": 400, "error": "Hai ô mật khẩu mới không khớp nhau!"}
         if len(pw1) < 6:
             return {"ok": False, "status_code": 400, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
+        if _is_legacy_default_password(pw1):
+            return {"ok": False, "status_code": 400, "error": LEGACY_DEFAULT_PASSWORD_ERROR}
 
         otp_res = self.layer2_verify_otp(
             clean_email,
@@ -1803,7 +1869,8 @@ class ThreeLayerAuthManager(
                         self._save_accounts()
 
             self._with_cas_accounts(_cleanup)
-            self._clear_login_failures(resolved_email, client_ip=client_ip)
+            resolved_acc_id = str((res.get("account") or {}).get("account_id") or "")
+            self._clear_login_failures(resolved_email, client_ip=client_ip, account_id=resolved_acc_id)
             if res.get("permission_active"):
                 res["message"] = "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới."
             else:
@@ -2054,7 +2121,11 @@ class ThreeLayerAuthManager(
         res = self._with_cas_accounts(_mutate)
         if res.get("ok"):
             if res.get("verified_purpose") == "layer2_login":
-                self._clear_login_failures(str(res.get("email") or clean_email), client_ip=client_ip)
+                self._clear_login_failures(
+                    str(res.get("email") or clean_email),
+                    client_ip=client_ip,
+                    account_id=str(res.get("account_id") or ""),
+                )
             self._log_event(
                 layer="Lớp 2 (Gmail OTP)",
                 action="otp_verified",

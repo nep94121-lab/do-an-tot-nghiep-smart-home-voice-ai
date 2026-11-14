@@ -194,7 +194,29 @@
       }
     }
 
-    function showMobileOtpPanel(email) {
+    let mobileOtpCooldownTimer = null;
+
+    function startMobileOtpCooldown(seconds) {
+      const sendBtn = document.getElementById('btnMobileSendOtp');
+      let remaining = Math.max(1, parseInt(seconds || 60, 10) || 60);
+      if (mobileOtpCooldownTimer) clearInterval(mobileOtpCooldownTimer);
+      if (!sendBtn) return;
+      sendBtn.disabled = true;
+      sendBtn.textContent = `Gửi lại (${remaining}s)`;
+      mobileOtpCooldownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(mobileOtpCooldownTimer);
+          mobileOtpCooldownTimer = null;
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Gửi lại mã OTP';
+        } else {
+          sendBtn.textContent = `Gửi lại (${remaining}s)`;
+        }
+      }, 1000);
+    }
+
+    function showMobileOtpPanel(email, initialMsg = '') {
       mobilePendingOtpEmail = email || '';
       const loginForm = document.getElementById('mobileLoginForm');
       const regForm = document.getElementById('mobileRegisterForm');
@@ -216,13 +238,22 @@
         }
       }
       if (otpStatus) {
-        otpStatus.style.color = 'var(--muted)';
-        otpStatus.textContent = 'Đang gửi mã OTP tới Gmail Chủ nhà...';
+        otpStatus.style.color = initialMsg ? 'var(--accent)' : 'var(--muted)';
+        otpStatus.textContent = initialMsg || 'Đang gửi mã OTP tới Gmail Chủ nhà...';
       }
     }
 
     function cancelMobileOtpPanel(keepMsg = false) {
       mobilePendingOtpEmail = '';
+      if (mobileOtpCooldownTimer) {
+        clearInterval(mobileOtpCooldownTimer);
+        mobileOtpCooldownTimer = null;
+      }
+      const sendBtn = document.getElementById('btnMobileSendOtp');
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Gửi lại mã OTP';
+      }
       const loginForm = document.getElementById('mobileLoginForm');
       const otpPanel = document.getElementById('mobileOtpPanel');
       const otpInput = document.getElementById('mobileOtpInput');
@@ -258,12 +289,30 @@
         if (isHttpOk(res) && data.ok) {
           if (statusEl) {
             statusEl.style.color = 'var(--accent)';
-            statusEl.textContent = '✅ Đã gửi mã OTP 6 chữ số tới Gmail Chủ nhà. Vui lòng kiểm tra hộp thư.';
+            statusEl.textContent = data.message || (
+              data.masked_email
+                ? ('Đã gửi mã OTP 6 số tới ' + data.masked_email + ', hiệu lực 5 phút')
+                : 'Đã gửi mã OTP 6 số tới Gmail Chủ nhà, hiệu lực 5 phút'
+            );
+          }
+          const cooldownSec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 60);
+          if (cooldownSec > 0) {
+            startMobileOtpCooldown(cooldownSec);
+          } else if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Gửi lại mã OTP';
           }
         } else {
           if (statusEl) {
             statusEl.style.color = 'var(--danger)';
             statusEl.textContent = data.error || data.message || 'Không gửi được mã OTP Gmail.';
+          }
+          const retrySec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 0);
+          if (res.status === 429 && retrySec > 0) {
+            startMobileOtpCooldown(retrySec);
+          } else if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Gửi lại mã OTP';
           }
         }
       } catch (_) {
@@ -271,8 +320,8 @@
           statusEl.style.color = 'var(--danger)';
           statusEl.textContent = 'Lỗi kết nối máy chủ khi gửi OTP.';
         }
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Gửi lại mã OTP'; }
       }
-      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Gửi lại mã OTP'; }
     }
 
     async function verifyMobileLayer2Otp() {
@@ -455,8 +504,22 @@
           mobileRole = null;
           mobileTier = null;
           const targetEmail = (data.account && data.account.email) || email;
-          showMobileOtpPanel(targetEmail);
-          await sendMobileLayer2Otp();
+          const sentNotice = data.otp_sent === true
+            ? (
+                data.message || (
+                  data.masked_email
+                    ? ('Đã gửi mã OTP 6 số tới ' + data.masked_email + ', hiệu lực 5 phút')
+                    : 'Đã gửi mã OTP 6 số tới Gmail Chủ nhà, hiệu lực 5 phút'
+                )
+              )
+            : '';
+          showMobileOtpPanel(targetEmail, sentNotice);
+          if (data.otp_sent === true) {
+            const firstCd = Number(data.cooldown_remaining_seconds ?? 60);
+            if (firstCd > 0) startMobileOtpCooldown(firstCd);
+          } else {
+            await sendMobileLayer2Otp();
+          }
         } else {
           const acct = data.account || {};
           const resolvedEmail = acct.email || email;

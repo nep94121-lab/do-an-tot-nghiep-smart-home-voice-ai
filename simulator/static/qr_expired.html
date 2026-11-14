@@ -156,8 +156,8 @@
         </svg>
       </div>
       <p class="eyebrow">LỜI MỜI KHÔNG CÒN HIỆU LỰC</p>
-      <h1>Mã QR đã hết hạn</h1>
-      <p class="muted">Mã QR này đã hết hạn hoặc đã được sử dụng một lần.</p>
+      <h1 id="qrExpiredTitle">Mã QR đã hết hạn</h1>
+      <p id="qrExpiredDesc" class="muted">Mã QR này đã hết hạn hoặc đã được sử dụng một lần.</p>
       <div class="note">Vui lòng nhờ Chủ nhà tạo mã mời mới rồi quét lại.</div>
       <div class="actions">
         <a class="btn primary" href="/app">Quét mã mới</a>
@@ -165,5 +165,6 @@
       </div>
     </section>
   </main>
+  <script src="/static/js/qr_expired.js"></script>
 </body>
 </html>

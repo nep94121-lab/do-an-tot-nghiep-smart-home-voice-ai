@@ -87,7 +87,7 @@ class TestStaticFilesExistenceAndContent:
         file_path = STATIC_DIR / "sw.js"
         assert file_path.exists(), f"Thiếu file: {file_path}"
         content = file_path.read_text(encoding="utf-8")
-        assert "smarthome-cache-v1" in content
+        assert "smarthome-cache-v2" in content
         assert "install" in content
         assert "activate" in content
         assert "fetch" in content
@@ -120,7 +120,7 @@ class TestFastAPIServerRoutesAndNegotiation:
         assert resp.status_code == 200
         assert "javascript" in resp.headers.get("content-type", "").lower()
         assert resp.headers.get("service-worker-allowed") == "/"
-        assert "smarthome-cache-v1" in resp.text
+        assert "smarthome-cache-v2" in resp.text
 
     def test_offline_routes(self, client):
         for path in ["/offline", "/offline.html"]:

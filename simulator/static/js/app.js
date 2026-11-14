@@ -2460,7 +2460,11 @@
       otpPanel.style.display = "grid";
     }
     if (otpDesc && pendingGateOtpEmail) {
-      otpDesc.textContent = `Tài khoản Chủ nhà (${pendingGateOtpEmail}) yêu cầu mã OTP 6 số gửi qua Gmail trước khi mở khóa.`;
+      const atIdx = pendingGateOtpEmail.indexOf("@");
+      const maskedEmail = atIdx > 0
+        ? `${pendingGateOtpEmail.slice(0, 1)}***@${pendingGateOtpEmail.slice(atIdx + 1)}`
+        : pendingGateOtpEmail;
+      otpDesc.textContent = `Tài khoản Chủ nhà (${maskedEmail}) yêu cầu mã OTP 6 số gửi qua Gmail trước khi mở khóa.`;
     }
     if (otpInput) {
       otpInput.value = "";
@@ -2911,7 +2915,7 @@
             email,
             data.message || "Tài khoản Chủ nhà cần xác thực mã OTP 6 số gửi qua Gmail."
           );
-          if (!data.sent_real_gmail) {
+          if (!data.otp_sent && !data.sent_real_gmail) {
             await sendGateLayer2Otp(email);
           }
         } else {
@@ -2973,10 +2977,19 @@
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
         if (gateStatusBox) {
-          gateStatusBox.textContent = `📧 ${data.message || "Đã gửi mã OTP 6 số đến Gmail."}`;
+          gateStatusBox.textContent = data.message || (
+            data.masked_email
+              ? `Đã gửi mã OTP 6 số tới ${data.masked_email}, hiệu lực 5 phút`
+              : "Đã gửi mã OTP 6 số đến Gmail."
+          );
         }
         const cooldownSec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 60);
-        if (cooldownSec > 0) startGateOtpCooldown(cooldownSec);
+        if (cooldownSec > 0) {
+          startGateOtpCooldown(cooldownSec);
+        } else if (btnSend) {
+          btnSend.disabled = false;
+          btnSend.textContent = "Gửi lại OTP";
+        }
       } else {
         if (gateStatusBox) {
           gateStatusBox.textContent = formatGateAuthError(

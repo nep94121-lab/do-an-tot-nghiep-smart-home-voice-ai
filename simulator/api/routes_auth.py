@@ -1251,25 +1251,33 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
     session_token = None
     if res.get("ok") and invited and res.get("account"):
         from fastapi import HTTPException
-        from simulator.auth.guest_invites import _claim_invite_redemption
+        from simulator.auth.guest_invites import _claim_invite_redemption, _rollback_invite_redemption
 
         acc = res["account"]
         manager = get_auth_3layer_manager()
         sess = None
+        claimed_jti = ""
         try:
             claimed = _claim_invite_redemption(invite_token)
             if not claimed.get("valid"):
                 manager.rollback_registration(str(acc["account_id"]))
                 return JSONResponse(
-                    {"ok": False, "error": claimed.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn."},
+                    {
+                        "ok": False,
+                        "reason": claimed.get("reason") or "invalid",
+                        "error": claimed.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn.",
+                    },
                     status_code=403,
                 )
+            claimed_jti = str(claimed.get("invite_id") or "")
             sess = _account_session(acc, str(acc.get("email") or email), "invite_registration")
             if not sess.is_authenticated or not manager.activate_registration(str(acc["account_id"])):
                 raise RuntimeError("Registration activation failed")
         except HTTPException as exc:
             if sess is not None:
                 get_session_store().revoke_session(sess.session_id)
+            if claimed_jti:
+                _rollback_invite_redemption(claimed_jti)
             manager.rollback_registration(str(acc["account_id"]))
             return JSONResponse(
                 {"ok": False, "error": str(exc.detail or "Mã mời đã hết hạn hoặc bị thu hồi.")},
@@ -1278,6 +1286,8 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
         except Exception:
             if sess is not None:
                 get_session_store().revoke_session(sess.session_id)
+            if claimed_jti:
+                _rollback_invite_redemption(claimed_jti)
             manager.rollback_registration(str(acc["account_id"]))
             return JSONResponse({"ok": False, "error": "Không hoàn tất được đăng ký. Tài khoản chưa được cấp quyền."}, status_code=503)
         active_account = manager.find_account(email) or acc

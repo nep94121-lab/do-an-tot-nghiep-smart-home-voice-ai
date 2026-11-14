@@ -124,28 +124,47 @@ def test_zero_404_on_all_post_endpoints_and_aliases(client: TestClient) -> None:
 
 
 def test_route_aliases_parity_auth(client: TestClient) -> None:
-    """Verify route alias parity on /auth: add_family_email & run_test_suite."""
-    # 1. /api/auth3/add_family_email vs /api/auth3/family_allowlist/add
+    """Verify route alias parity on /auth: add_family_email & run_test_suite enforce 401 anon and 200 Owner."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
+
+    # Unauthenticated requests must fail closed with 401
+    for anon_path, anon_body in (
+        ("/api/auth3/add_family_email", {"actor_id": "nep94121@gmail.com", "target_email": "alias_auth1@gmail.com", "target_tier": 2}),
+        ("/api/auth3/family_allowlist/add", {"actor_id": "nep94121@gmail.com", "target_email": "alias_auth2@gmail.com", "target_tier": 2}),
+        ("/api/auth3/run_tests", {"send_real_gmail": False}),
+        ("/api/auth3/run_test_suite", {"send_real_gmail": False}),
+    ):
+        r_anon = client.post(anon_path, json=anon_body)
+        assert r_anon.status_code == 401, f"Expected 401 unauthenticated on {anon_path}, got {r_anon.status_code}"
+
+    # 1. /api/auth3/add_family_email vs /api/auth3/family_allowlist/add (with Owner session)
     r1 = client.post(
         "/api/auth3/add_family_email",
         json={"actor_id": "nep94121@gmail.com", "target_email": "alias_auth1@gmail.com", "target_tier": 2},
+        headers=admin_headers,
     )
     r2 = client.post(
         "/api/auth3/family_allowlist/add",
         json={"actor_id": "nep94121@gmail.com", "target_email": "alias_auth2@gmail.com", "target_tier": 2},
+        headers=admin_headers,
     )
     assert r1.status_code == 200, f"add_family_email failed: {r1.text}"
     assert r2.status_code == 200, f"family_allowlist/add failed: {r2.text}"
     assert r1.json().get("ok") is True
     assert r2.json().get("ok") is True
 
-    # 2. /api/auth3/run_tests vs /api/auth3/run_test_suite
-    t1 = client.post("/api/auth3/run_tests", json={"send_real_gmail": False})
-    t2 = client.post("/api/auth3/run_test_suite", json={"send_real_gmail": False})
+    # 2. /api/auth3/run_tests vs /api/auth3/run_test_suite (with Owner session)
+    t1 = client.post("/api/auth3/run_tests", json={"send_real_gmail": False}, headers=admin_headers)
+    t2 = client.post("/api/auth3/run_test_suite", json={"send_real_gmail": False}, headers=admin_headers)
     assert t1.status_code == 200
     assert t2.status_code == 200
-    assert t1.json().get("ok") is True
-    assert t2.json().get("ok") is True
+    j1, j2 = t1.json(), t2.json()
+    assert set(j1.keys()) == set(j2.keys())
+    assert j1.get("total") == j2.get("total") == 14
+    assert j1.get("passed") == j2.get("passed")
+    assert [c.get("test_id") for c in j1.get("cases", [])] == [
+        c.get("test_id") for c in j2.get("cases", [])
+    ]
 
 
 def test_route_aliases_parity_logs(client: TestClient) -> None:
@@ -192,21 +211,28 @@ def test_route_aliases_parity_logs(client: TestClient) -> None:
 
 
 def test_route_aliases_parity_qr(client: TestClient) -> None:
-    """Verify route alias parity on QR routes."""
-    # 1. QR generate alias
+    """Verify route alias parity on retired & PIN-gated QR endpoints."""
+    # 1. Legacy GET aliases now reject with 405 Method Not Allowed (PIN-required POST)
     q1 = client.get("/api/auth3/guest_qr_current?duration=1d")
     q2 = client.get("/api/auth3/qr/generate?duration=1d")
-    assert q1.status_code == 200
-    assert q2.status_code == 200
-    assert q1.json().get("ok") is True
-    assert q2.json().get("ok") is True
+    assert q1.status_code == 405
+    assert q2.status_code == 405
+    assert q1.json().get("ok") is False
+    assert q2.json().get("ok") is False
 
-    # 2. Handshake alias with valid token
-    tok = q1.json()["token"]
-    win = q1.json()["window"]
-    h1 = client.post("/api/auth3/guest_qr_handshake", json={"token": tok, "target_window": win, "duration": "1d"})
-    assert h1.status_code == 200
-    assert h1.json().get("ok") is True
+    # Unauthenticated POST aliases enforce 401
+    p1 = client.post("/api/auth3/guest_qr_current", json={"tier": 3})
+    p2 = client.post("/api/auth3/qr/generate", json={"tier": 3})
+    assert p1.status_code == 401
+    assert p2.status_code == 401
+
+    # 2. Retired legacy handshake aliases consistently return 410 Gone
+    h1 = client.post("/api/auth3/guest_qr_handshake", json={"token": "legacy", "target_window": 1, "duration": "1d"})
+    h2 = client.post("/api/auth3/guest/handshake", json={"token": "legacy", "target_window": 1, "duration": "1d"})
+    assert h1.status_code == 410
+    assert h2.status_code == 410
+    assert h1.json().get("gone") is True
+    assert h2.json().get("gone") is True
 
 
 # ==============================================================================
@@ -349,46 +375,53 @@ def test_sql_query_readonly_enforcement(client: TestClient) -> None:
 
 
 def test_empty_payload_on_device_routes(client: TestClient) -> None:
-    """Verify graceful handling when client sends empty JSON payload {}."""
-    resp_dev = client.post("/api/device", json={})
-    assert resp_dev.status_code == 200
+    """Verify 401 unauthenticated fail-closed and graceful 200 handling with Owner session on empty {}."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
+    device_routes = (
+        "/api/device",
+        "/api/mobile/schedule",
+        "/api/ir_learn",
+        "/api/dht11",
+        "/api/soil_moisture",
+        "/api/server_mode",
+        "/api/text_command",
+    )
+    for route in device_routes:
+        r_anon = client.post(route, json={})
+        assert r_anon.status_code == 401, f"Expected 401 unauthenticated on {route}, got {r_anon.status_code}"
 
-    resp_sched = client.post("/api/mobile/schedule", json={})
-    assert resp_sched.status_code == 200
-
-    resp_ir = client.post("/api/ir_learn", json={})
-    assert resp_ir.status_code == 200
-
-    resp_dht = client.post("/api/dht11", json={})
-    assert resp_dht.status_code == 200
-
-    resp_soil = client.post("/api/soil_moisture", json={})
-    assert resp_soil.status_code == 200
-
-    resp_mode = client.post("/api/server_mode", json={})
-    assert resp_mode.status_code == 200
-
-    resp_cmd = client.post("/api/text_command", json={})
-    assert resp_cmd.status_code == 200
+        r_auth = client.post(route, json={}, headers=admin_headers)
+        assert r_auth.status_code == 200, f"Expected 200 with Owner session on {route}, got {r_auth.status_code}: {r_auth.text}"
 
 
 def test_empty_payload_on_auth_and_qr_routes(client: TestClient) -> None:
-    """Verify that auth and qr routes reject empty payload with 4xx, never 500."""
-    # add_family_email requires actor_id
+    """Verify auth, retired 410 QR, and active guest invite routes reject empty payload without 500."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
+
+    # add_family_email enforces 401 unauthenticated and 4xx when authenticated with missing fields
     r_auth = client.post("/api/auth3/add_family_email", json={})
     assert r_auth.status_code == 401
+    r_auth_adm = client.post("/api/auth3/add_family_email", json={}, headers=admin_headers)
+    assert 400 <= r_auth_adm.status_code < 500
+    assert r_auth_adm.json().get("ok") is False
 
-    # handshake requires valid token
-    r_hs = client.post("/api/auth3/guest_qr_handshake", json={})
-    assert r_hs.status_code == 400
+    # Retired voice/TOTP-QR endpoints return 410 Gone
+    for gone_route in (
+        "/api/auth3/guest_qr_handshake",
+        "/api/auth3/guest_qr_complete_voice",
+        "/api/auth3/guest_qr_send_otp",
+    ):
+        r_gone = client.post(gone_route, json={})
+        assert r_gone.status_code == 410, f"Expected 410 on retired {gone_route}, got {r_gone.status_code}"
+        assert r_gone.json().get("gone") is True
 
-    # complete voice requires audio
-    r_cv = client.post("/api/auth3/guest_qr_complete_voice", json={})
-    assert r_cv.status_code == 400
-
-    # send otp requires emails
-    r_otp = client.post("/api/auth3/guest_qr_send_otp", json={})
-    assert r_otp.status_code == 400
+    # Active guest invite routes reject empty token cleanly with 4xx (never 500)
+    r_guest_val = client.get("/api/guest/invite/validate", params={"token": ""})
+    assert r_guest_val.status_code in (400, 403), f"Expected 400/403 on GET /api/guest/invite/validate, got {r_guest_val.status_code}"
+    assert r_guest_val.json().get("ok") is False
+    r_guest = client.post("/api/guest/redeem", json={})
+    assert r_guest.status_code in (400, 403), f"Expected 400/403 on POST /api/guest/redeem, got {r_guest.status_code}"
+    assert r_guest.json().get("ok") is False
 
 
 # ==============================================================================
@@ -437,19 +470,31 @@ def test_adversarial_malformed_types_vulnerabilities(client: TestClient) -> None
 
 
 def test_adversarial_invalid_base64_and_json_syntax(client: TestClient) -> None:
-    """Verify that corrupt base64 and invalid json syntax are rejected with 4xx."""
+    """Verify corrupt base64, invalid JSON syntax, and retired voice-enroll 410 are rejected without 500."""
+    admin_headers = {"X-Session-Token": "sess_owner_t1_nep94121"}
     # 1. Invalid JSON syntax
     r_syntax = client.post(
         "/api/device",
         content="{invalid json syntax",
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **admin_headers},
     )
     assert r_syntax.status_code in (400, 422), f"Expected 400/422 on syntax error, got {r_syntax.status_code}"
 
-    # 2. Corrupt base64 audio
-    r_b64 = client.post(
+    # 2. Retired voice enrollment route stays 410 Gone
+    r_b64_gone = client.post(
         "/api/auth3/guest_qr_complete_voice",
         json={"audio_pcm_b64": "!!!NOT_VALID_BASE64@@@", "session_id": "test_sess"},
     )
-    assert r_b64.status_code == 400
-    assert r_b64.json().get("ok") is False
+    assert r_b64_gone.status_code == 410
+    assert r_b64_gone.json().get("ok") is False
+    assert r_b64_gone.json().get("gone") is True
+
+    # 3. Active session voice command route handles non-transcript audio payload safely (200 ok=False, never 500)
+    r_voice = client.post(
+        "/api/voice_command",
+        json={"audio_pcm_b64": "!!!NOT_VALID_BASE64@@@"},
+        headers=admin_headers,
+    )
+    assert r_voice.status_code == 200, f"Expected 200 empty_transcript on audio-only payload, got {r_voice.status_code}"
+    assert r_voice.json().get("ok") is False
+    assert r_voice.json().get("reason") == "empty_transcript"

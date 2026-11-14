@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Body, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from simulator.auth.guest_invites import (
     INVITE_TTL_DEFAULT_SEC,
@@ -15,7 +15,11 @@ from simulator.auth.guest_invites import (
     redeem_token,
     revoke_invite,
 )
-from simulator.auth.session_store import resolve_request_session
+from simulator.auth.session_store import (
+    get_session_store,
+    resolve_request_session,
+    session_is_current,
+)
 from simulator.voice.qr_svg import invite_qr_svg, public_invite_payload
 
 router = APIRouter()
@@ -58,22 +62,43 @@ def _request_origin(request: Request) -> str:
     return f"{proto}://{host}".rstrip("/")
 
 
+def _resolve_bound_guest_session(request: Request) -> Any:
+    """Resolve active guest session strictly from headers/cookies (never from invite query/body token)."""
+    tok = ""
+    auth_header = str(request.headers.get("authorization", "") or "")
+    if auth_header.lower().startswith("bearer "):
+        tok = auth_header[7:].strip()
+    if not tok:
+        tok = str(request.headers.get("x-session-token", "") or "").strip()
+    if not tok and hasattr(request, "cookies"):
+        tok = str(request.cookies.get("sh_session_token") or request.cookies.get("session_token") or "").strip()
+    if not tok:
+        return None
+    sess = get_session_store().get_session(tok)
+    if not session_is_current(sess):
+        return None
+    return sess
+
+
 @router.get("/guest", response_class=HTMLResponse)
 @router.get("/guest/", response_class=HTMLResponse)
 @router.get("/guest_enroll", response_class=HTMLResponse)
 @router.get("/guest-qr", response_class=HTMLResponse)
-async def guest_page(request: Request) -> HTMLResponse:
+async def guest_page(request: Request) -> Response:
     token = str(request.query_params.get("token") or request.query_params.get("invite") or "").strip()
     if not token:
-        return HTMLResponse(_INVALID_HTML, status_code=403)
-    checked = inspect_token(token)
+        return HTMLResponse(_INVALID_HTML, status_code=403, headers={"Cache-Control": "no-store"})
+    req_sess = _resolve_bound_guest_session(request)
+    checked = inspect_token(token, existing_session=req_sess)
     if not checked.get("valid"):
-        return HTMLResponse(_INVALID_HTML, status_code=403)
+        if checked.get("reason") == "used":
+            return RedirectResponse(url="/qr_expired?reason=used", status_code=302, headers={"Cache-Control": "no-store"})
+        return HTMLResponse(_INVALID_HTML, status_code=403, headers={"Cache-Control": "no-store"})
     from pathlib import Path
 
     path = Path(__file__).resolve().parents[1] / "static" / "guest_control.html"
     html = path.read_text(encoding="utf-8")
-    return HTMLResponse(html, status_code=200)
+    return HTMLResponse(html, status_code=200, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/guest/invite/validate")
@@ -82,7 +107,8 @@ async def api_guest_invite_validate(request: Request) -> JSONResponse:
     if not token:
         body = request.query_params
         token = str(body.get("t") or "").strip()
-    checked = inspect_token(token)
+    req_sess = _resolve_bound_guest_session(request)
+    checked = inspect_token(token, existing_session=req_sess)
     status = 200 if checked.get("valid") else 403
     public = {
         "ok": bool(checked.get("valid")),
@@ -95,24 +121,26 @@ async def api_guest_invite_validate(request: Request) -> JSONResponse:
         "ttl_remaining_sec": checked.get("ttl_remaining_sec"),
         "invite_id": checked.get("invite_id"),
     }
-    return JSONResponse(public, status_code=status)
+    return JSONResponse(public, status_code=status, headers={"Cache-Control": "no-store"})
 
 
 @router.post("/api/guest/redeem")
 async def api_guest_redeem(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     body = payload if isinstance(payload, dict) else {}
     token = str(body.get("token") or body.get("invite") or request.query_params.get("token") or "").strip()
-    result = redeem_token(token)
+    req_sess = _resolve_bound_guest_session(request)
+    result = redeem_token(token, existing_session=req_sess)
     if not result.get("ok"):
-        return JSONResponse(
-            {
-                "ok": False,
-                "valid": False,
-                "reason": result.get("reason") or "invalid",
-                "error": result.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn.",
-            },
-            status_code=403,
-        )
+        reason = result.get("reason") or "invalid"
+        err_body: dict[str, Any] = {
+            "ok": False,
+            "valid": False,
+            "reason": reason,
+            "error": result.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn.",
+        }
+        if reason == "used":
+            err_body["redirect"] = "/qr_expired?reason=used"
+        return JSONResponse(err_body, status_code=403, headers={"Cache-Control": "no-store"})
     session = result["session"]
     ttl = max(30, int(result["expires_at"] - __import__("time").time()))
     resp = JSONResponse(
@@ -125,7 +153,8 @@ async def api_guest_redeem(request: Request, payload: dict[str, Any] = Body(defa
             "display_name": session.display_name,
             "expires_at": session.expires_at,
             "session_token": session.session_id,
-        }
+        },
+        headers={"Cache-Control": "no-store"},
     )
     return _attach_session_cookies(resp, session.session_id, ttl)
 

@@ -18,6 +18,7 @@ from simulator.auth.session_store import (
     UserSession,
     _get_session_hmac_key,
     get_session_store,
+    session_is_current,
 )
 
 INVITE_TTL_DEFAULT_SEC = 600
@@ -225,7 +226,17 @@ def _revoke_bound_sessions(jti: str, store: SessionStore) -> int:
     return count
 
 
-def inspect_token(token: str) -> dict[str, Any]:
+def is_session_bound_to_invite(sess: Any, jti: str) -> bool:
+    if sess is None or not jti:
+        return False
+    if not bool(getattr(sess, "is_authenticated", False)):
+        return False
+    if str(getattr(sess, "source", "") or "") != f"guest_invite:{jti}":
+        return False
+    return bool(session_is_current(sess))
+
+
+def inspect_token(token: str, *, existing_session: Any | None = None) -> dict[str, Any]:
     payload = _decode_token(token)
     if payload is None:
         return {"ok": False, "valid": False, "reason": "invalid", "error": "Mã mời không hợp lệ."}
@@ -255,6 +266,15 @@ def inspect_token(token: str) -> dict[str, Any]:
             "expires_at": expires_at,
             "error": "Mã mời đã hết hạn.",
         }
+    if int(record.get("redeem_count") or 0) >= 1 and not is_session_bound_to_invite(existing_session, jti):
+        return {
+            "ok": False,
+            "valid": False,
+            "reason": "used",
+            "invite_id": jti,
+            "expires_at": expires_at,
+            "error": "Mã QR đã được sử dụng.",
+        }
     tier = int(record.get("tier") or payload.get("t") or 3)
     return {
         "ok": True,
@@ -270,28 +290,102 @@ def inspect_token(token: str) -> dict[str, Any]:
 
 @atomic_security("guest_invites.json")
 def _claim_invite_redemption(token: str) -> dict[str, Any]:
-    checked = inspect_token(token)
-    if not checked.get("valid"):
-        return checked
+    payload = _decode_token(token)
+    if payload is None:
+        return {"ok": False, "valid": False, "reason": "invalid", "error": "Mã mời không hợp lệ."}
+    jti = str(payload.get("jti") or "")
+    exp = float(payload.get("x") or 0.0)
+    if not jti:
+        return {"ok": False, "valid": False, "reason": "invalid", "error": "Mã mời không hợp lệ."}
+    with _LOCK:
+        now = time.time()
+        data = _load()
+        record = data.get(jti)
+        if record is None:
+            return {"ok": False, "valid": False, "reason": "unknown", "error": "Mã mời không tồn tại hoặc đã hết hạn."}
+        if record.get("revoked"):
+            return {"ok": False, "valid": False, "reason": "revoked", "invite_id": jti, "error": "Mã mời đã bị thu hồi."}
+        expires_at = float(record.get("expires_at") or exp)
+        if expires_at <= now or exp <= now:
+            return {
+                "ok": False,
+                "valid": False,
+                "reason": "expired",
+                "invite_id": jti,
+                "expires_at": expires_at,
+                "error": "Mã mời đã hết hạn.",
+            }
+        if int(record.get("redeem_count") or 0) >= 1:
+            return {
+                "ok": False,
+                "valid": False,
+                "reason": "used",
+                "invite_id": jti,
+                "expires_at": expires_at,
+                "error": "Mã QR đã được sử dụng.",
+            }
+        record["redeem_count"] = 1
+        record["last_redeem_at"] = now
+        data[jti] = record
+        _save(data)
+    tier = int(record.get("tier") or payload.get("t") or 3)
+    return {
+        "ok": True,
+        "valid": True,
+        "reason": "ok",
+        "invite_id": jti,
+        "tier": tier,
+        "role": str(record.get("role") or _ROLES.get(tier, "CHILD_GUEST")),
+        "expires_at": expires_at,
+        "ttl_remaining_sec": max(0, int(expires_at - now)),
+    }
+
+
+@atomic_security("guest_invites.json")
+def _rollback_invite_redemption(jti: str) -> None:
+    key = str(jti or "").strip()
+    if not key:
+        return
     with _LOCK:
         data = _load()
-        record = data[checked["invite_id"]]
-        record["redeem_count"] = int(record.get("redeem_count") or 0) + 1
-        record["last_redeem_at"] = time.time()
+        record = data.get(key)
+        if record is None or record.get("revoked"):
+            return
+        record["redeem_count"] = max(0, int(record.get("redeem_count") or 0) - 1)
+        if record["redeem_count"] == 0:
+            record.pop("last_redeem_at", None)
+        data[key] = record
         _save(data)
-    return checked
 
 
-def redeem_token(token: str, store: SessionStore | None = None) -> dict[str, Any]:
+def redeem_token(
+    token: str,
+    store: SessionStore | None = None,
+    *,
+    existing_session: Any | None = None,
+) -> dict[str, Any]:
+    if existing_session is not None:
+        checked_existing = inspect_token(token, existing_session=existing_session)
+        if not checked_existing.get("valid"):
+            return checked_existing
+        jti_existing = str(checked_existing["invite_id"])
+        rec_existing = get_invite(jti_existing)
+        if rec_existing is not None and int(rec_existing.get("redeem_count") or 0) >= 1 and is_session_bound_to_invite(existing_session, jti_existing):
+            return {**checked_existing, "reused": True, "session": existing_session}
+
     checked = _claim_invite_redemption(token)
     if not checked.get("valid"):
         return checked
     jti = str(checked["invite_id"])
-    session = (store or get_session_store()).create_session(
-        user_id=f"guest_{jti[:12]}", email="", display_name=f"Guest tier {checked['tier']}",
-        tier=int(checked["tier"]), role=str(checked["role"]),
-        ttl_sec=max(1, int(checked["expires_at"] - time.time())), source=f"guest_invite:{jti}",
-    )
+    try:
+        session = (store or get_session_store()).create_session(
+            user_id=f"guest_{jti[:12]}", email="", display_name=f"Guest tier {checked['tier']}",
+            tier=int(checked["tier"]), role=str(checked["role"]),
+            ttl_sec=max(1, int(checked["expires_at"] - time.time())), source=f"guest_invite:{jti}",
+        )
+    except Exception:
+        _rollback_invite_redemption(jti)
+        raise
     return {**checked, "session": session}
 
 

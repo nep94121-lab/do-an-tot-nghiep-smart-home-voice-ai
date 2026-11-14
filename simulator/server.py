@@ -26,7 +26,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -256,8 +256,23 @@ async def page_500() -> FileResponse:
 @app.get("/qr_expired")
 @app.get("/qr-expired")
 @app.get("/qr_expired.html")
-async def page_qr_expired() -> FileResponse:
-    return FileResponse(STATIC_DIR / "qr_expired.html", media_type="text/html")
+async def page_qr_expired(request: Request) -> Response:
+    qr_file = STATIC_DIR / "qr_expired.html"
+    reason = str(request.query_params.get("reason") or "").strip().lower()
+    if reason == "used":
+        html = qr_file.read_text(encoding="utf-8")
+        html = html.replace(
+            "<title>Mã QR hết hạn · Nhà thông minh</title>",
+            "<title>Mã QR đã được sử dụng · Nhà thông minh</title>",
+        ).replace(
+            '<h1 id="qrExpiredTitle">Mã QR đã hết hạn</h1>',
+            '<h1 id="qrExpiredTitle">Mã QR đã được sử dụng</h1>',
+        ).replace(
+            '<p id="qrExpiredDesc" class="muted">Mã QR này đã hết hạn hoặc đã được sử dụng một lần.</p>',
+            '<p id="qrExpiredDesc" class="muted">Mã QR này chỉ có hiệu lực cho lần quét đầu tiên và đã được kích hoạt trên thiết bị khác.</p>',
+        )
+        return HTMLResponse(html, media_type="text/html", headers={"Cache-Control": "no-store"})
+    return FileResponse(qr_file, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/403")

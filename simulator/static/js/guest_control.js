@@ -186,6 +186,10 @@
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok || !data.ok) {
+        if (data && data.reason === "used" && window.location && typeof window.location.replace === "function") {
+          window.location.replace("/qr_expired?reason=used");
+          return;
+        }
         showInvalid();
         return;
       }

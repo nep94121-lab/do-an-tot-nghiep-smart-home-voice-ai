@@ -43,6 +43,13 @@
     return msg;
   }
 
+  function maskEmailNotice(email) {
+    const raw = String(email || '').trim();
+    const atIdx = raw.indexOf('@');
+    if (atIdx <= 0) return raw;
+    return raw.slice(0, 1) + '***@' + raw.slice(atIdx + 1);
+  }
+
   function initLoginPage() {
     const loginForm = document.getElementById('loginForm');
     if (!loginForm) return;
@@ -122,6 +129,7 @@
 
     async function sendLayer2OtpForLogin(targetEmail) {
       if (!targetEmail) return;
+      const maskedTarget = maskEmailNotice(targetEmail);
       if (btnResendLoginOtp) {
         btnResendLoginOtp.disabled = true;
         btnResendLoginOtp.textContent = 'Đang gửi OTP...';
@@ -135,7 +143,11 @@
         const otpData = await otpResp.json().catch(function () { return {}; });
         if (otpResp.ok && otpData.ok) {
           const cdSec = Number(otpData.cooldown_remaining_seconds || 0);
-          showStatus(statusBox, otpData.message || ('Đã gửi mã OTP 6 số tới ' + targetEmail + '.'), false);
+          const sentMsg = otpData.message || ('Đã gửi mã OTP 6 số tới ' + (otpData.masked_email || maskedTarget) + ', hiệu lực 5 phút');
+          if (loginOtpDesc) {
+            loginOtpDesc.textContent = sentMsg;
+          }
+          showStatus(statusBox, sentMsg, false);
           if (cdSec > 0) {
             startCooldownTimer([btnResendLoginOtp], cdSec, ['Gửi lại OTP'], 'login');
           } else if (btnResendLoginOtp) {
@@ -143,7 +155,11 @@
             btnResendLoginOtp.textContent = 'Gửi lại OTP';
           }
         } else {
-          showStatus(statusBox, formatApiError(otpResp, otpData, 'Không gửi được mã OTP đăng nhập.'), true);
+          const errMsg = formatApiError(otpResp, otpData, 'Không gửi được mã OTP đăng nhập.');
+          if (loginOtpDesc) {
+            loginOtpDesc.textContent = errMsg;
+          }
+          showStatus(statusBox, errMsg, true);
           if (btnResendLoginOtp) {
             btnResendLoginOtp.disabled = false;
             btnResendLoginOtp.textContent = 'Gửi lại OTP';
@@ -200,19 +216,35 @@
 
         if (response.ok && data.ok && data.otp_required === true) {
           pendingOtpEmail = email;
+          const maskedEmail = data.masked_email || maskEmailNotice(email);
           loginForm.style.display = 'none';
           if (loginOtpSection) {
             loginOtpSection.style.display = 'flex';
             loginOtpSection.hidden = false;
           }
-          if (loginOtpDesc) {
-            loginOtpDesc.textContent = 'Đã xác minh mật khẩu cho ' + email + '. Đang gửi mã OTP 6 số qua Gmail...';
-          }
           if (loginOtpInput) {
             loginOtpInput.value = '';
             loginOtpInput.focus();
           }
-          await sendLayer2OtpForLogin(email);
+          if (data.otp_sent === true) {
+            const sentMsg = data.message || ('Đã gửi mã OTP 6 số tới ' + maskedEmail + ', hiệu lực 5 phút');
+            if (loginOtpDesc) {
+              loginOtpDesc.textContent = sentMsg;
+            }
+            showStatus(statusBox, sentMsg, false);
+            const cdSec = Number(data.cooldown_remaining_seconds || 0);
+            if (cdSec > 0) {
+              startCooldownTimer([btnResendLoginOtp], cdSec, ['Gửi lại OTP'], 'login');
+            } else if (btnResendLoginOtp) {
+              btnResendLoginOtp.disabled = false;
+              btnResendLoginOtp.textContent = 'Gửi lại OTP';
+            }
+          } else {
+            if (loginOtpDesc) {
+              loginOtpDesc.textContent = 'Đã xác minh mật khẩu cho ' + maskedEmail + '. Đang gửi mã OTP 6 số qua Gmail...';
+            }
+            await sendLayer2OtpForLogin(email);
+          }
         } else if (response.ok && data.ok && data.session_token) {
           showStatus(statusBox, 'Đăng nhập thành công! Đang chuyển hướng...', false);
           persistClientSession(data, email);

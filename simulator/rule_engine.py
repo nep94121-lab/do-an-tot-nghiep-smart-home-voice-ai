@@ -16,6 +16,7 @@ import contextlib
 import json
 import logging
 import re
+import threading
 import time
 from typing import Any, Callable, Coroutine, Iterator
 
@@ -92,6 +93,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         on_voice_reset: Callable[[], dict[str, Any]] | None = None,
         state_backend: StateBackend | None = None,
     ):
+        self._root_engine: "SmartHomeEngine" = self
+        self._state_sync_lock = threading.RLock()
+        self._applying_shared_state_depth: int = 1
         self._applying_shared_state: bool = True
         self._initialized_devices: bool = False
         self._state_backend: StateBackend | None = state_backend
@@ -121,6 +125,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pump_manual_override_off: bool = False
         self._explicit_test_user_set: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
+        self._applying_shared_state_depth = 0
         self._applying_shared_state = False
         self._initialized_devices = True
         try:
@@ -143,34 +148,38 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         cho từng kết nối WebSocket /ws riêng biệt, trong khi vẫn chia sẻ trực tiếp trạng thái vật lý
         (devices, mqtt_bridge, active_timers, overlay_rules, users) với _REST_ENGINE.
         """
+        root = getattr(self, "_root_engine", self)
         view = object.__new__(SmartHomeEngine)
+        object.__setattr__(view, "_root_engine", root)
+        object.__setattr__(view, "_state_sync_lock", root._state_sync_lock)
+        object.__setattr__(view, "_applying_shared_state_depth", 0)
         object.__setattr__(view, "_applying_shared_state", True)
         object.__setattr__(view, "_initialized_devices", False)
-        object.__setattr__(view, "_state_backend", self._state_backend)
+        object.__setattr__(view, "_state_backend", root._state_backend)
         object.__setattr__(view, "_mutation_depth", 0)
         object.__setattr__(view, "_state_dirty_in_tx", False)
-        object.__setattr__(view, "_dirty_device_ids", self._dirty_device_ids)
-        object.__setattr__(view, "_last_synced_seq", self._last_synced_seq)
-        object.__setattr__(view, "_last_synced_ts_ns", self._last_synced_ts_ns)
+        object.__setattr__(view, "_dirty_device_ids", root._dirty_device_ids)
+        object.__setattr__(view, "_last_synced_seq", root._last_synced_seq)
+        object.__setattr__(view, "_last_synced_ts_ns", root._last_synced_ts_ns)
         object.__setattr__(view, "on_event", on_event)
         object.__setattr__(view, "on_voice_reset", on_voice_reset or self.on_voice_reset)
         object.__setattr__(view, "_current_user_id", "UNKNOWN")
         object.__setattr__(view, "_current_role", "UNKNOWN")
         object.__setattr__(view, "_explicit_test_user_set", False)
-        object.__setattr__(view, "devices", self.devices)
-        object.__setattr__(view, "factory_rules", self.factory_rules)
-        object.__setattr__(view, "overlay_rules", self.overlay_rules)
-        object.__setattr__(view, "users", self.users)
-        object.__setattr__(view, "active_timers", self.active_timers)
-        object.__setattr__(view, "_timer_tasks", self._timer_tasks)
-        object.__setattr__(view, "_timer_seq", self._timer_seq)
+        object.__setattr__(view, "devices", root.devices)
+        object.__setattr__(view, "factory_rules", root.factory_rules)
+        object.__setattr__(view, "overlay_rules", root.overlay_rules)
+        object.__setattr__(view, "users", root.users)
+        object.__setattr__(view, "active_timers", root.active_timers)
+        object.__setattr__(view, "_timer_tasks", root._timer_tasks)
+        object.__setattr__(view, "_timer_seq", root._timer_seq)
         object.__setattr__(view, "pending_reset_confirmation", False)
         object.__setattr__(view, "pending_reset_scope", "all")
         object.__setattr__(view, "pending_rule", None)
         object.__setattr__(view, "pending_voice_enrollment", None)
-        object.__setattr__(view, "server_connected", self.server_connected)
-        object.__setattr__(view, "pump_manual_override_off", self.pump_manual_override_off)
-        object.__setattr__(view, "mqtt_bridge", self.mqtt_bridge)
+        object.__setattr__(view, "server_connected", root.server_connected)
+        object.__setattr__(view, "pump_manual_override_off", root.pump_manual_override_off)
+        object.__setattr__(view, "mqtt_bridge", root.mqtt_bridge)
         object.__setattr__(view, "_applying_shared_state", False)
         object.__setattr__(view, "_initialized_devices", True)
         view.set_active_user("UNKNOWN")
@@ -233,145 +242,169 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     def persist_to_shared_store(self) -> dict[str, Any]:
         """Ghi trạng thái thiết bị hiện tại xuống tầng lưu trữ chia sẻ (Vercel Blob / File / InMemory)."""
-        self._dirty_device_ids.clear()
-        payload = self._build_shared_state_payload()
-        try:
-            saved = self.state_backend.save_state(payload)
-            self._last_synced_seq = max(self._last_synced_seq, int(saved.get("revision_seq", 0)))
-            self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(saved.get("revision_ts_ns", 0)))
-        except Exception as exc:
-            logger.warning("Failed to persist state to backend %s: %s", self.state_backend, exc)
-            saved = payload
-        try:
-            sync_engine_state_to_sqlite(self)
-        except Exception:
-            pass
-        return saved
+        root = getattr(self, "_root_engine", self)
+        if root is not self:
+            root.server_connected = self.server_connected
+            root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+            saved = root.persist_to_shared_store()
+            self._last_synced_seq = root._last_synced_seq
+            self._last_synced_ts_ns = root._last_synced_ts_ns
+            return saved
+        with self._state_sync_lock:
+            self._dirty_device_ids.clear()
+            payload = self._build_shared_state_payload()
+            try:
+                saved = self.state_backend.save_state(payload)
+                self._last_synced_seq = max(self._last_synced_seq, int(saved.get("revision_seq", 0)))
+                self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(saved.get("revision_ts_ns", 0)))
+            except Exception as exc:
+                logger.warning("Failed to persist state to backend %s: %s", self.state_backend, exc)
+                saved = payload
+            try:
+                sync_engine_state_to_sqlite(self)
+            except Exception:
+                pass
+            return saved
 
     def sync_from_shared_store(self, force: bool = False) -> bool:
         """Đồng bộ trạng thái thiết bị mới nhất từ tầng lưu trữ chia sẻ về RAM của instance hiện tại."""
-        if not force and self._mutation_depth > 0:
-            return False
-        shared = self.state_backend.load_state()
-        if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
-            if self._dirty_device_ids:
-                self.persist_to_shared_store()
-            return False
+        root = getattr(self, "_root_engine", self)
+        if root is not self:
+            ok = root.sync_from_shared_store(force=force)
+            self.server_connected = root.server_connected
+            self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+            self._last_synced_seq = root._last_synced_seq
+            self._last_synced_ts_ns = root._last_synced_ts_ns
+            return ok
+        with self._state_sync_lock:
+            if not force and self._mutation_depth > 0:
+                return False
+            shared = self.state_backend.load_state()
+            if not isinstance(shared, dict) or not isinstance(shared.get("devices"), dict):
+                if self._dirty_device_ids:
+                    self.persist_to_shared_store()
+                return False
 
-        dirty_ids = set(self._dirty_device_ids)
-        prev_synced_seq = self._last_synced_seq
-        prev_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
-        self._applying_shared_state = True
-        try:
-            if "server_connected" in shared and not dirty_ids:
-                self.server_connected = bool(shared["server_connected"])
+            dirty_ids = set(self._dirty_device_ids)
+            prev_synced_seq = self._last_synced_seq
+            prev_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
+            self._applying_shared_state_depth += 1
+            self._applying_shared_state = True
+            try:
+                if "server_connected" in shared and not dirty_ids:
+                    self.server_connected = bool(shared["server_connected"])
+                    if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                        self.mqtt_bridge.esp8266_status["online"] = self.server_connected
+                        self.mqtt_bridge.esp8266_status["power_mode"] = (
+                            "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
+                        )
+                if "pump_manual_override_off" in shared and "garden_pump" not in dirty_ids:
+                    self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
+
+                remote_devices = shared.get("devices", {})
+                for dev_id, dev_data in remote_devices.items():
+                    if dev_id in dirty_ids:
+                        continue
+                    if dev_id in self.devices and isinstance(dev_data, dict):
+                        if "state" in dev_data:
+                            self.devices[dev_id]["state"] = str(dev_data["state"])
+                        if "updated_at" in dev_data:
+                            self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
+                        if "min_role" in dev_data:
+                            self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
+                        if "version" in dev_data:
+                            self.devices[dev_id]["version"] = max(
+                                int(self.devices[dev_id].get("version", 1)),
+                                int(dev_data["version"]),
+                            )
+                        remote_rev = int(shared.get("revision_seq", 0) or 0)
+                        local_rev = int(self._last_synced_seq or 0)
+                        remote_ts_ms = int(dev_data.get("last_client_ts_ms", 0) or 0)
+                        local_ts_ms = int(self.devices[dev_id].get("last_client_ts_ms", 0) or 0)
+                        if remote_rev >= local_rev or remote_ts_ms >= local_ts_ms:
+                            if "last_client_id" in dev_data:
+                                self.devices[dev_id]["last_client_id"] = str(dev_data["last_client_id"])
+                            if "last_client_seq" in dev_data:
+                                self.devices[dev_id]["last_client_seq"] = int(dev_data["last_client_seq"])
+                            if "last_client_ts_ms" in dev_data:
+                                self.devices[dev_id]["last_client_ts_ms"] = max(local_ts_ms, remote_ts_ms)
+                            if "last_request_id" in dev_data:
+                                self.devices[dev_id]["last_request_id"] = str(dev_data["last_request_id"])
+                            if "last_requested_state" in dev_data:
+                                self.devices[dev_id]["last_requested_state"] = str(dev_data["last_requested_state"])
+                        if isinstance(dev_data.get("client_seqs"), dict):
+                            merged_cseqs = (
+                                dict(self.devices[dev_id].get("client_seqs"))
+                                if isinstance(self.devices[dev_id].get("client_seqs"), dict)
+                                else {}
+                            )
+                            for cid_k, cid_v in dev_data["client_seqs"].items():
+                                if not isinstance(cid_v, dict):
+                                    continue
+                                cur_v = merged_cseqs.get(cid_k)
+                                if str(cid_k) == "__anon__":
+                                    incoming_key = (
+                                        int(cid_v.get("ts_ms", 0) or 0),
+                                        int(cid_v.get("seq", 0) or 0),
+                                    )
+                                    existing_key = (
+                                        (
+                                            int(cur_v.get("ts_ms", 0) or 0),
+                                            int(cur_v.get("seq", 0) or 0),
+                                        )
+                                        if isinstance(cur_v, dict)
+                                        else (-1, -1)
+                                    )
+                                else:
+                                    incoming_key = (
+                                        int(cid_v.get("seq", 0) or 0),
+                                        int(cid_v.get("ts_ms", 0) or 0),
+                                    )
+                                    existing_key = (
+                                        (
+                                            int(cur_v.get("seq", 0) or 0),
+                                            int(cur_v.get("ts_ms", 0) or 0),
+                                        )
+                                        if isinstance(cur_v, dict)
+                                        else (-1, -1)
+                                    )
+                                if not isinstance(cur_v, dict) or incoming_key >= existing_key:
+                                    merged_cseqs[str(cid_k)] = dict(cid_v)
+                            self.devices[dev_id]["client_seqs"] = merged_cseqs
+                    elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
+                        merged_dev = dict(DEFAULT_DEVICES[dev_id])
+                        merged_dev.update(dev_data)
+                        self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
+
                 if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
-                    self.mqtt_bridge.esp8266_status["online"] = self.server_connected
-                    self.mqtt_bridge.esp8266_status["power_mode"] = (
-                        "SERVER_ONLINE_FULL_AI" if self.server_connected else "OFFLINE_DEFAULT_DOOR_LOCKED"
-                    )
-            if "pump_manual_override_off" in shared and "garden_pump" not in dirty_ids:
-                self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
+                    if isinstance(shared.get("dht11_telemetry"), dict):
+                        self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
+                    if isinstance(shared.get("soil_moisture_telemetry"), dict):
+                        self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
 
-            remote_devices = shared.get("devices", {})
-            for dev_id, dev_data in remote_devices.items():
-                if dev_id in dirty_ids:
-                    continue
-                if dev_id in self.devices and isinstance(dev_data, dict):
-                    if "state" in dev_data:
-                        self.devices[dev_id]["state"] = str(dev_data["state"])
-                    if "updated_at" in dev_data:
-                        self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
-                    if "min_role" in dev_data:
-                        self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
-                    if "version" in dev_data:
-                        self.devices[dev_id]["version"] = max(
-                            int(self.devices[dev_id].get("version", 1)),
-                            int(dev_data["version"]),
-                        )
-                    remote_rev = int(shared.get("revision_seq", 0) or 0)
-                    local_rev = int(self._last_synced_seq or 0)
-                    remote_ts_ms = int(dev_data.get("last_client_ts_ms", 0) or 0)
-                    local_ts_ms = int(self.devices[dev_id].get("last_client_ts_ms", 0) or 0)
-                    if remote_rev >= local_rev or remote_ts_ms >= local_ts_ms:
-                        if "last_client_id" in dev_data:
-                            self.devices[dev_id]["last_client_id"] = str(dev_data["last_client_id"])
-                        if "last_client_seq" in dev_data:
-                            self.devices[dev_id]["last_client_seq"] = int(dev_data["last_client_seq"])
-                        if "last_client_ts_ms" in dev_data:
-                            self.devices[dev_id]["last_client_ts_ms"] = max(local_ts_ms, remote_ts_ms)
-                        if "last_request_id" in dev_data:
-                            self.devices[dev_id]["last_request_id"] = str(dev_data["last_request_id"])
-                        if "last_requested_state" in dev_data:
-                            self.devices[dev_id]["last_requested_state"] = str(dev_data["last_requested_state"])
-                    if isinstance(dev_data.get("client_seqs"), dict):
-                        merged_cseqs = (
-                            dict(self.devices[dev_id].get("client_seqs"))
-                            if isinstance(self.devices[dev_id].get("client_seqs"), dict)
-                            else {}
-                        )
-                        for cid_k, cid_v in dev_data["client_seqs"].items():
-                            if not isinstance(cid_v, dict):
-                                continue
-                            cur_v = merged_cseqs.get(cid_k)
-                            if str(cid_k) == "__anon__":
-                                incoming_key = (
-                                    int(cid_v.get("ts_ms", 0) or 0),
-                                    int(cid_v.get("seq", 0) or 0),
-                                )
-                                existing_key = (
-                                    (
-                                        int(cur_v.get("ts_ms", 0) or 0),
-                                        int(cur_v.get("seq", 0) or 0),
-                                    )
-                                    if isinstance(cur_v, dict)
-                                    else (-1, -1)
-                                )
-                            else:
-                                incoming_key = (
-                                    int(cid_v.get("seq", 0) or 0),
-                                    int(cid_v.get("ts_ms", 0) or 0),
-                                )
-                                existing_key = (
-                                    (
-                                        int(cur_v.get("seq", 0) or 0),
-                                        int(cur_v.get("ts_ms", 0) or 0),
-                                    )
-                                    if isinstance(cur_v, dict)
-                                    else (-1, -1)
-                                )
-                            if not isinstance(cur_v, dict) or incoming_key >= existing_key:
-                                merged_cseqs[str(cid_k)] = dict(cid_v)
-                        self.devices[dev_id]["client_seqs"] = merged_cseqs
-                elif dev_id in DEFAULT_DEVICES and isinstance(dev_data, dict):
-                    merged_dev = dict(DEFAULT_DEVICES[dev_id])
-                    merged_dev.update(dev_data)
-                    self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
+                self._last_synced_seq = max(self._last_synced_seq, int(shared.get("revision_seq", 0)))
+                self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(shared.get("revision_ts_ns", 0)))
+            finally:
+                self._applying_shared_state_depth = max(0, self._applying_shared_state_depth - 1)
+                self._applying_shared_state = self._applying_shared_state_depth > 0
 
-            if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
-                if isinstance(shared.get("dht11_telemetry"), dict):
-                    self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
-                if isinstance(shared.get("soil_moisture_telemetry"), dict):
-                    self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
-
-            self._last_synced_seq = max(self._last_synced_seq, int(shared.get("revision_seq", 0)))
-            self._last_synced_ts_ns = max(self._last_synced_ts_ns, int(shared.get("revision_ts_ns", 0)))
-        finally:
-            self._applying_shared_state = False
-
-        if dirty_ids:
-            self._dirty_device_ids.clear()
-            self.persist_to_shared_store()
-        else:
-            cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
-            if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
-                try:
-                    sync_engine_state_to_sqlite(self)
-                except Exception:
-                    pass
-        return True
+            if dirty_ids:
+                self._dirty_device_ids.clear()
+                self.persist_to_shared_store()
+            else:
+                cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
+                if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
+                    try:
+                        sync_engine_state_to_sqlite(self)
+                    except Exception:
+                        pass
+            return True
 
     def _on_direct_device_mutation(self, dev_id: str) -> None:
+        root = getattr(self, "_root_engine", self)
+        if root is not self:
+            root._on_direct_device_mutation(dev_id)
+            return
         if self._applying_shared_state:
             return
         if self._mutation_depth > 0:
@@ -386,6 +419,17 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
     @contextlib.contextmanager
     def state_transaction(self) -> Iterator[None]:
         """Ngữ cảnh giao dịch trạng thái có thể lồng nhau: đồng bộ 1 lần khi vào và lưu bền vững 1 lần khi thoát."""
+        root = getattr(self, "_root_engine", self)
+        if root is not self:
+            with root.state_transaction():
+                self.server_connected = root.server_connected
+                self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                try:
+                    yield
+                finally:
+                    root.server_connected = self.server_connected
+                    root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+            return
         is_outer = (self._mutation_depth == 0)
         if is_outer:
             try:
