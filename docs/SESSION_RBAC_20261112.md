@@ -24,11 +24,12 @@ Route Vercel chuyển trang khách qua backend để kiểm tra token thay vì t
 ## Đăng ký và đăng nhập
 
 - Đăng ký bằng Gmail và mật khẩu, xác nhận mật khẩu; tên là tùy chọn. Không thu giọng.
-- Đăng ký mới không có mã mời tạo tài khoản chờ chủ nhà cấp quyền, không cấp phiên điều khiển.
-- Mã mời hợp lệ chỉ cấp 2 hoặc 3. Quyền và thời hạn của phiên gắn với mã mời;
-  đăng nhập lại không kéo dài mã mời. Thu hồi/hết hạn được kiểm tra lại trên từng hành động.
-- Endpoint đăng ký không được đổi mật khẩu tài khoản đã có. Dùng luồng khôi phục OTP.
-- Đăng nhập không chấp nhận `login_method` tự khai để bỏ qua mật khẩu.
+- Đăng ký mới không có mã mời tạo tài khoản chờ chủ nhà cấp quyền, không cấp phiên điều khiển. Giao diện web và mobile giữ nguyên cổng đăng nhập khi chưa có `session_token`.
+- Tra cứu tài khoản theo địa chỉ chứa `@` chỉ so khớp trường `email` chính xác. Trường `display_name` từ tài khoản chờ duyệt không thể chặn đăng ký hoặc che khuất tài khoản Gmail khác.
+- Mã mời hợp lệ chỉ cấp 2 hoặc 3. Đăng ký kèm mã mời ghi nhận lượt đổi mã qua CAS trên `guest_invites.json` trước khi tạo phiên và kích hoạt tài khoản; nếu mã bị thu hồi đồng thời thì hủy tài khoản nháp và trả 403. Quyền và thời hạn của phiên gắn với mã mời; đăng nhập lại không kéo dài mã mời. Thu hồi/hết hạn được kiểm tra lại trên từng hành động.
+- Endpoint đăng ký không được đổi mật khẩu tài khoản đã có. Dùng luồng khôi phục OTP. Khi yêu cầu OTP khôi phục mật khẩu bị từ chối tiền kiểm do thiếu cấu hình bí mật hoặc ngoài allowlist, server xóa bản ghi OTP nháp và thời gian chờ để không trả 200 giả ở lần bấm tiếp theo, đồng thời vẫn giữ thời gian chờ chống dội khi lỗi kết nối SMTP tạm thời.
+- Đăng nhập không chấp nhận `login_method` tự khai để bỏ qua mật khẩu. Đăng xuất gọi `POST /api/auth/logout` để thu hồi phiên trên server và xóa cookie `HttpOnly` `sh_session_token`.
+- Các route kiểm thử nội bộ `/api/auth3/run_tests` và `/api/auth3/run_test_suite` bắt buộc phiên Chủ nhà cấp 1.
 - Các route mời/thu giọng cũ không còn cấp quyền (410). QR alias dùng chung luồng PIN.
 - Token fixture dự đoán được chỉ tồn tại trong pytest; server thật từ chối cả bản đã lưu.
 - Chữ ký phiên dùng secret triển khai (`SMARTHOME_SESSION_SECRET`, hoặc secret Gmail/SMTP
@@ -42,7 +43,7 @@ khóa, phải đặt lại qua Gmail. Tạo QR dùng POST; GET không tạo mã 
 
 Quên PIN chỉ gửi tới `nep94121@gmail.com`. Mã 6 số lưu hash, hết hạn sau 5 phút,
 dùng một lần; sai 5 lần khóa mã, gửi lại có thời gian chờ 60 giây. Production không
-trả mã OTP trong HTTP. Email lỗi không được thông báo là gửi thành công.
+trả mã OTP trong HTTP. Email lỗi trả 503 và thu hồi bản ghi OTP chưa gửi qua CAS để không giữ mã mồ côi hoặc khóa chờ 60 giây sai.
 
 PIN và danh sách mã mời nằm trong repository GitHub private riêng. Mỗi lần cập nhật
 đọc SHA của tài liệu rồi ghi có điều kiện với SHA đó. Xung đột sẽ đọc lại và tính lại

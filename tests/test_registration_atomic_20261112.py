@@ -134,3 +134,83 @@ def test_invited_activation_failure_does_not_publish_account(client, monkeypatch
     assert response.status_code == 503
     assert not manager.find_account("failed.activation@gmail.com")["permission_active"]
     assert not response.json().get("session_token")
+
+
+def test_display_name_email_spoofing_cannot_shadow_or_block_victim(client):
+    attacker_resp = client.post(
+        "/api/auth3/register_or_set_password",
+        json=registration("attacker.shadow@gmail.com", display_name="victim.shadow@gmail.com"),
+    )
+    assert attacker_resp.status_code == 200
+    assert not attacker_resp.json().get("session_token")
+
+    invite = create_invite(owner_user_id=OWNER_ID, tier=2)
+    victim_resp = client.post(
+        "/api/auth3/register_or_set_password",
+        json=registration("victim.shadow@gmail.com", display_name="Victim User", invite_token=invite["token"]),
+    )
+    assert victim_resp.status_code == 200
+    assert victim_resp.json()["permission_active"] is True
+    session_token = victim_resp.json()["session_token"]
+
+    resolved = get_auth_3layer_manager().find_account("victim.shadow@gmail.com")
+    assert resolved is not None
+    assert resolved["email"] == "victim.shadow@gmail.com"
+    assert resolved["permission_active"] is True
+
+    login_resp = client.post(
+        "/api/auth3/layer1_login",
+        json={"email": "victim.shadow@gmail.com", "password": "regression-password", "send_gmail": False},
+    )
+    assert login_resp.status_code == 200
+    assert login_resp.json()["ok"] is True
+    assert get_session_store().get_session(session_token).is_authenticated
+
+
+def test_alias_login_binds_session_to_canonical_account_email(client, monkeypatch):
+    member = get_auth_3layer_manager().find_account("thanh_vien_a")
+    monkeypatch.setitem(member, "password_hash", hash_password("member-password"))
+    monkeypatch.setitem(member, "permission_active", True)
+    response = client.post(
+        "/api/auth3/layer1_login",
+        json={"email": "thanh_vien_a", "password": "member-password", "send_gmail": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    sess = get_session_store().get_session(response.json()["session_token"])
+    assert sess is not None
+    assert sess.email == member["email"]
+
+
+def test_invited_registration_claims_invite_and_rejects_concurrent_revocation_with_403(client, monkeypatch):
+    from simulator.auth import guest_invites
+
+    invite = create_invite(owner_user_id=OWNER_ID, tier=2)
+    ok_resp = client.post(
+        "/api/auth3/register_or_set_password",
+        json=registration("redeem.counted@gmail.com", invite_token=invite["token"]),
+    )
+    assert ok_resp.status_code == 200
+    assert guest_invites.get_invite(invite["invite_id"])["redeem_count"] == 1
+
+    race_invite = create_invite(owner_user_id=OWNER_ID, tier=3)
+    original_save = get_auth_3layer_manager()._save_accounts
+    revoked_once = False
+
+    def revoke_during_account_create():
+        nonlocal revoked_once
+        res = original_save()
+        if not revoked_once:
+            revoked_once = True
+            guest_invites.revoke_invite(race_invite["invite_id"])
+        return res
+
+    monkeypatch.setattr(get_auth_3layer_manager(), "_save_accounts", revoke_during_account_create)
+    raced_resp = client.post(
+        "/api/auth3/register_or_set_password",
+        json=registration("revoked.during.reg@gmail.com", invite_token=race_invite["token"]),
+    )
+    assert raced_resp.status_code == 403
+    assert not raced_resp.json().get("session_token")
+    assert get_auth_3layer_manager().find_account("revoked.during.reg@gmail.com") is None
+

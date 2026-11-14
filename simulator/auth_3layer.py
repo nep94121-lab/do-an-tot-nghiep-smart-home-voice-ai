@@ -493,13 +493,21 @@ class ThreeLayerAuthManager(
         }
         ident_lookup = alias_map.get(ident, ident)
         for acc in self.accounts:
-            if (
-                acc["email"].lower() in (ident, ident_lookup)
-                or acc["account_id"].lower() in (ident, ident_lookup)
-                or acc["display_name"].lower() in (ident, ident_lookup)
-                or ident in acc["display_name"].lower()
-                or ident.replace(" ", "_") == acc["account_id"].lower()
-            ):
+            if acc["email"].lower() in (ident, ident_lookup):
+                return acc
+        if "@" in ident or "@" in ident_lookup:
+            return None
+        ident_slug = ident.replace(" ", "_")
+        for acc in self.accounts:
+            acc_id = acc["account_id"].lower()
+            if acc_id in (ident, ident_lookup) or ident_slug == acc_id:
+                return acc
+        ordered = sorted(self.accounts, key=lambda item: 0 if item.get("permission_active", True) else 1)
+        for acc in ordered:
+            if acc["display_name"].lower() in (ident, ident_lookup):
+                return acc
+        for acc in ordered:
+            if acc.get("permission_active", True) and ident in acc["display_name"].lower():
                 return acc
         return None
 
@@ -804,16 +812,25 @@ class ThreeLayerAuthManager(
         if not acc:
             return {"ok": False, "status_code": 404, "error": f"Không tìm thấy tài khoản với email '{email}'!"}
 
+        acct_key = str(acc.get("email") or clean_email).strip().lower()
         now = time.time()
         with self._otp_lock:
-            existing = self.pending_otps.get(clean_email)
+            existing = self.pending_otps.get(acct_key) or self.pending_otps.get(clean_email)
             if not existing and acc.get("pending_otp"):
                 candidate = acc.get("pending_otp")
                 if candidate and (now < candidate.get("expires_at", 0) or (now - candidate.get("created_at", 0) < 60.0)):
                     existing = candidate
-                    self.pending_otps[clean_email] = candidate
+                    self.pending_otps[acct_key] = candidate
 
-            if existing and existing.get("otp_code") and not existing.get("consumed", False):
+            existing_delivery = (existing.get("gmail_delivery") or {}) if isinstance(existing, dict) else {}
+            preflight_rejected = bool(existing_delivery.get("missing_secret") or existing_delivery.get("blocked_by_allowlist"))
+            existing_usable = bool(
+                existing
+                and existing.get("otp_code")
+                and not existing.get("consumed", False)
+                and not preflight_rejected
+            )
+            if existing_usable:
                 if now < existing.get("expires_at", 0) or (now - existing.get("created_at", 0) < 60.0):
                     elapsed = now - existing.get("created_at", 0)
                     if elapsed < 60.0:
@@ -833,8 +850,8 @@ class ThreeLayerAuthManager(
                             "idempotent": True,
                             "cooldown_active": True,
                             "cooldown_remaining_seconds": remaining_sec,
-                            "email": clean_email,
-                            "display_name": acc.get("display_name", clean_email),
+                            "email": acct_key,
+                            "display_name": acc.get("display_name", acct_key),
                             "message": "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau.",
                             "expires_in": max(0, int(existing.get("expires_at", now + 300) - now)),
                             "gmail_delivery": delivery_res,
@@ -844,7 +861,6 @@ class ThreeLayerAuthManager(
                             cooldown_resp["demo_otp_preview"] = existing["otp_code"]
                         return cooldown_resp
 
-            # Cooldown starts at REQUEST TIME: record OTP & cooldown immediately before SMTP
             otp_code = f"{random.randint(100000, 999999)}"
             otp_record = {
                 "email": acc["email"],
@@ -857,10 +873,10 @@ class ThreeLayerAuthManager(
                 "verified_layer2": False,
                 "verified_layer3": False,
                 "consumed": False,
-                "gmail_delivery": {"sent_real_gmail": False, "pending": True},
+                "gmail_delivery": {"sent_real_gmail": False, "pending": True} if send_gmail else {"sent_real_gmail": False, "dry_run": True},
                 "source": source,
             }
-            self.pending_otps[clean_email] = otp_record
+            self.pending_otps[acct_key] = otp_record
             acc["pending_otp"] = otp_record
             acc["otp_cooldown_started_at"] = now
             self._save_accounts()
@@ -868,11 +884,25 @@ class ThreeLayerAuthManager(
         gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
         if send_gmail:
             gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+            preflight_failed = bool(
+                not gmail_res.get("sent_real_gmail")
+                and (gmail_res.get("missing_secret") or gmail_res.get("blocked_by_allowlist"))
+            )
             with self._otp_lock:
-                otp_record["gmail_delivery"] = gmail_res
-                if acc.get("pending_otp"):
-                    acc["pending_otp"]["gmail_delivery"] = gmail_res
-                self._save_accounts()
+                if preflight_failed:
+                    if (self.pending_otps.get(acct_key) or {}).get("otp_code") == otp_code:
+                        self.pending_otps.pop(acct_key, None)
+                    if (self.pending_otps.get(clean_email) or {}).get("otp_code") == otp_code:
+                        self.pending_otps.pop(clean_email, None)
+                    if (acc.get("pending_otp") or {}).get("otp_code") == otp_code:
+                        acc.pop("pending_otp", None)
+                        acc.pop("otp_cooldown_started_at", None)
+                    self._save_accounts()
+                else:
+                    otp_record["gmail_delivery"] = gmail_res
+                    if acc.get("pending_otp"):
+                        acc["pending_otp"]["gmail_delivery"] = gmail_res
+                    self._save_accounts()
             if not gmail_res.get("sent_real_gmail"):
                 err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
                 missing_sec = gmail_res.get("missing_secret")

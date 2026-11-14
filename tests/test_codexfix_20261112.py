@@ -274,3 +274,266 @@ def test_mailer_recognizes_failed_delivery(monkeypatch):
     monkeypatch.delenv("SIMULATOR_OFFLINE_SANDBOX", raising=False)
     monkeypatch.setattr(get_auth_3layer_manager(), "send_real_gmail_otp", lambda **kwargs: {"sent_real_gmail": False})
     assert owner_pin.send_reset_email("123456")["ok"] is False
+
+
+def test_owner_pin_forgot_email_failure_rolls_back_otp_and_cooldown(client, monkeypatch):
+    owner_pin.reset_owner_pin_store_for_tests()
+    owner_login(client, monkeypatch)
+    monkeypatch.setattr(owner_pin, "send_reset_email", lambda code: {"ok": False})
+    failed = client.post("/api/auth3/owner_pin/forgot", json={})
+    assert failed.status_code == 503
+    assert not (owner_pin._CACHE or {}).get("otp_hash")
+    assert not (owner_pin._CACHE or {}).get("otp_issued_at")
+
+    monkeypatch.setattr(owner_pin, "send_reset_email", lambda code: {"ok": True, "sent": True})
+    retried = client.post("/api/auth3/owner_pin/forgot", json={})
+    assert retried.status_code == 200
+    assert retried.json()["ok"] is True
+
+
+def test_run_tests_endpoints_require_owner_admin_session(client, monkeypatch):
+    for path in ("/api/auth3/run_tests", "/api/auth3/run_test_suite"):
+        anon = client.post(path, json={"send_real_gmail": False})
+        assert anon.status_code == 401
+
+    guest_token = guest_invites.redeem_token(guest_invites.create_invite(owner_user_id="tuan_anh", tier=3)["token"])["session"].session_id
+    for path in ("/api/auth3/run_tests", "/api/auth3/run_test_suite"):
+        guest = client.post(path, json={"send_real_gmail": False}, headers={"X-Session-Token": guest_token})
+        assert guest.status_code == 403
+
+    admin_token = owner_login(client, monkeypatch)
+    ok = client.post("/api/auth3/run_tests", json={"send_real_gmail": False}, headers={"X-Session-Token": admin_token})
+    assert ok.status_code == 200
+    assert ok.json()["total"] == 14
+    assert len(ok.json()["results"]) == 14
+
+
+def test_ui_pending_registration_does_not_unlock_gate_without_session_token():
+    import subprocess
+    from pathlib import Path
+
+    node_script = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+function runWebCase(apiPayload) {
+  const elements = {};
+  const getEl = (id) => {
+    if (!elements[id]) {
+      elements[id] = {
+        id, value: '', textContent: '', innerHTML: '', hidden: false, disabled: false,
+        style: {}, dataset: {}, listeners: {},
+        classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);} },
+        addEventListener(e, fn){ (this.listeners[e] ||= []).push(fn); },
+        setAttribute(k, v){ this[k] = v; },
+        removeAttribute(k){ delete this[k]; }
+      };
+    }
+    return elements[id];
+  };
+  [
+    'homeLoginGateModal','btnCloseLoginGateModal','btnLogoutHome','homeCurrentAccountBadge',
+    'homeSessionDurationBadge','btnTabGateLogin','btnTabGateRegister','btnTabGateForgot',
+    'gatePanelLogin','gatePanelRegister','gatePanelForgot','gateStatusBox',
+    'btnSubmitGateLogin','btnSubmitGateRegister','btnSubmitForgotReset',
+    'gateLoginEmail','gateLoginPassword','gateRegTier','gateRegName','gateRegEmail',
+    'gateRegPassword','gateRegConfirmPassword','gateForgotEmail','gateForgotOtpInput',
+    'gateForgotNewPassword','gateForgotConfirmPassword'
+  ].forEach(getEl);
+  getEl('btnCloseLoginGateModal').hidden = true;
+  getEl('gateRegEmail').value = 'pending.user@gmail.com';
+  getEl('gateRegName').value = 'Pending User';
+  getEl('gateRegPassword').value = 'secret123';
+  getEl('gateRegConfirmPassword').value = 'secret123';
+
+  const store = { _d: {}, getItem(k){return this._d[k] ?? null;}, setItem(k,v){this._d[k]=String(v);}, removeItem(k){delete this._d[k];} };
+  const scheduled = [];
+  global.document = { getElementById: getEl, querySelector: () => null, querySelectorAll: () => [], cookie: '', addEventListener: () => {} };
+  global.window = { localStorage: store, sessionStorage: store, location: { search: '' }, addEventListener: () => {} };
+  global.location = { protocol: 'http:', host: 'localhost:8000', search: '' };
+  global.WebSocket = class { addEventListener(){} send(){} close(){} };
+  global.setInterval = () => 1;
+  global.clearInterval = () => {};
+  global.clearTimeout = () => {};
+  global.setTimeout = (fn) => { scheduled.push(fn); return 1; };
+  global.fetch = async (url) => ({
+    ok: true, status: 200,
+    json: async () => (String(url).includes('register_or_set_password') ? apiPayload : { ok: true, devices: [] })
+  });
+
+  const code = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+  try { eval(code); } catch (_) {}
+  return new Promise(r => setImmediate(r)).then(() => {
+    scheduled.length = 0;
+    getEl('btnCloseLoginGateModal').hidden = true;
+    getEl('homeLoginGateModal').classList.remove('hidden');
+    const submitFn = getEl('btnSubmitGateRegister').listeners.click[0];
+    return submitFn({ preventDefault(){} });
+  }).then(() => {
+    scheduled.forEach(fn => { try { fn(); } catch (_) {} });
+    return {
+      storedSession: store.getItem('smarthome_auth_session'),
+      modalHidden: getEl('homeLoginGateModal').classList.contains('hidden'),
+      closeBtnHidden: getEl('btnCloseLoginGateModal').hidden,
+      statusText: getEl('gateStatusBox').textContent
+    };
+  });
+}
+
+function runMobileCase(apiPayload) {
+  const elements = {};
+  const getEl = (id) => {
+    if (!elements[id]) {
+      elements[id] = {
+        id, value: '', textContent: '', innerHTML: '', hidden: false, disabled: false,
+        style: {}, dataset: {},
+        classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);} },
+        addEventListener(){}, setAttribute(k, v){ this[k] = v; }, removeAttribute(k){ delete this[k]; },
+        querySelector: () => null, querySelectorAll: () => []
+      };
+    }
+    return elements[id];
+  };
+  ['mobileRegTier','mobileRegName','mobileRegEmail','mobileRegPassword','mobileRegConfirmPassword','mobileRegMsg','mobileRegisterBtn','mobileLoginScreen','mobileMainContent','mobileBottomNav'].forEach(getEl);
+  getEl('mobileMainContent').hidden = true;
+  getEl('mobileRegEmail').value = 'pending.mobile@gmail.com';
+  getEl('mobileRegName').value = 'Pending Mobile';
+  getEl('mobileRegPassword').value = 'secret123';
+  getEl('mobileRegConfirmPassword').value = 'secret123';
+
+  const sessStore = { _d: {}, getItem(k){return this._d[k] ?? null;}, setItem(k,v){this._d[k]=String(v);}, removeItem(k){delete this._d[k];} };
+  const scheduled = [];
+  global.sessionStorage = sessStore;
+  global.localStorage = sessStore;
+  global.document = { getElementById: getEl, querySelector: () => null, querySelectorAll: () => [], cookie: '', addEventListener: () => {} };
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => apiPayload });
+  global.window = { fetch: global.fetch, sessionStorage: sessStore, localStorage: sessStore, location: { search: '' }, addEventListener: () => {} };
+  global.location = { protocol: 'http:', host: 'localhost:8000', search: '' };
+  global.WebSocket = class { addEventListener(){} send(){} close(){} };
+  global.setInterval = () => 1;
+  global.clearInterval = () => {};
+  global.clearTimeout = () => {};
+  global.setTimeout = (fn) => { scheduled.push(fn); return 1; };
+
+  const code = fs.readFileSync('simulator/static/js/mobile_app.js', 'utf8');
+  try { eval(code); } catch (_) {}
+  return global.window.submitMobileRegister({ preventDefault(){} }).then(() => {
+    scheduled.forEach(fn => { try { fn(); } catch (_) {} });
+    return {
+      loggedInFlag: sessStore.getItem('mobileLoggedIn'),
+      mainHidden: getEl('mobileMainContent').hidden,
+      msgText: getEl('mobileRegMsg').textContent
+    };
+  });
+}
+
+(async () => {
+  const pendingPayload = {
+    ok: true,
+    permission_active: false,
+    message: 'Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.'
+  };
+  const webPending = await runWebCase(pendingPayload);
+  assert.equal(webPending.storedSession, null);
+  assert.equal(webPending.modalHidden, false);
+  assert.equal(webPending.closeBtnHidden, true);
+  assert.match(webPending.statusText, /Chờ chủ nhà cấp quyền/);
+
+  const mobPending = await runMobileCase(pendingPayload);
+  assert.equal(mobPending.loggedInFlag, null);
+  assert.equal(mobPending.mainHidden, true);
+  assert.match(mobPending.msgText, /Chờ chủ nhà cấp quyền/);
+
+  const activePayload = {
+    ok: true,
+    permission_active: true,
+    session_token: 'tok_invited_ok',
+    account: { email: 'invited@gmail.com', display_name: 'Invited', tier: 2 },
+    message: 'Đã lưu tài khoản.'
+  };
+  const webActive = await runWebCase(activePayload);
+  assert.ok(webActive.storedSession);
+  assert.equal(webActive.closeBtnHidden, false);
+
+  const mobActive = await runMobileCase(activePayload);
+  assert.equal(mobActive.loggedInFlag, '1');
+})();
+"""
+    proc = subprocess.run(["node", "-e", node_script], cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True, timeout=20)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_forgot_password_email_failure_rolls_back_otp_and_does_not_fake_200_cooldown(monkeypatch, tmp_path):
+    monkeypatch.setenv("SMARTHOME_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("SMARTHOME_DURABLE_DIR", str(tmp_path / "durable"))
+    monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
+    monkeypatch.delenv("GMAIL_APP_PASSWORD", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+
+    from simulator.auth_3layer import get_auth_3layer_manager
+    from simulator.voice_config import OWNER_EMAIL
+
+    mgr = get_auth_3layer_manager()
+    mgr.pending_otps.clear()
+    monkeypatch.setattr(
+        mgr,
+        "send_real_gmail_otp",
+        lambda *_a, **_k: {"sent_real_gmail": False, "missing_secret": "GMAIL_APP_PASSWORD", "error": "Missing GMAIL_APP_PASSWORD"},
+    )
+
+    with TestClient(app) as client:
+        res1 = client.post("/api/auth3/forgot_password_send_otp", json={"email": OWNER_EMAIL, "send_gmail": True})
+        assert res1.status_code == 503
+        assert res1.json()["ok"] is False
+        assert mgr.pending_otps.get(OWNER_EMAIL.lower()) is None
+        owner_acc = mgr.find_account(OWNER_EMAIL)
+        assert owner_acc is not None and owner_acc.get("pending_otp") is None
+
+        res2 = client.post("/api/auth3/forgot_password_send_otp", json={"email": OWNER_EMAIL})
+        assert res2.status_code == 503
+        assert res2.json()["ok"] is False
+
+
+def test_logout_endpoint_revokes_session_and_clears_httponly_cookie(monkeypatch, tmp_path):
+    from simulator import durable_store
+    from simulator.auth import session_store
+    from simulator.voice_config import OWNER_EMAIL, OWNER_ID
+
+    monkeypatch.setenv("SMARTHOME_DURABLE_DIR", str(tmp_path / "durable"))
+    monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
+    monkeypatch.setattr(durable_store, "_GLOBAL_DURABLE_STORE", None)
+    isolated_store = session_store.SessionStore(db_path=tmp_path / "smarthome.db")
+    monkeypatch.setattr(session_store, "_SESSION_STORE", isolated_store)
+
+    sess = isolated_store.create_session(
+        user_id=OWNER_ID,
+        email=OWNER_EMAIL,
+        display_name="Owner Logout Test",
+        tier=1,
+        role="ADMIN",
+        source="logout_test",
+    )
+    with TestClient(app) as client:
+        client.cookies.set("sh_session_token", sess.session_id)
+        before = client.get("/api/state")
+        assert before.status_code == 200
+        assert before.json()["authenticated"] is True
+
+        out = client.post("/api/auth/logout")
+        assert out.status_code == 200
+        assert out.json()["ok"] is True
+        set_cookie_hdr = " ".join(out.headers.get_list("set-cookie"))
+        assert "sh_session_token=" in set_cookie_hdr
+
+        after_state = client.get("/api/state")
+        assert after_state.status_code == 200
+        assert after_state.json()["authenticated"] is False
+
+        replay = client.post(
+            "/api/device",
+            headers={"Cookie": f"sh_session_token={sess.session_id}"},
+            json={"device_id": "fan", "action": "off"},
+        )
+        assert replay.status_code == 401
+
+

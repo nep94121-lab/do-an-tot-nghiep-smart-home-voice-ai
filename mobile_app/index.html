@@ -85,18 +85,18 @@
         <div>
           <label class="muted" for="mobileRegPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="mobileRegPassword" placeholder="Nhập mật khẩu mới" value="" required style="width:100%; padding-right:38px;" />
+            <input type="password" id="mobileRegPassword" placeholder="Nhập mật khẩu mới" value="" autocomplete="new-password" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
         <div>
           <label class="muted" for="mobileRegConfirmPassword" style="display:block;margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="mobileRegConfirmPassword" placeholder="Nhập lại mật khẩu để xác nhận" value="" required style="width:100%; padding-right:38px;" />
+            <input type="password" id="mobileRegConfirmPassword" placeholder="Nhập lại mật khẩu để xác nhận" value="" autocomplete="new-password" required style="width:100%; padding-right:38px;" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
-        <div id="mobileRegMsg" class="muted" style="min-height:18px;"></div>
+        <div id="mobileRegMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
         <button type="submit" class="btn primary" id="mobileRegisterBtn">Xác nhận 2 mật khẩu &amp; Đăng nhập</button>
       </form>
 

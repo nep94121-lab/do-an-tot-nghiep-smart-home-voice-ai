@@ -216,30 +216,52 @@
 
       if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Đang xử lý...'; }
       try {
+        const params = typeof window !== 'undefined' && window.location && window.location.search ? new URLSearchParams(window.location.search) : null;
+        const inviteToken = params ? (params.get('invite_token') || params.get('token') || params.get('invite') || '').trim() : '';
+        const reqBody = {
+          email,
+          display_name: displayName,
+          target_tier: tier,
+          password,
+          confirm_password: confirmPassword,
+        };
+        if (inviteToken) reqBody.invite_token = inviteToken;
         const res = await fetch('/api/auth3/register_or_set_password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            display_name: displayName,
-            target_tier: tier,
-            password,
-            confirm_password: confirmPassword,
-          }),
+          body: JSON.stringify(reqBody),
         });
         const data = await res.json();
         if (data.ok) {
-          mobileLoggedIn = true;
-          mobileLoggedInEmail = email;
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('mobileLoggedIn', '1');
-            sessionStorage.setItem('mobileLoggedInEmail', email);
+          const hasActiveSession = Boolean(data.session_token && data.permission_active !== false);
+          if (hasActiveSession) {
+            const resolvedEmail = (data.account && data.account.email) || email;
+            mobileLoggedIn = true;
+            mobileLoggedInEmail = resolvedEmail;
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('mobileLoggedIn', '1');
+              sessionStorage.setItem('mobileLoggedInEmail', resolvedEmail);
+              sessionStorage.setItem('session_token', data.session_token);
+            }
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('session_token', data.session_token);
+            }
+            if (msgEl) {
+              msgEl.style.color = 'var(--accent)';
+              msgEl.textContent = `✅ ${data.message || 'Đặt mật khẩu thành công!'}`;
+            }
+            setTimeout(showMobileMainContent, 500);
+          } else {
+            mobileLoggedIn = false;
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.removeItem('mobileLoggedIn');
+              sessionStorage.removeItem('session_token');
+            }
+            if (msgEl) {
+              msgEl.style.color = 'var(--muted)';
+              msgEl.textContent = data.message || 'Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.';
+            }
           }
-          if (msgEl) {
-            msgEl.style.color = 'var(--accent)';
-            msgEl.textContent = '✅ Đặt mật khẩu thành công!';
-          }
-          setTimeout(showMobileMainContent, 500);
         } else {
           if (msgEl) {
             msgEl.style.color = 'var(--danger)';
@@ -487,6 +509,11 @@
         localStorage.removeItem('mobileLoggedIn');
         localStorage.removeItem('mobileLoggedInEmail');
       }
+      try {
+        if (typeof window !== 'undefined' && typeof window.fetch === 'function' && window.location && window.location.host) {
+          Promise.resolve(window.fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })).catch(() => {});
+        }
+      } catch (_) {}
       try {
         document.cookie = 'smarthome_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';

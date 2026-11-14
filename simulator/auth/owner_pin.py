@@ -190,6 +190,25 @@ def issue_reset_otp() -> tuple[dict[str, Any], str]:
     return result, code
 
 
+@atomic_security("owner_pin.json")
+def clear_undelivered_reset_otp(otp_code: str) -> bool:
+    code = str(otp_code or "").strip()
+    if not code:
+        return False
+    with _LOCK:
+        data = _load()
+        if data.get("otp_used"):
+            return False
+        if not _verify_secret(code, str(data.get("otp_salt") or ""), str(data.get("otp_hash") or "")):
+            return False
+        for field in ("otp_salt", "otp_hash", "otp_expires_at", "otp_issued_at"):
+            data.pop(field, None)
+        data["otp_used"] = False
+        data["otp_failed_attempts"] = 0
+        _save(data)
+    return True
+
+
 def allowed_reset_recipient(email: str) -> bool:
     return str(email or "").strip().lower() == OWNER_RESET_EMAIL
 

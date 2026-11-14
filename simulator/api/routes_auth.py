@@ -1018,13 +1018,9 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
     session_token = None
     if res.get("ok"):
         acc = res.get("account") or {}
-        tier_val = int(acc.get("tier") or res.get("tier") or 1)
-        acc_id = str(acc.get("account_id") or "")
-        role_map = ROLE_MAP
-        role_name = acc.get("role") or role_map.get(tier_val, "CHILD_GUEST")
-        disp_name = acc.get("display_name") or email
-        store = get_session_store()
-        sess = _account_session(get_auth_3layer_manager().find_account(email) or acc, email, "password_login")
+        resolved_acc = get_auth_3layer_manager().find_account(email) or acc
+        canonical_email = str(resolved_acc.get("email") or email)
+        sess = _account_session(resolved_acc, canonical_email, "password_login")
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
@@ -1040,12 +1036,13 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
     resp = JSONResponse(sanitize_api_payload(res))
     if res.get("ok"):
         acc = res.get("account") or {}
-        tier_val = int(acc.get("tier") or res.get("tier") or 1)
+        resolved_acc = get_auth_3layer_manager().find_account(email) or acc
+        canonical_email = str(resolved_acc.get("email") or email)
         if session_token:
             resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
             resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
             resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedInEmail", email, path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
     return resp
 
 
@@ -1058,14 +1055,9 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
     res = get_auth_3layer_manager().layer2_verify_otp(email=email, otp_input=otp_code, source=source)
     session_token = None
     if res.get("ok"):
-        tier_val = int(res.get("tier") or 1)
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
-        acc_id = str(acc_obj.get("account_id") or "")
-        role_map = ROLE_MAP
-        role_name = acc_obj.get("role") or role_map.get(tier_val, "CHILD_GUEST")
-        disp_name = acc_obj.get("display_name") or email
-        store = get_session_store()
-        sess = _account_session(acc_obj, email, "otp_login")
+        canonical_email = str(acc_obj.get("email") or email)
+        sess = _account_session(acc_obj, canonical_email, "otp_login")
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
@@ -1080,13 +1072,35 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
     if res.get("ok"):
-        tier_val = int(res.get("tier") or 1)
         acc_obj = get_auth_3layer_manager().find_account(email) or {}
+        canonical_email = str(acc_obj.get("email") or email)
         if session_token:
             resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
             resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
             resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedInEmail", email, path="/", httponly=False, samesite="lax", max_age=86400)
+            resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+    return resp
+
+
+@router.post("/api/auth/logout")
+@router.post("/api/auth3/logout")
+async def api_auth_logout(request: Request) -> JSONResponse:
+    token = ""
+    auth_header = str(request.headers.get("authorization", "") or "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = str(request.headers.get("x-session-token", "") or "").strip()
+    if not token and hasattr(request, "cookies"):
+        token = str(request.cookies.get("sh_session_token") or request.cookies.get("session_token") or "").strip()
+    if token and token not in {"sess_owner_t1_nep94121", "sess_family_t2_member_a", "sess_guest_t3_visitor_c"}:
+        get_session_store().revoke_session(token)
+    resp = JSONResponse({"ok": True, "logged_out": True})
+    resp.delete_cookie("sh_session_token", path="/", httponly=True, samesite="lax")
+    resp.delete_cookie("session_token", path="/", httponly=False, samesite="lax")
+    resp.delete_cookie("smarthome_session", path="/", httponly=False, samesite="lax")
+    resp.delete_cookie("mobileLoggedIn", path="/", httponly=False, samesite="lax")
+    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=False, samesite="lax")
     return resp
 
 
@@ -1094,8 +1108,7 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
 async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONResponse:
     """Tạo tài khoản hoặc đặt/đổi mật khẩu với 2 ô mật khẩu xác nhận."""
     email = str(payload.get("email", "")).strip()
-    # Public registration is never a password-change or recovery mechanism.
-    if get_auth_3layer_manager().find_account(email):
+    if "@" in email and get_auth_3layer_manager().find_account(email):
         return JSONResponse({"ok": False, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}, status_code=409)
     password = str(payload.get("password", "")).strip()
     confirm_password = str(payload.get("confirm_password", "")).strip()
@@ -1131,13 +1144,31 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
     )
     session_token = None
     if res.get("ok") and invited and res.get("account"):
+        from fastapi import HTTPException
+        from simulator.auth.guest_invites import _claim_invite_redemption
+
         acc = res["account"]
         manager = get_auth_3layer_manager()
         sess = None
         try:
-            sess = _account_session(acc, email, "invite_registration")
+            claimed = _claim_invite_redemption(invite_token)
+            if not claimed.get("valid"):
+                manager.rollback_registration(str(acc["account_id"]))
+                return JSONResponse(
+                    {"ok": False, "error": claimed.get("error") or "Mã mời không hợp lệ hoặc đã hết hạn."},
+                    status_code=403,
+                )
+            sess = _account_session(acc, str(acc.get("email") or email), "invite_registration")
             if not sess.is_authenticated or not manager.activate_registration(str(acc["account_id"])):
                 raise RuntimeError("Registration activation failed")
+        except HTTPException as exc:
+            if sess is not None:
+                get_session_store().revoke_session(sess.session_id)
+            manager.rollback_registration(str(acc["account_id"]))
+            return JSONResponse(
+                {"ok": False, "error": str(exc.detail or "Mã mời đã hết hạn hoặc bị thu hồi.")},
+                status_code=int(exc.status_code or 403),
+            )
         except Exception:
             if sess is not None:
                 get_session_store().revoke_session(sess.session_id)
@@ -1307,8 +1338,11 @@ async def api_auth3_layer3_voice(request: Request, payload: dict[str, Any]) -> J
 
 @router.post("/api/auth3/run_tests")
 @router.post("/api/auth3/run_test_suite")
-async def api_auth3_run_tests(payload: dict[str, Any] | None = None) -> JSONResponse:
+async def api_auth3_run_tests(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
     """Chạy bộ kiểm thử tự động 14 ca xác thực 3 tầng (Hỗ trợ alias chống 404)."""
+    _, err_resp = _require_admin_session(request)
+    if err_resp is not None:
+        return err_resp
     send_real = bool((payload or {}).get("send_real_gmail", False) or (payload or {}).get("send_live_email", False))
     rep = sanitize_overview_and_logs_payload(
         get_auth_3layer_manager().run_automated_3layer_test_suite(send_real_email_on_test1=send_real)
@@ -1377,6 +1411,12 @@ async def api_owner_pin_forgot(request: Request, payload: dict[str, Any] | None 
         return JSONResponse(issued, status_code=int(issued.get("status_code") or 429))
     send_res = send_reset_email(otp_code)
     if not send_res.get("ok"):
+        from simulator.auth.owner_pin import clear_undelivered_reset_otp
+
+        try:
+            clear_undelivered_reset_otp(otp_code)
+        except Exception:
+            pass
         return JSONResponse({"ok": False, "error": "Không gửi được email xác nhận."}, status_code=503)
     if not is_test_otp_fields_allowed(getattr(request, "app", None)) and os.environ.get("SIMULATOR_OFFLINE_SANDBOX") != "1":
         issued.pop("otp_code_for_test", None)

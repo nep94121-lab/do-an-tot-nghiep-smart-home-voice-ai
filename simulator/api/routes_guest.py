@@ -155,7 +155,7 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
             )
         setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm))
         if not setup.get("ok"):
-            setup["needs_pin_setup"] = True
+            setup["needs_pin_setup"] = int(setup.get("status_code") or 400) != 409
             return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
     else:
         checked = verify_pin(str(pin_val or ""))
@@ -234,7 +234,7 @@ async def api_guest_qr_current_compat(request: Request, payload: dict[str, Any] 
             )
         setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm))
         if not setup.get("ok"):
-            setup["needs_pin_setup"] = True
+            setup["needs_pin_setup"] = int(setup.get("status_code") or 400) != 409
             return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
     else:
         checked = verify_pin(str(pin_val or ""))

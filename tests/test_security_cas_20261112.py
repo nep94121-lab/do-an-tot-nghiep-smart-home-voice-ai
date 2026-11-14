@@ -138,3 +138,18 @@ def test_public_repository_is_rejected(monkeypatch):
     monkeypatch.setattr(backend, "_request", lambda *args: {"private": False})
     with pytest.raises(security_state.SecurityStateUnavailable):
         backend.read("owner_pin.json")
+
+
+def test_clear_undelivered_reset_otp_preserves_newer_otp(remote):
+    _, code_first = owner_pin.issue_reset_otp()
+    data = remote.state("owner_pin.json")
+    data["otp_issued_at"] = 0
+    payload, sha, rev = remote.read("owner_pin.json")
+    remote.compare_and_swap("owner_pin.json", json.dumps(data).encode(), sha, rev)
+    _, code_second = owner_pin.issue_reset_otp()
+
+    assert owner_pin.clear_undelivered_reset_otp(code_first) is False
+    assert remote.state("owner_pin.json").get("otp_hash")
+    assert owner_pin.clear_undelivered_reset_otp(code_second) is True
+    assert not remote.state("owner_pin.json").get("otp_hash")
+

@@ -377,14 +377,14 @@
         <div>
           <label for="gateRegPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" />
+            <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="" autocomplete="new-password" placeholder="Nhập mật khẩu" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
         <div>
           <label for="gateRegConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập lại mật khẩu để xác nhận" />
+            <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" autocomplete="new-password" placeholder="Nhập lại mật khẩu để xác nhận" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
@@ -444,7 +444,7 @@
         </div>
       </form>
 
-      <div id="gateStatusBox" class="subtle" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
+      <div id="gateStatusBox" class="subtle" role="status" aria-live="polite" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
         Nhập Email và Mật khẩu để vào bảng điều khiển Nhà thông minh.
       </div>
     </div>

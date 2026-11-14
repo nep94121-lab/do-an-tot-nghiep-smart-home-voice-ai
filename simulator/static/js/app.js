@@ -2976,6 +2976,11 @@
 
   if (btnLogoutHome) {
     btnLogoutHome.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && typeof window.fetch === "function" && window.location && window.location.host) {
+          Promise.resolve(window.fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })).catch(() => {});
+        }
+      } catch (_) {}
       clearAuthState();
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
       switchLoginGateTab("login");
@@ -3106,36 +3111,49 @@
       btn.textContent = "⏳ Đang lưu...";
     }
     try {
+      const params = window.location && window.location.search ? new URLSearchParams(window.location.search) : null;
+      const inviteToken = params ? (params.get("invite_token") || params.get("token") || params.get("invite") || "").trim() : "";
+      const reqBody = {
+        email,
+        display_name: displayName,
+        password,
+        confirm_password: confirmPassword,
+      };
+      if (inviteToken) reqBody.invite_token = inviteToken;
       const res = await fetch("/api/auth3/register_or_set_password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          display_name: displayName,
-          password,
-          confirm_password: confirmPassword,
-        }),
+        body: JSON.stringify(reqBody),
       });
       const data = await res.json();
       if (data.ok) {
-        const userSession = Object.assign({}, data.account || { email, display_name: displayName, tier }, { session_token: data.session_token || "" });
-        try {
-          if (window.localStorage) {
-            window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
-            if (data.session_token) window.localStorage.setItem("session_token", data.session_token);
+        const hasActiveSession = Boolean(data.session_token && data.permission_active !== false);
+        if (hasActiveSession) {
+          const userSession = Object.assign({}, data.account || { email, display_name: displayName, tier }, { session_token: data.session_token });
+          try {
+            if (window.localStorage) {
+              window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
+              window.localStorage.setItem("session_token", data.session_token);
+            }
+            if (window.sessionStorage) {
+              window.sessionStorage.setItem("session_token", data.session_token);
+            }
+          } catch (_) {}
+          setSessionCookies(userSession.session_token);
+          serverSessionConfirmed = true;
+          applyLoggedInUserBanner(userSession);
+          if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+          if (gateStatusBox) {
+            gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
           }
-          if (window.sessionStorage && data.session_token) {
-            window.sessionStorage.setItem("session_token", data.session_token);
+          setTimeout(closeLoginGateModal, 600);
+        } else {
+          serverSessionConfirmed = false;
+          if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+          if (gateStatusBox) {
+            gateStatusBox.textContent = data.message || "Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.";
           }
-        } catch (_) {}
-        if (userSession.session_token) setSessionCookies(userSession.session_token);
-        serverSessionConfirmed = !!userSession.session_token;
-        applyLoggedInUserBanner(userSession);
-        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
-        if (gateStatusBox) {
-          gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
         }
-        setTimeout(closeLoginGateModal, 600);
       } else if (gateStatusBox) {
         gateStatusBox.textContent = `❌ ${data.error || "Không lưu được mật khẩu."}`;
       }
