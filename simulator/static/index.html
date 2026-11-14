@@ -40,7 +40,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        <a href="/guest">Khách</a>
+        <a href="/guest_guide">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -273,7 +273,7 @@
       </div>
 
       <!-- TAB 1: ĐĂNG NHẬP EMAIL + MẬT KHẨU -->
-      <form id="gatePanelLogin" style="display:grid; gap:10px;" onsubmit="event.preventDefault();">
+      <form id="gatePanelLogin" style="display:grid; gap:10px;" onsubmit="event.preventDefault();" novalidate>
         <div>
           <label for="gateLoginEmail" class="subtle" style="display:block; margin-bottom:4px;">Email đăng nhập</label>
           <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="" placeholder="Nhập email tài khoản" autocomplete="email" />
@@ -309,7 +309,7 @@
       </div>
 
       <!-- TAB 2: TẠO TÀI KHOẢN / ĐẶT MẬT KHẨU (CÓ 2 Ô MẬT KHẨU XÁC NHẬN LẠI) -->
-      <form id="gatePanelRegister" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
+      <form id="gatePanelRegister" style="display:none; gap:10px;" onsubmit="event.preventDefault();" novalidate>
         <p class="subtle" style="margin:0; font-size:12px;">Tài khoản mới đăng ký sẽ <strong>chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập</strong> (trừ khi có mã mời).</p>
         <div hidden aria-hidden="true">
           <label for="gateRegTier" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ tài khoản</label>

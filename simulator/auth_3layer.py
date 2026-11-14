@@ -1804,6 +1804,10 @@ class ThreeLayerAuthManager(
 
             self._with_cas_accounts(_cleanup)
             self._clear_login_failures(resolved_email, client_ip=client_ip)
+            if res.get("permission_active"):
+                res["message"] = "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới."
+            else:
+                res["message"] = "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới (tài khoản đang chờ Chủ nhà duyệt)."
         return res
 
     def upsert_speaker_account_for_voice(

@@ -548,7 +548,22 @@
       const password = pwEl ? pwEl.value : '';
       const confirmPassword = pwConfirmEl ? pwConfirmEl.value : '';
 
-      if (!email || !password || !confirmPassword) {
+      const strictEmailRe = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+      if (!email || !strictEmailRe.test(email)) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Vui lòng nhập địa chỉ Email hợp lệ!';
+        }
+        return;
+      }
+      if (!password || password.length < 6) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Mật khẩu phải có từ 6 ký tự trở lên!';
+        }
+        return;
+      }
+      if (!confirmPassword) {
         if (msgEl) {
           msgEl.style.color = 'var(--danger)';
           msgEl.textContent = 'Vui lòng nhập đầy đủ email và cả 2 ô mật khẩu.';
@@ -1044,10 +1059,22 @@
       }
     }
 
-    function submitForgotVerifyOtp() {
+    async function submitForgotVerifyOtp() {
       const otpInput = document.getElementById('mobileForgotOtp');
       const msgEl = document.getElementById('mobileForgotOtpMsg');
+      const btn = document.getElementById('mobileBtnForgotVerifyOtp');
+      const stepOtp = document.getElementById('mobileForgotStepOtp');
+      const stepReset = document.getElementById('mobileForgotStepReset');
+      const stepLabel = document.getElementById('mobileForgotStepLabel');
+      const stepDesc = document.getElementById('mobileForgotStepDesc');
       const otp = (otpInput ? otpInput.value : '').trim();
+      if (!forgotEmail) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Thiếu địa chỉ email. Vui lòng quay lại Bước 1.';
+        }
+        return;
+      }
       if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
         if (msgEl) {
           msgEl.style.color = 'var(--danger)';
@@ -1056,14 +1083,54 @@
         return;
       }
       if (msgEl) msgEl.textContent = '';
-      const stepOtp = document.getElementById('mobileForgotStepOtp');
-      const stepReset = document.getElementById('mobileForgotStepReset');
-      const stepLabel = document.getElementById('mobileForgotStepLabel');
-      const stepDesc = document.getElementById('mobileForgotStepDesc');
-      if (stepOtp) stepOtp.style.display = 'none';
-      if (stepReset) stepReset.style.display = 'grid';
-      if (stepLabel) stepLabel.textContent = 'Bước 3/3';
-      if (stepDesc) stepDesc.textContent = 'Nhập mật khẩu mới và xác nhận lại.';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Đang kiểm tra OTP...';
+      }
+      try {
+        const res = await fetch('/api/auth3/layer2_verify_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: forgotEmail,
+            otp_code: otp,
+            purpose: 'forgot_password',
+            source: 'mobile_app_forgot_step2'
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data && data.ok) {
+          if (stepOtp) stepOtp.style.display = 'none';
+          if (stepReset) stepReset.style.display = 'grid';
+          if (stepLabel) stepLabel.textContent = 'Bước 3/3';
+          if (stepDesc) stepDesc.textContent = 'Nhập mật khẩu mới và xác nhận lại.';
+        } else {
+          if (stepOtp) stepOtp.style.display = 'grid';
+          if (stepReset) stepReset.style.display = 'none';
+          if (stepLabel) stepLabel.textContent = 'Bước 2/3';
+          const errRaw = (data && (data.error || data.message)) || '';
+          const errText = (res.status === 429 || /hết hạn|chưa có/i.test(errRaw))
+            ? errRaw
+            : 'Mã OTP không chính xác';
+          if (msgEl) {
+            msgEl.style.color = 'var(--danger)';
+            msgEl.textContent = errText;
+          }
+        }
+      } catch (_err) {
+        if (stepOtp) stepOtp.style.display = 'grid';
+        if (stepReset) stepReset.style.display = 'none';
+        if (stepLabel) stepLabel.textContent = 'Bước 2/3';
+        if (msgEl) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Lỗi kết nối máy chủ khi kiểm tra OTP.';
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Xác nhận mã';
+        }
+      }
     }
 
     async function submitForgotResetPassword(e) {
@@ -1086,6 +1153,10 @@
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Vui lòng nhập đầy đủ 2 ô mật khẩu.'; }
         return;
       }
+      if (pw1.length < 6) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Mật khẩu phải có từ 6 ký tự trở lên!'; }
+        return;
+      }
       if (pw1 !== pw2) {
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Hai ô mật khẩu không khớp nhau!'; }
         return;
@@ -1106,7 +1177,8 @@
         });
         const data = await res.json().catch(() => ({}));
         if (isHttpOk(res) && data.ok) {
-          if (msgEl) { msgEl.style.color = 'var(--accent)'; msgEl.textContent = '✅ Đặt mật khẩu thành công! Đang chuyển về đăng nhập...'; }
+          const successMsg = data.message || 'Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.';
+          if (msgEl) { msgEl.style.color = 'var(--accent)'; msgEl.textContent = successMsg; }
           if (pw1El) pw1El.value = '';
           if (pw2El) pw2El.value = '';
           if (otpEl) otpEl.value = '';
@@ -1115,7 +1187,7 @@
             const loginEmail = document.getElementById('mobileLoginEmail');
             if (loginEmail) loginEmail.value = forgotEmail;
             const loginMsg = document.getElementById('mobileLoginMsg');
-            if (loginMsg) { loginMsg.style.color = 'var(--accent)'; loginMsg.textContent = '✅ Đã cập nhật mật khẩu, vui lòng đăng nhập.'; }
+            if (loginMsg) { loginMsg.style.color = 'var(--accent)'; loginMsg.textContent = successMsg; }
           }, 900);
         } else {
           if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || 'Đặt mật khẩu thất bại.'; }

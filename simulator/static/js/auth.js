@@ -191,7 +191,7 @@ async function submitForgotPasswordResetAuthPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      setAuthStatusBox(box, data.message || 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới.', false);
+      setAuthStatusBox(box, data.message || 'Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.', false);
       if (otpEl) otpEl.value = '';
       if (pwEl) pwEl.value = '';
       if (confirmEl) confirmEl.value = '';

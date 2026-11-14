@@ -259,8 +259,8 @@ def test_log_writers_at_source_never_write_otp_or_passwords(client: TestClient) 
             json={"email": owner_acc["email"], "send_gmail": False},
         )
 
-        # 4. Invite OAuth start + wrong OTP verify (must not leak actual Gmail OTP in error or log!)
-        client.post(
+        # 4. Invite OAuth HTTP endpoints return 410 Gone, and direct invite methods never write OTP/password to logs!
+        http_inv_start = client.post(
             "/api/auth3/invite_oauth_start",
             json={
                 "invite_code": "INV-T1-TO-TIER2",
@@ -269,18 +269,35 @@ def test_log_writers_at_source_never_write_otp_or_passwords(client: TestClient) 
                 "send_gmail": False,
             },
         )
+        assert http_inv_start.status_code == 410
+        assert http_inv_start.json().get("gone") is True
+
+        http_inv_verify = client.post(
+            "/api/auth3/invite_verify_otp",
+            json={
+                "email": "sec3_source_test@gmail.com",
+                "otp_code": "000000",
+            },
+        )
+        assert http_inv_verify.status_code == 410
+        assert http_inv_verify.json().get("gone") is True
+
+        inv_start_res = mgr.start_invite_oauth_registration(
+            invite_code="INV-T1-TO-TIER2",
+            google_email="sec3_source_test@gmail.com",
+            display_name="Sec3 Source Test",
+            send_gmail=False,
+        )
+        assert inv_start_res.get("ok") is True
         pend_inv = mgr.pending_invite_registrations["sec3_source_test@gmail.com"]
         otp_inv = pend_inv["otp_code"]
         pw_inv = pend_inv["issued_password"]
 
-        wrong_inv = client.post(
-            "/api/auth3/invite_verify_otp",
-            json={
-                "email": "sec3_source_test@gmail.com",
-                "otp_code": "000000" if otp_inv != "000000" else "999999",
-            },
+        wrong_inv = mgr.verify_invite_otp_and_create_account(
+            email="sec3_source_test@gmail.com",
+            otp_input="000000" if otp_inv != "000000" else "999999",
         )
-        wrong_inv_text = wrong_inv.text
+        wrong_inv_text = json.dumps(wrong_inv, ensure_ascii=False)
         assert otp_inv not in wrong_inv_text, f"Wrong invite OTP response leaked actual OTP {otp_inv}: {wrong_inv_text}"
 
         # Check in-memory verification_logs

@@ -123,6 +123,37 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
+    }
+    .logs-admin-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      background: #eef2f3;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+    }
+    .logs-status-banner {
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 1px solid #fecdca;
+      background: var(--danger-soft);
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .logs-status-banner.is-info {
+      border-color: #bfe3e0;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .menu.is-disabled summary {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
     .card {

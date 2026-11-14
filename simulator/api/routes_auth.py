@@ -1097,6 +1097,46 @@ async def api_auth3_layer2_send_otp(payload: dict[str, Any], request: Request) -
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
+def _scrub_forgot_password_identity(
+    res: dict[str, Any],
+    requested_email: str,
+    *,
+    is_send_otp: bool = False,
+) -> dict[str, Any]:
+    """Ẩn danh tính gốc của chủ tài khoản (display_name, canonical email) trong phản hồi Quên mật khẩu."""
+    req_clean = str(requested_email or "").strip().lower()
+    acct = res.get("account") if isinstance(res.get("account"), dict) else {}
+    resolved = str(res.get("email") or acct.get("email") or "").strip().lower()
+    res.pop("display_name", None)
+    gd = res.get("gmail_delivery")
+    if isinstance(gd, dict):
+        gd = dict(gd)
+        if req_clean and resolved and req_clean != resolved:
+            for k in ("actual_recipient", "recipient", "to"):
+                if k in gd:
+                    gd[k] = req_clean
+        else:
+            gd.pop("actual_recipient", None)
+        res["gmail_delivery"] = gd
+    if req_clean and resolved and req_clean != resolved:
+        res["email"] = req_clean
+        res.pop("account", None)
+        res.pop("account_id", None)
+        res.pop("tier", None)
+    if is_send_otp and res.get("ok"):
+        if res.get("cooldown_active"):
+            res["message"] = "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau."
+        else:
+            res["message"] = "✅ Đã gửi mã OTP 6 số về hộp thư Gmail để đặt lại mật khẩu!"
+    if not res.get("ok") and "Không tìm thấy tài khoản" in str(res.get("error") or ""):
+        res["error"] = (
+            "Không thể gửi mã OTP đặt lại mật khẩu cho địa chỉ này."
+            if is_send_otp
+            else "Mã OTP hoặc thông tin đặt lại mật khẩu không hợp lệ."
+        )
+    return res
+
+
 @router.post("/api/auth3/layer2_verify_otp")
 async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Xác thực Lớp 2 (Mã OTP 6 số)."""
@@ -1123,12 +1163,14 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request)
         res["session"] = sess.to_dict()
         session_token = sess.session_id
         await broadcast_rest_state_to_bridges()
+    if str(expected_purpose or "").strip().lower() == "forgot_password" or str(res.get("verified_purpose") or "") == "forgot_password":
+        _scrub_forgot_password_identity(res, email)
     append_audit_log(
         category="AUTH_3LAYER",
         event_type="layer2_verify_otp",
         summary=res.get("message") or res.get("error") or "Xác thực OTP Lớp 2",
         user_name=email,
-        tier=int(res.get("tier", 1)) if res.get("ok") else 99,
+        tier=int(res.get("tier", 1)) if (res.get("ok") and should_mint_session) else 99,
         details=sanitize_overview_and_logs_payload(res),
     )
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
@@ -1271,6 +1313,7 @@ async def api_auth3_forgot_password_send_otp(
     if not is_test_otp_fields_allowed(req_app):
         res.pop("otp_code_for_test", None)
         res.pop("demo_otp_preview", None)
+    _scrub_forgot_password_identity(res, email, is_send_otp=True)
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
@@ -1290,6 +1333,7 @@ async def api_auth3_forgot_password_reset(payload: dict[str, Any], request: Requ
         source=str(payload.get("source") or "Web Quên Mật Khẩu"),
         client_ip=normalize_client_ip(request),
     )
+    _scrub_forgot_password_identity(res, email)
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 

@@ -25,6 +25,7 @@
     { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
     { "src": "^/app/?$", "dest": "/mobile_app/index.html" },
     { "src": "^/auth/?$", "dest": "/simulator/static/auth.html" },
+    { "src": "^/guest_guide/?$", "dest": "/simulator/static/guest_guide.html" },
     { "src": "^/guest/?$", "dest": "/api/index.py" },
     { "src": "^/guest_enroll/?$", "dest": "/api/index.py" },
     { "src": "^/guest-qr/?$", "dest": "/api/index.py" },

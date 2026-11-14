@@ -44,7 +44,7 @@
       </div>
 
       <!-- TAB 1: FORM ĐĂNG NHẬP (HỖ TRỢ ENTER, NÚT 👁️) -->
-      <form id="mobileLoginForm" class="login-form" onsubmit="submitMobileLogin(event)">
+      <form id="mobileLoginForm" class="login-form" onsubmit="submitMobileLogin(event)" novalidate>
         <div>
           <label class="muted" for="mobileLoginEmail" style="display:block;margin-bottom:4px;">Email</label>
           <input type="email" id="mobileLoginEmail" placeholder="nhap-email@gmail.com" value="" required />
@@ -79,7 +79,7 @@
       </div>
 
       <!-- TAB 2: FORM ĐĂNG KÝ (BẮT BUỘC 2 Ô MẬT KHẨU + CHỜ DUYỆT) -->
-      <form id="mobileRegisterForm" class="login-form" style="display:none;" onsubmit="submitMobileRegister(event)">
+      <form id="mobileRegisterForm" class="login-form" style="display:none;" onsubmit="submitMobileRegister(event)" novalidate>
         <div>
           <label class="muted" for="mobileRegTier" style="display:block;margin-bottom:4px;">Cấp độ tài khoản</label>
           <select id="mobileRegTier" onchange="onMobileRegTierChange()" style="width:100%;">
@@ -152,7 +152,7 @@
         </div>
 
         <!-- BƯỚC 3: ĐẶT MẬT KHẨU MỚI (2 Ô) -->
-        <form id="mobileForgotStepReset" class="login-form" style="display:none;" onsubmit="submitForgotResetPassword(event)">
+        <form id="mobileForgotStepReset" class="login-form" style="display:none;" onsubmit="submitForgotResetPassword(event)" novalidate>
           <div>
             <label class="muted" for="mobileForgotNewPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
             <div style="position:relative; display:flex; align-items:center;">
@@ -547,7 +547,7 @@
             <a href="/wokwi" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Phần cứng</a>
             <a href="/logs" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Nhật ký</a>
             <a href="/app" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center; background:var(--accent-soft); color:var(--accent);">Ứng dụng</a>
-            <a href="/guest" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Khách</a>
+            <a href="/guest_guide" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Khách</a>
             <a href="/login" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng nhập</a>
             <a href="/register" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng ký</a>
           </nav>
@@ -568,7 +568,7 @@
           <span class="muted">2 ô xác nhận</span>
         </summary>
         <div class="account-body">
-          <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;">
+          <form id="mobileChangePasswordForm" onsubmit="submitMobileChangePassword(event)" style="display:grid; gap:8px;" novalidate>
             <div>
               <label class="muted" for="mobileChangeEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
               <input type="email" id="mobileChangeEmail" value="" placeholder="Nhập email" required />

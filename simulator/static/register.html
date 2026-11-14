@@ -37,7 +37,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        <a href="/guest">Khách</a>
+        <a href="/guest_guide">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a class="active" href="/register" aria-current="page">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -54,7 +54,7 @@
             <p id="registerApprovalNotice" style="margin-top:8px;font-size:12.5px;color:var(--muted);">Tài khoản mới đăng ký sẽ ở trạng thái <strong>Chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập</strong> (nếu không đi kèm mã mời hợp lệ).</p>
           </div>
 
-          <form id="registerForm" class="auth-form" autocomplete="on">
+          <form id="registerForm" class="auth-form" autocomplete="on" novalidate>
             <div class="form-group">
               <label for="pageRegisterName">Họ và tên</label>
               <input type="text" id="pageRegisterName" name="name" placeholder="Nguyễn Văn A" value="" autocomplete="name" />

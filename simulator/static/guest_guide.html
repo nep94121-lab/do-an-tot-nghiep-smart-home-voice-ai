@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hướng dẫn Khách · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4M14 21h3"/></symbol>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list">
+          <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a class="active" href="/guest_guide" aria-current="page">Khách</a>
+        <a href="/login">Đăng nhập</a>
+        <a href="/register">Đăng ký</a>
+        <a href="/archify">Tài liệu dự án</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="auth-wrapper">
+        <section class="auth-card" style="max-width:540px;" aria-labelledby="guest-guide-title">
+          <div class="auth-header" style="text-align:left;">
+            <div class="mark" aria-hidden="true">
+              <svg class="icon"><use href="#i-qr"/></svg>
+            </div>
+            <p class="eyebrow">TRUY CẬP KHÁCH · BẢO MẬT QR</p>
+            <h1 id="guest-guide-title">Hướng dẫn vào nhà dành cho Khách</h1>
+            <p style="margin-top:8px;">Quét mã QR do Chủ nhà tạo để vào bảng điều khiển Khách (Cấp 3) theo thời hạn được cấp phép.</p>
+          </div>
+
+          <div class="status-box status-success" style="margin-bottom:16px;">
+            <strong>Nguyên tắc bảo mật:</strong> Đường dẫn Khách không mở công khai nếu thiếu mã mời hợp lệ do Chủ nhà (Cấp 1) tạo.
+          </div>
+
+          <ol style="margin:0 0 20px;padding-left:20px;display:grid;gap:10px;color:var(--ink);font-size:13px;line-height:1.55;">
+            <li>Nhờ <strong>Chủ nhà (Cấp 1)</strong> mở mục <em>Tài khoản / Xác thực</em>, nhập mã PIN Chủ nhà và tạo <strong>Mã QR mời Khách</strong>.</li>
+            <li>Mở camera điện thoại hoặc bấm <strong>Quét mã QR</strong> trong <a href="/app" class="auth-link">Ứng dụng (/app)</a> để quét mã vừa nhận.</li>
+            <li>Liên kết mời có gắn token dùng theo thời hạn (10 phút, 1 giờ hoặc 1 ngày) và có thể bị Chủ nhà thu hồi bất kỳ lúc nào.</li>
+          </ol>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a href="/app" class="btn btn-primary" style="flex:1 1 180px;">Mở Ứng dụng (/app)</a>
+            <a href="/login" class="btn btn-secondary" style="flex:1 1 140px;">Đăng nhập thành viên</a>
+            <a href="/" class="btn btn-secondary" style="flex:1 1 120px;">Tổng quan</a>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+  </nav>
+</body>
+</html>

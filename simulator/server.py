@@ -189,6 +189,12 @@ async def auth_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "auth.html")
 
 
+@app.get("/guest_guide")
+@app.get("/guest_guide/")
+async def guest_guide_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "guest_guide.html")
+
+
 @app.get("/guest_legacy_removed")
 @app.get("/guest_enroll_legacy_removed")
 @app.get("/guest-qr_legacy_removed")

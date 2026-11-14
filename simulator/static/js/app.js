@@ -3311,7 +3311,7 @@
         if (pw1El) pw1El.value = "";
         if (pw2El) pw2El.value = "";
         if (otpEl) otpEl.value = "";
-        if (gateStatusBox) gateStatusBox.textContent = `✅ ${data.message || "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới."}`;
+        if (gateStatusBox) gateStatusBox.textContent = data.message || "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.";
         switchLoginGateTab("login");
         const loginEmailEl = byId("gateLoginEmail");
         if (loginEmailEl && email) loginEmailEl.value = email;

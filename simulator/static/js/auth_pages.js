@@ -1,6 +1,17 @@
 (function () {
   'use strict';
 
+  const STRICT_EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+
+  function setFieldInvalid(el, isInvalid) {
+    if (!el || typeof el.setAttribute !== 'function' || typeof el.removeAttribute !== 'function') return;
+    if (isInvalid) {
+      el.setAttribute('aria-invalid', 'true');
+    } else {
+      el.removeAttribute('aria-invalid');
+    }
+  }
+
   function persistClientSession(data, email) {
     try {
       const sessionData = (data && data.session) || data || {};
@@ -386,7 +397,7 @@
           return;
         }
         if (newPassword.length < 6) {
-          showStatus(forgotStatusBox, 'Mật khẩu mới phải có tối thiểu 6 ký tự.', true);
+          showStatus(forgotStatusBox, 'Mật khẩu mới phải có từ 6 ký tự trở lên!', true);
           return;
         }
         if (newPassword !== confirmPassword) {
@@ -410,7 +421,7 @@
           });
           const resetData = await resetResp.json().catch(function () { return {}; });
           if (resetResp.ok && resetData.ok) {
-            showStatus(statusBox, resetData.message || 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.', false);
+            showStatus(statusBox, resetData.message || 'Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.', false);
             clearStatus(forgotStatusBox);
             if (emailInput) emailInput.value = fEmail;
             if (passwordInput) passwordInput.value = '';
@@ -458,32 +469,45 @@
       box.style.display = 'none';
     }
 
+    function clearAllInvalidStates() {
+      setFieldInvalid(emailInput, false);
+      setFieldInvalid(passwordInput, false);
+      setFieldInvalid(confirmPasswordInput, false);
+    }
+
+    [emailInput, passwordInput, confirmPasswordInput].forEach(function (inp) {
+      if (inp && typeof inp.addEventListener === 'function') {
+        inp.addEventListener('input', function () {
+          setFieldInvalid(inp, false);
+        });
+      }
+    });
+
     registerForm.addEventListener('submit', async function (e) {
       e.preventDefault();
       clearStatus(statusBox);
+      clearAllInvalidStates();
 
       const name = nameInput ? nameInput.value.trim() : '';
       const email = emailInput ? emailInput.value.trim() : '';
       const password = passwordInput ? passwordInput.value : '';
       const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
 
-      if (!email) {
-        showStatus(statusBox, 'Vui lòng nhập địa chỉ email.', true);
+      if (!email || !STRICT_EMAIL_RE.test(email)) {
+        showStatus(statusBox, 'Vui lòng nhập địa chỉ Email hợp lệ!', true);
+        setFieldInvalid(emailInput, true);
         if (emailInput) emailInput.focus();
         return;
       }
-      if (!password) {
-        showStatus(statusBox, 'Vui lòng nhập mật khẩu.', true);
-        if (passwordInput) passwordInput.focus();
-        return;
-      }
-      if (password.length < 6) {
-        showStatus(statusBox, 'Mật khẩu phải có tối thiểu 6 ký tự.', true);
+      if (!password || password.length < 6) {
+        showStatus(statusBox, 'Mật khẩu phải có từ 6 ký tự trở lên!', true);
+        setFieldInvalid(passwordInput, true);
         if (passwordInput) passwordInput.focus();
         return;
       }
       if (password !== confirmPassword) {
         showStatus(statusBox, 'Hai ô mật khẩu không khớp nhau!', true);
+        setFieldInvalid(confirmPasswordInput, true);
         if (confirmPasswordInput) confirmPasswordInput.focus();
         return;
       }

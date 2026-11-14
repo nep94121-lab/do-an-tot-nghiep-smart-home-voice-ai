@@ -33,7 +33,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        <a href="/guest">Khách</a>
+        <a href="/guest_guide">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -44,22 +44,24 @@
       <header class="page-header">
         <h1>Nhật ký</h1>
         <div class="header-actions">
-          <button class="btn secondary" type="button" onclick="exportLogsCsv()">
+          <button class="btn secondary" id="btnExportLogs" type="button" onclick="exportLogsCsv()">
             <svg class="icon" style="width:16px;height:16px;"><use href="#i-download"/></svg>
             <span>Xuất</span>
           </button>
-          <details class="menu">
-            <summary class="btn secondary">
+          <span id="logsAdminHint" class="logs-admin-hint">Chỉ Chủ nhà (Cấp 1)</span>
+          <details class="menu is-disabled" id="logsAdminMenu">
+            <summary class="btn secondary" id="logsAdminSummary" aria-disabled="true">
               <span>Quản trị</span>
               <svg class="icon" style="width:16px;height:16px;"><use href="#i-chevron"/></svg>
             </summary>
-            <div class="menu-panel">
+            <div class="menu-panel" id="logsAdminPanel" hidden>
               <button class="btn secondary" type="button" onclick="seedDemoLog()">Ghi sự kiện mẫu</button>
               <button class="btn danger" type="button" onclick="confirmClearLogs()">Xóa nhật ký</button>
             </div>
           </details>
         </div>
       </header>
+      <div id="logsActionStatus" class="logs-status-banner" role="alert" aria-live="polite" hidden></div>
 
       <section class="kpi-grid" aria-label="Bảng chỉ số chính">
         <div class="kpi-card">

@@ -42,6 +42,81 @@
 
     let activeCategory = '';
     let lastLoadedLogs = [];
+    let isLogsAdminAuthorized = false;
+
+    function showLogsActionStatus(msg, isError = true) {
+      const box = document.getElementById('logsActionStatus');
+      if (!box) return;
+      const safeText = maskSensitiveLogText(msg || '');
+      if (!safeText) {
+        box.textContent = '';
+        box.hidden = true;
+        if (box.style) box.style.display = 'none';
+        return;
+      }
+      box.textContent = safeText;
+      box.hidden = false;
+      box.className = isError ? 'logs-status-banner' : 'logs-status-banner is-info';
+      if (box.style) box.style.display = 'block';
+    }
+
+    function setLogsAdminUiState(isAdmin) {
+      isLogsAdminAuthorized = Boolean(isAdmin);
+      const adminMenu = document.getElementById('logsAdminMenu');
+      const adminSummary = document.getElementById('logsAdminSummary');
+      const adminPanel = document.getElementById('logsAdminPanel');
+      const adminHint = document.getElementById('logsAdminHint');
+
+      if (!isLogsAdminAuthorized) {
+        if (adminMenu) {
+          adminMenu.open = false;
+          adminMenu.className = 'menu is-disabled';
+          if (typeof adminMenu.removeAttribute === 'function') adminMenu.removeAttribute('open');
+        }
+        if (adminPanel) {
+          adminPanel.hidden = true;
+          if (adminPanel.style) adminPanel.style.display = 'none';
+        }
+        if (adminHint) {
+          adminHint.hidden = false;
+          adminHint.textContent = 'Chỉ Chủ nhà (Cấp 1)';
+          if (adminHint.style) adminHint.style.display = 'inline-flex';
+        }
+        if (adminSummary && typeof adminSummary.setAttribute === 'function') {
+          adminSummary.setAttribute('aria-disabled', 'true');
+        }
+      } else {
+        if (adminMenu) adminMenu.className = 'menu';
+        if (adminPanel) {
+          adminPanel.hidden = false;
+          if (adminPanel.style) adminPanel.style.display = '';
+        }
+        if (adminHint) {
+          adminHint.hidden = true;
+          if (adminHint.style) adminHint.style.display = 'none';
+        }
+        if (adminSummary && typeof adminSummary.setAttribute === 'function') {
+          adminSummary.setAttribute('aria-disabled', 'false');
+        }
+      }
+    }
+
+    async function readSafeJson(res) {
+      if (!res || typeof res.json !== 'function') return {};
+      try {
+        return await res.json();
+      } catch (_e) {
+        return {};
+      }
+    }
+
+    function resolveLogsHttpError(res, data, fallbackMsg) {
+      const serverErr = data && typeof data.error === 'string' ? data.error.trim() : '';
+      if (res && (res.status === 401 || res.status === 403)) {
+        return serverErr || fallbackMsg;
+      }
+      return serverErr || `${fallbackMsg} (HTTP ${res ? res.status : 'ERR'})`;
+    }
 
     function copyTextValue(val) {
       if (!val) return;
@@ -183,11 +258,14 @@
     }
 
     async function loadDashboard() {
-      const q = document.getElementById('logSearchInput').value.trim();
+      const qEl = document.getElementById('logSearchInput');
+      const q = qEl && qEl.value ? qEl.value.trim() : '';
       const url = `/api/logs/dashboard?category=${encodeURIComponent(activeCategory)}&q=${encodeURIComponent(q)}`;
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await readSafeJson(res);
       if (!res.ok || (data && data.ok === false)) {
+        setLogsAdminUiState(false);
+        lastLoadedLogs = [];
         const errMsg = maskSensitiveLogText((data && data.error) || `Yêu cầu đăng nhập quyền Chủ nhà (HTTP ${res.status})`);
         const logTbody = document.getElementById('auditLogsTbody');
         const mobileCards = document.getElementById('mobileLogCards');
@@ -197,8 +275,9 @@
         if (mobileCards) {
           mobileCards.innerHTML = `<div style="color:var(--danger);">${errMsg}</div>`;
         }
-        return;
+        return false;
       }
+      setLogsAdminUiState(true);
 
       document.getElementById('kpiServerClock').textContent = `${data.server_time_vn || '--:--:--'}`;
       document.getElementById('kpiServerState').textContent = data.hardware_database?.server_connected ? 'Đã kết nối' : 'Mất kết nối';
@@ -290,6 +369,7 @@
         `;
         filesTbody.appendChild(tr);
       });
+      return true;
     }
 
     async function addKnowledgeEntry() {
@@ -297,21 +377,35 @@
       const keywords = document.getElementById('kbKeywords').value.trim();
       const content = document.getElementById('kbContent').value.trim();
       const min_tier = parseInt(document.getElementById('kbTier').value, 10);
-      if (!topic || !content) return;
+      if (!topic || !content) {
+        showLogsActionStatus('Vui lòng nhập đầy đủ chủ đề và nội dung hướng dẫn.', true);
+        return false;
+      }
 
-      await fetch('/api/logs/knowledge/add', {
+      const res = await fetch('/api/logs/knowledge/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, keywords, content, min_tier })
       });
+      const data = await readSafeJson(res);
+      if (!res.ok || (data && data.ok === false)) {
+        if (res.status === 401 || res.status === 403) {
+          showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để cập nhật cấu hình trợ lý', true);
+        } else {
+          showLogsActionStatus(resolveLogsHttpError(res, data, 'Không lưu được cấu hình trợ lý'), true);
+        }
+        return false;
+      }
       document.getElementById('kbTopic').value = '';
       document.getElementById('kbKeywords').value = '';
       document.getElementById('kbContent').value = '';
-      loadDashboard();
+      showLogsActionStatus('Đã lưu mục cấu hình trợ lý.', false);
+      await loadDashboard();
+      return true;
     }
 
     async function seedDemoLog() {
-      await fetch('/api/logs/append', {
+      const res = await fetch('/api/logs/append', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -322,21 +416,51 @@
           level: 'INFO'
         })
       });
-      loadDashboard();
+      const data = await readSafeJson(res);
+      if (!res.ok || (data && data.ok === false)) {
+        if (res.status === 401 || res.status === 403) {
+          showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để ghi nhật ký', true);
+        } else {
+          showLogsActionStatus(resolveLogsHttpError(res, data, 'Không ghi được nhật ký mẫu'), true);
+        }
+        return false;
+      }
+      showLogsActionStatus('Đã ghi sự kiện mẫu vào nhật ký.', false);
+      await loadDashboard();
+      return true;
     }
 
     async function clearCustomLogs() {
-      await fetch('/api/logs/clear', { method: 'POST' });
-      loadDashboard();
+      const res = await fetch('/api/logs/clear', { method: 'POST' });
+      const data = await readSafeJson(res);
+      if (!res.ok || (data && data.ok === false)) {
+        if (res.status === 401 || res.status === 403) {
+          showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để xóa nhật ký', true);
+        } else {
+          showLogsActionStatus(resolveLogsHttpError(res, data, 'Không xóa được nhật ký'), true);
+        }
+        return false;
+      }
+      showLogsActionStatus('Đã xóa nhật ký tùy chỉnh.', false);
+      await loadDashboard();
+      return true;
     }
 
     function confirmClearLogs() {
+      if (!isLogsAdminAuthorized) {
+        showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để xóa nhật ký', true);
+        return;
+      }
       if (window.confirm('Bạn có chắc muốn xóa nhật ký?')) {
         clearCustomLogs();
       }
     }
 
     function exportLogsCsv() {
+      if (!isLogsAdminAuthorized) {
+        showLogsActionStatus('Cần đăng nhập để xuất nhật ký', true);
+        return false;
+      }
       const rows = [['Thời gian', 'Danh mục', 'Sự kiện', 'Thiết bị / người dùng', 'Kết quả', 'Chi tiết']];
       (lastLoadedLogs || []).forEach(item => {
         const st = deriveResultStatus(item);
@@ -382,21 +506,28 @@
     }
 
     async function executeCustomSql() {
-      const sql = document.getElementById('sqlQueryInput').value.trim();
+      const sqlInput = document.getElementById('sqlQueryInput');
+      const sql = sqlInput && sqlInput.value ? sqlInput.value.trim() : '';
       if (!sql) return;
       const res = await fetch('/api/logs/sql_query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sql })
       });
-      const data = await res.json();
+      const data = await readSafeJson(res);
       const thead = document.getElementById('sqlResultThead');
       const tbody = document.getElementById('sqlResultTbody');
       thead.innerHTML = '';
       tbody.innerHTML = '';
 
-      if (!data.ok) {
-        tbody.innerHTML = `<tr><td style="color:var(--danger);">${data.error}</td></tr>`;
+      if (!res.ok || !data.ok) {
+        const msg = res.status === 401 || res.status === 403
+          ? ((data && data.error) || 'Bạn cần đăng nhập quyền Chủ nhà để truy vấn dữ liệu')
+          : resolveLogsHttpError(res, data, 'Không thực thi được truy vấn SQL');
+        tbody.innerHTML = `<tr><td style="color:var(--danger);">${maskSensitiveLogText(msg)}</td></tr>`;
+        if (res.status === 401 || res.status === 403) {
+          showLogsActionStatus('Bạn cần đăng nhập quyền Chủ nhà để truy vấn nhật ký', true);
+        }
         return;
       }
       const rows = data.rows || [];
@@ -415,6 +546,28 @@
 
     let searchDebounceTimer = null;
     window.addEventListener('DOMContentLoaded', () => {
+      setLogsAdminUiState(false);
+
+      const adminMenu = document.getElementById('logsAdminMenu');
+      const adminSummary = document.getElementById('logsAdminSummary');
+      if (adminSummary && typeof adminSummary.addEventListener === 'function') {
+        adminSummary.addEventListener('click', (e) => {
+          if (!isLogsAdminAuthorized) {
+            if (e && typeof e.preventDefault === 'function') e.preventDefault();
+            if (adminMenu) adminMenu.open = false;
+            showLogsActionStatus('Chỉ Chủ nhà (Cấp 1) mới sử dụng được menu Quản trị.', true);
+          }
+        });
+      }
+      if (adminMenu && typeof adminMenu.addEventListener === 'function') {
+        adminMenu.addEventListener('toggle', () => {
+          if (!isLogsAdminAuthorized && adminMenu.open) {
+            adminMenu.open = false;
+            showLogsActionStatus('Chỉ Chủ nhà (Cấp 1) mới sử dụng được menu Quản trị.', true);
+          }
+        });
+      }
+
       const searchInput = document.getElementById('logSearchInput');
       if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -431,11 +584,16 @@
           renderLogsPage();
         });
       }
-      loadDashboard();
-      executeCustomSql();
+      Promise.resolve(loadDashboard()).then((ok) => {
+        if (ok) {
+          executeCustomSql();
+        }
+      });
     });
 
 // Window exports for inline event handlers
+window.showLogsActionStatus = showLogsActionStatus;
+window.setLogsAdminUiState = setLogsAdminUiState;
 window.copyTextValue = copyTextValue;
 window.deriveResultStatus = deriveResultStatus;
 window.toggleLogDetailRow = toggleLogDetailRow;
