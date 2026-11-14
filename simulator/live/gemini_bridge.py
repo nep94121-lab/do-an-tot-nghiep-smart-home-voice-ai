@@ -225,7 +225,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.last_mic_turn_blocked: bool = False
         self.last_mic_turn_silent_ignore: bool = False
         self.vad_stream_filter = VietnameseVADStreamFilter(sample_rate=16000)
-        self.client = genai.Client(api_key=KEY or "TEST_DUMMY_GEMINI_KEY")
+        try:
+            self.client = genai.Client(
+                api_key=KEY or "TEST_DUMMY_GEMINI_KEY",
+                http_options=types.HttpOptions(api_version="v1beta"),
+            )
+        except TypeError:
+            self.client = genai.Client(api_key=KEY or "TEST_DUMMY_GEMINI_KEY")
         self.gemini_session: Any = None
         self.speech_end_ts: float | None = None
         self.turn_first_tool_ts: float | None = None

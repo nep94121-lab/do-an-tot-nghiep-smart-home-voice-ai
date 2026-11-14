@@ -798,6 +798,7 @@ def test_s2_gemini_live_aoede_audio_config_and_http_branches(
     assert getattr(live_cfg.speech_config, "language_code", None) in (None, "")
     assert live_cfg.speech_config.voice_config.prebuilt_voice_config.voice_name == "Aoede"
 
+    captured_client_kwargs: list[dict[str, Any]] = []
     captured_configs: list[Any] = []
     sent_messages: list[str] = []
     pcm_chunk_a = b"\x11\x00" * 1600
@@ -833,11 +834,16 @@ def test_s2_gemini_live_aoede_audio_config_and_http_branches(
 
     class _FakeClient:
         def __init__(self, **kwargs: Any) -> None:
+            captured_client_kwargs.append(kwargs)
             self.aio = type("Aio", (), {"live": _FakeAioLive()})()
 
     import google.genai as real_genai
 
     tts_rejection_vi._LIVE_AOEDE_SESSION_CACHE.clear()
+    tts_rejection_vi._LIVE_AOEDE_SOURCE_CACHE.clear()
+    tts_rejection_vi._LIVE_AOEDE_MODEL_CACHE.clear()
+    tts_rejection_vi._WORKING_AOEDE_LIVE_MODEL = ""
+    tts_rejection_vi._WORKING_AOEDE_API_VERSION = ""
     monkeypatch.setattr(real_genai, "Client", _FakeClient)
     monkeypatch.setenv("GEMINI_API_KEY", "test-fake-gemini-key")
     monkeypatch.delenv("SIMULATOR_OFFLINE_SANDBOX", raising=False)
@@ -855,9 +861,13 @@ def test_s2_gemini_live_aoede_audio_config_and_http_branches(
         assert body.get("play_audio") is True
         assert body.get("voice_name") == "Aoede"
         assert body.get("audio_source") == "gemini_live_aoede"
+        assert body.get("audio_model") == "gemini-3.8-live"
         for key in ("pcm24k_b64", "pcm_b64", "audio_b64", "audio_wav_b64"):
             assert len(str(body.get(key) or "")) > 20, f"Missing {key} for {phrase}"
 
+    assert len(captured_client_kwargs) >= 1
+    first_http_opts = captured_client_kwargs[0].get("http_options")
+    assert getattr(first_http_opts, "api_version", None) == "v1beta"
     assert len(captured_configs) >= 1
     first_model, first_cfg = captured_configs[0]
     assert first_model == "gemini-3.8-live"

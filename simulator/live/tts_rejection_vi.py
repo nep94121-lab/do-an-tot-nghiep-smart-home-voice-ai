@@ -34,6 +34,7 @@ _AOEDE_FALLBACK_LIVE_MODELS: tuple[str, ...] = (
     "gemini-2.0-flash-live-001",
 )
 _WORKING_AOEDE_LIVE_MODEL: str = ""
+_WORKING_AOEDE_API_VERSION: str = ""
 _WORKING_AOEDE_USE_CLIENT_CONTENT: bool = False
 
 FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
@@ -46,6 +47,7 @@ _AOEDE_REJECTION_WAV_FILE = _DATA_DIR / "aoede_rejection_24k.wav"
 _AOEDE_REPEAT_WAV_FILE = _DATA_DIR / "aoede_repeat_24k.wav"
 _LIVE_AOEDE_SESSION_CACHE: dict[str, bytes] = {}
 _LIVE_AOEDE_SOURCE_CACHE: dict[str, str] = {}
+_LIVE_AOEDE_MODEL_CACHE: dict[str, str] = {}
 
 REJECTION_SCRIPTS: dict[str, str] = {
     "STRANGER_BLOCKED": FIXED_REJECTION_PHRASE_VI,
@@ -130,9 +132,20 @@ def _load_bundled_aoede_pcm24k(phrase: str) -> bytes:
     return b""
 
 
+def _create_live_client(clean_key: str, api_version: str = "v1beta") -> Any:
+    """Khởi tạo GenAI Client với api_version='v1beta'/'v1alpha' (google-genai>=3.0 mặc định 'v1' gây 404 Live WS)."""
+    try:
+        return genai.Client(
+            api_key=clean_key,
+            http_options=types.HttpOptions(api_version=api_version),
+        )
+    except TypeError:
+        return genai.Client(api_key=clean_key)
+
+
 async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
     """Gọi trực tiếp Gemini Live (gemini-3.8-live / fallback Live cùng giọng 'Aoede') tạo PCM 24kHz."""
-    global _WORKING_AOEDE_LIVE_MODEL, _WORKING_AOEDE_USE_CLIENT_CONTENT
+    global _WORKING_AOEDE_LIVE_MODEL, _WORKING_AOEDE_API_VERSION, _WORKING_AOEDE_USE_CLIENT_CONTENT
     if genai is None or types is None:
         raise RuntimeError("google-genai SDK is not installed")
 
@@ -140,7 +153,15 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
     if not clean_key:
         raise RuntimeError("GEMINI_API_KEY is empty")
 
-    client = genai.Client(api_key=clean_key)
+    clients_by_ver: dict[str, Any] = {}
+
+    def _client_for(api_version: str) -> Any:
+        c = clients_by_ver.get(api_version)
+        if c is None:
+            c = _create_live_client(clean_key, api_version=api_version)
+            clients_by_ver[api_version] = c
+        return c
+
     cfg_kwargs: dict[str, Any] = {
         "response_modalities": [types.Modality.AUDIO],
         "speech_config": types.SpeechConfig(
@@ -163,8 +184,11 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
     cfg = types.LiveConnectConfig(**cfg_kwargs)
     prompt_text = f'Hãy đọc đúng nguyên văn câu này: "{phrase}"'
 
-    async def _attempt_one_model(cand_model: str, *, use_client_content: bool = False) -> bytes:
+    async def _attempt_one_model(
+        cand_model: str, *, api_version: str = "v1beta", use_client_content: bool = False
+    ) -> bytes:
         chunks: list[bytes] = []
+        client = _client_for(api_version)
         async with client.aio.live.connect(model=cand_model, config=cfg) as session:
             if use_client_content:
                 try:
@@ -214,48 +238,59 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
                     msg_data = getattr(msg, "data", None)
                     if msg_data and not got_inline_audio:
                         chunks.append(bytes(msg_data))
-                if turn_done or not saw_msg or chunks:
+                if turn_done or not saw_msg:
                     break
         pcm = b"".join(chunks)
         if len(pcm) % 2 != 0:
             pcm = pcm[:-1]
         if len(pcm) < 2400:
-            raise RuntimeError(f"Live model {cand_model} returned insufficient audio ({len(pcm)} bytes)")
+            raise RuntimeError(
+                f"Live model {cand_model} ({api_version}) returned insufficient audio ({len(pcm)} bytes)"
+            )
         return pcm
 
-    attempts: list[tuple[str, bool]] = []
+    attempts: list[tuple[str, str, bool]] = []
     if _WORKING_AOEDE_LIVE_MODEL:
-        attempts.append((_WORKING_AOEDE_LIVE_MODEL, _WORKING_AOEDE_USE_CLIENT_CONTENT))
-    if (AOEDE_LIVE_MODEL, False) not in attempts:
-        attempts.append((AOEDE_LIVE_MODEL, False))
+        attempts.append(
+            (
+                _WORKING_AOEDE_LIVE_MODEL,
+                _WORKING_AOEDE_API_VERSION or "v1beta",
+                _WORKING_AOEDE_USE_CLIENT_CONTENT,
+            )
+        )
+    if (AOEDE_LIVE_MODEL, "v1beta", False) not in attempts:
+        attempts.append((AOEDE_LIVE_MODEL, "v1beta", False))
     for fb_model in _AOEDE_FALLBACK_LIVE_MODELS:
-        pair = (fb_model, True)
+        default_cc = not fb_model.startswith("gemini-3.")
+        pair = (fb_model, "v1beta", default_cc)
         if pair not in attempts:
             attempts.append(pair)
 
-    tried: set[tuple[str, bool]] = set()
+    tried: set[tuple[str, str, bool]] = set()
     last_exc: Exception | None = None
     idx = 0
     while idx < len(attempts):
-        cand_model, use_cc = attempts[idx]
+        cand_model, api_ver, use_cc = attempts[idx]
         idx += 1
-        if (cand_model, use_cc) in tried:
+        if (cand_model, api_ver, use_cc) in tried:
             continue
-        tried.add((cand_model, use_cc))
+        tried.add((cand_model, api_ver, use_cc))
         try:
             pcm = await asyncio.wait_for(
-                _attempt_one_model(cand_model, use_client_content=use_cc),
-                timeout=6.0,
+                _attempt_one_model(cand_model, api_version=api_ver, use_client_content=use_cc),
+                timeout=8.5,
             )
             _WORKING_AOEDE_LIVE_MODEL = cand_model
+            _WORKING_AOEDE_API_VERSION = api_ver
             _WORKING_AOEDE_USE_CLIENT_CONTENT = use_cc
             return pcm
         except Exception as exc:
             last_exc = exc
             err_msg = str(exc).replace(clean_key, "***")
             _LOGGER.warning(
-                "Aoede live attempt failed on %s (cc=%s, %s): %s",
+                "Aoede live attempt failed on %s (%s, cc=%s, %s): %s",
                 cand_model,
+                api_ver,
                 use_cc,
                 type(exc).__name__,
                 err_msg[:180],
@@ -269,13 +304,16 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
                 or "insufficient audio" in err_msg.lower()
             )
             if (
-                cand_model == AOEDE_LIVE_MODEL
+                cand_model.startswith("gemini-3.")
                 and not use_cc
-                and is_timeout_or_short
-                and not is_model_rejected
-                and (AOEDE_LIVE_MODEL, True) not in tried
+                and (is_timeout_or_short or "1007" in err_msg.lower() or "invalid argument" in err_msg.lower())
+                and "404" not in err_msg.lower()
+                and "1008" not in err_msg.lower()
+                and (cand_model, api_ver, True) not in tried
             ):
-                attempts.insert(idx, (AOEDE_LIVE_MODEL, True))
+                attempts.insert(idx, (cand_model, api_ver, True))
+            if api_ver == "v1beta" and is_model_rejected and (cand_model, "v1alpha", use_cc) not in tried:
+                attempts.append((cand_model, "v1alpha", use_cc))
     if last_exc is not None:
         raise last_exc
     raise RuntimeError("No Aoede live model candidates configured")
@@ -289,6 +327,7 @@ async def synthesize_aoede_phrase_audio(
     target_phrase = clean_phrase or FIXED_REJECTION_PHRASE_VI
     pcm24k = _LIVE_AOEDE_SESSION_CACHE.get(target_phrase, b"")
     audio_source = _LIVE_AOEDE_SOURCE_CACHE.get(target_phrase, "") if pcm24k else ""
+    audio_model = _LIVE_AOEDE_MODEL_CACHE.get(target_phrase, "") if pcm24k else ""
 
     is_offline = (
         os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1"
@@ -302,13 +341,15 @@ async def synthesize_aoede_phrase_audio(
     if not pcm24k and allow_live_refresh and api_key and not is_offline:
         try:
             live_pcm = await asyncio.wait_for(
-                _fetch_live_aoede_pcm24k(target_phrase, api_key), timeout=20.0
+                _fetch_live_aoede_pcm24k(target_phrase, api_key), timeout=25.0
             )
             if len(live_pcm) >= 2400:
                 pcm24k = live_pcm
                 audio_source = "gemini_live_aoede"
+                audio_model = _WORKING_AOEDE_LIVE_MODEL or AOEDE_LIVE_MODEL
                 _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
                 _LIVE_AOEDE_SOURCE_CACHE[target_phrase] = audio_source
+                _LIVE_AOEDE_MODEL_CACHE[target_phrase] = audio_model
         except Exception as exc:
             err_msg = str(exc)
             if api_key:
@@ -320,14 +361,17 @@ async def synthesize_aoede_phrase_audio(
         pcm24k = _load_bundled_aoede_pcm24k(target_phrase)
         if pcm24k:
             audio_source = "bundled_aoede_wav"
+            audio_model = ""
             if target_phrase in (
                 FIXED_REJECTION_PHRASE_VI,
                 FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
             ):
                 _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
                 _LIVE_AOEDE_SOURCE_CACHE[target_phrase] = audio_source
+                _LIVE_AOEDE_MODEL_CACHE[target_phrase] = ""
         else:
             audio_source = "none"
+            audio_model = ""
 
     wav24k = _wrap_pcm24k_to_wav(pcm24k) if pcm24k else b""
     pcm_b64 = base64.b64encode(pcm24k).decode("ascii") if pcm24k else ""
@@ -343,6 +387,7 @@ async def synthesize_aoede_phrase_audio(
         "audio_voice": AOEDE_VOICE_NAME,
         "voice_name": AOEDE_VOICE_NAME,
         "audio_source": audio_source or "none",
+        "audio_model": audio_model or None,
         "play_audio": bool(pcm_b64),
         "audio_mime_type": "audio/wav",
     }
@@ -351,7 +396,7 @@ async def synthesize_aoede_phrase_audio(
 def build_aoede_http_audio_fields(bundle: dict[str, Any]) -> dict[str, Any]:
     """Trích xuất các trường JSON an toàn từ kết quả synthesize_aoede_phrase_audio cho phản hồi HTTP."""
     pcm_b64 = str(bundle.get("pcm_b64") or "")
-    return {
+    fields: dict[str, Any] = {
         "pcm24k_b64": str(bundle.get("pcm24k_b64") or ""),
         "pcm_b64": pcm_b64,
         "audio_wav_b64": str(bundle.get("audio_wav_b64") or ""),
@@ -363,3 +408,6 @@ def build_aoede_http_audio_fields(bundle: dict[str, Any]) -> dict[str, Any]:
         "play_audio": bool(bundle.get("play_audio", bool(pcm_b64))),
         "audio_mime_type": str(bundle.get("audio_mime_type") or "audio/wav"),
     }
+    if bundle.get("audio_model"):
+        fields["audio_model"] = str(bundle["audio_model"])
+    return fields
