@@ -35,7 +35,10 @@ Cấu trúc gói mô-đun (`simulator/auth/`):
 from __future__ import annotations
 
 import base64
+from contextvars import ContextVar
 import copy
+import hashlib
+import hmac
 import json
 import math
 import os
@@ -51,6 +54,25 @@ from typing import Any
 _ACCOUNTS_FILE_LOCK = threading.RLock()
 _GLOBAL_OTP_LOCK = threading.RLock()
 _PATH_DURABLE_CACHE: dict[str, bytes] = {}
+_AUTOTEST_SANDBOX: ContextVar[bool] = ContextVar("_AUTOTEST_SANDBOX", default=False)
+UNIFORM_INVALID_LOGIN_ERROR = "Email hoặc mật khẩu không chính xác."
+_AUTH_CAS_FILENAME = "auth3_accounts_state.json"
+_RATELIMIT_CAS_FILENAME = "login_rate_limit.json"
+MAX_LOGIN_FAILURES = 5
+LOGIN_LOCKOUT_SECONDS = 900
+
+
+def _should_use_cas_store() -> bool:
+    if _AUTOTEST_SANDBOX.get():
+        return False
+    if os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip():
+        return True
+    if os.environ.get("SMARTHOME_SECURITY_BACKEND", "").strip().lower() == "github":
+        return True
+    return bool(
+        os.environ.get("SMARTHOME_SECURITY_TOKEN", "").strip()
+        and os.environ.get("SMARTHOME_SECURITY_REPO", "").strip()
+    )
 
 
 def _atomic_write_file(target_file: Any, payload_bytes: bytes) -> bool:
@@ -145,6 +167,16 @@ from simulator.auth import (
     validate_dns_mx_record,
     verify_password_hash,
 )
+from simulator.auth.constants_and_crypto import (
+    canonical_gmail_mailbox,
+    strict_single_email_ascii,
+)
+from simulator.auth.security_state import (
+    SecurityStateUnavailable,
+    atomic_security,
+    load_security_state,
+    save_security_state,
+)
 from simulator.voice_config import (
     OWNER_EMAIL,
     OWNER_ID,
@@ -164,6 +196,7 @@ _LEGACY_DEFAULT_HASHES = frozenset(
         "a513440d7305d47120ad7cf065279770b696403290c2c4e0a270e53414e2eaaa",
     }
 )
+_TIMING_DUMMY_HASH = hash_password("timing_pad_do_not_match")
 
 
 def is_test_otp_fields_allowed(app: Any = None) -> bool:
@@ -198,6 +231,8 @@ class PendingOtpsStore(dict):
                     acc.pop("otp_failed_verify_attempts", None)
                 if hasattr(self._auth_mgr, "otp_failed_attempts"):
                     self._auth_mgr.otp_failed_attempts.clear()
+                if hasattr(self._auth_mgr, "_login_rate_limits"):
+                    self._auth_mgr._login_rate_limits.clear()
                 self._auth_mgr._save_accounts()
 
 
@@ -214,6 +249,7 @@ class ThreeLayerAuthManager(
         self.invite_links: dict[str, dict[str, Any]] = {}
         self.pending_otps: dict[str, dict[str, Any]] = PendingOtpsStore(auth_mgr=self)
         self.otp_failed_attempts: dict[str, list[float]] = {}
+        self._login_rate_limits: dict[str, dict[str, Any]] = {}
         self.pending_invite_registrations: dict[str, dict[str, Any]] = {}
         self.sessions: dict[str, dict[str, Any]] = {}
         self.verification_logs: list[dict[str, Any]] = []
@@ -253,12 +289,21 @@ class ThreeLayerAuthManager(
         if "permission_active" not in acc:
             acc["permission_active"] = True
         if "permission_status" not in acc:
-            acc["permission_status"] = "ACTIVE" if acc["permission_active"] else "REVOKED"
+            if acc["permission_active"]:
+                acc["permission_status"] = "ACTIVE"
+            elif acc.get("revoked_at") or acc.get("revoked_by"):
+                acc["permission_status"] = "REVOKED"
+            else:
+                acc["permission_status"] = "PENDING"
         if "permission_label" not in acc:
             acc["permission_label"] = (
                 f"CÓ QUYỀN (Tầng {tier})"
                 if acc["permission_active"]
-                else "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà thu hồi quyền)"
+                else (
+                    "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà thu hồi quyền)"
+                    if str(acc.get("permission_status") or "").upper() == "REVOKED"
+                    else "⏳ CHỜ PHÊ DUYỆT (Cần Chủ nhà cấp quyền)"
+                )
             )
         acc.setdefault("invited_by", "SYSTEM_ROOT" if tier == 1 else f"{OWNER_EMAIL} (Cấp 1)")
         acc["needs_first_page_voice_enroll"] = False
@@ -431,11 +476,392 @@ class ThreeLayerAuthManager(
                     else:
                         acc.pop("otp_failed_verify_attempts", None)
 
+    def _cas_data_dir(self) -> Path:
+        override = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+        if override:
+            p = Path(override)
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        return DATA_DIR
+
+    @staticmethod
+    def _hash_otp_code(otp_code: str, otp_salt: str | None = None) -> tuple[str, str]:
+        salt = otp_salt or secrets.token_hex(8)
+        digest = hashlib.sha256(f"{salt}:{otp_code}".encode("utf-8")).hexdigest()
+        return salt, digest
+
+    @classmethod
+    def _sanitize_account_for_cas(cls, acc: dict[str, Any]) -> dict[str, Any]:
+        item = copy.deepcopy(acc)
+        p_otp = item.get("pending_otp")
+        if isinstance(p_otp, dict):
+            code = str(p_otp.get("otp_code") or "").strip()
+            if code and not p_otp.get("otp_hash"):
+                salt, digest = cls._hash_otp_code(code, p_otp.get("otp_salt"))
+                p_otp["otp_salt"] = salt
+                p_otp["otp_hash"] = digest
+            p_otp.pop("otp_code", None)
+        return item
+
+    def _refresh_otp_maps_from_accounts_locked(self) -> None:
+        now = time.time()
+        new_otps: dict[str, dict[str, Any]] = {}
+        new_fails: dict[str, list[float]] = {}
+        for acc in self.accounts:
+            email_key = str(acc.get("email") or "").strip().lower()
+            if not email_key:
+                continue
+            p_otp = acc.get("pending_otp")
+            if isinstance(p_otp, dict):
+                if now < float(p_otp.get("expires_at", 0) or 0) or (now - float(p_otp.get("created_at", 0) or 0) < 60.0):
+                    merged_otp = dict(p_otp)
+                    prev = dict.get(self.pending_otps, email_key)
+                    if (
+                        prev
+                        and prev.get("otp_code")
+                        and prev.get("created_at") == merged_otp.get("created_at")
+                        and not merged_otp.get("otp_code")
+                    ):
+                        merged_otp["otp_code"] = prev["otp_code"]
+                    new_otps[email_key] = merged_otp
+                else:
+                    acc.pop("pending_otp", None)
+            failed = acc.get("otp_failed_verify_attempts")
+            if isinstance(failed, list):
+                recent = [float(t) for t in failed if (now - float(t)) < 300.0]
+                if recent:
+                    new_fails[email_key] = recent
+                    acc["otp_failed_verify_attempts"] = recent
+                else:
+                    acc.pop("otp_failed_verify_attempts", None)
+        dict.clear(self.pending_otps)
+        dict.update(self.pending_otps, new_otps)
+        self.otp_failed_attempts.clear()
+        self.otp_failed_attempts.update(new_fails)
+
+    def _apply_cas_accounts_payload_locked(self, raw: bytes | None) -> bool:
+        if not raw:
+            return False
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+        except Exception:
+            doc = {}
+        if not isinstance(doc, dict) or not isinstance(doc.get("accounts"), list) or not doc["accounts"]:
+            return False
+        loaded = [
+            self._normalize_account_fields(copy.deepcopy(a))
+            for a in doc["accounts"]
+            if isinstance(a, dict) and not self._is_throwaway_account_entry(a)
+        ]
+        existing_ids = {str(a.get("account_id", "")).lower() for a in loaded}
+        for def_acc in json.loads(json.dumps(DEFAULT_ACCOUNTS)):
+            if str(def_acc.get("account_id", "")).lower() not in existing_ids:
+                loaded.append(self._normalize_account_fields(def_acc))
+        self.accounts = loaded
+        self._refresh_otp_maps_from_accounts_locked()
+        return True
+
+    def _bootstrap_seed_accounts_into_memory_locked(self) -> None:
+        if os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip():
+            return
+        try:
+            from simulator.durable_store import load_state_file
+
+            raw_durable = load_state_file(ACCOUNTS_FILE.name, data_dir=ACCOUNTS_FILE.parent)
+            if raw_durable:
+                durable_list = json.loads(raw_durable.decode("utf-8"))
+                if isinstance(durable_list, list) and durable_list:
+                    merged: list[dict[str, Any]] = []
+                    seen_emails: set[str] = set()
+                    for item in durable_list:
+                        if isinstance(item, dict) and not self._is_throwaway_account_entry(item):
+                            norm = self._normalize_account_fields(copy.deepcopy(item))
+                            merged.append(norm)
+                            em = str(norm.get("email") or "").strip().lower()
+                            if em:
+                                seen_emails.add(em)
+                    for existing in self.accounts:
+                        em = str(existing.get("email") or "").strip().lower()
+                        if em and em not in seen_emails:
+                            merged.append(copy.deepcopy(existing))
+                            seen_emails.add(em)
+                    self.accounts = merged
+                    self._refresh_otp_maps_from_accounts_locked()
+        except Exception:
+            pass
+
+    def _sync_accounts_from_cas_if_enabled(self) -> None:
+        if not _should_use_cas_store():
+            return
+        from simulator.auth.security_state import _TRANSACTION
+
+        cur_tx = _TRANSACTION.get()
+        if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
+            # Inside an open CAS transaction, self.accounts already holds the live working state.
+            return
+
+        raw = load_security_state(_AUTH_CAS_FILENAME, self._cas_data_dir())
+        with _ACCOUNTS_FILE_LOCK:
+            with self._otp_lock:
+                if self._apply_cas_accounts_payload_locked(raw):
+                    return
+
+        @atomic_security(_AUTH_CAS_FILENAME)
+        def _bootstrap() -> None:
+            tx_raw = load_security_state(_AUTH_CAS_FILENAME, self._cas_data_dir())
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    if self._apply_cas_accounts_payload_locked(tx_raw):
+                        return
+                    self._bootstrap_seed_accounts_into_memory_locked()
+                    payload_obj = {
+                        "accounts": [self._sanitize_account_for_cas(a) for a in self.accounts],
+                        "updated_at": time.time(),
+                    }
+                    save_security_state(
+                        _AUTH_CAS_FILENAME,
+                        json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+                        self._cas_data_dir(),
+                    )
+
+        _bootstrap()
+
+    def _with_cas_accounts(self, fn):
+        if not _should_use_cas_store():
+            return fn()
+        from simulator.auth.security_state import _TRANSACTION
+
+        cur_tx = _TRANSACTION.get()
+        if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
+            raw_tx = cur_tx.staged if cur_tx.staged is not None else cur_tx.payload
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    if not self._apply_cas_accounts_payload_locked(raw_tx):
+                        self._bootstrap_seed_accounts_into_memory_locked()
+            return fn()
+
+        @atomic_security(_AUTH_CAS_FILENAME)
+        def _tx():
+            tx_raw = load_security_state(_AUTH_CAS_FILENAME, self._cas_data_dir())
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    if not self._apply_cas_accounts_payload_locked(tx_raw):
+                        self._bootstrap_seed_accounts_into_memory_locked()
+            return fn()
+
+        return _tx()
+
+    @staticmethod
+    def _login_rate_limit_key(email: str, client_ip: str = "unknown") -> str:
+        raw_email = str(email or "").strip().lower()
+        canon = canonical_gmail_mailbox(raw_email) or raw_email or "empty"
+        ip_norm = str(client_ip or "unknown").strip().lower() or "unknown"
+        return f"{canon}|{ip_norm}"
+
+    @staticmethod
+    def _prune_rate_limit_buckets(buckets: dict[str, Any], now: float) -> dict[str, Any]:
+        cleaned: dict[str, Any] = {}
+        for k, v in buckets.items():
+            if not isinstance(v, dict):
+                continue
+            locked_until = float(v.get("locked_until", 0) or 0)
+            window_start = float(v.get("window_start", 0) or 0)
+            if locked_until > now or (now - window_start) < LOGIN_LOCKOUT_SECONDS:
+                cleaned[str(k)] = dict(v)
+        if len(cleaned) > 500:
+            ordered = sorted(cleaned.items(), key=lambda kv: float(kv[1].get("updated_at", 0) or 0), reverse=True)
+            cleaned = dict(ordered[:500])
+        return cleaned
+
+    @staticmethod
+    def _locked_error_payload(locked_until: float, now: float) -> dict[str, Any]:
+        remaining = max(1, int(math.ceil(locked_until - now)))
+        mins = max(1, int(math.ceil(remaining / 60)))
+        return {
+            "ok": False,
+            "layer": 1,
+            "status_code": 429,
+            "locked": True,
+            "rate_limited": True,
+            "retry_after_seconds": remaining,
+            "error": (
+                f"Tài khoản tạm thời bị khóa do đăng nhập sai quá nhiều lần. "
+                f"Vui lòng thử lại sau {mins} phút."
+            ),
+        }
+
+    def _read_rate_limit_buckets(self) -> dict[str, Any]:
+        if not _should_use_cas_store():
+            return dict(self._login_rate_limits)
+        raw = load_security_state(_RATELIMIT_CAS_FILENAME, self._cas_data_dir())
+        if not raw:
+            return {}
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+            if isinstance(doc, dict) and isinstance(doc.get("buckets"), dict):
+                return dict(doc["buckets"])
+        except Exception:
+            pass
+        return {}
+
+    def _check_login_rate_limit(self, email: str, client_ip: str = "unknown") -> dict[str, Any] | None:
+        key = self._login_rate_limit_key(email, client_ip)
+        now = time.time()
+        buckets = self._read_rate_limit_buckets()
+        rec = buckets.get(key)
+        if isinstance(rec, dict):
+            locked_until = float(rec.get("locked_until", 0) or 0)
+            if locked_until > now:
+                return self._locked_error_payload(locked_until, now)
+        return None
+
+    def _record_login_failure(self, email: str, client_ip: str = "unknown") -> dict[str, Any] | None:
+        key = self._login_rate_limit_key(email, client_ip)
+        if not _should_use_cas_store():
+            with self._otp_lock:
+                now = time.time()
+                self._login_rate_limits = self._prune_rate_limit_buckets(self._login_rate_limits, now)
+                rec = dict(self._login_rate_limits.get(key) or {})
+                locked_until = float(rec.get("locked_until", 0) or 0)
+                if locked_until > now:
+                    return self._locked_error_payload(locked_until, now)
+                window_start = float(rec.get("window_start", 0) or 0)
+                count = int(rec.get("count", 0) or 0)
+                if (now - window_start) >= LOGIN_LOCKOUT_SECONDS or count < 0:
+                    window_start = now
+                    count = 0
+                count += 1
+                new_rec: dict[str, Any] = {
+                    "count": count,
+                    "window_start": window_start,
+                    "updated_at": now,
+                    "locked_until": 0.0,
+                }
+                if count >= MAX_LOGIN_FAILURES:
+                    new_rec["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+                self._login_rate_limits[key] = new_rec
+                if new_rec["locked_until"] > now:
+                    return self._locked_error_payload(new_rec["locked_until"], now)
+                return None
+
+        @atomic_security(_RATELIMIT_CAS_FILENAME)
+        def _tx() -> dict[str, Any] | None:
+            now = time.time()
+            raw = load_security_state(_RATELIMIT_CAS_FILENAME, self._cas_data_dir())
+            buckets: dict[str, Any] = {}
+            if raw:
+                try:
+                    doc = json.loads(raw.decode("utf-8"))
+                    if isinstance(doc, dict) and isinstance(doc.get("buckets"), dict):
+                        buckets = dict(doc["buckets"])
+                except Exception:
+                    buckets = {}
+            buckets = self._prune_rate_limit_buckets(buckets, now)
+            rec = dict(buckets.get(key) or {})
+            locked_until = float(rec.get("locked_until", 0) or 0)
+            if locked_until > now:
+                return self._locked_error_payload(locked_until, now)
+            window_start = float(rec.get("window_start", 0) or 0)
+            count = int(rec.get("count", 0) or 0)
+            if (now - window_start) >= LOGIN_LOCKOUT_SECONDS or count < 0:
+                window_start = now
+                count = 0
+            count += 1
+            new_rec: dict[str, Any] = {
+                "count": count,
+                "window_start": window_start,
+                "updated_at": now,
+                "locked_until": 0.0,
+            }
+            if count >= MAX_LOGIN_FAILURES:
+                new_rec["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+            buckets[key] = new_rec
+            save_security_state(
+                _RATELIMIT_CAS_FILENAME,
+                json.dumps({"buckets": buckets, "updated_at": now}, separators=(",", ":")).encode("utf-8"),
+                self._cas_data_dir(),
+            )
+            if new_rec["locked_until"] > now:
+                return self._locked_error_payload(new_rec["locked_until"], now)
+            return None
+
+        return _tx()
+
+    def _clear_login_failures(self, email: str, client_ip: str = "unknown") -> None:
+        key = self._login_rate_limit_key(email, client_ip)
+        if not _should_use_cas_store():
+            with self._otp_lock:
+                self._login_rate_limits.pop(key, None)
+            return
+        existing = self._read_rate_limit_buckets()
+        if key not in existing:
+            return
+
+        @atomic_security(_RATELIMIT_CAS_FILENAME)
+        def _tx() -> None:
+            now = time.time()
+            raw = load_security_state(_RATELIMIT_CAS_FILENAME, self._cas_data_dir())
+            buckets: dict[str, Any] = {}
+            if raw:
+                try:
+                    doc = json.loads(raw.decode("utf-8"))
+                    if isinstance(doc, dict) and isinstance(doc.get("buckets"), dict):
+                        buckets = dict(doc["buckets"])
+                except Exception:
+                    buckets = {}
+            if key not in buckets:
+                return
+            buckets.pop(key, None)
+            buckets = self._prune_rate_limit_buckets(buckets, now)
+            save_security_state(
+                _RATELIMIT_CAS_FILENAME,
+                json.dumps({"buckets": buckets, "updated_at": now}, separators=(",", ":")).encode("utf-8"),
+                self._cas_data_dir(),
+            )
+
+        _tx()
+
+    def _save_local_accounts_only(self) -> bool:
+        self._purge_throwaway_qa_accounts()
+        sanitized_accounts = [self._sanitize_account_for_cas(a) for a in self.accounts]
+        payload = (json.dumps(sanitized_accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        target = (
+            self._cas_data_dir() / ACCOUNTS_FILE.name
+            if os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+            else ACCOUNTS_FILE
+        )
+        with _ACCOUNTS_FILE_LOCK:
+            return bool(_atomic_write_file(target, payload))
+
     def _save_accounts(self) -> bool:
         self._purge_throwaway_qa_accounts()
-        payload = (json.dumps(self.accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        with _ACCOUNTS_FILE_LOCK:
-            return bool(_atomic_write_file(ACCOUNTS_FILE, payload))
+        if _AUTOTEST_SANDBOX.get():
+            return True
+        if not _should_use_cas_store():
+            return self._save_local_accounts_only()
+        from simulator.auth.security_state import _TRANSACTION
+
+        payload_obj = {
+            "accounts": [self._sanitize_account_for_cas(a) for a in self.accounts],
+            "updated_at": time.time(),
+        }
+        encoded = json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        cur_tx = _TRANSACTION.get()
+        if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
+            save_security_state(_AUTH_CAS_FILENAME, encoded, self._cas_data_dir())
+            self._save_local_accounts_only()
+            return True
+
+        @atomic_security(_AUTH_CAS_FILENAME)
+        def _direct_commit() -> bool:
+            save_security_state(_AUTH_CAS_FILENAME, encoded, self._cas_data_dir())
+            self._save_local_accounts_only()
+            return True
+
+        try:
+            return bool(_direct_commit())
+        except SecurityStateUnavailable:
+            return False
 
     def _save_family_allowlist(self) -> bool:
         payload = (json.dumps(self.family_email_allowlist, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -472,15 +898,21 @@ class ThreeLayerAuthManager(
         }
         self.verification_logs.insert(0, item)
         self.verification_logs = self.verification_logs[:120]
-        try:
-            payload = (json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            with _ACCOUNTS_FILE_LOCK:
-                _atomic_write_file(AUTH_EVENTS_FILE, payload)
-        except Exception:
-            pass
+        if not _AUTOTEST_SANDBOX.get():
+            try:
+                payload = (json.dumps(self.verification_logs[:70], ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                with _ACCOUNTS_FILE_LOCK:
+                    _atomic_write_file(AUTH_EVENTS_FILE, payload)
+            except Exception:
+                pass
         return item
 
+    def get_overview(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self._sync_accounts_from_cas_if_enabled()
+        return super().get_overview(*args, **kwargs)
+
     def find_account(self, identifier: str) -> dict[str, Any] | None:
+        self._sync_accounts_from_cas_if_enabled()
         self._purge_throwaway_qa_accounts()
         ident = identifier.strip().lower()
         if not ident or is_throwaway_qa_identity(ident):
@@ -496,6 +928,14 @@ class ThreeLayerAuthManager(
             if acc["email"].lower() in (ident, ident_lookup):
                 return acc
         if "@" in ident or "@" in ident_lookup:
+            ident_canon = canonical_gmail_mailbox(ident_lookup) or canonical_gmail_mailbox(ident)
+            if ident_canon:
+                for acc in self.accounts:
+                    if str(acc.get("email") or "").strip().lower() == ident_canon:
+                        return acc
+                for acc in self.accounts:
+                    if canonical_gmail_mailbox(acc.get("email")) == ident_canon:
+                        return acc
             return None
         ident_slug = ident.replace(" ", "_")
         for acc in self.accounts:
@@ -521,39 +961,58 @@ class ThreeLayerAuthManager(
         login_method: str = "password",
         source: str = "Web",
         send_gmail: bool = True,
+        client_ip: str = "unknown",
+        app: Any = None,
     ) -> dict[str, Any]:
-        """Lớp 1: Kiểm tra Email/Mật khẩu hoặc Google OAuth -> Kiểm tra trạng thái Quyền -> Sinh OTP Lớp 2 & gửi Gmail."""
+        """Lớp 1: Kiểm tra Email/Mật khẩu + rate limit -> Kiểm tra Quyền -> Yêu cầu Lớp 2 OTP cho Cấp 1."""
         self._purge_throwaway_qa_accounts()
-        clean_email = email.strip().lower()
+        clean_email = str(email or "").strip().lower()
+        if not clean_email:
+            return {"ok": False, "layer": 1, "status_code": 401, "error": UNIFORM_INVALID_LOGIN_ERROR}
         if is_throwaway_qa_identity(clean_email):
-            return {"ok": False, "layer": 1, "error": "Tài khoản thử nghiệm QA tạm thời đã bị thu hồi vĩnh viễn."}
+            return {"ok": False, "layer": 1, "status_code": 401, "error": UNIFORM_INVALID_LOGIN_ERROR}
+
+        lock_err = self._check_login_rate_limit(clean_email, client_ip)
+        if lock_err is not None:
+            return lock_err
+
+        self._sync_accounts_from_cas_if_enabled()
         acc = self.find_account(clean_email)
         if not acc:
+            verify_password_hash(password, _TIMING_DUMMY_HASH)
             self._log_event(
                 layer="Lớp 1 (Tài khoản/Mật khẩu)",
                 action="login_attempt",
-                email=email,
+                email=clean_email,
                 status="FAIL",
-                detail=f"Tài khoản '{email}' không tồn tại trong hệ thống.",
+                detail="Đăng nhập thất bại (thông tin không hợp lệ).",
                 source=source,
             )
-            return {"ok": False, "layer": 1, "error": f"Không tìm thấy tài khoản '{email}'!"}
+            lock_res = self._record_login_failure(clean_email, client_ip)
+            if lock_res is not None:
+                return lock_res
+            return {"ok": False, "layer": 1, "status_code": 401, "error": UNIFORM_INVALID_LOGIN_ERROR}
 
         is_owner_acc = str(acc.get("account_id", "")).lower() == OWNER_ID or int(acc.get("tier", 3)) == 1
         if is_owner_acc and login_method != "password":
             return {
                 "ok": False,
                 "layer": 1,
+                "status_code": 401,
                 "error": "Tài khoản Chủ nhà bắt buộc đăng nhập bằng mật khẩu mã hóa!",
             }
 
         stored_hash = str(acc.get("password_hash") or "").strip()
         if not stored_hash or stored_hash == "0" * 64:
+            verify_password_hash(password, _TIMING_DUMMY_HASH)
+            lock_res = self._record_login_failure(clean_email, client_ip)
+            if lock_res is not None:
+                return lock_res
             return {
                 "ok": False,
                 "layer": 1,
-                "needs_password_reset": True,
-                "error": f"Tài khoản {acc['email']} chưa thiết lập mật khẩu mã hóa. Vui lòng dùng Quên mật khẩu / OTP để đặt mật khẩu!",
+                "status_code": 401,
+                "error": UNIFORM_INVALID_LOGIN_ERROR,
             }
         pw_ok = verify_password_hash(password, stored_hash)
         if not pw_ok:
@@ -565,30 +1024,67 @@ class ThreeLayerAuthManager(
                 detail=f"Nhập sai mật khẩu cho tài khoản {acc['display_name']} (Tầng {acc['tier']}).",
                 source=source,
             )
+            lock_res = self._record_login_failure(clean_email, client_ip)
+            if lock_res is not None:
+                return lock_res
             return {
                 "ok": False,
                 "layer": 1,
-                "error": f"Sai mật khẩu cho tài khoản {acc['email']}!",
+                "status_code": 401,
+                "error": UNIFORM_INVALID_LOGIN_ERROR,
             }
 
         if not acc.get("permission_active", True):
+            self._clear_login_failures(clean_email, client_ip)
+            p_status = str(acc.get("permission_status") or "").strip().upper()
+            if p_status == "REVOKED" or acc.get("revoked_at") or acc.get("revoked_by"):
+                self._log_event(
+                    layer="Lớp 1 (Kiểm tra Cấp Quyền)",
+                    action="account_exists_but_no_permission",
+                    email=acc["email"],
+                    status="FAIL",
+                    detail=(
+                        f"Tài khoản {acc['display_name']} ({acc['email']}) vẫn tồn tại nhưng hiện KHÔNG CÓ QUYỀN "
+                        f"(Đã bị Chủ nhà thu hồi quyền)."
+                    ),
+                    source=source,
+                )
+                return {
+                    "ok": False,
+                    "layer": 1,
+                    "status_code": 403,
+                    "account_exists": True,
+                    "permission_status": "REVOKED",
+                    "permission_label": "🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN",
+                    "account": {
+                        "account_id": acc["account_id"],
+                        "email": acc["email"],
+                        "display_name": acc["display_name"],
+                        "tier": acc["tier"],
+                        "saved_tier": acc.get("saved_tier", acc["tier"]),
+                        "permission_active": False,
+                        "permission_status": "REVOKED",
+                    },
+                    "error": (
+                        f"🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Tài khoản '{acc['display_name']}' ({acc['email']}) vẫn còn trên hệ thống "
+                        f"nhưng đã bị Chủ nhà xóa cấp quyền. Khi nào Chủ nhà bật lại thì bạn mới được cấp quyền lại như cũ!"
+                    ),
+                }
             self._log_event(
                 layer="Lớp 1 (Kiểm tra Cấp Quyền)",
-                action="account_exists_but_no_permission",
+                action="account_pending_owner_approval",
                 email=acc["email"],
                 status="FAIL",
-                detail=(
-                    f"Tài khoản {acc['display_name']} ({acc['email']}) vẫn tồn tại nhưng hiện KHÔNG CÓ QUYỀN "
-                    f"(Đã bị Chủ nhà Nguyễn Tuấn Anh thu hồi quyền). Khi nào Chủ nhà bảo bật lại mới có quyền!"
-                ),
+                detail=f"Tài khoản {acc['display_name']} ({acc['email']}) đang chờ Chủ nhà phê duyệt.",
                 source=source,
             )
             return {
                 "ok": False,
                 "layer": 1,
+                "status_code": 403,
                 "account_exists": True,
-                "permission_status": "REVOKED",
-                "permission_label": "🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN",
+                "permission_status": "PENDING",
+                "permission_label": "⏳ CHỜ CHỦ NHÀ DUYỆT",
                 "account": {
                     "account_id": acc["account_id"],
                     "email": acc["email"],
@@ -596,54 +1092,138 @@ class ThreeLayerAuthManager(
                     "tier": acc["tier"],
                     "saved_tier": acc.get("saved_tier", acc["tier"]),
                     "permission_active": False,
-                    "permission_status": "REVOKED",
+                    "permission_status": "PENDING",
                 },
-                "error": (
-                    f"🚫 TÀI KHOẢN HIỆN KHÔNG CÓ QUYỀN: Tài khoản '{acc['display_name']}' ({acc['email']}) vẫn còn trên hệ thống "
-                    f"nhưng đã bị Chủ nhà xóa cấp quyền. Khi nào Chủ nhà bảo bật lại thì bạn mới được cấp quyền lại như cũ!"
-                ),
+                "error": "⏳ Tài khoản đang chờ Chủ nhà phê duyệt cấp quyền trước khi đăng nhập.",
             }
 
-        otp_code = f"{random.randint(100000, 999999)}"
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": "nep94121@gmail.com"}
-        if send_gmail:
-            gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+        acc_email_key = str(acc.get("email") or clean_email).strip().lower()
+        if is_owner_acc:
+            otp_code = f"{random.randint(100000, 999999)}"
+            now = time.time()
+            otp_salt, otp_hash = self._hash_otp_code(otp_code)
+            gmail_res: dict[str, Any] = (
+                {"sent_real_gmail": False, "pending": True, "actual_recipient": acc["email"]}
+                if send_gmail
+                else {"sent_real_gmail": False, "dry_run": True, "actual_recipient": acc["email"]}
+            )
 
-        self.pending_otps[acc["email"].lower()] = {
-            "email": acc["email"],
-            "account_id": acc["account_id"],
-            "display_name": acc["display_name"],
-            "tier": acc["tier"],
-            "otp_code": otp_code,
-            "created_at": time.time(),
-            "expires_at": time.time() + 300,
-            "verified_layer2": False,
-            "verified_layer3": False,
-            "gmail_delivery": gmail_res,
-            "source": source,
-        }
+            def _stage_layer2_otp() -> bool:
+                with self._otp_lock:
+                    target_acc = next(
+                        (a for a in self.accounts if str(a.get("email") or "").strip().lower() == acc_email_key),
+                        acc,
+                    )
+                    otp_record = {
+                        "email": target_acc["email"],
+                        "account_id": target_acc["account_id"],
+                        "display_name": target_acc["display_name"],
+                        "tier": target_acc["tier"],
+                        "purpose": "layer2_login",
+                        "otp_code": otp_code,
+                        "otp_salt": otp_salt,
+                        "otp_hash": otp_hash,
+                        "created_at": now,
+                        "expires_at": now + 300,
+                        "last_email_sent_at": now if send_gmail else 0.0,
+                        "verified_layer2": False,
+                        "verified_layer3": False,
+                        "consumed": False,
+                        "gmail_delivery": dict(gmail_res),
+                        "source": source,
+                    }
+                    self.pending_otps[acc_email_key] = otp_record
+                    target_acc["pending_otp"] = otp_record
+                    target_acc.pop("otp_failed_verify_attempts", None)
+                    self.otp_failed_attempts.pop(acc_email_key, None)
+                    return self._save_accounts()
 
-        delivery_txt = (
-            f"Đã gửi Gmail thật tới {gmail_res['actual_recipient']} (ID: {gmail_res.get('gmail_message_id')})"
-            if gmail_res.get("sent_real_gmail")
-            else "Mã OTP đã cấp cho phiên kiểm thử"
-        )
+            if not self._with_cas_accounts(_stage_layer2_otp):
+                return {"ok": False, "layer": 1, "status_code": 503, "error": "Không khởi tạo được thử thách OTP Lớp 2."}
+
+            if send_gmail:
+                gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+
+                def _record_delivery() -> None:
+                    with self._otp_lock:
+                        target_acc = next(
+                            (a for a in self.accounts if str(a.get("email") or "").strip().lower() == acc_email_key),
+                            None,
+                        )
+                        if target_acc and isinstance(target_acc.get("pending_otp"), dict):
+                            if not gmail_res.get("sent_real_gmail") and (
+                                gmail_res.get("missing_secret") or gmail_res.get("blocked_by_allowlist")
+                            ):
+                                target_acc.pop("pending_otp", None)
+                                dict.pop(self.pending_otps, acc_email_key, None)
+                            else:
+                                target_acc["pending_otp"]["gmail_delivery"] = gmail_res
+                                if acc_email_key in self.pending_otps:
+                                    self.pending_otps[acc_email_key]["gmail_delivery"] = gmail_res
+                            self._save_accounts()
+
+                self._with_cas_accounts(_record_delivery)
+                if not gmail_res.get("sent_real_gmail"):
+                    err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi mã OTP đến Gmail Chủ nhà."
+                    return {
+                        "ok": False,
+                        "layer": 1,
+                        "status_code": 503,
+                        "error": f"Không thể gửi email OTP Lớp 2: {err_msg}",
+                        "gmail_delivery": gmail_res,
+                    }
+
+            self._log_event(
+                layer="Lớp 1 -> Lớp 2 (Gmail OTP)",
+                action="layer1_passed_otp_required",
+                email=acc["email"],
+                status="PASS",
+                detail=f"Xác thực mật khẩu Chủ nhà hợp lệ — yêu cầu OTP Lớp 2 ({login_method}).",
+                source=source,
+                extra={"tier": acc["tier"]},
+            )
+            res_payload: dict[str, Any] = {
+                "ok": True,
+                "layer": 1,
+                "next_layer": 2,
+                "otp_required": True,
+                "authenticated": False,
+                "otp_sent": bool(gmail_res.get("sent_real_gmail")),
+                "account": {
+                    "account_id": acc["account_id"],
+                    "email": acc["email"],
+                    "display_name": acc["display_name"],
+                    "tier": acc["tier"],
+                    "role_label": acc["role_label"],
+                    "permission_active": True,
+                    "permission_status": "ACTIVE",
+                },
+                "tier": acc["tier"],
+                "gmail_delivery": gmail_res,
+                "message": "Lớp 1 hợp lệ. Vui lòng nhập mã OTP 6 số gửi về Gmail Chủ nhà để hoàn tất Lớp 2.",
+            }
+            if is_test_otp_fields_allowed(app) and (not send_gmail or gmail_res.get("sent_real_gmail")):
+                res_payload["otp_code_for_test"] = otp_code
+                res_payload["otp_code_for_test_table"] = otp_code
+                res_payload["demo_otp_preview"] = otp_code
+            return res_payload
+
+        # Tier 2 / Tier 3 active accounts complete authentication after password verification
+        self._clear_login_failures(clean_email, client_ip)
+        invite_bundle = self.get_invite_links_for_account(acc["email"])
         self._log_event(
-            layer="Lớp 1 -> Lớp 2 (Gmail OTP)",
-            action="layer1_passed_otp_issued",
+            layer="Lớp 1 (Tài khoản/Mật khẩu)",
+            action="layer1_login_success",
             email=acc["email"],
             status="PASS",
-            detail=f"Đăng nhập Lớp 1 hợp lệ ({login_method}) — {delivery_txt}",
+            detail=f"Đăng nhập Tầng {acc['tier']} thành công.",
             source=source,
-            extra={"gmail_delivery": gmail_res, "tier": acc["tier"]},
         )
-
-        invite_bundle = self.get_invite_links_for_account(acc["email"])
-
         return {
             "ok": True,
             "layer": 1,
-            "next_layer": 2,
+            "otp_required": False,
+            "authenticated": True,
             "account": {
                 "account_id": acc["account_id"],
                 "email": acc["email"],
@@ -652,19 +1232,106 @@ class ThreeLayerAuthManager(
                 "role_label": acc["role_label"],
                 "permission_active": acc.get("permission_active", True),
                 "permission_status": acc.get("permission_status", "ACTIVE"),
-                "voice_verified": acc.get("voice_verified", not acc.get("needs_first_page_voice_enroll", False)),
-                "needs_first_page_voice_enroll": acc.get("needs_first_page_voice_enroll", False),
-                "reading_prompt": acc.get("reading_prompt", ""),
             },
             "tier": acc["tier"],
-            "voice_verified": acc.get("voice_verified", not acc.get("needs_first_page_voice_enroll", False)),
-            "needs_first_page_voice_enroll": acc.get("needs_first_page_voice_enroll", False),
             "invite_links_bundle": invite_bundle,
-            "otp_code_for_test_table": otp_code,
-            "demo_otp_preview": otp_code,
-            "gmail_delivery": gmail_res,
-            "message": f"✅ Lớp 1 hợp lệ! Đã gửi mã OTP 6 số về Gmail ({gmail_res['actual_recipient']}). Vui lòng nhập mã OTP để qua Lớp 2!",
+            "message": f"✅ Đăng nhập thành công ({acc['role_label']}).",
         }
+
+    def send_layer2_login_otp(self, email: str, source: str = "Web", app: Any = None) -> dict[str, Any]:
+        """Gửi OTP Gmail cho phiên Lớp 1 Cấp 1 đã vượt qua bước mật khẩu (có cooldown 60 giây)."""
+        clean_email = str(email or "").strip().lower()
+        if not clean_email:
+            return {"ok": False, "status_code": 400, "error": "Thiếu địa chỉ email."}
+        self._sync_accounts_from_cas_if_enabled()
+        acc = self.find_account(clean_email)
+        if not acc or not (str(acc.get("account_id", "")).lower() == OWNER_ID or int(acc.get("tier", 3)) == 1):
+            return {"ok": False, "status_code": 403, "error": "Chỉ áp dụng OTP Lớp 2 cho tài khoản Chủ nhà Cấp 1."}
+        acc_email_key = str(acc.get("email") or clean_email).strip().lower()
+        now = time.time()
+        issued: dict[str, Any] = {}
+
+        def _prepare() -> dict[str, Any] | None:
+            with self._otp_lock:
+                target_acc = next(
+                    (a for a in self.accounts if str(a.get("email") or "").strip().lower() == acc_email_key),
+                    None,
+                )
+                pending = (self.pending_otps.get(acc_email_key) or (target_acc.get("pending_otp") if target_acc else None))
+                if (
+                    not isinstance(pending, dict)
+                    or pending.get("consumed")
+                    or pending.get("purpose", "layer2_login") != "layer2_login"
+                    or now >= float(pending.get("expires_at", 0) or 0)
+                ):
+                    return {
+                        "ok": False,
+                        "status_code": 401,
+                        "error": "Phiên mật khẩu Lớp 1 chưa hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.",
+                    }
+                last_sent = float(pending.get("last_email_sent_at", 0) or 0)
+                if last_sent > 0 and (now - last_sent) < 60.0 and (pending.get("gmail_delivery") or {}).get("sent_real_gmail"):
+                    rem = max(0, int(60.0 - (now - last_sent)))
+                    return {
+                        "ok": True,
+                        "idempotent": True,
+                        "cooldown_active": True,
+                        "cooldown_remaining_seconds": rem,
+                        "email": acc_email_key,
+                        "message": f"Mã OTP Lớp 2 đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc đợi {rem}s.",
+                    }
+                otp_code = f"{random.randint(100000, 999999)}"
+                otp_salt, otp_hash = self._hash_otp_code(otp_code)
+                pending = dict(pending)
+                pending["otp_code"] = otp_code
+                pending["otp_salt"] = otp_salt
+                pending["otp_hash"] = otp_hash
+                pending["last_email_sent_at"] = now
+                pending["expires_at"] = max(float(pending.get("expires_at", 0) or 0), now + 300)
+                pending["gmail_delivery"] = {"sent_real_gmail": False, "pending": True}
+                self.pending_otps[acc_email_key] = pending
+                if target_acc is not None:
+                    target_acc["pending_otp"] = pending
+                if not self._save_accounts():
+                    return {"ok": False, "status_code": 503, "error": "Không lưu được trạng thái OTP Lớp 2."}
+                issued["otp_code"] = otp_code
+                issued["display_name"] = target_acc.get("display_name", acc_email_key) if target_acc else acc_email_key
+                return None
+
+        prep_res = self._with_cas_accounts(_prepare)
+        if prep_res is not None:
+            return prep_res
+
+        gmail_res = self.send_real_gmail_otp(acc_email_key, issued["otp_code"], issued["display_name"])
+
+        def _finish() -> None:
+            with self._otp_lock:
+                target_acc = next(
+                    (a for a in self.accounts if str(a.get("email") or "").strip().lower() == acc_email_key),
+                    None,
+                )
+                if target_acc and isinstance(target_acc.get("pending_otp"), dict):
+                    target_acc["pending_otp"]["gmail_delivery"] = gmail_res
+                    if acc_email_key in self.pending_otps:
+                        self.pending_otps[acc_email_key]["gmail_delivery"] = gmail_res
+                    self._save_accounts()
+
+        self._with_cas_accounts(_finish)
+        if not gmail_res.get("sent_real_gmail"):
+            err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP Lớp 2."
+            return {"ok": False, "status_code": 503, "error": f"Không thể gửi email OTP Lớp 2: {err_msg}", "gmail_delivery": gmail_res}
+
+        resp = {
+            "ok": True,
+            "email": acc_email_key,
+            "cooldown_remaining_seconds": 60,
+            "gmail_delivery": gmail_res,
+            "message": f"✅ Đã gửi mã OTP 6 số về Gmail Chủ nhà ({gmail_res.get('actual_recipient', acc_email_key)}).",
+        }
+        if is_test_otp_fields_allowed(app):
+            resp["otp_code_for_test"] = issued["otp_code"]
+            resp["demo_otp_preview"] = issued["otp_code"]
+        return resp
 
     def register_or_update_password(
         self,
@@ -680,124 +1347,182 @@ class ThreeLayerAuthManager(
     ) -> dict[str, Any]:
         """Tạo tài khoản hoặc đặt/đổi mật khẩu với bắt buộc 2 ô mật khẩu (Mật khẩu & Xác nhận lại mật khẩu)."""
         self._purge_throwaway_qa_accounts()
-        clean_email = str(email or "").strip().lower()
+        raw_email = str(email or "")
+        clean_email = strict_single_email_ascii(raw_email) or raw_email.strip().lower()
         if is_throwaway_qa_identity(clean_email) or is_throwaway_qa_identity(display_name):
             return {"ok": False, "error": "Tài khoản thử nghiệm QA tạm thời đã bị cấm đăng ký."}
         pw1 = str(password or "").strip()
         pw2 = str(confirm_password or "").strip()
         if not clean_email or "@" not in clean_email:
-            return {"ok": False, "error": "Vui lòng nhập địa chỉ Email hợp lệ!"}
+            return {"ok": False, "status_code": 400, "error": "Vui lòng nhập địa chỉ Email hợp lệ!"}
         if not pw1 or not pw2:
-            return {"ok": False, "error": "Vui lòng nhập đầy đủ cả 2 ô: Mật khẩu và Xác nhận lại mật khẩu!"}
+            return {"ok": False, "status_code": 400, "error": "Vui lòng nhập đầy đủ cả 2 ô: Mật khẩu và Xác nhận lại mật khẩu!"}
         if pw1 != pw2:
-            return {"ok": False, "error": "Hai ô mật khẩu (Mật khẩu và Xác nhận lại mật khẩu) không khớp nhau!"}
+            return {"ok": False, "status_code": 400, "error": "Hai ô mật khẩu (Mật khẩu và Xác nhận lại mật khẩu) không khớp nhau!"}
         if len(pw1) < 6:
-            return {"ok": False, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
+            return {"ok": False, "status_code": 400, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
 
-        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9._+\-]*[a-z0-9])?@(?:gmail|googlemail)\.com", clean_email):
+        if not strict_single_email_ascii(raw_email) or not re.fullmatch(
+            r"[a-z0-9](?:[a-z0-9._+\-]*[a-z0-9])?@(?:gmail|googlemail)\.com", clean_email
+        ):
             return {"ok": False, "status_code": 400, "error": "Chỉ đăng ký bằng địa chỉ Gmail."}
 
-        with _ACCOUNTS_FILE_LOCK:
-            existing = next((account for account in self.accounts if str(account.get("email") or "").strip().lower() == clean_email), None)
-            if create_only and (existing is not None or clean_email == OWNER_EMAIL.lower()):
-                return {"ok": False, "status_code": 409, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}
-            previous_accounts = self.accounts
-            accounts = copy.deepcopy(self.accounts)
-            acc = next((account for account in accounts if str(account.get("email") or "").strip().lower() == clean_email), None)
-            is_owner = clean_email == OWNER_EMAIL.lower()
-            if acc is not None:
-                safe_tier = 1 if is_owner else int(acc.get("tier") or acc.get("saved_tier") or 3)
-                if not is_owner and safe_tier not in (2, 3):
-                    safe_tier = 3
-                acc["password_hash"] = hash_password(pw1)
-                if display_name.strip() and not is_owner:
-                    acc["display_name"] = display_name.strip()
-                    acc["name"] = display_name.strip()
-                acc["tier"] = safe_tier
-                acc["saved_tier"] = safe_tier
-            else:
-                safe_tier = int(target_tier) if invited and int(target_tier or 0) in (2, 3) else 3
-                existing_ids = {str(account.get("account_id") or "") for account in accounts} | {OWNER_ID}
-                clean_id = "user_" + secrets.token_hex(16)
-                while clean_id in existing_ids:
+        canon_email = canonical_gmail_mailbox(clean_email)
+        owner_canon = canonical_gmail_mailbox(OWNER_EMAIL)
+
+        def _mutate() -> dict[str, Any]:
+            with _ACCOUNTS_FILE_LOCK:
+                existing = next(
+                    (
+                        account
+                        for account in self.accounts
+                        if str(account.get("email") or "").strip().lower() == clean_email
+                        or (canon_email and canonical_gmail_mailbox(account.get("email")) == canon_email)
+                    ),
+                    None,
+                )
+                if create_only and (
+                    existing is not None
+                    or clean_email == OWNER_EMAIL.lower()
+                    or (canon_email and owner_canon and canon_email == owner_canon)
+                ):
+                    return {"ok": False, "status_code": 409, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}
+                previous_accounts = self.accounts
+                accounts = copy.deepcopy(self.accounts)
+                acc = next(
+                    (account for account in accounts if str(account.get("email") or "").strip().lower() == clean_email),
+                    None,
+                )
+                if acc is None and not create_only and canon_email:
+                    acc = next(
+                        (
+                            account
+                            for account in accounts
+                            if canonical_gmail_mailbox(account.get("email")) == canon_email
+                        ),
+                        None,
+                    )
+                is_owner = (acc is not None and str(acc.get("email") or "").strip().lower() == OWNER_EMAIL.lower()) or (
+                    clean_email == OWNER_EMAIL.lower()
+                )
+                if acc is not None:
+                    safe_tier = 1 if is_owner else int(acc.get("tier") or acc.get("saved_tier") or 3)
+                    if not is_owner and safe_tier not in (2, 3):
+                        safe_tier = 3
+                    acc["password_hash"] = hash_password(pw1)
+                    if display_name.strip() and not is_owner:
+                        acc["display_name"] = display_name.strip()
+                        acc["name"] = display_name.strip()
+                    acc["tier"] = safe_tier
+                    acc["saved_tier"] = safe_tier
+                else:
+                    safe_tier = int(target_tier) if invited and int(target_tier or 0) in (2, 3) else 3
+                    existing_ids = {str(account.get("account_id") or "") for account in accounts} | {OWNER_ID}
                     clean_id = "user_" + secrets.token_hex(16)
-                active = bool(invited) and not create_only
-                acc = {
-                    "account_id": clean_id,
-                    "email": clean_email,
-                    "display_name": display_name.strip() or clean_email.split("@")[0].replace(".", " ").title(),
-                    "tier": safe_tier,
-                    "saved_tier": safe_tier,
-                    "role": "MEMBER" if safe_tier == 2 else "CHILD_GUEST",
-                    "role_label": f"Cấp {safe_tier}",
-                    "permission_active": active,
-                    "permission_status": "ACTIVE" if active else "PENDING",
-                    "permission_label": f"CÓ QUYỀN (Tầng {safe_tier})" if active else "Chờ chủ nhà cấp quyền",
-                    "password_hash": hash_password(pw1),
-                    "google_linked": False,
-                    "needs_first_page_voice_enroll": False,
-                    "voice_verified": False,
-                    "reading_prompt": "",
+                    while clean_id in existing_ids:
+                        clean_id = "user_" + secrets.token_hex(16)
+                    active = bool(invited) and not create_only
+                    acc = {
+                        "account_id": clean_id,
+                        "email": clean_email,
+                        "display_name": display_name.strip() or clean_email.split("@")[0].replace(".", " ").title(),
+                        "tier": safe_tier,
+                        "saved_tier": safe_tier,
+                        "role": "MEMBER" if safe_tier == 2 else "CHILD_GUEST",
+                        "role_label": f"Cấp {safe_tier}",
+                        "permission_active": active,
+                        "permission_status": "ACTIVE" if active else "PENDING",
+                        "permission_label": (
+                            f"CÓ QUYỀN (Tầng {safe_tier})"
+                            if active
+                            else "⏳ CHỜ PHÊ DUYỆT (Cần Chủ nhà cấp quyền)"
+                        ),
+                        "password_hash": hash_password(pw1),
+                        "google_linked": False,
+                        "needs_first_page_voice_enroll": False,
+                        "voice_verified": False,
+                        "reading_prompt": "",
+                    }
+                    if guest_invite_id:
+                        acc["guest_invite_id"] = guest_invite_id
+                    accounts.append(acc)
+                self._normalize_account_fields(acc)
+                self.accounts = accounts
+                try:
+                    saved = self._save_accounts()
+                except Exception:
+                    saved = False
+                if not saved:
+                    self.accounts = previous_accounts
+                    return {"ok": False, "status_code": 503, "error": "Không lưu được tài khoản. Hãy thử lại sau."}
+                self._log_event(
+                    layer="Quản lý Tài khoản & Mật khẩu",
+                    action="password_set_confirmed",
+                    email=acc.get("email") or clean_email,
+                    status="PASS",
+                    detail=f"Đã lưu tài khoản Cấp {acc['tier']}.",
+                    source=source,
+                )
+                return {
+                    "ok": True,
+                    "account": acc,
+                    "tier": acc["tier"],
+                    "permission_active": bool(acc.get("permission_active")),
+                    "permission_status": str(
+                        acc.get("permission_status") or ("ACTIVE" if acc.get("permission_active") else "PENDING")
+                    ),
+                    "message": (
+                        "Đã lưu tài khoản."
+                        if acc.get("permission_active")
+                        else "Đã tạo tài khoản. Chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập."
+                    ),
                 }
-                if guest_invite_id:
-                    acc["guest_invite_id"] = guest_invite_id
-                accounts.append(acc)
-            self._normalize_account_fields(acc)
-            self.accounts = accounts
-            try:
-                saved = self._save_accounts()
-            except Exception:
-                saved = False
-            if not saved:
-                self.accounts = previous_accounts
-                return {"ok": False, "status_code": 503, "error": "Không lưu được tài khoản. Hãy thử lại sau."}
-            self._log_event(
-                layer="Quản lý Tài khoản & Mật khẩu", action="password_set_confirmed",
-                email=clean_email, status="PASS", detail=f"Đã lưu tài khoản Cấp {acc['tier']}.", source=source,
-            )
-            return {
-                "ok": True, "account": acc, "tier": acc["tier"],
-                "permission_active": bool(acc.get("permission_active")),
-                "message": "Đã lưu tài khoản." if acc.get("permission_active") else "Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.",
-            }
+
+        return self._with_cas_accounts(_mutate)
 
     def rollback_registration(self, account_id: str) -> bool:
-        with _ACCOUNTS_FILE_LOCK:
-            previous_accounts = self.accounts
-            account = next((item for item in previous_accounts if item.get("account_id") == account_id), None)
-            if account is None:
-                return True
-            if account.get("permission_active") or account.get("email", "").lower() == OWNER_EMAIL.lower():
-                return False
-            self.accounts = [item for item in previous_accounts if item.get("account_id") != account_id]
-            try:
-                saved = self._save_accounts()
-            except Exception:
-                saved = False
-            if not saved:
-                self.accounts = previous_accounts
-            return bool(saved)
+        def _mutate() -> bool:
+            with _ACCOUNTS_FILE_LOCK:
+                previous_accounts = self.accounts
+                account = next((item for item in previous_accounts if item.get("account_id") == account_id), None)
+                if account is None:
+                    return True
+                if account.get("permission_active") or account.get("email", "").lower() == OWNER_EMAIL.lower():
+                    return False
+                self.accounts = [item for item in previous_accounts if item.get("account_id") != account_id]
+                try:
+                    saved = self._save_accounts()
+                except Exception:
+                    saved = False
+                if not saved:
+                    self.accounts = previous_accounts
+                return bool(saved)
+
+        return bool(self._with_cas_accounts(_mutate))
 
     def activate_registration(self, account_id: str) -> bool:
         """Publish an invited account only after session creation succeeds."""
-        with _ACCOUNTS_FILE_LOCK:
-            previous_accounts = self.accounts
-            accounts = copy.deepcopy(previous_accounts)
-            acc = next((account for account in accounts if account.get("account_id") == account_id), None)
-            if acc is None or not acc.get("guest_invite_id") or int(acc.get("tier") or 99) not in (2, 3):
-                return False
-            acc["permission_active"] = True
-            acc["permission_status"] = "ACTIVE"
-            acc["permission_label"] = f"CÓ QUYỀN (Tầng {acc['tier']})"
-            self.accounts = accounts
-            try:
-                saved = self._save_accounts()
-            except Exception:
-                saved = False
-            if not saved:
-                self.accounts = previous_accounts
-                return False
-            return True
+        def _mutate() -> bool:
+            with _ACCOUNTS_FILE_LOCK:
+                previous_accounts = self.accounts
+                accounts = copy.deepcopy(previous_accounts)
+                acc = next((account for account in accounts if account.get("account_id") == account_id), None)
+                if acc is None or not acc.get("guest_invite_id") or int(acc.get("tier") or 99) not in (2, 3):
+                    return False
+                acc["permission_active"] = True
+                acc["permission_status"] = "ACTIVE"
+                acc["permission_label"] = f"CÓ QUYỀN (Tầng {acc['tier']})"
+                self.accounts = accounts
+                try:
+                    saved = self._save_accounts()
+                except Exception:
+                    saved = False
+                if not saved:
+                    self.accounts = previous_accounts
+                    return False
+                return True
+
+        return bool(self._with_cas_accounts(_mutate))
 
     def request_password_reset_otp(
         self,
@@ -808,117 +1533,187 @@ class ThreeLayerAuthManager(
     ) -> dict[str, Any]:
         """Gửi mã OTP 6 số qua Gmail khi người dùng bấm 'Quên mật khẩu' (chống gửi lặp trong 60s)."""
         clean_email = str(email or "").strip().lower()
-        acc = self.find_account(clean_email)
-        if not acc:
+        if not clean_email or "@" not in clean_email:
             return {"ok": False, "status_code": 404, "error": f"Không tìm thấy tài khoản với email '{email}'!"}
 
-        acct_key = str(acc.get("email") or clean_email).strip().lower()
         now = time.time()
-        with self._otp_lock:
-            existing = self.pending_otps.get(acct_key) or self.pending_otps.get(clean_email)
-            if not existing and acc.get("pending_otp"):
-                candidate = acc.get("pending_otp")
-                if candidate and (now < candidate.get("expires_at", 0) or (now - candidate.get("created_at", 0) < 60.0)):
-                    existing = candidate
-                    self.pending_otps[acct_key] = candidate
+        issued: dict[str, Any] = {}
 
-            existing_delivery = (existing.get("gmail_delivery") or {}) if isinstance(existing, dict) else {}
-            preflight_rejected = bool(existing_delivery.get("missing_secret") or existing_delivery.get("blocked_by_allowlist"))
-            existing_usable = bool(
-                existing
-                and existing.get("otp_code")
-                and not existing.get("consumed", False)
-                and not preflight_rejected
+        def _find_acc_in_memory(raw_email: str) -> dict[str, Any] | None:
+            exact = next(
+                (a for a in self.accounts if str(a.get("email") or "").strip().lower() == raw_email),
+                None,
             )
-            if existing_usable:
-                if now < existing.get("expires_at", 0) or (now - existing.get("created_at", 0) < 60.0):
-                    elapsed = now - existing.get("created_at", 0)
-                    if elapsed < 60.0:
-                        remaining_sec = max(0, int(60.0 - elapsed))
-                        delivery_res = existing.get("gmail_delivery") or {"sent_real_gmail": False}
-                        self._log_event(
-                            layer="Quên Mật Khẩu (Gmail OTP)",
-                            action="forgot_password_otp_throttled",
-                            email=acc["email"],
-                            status="PASS",
-                            detail=f"Yêu cầu OTP trong thời gian chờ ({remaining_sec}s còn lại). Giữ nguyên mã OTP đang hiệu lực.",
-                            source=source,
-                            extra={"cooldown_remaining_sec": remaining_sec, "idempotent": True},
-                        )
-                        cooldown_resp = {
-                            "ok": True,
-                            "idempotent": True,
-                            "cooldown_active": True,
-                            "cooldown_remaining_seconds": remaining_sec,
-                            "email": acct_key,
-                            "display_name": acc.get("display_name", acct_key),
-                            "message": "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau.",
-                            "expires_in": max(0, int(existing.get("expires_at", now + 300) - now)),
-                            "gmail_delivery": delivery_res,
+            if exact is not None:
+                return exact
+            canon = canonical_gmail_mailbox(raw_email)
+            if canon:
+                return next(
+                    (a for a in self.accounts if canonical_gmail_mailbox(a.get("email")) == canon),
+                    None,
+                )
+            return None
+
+        def _prepare() -> dict[str, Any] | None:
+            with self._otp_lock:
+                target_acc = _find_acc_in_memory(clean_email)
+                if not target_acc:
+                    return {
+                        "early_response": {
+                            "ok": False,
+                            "status_code": 404,
+                            "error": f"Không tìm thấy tài khoản với email '{email}'!",
                         }
-                        if is_test_otp_fields_allowed(app):
-                            cooldown_resp["otp_code_for_test"] = existing["otp_code"]
-                            cooldown_resp["demo_otp_preview"] = existing["otp_code"]
-                        return cooldown_resp
+                    }
 
-            otp_code = f"{random.randint(100000, 999999)}"
-            otp_record = {
-                "email": acc["email"],
-                "account_id": acc["account_id"],
-                "display_name": acc["display_name"],
-                "tier": acc["tier"],
-                "otp_code": otp_code,
-                "created_at": now,
-                "expires_at": now + 300,
-                "verified_layer2": False,
-                "verified_layer3": False,
-                "consumed": False,
-                "gmail_delivery": {"sent_real_gmail": False, "pending": True} if send_gmail else {"sent_real_gmail": False, "dry_run": True},
-                "source": source,
-            }
-            self.pending_otps[acct_key] = otp_record
-            acc["pending_otp"] = otp_record
-            acc["otp_cooldown_started_at"] = now
-            self._save_accounts()
+                acct_key = str(target_acc.get("email") or clean_email).strip().lower()
+                existing = self.pending_otps.get(acct_key) or self.pending_otps.get(clean_email)
+                if not existing and isinstance(target_acc.get("pending_otp"), dict):
+                    candidate = target_acc.get("pending_otp")
+                    if candidate and (
+                        now < float(candidate.get("expires_at", 0) or 0)
+                        or (now - float(candidate.get("created_at", 0) or 0) < 60.0)
+                    ):
+                        existing = candidate
+                        self.pending_otps[acct_key] = candidate
 
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": acc["email"]}
+                existing_delivery = (existing.get("gmail_delivery") or {}) if isinstance(existing, dict) else {}
+                preflight_rejected = bool(
+                    existing_delivery.get("missing_secret") or existing_delivery.get("blocked_by_allowlist")
+                )
+                existing_usable = bool(
+                    isinstance(existing, dict)
+                    and (existing.get("otp_code") or existing.get("otp_hash"))
+                    and not existing.get("consumed", False)
+                    and existing.get("purpose", "forgot_password") == "forgot_password"
+                    and not preflight_rejected
+                )
+                if existing_usable:
+                    if now < float(existing.get("expires_at", 0) or 0) or (
+                        now - float(existing.get("created_at", 0) or 0) < 60.0
+                    ):
+                        elapsed = now - float(existing.get("created_at", 0) or 0)
+                        if elapsed < 60.0:
+                            remaining_sec = max(0, int(60.0 - elapsed))
+                            delivery_res = existing.get("gmail_delivery") or {"sent_real_gmail": False}
+                            self._log_event(
+                                layer="Quên Mật Khẩu (Gmail OTP)",
+                                action="forgot_password_otp_throttled",
+                                email=target_acc["email"],
+                                status="PASS",
+                                detail=f"Yêu cầu OTP trong thời gian chờ ({remaining_sec}s còn lại). Giữ nguyên mã OTP đang hiệu lực.",
+                                source=source,
+                                extra={"cooldown_remaining_sec": remaining_sec, "idempotent": True},
+                            )
+                            cooldown_resp = {
+                                "ok": True,
+                                "idempotent": True,
+                                "cooldown_active": True,
+                                "cooldown_remaining_seconds": remaining_sec,
+                                "email": acct_key,
+                                "display_name": target_acc.get("display_name", acct_key),
+                                "message": "Mã OTP đã được gửi trước đó. Vui lòng kiểm tra hộp thư hoặc thử lại sau.",
+                                "expires_in": max(0, int(float(existing.get("expires_at", now + 300) or (now + 300)) - now)),
+                                "gmail_delivery": delivery_res,
+                            }
+                            if is_test_otp_fields_allowed(app) and existing.get("otp_code"):
+                                cooldown_resp["otp_code_for_test"] = existing["otp_code"]
+                                cooldown_resp["demo_otp_preview"] = existing["otp_code"]
+                            return {"early_response": cooldown_resp}
+
+                otp_code = f"{random.randint(100000, 999999)}"
+                otp_salt, otp_hash = self._hash_otp_code(otp_code)
+                otp_record = {
+                    "email": target_acc["email"],
+                    "account_id": target_acc["account_id"],
+                    "display_name": target_acc.get("display_name", acct_key),
+                    "tier": target_acc.get("tier", 3),
+                    "purpose": "forgot_password",
+                    "otp_code": otp_code,
+                    "otp_salt": otp_salt,
+                    "otp_hash": otp_hash,
+                    "created_at": now,
+                    "expires_at": now + 300,
+                    "verified_layer2": False,
+                    "verified_layer3": False,
+                    "consumed": False,
+                    "gmail_delivery": {"sent_real_gmail": False, "pending": True}
+                    if send_gmail
+                    else {"sent_real_gmail": False, "dry_run": True},
+                    "source": source,
+                }
+                self.pending_otps[acct_key] = otp_record
+                target_acc["pending_otp"] = otp_record
+                target_acc["otp_cooldown_started_at"] = now
+                if not self._save_accounts():
+                    return {
+                        "early_response": {
+                            "ok": False,
+                            "status_code": 503,
+                            "error": "Không lưu được trạng thái OTP quên mật khẩu.",
+                        }
+                    }
+                issued["otp_code"] = otp_code
+                issued["otp_hash"] = otp_hash
+                issued["email"] = target_acc["email"]
+                issued["acct_key"] = acct_key
+                issued["display_name"] = target_acc.get("display_name", acct_key)
+                return None
+
+        prep_res = self._with_cas_accounts(_prepare)
+        if isinstance(prep_res, dict) and "early_response" in prep_res:
+            return prep_res["early_response"]
+
+        otp_code = str(issued["otp_code"])
+        otp_hash = str(issued["otp_hash"])
+        acct_key = str(issued["acct_key"])
+        acc_email = str(issued["email"])
+        display_name = str(issued["display_name"])
+
+        gmail_res = {"sent_real_gmail": False, "actual_recipient": acc_email}
         if send_gmail:
-            gmail_res = self.send_real_gmail_otp(acc["email"], otp_code, acc["display_name"])
+            gmail_res = self.send_real_gmail_otp(acc_email, otp_code, display_name)
             preflight_failed = bool(
                 not gmail_res.get("sent_real_gmail")
                 and (gmail_res.get("missing_secret") or gmail_res.get("blocked_by_allowlist"))
             )
-            with self._otp_lock:
-                if preflight_failed:
-                    if (self.pending_otps.get(acct_key) or {}).get("otp_code") == otp_code:
-                        self.pending_otps.pop(acct_key, None)
-                    if (self.pending_otps.get(clean_email) or {}).get("otp_code") == otp_code:
-                        self.pending_otps.pop(clean_email, None)
-                    if (acc.get("pending_otp") or {}).get("otp_code") == otp_code:
-                        acc.pop("pending_otp", None)
-                        acc.pop("otp_cooldown_started_at", None)
-                    self._save_accounts()
-                else:
-                    otp_record["gmail_delivery"] = gmail_res
-                    if acc.get("pending_otp"):
-                        acc["pending_otp"]["gmail_delivery"] = gmail_res
-                    self._save_accounts()
+
+            def _finish() -> None:
+                with self._otp_lock:
+                    target_acc = _find_acc_in_memory(acct_key)
+                    if preflight_failed:
+                        if (self.pending_otps.get(acct_key) or {}).get("otp_hash") == otp_hash:
+                            dict.pop(self.pending_otps, acct_key, None)
+                        if (self.pending_otps.get(clean_email) or {}).get("otp_hash") == otp_hash:
+                            dict.pop(self.pending_otps, clean_email, None)
+                        if target_acc and (target_acc.get("pending_otp") or {}).get("otp_hash") == otp_hash:
+                            target_acc.pop("pending_otp", None)
+                            target_acc.pop("otp_cooldown_started_at", None)
+                        self._save_accounts()
+                    else:
+                        if (self.pending_otps.get(acct_key) or {}).get("otp_hash") == otp_hash:
+                            self.pending_otps[acct_key]["gmail_delivery"] = gmail_res
+                        if target_acc and (target_acc.get("pending_otp") or {}).get("otp_hash") == otp_hash:
+                            target_acc["pending_otp"]["gmail_delivery"] = gmail_res
+                        self._save_accounts()
+
+            self._with_cas_accounts(_finish)
             if not gmail_res.get("sent_real_gmail"):
                 err_msg = gmail_res.get("error") or gmail_res.get("note") or "Không thể gửi email OTP đến hộp thư người dùng."
                 missing_sec = gmail_res.get("missing_secret")
                 self._log_event(
                     layer="Quên Mật Khẩu (Gmail OTP)",
                     action="forgot_password_otp_failed",
-                    email=acc["email"],
+                    email=acc_email,
                     status="FAIL",
-                    detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc['email'])}): {err_msg}",
+                    detail=f"Thất bại gửi mã OTP tới Gmail ({gmail_res.get('actual_recipient', acc_email)}): {err_msg}",
                     source=source,
                 )
                 fail_resp = {
                     "ok": False,
                     "status_code": 503,
-                    "email": acc["email"],
-                    "display_name": acc["display_name"],
+                    "email": acc_email,
+                    "display_name": display_name,
                     "error": f"Không thể gửi email OTP: {err_msg}",
                     "gmail_delivery": gmail_res,
                 }
@@ -929,7 +1724,7 @@ class ThreeLayerAuthManager(
         self._log_event(
             layer="Quên Mật Khẩu (Gmail OTP)",
             action="forgot_password_otp_sent",
-            email=acc["email"],
+            email=acc_email,
             status="PASS",
             detail=f"Đã gửi mã OTP đặt lại mật khẩu tới Gmail ({gmail_res.get('actual_recipient')}).",
             source=source,
@@ -938,8 +1733,8 @@ class ThreeLayerAuthManager(
         cooldown_rem = max(0, int(60.0 - elapsed_sec))
         res_data = {
             "ok": True,
-            "email": acc["email"],
-            "display_name": acc["display_name"],
+            "email": acc_email,
+            "display_name": display_name,
             "cooldown_remaining_seconds": cooldown_rem,
             "gmail_delivery": gmail_res,
             "message": f"✅ Đã gửi mã OTP 6 số về Gmail ({gmail_res.get('actual_recipient')}) để đặt lại mật khẩu!",
@@ -956,35 +1751,59 @@ class ThreeLayerAuthManager(
         new_password: str,
         confirm_password: str,
         source: str = "Web Quên Mật Khẩu",
+        client_ip: str = "unknown",
     ) -> dict[str, Any]:
         """Xác nhận mã OTP quên mật khẩu và đặt lại mật khẩu mới (kiểm tra 2 ô mật khẩu)."""
         clean_email = str(email or "").strip().lower()
-        acc = self.find_account(clean_email)
         pw1 = str(new_password or "").strip()
         pw2 = str(confirm_password or "").strip()
         if not pw1 or not pw2:
-            return {"ok": False, "error": "Vui lòng nhập đầy đủ Mật khẩu mới và Xác nhận lại mật khẩu mới!"}
+            return {"ok": False, "status_code": 400, "error": "Vui lòng nhập đầy đủ Mật khẩu mới và Xác nhận lại mật khẩu mới!"}
         if pw1 != pw2:
-            return {"ok": False, "error": "Hai ô mật khẩu mới không khớp nhau!"}
+            return {"ok": False, "status_code": 400, "error": "Hai ô mật khẩu mới không khớp nhau!"}
+        if len(pw1) < 6:
+            return {"ok": False, "status_code": 400, "error": "Mật khẩu phải có từ 6 ký tự trở lên!"}
 
-        otp_res = self.layer2_verify_otp(clean_email, otp_code, source=source)
+        otp_res = self.layer2_verify_otp(
+            clean_email,
+            otp_code,
+            source=source,
+            expected_purpose="forgot_password",
+            client_ip=client_ip,
+        )
         if not otp_res.get("ok"):
             return otp_res
 
+        resolved_email = str(otp_res.get("email") or clean_email).strip().lower()
         res = self.register_or_update_password(
-            email=clean_email,
+            email=resolved_email,
             password=pw1,
             confirm_password=pw2,
             source=source,
         )
         if res.get("ok"):
-            with self._otp_lock:
-                self.pending_otps.pop(clean_email, None)
-                acc = self.find_account(clean_email)
-                if acc:
-                    acc.pop("pending_otp", None)
-                    acc.pop("otp_cooldown_started_at", None)
-                    self._save_accounts()
+            def _cleanup() -> None:
+                with self._otp_lock:
+                    dict.pop(self.pending_otps, clean_email, None)
+                    dict.pop(self.pending_otps, resolved_email, None)
+                    target = next(
+                        (a for a in self.accounts if str(a.get("email") or "").strip().lower() == resolved_email),
+                        None,
+                    )
+                    if target is None:
+                        canon_res = canonical_gmail_mailbox(resolved_email)
+                        if canon_res:
+                            target = next(
+                                (a for a in self.accounts if canonical_gmail_mailbox(a.get("email")) == canon_res),
+                                None,
+                            )
+                    if target is not None:
+                        target.pop("pending_otp", None)
+                        target.pop("otp_cooldown_started_at", None)
+                        self._save_accounts()
+
+            self._with_cas_accounts(_cleanup)
+            self._clear_login_failures(resolved_email, client_ip=client_ip)
         return res
 
     def upsert_speaker_account_for_voice(
@@ -1060,117 +1879,187 @@ class ThreeLayerAuthManager(
         self._save_accounts()
         return acc
 
-    def layer2_verify_otp(self, email: str, otp_input: str, source: str = "Web") -> dict[str, Any]:
+    def layer2_verify_otp(
+        self,
+        email: str,
+        otp_input: str,
+        source: str = "Web",
+        expected_purpose: str | None = None,
+        client_ip: str = "unknown",
+    ) -> dict[str, Any]:
         """Lớp 2: Xác nhận mã OTP 6 số gửi về Gmail có rate limiting tối đa 3 lần sai trong 5 phút."""
         clean_email = str(email or "").strip().lower()
-        acc = self.find_account(clean_email)
-        key = acc["email"].lower() if acc else clean_email
         now = time.time()
 
-        with self._otp_lock:
-            # 1. Atomic Rate limit check
-            raw_fails = self.otp_failed_attempts.get(key, [])
-            if not raw_fails and acc and "otp_failed_verify_attempts" in acc:
-                raw_fails = acc["otp_failed_verify_attempts"]
-            recent_fails = [float(t) for t in raw_fails if (now - float(t)) < 300.0]
-
-            if len(recent_fails) >= 3:
-                self._log_event(
-                    layer="Lớp 2 (Gmail OTP)",
-                    action="otp_verify_rate_limited",
-                    email=email,
-                    status="FAIL",
-                    detail="Đã thử sai mã OTP quá 3 lần trong 5 phút. Tạm thời chặn xác thực.",
-                    source=source,
+        def _mutate() -> dict[str, Any]:
+            with self._otp_lock:
+                target_acc = next(
+                    (a for a in self.accounts if str(a.get("email") or "").strip().lower() == clean_email),
+                    None,
                 )
-                return {
-                    "ok": False,
-                    "layer": 2,
-                    "status_code": 429,
-                    "rate_limited": True,
-                    "error": "Đã thử sai mã OTP quá 3 lần trong 5 phút. Vui lòng đợi 5 phút trước khi thử lại.",
-                }
+                if target_acc is None:
+                    canon_target = canonical_gmail_mailbox(clean_email)
+                    if canon_target:
+                        target_acc = next(
+                            (a for a in self.accounts if canonical_gmail_mailbox(a.get("email")) == canon_target),
+                            None,
+                        )
+                key = str(target_acc.get("email") or clean_email).strip().lower() if target_acc else clean_email
 
-            pending = self.pending_otps.get(key)
-            if not pending and acc and acc.get("pending_otp"):
-                candidate = acc.get("pending_otp")
-                if candidate and (now < candidate.get("expires_at", 0)):
-                    pending = candidate
-                    self.pending_otps[key] = candidate
+                # 1. Atomic Rate limit check
+                raw_fails = list(self.otp_failed_attempts.get(key, []) or [])
+                if not raw_fails and target_acc and isinstance(target_acc.get("otp_failed_verify_attempts"), list):
+                    raw_fails = list(target_acc["otp_failed_verify_attempts"])
+                recent_fails = [float(t) for t in raw_fails if (now - float(t)) < 300.0]
 
-            if not pending:
-                self._log_event(
-                    layer="Lớp 2 (Gmail OTP)",
-                    action="otp_verify",
-                    email=email,
-                    status="FAIL",
-                    detail="Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
-                    source=source,
-                )
-                return {"ok": False, "layer": 2, "status_code": 400, "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!"}
+                if len(recent_fails) >= 3:
+                    self._log_event(
+                        layer="Lớp 2 (Gmail OTP)",
+                        action="otp_verify_rate_limited",
+                        email=email,
+                        status="FAIL",
+                        detail="Đã thử sai mã OTP quá 3 lần trong 5 phút. Tạm thời chặn xác thực.",
+                        source=source,
+                    )
+                    return {
+                        "ok": False,
+                        "layer": 2,
+                        "status_code": 429,
+                        "rate_limited": True,
+                        "error": "Đã thử sai mã OTP quá 3 lần trong 5 phút. Vui lòng đợi 5 phút trước khi thử lại.",
+                    }
 
-            if now > pending["expires_at"]:
-                self._log_event(
-                    layer="Lớp 2 (Gmail OTP)",
-                    action="otp_verify",
-                    email=email,
-                    status="FAIL",
-                    detail="Mã OTP đã hết hạn (> 5 phút).",
-                    source=source,
-                )
-                return {"ok": False, "layer": 2, "status_code": 400, "error": "Mã OTP đã hết hạn!"}
+                pending = self.pending_otps.get(key) or self.pending_otps.get(clean_email)
+                if not pending and target_acc and isinstance(target_acc.get("pending_otp"), dict):
+                    candidate = target_acc.get("pending_otp")
+                    if candidate and not candidate.get("consumed", False):
+                        pending = candidate
+                        self.pending_otps[key] = candidate
 
-            if otp_input.strip() != pending["otp_code"]:
-                recent_fails.append(now)
-                self.otp_failed_attempts[key] = recent_fails
-                if acc:
-                    acc["otp_failed_verify_attempts"] = recent_fails
-                    self._save_accounts()
+                if not isinstance(pending, dict) or pending.get("consumed", False):
+                    self._log_event(
+                        layer="Lớp 2 (Gmail OTP)",
+                        action="otp_verify",
+                        email=email,
+                        status="FAIL",
+                        detail="Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
+                        source=source,
+                    )
+                    return {
+                        "ok": False,
+                        "layer": 2,
+                        "status_code": 400,
+                        "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!",
+                    }
 
-                self._log_event(
-                    layer="Lớp 2 (Gmail OTP)",
-                    action="otp_verify",
-                    email=pending["email"],
-                    status="FAIL",
-                    detail=f"Nhập sai mã OTP: mã xác nhận không chính xác. (Lần {len(recent_fails)}/3)",
-                    source=source,
-                )
-                return {
-                    "ok": False,
-                    "layer": 2,
-                    "status_code": 400,
-                    "error": f"Mã OTP '{otp_input}' không chính xác!",
-                }
+                if now > float(pending.get("expires_at", 0) or 0):
+                    self._log_event(
+                        layer="Lớp 2 (Gmail OTP)",
+                        action="otp_verify",
+                        email=email,
+                        status="FAIL",
+                        detail="Mã OTP đã hết hạn (> 5 phút).",
+                        source=source,
+                    )
+                    return {"ok": False, "layer": 2, "status_code": 400, "error": "Mã OTP đã hết hạn!"}
 
-            # Verification succeeds: atomically reset failed attempts
-            self.otp_failed_attempts[key] = []
-            if acc:
-                acc["otp_failed_verify_attempts"] = []
+                pending_purpose = str(pending.get("purpose") or "").strip()
+                if expected_purpose is not None and pending_purpose and pending_purpose != expected_purpose:
+                    self._log_event(
+                        layer="Lớp 2 (Gmail OTP)",
+                        action="otp_verify_wrong_purpose",
+                        email=str(pending.get("email") or key),
+                        status="FAIL",
+                        detail="Mã OTP không đúng mục đích xác thực yêu cầu.",
+                        source=source,
+                    )
+                    return {
+                        "ok": False,
+                        "layer": 2,
+                        "status_code": 400,
+                        "error": "Mã OTP này không dành cho thao tác hiện tại. Vui lòng yêu cầu mã OTP mới!",
+                    }
+
+                otp_clean = str(otp_input or "").strip()
+                otp_match = False
+                if pending.get("otp_hash") and pending.get("otp_salt"):
+                    _, candidate_hash = self._hash_otp_code(otp_clean, otp_salt=str(pending["otp_salt"]))
+                    otp_match = bool(otp_clean) and hmac.compare_digest(candidate_hash, str(pending["otp_hash"]))
+                elif pending.get("otp_code"):
+                    otp_match = bool(otp_clean) and hmac.compare_digest(otp_clean, str(pending["otp_code"]))
+
+                pending_email = str(pending.get("email") or (target_acc.get("email") if target_acc else key))
+                pending_display = str(pending.get("display_name") or (target_acc.get("display_name") if target_acc else pending_email))
+                pending_tier = int(pending.get("tier") or (target_acc.get("tier") if target_acc else 1))
+                pending_account_id = str(pending.get("account_id") or (target_acc.get("account_id") if target_acc else ""))
+
+                if not otp_match:
+                    recent_fails.append(now)
+                    self.otp_failed_attempts[key] = recent_fails
+                    if target_acc:
+                        target_acc["otp_failed_verify_attempts"] = recent_fails
+                        self._save_accounts()
+
+                    self._log_event(
+                        layer="Lớp 2 (Gmail OTP)",
+                        action="otp_verify",
+                        email=pending_email,
+                        status="FAIL",
+                        detail=f"Nhập sai mã OTP: mã xác nhận không chính xác. (Lần {len(recent_fails)}/3)",
+                        source=source,
+                    )
+                    return {
+                        "ok": False,
+                        "layer": 2,
+                        "status_code": 400,
+                        "error": f"Mã OTP '{otp_input}' không chính xác!",
+                    }
+
+                # Verification succeeds: atomically reset failed attempts & consume login OTPs
+                verified_purpose = pending_purpose or expected_purpose or "layer2_login"
+                self.otp_failed_attempts[key] = []
+                if target_acc:
+                    target_acc["otp_failed_verify_attempts"] = []
+                pending["verified_layer2"] = True
+                if verified_purpose == "layer2_login":
+                    pending["consumed"] = True
+                    dict.pop(self.pending_otps, key, None)
+                    dict.pop(self.pending_otps, clean_email, None)
+                    if target_acc:
+                        target_acc.pop("pending_otp", None)
+                        target_acc.pop("otp_cooldown_started_at", None)
                 self._save_accounts()
 
-            pending["verified_layer2"] = True
+                return {
+                    "ok": True,
+                    "layer": 2,
+                    "next_layer": 3,
+                    "verified_purpose": verified_purpose,
+                    "email": pending_email,
+                    "account_id": pending_account_id,
+                    "display_name": pending_display,
+                    "tier": pending_tier,
+                    "voice_verified": bool(
+                        target_acc and target_acc.get("voice_verified", not target_acc.get("needs_first_page_voice_enroll", False))
+                    ),
+                    "needs_first_page_voice_enroll": bool(target_acc and target_acc.get("needs_first_page_voice_enroll")),
+                    "reading_prompt": target_acc.get("reading_prompt", "") if target_acc else "",
+                    "message": "✅ Lớp 2 (Gmail OTP) thành công!",
+                }
 
-        self._log_event(
-            layer="Lớp 2 (Gmail OTP)",
-            action="otp_verified",
-            email=pending["email"],
-            status="PASS",
-            detail=f"Xác nhận đúng mã Gmail OTP cho {pending['display_name']} (Tầng {pending['tier']}). Chờ Lớp 3 (Giọng nói).",
-            source=source,
-        )
-        return {
-            "ok": True,
-            "layer": 2,
-            "next_layer": 3,
-            "email": pending["email"],
-            "account_id": pending.get("account_id", ""),
-            "display_name": pending["display_name"],
-            "tier": pending["tier"],
-            "voice_verified": bool(acc and acc.get("voice_verified", not acc.get("needs_first_page_voice_enroll", False))),
-            "needs_first_page_voice_enroll": bool(acc and acc.get("needs_first_page_voice_enroll")),
-            "reading_prompt": acc.get("reading_prompt", "") if acc else "",
-            "message": "✅ Lớp 2 (Gmail OTP) thành công! Bước cuối (Lớp 3): Hãy thu âm giọng nói trên Điện thoại hoặc Web để Server nhận diện đúng người!",
-        }
+        res = self._with_cas_accounts(_mutate)
+        if res.get("ok"):
+            if res.get("verified_purpose") == "layer2_login":
+                self._clear_login_failures(str(res.get("email") or clean_email), client_ip=client_ip)
+            self._log_event(
+                layer="Lớp 2 (Gmail OTP)",
+                action="otp_verified",
+                email=str(res.get("email") or email),
+                status="PASS",
+                detail=f"Xác nhận đúng mã Gmail OTP cho {res.get('display_name')} (Tầng {res.get('tier')}).",
+                source=source,
+            )
+        return res
 
     @staticmethod
     def analyze_pcm16k_bytes(pcm_bytes: bytes) -> dict[str, float]:
@@ -1761,43 +2650,61 @@ class ThreeLayerAuthManager(
     ) -> dict[str, Any]:
         """Chạy bộ kiểm thử tự động 14 kịch bản với quy tắc RBAC mới (Chỉ Cấp 1 có quyền mời)."""
         send_flag = bool(send_real_email_on_test1 or kwargs.get("send_real_gmail_in_test", False))
-        report = super().run_automated_3layer_test_suite(send_real_email_on_test1=send_flag)
-        if not isinstance(report, dict) or not isinstance(report.get("cases"), list):
+        self._sync_accounts_from_cas_if_enabled()
+        with _ACCOUNTS_FILE_LOCK:
+            with self._otp_lock:
+                orig_accounts = copy.deepcopy(self.accounts)
+                orig_otps = copy.deepcopy(dict(self.pending_otps))
+                orig_fails = copy.deepcopy(self.otp_failed_attempts)
+                orig_rl = copy.deepcopy(self._login_rate_limits)
+        tok = _AUTOTEST_SANDBOX.set(True)
+        try:
+            report = super().run_automated_3layer_test_suite(send_real_email_on_test1=send_flag)
+            if not isinstance(report, dict) or not isinstance(report.get("cases"), list):
+                return report
+            inv_t2 = self.get_invite_links_for_account("thanhviena.hust@gmail.com")
+            blk_t2_to_t3 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=3, source="AutoTest-Suite")
+            blk_t2_to_t2 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=2, source="AutoTest-Suite")
+            p06 = (
+                not inv_t2.get("can_invite")
+                and inv_t2.get("allowed_target_tiers", []) == []
+                and not blk_t2_to_t3.get("ok")
+                and not blk_t2_to_t2.get("ok")
+            )
+            for item in report["cases"]:
+                if isinstance(item, dict) and item.get("test_id") == "TEST-06":
+                    item["passed"] = p06
+                    item["status"] = "PASS" if p06 else "FAIL"
+                    item["expected"] = "Cấp 2 không có quyền tạo/gửi link mời (Chỉ Chủ nhà Cấp 1 mới có quyền mời)"
+                    item["actual"] = (
+                        f"can_invite={inv_t2.get('can_invite')} | allowed_tiers={inv_t2.get('allowed_target_tiers')} | "
+                        f"Chặn mời T3={not blk_t2_to_t3.get('ok')} | Chặn mời T2={not blk_t2_to_t2.get('ok')}"
+                    )
+            cases = report["cases"]
+            passed_cnt = sum(1 for r in cases if isinstance(r, dict) and r.get("passed"))
+            total_cnt = len(cases)
+            report["ok"] = passed_cnt == total_cnt
+            report["passed"] = passed_cnt
+            report["passed_cases"] = passed_cnt
+            report["passed_count"] = passed_cnt
+            report["failed_count"] = total_cnt - passed_cnt
+            report["pass_rate"] = f"{round((passed_cnt / max(1, total_cnt)) * 100, 1)}%"
+            report["all_passed"] = passed_cnt == total_cnt
+            report["summary"] = (
+                f"Đạt {passed_cnt}/{total_cnt} kịch bản kiểm thử toàn diện "
+                f"(3 Lớp + Phân cấp Link Mời + OAuth Gmail OTP + Thu âm Trang Đầu + Giọng nói Xóa/Bật Quyền)"
+            )
+            self.latest_test_report = report
             return report
-        inv_t2 = self.get_invite_links_for_account("thanhviena.hust@gmail.com")
-        blk_t2_to_t3 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=3, source="AutoTest-Suite")
-        blk_t2_to_t2 = self.create_custom_invite_link("thanhviena.hust@gmail.com", target_tier=2, source="AutoTest-Suite")
-        p06 = (
-            not inv_t2.get("can_invite")
-            and inv_t2.get("allowed_target_tiers", []) == []
-            and not blk_t2_to_t3.get("ok")
-            and not blk_t2_to_t2.get("ok")
-        )
-        for item in report["cases"]:
-            if isinstance(item, dict) and item.get("test_id") == "TEST-06":
-                item["passed"] = p06
-                item["status"] = "PASS" if p06 else "FAIL"
-                item["expected"] = "Cấp 2 không có quyền tạo/gửi link mời (Chỉ Chủ nhà Cấp 1 mới có quyền mời)"
-                item["actual"] = (
-                    f"can_invite={inv_t2.get('can_invite')} | allowed_tiers={inv_t2.get('allowed_target_tiers')} | "
-                    f"Chặn mời T3={not blk_t2_to_t3.get('ok')} | Chặn mời T2={not blk_t2_to_t2.get('ok')}"
-                )
-        cases = report["cases"]
-        passed_cnt = sum(1 for r in cases if isinstance(r, dict) and r.get("passed"))
-        total_cnt = len(cases)
-        report["ok"] = passed_cnt == total_cnt
-        report["passed"] = passed_cnt
-        report["passed_cases"] = passed_cnt
-        report["passed_count"] = passed_cnt
-        report["failed_count"] = total_cnt - passed_cnt
-        report["pass_rate"] = f"{round((passed_cnt / max(1, total_cnt)) * 100, 1)}%"
-        report["all_passed"] = passed_cnt == total_cnt
-        report["summary"] = (
-            f"Đạt {passed_cnt}/{total_cnt} kịch bản kiểm thử toàn diện "
-            f"(3 Lớp + Phân cấp Link Mời + OAuth Gmail OTP + Thu âm Trang Đầu + Giọng nói Xóa/Bật Quyền)"
-        )
-        self.latest_test_report = report
-        return report
+        finally:
+            _AUTOTEST_SANDBOX.reset(tok)
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    self.accounts = orig_accounts
+                    dict.clear(self.pending_otps)
+                    dict.update(self.pending_otps, orig_otps)
+                    self.otp_failed_attempts = orig_fails
+                    self._login_rate_limits = orig_rl
 
 
 _AUTH_MANAGER: ThreeLayerAuthManager | None = None

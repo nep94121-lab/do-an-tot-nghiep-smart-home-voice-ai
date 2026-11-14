@@ -358,7 +358,11 @@ def test_login_generates_session_token_and_keeps_engine_clean(client: TestClient
     from simulator.auth_3layer import get_auth_3layer_manager
 
     ephemeral_pw = "RuntimeOwner_" + secrets.token_urlsafe(12)
-    get_auth_3layer_manager().register_or_update_password(
+    mgr = get_auth_3layer_manager()
+    owner_acc = mgr.find_account("nep94121@gmail.com")
+    assert owner_acc is not None
+    orig_owner_hash = owner_acc.get("password_hash", "")
+    mgr.register_or_update_password(
         email="nep94121@gmail.com",
         password=ephemeral_pw,
         confirm_password=ephemeral_pw,
@@ -366,41 +370,61 @@ def test_login_generates_session_token_and_keeps_engine_clean(client: TestClient
         target_tier=1,
     )
 
-    # Đăng nhập Chủ nhà Lớp 1
-    resp = client.post(
-        "/api/auth3/layer1_login",
-        json={
-            "email": "nep94121@gmail.com",
-            "password": ephemeral_pw,
-            "login_method": "password",
-            "source": "Web Test Login",
-            "send_gmail": False,
-        },
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data.get("ok") is True
+    try:
+        # Đăng nhập Chủ nhà Lớp 1 (chỉ trả otp_required=True, chưa cấp session cho tới khi qua Lớp 2 OTP)
+        resp = client.post(
+            "/api/auth3/layer1_login",
+            json={
+                "email": "nep94121@gmail.com",
+                "password": ephemeral_pw,
+                "login_method": "password",
+                "source": "Web Test Login",
+                "send_gmail": False,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("ok") is True
+        assert data.get("otp_required") is True
+        otp_code = data.get("otp_code_for_test") or data.get("demo_otp_preview")
+        assert otp_code and len(str(otp_code)) == 6, "Owner Lớp 1 phải trả về mã OTP Lớp 2 khi offline test"
 
-    # 1. Có session_token và session dict
-    token = data.get("session_token")
-    assert token, "Phải có session_token trong phản hồi đăng nhập"
-    assert token.startswith("sess_")
-    assert "sh_session_token" in resp.headers.get("set-cookie", "")
+        resp2 = client.post(
+            "/api/auth3/layer2_verify_otp",
+            json={
+                "email": "nep94121@gmail.com",
+                "otp_code": otp_code,
+                "purpose": "layer2_login",
+                "source": "Web Test Login OTP",
+            },
+        )
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        assert data2.get("ok") is True
 
-    # 2. SessionStore có session này
-    saved_sess = store.get_session(token)
-    assert saved_sess is not None
-    assert saved_sess.tier == 1
-    assert saved_sess.role == "ADMIN"
+        # 1. Có session_token và session dict
+        token = data2.get("session_token")
+        assert token, "Phải có session_token trong phản hồi xác thực OTP Lớp 2"
+        assert token.startswith("sess_")
+        assert "sh_session_token" in resp2.headers.get("set-cookie", "")
 
-    # 3. Dùng token vừa cấp điều khiển mở cửa chính thành công
-    resp_door = client.post(
-        "/api/device",
-        json={"device_id": "main_door", "action": "open"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp_door.status_code == 200
-    assert resp_door.json().get("ok") is True
+        # 2. SessionStore có session này
+        saved_sess = store.get_session(token)
+        assert saved_sess is not None
+        assert saved_sess.tier == 1
+        assert saved_sess.role == "ADMIN"
+
+        # 3. Dùng token vừa cấp điều khiển mở cửa chính thành công
+        resp_door = client.post(
+            "/api/device",
+            json={"device_id": "main_door", "action": "open"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp_door.status_code == 200
+        assert resp_door.json().get("ok") is True
+    finally:
+        owner_acc["password_hash"] = orig_owner_hash
+        mgr._login_rate_limits.clear()
 
 
 # =============================================================================

@@ -28,7 +28,7 @@
             tok = (window.sessionStorage && window.sessionStorage.getItem('session_token')) ||
                   (window.localStorage && window.localStorage.getItem('session_token')) || '';
           } catch (_) {}
-          const nextInit = Object.assign({ credentials: 'same-origin' }, init || {});
+          const nextInit = Object.assign({ credentials: 'include' }, init || {});
           const hdrs = Object.assign({}, nextInit.headers || {});
           if (tok && !hdrs['X-Session-Token'] && !hdrs['x-session-token'] && !hdrs['Authorization']) {
             hdrs['X-Session-Token'] = tok;
@@ -88,6 +88,331 @@
     let mobileAudioProcessor = null;
     let mobileLoggedIn = false;
     let mobileLoggedInEmail = '';
+    let mobileRole = null;
+    let mobileTier = null;
+    let mobileDisplayName = '';
+    let mobilePendingOtpEmail = '';
+    let mobileSessionGeneration = 0;
+    let mobilePollIntervalId = null;
+
+    function isHttpOk(res) {
+      return Boolean(res && (res.ok !== undefined ? res.ok : (res.status !== undefined ? (res.status >= 200 && res.status < 300) : true)));
+    }
+
+    function getMobileTierLabel(tier, roleName) {
+      const t = Number(tier);
+      if (t === 1 || roleName === 'owner') return 'Chủ nhà';
+      if (t === 2 || roleName === 'family') return 'Thành viên gia đình';
+      if (t === 3 || roleName === 'guest') return 'Khách';
+      return 'Thành viên';
+    }
+
+    function clearMobileClientTokens() {
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('mobileLoggedIn');
+          sessionStorage.removeItem('mobileLoggedInEmail');
+          sessionStorage.removeItem('session_token');
+          sessionStorage.removeItem('sh_session_token');
+        }
+      } catch (_) {}
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('smarthome_auth_session');
+          localStorage.removeItem('session_token');
+          localStorage.removeItem('sh_session_token');
+          localStorage.removeItem('auth3_session');
+          localStorage.removeItem('mobileLoggedIn');
+          localStorage.removeItem('mobileLoggedInEmail');
+        }
+      } catch (_) {}
+    }
+
+    function clearMobileAuthState() {
+      mobileSessionGeneration += 1;
+      mobileLoggedIn = false;
+      mobileLoggedInEmail = '';
+      mobileRole = null;
+      mobileTier = null;
+      mobileDisplayName = '';
+      clearMobileClientTokens();
+    }
+
+    function showMobileActionError(msg, requireLogin = false) {
+      ['mobileActionStatus', 'mobileDevicesAuthStatus'].forEach((elId) => {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        if (!msg) {
+          el.hidden = true;
+          el.innerHTML = '';
+          return;
+        }
+        el.hidden = false;
+        el.textContent = '';
+        const span = document.createElement('span');
+        span.textContent = msg;
+        el.appendChild(span);
+        if (requireLogin) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn primary';
+          btn.style.marginLeft = '8px';
+          btn.style.padding = '4px 10px';
+          btn.style.fontSize = '12px';
+          btn.textContent = 'Đăng nhập';
+          btn.onclick = () => openMobileLoginGate(true);
+          el.appendChild(btn);
+        }
+      });
+    }
+
+    function openMobileLoginGate(focusInput = true) {
+      const gate = document.getElementById('mobileLoginGate');
+      const main = document.getElementById('mobileMainContent');
+      const nav = document.getElementById('mobileBottomNav');
+      if (gate) gate.hidden = false;
+      if (main) main.hidden = true;
+      if (nav) nav.hidden = true;
+      cancelMobileOtpPanel(true);
+      if (focusInput) {
+        const emailEl = document.getElementById('mobileLoginEmail');
+        if (emailEl && typeof emailEl.focus === 'function') {
+          try { emailEl.focus(); } catch (_) {}
+        }
+      }
+    }
+
+    function handleMobileUnauthorized(msg) {
+      clearMobileAuthState();
+      updateMobileAuthUiState(false);
+      showMobileActionError(msg || 'Vui lòng đăng nhập để tiếp tục.', true);
+      openMobileLoginGate(true);
+      const loginMsg = document.getElementById('mobileLoginMsg');
+      if (loginMsg && msg) {
+        loginMsg.style.color = 'var(--danger)';
+        loginMsg.textContent = msg;
+      }
+    }
+
+    function showMobileOtpPanel(email) {
+      mobilePendingOtpEmail = email || '';
+      const loginForm = document.getElementById('mobileLoginForm');
+      const regForm = document.getElementById('mobileRegisterForm');
+      const forgotPanel = document.getElementById('mobileForgotPasswordPanel');
+      const otpPanel = document.getElementById('mobileOtpPanel');
+      const otpInput = document.getElementById('mobileOtpInput');
+      const otpStatus = document.getElementById('mobileOtpStatus');
+      if (loginForm) loginForm.style.display = 'none';
+      if (regForm) regForm.style.display = 'none';
+      if (forgotPanel) forgotPanel.style.display = 'none';
+      if (otpPanel) {
+        otpPanel.hidden = false;
+        otpPanel.style.display = 'grid';
+      }
+      if (otpInput) {
+        otpInput.value = '';
+        if (typeof otpInput.focus === 'function') {
+          try { otpInput.focus(); } catch (_) {}
+        }
+      }
+      if (otpStatus) {
+        otpStatus.style.color = 'var(--muted)';
+        otpStatus.textContent = 'Đang gửi mã OTP tới Gmail Chủ nhà...';
+      }
+    }
+
+    function cancelMobileOtpPanel(keepMsg = false) {
+      mobilePendingOtpEmail = '';
+      const loginForm = document.getElementById('mobileLoginForm');
+      const otpPanel = document.getElementById('mobileOtpPanel');
+      const otpInput = document.getElementById('mobileOtpInput');
+      const otpStatus = document.getElementById('mobileOtpStatus');
+      if (otpPanel) {
+        otpPanel.hidden = true;
+        otpPanel.style.display = 'none';
+      }
+      if (loginForm) loginForm.style.display = 'grid';
+      if (otpInput) otpInput.value = '';
+      if (otpStatus && !keepMsg) otpStatus.textContent = '';
+    }
+
+    async function sendMobileLayer2Otp() {
+      const statusEl = document.getElementById('mobileOtpStatus');
+      const sendBtn = document.getElementById('btnMobileSendOtp');
+      const email = (mobilePendingOtpEmail || (document.getElementById('mobileLoginEmail') || {}).value || '').trim();
+      if (!email) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Thiếu email tài khoản để gửi OTP.';
+        }
+        return;
+      }
+      if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Đang gửi OTP...'; }
+      try {
+        const res = await fetch('/api/auth3/layer2_send_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source: 'Mobile App' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok) {
+          if (statusEl) {
+            statusEl.style.color = 'var(--accent)';
+            statusEl.textContent = '✅ Đã gửi mã OTP 6 chữ số tới Gmail Chủ nhà. Vui lòng kiểm tra hộp thư.';
+          }
+        } else {
+          if (statusEl) {
+            statusEl.style.color = 'var(--danger)';
+            statusEl.textContent = data.error || data.message || 'Không gửi được mã OTP Gmail.';
+          }
+        }
+      } catch (_) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Lỗi kết nối máy chủ khi gửi OTP.';
+        }
+      }
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Gửi lại mã OTP'; }
+    }
+
+    async function verifyMobileLayer2Otp() {
+      const otpInput = document.getElementById('mobileOtpInput');
+      const statusEl = document.getElementById('mobileOtpStatus');
+      const verifyBtn = document.getElementById('btnMobileVerifyOtp');
+      const email = (mobilePendingOtpEmail || (document.getElementById('mobileLoginEmail') || {}).value || '').trim();
+      const otpCode = (otpInput ? otpInput.value : '').trim();
+      if (!email) {
+        if (statusEl) { statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Vui lòng đăng nhập lại Bước 1.'; }
+        return;
+      }
+      if (!/^\d{6}$/.test(otpCode)) {
+        if (statusEl) { statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Vui lòng nhập đúng 6 chữ số OTP.'; }
+        return;
+      }
+      if (verifyBtn) { verifyBtn.disabled = true; verifyBtn.textContent = 'Đang xác nhận...'; }
+      try {
+        const res = await fetch('/api/auth3/layer2_verify_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp_code: otpCode, purpose: 'layer2_login', source: 'Mobile App' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok && data.session_token) {
+          const acct = data.account || {};
+          mobileSessionGeneration += 1;
+          mobilePendingOtpEmail = '';
+          if (typeof sessionStorage !== 'undefined' && data.session_token) {
+            sessionStorage.setItem('session_token', data.session_token);
+          }
+          try {
+            if (typeof localStorage !== 'undefined' && data.session_token) {
+              localStorage.setItem('session_token', data.session_token);
+            }
+          } catch (_) {}
+          const verified = await fetchServerSessionRole({
+            authenticated: true,
+            email: acct.email || email,
+            display_name: acct.display_name || '',
+            tier: Number(data.tier || acct.tier || 1),
+            role: Number(data.tier || acct.tier || 1) === 1 ? 'owner' : 'member',
+          });
+          if (!verified) {
+            if (statusEl) {
+              statusEl.style.color = 'var(--danger)';
+              statusEl.textContent = 'Không thể xác minh phiên đăng nhập từ máy chủ.';
+            }
+          } else {
+            cancelMobileOtpPanel(true);
+            if (statusEl) statusEl.textContent = '';
+          }
+        } else {
+          const retryAfter = res.headers && res.headers.get ? res.headers.get('Retry-After') : '';
+          const lockoutHint = res.status === 429 && retryAfter ? ` (Thử lại sau ${retryAfter}s)` : '';
+          if (statusEl) {
+            statusEl.style.color = 'var(--danger)';
+            statusEl.textContent = (data.error || data.message || 'Mã OTP không đúng hoặc đã hết hạn.') + lockoutHint;
+          }
+        }
+      } catch (_) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Lỗi kết nối máy chủ khi xác nhận OTP.';
+        }
+      }
+      if (verifyBtn) { verifyBtn.disabled = false; verifyBtn.textContent = 'Xác nhận OTP & Đăng nhập'; }
+    }
+
+    async function fetchServerSessionRole(fallbackAuth = null) {
+      const reqGen = mobileSessionGeneration;
+      let res = null;
+      try {
+        res = await fetch('/api/session/role', { method: 'GET', credentials: 'include' });
+        if (res && res.status === 405) {
+          res = await fetch('/api/session/role', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+          });
+        }
+      } catch (_) {
+        res = null;
+      }
+      if (reqGen !== mobileSessionGeneration) return mobileLoggedIn;
+      let data = null;
+      if (res) {
+        try { data = await res.json(); } catch (_) { data = null; }
+      }
+      if (reqGen !== mobileSessionGeneration) return mobileLoggedIn;
+
+      const explicitUnauthorized = Boolean(
+        res && (res.status === 401 || res.status === 403 || (data && data.authenticated === false))
+      );
+      if (explicitUnauthorized) {
+        clearMobileAuthState();
+        updateMobileAuthUiState(false);
+        const main = document.getElementById('mobileMainContent');
+        const nav = document.getElementById('mobileBottomNav');
+        const gate = document.getElementById('mobileLoginGate');
+        if (main) main.hidden = true;
+        if (nav) nav.hidden = true;
+        if (gate) gate.hidden = false;
+        return false;
+      }
+
+      if (isHttpOk(res) && data && data.authenticated === true) {
+        const tierNum = Number(data.tier) || (data.role === 'owner' ? 1 : data.role === 'family' ? 2 : data.role === 'guest' ? 3 : null);
+        mobileLoggedIn = true;
+        mobileLoggedInEmail = String(data.email || '');
+        mobileDisplayName = String(data.display_name || '');
+        mobileRole = data.role || (tierNum === 1 ? 'owner' : tierNum === 2 ? 'family' : tierNum === 3 ? 'guest' : null);
+        mobileTier = tierNum;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('mobileLoggedIn', '1');
+            if (mobileLoggedInEmail) sessionStorage.setItem('mobileLoggedInEmail', mobileLoggedInEmail);
+          }
+        } catch (_) {}
+        showMobileActionError('');
+        showMobileMainContent();
+        return true;
+      }
+
+      if (fallbackAuth && fallbackAuth.authenticated === true && !explicitUnauthorized) {
+        mobileLoggedIn = true;
+        mobileLoggedInEmail = String(fallbackAuth.email || '');
+        mobileDisplayName = String(fallbackAuth.display_name || '');
+        mobileTier = Number(fallbackAuth.tier) || null;
+        mobileRole = fallbackAuth.role || (mobileTier === 1 ? 'owner' : mobileTier === 2 ? 'family' : mobileTier === 3 ? 'guest' : null);
+        showMobileActionError('');
+        showMobileMainContent();
+        return true;
+      }
+
+      clearMobileAuthState();
+      updateMobileAuthUiState(false);
+      return false;
+    }
 
     /* ═══════════════════════════════════════════
        LOGIN GATE
@@ -104,6 +429,7 @@
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Vui lòng nhập email và mật khẩu.'; }
         return;
       }
+      if (msgEl) { msgEl.style.color = 'var(--muted)'; msgEl.textContent = ''; }
       if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Đang đăng nhập...'; }
       try {
         const res = await fetch('/api/auth3/layer1_login', {
@@ -111,13 +437,34 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, login_method: 'password', source: 'Mobile App', send_gmail: false }),
         });
-        const data = await res.json();
-        if (data.ok) {
-          mobileLoggedIn = true;
-          mobileLoggedInEmail = email;
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          const retryAfter = res.headers && res.headers.get ? res.headers.get('Retry-After') : '';
+          const waitTxt = retryAfter ? ` (Thử lại sau ${retryAfter}s)` : '';
+          if (msgEl) {
+            msgEl.style.color = 'var(--danger)';
+            msgEl.textContent = (data.error || data.message || 'Tài khoản tạm thời bị khóa do nhập sai nhiều lần.') + waitTxt;
+          }
+        } else if (!isHttpOk(res) || !data.ok) {
+          if (msgEl) {
+            msgEl.style.color = 'var(--danger)';
+            msgEl.textContent = data.error || data.message || 'Sai email hoặc mật khẩu.';
+          }
+        } else if (data.otp_required === true) {
+          mobileLoggedIn = false;
+          mobileRole = null;
+          mobileTier = null;
+          const targetEmail = (data.account && data.account.email) || email;
+          showMobileOtpPanel(targetEmail);
+          await sendMobileLayer2Otp();
+        } else {
+          const acct = data.account || {};
+          const resolvedEmail = acct.email || email;
+          const resolvedTier = Number(data.tier || acct.tier || 0) || null;
+          mobileSessionGeneration += 1;
           if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('mobileLoggedIn', '1');
-            sessionStorage.setItem('mobileLoggedInEmail', email);
+            sessionStorage.setItem('mobileLoggedInEmail', resolvedEmail);
             if (data.session_token) sessionStorage.setItem('session_token', data.session_token);
           }
           try {
@@ -125,9 +472,13 @@
               localStorage.setItem('session_token', data.session_token);
             }
           } catch (_) {}
-          showMobileMainContent();
-        } else {
-          if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || data.message || 'Sai email hoặc mật khẩu.'; }
+          await fetchServerSessionRole({
+            authenticated: true,
+            email: resolvedEmail,
+            display_name: acct.display_name || '',
+            tier: resolvedTier,
+            role: resolvedTier === 1 ? 'owner' : resolvedTier === 2 ? 'family' : resolvedTier === 3 ? 'guest' : null,
+          });
         }
       } catch (err) {
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Lỗi kết nối server.'; }
@@ -150,8 +501,12 @@
     function switchMobileLoginTab(tab) {
       const loginForm = document.getElementById('mobileLoginForm');
       const regForm = document.getElementById('mobileRegisterForm');
+      const otpPanel = document.getElementById('mobileOtpPanel');
+      const forgotPanel = document.getElementById('mobileForgotPasswordPanel');
       const btnLogin = document.getElementById('btnMobileTabLogin');
       const btnReg = document.getElementById('btnMobileTabRegister');
+      if (otpPanel) { otpPanel.hidden = true; otpPanel.style.display = 'none'; }
+      if (forgotPanel) forgotPanel.style.display = 'none';
       if (tab === 'login') {
         if (loginForm) loginForm.style.display = 'grid';
         if (regForm) regForm.style.display = 'none';
@@ -167,19 +522,13 @@
 
     function onMobileRegTierChange() {
       const tierEl = document.getElementById('mobileRegTier');
-      const nameEl = document.getElementById('mobileRegName');
-      const emailEl = document.getElementById('mobileRegEmail');
-      if (!tierEl) return;
-      const t = parseInt(tierEl.value || '1', 10);
+      const helperEl = document.getElementById('mobileRegisterHelper');
+      if (!tierEl || !helperEl) return;
+      const t = parseInt(tierEl.value || '2', 10);
       if (t === 1) {
-        if (nameEl) nameEl.value = 'Nguyễn Tuấn Anh';
-        if (emailEl) emailEl.value = 'nep94121@gmail.com';
-      } else if (t === 2) {
-        if (nameEl && (nameEl.value === 'Nguyễn Tuấn Anh' || !nameEl.value)) nameEl.value = 'Thành viên A';
-        if (emailEl && (emailEl.value === 'nep94121@gmail.com' || !emailEl.value)) emailEl.value = 'thanhviena.hust@gmail.com';
+        helperEl.textContent = 'Tài khoản Chủ nhà dùng email quản trị đã cấu hình và cần xác thực OTP khi đăng nhập.';
       } else {
-        if (nameEl && (nameEl.value === 'Nguyễn Tuấn Anh' || !nameEl.value)) nameEl.value = 'Khách C';
-        if (emailEl && (emailEl.value === 'nep94121@gmail.com' || !emailEl.value)) emailEl.value = 'khach.hust@gmail.com';
+        helperEl.textContent = 'Tài khoản mới đăng ký cần chờ Chủ nhà phê duyệt cấp quyền trước khi đăng nhập.';
       }
     }
 
@@ -232,12 +581,18 @@
           body: JSON.stringify(reqBody),
         });
         const data = await res.json();
-        if (data.ok) {
+        if (isHttpOk(res) && data.ok) {
           const hasActiveSession = Boolean(data.session_token && data.permission_active !== false);
           if (hasActiveSession) {
-            const resolvedEmail = (data.account && data.account.email) || email;
+            const acct = data.account || {};
+            const resolvedEmail = acct.email || email;
+            const resolvedTier = Number(data.tier || acct.tier || tier || 2);
+            mobileSessionGeneration += 1;
             mobileLoggedIn = true;
             mobileLoggedInEmail = resolvedEmail;
+            mobileDisplayName = acct.display_name || name || '';
+            mobileTier = resolvedTier;
+            mobileRole = resolvedTier === 1 ? 'owner' : resolvedTier === 2 ? 'family' : 'guest';
             if (typeof sessionStorage !== 'undefined') {
               sessionStorage.setItem('mobileLoggedIn', '1');
               sessionStorage.setItem('mobileLoggedInEmail', resolvedEmail);
@@ -252,14 +607,11 @@
             }
             setTimeout(showMobileMainContent, 500);
           } else {
-            mobileLoggedIn = false;
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.removeItem('mobileLoggedIn');
-              sessionStorage.removeItem('session_token');
-            }
+            clearMobileAuthState();
+            updateMobileAuthUiState(false);
             if (msgEl) {
               msgEl.style.color = 'var(--muted)';
-              msgEl.textContent = data.message || 'Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.';
+              msgEl.textContent = data.message || 'Đã tạo tài khoản. Chờ chủ nhà cấp quyền trước khi đăng nhập.';
             }
           }
         } else {
@@ -274,7 +626,7 @@
           msgEl.textContent = 'Lỗi kết nối máy chủ.';
         }
       }
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Xác nhận 2 mật khẩu & Đăng nhập'; }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Đăng ký tài khoản'; }
     }
 
     async function submitMobileChangePassword(e) {
@@ -344,6 +696,47 @@
     let voiceSheetAnimFrame = null;
     let qrCameraStream = null;
 
+    function updateMobileAuthUiState(serverConnected = true) {
+      const isAuthed = Boolean(mobileLoggedIn);
+      const isOwner = isAuthed && Number(mobileTier) === 1;
+      const badgeIds = ['espBadge', 'mobileDevicesConnBadge', 'mobileVoiceConnBadge', 'mobileAccountConnBadge'];
+      badgeIds.forEach((bId) => {
+        const el = document.getElementById(bId);
+        if (!el) return;
+        const label = !isAuthed ? 'Chưa đăng nhập' : (serverConnected ? 'Đã kết nối' : 'Mất kết nối');
+        el.innerHTML = `<span class="dot"></span>${label}`;
+        if (el.classList) {
+          if (typeof el.classList.toggle === 'function') {
+            el.classList.toggle('offline', !isAuthed || !serverConnected);
+          } else if (!isAuthed || !serverConnected) {
+            if (typeof el.classList.add === 'function') el.classList.add('offline');
+          } else if (typeof el.classList.remove === 'function') {
+            el.classList.remove('offline');
+          }
+        }
+      });
+
+      const voiceBadge = document.getElementById('voiceStateBadge');
+      if (voiceBadge && (!isAuthed || voiceBadge.textContent === 'Chưa đăng nhập')) {
+        voiceBadge.textContent = isAuthed ? 'Sẵn sàng' : 'Chưa đăng nhập';
+      }
+
+      if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('[data-owner-only="true"]').forEach((el) => {
+          el.hidden = !isOwner;
+        });
+      }
+
+      const btnLogout = document.getElementById('mobileBtnLogout');
+      const btnOpenLogin = document.getElementById('mobileBtnOpenLogin');
+      if (btnLogout) btnLogout.hidden = !isAuthed;
+      if (btnOpenLogin) btnOpenLogin.hidden = isAuthed;
+
+      if (!isAuthed) {
+        updateAccountProfile('Chưa đăng nhập', '', '—');
+      }
+    }
+
     function showMobileMainContent() {
       const gate = document.getElementById('mobileLoginGate');
       const main = document.getElementById('mobileMainContent');
@@ -352,80 +745,17 @@
       if (main) main.hidden = false;
       if (nav) nav.hidden = false;
       switchMobileTab('home');
-      updateAccountProfile(
-        mobileLoggedInEmail === 'nep94121@gmail.com' ? 'Chủ nhà' : 'Thành viên',
-        mobileLoggedInEmail,
-        mobileLoggedInEmail === 'nep94121@gmail.com' ? 'Không giới hạn' : 'Còn 30 ngày'
-      );
+      const roleLabel = mobileLoggedIn ? getMobileTierLabel(mobileTier, mobileRole) : 'Chưa đăng nhập';
+      const durLabel = !mobileLoggedIn ? '—' : (Number(mobileTier) === 1 ? 'Không giới hạn' : (Number(mobileTier) === 3 ? 'Tạm thời' : 'Theo quyền tài khoản'));
+      updateAccountProfile(roleLabel, mobileLoggedIn ? mobileLoggedInEmail : '', durLabel);
+      updateMobileAuthUiState(mobileLoggedIn);
       initMobileApp();
     }
 
     function checkMobileSession() {
-      let hasSession = false;
-      let resolvedEmail = 'nep94121@gmail.com';
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          if (sessionStorage.getItem('mobileLoggedIn') === '1' || sessionStorage.getItem('session_token') || sessionStorage.getItem('sh_session_token')) {
-            hasSession = true;
-            resolvedEmail = sessionStorage.getItem('mobileLoggedInEmail') || resolvedEmail;
-          }
-        }
-        if (!hasSession && typeof localStorage !== 'undefined') {
-          const lsToken = localStorage.getItem('session_token') || localStorage.getItem('sh_session_token') || localStorage.getItem('auth3_session') || localStorage.getItem('smarthome_auth_session');
-          if (localStorage.getItem('mobileLoggedIn') === '1' || lsToken) {
-            hasSession = true;
-            resolvedEmail = localStorage.getItem('mobileLoggedInEmail') || resolvedEmail;
-          }
-        }
-        if (!hasSession && typeof document !== 'undefined' && document.cookie) {
-          const ck = document.cookie;
-          if (/(?:^|;\s*)(?:mobileLoggedIn=1|session_token=[^;\s]+|sh_session_token=[^;\s]+|smarthome_session=[^;\s]+)/.test(ck)) {
-            hasSession = true;
-            const mEmail = ck.match(/(?:^|;\s*)mobileLoggedInEmail=([^;]+)/);
-            if (mEmail && mEmail[1]) resolvedEmail = decodeURIComponent(mEmail[1]);
-          }
-        }
-        if (!hasSession && typeof window !== 'undefined' && window.location && window.location.search) {
-          if (/(?:[?&])(?:session_token|token|autologin)=/.test(window.location.search)) {
-            hasSession = true;
-          }
-        }
-      } catch (_) {}
-
-      if (hasSession) {
-        mobileLoggedIn = true;
-        mobileLoggedInEmail = resolvedEmail;
-        try {
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('mobileLoggedIn', '1');
-            sessionStorage.setItem('mobileLoggedInEmail', mobileLoggedInEmail);
-          }
-        } catch (_) {}
-        showMobileMainContent();
-        return;
-      }
-
-      // Neu chay tren trinh duyet kiem thu tu dong voi fake media stream (--use-fake-device-for-media-stream), tu dong mo khoa /app
-      try {
-        const explicitlyLoggedOut = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('mobileExplicitLogout') === '1';
-        if (!explicitlyLoggedOut && typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
-          navigator.mediaDevices.enumerateDevices().then((devices) => {
-            if (mobileLoggedIn) return;
-            const hasFakeMic = Array.isArray(devices) && devices.some((d) => d && d.label && /fake/i.test(String(d.label)));
-            if (hasFakeMic) {
-              mobileLoggedIn = true;
-              mobileLoggedInEmail = 'nep94121@gmail.com';
-              try {
-                if (typeof sessionStorage !== 'undefined') {
-                  sessionStorage.setItem('mobileLoggedIn', '1');
-                  sessionStorage.setItem('mobileLoggedInEmail', mobileLoggedInEmail);
-                }
-              } catch (_) {}
-              showMobileMainContent();
-            }
-          }).catch(() => {});
-        }
-      } catch (_) {}
+      // Fail-closed: derive authentication, role, tier exclusively from server /api/session/role
+      updateMobileAuthUiState(false);
+      return fetchServerSessionRole();
     }
 
     function switchMobileTab(tabKey, tabBtn = null) {
@@ -468,17 +798,24 @@
       const emailEl = document.getElementById('mobileProfileEmail');
       const durEl = document.getElementById('mobileProfileDuration');
       const actorBadge = document.getElementById('mobileActorBadge');
-      if (roleEl && role) roleEl.textContent = role;
-      if (actorBadge && role) actorBadge.textContent = role;
-      if (emailEl && email) {
-        const parts = email.split('@');
-        if (parts.length === 2 && parts[0].length > 1) {
-          emailEl.textContent = `${parts[0][0]}***@${parts[1]}`;
+      const regNameEl = document.getElementById('mobileVoiceRegName');
+      const safeRole = role || 'Chưa đăng nhập';
+      if (roleEl) roleEl.textContent = safeRole;
+      if (actorBadge) actorBadge.textContent = safeRole;
+      if (regNameEl) regNameEl.textContent = safeRole;
+      if (emailEl) {
+        if (!email) {
+          emailEl.textContent = '—';
         } else {
-          emailEl.textContent = email;
+          const parts = email.split('@');
+          if (parts.length === 2 && parts[0].length > 1) {
+            emailEl.textContent = `${parts[0][0]}***@${parts[1]}`;
+          } else {
+            emailEl.textContent = email;
+          }
         }
       }
-      if (durEl && duration) durEl.textContent = duration;
+      if (durEl) durEl.textContent = duration || '—';
     }
 
     function toggleDetailsSection(id) {
@@ -491,27 +828,18 @@
     }
 
     function submitMobileLogout() {
-      mobileLoggedIn = false;
-      mobileLoggedInEmail = '';
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem('mobileLoggedIn');
-        sessionStorage.removeItem('mobileLoggedInEmail');
-        sessionStorage.removeItem('session_token');
-        sessionStorage.removeItem('sh_session_token');
-        sessionStorage.clear();
-        sessionStorage.setItem('mobileExplicitLogout', '1');
+      clearMobileAuthState();
+      if (mobilePollIntervalId) {
+        clearInterval(mobilePollIntervalId);
+        mobilePollIntervalId = null;
       }
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('smarthome_auth_session');
-        localStorage.removeItem('session_token');
-        localStorage.removeItem('sh_session_token');
-        localStorage.removeItem('auth3_session');
-        localStorage.removeItem('mobileLoggedIn');
-        localStorage.removeItem('mobileLoggedInEmail');
+      _mobileAppInited = false;
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.clear();
       }
       try {
         if (typeof window !== 'undefined' && typeof window.fetch === 'function' && window.location && window.location.host) {
-          Promise.resolve(window.fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })).catch(() => {});
+          Promise.resolve(window.fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })).catch(() => {});
         }
       } catch (_) {}
       try {
@@ -522,13 +850,14 @@
         document.cookie = 'mobileLoggedInEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       } catch (_) {}
 
-      // Reset login form fields and messages
+      // Reset login & OTP fields and messages
       const emailInput = document.getElementById('mobileLoginEmail');
       const passInput = document.getElementById('mobileLoginPassword');
       if (emailInput) emailInput.value = '';
       if (passInput) passInput.value = '';
       const loginMsg = document.getElementById('mobileLoginMsg');
       if (loginMsg) loginMsg.textContent = '';
+      cancelMobileOtpPanel();
 
       // Reset register form fields
       const regName = document.getElementById('mobileRegName');
@@ -541,14 +870,17 @@
       if (regConf) regConf.value = '';
 
       // Reset forgot fields
-      const forgotEmail = document.getElementById('mobileForgotEmail');
+      const forgotEmailInput = document.getElementById('mobileForgotEmail');
       const forgotOtp = document.getElementById('mobileForgotOtp');
       const forgotPass = document.getElementById('mobileForgotNewPassword');
       const forgotConf = document.getElementById('mobileForgotConfirmPassword');
-      if (forgotEmail) forgotEmail.value = '';
+      if (forgotEmailInput) forgotEmailInput.value = '';
       if (forgotOtp) forgotOtp.value = '';
       if (forgotPass) forgotPass.value = '';
       if (forgotConf) forgotConf.value = '';
+
+      showMobileActionError('');
+      updateMobileAuthUiState(false);
 
       const main = document.getElementById('mobileMainContent');
       const nav = document.getElementById('mobileBottomNav');
@@ -564,21 +896,29 @@
     function openForgotPassword() {
       const loginForm = document.getElementById('mobileLoginForm');
       const regForm = document.getElementById('mobileRegisterForm');
+      const otpPanel = document.getElementById('mobileOtpPanel');
       const forgotPanel = document.getElementById('mobileForgotPasswordPanel');
       const stepEmail = document.getElementById('mobileForgotStepEmail');
       const stepOtp = document.getElementById('mobileForgotStepOtp');
       const stepReset = document.getElementById('mobileForgotStepReset');
       const stepLabel = document.getElementById('mobileForgotStepLabel');
       const stepDesc = document.getElementById('mobileForgotStepDesc');
+      const emailMsg = document.getElementById('mobileForgotEmailMsg');
+      const otpMsg = document.getElementById('mobileForgotOtpMsg');
+      const resetMsg = document.getElementById('mobileForgotResetMsg');
 
       if (loginForm) loginForm.style.display = 'none';
       if (regForm) regForm.style.display = 'none';
+      if (otpPanel) { otpPanel.hidden = true; otpPanel.style.display = 'none'; }
       if (forgotPanel) forgotPanel.style.display = 'block';
       if (stepEmail) stepEmail.style.display = 'grid';
       if (stepOtp) stepOtp.style.display = 'none';
       if (stepReset) stepReset.style.display = 'none';
       if (stepLabel) stepLabel.textContent = 'Bước 1/3';
       if (stepDesc) stepDesc.textContent = 'Nhập email để nhận mã xác nhận Gmail OTP.';
+      if (emailMsg) emailMsg.textContent = '';
+      if (otpMsg) otpMsg.textContent = '';
+      if (resetMsg) resetMsg.textContent = '';
     }
 
     function closeForgotPassword() {
@@ -630,13 +970,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, send_gmail: true })
         });
-        const data = await res.json();
-        if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
           const stepEmail = document.getElementById('mobileForgotStepEmail');
           const stepOtp = document.getElementById('mobileForgotStepOtp');
           const stepLabel = document.getElementById('mobileForgotStepLabel');
           const stepDesc = document.getElementById('mobileForgotStepDesc');
           const sentText = document.getElementById('mobileForgotEmailSentText');
+          const otpMsg = document.getElementById('mobileForgotOtpMsg');
+          if (msgEl) msgEl.textContent = '';
+          if (otpMsg) { otpMsg.style.color = 'var(--accent)'; otpMsg.textContent = '✅ Đã gửi mã OTP tới Gmail của bạn.'; }
           if (stepEmail) stepEmail.style.display = 'none';
           if (stepOtp) stepOtp.style.display = 'grid';
           if (stepLabel) stepLabel.textContent = 'Bước 2/3';
@@ -667,7 +1010,24 @@
             msgEl.style.color = 'var(--danger)';
             msgEl.textContent = data.error || (data.gmail_delivery && data.gmail_delivery.note) || 'Không gửi được OTP.';
           }
-          if (resendBtn && !forgotOtpCountdownTimer) {
+          const serverCooldown = Number(data.cooldown_remaining_seconds || 0);
+          if (serverCooldown > 0 && resendBtn) {
+            let countdown = serverCooldown;
+            resendBtn.disabled = true;
+            resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
+            if (forgotOtpCountdownTimer) clearInterval(forgotOtpCountdownTimer);
+            forgotOtpCountdownTimer = setInterval(() => {
+              countdown--;
+              if (countdown <= 0) {
+                clearInterval(forgotOtpCountdownTimer);
+                forgotOtpCountdownTimer = null;
+                resendBtn.disabled = false;
+                resendBtn.textContent = 'Gửi lại mã';
+              } else {
+                resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
+              }
+            }, 1000);
+          } else if (resendBtn && !forgotOtpCountdownTimer) {
             resendBtn.disabled = false;
           }
         }
@@ -695,6 +1055,7 @@
         }
         return;
       }
+      if (msgEl) msgEl.textContent = '';
       const stepOtp = document.getElementById('mobileForgotStepOtp');
       const stepReset = document.getElementById('mobileForgotStepReset');
       const stepLabel = document.getElementById('mobileForgotStepLabel');
@@ -717,6 +1078,10 @@
       const pw2 = pw2El ? pw2El.value : '';
       const otp = otpEl ? otpEl.value.trim() : '';
 
+      if (!forgotEmail || !/^\d{6}$/.test(otp)) {
+        if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Thiếu email hoặc mã OTP 6 chữ số.'; }
+        return;
+      }
       if (!pw1 || !pw2) {
         if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = 'Vui lòng nhập đầy đủ 2 ô mật khẩu.'; }
         return;
@@ -733,21 +1098,25 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: forgotEmail,
+            otp_code: otp,
             otp: otp,
             new_password: pw1,
             confirm_password: pw2
           })
         });
-        const data = await res.json();
-        if (data.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok) {
           if (msgEl) { msgEl.style.color = 'var(--accent)'; msgEl.textContent = '✅ Đặt mật khẩu thành công! Đang chuyển về đăng nhập...'; }
+          if (pw1El) pw1El.value = '';
+          if (pw2El) pw2El.value = '';
+          if (otpEl) otpEl.value = '';
           setTimeout(() => {
             closeForgotPassword();
             const loginEmail = document.getElementById('mobileLoginEmail');
             if (loginEmail) loginEmail.value = forgotEmail;
             const loginMsg = document.getElementById('mobileLoginMsg');
             if (loginMsg) { loginMsg.style.color = 'var(--accent)'; loginMsg.textContent = '✅ Đã cập nhật mật khẩu, vui lòng đăng nhập.'; }
-          }, 1000);
+          }, 900);
         } else {
           if (msgEl) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = data.error || 'Đặt mật khẩu thất bại.'; }
         }
@@ -779,6 +1148,16 @@
     }
 
     function openVoiceBottomSheet() {
+      if (!mobileLoggedIn) {
+        const scrim = document.getElementById('mobileVoiceSheetScrim');
+        const sheet = document.getElementById('mobileVoiceBottomSheet');
+        if (scrim) scrim.hidden = true;
+        if (sheet) sheet.hidden = true;
+        setMobileVoiceButtonsVisualState(false);
+        showMobileActionError('Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.', true);
+        openMobileLoginGate(true);
+        return;
+      }
       setMobileVoiceButtonsVisualState(true);
       const scrim = document.getElementById('mobileVoiceSheetScrim');
       const sheet = document.getElementById('mobileVoiceBottomSheet');
@@ -865,6 +1244,12 @@
     }
 
     async function startVoiceSheetRecording() {
+      if (!mobileLoggedIn) {
+        closeVoiceBottomSheet();
+        showMobileActionError('Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.', true);
+        openMobileLoginGate(true);
+        return;
+      }
       stopVoiceSheetRecordingClean();
       voiceSheetSec = 0;
       voiceSheetPcmChunks = [];
@@ -982,57 +1367,83 @@
       if (btnStop) btnStop.style.display = 'none';
       if (btnCancel) btnCancel.style.display = 'none';
 
+      if (!mobileLoggedIn) {
+        closeVoiceBottomSheet();
+        showMobileActionError('Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.', true);
+        openMobileLoginGate(true);
+        return;
+      }
+
       const pcm16k_b64 = mobileUint8ChunksToBase64(capturedChunks);
       let isPass = false;
-      let roleName = 'Chủ nhà';
+      let roleName = getMobileTierLabel(mobileTier, mobileRole);
+      let errMessage = 'Không thu được giọng nói hợp lệ. Vui lòng thử lại.';
       let cmdData = null;
-      if (recordedDuration < 2 && !spokenInSheet && !pcm16k_b64) {
+
+      if (!pcm16k_b64 && !spokenInSheet) {
         isPass = false;
+        errMessage = recordedDuration < 1
+          ? 'Âm thanh quá ngắn hoặc không thu được micro.'
+          : 'Không có âm thanh hoặc nội dung giọng nói để xử lý.';
       } else {
         try {
-          if (pcm16k_b64 || spokenInSheet) {
-            cmdData = await executeMobileVoiceCommandHttp({
-              pcm16k_b64: pcm16k_b64 || undefined,
-              transcript: spokenInSheet || undefined,
-              is_live_mic: true,
-            });
-            if (cmdData && cmdData.speaker_name) {
-              roleName = cmdData.speaker_name;
-            }
-          } else {
-            const ovRes = await fetch('/api/auth3/overview');
-            const ovData = await ovRes.json();
-            if (ovData && ovData.current_role) {
-              roleName = ovData.current_role.display_name || 'Chủ nhà';
-            }
+          cmdData = await executeMobileVoiceCommandHttp({
+            pcm16k_b64: pcm16k_b64 || undefined,
+            transcript: spokenInSheet || undefined,
+            is_live_mic: true,
+          });
+          if (cmdData && cmdData.speaker_name) {
+            roleName = cmdData.speaker_name;
           }
-          isPass = !cmdData || cmdData.authorized !== false;
+          if (cmdData && cmdData.ok === true && cmdData.authorized !== false && !cmdData.rbac_blocked && !cmdData.silent) {
+            isPass = true;
+          } else {
+            isPass = false;
+            errMessage = (cmdData && (cmdData.error || cmdData.rejection_speech || cmdData.exact_spoken_reply || cmdData.reply))
+              || 'Không nhận diện được lệnh hoặc phiên không hợp lệ.';
+          }
         } catch (e) {
-          isPass = true;
+          isPass = false;
+          errMessage = 'Lỗi kết nối máy chủ khi xử lý giọng nói.';
         }
       }
 
-      if (title) title.textContent = isPass ? 'Xác thực thành công' : 'Chưa đạt yêu cầu';
+      if (title) title.textContent = isPass ? 'Đã thực hiện lệnh' : 'Không thành công';
       if (resEl) {
         resEl.style.display = 'block';
         if (isPass) {
           const saidSummary = (cmdData && cmdData.recognized_text) || spokenInSheet || '';
           const replySummary = (cmdData && (cmdData.exact_spoken_reply || cmdData.reply)) || '';
-          resEl.innerHTML = `<strong>✓ Đạt — đã xác thực</strong> · ${roleName}${saidSummary ? `<br><span>Bạn nói: ${saidSummary}</span>` : ''}${replySummary ? `<br><span>${replySummary}</span>` : ''}`;
+          resEl.textContent = '';
+          const strong = document.createElement('strong');
+          strong.textContent = `✓ Đã xử lý · ${roleName}`;
+          resEl.appendChild(strong);
+          if (saidSummary) {
+            resEl.appendChild(document.createElement('br'));
+            const sp1 = document.createElement('span');
+            sp1.textContent = `Bạn nói: ${saidSummary}`;
+            resEl.appendChild(sp1);
+          }
+          if (replySummary) {
+            resEl.appendChild(document.createElement('br'));
+            const sp2 = document.createElement('span');
+            sp2.textContent = replySummary;
+            resEl.appendChild(sp2);
+          }
           resEl.style.color = '#15803d';
           if (btnContinue) btnContinue.style.display = 'block';
         } else {
-          resEl.innerHTML = `<span>✗ Chưa đạt — âm thanh quá ngắn · Thu lại</span>`;
+          resEl.textContent = `✗ ${errMessage}`;
           resEl.style.color = 'var(--danger)';
           if (btnRetry) btnRetry.style.display = 'block';
           if (btnClose) btnClose.style.display = 'block';
         }
       }
       setMobileVoiceButtonsVisualState(false);
-      if (cmdData && cmdData.recognized_text) {
+      if (isPass && cmdData && cmdData.recognized_text) {
         setTimeout(() => {
           closeVoiceBottomSheet();
-        }, 250);
+        }, 450);
       }
     }
 
@@ -1116,18 +1527,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token, duration: '1d' })
         });
-        const data = await res.json();
-        if (data.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok) {
           if (status) status.textContent = '✅ Bắt tay thành công! Đang chuyển hướng...';
           setTimeout(() => {
             closeQrScanner();
             if (typeof location !== 'undefined') {
-              location.href = `/guest_enroll?token=${encodeURIComponent(token)}`;
+              location.href = `/guest?token=${encodeURIComponent(token)}`;
             }
           }, 800);
         } else {
           if (status) {
-            status.textContent = data.error || 'Mã QR này đã hết hạn hoặc đã được sử dụng một lần.';
+            status.textContent = data.error || 'Mã QR này không hợp lệ hoặc đã hết hạn.';
             status.style.color = 'var(--danger)';
           }
         }
@@ -1304,12 +1715,31 @@
           source: 'mobile_app',
         }),
       })
-        .then(res => res.json())
-        .then(data => {
+        .then(async res => {
+          const data = await res.json().catch(() => ({}));
+          return { httpStatus: res.status, okHttp: isHttpOk(res), data };
+        })
+        .then(({ httpStatus, okHttp, data }) => {
           ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
           if (mySeq < ctrl.seq) {
             reconcileMobileIdleToServerKnown(devId, ctrl, dType, btnEl);
             return data;
+          }
+          if (!okHttp || !data || data.ok === false || data.error) {
+            rollbackIfLatest();
+            const errTxt = (data && (data.error || data.message)) ||
+              (httpStatus === 401
+                ? 'Vui lòng đăng nhập để điều khiển thiết bị.'
+                : httpStatus === 403
+                  ? 'Bạn không có quyền điều khiển thiết bị này.'
+                  : 'Không thể điều khiển thiết bị.');
+            if (httpStatus === 401) {
+              handleMobileUnauthorized(errTxt);
+            } else {
+              showMobileActionError(errTxt, false);
+            }
+            addLog(`${dName}: ${errTxt}`, 'device', 'Thất bại');
+            return Object.assign({ ok: false, _httpStatus: httpStatus }, data || {});
           }
           const respVer = Number(
             data && data.device_version !== undefined && data.device_version !== null ? data.device_version : 0
@@ -1357,11 +1787,7 @@
             }
             return data;
           }
-          if (data && (data.ok === false || data.error)) {
-            rollbackIfLatest();
-            addLog(`${dName}: Lỗi thao tác`, 'device', 'Thất bại');
-            return data;
-          }
+          showMobileActionError('');
           const finalState = String((data && data.state) || targetState).toUpperCase();
           ctrl.confirmedState = finalState;
           ctrl.desiredState = finalState;
@@ -1393,12 +1819,20 @@
             return null;
           }
           rollbackIfLatest();
+          showMobileActionError('Lỗi kết nối khi điều khiển thiết bị.', false);
           addLog(`${dName}: Lỗi kết nối`, 'device', 'Thất bại');
           return null;
         });
     }
 
     function scheduleMobileDeviceToggle(devId, btnEl = null, explicitTargetState = null) {
+      if (!mobileLoggedIn) {
+        const msg = 'Vui lòng đăng nhập để điều khiển thiết bị.';
+        showMobileActionError(msg, true);
+        addLog(`${devId}: ${msg}`, 'device', 'Thất bại');
+        openMobileLoginGate(true);
+        return Promise.resolve({ ok: false, error: msg });
+      }
       const allDevs = (latestSnap && latestSnap.devices) ? latestSnap.devices : [];
       const d = allDevs.find(x => x.id === devId) || {
         id: devId,
@@ -1647,19 +2081,11 @@
         }
       });
 
-      const connEl = document.getElementById('espBadge');
-      if (connEl) {
-        const online = snap.server_connected !== false;
-        connEl.textContent = online ? 'Đã kết nối' : 'Mất kết nối';
-        if (connEl.classList) {
-          if (typeof connEl.classList.toggle === 'function') {
-            connEl.classList.toggle('offline', !online);
-          } else if (!online) {
-            if (typeof connEl.classList.add === 'function') connEl.classList.add('offline');
-          } else {
-            if (typeof connEl.classList.remove === 'function') connEl.classList.remove('offline');
-          }
-        }
+      const online = snap.server_connected !== false;
+      if (snap.authenticated === false && mobileLoggedIn) {
+        updateMobileAuthUiState(false);
+      } else {
+        updateMobileAuthUiState(online);
       }
 
       if (allDevices) {
@@ -1895,33 +2321,58 @@
 
     async function executeMobileVoiceCommandHttp(payload) {
       const badge = document.getElementById('voiceStateBadge');
+      if (!mobileLoggedIn) {
+        const msg = 'Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.';
+        if (badge) badge.textContent = 'Chưa đăng nhập';
+        showPwaVoiceResults(null, msg);
+        showMobileActionError(msg, true);
+        openMobileLoginGate(true);
+        return { ok: false, authorized: false, error: msg };
+      }
       if (badge) badge.textContent = 'Đang xử lý';
       try {
-      let res = null;
-      let lastFetchErr = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          if (attempt > 0) {
-            await new Promise((r) => setTimeout(r, 200 * attempt));
+        let res = null;
+        let lastFetchErr = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            if (attempt > 0) {
+              await new Promise((r) => setTimeout(r, 200 * attempt));
+            }
+            res = await fetch('/api/voice_command', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload || {}),
+            });
+            if (res) break;
+          } catch (fErr) {
+            lastFetchErr = fErr;
           }
-          res = await fetch('/api/voice_command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload || {}),
-          });
-          if (res) break;
-        } catch (fErr) {
-          lastFetchErr = fErr;
         }
-      }
-      if (!res) throw lastFetchErr || new Error('fetch_failed');
-        const data = await res.json();
+        if (!res) throw lastFetchErr || new Error('fetch_failed');
+        const data = await res.json().catch(() => ({}));
         const saidText = data.recognized_text || (payload && payload.transcript) || 'Khẩu lệnh giọng nói';
-        const replyText = data.exact_spoken_reply || data.reply || data.rejection_speech || 'Đã thực hiện lệnh.';
+        if (!isHttpOk(res) || data.ok === false || data.authorized === false || data.rbac_blocked) {
+          const errReply = data.error || data.rejection_speech || data.exact_spoken_reply ||
+            (res.status === 401
+              ? 'Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.'
+              : res.status === 403
+                ? 'Bạn không có quyền thực hiện lệnh giọng nói này.'
+                : 'Không thể xử lý lệnh giọng nói.');
+          showPwaVoiceResults(saidText, errReply);
+          if (badge) badge.textContent = res.status === 401 ? 'Chưa đăng nhập' : 'Thất bại';
+          addLog(saidText, 'voice', 'Thất bại');
+          if (res.status === 401) {
+            handleMobileUnauthorized(errReply);
+          } else {
+            showMobileActionError(errReply, false);
+          }
+          return Object.assign({ ok: false, authorized: false, _httpStatus: res.status, error: errReply }, data);
+        }
+        const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(saidText, replyText);
         playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
-        if (badge) badge.textContent = data.ok === false ? 'Cần thử lại' : 'Sẵn sàng';
-        addLog(saidText, 'voice', data.ok === false ? 'Thất bại' : 'Thành công');
+        if (badge) badge.textContent = 'Sẵn sàng';
+        addLog(saidText, 'voice', 'Thành công');
         if (data.snapshot) {
           renderState(data.snapshot);
         } else {
@@ -1929,8 +2380,9 @@
         }
         return data;
       } catch (err) {
-        if (badge) badge.textContent = 'Cần thử lại';
-        return { ok: false, error: String(err) };
+        if (badge) badge.textContent = 'Thất bại';
+        showPwaVoiceResults(null, 'Lỗi kết nối máy chủ khi gửi lệnh giọng nói.');
+        return { ok: false, authorized: false, error: String(err) };
       }
     }
     if (typeof window !== 'undefined') {
@@ -1938,9 +2390,19 @@
     }
 
     async function toggleMobileVoiceListen() {
-      isMobileListening = !isMobileListening;
       const badge = document.getElementById('voiceStateBadge');
       const label = document.getElementById('btnMobileMicLabel');
+      if (!mobileLoggedIn) {
+        isMobileListening = false;
+        if (badge) badge.textContent = 'Chưa đăng nhập';
+        if (label) label.textContent = 'Bắt đầu nói';
+        const msg = 'Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.';
+        showPwaVoiceResults(null, msg);
+        showMobileActionError(msg, true);
+        openMobileLoginGate(true);
+        return;
+      }
+      isMobileListening = !isMobileListening;
 
       if (!isMobileListening) {
         if (badge) badge.textContent = 'Sẵn sàng';
@@ -1965,10 +2427,15 @@
           mobileMicPcmChunks = [];
           const transcriptHint = (mobileSpeechTranscript || '').trim();
           mobileSpeechTranscript = '';
-          const pcm16k_b64 = chunks.length > 0 ? mobileUint8ChunksToBase64(chunks) : generateMobileSynthetic16kPcmB64(true);
+          const pcm16k_b64 = chunks.length > 0 ? mobileUint8ChunksToBase64(chunks) : '';
+          if (!pcm16k_b64 && !transcriptHint) {
+            if (badge) badge.textContent = 'Thất bại';
+            showPwaVoiceResults(null, 'Không thu được âm thanh micro hoặc kết nối giọng nói chưa sẵn sàng.');
+            return;
+          }
           await executeMobileVoiceCommandHttp({
-            pcm16k_b64,
-            transcript: transcriptHint,
+            pcm16k_b64: pcm16k_b64 || undefined,
+            transcript: transcriptHint || undefined,
             is_live_mic: true,
           });
         }
@@ -1982,16 +2449,12 @@
 
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'mic_chunk',
-              pcm16k_b64: generateMobileSynthetic16kPcmB64(true),
-              is_speech: true,
-            }));
-            setTimeout(() => {
-              if (isMobileListening) toggleMobileVoiceListen();
-            }, 3000);
-          }
+          isMobileListening = false;
+          stopMobileSpeechRecognitionVi();
+          if (badge) badge.textContent = 'Thất bại';
+          if (label) label.textContent = 'Bắt đầu nói';
+          showPwaVoiceResults(null, 'Trình duyệt không hỗ trợ thu âm micro.');
+          openMobileMicPermissionModal();
           return;
         }
 
@@ -2031,30 +2494,63 @@
         source.connect(mobileAudioProcessor);
         mobileAudioProcessor.connect(mobileAudioContext.destination);
       } catch (err) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'mic_chunk',
-            pcm16k_b64: generateMobileSynthetic16kPcmB64(true),
-            is_speech: true,
-          }));
-        }
+        isMobileListening = false;
+        stopMobileSpeechRecognitionVi();
+        if (badge) badge.textContent = 'Thất bại';
+        if (label) label.textContent = 'Bắt đầu nói';
+        showPwaVoiceResults(null, 'Không thể truy cập micro. Vui lòng cấp quyền micro.');
+        openMobileMicPermissionModal();
       }
     }
 
     async function executeMobileCommand(text) {
+      const badge = document.getElementById('voiceStateBadge');
+      if (!mobileLoggedIn) {
+        const msg = 'Vui lòng đăng nhập trước khi sử dụng điều khiển giọng nói.';
+        if (badge) badge.textContent = 'Chưa đăng nhập';
+        showPwaVoiceResults(text, msg);
+        showMobileActionError(msg, true);
+        openMobileLoginGate(true);
+        return { ok: false, error: msg };
+      }
       showPwaVoiceResults(text, 'Đang xử lý...');
-      document.getElementById('voiceStateBadge').textContent = 'Đang xử lý';
-      const res = await fetch('/api/text_command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      const reply = data.said || data.exact_spoken_reply || 'Đã thực hiện lệnh.';
-      showPwaVoiceResults(text, reply);
-      document.getElementById('voiceStateBadge').textContent = data.ok === false ? 'Cần thử lại' : 'Sẵn sàng';
-      addLog(text, 'voice', data.ok === false ? 'Thất bại' : 'Thành công');
-      fetchInitial();
+      if (badge) badge.textContent = 'Đang xử lý';
+      try {
+        const res = await fetch('/api/text_command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!isHttpOk(res) || data.ok === false || data.rbac_blocked) {
+          const errReply = data.error || data.rejection_speech || data.exact_spoken_reply ||
+            (res.status === 401
+              ? 'Vui lòng đăng nhập để điều khiển thiết bị.'
+              : res.status === 403
+                ? 'Bạn không có quyền thực hiện lệnh này.'
+                : 'Không thể thực hiện lệnh.');
+          showPwaVoiceResults(text, errReply);
+          if (badge) badge.textContent = res.status === 401 ? 'Chưa đăng nhập' : 'Thất bại';
+          addLog(text, 'voice', 'Thất bại');
+          if (res.status === 401) {
+            handleMobileUnauthorized(errReply);
+          } else {
+            showMobileActionError(errReply, false);
+          }
+          return Object.assign({ ok: false, _httpStatus: res.status, error: errReply }, data);
+        }
+        const reply = data.said || data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
+        showPwaVoiceResults(text, reply);
+        if (badge) badge.textContent = 'Sẵn sàng';
+        addLog(text, 'voice', 'Thành công');
+        showMobileActionError('');
+        fetchInitial().catch(() => {});
+        return data;
+      } catch (err) {
+        if (badge) badge.textContent = 'Thất bại';
+        showPwaVoiceResults(text, 'Lỗi kết nối máy chủ.');
+        return { ok: false, error: String(err) };
+      }
     }
 
     document.getElementById('cmdForm').onsubmit = async (e) => {
@@ -2125,9 +2621,6 @@
     };
 
     function onMobileActorChange() {
-      const sel = document.getElementById('mobileActorSelect');
-      if (!sel) return;
-      const tier = parseInt(sel.options[sel.selectedIndex].getAttribute('data-tier') || '1', 10);
       const badge = document.getElementById('mobileActorBadge');
       const form = document.getElementById('mobileAddEmailForm');
       const targetTierSel = document.getElementById('mobileTargetTierSelect');
@@ -2135,210 +2628,97 @@
       const tierInfoEl = document.getElementById('mobileVoiceTierInfo');
       const regNameEl = document.getElementById('mobileVoiceRegName');
 
-      const tierLabels = { 1: 'Chủ nhà', 2: 'Gia đình', 3: 'Khách' };
+      const tier = mobileLoggedIn ? (Number(mobileTier) || 0) : 0;
       const tierDescs = {
         1: 'Cấp 1 — Chủ nhà: toàn quyền điều khiển',
         2: 'Cấp 2 — Gia đình: điều khiển cơ bản',
-        3: 'Cấp 3 — Khách: chỉ xem trạng thái'
+        3: 'Cấp 3 — Khách: quyền hạn tạm thời'
       };
-      const label = tierLabels[tier] || 'Không rõ';
+      const label = mobileLoggedIn ? getMobileTierLabel(tier, mobileRole) : 'Chưa đăng nhập';
 
       if (badge) badge.textContent = label;
-      if (tierInfoEl) tierInfoEl.textContent = tierDescs[tier] || '';
+      if (tierInfoEl) tierInfoEl.textContent = tierDescs[tier] || 'Chưa đăng nhập';
       if (regNameEl) regNameEl.textContent = label;
 
-      if (tier === 1) {
-        form.style.display = 'grid';
-        targetTierSel.innerHTML = `<option value="2">Gia đình</option><option value="3">Khách</option>`;
-        msg.style.color = 'var(--muted)';
-        msg.textContent = 'Chủ nhà được thêm Gia đình và Khách.';
+      if (mobileLoggedIn && tier === 1) {
+        if (form) form.style.display = 'grid';
+        if (targetTierSel) targetTierSel.innerHTML = `<option value="2">Gia đình</option><option value="3">Khách</option>`;
+        if (msg) {
+          msg.style.color = 'var(--muted)';
+          msg.textContent = 'Chủ nhà được thêm Gia đình và Khách.';
+        }
       } else {
-        form.style.display = 'none';
-        msg.style.color = 'var(--danger)';
-        msg.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên.';
+        if (form) form.style.display = 'none';
+        if (msg) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên.';
+        }
       }
-      fetch('/api/session/role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: sel.value })
-      }).catch(() => {});
     }
 
     async function submitMobileAddEmail() {
-      const actorEmail = document.getElementById('mobileActorSelect').value;
-      const targetTier = parseInt(document.getElementById('mobileTargetTierSelect').value || '2', 10);
-      const targetEmail = document.getElementById('mobileTargetEmail').value.trim();
       const msg = document.getElementById('mobileAllowlistMsg');
-
-      const res = await fetch('/api/auth3/family_allowlist/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actor_email: actorEmail,
-          target_email: targetEmail,
-          target_tier: targetTier,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        msg.style.color = 'var(--accent)';
-        msg.textContent = data.message || 'Đã lưu tài khoản thành viên.';
-        document.getElementById('mobileTargetEmail').value = '';
-        addLog(`Thêm quyền cho ${targetEmail}`, 'device', 'Thành công');
-      } else {
-        msg.style.color = 'var(--danger)';
-        msg.textContent = data.error || 'Không thể thêm tài khoản.';
+      if (!mobileLoggedIn || Number(mobileTier) !== 1) {
+        if (msg) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền thêm thành viên.';
+        }
+        return;
       }
-    }
-
-    const MOBILE_ENROLL_REQUIRED_SAMPLES = 5;
-
-    function generateMobileSynthetic16kPcmB64(isGood, sampleIdx = 0) {
-      const sr = 16000;
-      const durSec = isGood ? (3.3 + (sampleIdx % 5) * 0.15) : 0.4;
-      const totalSamples = Math.floor(sr * durSec);
-      const pcm16 = new Int16Array(totalSamples);
-      const f0 = isGood ? (188.0 + (sampleIdx - 2) * 1.4) : 80.0;
-      const phase = sampleIdx * 0.42;
-      for (let i = 0; i < totalSamples; i++) {
-        if (i < Math.floor(sr * 0.3) && isGood) {
-          pcm16[i] = 0;
+      const targetTier = parseInt((document.getElementById('mobileTargetTierSelect') || {}).value || '2', 10);
+      const targetEmailEl = document.getElementById('mobileTargetEmail');
+      const targetEmail = (targetEmailEl ? targetEmailEl.value : '').trim();
+      if (!targetEmail) {
+        if (msg) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Vui lòng nhập email thành viên.';
+        }
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth3/family_allowlist/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actor_email: mobileLoggedInEmail,
+            target_email: targetEmail,
+            target_tier: targetTier,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (isHttpOk(res) && data.ok) {
+          if (msg) {
+            msg.style.color = 'var(--accent)';
+            msg.textContent = data.message || 'Đã lưu tài khoản thành viên.';
+          }
+          if (targetEmailEl) targetEmailEl.value = '';
+          addLog(`Thêm quyền cho ${targetEmail}`, 'device', 'Thành công');
         } else {
-          const t = i / sr;
-          const env = 0.85 + 0.15 * Math.sin(2 * Math.PI * (2.2 + sampleIdx * 0.25) * t + phase);
-          const s = env * (
-            0.38 * Math.sin(2 * Math.PI * f0 * t + phase) +
-            0.21 * Math.sin(2 * Math.PI * (f0 * 2) * t) +
-            0.09 * Math.sin(2 * Math.PI * (f0 * 3) * t - phase)
-          );
-          pcm16[i] = Math.floor(Math.max(-0.98, Math.min(0.98, s)) * 32767);
+          if (res.status === 401) {
+            handleMobileUnauthorized('Vui lòng đăng nhập lại.');
+            return;
+          }
+          if (msg) {
+            msg.style.color = 'var(--danger)';
+            msg.textContent = data.error || 'Không thể thêm tài khoản.';
+          }
+        }
+      } catch (_) {
+        if (msg) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Lỗi kết nối máy chủ.';
         }
       }
-      let binary = '';
-      const bytes = new Uint8Array(pcm16.buffer);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return window.btoa(binary);
     }
 
-    async function submitMobileVoiceSample(isGood) {
-      const promptText = 'Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi là Thành viên Gia đình đọc 5 câu mẫu (3–5 giây/mẫu) để đăng ký giọng nói điều khiển thiết bị.';
-      const samplesB64 = [];
-      let pcmB64 = '';
-      const stepLabel = document.getElementById('mobileVoiceStepLabel');
-      const isAutomatedWebdriver = Boolean(typeof navigator !== 'undefined' && navigator.webdriver);
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-          const source = audioCtx.createMediaStreamSource(stream);
-          const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-          let chunks = [];
-          processor.onaudioprocess = (e) => {
-            const rawInput = e.inputBuffer.getChannelData(0);
-            const actualSr = audioCtx ? audioCtx.sampleRate : 16000;
-            const input = resampleMobileFloat32AntiAliased(rawInput, actualSr, 16000);
-            const pcm16 = new Int16Array(input.length);
-            for (let i = 0; i < input.length; i++) {
-              const s = Math.max(-1, Math.min(1, input[i]));
-              pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-            }
-            chunks.push(pcm16);
-          };
-          source.connect(processor);
-          processor.connect(audioCtx.destination);
-          const totalToRec = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
-          const perSampleMs = isGood ? (isAutomatedWebdriver ? 150 : 3200) : 500;
-          for (let idx = 0; idx < totalToRec; idx++) {
-            chunks = [];
-            if (stepLabel && isGood) {
-              stepLabel.textContent = `Đang thu Mẫu ${idx + 1}/${MOBILE_ENROLL_REQUIRED_SAMPLES} (3–5s)...`;
-            }
-            await new Promise(r => setTimeout(r, perSampleMs));
-            let totalLen = 0;
-            chunks.forEach(c => totalLen += c.length);
-            const fullPcm = new Int16Array(totalLen);
-            let offset = 0;
-            let peak = 0;
-            chunks.forEach(c => {
-              fullPcm.set(c, offset);
-              for (let k = 0; k < c.length; k++) {
-                const a = Math.abs(c[k]);
-                if (a > peak) peak = a;
-              }
-              offset += c.length;
-            });
-            if (totalLen >= 16000 * 3 && peak >= 120) {
-              let binary = '';
-              const bytes = new Uint8Array(fullPcm.buffer);
-              for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
-              samplesB64.push(window.btoa(binary));
-            } else {
-              samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
-            }
-          }
-          processor.disconnect();
-          stream.getTracks().forEach(t => t.stop());
-          audioCtx.close();
-        } catch (_) {
-          const count = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
-          for (let idx = 0; idx < count; idx++) {
-            samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
-          }
-        }
-      }
-      if (samplesB64.length === 0) {
-        const count = isGood ? MOBILE_ENROLL_REQUIRED_SAMPLES : 1;
-        for (let idx = 0; idx < count; idx++) {
-          samplesB64.push(generateMobileSynthetic16kPcmB64(isGood, idx));
-        }
-      }
-      pcmB64 = samplesB64[0];
-
-      const res = await fetch('/api/auth3/enroll_voice_sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'em_mobile.hust@gmail.com',
-          spoken_text: isGood ? promptText : 'Alo 1 2',
-          measured_f0_hz: isGood ? 188.0 : 0.0,
-          snr_db: isGood ? 18.5 : 3.2,
-          hold_duration_sec: isGood ? 3.5 : 0.6,
-          source_device: 'Mobile App Web (5 mẫu WeSpeaker)',
-          audio_pcm_b64: pcmB64,
-          pcm16k_b64: pcmB64,
-          samples_b64: samplesB64,
-          sample_count: samplesB64.length,
-        }),
-      });
-      const data = await res.json();
+    async function submitMobileVoiceSample() {
       const box = document.getElementById('mobileVoiceRes');
-      const metricsEl = document.getElementById('mobileVoiceMetrics');
-      const f0El = document.getElementById('mobileVoiceF0');
-      const snrEl = document.getElementById('mobileVoiceSNR');
-      const retryBtn = document.getElementById('mobileVoiceRetryBtn');
-
-      /* Hiển thị metrics F0/SNR */
-      if (metricsEl) {
-        metricsEl.style.display = 'block';
-        if (f0El) f0El.textContent = data.measured_f0_hz != null ? data.measured_f0_hz.toFixed(1) : (isGood ? '188.0' : '0.0');
-        if (snrEl) snrEl.textContent = data.snr_db != null ? data.snr_db.toFixed(1) : (isGood ? '18.5' : '3.2');
-      }
-
+      const errMsg = 'Tính năng thu mẫu giọng nói trên trình duyệt đã bị tắt.';
       if (box) {
-        if (data.ok && data.status === 'DA_DAT') {
-          box.innerHTML = '<span class="voice-result-badge pass">✓ ĐẠT — Đã lưu giọng nói</span>';
-          if (stepLabel) stepLabel.textContent = 'Hoàn tất ✓';
-          if (retryBtn) retryBtn.textContent = 'Thu lại';
-        } else if (data.status === 'DUPLICATE_VOICE_REJECTED') {
-          box.innerHTML = '<span class="voice-result-badge fail">✗ KHÔNG ĐẠT — Trùng giọng người trong nhà</span>';
-          if (retryBtn) retryBtn.textContent = 'Thu lại';
-        } else {
-          box.innerHTML = '<span class="voice-result-badge fail">✗ KHÔNG ĐẠT — Chưa nhận rõ giọng nói</span>';
-          if (retryBtn) retryBtn.textContent = 'Thu lại';
-        }
+        box.textContent = errMsg;
+        box.style.color = 'var(--muted)';
       }
+      return { ok: false, error: errMsg };
     }
 
     async function copyMobileGuestLink() {
@@ -2351,14 +2731,19 @@
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 
+    const isLocalMobileHost = (typeof location !== 'undefined') && (
+      location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    );
+
     const isMobileVercel = (typeof window !== 'undefined') && (
       (typeof location !== 'undefined' && Boolean((location.hostname || location.host || '').includes('vercel.app'))) ||
+      !isLocalMobileHost ||
       Boolean(window._FORCE_HTTP_POLLING)
     );
 
     function connectMobileWebSocket() {
-      if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
-        /* On Vercel serverless, WebSocket is not supported: fallback cleanly without spamming console errors */
+      if (isMobileVercel || !isLocalMobileHost || (typeof window !== 'undefined' && window._disableWebSocket)) {
+        /* On Vercel serverless or non-localhost domains, skip WebSocket and poll HTTP cleanly */
         fetchInitial().catch(() => {});
         return;
       }
@@ -2478,100 +2863,150 @@
         fetch('/api/state')
           .then(r => (r.ok ? r.json() : Promise.reject()))
           .then(d2 => {
-            const connEl = document.getElementById('espBadge');
-            if (connEl) { connEl.textContent = 'Đã kết nối'; connEl.classList.remove('offline'); }
+            updateMobileAuthUiState(d2 && d2.server_connected !== false);
             renderState(d2);
           })
           .catch(() => {
-            const connEl = document.getElementById('espBadge');
-            if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
+            updateMobileAuthUiState(false);
           });
-        /* Auto-reconnect after 4s only when not on Vercel */
-        if (!isMobileVercel) {
+        /* Auto-reconnect after 4s only when on localhost and logged in */
+        if (!isMobileVercel && isLocalMobileHost) {
           setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
         }
       };
       ws.onerror = () => {};
     }
 
+    function updateMobileQrCountdownLabel(rem) {
+      const cdEl = document.getElementById('mobileQrCountdown');
+      if (cdEl) {
+        cdEl.textContent = `Đổi mã sau ${rem}s`;
+        cdEl.style.color = rem <= 3 ? '#c83e3b' : 'var(--muted)';
+      }
+    }
+
     async function refreshMobileQr10s() {
-      try {
-        const durSel = document.getElementById('mobileGuestDurSelect');
-        const dur = durSel ? durSel.value : '1d';
-        const tierSel = document.getElementById('mobileQrInviteTierSelect');
-        const inviteTier = tierSel ? tierSel.value : '3';
-        const r = await fetch(`/api/auth3/guest_qr_current?duration=${encodeURIComponent(dur)}&host=${encodeURIComponent(location.host)}&tier=${encodeURIComponent(inviteTier)}`);
-        const d = await r.json();
-        if (!d.ok) return;
-        const rem = d.remaining_slot_sec || 10;
-        const cdEl = document.getElementById('mobileQrCountdown');
-        if (cdEl) {
-          cdEl.textContent = `Đổi mã sau ${rem}s`;
-          cdEl.style.color = rem <= 3 ? '#c83e3b' : 'var(--muted)';
+      // Auto QR polling disabled; Owner creates invites explicitly via POST /api/auth3/guest_invites with PIN
+      return;
+    }
+
+    async function createMobileGuestInvite() {
+      const statusEl = document.getElementById('mobileQrInviteStatus');
+      const btn = document.getElementById('mobileBtnCreateGuestQr');
+      if (!mobileLoggedIn || Number(mobileTier) !== 1) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền tạo lời mời QR.';
         }
-        document.getElementById('mobileQrTokenText').textContent = `${d.token}`;
-        document.getElementById('mobileQrUrlText').textContent = d.public_guest_url || d.full_url || d.qr_url;
-        document.getElementById('mobileQrOpenLink').href = `/guest?token=${encodeURIComponent(d.token)}&dur=${encodeURIComponent(dur)}&tier=${encodeURIComponent(inviteTier)}`;
-        const qrContainer = document.getElementById('mobileQrSvgContainer');
-        if (d.qr_svg && qrContainer) {
-          qrContainer.innerHTML = d.qr_svg;
-          const svgEl = qrContainer.querySelector('svg');
-          if (svgEl) {
-            svgEl.id = 'mobileDynamicQrSvg';
-            svgEl.setAttribute('width', '104');
-            svgEl.setAttribute('height', '104');
-            svgEl.style.width = '104px';
-            svgEl.style.height = '104px';
-            svgEl.style.display = 'block';
-            svgEl.style.background = '#fff';
-            svgEl.style.padding = '4px';
-            svgEl.style.borderRadius = '10px';
-            svgEl.style.border = '1px solid var(--line)';
+        return;
+      }
+      const durSel = document.getElementById('mobileGuestDurSelect');
+      const tierSel = document.getElementById('mobileQrInviteTierSelect');
+      const pinEl = document.getElementById('mobileQrPinInput');
+      const pinConfEl = document.getElementById('mobileQrPinConfirmInput');
+      const dur = durSel ? durSel.value : '1d';
+      const ttlMap = { '1d': 86400, '2d': 172800, '1w': 604800, '1m': 2592000, '1y': 31536000 };
+      const ttlSec = ttlMap[dur] || 86400;
+      const inviteTier = parseInt((tierSel ? tierSel.value : '3') || '3', 10);
+      const pin = (pinEl ? pinEl.value : '').trim();
+      const pinConfirm = (pinConfEl ? pinConfEl.value : '').trim();
+
+      if (!/^\d{4,6}$/.test(pin)) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Vui lòng nhập mã PIN Chủ nhà gồm 4–6 chữ số.';
+        }
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang tạo mã...'; }
+      try {
+        const res = await fetch('/api/auth3/guest_invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tier: inviteTier,
+            ttl_sec: ttlSec,
+            duration: dur,
+            pin: pin,
+            pin_confirm: pinConfirm || pin,
+          }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!isHttpOk(res) || !d.ok) {
+          if (statusEl) {
+            statusEl.style.color = 'var(--danger)';
+            statusEl.textContent = d.error || 'Không thể tạo lời mời QR.';
           }
         } else {
-          const g = document.getElementById('mobileQrDots');
-          if (g) {
-            let h = 2166136261;
-            for (let i = 0; i < d.token.length; i++) h = Math.imul(h ^ d.token.charCodeAt(i), 16777619);
-            let rects = '';
-            for (let r = 0; r < 9; r++) {
-              for (let c = 0; c < 9; c++) {
-                if ((r < 3 && c < 3) || (r < 3 && c > 5) || (r > 5 && c < 3)) continue;
-                h = Math.imul(h ^ (r * 29 + c * 13), 16777619);
-                if (Math.abs(h) % 10 < 6) {
-                  rects += `<rect x="${6 + c * 9.8}" y="${6 + r * 9.8}" width="7.2" height="7.2" rx="1" fill="${(r + c) % 2 === 0 ? '#087d85' : '#172b31'}"/>`;
-                }
-              }
+          const inviteUrl = d.public_guest_url || d.full_url || d.qr_url || d.url || (`/guest?token=${encodeURIComponent(d.token || '')}`);
+          const tokEl = document.getElementById('mobileQrTokenText');
+          const urlEl = document.getElementById('mobileQrUrlText');
+          const linkEl = document.getElementById('mobileQrOpenLink');
+          const cdEl = document.getElementById('mobileQrCountdown');
+          if (tokEl) tokEl.textContent = `${d.token || ''}`;
+          if (urlEl) urlEl.textContent = inviteUrl;
+          if (linkEl) {
+            linkEl.href = inviteUrl;
+            linkEl.style.display = 'inline-flex';
+          }
+          if (cdEl) cdEl.textContent = 'Đã tạo mã mời';
+          const qrContainer = document.getElementById('mobileQrSvgContainer');
+          if (d.qr_svg && qrContainer) {
+            qrContainer.innerHTML = d.qr_svg;
+            const svgEl = qrContainer.querySelector('svg');
+            if (svgEl) {
+              svgEl.id = 'mobileDynamicQrSvg';
+              svgEl.setAttribute('width', '104');
+              svgEl.setAttribute('height', '104');
+              svgEl.style.width = '104px';
+              svgEl.style.height = '104px';
+              svgEl.style.display = 'block';
+              svgEl.style.background = '#fff';
+              svgEl.style.padding = '4px';
+              svgEl.style.borderRadius = '10px';
+              svgEl.style.border = '1px solid var(--line)';
             }
-            g.innerHTML = rects;
+          }
+          if (statusEl) {
+            statusEl.style.color = 'var(--accent)';
+            statusEl.textContent = '✅ Đã tạo lời mời QR thành công.';
           }
         }
-      } catch (e) {}
+      } catch (_) {
+        if (statusEl) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = 'Lỗi kết nối khi tạo lời mời QR.';
+        }
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Tạo lời mời QR'; }
     }
 
     async function pollMobileSecurityAndTimers() {
-      refreshMobileQr10s();
+      if (!mobileLoggedIn) {
+        updateMobileAuthUiState(false);
+        return;
+      }
       if (mobilePollInFlight) return;
       mobilePollInFlight = true;
       try {
         const r2 = await fetch('/api/state');
-        const d2 = await r2.json();
+        const d2 = await r2.json().catch(() => ({}));
         let d1 = {};
-        if (mobileLoggedIn && String(mobileLoggedInEmail || '').toLowerCase() === 'nep94121@gmail.com') {
+        if (mobileLoggedIn && Number(mobileTier) === 1) {
           try {
             const r1 = await fetch('/api/auth3/overview');
             if (r1.ok) d1 = await r1.json();
           } catch (_) {}
         }
         if (d2 && d2.devices) {
-          const connEl = document.getElementById('espBadge');
-          if (connEl) { connEl.textContent = 'Đã kết nối'; connEl.classList.remove('offline'); }
           renderState(d2);
         }
         const stBadge = document.getElementById('mobileStrikeBadge');
         if (stBadge && d1.security_status) {
           const st = d1.security_status;
-          stBadge.textContent = `${st.failed_voice_Attempts}/${st.max_attempts}`;
+          const fails = st.failed_voice_attempts ?? st.failed_attempts ?? 0;
+          const maxAtt = st.max_attempts ?? 3;
+          stBadge.textContent = `${fails}/${maxAtt}`;
         }
         const schedInline = document.getElementById('upcomingScheduleInline');
         if (schedInline && d2.timers) {
@@ -2583,15 +3018,15 @@
           }
         }
       } catch (e) {
-        const connEl = document.getElementById('espBadge');
-        if (connEl) { connEl.textContent = 'Mất kết nối'; connEl.classList.add('offline'); }
+        updateMobileAuthUiState(false);
       } finally {
         mobilePollInFlight = false;
       }
     }
 
     function onMobileQrInviteTierChange() {
-      refreshMobileQr10s();
+      const statusEl = document.getElementById('mobileQrInviteStatus');
+      if (statusEl) statusEl.textContent = '';
     }
 
     let _mobileAppInited = false;
@@ -2610,10 +3045,11 @@
         }
       }
       connectMobileWebSocket();
-      fetchInitial();
-      refreshMobileQr10s();
+      fetchInitial().catch(() => {});
       renderMobileHistory();
-      setInterval(pollMobileSecurityAndTimers, 1000);
+      if (!mobilePollIntervalId) {
+        mobilePollIntervalId = setInterval(pollMobileSecurityAndTimers, 2000);
+      }
     }
 
     /* Kiểm tra session khi load trang */
@@ -2638,8 +3074,13 @@ window.submitMobileAddEmail = submitMobileAddEmail;
 window.submitMobileVoiceSample = submitMobileVoiceSample;
 window.copyMobileGuestLink = copyMobileGuestLink;
 window.refreshMobileQr10s = refreshMobileQr10s;
+window.createMobileGuestInvite = createMobileGuestInvite;
 window.pollMobileSecurityAndTimers = pollMobileSecurityAndTimers;
 window.submitMobileLogin = submitMobileLogin;
+window.sendMobileLayer2Otp = sendMobileLayer2Otp;
+window.verifyMobileLayer2Otp = verifyMobileLayer2Otp;
+window.cancelMobileOtpPanel = cancelMobileOtpPanel;
+window.openMobileLoginGate = openMobileLoginGate;
 window.onMobileQrInviteTierChange = onMobileQrInviteTierChange;
 window.switchMobileLoginTab = switchMobileLoginTab;
 window.onMobileRegTierChange = onMobileRegTierChange;
@@ -2669,3 +3110,4 @@ window.startCameraScan = startCameraScan;
 window.manualQrCodeInput = manualQrCodeInput;
 window.processQrHandshake = processQrHandshake;
 window.initMobileApp = initMobileApp;
+window.connectMobileWebSocket = connectMobileWebSocket;

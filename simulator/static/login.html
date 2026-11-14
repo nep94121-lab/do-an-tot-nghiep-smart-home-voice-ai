@@ -37,7 +37,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        <a href="/guest_enroll">Khách</a>
+        <a href="/guest">Khách</a>
         <a class="active" href="/login" aria-current="page">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -72,18 +72,53 @@
             <button type="submit" id="pageLoginSubmitBtn" class="auth-btn-submit">Đăng nhập</button>
           </form>
 
-          <!-- KHUNG QUÊN MẬT KHẨU RÚT GỌN -->
-          <div id="forgotPasswordPanel" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);" hidden>
-            <p style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px;">Đặt lại mật khẩu qua OTP</p>
+          <!-- XÁC THỰC OTP LỚP 2 CHO CHỦ NHÀ -->
+          <div id="loginOtpSection" class="auth-form" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);" hidden>
+            <p style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px;">Xác thực 2 lớp (OTP qua Gmail)</p>
+            <p id="loginOtpDesc" style="font-size:12px;color:var(--muted);margin-bottom:12px;">Tài khoản Chủ nhà yêu cầu mã OTP 6 số gửi qua Gmail trước khi hoàn tất đăng nhập.</p>
             <div class="form-group">
-              <label for="forgotEmailInput">Email đăng ký</label>
-              <input type="email" id="forgotEmailInput" placeholder="name@example.com" value="" />
+              <label for="loginOtpInput">Mã OTP 6 chữ số</label>
+              <input type="text" id="loginOtpInput" inputmode="numeric" maxlength="6" placeholder="Nhập 6 chữ số OTP" value="" autocomplete="one-time-code" />
             </div>
-            <button type="button" id="btnSendForgotOtp" class="btn btn-secondary" style="width:100%;min-height:38px;margin-top:8px;">Gửi mã OTP</button>
-            <div id="forgotStatusBox" class="status-box" style="display:none;margin-top:8px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+              <button type="button" id="btnVerifyLoginOtp" class="auth-btn-submit" style="flex:1;margin-top:0;">Xác nhận OTP &amp; Đăng nhập</button>
+              <button type="button" id="btnResendLoginOtp" class="btn btn-secondary" style="min-height:38px;">Gửi lại OTP</button>
+            </div>
+            <button type="button" id="btnCancelLoginOtp" class="auth-link" style="margin-top:10px;background:none;border:none;cursor:pointer;padding:0;text-align:left;">← Đổi tài khoản khác</button>
           </div>
 
-          <div id="loginStatusBox" class="status-box" style="display:none;margin-top:16px;"></div>
+          <!-- KHUNG QUÊN MẬT KHẨU 3 BƯỚC -->
+          <div id="forgotPasswordPanel" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);" hidden>
+            <p style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px;">Đặt lại mật khẩu qua OTP Gmail</p>
+            <div id="forgotStep1">
+              <div class="form-group">
+                <label for="forgotEmailInput">Bước 1 · Email đăng ký</label>
+                <input type="email" id="forgotEmailInput" placeholder="name@example.com" value="" autocomplete="email" />
+              </div>
+              <button type="button" id="btnSendForgotOtp" class="btn btn-secondary" style="width:100%;min-height:38px;margin-top:8px;">Gửi mã OTP</button>
+            </div>
+            <div id="forgotResetStep" style="display:none;margin-top:12px;" hidden>
+              <div class="form-group">
+                <label for="forgotOtpInput">Bước 2 · Mã OTP 6 chữ số</label>
+                <input type="text" id="forgotOtpInput" inputmode="numeric" maxlength="6" placeholder="Nhập 6 chữ số OTP nhận qua Gmail" value="" autocomplete="one-time-code" />
+              </div>
+              <div class="form-group">
+                <label for="forgotNewPasswordInput">Bước 3 · Mật khẩu mới</label>
+                <input type="password" id="forgotNewPasswordInput" placeholder="Tối thiểu 6 ký tự" value="" minlength="6" autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label for="forgotConfirmPasswordInput">Xác nhận mật khẩu mới</label>
+                <input type="password" id="forgotConfirmPasswordInput" placeholder="Nhập lại mật khẩu mới" value="" minlength="6" autocomplete="new-password" />
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button type="button" id="btnSubmitForgotReset" class="auth-btn-submit" style="flex:1;margin-top:0;">Đặt lại mật khẩu</button>
+                <button type="button" id="btnResendForgotOtp" class="btn btn-secondary" style="min-height:38px;">Gửi lại OTP</button>
+              </div>
+            </div>
+            <div id="forgotStatusBox" role="status" aria-live="polite" class="status-box" style="display:none;margin-top:8px;"></div>
+          </div>
+
+          <div id="loginStatusBox" role="status" aria-live="polite" class="status-box" style="display:none;margin-top:16px;"></div>
         </div>
       </div>
     </main>

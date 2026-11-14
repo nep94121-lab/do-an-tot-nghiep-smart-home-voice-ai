@@ -64,7 +64,7 @@ class AuthTestSuiteMixin:
                 source="AutoTest-Suite",
                 send_gmail=send_real_email_on_test1,
             )
-            otp_t1 = r1.get("otp_code_for_test_table", "")
+            otp_t1 = r1.get("otp_code_for_test_table") or (self.pending_otps.get(OWNER_EMAIL.lower()) or {}).get("otp_code", "")
             msg_id_t1 = r1.get("gmail_delivery", {}).get("gmail_message_id", "")
             cases.append({
                 "test_id": "TEST-01",

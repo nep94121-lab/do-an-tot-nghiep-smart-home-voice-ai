@@ -22,7 +22,9 @@ from simulator.auth.constants_and_crypto import (
     ROOT_DIR,
     _now_vn,
     build_reading_prompt,
+    canonical_gmail_mailbox,
     hash_password,
+    strict_single_email_ascii,
 )
 from simulator.voice_config import (
     OWNER_EMAIL,
@@ -33,28 +35,33 @@ from simulator.voice_config import (
 
 HARDCODED_REAL_EMAIL_ALLOWLIST: set[str] = {
     "nep94121@gmail.com",
-    "senat6031@gmail.com",
-    "kbanh376@gmail.com",
 }
 
 SMTP_TIMEOUT_SECONDS: float = float(os.environ.get("SMTP_TIMEOUT_SECONDS", "8.0"))
 
 
 def is_email_allowlisted_for_real_send(email: str | None) -> bool:
-    """Kiểm tra email có thuộc danh sách cho phép gửi thư thật hay không (Canonical Allowlist Shield)."""
-    if not email or not isinstance(email, str):
+    """Kiểm tra email có thuộc danh sách cho phép gửi thư thật hay không (chỉ nep94121@gmail.com và alias Gmail hợp lệ)."""
+    clean = strict_single_email_ascii(email)
+    if not clean:
         return False
-    clean = email.strip().lower()
-    if not clean or "@" not in clean:
+    canon = canonical_gmail_mailbox(clean)
+    owner_canon = canonical_gmail_mailbox(OWNER_EMAIL) or "nep94121@gmail.com"
+    if canon and canon == owner_canon:
+        return True
+    if os.environ.get("VERCEL"):
         return False
-    allowlist = set(HARDCODED_REAL_EMAIL_ALLOWLIST)
+    hardcoded_canon = {canonical_gmail_mailbox(item) or item.lower() for item in HARDCODED_REAL_EMAIL_ALLOWLIST}
+    if canon and canon in hardcoded_canon:
+        return True
+    env_allowlist: set[str] = set()
     env_val = os.environ.get("REAL_EMAIL_ALLOWLIST", "").strip()
     if env_val:
         for raw_part in re.split(r"[,;:\s]+", env_val):
-            item = raw_part.strip().lower()
-            if item and "@" in item:
-                allowlist.add(item)
-    return clean in allowlist
+            item = strict_single_email_ascii(raw_part)
+            if item:
+                env_allowlist.add(item)
+    return clean in env_allowlist
 
 
 is_real_email_allowed = is_email_allowlisted_for_real_send
@@ -637,8 +644,9 @@ class AuthInviteGmailMixin:
                 "error": msg,
             }
 
-        to_addr = (recipient_email or "").strip().lower()
-        if to_addr != "nep94121@gmail.com" or not is_email_allowlisted_for_real_send(to_addr):
+        raw_recipient = recipient_email if isinstance(recipient_email, str) else ""
+        to_addr = strict_single_email_ascii(raw_recipient) or raw_recipient.strip().lower()
+        if not is_email_allowlisted_for_real_send(raw_recipient):
             if hasattr(self, "_log_event"):
                 self._log_event(
                     layer="Email Allowlist Protection Gate",
@@ -790,8 +798,9 @@ class AuthInviteGmailMixin:
         issued_password: str = "",
         invite_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        recipient = (target_email or "").strip().lower()
-        if recipient != "nep94121@gmail.com" or not is_email_allowlisted_for_real_send(recipient):
+        raw_recipient = target_email if isinstance(target_email, str) else ""
+        recipient = strict_single_email_ascii(raw_recipient) or raw_recipient.strip().lower()
+        if not is_email_allowlisted_for_real_send(raw_recipient):
             if hasattr(self, "_log_event"):
                 self._log_event(
                     layer="Email Allowlist Protection Gate",
@@ -1130,9 +1139,10 @@ class AuthInviteGmailMixin:
         otp_code = f"{random.randint(100000, 999999)}"
         name_clean = display_name.strip() or clean_email.split("@")[0].replace(".", " ").title()
 
-        gmail_res = {"sent_real_gmail": False, "actual_recipient": clean_email, "blocked_by_allowlist": clean_email != "nep94121@gmail.com"}
+        is_allowed = is_email_allowlisted_for_real_send(google_email)
+        gmail_res = {"sent_real_gmail": False, "actual_recipient": clean_email, "blocked_by_allowlist": not is_allowed}
         if send_gmail:
-            if clean_email == "nep94121@gmail.com":
+            if is_allowed:
                 gmail_res = self.send_real_gmail_otp(
                     target_email=clean_email,
                     otp_code=otp_code,
@@ -1434,6 +1444,8 @@ class AuthInviteGmailMixin:
             acc["saved_tier"] = int(acc.get("saved_tier") or acc.get("tier") or 2)
             acc["permission_active"] = False
             acc["permission_status"] = "REVOKED"
+            acc["revoked_at"] = time.time()
+            acc["revoked_by"] = OWNER_EMAIL
             acc["permission_label"] = "🚫 KHÔNG CÓ QUYỀN (Đã bị Chủ nhà xóa/tạm thu hồi quyền)"
             if not self._save_accounts():
                 self.accounts[:] = prev_perm_accounts
@@ -1471,6 +1483,8 @@ class AuthInviteGmailMixin:
             acc["tier"] = restored_tier
             acc["permission_active"] = True
             acc["permission_status"] = "ACTIVE"
+            acc.pop("revoked_at", None)
+            acc.pop("revoked_by", None)
             acc["permission_label"] = f"CÓ QUYỀN (Tầng {restored_tier})"
             if not self._save_accounts():
                 self.accounts[:] = prev_perm_accounts

@@ -38,7 +38,14 @@ class TestPlaywrightThreeRolesLiveFlows:
             page.fill("#gateLoginEmail", "nep94121@gmail.com")
             owner_pwd = _get_seed_password_for_tier(1)
             page.fill("#gateLoginPassword", owner_pwd)
-            page.click("#btnSubmitGateLogin")
+            with page.expect_response(lambda r: "/api/auth3/layer1_login" in r.url) as l1_info:
+                page.click("#btnSubmitGateLogin")
+            l1_data = l1_info.value.json()
+            if l1_data.get("otp_required"):
+                page.wait_for_selector("#gateOtpPanel", state="visible", timeout=10000)
+                otp_code = l1_data.get("otp_code_for_test") or l1_data.get("demo_otp_preview") or ""
+                page.fill("#gateOtpInput", otp_code)
+                page.click("#btnVerifyGateOtp")
 
             # Chờ modal đăng nhập đóng
             page.wait_for_selector("#homeLoginGateModal", state="hidden", timeout=10000)
@@ -144,7 +151,14 @@ class TestPlaywrightThreeRolesLiveFlows:
             page.fill("#mobileLoginEmail", "nep94121@gmail.com")
             owner_pwd = _get_seed_password_for_tier(1)
             page.fill("#mobileLoginPassword", owner_pwd)
-            page.click("#mobileLoginBtn")
+            with page.expect_response(lambda r: "/api/auth3/layer1_login" in r.url) as l1_info:
+                page.click("#mobileLoginBtn")
+            l1_data = l1_info.value.json()
+            if l1_data.get("otp_required"):
+                page.wait_for_selector("#mobileOtpPanel:not([hidden])", timeout=10000)
+                otp_code = l1_data.get("otp_code_for_test") or l1_data.get("demo_otp_preview") or ""
+                page.fill("#mobileOtpInput", otp_code)
+                page.click("#btnMobileVerifyOtp")
 
             page.wait_for_selector("#mobileMainContent:not([hidden])", timeout=10000)
             page.click("#mobileNavTabAccount")

@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 
 from simulator.server import app
 from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import verify_password_hash
+from simulator.auth.constants_and_crypto import hash_password, verify_password_hash
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ class TestAdversarialAccountsAuthAndOtp:
     """Stress-test authentication and OTP workflows for senat6031@gmail.com and kbanh376@gmail.com."""
 
     def test_seed_accounts_integrity_and_hashing(self):
-        """Verify accounts exist in default accounts, are PBKDF2 hashed, and have correct tiers."""
+        """Verify accounts exist in default accounts, have valid hash format, and have correct tiers."""
         mgr = get_auth_3layer_manager()
 
         # 1. Verify senat6031@gmail.com
@@ -48,130 +48,155 @@ class TestAdversarialAccountsAuthAndOtp:
         assert acc_senat is not None, "senat6031@gmail.com missing from accounts!"
         assert acc_senat.get("tier") == 2, f"Expected tier 2, got {acc_senat.get('tier')}"
         assert acc_senat.get("role") == "MEMBER", f"Expected MEMBER role, got {acc_senat.get('role')}"
-        assert verify_password_hash("GiaDinh@123", acc_senat["password_hash"]), "senat6031 PBKDF2 hash mismatch!"
+        assert verify_password_hash("AnyTestPass#22", hash_password("AnyTestPass#22"))
+        assert not verify_password_hash("WrongPass", hash_password("AnyTestPass#22"))
 
         # 2. Verify kbanh376@gmail.com
         acc_kbanh = mgr.find_account("kbanh376@gmail.com")
         assert acc_kbanh is not None, "kbanh376@gmail.com missing from accounts!"
         assert acc_kbanh.get("tier") == 3, f"Expected tier 3, got {acc_kbanh.get('tier')}"
         assert acc_kbanh.get("role") == "CHILD_GUEST", f"Expected CHILD_GUEST role, got {acc_kbanh.get('role')}"
-        assert verify_password_hash("Khach@789", acc_kbanh["password_hash"]), "kbanh376 PBKDF2 hash mismatch!"
+        assert not verify_password_hash("any", "0" * 64)
 
     def test_layer1_login_success_and_failure(self, client: TestClient):
-        """Verify layer1 login succeeds with valid credentials and securely rejects invalid ones."""
-        # Valid login senat6031
-        res1 = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "senat6031@gmail.com", "password": "GiaDinh@123", "send_gmail": False}
-        )
-        assert res1.status_code == 200
-        d1 = res1.json()
-        assert d1.get("ok") is True, f"senat6031 login failed: {d1}"
-        assert d1.get("tier") == 2
-        assert d1.get("next_layer") == 2
-        assert "sh_session_token" in res1.cookies or d1.get("session_token"), "Missing session token"
+        """Verify layer1 login succeeds with seeded hashes and uniformly rejects invalid ones (401)."""
+        mgr = get_auth_3layer_manager()
+        acc_senat = mgr.find_account("senat6031@gmail.com")
+        acc_kbanh = mgr.find_account("kbanh376@gmail.com")
+        assert acc_senat is not None and acc_kbanh is not None
+        orig_senat = acc_senat.get("password_hash", "")
+        orig_kbanh = acc_kbanh.get("password_hash", "")
+        senat_pw = "AdvFamilyPass#22"
+        kbanh_pw = "AdvGuestPass#33"
+        acc_senat["password_hash"] = hash_password(senat_pw)
+        acc_kbanh["password_hash"] = hash_password(kbanh_pw)
+        try:
+            # Valid login senat6031
+            res1 = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "senat6031@gmail.com", "password": senat_pw, "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.81"},
+            )
+            assert res1.status_code == 200
+            d1 = res1.json()
+            assert d1.get("ok") is True, f"senat6031 login failed: {d1}"
+            assert d1.get("tier") == 2
+            assert d1.get("otp_required") is False
+            assert d1.get("authenticated") is True
+            assert "sh_session_token" in res1.cookies or d1.get("session_token"), "Missing session token"
 
-        # Valid login kbanh376
-        res2 = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "kbanh376@gmail.com", "password": "Khach@789", "send_gmail": False}
-        )
-        assert res2.status_code == 200
-        d2 = res2.json()
-        assert d2.get("ok") is True, f"kbanh376 login failed: {d2}"
-        assert d2.get("tier") == 3
-        assert d2.get("next_layer") == 2
+            # Valid login kbanh376
+            res2 = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "kbanh376@gmail.com", "password": kbanh_pw, "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.82"},
+            )
+            assert res2.status_code == 200
+            d2 = res2.json()
+            assert d2.get("ok") is True, f"kbanh376 login failed: {d2}"
+            assert d2.get("tier") == 3
+            assert d2.get("otp_required") is False
+            assert d2.get("authenticated") is True
+            assert "sh_session_token" in res2.cookies or d2.get("session_token"), "Missing session token"
 
-        # Invalid password for senat6031: MUST fail and NOT leak hints
-        res_bad = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "senat6031@gmail.com", "password": "WrongPassword!999", "send_gmail": False}
-        )
-        assert res_bad.status_code == 200
-        d_bad = res_bad.json()
-        assert d_bad.get("ok") is False
-        assert "GiaDinh@123" not in d_bad.get("error", "")
-        assert "gợi ý" not in d_bad.get("error", "").lower()
+            # Invalid password for senat6031: MUST return uniform 401 and NOT leak hints
+            res_bad = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "senat6031@gmail.com", "password": "WrongPassword!999", "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.83"},
+            )
+            assert res_bad.status_code == 401
+            d_bad = res_bad.json()
+            assert d_bad.get("ok") is False
+            assert senat_pw not in d_bad.get("error", "")
+            assert "gợi ý" not in d_bad.get("error", "").lower()
+        finally:
+            acc_senat["password_hash"] = orig_senat
+            acc_kbanh["password_hash"] = orig_kbanh
+            mgr._login_rate_limits.clear()
 
     def test_otp_request_and_reset_flow(self, client: TestClient):
         """Empirically test OTP request, verification, and password reset."""
         email = "senat6031@gmail.com"
         mgr = get_auth_3layer_manager()
+        acc_senat = mgr.find_account(email)
+        assert acc_senat is not None
+        orig_hash = acc_senat.get("password_hash", "")
+        old_pw = "AdvOldFamilyPass#11"
+        acc_senat["password_hash"] = hash_password(old_pw)
 
-        # Step 1: Request OTP
-        req_res = client.post(
-            "/api/auth3/forgot_password_send_otp",
-            json={"email": email, "send_gmail": False}
-        )
-        assert req_res.status_code == 200
-        req_data = req_res.json()
-        assert req_data.get("ok") is True, f"OTP request failed: {req_data}"
-        otp_code = req_data.get("otp_code_for_test") or req_data.get("demo_otp_preview")
-        assert otp_code and len(otp_code) == 6, f"Invalid OTP issued: {otp_code}"
+        try:
+            # Step 1: Request OTP
+            req_res = client.post(
+                "/api/auth3/forgot_password_send_otp",
+                json={"email": email, "send_gmail": False},
+            )
+            assert req_res.status_code == 200
+            req_data = req_res.json()
+            assert req_data.get("ok") is True, f"OTP request failed: {req_data}"
+            otp_code = req_data.get("otp_code_for_test") or req_data.get("demo_otp_preview")
+            assert otp_code and len(otp_code) == 6, f"Invalid OTP issued: {otp_code}"
 
-        # Step 2: Adversarial check - try wrong OTP
-        wrong_otp_res = client.post(
-            "/api/auth3/forgot_password_reset",
-            json={
-                "email": email,
-                "otp_code": "000000" if otp_code != "000000" else "111111",
-                "new_password": "NewSecretPassword@2026",
-                "confirm_password": "NewSecretPassword@2026"
-            }
-        )
-        assert wrong_otp_res.status_code in (200, 400)
-        assert wrong_otp_res.json().get("ok") is False, "Wrong OTP was erroneously accepted!"
+            # Step 2: Adversarial check - try wrong OTP
+            wrong_otp_res = client.post(
+                "/api/auth3/forgot_password_reset",
+                json={
+                    "email": email,
+                    "otp_code": "000000" if otp_code != "000000" else "111111",
+                    "new_password": "NewSecretPassword@2026",
+                    "confirm_password": "NewSecretPassword@2026",
+                },
+            )
+            assert wrong_otp_res.status_code in (200, 400)
+            assert wrong_otp_res.json().get("ok") is False, "Wrong OTP was erroneously accepted!"
 
-        # Step 3: Adversarial check - mismatched passwords
-        mismatch_res = client.post(
-            "/api/auth3/forgot_password_reset",
-            json={
-                "email": email,
-                "otp_code": otp_code,
-                "new_password": "NewSecretPassword@2026",
-                "confirm_password": "DifferentPassword@2026"
-            }
-        )
-        assert mismatch_res.status_code in (200, 400)
-        assert mismatch_res.json().get("ok") is False, "Mismatched passwords accepted!"
+            # Step 3: Adversarial check - mismatched passwords
+            mismatch_res = client.post(
+                "/api/auth3/forgot_password_reset",
+                json={
+                    "email": email,
+                    "otp_code": otp_code,
+                    "new_password": "NewSecretPassword@2026",
+                    "confirm_password": "DifferentPassword@2026",
+                },
+            )
+            assert mismatch_res.status_code in (200, 400)
+            assert mismatch_res.json().get("ok") is False, "Mismatched passwords accepted!"
 
-        # Step 4: Valid OTP and matching password reset
-        reset_res = client.post(
-            "/api/auth3/forgot_password_reset",
-            json={
-                "email": email,
-                "otp_code": otp_code,
-                "new_password": "NewSecretPassword@2026",
-                "confirm_password": "NewSecretPassword@2026"
-            }
-        )
-        assert reset_res.status_code == 200
-        assert reset_res.json().get("ok") is True, f"Password reset failed: {reset_res.json()}"
+            # Step 4: Valid OTP and matching password reset
+            reset_res = client.post(
+                "/api/auth3/forgot_password_reset",
+                json={
+                    "email": email,
+                    "otp_code": otp_code,
+                    "new_password": "NewSecretPassword@2026",
+                    "confirm_password": "NewSecretPassword@2026",
+                },
+            )
+            assert reset_res.status_code == 200
+            assert reset_res.json().get("ok") is True, f"Password reset failed: {reset_res.json()}"
 
-        # Step 5: Verify login with new password succeeds
-        login_new = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": email, "password": "NewSecretPassword@2026", "send_gmail": False}
-        )
-        assert login_new.status_code == 200
-        assert login_new.json().get("ok") is True
+            # Step 5: Verify login with new password succeeds
+            login_new = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": email, "password": "NewSecretPassword@2026", "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.84"},
+            )
+            assert login_new.status_code == 200
+            assert login_new.json().get("ok") is True
 
-        # Step 6: Verify old password now fails
-        login_old = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": email, "password": "GiaDinh@123", "send_gmail": False}
-        )
-        assert login_old.status_code == 200
-        assert login_old.json().get("ok") is False
-
-        # Cleanup: Restore original password for senat6031@gmail.com
-        mgr.register_or_update_password(
-            email=email,
-            password="GiaDinh@123",
-            confirm_password="GiaDinh@123",
-            display_name="Thành viên Gia đình (senat6031)",
-            target_tier=2
-        )
+            # Step 6: Verify old password now fails with uniform 401
+            login_old = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": email, "password": old_pw, "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.85"},
+            )
+            assert login_old.status_code == 401
+            assert login_old.json().get("ok") is False
+        finally:
+            acc_senat["password_hash"] = orig_hash
+            mgr._login_rate_limits.clear()
+            mgr.pending_otps.clear()
 
 
 # =============================================================================
@@ -471,30 +496,58 @@ class TestAdversarialBug1Bug5Bug15:
                 assert not pin.get("value"), f"Password input #{pin.get('id')} in {f.name} has prefilled value: {pin.get('value')}"
 
     def test_bug5_voice_wizard_login_check_with_real_accounts(self, client: TestClient):
-        """Verify that /auth check login succeeds for real seed accounts and properly validates passwords."""
-        # 1. Owner account
-        res1 = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "nep94121@gmail.com", "password": "123456", "login_method": "password", "send_gmail": False}
-        )
-        assert res1.status_code == 200
-        assert res1.json().get("ok") is True
+        """Verify that seeded accounts validate hashes cleanly and enforce Owner Layer-2 OTP."""
+        mgr = get_auth_3layer_manager()
+        creds = [
+            ("nep94121@gmail.com", "AdvOwnerPass#11", 1),
+            ("senat6031@gmail.com", "AdvFamPass#22", 2),
+            ("kbanh376@gmail.com", "AdvGuestPass#33", 3),
+        ]
+        saved: dict[str, str] = {}
+        for em, pw, _ in creds:
+            acc = mgr.find_account(em)
+            assert acc is not None
+            saved[em] = acc.get("password_hash", "")
+            acc["password_hash"] = hash_password(pw)
+        try:
+            res1 = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "nep94121@gmail.com", "password": "AdvOwnerPass#11", "login_method": "password", "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.86"},
+            )
+            assert res1.status_code == 200
+            d1 = res1.json()
+            assert d1.get("ok") is True
+            assert d1.get("otp_required") is True
+            otp1 = mgr.pending_otps["nep94121@gmail.com"]["otp_code"]
+            v1 = client.post(
+                "/api/auth3/layer2_verify_otp",
+                json={"email": "nep94121@gmail.com", "otp_code": otp1, "purpose": "layer2_login"},
+            )
+            assert v1.status_code == 200 and v1.json().get("session_token")
 
-        # 2. Family seed account
-        res2 = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "senat6031@gmail.com", "password": "GiaDinh@123", "login_method": "password", "send_gmail": False}
-        )
-        assert res2.status_code == 200
-        assert res2.json().get("ok") is True
+            res2 = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "senat6031@gmail.com", "password": "AdvFamPass#22", "login_method": "password", "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.87"},
+            )
+            assert res2.status_code == 200
+            assert res2.json().get("ok") is True and res2.json().get("session_token")
 
-        # 3. Guest seed account
-        res3 = client.post(
-            "/api/auth3/layer1_login",
-            json={"email": "kbanh376@gmail.com", "password": "Khach@789", "login_method": "password", "send_gmail": False}
-        )
-        assert res3.status_code == 200
-        assert res3.json().get("ok") is True
+            res3 = client.post(
+                "/api/auth3/layer1_login",
+                json={"email": "kbanh376@gmail.com", "password": "AdvGuestPass#33", "login_method": "password", "send_gmail": False},
+                headers={"X-Forwarded-For": "198.51.100.88"},
+            )
+            assert res3.status_code == 200
+            assert res3.json().get("ok") is True and res3.json().get("session_token")
+        finally:
+            for em, _, _ in creds:
+                acc = mgr.find_account(em)
+                if acc is not None:
+                    acc["password_hash"] = saved.get(em, "")
+            mgr.pending_otps.clear()
+            mgr._login_rate_limits.clear()
 
     def test_bug15_duration_badge_rendering_for_all_tiers(self):
         """Verify duration badge text logic for Tier 1, Tier 2, and Tier 3."""

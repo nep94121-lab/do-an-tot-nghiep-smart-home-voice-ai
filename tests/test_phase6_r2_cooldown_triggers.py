@@ -38,9 +38,11 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def clean_pending_otps_state():
+def clean_pending_otps_state(monkeypatch: pytest.MonkeyPatch):
     from simulator.api.routes_auth import get_auth_3layer_manager
 
+    monkeypatch.delenv("VERCEL", raising=False)
+    monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
     with lock:
@@ -271,7 +273,9 @@ class TestPhase6R2OtpConsumptionAndDestruction:
 
         assert "senat6031@gmail.com" in auth_mgr.pending_otps
 
-        original_pw = "GiaDinh@123"
+        target_acc = auth_mgr.find_account("senat6031@gmail.com")
+        assert target_acc is not None
+        orig_hash = target_acc.get("password_hash", "")
         try:
             # 2. Đặt lại mật khẩu với đúng OTP
             res_reset = client.post(
@@ -301,12 +305,8 @@ class TestPhase6R2OtpConsumptionAndDestruction:
             )
             assert res_replay.json().get("ok") is False
         finally:
-            auth_mgr.register_or_update_password(
-                email="senat6031@gmail.com",
-                password=original_pw,
-                confirm_password=original_pw,
-                source="TestCleanup",
-            )
+            target_acc["password_hash"] = orig_hash
+            auth_mgr._save_accounts()
 
 
 class TestPhase6R2ThreadSafetyAndConcurrency:

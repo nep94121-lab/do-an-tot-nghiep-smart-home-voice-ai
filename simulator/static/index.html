@@ -40,7 +40,7 @@
       </nav>
       <div class="sidebar-links">
         <a href="/app">Ứng dụng</a>
-        
+        <a href="/guest">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
         <a href="/archify">Tài liệu dự án</a>
@@ -75,7 +75,7 @@
         </div>
         <div class="top-row top-row-account top-actions" id="topAccountRow">
           <span class="status" id="homeCurrentAccountBadge" title="Tài khoản đang đăng nhập">
-            👑 Chủ nhà · nep94121@gmail.com
+            Chưa đăng nhập
           </span>
           <span class="status" id="homeSessionDurationBadge" title="Thời hạn truy cập còn lại" style="display:none;" hidden>
             Không giới hạn
@@ -135,7 +135,7 @@
             </div>
             <div id="deviceGrid" class="device-list"></div>
             <div class="panel-foot">
-              <a class="text-link" id="btnOpenFirstVoiceModal" href="/auth">Đăng ký giọng nói</a>
+              <a class="text-link" href="/auth">Quản lý phiên &amp; phân quyền</a>
             </div>
           </section>
 
@@ -252,75 +252,13 @@
     <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
   </nav>
 
-  <div id="firstPageVoiceModal" class="modal hidden">
-    <div class="modal-content" style="max-width:520px;">
-      <input type="hidden" id="firstVoiceEmailInput" value="nep94121@gmail.com" />
-      <div class="modal-header">
-        <div>
-          <h3>Đăng ký &amp; Kiểm tra Giọng nói</h3>
-          <span id="firstVoiceTierBadge" class="subtle" style="color:var(--accent); font-weight:500;">Đang chọn: Giọng Cấp 1 · Chủ nhà Nguyễn Tuấn Anh</span>
-        </div>
-        <button id="btnCloseFirstVoiceModal" type="button" class="btn-close" aria-label="Đóng">
-          <svg class="icon"><use href="#i-x"/></svg>
-        </button>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
-        <div>
-          <label for="firstVoiceTierSelect" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ giọng nói</label>
-          <select id="firstVoiceTierSelect" class="input-text" style="width:100%; min-height:38px;">
-            <option value="1">Giọng Cấp 1 · Chủ nhà (Nguyễn Tuấn Anh)</option>
-            <option value="2">Giọng Cấp 2 · Thành viên gia đình</option>
-            <option value="3">Giọng Cấp 3 · Khách đến chơi nhà</option>
-          </select>
-        </div>
-        <div>
-          <label for="firstVoiceSpeakerNameInput" class="subtle" style="display:block; margin-bottom:4px;">Tên người đăng ký giọng</label>
-          <input type="text" id="firstVoiceSpeakerNameInput" class="input-text" style="width:100%; min-height:38px;" value="Nguyễn Tuấn Anh" placeholder="Nhập họ tên người đọc" />
-        </div>
-      </div>
-
-      <p class="subtle" style="margin-top:10px;">Chọn hoặc đọc các câu mẫu dưới đây để kiểm tra và lưu giọng của bạn:</p>
-      <div id="firstVoicePhraseList" style="display:grid; gap:6px; margin-top:6px;">
-        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
-          1. "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
-        </button>
-        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Mở cửa chính và bật đèn phòng khách." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
-          2. "Mở cửa chính và bật đèn phòng khách."
-        </button>
-        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Bật điều hòa phòng ngủ hai mươi sáu độ và bật quạt trần." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
-          3. "Bật điều hòa phòng ngủ hai mươi sáu độ và bật quạt trần."
-        </button>
-        <button type="button" class="btn btn-secondary first-voice-phrase-item" data-phrase="Tắt toàn bộ đèn trong nhà và đóng rèm cửa." style="justify-content:flex-start; text-align:left; min-height:34px; font-size:12px;">
-          4. "Tắt toàn bộ đèn trong nhà và đóng rèm cửa."
-        </button>
-      </div>
-
-      <div id="firstVoiceSamplePhrase" class="sample-phrase">
-        "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
-      </div>
-      <div class="modal-actions">
-        <button type="button" id="btnHoldRecordVoice" class="btn btn-primary" style="flex:1">
-          <svg class="icon"><use href="#i-mic"/></svg>
-          <span>Thu âm</span>
-        </button>
-        <button type="button" id="btnRetryFirstVoiceModal" class="btn btn-secondary">🔄 Thu lại</button>
-        <button type="button" id="btnConfirmFirstVoiceModal" class="btn btn-primary" disabled>✅ Xác nhận</button>
-        <button type="button" id="btnCancelFirstVoiceModal" class="btn btn-secondary">Hủy</button>
-      </div>
-      <div id="firstVoiceResultBox" class="subtle" style="margin-top:12px; padding:10px; border-radius:8px; background:var(--page); border:1px solid var(--line);">
-        Chưa thu âm · Hãy chọn Cấp độ (Cấp 1 / Cấp 2 / Cấp 3) và bấm "Thu âm".
-      </div>
-    </div>
-  </div>
-
   <!-- TRANG ĐĂNG NHẬP (LOGIN GATE) TRƯỚC KHI VÀO NHÀ THÔNG MINH -->
   <div id="homeLoginGateModal" class="modal hidden" style="z-index:400; background:rgba(23,43,49,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
     <div class="modal-content" style="max-width:460px;">
       <div class="modal-header">
         <div>
           <h3>Đăng nhập · Nhà thông minh</h3>
-          <p class="subtle">Tài khoản chính Chủ nhà: nep94121@gmail.com</p>
+          <p class="subtle">Đăng nhập bằng tài khoản được cấp quyền để điều khiển hệ thống.</p>
         </div>
         <button id="btnCloseLoginGateModal" type="button" class="btn-close" aria-label="Đóng" hidden>
           <svg class="icon"><use href="#i-x"/></svg>
@@ -338,17 +276,17 @@
       <form id="gatePanelLogin" style="display:grid; gap:10px;" onsubmit="event.preventDefault();">
         <div>
           <label for="gateLoginEmail" class="subtle" style="display:block; margin-bottom:4px;">Email đăng nhập</label>
-          <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="" placeholder="Nhập email (VD: nep94121@gmail.com)" />
+          <input type="email" id="gateLoginEmail" class="input-text" style="width:100%;" value="" placeholder="Nhập email tài khoản" autocomplete="email" />
         </div>
         <div>
           <label for="gateLoginPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu trong phần mềm</label>
           <div style="position:relative; display:flex; align-items:center;">
-            <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" />
+            <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" autocomplete="current-password" />
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-top:2px;">
-          <a href="/login" class="subtle" id="linkGateForgot" style="text-decoration:none; color:var(--accent);">Quên mật khẩu?</a>
+          <a href="#" class="subtle" id="linkGateForgot" style="text-decoration:none; color:var(--accent);">Quên mật khẩu?</a>
           <a href="/register" class="subtle" id="linkGateRegister" style="text-decoration:none; color:var(--accent);">Đăng ký</a>
         </div>
         <button type="submit" id="btnSubmitGateLogin" class="btn btn-primary" style="width:100%;">
@@ -356,12 +294,27 @@
         </button>
       </form>
 
+      <!-- XÁC THỰC OTP LỚP 2 CHO CHỦ NHÀ -->
+      <div id="gateOtpPanel" style="display:none; gap:10px;" hidden>
+        <p id="gateOtpDesc" class="subtle" style="margin:0;">Tài khoản Chủ nhà yêu cầu mã OTP 6 số gửi qua Gmail trước khi mở khóa.</p>
+        <div>
+          <label for="gateOtpInput" class="subtle" style="display:block; margin-bottom:4px;">Mã OTP 6 chữ số</label>
+          <input type="text" id="gateOtpInput" class="input-text" style="width:100%;" maxlength="6" inputmode="numeric" value="" placeholder="Nhập mã OTP 6 số" autocomplete="one-time-code" />
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" id="btnVerifyGateOtp" class="btn btn-primary" style="flex:1;">Xác nhận OTP &amp; Đăng nhập</button>
+          <button type="button" id="btnSendGateOtp" class="btn btn-secondary">Gửi lại OTP</button>
+        </div>
+        <button type="button" id="btnCancelGateOtp" class="btn btn-secondary" style="width:100%; font-size:12px;">← Quay lại đăng nhập</button>
+      </div>
+
       <!-- TAB 2: TẠO TÀI KHOẢN / ĐẶT MẬT KHẨU (CÓ 2 Ô MẬT KHẨU XÁC NHẬN LẠI) -->
       <form id="gatePanelRegister" style="display:none; gap:10px;" onsubmit="event.preventDefault();">
+        <p class="subtle" style="margin:0; font-size:12px;">Tài khoản mới đăng ký sẽ <strong>chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập</strong> (trừ khi có mã mời).</p>
         <div hidden aria-hidden="true">
           <label for="gateRegTier" class="subtle" style="display:block; margin-bottom:4px;">Chọn Cấp độ tài khoản</label>
           <select id="gateRegTier" class="input-text" style="width:100%;">
-            <option value="1">Cấp 1 · Chủ nhà Nguyễn Tuấn Anh (nep94121@gmail.com)</option>
+            <option value="1">Cấp 1 · Chủ nhà</option>
             <option value="2">Cấp 2 · Thành viên gia đình</option>
             <option value="3">Cấp 3 · Khách đến chơi nhà</option>
           </select>
@@ -400,22 +353,24 @@
           <div>
             <label for="gateForgotEmail" class="subtle" style="display:block; margin-bottom:4px;">Bước 1/3: Email nhận mã OTP khôi phục</label>
             <div style="display:flex; gap:6px;">
-              <input type="email" id="gateForgotEmail" class="input-text" style="flex:1;" value="" placeholder="Nhập email nhận OTP (VD: senat6031@gmail.com)" />
+              <input type="email" id="gateForgotEmail" class="input-text" style="flex:1;" value="" placeholder="Nhập email nhận OTP" autocomplete="email" />
               <button type="button" id="btnSendForgotOtp" class="btn btn-secondary">Gửi OTP</button>
             </div>
           </div>
           <button type="button" id="btnGoForgotStep2" class="btn btn-secondary" style="width:100%; font-size:12px;">Đã có mã OTP ➔ Nhập OTP (Bước 2)</button>
+          <button type="button" id="btnBackForgotToLogin" class="btn btn-secondary" style="width:100%; font-size:12px;">← Quay lại đăng nhập</button>
         </div>
 
         <!-- BƯỚC 2: NHẬP MÃ OTP -->
         <div id="gateForgotStep2" style="display:none; gap:10px;">
           <div>
             <label for="gateForgotOtpInput" class="subtle" style="display:block; margin-bottom:4px;">Bước 2/3: Mã OTP 6 số nhận qua Gmail</label>
-            <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" placeholder="Nhập mã OTP 6 số" />
+            <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" inputmode="numeric" placeholder="Nhập mã OTP 6 số" autocomplete="one-time-code" />
           </div>
           <div style="display:flex; gap:6px;">
             <button type="button" id="btnBackForgotStep1" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 1</button>
-            <button type="button" id="btnGoForgotStep3" class="btn btn-primary" style="flex:1; font-size:12px;">Xác nhận OTP ➔ Bước 3</button>
+            <button type="button" id="btnResendForgotOtp" class="btn btn-secondary" style="flex:1; font-size:12px;">Gửi lại OTP</button>
+            <button type="button" id="btnGoForgotStep3" class="btn btn-primary" style="flex:1; font-size:12px;">Tiếp tục ➔ Bước 3</button>
           </div>
         </div>
 
@@ -466,6 +421,10 @@
       </div>
 
       <form id="lockdownForm" onsubmit="event.preventDefault(); window.unlockSecurityLockdown();" style="display:grid; gap:12px;">
+        <div id="lockdownEmailGroup">
+          <label class="label" for="lockdownEmail" style="display:block; font-weight:500; margin:6px 0 6px; font-size:13px;">Email Chủ nhà</label>
+          <input id="lockdownEmail" class="input-text field" type="email" autocomplete="email" placeholder="Nhập email Chủ nhà" style="width:100%; height:44px; padding:0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" />
+        </div>
         <div id="lockdownPasswordGroup">
           <label class="label" for="lockdownPassword" style="display:block; font-weight:500; margin:10px 0 6px; font-size:13px;">Mật khẩu Chủ nhà</label>
           <div style="position:relative; display:flex; align-items:center;">
@@ -477,7 +436,7 @@
         <div id="lockdownOtpGroup" style="display:none;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 6px;">
             <label class="label" for="lockdownOtp" style="font-weight:500; font-size:13px; margin:0;">Mã OTP Gmail</label>
-            <button type="button" id="btnLockdownSendOtp" onclick="window.sendLockdownOtp()" class="text-link" style="font-size:12px; color:var(--accent); background:none; border:none; cursor:pointer; padding:0;">Gửi mã OTP (nep94121@gmail.com)</button>
+            <button type="button" id="btnLockdownSendOtp" onclick="window.sendLockdownOtp()" class="text-link" style="font-size:12px; color:var(--accent); background:none; border:none; cursor:pointer; padding:0;">Gửi mã OTP tới Gmail Chủ nhà</button>
           </div>
           <input id="lockdownOtp" class="input-text field" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="Nhập mã OTP 6 số" style="width:100%; height:44px; padding:0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
         </div>

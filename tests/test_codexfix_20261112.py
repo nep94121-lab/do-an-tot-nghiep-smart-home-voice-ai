@@ -21,13 +21,22 @@ def client(monkeypatch):
 
 
 def owner_login(client, monkeypatch):
-    account = get_auth_3layer_manager().find_account("nep94121@gmail.com")
+    mgr = get_auth_3layer_manager()
+    account = mgr.find_account("nep94121@gmail.com")
     monkeypatch.setitem(account, "password_hash", hash_password("fixture-password"))
     response = client.post("/api/auth3/layer1_login", json={
         "email": account["email"], "password": "fixture-password", "send_gmail": False,
     })
-    assert response.json()["ok"]
-    return response.json()["session_token"]
+    data = response.json()
+    assert data["ok"]
+    assert data.get("otp_required") is True
+    otp_code = data.get("otp_code_for_test") or mgr.pending_otps[account["email"].lower()]["otp_code"]
+    verify = client.post("/api/auth3/layer2_verify_otp", json={
+        "email": account["email"], "otp_code": otp_code,
+    })
+    vdata = verify.json()
+    assert vdata["ok"]
+    return vdata["session_token"]
 
 
 @pytest.mark.parametrize("path", ["/api/device", "/api/device_control", "/api/device/fan", "/api/devices/fan/control", "/api/session/role", "/api/text_command"])

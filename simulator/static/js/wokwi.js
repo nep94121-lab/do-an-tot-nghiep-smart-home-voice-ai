@@ -1,3 +1,59 @@
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !window._shAuthFetchWrapped) {
+      const _origWokwiFetch = window.fetch.bind(window);
+      window.fetch = function(input, init) {
+        const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (urlStr.startsWith('/api/')) {
+          let tok = '';
+          try {
+            tok = (window.sessionStorage && window.sessionStorage.getItem('session_token')) ||
+                  (window.localStorage && window.localStorage.getItem('session_token')) || '';
+            if (!tok && window.localStorage) {
+              const rawSess = window.localStorage.getItem('smarthome_auth_session');
+              if (rawSess) {
+                const parsed = JSON.parse(rawSess);
+                tok = (parsed && parsed.session_token) || '';
+              }
+            }
+          } catch (_) {}
+          const nextInit = Object.assign({ credentials: 'same-origin' }, init || {});
+          const hdrs = Object.assign({}, nextInit.headers || {});
+          if (tok && !hdrs['X-Session-Token'] && !hdrs['x-session-token'] && !hdrs['Authorization']) {
+            hdrs['X-Session-Token'] = tok;
+          }
+          nextInit.headers = hdrs;
+          return _origWokwiFetch(input, nextInit);
+        }
+        return _origWokwiFetch(input, init);
+      };
+      window._shAuthFetchWrapped = true;
+    }
+
+    function isLocalWokwiHost() {
+      if (typeof location === 'undefined') return true;
+      const h = location.hostname || '';
+      return h === 'localhost' || h === '127.0.0.1';
+    }
+
+    function showWokwiAuthError(msg) {
+      const banner = document.getElementById('wokwiAuthBanner');
+      const msgEl = document.getElementById('wokwiAuthBannerMsg');
+      const cleanMsg = msg || 'Bạn chưa đăng nhập hoặc phiên đã hết hạn. Vui lòng đăng nhập để điều khiển thiết bị.';
+      if (msgEl) msgEl.textContent = cleanMsg;
+      if (banner) {
+        banner.style.display = 'flex';
+        banner.hidden = false;
+      }
+      logSerial(`[XÁC THỰC] ${cleanMsg} (Đăng nhập tại /login)`, 'warn');
+    }
+
+    function hideWokwiAuthError() {
+      const banner = document.getElementById('wokwiAuthBanner');
+      if (banner) {
+        banner.style.display = 'none';
+        banner.hidden = true;
+      }
+    }
+
     // =========================================================================
     // 1. VẼ BẢNG CẮM MẠCH BREADBOARD 400 LỖ THỰC TẾ (CHUẨN WOKWI.COM)
     // =========================================================================
@@ -543,7 +599,9 @@
 
       const connDot = document.getElementById('wokwiConnDot');
       if (connDot) {
-        connDot.textContent = window._wokwiServerConnected ? 'Đã kết nối' : 'Mất kết nối';
+        connDot.textContent = window._wokwiServerConnected
+          ? (isLocalWokwiHost() ? 'Đã kết nối' : 'Đồng bộ HTTP Cloud')
+          : 'Mất kết nối';
         connDot.classList.toggle('offline', !window._wokwiServerConnected);
       }
       const btnReconnect = document.getElementById('btnReconnectWokwi');
@@ -723,7 +781,12 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ server_connected: nextConnected })
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+        showWokwiAuthError((data && data.error) || 'Bạn cần đăng nhập để thay đổi trạng thái máy chủ.');
+        return;
+      }
+      hideWokwiAuthError();
       logSerial(
         nextConnected
           ? 'Đã kết nối lại máy chủ.'
@@ -807,8 +870,13 @@
                 source: 'wokwi_ui',
               }),
             });
-            const data = await r.json();
+            const data = await r.json().catch(() => ({}));
             ctrl.pendingCount = Math.max(0, ctrl.pendingCount - 1);
+            if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+              showWokwiAuthError((data && data.error) || 'Vui lòng đăng nhập để điều khiển công tắc phần cứng.');
+            } else if (r.ok && data && data.ok !== false) {
+              hideWokwiAuthError();
+            }
             if (mySeq < ctrl.seq) {
               reconcileWokwiIdleToServerKnown(devId, ctrl);
               resolve();
@@ -859,8 +927,8 @@
               resolve();
               return;
             }
-            if (data && (data.ok === false || data.error)) {
-              if (data.error) logSerial(`[CHẶN] ${data.error}`, 'warn');
+            if (!r.ok || (data && (data.ok === false || data.error))) {
+              if (data && data.error) logSerial(`[CHẶN] ${data.error}`, 'warn');
               const hasNewerKnown =
                 Number(ctrl.serverKnownVersion || 0) > Number(ctrl.lastVersion || 0) && Boolean(ctrl.serverKnownState);
               const revertState = String(
@@ -934,7 +1002,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ soil_moisture_pct: sPct })
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+        showWokwiAuthError((data && data.error) || 'Vui lòng đăng nhập để thay đổi giá trị cảm biến.');
+        return;
+      }
       if (data.auto_action === 'AUTO_PUMP_ON') {
         logSerial(`Độ ẩm đất thấp (${sPct}% < 40%) -> Tự bật máy bơm.`, 'cmd');
       } else if (data.auto_action === 'AUTO_PUMP_OFF') {
@@ -953,11 +1025,16 @@
     async function commitTempSlide(val) {
       const t = parseFloat(val);
       logSerial(`Nhiệt độ = ${t.toFixed(1)}°C, Độ ẩm = 65%`, 'cmd');
-      await fetch('/api/dht11', {
+      const r = await fetch('/api/dht11', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ temp_c: t, humidity_pct: 65 })
       });
+      if (r.status === 401 || r.status === 403) {
+        const d = await r.json().catch(() => ({}));
+        showWokwiAuthError((d && d.error) || 'Vui lòng đăng nhập để thay đổi giá trị cảm biến.');
+        return;
+      }
       fetchState();
     }
 
@@ -968,7 +1045,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_name: devName, command_action: act })
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+        showWokwiAuthError((data && data.error) || 'Vui lòng đăng nhập để học lệnh hồng ngoại.');
+        return;
+      }
       if (data.learned) {
         logSerial(`[IR LEARNED] Đã lưu mã ${data.learned.protocol} (${data.learned.hex_code})`, 'ir');
       }
@@ -1017,9 +1098,12 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: cmdText })
         });
-        const data = await r.json();
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+          showWokwiAuthError((data && data.error) || 'Bạn cần đăng nhập để ra lệnh qua micro phần cứng.');
+        }
         const reply = data.exact_spoken_reply || data.reply || data.error || '';
-        const isOk = data.ok !== false;
+        const isOk = r.ok && data.ok !== false;
 
         if (spkLed) spkLed.setAttribute('fill', isOk ? '#34d399' : '#ef4444');
         if (spkCone) spkCone.setAttribute('stroke', isOk ? '#34d399' : '#ef4444');
@@ -1104,8 +1188,33 @@
         });
       }
 
+      let wokwiHttpPollTimer = null;
+      const startWokwiHttpPolling = () => {
+        const connDot = document.getElementById('wokwiConnDot');
+        if (connDot) {
+          connDot.textContent = 'Đồng bộ HTTP Cloud';
+          connDot.classList.remove('offline');
+        }
+        if (!wokwiHttpPollTimer) {
+          wokwiHttpPollTimer = setInterval(fetchState, 2000);
+        }
+      };
+
+      const isLocal = isLocalWokwiHost();
+      if (!isLocal) {
+        startWokwiHttpPolling();
+        logSerial('Đang chạy ở chế độ Đồng bộ HTTP Cloud (GET /api/state mỗi 2s).', 'cmd');
+        return;
+      }
+
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const ws = new WebSocket(`${proto}//${location.host}/ws`);
+      ws.onerror = () => {
+        startWokwiHttpPolling();
+      };
+      ws.onclose = () => {
+        startWokwiHttpPolling();
+      };
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);

@@ -40,6 +40,7 @@ from simulator.auth.invite_and_gmail_mixin import (
     AuthInviteGmailMixin,
     is_email_allowlisted_for_real_send,
 )
+from simulator.auth.constants_and_crypto import hash_password
 from simulator.auth_3layer import get_auth_3layer_manager
 from simulator.server import app
 
@@ -114,30 +115,41 @@ class TestLoginGatePayloadAndBehavior:
         client = TestClient(app)
         mgr = get_auth_3layer_manager()
 
-        # Clean pending OTPs
+        # Clean pending OTPs and seed explicit test hash cleanly
         mgr.pending_otps.clear()
+        owner_acc = mgr.find_account("nep94121@gmail.com")
+        assert owner_acc is not None
+        orig_hash = owner_acc.get("password_hash", "")
+        test_pw = "OwnerTestPass#11"
+        owner_acc["password_hash"] = hash_password(test_pw)
+        try:
+            # Login as owner
+            resp = client.post(
+                "/api/auth3/layer1_login",
+                json={
+                    "email": "nep94121@gmail.com",
+                    "password": test_pw,
+                    "login_method": "password",
+                    "send_gmail": False,
+                },
+            )
+            assert resp.status_code == 200, f"Unexpected status {resp.status_code}: {resp.text}"
+            data = resp.json()
+            assert data.get("ok") is True, f"Login failed: {data}"
+            assert data.get("otp_required") is True
+            assert not data.get("session_token")
 
-        # Login as owner
-        resp = client.post(
-            "/api/auth3/layer1_login",
-            json={
-                "email": "nep94121@gmail.com",
-                "password": "123456",
-                "login_method": "password",
-                "send_gmail": False,
-            },
-        )
-        assert resp.status_code == 200, f"Unexpected status {resp.status_code}: {resp.text}"
-        data = resp.json()
-        assert data.get("ok") is True, f"Login failed: {data}"
-
-        # Verify in manager pending_otps that sent_real_gmail is False
-        otp_info = mgr.pending_otps.get("nep94121@gmail.com")
-        assert otp_info is not None, "Pending OTP record must exist"
-        gmail_deliv = otp_info.get("gmail_delivery") or {}
-        assert gmail_deliv.get("sent_real_gmail") is False, (
-            f"Expected sent_real_gmail to be False, got: {gmail_deliv}"
-        )
+            # Verify in manager pending_otps that sent_real_gmail is False
+            otp_info = mgr.pending_otps.get("nep94121@gmail.com")
+            assert otp_info is not None, "Pending OTP record must exist"
+            gmail_deliv = otp_info.get("gmail_delivery") or {}
+            assert gmail_deliv.get("sent_real_gmail") is False, (
+                f"Expected sent_real_gmail to be False, got: {gmail_deliv}"
+            )
+        finally:
+            owner_acc["password_hash"] = orig_hash
+            mgr.pending_otps.clear()
+            mgr._login_rate_limits.clear()
 
 
 # ==============================================================================
@@ -173,31 +185,54 @@ class TestPlaywrightThreeRolesEmailSafety:
         mgr = get_auth_3layer_manager()
 
         roles = [
-            ("nep94121@gmail.com", "123456", 1),
-            ("senat6031@gmail.com", "GiaDinh@123", 2),
-            ("kbanh376@gmail.com", "Khach@789", 3),
+            ("nep94121@gmail.com", "OwnerRolePass#11", 1),
+            ("senat6031@gmail.com", "FamilyRolePass#22", 2),
+            ("kbanh376@gmail.com", "GuestRolePass#33", 3),
         ]
+        saved_hashes: dict[str, str] = {}
+        for email, pwd, _ in roles:
+            acc = mgr.find_account(email)
+            assert acc is not None
+            saved_hashes[email] = acc.get("password_hash", "")
+            acc["password_hash"] = hash_password(pwd)
 
-        for email, pwd, expected_tier in roles:
+        try:
+            for email, pwd, expected_tier in roles:
+                mgr.pending_otps.clear()
+                resp = client.post(
+                    "/api/auth3/layer1_login",
+                    json={
+                        "email": email,
+                        "password": pwd,
+                        "login_method": "password",
+                        "send_gmail": False,
+                    },
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data.get("ok") is True, f"Login failed for {email}: {data}"
+                assert data.get("tier") == expected_tier or (data.get("account") or {}).get("tier") == expected_tier
+
+                if expected_tier == 1:
+                    assert data.get("otp_required") is True
+                    otp_info = mgr.pending_otps.get(email.lower())
+                    assert otp_info is not None
+                    assert otp_info.get("gmail_delivery", {}).get("sent_real_gmail") is False
+                    v_resp = client.post(
+                        "/api/auth3/layer2_verify_otp",
+                        json={"email": email, "otp_code": otp_info["otp_code"], "purpose": "layer2_login"},
+                    )
+                    assert v_resp.status_code == 200
+                    assert v_resp.json().get("session_token")
+                else:
+                    assert data.get("session_token")
+        finally:
+            for email, _, _ in roles:
+                acc = mgr.find_account(email)
+                if acc is not None:
+                    acc["password_hash"] = saved_hashes.get(email, "")
             mgr.pending_otps.clear()
-            resp = client.post(
-                "/api/auth3/layer1_login",
-                json={
-                    "email": email,
-                    "password": pwd,
-                    "login_method": "password",
-                    "send_gmail": False,
-                },
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data.get("ok") is True, f"Login failed for {email}: {data}"
-            assert data.get("tier") == expected_tier or (data.get("account") or {}).get("tier") == expected_tier
-
-            # Verify no real email was sent
-            otp_info = mgr.pending_otps.get(email.lower())
-            assert otp_info is not None
-            assert otp_info.get("gmail_delivery", {}).get("sent_real_gmail") is False
+            mgr._login_rate_limits.clear()
 
 
 # ==============================================================================
@@ -275,9 +310,9 @@ class TestMockFixtureLeakProtection:
 
         def background_send_allowlisted():
             return mgr.send_real_gmail_otp(
-                target_email="senat6031@gmail.com",
+                target_email="nep94121+thread@gmail.com",
                 otp_code="111222",
-                display_name="Senat Allowlisted",
+                display_name="Owner Alias Allowlisted",
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -353,20 +388,22 @@ class TestDataIntegrityAndAllowlistCleanliness:
         "allowlisted_email",
         [
             "nep94121@gmail.com",
-            "senat6031@gmail.com",
-            "kbanh376@gmail.com",
             "NEP94121@GMAIL.COM",
-            "  senat6031@gmail.com  ",
-            "kbanh376@GMAIL.COM\n",
+            "  nep94121@gmail.com  ",
+            "nep94121+e2e1114a@gmail.com",
+            "n.e.p.94121@googlemail.com",
+            "nep94121@GMAIL.COM\n",
         ],
     )
     def test_allowlist_canonical_allowlisted_variations_pass(self, allowlisted_email: str):
-        """Canonical allowlisted emails with various case/whitespace must return True."""
+        """Canonical owner allowlisted emails and aliases with case/whitespace must return True."""
         assert is_email_allowlisted_for_real_send(allowlisted_email) is True
 
     @pytest.mark.parametrize(
         "blocked_email",
         [
+            "senat6031@gmail.com",
+            "kbanh376@gmail.com",
             # Subdomain & extension manipulation
             "nep94121@gmail.com.evil.com",
             "nep94121@gmail.com@attacker.org",

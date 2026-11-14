@@ -77,8 +77,11 @@
   const btnFactoryReset = byId("btnReset") || noopEl;
   const vnClockText = byId("vnClockText");
 
+  const isNonLocalHost = (typeof location !== "undefined") && Boolean(location.hostname) &&
+    location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
   const isVercelServerless = (typeof window !== "undefined") && (
     (typeof location !== "undefined" && Boolean((location.hostname || location.host || "").includes("vercel.app"))) ||
+    isNonLocalHost ||
     Boolean(window._FORCE_HTTP_POLLING)
   );
 
@@ -155,8 +158,6 @@
   let micProcessor = null;
   let wasSpeaking = false;
   let silenceStartMs = 0;
-  let isCapturingEnrollment = false;
-  let enrollmentChunks = [];
 
   function updateScheduleEmptyState() {
     const hasAny = currentTimersCount > 0 || currentRulesCount > 0;
@@ -1083,7 +1084,11 @@
         if (typeof connDot.classList.remove === "function") connDot.classList.remove("offline");
       }
     }
-    const statusLabel = window._serverConnected ? `Đã kết nối (${activeTransport})` : "Mất kết nối";
+    const statusLabel = window._serverConnected
+      ? (isVercelServerless && activeTransport === "HTTP Polling"
+          ? "Đã kết nối (HTTP Cloud · HTTP Polling)"
+          : `Đã kết nối (${activeTransport})`)
+      : "Mất kết nối";
     if (geminiStatusText && geminiStatusText !== noopEl) {
       geminiStatusText.textContent = statusLabel;
     }
@@ -1209,6 +1214,11 @@
   let voiceCommandBusy = false;
 
   async function executeVoiceCommandHttp(payload) {
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi sử dụng lệnh giọng nói.";
+      return { ok: false, error: "Chưa đăng nhập." };
+    }
     voiceCommandEpoch += 1;
     voiceCommandBusy = true;
     try {
@@ -1237,8 +1247,15 @@
         }
       }
       if (!res) throw lastFetchErr || new Error("fetch_failed");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       voiceCommandEpoch += 1;
+      if (res.status === 401 || res.status === 403 || data.authenticated === false) {
+        serverSessionConfirmed = false;
+        if (typeof clearAuthState === "function") clearAuthState();
+        if (typeof openLoginGateModal === "function") openLoginGateModal();
+        if (gateStatusBox) gateStatusBox.textContent = data.error || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+        return data;
+      }
       if (data.recognized_text) {
         setUserTranscriptText(data.recognized_text);
       }
@@ -1290,6 +1307,11 @@
         btn.setAttribute("data-sample-id", s.id);
         btn.textContent = s.label;
         btn.addEventListener("click", () => {
+          if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+            if (typeof openLoginGateModal === "function") openLoginGateModal();
+            if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi gửi lệnh mẫu.";
+            return;
+          }
           liveUserTranscript.textContent = s.label;
           liveUserTranscript.classList.remove("muted");
           if (isWsOpen()) {
@@ -1734,23 +1756,6 @@
           setAiReplyText(msg.message || "Đã đặt lại mô phỏng.");
           break;
 
-        case "voice_enrollment_countdown":
-          setAiReplyText(msg.message || "Chuẩn bị thu âm mẫu giọng...");
-          break;
-
-        case "start_voice_capture":
-          setAiReplyText(msg.message || "Đang thu âm mẫu giọng...");
-          runBrowserVoiceEnrollmentCapture(msg.duration_seconds || 5);
-          break;
-
-        case "voice_enrollment_captured":
-          setAiReplyText(msg.message || "Đang kiểm tra mẫu giọng...");
-          break;
-
-        case "voice_enrollment_analyzed":
-          setAiReplyText(msg.message || "Đã nhận mẫu giọng. Vui lòng đọc tên người dùng.");
-          break;
-
         case "permission_granted":
           setAiReplyText(msg.message || "Đã cập nhật quyền truy cập.");
           break;
@@ -1935,6 +1940,11 @@
   }
 
   async function startMic() {
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi sử dụng microphone.";
+      return;
+    }
     if (typeof window !== "undefined" && window.isSecureContext === false && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
       showMicPermissionModal("insecure_context");
       return;
@@ -1979,11 +1989,6 @@
         const rms = Math.sqrt(sumSq / input.length);
         const pct = Math.min(100, Math.round(rms * 550));
         micMeterBar.style.width = `${pct}%`;
-
-        if (isCapturingEnrollment) {
-          enrollmentChunks.push(new Uint8Array(pcm16.buffer.slice(0)));
-          return;
-        }
 
         const aiBusy = Boolean(
           audioCtxOut && nextPlayTime > audioCtxOut.currentTime + TTS_HOLDOFF_SEC
@@ -2108,75 +2113,6 @@
     micMeterBar.style.width = "0%";
   }
 
-  async function runBrowserVoiceEnrollmentCapture(durationSec = 5) {
-    return; // enrollment removed: permissions come from the account/session
-    durationSec;
-    isCapturingEnrollment = true;
-    enrollmentChunks = [];
-    let tempStream = null;
-    let tempCtx = null;
-    let tempProc = null;
-
-    if (!isRecording) {
-      try {
-        tempStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            sampleRate: 16000,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        tempCtx = new (window.AudioContext || window.webkitAudioContext)({
-          sampleRate: 16000,
-        });
-        const src = tempCtx.createMediaStreamSource(tempStream);
-        tempProc = tempCtx.createScriptProcessor(2048, 1, 1);
-        tempProc.onaudioprocess = (ev) => {
-          const rawInput = ev.inputBuffer.getChannelData(0);
-          const actualSr = tempCtx ? tempCtx.sampleRate : 16000;
-          const input = resampleFloat32AntiAliased(rawInput, actualSr, 16000);
-          const pcm16 = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) {
-            const s = Math.max(-1, Math.min(1, input[i]));
-            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-          }
-          if (isCapturingEnrollment) {
-            enrollmentChunks.push(new Uint8Array(pcm16.buffer.slice(0)));
-          }
-        };
-        src.connect(tempProc);
-        tempProc.connect(tempCtx.destination);
-      } catch (_) {}
-    }
-
-    setTimeout(() => {
-      isCapturingEnrollment = false;
-      if (tempProc) tempProc.disconnect();
-      if (tempCtx) tempCtx.close();
-      if (tempStream) tempStream.getTracks().forEach((t) => t.stop());
-
-      let totalLen = 0;
-      for (const c of enrollmentChunks) totalLen += c.byteLength;
-      const merged = new Uint8Array(totalLen);
-      let offset = 0;
-      for (const c of enrollmentChunks) {
-        merged.set(c, offset);
-        offset += c.byteLength;
-      }
-      let binary = "";
-      const chunkStep = 8192;
-      for (let i = 0; i < merged.byteLength; i += chunkStep) {
-        binary += String.fromCharCode.apply(null, merged.subarray(i, i + chunkStep));
-      }
-      sendWs({
-        type: "complete_voice_enrollment",
-        pcm16k_b64: btoa(binary),
-      });
-    }, durationSec * 1000);
-  }
-
 
   let ownerGuestCurrentInviteId = "";
 
@@ -2299,6 +2235,15 @@
 
 
 
+  function checkOwnerPinStatusIfOwner() {
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) return;
+    if (!inMemoryUserSession || Number(inMemoryUserSession.tier) !== 1) return;
+    fetch("/api/auth3/owner_pin/status", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).then((data) => {
+      const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
+      if (wrap && data && data.pin_set === false) wrap.hidden = false;
+    }).catch(() => {});
+  }
+
   (function bindOwnerGuestQrUi() {
     const gen = document.getElementById("ownerGuestQrGenerateBtn");
     const rev = document.getElementById("ownerGuestQrRevokeBtn");
@@ -2326,6 +2271,10 @@
     }
     if (resetBtn) {
       resetBtn.addEventListener("click", async () => {
+        if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+          if (typeof showGuestQrLoginPrompt === "function") showGuestQrLoginPrompt();
+          return;
+        }
         const otp = (document.getElementById("ownerGuestPinOtp") || {}).value || "";
         const pin = (document.getElementById("ownerGuestPinNew") || {}).value || "";
         const pin2 = (document.getElementById("ownerGuestPinNewConfirm") || {}).value || "";
@@ -2344,16 +2293,17 @@
         }
       });
     }
-    fetch("/api/auth3/owner_pin/status", { credentials: "include" }).then((r) => r.json()).then((data) => {
-      const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
-      if (wrap && data && data.pin_set === false) wrap.hidden = false;
-    }).catch(() => {});
     if (document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrBox")) {
-      /* Không tự tạo mã khi vừa mở trang: chủ nhà bấm "Tạo / làm mới". */
+      /* Không tự tạo mã hoặc gọi API PIN khi chưa xác nhận đăng nhập Chủ nhà. */
     }
   })();
 
   btnMicToggle.addEventListener("click", () => {
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi sử dụng microphone.";
+      return;
+    }
     if (isRecording) stopMic();
     else startMic();
   });
@@ -2367,6 +2317,11 @@
 
   async function submitTextCommand(cmd) {
     if (!cmd) return;
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi gửi lệnh điều khiển.";
+      return;
+    }
     setUserTranscriptText(cmd);
     setAiReplyText("Đang xử lý...");
     if (isWsOpen()) {
@@ -2382,8 +2337,15 @@
           role: (roleSelect && roleSelect.value) ? roleSelect.value : undefined,
         }),
       });
-      const data = await res.json();
-      setAiReplyText(data.exact_spoken_reply || data.reply || "Đã xử lý lệnh.");
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403 || data.authenticated === false) {
+        serverSessionConfirmed = false;
+        if (typeof clearAuthState === "function") clearAuthState();
+        if (typeof openLoginGateModal === "function") openLoginGateModal();
+        setAiReplyText(data.error || "Vui lòng đăng nhập để điều khiển thiết bị.");
+        return;
+      }
+      setAiReplyText(data.exact_spoken_reply || data.reply || data.error || "Đã xử lý lệnh.");
       if (data.snapshot) {
         applySnapshot(data.snapshot);
       } else {
@@ -2404,6 +2366,9 @@
   });
 
   document.querySelectorAll(".btn-scenario, .quick-cmd, .quick").forEach((btn) => {
+    if (btn && (btn.id === "ownerGuestQrGenerateBtn" || btn.id === "ownerGuestQrRevokeBtn" || btn.id === "ownerGuestQrForgotPinBtn" || btn.id === "ownerGuestPinResetBtn")) {
+      return;
+    }
     btn.addEventListener("click", () => {
       const cmd = btn.getAttribute("data-cmd") || btn.getAttribute("data-text") || btn.textContent.trim();
       submitTextCommand(cmd);
@@ -2417,6 +2382,10 @@
   });
 
   btnFactoryReset.addEventListener("click", async () => {
+    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      if (typeof openLoginGateModal === "function") openLoginGateModal();
+      return;
+    }
     if (window.confirm("Bạn muốn đặt lại toàn bộ trạng thái mô phỏng?")) {
       if (isWsOpen()) {
         sendWs({ type: "manual_factory_reset" });
@@ -2435,6 +2404,10 @@
   const btnServerModeToggle = byId("btnToggleServer");
   if (btnServerModeToggle) {
     btnServerModeToggle.addEventListener("click", async () => {
+      if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+        if (typeof openLoginGateModal === "function") openLoginGateModal();
+        return;
+      }
       const nextConnected = window._serverConnected === false ? true : false;
       sendWs({ type: "set_server_mode", server_connected: nextConnected });
       try {
@@ -2444,246 +2417,6 @@
           body: JSON.stringify({ server_connected: nextConnected }),
         });
       } catch (_) {}
-    });
-  }
-
-  // Modal Đăng ký & Kiểm tra giọng nói trên Trang chủ
-  const firstPageVoiceModal = byId("firstPageVoiceModal");
-  const btnOpenFirstVoiceModal = byId("btnOpenFirstVoiceModal");
-  const btnCloseFirstVoiceModal = byId("btnCloseFirstVoiceModal");
-  const btnCancelFirstVoiceModal = byId("btnCancelFirstVoiceModal");
-  const btnHoldRecordVoice = byId("btnHoldRecordVoice");
-  const btnRetryFirstVoiceModal = byId("btnRetryFirstVoiceModal");
-  const btnConfirmFirstVoiceModal = byId("btnConfirmFirstVoiceModal");
-  const firstVoiceResultBox = byId("firstVoiceResultBox");
-  const firstVoiceTierSelect = byId("firstVoiceTierSelect");
-  const firstVoiceSpeakerNameInput = byId("firstVoiceSpeakerNameInput");
-  const firstVoiceTierBadge = byId("firstVoiceTierBadge");
-  const firstVoiceSamplePhrase = byId("firstVoiceSamplePhrase");
-  const firstVoiceEmailInput = byId("firstVoiceEmailInput");
-
-  function getHomeVoiceTierLabel(tierNum) {
-    if (tierNum === 1) return "Giọng Cấp 1 · Chủ nhà";
-    if (tierNum === 2) return "Giọng Cấp 2 · Thành viên gia đình";
-    return "Giọng Cấp 3 · Khách đến chơi nhà";
-  }
-
-  function syncHomeVoiceTierUI() {
-    const t = firstVoiceTierSelect ? parseInt(firstVoiceTierSelect.value || "1", 10) : 1;
-    if (firstVoiceEmailInput) {
-      firstVoiceEmailInput.value = t === 1
-        ? "nep94121@gmail.com"
-        : (t === 2 ? "thanhviena.hust@gmail.com" : "khach.hust@gmail.com");
-    }
-    if (firstVoiceSpeakerNameInput) {
-      if (t === 1) {
-        firstVoiceSpeakerNameInput.value = "Nguyễn Tuấn Anh";
-      } else if (t === 2 && (firstVoiceSpeakerNameInput.value === "Nguyễn Tuấn Anh" || firstVoiceSpeakerNameInput.value === "Khách C")) {
-        firstVoiceSpeakerNameInput.value = "Thành viên A";
-      } else if (t === 3 && (firstVoiceSpeakerNameInput.value === "Nguyễn Tuấn Anh" || firstVoiceSpeakerNameInput.value === "Thành viên A")) {
-        firstVoiceSpeakerNameInput.value = "Khách C";
-      }
-    }
-    const spkName = (firstVoiceSpeakerNameInput && firstVoiceSpeakerNameInput.value.trim()) || "Nguyễn Tuấn Anh";
-    if (firstVoiceTierBadge) {
-      firstVoiceTierBadge.textContent = `Đang chọn: ${getHomeVoiceTierLabel(t)} (${spkName})`;
-    }
-  }
-
-  if (firstVoiceTierSelect) {
-    firstVoiceTierSelect.addEventListener("change", syncHomeVoiceTierUI);
-  }
-  if (firstVoiceSpeakerNameInput) {
-    firstVoiceSpeakerNameInput.addEventListener("input", syncHomeVoiceTierUI);
-  }
-
-  document.querySelectorAll(".first-voice-phrase-item").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const phrase = btn.getAttribute("data-phrase") || btn.textContent.trim();
-      if (firstVoiceSamplePhrase) {
-        firstVoiceSamplePhrase.textContent = `"${phrase}"`;
-      }
-    });
-  });
-
-  function openVoiceModal(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    syncHomeVoiceTierUI();
-    if (firstPageVoiceModal) firstPageVoiceModal.classList.remove("hidden");
-  }
-  function closeVoiceModal() {
-    if (firstPageVoiceModal) firstPageVoiceModal.classList.add("hidden");
-  }
-  if (btnOpenFirstVoiceModal) btnOpenFirstVoiceModal.addEventListener("click", openVoiceModal);
-  if (btnCloseFirstVoiceModal) btnCloseFirstVoiceModal.addEventListener("click", closeVoiceModal);
-  if (btnCancelFirstVoiceModal) btnCancelFirstVoiceModal.addEventListener("click", closeVoiceModal);
-
-  let isAppVoiceRecording = false;
-  let appMediaStream = null;
-  let appAudioContext = null;
-  let appAudioProcessor = null;
-  let appRecordedPcmChunks = [];
-  const HOME_ENROLL_REQUIRED_SAMPLES = 5;
-  let appRecordedSamplesB64 = [];
-
-  function generateSynthetic16kPcmB64(isGood, sampleIdx = 0) {
-    const sr = 16000;
-    const durSec = isGood ? (3.3 + (sampleIdx % 5) * 0.15) : 0.4;
-    const totalSamples = Math.floor(sr * durSec);
-    const pcm16 = new Int16Array(totalSamples);
-    const f0 = isGood ? (210.0 + (sampleIdx - 2) * 1.3) : 80.0;
-    const phase = sampleIdx * 0.4;
-    for (let i = 0; i < totalSamples; i++) {
-      if (i < Math.floor(sr * 0.3) && isGood) {
-        pcm16[i] = 0;
-      } else {
-        const t = i / sr;
-        const env = 0.85 + 0.15 * Math.sin(2 * Math.PI * (2.1 + sampleIdx * 0.25) * t + phase);
-        const s = env * (
-          0.38 * Math.sin(2 * Math.PI * f0 * t + phase) +
-          0.21 * Math.sin(2 * Math.PI * (f0 * 2) * t) +
-          0.09 * Math.sin(2 * Math.PI * (f0 * 3) * t - phase)
-        );
-        pcm16[i] = Math.floor(Math.max(-0.98, Math.min(0.98, s)) * 32767);
-      }
-    }
-    let binary = "";
-    const bytes = new Uint8Array(pcm16.buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-  }
-
-  async function submitHomeVoiceEnroll(pcmB64, samplesListB64) {
-    const tierNum = firstVoiceTierSelect ? parseInt(firstVoiceTierSelect.value || "1", 10) : 1;
-    const tierLabel = getHomeVoiceTierLabel(tierNum);
-    const speakerName = (firstVoiceSpeakerNameInput && firstVoiceSpeakerNameInput.value.trim()) || "Nguyễn Tuấn Anh";
-    if (firstVoiceResultBox) {
-      firstVoiceResultBox.textContent = `Đang kiểm định & lưu 5 mẫu WeSpeaker ${tierLabel} (${speakerName})...`;
-    }
-    try {
-      const email = firstVoiceEmailInput ? firstVoiceEmailInput.value : "nep94121@gmail.com";
-      const phraseText = firstVoiceSamplePhrase
-        ? firstVoiceSamplePhrase.textContent.replace(/^"|"$/g, "").trim()
-        : "Xin chào hệ thống Nhà Thông Minh Bách Khoa, tôi đọc câu này để lưu mẫu giọng nói gốc lên máy chủ.";
-      const isSyntheticFallback = !pcmB64 && (!Array.isArray(samplesListB64) || samplesListB64.length === 0);
-      const b64 = pcmB64 || generateSynthetic16kPcmB64(true, 0);
-      let effectiveSamples = Array.isArray(samplesListB64) && samplesListB64.length > 0
-        ? samplesListB64.slice()
-        : [b64];
-      if (isSyntheticFallback) {
-        while (effectiveSamples.length < HOME_ENROLL_REQUIRED_SAMPLES) {
-          effectiveSamples.push(generateSynthetic16kPcmB64(true, effectiveSamples.length));
-        }
-      }
-      const res = await fetch("/api/auth3/enroll_voice_sample", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          speaker_name: speakerName,
-          target_tier: tierNum,
-          spoken_text: phraseText,
-          hold_duration_sec: 3.5,
-          audio_pcm_b64: b64,
-          pcm16k_b64: b64,
-          samples_b64: effectiveSamples,
-          sample_count: effectiveSamples.length,
-        }),
-      });
-      const data = await res.json();
-      if (firstVoiceResultBox) {
-        if (data.ok) {
-          const f0Val = data.f0_hz ? ` · F0 = ${Number(data.f0_hz).toFixed(1)} Hz` : "";
-          firstVoiceResultBox.textContent = `✅ Đã lưu mẫu giọng thành công! (5/5 mẫu WeSpeaker) [XÁC NHẬN ĐẠT CHUẨN · ${tierLabel} · Người đọc: ${speakerName}${f0Val}]`;
-          if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = false;
-        } else if (data.status === "DUPLICATE_VOICE_REJECTED") {
-          firstVoiceResultBox.textContent = `❌ CHƯA ĐẠT (${tierLabel}): Trùng giọng người trong nhà - Từ chối lưu! Vui lòng thu lại.`;
-          if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = true;
-        } else {
-          firstVoiceResultBox.textContent = `❌ CHƯA ĐẠT (${tierLabel}): ${data.reason || data.message || "Chưa nhận rõ giọng nói"} — Vui lòng bấm Thu lại!`;
-          if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = true;
-        }
-      }
-    } catch (_) {
-      if (firstVoiceResultBox) firstVoiceResultBox.textContent = "Thử lại";
-    }
-  }
-
-  if (btnRetryFirstVoiceModal) {
-    btnRetryFirstVoiceModal.addEventListener("click", async () => {
-      if (btnConfirmFirstVoiceModal) btnConfirmFirstVoiceModal.disabled = true;
-      await submitHomeVoiceEnroll(null, null);
-    });
-  }
-
-  if (btnConfirmFirstVoiceModal) {
-    btnConfirmFirstVoiceModal.addEventListener("click", () => {
-      const tierNum = firstVoiceTierSelect ? parseInt(firstVoiceTierSelect.value || "1", 10) : 1;
-      const tierLabel = getHomeVoiceTierLabel(tierNum);
-      const speakerName = (firstVoiceSpeakerNameInput && firstVoiceSpeakerNameInput.value.trim()) || "Nguyễn Tuấn Anh";
-      if (firstVoiceResultBox) {
-        firstVoiceResultBox.textContent = `🎉 Đã xác nhận kích hoạt ${tierLabel} cho "${speakerName}"!`;
-      }
-      setTimeout(closeVoiceModal, 700);
-    });
-  }
-
-  if (btnHoldRecordVoice) {
-    btnHoldRecordVoice.addEventListener("click", async () => {
-      if (isAppVoiceRecording) {
-        isAppVoiceRecording = false;
-        if (appAudioProcessor) { appAudioProcessor.disconnect(); appAudioProcessor = null; }
-        if (appMediaStream) { appMediaStream.getTracks().forEach(t => t.stop()); appMediaStream = null; }
-        if (appAudioContext) { appAudioContext.close(); appAudioContext = null; }
-        let totalLen = 0;
-        appRecordedPcmChunks.forEach(c => totalLen += c.length);
-        const fullPcm = new Int16Array(totalLen);
-        let offset = 0;
-        appRecordedPcmChunks.forEach(c => { fullPcm.set(c, offset); offset += c.length; });
-        let binary = "";
-        const bytes = new Uint8Array(fullPcm.buffer);
-        for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
-        const b64 = window.btoa(binary);
-        await submitHomeVoiceEnroll(b64);
-        return;
-      }
-
-      appRecordedPcmChunks = [];
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          await submitHomeVoiceEnroll(null, null);
-          return;
-        }
-        appMediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
-        appAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-        const source = appAudioContext.createMediaStreamSource(appMediaStream);
-        appAudioProcessor = appAudioContext.createScriptProcessor(4096, 1, 1);
-        appAudioProcessor.onaudioprocess = (e) => {
-          if (!isAppVoiceRecording) return;
-          const rawInput = e.inputBuffer.getChannelData(0);
-          const actualSr = appAudioContext ? appAudioContext.sampleRate : 16000;
-          const input = resampleFloat32AntiAliased(rawInput, actualSr, 16000);
-          const pcm16 = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) {
-            const s = Math.max(-1, Math.min(1, input[i]));
-            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-          }
-          appRecordedPcmChunks.push(pcm16);
-        };
-        source.connect(appAudioProcessor);
-        appAudioProcessor.connect(appAudioContext.destination);
-        isAppVoiceRecording = true;
-        if (firstVoiceResultBox) firstVoiceResultBox.textContent = "🎤 Đang thu âm 16kHz... Đang nghe (bấm lại để gửi hoặc chờ 3s)...";
-        setTimeout(async () => {
-          if (isAppVoiceRecording) {
-            btnHoldRecordVoice.click();
-          }
-        }, 3200);
-      } catch (err) {
-        await submitHomeVoiceEnroll(null, null);
-      }
     });
   }
 
@@ -2709,7 +2442,79 @@
     if (s3) s3.style.display = stepNum === 3 ? "grid" : "none";
   }
 
+  let pendingGateOtpEmail = "";
+  let isGateOtpInFlight = false;
+  let gateOtpCooldownTimer = null;
+  let forgotOtpCooldownTimer = null;
+
+  function showGateOtpPanel(email, message) {
+    pendingGateOtpEmail = String(email || "").trim();
+    const otpPanel = byId("gateOtpPanel");
+    const otpInput = byId("gateOtpInput");
+    const otpDesc = byId("gateOtpDesc");
+    if (gatePanelLogin) gatePanelLogin.style.display = "none";
+    if (gatePanelRegister) gatePanelRegister.style.display = "none";
+    if (gatePanelForgot) gatePanelForgot.style.display = "none";
+    if (otpPanel) {
+      otpPanel.hidden = false;
+      otpPanel.style.display = "grid";
+    }
+    if (otpDesc && pendingGateOtpEmail) {
+      otpDesc.textContent = `Tài khoản Chủ nhà (${pendingGateOtpEmail}) yêu cầu mã OTP 6 số gửi qua Gmail trước khi mở khóa.`;
+    }
+    if (otpInput) {
+      otpInput.value = "";
+      if (typeof otpInput.focus === "function") otpInput.focus();
+    }
+    if (gateStatusBox && message) gateStatusBox.textContent = message;
+  }
+
+  function hideGateOtpPanel() {
+    pendingGateOtpEmail = "";
+    if (gateOtpCooldownTimer) {
+      clearInterval(gateOtpCooldownTimer);
+      gateOtpCooldownTimer = null;
+    }
+    const otpPanel = byId("gateOtpPanel");
+    const otpInput = byId("gateOtpInput");
+    const btnSendGate = byId("btnSendGateOtp");
+    if (otpPanel) {
+      otpPanel.hidden = true;
+      otpPanel.style.display = "none";
+    }
+    if (otpInput) otpInput.value = "";
+    if (btnSendGate) {
+      btnSendGate.disabled = false;
+      btnSendGate.textContent = "Gửi lại OTP";
+    }
+  }
+
+  function formatGateAuthError(res, data, fallbackMsg) {
+    const status = res && typeof res.status === "number" ? res.status : 0;
+    const baseMsg = (data && (data.error || data.message)) || fallbackMsg || "Thao tác không thành công.";
+    const retrySec = Number(
+      (data && (data.retry_after_seconds ?? data.cooldown_remaining_seconds)) || 0
+    );
+    if (status === 429) {
+      if (retrySec > 0 && !String(baseMsg).includes(String(retrySec))) {
+        return `⏳ ${baseMsg} (Thử lại sau ${retrySec} giây)`;
+      }
+      return `⏳ ${baseMsg}`;
+    }
+    if (status === 401 || status === 403) {
+      return `❌ ${baseMsg}`;
+    }
+    if (status === 404) {
+      return `❌ ${baseMsg}`;
+    }
+    if (status === 503) {
+      return `⚠️ ${baseMsg}`;
+    }
+    return `❌ ${baseMsg}`;
+  }
+
   function switchLoginGateTab(tabName) {
+    hideGateOtpPanel();
     if (gatePanelLogin) gatePanelLogin.style.display = tabName === "login" ? "grid" : "none";
     if (gatePanelRegister) gatePanelRegister.style.display = tabName === "register" ? "grid" : "none";
     if (gatePanelForgot) gatePanelForgot.style.display = tabName === "forgot" ? "grid" : "none";
@@ -2722,6 +2527,17 @@
   if (btnTabGateLogin) btnTabGateLogin.addEventListener("click", () => switchLoginGateTab("login"));
   if (btnTabGateRegister) btnTabGateRegister.addEventListener("click", () => switchLoginGateTab("register"));
   if (btnTabGateForgot) btnTabGateForgot.addEventListener("click", () => switchLoginGateTab("forgot"));
+  const linkGateForgot = byId("linkGateForgot");
+  if (linkGateForgot) {
+    linkGateForgot.addEventListener("click", (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      switchLoginGateTab("forgot");
+    });
+  }
+  const btnBackForgotToLogin = byId("btnBackForgotToLogin");
+  if (btnBackForgotToLogin) {
+    btnBackForgotToLogin.addEventListener("click", () => switchLoginGateTab("login"));
+  }
 
   function setDeviceAreaLockdown(isLocked) {
     const devSec = document.getElementById("secDevices") || document.querySelector(".panel.devices");
@@ -2857,6 +2673,11 @@
   function clearAuthState() {
     inMemoryUserSession = null;
     serverSessionConfirmed = false;
+    hideGateOtpPanel();
+    if (forgotOtpCooldownTimer) {
+      clearInterval(forgotOtpCooldownTimer);
+      forgotOtpCooldownTimer = null;
+    }
     setDeviceAreaLockdown(true);
     try {
       if (window.localStorage) {
@@ -2902,6 +2723,7 @@
     if (forgotPw) forgotPw.value = "";
     if (forgotPwConf) forgotPwConf.value = "";
     setForgotStep(1);
+    if (gatePanelLogin) gatePanelLogin.style.display = "grid";
     if (gateStatusBox) {
       gateStatusBox.textContent = "Nhập Email và Mật khẩu để vào bảng điều khiển Nhà thông minh.";
       gateStatusBox.className = "subtle";
@@ -2993,7 +2815,6 @@
   let isGateRegisterInFlight = false;
   let isGateForgotInFlight = false;
   let isSendingForgotOtp = false;
-  let forgotOtpCooldownTimer = null;
 
   // Loại bỏ hoàn toàn cơ chế form submit -> button.click() gây kích hoạt kép
   // Legacy references preserved for backward-compatibility test patterns:
@@ -3006,6 +2827,47 @@
     gateRegTier.addEventListener("change", () => {
       // Preserve user input without forcing mock names
     });
+  }
+
+  function completeGateLoginSession(email, data) {
+    const userSession = {
+      email: (data && data.email) || email,
+      display_name: (data && data.display_name) || (data && data.account && data.account.display_name) || email,
+      tier: Number((data && (data.tier ?? (data.account && data.account.tier))) || 1),
+      role: (data && data.role) || "",
+      session_token: (data && data.session_token) || "",
+    };
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
+        if (userSession.session_token) window.localStorage.setItem("session_token", userSession.session_token);
+      }
+      if (window.sessionStorage && userSession.session_token) {
+        window.sessionStorage.setItem("session_token", userSession.session_token);
+      }
+    } catch (_) {}
+    if (userSession.session_token) setSessionCookies(userSession.session_token);
+    serverSessionConfirmed = !!userSession.session_token;
+    applyLoggedInUserBanner(userSession);
+    hideGateOtpPanel();
+    if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
+    if (gateStatusBox) {
+      gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
+    }
+    closeLoginGateModal();
+    if (serverSessionConfirmed) {
+      try {
+        fetch("/api/state", { credentials: "include" })
+          .then((r) => (r && r.ok ? r.json() : null))
+          .then((snap) => {
+            if (snap && typeof applySnapshot === "function") applySnapshot(snap);
+          })
+          .catch(() => {});
+      } catch (_) {}
+      if (Number(userSession.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
+        checkOwnerPinStatusIfOwner();
+      }
+    }
   }
 
   const btnSubmitGateLogin = byId("btnSubmitGateLogin");
@@ -3040,33 +2902,23 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, login_method: "password", method: "password", send_gmail: false }),
       });
-      const data = await res.json();
-      if (data.ok) {
-        const userSession = {
-          email,
-          display_name: data.display_name || email,
-          tier: data.tier || 1,
-          session_token: data.session_token || "",
-        };
-        try {
-          if (window.localStorage) {
-            window.localStorage.setItem("smarthome_auth_session", JSON.stringify(userSession));
-            if (data.session_token) window.localStorage.setItem("session_token", data.session_token);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        if (data.otp_required === true || !data.session_token) {
+          serverSessionConfirmed = false;
+          if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
+          showGateOtpPanel(
+            email,
+            data.message || "Tài khoản Chủ nhà cần xác thực mã OTP 6 số gửi qua Gmail."
+          );
+          if (!data.sent_real_gmail) {
+            await sendGateLayer2Otp(email);
           }
-          if (window.sessionStorage && data.session_token) {
-            window.sessionStorage.setItem("session_token", data.session_token);
-          }
-        } catch (_) {}
-        if (userSession.session_token) setSessionCookies(userSession.session_token);
-        serverSessionConfirmed = !!userSession.session_token;
-        applyLoggedInUserBanner(userSession);
-        if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
-        if (gateStatusBox) {
-          gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
+        } else {
+          completeGateLoginSession(email, data);
         }
-        closeLoginGateModal();
       } else if (gateStatusBox) {
-        gateStatusBox.textContent = `❌ ${data.error || "Email hoặc mật khẩu chưa đúng!"}`;
+        gateStatusBox.textContent = formatGateAuthError(res, data, "Email hoặc mật khẩu chưa đúng!");
       }
     } catch (_) {
       if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi đăng nhập.";
@@ -3077,6 +2929,141 @@
         btn.textContent = "Đăng nhập vào Nhà thông minh";
       }
     }
+  }
+
+  function startGateOtpCooldown(seconds) {
+    const btnSend = byId("btnSendGateOtp");
+    if (!btnSend) return;
+    let remaining = Number(seconds);
+    if (!Number.isFinite(remaining) || remaining <= 0) return;
+    if (gateOtpCooldownTimer) clearInterval(gateOtpCooldownTimer);
+    btnSend.disabled = true;
+    btnSend.textContent = `Gửi lại (${remaining}s)`;
+    gateOtpCooldownTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(gateOtpCooldownTimer);
+        gateOtpCooldownTimer = null;
+        btnSend.disabled = false;
+        btnSend.textContent = "Gửi lại OTP";
+      } else {
+        btnSend.textContent = `Gửi lại (${remaining}s)`;
+      }
+    }, 1000);
+  }
+
+  async function sendGateLayer2Otp(emailOverride) {
+    const email = String(emailOverride || pendingGateOtpEmail || "").trim();
+    if (!email) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Thiếu email để gửi mã OTP.";
+      return;
+    }
+    const btnSend = byId("btnSendGateOtp");
+    if (btnSend) {
+      btnSend.disabled = true;
+      btnSend.textContent = "⏳ Đang gửi OTP...";
+    }
+    if (gateStatusBox) gateStatusBox.textContent = "⏳ Đang gửi mã OTP 6 số về Gmail...";
+    try {
+      const res = await fetch("/api/auth3/layer2_send_otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "Web Home Login Gate" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
+        if (gateStatusBox) {
+          gateStatusBox.textContent = `📧 ${data.message || "Đã gửi mã OTP 6 số đến Gmail."}`;
+        }
+        const cooldownSec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 60);
+        if (cooldownSec > 0) startGateOtpCooldown(cooldownSec);
+      } else {
+        if (gateStatusBox) {
+          gateStatusBox.textContent = formatGateAuthError(
+            res,
+            data,
+            (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được mã OTP."
+          );
+        }
+        const retrySec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 0);
+        if (res.status === 429 && retrySec > 0) {
+          startGateOtpCooldown(retrySec);
+        } else if (btnSend) {
+          btnSend.disabled = false;
+          btnSend.textContent = "Gửi lại OTP";
+        }
+      }
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Lỗi kết nối máy chủ khi gửi mã OTP.";
+      if (btnSend) {
+        btnSend.disabled = false;
+        btnSend.textContent = "Gửi lại OTP";
+      }
+    }
+  }
+
+  async function verifyGateLayer2Otp() {
+    if (isGateOtpInFlight) return;
+    const otpInput = byId("gateOtpInput");
+    const btnVerify = byId("btnVerifyGateOtp");
+    const otpCode = otpInput ? otpInput.value.trim() : "";
+    const email = pendingGateOtpEmail || (byId("gateLoginEmail") ? byId("gateLoginEmail").value.trim() : "");
+    if (!email) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng quay lại nhập Email và Mật khẩu.";
+      return;
+    }
+    if (!/^\d{6}$/.test(otpCode)) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đúng mã OTP gồm 6 chữ số.";
+      return;
+    }
+    isGateOtpInFlight = true;
+    if (btnVerify) {
+      btnVerify.disabled = true;
+      btnVerify.textContent = "⏳ Đang xác minh...";
+    }
+    try {
+      const res = await fetch("/api/auth3/layer2_verify_otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp_code: otpCode, purpose: "layer2_login", source: "Web Home Login Gate" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok && data.session_token) {
+        completeGateLoginSession(email, data);
+      } else if (gateStatusBox) {
+        gateStatusBox.textContent = formatGateAuthError(res, data, "Mã OTP không đúng hoặc đã hết hạn.");
+      }
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Lỗi kết nối máy chủ khi xác minh OTP.";
+    } finally {
+      isGateOtpInFlight = false;
+      if (btnVerify) {
+        btnVerify.disabled = false;
+        btnVerify.textContent = "Xác nhận OTP & Đăng nhập";
+      }
+    }
+  }
+
+  const btnVerifyGateOtp = byId("btnVerifyGateOtp");
+  if (btnVerifyGateOtp) btnVerifyGateOtp.addEventListener("click", verifyGateLayer2Otp);
+  const btnSendGateOtp = byId("btnSendGateOtp");
+  if (btnSendGateOtp) btnSendGateOtp.addEventListener("click", () => sendGateLayer2Otp(pendingGateOtpEmail));
+  const btnCancelGateOtp = byId("btnCancelGateOtp");
+  if (btnCancelGateOtp) {
+    btnCancelGateOtp.addEventListener("click", () => {
+      hideGateOtpPanel();
+      if (gatePanelLogin) gatePanelLogin.style.display = "grid";
+      if (gateStatusBox) gateStatusBox.textContent = "Nhập Email và Mật khẩu để vào bảng điều khiển Nhà thông minh.";
+    });
+  }
+  const gateOtpInputEl = byId("gateOtpInput");
+  if (gateOtpInputEl) {
+    gateOtpInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        if (e.preventDefault) e.preventDefault();
+        verifyGateLayer2Otp();
+      }
+    });
   }
 
   const btnSubmitGateRegister = byId("btnSubmitGateRegister");
@@ -3151,11 +3138,11 @@
           serverSessionConfirmed = false;
           if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
           if (gateStatusBox) {
-            gateStatusBox.textContent = data.message || "Đã tạo tài khoản. Chờ chủ nhà cấp quyền hoặc xác thực mã mời.";
+            gateStatusBox.textContent = data.message || "Đã tạo tài khoản. Chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập.";
           }
         }
       } else if (gateStatusBox) {
-        gateStatusBox.textContent = `❌ ${data.error || "Không lưu được mật khẩu."}`;
+        gateStatusBox.textContent = formatGateAuthError(res, data, "Không lưu được mật khẩu.");
       }
     } catch (_) {
       if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
@@ -3196,62 +3183,84 @@
   if (btnBackForgotStep2) btnBackForgotStep2.addEventListener("click", () => setForgotStep(2));
 
   const btnSendForgotOtp = byId("btnSendForgotOtp");
-  if (btnSendForgotOtp) {
-    btnSendForgotOtp.addEventListener("click", async () => {
-      if (isSendingForgotOtp) return;
-      const emailEl = byId("gateForgotEmail");
-      const email = emailEl ? emailEl.value.trim() : "";
-      if (!email) {
-        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập email nhận mã OTP!";
-        return;
-      }
-      isSendingForgotOtp = true;
-      btnSendForgotOtp.disabled = true;
-      btnSendForgotOtp.textContent = "⏳ Đang gửi...";
-      if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP về Gmail...";
-      try {
-        const res = await fetch("/api/auth3/forgot_password_send_otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, send_gmail: true }),
-        });
-        const data = await res.json();
-        if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
-          if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message}`;
-          setForgotStep(2);
-
-          // 60-second visual countdown timer
-          let remaining = Number(data.cooldown_remaining_seconds) || 60;
-          btnSendForgotOtp.disabled = true;
-          btnSendForgotOtp.textContent = `Gửi lại sau (${remaining}s)`;
-          if (forgotOtpCooldownTimer) clearInterval(forgotOtpCooldownTimer);
-          forgotOtpCooldownTimer = setInterval(() => {
-            remaining--;
-            if (remaining <= 0) {
-              clearInterval(forgotOtpCooldownTimer);
-              forgotOtpCooldownTimer = null;
-              btnSendForgotOtp.disabled = false;
-              btnSendForgotOtp.textContent = "Gửi OTP";
-            } else {
-              btnSendForgotOtp.textContent = `Gửi lại sau (${remaining}s)`;
-            }
-          }, 1000);
-        } else {
-          if (gateStatusBox) {
-            gateStatusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
-          }
-          btnSendForgotOtp.disabled = false;
-          btnSendForgotOtp.textContent = "Gửi OTP";
-        }
-      } catch (_) {
-        if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối khi gửi OTP.";
-        btnSendForgotOtp.disabled = false;
-        btnSendForgotOtp.textContent = "Gửi OTP";
-      } finally {
-        isSendingForgotOtp = false;
-      }
-    });
+  const btnResendForgotOtp = byId("btnResendForgotOtp");
+  function setForgotSendButtonsLabel(disabled, labelText) {
+    if (btnSendForgotOtp) {
+      btnSendForgotOtp.disabled = disabled;
+      btnSendForgotOtp.textContent = labelText;
+    }
+    if (btnResendForgotOtp) {
+      btnResendForgotOtp.disabled = disabled;
+      btnResendForgotOtp.textContent = labelText === "Gửi OTP" ? "Gửi lại OTP" : labelText;
+    }
   }
+  function startForgotOtpCooldown(seconds) {
+    let remaining = Number(seconds);
+    if (!Number.isFinite(remaining) || remaining <= 0) return;
+    if (forgotOtpCooldownTimer) clearInterval(forgotOtpCooldownTimer);
+    setForgotSendButtonsLabel(true, `Gửi lại sau (${remaining}s)`);
+    forgotOtpCooldownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(forgotOtpCooldownTimer);
+        forgotOtpCooldownTimer = null;
+        setForgotSendButtonsLabel(false, "Gửi OTP");
+      } else {
+        setForgotSendButtonsLabel(true, `Gửi lại sau (${remaining}s)`);
+      }
+    }, 1000);
+  }
+  async function requestForgotOtpFromGate() {
+    if (isSendingForgotOtp) return;
+    const emailEl = byId("gateForgotEmail");
+    const email = emailEl ? emailEl.value.trim() : "";
+    if (!email) {
+      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập email nhận mã OTP!";
+      return;
+    }
+    isSendingForgotOtp = true;
+    setForgotSendButtonsLabel(true, "⏳ Đang gửi...");
+    if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP về Gmail...";
+    try {
+      const res = await fetch("/api/auth3/forgot_password_send_otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, send_gmail: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
+        if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message || "Đã gửi mã OTP qua Gmail."}`;
+        setForgotStep(2);
+        const cooldownSec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 60);
+        if (cooldownSec > 0) {
+          startForgotOtpCooldown(cooldownSec);
+        } else {
+          setForgotSendButtonsLabel(false, "Gửi OTP");
+        }
+      } else {
+        if (gateStatusBox) {
+          gateStatusBox.textContent = formatGateAuthError(
+            res,
+            data,
+            (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."
+          );
+        }
+        const retrySec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 0);
+        if (res.status === 429 && retrySec > 0) {
+          startForgotOtpCooldown(retrySec);
+        } else {
+          setForgotSendButtonsLabel(false, "Gửi OTP");
+        }
+      }
+    } catch (_) {
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối khi gửi OTP.";
+      setForgotSendButtonsLabel(false, "Gửi OTP");
+    } finally {
+      isSendingForgotOtp = false;
+    }
+  }
+  if (btnSendForgotOtp) btnSendForgotOtp.addEventListener("click", requestForgotOtpFromGate);
+  if (btnResendForgotOtp) btnResendForgotOtp.addEventListener("click", requestForgotOtpFromGate);
 
   const btnSubmitForgotReset = byId("btnSubmitForgotReset");
   async function handleForgotResetSubmit(e) {
@@ -3291,19 +3300,23 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
+          otp_code: otp,
           otp,
           new_password: newPassword,
           confirm_password: confirmPassword,
         }),
       });
-      const data = await res.json();
-      if (data.ok) {
-        if (gateStatusBox) gateStatusBox.textContent = `✅ ${data.message}`;
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        if (pw1El) pw1El.value = "";
+        if (pw2El) pw2El.value = "";
+        if (otpEl) otpEl.value = "";
+        if (gateStatusBox) gateStatusBox.textContent = `✅ ${data.message || "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới."}`;
         switchLoginGateTab("login");
-        const loginPw = byId("gateLoginPassword");
-        if (loginPw) loginPw.value = newPassword;
+        const loginEmailEl = byId("gateLoginEmail");
+        if (loginEmailEl && email) loginEmailEl.value = email;
       } else if (gateStatusBox) {
-        gateStatusBox.textContent = `❌ ${data.error || "Không đặt lại được mật khẩu."}`;
+        gateStatusBox.textContent = formatGateAuthError(res, data, "Không đặt lại được mật khẩu.");
       }
     } catch (_) {
       if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ.";
@@ -3323,20 +3336,49 @@
     btnSubmitForgotReset.addEventListener("click", handleForgotResetSubmit);
   }
 
-  // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (chỉ tin session phía máy chủ)
-  async function confirmServerSessionFromApi() {
+  // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (fail-closed theo /api/session/role phía máy chủ)
+  async function confirmServerSessionFromApi(keepGateOpen = false) {
     try {
-      const res = await fetch("/api/state", { credentials: "include" });
-      const snap = await res.json().catch(() => ({}));
-      if (res.status === 401 || snap.authenticated === false || snap.public_only === true) {
+      const roleRes = await fetch("/api/session/role", { credentials: "include" });
+      const roleData = await roleRes.json().catch(() => ({}));
+      if (!roleRes.ok || !roleData || roleData.authenticated !== true) {
+        inMemoryUserSession = null;
         serverSessionConfirmed = false;
         setDeviceAreaLockdown(true);
+        if (homeCurrentAccountBadge) {
+          homeCurrentAccountBadge.textContent = "Chưa đăng nhập";
+        }
+        if (btnLogoutHome) {
+          btnLogoutHome.hidden = true;
+          btnLogoutHome.style.display = "none";
+        }
         openLoginGateModal();
         return false;
       }
-      if (typeof applySnapshot === "function") applySnapshot(snap);
-      return !!serverSessionConfirmed;
+      serverSessionConfirmed = true;
+      const userObj = {
+        email: roleData.email || (inMemoryUserSession && inMemoryUserSession.email) || "",
+        display_name: roleData.display_name || (inMemoryUserSession && inMemoryUserSession.display_name) || roleData.email || "",
+        tier: Number(roleData.tier || (inMemoryUserSession && inMemoryUserSession.tier) || 3),
+        role: roleData.role || "",
+        session_token: (inMemoryUserSession && inMemoryUserSession.session_token) || "",
+      };
+      applyLoggedInUserBanner(userObj);
+      if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
+      if (!keepGateOpen) closeLoginGateModal();
+      try {
+        const res = await fetch("/api/state", { credentials: "include" });
+        const snap = await res.json().catch(() => ({}));
+        if (res.ok && snap && typeof applySnapshot === "function") {
+          applySnapshot(snap);
+        }
+      } catch (_) {}
+      if (Number(userObj.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
+        checkOwnerPinStatusIfOwner();
+      }
+      return true;
     } catch (_) {
+      inMemoryUserSession = null;
       serverSessionConfirmed = false;
       setDeviceAreaLockdown(true);
       openLoginGateModal();
@@ -3352,7 +3394,7 @@
     if (!hasClientAuthHint() || forceLoginModal) {
       openLoginGateModal();
     }
-    confirmServerSessionFromApi().then((ok) => {
+    confirmServerSessionFromApi(Boolean(forceLoginModal)).then((ok) => {
       if (!ok || forceLoginModal) {
         if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
         openLoginGateModal();
@@ -3401,10 +3443,21 @@
   // ================= MILESTONE M7: BẢO MẬT & MODALS =================
   let isLockdownOtpMode = false;
 
+  function getLockdownEmail() {
+    const emailInput = byId("lockdownEmail");
+    const typed = emailInput ? emailInput.value.trim() : "";
+    if (typed) return typed;
+    if (inMemoryUserSession && inMemoryUserSession.email) {
+      return String(inMemoryUserSession.email).trim();
+    }
+    return "";
+  }
+
   function triggerSecurityLockdown(reason = "voice_auth_fail") {
     const modal = byId("securityLockdownModal");
     const desc = byId("lockdownDesc");
     const statusBox = byId("lockdownStatusBox");
+    const emailInput = byId("lockdownEmail");
     if (!modal) return;
 
     const isSirenOn = latestDevicesMap && latestDevicesMap.alarm_siren &&
@@ -3414,6 +3467,9 @@
       desc.textContent = isSirenOn
         ? "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật."
         : "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật.";
+    }
+    if (emailInput && !emailInput.value.trim() && inMemoryUserSession && inMemoryUserSession.email) {
+      emailInput.value = String(inMemoryUserSession.email).trim();
     }
     if (statusBox) {
       statusBox.textContent = "";
@@ -3448,17 +3504,22 @@
   async function sendLockdownOtp() {
     const statusBox = byId("lockdownStatusBox");
     const sendBtn = byId("btnLockdownSendOtp");
-    if (statusBox) statusBox.textContent = "⏳ Đang gửi mã OTP đến Gmail nep94121@gmail.com...";
+    const ownerEmail = getLockdownEmail();
+    if (!ownerEmail) {
+      if (statusBox) statusBox.textContent = "❌ Vui lòng nhập Email Chủ nhà trước khi gửi OTP.";
+      return;
+    }
+    if (statusBox) statusBox.textContent = `⏳ Đang gửi mã OTP đến Gmail ${ownerEmail}...`;
     if (sendBtn) sendBtn.disabled = true;
     try {
       const res = await fetch("/api/auth3/forgot_password_send_otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "nep94121@gmail.com" }),
+        body: JSON.stringify({ email: ownerEmail, send_gmail: true }),
       });
-      const data = await res.json();
-      if (data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
-        if (statusBox) statusBox.textContent = "✅ Đã gửi mã OTP 6 số đến Gmail nep94121@gmail.com.";
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
+        if (statusBox) statusBox.textContent = `✅ Đã gửi mã OTP 6 số đến Gmail ${ownerEmail}.`;
       } else {
         if (statusBox) statusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
       }
@@ -3472,6 +3533,11 @@
   async function unlockSecurityLockdown() {
     const statusBox = byId("lockdownStatusBox");
     const unlockBtn = byId("btnLockdownUnlock");
+    const ownerEmail = getLockdownEmail();
+    if (!ownerEmail) {
+      if (statusBox) statusBox.textContent = "❌ Vui lòng nhập Email Chủ nhà.";
+      return;
+    }
     if (unlockBtn) unlockBtn.disabled = true;
 
     try {
@@ -3491,13 +3557,14 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: "nep94121@gmail.com",
+            email: ownerEmail,
             password: password,
+            send_gmail: false,
             source: "SecurityLockdownModal",
           }),
         });
-        const data = await res.json();
-        ok = Boolean(data.ok);
+        const data = await res.json().catch(() => ({}));
+        ok = Boolean(res.ok && data.ok);
         errMessage = data.error || data.message || "Mật khẩu không chính xác.";
       } else {
         const otpInput = byId("lockdownOtp");
@@ -3512,13 +3579,13 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: "nep94121@gmail.com",
+            email: ownerEmail,
             otp_code: otpCode,
             source: "SecurityLockdownModal",
           }),
         });
-        const data = await res.json();
-        ok = Boolean(data.ok);
+        const data = await res.json().catch(() => ({}));
+        ok = Boolean(res.ok && data.ok);
         errMessage = data.error || data.message || "Mã OTP không chính xác hoặc đã hết hạn.";
       }
 

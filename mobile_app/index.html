@@ -47,7 +47,7 @@
       <form id="mobileLoginForm" class="login-form" onsubmit="submitMobileLogin(event)">
         <div>
           <label class="muted" for="mobileLoginEmail" style="display:block;margin-bottom:4px;">Email</label>
-          <input type="email" id="mobileLoginEmail" placeholder="Nhập email" value="" required />
+          <input type="email" id="mobileLoginEmail" placeholder="nhap-email@gmail.com" value="" required />
         </div>
         <div>
           <label class="muted" for="mobileLoginPassword" style="display:block;margin-bottom:4px;">Mật khẩu</label>
@@ -60,17 +60,31 @@
           <button type="button" id="btnMobileForgotPassword" class="text-link" onclick="openForgotPassword()" style="font-size:12px;">Quên mật khẩu?</button>
           <a href="/register" class="text-link" style="font-size:12px; text-decoration:none;">Đăng ký</a>
         </div>
-        <div id="mobileLoginMsg" class="muted" style="min-height:18px;"></div>
+        <div id="mobileLoginMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
         <button type="submit" class="btn primary" id="mobileLoginBtn">Đăng nhập</button>
       </form>
 
-      <!-- TAB 2: FORM ĐẶT / ĐỔI MẬT KHẨU (BẮT BUỘC 2 Ô MẬT KHẨU, HỖ TRỢ ENTER, NÚT 👁️) -->
+      <!-- BƯỚC 2 ĐĂNG NHẬP CHỦ NHÀ: XÁC THỰC GMAIL OTP -->
+      <div id="mobileOtpPanel" class="login-form" style="display:none;" hidden>
+        <h2 style="font-size:16px;font-weight:600;margin:0 0 4px;">Xác thực OTP Chủ nhà</h2>
+        <p class="muted" id="mobileOtpDesc" style="font-size:12px;margin:0 0 8px;">Nhập mã OTP 6 chữ số đã gửi tới Gmail tài khoản Chủ nhà để hoàn tất đăng nhập.</p>
+        <div>
+          <label class="muted" for="mobileOtpInput" style="display:block;margin-bottom:4px;">Mã OTP (6 chữ số)</label>
+          <input class="field" id="mobileOtpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="Nhập 6 chữ số" style="letter-spacing:4px;font-size:18px;text-align:center;font-weight:600;" />
+        </div>
+        <div id="mobileOtpStatus" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
+        <button type="button" class="btn primary" id="btnMobileVerifyOtp" onclick="verifyMobileLayer2Otp()">Xác nhận OTP &amp; Đăng nhập</button>
+        <button type="button" class="btn secondary" id="btnMobileSendOtp" onclick="sendMobileLayer2Otp()">Gửi lại mã OTP</button>
+        <button type="button" class="btn tertiary" id="btnMobileOtpBack" onclick="cancelMobileOtpPanel()">Quay lại</button>
+      </div>
+
+      <!-- TAB 2: FORM ĐĂNG KÝ (BẮT BUỘC 2 Ô MẬT KHẨU + CHỜ DUYỆT) -->
       <form id="mobileRegisterForm" class="login-form" style="display:none;" onsubmit="submitMobileRegister(event)">
         <div>
           <label class="muted" for="mobileRegTier" style="display:block;margin-bottom:4px;">Cấp độ tài khoản</label>
           <select id="mobileRegTier" onchange="onMobileRegTierChange()" style="width:100%;">
-            <option value="1">Cấp 1 · Chủ nhà (nep94121@gmail.com)</option>
-            <option value="2">Cấp 2 · Thành viên gia đình</option>
+            <option value="1">Cấp 1 · Chủ nhà</option>
+            <option value="2" selected>Cấp 2 · Thành viên gia đình</option>
             <option value="3">Cấp 3 · Khách đến chơi nhà</option>
           </select>
         </div>
@@ -80,7 +94,7 @@
         </div>
         <div>
           <label class="muted" for="mobileRegEmail" style="display:block;margin-bottom:4px;">Email tài khoản</label>
-          <input type="email" id="mobileRegEmail" placeholder="Nhập email" value="" required />
+          <input type="email" id="mobileRegEmail" placeholder="nhap-email@gmail.com" value="" required />
         </div>
         <div>
           <label class="muted" for="mobileRegPassword" style="display:block;margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
@@ -96,8 +110,9 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('mobileRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
           </div>
         </div>
+        <p class="muted" id="mobileRegisterHelper" style="font-size:12px;margin:2px 0;">Tài khoản mới đăng ký cần chờ Chủ nhà phê duyệt cấp quyền trước khi đăng nhập.</p>
         <div id="mobileRegMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
-        <button type="submit" class="btn primary" id="mobileRegisterBtn">Xác nhận 2 mật khẩu &amp; Đăng nhập</button>
+        <button type="submit" class="btn primary" id="mobileRegisterBtn">Đăng ký tài khoản</button>
       </form>
 
       <!-- M3: FORM QUÊN MẬT KHẨU & GMAIL OTP (3 BƯỚC) -->
@@ -115,22 +130,22 @@
         <div id="mobileForgotStepEmail" class="login-form">
           <div>
             <label class="muted" for="mobileForgotEmail" style="display:block;margin-bottom:4px;">Email</label>
-            <input type="email" id="mobileForgotEmail" placeholder="Nhập email tài khoản" value="" required />
+            <input type="email" id="mobileForgotEmail" placeholder="nhap-email@gmail.com" value="" required />
           </div>
-          <div id="mobileForgotEmailMsg" class="muted" style="min-height:18px;"></div>
+          <div id="mobileForgotEmailMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
           <button type="button" class="btn primary" id="mobileBtnForgotSendOtp" onclick="submitForgotSendOtp()">Gửi mã OTP</button>
           <button type="button" class="btn secondary" onclick="closeForgotPassword()">Quay lại Đăng nhập</button>
         </div>
 
         <!-- BƯỚC 2: OTP (6 SỐ) -->
         <div id="mobileForgotStepOtp" class="login-form" style="display:none;">
-          <p class="muted" style="font-size:12px;margin:0 0 8px;">Đã gửi mã xác thực tới Gmail</p>
+          <p class="muted" style="font-size:12px;margin:0 0 8px;">Đã gửi mã xác thực tới Gmail <strong id="mobileForgotEmailSentText"></strong></p>
           <div>
             <label class="muted" for="mobileForgotOtp" style="display:block;margin-bottom:4px;">Mã xác nhận</label>
             <input class="field" id="mobileForgotOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="Nhập 6 chữ số" style="letter-spacing:4px;font-size:18px;text-align:center;font-weight:600;" />
             <small class="muted" style="display:block;margin-top:4px;">Mã có hiệu lực theo thời hạn hệ thống.</small>
           </div>
-          <div id="mobileForgotOtpMsg" class="muted" style="min-height:18px;"></div>
+          <div id="mobileForgotOtpMsg" class="muted" role="status" aria-live="polite" style="min-height:18px;"></div>
           <button type="button" class="btn primary" id="mobileBtnForgotVerifyOtp" onclick="submitForgotVerifyOtp()">Xác nhận mã</button>
           <button type="button" class="btn secondary" id="mobileBtnForgotResendOtp" onclick="submitForgotSendOtp()">Gửi lại mã</button>
           <button type="button" class="btn tertiary" id="mobileBtnForgotChangeEmail" onclick="forgotBackToEmail()">Đổi email</button>
@@ -170,7 +185,7 @@
           <h1>Nhà của tôi</h1>
           <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Theo dõi trạng thái trong nhà</small>
         </div>
-        <span class="status-dot pill" id="espBadge"><span class="dot"></span>Đã kết nối</span>
+        <span class="status-dot pill offline" id="espBadge"><span class="dot"></span>Chưa đăng nhập</span>
         <!-- Chỉ số ẩn phục vụ kiểm thử hồi quy -->
         <span id="tempVal" hidden>28.5°C</span>
         <span id="humVal" hidden>65%</span>
@@ -179,6 +194,7 @@
         <span id="mobileStrikeBadge" hidden></span>
         <span id="mobileCountdownBadge" hidden></span>
       </header>
+      <div id="mobileActionStatus" class="card" role="alert" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;border-color:#dc2626;background:#fef2f2;color:#991b1b;"></div>
       <div id="mobileHomeVoiceBanner" class="card" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;"></div>
       <div class="btn-row" id="mobileHomeQuickDevices" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
         <button type="button" class="btn secondary toggle" id="mobileQuickBtnLight" data-device="living_room_light" data-state="off" aria-pressed="false" style="transition:none;" onclick="toggleMobileDeviceQuick('living_room_light', this)">Đèn phòng khách</button>
@@ -254,9 +270,10 @@
           <h1>Thiết bị</h1>
           <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Điều khiển thiết bị trong nhà</small>
         </div>
-        <span class="pill"><span class="dot"></span>Đã kết nối</span>
+        <span class="pill offline" id="mobileDevicesConnBadge"><span class="dot"></span>Chưa đăng nhập</span>
       </header>
 
+      <div id="mobileDevicesAuthStatus" class="card" role="alert" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;border-color:#dc2626;background:#fef2f2;color:#991b1b;"></div>
       <section class="card" id="secDevices" aria-labelledby="devices-title">
         <div class="card-head">
           <h2 id="devices-title">Danh sách thiết bị</h2>
@@ -305,13 +322,13 @@
           <h1>Giọng nói</h1>
           <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Nói điều bạn muốn làm trong nhà.</small>
         </div>
-        <span class="pill"><span class="dot"></span>Sẵn sàng</span>
+        <span class="pill offline" id="mobileVoiceConnBadge"><span class="dot"></span>Chưa đăng nhập</span>
       </header>
 
       <section class="card" id="secVoice" aria-labelledby="voice-title">
         <div class="card-head">
           <h2 id="voice-title">Trạng thái</h2>
-          <span class="muted" id="voiceStateBadge">Sẵn sàng</span>
+          <span class="muted" id="voiceStateBadge">Chưa đăng nhập</span>
         </div>
         <p class="muted" style="margin-bottom:12px;">Nói để điều khiển thiết bị trong nhà.</p>
 
@@ -352,40 +369,40 @@
           <h1>Tài khoản</h1>
           <small class="muted" style="display:block;font-size:12px;margin-top:2px;">Hồ sơ và quyền truy cập</small>
         </div>
-        <span class="pill"><span class="dot"></span>Đã kết nối</span>
+        <span class="pill offline" id="mobileAccountConnBadge"><span class="dot"></span>Chưa đăng nhập</span>
       </header>
 
       <section class="card" id="secAuth" aria-labelledby="auth-title">
-        <span class="muted" id="mobileActorBadge" hidden>Chủ nhà</span>
+        <span class="muted" id="mobileActorBadge" hidden>Chưa đăng nhập</span>
         <h2 id="auth-title">Hồ sơ</h2>
         <div class="row linkrow">
           <span class="muted">Vai trò</span>
-          <strong id="mobileProfileRole">Chủ nhà</strong>
+          <strong id="mobileProfileRole">Chưa đăng nhập</strong>
         </div>
         <hr class="divider">
         <div class="row linkrow">
           <span class="muted">Email</span>
-          <strong id="mobileProfileEmail">nep94121@gmail.com</strong>
+          <strong id="mobileProfileEmail">—</strong>
         </div>
         <hr class="divider">
         <div class="row linkrow">
           <span class="muted">Thời hạn</span>
-          <strong id="mobileProfileDuration">Không giới hạn</strong>
+          <strong id="mobileProfileDuration">—</strong>
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" id="mobileManageCard">
         <h2>Quản lý</h2>
-        <div class="row linkrow" onclick="toggleDetailsSection('mobileVoiceModal')">
-          <span>Xác thực giọng nói</span>
+        <div class="row linkrow" id="mobileOwnerMembersMenuRow" data-owner-only="true" hidden onclick="toggleDetailsSection('mobileFamilyDetails')">
+          <span>Thêm thành viên (Chủ nhà)</span>
           <span>›</span>
         </div>
-        <hr class="divider">
-        <div class="row linkrow" onclick="toggleDetailsSection('mobileDynamicQrCard')">
+        <hr class="divider" id="mobileOwnerMembersDivider" data-owner-only="true" hidden>
+        <div class="row linkrow" id="mobileOwnerInviteMenuRow" data-owner-only="true" hidden onclick="toggleDetailsSection('mobileDynamicQrCard')">
           <span>Lời mời thành viên</span>
           <span>›</span>
         </div>
-        <hr class="divider">
+        <hr class="divider" id="mobileOwnerInviteDivider" data-owner-only="true" hidden>
         <div class="row linkrow" onclick="openQrScanner()">
           <span>Quét mã QR</span>
           <span>›</span>
@@ -397,67 +414,56 @@
         </div>
       </section>
 
-      <!-- CHI TIẾT TÀI KHOẢN HIỆN HỮU ĐỂ BẢO TOÀN 100% DOM IDS & TÍNH NĂNG -->
-      <!-- MỤC 1: GIỌNG NÓI CỦA TÔI -->
-      <details class="account-item" id="mobileVoiceModal">
+      <!-- MỤC 1 (ẨN HOÀN TOÀN): BẢO TOÀN COMPATIBILITY DOM IDS -->
+      <details class="account-item" id="mobileVoiceModal" hidden style="display:none;" aria-hidden="true">
         <summary>
-          <span>Giọng nói của tôi</span>
-          <span class="muted" id="mobileVoiceStepLabel">Bước 1–3</span>
+          <span>Thông tin phiên</span>
+          <span class="muted" id="mobileVoiceStepLabel"></span>
         </summary>
         <div class="account-body">
-          <div>
-            <label class="muted" for="mobileActorSelect" style="display:block; margin-bottom:4px;">Bước 1/3 · Chọn tài khoản đăng ký</label>
-            <select id="mobileActorSelect" onchange="onMobileActorChange()">
-              <option value="nep94121@gmail.com" data-tier="1">Chủ nhà · nep94121@gmail.com</option>
-              <option value="thanhviena.hust@gmail.com" data-tier="2">Gia đình · thanhviena.hust@gmail.com</option>
-              <option value="khach.hust@gmail.com" data-tier="3">Khách · khach.hust@gmail.com</option>
-            </select>
-            <div id="mobileVoiceTierInfo" class="muted" style="margin-top:4px;font-size:11px;">Cấp 1 — Chủ nhà: toàn quyền điều khiển</div>
+          <select id="mobileActorSelect" onchange="onMobileActorChange()">
+            <option value="" data-tier="0">Chưa đăng nhập</option>
+          </select>
+          <div id="mobileVoiceTierInfo" class="muted"></div>
+          <span id="mobileVoiceRegName">Chưa đăng nhập</span>
+          <button type="button" id="mobileVoiceRetryBtn" hidden></button>
+          <div id="mobileVoiceRes"></div>
+          <div id="mobileVoiceMetrics" style="display:none;">
+            <span id="mobileVoiceF0">—</span>
+            <span id="mobileVoiceSNR">—</span>
           </div>
-          <div>
-            <div class="muted" style="margin-bottom:4px;">Bước 2/3 · Lưu giọng nói</div>
-            <div id="mobileVoiceRegisterInfo" style="background:#f8fafb;border:1px solid var(--line);padding:10px;border-radius:10px;font-size:12px;margin-bottom:8px;">
-              <div style="font-weight:500;margin-bottom:4px;">Người đăng ký: <span id="mobileVoiceRegName" style="color:var(--accent);">Chủ nhà</span></div>
-              <div>Hãy đọc rõ ràng câu sau:</div>
-            </div>
-            <div id="mobileReadingPrompt" style="background:#ffffff; border:1px solid var(--line); padding:10px; border-radius:10px; font-size:13px; margin-bottom:8px;">
-              "Xin chào ngôi nhà, tôi đọc câu này để lưu mẫu giọng nói."
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn primary" onclick="submitMobileVoiceSample(true)">
-                <svg class="icon"><use href="#i-mic"/></svg>
-                <span>Thu âm</span>
-              </button>
-              <button type="button" class="btn secondary" id="mobileVoiceRetryBtn" onclick="submitMobileVoiceSample(false)">Thử lại</button>
-            </div>
-            <div id="mobileVoiceRes" style="font-size:12px; margin-top:6px;"></div>
-            <div id="mobileVoiceMetrics" style="font-size:11px;margin-top:4px;color:var(--muted);display:none;">
-              <span>F0: <strong id="mobileVoiceF0">—</strong> Hz</span> ·
-              <span>SNR: <strong id="mobileVoiceSNR">—</strong> dB</span>
-            </div>
-          </div>
+        </div>
+      </details>
+
+      <!-- QUẢN LÝ THÀNH VIÊN (CHỈ CHỦ NHÀ CẤP 1) -->
+      <details class="account-item" id="mobileFamilyDetails" data-owner-only="true" hidden>
+        <summary>
+          <span>Thêm thành viên</span>
+          <span class="muted">Chủ nhà</span>
+        </summary>
+        <div class="account-body">
           <div id="mobileFamilyCard">
-            <div class="muted" style="margin-bottom:4px;">Bước 3/3 · Xác nhận và cấp quyền</div>
+            <div class="muted" style="margin-bottom:4px;">Cấp quyền thành viên Gia đình hoặc Khách</div>
             <div id="mobileAddEmailForm" style="display:grid; gap:8px;">
               <select id="mobileTargetTierSelect">
                 <option value="2">Gia đình</option>
                 <option value="3">Khách</option>
               </select>
-              <input type="email" id="mobileTargetEmail" placeholder="Nhập email thành viên" />
+              <input type="email" id="mobileTargetEmail" placeholder="nhap-email@gmail.com" />
               <button type="button" id="mobileBtnAddEmail" onclick="submitMobileAddEmail()" class="btn primary">Hoàn tất</button>
             </div>
-            <div id="mobileAllowlistMsg" class="muted" style="margin-top:6px;">
+            <div id="mobileAllowlistMsg" class="muted" role="status" aria-live="polite" style="margin-top:6px;">
               Chủ nhà được thêm Gia đình và Khách.
             </div>
           </div>
         </div>
       </details>
 
-      <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR -->
-      <details class="account-item" id="mobileDynamicQrCard">
+      <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR (CHỈ CHỦ NHÀ CẤP 1) -->
+      <details class="account-item" id="mobileDynamicQrCard" data-owner-only="true" hidden>
         <summary>
           <span>Mời khách / Thành viên</span>
-          <span id="mobileQrCountdown" class="muted">Đang chờ</span>
+          <span id="mobileQrCountdown" class="muted">Chưa tạo mã</span>
         </summary>
         <div class="account-body">
           <div style="margin-bottom:8px;">
@@ -486,7 +492,7 @@
             </div>
             <div style="flex:1;">
               <label class="muted" for="mobileGuestDurSelect" style="display:block; margin-bottom:4px;">Thời hạn truy cập</label>
-              <select id="mobileGuestDurSelect" onchange="refreshMobileQr10s()">
+              <select id="mobileGuestDurSelect">
                 <option value="1d">1 ngày</option>
                 <option value="2d">2 ngày</option>
                 <option value="1w">1 tuần</option>
@@ -497,8 +503,14 @@
               <span id="mobileQrUrlText" hidden></span>
             </div>
           </div>
-          <div class="btn-row">
-            <a id="mobileQrOpenLink" href="/guest_enroll" onclick="window.location.href=this.href; return false;" class="btn primary">Tạo lời mời</a>
+          <div style="display:grid; gap:8px; margin-top:10px;">
+            <input type="password" id="mobileQrPinInput" inputmode="numeric" maxlength="6" placeholder="Nhập mã PIN Chủ nhà (4–6 chữ số)" />
+            <input type="password" id="mobileQrPinConfirmInput" inputmode="numeric" maxlength="6" placeholder="Xác nhận PIN (chỉ cần khi đặt PIN mới)" />
+            <div id="mobileQrInviteStatus" class="muted" role="status" aria-live="polite" style="font-size:12px; min-height:16px;"></div>
+          </div>
+          <div class="btn-row" style="margin-top:8px;">
+            <button type="button" id="mobileBtnCreateGuestQr" class="btn primary" onclick="createMobileGuestInvite()">Tạo lời mời QR</button>
+            <a id="mobileQrOpenLink" href="/guest" class="btn secondary" target="_blank" rel="noopener" style="display:none;">Mở trang Khách</a>
             <button type="button" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
           </div>
         </div>
@@ -517,7 +529,7 @@
             <button type="button" class="pill" onclick="filterMobileHistory('voice', this)">Giọng nói</button>
           </div>
           <div class="log-list" id="mqttLog">
-            <div class="log-line"><span>Đồng bộ trạng thái nhà</span><span class="muted">Thành công</span></div>
+            <div class="log-line"><span>Đồng bộ trạng thái nhà</span><span class="muted">Sẵn sàng</span></div>
           </div>
         </div>
       </details>
@@ -535,7 +547,7 @@
             <a href="/wokwi" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Phần cứng</a>
             <a href="/logs" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Nhật ký</a>
             <a href="/app" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center; background:var(--accent-soft); color:var(--accent);">Ứng dụng</a>
-            <a href="/guest_enroll" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Khách</a>
+            <a href="/guest" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Khách</a>
             <a href="/login" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng nhập</a>
             <a href="/register" class="btn secondary" style="font-size:12px; min-height:36px; justify-content:center;">Đăng ký</a>
           </nav>
@@ -582,6 +594,7 @@
       </details>
 
       <button type="button" class="btn secondary wide" id="mobileBtnLogout" onclick="submitMobileLogout()" style="margin-top:24px;">Đăng xuất</button>
+      <button type="button" class="btn primary wide" id="mobileBtnOpenLogin" onclick="openMobileLoginGate()" style="margin-top:12px;" hidden>Đăng nhập</button>
     </div>
 
   </div><!-- END mobileMainContent -->
@@ -636,7 +649,7 @@
       <i style="height:16px"></i>
     </div>
     <p class="timer" id="mobileVoiceTimer"><span id="mobileVoiceTimerCur">00:00</span> <span id="mobileVoiceTimerTotal">/ 00:05</span></p>
-    <p class="muted" style="text-align:center;font-size:13px;">Đọc câu mẫu để xác nhận giọng nói</p>
+    <p class="muted" id="mobileVoiceSubPrompt" style="text-align:center;font-size:13px;">Nói lệnh điều khiển thiết bị trong nhà</p>
     <div class="phrase" id="mobileVoicePhrase">"Mở cửa chính cho tôi."</div>
     <div class="actions" id="mobileVoiceSheetActions" style="display:grid;gap:10px;margin-top:16px;">
       <button type="button" class="btn primary wide" id="mobileBtnVoiceSheetStop" onclick="stopVoiceRecording()">Dừng thu</button>

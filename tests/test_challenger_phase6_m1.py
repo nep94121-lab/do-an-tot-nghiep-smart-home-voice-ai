@@ -182,9 +182,10 @@ RFC_TRICKS_PAYLOADS = [
     ('<evil@attacker.com> nep94121@gmail.com', "Leading evil angle bracket"),
     ('nep94121(comment)@gmail.com', "RFC comment in localpart"),
     ('nep94121@gmail.com(comment)', "RFC comment after domain"),
-    ('nep94121+tag@gmail.com', "Plus addressing tag"),
-    ('senat6031+dev@gmail.com', "Plus addressing tag on senat"),
-    ('kbanh376+backup@gmail.com', "Plus addressing tag on kbanh"),
+    ('nep94121+bad..tag@gmail.com', "Malformed double-dot plus addressing tag"),
+    ('stranger+tag@gmail.com', "Plus addressing tag on non-allowlisted domain localpart"),
+    ('senat6031+dev@gmail.com', "Plus addressing tag on non-allowlisted senat"),
+    ('kbanh376+backup@gmail.com', "Plus addressing tag on non-allowlisted kbanh"),
 ]
 
 
@@ -256,16 +257,14 @@ class TestAdversarialAllowlistEvasion:
             "nep94121@gmail.com",
             "NEP94121@GMAIL.COM",
             "Nep94121@Gmail.Com",
-            "senat6031@gmail.com",
-            "SENAT6031@GMAIL.COM",
-            "kbanh376@gmail.com",
-            "KBANH376@GMAIL.COM",
+            "nep94121+tag@gmail.com",
+            "n.e.p.94121@googlemail.com",
             "  nep94121@gmail.com  ",
-            "\t\n  senat6031@gmail.com \r\n",
+            "\t\n  nep94121+e2e1114a@gmail.com \r\n",
         ],
     )
     def test_valid_allowlisted_case_variations_and_whitespace_accepted(self, valid_case_email: str):
-        """Legitimate allowlisted addresses with case variations or surrounding whitespace must pass."""
+        """Legitimate owner canonical addresses with case variations or surrounding whitespace must pass."""
         assert is_email_allowlisted_for_real_send(valid_case_email) is True
 
 
@@ -387,18 +386,19 @@ class TestDispatcherAirtightness:
         monkeypatch.setenv("SMTP_USER", "nep94121@gmail.com")
 
         res = auth_mgr.send_real_gmail_otp(
-            target_email="\r\n  senat6031@gmail.com \n\t ",
+            target_email="\r\n  nep94121+clean@gmail.com \n\t ",
             otp_code="123456",
-            display_name="Senat User",
+            display_name="Owner User",
         )
 
         assert res.get("sent_real_gmail") is True
-        assert res.get("actual_recipient") == "senat6031@gmail.com"
+        assert res.get("actual_recipient") == "nep94121+clean@gmail.com"
         assert len(captured_messages) == 1
         msg = captured_messages[0]
-        # Crucial check: RFC header 'To' must not have any newlines or unstripped whitespace
-        assert msg["To"] == "senat6031@gmail.com"
-        assert "\r" not in msg["To"] and "\n" not in msg["To"]
+        # Crucial check: RFC header 'To' must contain sanitized canonical email and no newlines/tabs
+        import email.utils as _eu
+        assert _eu.parseaddr(msg["To"])[1] == "nep94121+clean@gmail.com"
+        assert "\r" not in msg["To"] and "\n" not in msg["To"] and "\t" not in msg["To"]
 
 
 # ==============================================================================

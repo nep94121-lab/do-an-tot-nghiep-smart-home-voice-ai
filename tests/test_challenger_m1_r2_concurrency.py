@@ -306,14 +306,10 @@ class TestChallengerM1R2Concurrency:
             resp = client.post("/api/auth3/forgot_password_send_otp", json=payload)
             data = resp.json()
 
-            # When email key is completely omitted, backend defaults to nep94121@gmail.com (200 OK)
-            # When email is invalid/empty/whitespace/None, backend cannot find account (404 Not Found)
-            if payload == {}:
-                assert resp.status_code == 200, f"Expected 200 for omitted email default, got {resp.status_code}: {data}"
-                assert data.get("ok") is True
-            else:
-                assert resp.status_code in (400, 404), f"Unexpected status {resp.status_code} for {payload}"
-                assert data.get("ok") is False
+            # P2-6 hardening: omitted email no longer defaults to Owner nep94121@gmail.com;
+            # all empty/omitted/invalid/malformed email inputs must be rejected with 400 or 404.
+            assert resp.status_code in (400, 404), f"Unexpected status {resp.status_code} for {payload}: {data}"
+            assert data.get("ok") is False
 
             # Absolute zero OTP leakage in ALL responses regardless of status
             assert "otp_code_for_test" not in data, f"Leaked in {payload}: {data}"

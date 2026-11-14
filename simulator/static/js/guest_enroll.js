@@ -80,43 +80,15 @@ function onDurationChange(val) {
 }
 
 async function refreshGuestQrNow() {
-  try {
-    const sel = document.getElementById('guestDurationSelect');
-    const dur = (sel && sel.value) ? sel.value : (guestDurationCode || '1d');
-    guestDurationCode = dur;
-    guestTargetTier = 3;
-    const res = await fetch(`/api/auth3/guest_qr_current?duration=${encodeURIComponent(dur)}&target_tier=3&host=${encodeURIComponent(location.host)}`);
-    const data = await res.json();
-    if (!data.ok) return;
-
-    currentGuestToken = data.token;
-    const box = document.getElementById('guestQrSvgBox');
-    if (box && data.qr_svg) {
-      box.innerHTML = data.qr_svg;
-      const svgEl = box.querySelector('svg');
-      if (svgEl) {
-        svgEl.setAttribute('width', '96');
-        svgEl.setAttribute('height', '96');
-        svgEl.style.width = '96px';
-        svgEl.style.height = '96px';
-        svgEl.style.display = 'block';
-      }
-    }
-    const badge = document.getElementById('guestQrCountdownBadge');
-    if (badge) {
-      const rem = data.remaining_slot_sec || data.remaining_Slot_sec || 10;
-      badge.textContent = `Còn ${rem}s`;
-      badge.className = rem <= 3 ? 'badge badge-warn' : 'badge badge-ok';
-    }
-    const tokBox = document.getElementById('guestQrTokenBox');
-    if (tokBox) {
-      tokBox.textContent = `Token: ${data.token} · Cấp 3 (Khách)`;
-    }
-
-    if (!lockedSessionId) {
-      await doGuestHandshake(data.token, dur);
-    }
-  } catch (e) {}
+  const badge = document.getElementById('guestQrCountdownBadge');
+  const tokBox = document.getElementById('guestQrTokenBox');
+  if (badge) {
+    badge.textContent = 'Theo mã mời';
+    badge.className = 'badge';
+  }
+  if (tokBox) {
+    tokBox.textContent = 'Chủ nhà tạo mã mời QR trực tiếp tại Trang chủ sau khi đăng nhập.';
+  }
 }
 
 async function doGuestHandshake(token, dur, targetWindow) {
@@ -150,7 +122,11 @@ async function doGuestHandshake(token, dur, targetWindow) {
         box.textContent = `Sẵn sàng đăng ký Khách Cấp 3 (Thời hạn: ${guestDurationLabel}). Hãy nhập Họ tên, Email và bấm Thu âm giọng nói.`;
       }
     } else {
-      await refreshGuestQrNow();
+      if (box) {
+        box.style.borderColor = 'var(--red-border)';
+        box.style.background = 'var(--red-soft)';
+        box.textContent = data.error || 'Mã mời không hợp lệ hoặc đã hết hạn.';
+      }
     }
   } catch (err) {}
 }

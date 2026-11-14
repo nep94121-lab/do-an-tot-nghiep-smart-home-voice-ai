@@ -25,6 +25,7 @@ from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges,
 )
+from simulator.auth.constants_and_crypto import canonical_gmail_mailbox
 from simulator.auth.session_store import UserSession, get_session_store, resolve_request_session
 from simulator.auth_3layer import get_auth_3layer_manager, is_test_otp_fields_allowed
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
@@ -994,91 +995,149 @@ async def api_auth3_voice_permission_command(request: Request, payload: dict[str
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)
 
 
+def normalize_client_ip(request: Request) -> str:
+    """Chuẩn hóa IP client từ edge/proxy headers trên Vercel và local dev."""
+    for header in ("x-vercel-forwarded-for", "x-real-ip", "x-forwarded-for"):
+        raw = str(request.headers.get(header, "") or "").strip()
+        if raw:
+            first = raw.split(",")[0].strip()
+            if first:
+                return first
+    client = getattr(request, "client", None)
+    host = str(getattr(client, "host", "") or "").strip()
+    return host or "unknown"
+
+
 @router.post("/api/auth3/layer1_login")
 async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> JSONResponse:
-    """Xác thực Lớp 1 (Mật khẩu PBKDF2 hoặc PIN)."""
-    email = str(payload.get("email", OWNER_EMAIL)).strip()
-    password = str(payload.get("password", "")).strip()
-    login_method = str(payload.get("login_method", "password")).strip()
+    """Xác thực Lớp 1 (Mật khẩu PBKDF2): Tầng 2/3 vào ngay; Chủ nhà Cấp 1 bắt buộc OTP Lớp 2."""
+    email = str(payload.get("email") or "").strip()
+    password = str(payload.get("password") or "").strip()
+    login_method = str(payload.get("login_method") or "password").strip()
     if login_method != "password":
         return JSONResponse({"ok": False, "error": "Hãy đăng nhập bằng mật khẩu."}, status_code=401)
-    source = str(payload.get("source", "Web Portal")).strip()
+    source = str(payload.get("source") or "Web Portal").strip()
     send_gmail = bool(payload.get("send_gmail", True))
+    req_app = getattr(request, "app", None)
+    client_ip = normalize_client_ip(request)
     res = get_auth_3layer_manager().layer1_login(
         email=email,
         password=password,
         login_method=login_method,
         source=source,
         send_gmail=send_gmail,
+        client_ip=client_ip,
+        app=req_app,
     )
-    req_app = getattr(request, "app", None)
     if not is_test_otp_fields_allowed(req_app):
         res.pop("otp_code_for_test_table", None)
+        res.pop("otp_code_for_test", None)
         res.pop("demo_otp_preview", None)
+
+    acc = res.get("account") or {}
+    res_tier = int(acc.get("tier") or res.get("tier") or 3) if res.get("ok") else 99
+    requires_otp = bool(res.get("otp_required")) or (res.get("ok") and res_tier == 1)
     session_token = None
-    if res.get("ok"):
-        acc = res.get("account") or {}
-        resolved_acc = get_auth_3layer_manager().find_account(email) or acc
-        canonical_email = str(resolved_acc.get("email") or email)
+    canonical_email = str(acc.get("email") or email)
+    if res.get("ok") and not requires_otp:
+        resolved_acc = get_auth_3layer_manager().find_account(canonical_email) or acc
+        canonical_email = str(resolved_acc.get("email") or canonical_email)
         sess = _account_session(resolved_acc, canonical_email, "password_login")
+        res["session_token"] = sess.session_id
+        res["session"] = sess.to_dict()
+        session_token = sess.session_id
+        await broadcast_rest_state_to_bridges()
+    else:
+        res.pop("session_token", None)
+        res.pop("session", None)
+
+    append_audit_log(
+        category="AUTH_3LAYER",
+        event_type="layer1_login",
+        summary=res.get("message") or res.get("error") or "Đăng nhập Lớp 1",
+        user_name=email,
+        tier=res_tier if res.get("ok") else 99,
+        details=sanitize_overview_and_logs_payload(res),
+    )
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 401))
+    resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
+    if status_code == 429 and res.get("retry_after_seconds"):
+        resp.headers["Retry-After"] = str(int(res["retry_after_seconds"]))
+    if res.get("ok") and not requires_otp and session_token:
+        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
+        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+        resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
+        resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+    return resp
+
+
+@router.post("/api/auth3/layer2_send_otp")
+async def api_auth3_layer2_send_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
+    """Gửi mã OTP Gmail Lớp 2 cho tài khoản Chủ nhà Cấp 1 đã vượt qua mật khẩu Lớp 1."""
+    email = str(payload.get("email") or "").strip()
+    source = str(payload.get("source") or "Web Portal").strip()
+    req_app = getattr(request, "app", None)
+    res = get_auth_3layer_manager().send_layer2_login_otp(
+        email=email,
+        source=source,
+        app=req_app,
+    )
+    if not is_test_otp_fields_allowed(req_app):
+        res.pop("otp_code_for_test", None)
+        res.pop("demo_otp_preview", None)
+    append_audit_log(
+        category="AUTH_3LAYER",
+        event_type="layer2_send_otp",
+        summary=res.get("message") or res.get("error") or "Gửi OTP Lớp 2",
+        user_name=email,
+        tier=1 if res.get("ok") else 99,
+        details=sanitize_overview_and_logs_payload(res),
+    )
+    status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
+    return JSONResponse(sanitize_api_payload(res), status_code=status_code)
+
+
+@router.post("/api/auth3/layer2_verify_otp")
+async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request) -> JSONResponse:
+    """Xác thực Lớp 2 (Mã OTP 6 số)."""
+    email = str(payload.get("email") or "").strip()
+    otp_code = str(payload.get("otp_code") or payload.get("otp") or "").strip()
+    source = str(payload.get("source") or "Web Portal").strip()
+    expected_purpose = str(payload.get("purpose") or "").strip() or None
+    client_ip = normalize_client_ip(request)
+    res = get_auth_3layer_manager().layer2_verify_otp(
+        email=email,
+        otp_input=otp_code,
+        source=source,
+        expected_purpose=expected_purpose,
+        client_ip=client_ip,
+    )
+    session_token = None
+    canonical_email = email
+    should_mint_session = bool(res.get("ok")) and str(res.get("verified_purpose") or "layer2_login") == "layer2_login"
+    if should_mint_session:
+        acc_obj = get_auth_3layer_manager().find_account(email) or {}
+        canonical_email = str(acc_obj.get("email") or res.get("email") or email)
+        sess = _account_session(acc_obj, canonical_email, "otp_login")
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
         await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="AUTH_3LAYER",
-        event_type="layer1_login",
-        summary=res.get("message") or res.get("error") or "Đăng nhập Lớp 1",
-        user_name=email,
-        tier=int(res.get("account", {}).get("tier", 1)) if res.get("ok") else 99,
-        details=sanitize_overview_and_logs_payload(res),
-    )
-    resp = JSONResponse(sanitize_api_payload(res))
-    if res.get("ok"):
-        acc = res.get("account") or {}
-        resolved_acc = get_auth_3layer_manager().find_account(email) or acc
-        canonical_email = str(resolved_acc.get("email") or email)
-        if session_token:
-            resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
-            resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
-    return resp
-
-
-@router.post("/api/auth3/layer2_verify_otp")
-async def api_auth3_layer2_verify_otp(payload: dict[str, Any]) -> JSONResponse:
-    """Xác thực Lớp 2 (Mã OTP 6 số)."""
-    email = str(payload.get("email", OWNER_EMAIL)).strip()
-    otp_code = str(payload.get("otp_code") or payload.get("otp") or "").strip()
-    source = str(payload.get("source", "Web Portal")).strip()
-    res = get_auth_3layer_manager().layer2_verify_otp(email=email, otp_input=otp_code, source=source)
-    session_token = None
-    if res.get("ok"):
-        acc_obj = get_auth_3layer_manager().find_account(email) or {}
-        canonical_email = str(acc_obj.get("email") or email)
-        sess = _account_session(acc_obj, canonical_email, "otp_login")
-        res["session_token"] = sess.session_id
-        res["session"] = sess.to_dict()
-        session_token = sess.session_id
-    append_audit_log(
-        category="AUTH_3LAYER",
         event_type="layer2_verify_otp",
         summary=res.get("message") or res.get("error") or "Xác thực OTP Lớp 2",
         user_name=email,
         tier=int(res.get("tier", 1)) if res.get("ok") else 99,
-        details=res,
+        details=sanitize_overview_and_logs_payload(res),
     )
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
-    if res.get("ok"):
-        acc_obj = get_auth_3layer_manager().find_account(email) or {}
-        canonical_email = str(acc_obj.get("email") or email)
-        if session_token:
-            resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
-            resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-            resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+    if should_mint_session and session_token:
+        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
+        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+        resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
+        resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
     return resp
 
 
@@ -1108,7 +1167,12 @@ async def api_auth_logout(request: Request) -> JSONResponse:
 async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONResponse:
     """Tạo tài khoản hoặc đặt/đổi mật khẩu với 2 ô mật khẩu xác nhận."""
     email = str(payload.get("email", "")).strip()
-    if "@" in email and get_auth_3layer_manager().find_account(email):
+    mgr = get_auth_3layer_manager()
+    canon_email = canonical_gmail_mailbox(email)
+    owner_canon = canonical_gmail_mailbox(OWNER_EMAIL)
+    if "@" in email and (
+        mgr.find_account(email) or (canon_email and owner_canon and canon_email == owner_canon)
+    ):
         return JSONResponse({"ok": False, "error": "Tài khoản đã tồn tại. Hãy đăng nhập hoặc dùng Quên mật khẩu."}, status_code=409)
     password = str(payload.get("password", "")).strip()
     confirm_password = str(payload.get("confirm_password", "")).strip()
@@ -1177,6 +1241,7 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
         active_account = manager.find_account(email) or acc
         res["account"] = active_account
         res["permission_active"] = True
+        res["permission_status"] = "ACTIVE"
         res["session_token"] = sess.session_id
         res["session"] = sess.to_dict()
         session_token = sess.session_id
@@ -1194,13 +1259,13 @@ async def api_auth3_forgot_password_send_otp(
     request: Request,
 ) -> JSONResponse:
     """Gửi mã OTP 6 số về Gmail cho tính năng Quên mật khẩu."""
-    email = str(payload.get("email", OWNER_EMAIL)).strip()
+    email = str(payload.get("email") or "").strip()
     send_gmail = bool(payload.get("send_gmail", True))
     req_app = getattr(request, "app", None)
     res = get_auth_3layer_manager().request_password_reset_otp(
         email=email,
         send_gmail=send_gmail,
-        source=str(payload.get("source", "Web Quên Mật Khẩu")),
+        source=str(payload.get("source") or "Web Quên Mật Khẩu"),
         app=req_app,
     )
     if not is_test_otp_fields_allowed(req_app):
@@ -1211,18 +1276,19 @@ async def api_auth3_forgot_password_send_otp(
 
 
 @router.post("/api/auth3/forgot_password_reset")
-async def api_auth3_forgot_password_reset(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_forgot_password_reset(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Xác nhận OTP quên mật khẩu và đặt lại mật khẩu mới (kiểm tra 2 ô mật khẩu)."""
-    email = str(payload.get("email", OWNER_EMAIL)).strip()
+    email = str(payload.get("email") or "").strip()
     otp_code = str(payload.get("otp_code") or payload.get("otp") or "").strip()
     new_password = str(payload.get("new_password") or payload.get("password") or "").strip()
-    confirm_password = str(payload.get("confirm_password", "")).strip()
+    confirm_password = str(payload.get("confirm_password") or "").strip()
     res = get_auth_3layer_manager().reset_password_with_otp(
         email=email,
         otp_code=otp_code,
         new_password=new_password,
         confirm_password=confirm_password,
-        source=str(payload.get("source", "Web Quên Mật Khẩu")),
+        source=str(payload.get("source") or "Web Quên Mật Khẩu"),
+        client_ip=normalize_client_ip(request),
     )
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     return JSONResponse(sanitize_api_payload(res), status_code=status_code)

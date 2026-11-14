@@ -175,10 +175,9 @@ async def api_get_state(request: Request) -> JSONResponse:
     )
 
 
-@router.post("/api/session/role")
-async def api_set_session_role(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Phiên khách/thành viên chỉ được tạo bằng đăng nhập hoặc mã mời của chủ nhà."""
+def _session_role_response(request: Request) -> JSONResponse:
     existing_sess = resolve_request_session(request, payload=None, engine=None)
+    no_store_headers = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
     if not existing_sess.is_authenticated or existing_sess.source in ("invalid_token", "unauthenticated"):
         return JSONResponse(
             {
@@ -187,17 +186,35 @@ async def api_set_session_role(request: Request, payload: dict[str, Any] = Body(
                 "error": "Hãy đăng nhập hoặc dùng mã mời của chủ nhà.",
             },
             status_code=401,
+            headers=no_store_headers,
         )
     return JSONResponse(
         {
             "ok": True,
             "authenticated": True,
             "active_user_id": existing_sess.user_id,
+            "email": existing_sess.email,
+            "display_name": existing_sess.display_name,
             "role": existing_sess.role,
             "tier": existing_sess.tier,
+            "server_connected": bool(getattr(_REST_ENGINE, "server_connected", True)),
             "message": "Phiên giữ nguyên theo tài khoản đã đăng nhập. Không thể đổi cấp tại đây.",
-        }
+        },
+        headers=no_store_headers,
     )
+
+
+@router.get("/api/session/role")
+async def api_get_session_role(request: Request) -> JSONResponse:
+    """Trả về thông tin vai trò của phiên hiện tại từ server (401 nếu chưa đăng nhập)."""
+    return _session_role_response(request)
+
+
+@router.post("/api/session/role")
+async def api_set_session_role(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Phiên khách/thành viên chỉ được tạo bằng đăng nhập hoặc mã mời của chủ nhà."""
+    _ = payload
+    return _session_role_response(request)
 
 
 @router.post("/api/device")

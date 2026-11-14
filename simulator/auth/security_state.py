@@ -36,6 +36,9 @@ class GitHubSecurityState:
         self._token = token
         self._private_checked = False
 
+    class _DocumentNotFound(Exception):
+        pass
+
     def _request(self, method: str, path: str, body: dict | None = None) -> dict:
         url = f"https://api.github.com/repos/{self.repository}{path}"
         if method == "GET":
@@ -51,6 +54,8 @@ class GitHubSecurityState:
             with urllib.request.urlopen(request, timeout=8) as response:
                 return json.load(response)
         except urllib.error.HTTPError as error:
+            if error.code == 404 and method == "GET" and path.startswith("/contents/"):
+                raise self._DocumentNotFound() from None
             if error.code in (409, 422) and method == "PUT":
                 raise StateConflict() from None
             raise SecurityStateUnavailable("Security storage request failed") from None
@@ -65,7 +70,10 @@ class GitHubSecurityState:
 
     def read(self, filename: str) -> tuple[bytes, str, int]:
         self._check_private()
-        row = self._request("GET", "/contents/" + urllib.parse.quote(filename, safe=""))
+        try:
+            row = self._request("GET", "/contents/" + urllib.parse.quote(filename, safe=""))
+        except self._DocumentNotFound:
+            return b"{}", "", 0
         try:
             document = json.loads(base64.b64decode(row["content"]))
             return base64.b64decode(document["payload"]), str(row["sha"]), int(document["revision"])
@@ -74,10 +82,13 @@ class GitHubSecurityState:
 
     def compare_and_swap(self, filename: str, payload: bytes, expected_sha: str, revision: int) -> None:
         document = {"revision": revision + 1, "payload": base64.b64encode(payload).decode("ascii")}
-        self._request("PUT", "/contents/" + urllib.parse.quote(filename, safe=""), {
-            "message": "Update security document", "sha": expected_sha,
+        body = {
+            "message": "Update security document",
             "content": base64.b64encode(json.dumps(document, separators=(",", ":")).encode()).decode("ascii"),
-        })
+        }
+        if expected_sha:
+            body["sha"] = expected_sha
+        self._request("PUT", "/contents/" + urllib.parse.quote(filename, safe=""), body)
 
 
 @functools.lru_cache(maxsize=1)
@@ -136,6 +147,10 @@ def load_security_state(filename: str, data_dir: Path) -> bytes | None:
         return transaction.staged if transaction.staged is not None else transaction.payload
     if cloud_required():
         return get_security_backend().read(filename)[0]
+    local_cas_dir = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+    if local_cas_dir:
+        target = Path(local_cas_dir) / Path(filename).name
+        return target.read_bytes() if target.exists() else None
     from simulator.durable_store import load_state_file
     return load_state_file(filename, data_dir=data_dir)
 
@@ -147,6 +162,22 @@ def save_security_state(filename: str, payload: bytes, data_dir: Path) -> None:
         return
     if cloud_required():
         raise SecurityStateUnavailable("Security writes require an atomic transition")
+    local_cas_dir = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+    if local_cas_dir:
+        target = Path(local_cas_dir) / Path(filename).name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = target.with_name(f"{target.name}.tmp.{os.getpid()}_{secrets.token_hex(6)}")
+        try:
+            tmp_path.write_bytes(payload)
+            os.replace(tmp_path, target)
+            return
+        except Exception as exc:
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except Exception:
+                pass
+            raise SecurityStateUnavailable("Security state could not be saved") from exc
     from simulator.durable_store import save_state_file
     if not save_state_file(filename, payload, sync_cloud=False, data_dir=data_dir):
         raise SecurityStateUnavailable("Security state could not be saved")

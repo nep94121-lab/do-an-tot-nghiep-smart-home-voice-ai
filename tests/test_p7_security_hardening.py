@@ -85,7 +85,7 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
     owner_email = owner_acc["email"]
 
     # 1. Every removed fallback password must be rejected on /api/auth3/layer1_login
-    for old_pw in _decoded_removed_fallbacks():
+    for idx, old_pw in enumerate(_decoded_removed_fallbacks()):
         resp = client.post(
             "/api/auth3/layer1_login",
             json={
@@ -94,8 +94,10 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
                 "login_method": "password",
                 "send_gmail": False,
             },
+            headers={"X-Forwarded-For": f"198.51.100.{10 + idx}"},
         )
         data = resp.json()
+        assert resp.status_code == 401
         assert data.get("ok") is False, f"Removed fallback password was accepted for owner! Response: {data}"
 
     # 2. Arbitrary wrong password must be rejected
@@ -107,7 +109,9 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
             "login_method": "password",
             "send_gmail": False,
         },
+        headers={"X-Forwarded-For": "198.51.100.30"},
     )
+    assert resp_wrong.status_code == 401
     assert resp_wrong.json().get("ok") is False
 
     # 3. Attempting to bypass owner password check via login_method="google_oauth" must be rejected
@@ -119,10 +123,12 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
             "login_method": "google_oauth",
             "send_gmail": False,
         },
+        headers={"X-Forwarded-For": "198.51.100.31"},
     )
+    assert resp_bypass.status_code == 401
     assert resp_bypass.json().get("ok") is False, "Owner must not bypass password check via login_method=google_oauth"
 
-    # 4. If stored password_hash is missing, login must fail and direct to OTP forgot-password reset
+    # 4. If stored password_hash is missing, login must return uniform 401 without revealing reset oracle
     orig_hash = owner_acc.get("password_hash", "")
     try:
         owner_acc["password_hash"] = ""
@@ -134,10 +140,13 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
                 "login_method": "password",
                 "send_gmail": False,
             },
+            headers={"X-Forwarded-For": "198.51.100.32"},
         )
         d_missing = resp_missing.json()
+        assert resp_missing.status_code == 401
         assert d_missing.get("ok") is False
-        assert d_missing.get("needs_password_reset") is True
+        assert "needs_password_reset" not in d_missing
+        assert d_missing.get("error") == "Email hoặc mật khẩu không chính xác."
 
         # Use the OTP / forgot-password flow for a one-time secure reset
         otp_req = client.post(
@@ -172,7 +181,7 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
         assert resp_ok.json().get("ok") is True
 
         # And removed fallback passwords are still rejected
-        for old_pw in _decoded_removed_fallbacks():
+        for idx_old, old_pw in enumerate(_decoded_removed_fallbacks()):
             r_old = client.post(
                 "/api/auth3/layer1_login",
                 json={
@@ -181,10 +190,12 @@ def test_owner_wrong_and_removed_fallback_passwords_rejected(client: TestClient,
                     "login_method": "password",
                     "send_gmail": False,
                 },
+                headers={"X-Forwarded-For": f"198.51.100.{40 + idx_old}"},
             )
             assert r_old.json().get("ok") is False
     finally:
         owner_acc["password_hash"] = orig_hash
+        mgr._login_rate_limits.clear()
 
 
 # ============================================================================
@@ -236,40 +247,36 @@ def test_owner_cannot_skip_voice_verification_or_duplicate_check(client: TestCli
     )
     assert res_tier_empty.json().get("ok") is False, "Owner enrolled tier PCM with empty audio!"
 
-    # 4. Duplicate-voice check must also run for owner: if a Tier 2 member is enrolled
-    #    with giong_cap2_thanh_vien_a.wav, and owner then tries to enroll with that
-    #    same Tier 2 member's voice, owner must be blocked as duplicate!
+    # 4. Voice enrollment endpoint is intentionally removed (HTTP 410 Gone) for all tiers
     member_pcm = _load_wav_pcm16k("giong_cap2_thanh_vien_a.wav")
     member_b64 = base64.b64encode(member_pcm).decode("ascii")
 
-    from simulator.api.routes_auth import _BOOT_VOICE_AUTH
+    res_m_enroll = client.post(
+        "/api/auth3/enroll_first_page_voice",
+        json={
+            "email": "thanhviena.hust@gmail.com",
+            "tier": 2,
+            "display_name": "Thành viên A",
+            "audio_pcm_b64": member_b64,
+        },
+    )
+    assert res_m_enroll.status_code == 410
+    assert res_m_enroll.json().get("ok") is False
+    assert res_m_enroll.json().get("gone") is True
 
-    try:
-        res_m_enroll = client.post(
-            "/api/auth3/enroll_first_page_voice",
-            json={
-                "email": "thanhviena.hust@gmail.com",
-                "tier": 2,
-                "display_name": "Thành viên A",
-                "audio_pcm_b64": member_b64,
-            },
-        )
-        assert res_m_enroll.json().get("ok") is True
-
-        res_dup = client.post(
-            "/api/auth3/enroll_first_page_voice",
-            json={
-                "email": owner_email,
-                "tier": 1,
-                "display_name": "Nguyễn Tuấn Anh",
-                "audio_pcm_b64": member_b64,
-            },
-        )
-        d_dup = res_dup.json()
-        assert d_dup.get("ok") is False, f"Owner skipped duplicate voice check against Tier 2 member voice! {d_dup}"
-        assert d_dup.get("status") in ("DUPLICATE_VOICE_REJECTED", "TRUNG_GIONG") or d_dup.get("duplicate_blocked") is True
-    finally:
-        _BOOT_VOICE_AUTH.profiles.pop("user_voice_thanh_vien_a", None)
+    res_dup = client.post(
+        "/api/auth3/enroll_first_page_voice",
+        json={
+            "email": owner_email,
+            "tier": 1,
+            "display_name": "Nguyễn Tuấn Anh",
+            "audio_pcm_b64": member_b64,
+        },
+    )
+    assert res_dup.status_code == 410
+    d_dup = res_dup.json()
+    assert d_dup.get("ok") is False
+    assert d_dup.get("gone") is True
 
 
 # ============================================================================
@@ -292,7 +299,7 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
     ]:
         r_role = client.post("/api/session/role", json=bad_payload)
         d_role = r_role.json()
-        assert r_role.status_code == 403, f"/api/session/role accepted {bad_payload} with status {r_role.status_code}: {d_role}"
+        assert r_role.status_code in (401, 403), f"/api/session/role accepted {bad_payload} with status {r_role.status_code}: {d_role}"
         assert d_role.get("ok") is False
         assert d_role.get("active_user_id") != "tuan_anh"
 
@@ -309,7 +316,7 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
         assert act.get("ok") is False, f"UNKNOWN role executed action on {dev_id}!"
         assert act.get("rbac_blocked") is True
 
-    # 3. /api/device and /api/text_command with unknown role/speaker must be rejected (403) even for light_living
+    # 3. /api/device and /api/text_command with unknown/unauthenticated role/speaker must be rejected (401/403)
     for ep, payload in [
         ("/api/device", {"device_id": "light_living", "action": "on", "role": "UNKNOWN"}),
         ("/api/device", {"device_id": "light_living", "action": "on", "role": "stranger_voice"}),
@@ -319,9 +326,8 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
     ]:
         resp = client.post(ep, json=payload)
         data = resp.json()
-        assert resp.status_code == 403, f"{ep} allowed unknown role payload {payload}: {data}"
+        assert resp.status_code in (401, 403), f"{ep} allowed unknown role payload {payload}: {data}"
         assert data.get("ok") is False
-        assert data.get("rbac_blocked") is True
 
 
 # ============================================================================
@@ -422,7 +428,7 @@ def test_no_api_response_contains_voiceprints_or_sample_name_shortcut(client: Te
     ):
         r_sql = client.post("/api/logs/sql_query", json={"sql": forbidden_sql})
         d_sql = r_sql.json()
-        assert r_sql.status_code in (400, 403) or d_sql.get("ok") is False, (
+        assert r_sql.status_code in (400, 401, 403) or d_sql.get("ok") is False, (
             f"/api/logs/sql_query allowed sensitive table query: {forbidden_sql}"
         )
 

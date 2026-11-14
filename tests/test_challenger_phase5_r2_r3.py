@@ -394,11 +394,17 @@ class TestChallengerR3OtpEmailAdversarial:
             data1 = res1.json()
             assert data1.get("ok") is False, f"ok must be False on failed delivery: {data1}"
 
-            # Missing secret identified
+            # Missing secret identified for allowlisted owner email; non-allowlisted blocked explicitly
             all_text_1 = " ".join(_recursively_find_strings(data1))
-            assert "GMAIL_APP_PASSWORD" in all_text_1 or "SMTP_PASSWORD" in all_text_1, (
-                f"Missing secret 'GMAIL_APP_PASSWORD' was not identified in response: {all_text_1}"
-            )
+            if test_email == "nep94121@gmail.com":
+                assert "GMAIL_APP_PASSWORD" in all_text_1 or "SMTP_PASSWORD" in all_text_1, (
+                    f"Missing secret 'GMAIL_APP_PASSWORD' was not identified in response: {all_text_1}"
+                )
+            else:
+                assert (
+                    "BLOCKED_NOT_ALLOWLISTED" in all_text_1
+                    or data1.get("gmail_delivery", {}).get("blocked_by_allowlist") is True
+                ), f"Expected allowlist block for non-owner {test_email}, got: {all_text_1}"
 
             # Zero leaked OTPs: check keys and values
             assert "demo_otp_preview" not in data1 or not data1["demo_otp_preview"]
@@ -415,7 +421,14 @@ class TestChallengerR3OtpEmailAdversarial:
             )
             data2 = res2.json()
             assert data2.get("ok") is False
-            assert "GMAIL_APP_PASSWORD" in " ".join(_recursively_find_strings(data2))
+            all_text_2 = " ".join(_recursively_find_strings(data2))
+            if test_email == "nep94121@gmail.com":
+                assert "GMAIL_APP_PASSWORD" in all_text_2 or "SMTP_PASSWORD" in all_text_2
+            else:
+                assert (
+                    "BLOCKED_NOT_ALLOWLISTED" in all_text_2
+                    or data2.get("gmail_delivery", {}).get("blocked_by_allowlist") is True
+                )
 
     def test_r3_adversarial_nonexistent_and_malformed_email_queries(self, client: TestClient):
         """Adversarial queries with invalid emails must return 404/400 without crashing or faking success."""
@@ -569,8 +582,8 @@ class TestChallengerR3OtpEmailAdversarial:
             # --- DESKTOP UI VERIFICATION ---
             page.goto(f"{live_server_url}/index.html")
 
-            # Click tab Quên mật khẩu
-            page.click("#btnTabGateForgot")
+            # Click link Quên mật khẩu
+            page.click("#linkGateForgot")
 
             # Ensure Step 1 is displayed and Step 2 is hidden
             assert page.is_visible("#gateForgotStep1")

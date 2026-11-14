@@ -17,6 +17,8 @@ def prepare_live_auth(env: dict[str, str], temp_dir: str) -> str:
     data.mkdir()
     env["SMARTHOME_DATA_DIR"] = str(data)
     env["SMARTHOME_DURABLE_DIR"] = str(root / "vault")
+    env["SIMULATOR_SECURITY_STATE_DIR"] = str(data)
+    env["PYTEST"] = "1"
     env.pop("VERCEL", None)
     env.pop("SMARTHOME_FORCE_CLOUD_DURABLE", None)
     accounts = copy.deepcopy(get_auth_3layer_manager().accounts)
@@ -41,9 +43,17 @@ def post_json(base_url: str, path: str, payload: dict, token: str = "") -> dict:
 
 
 def login_live_owner(base_url: str, password: str) -> str:
-    return post_json(base_url, "/api/auth3/layer1_login", {
+    r1 = post_json(base_url, "/api/auth3/layer1_login", {
         "email": "nep94121@gmail.com", "password": password, "send_gmail": False,
-    })["session_token"]
+    })
+    if r1.get("session_token"):
+        return r1["session_token"]
+    otp_code = r1.get("otp_code_for_test") or r1.get("demo_otp_preview") or ""
+    assert otp_code, "Expected test OTP code for live owner Layer-2 verification"
+    r2 = post_json(base_url, "/api/auth3/layer2_verify_otp", {
+        "email": "nep94121@gmail.com", "otp_code": otp_code,
+    })
+    return r2["session_token"]
 
 
 def invite_live_member(base_url: str, owner_token: str) -> str:

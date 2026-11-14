@@ -187,6 +187,8 @@ def clean_auth_pending_otps() -> None:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "_login_rate_limits"):
+            mgr._login_rate_limits.clear()
         if hasattr(mgr, "pending_invite_registrations"):
             mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)
@@ -201,6 +203,8 @@ def clean_auth_pending_otps() -> None:
         dict.clear(mgr.pending_otps)
         if hasattr(mgr, "otp_failed_attempts"):
             mgr.otp_failed_attempts.clear()
+        if hasattr(mgr, "_login_rate_limits"):
+            mgr._login_rate_limits.clear()
         if hasattr(mgr, "pending_invite_registrations"):
             mgr.pending_invite_registrations.clear()
         mgr.accounts = copy.deepcopy(_INITIAL_MGR_ACCOUNTS)

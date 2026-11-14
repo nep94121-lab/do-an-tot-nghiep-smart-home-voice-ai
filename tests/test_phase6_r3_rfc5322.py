@@ -79,7 +79,7 @@ class TestRFC5322HeadersAndFormatting:
              patch("smtplib.SMTP_SSL", return_value=mock_smtp):
             
             res = auth_mgr.send_real_gmail_otp(
-                target_email="senat6031@gmail.com",
+                target_email="nep94121+rfc5322@gmail.com",
                 otp_code="849201",
                 display_name="Senat Test",
             )
@@ -98,7 +98,7 @@ class TestRFC5322HeadersAndFormatting:
             # 2. To header: formatted with display name
             to_hdr = msg["To"]
             to_name, to_addr = email.utils.parseaddr(to_hdr)
-            assert to_addr == "senat6031@gmail.com"
+            assert to_addr == "nep94121+rfc5322@gmail.com"
             assert to_name == "Senat Test"
 
             # 3. Date header: RFC 5322 formatted
@@ -141,7 +141,7 @@ class TestRFC5322HeadersAndFormatting:
             
             res = auth_mgr.send_invite_link_via_gmail(
                 invite_code="INV-TEST-T2",
-                recipient_email="senat6031@gmail.com",
+                recipient_email="nep94121+invite5322@gmail.com",
             )
             assert res.get("ok") is True
             assert res.get("sent_real_gmail") is True
@@ -156,7 +156,7 @@ class TestRFC5322HeadersAndFormatting:
 
             # 2. To header: formatted address
             _, to_addr = email.utils.parseaddr(msg["To"])
-            assert to_addr == "senat6031@gmail.com"
+            assert to_addr == "nep94121+invite5322@gmail.com"
 
             # 3. Date header: RFC 5322
             date_hdr = msg["Date"]
@@ -182,7 +182,7 @@ class TestSubjectLinesAntiSpam:
              patch("smtplib.SMTP", return_value=mock_smtp):
             
             auth_mgr.send_real_gmail_otp(
-                target_email="senat6031@gmail.com",
+                target_email="nep94121+subj@gmail.com",
                 otp_code="931052",
                 display_name="Senat User",
             )
@@ -222,7 +222,7 @@ class TestSubjectLinesAntiSpam:
             
             auth_mgr.send_invite_link_via_gmail(
                 invite_code="INV-TEST-T2",
-                recipient_email="senat6031@gmail.com",
+                recipient_email="nep94121+subjinv@gmail.com",
             )
             assert len(captured_messages) == 1
             subject = captured_messages[0]["Subject"]
@@ -246,7 +246,7 @@ class TestMultipartAlternativeStructure:
              patch("smtplib.SMTP", return_value=mock_smtp):
             
             auth_mgr.send_real_gmail_otp(
-                target_email="senat6031@gmail.com",
+                target_email="nep94121+mime@gmail.com",
                 otp_code="582194",
                 display_name="Senat User",
             )

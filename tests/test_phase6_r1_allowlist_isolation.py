@@ -81,28 +81,29 @@ class TestAllowlistEngine:
     """Kiểm tra logic Allowlist Engine (Canonical Allowlist & Helper Function)."""
 
     def test_hardcoded_real_email_allowlist_members(self):
-        """Danh sách HARDCODED_REAL_EMAIL_ALLOWLIST phải chứa đúng 3 email được cấp phép."""
-        expected = {"nep94121@gmail.com", "senat6031@gmail.com", "kbanh376@gmail.com"}
-        assert HARDCODED_REAL_EMAIL_ALLOWLIST == expected or expected.issubset(HARDCODED_REAL_EMAIL_ALLOWLIST)
+        """Danh sách HARDCODED_REAL_EMAIL_ALLOWLIST chỉ giữ duy nhất email Chủ nhà nep94121@gmail.com."""
+        expected = {"nep94121@gmail.com"}
+        assert HARDCODED_REAL_EMAIL_ALLOWLIST == expected
 
     @pytest.mark.parametrize(
         "email",
         [
             "nep94121@gmail.com",
-            "senat6031@gmail.com",
-            "kbanh376@gmail.com",
             "NEP94121@GMAIL.COM",
-            "  senat6031@gmail.com  ",
-            "Kbanh376@gmail.com",
+            "  nep94121@gmail.com  ",
+            "nep94121+e2e1114a@gmail.com",
+            "n.e.p.94121@googlemail.com",
         ],
     )
     def test_is_email_allowlisted_for_real_send_allowed_addresses(self, email: str):
-        """Các email thuộc allowlist (kể cả viết hoa hay có khoảng trắng) phải trả về True."""
+        """Email Chủ nhà và alias Gmail canonical hợp lệ phải trả về True."""
         assert is_email_allowlisted_for_real_send(email) is True
 
     @pytest.mark.parametrize(
         "email",
         [
+            "senat6031@gmail.com",
+            "kbanh376@gmail.com",
             "thanh_vien_chuan@gmail.com",
             "hoc_sinh_moi@gmail.com",
             "tan_binh_gia_dinh@gmail.com",
@@ -117,23 +118,26 @@ class TestAllowlistEngine:
         ],
     )
     def test_is_email_allowlisted_for_real_send_rejected_addresses(self, email: str | None):
-        """Các email ngoài allowlist hoặc không hợp lệ phải trả về False."""
+        """Các email ngoài allowlist (bao gồm senat6031/kbanh376) phải trả về False."""
         assert is_email_allowlisted_for_real_send(email) is False
 
     def test_is_email_allowlisted_with_env_variable_expansion(self, monkeypatch: pytest.MonkeyPatch):
-        """Biến môi trường REAL_EMAIL_ALLOWLIST mở rộng thêm danh sách được phép."""
+        """Biến môi trường REAL_EMAIL_ALLOWLIST chỉ mở rộng ngoài VERCEL và bị bỏ qua trên Vercel."""
+        monkeypatch.delenv("VERCEL", raising=False)
         monkeypatch.setenv(
             "REAL_EMAIL_ALLOWLIST",
             "extra_tester@hust.edu.vn, lab_member@ai.org ; vip_guest@domain.com",
         )
-        # Các email bổ sung từ env
         assert is_email_allowlisted_for_real_send("extra_tester@hust.edu.vn") is True
         assert is_email_allowlisted_for_real_send("lab_member@ai.org") is True
         assert is_email_allowlisted_for_real_send("vip_guest@domain.com") is True
-        # Các email mặc định vẫn được giữ
-        assert is_email_allowlisted_for_real_send("senat6031@gmail.com") is True
-        # Email ngoài vẫn bị chặn
+        assert is_email_allowlisted_for_real_send("nep94121@gmail.com") is True
+        assert is_email_allowlisted_for_real_send("senat6031@gmail.com") is False
         assert is_email_allowlisted_for_real_send("thanh_vien_chuan@gmail.com") is False
+
+        monkeypatch.setenv("VERCEL", "1")
+        assert is_email_allowlisted_for_real_send("extra_tester@hust.edu.vn") is False
+        assert is_email_allowlisted_for_real_send("nep94121+e2e1114a@gmail.com") is True
 
 
 # ==============================================================================
@@ -223,31 +227,31 @@ class TestDispatcherAllowlistGate:
     def test_send_real_gmail_otp_allows_allowlisted_email_under_mock(
         self, dummy_auth: DummyAuthManager, monkeypatch: pytest.MonkeyPatch
     ):
-        """Email thuộc allowlist (senat6031@gmail.com) vượt qua Allowlist Gate và kích hoạt gửi (qua mock conftest)."""
+        """Email thuộc allowlist (nep94121+e2e1114a@gmail.com) vượt qua Allowlist Gate và kích hoạt gửi (qua mock conftest)."""
         monkeypatch.setenv("GMAIL_APP_PASSWORD", "mock_dummy_pwd")
         monkeypatch.setenv("SMTP_USER", "nep94121@gmail.com")
 
         res = dummy_auth.send_real_gmail_otp(
-            target_email="senat6031@gmail.com",
+            target_email="nep94121+e2e1114a@gmail.com",
             otp_code="654321",
-            display_name="Thành viên senat6031",
+            display_name="Owner Alias",
         )
 
         assert res.get("blocked_by_allowlist") is not True
         # Qua mock conftest của smtplib
         assert res.get("sent_real_gmail") is True
-        assert res.get("actual_recipient") == "senat6031@gmail.com"
+        assert res.get("actual_recipient") == "nep94121+e2e1114a@gmail.com"
 
     def test_send_invite_link_via_gmail_allows_allowlisted_email_under_mock(
         self, dummy_auth: DummyAuthManager
     ):
-        """send_invite_link_via_gmail cho phép gửi tới email allowlisted (kbanh376@gmail.com)."""
+        """send_invite_link_via_gmail cho phép gửi tới email allowlisted (nep94121+e2e1114a@gmail.com)."""
         res = dummy_auth.send_invite_link_via_gmail(
             invite_code="TEST_INV_C2",
-            recipient_email="kbanh376@gmail.com",
+            recipient_email="nep94121+e2e1114a@gmail.com",
         )
         assert res.get("ok") is True
-        assert res.get("recipient") == "kbanh376@gmail.com"
+        assert res.get("recipient") == "nep94121+e2e1114a@gmail.com"
         assert res.get("gmail_message_id") == "mock_gws_isolation_msg_id"
 
 

@@ -308,6 +308,7 @@ def validate_dns_mx_record(email: str) -> tuple[bool, str]:
 
     known_valid_mx_domains = {
         "gmail.com",
+        "googlemail.com",
         "google.com",
         "yahoo.com",
         "outlook.com",
@@ -337,3 +338,42 @@ def validate_dns_mx_record(email: str) -> tuple[bool, str]:
         pass
 
     return (False, f"Không tìm thấy bản ghi DNS MX cho tên miền '{domain}'")
+
+
+_STRICT_EMAIL_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9._+\-]*[a-z0-9])?@[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?)+$"
+)
+
+
+def strict_single_email_ascii(email: Any) -> str:
+    """Validate strict single-address ASCII email syntax (rejects CRLF, whitespace inside, comments, double-dots)."""
+    if not isinstance(email, str):
+        return ""
+    if any(ch in ("\x00", "\v", "\f") for ch in email):
+        return ""
+    stripped = email.strip(" \t\r\n")
+    if not stripped or any(ch.isspace() or ord(ch) < 32 or ord(ch) > 126 for ch in stripped):
+        return ""
+    clean = stripped.lower()
+    if "%" in clean or ".." in clean or ".+" in clean or "+." in clean:
+        return ""
+    if not _STRICT_EMAIL_RE.fullmatch(clean):
+        return ""
+    local, _domain = clean.split("@", 1)
+    if local.startswith(".") or local.endswith("."):
+        return ""
+    return clean
+
+
+def canonical_gmail_mailbox(email: Any) -> str:
+    """Normalize Gmail addresses: googlemail.com -> gmail.com, strip dots and +tag in local-part."""
+    clean = strict_single_email_ascii(email)
+    if not clean:
+        return ""
+    local, domain = clean.split("@", 1)
+    if domain in ("gmail.com", "googlemail.com"):
+        base_local = local.split("+", 1)[0].replace(".", "")
+        if not base_local:
+            return ""
+        return f"{base_local}@gmail.com"
+    return f"{local}@{domain}"
