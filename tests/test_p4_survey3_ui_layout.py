@@ -35,49 +35,33 @@ if str(ROOT) not in sys.path:
 # =============================================================================
 
 class TestBug6MobileHouse3d:
-    """Bug 6: /app phải nạp Three.js, GLTFLoader, house3d.js và khởi tạo SmartHome3D trong #mobileOverviewBox."""
+    """U3a: /app đã gỡ bỏ khung 3D trống #mobileOverviewBox và các script 3D không sử dụng."""
 
     def test_bug6_mobile_html_includes_three_and_house3d(self):
-        """mobile_app/index.html phải nạp three.min.js, GLTFLoader.js và house3d.js trước mobile_app.js."""
+        """mobile_app/index.html chỉ nạp mobile_app.js, không nạp 3D script dư thừa."""
         html_path = ROOT / "mobile_app" / "index.html"
         assert html_path.exists(), "Tệp mobile_app/index.html không tồn tại!"
         content = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
-
         script_srcs = [s.get("src", "") for s in soup.find_all("script") if s.get("src")]
-
-        # Phải chứa đủ 3 script 3D
-        assert any("three.min.js" in s for s in script_srcs), "Thiếu /static/vendor/three.min.js trong mobile_app/index.html"
-        assert any("GLTFLoader.js" in s for s in script_srcs), "Thiếu /static/vendor/GLTFLoader.js trong mobile_app/index.html"
-        assert any("house3d.js" in s for s in script_srcs), "Thiếu /static/house3d.js trong mobile_app/index.html"
-
-        # house3d.js phải đứng trước mobile_app.js
-        idx_house3d = next(i for i, s in enumerate(script_srcs) if "house3d.js" in s)
-        idx_mobile_app = next(i for i, s in enumerate(script_srcs) if "mobile_app.js" in s)
-        assert idx_house3d < idx_mobile_app, "house3d.js phải được nạp trước mobile_app.js"
+        assert not any("three.min.js" in s for s in script_srcs)
+        assert not any("GLTFLoader.js" in s for s in script_srcs)
+        assert not any("house3d.js" in s for s in script_srcs)
+        assert any("mobile_app.js" in s for s in script_srcs)
 
     def test_bug6_mobile_overview_box_structure(self):
-        """Phần tử #mobileOverviewBox phải tồn tại và giữ nguyên class preview-16-9."""
+        """Phần tử #mobileOverviewBox phải đã được gỡ theo U3a."""
         html_path = ROOT / "mobile_app" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
-        box = soup.find(id="mobileOverviewBox")
-        assert box is not None, "Thiếu phần tử #mobileOverviewBox trong mobile_app/index.html"
-        classes = box.get("class", [])
-        assert "preview-16-9" in classes, "#mobileOverviewBox phải giữ class 'preview-16-9'"
+        assert soup.find(id="mobileOverviewBox") is None
 
     def test_bug6_mobile_js_inits_and_updates_house3d(self):
-        """mobile_app.js phải gọi SmartHome3D.init('mobileOverviewBox', ...) và cập nhật updateDevices/updateSensors."""
+        """mobile_app.js không còn gọi SmartHome3D hay tìm #mobileOverviewBox."""
         js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
         assert js_path.exists(), "Tệp simulator/static/js/mobile_app.js không tồn tại!"
         content = js_path.read_text(encoding="utf-8")
-
-        # Khởi tạo SmartHome3D
-        assert "SmartHome3D.init" in content, "mobile_app.js chưa gọi SmartHome3D.init"
-        assert "mobileOverviewBox" in content, "mobile_app.js chưa truyền mobileOverviewBox vào SmartHome3D.init"
-
-        # Đồng bộ trạng thái thiết bị và cảm biến trong renderState
-        assert "updateDevices" in content, "mobile_app.js chưa gọi SmartHome3D.updateDevices"
-        assert "updateSensors" in content, "mobile_app.js chưa gọi SmartHome3D.updateSensors"
+        assert "SmartHome3D" not in content
+        assert "mobileOverviewBox" not in content
 
 
 # =============================================================================

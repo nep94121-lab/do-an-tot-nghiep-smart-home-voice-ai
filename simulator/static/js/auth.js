@@ -288,82 +288,16 @@ async function execOwnerVoicePermission(cmdText) {
 }
 
 async function generateAuthGuestQr() {
-  if (!currentSessionUser || Number(currentSessionUser.tier) !== 1) return;
-  const durSel = document.getElementById('authQrDurationSelect');
-  const tierSel = document.getElementById('authQrTargetTierSelect');
-  const pinEl = document.getElementById('authQrPinInput');
-  const pinConfirmEl = document.getElementById('authQrPinConfirmInput');
-  const tokenBox = document.getElementById('authQrTokenBox');
-  const badge = document.getElementById('authQrCountdownBadge');
-  const svgBox = document.getElementById('authDynamicQrBox');
-
-  const ttlSec = parseInt((durSel && durSel.value) || '600', 10);
-  const targetTier = parseInt((tierSel && tierSel.value) || '3', 10);
-  const pin = pinEl ? pinEl.value.trim() : '';
-  const pinConfirm = pinConfirmEl ? pinConfirmEl.value.trim() : '';
-
-  try {
-    const res = await fetch('/api/auth3/guest_invites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier: targetTier, ttl_sec: ttlSec, pin, pin_confirm: pinConfirm })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) {
-      if (data && data.needs_pin_setup && pinConfirmEl) {
-        pinConfirmEl.style.display = 'inline-block';
-        pinConfirmEl.hidden = false;
-      }
-      setAuthStatusBox(tokenBox, data.error || 'Không tạo được mã QR mời.', true);
-      return;
-    }
-
-    if (svgBox && data.qr_svg) {
-      svgBox.innerHTML = data.qr_svg;
-      const svgEl = svgBox.querySelector('svg');
-      if (svgEl) {
-        svgEl.id = 'authDynamicQrSvg';
-        svgEl.setAttribute('width', '116');
-        svgEl.setAttribute('height', '116');
-        svgEl.style.width = '116px';
-        svgEl.style.height = '116px';
-        svgEl.style.display = 'block';
-        svgEl.style.margin = '0 auto';
-        svgEl.style.background = '#fff';
-        svgEl.style.padding = '6px';
-        svgEl.style.borderRadius = '8px';
-        svgEl.style.border = '1px solid var(--line)';
-      }
-    }
-    if (badge) {
-      badge.textContent = 'Đang hiệu lực';
-      badge.className = 'badge badge-tier1';
-    }
-    const openLink = document.getElementById('authQrOpenLink');
-    if (openLink && data.path) {
-      openLink.href = data.path;
-    } else if (openLink && data.token) {
-      openLink.href = `/guest?token=${encodeURIComponent(data.token)}`;
-    }
-    const roleDesc = targetTier === 2 ? 'Thành viên gia đình (Cấp 2)' : 'Khách đến chơi nhà (Cấp 3)';
-    setAuthStatusBox(tokenBox, `Đã tạo mã QR cho: ${roleDesc}.`, false);
-  } catch (_) {
-    setAuthStatusBox(tokenBox, 'Lỗi kết nối máy chủ khi tạo mã QR.', true);
+  if (!currentSessionUser || Number(currentSessionUser.tier) !== 1) return null;
+  const link = document.getElementById('linkManageQrOnHome');
+  if (link && typeof link.focus === 'function') {
+    link.focus();
   }
+  return { redirected: true, href: '/#ownerGuestQrPanel' };
 }
 
 async function checkOwnerPinStatusForAuthPage() {
-  if (!currentSessionUser || Number(currentSessionUser.tier) !== 1) return;
-  try {
-    const res = await fetch('/api/auth3/owner_pin/status');
-    if (!res.ok) return;
-    const data = await res.json().catch(() => ({}));
-    const pinConfirmEl = document.getElementById('authQrPinConfirmInput');
-    if (pinConfirmEl && data && data.pin_set === false) {
-      pinConfirmEl.style.display = 'inline-block';
-      pinConfirmEl.hidden = false;
-    }
-  } catch (_) {}
+  return null;
 }
 
 async function loadOverview() {
@@ -547,6 +481,7 @@ window.renderFamilyAllowlist = renderFamilyAllowlist;
 window.submitAddFamilyEmail = submitAddFamilyEmail;
 window.execOwnerVoicePermission = execOwnerVoicePermission;
 window.generateAuthGuestQr = generateAuthGuestQr;
+window.checkOwnerPinStatusForAuthPage = checkOwnerPinStatusForAuthPage;
 window.loadOverview = loadOverview;
 window.logoutFromAuthPage = logoutFromAuthPage;
 window.initAuthPageSessionGate = initAuthPageSessionGate;

@@ -58,9 +58,9 @@
         <div class="actions-row">
           <button id="btnRecordGuestVoice" type="button" class="btn btn-primary btn-flex" onclick="toggleGuestMicRecording()">
             <svg class="icon"><use href="#i-mic"/></svg>
-            <span id="btnRecordGuestVoiceText">🎤 Bấm để Thu âm giọng nói</span>
+            <span id="btnRecordGuestVoiceText">Bấm để Thu âm giọng nói</span>
           </button>
-          <button id="btnRetryGuestVoice" type="button" class="btn btn-secondary" onclick="retryGuestVoiceRecording()">🔄 Thu lại</button>
+          <button id="btnRetryGuestVoice" type="button" class="btn btn-secondary" onclick="retryGuestVoiceRecording()">Thu lại</button>
         </div>
 
         <!-- Khung Cảnh Báo Lỗi Microphone (Tiếng Việt) -->
@@ -74,7 +74,7 @@
           </div>
           <div class="recording-timer" id="recordingTimer">00:00</div>
           <button id="btnStopGuestRecording" type="button" class="btn btn-danger btn-stop" onclick="stopGuestMicRecording()">
-            ⏹ Dừng
+            Dừng
           </button>
         </div>
 
@@ -84,7 +84,7 @@
         <div class="audio-upload-container" id="audioUploadContainer">
           <div class="upload-separator"><span>HOẶC TẢI LÊN TỆP ÂM THANH</span></div>
           <label for="guestAudioFileInput" class="btn btn-secondary btn-upload" id="btnUploadAudioLabel">
-            📁 Tải lên tệp âm thanh (.wav, .m4a, .webm, .mp3, .ogg)
+            Tải lên tệp âm thanh (.wav, .m4a, .webm, .mp3, .ogg)
           </label>
           <input type="file" id="guestAudioFileInput" accept=".wav,.m4a,.webm,.mp3,.ogg,audio/*" multiple style="display:none;" onchange="handleGuestAudioFileUpload(event)" />
           <div id="uploadedAudioInfo" class="uploaded-info" style="display:none;"></div>
@@ -94,7 +94,7 @@
       <div class="section-divider">
         <div class="actions-row">
           <button id="btnConfirmGuestVoiceOk" type="button" class="btn btn-primary btn-block" disabled onclick="confirmAndActivateGuestVoice()">
-            ✅ Lưu &amp; Kích hoạt quyền Khách (Cấp 3)
+            Lưu &amp; Kích hoạt quyền Khách (Cấp 3)
           </button>
         </div>
         <!-- Khung Thông Báo Kết Quả Sau Khi Lưu -->

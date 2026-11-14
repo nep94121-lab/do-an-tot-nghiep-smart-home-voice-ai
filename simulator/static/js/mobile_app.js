@@ -596,12 +596,20 @@
     function togglePasswordVisibility(inputId, btn) {
       const input = document.getElementById(inputId);
       if (!input) return;
-      if (input.type === 'password') {
-        input.type = 'text';
-        if (btn) btn.textContent = '🙈';
-      } else {
-        input.type = 'password';
-        if (btn) btn.textContent = '👁️';
+      const showPassword = input.type === 'password';
+      input.type = showPassword ? 'text' : 'password';
+      if (btn) {
+        const targetSymbol = showPassword ? '#i-eye-off' : '#i-eye';
+        if (typeof btn.setAttribute === 'function') {
+          btn.setAttribute('aria-label', showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+        }
+        const useEl = typeof btn.querySelector === 'function' ? btn.querySelector('use') : null;
+        if (useEl) {
+          useEl.setAttribute('href', targetSymbol);
+          useEl.setAttribute('xlink:href', targetSymbol);
+        } else if (typeof btn.innerHTML !== 'undefined') {
+          btn.innerHTML = `<svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="${targetSymbol}"></use></svg>`;
+        }
       }
     }
 
@@ -725,7 +733,7 @@
             }
             if (msgEl) {
               msgEl.style.color = 'var(--accent)';
-              msgEl.textContent = `✅ ${data.message || 'Đặt mật khẩu thành công!'}`;
+              msgEl.textContent = data.message || 'Đặt mật khẩu thành công!';
             }
             setTimeout(showMobileMainContent, 500);
           } else {
@@ -793,7 +801,7 @@
         if (data.ok) {
           if (msgEl) {
             msgEl.style.color = 'var(--accent)';
-            msgEl.textContent = '✅ Đổi mật khẩu thành công!';
+            msgEl.textContent = 'Đổi mật khẩu thành công!';
           }
         } else {
           if (msgEl) {
@@ -1101,7 +1109,7 @@
           const sentText = document.getElementById('mobileForgotEmailSentText');
           const otpMsg = document.getElementById('mobileForgotOtpMsg');
           if (msgEl) msgEl.textContent = '';
-          if (otpMsg) { otpMsg.style.color = 'var(--accent)'; otpMsg.textContent = '✅ Đã gửi mã OTP tới Gmail của bạn.'; }
+          if (otpMsg) { otpMsg.style.color = 'var(--accent)'; otpMsg.textContent = 'Đã gửi mã OTP tới Gmail của bạn.'; }
           if (stepEmail) stepEmail.style.display = 'none';
           if (stepOtp) stepOtp.style.display = 'grid';
           if (stepLabel) stepLabel.textContent = 'Bước 2/3';
@@ -1596,7 +1604,7 @@
           const replySummary = (cmdData && (cmdData.exact_spoken_reply || cmdData.reply)) || '';
           resEl.textContent = '';
           const strong = document.createElement('strong');
-          strong.textContent = `✓ Đã xử lý · ${roleName}`;
+          strong.textContent = `Đã xử lý · ${roleName}`;
           resEl.appendChild(strong);
           if (saidSummary) {
             resEl.appendChild(document.createElement('br'));
@@ -1613,7 +1621,7 @@
           resEl.style.color = '#15803d';
           if (btnContinue) btnContinue.style.display = 'block';
         } else {
-          resEl.textContent = `✗ ${errMessage}`;
+          resEl.textContent = `${errMessage}`;
           resEl.style.color = 'var(--danger)';
           if (btnRetry) btnRetry.style.display = 'block';
           if (btnClose) btnClose.style.display = 'block';
@@ -1709,7 +1717,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (isHttpOk(res) && data.ok) {
-          if (status) status.textContent = '✅ Bắt tay thành công! Đang chuyển hướng...';
+          if (status) status.textContent = 'Bắt tay thành công! Đang chuyển hướng...';
           setTimeout(() => {
             closeQrScanner();
             if (typeof location !== 'undefined') {
@@ -1808,20 +1816,16 @@
         card.setAttribute('data-state', nextIsOn ? 'on' : 'off');
       }
 
-      const quickMap = {
-        living_room_light: 'mobileQuickBtnLight',
-        fan: 'mobileQuickBtnFan',
-        main_door: 'mobileQuickBtnDoor',
-      };
-      const qBtn = explicitBtnEl || (quickMap[devId] ? document.getElementById(quickMap[devId]) : null);
-      if (qBtn) {
-        if (qBtn.classList) {
-          qBtn.classList.toggle('on', nextIsOn);
-          qBtn.classList.toggle('active', nextIsOn);
-          qBtn.classList.toggle('off', !nextIsOn);
+      if (explicitBtnEl) {
+        if (explicitBtnEl.classList) {
+          explicitBtnEl.classList.toggle('on', nextIsOn);
+          explicitBtnEl.classList.toggle('active', nextIsOn);
+          explicitBtnEl.classList.toggle('off', !nextIsOn);
         }
-        qBtn.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
-        if (qBtn.dataset) qBtn.dataset.state = nextIsOn ? 'on' : 'off';
+        if (typeof explicitBtnEl.setAttribute === 'function') {
+          explicitBtnEl.setAttribute('aria-pressed', nextIsOn ? 'true' : 'false');
+        }
+        if (explicitBtnEl.dataset) explicitBtnEl.dataset.state = nextIsOn ? 'on' : 'off';
       }
     }
 
@@ -2244,26 +2248,6 @@
         }
       });
 
-      const quickMap = {
-        living_room_light: 'mobileQuickBtnLight',
-        fan: 'mobileQuickBtnFan',
-        main_door: 'mobileQuickBtnDoor',
-      };
-      Object.keys(quickMap).forEach((devId) => {
-        const qBtn = document.getElementById(quickMap[devId]);
-        const devObj = allDevices.find(x => x.id === devId);
-        if (qBtn && devObj) {
-          const isOn = devObj.state === 'ON' || devObj.state === 'OPEN';
-          if (qBtn.classList) {
-            qBtn.classList.toggle('on', isOn);
-            qBtn.classList.toggle('active', isOn);
-            qBtn.classList.toggle('off', !isOn);
-          }
-          qBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
-          if (qBtn.dataset) qBtn.dataset.state = isOn ? 'on' : 'off';
-        }
-      });
-
       const online = snap.server_connected !== false;
       if (snap.authenticated === false && mobileLoggedIn) {
         updateMobileAuthUiState(false);
@@ -2312,29 +2296,6 @@
           if (sEl) sEl.textContent = `${sSafe}%`;
           const dsEl = document.getElementById('mobileDisplaySoil');
           if (dsEl) dsEl.textContent = `${sSafe}%`;
-        }
-      }
-
-      if (typeof window !== 'undefined' && window.SmartHome3D) {
-        if (!window._mobile3dInited && typeof window.SmartHome3D.init === 'function') {
-          const overviewBox = document.getElementById('mobileOverviewBox');
-          if (overviewBox) {
-            try {
-              window.SmartHome3D.init('mobileOverviewBox', null, async (devId) => {
-                const card = document.querySelector(`.dev-row[data-device-id="${devId}"]`);
-                if (card) card.click();
-              });
-              window._mobile3dInited = true;
-            } catch (e) {
-              console.warn('SmartHome3D init in renderState error:', e);
-            }
-          }
-        }
-        if (typeof window.SmartHome3D.updateDevices === 'function' && snap.devices) {
-          window.SmartHome3D.updateDevices(snap.devices);
-        }
-        if (typeof window.SmartHome3D.updateSensors === 'function' && snap.mqtt) {
-          window.SmartHome3D.updateSensors(snap.mqtt, true);
         }
       }
     }
@@ -3201,7 +3162,7 @@
           }
           if (statusEl) {
             statusEl.style.color = 'var(--accent)';
-            statusEl.textContent = '✅ Đã tạo lời mời QR thành công.';
+            statusEl.textContent = 'Đã tạo lời mời QR thành công.';
           }
         }
       } catch (_) {
@@ -3269,17 +3230,6 @@
     function initMobileApp() {
       if (_mobileAppInited) return;
       _mobileAppInited = true;
-      if (typeof window !== 'undefined' && window.SmartHome3D && typeof window.SmartHome3D.init === 'function') {
-        try {
-          window.SmartHome3D.init('mobileOverviewBox', null, async (devId) => {
-            const card = document.querySelector(`.dev-row[data-device-id="${devId}"]`);
-            if (card) card.click();
-          });
-          window._mobile3dInited = true;
-        } catch (e) {
-          console.warn('SmartHome3D init error on mobile:', e);
-        }
-      }
       connectMobileWebSocket();
       fetchInitial().catch(() => {});
       renderMobileHistory();

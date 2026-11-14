@@ -142,7 +142,10 @@ class TestChallengerR1VercelWebSocketFallback:
             WebSocket: MockWebSocket,
             fetch: async (url) => ({{
                 ok: true,
-                json: async () => ({{ ok: true, devices: [], users: [] }})
+                status: 200,
+                json: async () => (String(url).includes('/api/session/role')
+                    ? ({{ ok: true, authenticated: true, role: 'owner', tier: 1, email: 'owner@test.local', display_name: 'Owner' }})
+                    : ({{ ok: true, devices: [], users: [] }}))
             }}),
             setTimeout: (fn) => setTimeout(fn, 1),
             clearTimeout: () => {{}},
@@ -157,25 +160,28 @@ class TestChallengerR1VercelWebSocketFallback:
         const ctx = vm.createContext(sandbox);
         vm.runInContext(appCode, ctx);
 
-        // Check for any WebSocket connection failure errors in console
-        const wsFailErrors = consoleLogs.error.filter(e => /websocket/i.test(e) && /fail|error|refus/i.test(e));
+        setTimeout(() => {{
+            // Check for any WebSocket connection failure errors in console
+            const wsFailErrors = consoleLogs.error.filter(e => /websocket/i.test(e) && /fail|error|refus/i.test(e));
 
-        console.log(JSON.stringify({{
-            wsCalls,
-            wsFailErrors,
-            totalErrors: consoleLogs.error.length,
-            activeTransport: ctx.window._activeTransport,
-            connText: elements.connText.textContent,
-            homeServerStatusBadge: elements.homeServerStatusBadge.textContent,
-            isOffline: elements.connDot.classList.contains('offline')
-        }}));
+            console.log(JSON.stringify({{
+                wsCalls,
+                wsFailErrors,
+                totalErrors: consoleLogs.error.length,
+                activeTransport: ctx.window._activeTransport,
+                connText: elements.connText.textContent,
+                homeServerStatusBadge: elements.homeServerStatusBadge.textContent,
+                isOffline: elements.connDot.classList.contains('offline')
+            }}));
+            process.exit(0);
+        }}, 25);
         """
         res = run_node_stress_harness(runner)
         assert res["wsCalls"] == 0, f"Expected 0 WebSocket instantiations on {hostname}, got {res['wsCalls']}"
         assert len(res["wsFailErrors"]) == 0, f"Found WebSocket error spam: {res['wsFailErrors']}"
         assert res["activeTransport"] == expected_transport
-        assert "Đã kết nối (HTTP Polling)" in res["connText"]
-        assert res["homeServerStatusBadge"] == "HTTP Polling"
+        assert res["connText"] == "Đã kết nối"
+        assert res["homeServerStatusBadge"] == ""
         assert not res["isOffline"], "Connection dot must NOT indicate offline when HTTP polling is active"
 
     def test_rapid_reconnect_attempts_on_vercel_no_error_spam(self):
@@ -253,7 +259,10 @@ class TestChallengerR1VercelWebSocketFallback:
             WebSocket: MockWebSocket,
             fetch: async (url) => ({
                 ok: true,
-                json: async () => ({ ok: true, devices: [], users: [] })
+                status: 200,
+                json: async () => (String(url).includes('/api/session/role')
+                    ? ({ ok: true, authenticated: true, role: 'owner', tier: 1, email: 'owner@test.local', display_name: 'Owner' })
+                    : ({ ok: true, devices: [], users: [] }))
             }),
             setTimeout: (fn) => setTimeout(fn, 1),
             clearTimeout: () => {},
@@ -272,27 +281,30 @@ class TestChallengerR1VercelWebSocketFallback:
         const ctx = vm.createContext(sandbox);
         vm.runInContext(appCode, ctx);
 
-        // Perform 50 rapid reconnect clicks
-        if (typeof ctx.window.retryWsConnection === 'function') {
-            for (let i = 0; i < 50; i++) {
-                ctx.window.retryWsConnection();
+        setTimeout(() => {
+            // Perform 50 rapid reconnect clicks
+            if (typeof ctx.window.retryWsConnection === 'function') {
+                for (let i = 0; i < 50; i++) {
+                    ctx.window.retryWsConnection();
+                }
             }
-        }
 
-        console.log(JSON.stringify({
-            wsCalls,
-            consoleErrorsCount: consoleErrors.length,
-            activeTransport: ctx.window._activeTransport,
-            connText: elements.connText.textContent,
-            homeServerStatusBadge: elements.homeServerStatusBadge.textContent
-        }));
+            console.log(JSON.stringify({
+                wsCalls,
+                consoleErrorsCount: consoleErrors.length,
+                activeTransport: ctx.window._activeTransport,
+                connText: elements.connText.textContent,
+                homeServerStatusBadge: elements.homeServerStatusBadge.textContent
+            }));
+            process.exit(0);
+        }, 25);
         """
         res = run_node_stress_harness(runner)
         assert res["wsCalls"] == 0, f"Expected 0 WS calls after 50 retries on Vercel, got {res['wsCalls']}"
         assert res["consoleErrorsCount"] == 0, f"Expected 0 console errors, got {res['consoleErrorsCount']}"
         assert res["activeTransport"] == "HTTP Polling"
-        assert res["connText"] == "Đã kết nối (HTTP Polling)"
-        assert res["homeServerStatusBadge"] == "HTTP Polling"
+        assert res["connText"] == "Đã kết nối"
+        assert res["homeServerStatusBadge"] == ""
 
     def test_non_vercel_lifecycle_transitions(self):
         """Stress-testing full connection lifecycle on non-Vercel host:
@@ -380,8 +392,16 @@ class TestChallengerR1VercelWebSocketFallback:
                 if (fetchShouldFail) {
                     return { ok: false, status: 500 };
                 }
+                if (String(url).includes('/api/session/role')) {
+                    return {
+                        ok: true,
+                        status: 200,
+                        json: async () => ({ ok: true, authenticated: true, role: 'owner', tier: 1, email: 'owner@test.local', display_name: 'Owner' })
+                    };
+                }
                 return {
                     ok: true,
+                    status: 200,
                     json: async () => ({ ok: true, devices: [], users: [] })
                 };
             },
@@ -400,55 +420,58 @@ class TestChallengerR1VercelWebSocketFallback:
 
         const results = {};
 
-        // Step 1: Open WebSocket
-        currentWsInstance.readyState = 1;
-        currentWsInstance.onopen();
-        results.step1_ws = {
-            connText: elements.connText.textContent,
-            badge: elements.homeServerStatusBadge.textContent,
-            transport: ctx.window._activeTransport,
-            offline: elements.connDot.classList.contains('offline')
-        };
-
-        // Step 2: Trigger WebSocket close -> should fallback to HTTP Polling (fetch succeeds)
-        currentWsInstance.close();
         setTimeout(() => {
-            results.step2_http = {
+            // Step 1: Open WebSocket
+            currentWsInstance.readyState = 1;
+            currentWsInstance.onopen();
+            results.step1_ws = {
                 connText: elements.connText.textContent,
                 badge: elements.homeServerStatusBadge.textContent,
                 transport: ctx.window._activeTransport,
                 offline: elements.connDot.classList.contains('offline')
             };
 
-            // Step 3: Trigger total network disconnect
-            ctx.window.updateConnectionUI(false, "Mất kết nối");
-            results.step3_disconnected = {
-                connText: elements.connText.textContent,
-                badge: elements.homeServerStatusBadge.textContent,
-                transport: ctx.window._activeTransport,
-                offline: elements.connDot.classList.contains('offline')
-            };
+            // Step 2: Trigger WebSocket close -> should fallback to HTTP Polling (fetch succeeds)
+            currentWsInstance.close();
+            setTimeout(() => {
+                results.step2_http = {
+                    connText: elements.connText.textContent,
+                    badge: elements.homeServerStatusBadge.textContent,
+                    transport: ctx.window._activeTransport,
+                    offline: elements.connDot.classList.contains('offline')
+                };
 
-            console.log(JSON.stringify(results));
-        }, 15);
+                // Step 3: Trigger total network disconnect
+                ctx.window.updateConnectionUI(false, "Mất kết nối");
+                results.step3_disconnected = {
+                    connText: elements.connText.textContent,
+                    badge: elements.homeServerStatusBadge.textContent,
+                    transport: ctx.window._activeTransport,
+                    offline: elements.connDot.classList.contains('offline')
+                };
+
+                console.log(JSON.stringify(results));
+                process.exit(0);
+            }, 15);
+        }, 25);
         """
         res = run_node_stress_harness(runner)
 
         # Step 1: WebSocket Connected
-        assert res["step1_ws"]["connText"] == "Đã kết nối (WebSocket)"
-        assert res["step1_ws"]["badge"] == "WebSocket"
+        assert res["step1_ws"]["connText"] == "Đã kết nối"
+        assert res["step1_ws"]["badge"] == ""
         assert res["step1_ws"]["transport"] == "WebSocket"
         assert not res["step1_ws"]["offline"]
 
         # Step 2: Fallback to HTTP Polling
-        assert res["step2_http"]["connText"] == "Đã kết nối (HTTP Polling)"
-        assert res["step2_http"]["badge"] == "HTTP Polling"
+        assert res["step2_http"]["connText"] == "Đã kết nối"
+        assert res["step2_http"]["badge"] == ""
         assert res["step2_http"]["transport"] == "HTTP Polling"
         assert not res["step2_http"]["offline"]
 
         # Step 3: Disconnected
         assert res["step3_disconnected"]["connText"] == "Mất kết nối"
-        assert res["step3_disconnected"]["badge"] == "Mất kết nối"
+        assert res["step3_disconnected"]["badge"] == ""
         assert res["step3_disconnected"]["transport"] == "Mất kết nối"
         assert res["step3_disconnected"]["offline"]
 

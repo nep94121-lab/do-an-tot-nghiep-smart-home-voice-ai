@@ -164,18 +164,18 @@ window.SmartHome3D = (() => {
 
   // 7 Nhãn Thiết bị + 3 Nhãn Cảm biến + Hộp Mạch Chính & Cụm Mic/Loa (RX/D4) gắn ngay trong nhà 3D
   const PIN_META = [
-    { id: "main_door", kind: "device", icon: "🚪", shortName: "Cửa chính (D1)", pos: [-2.95, 1.65, 3.95] },
-    { id: "living_room_light", kind: "device", icon: "💡", shortName: "Đèn khách (D2)", pos: [-3.45, 2.35, 0.45] },
-    { id: "fan", kind: "device", icon: "🌀", shortName: "Quạt trần (D6)", pos: [-0.75, 3.65, -2.15] },
-    { id: "ac", kind: "device", icon: "❄️", shortName: "Điều hòa (D2 IR)", pos: [-4.15, 4.15, -3.55] },
-    { id: "bedroom_light", kind: "device", icon: "🛏️", shortName: "Đèn ngủ (D7)", pos: [3.25, 3.15, -0.85] },
-    { id: "alarm_siren", kind: "device", icon: "🚨", shortName: "Còi báo động (D8)", pos: [0.55, 2.95, 3.74] },
-    { id: "garden_pump", kind: "device", icon: "💧", shortName: "Máy bơm vườn (D3)", pos: [3.55, 1.15, 4.35] },
-    { id: "sensor_soil_a0", kind: "sensor", cam: "garden", icon: "🌱", shortName: "Độ ẩm đất (A0)", pos: [1.55, 1.25, 4.35] },
-    { id: "sensor_dht11_d6", kind: "sensor", cam: "living", icon: "🌡️", shortName: "Nhiệt/Ẩm (D6)", pos: [0.1, 2.15, -1.1] },
-    { id: "sensor_ir_d5", kind: "sensor", cam: "living", icon: "📡", shortName: "Thu/Phát IR (D5/D2)", pos: [-2.6, 0.92, -0.75] },
-    { id: "board_esp8266", kind: "sensor", cam: "board", icon: "🔌", shortName: "Mạch Chính ESP8266", pos: [-0.25, 1.65, 2.45] },
-    { id: "mic_speaker_unit", kind: "sensor", cam: "board", icon: "🎙️🔊", shortName: "Mic & Loa Mạch (RX/D4)", pos: [-0.25, 2.02, 2.45] },
+    { id: "main_door", kind: "device", icon: "", shortName: "Cửa chính (D1)", pos: [-2.95, 1.65, 3.95] },
+    { id: "living_room_light", kind: "device", icon: "", shortName: "Đèn khách (D2)", pos: [-3.45, 2.35, 0.45] },
+    { id: "fan", kind: "device", icon: "", shortName: "Quạt trần (D6)", pos: [-0.75, 3.65, -2.15] },
+    { id: "ac", kind: "device", icon: "", shortName: "Điều hòa (D2 IR)", pos: [-4.15, 4.15, -3.55] },
+    { id: "bedroom_light", kind: "device", icon: "", shortName: "Đèn ngủ (D7)", pos: [3.25, 3.15, -0.85] },
+    { id: "alarm_siren", kind: "device", icon: "", shortName: "Còi báo động (D8)", pos: [0.55, 2.95, 3.74] },
+    { id: "garden_pump", kind: "device", icon: "", shortName: "Máy bơm vườn (D3)", pos: [3.55, 1.15, 4.35] },
+    { id: "sensor_soil_a0", kind: "sensor", cam: "garden", icon: "", shortName: "Độ ẩm đất (A0)", pos: [1.55, 1.25, 4.35] },
+    { id: "sensor_dht11_d6", kind: "sensor", cam: "living", icon: "", shortName: "Nhiệt/Ẩm (D6)", pos: [0.1, 2.15, -1.1] },
+    { id: "sensor_ir_d5", kind: "sensor", cam: "living", icon: "", shortName: "Thu/Phát IR (D5/D2)", pos: [-2.6, 0.92, -0.75] },
+    { id: "board_esp8266", kind: "sensor", cam: "board", icon: "", shortName: "Mạch Chính ESP8266", pos: [-0.25, 1.65, 2.45] },
+    { id: "mic_speaker_unit", kind: "sensor", cam: "board", icon: "", shortName: "Mic & Loa Mạch (RX/D4)", pos: [-0.25, 2.02, 2.45] },
   ];
 
   function init(canvasContainerId, overlayLabelsId, onToggleDevice) {
@@ -1256,7 +1256,7 @@ window.SmartHome3D = (() => {
         if (!el.dataset) el.dataset = {};
         el.dataset.hasValue = "true";
         el.setAttribute("data-has-value", "true");
-        el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state" style="color:#38bdf8;">${initVal}</strong>`;
+        el.innerHTML = `${m.icon ? `<span class="pin-icon">${m.icon}</span> ` : ""}<span class="pin-name">${m.shortName}:</span> <strong class="pin-state" style="color:#38bdf8;">${initVal}</strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           if (m.id === "mic_speaker_unit") {
@@ -1271,7 +1271,7 @@ window.SmartHome3D = (() => {
         if (!el.dataset) el.dataset = {};
         el.dataset.hasValue = "false";
         el.setAttribute("data-has-value", "false");
-        el.innerHTML = `<span class="pin-icon">${m.icon}</span> <span class="pin-name">${m.shortName}:</span> <strong class="pin-state"></strong>`;
+        el.innerHTML = `${m.icon ? `<span class="pin-icon">${m.icon}</span> ` : ""}<span class="pin-name">${m.shortName}:</span> <strong class="pin-state"></strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           if (onDeviceClickCallback) {
@@ -1537,7 +1537,7 @@ window.SmartHome3D = (() => {
             });
             btn.classList.add("active");
             const lbl = document.getElementById("lblCurrentCameraView") || document.querySelector(".view-label");
-            if (lbl) lbl.textContent = btn.textContent.trim().replace(/^🔄\s*/, "");
+            if (lbl) lbl.textContent = btn.textContent.trim();
           } else {
             btn.classList.toggle("active", Boolean(camGoal.autoRotate));
           }
@@ -1626,7 +1626,7 @@ window.SmartHome3D = (() => {
       const pin = pinElements[d.id];
       if (pin) {
         const isLockedOffline = !isOnline && (d.id === "main_door" || d.id === "alarm_siren");
-        const stateVal = isLockedOffline ? "🔒 KHÓA OFFLINE" : (d.state ? String(d.state).trim() : "");
+        const stateVal = isLockedOffline ? "KHÓA OFFLINE" : (d.state ? String(d.state).trim() : "");
         const stSpan = pin.querySelector(".pin-state");
         if (stSpan) {
           stSpan.textContent = stateVal;

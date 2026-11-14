@@ -1139,16 +1139,13 @@
         if (typeof connDot.classList.remove === "function") connDot.classList.remove("offline");
       }
     }
-    const statusLabel = window._serverConnected
-      ? (isVercelServerless && activeTransport === "HTTP Polling"
-          ? "Đã kết nối (HTTP Cloud · HTTP Polling)"
-          : `Đã kết nối (${activeTransport})`)
-      : "Mất kết nối";
+    const statusLabel = window._serverConnected ? "Đã kết nối" : "Mất kết nối";
     if (geminiStatusText && geminiStatusText !== noopEl) {
       geminiStatusText.textContent = statusLabel;
     }
     if (homeServerStatusBadge && homeServerStatusBadge !== noopEl) {
-      homeServerStatusBadge.textContent = window._serverConnected ? activeTransport : "Mất kết nối";
+      homeServerStatusBadge.hidden = true;
+      homeServerStatusBadge.textContent = "";
     }
     if (geminiStatusBadge && geminiStatusBadge !== noopEl && geminiStatusBadge.setAttribute) {
       geminiStatusBadge.setAttribute("aria-label", statusLabel);
@@ -1337,7 +1334,7 @@
         publishRealtimeSync(null);
       }
       logEvent(
-        `🎙️ [Voice L${data.level || 1}] ${data.recognized_text || ""} -> ${data.intent || ""} (${data.permission || "ALLOWED"}, ${data.latency_ms || 0}ms)`,
+        `[Voice L${data.level || 1}] ${data.recognized_text || ""} -> ${data.intent || ""} (${data.permission || "ALLOWED"}, ${data.latency_ms || 0}ms)`,
         data.ok === false ? "error" : "tool"
       );
       return data;
@@ -2208,22 +2205,98 @@
 
 
   let ownerGuestCurrentInviteId = "";
+  const GUEST_QR_LOGIN_PROMPT = "Hãy đăng nhập tài khoản Chủ nhà (Cấp 1) để tạo mã QR mời.";
+  const GUEST_QR_READY_PROMPT = "Chọn đối tượng, nhập PIN 4 số rồi bấm Tạo mã QR.";
+  const GUEST_QR_NON_OWNER_PROMPT = "Chỉ Chủ nhà (Cấp 1) mới có quyền tạo mã QR mời.";
 
-  function renderOwnerGuestQrSvg(svgText) {
+  function renderOwnerGuestQrSvg(svgText, emptySubtitle = "") {
     const box = document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrSvg");
     if (!box) return;
     const svg = String(svgText || "").trim();
     if (!svg || svg.indexOf("<svg") < 0) {
-      box.innerHTML = "<span class=\"muted\">Chưa có mã QR</span>";
+      const isOwnerReady = (typeof hasValidLoginSession === "function" && hasValidLoginSession() && inMemoryUserSession && Number(inMemoryUserSession.tier) === 1);
+      const sub = emptySubtitle || (isOwnerReady ? GUEST_QR_READY_PROMPT : "Đăng nhập Chủ nhà để tạo mã.");
+      box.innerHTML = `<div class="qr-empty-state"><span class="qr-empty-title">Chưa tạo mã QR</span><span class="qr-empty-sub">${escapeHtml(sub)}</span></div>`;
       return;
     }
     box.innerHTML = svg;
     const el = box.querySelector("svg");
     if (el) {
-      el.style.width = "220px";
-      el.style.height = "220px";
+      el.style.width = "180px";
+      el.style.height = "180px";
       el.style.maxWidth = "100%";
       el.setAttribute("aria-label", "Mã QR mời khách");
+    }
+  }
+
+  function resetOwnerGuestInviteDisplay(badgeText = "Dùng một lần", emptySubtitle = "") {
+    ownerGuestCurrentInviteId = "";
+    renderOwnerGuestQrSvg("", emptySubtitle);
+    const details = document.getElementById("ownerGuestInviteDetails");
+    const linkText = document.getElementById("ownerGuestLinkText");
+    const openLink = document.getElementById("ownerGuestOpenLink");
+    const revBtn = document.getElementById("ownerGuestQrRevokeBtn");
+    const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
+    if (details) details.hidden = true;
+    if (linkText) linkText.textContent = "";
+    if (openLink) {
+      openLink.href = "/guest_guide";
+      openLink.textContent = "Hướng dẫn trang khách";
+    }
+    if (revBtn) revBtn.disabled = true;
+    if (badgeEl) badgeEl.textContent = badgeText;
+  }
+
+  function setOwnerGuestQrInputsDisabled(disabled) {
+    const ids = [
+      "ownerGuestInviteTier",
+      "ownerGuestQrPin",
+      "ownerGuestQrPinConfirm",
+      "ownerGuestQrGenerateBtn",
+      "ownerGuestQrForgotPinBtn",
+      "ownerGuestPinOtp",
+      "ownerGuestPinNew",
+      "ownerGuestPinNewConfirm",
+      "ownerGuestPinResetBtn",
+    ];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !!disabled;
+    });
+    if (disabled) {
+      const revBtn = document.getElementById("ownerGuestQrRevokeBtn");
+      const forgotBox = document.getElementById("ownerGuestPinForgotBox");
+      if (revBtn) revBtn.disabled = true;
+      if (forgotBox) forgotBox.hidden = true;
+    }
+  }
+
+  function syncOwnerGuestQrStateForSession(userObj) {
+    const meta = document.getElementById("ownerGuestQrMeta");
+    const revBtn = document.getElementById("ownerGuestQrRevokeBtn");
+    const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
+    if (!userObj || (typeof hasValidLoginSession === "function" && !hasValidLoginSession())) {
+      setOwnerGuestQrInputsDisabled(false);
+      resetOwnerGuestInviteDisplay("Dùng một lần", "Đăng nhập Chủ nhà để tạo mã.");
+      if (meta) meta.textContent = GUEST_QR_LOGIN_PROMPT;
+      return;
+    }
+    const tierNum = Number(userObj.tier || 3);
+    if (tierNum !== 1) {
+      setOwnerGuestQrInputsDisabled(true);
+      resetOwnerGuestInviteDisplay("Chỉ Chủ nhà", GUEST_QR_NON_OWNER_PROMPT);
+      if (meta) meta.textContent = GUEST_QR_NON_OWNER_PROMPT;
+      return;
+    }
+    setOwnerGuestQrInputsDisabled(false);
+    if (revBtn) revBtn.disabled = !ownerGuestCurrentInviteId;
+    if (!ownerGuestCurrentInviteId && meta) {
+      const current = String(meta.textContent || "").trim();
+      if (!current || current.indexOf("Hãy đăng nhập") >= 0 || current.indexOf("Chỉ Chủ nhà") >= 0) {
+        renderOwnerGuestQrSvg("", GUEST_QR_READY_PROMPT);
+        if (badgeEl) badgeEl.textContent = "Dùng một lần";
+        meta.textContent = GUEST_QR_READY_PROMPT;
+      }
     }
   }
 
@@ -2235,9 +2308,9 @@
   }
 
   function showGuestQrLoginPrompt() {
-    renderOwnerGuestQrSvg("");
+    resetOwnerGuestInviteDisplay("Dùng một lần", "Đăng nhập Chủ nhà để tạo mã.");
     const meta = document.getElementById("ownerGuestQrMeta");
-    if (meta) meta.textContent = "Hãy đăng nhập";
+    if (meta) meta.textContent = GUEST_QR_LOGIN_PROMPT;
     if (typeof openLoginGateModal === "function") openLoginGateModal();
   }
 
@@ -2248,6 +2321,10 @@
     if (!box) return;
     if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
       showGuestQrLoginPrompt();
+      return;
+    }
+    if (inMemoryUserSession && Number(inMemoryUserSession.tier || 3) !== 1) {
+      syncOwnerGuestQrStateForSession(inMemoryUserSession);
       return;
     }
     const tier = Number((tierEl && tierEl.value) || 3);
@@ -2264,8 +2341,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        renderOwnerGuestQrSvg("");
-        ownerGuestCurrentInviteId = "";
+        resetOwnerGuestInviteDisplay("Dùng một lần");
         if (res.status === 401 || (data && data.authenticated === false) || !hasValidLoginSession()) {
           showGuestQrLoginPrompt();
           return;
@@ -2281,7 +2357,7 @@
           return;
         }
         if (res.status === 403) {
-          if (meta) meta.textContent = data.error || "Chỉ chủ nhà mới tạo được mã QR khách.";
+          if (meta) meta.textContent = data.error || GUEST_QR_NON_OWNER_PROMPT;
           return;
         }
         if (meta) meta.textContent = data.error || "Không tạo được mã QR khách.";
@@ -2289,13 +2365,33 @@
       }
       ownerGuestCurrentInviteId = data.invite_id || "";
       renderOwnerGuestQrSvg(data.qr_svg || "");
+      const revBtn = document.getElementById("ownerGuestQrRevokeBtn");
+      const details = document.getElementById("ownerGuestInviteDetails");
+      const tierLabelEl = document.getElementById("ownerGuestInviteTierLabel");
+      const expiryLabelEl = document.getElementById("ownerGuestExpiryLabel");
+      const linkTextEl = document.getElementById("ownerGuestLinkText");
+      const openLinkEl = document.getElementById("ownerGuestOpenLink");
+      const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
+      const resolvedTier = Number(data.tier || tier || 3);
+      const tierText = resolvedTier === 2 ? "Gia đình (Cấp 2)" : "Khách (Cấp 3)";
+      const exp = data.expires_at ? new Date(Number(data.expires_at) * 1000) : null;
+      const expLabel = exp ? exp.toLocaleTimeString("vi-VN") : "";
+      const inviteUrl = data.url || (data.path ? (window.location.origin + data.path) : "");
+      if (revBtn) revBtn.disabled = false;
+      if (tierLabelEl) tierLabelEl.textContent = tierText;
+      if (expiryLabelEl) expiryLabelEl.textContent = expLabel ? ("Hết hạn lúc " + expLabel) : "Hiệu lực 10 phút";
+      if (linkTextEl) linkTextEl.textContent = inviteUrl;
+      if (openLinkEl) {
+        openLinkEl.href = inviteUrl || "/guest_guide";
+        openLinkEl.textContent = inviteUrl ? "Mở trang khách" : "Hướng dẫn trang khách";
+      }
+      if (details) details.hidden = false;
+      if (badgeEl) badgeEl.textContent = "Đang hiệu lực · Dùng một lần";
       if (meta) {
-        const exp = data.expires_at ? new Date(Number(data.expires_at) * 1000) : null;
-        const expLabel = exp ? exp.toLocaleTimeString("vi-VN") : "";
-        meta.textContent = "Cấp " + data.tier + (expLabel ? " · Hết hạn lúc " + expLabel : " · 10 phút") + ". Khách quét mã — không có nút sao chép liên kết.";
+        meta.textContent = "Đã tạo mã QR dùng một lần cho " + tierText + (expLabel ? " · Hết hạn lúc " + expLabel : " · Hiệu lực 10 phút") + ".";
       }
     } catch (err) {
-      renderOwnerGuestQrSvg("");
+      resetOwnerGuestInviteDisplay("Dùng một lần");
       if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
         showGuestQrLoginPrompt();
         return;
@@ -2318,9 +2414,12 @@
         body: JSON.stringify({}),
       });
       const data = await res.json().catch(() => ({}));
-      renderOwnerGuestQrSvg("");
-      ownerGuestCurrentInviteId = "";
-      if (meta) meta.textContent = data.ok ? "Đã thu hồi mã mời hiện tại." : (data.error || "Không thu hồi được mã.");
+      if (data.ok) {
+        resetOwnerGuestInviteDisplay("Đã thu hồi");
+        if (meta) meta.textContent = "Đã thu hồi mã mời hiện tại.";
+      } else {
+        if (meta) meta.textContent = data.error || "Không thu hồi được mã.";
+      }
     } catch (err) {
       if (meta) meta.textContent = "Không thu hồi được mã.";
     }
@@ -2455,7 +2554,7 @@
         await pollRestStateFallback(true);
         publishRealtimeSync(null);
       }
-      logEvent(`💬 ${spokenReply || cmd}`, data.ok === false ? "error" : "tool");
+      logEvent(`${spokenReply || cmd}`, data.ok === false ? "error" : "tool");
     } catch (_) {
       setAiReplyText("Không thể gửi lệnh tới máy chủ.");
     }
@@ -2605,20 +2704,20 @@
     );
     if (status === 429) {
       if (retrySec > 0 && !String(baseMsg).includes(String(retrySec))) {
-        return `⏳ ${baseMsg} (Thử lại sau ${retrySec} giây)`;
+        return `${baseMsg} (Thử lại sau ${retrySec} giây)`;
       }
-      return `⏳ ${baseMsg}`;
+      return `${baseMsg}`;
     }
     if (status === 401 || status === 403) {
-      return `❌ ${baseMsg}`;
+      return `${baseMsg}`;
     }
     if (status === 404) {
-      return `❌ ${baseMsg}`;
+      return `${baseMsg}`;
     }
     if (status === 503) {
-      return `⚠️ ${baseMsg}`;
+      return `${baseMsg}`;
     }
-    return `❌ ${baseMsg}`;
+    return `${baseMsg}`;
   }
 
   function switchLoginGateTab(tabName) {
@@ -2685,12 +2784,8 @@
     document.querySelectorAll("#secDevices .switch input").forEach((input) => {
       input.disabled = !!isLocked;
     });
-    if (isLocked) {
-      const meta = document.getElementById("ownerGuestQrMeta");
-      if (meta && !hasValidLoginSession()) meta.textContent = "Hãy đăng nhập";
-      if (typeof renderOwnerGuestQrSvg === "function" && !hasValidLoginSession()) {
-        renderOwnerGuestQrSvg("");
-      }
+    if (isLocked && !hasValidLoginSession()) {
+      syncOwnerGuestQrStateForSession(null);
     }
   }
   window.setDeviceAreaLockdown = setDeviceAreaLockdown;
@@ -2830,7 +2925,7 @@
     if (userObj.session_token) setSessionCookies(userObj.session_token);
     if (serverSessionConfirmed) setDeviceAreaLockdown(false);
     const tierNum = userObj.tier || 1;
-    const rolePrefix = tierNum === 1 ? "👑 Cấp 1 · Chủ nhà" : (tierNum === 2 ? "🏠 Cấp 2 · Gia đình" : "🎫 Cấp 3 · Khách");
+    const rolePrefix = tierNum === 1 ? "Cấp 1 · Chủ nhà" : (tierNum === 2 ? "Cấp 2 · Gia đình" : "Cấp 3 · Khách");
     if (homeCurrentAccountBadge) {
       homeCurrentAccountBadge.textContent = `${rolePrefix}: ${userObj.display_name || userObj.name || userObj.email}`;
     }
@@ -2841,16 +2936,21 @@
     }
     const durationBadge = byId("homeSessionDurationBadge");
     if (durationBadge) {
-      durationBadge.hidden = false;
-      durationBadge.style.display = "";
       if (tierNum === 1) {
-        durationBadge.textContent = "Không giới hạn";
+        durationBadge.textContent = "";
+        durationBadge.hidden = true;
+        durationBadge.style.display = "none";
       } else if (tierNum === 2) {
+        durationBadge.hidden = false;
+        durationBadge.style.display = "";
         durationBadge.textContent = "Còn 30 ngày";
       } else {
+        durationBadge.hidden = false;
+        durationBadge.style.display = "";
         durationBadge.textContent = userObj.validity || "Hiệu lực 24 giờ";
       }
     }
+    syncOwnerGuestQrStateForSession(userObj);
   }
 
   function clearAuthState() {
@@ -2896,6 +2996,7 @@
       durationBadge.style.display = "none";
       durationBadge.textContent = "";
     }
+    syncOwnerGuestQrStateForSession(null);
     const emailEl = byId("gateLoginEmail");
     const pwEl = byId("gateLoginPassword");
     if (emailEl) emailEl.value = "";
@@ -2931,12 +3032,20 @@
   function togglePasswordVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
     if (!input) return;
-    if (input.type === "password") {
-      input.type = "text";
-      if (btn) btn.textContent = "🙈";
-    } else {
-      input.type = "password";
-      if (btn) btn.textContent = "👁️";
+    const showPassword = input.type === "password";
+    input.type = showPassword ? "text" : "password";
+    if (btn) {
+      const targetSymbol = showPassword ? "#i-eye-off" : "#i-eye";
+      if (typeof btn.setAttribute === "function") {
+        btn.setAttribute("aria-label", showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+      }
+      const useEl = typeof btn.querySelector === "function" ? btn.querySelector("use") : null;
+      if (useEl) {
+        useEl.setAttribute("href", targetSymbol);
+        useEl.setAttribute("xlink:href", targetSymbol);
+      } else if (typeof btn.innerHTML !== "undefined") {
+        btn.innerHTML = `<svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="${targetSymbol}"></use></svg>`;
+      }
     }
   }
   window.togglePasswordVisibility = togglePasswordVisibility;
@@ -2952,7 +3061,7 @@
     if (!hasValidLoginSession()) {
       setDeviceAreaLockdown(true);
       if (gateStatusBox) {
-        gateStatusBox.textContent = "⚠️ Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
+        gateStatusBox.textContent = "Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
       }
       return;
     }
@@ -2970,7 +3079,7 @@
         if (hasValidLoginSession()) {
           closeLoginGateModal();
         } else if (gateStatusBox) {
-          gateStatusBox.textContent = "⚠️ Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
+          gateStatusBox.textContent = "Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
         }
       }
     });
@@ -2984,7 +3093,7 @@
         e.preventDefault();
         e.stopPropagation();
         if (gateStatusBox) {
-          gateStatusBox.textContent = "⚠️ Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
+          gateStatusBox.textContent = "Bạn bắt buộc phải đăng nhập để vào bảng điều khiển Nhà thông minh!";
         }
       }
     }
@@ -3049,7 +3158,7 @@
     hideGateOtpPanel();
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = !serverSessionConfirmed;
     if (gateStatusBox) {
-      gateStatusBox.textContent = `✅ Đăng nhập thành công (${userSession.display_name})!`;
+      gateStatusBox.textContent = `Đăng nhập thành công (${userSession.display_name})!`;
     }
     closeLoginGateModal();
     if (serverSessionConfirmed) {
@@ -3077,13 +3186,13 @@
     const email = emailEl ? emailEl.value.trim() : "";
     const password = pwEl ? pwEl.value : "";
     if (!email || !password) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và Mật khẩu!";
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng nhập đầy đủ Email và Mật khẩu!";
       return;
     }
     isGateLoginInFlight = true;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "⏳ Đang đăng nhập...";
+      btn.textContent = "Đang đăng nhập...";
     }
     if (gateStatusBox) gateStatusBox.textContent = "Đang kiểm tra đăng nhập...";
     try {
@@ -3146,15 +3255,15 @@
   async function sendGateLayer2Otp(emailOverride) {
     const email = String(emailOverride || pendingGateOtpEmail || "").trim();
     if (!email) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Thiếu email để gửi mã OTP.";
+      if (gateStatusBox) gateStatusBox.textContent = "Thiếu email để gửi mã OTP.";
       return;
     }
     const btnSend = byId("btnSendGateOtp");
     if (btnSend) {
       btnSend.disabled = true;
-      btnSend.textContent = "⏳ Đang gửi OTP...";
+      btnSend.textContent = "Đang gửi OTP...";
     }
-    if (gateStatusBox) gateStatusBox.textContent = "⏳ Đang gửi mã OTP 6 số về Gmail...";
+    if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP 6 số về Gmail...";
     try {
       const res = await fetch("/api/auth3/layer2_send_otp", {
         method: "POST",
@@ -3194,7 +3303,7 @@
         }
       }
     } catch (_) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Lỗi kết nối máy chủ khi gửi mã OTP.";
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi gửi mã OTP.";
       if (btnSend) {
         btnSend.disabled = false;
         btnSend.textContent = "Gửi lại OTP";
@@ -3209,17 +3318,17 @@
     const otpCode = otpInput ? otpInput.value.trim() : "";
     const email = pendingGateOtpEmail || (byId("gateLoginEmail") ? byId("gateLoginEmail").value.trim() : "");
     if (!email) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng quay lại nhập Email và Mật khẩu.";
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng quay lại nhập Email và Mật khẩu.";
       return;
     }
     if (!/^\d{6}$/.test(otpCode)) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đúng mã OTP gồm 6 chữ số.";
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng nhập đúng mã OTP gồm 6 chữ số.";
       return;
     }
     isGateOtpInFlight = true;
     if (btnVerify) {
       btnVerify.disabled = true;
-      btnVerify.textContent = "⏳ Đang xác minh...";
+      btnVerify.textContent = "Đang xác minh...";
     }
     try {
       const res = await fetch("/api/auth3/layer2_verify_otp", {
@@ -3235,7 +3344,7 @@
         gateStatusBox.textContent = formatGateAuthError(res, data, "Mã OTP không đúng hoặc đã hết hạn.");
       }
     } catch (_) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Lỗi kết nối máy chủ khi xác minh OTP.";
+      if (gateStatusBox) gateStatusBox.textContent = "Lỗi kết nối máy chủ khi xác minh OTP.";
     } finally {
       isGateOtpInFlight = false;
       if (btnVerify) {
@@ -3282,21 +3391,21 @@
 
     if (!email || !password || !confirmPassword) {
       if (gateStatusBox) {
-        gateStatusBox.textContent = "❌ Vui lòng nhập đầy đủ Email và 2 ô Mật khẩu!";
+        gateStatusBox.textContent = "Vui lòng nhập đầy đủ Email và 2 ô Mật khẩu!";
       }
       return;
     }
 
     if (password !== confirmPassword) {
       if (gateStatusBox) {
-        gateStatusBox.textContent = "❌ Hai ô Mật khẩu và Xác nhận lại mật khẩu không khớp nhau! Vui lòng nhập giống nhau 100%.";
+        gateStatusBox.textContent = "Hai ô Mật khẩu và Xác nhận lại mật khẩu không khớp nhau! Vui lòng nhập giống nhau 100%.";
       }
       return;
     }
     isGateRegisterInFlight = true;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "⏳ Đang lưu...";
+      btn.textContent = "Đang lưu...";
     }
     try {
       const params = window.location && window.location.search ? new URLSearchParams(window.location.search) : null;
@@ -3333,7 +3442,7 @@
           applyLoggedInUserBanner(userSession);
           if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
           if (gateStatusBox) {
-            gateStatusBox.textContent = `✅ ${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
+            gateStatusBox.textContent = `${data.message || "Đã lưu mật khẩu và đăng nhập thành công!"}`;
           }
           startAuthenticatedRealtimeFlows();
           setTimeout(closeLoginGateModal, 600);
@@ -3376,7 +3485,7 @@
       const otpEl = byId("gateForgotOtpInput");
       const otp = otpEl ? otpEl.value.trim() : "";
       if (!otp || otp.length < 6) {
-        if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập đủ mã OTP 6 số nhận qua Gmail!";
+        if (gateStatusBox) gateStatusBox.textContent = "Vui lòng nhập đủ mã OTP 6 số nhận qua Gmail!";
         return;
       }
       setForgotStep(3);
@@ -3418,11 +3527,11 @@
     const emailEl = byId("gateForgotEmail");
     const email = emailEl ? emailEl.value.trim() : "";
     if (!email) {
-      if (gateStatusBox) gateStatusBox.textContent = "❌ Vui lòng nhập email nhận mã OTP!";
+      if (gateStatusBox) gateStatusBox.textContent = "Vui lòng nhập email nhận mã OTP!";
       return;
     }
     isSendingForgotOtp = true;
-    setForgotSendButtonsLabel(true, "⏳ Đang gửi...");
+    setForgotSendButtonsLabel(true, "Đang gửi...");
     if (gateStatusBox) gateStatusBox.textContent = "Đang gửi mã OTP về Gmail...";
     try {
       const res = await fetch("/api/auth3/forgot_password_send_otp", {
@@ -3432,7 +3541,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
-        if (gateStatusBox) gateStatusBox.textContent = `📧 ${data.message || "Đã gửi mã OTP qua Gmail."}`;
+        if (gateStatusBox) gateStatusBox.textContent = `${data.message || "Đã gửi mã OTP qua Gmail."}`;
         setForgotStep(2);
         const cooldownSec = Number(data.cooldown_remaining_seconds ?? data.retry_after_seconds ?? 60);
         if (cooldownSec > 0) {
@@ -3481,21 +3590,21 @@
 
     if (!email || !otp || !newPassword || !confirmPassword) {
       if (gateStatusBox) {
-        gateStatusBox.textContent = "❌ Vui lòng điền đầy đủ Email, OTP và 2 ô Mật khẩu mới!";
+        gateStatusBox.textContent = "Vui lòng điền đầy đủ Email, OTP và 2 ô Mật khẩu mới!";
       }
       return;
     }
 
     if (newPassword !== confirmPassword) {
       if (gateStatusBox) {
-        gateStatusBox.textContent = "❌ Hai ô Mật khẩu mới và Xác nhận lại mật khẩu mới không khớp nhau!";
+        gateStatusBox.textContent = "Hai ô Mật khẩu mới và Xác nhận lại mật khẩu mới không khớp nhau!";
       }
       return;
     }
     isGateForgotInFlight = true;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "⏳ Đang đặt lại...";
+      btn.textContent = "Đang đặt lại...";
     }
     try {
       const res = await fetch("/api/auth3/forgot_password_reset", {
@@ -3556,6 +3665,13 @@
           btnLogoutHome.hidden = true;
           btnLogoutHome.style.display = "none";
         }
+        const durationBadge = byId("homeSessionDurationBadge");
+        if (durationBadge) {
+          durationBadge.hidden = true;
+          durationBadge.style.display = "none";
+          durationBadge.textContent = "";
+        }
+        syncOwnerGuestQrStateForSession(null);
         openLoginGateModal();
         return false;
       }
@@ -3629,7 +3745,7 @@
           });
           btn.classList.add("active");
           if (lblCurrentCameraView) {
-            lblCurrentCameraView.textContent = btn.textContent.trim().replace(/^🔄\s*/, "");
+            lblCurrentCameraView.textContent = btn.textContent.trim();
           }
         } else {
           btn.classList.toggle("active");
@@ -3705,10 +3821,10 @@
     const sendBtn = byId("btnLockdownSendOtp");
     const ownerEmail = getLockdownEmail();
     if (!ownerEmail) {
-      if (statusBox) statusBox.textContent = "❌ Vui lòng nhập Email Chủ nhà trước khi gửi OTP.";
+      if (statusBox) statusBox.textContent = "Vui lòng nhập Email Chủ nhà trước khi gửi OTP.";
       return;
     }
-    if (statusBox) statusBox.textContent = `⏳ Đang gửi mã OTP đến Gmail ${ownerEmail}...`;
+    if (statusBox) statusBox.textContent = `Đang gửi mã OTP đến Gmail ${ownerEmail}...`;
     if (sendBtn) sendBtn.disabled = true;
     try {
       const res = await fetch("/api/auth3/forgot_password_send_otp", {
@@ -3718,12 +3834,12 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok && (!data.gmail_delivery || data.gmail_delivery.sent_real_gmail !== false)) {
-        if (statusBox) statusBox.textContent = `✅ Đã gửi mã OTP 6 số đến Gmail ${ownerEmail}.`;
+        if (statusBox) statusBox.textContent = `Đã gửi mã OTP 6 số đến Gmail ${ownerEmail}.`;
       } else {
-        if (statusBox) statusBox.textContent = `❌ ${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
+        if (statusBox) statusBox.textContent = `${data.error || (data.gmail_delivery && data.gmail_delivery.note) || "Không gửi được OTP."}`;
       }
     } catch (_) {
-      if (statusBox) statusBox.textContent = "❌ Lỗi mạng khi gửi OTP.";
+      if (statusBox) statusBox.textContent = "Lỗi mạng khi gửi OTP.";
     } finally {
       if (sendBtn) sendBtn.disabled = false;
     }
@@ -3734,7 +3850,7 @@
     const unlockBtn = byId("btnLockdownUnlock");
     const ownerEmail = getLockdownEmail();
     if (!ownerEmail) {
-      if (statusBox) statusBox.textContent = "❌ Vui lòng nhập Email Chủ nhà.";
+      if (statusBox) statusBox.textContent = "Vui lòng nhập Email Chủ nhà.";
       return;
     }
     if (unlockBtn) unlockBtn.disabled = true;
@@ -3747,11 +3863,11 @@
         const pwInput = byId("lockdownPassword");
         const password = pwInput ? pwInput.value.trim() : "";
         if (!password) {
-          if (statusBox) statusBox.textContent = "❌ Vui lòng nhập mật khẩu Chủ nhà.";
+          if (statusBox) statusBox.textContent = "Vui lòng nhập mật khẩu Chủ nhà.";
           if (unlockBtn) unlockBtn.disabled = false;
           return;
         }
-        if (statusBox) statusBox.textContent = "⏳ Đang xác minh mật khẩu...";
+        if (statusBox) statusBox.textContent = "Đang xác minh mật khẩu...";
         const res = await fetch("/api/auth3/layer1_login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3769,11 +3885,11 @@
         const otpInput = byId("lockdownOtp");
         const otpCode = otpInput ? otpInput.value.trim() : "";
         if (!otpCode || otpCode.length < 6) {
-          if (statusBox) statusBox.textContent = "❌ Vui lòng nhập đủ 6 chữ số OTP.";
+          if (statusBox) statusBox.textContent = "Vui lòng nhập đủ 6 chữ số OTP.";
           if (unlockBtn) unlockBtn.disabled = false;
           return;
         }
-        if (statusBox) statusBox.textContent = "⏳ Đang xác minh mã OTP...";
+        if (statusBox) statusBox.textContent = "Đang xác minh mã OTP...";
         const res = await fetch("/api/auth3/layer2_verify_otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3820,16 +3936,16 @@
           voiceLockoutNotice.textContent = "";
         }
 
-        if (statusBox) statusBox.textContent = "✅ Xác minh thành công. Đang mở khóa...";
+        if (statusBox) statusBox.textContent = "Xác minh thành công. Đang mở khóa...";
         setTimeout(() => {
           closeSecurityLockdownModal();
           logEvent("Khóa an ninh đã được mở khóa thành công.", "info");
         }, 400);
       } else {
-        if (statusBox) statusBox.textContent = `❌ ${errMessage}`;
+        if (statusBox) statusBox.textContent = `${errMessage}`;
       }
     } catch (_) {
-      if (statusBox) statusBox.textContent = "❌ Lỗi mạng khi xác minh mở khóa.";
+      if (statusBox) statusBox.textContent = "Lỗi mạng khi xác minh mở khóa.";
     } finally {
       if (unlockBtn) unlockBtn.disabled = false;
     }

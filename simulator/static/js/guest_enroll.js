@@ -241,7 +241,7 @@ async function startGuestMicRecording() {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = '⚠️ Vui lòng nhập Họ và tên khách trước khi thu âm!';
+      box.textContent = 'Vui lòng nhập Họ và tên khách trước khi thu âm!';
     }
     return;
   }
@@ -250,7 +250,7 @@ async function startGuestMicRecording() {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = '⚠️ Vui lòng nhập Email của bạn trước khi thu âm!';
+      box.textContent = 'Vui lòng nhập Email của bạn trước khi thu âm!';
     }
     return;
   }
@@ -261,7 +261,7 @@ async function startGuestMicRecording() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     if (micAlert) {
       micAlert.style.display = 'block';
-      micAlert.textContent = '❌ Trình duyệt hoặc thiết bị của bạn không hỗ trợ thu âm qua microphone. Vui lòng sử dụng tính năng tải lên tệp âm thanh bên dưới!';
+      micAlert.textContent = 'Trình duyệt hoặc thiết bị của bạn không hỗ trợ thu âm qua microphone. Vui lòng sử dụng tính năng tải lên tệp âm thanh bên dưới!';
     }
     const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
     if (okBtn) okBtn.disabled = true;
@@ -308,11 +308,11 @@ async function startGuestMicRecording() {
     guestAudioProcessor.connect(guestAudioContext.destination);
 
     isGuestRecording = true;
-    if (btnText) btnText.textContent = '⏹ Dừng & Kiểm tra giọng nói (Đang thu...)';
+    if (btnText) btnText.textContent = 'Dừng & Kiểm tra giọng nói (Đang thu...)';
     if (box) {
       box.style.borderColor = 'var(--accent)';
       box.style.background = 'var(--accent-soft)';
-      box.textContent = '🎤 Đang thu âm 16kHz... Hãy đọc to câu mẫu phía trên rồi bấm nút Dừng!';
+      box.textContent = 'Đang thu âm 16kHz... Hãy đọc to câu mẫu phía trên rồi bấm nút Dừng!';
     }
 
     // Hiển thị khung trạng thái ghi âm trực quan
@@ -349,11 +349,11 @@ async function startGuestMicRecording() {
       const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || String(err).includes('Permission denied'));
       const isNotFound = err && (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError');
       if (isDenied) {
-        micAlert.textContent = '❌ Quyền truy cập microphone bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt hoặc sử dụng tính năng tải lên tệp âm thanh bên dưới!';
+        micAlert.textContent = 'Quyền truy cập microphone bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt hoặc sử dụng tính năng tải lên tệp âm thanh bên dưới!';
       } else if (isNotFound) {
-        micAlert.textContent = '❌ Không tìm thấy thiết bị microphone trên máy này. Vui lòng kết nối micro hoặc sử dụng tính năng tải lên tệp âm thanh bên dưới!';
+        micAlert.textContent = 'Không tìm thấy thiết bị microphone trên máy này. Vui lòng kết nối micro hoặc sử dụng tính năng tải lên tệp âm thanh bên dưới!';
       } else {
-        micAlert.textContent = `❌ Lỗi truy cập microphone: ${err.message || 'Không thể mở micro'}. Vui lòng cấp quyền hoặc tải lên tệp âm thanh bên dưới!`;
+        micAlert.textContent = `Lỗi truy cập microphone: ${err.message || 'Không thể mở micro'}. Vui lòng cấp quyền hoặc tải lên tệp âm thanh bên dưới!`;
       }
     }
     const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
@@ -361,7 +361,7 @@ async function startGuestMicRecording() {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = '⚠️ Microphone không khả dụng. Bạn hãy tải lên tệp âm thanh bên dưới để tiếp tục.';
+      box.textContent = 'Microphone không khả dụng. Bạn hãy tải lên tệp âm thanh bên dưới để tiếp tục.';
     }
   }
 }
@@ -380,7 +380,7 @@ async function stopGuestMicRecording() {
   if (recBox) recBox.style.display = 'none';
 
   const btnText = document.getElementById('btnRecordGuestVoiceText');
-  if (btnText) btnText.textContent = '🎤 Bấm để Thu âm giọng nói';
+  if (btnText) btnText.textContent = 'Bấm để Thu âm giọng nói';
   if (guestAudioProcessor) {
     guestAudioProcessor.disconnect();
     guestAudioProcessor = null;
@@ -413,7 +413,7 @@ async function stopGuestMicRecording() {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = '⚠️ Giọng thu âm quá ngắn hoặc không có tiếng. Vui lòng bấm "Thu lại" hoặc tải lên tệp âm thanh!';
+      box.textContent = 'Giọng thu âm quá ngắn hoặc không có tiếng. Vui lòng bấm "Thu lại" hoặc tải lên tệp âm thanh!';
     }
     const badge = document.getElementById('handshakeBadge');
     if (badge) {
@@ -460,7 +460,7 @@ async function handleGuestAudioFileUpload(event) {
       uploadInfo.style.color = 'var(--red)';
       uploadInfo.style.background = 'var(--red-soft)';
       uploadInfo.style.borderColor = 'var(--red-border)';
-      uploadInfo.textContent = `❌ Tệp "${file.name}" không hợp lệ. Vui lòng chọn tệp .wav, .m4a, .webm, .mp3 hoặc .ogg!`;
+      uploadInfo.textContent = `Tệp "${file.name}" không hợp lệ. Vui lòng chọn tệp .wav, .m4a, .webm, .mp3 hoặc .ogg!`;
     }
     return;
   }
@@ -473,7 +473,7 @@ async function handleGuestAudioFileUpload(event) {
       uploadInfo.style.color = 'var(--red)';
       uploadInfo.style.background = 'var(--red-soft)';
       uploadInfo.style.borderColor = 'var(--red-border)';
-      uploadInfo.textContent = `❌ Tệp "${file.name}" quá lớn (${(file.size / (1024 * 1024)).toFixed(1)} MB). Vui lòng chọn tệp nhỏ hơn 15MB!`;
+      uploadInfo.textContent = `Tệp "${file.name}" quá lớn (${(file.size / (1024 * 1024)).toFixed(1)} MB). Vui lòng chọn tệp nhỏ hơn 15MB!`;
     }
     const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
     if (okBtn) okBtn.disabled = true;
@@ -487,7 +487,7 @@ async function handleGuestAudioFileUpload(event) {
     uploadInfo.style.color = 'var(--accent)';
     uploadInfo.style.background = 'var(--accent-soft)';
     uploadInfo.style.borderColor = '#cce5e3';
-    uploadInfo.textContent = `📁 Đang tải tệp: ${file.name} (${(file.size / 1024).toFixed(1)} KB)...`;
+    uploadInfo.textContent = `Đang tải tệp: ${file.name} (${(file.size / 1024).toFixed(1)} KB)...`;
   }
 
   if (uploadLabel) {
@@ -555,7 +555,7 @@ async function handleGuestAudioFileUpload(event) {
 
     if (lastValidGuestPcmB64) {
       if (uploadInfo) {
-        uploadInfo.textContent = `✅ Đã tải tệp "${file.name}" (${guestRecordedSamplesB64.length}/${GUEST_REQUIRED_SAMPLES} mẫu) thành công! Nút Lưu đã sẵn sàng.`;
+        uploadInfo.textContent = `Đã tải tệp "${file.name}" (${guestRecordedSamplesB64.length}/${GUEST_REQUIRED_SAMPLES} mẫu) thành công! Nút Lưu đã sẵn sàng.`;
       }
       const okBtn = document.getElementById('btnConfirmGuestVoiceOk');
       if (okBtn) okBtn.disabled = false;
@@ -564,7 +564,7 @@ async function handleGuestAudioFileUpload(event) {
         uploadInfo.style.color = 'var(--red)';
         uploadInfo.style.background = 'var(--red-soft)';
         uploadInfo.style.borderColor = 'var(--red-border)';
-        uploadInfo.textContent = `⚠️ Tệp "${file.name}" chưa đạt chuẩn chất lượng giọng nói. Vui lòng chọn tệp khác!`;
+        uploadInfo.textContent = `Tệp "${file.name}" chưa đạt chuẩn chất lượng giọng nói. Vui lòng chọn tệp khác!`;
       }
     }
   } catch (err) {
@@ -572,7 +572,7 @@ async function handleGuestAudioFileUpload(event) {
       uploadInfo.style.color = 'var(--red)';
       uploadInfo.style.background = 'var(--red-soft)';
       uploadInfo.style.borderColor = 'var(--red-border)';
-      uploadInfo.textContent = `❌ Lỗi khi đọc tệp âm thanh: ${err.message || 'Không thể xử lý tệp'}`;
+      uploadInfo.textContent = `Lỗi khi đọc tệp âm thanh: ${err.message || 'Không thể xử lý tệp'}`;
     }
   } finally {
     if (uploadLabel) {
@@ -633,7 +633,7 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = '⚠️ Vui lòng nhập Họ và tên của bạn trước khi thu âm!';
+      box.textContent = 'Vui lòng nhập Họ và tên của bạn trước khi thu âm!';
     }
     return;
   }
@@ -675,7 +675,7 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
       if (box) {
         box.style.borderColor = '#cce5e3';
         box.style.background = 'var(--accent-soft)';
-        box.textContent = `✅ ĐẠT CHUẨN${f0Str} — Đã lưu giọng của "${guestName}" (Khách Cấp 3${emailSuffix}). Nhấn nút "Lưu & Kích hoạt quyền Khách (Cấp 3)" bên dưới để hoàn tất.`;
+        box.textContent = `ĐẠT CHUẨN${f0Str} — Đã lưu giọng của "${guestName}" (Khách Cấp 3${emailSuffix}). Nhấn nút "Lưu & Kích hoạt quyền Khách (Cấp 3)" bên dưới để hoàn tất.`;
       }
       if (statusBox) {
         statusBox.style.borderColor = '#cce5e3';
@@ -694,9 +694,9 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
         box.style.borderColor = 'var(--red-border)';
         box.style.background = 'var(--red-soft)';
         if (data.status === 'DUPLICATE_VOICE_REJECTED') {
-          box.textContent = `❌ KHÔNG ĐẠT: ${data.message || 'Trùng giọng người đã có trong nhà'} — Vui lòng bấm "Thu lại"!`;
+          box.textContent = `KHÔNG ĐẠT: ${data.message || 'Trùng giọng người đã có trong nhà'} — Vui lòng bấm "Thu lại"!`;
         } else {
-          box.textContent = `⚠️ CHƯA ĐẠT: ${data.message || data.error || 'Chưa nhận rõ giọng nói hoặc quá ngắn.'} Vui lòng bấm "Thu lại"!`;
+          box.textContent = `CHƯA ĐẠT: ${data.message || data.error || 'Chưa nhận rõ giọng nói hoặc quá ngắn.'} Vui lòng bấm "Thu lại"!`;
         }
       }
     }
@@ -707,7 +707,7 @@ async function sendGuestVoicePayload(b64Pcm, samplesListB64) {
     if (box) {
       box.style.borderColor = 'var(--red-border)';
       box.style.background = 'var(--red-soft)';
-      box.textContent = `❌ Lỗi gửi dữ liệu: ${err.message || 'Không thể kết nối máy chủ'}`;
+      box.textContent = `Lỗi gửi dữ liệu: ${err.message || 'Không thể kết nối máy chủ'}`;
     }
   } finally {
     setButtonLoading(recBtn, false);
@@ -737,12 +737,12 @@ async function confirmAndActivateGuestVoice() {
       if (saveAlert) {
         saveAlert.style.display = 'block';
         saveAlert.className = 'alert-box alert-error';
-        saveAlert.textContent = '⚠️ Bạn cần thu âm giọng nói hoặc tải lên tệp âm thanh đạt chuẩn trước khi lưu!';
+        saveAlert.textContent = 'Bạn cần thu âm giọng nói hoặc tải lên tệp âm thanh đạt chuẩn trước khi lưu!';
       }
       if (statusBox) {
         statusBox.style.borderColor = 'var(--red-border)';
         statusBox.style.background = 'var(--red-soft)';
-        statusBox.textContent = '⚠️ Bạn cần thu âm giọng nói đạt chuẩn trước khi bấm kích hoạt!';
+        statusBox.textContent = 'Bạn cần thu âm giọng nói đạt chuẩn trước khi bấm kích hoạt!';
       }
       return;
     }
@@ -758,17 +758,17 @@ async function confirmAndActivateGuestVoice() {
     if (saveAlert) {
       saveAlert.style.display = 'block';
       saveAlert.className = 'alert-box alert-success';
-      saveAlert.textContent = `🎉 ĐÃ KÍCH HOẠT THÀNH CÔNG quyền ${roleLabel} cho "${guestName}" (Thời hạn: ${durText}${emailSuffix})!`;
+      saveAlert.textContent = `ĐÃ KÍCH HOẠT THÀNH CÔNG quyền ${roleLabel} cho "${guestName}" (Thời hạn: ${durText}${emailSuffix})!`;
     }
     if (statusBox) {
       statusBox.style.borderColor = '#cce5e3';
       statusBox.style.background = 'var(--accent-soft)';
-      statusBox.textContent = `🎉 ĐÃ KÍCH HOẠT THÀNH CÔNG quyền ${roleLabel} cho "${guestName}" (Thời hạn: ${durText}${emailSuffix})!`;
+      statusBox.textContent = `ĐÃ KÍCH HOẠT THÀNH CÔNG quyền ${roleLabel} cho "${guestName}" (Thời hạn: ${durText}${emailSuffix})!`;
     }
     if (voiceBox) {
       voiceBox.style.borderColor = '#cce5e3';
       voiceBox.style.background = 'var(--accent-soft)';
-      voiceBox.textContent = `✅ Hoàn tất! Giọng nói của "${guestName}" (${roleLabel}${emailSuffix}) đã được lưu và kích hoạt trên hệ thống.`;
+      voiceBox.textContent = `Hoàn tất! Giọng nói của "${guestName}" (${roleLabel}${emailSuffix}) đã được lưu và kích hoạt trên hệ thống.`;
     }
 
     if (listContainer) {
@@ -790,7 +790,7 @@ async function confirmAndActivateGuestVoice() {
     if (saveAlert) {
       saveAlert.style.display = 'block';
       saveAlert.className = 'alert-box alert-error';
-      saveAlert.textContent = `❌ Lỗi khi kích hoạt: ${err.message || 'Lỗi không xác định'}`;
+      saveAlert.textContent = `Lỗi khi kích hoạt: ${err.message || 'Lỗi không xác định'}`;
     }
   } finally {
     setButtonLoading(okBtn, false);

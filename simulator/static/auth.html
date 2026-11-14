@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/css/auth.css" />
 </head>
 <body>
-  <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+  <svg width="0" height="0" class="svg-sprite" aria-hidden="true">
     <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
     <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
@@ -43,7 +43,7 @@
       <header class="top">
         <div>
           <h1>Quản lý Phiên &amp; Phân quyền</h1>
-          <p>Xác thực phiên đăng nhập, phân quyền RBAC theo cấp tài khoản và giọng trợ lý cố định Aoede.</p>
+          <p>Quản lý phiên đăng nhập, mật khẩu và quyền thành viên.</p>
         </div>
         <span id="currentSessionBadge" class="badge">Đang kiểm tra phiên...</span>
       </header>
@@ -51,45 +51,37 @@
       <!-- CỔNG ĐĂNG NHẬP KHI CHƯA XÁC THỰC -->
       <section id="authUnauthGate" class="card">
         <div class="card-header">
-          <div>
-            <h2>Yêu cầu đăng nhập</h2>
-            <p style="font-size:13px; color:var(--muted);">Vui lòng đăng nhập để xem thông tin phiên và quản trị quyền truy cập ngôi nhà. Tài khoản đăng ký mới cần chờ chủ nhà cấp quyền và phê duyệt trước khi đăng nhập.</p>
-          </div>
+          <h2>Yêu cầu đăng nhập</h2>
           <span class="badge">Chưa đăng nhập</span>
         </div>
-        <div class="input-row" style="margin-top:12px; gap:10px;">
+        <div class="input-row">
           <a href="/login" class="btn btn-primary">Đăng nhập tài khoản</a>
           <a href="/register" class="btn btn-secondary">Đăng ký tài khoản mới</a>
         </div>
       </section>
 
-      <!-- KHUNG KHÔI PHỤC MẬT KHẨU 3 BƯỚC QUA OTP GMAIL -->
-      <section id="authForgotCard" class="card">
-        <div class="card-header">
-          <div>
-            <h2>Quên mật khẩu · Đặt lại qua OTP Gmail</h2>
-            <p style="font-size:12px; color:var(--muted);">Bước 1: Nhập Email &amp; gửi OTP ➔ Bước 2: Nhập mã OTP 6 số ➔ Bước 3: Đặt mật khẩu mới.</p>
-          </div>
-        </div>
-        <div style="display:grid; gap:12px; margin-top:10px;">
-          <div class="form-group">
-            <label for="loginEmail">Bước 1 · Email tài khoản</label>
+      <!-- KHUNG KHÔI PHỤC MẬT KHẨU QUA OTP GMAIL -->
+      <details id="authForgotCard" class="card compact-details">
+        <summary class="details-summary">Quên mật khẩu · Đặt lại qua OTP Gmail</summary>
+        <div class="details-body">
+          <div class="form-group form-group-compact">
+            <label for="loginEmail">Email tài khoản</label>
             <div class="input-row">
               <input type="email" id="loginEmail" value="" placeholder="name@example.com" autocomplete="email" />
               <button id="btnSendForgotOtpAuth" class="btn btn-secondary" type="button" onclick="requestForgotPasswordOtpAuthPage()">Gửi mã OTP</button>
             </div>
           </div>
 
-          <div id="authForgotResetSection" style="display:none; gap:10px;" hidden>
-            <div class="form-group">
-              <label for="otpInput">Bước 2 · Mã OTP 6 chữ số nhận qua Gmail</label>
+          <div id="authForgotResetSection" class="auth-stack" hidden>
+            <div class="form-group form-group-compact">
+              <label for="otpInput">Mã OTP 6 chữ số (Gmail)</label>
               <input type="text" id="otpInput" maxlength="6" inputmode="numeric" placeholder="Nhập mã OTP 6 số" value="" autocomplete="one-time-code" />
             </div>
-            <div class="form-group">
-              <label for="authForgotNewPassword">Bước 3 · Mật khẩu mới (tối thiểu 6 ký tự)</label>
+            <div class="form-group form-group-compact">
+              <label for="authForgotNewPassword">Mật khẩu mới (tối thiểu 6 ký tự)</label>
               <input type="password" id="authForgotNewPassword" placeholder="Nhập mật khẩu mới" value="" minlength="6" autocomplete="new-password" />
             </div>
-            <div class="form-group">
+            <div class="form-group form-group-compact">
               <label for="authForgotConfirmPassword">Xác nhận mật khẩu mới</label>
               <input type="password" id="authForgotConfirmPassword" placeholder="Nhập lại mật khẩu mới" value="" minlength="6" autocomplete="new-password" />
             </div>
@@ -99,47 +91,44 @@
             </div>
           </div>
 
-          <div id="loginStatusBox" role="status" aria-live="polite" class="status-box" style="margin-top:0;">Nhập email để nhận mã OTP khôi phục mật khẩu.</div>
+          <div id="loginStatusBox" role="status" aria-live="polite" class="status-box status-box-flush">Nhập email để nhận mã OTP khôi phục mật khẩu.</div>
         </div>
-      </section>
+      </details>
 
       <!-- KHU VỰC ĐÃ ĐĂNG NHẬP -->
-      <div id="authAuthenticatedPanels" style="display:none; gap:16px;" hidden>
-        <section class="card" style="background:var(--accent-soft); border-color:#cce5e3; padding:14px 18px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div id="authAuthenticatedPanels" class="auth-stack" hidden>
+        <section class="card session-banner">
+          <div class="session-banner-row">
             <div>
-              <div id="authCurrentAccountSummary" style="font-weight:600; color:var(--accent); font-size:14px;">Đang tải phiên...</div>
-              <div id="authCurrentAccountRoleNote" style="font-size:12px; color:var(--ink); margin-top:2px;">Quyền điều khiển thiết bị được xác thực qua phiên đăng nhập RBAC trên máy chủ.</div>
+              <div id="authCurrentAccountSummary" class="session-summary">Đang tải phiên...</div>
+              <div id="authCurrentAccountRoleNote" class="session-note">Quyền điều khiển được xác thực theo phiên RBAC trên máy chủ.</div>
             </div>
             <div class="input-row">
-              <a href="/" class="btn btn-primary">Vào bảng điều khiển</a>
-              <button id="btnLogoutAuth" type="button" class="btn btn-secondary" onclick="logoutFromAuthPage()">Đăng xuất</button>
+              <a href="/" class="btn btn-primary btn-compact">Vào bảng điều khiển</a>
+              <button id="btnLogoutAuth" type="button" class="btn btn-secondary btn-compact" onclick="logoutFromAuthPage()">Đăng xuất</button>
             </div>
           </div>
         </section>
 
-        <section id="authNonOwnerNotice" class="card" style="display:none;" hidden>
-          <p style="font-size:13px; color:var(--muted);">Tài khoản Cấp 2 / Cấp 3 chỉ xem thông tin phiên cá nhân. Các tác vụ quản trị danh sách thành viên và tạo mã mời QR thuộc quyền Chủ nhà (Cấp 1).</p>
+        <section id="authNonOwnerNotice" class="card" hidden>
+          <p class="muted-compact">Tài khoản Cấp 2 / Cấp 3 chỉ xem thông tin phiên cá nhân. Quản trị thành viên và mã mời QR thuộc quyền Chủ nhà (Cấp 1).</p>
         </section>
 
         <!-- KHU VỰC QUẢN TRỊ CHỈ DÀNH CHO CHỦ NHÀ (CẤP 1) -->
-        <div id="authOwnerAdminSection" style="display:none; gap:16px;" hidden>
+        <div id="authOwnerAdminSection" class="auth-stack" hidden>
           <span id="globalStrikeBadge" class="badge badge-fail" hidden></span>
 
           <!-- QUẢN LÝ DANH SÁCH THÀNH VIÊN -->
           <section class="card">
             <div class="card-header">
-              <div>
-                <h2>Quản lý danh sách thành viên (Cấp 2 &amp; Cấp 3)</h2>
-                <p style="font-size:12px; color:var(--muted);">Cấp quyền cho thành viên mới. Tài khoản tự đăng ký cần được Chủ nhà phê duyệt trước khi đăng nhập.</p>
-              </div>
+              <h2>Quản lý danh sách thành viên (Cấp 2 &amp; Cấp 3)</h2>
               <span id="allowlistActorBadge" class="badge badge-tier1">Chủ nhà</span>
             </div>
 
-            <div id="allowlistInputControls" class="form-group" style="margin-top:10px;">
+            <div id="allowlistInputControls" class="form-group form-group-compact">
               <label for="allowlistTargetEmail">Thêm / phê duyệt email vào danh sách cho phép</label>
               <div class="input-row">
-                <select id="allowlistTargetTierSelect" style="max-width:170px;">
+                <select id="allowlistTargetTierSelect" class="tier-select">
                   <option value="2">Gia đình (Cấp 2)</option>
                   <option value="3">Khách (Cấp 3)</option>
                 </select>
@@ -150,7 +139,7 @@
 
             <div id="allowlistStatusBox" class="status-box">Nhập email thành viên để cấp quyền truy cập.</div>
 
-            <div class="scroll-table" style="max-height:200px; margin-top:12px;">
+            <div class="scroll-table scroll-table-compact">
               <table>
                 <thead>
                   <tr>
@@ -165,59 +154,21 @@
             </div>
           </section>
 
-          <!-- MÃ QR MỜI KHÁCH / THÀNH VIÊN (CHỈ TẠO KHI CHỦ NHÀ BẤM NÚT + NHẬP PIN) -->
-          <section class="card" id="dynamicQr10sCard">
-            <div class="card-header">
+          <section class="card qr-redirect-card" id="authQrRedirectCard" aria-labelledby="auth-qr-redirect-title">
+            <div class="qr-redirect-row">
               <div>
-                <h2>Tạo mã QR mời Khách (Cấp 3) / Gia đình (Cấp 2)</h2>
-                <p style="font-size:12px; color:var(--muted);">Bấm nút Tạo mã QR với mã PIN Chủ nhà để phát hành mã mời dùng một lần.</p>
+                <h2 id="auth-qr-redirect-title">Mã QR mời Khách &amp; Gia đình</h2>
+                <p class="muted-compact">Tạo và thu hồi mã QR dùng một lần tại trang Tổng quan.</p>
               </div>
-              <span id="authQrCountdownBadge" class="badge">Chưa tạo mã</span>
-            </div>
-            <div style="display:grid; grid-template-columns: 140px 1fr; gap:16px; align-items:center;">
-              <div style="background:var(--page); border:1px solid var(--line); border-radius:12px; padding:10px; text-align:center;">
-                <div id="authDynamicQrBox">
-                  <svg id="authDynamicQrSvg" viewBox="0 0 120 120" width="116" height="116" style="background:#fff; padding:6px; border-radius:8px; border:1px solid var(--line); display:block; margin:0 auto;">
-                    <rect x="6" y="6" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
-                    <rect x="14" y="14" width="14" height="14" fill="#087d85"/>
-                    <rect x="84" y="6" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
-                    <rect x="92" y="14" width="14" height="14" fill="#087d85"/>
-                    <rect x="6" y="84" width="30" height="30" fill="none" stroke="#172b31" stroke-width="6"/>
-                    <rect x="14" y="92" width="14" height="14" fill="#087d85"/>
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label for="authQrTargetTierSelect">Đối tượng mời</label>
-                  <select id="authQrTargetTierSelect">
-                    <option value="3">Khách đến chơi nhà (Cấp 3 · Đèn, quạt cơ bản)</option>
-                    <option value="2">Thành viên gia đình (Cấp 2 · Đèn, quạt, điều hòa, rèm)</option>
-                  </select>
-                </div>
-                <div class="input-row" style="margin-bottom:8px;">
-                  <select id="authQrDurationSelect" style="max-width:160px;">
-                    <option value="600">Hiệu lực: 10 phút</option>
-                    <option value="3600">Hiệu lực: 1 giờ</option>
-                    <option value="86400">Hiệu lực: 1 ngày</option>
-                  </select>
-                  <input type="password" id="authQrPinInput" inputmode="numeric" maxlength="6" placeholder="Mã PIN Chủ nhà" style="max-width:150px;" autocomplete="off" />
-                  <input type="password" id="authQrPinConfirmInput" inputmode="numeric" maxlength="6" placeholder="Xác nhận PIN mới" style="max-width:150px;display:none;" autocomplete="off" hidden />
-                </div>
-                <div class="input-row" style="margin-bottom:8px;">
-                  <button id="btnGenerateAuthGuestQr" class="btn btn-primary" type="button" onclick="generateAuthGuestQr()">Tạo mã QR mời</button>
-                  <a id="authQrOpenLink" href="/guest_guide" class="btn btn-secondary">Mở trang Khách</a>
-                </div>
-                <div id="authQrTokenBox" class="status-box" style="margin-top:0;">Nhập PIN và bấm Tạo mã QR mời khi cần cấp quyền cho khách.</div>
-              </div>
+              <a id="linkManageQrOnHome" href="/#ownerGuestQrPanel" class="btn btn-secondary btn-compact">Quản lý mã QR</a>
             </div>
           </section>
 
           <!-- DANH SÁCH TÀI KHOẢN & NHẬT KÝ XÁC THỰC -->
-          <details class="card">
-            <summary style="cursor:pointer; font-weight:500; font-size:14px;">Danh sách tài khoản &amp; Nhật ký xác thực</summary>
-            <div style="margin-top:14px; display:grid; gap:16px;">
-              <div class="scroll-table" style="max-height:200px;">
+          <details class="card compact-details">
+            <summary class="details-summary">Danh sách tài khoản &amp; Nhật ký xác thực</summary>
+            <div class="details-body">
+              <div class="scroll-table">
                 <table>
                   <thead>
                     <tr>
@@ -231,7 +182,7 @@
                 </table>
               </div>
 
-              <div class="scroll-table" style="max-height:180px;">
+              <div class="scroll-table scroll-table-logs">
                 <table>
                   <thead>
                     <tr>
@@ -249,7 +200,7 @@
                 <input type="text" id="voicePermCommandInput" value="" placeholder="Nhập lệnh phân quyền bằng văn bản" />
                 <button class="btn btn-sm btn-secondary" type="button" onclick="execOwnerVoicePermission(document.getElementById('voicePermCommandInput').value)">Thực hiện</button>
               </div>
-              <div id="voicePermStatusBox" class="status-box" style="margin-top:0;"></div>
+              <div id="voicePermStatusBox" class="status-box status-box-flush"></div>
             </div>
           </details>
         </div>

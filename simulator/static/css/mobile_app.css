@@ -14,6 +14,10 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     [hidden] { display: none !important; }
+    html {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
     body {
       font: 400 13px/1.5 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
       background: var(--bg);
@@ -22,6 +26,7 @@
       max-width: 480px;
       margin: 0 auto;
       min-height: 100vh;
+      overflow-x: hidden;
       padding: max(12px, env(safe-area-inset-top)) 16px calc(116px + env(safe-area-inset-bottom));
       -webkit-font-smoothing: antialiased;
     }
@@ -434,27 +439,31 @@
 /* TAB VIEWS */
 .tab-view {
   display: block;
+  max-width: 100%;
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 .tab-view[hidden] {
   display: none !important;
 }
+#tabViewHome {
+  max-width: 100%;
+}
 #tabViewHome .header {
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 #tabViewHome .card {
-  padding: 12px 14px;
-  margin-bottom: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
 }
 #tabViewHome .card-head {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 #tabViewHome .divider {
-  margin: 8px 0;
+  margin: 10px 0;
 }
 #tabViewHome .actions {
-  margin-top: 10px !important;
-  gap: 8px !important;
+  margin-top: 14px !important;
+  gap: 10px !important;
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 #tabViewAccount {

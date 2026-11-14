@@ -78,14 +78,13 @@ class TestMilestone3LiveBrowserE2E:
             browser.close()
 
     def test_e2e_bug6_mobile_house3d_overview_box(self):
-        """Bug 6: Three.js canvas xuất hiện bên trong #mobileOverviewBox với class preview-16-9."""
+        """U3a: /app đã gỡ bỏ khung 3D trống #mobileOverviewBox."""
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
-            page = browser.new_page()
+            page = browser.new_page(viewport={"width": 390, "height": 844})
             page.goto(f"http://127.0.0.1:{self.port}/app")
             page.wait_for_selector("#mobileLoginForm", timeout=10000)
 
-            # Đăng nhập vào màn chính
             page.evaluate(
                 """() => {
                 sessionStorage.setItem('mobileLoggedIn', '1');
@@ -94,39 +93,38 @@ class TestMilestone3LiveBrowserE2E:
             }"""
             )
             page.wait_for_selector("#mobileMainContent:not([hidden])", timeout=5000)
-
-            box = page.query_selector("#mobileOverviewBox")
-            assert box is not None, "Thiếu #mobileOverviewBox trên /app"
-
-            # Kiểm tra class preview-16-9
-            classes = page.evaluate("(el) => Array.from(el.classList)", box)
-            assert "preview-16-9" in classes, "#mobileOverviewBox phải chứa class preview-16-9"
-
-            # Đảm bảo Three.js canvas được tạo và mount trong overview box
-            page.wait_for_selector("#mobileOverviewBox canvas", timeout=5000)
-            canvas = page.query_selector("#mobileOverviewBox canvas")
-            assert canvas is not None, "Canvas của Three.js chưa được mount trong #mobileOverviewBox"
-
+            assert page.query_selector("#mobileOverviewBox") is None, "U3a phải gỡ #mobileOverviewBox trên /app"
+            assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             browser.close()
 
     def test_e2e_bug7_mobile_devices_all_7_and_toggle(self):
         """Bug 7: Tab Thiết bị hiện đủ cả 7 thiết bị, toggle thu gọn về 4 và mở lại 7."""
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
-            page = browser.new_page()
-            page.goto(f"http://127.0.0.1:{self.port}/app")
-            page.evaluate(
-                """() => {
-                sessionStorage.setItem('mobileLoggedIn', '1');
-                sessionStorage.setItem('mobileLoggedInEmail', 'nep94121@gmail.com');
-                showMobileMainContent();
-            }"""
+            context = browser.new_context()
+            context.add_cookies(
+                [
+                    {
+                        "name": "sh_session_token",
+                        "value": "sess_owner_t1_nep94121",
+                        "domain": "127.0.0.1",
+                        "path": "/",
+                    },
+                    {
+                        "name": "session_token",
+                        "value": "sess_owner_t1_nep94121",
+                        "domain": "127.0.0.1",
+                        "path": "/",
+                    },
+                ]
             )
-            page.wait_for_selector("#mobileMainContent:not([hidden])", timeout=5000)
+            page = context.new_page()
+            page.goto(f"http://127.0.0.1:{self.port}/app")
+            page.wait_for_selector("#mobileMainContent:not([hidden])", timeout=10000)
 
             # Chuyển sang Tab Thiết bị
             page.click("#mobileNavTabDevices")
-            page.wait_for_selector("#devGrid .dev-row", timeout=5000)
+            page.wait_for_selector("#devGrid .dev-row", timeout=10000)
 
             dev_rows = page.query_selector_all("#devGrid .dev-row")
             assert len(dev_rows) == 7, f"Tab thiết bị phải hiển thị đủ 7 thiết bị, thực tế: {len(dev_rows)}"
@@ -209,9 +207,26 @@ class TestMilestone3LiveBrowserE2E:
         """Bug 9: Desktop panel #secSensors hiển thị và clamp giá trị [0, 60]°C, [0, 100]%, [0, 100]%."""
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
-            page = browser.new_page()
+            context = browser.new_context()
+            context.add_cookies(
+                [
+                    {
+                        "name": "sh_session_token",
+                        "value": "sess_owner_t1_nep94121",
+                        "domain": "127.0.0.1",
+                        "path": "/",
+                    },
+                    {
+                        "name": "session_token",
+                        "value": "sess_owner_t1_nep94121",
+                        "domain": "127.0.0.1",
+                        "path": "/",
+                    },
+                ]
+            )
+            page = context.new_page()
             page.goto(f"http://127.0.0.1:{self.port}/")
-            page.wait_for_selector("#secSensors", timeout=5000)
+            page.wait_for_selector("#secSensors", timeout=10000)
 
             # Kiểm tra 3 ô cảm biến hiện diện
             assert page.query_selector("#sensorTempVal") is not None

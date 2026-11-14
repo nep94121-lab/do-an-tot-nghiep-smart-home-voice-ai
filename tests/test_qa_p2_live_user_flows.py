@@ -380,15 +380,14 @@ class TestRequirement4MobileAppFiveScreens:
         return body.decode("utf-8")
 
     def test_m1_home_screen_elements(self, mobile_html: str):
-        """M1: Home preview 16:9, dual sensors (temp & soil moisture), door/alarm status, quick action buttons."""
-        assert 'id="mobileOverviewBox"' in mobile_html
-        assert "preview-16-9" in mobile_html
+        """U3a/U3b: Đã gỡ #mobileOverviewBox & nút trùng #mobileBtnViewDevices, giữ cảm biến & an toàn."""
+        assert 'id="mobileOverviewBox"' not in mobile_html
+        assert 'id="mobileBtnViewDevices"' not in mobile_html
         assert 'id="mobileDisplayTemp"' in mobile_html
         assert 'id="mobileDisplaySoil"' in mobile_html
         assert 'id="mobileMainDoorStatus"' in mobile_html
         assert 'id="mobileAlarmSirenStatus"' in mobile_html
         assert 'id="mobileBtnVoiceSheet"' in mobile_html
-        assert 'id="mobileBtnViewDevices"' in mobile_html
 
     def test_m2_four_tabs_and_account_hierarchy(self, mobile_html: str):
         """M2: 4-tab switcher (Home, Devices, Voice, Account) & Account profile hierarchy."""

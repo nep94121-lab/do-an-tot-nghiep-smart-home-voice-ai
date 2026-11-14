@@ -25,6 +25,8 @@
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4M14 21h3"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.77 21.77 0 0 1-2.16 3.19M1 1l22 22"/></symbol>
   </svg>
 
   <div class="app" id="homeAppShell" hidden>
@@ -56,7 +58,7 @@
             <span class="status" id="btnToggleServer" role="button" tabindex="0" aria-label="Đã kết nối">
               <span class="dot" id="connDot"></span>
               <span id="connText">Đã kết nối</span>
-              <span id="homeServerStatusBadge" class="transport-badge" style="margin-left:6px; font-size:11px; opacity:0.85; padding:2px 6px; border-radius:6px; background:rgba(255,255,255,0.08);">WebSocket</span>
+              <span id="homeServerStatusBadge" class="transport-badge" hidden></span>
             </span>
             <details class="menu">
               <summary>Tùy chọn <svg class="icon"><use href="#i-chevron"/></svg></summary>
@@ -78,9 +80,7 @@
           <span class="status" id="homeCurrentAccountBadge" title="Tài khoản đang đăng nhập">
             Chưa đăng nhập
           </span>
-          <span class="status" id="homeSessionDurationBadge" title="Thời hạn truy cập còn lại" style="display:none;" hidden>
-            Không giới hạn
-          </span>
+          <span class="status" id="homeSessionDurationBadge" title="Thời hạn truy cập còn lại" style="display:none;" hidden></span>
           <button type="button" class="btn btn-secondary" id="btnLogoutHome" style="min-height:30px; padding:0 10px; font-size:11px; white-space:nowrap;">
             Đăng nhập / Đổi TK
           </button>
@@ -118,7 +118,7 @@
                 <button type="button" class="btn-cam" data-cam="door">Cửa chính</button>
                 <button type="button" class="btn-cam" data-cam="garden">Sân vườn</button>
                 <button type="button" class="btn-cam" data-cam="board">Mạch ESP</button>
-                <button type="button" class="btn-cam" data-cam="rotate">🔄 Tự xoay</button>
+                <button type="button" class="btn-cam" data-cam="rotate">Tự xoay</button>
               </div>
             </div>
             <div id="house3dViewport" class="viewport" role="img" aria-label="Vị trí mô hình 3D Toàn cảnh">
@@ -209,35 +209,80 @@
 
           <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
             <div class="panel-head">
-              <h2 id="guest-qr-title">Mã QR khách</h2>
+              <h2 id="guest-qr-title">Mã QR mời</h2>
+              <span class="badge" id="ownerGuestQrStatusBadge">Dùng một lần</span>
             </div>
             <div class="guest-qr-card" id="ownerDashboardQrBox">
-              <p class="muted">Chủ nhà tạo mã QR mời (Cấp 2 hoặc Cấp 3). Khách quét mã để mở trang điều khiển riêng. Không có đường dẫn công khai cố định.</p>
-              <div class="row" style="gap:0.6rem;flex-wrap:wrap;align-items:center;">
-                <label>Cấp
-                  <select id="ownerGuestInviteTier">
-                    <option value="3" selected>Cấp 3</option>
-                    <option value="2">Cấp 2</option>
-                  </select>
-                </label>
-                <label>PIN 4 số
-                  <input type="password" id="ownerGuestQrPin" inputmode="numeric" maxlength="4" autocomplete="off" style="width:6rem;" />
-                </label>
-                <label id="ownerGuestQrPinConfirmWrap" hidden>Nhập lại PIN
-                  <input type="password" id="ownerGuestQrPinConfirm" inputmode="numeric" maxlength="4" autocomplete="off" style="width:6rem;" />
-                </label>
-                <button type="button" id="ownerGuestQrForgotPinBtn" class="quick">Quên PIN</button>
-                <span id="ownerGuestPinForgotBox" hidden>
-                  <input type="text" id="ownerGuestPinOtp" inputmode="numeric" maxlength="6" placeholder="Mã Gmail" style="width:7rem;" />
-                  <input type="password" id="ownerGuestPinNew" inputmode="numeric" maxlength="4" placeholder="PIN mới" style="width:6rem;" />
-                  <input type="password" id="ownerGuestPinNewConfirm" inputmode="numeric" maxlength="4" placeholder="Nhập lại" style="width:6rem;" />
-                  <button type="button" id="ownerGuestPinResetBtn" class="quick">Đặt lại PIN</button>
-                </span>
-                <button type="button" id="ownerGuestQrGenerateBtn" class="quick">Tạo / làm mới mã QR</button>
-                <button type="button" id="ownerGuestQrRevokeBtn" class="quick">Thu hồi mã hiện tại</button>
+              <p class="subtle qr-subtitle">Tạo mã QR dùng một lần cho Gia đình (Cấp 2) hoặc Khách (Cấp 3).</p>
+              <div class="qr-invite-form">
+                <div class="qr-invite-grid">
+                  <div class="qr-field">
+                    <label for="ownerGuestInviteTier">Đối tượng mời</label>
+                    <select id="ownerGuestInviteTier" class="input-text">
+                      <option value="3" selected>Khách (Cấp 3)</option>
+                      <option value="2">Gia đình (Cấp 2)</option>
+                    </select>
+                  </div>
+                  <div class="qr-field">
+                    <label for="ownerGuestQrPin">Mã PIN Chủ nhà (4 số)</label>
+                    <input type="password" id="ownerGuestQrPin" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" />
+                  </div>
+                  <div class="qr-field qr-field-full" id="ownerGuestQrPinConfirmWrap" hidden>
+                    <label for="ownerGuestQrPinConfirm">Xác nhận PIN mới</label>
+                    <input type="password" id="ownerGuestQrPinConfirm" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" />
+                  </div>
+                </div>
+                <div class="qr-invite-actions">
+                  <button type="button" id="ownerGuestQrGenerateBtn" class="btn btn-primary">Tạo mã QR</button>
+                  <button type="button" id="ownerGuestQrRevokeBtn" class="btn btn-secondary" disabled>Thu hồi</button>
+                  <button type="button" id="ownerGuestQrForgotPinBtn" class="text-link qr-forgot-btn">Quên PIN?</button>
+                </div>
+                <div id="ownerGuestPinForgotBox" class="qr-forgot-box" hidden>
+                  <div class="qr-forgot-fields">
+                    <div class="qr-field">
+                      <label for="ownerGuestPinOtp">Mã OTP Gmail</label>
+                      <input type="text" id="ownerGuestPinOtp" class="input-text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 chữ số" />
+                    </div>
+                    <div class="qr-field">
+                      <label for="ownerGuestPinNew">PIN mới (4 số)</label>
+                      <input type="password" id="ownerGuestPinNew" class="input-text" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" />
+                    </div>
+                    <div class="qr-field">
+                      <label for="ownerGuestPinNewConfirm">Nhập lại PIN mới</label>
+                      <input type="password" id="ownerGuestPinNewConfirm" class="input-text" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" />
+                    </div>
+                  </div>
+                  <button type="button" id="ownerGuestPinResetBtn" class="btn btn-secondary">Đặt lại PIN</button>
+                </div>
               </div>
-              <div id="ownerGuestQrSvg" class="qr-box" style="margin-top:0.8rem;min-height:8rem;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;border-radius:12px;padding:0.6rem;"></div>
-              <p id="ownerGuestQrMeta" class="muted"></p>
+              <div class="qr-display-area">
+                <div id="ownerGuestQrSvg" class="qr-box qr-frame">
+                  <div class="qr-empty-state">
+                    <span class="qr-empty-title">Chưa tạo mã QR</span>
+                    <span class="qr-empty-sub">Đăng nhập Chủ nhà để tạo mã.</span>
+                  </div>
+                </div>
+                <div id="ownerGuestInviteDetails" class="qr-invite-details" hidden>
+                  <div class="qr-detail-row">
+                    <span class="qr-detail-label">Đối tượng</span>
+                    <strong id="ownerGuestInviteTierLabel">Khách (Cấp 3)</strong>
+                  </div>
+                  <div class="qr-detail-row">
+                    <span class="qr-detail-label">Trạng thái</span>
+                    <span>Dùng một lần</span>
+                  </div>
+                  <div class="qr-detail-row">
+                    <span class="qr-detail-label">Thời hạn</span>
+                    <span id="ownerGuestExpiryLabel">Hiệu lực 10 phút</span>
+                  </div>
+                  <div class="qr-url-wrap">
+                    <span class="qr-detail-label">Liên kết mời</span>
+                    <div id="ownerGuestLinkText" class="guest-qr-url-box"></div>
+                  </div>
+                  <a id="ownerGuestOpenLink" class="text-link" href="/guest_guide" target="_blank" rel="noopener">Hướng dẫn trang khách</a>
+                </div>
+              </div>
+              <p id="ownerGuestQrMeta" class="muted qr-meta-note">Hãy đăng nhập tài khoản Chủ nhà (Cấp 1) để tạo mã QR mời.</p>
             </div>
           </section>
 
@@ -284,7 +329,7 @@
           <label for="gateLoginPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu trong phần mềm</label>
           <div style="position:relative; display:flex; align-items:center;">
             <input type="password" id="gateLoginPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu" autocomplete="current-password" />
-            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateLoginPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; margin-top:2px;">
@@ -308,7 +353,7 @@
           <button type="button" id="btnVerifyGateOtp" class="btn btn-primary" style="flex:1;">Xác nhận OTP &amp; Đăng nhập</button>
           <button type="button" id="btnSendGateOtp" class="btn btn-secondary">Gửi lại OTP</button>
         </div>
-        <button type="button" id="btnCancelGateOtp" class="btn btn-secondary" style="width:100%; font-size:12px;">← Quay lại đăng nhập</button>
+        <button type="button" id="btnCancelGateOtp" class="btn btn-secondary" style="width:100%; font-size:12px;">Quay lại đăng nhập</button>
       </div>
 
       <!-- TAB 2: TẠO TÀI KHOẢN / ĐẶT MẬT KHẨU (CÓ 2 Ô MẬT KHẨU XÁC NHẬN LẠI) -->
@@ -334,14 +379,14 @@
           <label for="gateRegPassword" class="subtle" style="display:block; margin-bottom:4px;">Mật khẩu mới (Ô 1)</label>
           <div style="position:relative; display:flex; align-items:center;">
             <input type="password" id="gateRegPassword" class="input-text" style="width:100%; padding-right:38px;" value="" autocomplete="new-password" placeholder="Nhập mật khẩu" />
-            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
           </div>
         </div>
         <div>
           <label for="gateRegConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu (Ô 2 — phải khớp 100%)</label>
           <div style="position:relative; display:flex; align-items:center;">
             <input type="password" id="gateRegConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" autocomplete="new-password" placeholder="Nhập lại mật khẩu để xác nhận" />
-            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
           </div>
         </div>
         <button type="button" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
@@ -360,8 +405,8 @@
               <button type="button" id="btnSendForgotOtp" class="btn btn-secondary">Gửi OTP</button>
             </div>
           </div>
-          <button type="button" id="btnGoForgotStep2" class="btn btn-secondary" style="width:100%; font-size:12px;">Đã có mã OTP ➔ Nhập OTP (Bước 2)</button>
-          <button type="button" id="btnBackForgotToLogin" class="btn btn-secondary" style="width:100%; font-size:12px;">← Quay lại đăng nhập</button>
+          <button type="button" id="btnGoForgotStep2" class="btn btn-secondary" style="width:100%; font-size:12px;">Đã có mã OTP - Nhập OTP (Bước 2)</button>
+          <button type="button" id="btnBackForgotToLogin" class="btn btn-secondary" style="width:100%; font-size:12px;">Quay lại đăng nhập</button>
         </div>
 
         <!-- BƯỚC 2: NHẬP MÃ OTP -->
@@ -371,9 +416,9 @@
             <input type="text" id="gateForgotOtpInput" class="input-text" style="width:100%;" maxlength="6" inputmode="numeric" placeholder="Nhập mã OTP 6 số" autocomplete="one-time-code" />
           </div>
           <div style="display:flex; gap:6px;">
-            <button type="button" id="btnBackForgotStep1" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 1</button>
+            <button type="button" id="btnBackForgotStep1" class="btn btn-secondary" style="flex:1; font-size:12px;">Quay lại Bước 1</button>
             <button type="button" id="btnResendForgotOtp" class="btn btn-secondary" style="flex:1; font-size:12px;">Gửi lại OTP</button>
-            <button type="button" id="btnGoForgotStep3" class="btn btn-primary" style="flex:1; font-size:12px;">Tiếp tục ➔ Bước 3</button>
+            <button type="button" id="btnGoForgotStep3" class="btn btn-primary" style="flex:1; font-size:12px;">Tiếp tục Bước 3</button>
           </div>
         </div>
 
@@ -383,18 +428,18 @@
             <label for="gateForgotNewPassword" class="subtle" style="display:block; margin-bottom:4px;">Bước 3/3: Mật khẩu mới (Ô 1)</label>
             <div style="position:relative; display:flex; align-items:center;">
               <input type="password" id="gateForgotNewPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập mật khẩu mới" />
-              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotNewPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
             </div>
           </div>
           <div>
             <label for="gateForgotConfirmPassword" class="subtle" style="display:block; margin-bottom:4px;">Xác nhận lại mật khẩu mới (Ô 2)</label>
             <div style="position:relative; display:flex; align-items:center;">
               <input type="password" id="gateForgotConfirmPassword" class="input-text" style="width:100%; padding-right:38px;" value="" placeholder="Nhập lại mật khẩu mới" />
-              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+              <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateForgotConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
             </div>
           </div>
           <div style="display:flex; gap:6px;">
-            <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">⬅ Quay lại Bước 2</button>
+            <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">Quay lại Bước 2</button>
             <button type="button" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
               Đặt lại mật khẩu
             </button>
@@ -432,7 +477,7 @@
           <label class="label" for="lockdownPassword" style="display:block; font-weight:500; margin:10px 0 6px; font-size:13px;">Mật khẩu Chủ nhà</label>
           <div style="position:relative; display:flex; align-items:center;">
             <input id="lockdownPassword" class="input-text field" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" style="width:100%; height:44px; padding:0 38px 0 12px; border:1px solid #cbd7d9; border-radius:10px; background:white; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.unlockSecurityLockdown();}" />
-            <button type="button" class="btn-toggle-pw" onclick="window.togglePasswordVisibility('lockdownPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-pw" onclick="window.togglePasswordVisibility('lockdownPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
           </div>
         </div>
 

@@ -116,7 +116,7 @@ const vm = require('vm');
 
 let appJsCode = fs.readFileSync(process.argv[1], 'utf8');
 
-function createEnvironment(initialStorage) {
+function createEnvironment(initialStorage, serverRolePayload = { ok: false, authenticated: false }) {
   const elements = {};
   function getEl(id) {
     if (!elements[id]) {
@@ -204,7 +204,15 @@ function createEnvironment(initialStorage) {
       togglePasswordVisibility: null,
       SmartHome3D: null
     },
-    fetch: async () => ({ ok: true, json: async () => ({ ok: true }) }),
+    fetch: async (url) => (
+      String(url).includes('/api/session/role')
+        ? {
+            ok: Boolean(serverRolePayload && serverRolePayload.authenticated),
+            status: (serverRolePayload && serverRolePayload.authenticated) ? 200 : 401,
+            json: async () => serverRolePayload
+          }
+        : { ok: true, status: 200, json: async () => ({ ok: true }) }
+    ),
     setTimeout: (fn) => fn(),
     clearTimeout: () => {},
     setInterval: () => {},
@@ -225,11 +233,17 @@ function createEnvironment(initialStorage) {
   return { ctx, elements, mockLocalStorage, docListeners, getEl };
 }
 
+(async () => {
 const tests = [];
+const flushMicrotasks = async () => {
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+};
 
 // TEST 1: Khi chưa đăng nhập (localStorage rỗng)
 {
   const env = createEnvironment({});
+  await flushMicrotasks();
   const modal = env.getEl('homeLoginGateModal');
   const closeBtn = env.getEl('btnCloseLoginGateModal');
   const statusBox = env.getEl('gateStatusBox');
@@ -271,6 +285,7 @@ const tests = [];
   const env = createEnvironment({
     'smarthome_auth_session': JSON.stringify({ display_name: 'Hacker', role: 'admin' }) // Thiếu email!
   });
+  await flushMicrotasks();
   const modal = env.getEl('homeLoginGateModal');
   const closeBtn = env.getEl('btnCloseLoginGateModal');
 
@@ -288,9 +303,13 @@ const tests = [];
 
 // TEST 3: Khi có session hợp lệ (nep94121@gmail.com)
 {
-  const env = createEnvironment({
-    'smarthome_auth_session': JSON.stringify({ email: 'nep94121@gmail.com', tier: 1, display_name: 'Nguyễn Tuấn Anh' })
-  });
+  const env = createEnvironment(
+    {
+      'smarthome_auth_session': JSON.stringify({ email: 'nep94121@gmail.com', tier: 1, display_name: 'Nguyễn Tuấn Anh' })
+    },
+    { ok: true, authenticated: true, email: 'nep94121@gmail.com', tier: 1, role: 'owner', display_name: 'Nguyễn Tuấn Anh' }
+  );
+  await flushMicrotasks();
   const modal = env.getEl('homeLoginGateModal');
   const closeBtn = env.getEl('btnCloseLoginGateModal');
 
@@ -316,6 +335,7 @@ const tests = [];
 }
 
 process.stdout.write(JSON.stringify({ ok: tests.every(t => t.pass), tests }));
+})();
 """
         js_file = ROOT / "simulator" / "static" / "js" / "app.js"
         proc = subprocess.run(
@@ -405,9 +425,11 @@ class TestPasswordVisibilityToggle:
     ]
 
     def test_web_all_password_fields_have_toggle_button(self):
-        """Tất cả 5 ô mật khẩu trên Web phải có nút .btn-toggle-pw kế bên."""
+        """Tất cả 5 ô mật khẩu trên Web phải có nút .btn-toggle-pw kế bên dùng SVG #i-eye."""
         html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
+        assert soup.find("symbol", id="i-eye") is not None
+        assert soup.find("symbol", id="i-eye-off") is not None
         for pw_id in self.WEB_PW_IDS:
             pw_input = soup.find(id=pw_id)
             assert pw_input is not None, f"Không tìm thấy ô nhập #{pw_id} trên Web"
@@ -417,12 +439,16 @@ class TestPasswordVisibilityToggle:
             assert btn_toggle is not None, f"Ô nhập #{pw_id} thiếu nút .btn-toggle-pw"
             assert "togglePasswordVisibility" in btn_toggle.get("onclick", "")
             assert pw_id in btn_toggle.get("onclick", "")
-            assert "👁️" in btn_toggle.text
+            use_el = btn_toggle.find("use")
+            assert use_el is not None and use_el.get("href") == "#i-eye"
+            assert "👁" not in btn_toggle.text
 
     def test_mobile_all_password_fields_have_toggle_button(self):
-        """Tất cả 5 ô mật khẩu trên Mobile phải có nút .btn-toggle-pw kế bên."""
+        """Tất cả 5 ô mật khẩu trên Mobile phải có nút .btn-toggle-pw kế bên dùng SVG #i-eye."""
         html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
+        assert soup.find("symbol", id="i-eye") is not None
+        assert soup.find("symbol", id="i-eye-off") is not None
         for pw_id in self.MOBILE_PW_IDS:
             pw_input = soup.find(id=pw_id)
             assert pw_input is not None, f"Không tìm thấy ô nhập #{pw_id} trên Mobile"
@@ -432,10 +458,12 @@ class TestPasswordVisibilityToggle:
             assert btn_toggle is not None, f"Ô nhập #{pw_id} thiếu nút .btn-toggle-pw"
             assert "togglePasswordVisibility" in btn_toggle.get("onclick", "")
             assert pw_id in btn_toggle.get("onclick", "")
-            assert "👁️" in btn_toggle.text
+            use_el = btn_toggle.find("use")
+            assert use_el is not None and use_el.get("href") == "#i-eye"
+            assert "👁" not in btn_toggle.text
 
     def test_toggle_function_runtime_logic_web_and_mobile(self):
-        """Kiểm nghiệm logic hàm togglePasswordVisibility qua Node VM."""
+        """Kiểm nghiệm logic hàm togglePasswordVisibility qua Node VM (SVG #i-eye <-> #i-eye-off)."""
         node_test = """
 const fs = require('fs');
 const vm = require('vm');
@@ -480,17 +508,27 @@ function testFile(filePath) {
   const fn = mockWindow.togglePasswordVisibility || mockWindow.window.togglePasswordVisibility;
   if (!fn) throw new Error('togglePasswordVisibility not exported in ' + filePath);
 
-  const mockBtn = { textContent: '👁️' };
+  const mockUse = {
+    attrs: { href: '#i-eye' },
+    setAttribute(k, v) { this.attrs[k] = v; },
+    getAttribute(k) { return this.attrs[k]; }
+  };
+  const mockBtn = {
+    attrs: { 'aria-label': 'Hiện mật khẩu' },
+    setAttribute(k, v) { this.attrs[k] = v; },
+    getAttribute(k) { return this.attrs[k]; },
+    querySelector: (sel) => (sel === 'use' ? mockUse : null)
+  };
   // Lần 1: Chuyển password -> text
   fn('testPw', mockBtn);
-  if (mockInput.type !== 'text' || mockBtn.textContent !== '🙈') {
-    return { ok: false, step: 'password->text', inputType: mockInput.type, btn: mockBtn.textContent };
+  if (mockInput.type !== 'text' || mockUse.attrs.href !== '#i-eye-off' || mockBtn.attrs['aria-label'] !== 'Ẩn mật khẩu') {
+    return { ok: false, step: 'password->text', inputType: mockInput.type, href: mockUse.attrs.href, label: mockBtn.attrs['aria-label'] };
   }
 
   // Lần 2: Chuyển text -> password
   fn('testPw', mockBtn);
-  if (mockInput.type !== 'password' || mockBtn.textContent !== '👁️') {
-    return { ok: false, step: 'text->password', inputType: mockInput.type, btn: mockBtn.textContent };
+  if (mockInput.type !== 'password' || mockUse.attrs.href !== '#i-eye' || mockBtn.attrs['aria-label'] !== 'Hiện mật khẩu') {
+    return { ok: false, step: 'text->password', inputType: mockInput.type, href: mockUse.attrs.href, label: mockBtn.attrs['aria-label'] };
   }
 
   // Lần 3: Gọi ID không tồn tại không được throw error

@@ -17,6 +17,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
+    html, body { max-width: 100%; overflow-x: hidden; }
     body {
       font: 400 13px/1.5 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
       background: var(--page);
@@ -30,6 +31,11 @@
     button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 3px solid #89c9c8;
       outline-offset: 3px;
+    }
+    .svg-sprite {
+      position: absolute;
+      visibility: hidden;
+      pointer-events: none;
     }
     .icon {
       width: 20px;
@@ -45,6 +51,7 @@
       display: grid;
       grid-template-columns: 248px minmax(0, 1fr);
       min-height: 100vh;
+      max-width: 100%;
     }
     .sidebar {
       background: var(--card);
@@ -97,31 +104,32 @@
     .sidebar-links a:hover { color: var(--accent); }
 
     .main {
-      padding: 30px 32px 48px;
+      padding: 20px 24px 36px;
       max-width: 1160px;
       width: 100%;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       min-width: 0;
     }
     .top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 8px;
+      gap: 12px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
     }
     h1 {
-      font-size: 26px;
+      font-size: 24px;
       line-height: 1.3;
       font-weight: 600;
       letter-spacing: -0.025em;
       margin-bottom: 4px;
     }
     h2 {
-      font-size: 16px;
+      font-size: 15px;
       line-height: 1.4;
       font-weight: 500;
     }
@@ -130,15 +138,17 @@
     .card {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 18px;
+      border-radius: 14px;
+      padding: 14px 16px;
       box-shadow: var(--shadow);
+      max-width: 100%;
+      min-width: 0;
     }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       gap: 10px;
       flex-wrap: wrap;
     }
@@ -155,6 +165,98 @@
     .badge-tier2 { background: #edf5f6; color: #1d5c63; border-color: #cde0e3; }
     .badge-tier3 { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-border); }
     .badge-fail { background: var(--red-soft); color: var(--red); border-color: var(--red-border); }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .grid-main, .auth-stack {
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+    }
+    .two-col, .auth-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .muted-compact {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .qr-redirect-card {
+      background: var(--card);
+    }
+    .qr-redirect-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .compact-details {
+      padding: 12px 16px;
+    }
+    .details-summary {
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .details-summary::-webkit-details-marker { display: none; }
+    .details-summary::after {
+      content: '+';
+      font-size: 16px;
+      line-height: 1;
+      color: var(--muted);
+      flex: none;
+    }
+    .compact-details[open] .details-summary::after {
+      content: '−';
+    }
+    .details-body {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .session-banner {
+      background: var(--accent-soft);
+      border-color: #cce5e3;
+      padding: 12px 16px;
+    }
+    .session-banner-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .session-summary {
+      font-weight: 600;
+      color: var(--accent);
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+    .session-note {
+      font-size: 12px;
+      color: var(--ink);
+      margin-top: 2px;
+    }
 
     .steps-stack {
       display: flex;
@@ -199,12 +301,13 @@
       border-top: 1px solid var(--line);
     }
 
-    .form-group { margin-bottom: 12px; }
+    .form-group { margin-bottom: 10px; }
+    .form-group-compact { margin-bottom: 0; }
     .form-group label {
       display: block;
       font-size: 12px;
       color: var(--muted);
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       font-weight: 500;
     }
     .input-row {
@@ -212,10 +315,15 @@
       gap: 8px;
       flex-wrap: wrap;
       align-items: center;
+      min-width: 0;
     }
+    .input-row > * { min-width: 0; }
+    .tier-select { max-width: 170px; }
+
     input[type="text"], input[type="password"], input[type="email"], select {
-      flex: 1;
-      min-height: 40px;
+      flex: 1 1 160px;
+      min-width: 0;
+      min-height: 38px;
       background: var(--card);
       border: 1px solid var(--line);
       color: var(--ink);
@@ -225,8 +333,8 @@
     }
 
     .btn {
-      min-height: 40px;
-      padding: 0 16px;
+      min-height: 38px;
+      padding: 0 14px;
       border-radius: 10px;
       border: 1px solid var(--line);
       background: #ffffff;
@@ -240,6 +348,7 @@
       white-space: nowrap;
     }
     .btn:hover { filter: brightness(0.97); }
+    .btn-compact { min-height: 36px; padding: 0 14px; font-size: 12.5px; }
     .btn-primary { background: var(--accent); color: #ffffff; border-color: var(--accent); }
     .btn-secondary { background: #ffffff; color: var(--ink); border: 1px solid var(--line); }
     .btn-link-sub {
@@ -255,15 +364,17 @@
     .btn-sm { min-height: 36px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
 
     .status-box {
-      margin-top: 12px;
-      padding: 11px 13px;
+      margin-top: 10px;
+      padding: 10px 12px;
       border-radius: 10px;
       background: var(--page);
       border: 1px solid var(--line);
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 400;
       color: var(--ink);
+      overflow-wrap: anywhere;
     }
+    .status-box-flush { margin-top: 0; }
 
     .sample-box {
       padding: 12px 14px;
@@ -279,11 +390,11 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
+      font-size: 12.5px;
     }
     th, td {
       text-align: left;
-      padding: 9px 10px;
+      padding: 7px 9px;
       border-bottom: 1px solid var(--line);
       vertical-align: top;
     }
@@ -294,23 +405,35 @@
       background: var(--page);
     }
     .scroll-table {
-      max-height: 360px;
-      overflow-y: auto;
-      overflow-x: auto;
+      max-height: 220px;
+      overflow: auto;
       max-width: 100%;
       border: 1px solid var(--line);
       border-radius: 10px;
+    }
+    .scroll-table-compact {
+      max-height: 210px;
+      margin-top: 10px;
+    }
+    .scroll-table-logs {
+      max-height: 180px;
     }
 
     .mobile-nav { display: none; }
 
     @media (max-width: 700px) {
+      html, body, .app, .main, .card { max-width: 100%; }
       .app { display: block; overflow-x: hidden; }
       .sidebar { display: none; }
-      .main { padding: 20px 16px 88px; max-width: 100%; overflow-x: hidden; }
-      .card { max-width: 100%; overflow-x: hidden; }
-      h1 { font-size: 22px; }
-      .input-row .btn-primary { width: 100%; }
+      .main { padding: 16px 14px 86px; min-width: 0; overflow-x: hidden; }
+      .card { overflow-x: hidden; }
+      h1 { font-size: 21px; }
+      .two-col, .auth-grid { grid-template-columns: 1fr; }
+      .qr-redirect-row { flex-direction: column; align-items: stretch; }
+      .qr-redirect-row .btn { width: 100%; }
+      .input-row > * { min-width: 0; }
+      .tier-select { max-width: 100%; flex: 1 1 100%; }
+      .input-row .btn { width: 100%; }
       .mobile-nav {
         position: fixed;
         bottom: 0;

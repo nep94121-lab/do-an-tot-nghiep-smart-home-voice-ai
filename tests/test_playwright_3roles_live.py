@@ -54,10 +54,10 @@ class TestPlaywrightThreeRolesLiveFlows:
             badge_text = page.text_content("#homeCurrentAccountBadge")
             assert "Chủ nhà" in badge_text or "nep94121@gmail.com" in badge_text, f"Unexpected badge: {badge_text}"
 
-            # 2. Xác thực Badge thời hạn truy cập (Bug 15)
-            duration_text = page.text_content("#homeSessionDurationBadge")
-            assert "Không giới hạn" in duration_text, f"Expected 'Không giới hạn', got: {duration_text}"
-            assert not page.is_hidden("#homeSessionDurationBadge")
+            # 2. U2b: Badge thời hạn ẩn ở Tier 1 (không hiện 'Không giới hạn')
+            duration_text = page.text_content("#homeSessionDurationBadge") or ""
+            assert "Không giới hạn" not in duration_text
+            assert page.is_hidden("#homeSessionDurationBadge")
 
             # 3. Nút đăng xuất phải hiển thị
             assert not page.is_hidden("#btnLogoutHome")

@@ -672,6 +672,9 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
 
 async def _wait_for_authenticated_home(page: Any, selector: str, timeout: int = 15000) -> None:
     """Wait until the home device card is present and the login-gate lockdown has lifted."""
+    if "#devGrid" in selector:
+        await page.wait_for_selector("#mobileNavTabDevices", state="visible", timeout=timeout)
+        await page.click("#mobileNavTabDevices")
     await page.wait_for_selector(selector, timeout=timeout)
     await page.wait_for_function(
         """() => {
@@ -924,7 +927,8 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/app", wait_until="domcontentloaded")
-        await _wait_for_authenticated_home(page, "#mobileQuickBtnFan", 15000)
+        await _wait_for_authenticated_home(page, "#devGrid [data-device-id='fan']", 15000)
+        await page.click("#mobileNavTabDevices")
         await asyncio.sleep(0.4)
         assert len(sockets) >= 1
 
@@ -946,7 +950,7 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
 
         sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": snap}))
         await asyncio.sleep(0.1)
-        assert await page.get_attribute("#mobileQuickBtnFan", "data-state") == "on"
+        assert await page.get_attribute("#devGrid [data-device-id='fan']", "data-state") == "on"
 
         # Inject stale raw device_updated (version=499 < 500)
         sockets[-1].send(
@@ -976,7 +980,7 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
                         }
                     )
                 )
-            st = await page.get_attribute("#mobileQuickBtnFan", "data-state")
+            st = await page.get_attribute("#devGrid [data-device-id='fan']", "data-state")
             samples.append(str(st))
             await asyncio.sleep(0.1)
 
@@ -1327,7 +1331,8 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         await page_a.goto(f"{base_url}/", wait_until="domcontentloaded")
         await page_b.goto(f"{base_url}/app", wait_until="domcontentloaded")
         await _wait_for_authenticated_home(page_a, "#dev-card-fan", 15000)
-        await _wait_for_authenticated_home(page_b, "#mobileQuickBtnFan", 15000)
+        await _wait_for_authenticated_home(page_b, "#devGrid [data-device-id='fan']", 15000)
+        await page_b.click("#mobileNavTabDevices")
 
         # Ensure fan starts OFF on both UIs and server
         init_req = urllib.request.Request(
@@ -1358,22 +1363,22 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         )
         await page_b.evaluate("(s) => window.renderState(s)", snap0)
         assert await page_a.get_attribute("#dev-card-fan", "data-state") == "off"
-        assert await page_b.get_attribute("#mobileQuickBtnFan", "data-state") == "off"
+        assert await page_b.get_attribute("#devGrid [data-device-id='fan']", "data-state") == "off"
 
         delay_tab_a = True
         # Tab A clicks fan OFF -> ON (seq=50, timestamp T0, delayed 1.2s in transit)
         await page_a.click("#dev-card-fan")
         await asyncio.sleep(0.12)
         # Meanwhile Tab B (fresh client_id) clicks OFF -> ON (seq=1) then ON -> OFF (seq=2), both completing immediately!
-        await page_b.click("#mobileQuickBtnFan")
+        await page_b.click("#devGrid [data-device-id='fan']")
         await asyncio.sleep(0.12)
-        await page_b.click("#mobileQuickBtnFan")
+        await page_b.click("#devGrid [data-device-id='fan']")
 
         samples_b: list[str] = []
         for idx in range(102):
             if idx in (15, 30, 60):
                 await page_b.evaluate("async () => window.renderState(await (await fetch('/api/state')).json())")
-            st_b = await page_b.get_attribute("#mobileQuickBtnFan", "data-state")
+            st_b = await page_b.get_attribute("#devGrid [data-device-id='fan']", "data-state")
             samples_b.append(str(st_b))
             await asyncio.sleep(0.1)
 
@@ -1445,6 +1450,8 @@ async def _run_e2e_rapid_clicks_10s(info: dict[str, str]) -> None:
             await page.route("**/*", handle_route)
             await page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
             await _wait_for_authenticated_home(page, selector, 15000)
+            if path == "/app":
+                await page.click("#mobileNavTabDevices")
 
             await page.evaluate(
                 f"""async () => {{
@@ -1506,7 +1513,7 @@ async def _run_e2e_rapid_clicks_10s(info: dict[str, str]) -> None:
 
         await asyncio.gather(
             _exercise_surface("/", "#dev-card-living_room_light", "living_room_light", "applySnapshot"),
-            _exercise_surface("/app", "#mobileQuickBtnFan", "fan", "renderState"),
+            _exercise_surface("/app", "#devGrid [data-device-id='fan']", "fan", "renderState"),
         )
         await browser.close()
 
@@ -1844,6 +1851,8 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
             await page.route("**/*", handle_route)
             await page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
             await _wait_for_authenticated_home(page, click_sel, 15000)
+            if path == "/app":
+                await page.click("#mobileNavTabDevices")
             await page.evaluate(
                 f"async () => {{ const s = await (await fetch('/api/state')).json(); window[{json.dumps(render_fn)}](s); }}"
             )
@@ -1907,7 +1916,7 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
 
         await asyncio.gather(
             _check_ui("/", "#dev-card-bedroom_light", "bedroom_light", "OFF", "applySnapshot", True),
-            _check_ui("/app", "#mobileQuickBtnFan", "fan", "OFF", "renderState", True),
+            _check_ui("/app", "#devGrid [data-device-id='fan']", "fan", "OFF", "renderState", True),
             _check_ui("/wokwi", "#btn_garden_pump", "garden_pump", "OFF", "syncWokwiComponents", True),
         )
         await browser.close()

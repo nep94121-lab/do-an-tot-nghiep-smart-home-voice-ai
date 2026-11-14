@@ -510,7 +510,7 @@ getEl('btnLogoutHome').click();
 const badgeHiddenOnLogout = getEl('homeSessionDurationBadge').hidden === true || getEl('homeSessionDurationBadge').style.display === 'none';
 
 process.stdout.write(JSON.stringify({
-  tier1HasKhongGioiHan: tier1Text.includes('Không giới hạn'),
+  tier1TextEmpty: tier1Text === '',
   tier1Visible,
   tier2Has30Ngay: tier2Text.includes('30 ngày'),
   badgeHiddenOnLogout
@@ -526,7 +526,7 @@ process.exit(0);
         )
         assert proc.returncode == 0, f"Node script error: {proc.stderr}"
         res = json.loads(proc.stdout)
-        assert res["tier1HasKhongGioiHan"], f"Tier 1 không hiển thị 'Không giới hạn': {res}"
+        assert res["tier1TextEmpty"] and not res["tier1Visible"], f"Tier 1 U2b phai an #homeSessionDurationBadge: {res}"
         assert res["tier2Has30Ngay"], f"Tier 2 không hiển thị '30 ngày': {res}"
         assert res["badgeHiddenOnLogout"], f"Badge thời hạn không bị ẩn khi đăng xuất: {res}"
 

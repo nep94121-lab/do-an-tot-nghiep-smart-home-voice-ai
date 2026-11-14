@@ -28,70 +28,30 @@ if str(ROOT) not in sys.path:
 # =============================================================================
 
 class TestChallengerBug6ThreeJsCanvas:
-    """Kiểm thử đối kháng Bug 6: Three.js canvas trong #mobileOverviewBox."""
+    """U3a: Gỡ #mobileOverviewBox và Three.js khỏi /app."""
 
     def test_mobile_overview_box_attributes_and_css(self):
-        """Kiểm tra thuộc tính DOM và CSS của #mobileOverviewBox và canvas."""
+        """Kiểm tra #mobileOverviewBox đã được gỡ khỏi mobile_app/index.html."""
         html_path = ROOT / "mobile_app" / "index.html"
         assert html_path.exists(), "Tệp mobile_app/index.html không tồn tại!"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
-
-        box = soup.find(id="mobileOverviewBox")
-        assert box is not None, "Thiếu #mobileOverviewBox trong mobile_app/index.html"
-        classes = box.get("class", [])
-        assert "preview-16-9" in classes, "#mobileOverviewBox phải có class preview-16-9"
-        assert "overview-box" in classes, "#mobileOverviewBox phải có class overview-box"
-
-        # Kiểm tra CSS
-        css_path = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
-        assert css_path.exists(), "Tệp mobile_app.css không tồn tại!"
-        css = css_path.read_text(encoding="utf-8")
-
-        # Phải có định nghĩa aspect-ratio 16/9 và overflow: hidden
-        assert re.search(r"\.overview-box\.preview-16-9\s*\{[^}]*aspect-ratio:\s*16\s*/\s*9", css), (
-            "mobile_app.css thiếu aspect-ratio: 16 / 9 cho .overview-box.preview-16-9"
-        )
-        assert re.search(r"\.overview-box\.preview-16-9\s*\{[^}]*overflow:\s*hidden", css), (
-            "mobile_app.css thiếu overflow: hidden cho .overview-box.preview-16-9"
-        )
-
-        # Canvas con phải có width: 100% !important và height: 100% !important
-        canvas_css_match = re.search(r"\.overview-box\.preview-16-9\s+canvas\s*\{([^}]+)\}", css)
-        assert canvas_css_match is not None, "mobile_app.css thiếu CSS rule cho .overview-box.preview-16-9 canvas"
-        canvas_rules = canvas_css_match.group(1)
-        assert "width: 100% !important" in canvas_rules or "width:100%!important" in canvas_rules
-        assert "height: 100% !important" in canvas_rules or "height:100%!important" in canvas_rules
-        assert "object-fit: cover" in canvas_rules or "object-fit:cover" in canvas_rules
+        assert soup.find(id="mobileOverviewBox") is None
 
     def test_script_order_for_threejs_and_house3d(self):
-        """Thứ tự nạp script: three.min.js -> GLTFLoader.js -> house3d.js -> mobile_app.js."""
+        """Không còn nạp 3 script 3D dư thừa trên /app, chỉ còn mobile_app.js."""
         html_path = ROOT / "mobile_app" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
         scripts = [s.get("src", "") for s in soup.find_all("script") if s.get("src")]
-
-        idx_three = next((i for i, s in enumerate(scripts) if "three.min.js" in s), -1)
-        idx_gltf = next((i for i, s in enumerate(scripts) if "GLTFLoader.js" in s), -1)
-        idx_house = next((i for i, s in enumerate(scripts) if "house3d.js" in s), -1)
-        idx_app = next((i for i, s in enumerate(scripts) if "mobile_app.js" in s), -1)
-
-        assert idx_three >= 0, "Thiếu three.min.js"
-        assert idx_gltf >= 0, "Thiếu GLTFLoader.js"
-        assert idx_house >= 0, "Thiếu house3d.js"
-        assert idx_app >= 0, "Thiếu mobile_app.js"
-
-        assert idx_three < idx_gltf < idx_house < idx_app, (
-            f"Thứ tự script sai! Thứ tự hiện tại: three={idx_three}, gltf={idx_gltf}, house3d={idx_house}, app={idx_app}"
-        )
+        assert not any("three.min.js" in s for s in scripts)
+        assert not any("GLTFLoader.js" in s for s in scripts)
+        assert not any("house3d.js" in s for s in scripts)
+        assert any("mobile_app.js" in s for s in scripts)
 
     def test_mobile_app_js_graceful_handling_without_threejs(self):
-        """Kiểm tra khả năng chịu lỗi của mobile_app.js khi window.SmartHome3D vắng mặt hoặc gặp ngoại lệ."""
+        """mobile_app.js không còn phụ thuộc SmartHome3D."""
         js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
         js = js_path.read_text(encoding="utf-8")
-
-        # Phải kiểm tra window.SmartHome3D trước khi gọi
-        assert "if (typeof window !== 'undefined' && window.SmartHome3D)" in js
-        # Phải bọc try-catch quanh init
-        assert "try {" in js and "window.SmartHome3D.init" in js
+        assert "SmartHome3D" not in js
 
 
 # =============================================================================

@@ -630,7 +630,7 @@ global.window.applyLoggedInUserBanner({
   tier: 1
 });
 const t1Badge = getEl('homeSessionDurationBadge');
-const t1Ok = t1Badge.hidden === false && t1Badge.textContent === 'Không giới hạn';
+const t1Ok = (t1Badge.hidden === true || t1Badge.style.display === 'none') && t1Badge.textContent === '';
 
 // Test Tier 2 (Family)
 global.window.applyLoggedInUserBanner({

@@ -160,7 +160,10 @@ class TestBugR1NodeVmExecution:
             WebSocket: MockWebSocket,
             fetch: async (url) => ({
                 ok: true,
-                json: async () => ({ ok: true, devices: [], users: [] })
+                status: 200,
+                json: async () => (String(url).includes('/api/session/role')
+                    ? ({ ok: true, authenticated: true, role: 'owner', tier: 1, email: 'owner@test.local', display_name: 'Owner' })
+                    : ({ ok: true, devices: [], users: [] }))
             }),
             setTimeout: (fn) => setTimeout(fn, 1),
             clearTimeout: () => {},
@@ -175,45 +178,48 @@ class TestBugR1NodeVmExecution:
         const context = vm.createContext(sandboxVercel);
         vm.runInContext(appJsCode, context);
 
-        // Kiểm tra sau khi chạy app.js trên Vercel:
-        // 1. Không được khởi tạo new WebSocket
-        if (wsInstantiationCount !== 0) {
-            console.error(JSON.stringify({ error: `wsInstantiationCount was ${wsInstantiationCount}, expected 0 on Vercel` }));
-            process.exit(1);
-        }
+        setTimeout(() => {
+            // Kiểm tra sau khi chạy app.js trên Vercel:
+            // 1. Không được khởi tạo new WebSocket
+            if (wsInstantiationCount !== 0) {
+                console.error(JSON.stringify({ error: `wsInstantiationCount was ${wsInstantiationCount}, expected 0 on Vercel` }));
+                process.exit(1);
+            }
 
-        // 2. Transport phải là HTTP Polling
-        if (context.window._activeTransport !== 'HTTP Polling') {
-            console.error(JSON.stringify({ error: `_activeTransport is ${context.window._activeTransport}, expected 'HTTP Polling'` }));
-            process.exit(2);
-        }
+            // 2. Transport phải là HTTP Polling
+            if (context.window._activeTransport !== 'HTTP Polling') {
+                console.error(JSON.stringify({ error: `_activeTransport is ${context.window._activeTransport}, expected 'HTTP Polling'` }));
+                process.exit(2);
+            }
 
-        // 3. Header text và badge phải hiển thị rõ ràng HTTP Polling
-        if (!elements.connText.textContent.includes('HTTP Polling')) {
-            console.error(JSON.stringify({ error: `connText text is "${elements.connText.textContent}", expected to contain 'HTTP Polling'` }));
-            process.exit(3);
-        }
-        if (elements.homeServerStatusBadge.textContent !== 'HTTP Polling') {
-            console.error(JSON.stringify({ error: `homeServerStatusBadge text is "${elements.homeServerStatusBadge.textContent}", expected 'HTTP Polling'` }));
-            process.exit(4);
-        }
+            // 3. U2a: #connText hiển thị rõ 'Đã kết nối' và ẩn #homeServerStatusBadge
+            if (elements.connText.textContent !== 'Đã kết nối') {
+                console.error(JSON.stringify({ error: `connText text is "${elements.connText.textContent}", expected 'Đã kết nối'` }));
+                process.exit(3);
+            }
+            if (elements.homeServerStatusBadge.hidden !== true || elements.homeServerStatusBadge.textContent !== '') {
+                console.error(JSON.stringify({ error: `homeServerStatusBadge should be hidden/empty, got hidden=${elements.homeServerStatusBadge.hidden}, text="${elements.homeServerStatusBadge.textContent}"` }));
+                process.exit(4);
+            }
 
-        // 4. Kiểm tra khi ngắt kết nối (updateConnectionUI(false))
-        context.window.updateConnectionUI(false);
-        if (!elements.connDot.classList.contains('offline')) {
-            console.error(JSON.stringify({ error: `connDot does not have class 'offline' when disconnected` }));
-            process.exit(5);
-        }
-        if (elements.connText.textContent !== 'Mất kết nối') {
-            console.error(JSON.stringify({ error: `connText is "${elements.connText.textContent}", expected 'Mất kết nối'` }));
-            process.exit(6);
-        }
-        if (elements.homeServerStatusBadge.textContent !== 'Mất kết nối') {
-            console.error(JSON.stringify({ error: `homeServerStatusBadge is "${elements.homeServerStatusBadge.textContent}", expected 'Mất kết nối'` }));
-            process.exit(7);
-        }
+            // 4. Kiểm tra khi ngắt kết nối (updateConnectionUI(false))
+            context.window.updateConnectionUI(false);
+            if (!elements.connDot.classList.contains('offline')) {
+                console.error(JSON.stringify({ error: `connDot does not have class 'offline' when disconnected` }));
+                process.exit(5);
+            }
+            if (elements.connText.textContent !== 'Mất kết nối') {
+                console.error(JSON.stringify({ error: `connText is "${elements.connText.textContent}", expected 'Mất kết nối'` }));
+                process.exit(6);
+            }
+            if (elements.homeServerStatusBadge.hidden !== true || elements.homeServerStatusBadge.textContent !== '') {
+                console.error(JSON.stringify({ error: `homeServerStatusBadge should remain hidden/empty when disconnected` }));
+                process.exit(7);
+            }
 
-        console.log(JSON.stringify({ success: true }));
+            console.log(JSON.stringify({ success: true }));
+            process.exit(0);
+        }, 25);
         """
 
         res = subprocess.run(
@@ -297,7 +303,10 @@ class TestBugR1NodeVmExecution:
             WebSocket: MockWebSocket,
             fetch: async (url) => ({
                 ok: true,
-                json: async () => ({ ok: true, devices: [], users: [] })
+                status: 200,
+                json: async () => (String(url).includes('/api/session/role')
+                    ? ({ ok: true, authenticated: true, role: 'owner', tier: 1, email: 'owner@test.local', display_name: 'Owner' })
+                    : ({ ok: true, devices: [], users: [] }))
             }),
             setTimeout: (fn) => setTimeout(fn, 1),
             clearTimeout: () => {},
@@ -312,28 +321,31 @@ class TestBugR1NodeVmExecution:
         const context = vm.createContext(sandboxLocal);
         vm.runInContext(appJsCode, context);
 
-        // 1. Phải khởi tạo WebSocket trên localhost
-        if (wsInstantiationCount < 1 || !lastCreatedWs) {
-            console.error(JSON.stringify({ error: `wsInstantiationCount was ${wsInstantiationCount}, expected >= 1 on localhost` }));
-            process.exit(1);
-        }
+        setTimeout(() => {
+            // 1. Phải khởi tạo WebSocket trên localhost
+            if (wsInstantiationCount < 1 || !lastCreatedWs) {
+                console.error(JSON.stringify({ error: `wsInstantiationCount was ${wsInstantiationCount}, expected >= 1 on localhost` }));
+                process.exit(1);
+            }
 
-        // 2. Kích hoạt ws.onopen()
-        if (typeof lastCreatedWs.onopen === 'function') {
-            lastCreatedWs.onopen();
-        }
+            // 2. Kích hoạt ws.onopen()
+            if (typeof lastCreatedWs.onopen === 'function') {
+                lastCreatedWs.onopen();
+            }
 
-        // 3. Header text và badge phải hiển thị WebSocket
-        if (!elements.connText.textContent.includes('WebSocket')) {
-            console.error(JSON.stringify({ error: `connText text is "${elements.connText.textContent}", expected to contain 'WebSocket'` }));
-            process.exit(2);
-        }
-        if (elements.homeServerStatusBadge.textContent !== 'WebSocket') {
-            console.error(JSON.stringify({ error: `homeServerStatusBadge is "${elements.homeServerStatusBadge.textContent}", expected 'WebSocket'` }));
-            process.exit(3);
-        }
+            // 3. U2a: #connText hiển thị 'Đã kết nối', transport nội bộ là WebSocket, #homeServerStatusBadge ẩn
+            if (elements.connText.textContent !== 'Đã kết nối') {
+                console.error(JSON.stringify({ error: `connText text is "${elements.connText.textContent}", expected 'Đã kết nối'` }));
+                process.exit(2);
+            }
+            if (elements.homeServerStatusBadge.hidden !== true || elements.homeServerStatusBadge.textContent !== '') {
+                console.error(JSON.stringify({ error: `homeServerStatusBadge should be hidden/empty` }));
+                process.exit(3);
+            }
 
-        console.log(JSON.stringify({ success: true }));
+            console.log(JSON.stringify({ success: true }));
+            process.exit(0);
+        }, 25);
         """
 
         res = subprocess.run(

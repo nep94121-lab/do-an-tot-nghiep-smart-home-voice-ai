@@ -479,7 +479,9 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 await page_web.goto(base_url + "/", wait_until="domcontentloaded")
                 await page_app.goto(base_url + "/app", wait_until="domcontentloaded")
                 await page_web.wait_for_selector("#dev-card-living_room_light", timeout=15000)
-                await page_app.wait_for_selector("#mobileQuickBtnFan", timeout=15000)
+                await page_app.wait_for_selector("#mobileNavTabDevices", timeout=15000)
+                await page_app.click("#mobileNavTabDevices")
+                await page_app.wait_for_selector('#devGrid [data-device-id="fan"]', timeout=15000)
                 await page_app.wait_for_selector('#devGrid [data-device-id="garden_pump"]', state="attached", timeout=15000)
 
                 page_web.on("load", _on_web_load)
@@ -495,7 +497,6 @@ class TestF3TwoWaySyncWebAndMobileApp:
 
                 # 1) Web -> /app
                 await page_web.click("#dev-card-living_room_light .switch")
-                await page_app.wait_for_selector('#mobileQuickBtnLight[data-state="on"]', timeout=5000)
                 await page_app.wait_for_selector(
                     '#devGrid [data-device-id="living_room_light"][data-state="on"]',
                     state="attached",
@@ -503,7 +504,7 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 )
 
                 # 2) /app -> Web
-                await page_app.click("#mobileQuickBtnFan")
+                await page_app.click('#devGrid [data-device-id="fan"]')
                 await page_web.wait_for_selector('#dev-card-fan[data-state="on"]', timeout=5000)
 
                 # 3) Voice API -> Both Web & /app
@@ -515,7 +516,7 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 )
                 assert st_code == 200 and vc.get("ok") is True
                 await page_web.wait_for_selector('#dev-card-main_door[data-state="on"]', timeout=5000)
-                await page_app.wait_for_selector('#mobileQuickBtnDoor[data-state="on"]', timeout=5000)
+                await page_app.wait_for_selector('#devGrid [data-device-id="main_door"][data-state="on"]', timeout=5000)
 
                 assert web_reloads == 0, "Web / không được reload khi đồng bộ hai chiều!"
                 assert app_reloads == 0, "/app không được reload khi đồng bộ hai chiều!"

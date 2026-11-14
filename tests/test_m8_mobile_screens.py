@@ -108,10 +108,8 @@ class TestM1HomeScreen:
     """Kiểm thử màn hình M1: Thẻ Toàn cảnh 16:9, Cảm biến 2 ô Grid, Trạng thái an toàn, Nút hành động."""
 
     def test_m1_overview_card_16_9(self, html_soup: BeautifulSoup, css_content: str):
-        box = html_soup.find(id="mobileOverviewBox")
-        assert box is not None, "Không tìm thấy #mobileOverviewBox cho thẻ Toàn cảnh"
-        assert "preview-16-9" in box.get("class", []), "#mobileOverviewBox phải có class 'preview-16-9'"
-        assert "aspect-ratio: 16 / 9" in css_content, "CSS phải có quy tắc aspect-ratio: 16 / 9 cho preview-16-9"
+        # U3a: Gỡ thẻ placeholder Toàn cảnh 3D trống khỏi /app
+        assert html_soup.find(id="mobileOverviewBox") is None, "U3a phải gỡ #mobileOverviewBox khỏi /app"
 
     def test_m1_sensor_grid_two_cells_only(self, html_soup: BeautifulSoup):
         card = html_soup.find(id="home-sensors-title").find_parent("section")
@@ -133,9 +131,8 @@ class TestM1HomeScreen:
         btn_voice = html_soup.find(id="mobileBtnVoiceSheet")
         assert btn_voice is not None, "Thiếu nút Nói lệnh #mobileBtnVoiceSheet"
         assert "openVoiceBottomSheet()" in btn_voice.get("onclick", ""), "#mobileBtnVoiceSheet phải gọi openVoiceBottomSheet()"
-        btn_dev = html_soup.find(id="mobileBtnViewDevices")
-        assert btn_dev is not None, "Thiếu nút Xem thiết bị #mobileBtnViewDevices"
-        assert "switchMobileTab('devices')" in btn_dev.get("onclick", ""), "#mobileBtnViewDevices phải gọi switchMobileTab('devices')"
+        # U3b: Đã gỡ nút trùng #mobileBtnViewDevices vì đã có tab Thiết bị ở bottom nav
+        assert html_soup.find(id="mobileBtnViewDevices") is None, "U3b phải gỡ #mobileBtnViewDevices khỏi /app"
 
 
 # =============================================================================

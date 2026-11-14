@@ -294,10 +294,9 @@ process.stdout.write(JSON.stringify(results));
         assert proc.returncode == 0, f"Lỗi chạy Node.js: {proc.stderr}"
         res = json.loads(proc.stdout)
 
-        # 1. Tier 1 assertions
-        assert "Không giới hạn" in res["tier1"]["text"], f"Tier 1 text sai: {res['tier1']}"
-        assert res["tier1"]["hidden"] is False, f"Tier 1 bị hidden"
-        assert res["tier1"]["display"] != "none", f"Tier 1 display bị none"
+        # 1. Tier 1 assertions (U2b: hidden and empty for Owner)
+        assert res["tier1"]["text"] == "", f"Tier 1 text sai: {res['tier1']}"
+        assert res["tier1"]["hidden"] is True or res["tier1"]["display"] == "none", f"Tier 1 phai bi an"
         assert res["tier1"]["logoutBtnVisible"] is True, "Nút đăng xuất không hiện ở Tier 1"
 
         # 2. Tier 2 assertions
