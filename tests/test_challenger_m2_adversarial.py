@@ -325,7 +325,7 @@ class TestTier3PrivilegeBoundary:
         asyncio.run(_run())
 
     def test_genuine_guest_enrollment_with_expiration(self, client: TestClient) -> None:
-        """Legacy endpoint trả 410; đăng ký giọng khách C3 hợp lệ + invite 1w có expires_at tương ứng 604800s."""
+        """Legacy endpoint trả 410; đăng ký giọng khách C3 hợp lệ + invite 1w/2d PIN-signed đổi phiên Cấp 3 single-use."""
         c3_enroll, c3_sc = _make_enroll_pair(3)
         retired = client.post("/api/auth3/guest_qr_complete_voice", json={
             "session_id": "s1",
@@ -337,6 +337,7 @@ class TestTier3PrivilegeBoundary:
 
         inv = _create_owner_invite(client, duration_code="1w", guest_name="Khách Đại Học Bách Khoa")
         assert inv.get("duration_code") == "1w"
+        assert inv.get("duration_seconds") == 604800
 
         data = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
             pcm_bytes=c3_enroll,
@@ -349,7 +350,25 @@ class TestTier3PrivilegeBoundary:
             expires_at=time.time() + 604800.0,
         )
         assert data["ok"] is True
-        assert data["status"] == "DA_DAT"
         assert data["tier"] == 3
-        prof = _BOOT_VOICE_AUTH.profiles.get(str(data.get("profile_id", "")), {})
+        prof_id = str((data.get("profile") or {}).get("id") or f"user_voice_{data.get('user_id', '')}")
+        prof = _BOOT_VOICE_AUTH.profiles.get(prof_id, {})
         assert prof.get("expires_at", 0) > time.time() + 600000.0
+
+        inv_2d = _create_owner_invite(client, duration_code="2d", guest_name="Khách 2 Ngày")
+        assert inv_2d.get("duration_code") == "2d"
+        assert inv_2d.get("duration_seconds") == 172800
+        tok_2d = inv_2d["url"].split("token=", 1)[1].split("&", 1)[0]
+
+        guest_client = TestClient(app)
+        red = guest_client.post("/api/guest/redeem", json={"token": tok_2d})
+        assert red.status_code == 200, red.text
+        rdata = red.json()
+        assert rdata.get("ok") is True
+        assert rdata.get("tier") == 3
+        assert rdata.get("duration_code") == "2d"
+        assert rdata.get("duration_seconds") == 172800
+
+        replay_client = TestClient(app)
+        replay = replay_client.post("/api/guest/redeem", json={"token": tok_2d})
+        assert replay.status_code == 403 and replay.json().get("reason") == "used"

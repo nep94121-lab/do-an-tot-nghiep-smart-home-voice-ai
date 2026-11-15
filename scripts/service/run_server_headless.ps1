@@ -55,6 +55,15 @@ $svcLog = Join-Path $logDir "uvicorn_stdout.log"
 $svcErrLog = Join-Path $logDir "uvicorn_stderr.log"
 $lockPidFile = Join-Path $logDir "runner.pid"
 
+$mutexName = "Local\SmartHomeServerRunner_${Port}"
+$createdNew = $false
+$runnerMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
+if (-not $createdNew) {
+    $tsDup = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
+    Add-Content -Path $runnerLog -Value "[$tsDup] Duplicate runner detected for port ${Port} (PID=$PID); exiting cleanly." -Encoding UTF8
+    $runnerMutex.Dispose()
+    exit 0
+}
 Set-Content -Path $lockPidFile -Value "$PID" -Encoding UTF8
 
 function Rotate-LogIfLarge {
@@ -78,33 +87,40 @@ if (-not $pythonExe) { $pythonExe = "python" }
 
 Set-Location $RepoRoot
 
-while ($true) {
-    Rotate-LogIfLarge -FilePath $runnerLog
-    Rotate-LogIfLarge -FilePath $svcLog
-    Rotate-LogIfLarge -FilePath $svcErrLog
+try {
+    while ($true) {
+        Rotate-LogIfLarge -FilePath $runnerLog
+        Rotate-LogIfLarge -FilePath $svcLog
+        Rotate-LogIfLarge -FilePath $svcErrLog
 
-    # Free port cleanly if an orphaned python/uvicorn holds it without this loop
-    $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    foreach ($conn in $listeners) {
-        if ($conn.OwningProcess -and $conn.OwningProcess -ne $PID) {
-            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+        # Free port cleanly if an orphaned python/uvicorn holds it without this loop
+        $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        foreach ($conn in $listeners) {
+            if ($conn.OwningProcess -and $conn.OwningProcess -ne $PID) {
+                Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+            }
         }
+
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
+        Add-Content -Path $runnerLog -Value "[$ts] Starting SmartHome headless uvicorn ($RepoRoot) on ${ListenHost}:${Port}" -Encoding UTF8
+
+        $proc = Start-Process -FilePath $pythonExe `
+            -ArgumentList @("-m", "uvicorn", "simulator.server:app", "--host", $ListenHost, "--port", "$Port", "--ws-ping-interval", "20", "--ws-ping-timeout", "20", "--timeout-keep-alive", "65", "--log-level", "info") `
+            -WorkingDirectory $RepoRoot `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $svcLog `
+            -RedirectStandardError $svcErrLog `
+            -PassThru
+
+        Wait-Process -Id $proc.Id -ErrorAction SilentlyContinue
+        $code = $proc.ExitCode
+        $tsEnd = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
+        Add-Content -Path $runnerLog -Value "[$tsEnd] uvicorn exited with code $code; restarting in 2s..." -Encoding UTF8
+        Start-Sleep -Seconds 2
     }
-
-    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
-    Add-Content -Path $runnerLog -Value "[$ts] Starting SmartHome headless uvicorn ($RepoRoot) on ${ListenHost}:${Port}" -Encoding UTF8
-
-    $proc = Start-Process -FilePath $pythonExe `
-        -ArgumentList @("-m", "uvicorn", "simulator.server:app", "--host", $ListenHost, "--port", "$Port", "--ws-ping-interval", "20", "--ws-ping-timeout", "20", "--timeout-keep-alive", "65", "--log-level", "info") `
-        -WorkingDirectory $RepoRoot `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput $svcLog `
-        -RedirectStandardError $svcErrLog `
-        -PassThru
-
-    Wait-Process -Id $proc.Id -ErrorAction SilentlyContinue
-    $code = $proc.ExitCode
-    $tsEnd = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
-    Add-Content -Path $runnerLog -Value "[$tsEnd] uvicorn exited with code $code; restarting in 2s..." -Encoding UTF8
-    Start-Sleep -Seconds 2
+} finally {
+    if ($runnerMutex) {
+        try { $runnerMutex.ReleaseMutex() } catch {}
+        $runnerMutex.Dispose()
+    }
 }

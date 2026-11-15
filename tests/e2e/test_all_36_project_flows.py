@@ -169,8 +169,12 @@ class TestGroup1VoiceDspAndQuality:
     def test_flow_05_topbar_voice_enrollment(
         self, clean_voice_auth: VoiceAuthManager, pcm_tier2_bytes: bytes
     ) -> None:
-        """Luồng 5: Thu âm giọng gốc + đối chiếu tự kiểm chứng hợp lệ."""
+        """Luồng 5: RBAC badge phiên thay cho thu âm topbar (API enroll_voice_sample trả 410)."""
+        from fastapi.testclient import TestClient
+        from simulator.server import app
+
         vm = clean_voice_auth
+        vm.reset_to_owner_only()
         enroll_pcm, sc_pcm = make_valid_enroll_pair(2)
         res = vm.enroll_tier_voice_from_pcm16k(
             pcm_bytes=enroll_pcm,
@@ -183,6 +187,13 @@ class TestGroup1VoiceDspAndQuality:
         assert res.get("ok") is True
         assert res.get("tier") == 2
         assert "user_voice_thanh_vien_topbar" in vm.profiles
+
+        client = TestClient(app)
+        retired = client.post("/api/auth3/enroll_voice_sample", json={"audio_pcm_b64": ""})
+        assert retired.status_code == 410, retired.text
+        home_html = client.get("/", headers={"Accept": "text/html"})
+        assert home_html.status_code == 200
+        assert 'id="homeCurrentAccountBadge"' in home_html.text
 
     def test_flow_06_voice_command_enrollment_countdown(
         self, clean_engine: SmartHomeEngine, clean_voice_auth: VoiceAuthManager

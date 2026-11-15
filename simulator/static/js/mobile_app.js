@@ -3459,6 +3459,7 @@
             tier: inviteTier,
             ttl_sec: ttlSec,
             duration: dur,
+            duration_code: dur,
             pin: pin,
             pin_confirm: pinConfirm || pin,
           }),
@@ -3475,13 +3476,15 @@
           const urlEl = document.getElementById('mobileQrUrlText');
           const linkEl = document.getElementById('mobileQrOpenLink');
           const cdEl = document.getElementById('mobileQrCountdown');
+          const expStr = d.expires_at ? new Date(Number(d.expires_at) * 1000).toLocaleString('vi-VN', { hour12: false }) : '';
+          const durStr = String(d.duration_label || d.duration_code || dur || '').trim();
           if (tokEl) tokEl.textContent = `${d.token || ''}`;
           if (urlEl) urlEl.textContent = inviteUrl;
           if (linkEl) {
             linkEl.href = inviteUrl;
             linkEl.style.display = 'inline-flex';
           }
-          if (cdEl) cdEl.textContent = 'Đã tạo mã mời';
+          if (cdEl) cdEl.textContent = durStr ? (`Hạn ${durStr}${expStr ? ' · Hết hạn ' + expStr : ''}`) : 'Đã tạo mã mời';
           const qrContainer = document.getElementById('mobileQrSvgContainer');
           if (d.qr_svg && qrContainer) {
             qrContainer.innerHTML = d.qr_svg;
@@ -3501,7 +3504,9 @@
           }
           if (statusEl) {
             statusEl.style.color = 'var(--accent)';
-            statusEl.textContent = 'Đã tạo lời mời QR thành công.';
+            statusEl.textContent = durStr
+              ? (`Đã tạo lời mời QR (${durStr}${expStr ? ', hết hạn ' + expStr : ''}).`)
+              : 'Đã tạo lời mời QR thành công.';
           }
         }
       } catch (_) {

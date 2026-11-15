@@ -253,7 +253,13 @@
       sessionTier = Number(data.tier || 99);
       $("guestInvalid").hidden = true;
       $("guestApp").hidden = false;
-      $("guestTierBadge").textContent = "Cấp " + sessionTier + " · " + (data.display_name || "Khách");
+      var badgeParts = ["Cấp " + sessionTier, (data.guest_name || data.display_name || "Khách")];
+      if (data.duration_label) badgeParts.push("Hạn: " + data.duration_label);
+      if (data.expires_at) {
+        var expDt = new Date(Number(data.expires_at) * 1000);
+        badgeParts.push("Hết hạn " + expDt.toLocaleString("vi-VN", { hour12: false }));
+      }
+      $("guestTierBadge").textContent = badgeParts.join(" · ");
       try {
         var st = await fetch("/api/state", { headers: authHeaders(), credentials: "include" });
         if (st.ok) snapshot = await st.json();

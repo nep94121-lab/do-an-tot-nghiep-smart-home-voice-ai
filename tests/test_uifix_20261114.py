@@ -328,14 +328,13 @@ def test_u1_u2_u3_u4_playwright_layout_and_flows(
         assert not console_errors, f"Console errors on {viewport}: {console_errors}"
 
 
-@pytest.mark.skipif(
-    not os.environ.get("UIFIX_PROD_URL"),
-    reason="Set UIFIX_PROD_URL to verify public production UI routes",
-)
 @pytest.mark.parametrize("viewport", [{"width": 1366, "height": 768}, {"width": 390, "height": 844}])
-def test_u5_production_public_pages_playwright(viewport: dict[str, int]) -> None:
-    """Verify public UI routes on production for layout overflow, 0 emojis, SVG eye toggle, and 0 console errors."""
-    prod_url = os.environ["UIFIX_PROD_URL"].rstrip("/")
+def test_u5_production_public_pages_playwright(
+    viewport: dict[str, int],
+    request: pytest.FixtureRequest,
+) -> None:
+    """Verify public UI routes (using UIFIX_PROD_URL when set, otherwise uifix_live_server) for layout overflow, 0 emojis, SVG eye toggle, and 0 console errors."""
+    prod_url = (os.environ.get("UIFIX_PROD_URL") or request.getfixturevalue("uifix_live_server")).rstrip("/")
     with urllib.request.urlopen(f"{prod_url}/api/version", timeout=10) as r:
         assert r.status == 200
 

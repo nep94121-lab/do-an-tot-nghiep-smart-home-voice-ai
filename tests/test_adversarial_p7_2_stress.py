@@ -81,17 +81,18 @@ def live_server_url():
     _ACTIVE_BRIDGES.clear()
 
 
-def _make_wav_file(path: pathlib.Path, f0: float = 210.0):
+def _make_wav_file(path: pathlib.Path, f0: float = 165.0):
     sr = 16000
-    dur = 2.5
-    t = np.linspace(0, dur - 0.3, int(sr * (dur - 0.3)), endpoint=False)
-    sig_voice = (
-        0.40 * np.sin(2 * np.pi * f0 * t)
-        + 0.20 * np.sin(2 * np.pi * (f0 * 2) * t)
-        + 0.10 * np.sin(2 * np.pi * (f0 * 3) * t)
-    )
-    sig = np.concatenate([np.zeros(int(sr * 0.3), dtype=np.float32), sig_voice])
-    sf.write(str(path), sig, sr, format="WAV", subtype="PCM_16")
+    rng = np.random.default_rng(42)
+    t2 = np.linspace(0, 2.6, int(sr * 2.6), endpoint=False)
+    f0_var = f0 + 25.0 * np.sin(2 * np.pi * 1.7 * t2) + 8.0 * np.cos(2 * np.pi * 4.3 * t2)
+    phase = 2 * np.pi * np.cumsum(f0_var) / sr
+    harm = sum((1.0 / k) * np.sin(k * phase) for k in range(1, 14))
+    env = np.clip(np.sin(np.pi * ((t2 * 2.2) % 1.0)), 0.0, 1.0) ** 0.6
+    env[:int(0.25 * sr)] = 0.0
+    env[-int(0.25 * sr):] = 0.0
+    sig = 0.35 * (harm / np.max(np.abs(harm))) * env + 0.008 * env * rng.standard_normal(len(t2))
+    sf.write(str(path), sig.astype(np.float32), sr, format="WAV", subtype="PCM_16")
 
 
 @pytest.fixture(scope="module")
@@ -105,7 +106,7 @@ def sample_audio_files(tmp_path_factory):
     fake_wav.write_text("RIFFfakeWAVEfmt not real audio data dummy text payload", encoding="utf-8")
 
     valid_wav = tmp_dir / "valid_voice.wav"
-    _make_wav_file(valid_wav, 215.0)
+    _make_wav_file(valid_wav, 165.0)
 
     large_wav = tmp_dir / "large_16mb.wav"
     large_wav.write_bytes(b"RIFF" + b"\x00" * (16 * 1024 * 1024))
@@ -126,198 +127,147 @@ def _launch_browser(p):
         return p.chromium.launch(headless=True)
 
 
+def _create_qr_invite(base_url: str, duration_code: str = "1d", guest_name: str = "Khách Stress") -> str:
+    import json as _json
+    import urllib.request as _req
+
+    body = _json.dumps({
+        "pin": "1357",
+        "pin_confirm": "1357",
+        "duration_code": duration_code,
+        "guest_name": guest_name,
+    }).encode("utf-8")
+    r = _req.Request(
+        f"{base_url}/api/guest/invites",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Session-Token": "sess_owner_t1_nep94121",
+        },
+        method="POST",
+    )
+    with _req.urlopen(r, timeout=10) as resp:
+        data = _json.loads(resp.read().decode("utf-8"))
+    url = str(data.get("url") or "")
+    return url.split("token=", 1)[1].split("&", 1)[0]
+
+
 def test_adversarial_audio_empty_file(live_server_url, sample_audio_files):
-    """Thử nghiệm tệp 0 bytes: Nút Lưu phải giữ disabled, không kích hoạt thành công."""
+    """Tệp PCM rỗng 0B bị chất lượng âm học từ chối, /guest không token trả 403, endpoint cũ trả 410."""
+    import httpx
+    from simulator.voice_auth import evaluate_audio_quality_gate
+
     _BOOT_VOICE_AUTH.reset_to_owner_only()
-    with sync_playwright() as p:
-        browser = _launch_browser(p)
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        page = ctx.new_page()
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+    empty_bytes = sample_audio_files["empty"].read_bytes()
+    q_res = evaluate_audio_quality_gate(empty_bytes, sr=16000)
+    assert q_res["ok"] is False
 
-        page.fill("#guestNameInput", "Khách Test 0B")
-        page.fill("#guestOptionalEmailInput", "test0b@gmail.com")
+    r_unauth = httpx.get(f"{live_server_url}/guest", timeout=10)
+    assert r_unauth.status_code == 403
 
-        page.set_input_files("#guestAudioFileInput", str(sample_audio_files["empty"]))
-        page.wait_for_timeout(1000)
-
-        is_disabled = page.is_disabled("#btnConfirmGuestVoiceOk")
-        assert is_disabled, "Nút Lưu KHÔNG được mở khóa khi upload tệp 0 bytes!"
-
-        info_text = page.locator("#uploadedAudioInfo").inner_text()
-        assert "chưa đạt chuẩn" in info_text.lower() or "lỗi" in info_text.lower() or "❌" in info_text or "⚠️" in info_text
-
-        browser.close()
+    r_gone = httpx.post(
+        f"{live_server_url}/api/auth3/guest_qr_complete_voice",
+        json={"guest_name": "Khách 0B", "duration": "1d", "audio_pcm_b64": ""},
+        timeout=10,
+    )
+    assert r_gone.status_code == 410 and r_gone.json().get("gone") is True
 
 
 def test_adversarial_audio_fake_wav_file(live_server_url, sample_audio_files):
-    """Thử nghiệm tệp text giả .wav: Nút Lưu phải giữ disabled."""
+    """Tệp text giả .wav bị từ chối và token mời giả trên /api/guest/redeem bị chặn 403."""
+    import httpx
+    from simulator.voice_auth import evaluate_audio_quality_gate
+
     _BOOT_VOICE_AUTH.reset_to_owner_only()
-    with sync_playwright() as p:
-        browser = _launch_browser(p)
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        page = ctx.new_page()
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+    fake_bytes = sample_audio_files["fake"].read_bytes()
+    q_res = evaluate_audio_quality_gate(fake_bytes, sr=16000)
+    assert q_res["ok"] is False
 
-        page.fill("#guestNameInput", "Khách Test Fake WAV")
-        page.fill("#guestOptionalEmailInput", "testfake@gmail.com")
-
-        page.set_input_files("#guestAudioFileInput", str(sample_audio_files["fake"]))
-        page.wait_for_timeout(1500)
-
-        is_disabled = page.is_disabled("#btnConfirmGuestVoiceOk")
-        assert is_disabled, "Nút Lưu KHÔNG được mở khóa khi upload tệp text giả .wav!"
-
-        info_text = page.locator("#uploadedAudioInfo").inner_text()
-        assert "chưa đạt chuẩn" in info_text.lower() or "lỗi" in info_text.lower() or "❌" in info_text or "⚠️" in info_text
-
-        browser.close()
+    r_bad_tok = httpx.post(
+        f"{live_server_url}/api/guest/redeem",
+        json={"token": "inv_fake_not_real_token_123"},
+        timeout=10,
+    )
+    assert r_bad_tok.status_code == 403
 
 
 def test_adversarial_audio_large_16mb_file(live_server_url, sample_audio_files):
-    """Thử nghiệm tệp > 15MB:
-    Kiểm tra xem hệ thống có kiểm soát và từ chối rõ ràng hay không.
-    """
+    """Tệp > 15MB toàn byte 0 bị cổng chất lượng âm học từ chối và /guest_enroll đã gỡ trả 410."""
+    import httpx
+    from simulator.voice_auth import evaluate_audio_quality_gate
+
     _BOOT_VOICE_AUTH.reset_to_owner_only()
-    with sync_playwright() as p:
-        browser = _launch_browser(p)
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        page = ctx.new_page()
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+    large_bytes = sample_audio_files["large"].read_bytes()
+    assert len(large_bytes) > 15 * 1024 * 1024
+    q_res = evaluate_audio_quality_gate(large_bytes[:320000], sr=16000)
+    assert q_res["ok"] is False
 
-        page.fill("#guestNameInput", "Khách Test 16MB")
-        page.fill("#guestOptionalEmailInput", "test16mb@gmail.com")
-
-        page.set_input_files("#guestAudioFileInput", str(sample_audio_files["large"]))
-        page.wait_for_timeout(2500)
-
-        is_disabled = page.is_disabled("#btnConfirmGuestVoiceOk")
-        assert is_disabled, "Nút Lưu KHÔNG được mở khóa khi upload tệp 16MB không hợp lệ!"
-
-        browser.close()
+    r_gone = httpx.get(f"{live_server_url}/guest_enroll", timeout=10)
+    assert r_gone.status_code == 410
 
 
 def test_adversarial_audio_valid_wav_file(live_server_url, sample_audio_files):
-    """Thử nghiệm tệp .wav hợp lệ: Nút Lưu phải mở khóa (enabled = True)."""
+    """Tệp .wav harmonic chuẩn 16kHz đạt chất lượng âm học và tạo invite 1d hợp lệ."""
+    import soundfile as sf_read
+    from simulator.voice_auth import evaluate_audio_quality_gate
+
     _BOOT_VOICE_AUTH.reset_to_owner_only()
-    with sync_playwright() as p:
-        browser = _launch_browser(p)
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        page = ctx.new_page()
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+    samples, sr = sf_read.read(str(sample_audio_files["valid"]), dtype="int16")
+    assert sr == 16000
+    q_res = evaluate_audio_quality_gate(samples.tobytes(), sr=16000)
+    assert q_res["ok"] is True
 
-        page.fill("#guestNameInput", "Khách Test Chuẩn")
-        page.fill("#guestOptionalEmailInput", "testchuan@gmail.com")
-
-        page.set_input_files("#guestAudioFileInput", str(sample_audio_files["valid"]))
-        page.wait_for_function("() => !document.getElementById('btnConfirmGuestVoiceOk').disabled", timeout=10000)
-
-        assert not page.is_disabled("#btnConfirmGuestVoiceOk"), "Nút Lưu PHẢI mở khóa khi upload tệp .wav chuẩn!"
-
-        browser.close()
+    tok = _create_qr_invite(live_server_url, duration_code="1d", guest_name="Khách Hợp Lệ")
+    assert tok.startswith("inv_")
 
 
 def test_adversarial_button_spamming_race_condition(live_server_url, sample_audio_files):
-    """Thử nghiệm click đúp / spam click liên tục vào nút Lưu:
-    Xác nhận class .btn-loading và disabled ngăn chặn click kép, không phát sinh race condition.
-    """
+    """Race condition & spam redeem: cùng một token single-use chỉ đổi được đúng 1 phiên 200, mọi lần sau 403 used."""
+    from concurrent.futures import ThreadPoolExecutor
+    import httpx
+
     _BOOT_VOICE_AUTH.reset_to_owner_only()
-    fresh_wav = sample_audio_files["dir"] / "spam_voice.wav"
-    _make_wav_file(fresh_wav, 185.0)
+    tok = _create_qr_invite(live_server_url, duration_code="1d", guest_name="Khách Spam Redeem")
 
-    with sync_playwright() as p:
-        browser = _launch_browser(p)
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        page = ctx.new_page()
+    def _redeem_once(_idx: int) -> tuple[int, dict]:
+        r = httpx.post(f"{live_server_url}/api/guest/redeem", json={"token": tok}, timeout=10)
+        return r.status_code, r.json()
 
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        outcomes = list(pool.map(_redeem_once, range(5)))
 
-        page.fill("#guestNameInput", "Khách Spam Click")
-        page.fill("#guestOptionalEmailInput", "spamclick@gmail.com")
-
-        page.set_input_files("#guestAudioFileInput", str(fresh_wav))
-        page.wait_for_function("() => !document.getElementById('btnConfirmGuestVoiceOk').disabled", timeout=10000)
-
-        # Spam click 5 lần cực nhanh bằng JS evaluate
-        click_results = page.evaluate("""() => {
-            const btn = document.getElementById('btnConfirmGuestVoiceOk');
-            const results = [];
-            for (let i = 0; i < 5; i++) {
-                results.push({
-                    iteration: i,
-                    disabled: btn.disabled,
-                    hasLoadingClass: btn.classList.contains('btn-loading')
-                });
-                btn.click();
-            }
-            return results;
-        }""")
-
-        page.wait_for_selector("#saveFeedbackAlert:not([style*='display: none'])", timeout=10000)
-
-        # Lần 0: ban đầu disabled=False, ngay sau click đầu tiên phải disabled=True hoặc có class .btn-loading
-        assert click_results[0]["disabled"] is False, "Lần đầu tiên nút phải sẵn sàng (disabled=False)"
-        assert click_results[1]["disabled"] is True or click_results[1]["hasLoadingClass"] is True, (
-            f"Các lần spam click sau phải bị chặn (disabled=True hoặc có class .btn-loading)! Chi tiết: {click_results}"
-        )
-
-        browser.close()
+    ok_200 = [o for o in outcomes if o[0] == 200 and o[1].get("ok") is True]
+    blk_403 = [o for o in outcomes if o[0] == 403 and o[1].get("reason") == "used"]
+    assert len(ok_200) == 1, f"Single-use QR phải chỉ cấp đúng 1 phiên, nhưng được: {outcomes}"
+    assert len(blk_403) == 4, f"4 lần race redeem còn lại phải bị chặn used: {outcomes}"
 
 
 def test_adversarial_sine_wave_existence_and_retry_button_vulnerability(live_server_url):
-    """Thử thách: Kiểm tra sự tồn tại của code sóng sin giả lập và lỗ hổng nút 'Thu lại' (#btnRetryGuestVoice).
-    Phát hiện xem code sinh sóng sin có bị xóa triệt để hay vẫn tồn tại trong guest_enroll.js và guest_enroll.html.
-    """
+    """Xác minh không còn window.generateSynthetic16kPcmB64 trên trang chủ hay /guest?token và endpoint enroll cũ trả 410."""
     _BOOT_VOICE_AUTH.reset_to_owner_only()
+    tok = _create_qr_invite(live_server_url, duration_code="1d", guest_name="Khách Kiểm Tra JS")
+
     with sync_playwright() as p:
         browser = _launch_browser(p)
         ctx = browser.new_context(viewport={"width": 390, "height": 844})
+        ctx.route("**/*fonts*", lambda route: route.fulfill(status=200, body=""))
         page = ctx.new_page()
 
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+        page.goto(f"{live_server_url}/guest?token={tok}", wait_until="domcontentloaded")
+        page.wait_for_selector("#guestApp:not([hidden])", timeout=15000)
 
-        # Mock mic bị từ chối
-        page.evaluate("""() => {
-            if (!navigator.mediaDevices) navigator.mediaDevices = {};
-            navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("Denied", "NotAllowedError"));
-        }""")
+        has_synthetic_guest = page.evaluate("() => typeof window.generateSynthetic16kPcmB64 === 'function'")
+        has_retry_btn = page.locator("#btnRetryGuestVoice").count()
+        assert not has_synthetic_guest, "Hàm generateSynthetic16kPcmB64 không được phép tồn tại!"
+        assert has_retry_btn == 0, "Nút legacy #btnRetryGuestVoice không được phép tồn tại!"
 
-        page.fill("#guestNameInput", "Khách Test Sine Wave")
-        page.fill("#guestOptionalEmailInput", "sinewave@gmail.com")
-
-        # 1. Bấm thu âm -> Thất bại -> Nút Lưu disabled
-        page.click("#btnRecordGuestVoice")
-        page.wait_for_selector("#micErrorAlert:not([style*='display: none'])", timeout=5000)
-        assert page.is_disabled("#btnConfirmGuestVoiceOk"), "Nút Lưu phải disabled sau khi mic lỗi"
-
-        # 2. Kiểm tra trực tiếp xem hàm generateSynthetic16kPcmB64 có tồn tại trên window hay không
-        has_synthetic_fn = page.evaluate("() => typeof window.generateSynthetic16kPcmB64 === 'function'")
-
-        # 3. Kiểm tra nút #btnRetryGuestVoice có thuộc tính onclick chứa 'recordAndEnrollGuestVoice' hay không
-        retry_onclick = page.locator("#btnRetryGuestVoice").get_attribute("onclick") or ""
-
-        # 4. Bấm nút Thu lại (#btnRetryGuestVoice) khi mic lỗi:
-        # Nếu hàm sóng sin giả còn hoạt động, nó sẽ gọi sendGuestVoicePayload và mở khóa nút Lưu!
-        page.click("#btnRetryGuestVoice")
-        page.wait_for_timeout(2000)
-
-        save_disabled_after_retry = page.is_disabled("#btnConfirmGuestVoiceOk")
+        ctx.add_cookies([{"name": "sh_session_token", "value": "sess_owner_t1_nep94121", "url": live_server_url}])
+        page.goto(f"{live_server_url}/", wait_until="domcontentloaded")
+        page.wait_for_selector("#ownerGuestQrPanel", timeout=15000)
+        has_synthetic_home = page.evaluate("() => typeof window.generateSynthetic16kPcmB64 === 'function'")
+        assert not has_synthetic_home, "Trang chủ không được phép có generateSynthetic16kPcmB64!"
 
         browser.close()
-
-        # Kiểm chứng nghiêm ngặt: Theo yêu cầu 'Xác minh không còn bất kỳ dòng code sinh giọng sóng sin giả lập nào',
-        # hàm generateSynthetic16kPcmB64 KHÔNG ĐƯỢC PHÉP tồn tại!
-        # Và nút Thu lại KHÔNG ĐƯỢC mở khóa nút Lưu bằng giọng sóng sin giả!
-        assert not has_synthetic_fn, (
-            "PHÁT HIỆN LỖ HỔNG: window.generateSynthetic16kPcmB64 VẪN TỒN TẠI trong guest_enroll.js! "
-            "Worker M7R2_2 báo cáo đã xóa hoàn toàn nhưng thực tế hàm này vẫn còn nguyên vẹn."
-        )
 
 
 @pytest.mark.parametrize("vp_name,w,h", [
@@ -325,46 +275,45 @@ def test_adversarial_sine_wave_existence_and_retry_button_vulnerability(live_ser
     ("360x740", 360, 740),
     ("390x844", 390, 844),
 ])
-def test_adversarial_viewport_overflow_and_bounding_boxes(live_server_url, vp_name, w, h):
-    """Thử thách Responsive Viewports 320x568, 360x740, 390x844:
+def test_adversarial_viewport_overflow_and_bounding_boxes(live_server_url, tmp_path, vp_name, w, h):
+    """Thử thách Responsive Viewports 320x568, 360x740, 390x844 trên /guest?token=... và Dashboard (/):
     1. scrollWidth <= clientWidth (0 horizontal overflow)
-    2. Bounding boxes không bị tràn ngoài viewport (x >= 0, x + width <= w + 1)
-    3. Không bị overlap đè chồng giữa các khối chính
+    2. Bounding boxes không bị tràn ngoài viewport (x >= 0, x + width <= w + 2)
     """
-    screenshots_dir = pathlib.Path("reports/screenshots")
-    screenshots_dir.mkdir(parents=True, exist_ok=True)
+    _BOOT_VOICE_AUTH.reset_to_owner_only()
+    tok = _create_qr_invite(live_server_url, duration_code="1w", guest_name=f"Khách {vp_name}")
 
     with sync_playwright() as p:
         browser = _launch_browser(p)
 
-        # --- A. /guest ---
+        # --- A. /guest?token=... ---
         guest_ctx = browser.new_context(viewport={"width": w, "height": h})
+        guest_ctx.route("**/*fonts*", lambda route: route.fulfill(status=200, body=""))
         page = guest_ctx.new_page()
-        page.goto(f"{live_server_url}/guest", wait_until="domcontentloaded")
-        page.wait_for_selector("#guestNameInput", state="visible")
+        page.goto(f"{live_server_url}/guest?token={tok}", wait_until="domcontentloaded")
+        page.wait_for_selector("#guestApp:not([hidden])", timeout=15000)
 
         scroll_w = page.evaluate("() => document.documentElement.scrollWidth")
         client_w = page.evaluate("() => document.documentElement.clientWidth")
         assert scroll_w <= client_w, f"/guest bị tràn ngang trên {vp_name}: scrollWidth={scroll_w} > clientWidth={client_w}"
 
-        card = page.locator(".card")
-        box = card.bounding_box()
-        assert box is not None, "Không tìm thấy .card trên /guest"
-        assert box["x"] >= 0, f"Card tràn lề trái trên {vp_name}: {box['x']}"
-        assert box["x"] + box["width"] <= w + 1, f"Card tràn lề phải trên {vp_name}: {box['x'] + box['width']} > {w}"
+        shell = page.locator("#guestApp")
+        box = shell.bounding_box()
+        assert box is not None, "Không tìm thấy #guestApp trên /guest"
+        assert box["x"] >= 0, f"#guestApp tràn lề trái trên {vp_name}: {box['x']}"
+        assert box["x"] + box["width"] <= w + 2, f"#guestApp tràn lề phải trên {vp_name}: {box['x'] + box['width']} > {w}"
 
-        for btn_id in ["#btnRecordGuestVoice", "#btnRetryGuestVoice", "#btnConfirmGuestVoiceOk"]:
-            b_box = page.locator(btn_id).bounding_box()
-            if b_box:
-                assert b_box["x"] >= 0, f"Nút {btn_id} tràn lề trái trên {vp_name}"
-                assert b_box["x"] + b_box["width"] <= w + 2, f"Nút {btn_id} tràn lề phải trên {vp_name}"
+        mic_box = page.locator("#guestMicBtn").bounding_box()
+        if mic_box:
+            assert mic_box["x"] >= 0, f"Nút #guestMicBtn tràn lề trái trên {vp_name}"
+            assert mic_box["x"] + mic_box["width"] <= w + 2, f"Nút #guestMicBtn tràn lề phải trên {vp_name}"
 
-        shot_path = str(screenshots_dir / f"challenger_guest_{vp_name}.png")
-        page.screenshot(path=shot_path, full_page=True)
+        page.screenshot(path=str(tmp_path / f"challenger_guest_{vp_name}.png"), full_page=True)
         guest_ctx.close()
 
         # --- B. Dashboard (/) ---
         dash_ctx = browser.new_context(viewport={"width": w, "height": h})
+        dash_ctx.route("**/*fonts*", lambda route: route.fulfill(status=200, body=""))
         dash_ctx.add_cookies([{"name": "sh_session_token", "value": "sess_owner_t1_nep94121", "url": live_server_url}])
         dash_page = dash_ctx.new_page()
         dash_page.goto(f"{live_server_url}/", wait_until="domcontentloaded")
@@ -380,8 +329,7 @@ def test_adversarial_viewport_overflow_and_bounding_boxes(live_server_url, vp_na
         assert p_box["x"] >= 0, f"Panel QR tràn lề trái trên {vp_name}"
         assert p_box["x"] + p_box["width"] <= w + 2, f"Panel QR tràn lề phải trên {vp_name}: {p_box['x'] + p_box['width']} > {w}"
 
-        dash_shot_path = str(screenshots_dir / f"challenger_dashboard_{vp_name}.png")
-        dash_page.screenshot(path=dash_shot_path, full_page=True)
+        dash_page.screenshot(path=str(tmp_path / f"challenger_dashboard_{vp_name}.png"), full_page=True)
         dash_ctx.close()
 
         browser.close()

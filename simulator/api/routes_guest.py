@@ -8,7 +8,6 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from simulator.auth.guest_invites import (
-    INVITE_TTL_DEFAULT_SEC,
     create_invite,
     inspect_token,
     list_invites,
@@ -122,6 +121,10 @@ async def api_guest_invite_validate(request: Request) -> JSONResponse:
         "error": checked.get("error") or "",
         "tier": checked.get("tier"),
         "role": checked.get("role"),
+        "duration_code": checked.get("duration_code") or "",
+        "duration_label": checked.get("duration_label") or "",
+        "duration_seconds": checked.get("duration_seconds"),
+        "guest_name": checked.get("guest_name") or "",
         "expires_at": checked.get("expires_at"),
         "ttl_remaining_sec": checked.get("ttl_remaining_sec"),
         "invite_id": checked.get("invite_id"),
@@ -156,6 +159,10 @@ async def api_guest_redeem(request: Request, payload: dict[str, Any] = Body(defa
             "tier": session.tier,
             "role": session.role,
             "display_name": session.display_name,
+            "guest_name": result.get("guest_name") or "",
+            "duration_code": result.get("duration_code") or "",
+            "duration_label": result.get("duration_label") or "",
+            "duration_seconds": result.get("duration_seconds"),
             "expires_at": session.expires_at,
             "session_token": session.session_id,
         },
@@ -164,12 +171,17 @@ async def api_guest_redeem(request: Request, payload: dict[str, Any] = Body(defa
     return _attach_session_cookies(resp, session.session_id, ttl, request)
 
 
-@router.post("/api/auth3/guest_invites")
-@router.post("/api/guest/invites")
-async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+def _create_invite_with_owner_pin(
+    request: Request,
+    payload: dict[str, Any],
+    *,
+    unauth_error: str,
+    include_public_guest_path: bool = False,
+) -> JSONResponse:
+    """Shared PIN check + invite generation for Owner dashboard and compat endpoints."""
     session = resolve_request_session(request, payload=payload)
     if not _is_owner_session(session):
-        return JSONResponse({"ok": False, "error": "Chỉ chủ nhà (đã đăng nhập) mới tạo được mã mời khách."}, status_code=401)
+        return JSONResponse({"ok": False, "error": unauth_error}, status_code=401)
     body = payload if isinstance(payload, dict) else {}
     from simulator.auth.owner_pin import pin_status, setup_or_replace_pin, verify_pin
 
@@ -195,11 +207,29 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
         checked = verify_pin(str(pin_val or ""))
         if not checked.get("ok"):
             return JSONResponse(checked, status_code=int(checked.get("status_code") or 403))
+
+    tier = body.get("tier") if body.get("tier") is not None else request.query_params.get("tier", 3)
+    raw_dur = (
+        body.get("duration_code")
+        or body.get("duration")
+        or request.query_params.get("duration_code")
+        or request.query_params.get("duration")
+    )
+    raw_ttl = body.get("ttl_sec") or body.get("ttl") or request.query_params.get("ttl_sec")
+    ttl_arg: int | None = None
+    if raw_ttl is not None and str(raw_ttl).strip() != "":
+        try:
+            ttl_arg = int(raw_ttl)
+        except (TypeError, ValueError):
+            return JSONResponse({"ok": False, "error": "ttl_sec không hợp lệ."}, status_code=400)
+    guest_name = str(body.get("guest_name") or "")
     try:
         invite = create_invite(
             owner_user_id=session.user_id,
-            tier=body.get("tier", 3),
-            ttl_sec=int(body.get("ttl_sec") or body.get("ttl") or INVITE_TTL_DEFAULT_SEC),
+            tier=tier,
+            ttl_sec=ttl_arg,
+            duration_code=str(raw_dur).strip() if raw_dur is not None and str(raw_dur).strip() else None,
+            guest_name=guest_name,
             host_origin=_request_origin(request),
         )
     except ValueError as exc:
@@ -208,7 +238,20 @@ async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Bo
     public = public_invite_payload(invite, include_token=True)
     public["qr_svg"] = qr_svg
     public["ok"] = True
+    if include_public_guest_path:
+        public["public_guest_path"] = invite["path"]
     return JSONResponse(public)
+
+
+@router.post("/api/auth3/guest_invites")
+@router.post("/api/guest/invites")
+async def api_create_guest_invite(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    return _create_invite_with_owner_pin(
+        request,
+        payload,
+        unauth_error="Chỉ chủ nhà (đã đăng nhập) mới tạo được mã mời khách.",
+        include_public_guest_path=False,
+    )
 
 
 @router.get("/api/auth3/guest_invites")
@@ -243,50 +286,9 @@ async def api_guest_qr_current_compat(request: Request, payload: dict[str, Any] 
     """Tương thích panel chủ nhà cũ: tạo (hoặc trả) mã QR khách cấp 2/3, không lộ URL tĩnh /guest."""
     if request.method == "GET":
         return JSONResponse({"ok": False, "error": "Hãy dùng POST với mã PIN."}, status_code=405)
-    session = resolve_request_session(request, payload=payload)
-    if not _is_owner_session(session):
-        return JSONResponse({"ok": False, "error": "Chỉ chủ nhà (đã đăng nhập) mới tạo được mã QR khách."}, status_code=401)
-    body = payload if isinstance(payload, dict) else {}
-    tier = body.get("tier") or request.query_params.get("tier") or 3
-    ttl = body.get("ttl_sec") or request.query_params.get("ttl_sec") or INVITE_TTL_DEFAULT_SEC
-    body = payload if isinstance(payload, dict) else {}
-    from simulator.auth.owner_pin import pin_status, setup_or_replace_pin, verify_pin
-
-    status = pin_status()
-    pin_val = body.get("pin")
-    pin_confirm = body.get("pin_confirm")
-    if not status.get("pin_set"):
-        if pin_confirm is None or str(pin_confirm).strip() == "":
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "needs_pin_setup": True,
-                    "status_code": 400,
-                    "error": "Hãy đặt mã PIN 4 số lần đầu (nhập hai lần: pin và pin_confirm) rồi tạo mã.",
-                },
-                status_code=400,
-            )
-        setup = setup_or_replace_pin(str(pin_val or ""), str(pin_confirm))
-        if not setup.get("ok"):
-            setup["needs_pin_setup"] = int(setup.get("status_code") or 400) != 409
-            return JSONResponse(setup, status_code=int(setup.get("status_code") or 400))
-    else:
-        checked = verify_pin(str(pin_val or ""))
-        if not checked.get("ok"):
-            return JSONResponse(checked, status_code=int(checked.get("status_code") or 403))
-    try:
-        invite = create_invite(
-            owner_user_id=session.user_id,
-            tier=tier,
-            ttl_sec=int(ttl),
-            host_origin=_request_origin(request),
-        )
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-    qr_svg = invite_qr_svg(invite["url"])
-    public = public_invite_payload(invite, include_token=True)
-    public["qr_svg"] = qr_svg
-    public["ok"] = True
-    # Không trả public_guest_path = "/guest" (đường dẫn tĩnh đã bỏ).
-    public["public_guest_path"] = invite["path"]
-    return JSONResponse(public)
+    return _create_invite_with_owner_pin(
+        request,
+        payload,
+        unauth_error="Chỉ chủ nhà (đã đăng nhập) mới tạo được mã QR khách.",
+        include_public_guest_path=True,
+    )

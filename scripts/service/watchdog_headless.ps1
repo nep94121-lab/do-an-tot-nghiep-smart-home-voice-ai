@@ -23,15 +23,42 @@ if ((Test-Path $wdLog) -and ((Get-Item $wdLog).Length -gt 5242880)) {
     Move-Item -Force -Path $wdLog -Destination "$wdLog.1"
 }
 
-$ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
-$healthy = $false
-try {
-    $resp = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:${Port}/api/health" -TimeoutSec 5
-    if ($resp.StatusCode -eq 200) {
-        $healthy = $true
+function Test-PortHealth {
+    param([int]$CheckPort, [int]$TimeoutSec = 5)
+    try {
+        $resp = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:${CheckPort}/api/health" -TimeoutSec $TimeoutSec
+        return ($resp.StatusCode -eq 200)
+    } catch {
+        return $false
     }
-} catch {
-    $healthy = $false
+}
+
+$ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
+$runners = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object {
+    $_.CommandLine -match '-File\s+["'']?[^"'']*run_server_headless\.ps1' -and $_.CommandLine -match "-Port\s+$Port\b"
+} | Sort-Object CreationDate)
+if ($runners.Count -gt 1) {
+    $extras = @($runners | Select-Object -Skip 1)
+    foreach ($ex in $extras) {
+        Stop-Process -Id $ex.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Add-Content -Path $wdLog -Value "[$ts] Cleanup: stopped $($extras.Count) duplicate runner(s) on port ${Port}." -Encoding UTF8
+}
+
+$healthy = Test-PortHealth -CheckPort $Port -TimeoutSec 5
+if (-not $healthy) {
+    $startingPy = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -match 'uvicorn\s+simulator\.server:app' -and $_.CommandLine -match "--port\s+$Port\b" -and $_.CreationDate -gt (Get-Date).AddSeconds(-40)
+    })
+    if ($startingPy.Count -gt 0) {
+        for ($w = 0; $w -lt 15; $w++) {
+            Start-Sleep -Seconds 2
+            if (Test-PortHealth -CheckPort $Port -TimeoutSec 3) {
+                $healthy = $true
+                break
+            }
+        }
+    }
 }
 
 if (-not $healthy) {
@@ -47,14 +74,12 @@ if (-not $healthy) {
     if ($task) {
         try {
             Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-            Start-Sleep -Seconds 3
-            try {
-                $r2 = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:${Port}/api/health" -TimeoutSec 4
-                if ($r2.StatusCode -eq 200) {
+            for ($w = 0; $w -lt 18; $w++) {
+                Start-Sleep -Seconds 2
+                if (Test-PortHealth -CheckPort $Port -TimeoutSec 3) {
                     $startedViaTask = $true
+                    break
                 }
-            } catch {
-                $startedViaTask = $false
             }
         } catch {
             $startedViaTask = $false

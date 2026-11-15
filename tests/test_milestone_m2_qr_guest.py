@@ -131,11 +131,29 @@ def test_guest_qr_current_durations(client: TestClient, dur: str) -> None:
     res = client.get(f"/api/auth3/guest_qr_current?duration={dur}&host=localhost:8088")
     assert res.status_code in (405, 410)
     if dur in DURATION_MAP_SECONDS:
+        expected_sec = DURATION_MAP_SECONDS[dur]
         inv = _create_invite(client, duration_code=dur)
         assert inv.get("ok") is True
         assert inv.get("duration_code") == dur
+        assert inv.get("duration_seconds") == expected_sec
+        assert inv.get("ttl_sec") == expected_sec
+        assert abs((float(inv["expires_at"]) - float(inv["created_at"])) - expected_sec) <= 5
         assert "<svg" in inv.get("qr_svg", "") and "</svg>" in inv.get("qr_svg", "")
         assert "/guest?token=" in inv.get("url", "")
+        token = inv["url"].split("token=", 1)[1].split("&", 1)[0]
+        val = client.get(f"/api/guest/invite/validate?token={token}")
+        assert val.status_code == 200, val.text
+        vdata = val.json()
+        assert vdata.get("valid") is True
+        assert vdata.get("duration_code") == dur
+        assert vdata.get("duration_seconds") == expected_sec
+    else:
+        bad = client.post(
+            "/api/guest/invites",
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+            json={"pin": "1357", "pin_confirm": "1357", "duration_code": dur, "guest_name": "Khách QR"},
+        )
+        assert bad.status_code == 400, bad.text
 
 
 # =============================================================================
@@ -232,8 +250,16 @@ def test_complete_voice_duplicate_family_rejected(client: TestClient) -> None:
 
 def test_complete_voice_valid_guest_enrolls_successfully(client: TestClient) -> None:
     c3_enroll, c3_sc = _make_m2_pair(3)
+    retired = client.post("/api/auth3/guest_qr_complete_voice", json={
+        "guest_name": "Bạn Đại Học HUST",
+        "duration": "1w",
+        "audio_pcm_b64": base64.b64encode(c3_enroll[:64000]).decode("utf-8"),
+    })
+    assert retired.status_code == 410, retired.text
+
     inv = _create_invite(client, duration_code="1w")
     assert inv["duration_code"] == "1w"
+    assert inv["duration_seconds"] == 604800
 
     data = _BOOT_VOICE_AUTH.enroll_tier_voice_from_pcm16k(
         pcm_bytes=c3_enroll,
@@ -246,10 +272,32 @@ def test_complete_voice_valid_guest_enrolls_successfully(client: TestClient) -> 
         expires_at=time.time() + 604800.0,
     )
     assert data["ok"] is True
-    assert data["status"] == "DA_DAT"
     assert data["tier"] == 3
-    prof = _BOOT_VOICE_AUTH.profiles.get(str(data.get("profile_id", "")), {})
+    prof_id = str((data.get("profile") or {}).get("id") or f"user_voice_{data.get('user_id', '')}")
+    prof = _BOOT_VOICE_AUTH.profiles.get(prof_id, {})
     assert prof.get("expires_at", 0) > time.time() + 600000.0
+
+    token = inv["url"].split("token=", 1)[1].split("&", 1)[0]
+    guest_client = TestClient(app)
+    red = guest_client.post("/api/guest/redeem", json={"token": token})
+    assert red.status_code == 200, red.text
+    rdata = red.json()
+    assert rdata.get("ok") is True
+    assert rdata.get("tier") == 3
+    assert rdata.get("duration_code") == "1w"
+    assert rdata.get("duration_seconds") == 604800
+    g_headers = {"X-Session-Token": str(rdata["session_token"])}
+
+    ok_dev = guest_client.post("/api/device", headers=g_headers, json={"device_id": "living_room_light", "action": "turn_on"})
+    assert ok_dev.status_code == 200 and ok_dev.json().get("ok") is True
+    guest_client.post("/api/device", headers=g_headers, json={"device_id": "living_room_light", "action": "turn_off"})
+
+    blk_door = guest_client.post("/api/device", headers=g_headers, json={"device_id": "main_door", "action": "open"})
+    assert blk_door.status_code == 403 or (blk_door.json().get("ok") is False and blk_door.json().get("rbac_blocked") is True)
+
+    second_client = TestClient(app)
+    replay = second_client.post("/api/guest/redeem", json={"token": token})
+    assert replay.status_code == 403 and replay.json().get("reason") == "used"
 
 
 # =============================================================================

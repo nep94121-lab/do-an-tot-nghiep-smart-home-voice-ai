@@ -70,6 +70,7 @@ def _qr_matrix(data: str) -> list[list[int]]:
 
 
 def public_invite_payload(invite: dict[str, Any], *, include_token: bool = False) -> dict[str, Any]:
+    ttl_sec = invite.get("duration_seconds") or invite.get("ttl_sec")
     out = {
         "ok": bool(invite.get("ok", True)),
         "invite_id": invite.get("invite_id") or invite.get("jti"),
@@ -77,7 +78,11 @@ def public_invite_payload(invite: dict[str, Any], *, include_token: bool = False
         "role": invite.get("role"),
         "created_at": invite.get("created_at"),
         "expires_at": invite.get("expires_at"),
-        "ttl_sec": invite.get("ttl_sec"),
+        "ttl_sec": ttl_sec,
+        "duration_code": invite.get("duration_code") or "",
+        "duration_label": invite.get("duration_label") or "",
+        "duration_seconds": ttl_sec,
+        "guest_name": invite.get("guest_name") or "",
         "revoked": bool(invite.get("revoked")),
     }
     if include_token and invite.get("token"):

@@ -2449,6 +2449,7 @@
   function setOwnerGuestQrInputsDisabled(disabled) {
     const ids = [
       "ownerGuestInviteTier",
+      "ownerGuestInviteDuration",
       "ownerGuestQrPin",
       "ownerGuestQrPinConfirm",
       "ownerGuestQrGenerateBtn",
@@ -2532,6 +2533,10 @@
       } catch (_) {}
     }
     const tier = Number((tierEl && tierEl.value) || 3);
+    const durEl = document.getElementById("ownerGuestInviteDuration");
+    const durationCode = durEl ? String(durEl.value || "1d").trim() : "1d";
+    const durTtlMap = { "10m": 600, "1h": 3600, "1d": 86400, "2d": 172800, "1w": 604800, "1m": 2592000, "1y": 31536000 };
+    const ttlSec = durTtlMap[durationCode] || 86400;
     const pinEl = document.getElementById("ownerGuestQrPin");
     const pinConfirmEl = document.getElementById("ownerGuestQrPinConfirm");
     const pin = pinEl ? String(pinEl.value || "").trim() : "";
@@ -2541,7 +2546,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ tier: tier, ttl_sec: 600, pin: pin, pin_confirm: pinConfirm }),
+        body: JSON.stringify({ tier: tier, duration_code: durationCode, ttl_sec: ttlSec, pin: pin, pin_confirm: pinConfirm }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -2578,12 +2583,16 @@
       const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
       const resolvedTier = Number(data.tier || tier || 3);
       const tierText = resolvedTier === 2 ? "Gia đình (Cấp 2)" : "Khách (Cấp 3)";
+      const durText = String(data.duration_label || data.duration_code || "").trim();
       const exp = data.expires_at ? new Date(Number(data.expires_at) * 1000) : null;
-      const expLabel = exp ? exp.toLocaleTimeString("vi-VN") : "";
+      const expLabel = exp ? exp.toLocaleString("vi-VN", { hour12: false }) : "";
+      const expDisplay = durText
+        ? (expLabel ? (durText + " · Hết hạn " + expLabel) : ("Hiệu lực " + durText))
+        : (expLabel ? ("Hết hạn lúc " + expLabel) : "Hiệu lực 10 phút");
       const inviteUrl = data.url || (data.path ? (window.location.origin + data.path) : "");
       if (revBtn) revBtn.disabled = false;
       if (tierLabelEl) tierLabelEl.textContent = tierText;
-      if (expiryLabelEl) expiryLabelEl.textContent = expLabel ? ("Hết hạn lúc " + expLabel) : "Hiệu lực 10 phút";
+      if (expiryLabelEl) expiryLabelEl.textContent = expDisplay;
       if (linkTextEl) linkTextEl.textContent = inviteUrl;
       if (openLinkEl) {
         openLinkEl.href = inviteUrl || "/guest_guide";
@@ -2592,7 +2601,7 @@
       if (details) details.hidden = false;
       if (badgeEl) badgeEl.textContent = "Đang hiệu lực · Dùng một lần";
       if (meta) {
-        meta.textContent = "Đã tạo mã QR dùng một lần cho " + tierText + (expLabel ? " · Hết hạn lúc " + expLabel : " · Hiệu lực 10 phút") + ".";
+        meta.textContent = "Đã tạo mã QR dùng một lần cho " + tierText + " · " + expDisplay + ".";
       }
     } catch (err) {
       resetOwnerGuestInviteDisplay("Dùng một lần");

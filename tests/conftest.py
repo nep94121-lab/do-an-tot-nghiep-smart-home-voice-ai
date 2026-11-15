@@ -62,7 +62,7 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
     shm_path = DATA_DIR / "smarthome.db-shm"
     store = get_session_store()
 
-    with db_mod._DB_LOCK, store._lock:
+    with store._lock, db_mod._DB_LOCK:
         need_restore = (
             force_exact_bytes
             or not db_path.exists()

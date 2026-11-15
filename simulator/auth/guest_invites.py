@@ -31,12 +31,66 @@ from simulator.auth.session_store import (
 
 INVITE_TTL_DEFAULT_SEC = 600
 INVITE_TTL_MIN_SEC = 60
-INVITE_TTL_MAX_SEC = 86400
+INVITE_TTL_MAX_SEC = 31536000
+INVITE_DURATION_PRESETS: dict[str, tuple[int, str]] = {
+    "10m": (600, "10 phút"),
+    "1h": (3600, "1 giờ"),
+    "1d": (86400, "1 ngày"),
+    "2d": (172800, "2 ngày"),
+    "3d": (259200, "3 ngày"),
+    "1w": (604800, "1 tuần"),
+    "7d": (604800, "7 ngày"),
+    "1m": (2592000, "1 tháng"),
+    "30d": (2592000, "30 ngày"),
+    "1y": (31536000, "1 năm"),
+    "365d": (31536000, "1 năm"),
+}
+_TTL_TO_CODE_LABEL: dict[int, tuple[str, str]] = {
+    600: ("10m", "10 phút"),
+    3600: ("1h", "1 giờ"),
+    86400: ("1d", "1 ngày"),
+    172800: ("2d", "2 ngày"),
+    259200: ("3d", "3 ngày"),
+    604800: ("1w", "1 tuần"),
+    2592000: ("1m", "1 tháng"),
+    31536000: ("1y", "1 năm"),
+}
 _INVITE_PREFIX = "inv_"
 _LOCK = threading.RLock()
 _CACHE: dict[str, dict[str, Any]] | None = None
 _CACHE_DIR: str | None = None
 _ROLES = {2: "MEMBER", 3: "CHILD_GUEST"}
+
+
+def resolve_invite_duration(
+    duration_code: str | None = None,
+    ttl_sec: int | None = None,
+) -> tuple[str, str, int]:
+    """Chuẩn hóa duration_code (1d/2d/1w/1m/1y/10m/1h/3d/7d/30d/365d) và ttl_sec."""
+    code_raw = str(duration_code or "").strip().lower()
+    if code_raw:
+        if code_raw not in INVITE_DURATION_PRESETS:
+            raise ValueError(
+                "Thời hạn mã mời không hợp lệ (hỗ trợ: 10m, 1h, 1d, 2d, 1w, 1m, 1y)."
+            )
+        preset_ttl, label = INVITE_DURATION_PRESETS[code_raw]
+        ttl = int(ttl_sec) if ttl_sec is not None else preset_ttl
+        ttl = max(INVITE_TTL_MIN_SEC, min(INVITE_TTL_MAX_SEC, ttl))
+        canonical_code = {"7d": "1w", "30d": "1m", "365d": "1y"}.get(code_raw, code_raw)
+        return canonical_code, label, ttl
+
+    raw_ttl = int(INVITE_TTL_DEFAULT_SEC if ttl_sec is None else ttl_sec)
+    ttl = max(INVITE_TTL_MIN_SEC, min(INVITE_TTL_MAX_SEC, raw_ttl))
+    if ttl in _TTL_TO_CODE_LABEL:
+        return _TTL_TO_CODE_LABEL[ttl][0], _TTL_TO_CODE_LABEL[ttl][1], ttl
+    if ttl % 86400 == 0:
+        days = ttl // 86400
+        return f"{days}d", f"{days} ngày", ttl
+    if ttl % 3600 == 0:
+        hours = ttl // 3600
+        return f"{hours}h", f"{hours} giờ", ttl
+    mins = max(1, ttl // 60)
+    return f"{mins}m", f"{mins} phút", ttl
 
 
 def _data_dir():
@@ -143,14 +197,16 @@ def create_invite(
     *,
     owner_user_id: str,
     tier: int,
-    ttl_sec: int = INVITE_TTL_DEFAULT_SEC,
+    ttl_sec: int | None = None,
+    duration_code: str | None = None,
+    guest_name: str = "",
     host_origin: str = "",
 ) -> dict[str, Any]:
     guest_tier = normalize_guest_tier(tier)
     if guest_tier is None:
         raise ValueError("Cấp khách chỉ được phép là 2 hoặc 3.")
-    ttl = int(ttl_sec or INVITE_TTL_DEFAULT_SEC)
-    ttl = max(INVITE_TTL_MIN_SEC, min(INVITE_TTL_MAX_SEC, ttl))
+    dur_code, dur_label, ttl = resolve_invite_duration(duration_code=duration_code, ttl_sec=ttl_sec)
+    clean_guest_name = str(guest_name or "").strip()[:80]
     now = time.time()
     jti = secrets.token_hex(12)
     expires_at = now + ttl
@@ -162,6 +218,7 @@ def create_invite(
             "c": round(now, 3),
             "x": round(expires_at, 3),
             "o": str(owner_user_id or ""),
+            "d": dur_code,
         }
     )
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -170,6 +227,12 @@ def create_invite(
         "token_hash": token_hash,
         "tier": guest_tier,
         "role": _ROLES[guest_tier],
+        "duration_code": dur_code,
+        "duration_label": dur_label,
+        "duration_seconds": ttl,
+        "ttl_sec": ttl,
+        "guest_name": clean_guest_name,
+        "label": clean_guest_name or dur_label,
         "created_at": now,
         "expires_at": expires_at,
         "revoked": False,
@@ -190,9 +253,13 @@ def create_invite(
         "token": token,
         "tier": guest_tier,
         "role": _ROLES[guest_tier],
+        "duration_code": dur_code,
+        "duration_label": dur_label,
+        "duration_seconds": ttl,
+        "ttl_sec": ttl,
+        "guest_name": clean_guest_name,
         "created_at": now,
         "expires_at": expires_at,
-        "ttl_sec": ttl,
         "path": path,
         "url": url,
         "revoked": False,
@@ -307,6 +374,15 @@ def inspect_token(token: str, *, existing_session: Any | None = None) -> dict[st
             "error": "Mã QR đã được sử dụng.",
         }
     tier = int(record.get("tier") or payload.get("t") or 3)
+    dur_code = str(record.get("duration_code") or payload.get("d") or "").strip()
+    dur_label = str(record.get("duration_label") or "").strip()
+    dur_sec = int(record.get("duration_seconds") or record.get("ttl_sec") or 0) or max(
+        60, int(expires_at - float(record.get("created_at") or now))
+    )
+    if not dur_code or not dur_label:
+        c2, l2, _ = resolve_invite_duration(duration_code=dur_code or None, ttl_sec=dur_sec)
+        dur_code = dur_code or c2
+        dur_label = dur_label or l2
     return {
         "ok": True,
         "valid": True,
@@ -314,6 +390,10 @@ def inspect_token(token: str, *, existing_session: Any | None = None) -> dict[st
         "invite_id": jti,
         "tier": tier,
         "role": str(record.get("role") or _ROLES.get(tier, "CHILD_GUEST")),
+        "duration_code": dur_code,
+        "duration_label": dur_label,
+        "duration_seconds": dur_sec,
+        "guest_name": str(record.get("guest_name") or "").strip(),
         "expires_at": expires_at,
         "ttl_remaining_sec": max(0, int(expires_at - now)),
     }
@@ -360,6 +440,15 @@ def _claim_invite_redemption(token: str) -> dict[str, Any]:
         data[jti] = record
         _save(data)
     tier = int(record.get("tier") or payload.get("t") or 3)
+    dur_code = str(record.get("duration_code") or payload.get("d") or "").strip()
+    dur_label = str(record.get("duration_label") or "").strip()
+    dur_sec = int(record.get("duration_seconds") or record.get("ttl_sec") or 0) or max(
+        60, int(expires_at - float(record.get("created_at") or now))
+    )
+    if not dur_code or not dur_label:
+        c2, l2, _ = resolve_invite_duration(duration_code=dur_code or None, ttl_sec=dur_sec)
+        dur_code = dur_code or c2
+        dur_label = dur_label or l2
     return {
         "ok": True,
         "valid": True,
@@ -367,6 +456,10 @@ def _claim_invite_redemption(token: str) -> dict[str, Any]:
         "invite_id": jti,
         "tier": tier,
         "role": str(record.get("role") or _ROLES.get(tier, "CHILD_GUEST")),
+        "duration_code": dur_code,
+        "duration_label": dur_label,
+        "duration_seconds": dur_sec,
+        "guest_name": str(record.get("guest_name") or "").strip(),
         "expires_at": expires_at,
         "ttl_remaining_sec": max(0, int(expires_at - now)),
     }
@@ -408,9 +501,10 @@ def redeem_token(
     if not checked.get("valid"):
         return checked
     jti = str(checked["invite_id"])
+    guest_display = str(checked.get("guest_name") or "").strip() or f"Guest tier {checked['tier']}"
     try:
         session = (store or get_session_store()).create_session(
-            user_id=f"guest_{jti[:12]}", email="", display_name=f"Guest tier {checked['tier']}",
+            user_id=f"guest_{jti[:12]}", email="", display_name=guest_display,
             tier=int(checked["tier"]), role=str(checked["role"]),
             ttl_sec=max(1, int(checked["expires_at"] - time.time())), source=f"guest_invite:{jti}",
         )

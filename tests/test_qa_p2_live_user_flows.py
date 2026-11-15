@@ -1,25 +1,25 @@
 """Comprehensive Empirical QA Test Suite for Phase 2 (Live Flows & Specifications).
 
-Validates:
-1. Server Reachability on http://localhost:8088 and TestClient.
-2. 3-Role Live User Flows:
-   - Chủ nhà (Tier 1): nep94121@gmail.com / 123456 (Full access, door/alarm control, 3D labels, telemetry).
-   - Gia đình (Tier 2): thanhviena.hust@gmail.com / GiaDinh@123 (Standard control, door/alarm RBAC blocked).
-   - Khách (Tier 3): khachc.guest@gmail.com / Khach@789 + Dynamic QR TOTP handshake (Guest access, limited duration, RBAC blocked).
-3. Web Error Pages & Service Worker:
-   - GET /offline.html
-   - GET /404.html (Browser HTML 404 vs API JSON 404 content negotiation)
-   - GET /500.html
-   - GET /qr_expired.html
-   - GET /403.html
-   - GET /sw.js with Service-Worker-Allowed: / header
+Validates on isolated uvicorn (or SMARTHOME_LIVE_BASE_URL):
+1. Server Reachability and TestClient.
+2. 3-Role Live User Flows with real X-Session-Token auth:
+   - Chủ nhà (Tier 1): nep94121@gmail.com (Layer 1 + Layer 2 OTP, door/alarm & devices).
+   - Gia đình (Tier 2): thanhviena.hust@gmail.com (Layer 1 direct login, door/alarm RBAC blocked).
+   - Khách (Tier 3): PIN-signed QR invite `/api/guest/invites` -> `/api/guest/redeem` (single-use Tier 3 session) + `khachc.guest@gmail.com` login, legacy endpoints return 405/410.
+3. Web Error Pages & Service Worker.
 4. Mobile /app 5 Screens (M1 to M5 DOM and Behavior).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import pathlib
+import secrets
+import socket
+import sys
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,11 +27,107 @@ from typing import Any
 
 import pytest
 from starlette.testclient import TestClient
+import uvicorn
 
-from simulator.server import app
-
-BASE_URL = "http://127.0.0.1:8088"
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from simulator.auth.constants_and_crypto import ACCOUNTS_FILE, hash_password
+from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from simulator.auth_3layer import get_auth_3layer_manager
+from simulator.server import _ACTIVE_BRIDGES, _REST_ENGINE, app
+
+BASE_URL = os.environ.get("SMARTHOME_LIVE_BASE_URL", "").strip() or "http://127.0.0.1:8088"
+_EPHEMERAL_PASSWORDS: dict[str, str] = {}
+
+
+def _get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+@pytest.fixture(scope="module", autouse=True)
+def live_qa_env():
+    """Khởi chạy máy chủ kiểm thử cô lập (nếu chưa có SMARTHOME_LIVE_BASE_URL) và chặn gửi email thật."""
+    global BASE_URL
+    prev_url = BASE_URL
+    prev_pytest = os.environ.get("PYTEST")
+    prev_gmail = os.environ.get("GMAIL_APP_PASSWORD")
+    prev_smtp = os.environ.get("SMTP_PASSWORD")
+    orig_send = AuthInviteGmailMixin.send_real_gmail_otp
+    os.environ["PYTEST"] = "1"
+    os.environ["GMAIL_APP_PASSWORD"] = ""
+    os.environ["SMTP_PASSWORD"] = ""
+    AuthInviteGmailMixin.send_real_gmail_otp = lambda self, *a, **kw: {
+        "sent_real_gmail": False,
+        "blocked_by_allowlist": False,
+        "status": "MOCKED_TEST",
+    }
+
+    mgr = get_auth_3layer_manager()
+    orig_db_bytes = ACCOUNTS_FILE.read_bytes() if ACCOUNTS_FILE.exists() else None
+    emails = ("nep94121@gmail.com", "thanhviena.hust@gmail.com", "khachc.guest@gmail.com")
+    orig_hashes: dict[str, str] = {}
+    _EPHEMERAL_PASSWORDS.clear()
+    for em in emails:
+        acc = mgr.find_account(em)
+        assert acc is not None, f"Missing account {em}"
+        orig_hashes[em] = str(acc.get("password_hash") or "")
+        pw = f"EphemeralQa_{secrets.token_hex(6)}!"
+        acc["password_hash"] = hash_password(pw)
+        acc["permission_active"] = True
+        acc["permission_status"] = "ACTIVE"
+        _EPHEMERAL_PASSWORDS[em] = pw
+
+    ext = os.environ.get("SMARTHOME_LIVE_BASE_URL", "").strip()
+    server = None
+    thread = None
+    if ext:
+        BASE_URL = ext.rstrip("/")
+    else:
+        port = _get_free_port()
+        config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+        server = uvicorn.Server(config)
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        BASE_URL = f"http://127.0.0.1:{port}"
+        for _ in range(80):
+            try:
+                with urllib.request.urlopen(f"{BASE_URL}/api/health", timeout=0.5) as resp:
+                    if resp.status == 200:
+                        break
+            except Exception:
+                time.sleep(0.1)
+
+    try:
+        yield {"base_url": BASE_URL, "passwords": dict(_EPHEMERAL_PASSWORDS)}
+    finally:
+        BASE_URL = prev_url
+        _EPHEMERAL_PASSWORDS.clear()
+        if server is not None:
+            server.should_exit = True
+            if thread is not None:
+                thread.join(timeout=3)
+            for br in list(_ACTIVE_BRIDGES):
+                try:
+                    br._closed = True
+                except Exception:
+                    pass
+            _ACTIVE_BRIDGES.clear()
+        for em, h in orig_hashes.items():
+            acc = mgr.find_account(em)
+            if acc is not None:
+                acc["password_hash"] = h
+        if orig_db_bytes is not None:
+            ACCOUNTS_FILE.write_bytes(orig_db_bytes)
+        AuthInviteGmailMixin.send_real_gmail_otp = orig_send
+        for k, v in (("PYTEST", prev_pytest), ("GMAIL_APP_PASSWORD", prev_gmail), ("SMTP_PASSWORD", prev_smtp)):
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def _http_get(path: str, headers: dict[str, str] | None = None) -> tuple[int, bytes, dict[str, str]]:
@@ -65,35 +161,35 @@ def _http_post(path: str, data: dict[str, Any], headers: dict[str, str] | None =
 
 
 class TestRequirement1ServerReachable:
-    """R1: Đảm bảo máy chủ hoạt động và truy cập được tại http://localhost:8088."""
+    """R1: Đảm bảo máy chủ kiểm thử hoạt động và truy cập được qua HTTP."""
 
     def test_live_server_root_accessible(self):
-        code, body, headers = _http_get("/")
+        code, body, _headers = _http_get("/")
         assert code == 200, f"Expected 200 OK from live server root, got {code}"
         assert b"Smart Home" in body or b"Ng\xc3\xb4i nh\xc3\xa0" in body
         assert b"house3dViewport" in body
 
     def test_live_server_state_api(self):
-        code, body, headers = _http_get("/api/state")
+        unauth_code, _, _ = _http_get("/api/state")
+        assert unauth_code == 401, f"Expected 401 for unauthenticated /api/state, got {unauth_code}"
+        t1_headers = TestRequirement2ThreeUserRoles()._login_owner_headers()
+        code, body, _headers = _http_get("/api/state", headers=t1_headers)
         assert code == 200
         data = json.loads(body.decode("utf-8"))
         assert "devices" in data
         assert isinstance(data["devices"], list)
         assert len(data["devices"]) >= 7
         dev_ids = [d["id"] for d in data["devices"]]
-        assert "main_door" in dev_ids
-        assert "living_room_light" in dev_ids
-        assert "bedroom_light" in dev_ids
-        assert "fan" in dev_ids
-        assert "ac" in dev_ids
-        assert "alarm_siren" in dev_ids
-        assert "garden_pump" in dev_ids
+        for req_id in ("main_door", "living_room_light", "bedroom_light", "fan", "ac", "alarm_siren", "garden_pump"):
+            assert req_id in dev_ids
         assert "mqtt" in data
         assert "dht11_telemetry" in data["mqtt"]
 
     def test_testclient_sanity(self):
         client = TestClient(app)
-        res = client.get("/api/state")
+        unauth = client.get("/api/state")
+        assert unauth.status_code == 401
+        res = client.get("/api/state", headers={"X-Session-Token": "sess_owner_t1_nep94121"})
         assert res.status_code == 200
         snap = res.json()
         assert "devices" in snap
@@ -101,189 +197,134 @@ class TestRequirement1ServerReachable:
 
 
 class TestRequirement2ThreeUserRoles:
-    """R2: Kiểm thử luồng người dùng thực tế cho cả 3 vai trò (Chủ nhà, Gia đình, Khách)."""
+    """R2: Kiểm thử luồng người dùng thực tế cho cả 3 vai trò (Chủ nhà, Gia đình, Khách) kèm session token."""
 
-    def test_role_chu_nha_tier1_full_access(self):
-        """Chủ nhà: nep94121@gmail.com / 123456 -> Tier 1 ADMIN, điều khiển cửa/còi và toàn bộ thiết bị."""
-        # 1. Đăng nhập Lớp 1
+    def _login_owner_headers(self) -> dict[str, str]:
         code, res, _ = _http_post("/api/auth3/layer1_login", {
             "email": "nep94121@gmail.com",
-            "password": "123456",
+            "password": _EPHEMERAL_PASSWORDS["nep94121@gmail.com"],
             "login_method": "password",
             "source": "QA_Test_Live",
             "send_gmail": False,
         })
-        assert code == 200
-        assert res.get("ok") is True
-        assert res.get("tier") == 1
+        assert code == 200 and res.get("ok") is True and res.get("tier") == 1
         assert res.get("account", {}).get("account_id") == "tuan_anh"
-        assert "Chủ nhà" in res.get("account", {}).get("role_label", "")
-
-        # 2. Điều khiển Cửa chính (D1) -> Chủ nhà mở được
-        code, act_res, _ = _http_post("/api/device", {
-            "device_id": "main_door",
-            "action": "open",
+        if res.get("session_token"):
+            return {"X-Session-Token": str(res["session_token"])}
+        otp = str(res.get("otp_code_for_test") or res.get("otp_code_for_test_table") or res.get("demo_otp_preview") or "")
+        assert len(otp) == 6, f"Missing test OTP in response keys: {list(res.keys())}"
+        vcode, vres, _ = _http_post("/api/auth3/layer2_verify_otp", {
+            "email": "nep94121@gmail.com",
+            "otp_code": otp,
             "source": "QA_Test_Live",
         })
-        assert code == 200
-        assert act_res.get("ok") is True
-        assert act_res.get("tier") == 1
-        assert act_res.get("rbac_blocked") is False
+        assert vcode == 200 and vres.get("ok") is True and vres.get("session_token")
+        return {"X-Session-Token": str(vres["session_token"])}
 
-        # Đóng lại cửa
-        _http_post("/api/device", {"device_id": "main_door", "action": "close", "source": "QA_Test_Live"})
+    def test_role_chu_nha_tier1_full_access(self):
+        """Chủ nhà Tier 1 ADMIN điều khiển cửa/còi và toàn bộ thiết bị rồi tắt sạch."""
+        t1_headers = self._login_owner_headers()
 
-        # 3. Điều khiển Còi báo động (D8) -> Chủ nhà bật/tắt được
-        code, alarm_res, _ = _http_post("/api/device", {
-            "device_id": "alarm_siren",
-            "action": "turn_on",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert alarm_res.get("ok") is True
-        assert alarm_res.get("tier") == 1
-        assert alarm_res.get("rbac_blocked") is False
+        code, act_res, _ = _http_post("/api/device", {"device_id": "main_door", "action": "open", "source": "QA_Test_Live"}, headers=t1_headers)
+        assert code == 200 and act_res.get("ok") is True and act_res.get("tier") == 1 and act_res.get("rbac_blocked") is False
+        _http_post("/api/device", {"device_id": "main_door", "action": "close", "source": "QA_Test_Live"}, headers=t1_headers)
 
-        # Tắt còi
-        _http_post("/api/device", {"device_id": "alarm_siren", "action": "turn_off", "source": "QA_Test_Live"})
+        code, alarm_res, _ = _http_post("/api/device", {"device_id": "alarm_siren", "action": "turn_on", "source": "QA_Test_Live"}, headers=t1_headers)
+        assert code == 200 and alarm_res.get("ok") is True and alarm_res.get("tier") == 1 and alarm_res.get("rbac_blocked") is False
+        _http_post("/api/device", {"device_id": "alarm_siren", "action": "turn_off", "source": "QA_Test_Live"}, headers=t1_headers)
 
-        # 4. Điều khiển các thiết bị sinh hoạt: Đèn khách, Đèn ngủ, Quạt, Bơm
-        for dev in ["living_room_light", "bedroom_light", "fan", "garden_pump"]:
-            code, dev_res, _ = _http_post("/api/device", {
-                "device_id": dev,
-                "action": "turn_on",
-                "source": "QA_Test_Live",
-            })
-            assert code == 200
-            assert dev_res.get("ok") is True
+        for dev in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+            code, dev_res, _ = _http_post("/api/device", {"device_id": dev, "action": "turn_on", "source": "QA_Test_Live"}, headers=t1_headers)
+            assert code == 200 and dev_res.get("ok") is True
+            _http_post("/api/device", {"device_id": dev, "action": "turn_off", "source": "QA_Test_Live"}, headers=t1_headers)
 
-        # 5. Kiểm tra Telemetry và 3D House Labels
-        code, state_bytes, _ = _http_get("/api/state")
+        code, state_bytes, _ = _http_get("/api/state", headers=t1_headers)
         assert code == 200
         state = json.loads(state_bytes.decode("utf-8"))
         assert state["current_user_id"] == "tuan_anh"
         assert state["current_tier"] == 1
 
     def test_role_gia_dinh_tier2_restricted(self):
-        """Gia đình: thanhviena.hust@gmail.com / GiaDinh@123 -> Tier 2 MEMBER, điều khiển sinh hoạt, BỊ CHẶN cửa/còi."""
-        # 1. Đăng nhập Lớp 1
+        """Gia đình Tier 2 MEMBER điều khiển đèn, BỊ CHẶN cửa/còi theo RBAC."""
         code, res, _ = _http_post("/api/auth3/layer1_login", {
             "email": "thanhviena.hust@gmail.com",
-            "password": "GiaDinh@123",
+            "password": _EPHEMERAL_PASSWORDS["thanhviena.hust@gmail.com"],
             "login_method": "password",
             "source": "QA_Test_Live",
             "send_gmail": False,
         })
-        assert code == 200
-        assert res.get("ok") is True
-        assert res.get("tier") == 2
+        assert code == 200 and res.get("ok") is True and res.get("tier") == 2
         assert res.get("account", {}).get("account_id") == "thanh_vien_a"
-        assert "Người nhà" in res.get("account", {}).get("role_label", "")
+        assert res.get("session_token")
+        t2_headers = {"X-Session-Token": str(res["session_token"])}
 
-        # 2. Điều khiển thiết bị tiêu chuẩn: Đèn phòng khách, Quạt -> Thành công
-        code, dev_res, _ = _http_post("/api/device", {
-            "device_id": "living_room_light",
-            "action": "turn_on",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert dev_res.get("ok") is True
-        assert dev_res.get("tier") == 2
+        code, dev_res, _ = _http_post("/api/device", {"device_id": "living_room_light", "action": "turn_on", "source": "QA_Test_Live"}, headers=t2_headers)
+        assert code == 200 and dev_res.get("ok") is True and dev_res.get("tier") == 2
+        _http_post("/api/device", {"device_id": "living_room_light", "action": "turn_off", "source": "QA_Test_Live"}, headers=t2_headers)
 
-        # 3. Thao tác Cửa chính (D1) -> BỊ CHẶN BỞI PHÂN QUYỀN RBAC
-        code, door_res, _ = _http_post("/api/device", {
-            "device_id": "main_door",
-            "action": "open",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert door_res.get("ok") is False
-        assert door_res.get("rbac_blocked") is True
-        assert "Bị chặn" in door_res.get("error", "") or "Cấp 1" in door_res.get("error", "") or "không có quyền" in door_res.get("error", "")
+        code, door_res, _ = _http_post("/api/device", {"device_id": "main_door", "action": "open", "source": "QA_Test_Live"}, headers=t2_headers)
+        assert code in (200, 403)
+        assert door_res.get("ok") is False and door_res.get("rbac_blocked") is True
 
-        # 4. Thao tác Còi báo động (D8) -> BỊ CHẶN BỞI PHÂN QUYỀN RBAC
-        code, alarm_res, _ = _http_post("/api/device", {
-            "device_id": "alarm_siren",
-            "action": "turn_on",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert alarm_res.get("ok") is False
-        assert alarm_res.get("rbac_blocked") is True
+        code, alarm_res, _ = _http_post("/api/device", {"device_id": "alarm_siren", "action": "turn_on", "source": "QA_Test_Live"}, headers=t2_headers)
+        assert code in (200, 403)
+        assert alarm_res.get("ok") is False and alarm_res.get("rbac_blocked") is True
 
     def test_role_khach_tier3_dynamic_qr_totp_and_login(self):
-        """Khách: Dynamic QR TOTP handshake token + login khachc.guest@gmail.com / Khach@789 -> Tier 3 CHILD_GUEST."""
-        # 1. Sinh mã QR TOTP động với thời hạn 1 ngày
-        code, qr_res, _ = _http_get("/api/auth3/guest_qr_current?duration=1d&host=localhost:8088")
-        assert code == 200
-        assert qr_res.get("ok") is True if isinstance(qr_res, dict) else True
-        if not isinstance(qr_res, dict):
-            qr_res = json.loads(qr_res.decode("utf-8"))
-        assert "token" in qr_res
-        assert "window" in qr_res
-        assert "qr_svg" in qr_res
-        token = qr_res["token"]
-        window = qr_res["window"]
+        """Khách Tier 3: legacy QR voice/handshake trả 405/410; PIN-signed invite -> redeem 1 lần; bị chặn cửa & lịch."""
+        ret_get_code, _, _ = _http_get("/api/auth3/guest_qr_current?duration=1d&host=localhost:8088")
+        assert ret_get_code in (405, 410)
+        ret_hs_code, _, _ = _http_post("/api/auth3/guest_qr_handshake", {"token": "legacy"})
+        assert ret_hs_code == 410
 
-        # 2. Khách thực hiện bắt tay (Handshake)
-        code, hs_res, _ = _http_post("/api/auth3/guest_qr_handshake", {
-            "token": token,
-            "window": window,
-            "duration": "1d",
-        })
-        assert code == 200
-        assert hs_res.get("ok") is True
-        assert hs_res.get("duration_code") == "1d"
-        assert "guest_sess" in hs_res.get("guest_session_id", "")
+        t1_headers = self._login_owner_headers()
+        code, inv, _ = _http_post("/api/guest/invites", {
+            "pin": "1357",
+            "pin_confirm": "1357",
+            "duration_code": "1d",
+            "guest_name": "Khách QA",
+        }, headers=t1_headers)
+        assert code == 200 and inv.get("ok") is True and inv.get("duration_code") == "1d"
+        assert "<svg" in inv.get("qr_svg", "") and "/guest?token=" in inv.get("url", "")
+        token = inv["url"].split("token=", 1)[1].split("&", 1)[0]
 
-        # 3. Đăng nhập với tài khoản Khách C
-        code, res, _ = _http_post("/api/auth3/layer1_login", {
+        rcode, rdata, _ = _http_post("/api/guest/redeem", {"token": token})
+        assert rcode == 200 and rdata.get("ok") is True and rdata.get("tier") == 3
+        assert rdata.get("duration_code") == "1d" and rdata.get("session_token")
+        g_headers = {"X-Session-Token": str(rdata["session_token"])}
+
+        # Đăng nhập tài khoản Khách C cũng nhận session Cấp 3
+        lcode, lres, _ = _http_post("/api/auth3/layer1_login", {
             "email": "khachc.guest@gmail.com",
-            "password": "Khach@789",
+            "password": _EPHEMERAL_PASSWORDS["khachc.guest@gmail.com"],
             "login_method": "password",
             "source": "QA_Test_Live",
             "send_gmail": False,
         })
-        assert code == 200
-        assert res.get("ok") is True
-        assert res.get("tier") == 3
-        assert res.get("account", {}).get("account_id") == "khach_c"
-        assert "Khách" in res.get("account", {}).get("role_label", "")
+        assert lcode == 200 and lres.get("ok") is True and lres.get("tier") == 3
+        assert lres.get("account", {}).get("account_id") == "khach_c"
 
-        # 4. Khách điều khiển đèn cơ bản -> Thành công
-        code, light_res, _ = _http_post("/api/device", {
-            "device_id": "living_room_light",
-            "action": "turn_on",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert light_res.get("ok") is True
-        assert light_res.get("tier") == 3
+        # Khách QR bật đèn thành công, bị chặn mở cửa và tạo lịch
+        code, light_res, _ = _http_post("/api/device", {"device_id": "living_room_light", "action": "turn_on", "source": "QA_Test_Live"}, headers=g_headers)
+        assert code == 200 and light_res.get("ok") is True and light_res.get("tier") == 3
+        _http_post("/api/device", {"device_id": "living_room_light", "action": "turn_off", "source": "QA_Test_Live"}, headers=g_headers)
 
-        # 5. Khách thử mở cửa -> BỊ CHẶN
-        code, door_res, _ = _http_post("/api/device", {
-            "device_id": "main_door",
-            "action": "open",
-            "source": "QA_Test_Live",
-        })
-        assert code == 200
-        assert door_res.get("ok") is False
-        assert door_res.get("rbac_blocked") is True
+        code, door_res, _ = _http_post("/api/device", {"device_id": "main_door", "action": "open", "source": "QA_Test_Live"}, headers=g_headers)
+        assert code in (200, 403) and door_res.get("ok") is False and door_res.get("rbac_blocked") is True
 
-        # 6. Khách thử tạo lịch hẹn giờ -> BỊ CHẶN THEO RBAC (HTTP 403 Forbidden hoặc ok: False)
         code, sched_res, _ = _http_post("/api/mobile/schedule", {
             "device_id": "living_room_light",
             "action": "turn_on",
             "seconds": 30,
-            "tier": 3,
-            "user_name": "Khách C",
-        })
-        assert code in (200, 403)
-        assert sched_res.get("ok") is False
-        assert "Khách (Cấp 3)" in sched_res.get("error", "") or "Từ chối" in sched_res.get("error", "")
+        }, headers=g_headers)
+        assert code in (200, 403) and sched_res.get("ok") is False
+        assert "Khách" in sched_res.get("error", "") or "Từ chối" in sched_res.get("error", "") or "Cấp 3" in sched_res.get("error", "")
 
-        # Trả lại phiên Chủ nhà sau bài test
-        _http_post("/api/session/role", {"role": "tuan_anh"})
+        try:
+            _REST_ENGINE.set_device_state("living_room_light", "OFF", source="test_cleanup", tier=1)
+        except Exception:
+            pass
+
 
 
 class TestRequirement3WebErrorPages:

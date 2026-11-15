@@ -105,9 +105,14 @@ def test_c3_guest_is_forbidden_from_adding_anyone(auth_mgr: ThreeLayerAuthManage
 # ============================================================================
 
 
-def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLayerAuthManager) -> None:
-    """Tài khoản allowlist đăng nhập 2 lớp (P0 bỏ ép giọng trang đầu): voice_verified=False, needs_first_page_voice_enroll=False."""
+def test_allowlisted_account_requires_first_page_voice_enroll(
+    auth_mgr: ThreeLayerAuthManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P0: Tài khoản Cấp 2 allowlist hoàn tất đăng nhập ngay ở Lớp 1 (không OTP, không ép thu âm trang đầu); API thu âm cũ trả 410."""
     import secrets
+    from fastapi.testclient import TestClient
+    from simulator.server import app
 
     target_email = "tan_binh_gia_dinh@gmail.com"
     add_res = auth_mgr.add_family_email("tuan_anh", target_email, 2)
@@ -120,15 +125,35 @@ def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLay
     l1_res = auth_mgr.layer1_login(target_email, ephemeral_pw, login_method="password")
     assert l1_res["ok"] is True
     assert l1_res["tier"] == 2
-    assert l1_res["account"]["voice_verified"] is False
+    assert l1_res["authenticated"] is True
+    assert l1_res["otp_required"] is False
+    assert l1_res["account"]["permission_active"] is True
+    acc_saved = auth_mgr.find_account(target_email)
+    assert acc_saved is not None and acc_saved.get("needs_first_page_voice_enroll") is False
 
-    # Xác thực Lớp 2 với OTP (P0: đăng nhập 2 lớp hoàn tất, không ép thu âm trang đầu)
-    otp = l1_res["otp_code_for_test_table"]
-    l2_res = auth_mgr.layer2_verify_otp(target_email, otp)
-    assert l2_res["ok"] is True
-    assert l2_res["tier"] == 2
-    assert l2_res["voice_verified"] is False
-    assert l2_res["needs_first_page_voice_enroll"] is False
+    # Kiểm chứng HTTP routes trên TestClient gắn cùng auth_mgr
+    monkeypatch.setattr("simulator.api.routes_auth.get_auth_3layer_manager", lambda: auth_mgr)
+    client = TestClient(app)
+    retired = client.post("/api/auth3/enroll_voice_sample", json={"email": target_email, "audio_pcm_b64": ""})
+    assert retired.status_code == 410, retired.text
+
+    http_l1 = client.post("/api/auth3/layer1_login", json={
+        "email": target_email,
+        "password": ephemeral_pw,
+        "login_method": "password",
+        "send_gmail": False,
+    })
+    assert http_l1.status_code == 200, http_l1.text
+    hdata = http_l1.json()
+    assert hdata["ok"] is True and hdata["tier"] == 2 and hdata.get("session_token")
+    t2_headers = {"X-Session-Token": str(hdata["session_token"])}
+
+    ok_dev = client.post("/api/device", headers=t2_headers, json={"device_id": "living_room_light", "action": "turn_on"})
+    assert ok_dev.status_code == 200 and ok_dev.json().get("ok") is True
+    client.post("/api/device", headers=t2_headers, json={"device_id": "living_room_light", "action": "turn_off"})
+
+    blk_door = client.post("/api/device", headers=t2_headers, json={"device_id": "main_door", "action": "open"})
+    assert blk_door.status_code == 403 or (blk_door.json().get("ok") is False and blk_door.json().get("rbac_blocked") is True)
 
 
 # ============================================================================
