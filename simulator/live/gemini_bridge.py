@@ -682,12 +682,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         try:
             if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
                 return
-            try:
-                await self.gemini_session.send_realtime_input(audio_stream_end=True)
-                return
-            except Exception:
-                pass
-            for _ in range(3):
+            for _ in range(8):
                 if self._closed or self.gemini_session is None:
                     break
                 if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
