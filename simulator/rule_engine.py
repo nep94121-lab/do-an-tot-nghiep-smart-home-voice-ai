@@ -1096,6 +1096,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     except Exception:
                         pass
 
+            for ev in emit_buf:
+                if ev.get("type") == "device_updated":
+                    await self.emit(ev)
+
             for m_kw in mqtt_buf:
                 await self.mqtt_bridge.publish_actuate_command(**m_kw)
 
@@ -1113,6 +1117,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     last_result["revision_ts_ns"] = root._last_synced_ts_ns
 
             for ev in emit_buf:
+                if ev.get("type") == "device_updated":
+                    continue
                 if ev.get("type") == "state_snapshot" and fresh_snap is not None:
                     ev = {**ev, "snapshot": fresh_snap}
                 await self.emit(ev)
@@ -1861,10 +1867,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         # Luật liên kết lưu trong SQLite (`automation_rules`) với giới hạn độ sâu chống vòng lặp
         try:
             from simulator.auth.tier_permissions import can_control_device
-            from simulator.automation_repo import list_automation_rules
+            from simulator.automation_repo import get_automation_snapshot_bundle
 
+            _, rules_cached, _ = get_automation_snapshot_bundle()
             db_rules = sorted(
-                list_automation_rules(include_disabled=False),
+                rules_cached,
                 key=lambda r: int(r.get("owner_tier") or 1),
             )
         except Exception:

@@ -153,7 +153,7 @@ _AUTOMATION_CACHE_EPOCH = 0
 _AUTOMATION_SNAPSHOT_CACHE: dict[
     str, tuple[int, float, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]
 ] = {}
-_AUTOMATION_CACHE_TTL_SEC = 2.0
+_AUTOMATION_CACHE_TTL_SEC = 10.0
 
 
 def invalidate_automation_cache(db_path: pathlib.Path | None = None) -> None:
@@ -161,10 +161,7 @@ def invalidate_automation_cache(db_path: pathlib.Path | None = None) -> None:
     global _AUTOMATION_CACHE_EPOCH
     with _DB_LOCK:
         _AUTOMATION_CACHE_EPOCH += 1
-        if db_path is None:
-            _AUTOMATION_SNAPSHOT_CACHE.clear()
-        else:
-            _AUTOMATION_SNAPSHOT_CACHE.pop(str(pathlib.Path(db_path)), None)
+        _AUTOMATION_SNAPSHOT_CACHE.clear()
 
 
 # =============================================================================
@@ -992,23 +989,27 @@ def get_automation_snapshot_bundle(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Read schedules, active rules, and custom commands via short-lived RAM cache or single read-only SQLite connection."""
     now_mono = time.monotonic()
+    raw_target = pathlib.Path(db_path) if db_path is not None else _active_db_path()
+    fast_key = str(raw_target.resolve())
+    cached = _AUTOMATION_SNAPSHOT_CACHE.get(fast_key)
+    if cached is not None:
+        ep, ts_mono, c_sched, c_rules, c_cmds = cached
+        if ep == _AUTOMATION_CACHE_EPOCH and (now_mono - ts_mono) < _AUTOMATION_CACHE_TTL_SEC:
+            return list(c_sched), list(c_rules), list(c_cmds)
+    target = _resolve_db(db_path)
+    key = str(target.resolve())
+    ep_before = _AUTOMATION_CACHE_EPOCH
+    conn = get_connection(target, readonly=True)
+    try:
+        scheds = _list_schedules_in_conn(conn, include_disabled=True)
+        rules = _list_automation_rules_in_conn(conn, include_disabled=False)
+        cmds = _list_custom_commands_in_conn(conn, include_disabled=False)
+    finally:
+        conn.close()
     with _DB_LOCK:
-        target = _resolve_db(db_path)
-        key = str(target)
-        cached = _AUTOMATION_SNAPSHOT_CACHE.get(key)
-        if cached is not None:
-            ep, ts_mono, c_sched, c_rules, c_cmds = cached
-            if ep == _AUTOMATION_CACHE_EPOCH and (now_mono - ts_mono) < _AUTOMATION_CACHE_TTL_SEC:
-                return list(c_sched), list(c_rules), list(c_cmds)
-        conn = get_connection(target, readonly=True)
-        try:
-            scheds = _list_schedules_in_conn(conn, include_disabled=True)
-            rules = _list_automation_rules_in_conn(conn, include_disabled=False)
-            cmds = _list_custom_commands_in_conn(conn, include_disabled=False)
-        finally:
-            conn.close()
-        _AUTOMATION_SNAPSHOT_CACHE[key] = (_AUTOMATION_CACHE_EPOCH, time.monotonic(), scheds, rules, cmds)
-        return list(scheds), list(rules), list(cmds)
+        if ep_before == _AUTOMATION_CACHE_EPOCH:
+            _AUTOMATION_SNAPSHOT_CACHE[key] = (_AUTOMATION_CACHE_EPOCH, time.monotonic(), scheds, rules, cmds)
+    return list(scheds), list(rules), list(cmds)
 
 
 def upsert_custom_command(

@@ -725,7 +725,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         try:
             if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
                 return
-            for _ in range(22):
+            for idx in range(22):
                 if self._closed or self.gemini_session is None:
                     break
                 if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
@@ -733,7 +733,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 await self.gemini_session.send_realtime_input(
                     audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
                 )
-                await asyncio.sleep(0.02)
+                await asyncio.sleep(0 if idx < 8 else 0.004)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1326,7 +1326,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 try:
                     synced_seq = last_pushed_seq
                     if (tick % 2) == 0 and hasattr(self.engine, "sync_from_shared_store"):
-                        self.engine.sync_from_shared_store()
+                        await asyncio.to_thread(self.engine.sync_from_shared_store)
                         synced_seq = int(getattr(self.engine, "_last_synced_seq", 0) or 0)
                     if self.engine.active_timers or synced_seq != last_pushed_seq:
                         last_pushed_seq = synced_seq

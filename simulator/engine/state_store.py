@@ -846,6 +846,7 @@ class SqliteStateBackend:
         self._explicit_db_path = pathlib.Path(db_path) if db_path is not None else None
         self._lock = threading.RLock()
         self._last_ts_ns: int = 0
+        self._bootstrapped_key: str | None = None
 
     def _db_path(self) -> pathlib.Path:
         if self._explicit_db_path is not None:
@@ -858,18 +859,24 @@ class SqliteStateBackend:
         from simulator.database_sqlite import init_sqlite_database
         from simulator.db_migrations import bootstrap_device_state_from_devices, open_wal_connection
 
-        target = init_sqlite_database(self._db_path())
+        dbp = self._db_path()
+        if not dbp.exists():
+            self._bootstrapped_key = None
+        target = init_sqlite_database(dbp)
+        tkey = str(target)
         conn = open_wal_connection(target, readonly=False)
-        row = conn.execute("SELECT COUNT(*) FROM device_state").fetchone()
-        meta_row = conn.execute("SELECT COUNT(*) FROM system_state_meta WHERE id = 1").fetchone()
-        if int(row[0]) < len(DEFAULT_DEVICES) or int(meta_row[0]) == 0:
-            conn.execute("BEGIN IMMEDIATE;")
-            try:
-                bootstrap_device_state_from_devices(conn, DEFAULT_DEVICES)
-                conn.execute("COMMIT;")
-            except Exception:
-                conn.execute("ROLLBACK;")
-                raise
+        if self._bootstrapped_key != tkey:
+            row = conn.execute("SELECT COUNT(*) FROM device_state").fetchone()
+            meta_row = conn.execute("SELECT COUNT(*) FROM system_state_meta WHERE id = 1").fetchone()
+            if int(row[0]) < len(DEFAULT_DEVICES) or int(meta_row[0]) == 0:
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    bootstrap_device_state_from_devices(conn, DEFAULT_DEVICES)
+                    conn.execute("COMMIT;")
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+            self._bootstrapped_key = tkey
         return conn
 
     def _read_snapshot_in_conn(self, conn: Any) -> dict[str, Any] | None:
@@ -1156,8 +1163,10 @@ class SqliteStateBackend:
         return snap
 
     def clear(self) -> None:
+        self._bootstrapped_key = None
         with self._lock:
             conn = self._open_ready_conn()
+            self._bootstrapped_key = None
             try:
                 conn.execute("BEGIN IMMEDIATE;")
                 conn.execute("DELETE FROM device_state;")
@@ -1165,6 +1174,7 @@ class SqliteStateBackend:
                 bootstrap_devices = build_default_shared_state_payload()
                 self._write_snapshot_in_tx(conn, bootstrap_devices)
                 conn.execute("COMMIT;")
+                self._bootstrapped_key = str(self._db_path())
             except Exception:
                 try:
                     conn.execute("ROLLBACK;")

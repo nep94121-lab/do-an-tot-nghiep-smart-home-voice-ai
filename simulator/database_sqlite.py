@@ -49,6 +49,7 @@ DATA_DIR = resolve_data_dir()
 
 SQLITE_DB_PATH = resolve_sqlite_db_path()
 _DB_LOCK = threading.RLock()
+_AUDIT_WRITE_LOCK = threading.RLock()
 _INITIALIZED_DB_PATHS: set[str] = set()
 
 DDL_SCHEMA_SQL = ""
@@ -150,8 +151,14 @@ def init_sqlite_database(db_path: pathlib.Path | None = None) -> pathlib.Path:
     """Khởi tạo cấu trúc các bảng SQLite chuẩn 3NF + WAL + Foreign Keys + Indexes."""
     global _SCHEMA_INITIALIZED, _WAL_ANCHOR_CONN
     target = pathlib.Path(db_path) if db_path is not None else _active_db_path()
+    key = str(target.resolve())
+    if (
+        key in _INITIALIZED_DB_PATHS
+        and target.exists()
+        and (_SCHEMA_INITIALIZED or target != SQLITE_DB_PATH)
+    ):
+        return target
     with _DB_LOCK:
-        key = str(target.resolve())
         if (
             target.exists()
             and key in _INITIALIZED_DB_PATHS
@@ -178,18 +185,26 @@ def insert_audit_log_sqlite(
     db_path: pathlib.Path | None = None,
 ) -> int | None:
     """Ghi trực tiếp 1 bản ghi nhật ký vào bảng `audit_logs` trong SQLite (ACID BEGIN IMMEDIATE -> COMMIT)."""
-    with _DB_LOCK:
-        target = init_sqlite_database(db_path)
+    target = init_sqlite_database(db_path)
+    raw_uid = user_id or entry.get("user_id")
+    safe_summary = strip_emojis_for_audit(redact_otp_and_secrets_in_text(str(entry.get("summary") or "")))
+    safe_details = _strip_emojis_in_obj(sanitize_overview_and_logs_payload(entry.get("details") or {}))
+    details_str = json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False)
+    ts_iso_val = str(entry.get("ts_iso") or _now_iso())
+    time_vn_val = str(entry.get("time_vn") or "")
+    cat_val = strip_emojis_for_audit(str(entry.get("category") or "SYSTEM"))
+    ev_val = strip_emojis_for_audit(str(entry.get("event_type") or "event"))
+    uname_val = strip_emojis_for_audit(str(entry.get("user") or entry.get("user_name") or "Hệ thống"))
+    tier_val = int(entry.get("tier") or 1)
+    with _AUDIT_WRITE_LOCK:
         conn = get_connection(target)
         try:
             def _write(c: sqlite3.Connection) -> int | None:
-                uid = user_id or entry.get("user_id")
+                uid = raw_uid
                 if uid:
                     row = c.execute("SELECT user_id FROM users WHERE user_id = ?", (str(uid),)).fetchone()
                     if not row:
                         uid = None
-                safe_summary = strip_emojis_for_audit(redact_otp_and_secrets_in_text(str(entry.get("summary") or "")))
-                safe_details = _strip_emojis_in_obj(sanitize_overview_and_logs_payload(entry.get("details") or {}))
                 cur = c.execute(
                     """
                     INSERT INTO audit_logs (
@@ -197,15 +212,15 @@ def insert_audit_log_sqlite(
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        str(entry.get("ts_iso") or _now_iso()),
-                        str(entry.get("time_vn") or ""),
-                        strip_emojis_for_audit(str(entry.get("category") or "SYSTEM")),
-                        strip_emojis_for_audit(str(entry.get("event_type") or "event")),
+                        ts_iso_val,
+                        time_vn_val,
+                        cat_val,
+                        ev_val,
                         str(uid) if uid else None,
-                        strip_emojis_for_audit(str(entry.get("user") or entry.get("user_name") or "Hệ thống")),
-                        int(entry.get("tier") or 1),
+                        uname_val,
+                        tier_val,
                         safe_summary,
-                        json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False),
+                        details_str,
                     ),
                 )
                 return int(cur.lastrowid) if cur.lastrowid else None
@@ -222,49 +237,48 @@ def read_audit_logs_sqlite(
     db_path: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
     """Đọc trực tiếp danh sách nhật ký mới nhất từ bảng `audit_logs` trong SQLite WAL."""
-    with _DB_LOCK:
-        target = init_sqlite_database(db_path)
-        conn = open_wal_connection(target, readonly=True)
-        try:
-            rows = conn.execute(
-                """
-                SELECT log_id, ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
-                FROM audit_logs
-                ORDER BY log_id DESC
-                LIMIT ?
-                """,
-                (max(1, min(int(limit or 250), 2000)),),
-            ).fetchall()
-            out: list[dict[str, Any]] = []
-            for r in rows:
-                try:
-                    details_obj = json.loads(str(r["details_json"] or "{}"))
-                except Exception:
-                    details_obj = {}
-                out.append(
-                    _strip_emojis_in_obj(
-                        sanitize_overview_and_logs_payload(
-                            {
-                                "log_id": int(r["log_id"]),
-                                "ts_iso": str(r["ts_iso"] or ""),
-                                "time_vn": str(r["time_vn"] or ""),
-                                "category": str(r["category"] or "SYSTEM"),
-                                "event_type": str(r["event_type"] or "event"),
-                                "user_id": r["user_id"],
-                                "user": str(r["user_name"] or "Hệ thống"),
-                                "user_name": str(r["user_name"] or "Hệ thống"),
-                                "tier": int(r["tier"] or 1),
-                                "summary": str(r["summary"] or ""),
-                                "details": details_obj if isinstance(details_obj, dict) else {},
-                            }
-                        )
+    target = init_sqlite_database(db_path)
+    conn = open_wal_connection(target, readonly=True)
+    try:
+        rows = conn.execute(
+            """
+            SELECT log_id, ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+            FROM audit_logs
+            ORDER BY log_id DESC
+            LIMIT ?
+            """,
+            (max(1, min(int(limit or 250), 2000)),),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            try:
+                details_obj = json.loads(str(r["details_json"] or "{}"))
+            except Exception:
+                details_obj = {}
+            out.append(
+                _strip_emojis_in_obj(
+                    sanitize_overview_and_logs_payload(
+                        {
+                            "log_id": int(r["log_id"]),
+                            "ts_iso": str(r["ts_iso"] or ""),
+                            "time_vn": str(r["time_vn"] or ""),
+                            "category": str(r["category"] or "SYSTEM"),
+                            "event_type": str(r["event_type"] or "event"),
+                            "user_id": r["user_id"],
+                            "user": str(r["user_name"] or "Hệ thống"),
+                            "user_name": str(r["user_name"] or "Hệ thống"),
+                            "tier": int(r["tier"] or 1),
+                            "summary": str(r["summary"] or ""),
+                            "details": details_obj if isinstance(details_obj, dict) else {},
+                        }
                     )
                 )
-            return out
-        except Exception:
-            return []
-        finally:
-            conn.close()
+            )
+        return out
+    except Exception:
+        return []
+    finally:
+        conn.close()
 
 
 def clear_audit_logs_sqlite() -> None:

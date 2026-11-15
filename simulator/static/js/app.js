@@ -158,6 +158,7 @@
   let micProcessor = null;
   let wasSpeaking = false;
   let silenceStartMs = 0;
+  let awaitingTurnAfterSpeech = false;
 
   function updateScheduleEmptyState() {
     const hasAny =
@@ -1945,10 +1946,12 @@
           break;
 
         case "interrupted":
+          awaitingTurnAfterSpeech = false;
           clearAudioQueue();
           break;
 
         case "turn_complete":
+          awaitingTurnAfterSpeech = false;
           updateLatencyUI(msg.tool_ms, msg.audio_ms, msg.lead_ms);
           break;
 
@@ -2253,10 +2256,11 @@
         await micAudioCtx.resume();
       }
       const source = micAudioCtx.createMediaStreamSource(micStream);
-      micProcessor = micAudioCtx.createScriptProcessor(2048, 1, 1);
+      micProcessor = micAudioCtx.createScriptProcessor(512, 1, 1);
 
       wasSpeaking = false;
       silenceStartMs = 0;
+      awaitingTurnAfterSpeech = false;
       activeMicPcmChunks = [];
       let preRollMicChunks = [];
       startBrowserSpeechRecognitionVi();
@@ -2306,6 +2310,7 @@
         }
 
         if (isSpeech) {
+          awaitingTurnAfterSpeech = false;
           if (!wasSpeaking) {
             speechStartMs = nowMs;
             while (preRollMicChunks.length > 0) {
@@ -2323,6 +2328,7 @@
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
+            awaitingTurnAfterSpeech = true;
             micStateLabel.textContent = "Đang xử lý";
             if (isWsOpen()) {
               sendWs({ type: "mic_speech_ended" });
@@ -2336,11 +2342,13 @@
             activeMicPcmChunks.shift();
           }
           if (silenceStartMs === 0) {
-            silenceStartMs = nowMs;
-          } else if (nowMs - silenceStartMs > 350) {
+            silenceStartMs = nowMs - (input.length / 16000) * 1000;
+          }
+          if (nowMs - silenceStartMs >= 220) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
+            awaitingTurnAfterSpeech = true;
             micStateLabel.textContent = "Đang xử lý";
             if (isWsOpen()) {
               sendWs({ type: "mic_speech_ended" });
@@ -2348,6 +2356,10 @@
               flushServerlessMicVoiceCommand();
             }
           }
+        }
+
+        if (!isSpeech && awaitingTurnAfterSpeech) {
+          return;
         }
 
         const bytes = new Uint8Array(pcm16.buffer);
@@ -2378,6 +2390,7 @@
     const hadActiveMic = isRecording;
     wasSpeaking = false;
     silenceStartMs = 0;
+    awaitingTurnAfterSpeech = false;
     stopBrowserSpeechRecognitionVi();
     if (micProcessor) {
       micProcessor.disconnect();
