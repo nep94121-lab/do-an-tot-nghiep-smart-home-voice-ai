@@ -6,6 +6,10 @@ import re
 import sys
 from typing import Any, Optional
 
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, StreamingResponse
+import httpx
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -54,10 +58,6 @@ def create_vercel_proxy_app(
     transport: Optional[object] = None,
 ):
     """Build a stateless FastAPI reverse proxy forwarding REST, cookies, and SSE streams."""
-    from fastapi import FastAPI, Request, Response
-    from fastapi.responses import JSONResponse, StreamingResponse
-    import httpx
-
     base_url = (upstream_origin or DEFAULT_UPSTREAM_ORIGIN).strip().rstrip("/")
     proxy_app = FastAPI(title="Smart Home Vercel Edge Proxy", docs_url=None, redoc_url=None)
 
@@ -169,13 +169,22 @@ def create_vercel_proxy_app(
     return proxy_app
 
 
-if (
-    os.environ.get("VERCEL", "").strip() == "1"
-    and os.environ.get("SMARTHOME_DISABLE_UPSTREAM_PROXY", "").strip() != "1"
-):
-    upstream = os.environ.get("SMARTHOME_UPSTREAM_ORIGIN", DEFAULT_UPSTREAM_ORIGIN).strip() or DEFAULT_UPSTREAM_ORIGIN
-    app = create_vercel_proxy_app(upstream)
-else:
-    from simulator.server import app  # noqa: E402
+def _resolve_app() -> FastAPI:
+    """Resolve Vercel proxy app in Vercel serverless runtime or local FastAPI app otherwise."""
+    if (
+        os.environ.get("VERCEL", "").strip() == "1"
+        and os.environ.get("SMARTHOME_DISABLE_UPSTREAM_PROXY", "").strip() != "1"
+    ):
+        upstream = (
+            os.environ.get("SMARTHOME_UPSTREAM_ORIGIN", DEFAULT_UPSTREAM_ORIGIN).strip()
+            or DEFAULT_UPSTREAM_ORIGIN
+        )
+        return create_vercel_proxy_app(upstream)
+    from simulator.server import app as local_app  # noqa: E402
+
+    return local_app
+
+
+app = _resolve_app()
 
 __all__ = ["app", "create_vercel_proxy_app", "DEFAULT_UPSTREAM_ORIGIN"]
