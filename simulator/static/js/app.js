@@ -2246,9 +2246,9 @@
         audio: {
           channelCount: 1,
           sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
       });
       micAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -2256,7 +2256,7 @@
         await micAudioCtx.resume();
       }
       const source = micAudioCtx.createMediaStreamSource(micStream);
-      micProcessor = micAudioCtx.createScriptProcessor(256, 1, 1);
+      micProcessor = micAudioCtx.createScriptProcessor(512, 1, 1);
 
       wasSpeaking = false;
       silenceStartMs = 0;
@@ -2266,7 +2266,7 @@
       if (!isWsOpen()) {
         startBrowserSpeechRecognitionVi();
       }
-      let noiseFloorRms = 0.008;
+      let noiseFloorRms = 0.002;
       let speechStartMs = 0;
 
       micProcessor.onaudioprocess = (e) => {
@@ -2294,12 +2294,10 @@
           return;
         }
 
-        const speechThreshold = Math.min(0.05, Math.max(0.012, noiseFloorRms * 2.1));
+        const speechThreshold = Math.min(0.04, Math.max(0.0045, noiseFloorRms * 2.2));
         const isSpeech = rms > speechThreshold;
         if (!isSpeech) {
-          noiseFloorRms = noiseFloorRms * 0.9 + rms * 0.1;
-        } else {
-          noiseFloorRms = Math.min(0.025, noiseFloorRms * 0.995 + rms * 0.005);
+          noiseFloorRms = Math.min(0.006, noiseFloorRms * 0.92 + rms * 0.08);
         }
         const nowMs = performance.now();
         const chunkBytes = new Uint8Array(pcm16.buffer.slice(0));
@@ -2312,24 +2310,11 @@
         }
 
         if (isSpeech) {
-          const wasAwaitingTurn = awaitingTurnAfterSpeech;
           awaitingTurnAfterSpeech = false;
           if (!wasSpeaking) {
             speechStartMs = nowMs;
             while (preRollMicChunks.length > 0) {
-              const preChunk = preRollMicChunks.shift();
-              activeMicPcmChunks.push(preChunk);
-              if (wasAwaitingTurn && isWsOpen()) {
-                let preBin = "";
-                for (let i = 0; i < preChunk.byteLength; i++) {
-                  preBin += String.fromCharCode(preChunk[i]);
-                }
-                sendWs({
-                  type: "mic_chunk",
-                  pcm16k_b64: btoa(preBin),
-                  is_speech: true,
-                });
-              }
+              activeMicPcmChunks.push(preRollMicChunks.shift());
             }
           }
           wasSpeaking = true;
@@ -2359,7 +2344,7 @@
           if (silenceStartMs === 0) {
             silenceStartMs = nowMs - (input.length / 16000) * 1000;
           }
-          if (nowMs - silenceStartMs >= 195) {
+          if (nowMs - silenceStartMs >= 420) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
@@ -2371,10 +2356,6 @@
               flushServerlessMicVoiceCommand();
             }
           }
-        }
-
-        if (!isSpeech && awaitingTurnAfterSpeech) {
-          return;
         }
 
         const bytes = new Uint8Array(pcm16.buffer);
@@ -2389,11 +2370,15 @@
         });
       };
 
-      const micSilentGain = micAudioCtx.createGain();
-      micSilentGain.gain.value = 0;
       source.connect(micProcessor);
-      micProcessor.connect(micSilentGain);
-      micSilentGain.connect(micAudioCtx.destination);
+      if (typeof micAudioCtx.createGain === "function") {
+        const micSilentGain = micAudioCtx.createGain();
+        micSilentGain.gain.value = 0;
+        micProcessor.connect(micSilentGain);
+        micSilentGain.connect(micAudioCtx.destination);
+      } else {
+        micProcessor.connect(micAudioCtx.destination);
+      }
       setMicListeningState(true);
     } catch (err) {
       liveAiTranscript.textContent = "Không thể mở microphone. Vui lòng kiểm tra quyền truy cập.";
@@ -2421,7 +2406,7 @@
     }
     if (hadActiveMic) {
       if (isWsOpen()) {
-        sendWs({ type: "mic_speech_ended" });
+        sendWs({ type: "mic_speech_ended", stream_end: true });
       } else {
         flushServerlessMicVoiceCommand();
       }

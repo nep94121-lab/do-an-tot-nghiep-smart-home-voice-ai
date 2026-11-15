@@ -806,16 +806,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 self._turn_completed_flag = False
             elif self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
                 self.speech_end_ts = now_sp
-        elif not self.mic_utterance_active and (
-            self._awaiting_model_turn_after_speech or not self._turn_completed_flag
-        ):
-            return
 
         for frame in self.pcm_framing_buffer.push_chunk(pcm_bytes):
             await self._send_pcm_frame_to_gemini(frame)
 
-    async def mic_speech_ended(self) -> None:
-        """Kết thúc lượt nói từ Mic: xả phần dư PCM + báo audio_stream_end (Hybrid VAD) sang Gemini Live."""
+    async def mic_speech_ended(self, stream_end: bool = False) -> None:
+        """Kết thúc lượt nói từ Mic: giữ luồng PCM liên tục khi đang mở mic; chỉ audio_stream_end khi stopMic."""
         self.vad_stream_filter.reset()
         self.mic_utterance_active = False
         self._awaiting_model_turn_after_speech = True
@@ -839,18 +835,24 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if self.speech_end_ts is None and self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
             self.speech_end_ts = time.perf_counter()
 
-        tail_frame = self.pcm_framing_buffer.flush_utterance_tail()
-        if tail_frame is not None:
-            await self._send_pcm_frame_to_gemini(tail_frame)
-
-        if self.gemini_session is not None and not self.last_mic_turn_silent_ignore:
-            try:
-                await self.gemini_session.send_realtime_input(audio_stream_end=True)
-            except Exception:
-                if self._mic_silence_task is None or self._mic_silence_task.done():
-                    self._mic_silence_task = asyncio.create_task(
-                        self._flush_mic_silence_to_gemini()
-                    )
+        if self.gemini_session is None:
+            tail_frame = self.pcm_framing_buffer.flush_utterance_tail()
+            if tail_frame is not None:
+                await self._send_pcm_frame_to_gemini(tail_frame)
+        elif stream_end:
+            tail_frame = self.pcm_framing_buffer.flush_utterance_tail()
+            if tail_frame is not None:
+                await self._send_pcm_frame_to_gemini(tail_frame)
+            if (
+                not self._turn_completed_flag
+                and self.turn_first_tool_ts is None
+                and self.turn_first_audio_ts is None
+                and not self.last_mic_turn_silent_ignore
+            ):
+                try:
+                    await self.gemini_session.send_realtime_input(audio_stream_end=True)
+                except Exception:
+                    pass
         await self.send_ws_json({
             "type": "speech_ended_marker",
             "source": "live_mic",
@@ -989,7 +991,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         await self.handle_mic_chunk(pcm_bytes, is_sp)
 
                     elif mtype == "mic_speech_ended":
-                        await self.mic_speech_ended()
+                        await self.mic_speech_ended(stream_end=bool(msg.get("stream_end", False)))
 
                     elif mtype == "play_wav_sample":
                         sample_id = str(msg.get("sample_id", ""))
