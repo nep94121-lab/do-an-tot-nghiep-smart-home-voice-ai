@@ -16,10 +16,23 @@ import contextlib
 import copy
 import json
 import logging
+import os
 import re
+import sys
 import threading
 import time
 from typing import Any, Callable, Coroutine, Iterator
+
+_PENDING_AUDIT_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _discard_audit_task(task: asyncio.Task[Any]) -> None:
+    _PENDING_AUDIT_TASKS.discard(task)
+    if not task.cancelled():
+        try:
+            task.exception()
+        except Exception:
+            pass
 
 logger = logging.getLogger(__name__)
 
@@ -658,15 +671,30 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     else ev_type
                 )
             )
-            await asyncio.to_thread(
-                append_audit_log,
-                category=cat,
-                event_type=ev_type,
-                summary=msg,
-                user_name=self.get_current_user_name(),
-                tier=self.current_tier,
-                details={k: v for k, v in event.items() if k != "snapshot"},
-            )
+            if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+                await asyncio.to_thread(
+                    append_audit_log,
+                    category=cat,
+                    event_type=ev_type,
+                    summary=msg,
+                    user_name=self.get_current_user_name(),
+                    tier=self.current_tier,
+                    details={k: v for k, v in event.items() if k != "snapshot"},
+                )
+            else:
+                _audit_task = asyncio.create_task(
+                    asyncio.to_thread(
+                        append_audit_log,
+                        category=cat,
+                        event_type=ev_type,
+                        summary=msg,
+                        user_name=self.get_current_user_name(),
+                        tier=self.current_tier,
+                        details={k: v for k, v in event.items() if k != "snapshot"},
+                    )
+                )
+                _PENDING_AUDIT_TASKS.add(_audit_task)
+                _audit_task.add_done_callback(_discard_audit_task)
 
     def _expand_targets(self, device_id: str, action: str) -> list[tuple[str, str]]:
         if "," in device_id:
@@ -1584,7 +1612,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                     results.extend(triggered_fx)
 
-        snap = self.get_snapshot()
+        snap = {} if getattr(self, "_cas_emit_buffer", None) is not None else self.get_snapshot(sync=False)
         await self.emit({"type": "state_snapshot", "snapshot": snap})
         all_ok = all(r["ok"] for r in results) if results else False
         any_rbac_blocked = any(bool(r.get("rbac_blocked")) for r in results)

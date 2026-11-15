@@ -185,7 +185,21 @@ async def configure_http_cache_headers(request: Request, call_next: Any) -> Resp
     return response
 
 
-app.add_middleware(GZipMiddleware, minimum_size=500)
+class ConditionalGZipMiddleware:
+    """Bỏ qua nén GZip với luồng SSE /api/events để không đệm sự kiện thời gian thực."""
+
+    def __init__(self, app: Any, minimum_size: int = 500) -> None:
+        self.app = app
+        self.gzip_app = GZipMiddleware(app, minimum_size=minimum_size)
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") == "http" and scope.get("path") == "/api/events":
+            await self.app(scope, receive, send)
+            return
+        await self.gzip_app(scope, receive, send)
+
+
+app.add_middleware(ConditionalGZipMiddleware, minimum_size=500)
 
 
 @app.exception_handler(404)

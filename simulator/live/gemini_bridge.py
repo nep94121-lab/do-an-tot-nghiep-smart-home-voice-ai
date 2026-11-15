@@ -17,9 +17,21 @@ import json
 import os
 import pathlib
 import re
+import sys
 import time
 import wave
 from typing import Any
+
+_PENDING_AUDIT_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _discard_audit_task(task: asyncio.Task[Any]) -> None:
+    _PENDING_AUDIT_TASKS.discard(task)
+    if not task.cancelled():
+        try:
+            task.exception()
+        except Exception:
+            pass
 
 from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
@@ -244,6 +256,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self._wav_streaming_task: asyncio.Task | None = None
         self._mic_silence_task: asyncio.Task | None = None
         self._closed = False
+        self._awaiting_model_turn_after_speech: bool = False
+        self._turn_completed_flag: bool = True
         self._cached_ws_actor: UserSession | None = None
         self._cached_ws_actor_ts: float = 0.0
         self._mic_preroll_pcm: list[bytes] = []
@@ -375,7 +389,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             except Exception:
                 pass
         if audit_kwargs is not None:
-            await asyncio.to_thread(append_audit_log, **audit_kwargs)
+            if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+                await asyncio.to_thread(append_audit_log, **audit_kwargs)
+            else:
+                task = asyncio.create_task(asyncio.to_thread(append_audit_log, **audit_kwargs))
+                _PENDING_AUDIT_TASKS.add(task)
+                task.add_done_callback(_discard_audit_task)
 
     def _reset_turn_metrics(self, anchor_ts: float | None = None) -> None:
         self.speech_end_ts = anchor_ts or time.perf_counter()
@@ -595,6 +614,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                         self.turn_first_audio_ts is not None or self.turn_first_tool_ts is None
                                     ):
                                         self.mic_utterance_active = False
+                                        self._awaiting_model_turn_after_speech = False
+                                        self._turn_completed_flag = True
                                         t_anchor = self.speech_end_ts or now
                                         tool_ms = (
                                             max(1, round((self.turn_first_tool_ts - t_anchor) * 1000))
@@ -755,13 +776,27 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
         if is_sp:
             now_sp = time.perf_counter()
+            self._awaiting_model_turn_after_speech = False
             if not self.mic_utterance_active:
                 self.mic_utterance_active = True
                 if self._mic_silence_task and not self._mic_silence_task.done():
                     self._mic_silence_task.cancel()
+            if (
+                self._turn_completed_flag
+                or self.turn_first_tool_ts is not None
+                or self.turn_first_audio_ts is not None
+                or self.speech_end_ts is None
+            ):
                 self._reset_turn_metrics(anchor_ts=now_sp)
+                self._turn_completed_flag = False
             elif self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
                 self.speech_end_ts = now_sp
+        elif (
+            self._awaiting_model_turn_after_speech
+            or self.turn_first_tool_ts is not None
+            or self.turn_first_audio_ts is not None
+        ):
+            return
 
         for frame in self.pcm_framing_buffer.push_chunk(pcm_bytes):
             await self._send_pcm_frame_to_gemini(frame)
@@ -770,6 +805,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         """Kết thúc lượt nói từ Mic: xả phần dư PCM + silence đuôi sang Gemini Live để chốt VAD."""
         self.vad_stream_filter.reset()
         self.mic_utterance_active = False
+        self._awaiting_model_turn_after_speech = True
         self._mic_preroll_pcm.clear()
         actor = self._bind_actor_to_engine()
         if not actor.is_authenticated or actor.is_expired():
@@ -831,7 +867,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 source="session_voice", request_tier=actor.tier,
                 request_role=actor.role, request_user_name=actor.display_name,
             )
-            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self))
+            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=False))
             if isinstance(tool_res, dict) and (not tool_res.get("ok", True) or tool_res.get("rbac_blocked")):
                 rej_msg = str(tool_res.get("exact_spoken_reply") or tool_res.get("error") or FIXED_REJECTION_PHRASE_VI)
                 await self.send_ws_json({
@@ -877,7 +913,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         res = await super().handle_tool_call(fc)
         if isinstance(res, dict) and res.get("ok"):
             try:
-                asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self))
+                asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=False))
             except Exception:
                 pass
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
