@@ -283,32 +283,30 @@ def is_forbidden_overview_or_log_key(key: Any) -> bool:
     return False
 
 
+_REDACT_PASSWORD_HINT_RE = re.compile(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", flags=re.IGNORECASE)
+_REDACT_QUOTED_PW_RE = re.compile(r"(mật khẩu\s+['\"])([^'\"]+)(['\"])", flags=re.IGNORECASE)
+_REDACT_GMAIL_PAREN_RE = re.compile(r"(\(Mã trong Gmail là:\s*\d{6}\))", flags=re.IGNORECASE)
+_REDACT_GMAIL_CODE_RE = re.compile(r"(Mã trong Gmail là:\s*)\d{6}", flags=re.IGNORECASE)
+_REDACT_KV_SECRET_RE = re.compile(
+    r"((?:password|password_plain_hint|hint|secret|token|otp|otp_code|mat_khau)['\"]?\s*[:=]\s*['\"]?)(\d{6}|[^'\"\s,}]+)(['\"]?)",
+    flags=re.IGNORECASE,
+)
+_REDACT_OTP_PAREN_6_RE = re.compile(r"\(\d{6}\)")
+_REDACT_OTP_QUOTED_6_RE = re.compile(r"'\d{6}'")
+_REDACT_OTP_WORD_6_RE = re.compile(r"\b\d{6}\b")
+
+
 def redact_otp_and_secrets_in_text(text: str) -> str:
     """Redact plaintext 6-digit OTP codes and password hints/values embedded in log or overview strings."""
     if not text or not isinstance(text, str):
         return text
     t = text
     # Redact password hints and inline quoted passwords
-    t = re.sub(r"(Mật khẩu gợi ý:\s*)([^\s\)]+)", r"\1******", t, flags=re.IGNORECASE)
-    t = re.sub(r"(mật khẩu\s+['\"])([^'\"]+)(['\"])", r"\1******\3", t, flags=re.IGNORECASE)
-    t = re.sub(
-        r"(\(Mã trong Gmail là:\s*\d{6}\))",
-        "",
-        t,
-        flags=re.IGNORECASE,
-    )
-    t = re.sub(
-        r"(Mã trong Gmail là:\s*)\d{6}",
-        r"\1[REDACTED]",
-        t,
-        flags=re.IGNORECASE,
-    )
-    t = re.sub(
-        r"((?:password|password_plain_hint|hint|secret|token|otp|otp_code|mat_khau)['\"]?\s*[:=]\s*['\"]?)(\d{6}|[^'\"\s,}]+)(['\"]?)",
-        r"\1******\3",
-        t,
-        flags=re.IGNORECASE,
-    )
+    t = _REDACT_PASSWORD_HINT_RE.sub(r"\1******", t)
+    t = _REDACT_QUOTED_PW_RE.sub(r"\1******\3", t)
+    t = _REDACT_GMAIL_PAREN_RE.sub("", t)
+    t = _REDACT_GMAIL_CODE_RE.sub(r"\1[REDACTED]", t)
+    t = _REDACT_KV_SECRET_RE.sub(r"\1******\3", t)
     # Redact any 6-digit OTP inside strings mentioning OTP / verification codes
     t_low = t.lower()
     if any(
@@ -324,9 +322,9 @@ def redact_otp_and_secrets_in_text(text: str) -> str:
             "lớp 2",
         )
     ):
-        t = re.sub(r"\(\d{6}\)", "([REDACTED])", t)
-        t = re.sub(r"'\d{6}'", "'[REDACTED]'", t)
-        t = re.sub(r"\b\d{6}\b", "[REDACTED]", t)
+        t = _REDACT_OTP_PAREN_6_RE.sub("([REDACTED])", t)
+        t = _REDACT_OTP_QUOTED_6_RE.sub("'[REDACTED]'", t)
+        t = _REDACT_OTP_WORD_6_RE.sub("[REDACTED]", t)
     return t.strip()
 
 

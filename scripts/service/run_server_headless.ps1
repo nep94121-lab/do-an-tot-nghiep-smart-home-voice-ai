@@ -85,7 +85,7 @@ while ($true) {
     Add-Content -Path $runnerLog -Value "[$ts] Starting SmartHome headless uvicorn ($RepoRoot) on ${ListenHost}:${Port}" -Encoding UTF8
 
     $proc = Start-Process -FilePath $pythonExe `
-        -ArgumentList @("-m", "uvicorn", "simulator.server:app", "--host", $ListenHost, "--port", "$Port", "--ws-ping-interval", "20", "--ws-ping-timeout", "20", "--log-level", "info") `
+        -ArgumentList @("-m", "uvicorn", "simulator.server:app", "--host", $ListenHost, "--port", "$Port", "--ws-ping-interval", "20", "--ws-ping-timeout", "20", "--timeout-keep-alive", "65", "--log-level", "info") `
         -WorkingDirectory $RepoRoot `
         -WindowStyle Hidden `
         -RedirectStandardOutput $svcLog `

@@ -357,6 +357,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     if not res.get("ok"):
         res["rejection_speech"] = spoken_dev_ctrl
 
+    await broadcast_rest_state_to_bridges()
     append_audit_log(
         category="DEVICE_IO",
         event_type="mobile_device_toggle",
@@ -370,10 +371,9 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
             "client_id": client_id,
             "client_seq": client_seq,
             "request_id": request_id,
-            "result": res,
+            "result": {k: v for k, v in res.items() if k != "snapshot"},
         },
     )
-    await broadcast_rest_state_to_bridges()
     status_code = 200
     if not res.get("ok") and session.source != "legacy_test":
         status_code = 403

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import datetime
 import json
 import os
 import pathlib
 import sqlite3
+import tempfile
+import threading
 from typing import Any, Callable, TypeVar
 
 from simulator.engine.constants_and_time import resolve_data_dir
@@ -366,13 +369,56 @@ def resolve_sqlite_db_path(data_dir: pathlib.Path | None = None) -> pathlib.Path
     return resolve_data_dir() / "smarthome.db"
 
 
-def configure_wal_pragmas(conn: sqlite3.Connection, *, readonly: bool = False) -> None:
+_WAL_LOCK = threading.Lock()
+_WAL_ANCHOR_CONNS: dict[str, sqlite3.Connection] = {}
+_WAL_READY_PATHS: set[str] = set()
+
+
+def _should_keep_wal_anchor(target: pathlib.Path) -> bool:
+    """Keep a lightweight WAL anchor connection for long-lived DBs so Windows does not drop -shm on every close."""
+    if os.environ.get("PYTEST_CURRENT_TEST", "").strip():
+        return False
+    try:
+        resolved = str(target.resolve()).lower()
+    except OSError:
+        resolved = str(target).lower()
+    if "pt_tmp" in resolved or "pytest-" in resolved:
+        return False
+    try:
+        tmp_root = str(pathlib.Path(tempfile.gettempdir()).resolve()).lower()
+    except OSError:
+        tmp_root = str(pathlib.Path(tempfile.gettempdir())).lower()
+    if resolved == tmp_root or resolved.startswith(tmp_root + os.sep):
+        return False
+    return True
+
+
+def close_wal_anchors() -> None:
+    """Close any persistent WAL anchor connections and clear cached WAL path flags."""
+    with _WAL_LOCK:
+        for conn in list(_WAL_ANCHOR_CONNS.values()):
+            with contextlib.suppress(Exception):
+                conn.close()
+        _WAL_ANCHOR_CONNS.clear()
+        _WAL_READY_PATHS.clear()
+
+
+atexit.register(close_wal_anchors)
+
+
+def configure_wal_pragmas(
+    conn: sqlite3.Connection,
+    *,
+    readonly: bool = False,
+    set_wal_mode: bool = True,
+) -> None:
     """Apply consistent WAL, foreign-key, synchronous, and busy-timeout PRAGMAs."""
     conn.execute("PRAGMA busy_timeout = 10000;")
     conn.execute("PRAGMA foreign_keys = ON;")
     if not readonly:
-        with contextlib.suppress(sqlite3.DatabaseError):
-            conn.execute("PRAGMA journal_mode = WAL;")
+        if set_wal_mode:
+            with contextlib.suppress(sqlite3.DatabaseError):
+                conn.execute("PRAGMA journal_mode = WAL;")
         conn.execute("PRAGMA synchronous = NORMAL;")
 
 
@@ -386,16 +432,47 @@ def open_wal_connection(
     if readonly:
         db_uri = f"file:{target.as_posix()}?mode=ro"
         conn = sqlite3.connect(db_uri, uri=True, timeout=10.0, check_same_thread=False)
-    else:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(
-            str(target),
-            timeout=10.0,
-            isolation_level=None,
-            check_same_thread=False,
-        )
+        conn.row_factory = sqlite3.Row
+        configure_wal_pragmas(conn, readonly=True, set_wal_mode=False)
+        return conn
+
+    key = str(target.resolve())
+    with _WAL_LOCK:
+        if not target.exists():
+            stale = _WAL_ANCHOR_CONNS.pop(key, None)
+            if stale is not None:
+                with contextlib.suppress(Exception):
+                    stale.close()
+            _WAL_READY_PATHS.discard(key)
+
+        need_setup = key not in _WAL_READY_PATHS
+        if need_setup:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        if _should_keep_wal_anchor(target) and key not in _WAL_ANCHOR_CONNS:
+            anchor = sqlite3.connect(
+                str(target),
+                timeout=10.0,
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            configure_wal_pragmas(anchor, readonly=False, set_wal_mode=True)
+            _WAL_ANCHOR_CONNS[key] = anchor
+            _WAL_READY_PATHS.add(key)
+            need_wal_mode = False
+        else:
+            need_wal_mode = need_setup
+
+    conn = sqlite3.connect(
+        str(target),
+        timeout=10.0,
+        isolation_level=None,
+        check_same_thread=False,
+    )
     conn.row_factory = sqlite3.Row
-    configure_wal_pragmas(conn, readonly=readonly)
+    configure_wal_pragmas(conn, readonly=False, set_wal_mode=need_wal_mode)
+    if need_wal_mode:
+        with _WAL_LOCK:
+            _WAL_READY_PATHS.add(key)
     return conn
 
 
