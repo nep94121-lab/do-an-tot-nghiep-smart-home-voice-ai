@@ -160,24 +160,22 @@ class SessionStore:
                     conn.execute(
                         """
                         INSERT OR IGNORE INTO sessions (
-                            session_id, token_hash, user_id, email, display_name,
+                            session_id, token_hash, user_id,
                             role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
                         )
                         SELECT
-                            session_id,
+                            us.session_id,
                             lower(hex(randomblob(16))),
-                            user_id,
-                            COALESCE(email, ''),
-                            COALESCE(display_name, user_id),
-                            CASE WHEN tier = 1 THEN 'ADMIN' WHEN tier = 2 THEN 'MEMBER' ELSE 'CHILD_GUEST' END,
-                            CASE WHEN tier IN (1, 2, 3) THEN tier ELSE 3 END,
-                            COALESCE(source, 'legacy'),
-                            '',
-                            created_at,
-                            expires_at,
+                            CASE WHEN us.user_id IS NOT NULL AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = us.user_id) THEN us.user_id ELSE NULL END,
+                            CASE WHEN us.tier = 1 THEN 'ADMIN' WHEN us.tier = 2 THEN 'MEMBER' ELSE 'CHILD_GUEST' END,
+                            CASE WHEN us.tier IN (1, 2, 3) THEN us.tier ELSE 3 END,
+                            COALESCE(us.source, 'legacy'),
+                            NULL,
+                            us.created_at,
+                            us.expires_at,
                             NULL
-                        FROM user_sessions
-                        WHERE expires_at > ?
+                        FROM user_sessions us
+                        WHERE us.expires_at > ?
                         """,
                         (time.time(),),
                     )
@@ -344,22 +342,39 @@ class SessionStore:
                 with _SQLITE_GLOBAL_LOCK:
                     conn = self._open_conn()
                     try:
+                        from simulator.db_migrations import _ensure_preserve_user_for_fk, _is_guest_or_anon_user_id
+
                         tok_hash = hashlib.sha256(sess.session_id.encode("utf-8")).hexdigest()
-                        invite_jti = sess.source.split(":", 1)[1] if str(sess.source).startswith("guest_invite:") else ""
+                        raw_jti = sess.source.split(":", 1)[1].strip() if str(sess.source).startswith("guest_invite:") else ""
                         rc = role_for_tier(sess.tier)
+                        is_guest = _is_guest_or_anon_user_id(sess.user_id, sess.source, raw_jti)
+                        db_uid: str | None = None if is_guest else sess.user_id
 
                         def _tx(c: sqlite3.Connection) -> None:
+                            if db_uid is not None:
+                                _ensure_preserve_user_for_fk(
+                                    c,
+                                    db_uid,
+                                    tier=sess.tier if sess.tier in (1, 2, 3) else 3,
+                                    role_code=rc if rc in ("ADMIN", "MEMBER", "CHILD_GUEST") else role_for_tier(sess.tier),
+                                    display_name=sess.display_name or db_uid,
+                                    email=sess.email or "",
+                                    active=True,
+                                )
+                            db_jti: str | None = None
+                            if raw_jti:
+                                inv_row = c.execute("SELECT 1 FROM invites WHERE jti = ?", (raw_jti,)).fetchone()
+                                if inv_row is not None:
+                                    db_jti = raw_jti
                             c.execute(
                                 """
                                 INSERT INTO sessions (
-                                    session_id, token_hash, user_id, email, display_name,
+                                    session_id, token_hash, user_id,
                                     role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
                                 ON CONFLICT(session_id) DO UPDATE SET
                                     token_hash = excluded.token_hash,
                                     user_id = excluded.user_id,
-                                    email = excluded.email,
-                                    display_name = excluded.display_name,
                                     role_code = excluded.role_code,
                                     tier = excluded.tier,
                                     source = excluded.source,
@@ -370,13 +385,11 @@ class SessionStore:
                                 (
                                     sess.session_id,
                                     tok_hash,
-                                    sess.user_id,
-                                    sess.email,
-                                    sess.display_name,
+                                    db_uid,
                                     rc,
                                     sess.tier,
                                     sess.source,
-                                    invite_jti,
+                                    db_jti,
                                     sess.created_at,
                                     sess.expires_at,
                                 ),
@@ -384,14 +397,12 @@ class SessionStore:
                             c.execute(
                                 """
                                 INSERT OR REPLACE INTO user_sessions
-                                (session_id, user_id, email, display_name, tier, role, created_at, expires_at, source)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                (session_id, user_id, tier, role, created_at, expires_at, source)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
                                 """,
                                 (
                                     sess.session_id,
-                                    sess.user_id,
-                                    sess.email,
-                                    sess.display_name,
+                                    db_uid,
                                     sess.tier,
                                     sess.role,
                                     sess.created_at,
@@ -431,15 +442,29 @@ class SessionStore:
                     try:
                         cur = conn.execute(
                             """
-                            SELECT session_id, user_id, email, display_name, tier, role_code, created_at, expires_at, source, revoked_at
-                            FROM sessions WHERE session_id = ?
+                            SELECT s.session_id, s.user_id,
+                                   COALESCE(u.email, '') AS email,
+                                   COALESCE(u.full_name, '') AS display_name,
+                                   s.tier, s.role_code, s.created_at, s.expires_at,
+                                   s.source, s.invite_jti, s.revoked_at
+                            FROM sessions s
+                            LEFT JOIN users u ON s.user_id = u.user_id
+                            WHERE s.session_id = ?
                             """,
                             (sid,),
                         )
                         row = cur.fetchone()
                         if row is None:
                             cur2 = conn.execute(
-                                "SELECT session_id, user_id, email, display_name, tier, role, created_at, expires_at, source FROM user_sessions WHERE session_id = ?",
+                                """
+                                SELECT us.session_id, us.user_id,
+                                       COALESCE(u.email, '') AS email,
+                                       COALESCE(u.full_name, '') AS display_name,
+                                       us.tier, us.role, us.created_at, us.expires_at, us.source
+                                FROM user_sessions us
+                                LEFT JOIN users u ON us.user_id = u.user_id
+                                WHERE us.session_id = ?
+                                """,
                                 (sid,),
                             )
                             row2 = cur2.fetchone()
@@ -452,11 +477,23 @@ class SessionStore:
                         self._revoked_sids.add(sid)
                         self._memory_cache.pop(sid, None)
                         return None
+                    r_jti = str(row["invite_jti"] or "")
+                    if not r_jti and str(row["source"] or "").startswith("guest_invite:"):
+                        r_jti = str(row["source"]).split(":", 1)[1].strip()
+                    resolved_uid = str(row["user_id"] or "") or (f"guest_{r_jti[:12]}" if r_jti else "anonymous")
+                    resolved_dname = str(row["display_name"] or "") or (
+                        f"Guest tier {int(row['tier'])}" if r_jti else resolved_uid
+                    )
+                    resolved_email = str(row["email"] or "").strip()
+                    if not resolved_email:
+                        tok_meta = self._decode_signed_token(sid)
+                        if tok_meta is not None and tok_meta.email:
+                            resolved_email = tok_meta.email
                     sess = UserSession(
                         session_id=row["session_id"],
-                        user_id=row["user_id"],
-                        email=row["email"] or "",
-                        display_name=row["display_name"] or row["user_id"],
+                        user_id=resolved_uid,
+                        email=resolved_email,
+                        display_name=resolved_dname,
                         tier=int(row["tier"]),
                         role=row["role_code"],
                         created_at=float(row["created_at"]),
@@ -471,16 +508,22 @@ class SessionStore:
                     self._memory_cache[sid] = sess
                     return sess
                 if row2 is not None:
+                    r2_src = str(row2["source"] or "sqlite")
+                    r2_jti = r2_src.split(":", 1)[1].strip() if r2_src.startswith("guest_invite:") else ""
+                    resolved_uid2 = str(row2["user_id"] or "") or (f"guest_{r2_jti[:12]}" if r2_jti else "anonymous")
+                    resolved_dname2 = str(row2["display_name"] or "") or (
+                        f"Guest tier {int(row2['tier'])}" if r2_jti else resolved_uid2
+                    )
                     sess = UserSession(
-                        session_id=row2[0],
-                        user_id=row2[1],
-                        email=row2[2] or "",
-                        display_name=row2[3] or row2[1],
-                        tier=int(row2[4]),
-                        role=row2[5],
-                        created_at=float(row2[6]),
-                        expires_at=float(row2[7]),
-                        source=row2[8] or "sqlite",
+                        session_id=row2["session_id"],
+                        user_id=resolved_uid2,
+                        email=row2["email"] or "",
+                        display_name=resolved_dname2,
+                        tier=int(row2["tier"]),
+                        role=row2["role"],
+                        created_at=float(row2["created_at"]),
+                        expires_at=float(row2["expires_at"]),
+                        source=r2_src,
                         is_authenticated=True,
                     )
                     if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):

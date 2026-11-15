@@ -36,6 +36,15 @@ function Import-EnvProduction {
 
 Import-EnvProduction -Path $EnvFile
 
+if ([string]::IsNullOrWhiteSpace($env:SMARTHOME_STATE_BACKEND)) {
+    [Environment]::SetEnvironmentVariable("SMARTHOME_STATE_BACKEND", "sqlite", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($env:SMARTHOME_SQLITE_PATH)) {
+    [Environment]::SetEnvironmentVariable("SMARTHOME_SQLITE_PATH", "C:\Users\LENOVO\.smarthome_server\data\smarthome.db", "Process")
+}
+[Environment]::SetEnvironmentVariable("PYTHONIOENCODING", "utf-8", "Process")
+[Environment]::SetEnvironmentVariable("PYTHONUTF8", "1", "Process")
+
 $logDir = if ($env:SMARTHOME_LOG_DIR) { $env:SMARTHOME_LOG_DIR } else { "C:\Users\LENOVO\.smarthome_server\logs" }
 $dataDir = if ($env:SMARTHOME_DATA_DIR) { $env:SMARTHOME_DATA_DIR } else { "C:\Users\LENOVO\.smarthome_server\data" }
 $backupDir = if ($env:SMARTHOME_BACKUP_DIR) { $env:SMARTHOME_BACKUP_DIR } else { "C:\Users\LENOVO\.smarthome_server\backups" }
@@ -63,7 +72,8 @@ function Rotate-LogIfLarge {
     }
 }
 
-$pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
+$preferredPy = "C:\Users\LENOVO\miniconda3\python.exe"
+$pythonExe = if (Test-Path $preferredPy) { $preferredPy } else { (Get-Command python -ErrorAction SilentlyContinue).Source }
 if (-not $pythonExe) { $pythonExe = "python" }
 
 Set-Location $RepoRoot

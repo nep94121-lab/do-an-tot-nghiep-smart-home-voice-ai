@@ -314,7 +314,7 @@ async function loadOverview() {
       if (strikeBadge) {
         if (st.Lockout_active || st.lockout_active) {
           strikeBadge.hidden = false;
-          strikeBadge.textContent = 'Tạm khóa điều khiển do thử sai nhiều lần. Vui lòng thử lại sau.';
+          strikeBadge.textContent = 'Tạm khóa bảo mật tài khoản. Vui lòng thử lại sau.';
         } else {
           strikeBadge.hidden = true;
         }

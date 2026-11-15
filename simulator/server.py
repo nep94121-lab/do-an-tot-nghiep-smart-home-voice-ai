@@ -40,6 +40,7 @@ from simulator.api import (
     _KNOWLEDGE_RAG,
     _REST_ENGINE,
     auth_router,
+    automation_router,
     broadcast_rest_state_to_bridges,
     devices_router,
     get_knowledge_rag,
@@ -169,6 +170,7 @@ async def custom_http_exception_handler(request: Request, exc: Exception) -> Res
 # Nạp 4 Modular Routers (Features 14, 15, 16, 17)
 app.include_router(devices_router)
 app.include_router(auth_router)
+app.include_router(automation_router)
 app.include_router(qr_router)
 app.include_router(logs_router)
 app.include_router(guest_invite_router)
@@ -421,8 +423,32 @@ async def api_health() -> JSONResponse:
     return JSONResponse(payload, status_code=status_code, headers={"Cache-Control": "no-store"})
 
 
+_SCHEDULER_TASK: asyncio.Task[Any] | None = None
+
+
+async def _automation_scheduler_loop() -> None:
+    from simulator.api.routes_automation import run_scheduler_tick_once
+
+    while True:
+        try:
+            await run_scheduler_tick_once()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            pass
+        await asyncio.sleep(1.0)
+
+
 @app.on_event("startup")
 async def _on_server_startup_prewarm() -> None:
+    global _SCHEDULER_TASK
+    _BOOT_VOICE_AUTH.reset_strikes()
+    try:
+        await _REST_ENGINE.restore_timers_from_sqlite()
+    except Exception:
+        pass
+    if _SCHEDULER_TASK is None or _SCHEDULER_TASK.done():
+        _SCHEDULER_TASK = asyncio.create_task(_automation_scheduler_loop())
     if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
         return
     if os.environ.get("VERCEL", "").strip() == "1":
@@ -433,6 +459,16 @@ async def _on_server_startup_prewarm() -> None:
         asyncio.create_task(prewarm_aoede_common_phrases())
     except Exception:
         pass
+
+
+@app.on_event("shutdown")
+async def _on_server_shutdown_cleanup() -> None:
+    global _SCHEDULER_TASK
+    if _SCHEDULER_TASK is not None and not _SCHEDULER_TASK.done():
+        _SCHEDULER_TASK.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await _SCHEDULER_TASK
+    _SCHEDULER_TASK = None
 
 
 # Cầu nối WebSocket Gemini 3.8 Live Bidirectional Streaming

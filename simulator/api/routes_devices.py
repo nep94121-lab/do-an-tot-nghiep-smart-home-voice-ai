@@ -225,7 +225,7 @@ async def api_sse_events(request: Request) -> JSONResponse | Any:
         request,
         sess if sess.is_authenticated else None,
         _REST_ENGINE,
-        keepalive_sec=15.0,
+        keepalive_sec=8.0,
     )
     return StreamingResponse(
         stream,
@@ -350,14 +350,14 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     res["tier"] = session_tier
     res["user_name"] = session_user
     res["rbac_blocked"] = not bool(res.get("ok"))
-    res["snapshot"] = _REST_ENGINE.get_snapshot(session=session, sync=False)
+    res["snapshot"] = res.get("snapshot") or _REST_ENGINE.get_snapshot(session=session, sync=False)
     if not res.get("ok") and not res.get("error"):
         res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
     spoken_dev_ctrl = str(res.get("exact_spoken_reply") or res.get("error") or "").strip()
     if not res.get("ok"):
         res["rejection_speech"] = spoken_dev_ctrl
 
-    await broadcast_rest_state_to_bridges()
+    await broadcast_rest_state_to_bridges(sync_engine=False)
     append_audit_log(
         category="DEVICE_IO",
         event_type="mobile_device_toggle",
@@ -576,7 +576,7 @@ async def _attach_aoede_audio(data: dict[str, Any]) -> dict[str, Any]:
             synthesize_aoede_phrase_audio,
         )
 
-        bundle = await synthesize_aoede_phrase_audio(spoken)
+        bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=2.1)
         fields = build_aoede_http_audio_fields(bundle)
         merged = {**data, **fields}
         merged["play_audio"] = bool(fields.get("pcm24k_b64"))
@@ -658,6 +658,22 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         })
 
     t_low = text.lower()
+    is_sensor_or_reset = any(
+        k in t_low for k in ("nhiệt độ", "nhiet do", "độ ẩm đất", "cảm biến đất", "trạng thái", "trang thai", "reset")
+    )
+    if not is_sensor_or_reset:
+        from simulator.automation_nlu import process_automation_nlu_command
+
+        nlu_res = await process_automation_nlu_command(
+            text=text,
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+        )
+        if nlu_res is not None:
+            await broadcast_rest_state_to_bridges()
+            return JSONResponse(nlu_res["payload"], status_code=int(nlu_res.get("status_code") or 200))
+
     if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
         m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
         if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):

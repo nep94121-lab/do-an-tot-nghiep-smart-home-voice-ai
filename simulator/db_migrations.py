@@ -5,10 +5,12 @@ from __future__ import annotations
 import atexit
 import contextlib
 import datetime
+import hashlib
 import json
 import os
 import pathlib
 import sqlite3
+import sys
 import tempfile
 import threading
 from typing import Any, Callable, TypeVar
@@ -31,8 +33,9 @@ NORMALIZED_TABLE_ORDER: tuple[str, ...] = (
     "devices",
     "device_state",
     "system_state_meta",
-    "sessions",
     "invites",
+    "sessions",
+    "user_sessions",
     "otp_challenges",
     "trusted_devices",
     "owner_pin_security",
@@ -41,6 +44,9 @@ NORMALIZED_TABLE_ORDER: tuple[str, ...] = (
     "system_kv_meta",
     "voiceprints",
     "timers_pool",
+    "schedules",
+    "automation_rules",
+    "custom_commands",
     "rules_pool",
     "ir_remote_codes",
     "knowledge_rag",
@@ -149,38 +155,10 @@ CREATE TABLE IF NOT EXISTS system_state_meta (
     updated_at REAL NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
-    session_id TEXT PRIMARY KEY,
-    token_hash TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    email TEXT NOT NULL DEFAULT '',
-    display_name TEXT NOT NULL,
-    role_code TEXT NOT NULL REFERENCES roles(role_code),
-    tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3, 4)),
-    source TEXT NOT NULL DEFAULT 'web',
-    invite_jti TEXT NOT NULL DEFAULT '',
-    created_at REAL NOT NULL,
-    expires_at REAL NOT NULL,
-    revoked_at REAL
-);
-
-CREATE TABLE IF NOT EXISTS user_sessions (
-    session_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    email TEXT,
-    display_name TEXT,
-    tier INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    expires_at REAL NOT NULL,
-    source TEXT
-);
-
 CREATE TABLE IF NOT EXISTS invites (
     jti TEXT PRIMARY KEY,
-    token TEXT NOT NULL,
     token_hash TEXT NOT NULL,
-    owner_user_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     role_code TEXT NOT NULL REFERENCES roles(role_code),
     tier INTEGER NOT NULL CHECK (tier IN (2, 3)),
     label TEXT NOT NULL DEFAULT '',
@@ -191,6 +169,29 @@ CREATE TABLE IF NOT EXISTS invites (
     redeem_count INTEGER NOT NULL DEFAULT 0,
     last_redeem_at REAL NOT NULL DEFAULT 0,
     extra_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL,
+    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+    role_code TEXT NOT NULL REFERENCES roles(role_code),
+    tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3, 4)),
+    source TEXT NOT NULL DEFAULT 'web',
+    invite_jti TEXT REFERENCES invites(jti) ON DELETE SET NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    revoked_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+    tier INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    source TEXT
 );
 
 CREATE TABLE IF NOT EXISTS otp_challenges (
@@ -266,7 +267,59 @@ CREATE TABLE IF NOT EXISTS timers_pool (
     target_time_vn TEXT NOT NULL,
     repeat_rule TEXT NOT NULL DEFAULT 'once',
     label_summary TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    fire_at_epoch REAL NOT NULL DEFAULT 0,
+    delay_seconds REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    owner_tier INTEGER NOT NULL DEFAULT 1,
+    label TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    schedule_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    owner_tier INTEGER NOT NULL DEFAULT 1,
+    device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    time_hhmm TEXT NOT NULL,
+    schedule_type TEXT NOT NULL DEFAULT 'once' CHECK (schedule_type IN ('once', 'daily')),
+    run_date_vn TEXT NOT NULL DEFAULT '',
+    timezone TEXT NOT NULL DEFAULT 'Asia/Saigon',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_fired_date_vn TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS automation_rules (
+    rule_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    owner_tier INTEGER NOT NULL DEFAULT 1,
+    when_device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    when_state TEXT NOT NULL,
+    then_device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    then_action TEXT NOT NULL,
+    else_device_id TEXT REFERENCES devices(device_id) ON DELETE SET NULL,
+    else_action TEXT NOT NULL DEFAULT '',
+    delay_seconds REAL NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    label TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS custom_commands (
+    command_id TEXT PRIMARY KEY,
+    phrase TEXT NOT NULL,
+    phrase_norm TEXT NOT NULL UNIQUE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    owner_tier INTEGER NOT NULL DEFAULT 1,
+    steps_json TEXT NOT NULL DEFAULT '[]',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at REAL NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS rules_pool (
@@ -321,14 +374,23 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs(ts_iso DESC, log_id D
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_ts ON audit_logs(user_name, ts_iso DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_cat_tier ON audit_logs(category, tier, log_id DESC);
 CREATE INDEX IF NOT EXISTS idx_timers_owner ON timers_pool(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_timers_status_fire ON timers_pool(status, fire_at_epoch);
+CREATE INDEX IF NOT EXISTS idx_schedules_enabled_time ON schedules(enabled, time_hhmm);
+CREATE INDEX IF NOT EXISTS idx_schedules_owner ON schedules(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_automation_rules_trigger ON automation_rules(enabled, when_device_id, when_state);
+CREATE INDEX IF NOT EXISTS idx_automation_rules_owner ON automation_rules(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_custom_commands_enabled ON custom_commands(enabled, phrase_norm);
 CREATE INDEX IF NOT EXISTS idx_rules_owner_cat ON rules_pool(owner_user_id, rule_category);
 CREATE INDEX IF NOT EXISTS idx_voiceprints_user ON voiceprints(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_role_tier ON users(role_code, tier);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(lower(email)) WHERE email IS NOT NULL AND email != '';
 CREATE INDEX IF NOT EXISTS idx_device_state_updated ON device_state(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_exp ON sessions(user_id, expires_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_invite ON sessions(invite_jti);
 CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_exp ON user_sessions(user_id, expires_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invites_token_hash ON invites(token_hash);
 CREATE INDEX IF NOT EXISTS idx_invites_owner_exp ON invites(owner_user_id, expires_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invites_revoked_exp ON invites(revoked, expires_at);
 CREATE INDEX IF NOT EXISTS idx_otp_email_purpose_exp ON otp_challenges(lower(email), purpose, expires_at DESC);
@@ -376,19 +438,17 @@ _WAL_READY_PATHS: set[str] = set()
 
 def _should_keep_wal_anchor(target: pathlib.Path) -> bool:
     """Keep a lightweight WAL anchor connection for long-lived DBs so Windows does not drop -shm on every close."""
-    if os.environ.get("PYTEST_CURRENT_TEST", "").strip():
+    if (
+        "pytest" in sys.modules
+        or os.environ.get("PYTEST", "").strip()
+        or os.environ.get("PYTEST_CURRENT_TEST", "").strip()
+    ):
         return False
     try:
         resolved = str(target.resolve()).lower()
     except OSError:
         resolved = str(target).lower()
-    if "pt_tmp" in resolved or "pytest-" in resolved:
-        return False
-    try:
-        tmp_root = str(pathlib.Path(tempfile.gettempdir()).resolve()).lower()
-    except OSError:
-        tmp_root = str(pathlib.Path(tempfile.gettempdir())).lower()
-    if resolved == tmp_root or resolved.startswith(tmp_root + os.sep):
+    if resolved == ":memory:":
         return False
     return True
 
@@ -507,6 +567,332 @@ def _ensure_column(
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def_sql};")
 
 
+def _table_fk_targets(conn: sqlite3.Connection, table_name: str) -> set[tuple[str, str, str]]:
+    rows = conn.execute(f"PRAGMA foreign_key_list({table_name})").fetchall()
+    return {(str(r["table"]), str(r["from"]), str(r["to"])) for r in rows}
+
+
+def _is_guest_or_anon_user_id(user_id: str | None, source: str = "", invite_jti: str = "") -> bool:
+    uid = str(user_id or "").strip().lower()
+    src = str(source or "").strip().lower()
+    if not uid or uid in ("anonymous", "unknown", "stranger", "guest"):
+        return True
+    if uid.startswith("guest_") or src.startswith("guest_invite:"):
+        return True
+    if invite_jti and uid.startswith("guest"):
+        return True
+    return False
+
+
+def _ensure_preserve_user_for_fk(
+    conn: sqlite3.Connection,
+    user_id: str,
+    *,
+    tier: int = 3,
+    role_code: str = "",
+    display_name: str = "",
+    email: str = "",
+    active: bool = False,
+) -> None:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return
+    safe_email = str(email or "").strip().lower()
+    if safe_email:
+        conflict = conn.execute(
+            "SELECT 1 FROM users WHERE lower(email) = ? AND user_id != ?",
+            (safe_email, uid),
+        ).fetchone()
+        if conflict:
+            safe_email = ""
+    existing = conn.execute("SELECT email, full_name FROM users WHERE user_id = ?", (uid,)).fetchone()
+    if existing is not None:
+        if active and safe_email and not str(existing["email"] or "").strip():
+            conn.execute(
+                "UPDATE users SET email = ? WHERE user_id = ?",
+                (safe_email, uid),
+            )
+        if active and display_name and not str(existing["full_name"] or "").strip():
+            conn.execute(
+                "UPDATE users SET full_name = ? WHERE user_id = ?",
+                (str(display_name), uid),
+            )
+        return
+    safe_tier = int(tier) if int(tier or 3) in (1, 2, 3) else 3
+    safe_rc = role_code if role_code in ("ADMIN", "MEMBER", "CHILD_GUEST") else role_for_tier(safe_tier)
+    now_iso = _now_iso()
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO users (
+            user_id, full_name, role, tier, offline_allowed, created_by, updated_at,
+            email, role_code, permission_active, permission_status, is_allowlisted, is_active, created_at, account_meta_json
+        ) VALUES (?, ?, ?, ?, ?, 'MIGRATION_V3', ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+        """,
+        (
+            uid,
+            str(display_name or uid),
+            safe_rc,
+            safe_tier,
+            1 if (active and safe_tier in (1, 2)) else 0,
+            now_iso,
+            safe_email,
+            safe_rc,
+            1 if active else 0,
+            "ACTIVE" if active else "PRESERVED_LEGACY",
+            1 if active else 0,
+            1 if active else 0,
+            now_iso,
+        ),
+    )
+
+
+def _migrate_schema_v3(conn: sqlite3.Connection) -> None:
+    """Lossless idempotent v3 rebuild: invites hash-only + FK, sessions/user_sessions FK to users, P1 columns."""
+    _ensure_column(conn, "timers_pool", "fire_at_epoch", "REAL NOT NULL DEFAULT 0")
+    _ensure_column(conn, "timers_pool", "delay_seconds", "REAL NOT NULL DEFAULT 0")
+    _ensure_column(conn, "timers_pool", "status", "TEXT NOT NULL DEFAULT 'pending'")
+    _ensure_column(conn, "timers_pool", "owner_tier", "INTEGER NOT NULL DEFAULT 1")
+    _ensure_column(conn, "timers_pool", "label", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "timers_pool", "created_at", "REAL NOT NULL DEFAULT 0")
+
+    inv_cols = _table_columns(conn, "invites")
+    inv_fks = _table_fk_targets(conn, "invites")
+    need_invites_rebuild = (
+        "token" in inv_cols
+        or ("users", "owner_user_id", "user_id") not in inv_fks
+    )
+
+    sess_cols = _table_columns(conn, "sessions")
+    sess_fks = _table_fk_targets(conn, "sessions")
+    need_sessions_rebuild = (
+        "email" in sess_cols
+        or "display_name" in sess_cols
+        or ("users", "user_id", "user_id") not in sess_fks
+        or ("invites", "invite_jti", "jti") not in sess_fks
+    )
+
+    usess_cols = _table_columns(conn, "user_sessions")
+    usess_fks = _table_fk_targets(conn, "user_sessions")
+    need_usess_rebuild = (
+        "email" in usess_cols
+        or "display_name" in usess_cols
+        or ("users", "user_id", "user_id") not in usess_fks
+    )
+
+    if not (need_invites_rebuild or need_sessions_rebuild or need_usess_rebuild):
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF;")
+    try:
+        def _rebuild_tx(c: sqlite3.Connection) -> None:
+            if need_invites_rebuild:
+                c.execute(
+                    """
+                    CREATE TABLE invites_v3 (
+                        jti TEXT PRIMARY KEY,
+                        token_hash TEXT NOT NULL,
+                        owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        role_code TEXT NOT NULL REFERENCES roles(role_code),
+                        tier INTEGER NOT NULL CHECK (tier IN (2, 3)),
+                        label TEXT NOT NULL DEFAULT '',
+                        created_at REAL NOT NULL,
+                        expires_at REAL NOT NULL,
+                        revoked INTEGER NOT NULL DEFAULT 0,
+                        revoked_at REAL NOT NULL DEFAULT 0,
+                        redeem_count INTEGER NOT NULL DEFAULT 0,
+                        last_redeem_at REAL NOT NULL DEFAULT 0,
+                        extra_json TEXT NOT NULL DEFAULT '{}'
+                    )
+                    """
+                )
+                has_raw_tok = "token" in inv_cols
+                for r in c.execute("SELECT * FROM invites").fetchall():
+                    rd = dict(r)
+                    jti = str(rd.get("jti") or "").strip()
+                    if not jti:
+                        continue
+                    owner_id = str(rd.get("owner_user_id") or "").strip() or "tuan_anh"
+                    _ensure_preserve_user_for_fk(
+                        c, owner_id, tier=1, role_code="ADMIN", display_name=owner_id, active=False
+                    )
+                    raw_tok = str(rd.get("token") or "").strip() if has_raw_tok else ""
+                    tok_hash = str(rd.get("token_hash") or "").strip()
+                    if not tok_hash or (raw_tok and tok_hash == hashlib.sha256(jti.encode("utf-8")).hexdigest()):
+                        tok_hash = hashlib.sha256((raw_tok or jti).encode("utf-8")).hexdigest()
+                    tier = int(rd.get("tier") or 3)
+                    if tier not in (2, 3):
+                        tier = 3
+                    rc = str(rd.get("role_code") or role_for_tier(tier))
+                    if rc not in ("MEMBER", "CHILD_GUEST"):
+                        rc = role_for_tier(tier)
+                    try:
+                        extra_obj = json.loads(str(rd.get("extra_json") or "{}"))
+                    except Exception:
+                        extra_obj = {}
+                    if isinstance(extra_obj, dict):
+                        extra_obj.pop("token", None)
+                        extra_obj["token_hash"] = tok_hash
+                        extra_str = json.dumps(extra_obj, ensure_ascii=False)
+                    else:
+                        extra_str = "{}"
+                    c.execute(
+                        """
+                        INSERT INTO invites_v3 (
+                            jti, token_hash, owner_user_id, role_code, tier, label,
+                            created_at, expires_at, revoked, revoked_at, redeem_count, last_redeem_at, extra_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            jti,
+                            tok_hash,
+                            owner_id,
+                            rc,
+                            tier,
+                            str(rd.get("label") or ""),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("expires_at") or 0.0),
+                            int(rd.get("revoked") or 0),
+                            float(rd.get("revoked_at") or 0.0),
+                            int(rd.get("redeem_count") or 0),
+                            float(rd.get("last_redeem_at") or 0.0),
+                            extra_str,
+                        ),
+                    )
+                c.execute("DROP TABLE invites")
+                c.execute("ALTER TABLE invites_v3 RENAME TO invites")
+
+            valid_jtis = {str(r[0]) for r in c.execute("SELECT jti FROM invites").fetchall()}
+
+            if need_sessions_rebuild:
+                c.execute(
+                    """
+                    CREATE TABLE sessions_v3 (
+                        session_id TEXT PRIMARY KEY,
+                        token_hash TEXT NOT NULL,
+                        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                        role_code TEXT NOT NULL REFERENCES roles(role_code),
+                        tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3, 4)),
+                        source TEXT NOT NULL DEFAULT 'web',
+                        invite_jti TEXT REFERENCES invites(jti) ON DELETE SET NULL,
+                        created_at REAL NOT NULL,
+                        expires_at REAL NOT NULL,
+                        revoked_at REAL
+                    )
+                    """
+                )
+                for r in c.execute("SELECT * FROM sessions").fetchall():
+                    rd = dict(r)
+                    sid = str(rd.get("session_id") or "").strip()
+                    if not sid:
+                        continue
+                    uid = str(rd.get("user_id") or "").strip()
+                    src = str(rd.get("source") or "web")
+                    jti = str(rd.get("invite_jti") or "").strip()
+                    tier = int(rd.get("tier") or 3)
+                    if tier not in (1, 2, 3, 4):
+                        tier = 3
+                    rc = str(rd.get("role_code") or role_for_tier(tier))
+                    if rc not in ("ADMIN", "MEMBER", "CHILD_GUEST", "UNKNOWN"):
+                        rc = role_for_tier(tier)
+                    if _is_guest_or_anon_user_id(uid, src, jti):
+                        new_uid: str | None = None
+                    else:
+                        new_uid = uid
+                        _ensure_preserve_user_for_fk(
+                            c,
+                            new_uid,
+                            tier=tier if tier in (1, 2, 3) else 3,
+                            role_code=rc if rc in ("ADMIN", "MEMBER", "CHILD_GUEST") else role_for_tier(tier),
+                            display_name=str(rd.get("display_name") or new_uid),
+                            email=str(rd.get("email") or ""),
+                            active=False,
+                        )
+                    if not jti and src.startswith("guest_invite:"):
+                        jti = src.split(":", 1)[1].strip()
+                    new_jti: str | None = jti if (jti and jti in valid_jtis) else None
+                    c.execute(
+                        """
+                        INSERT INTO sessions_v3 (
+                            session_id, token_hash, user_id, role_code, tier, source,
+                            invite_jti, created_at, expires_at, revoked_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            sid,
+                            str(rd.get("token_hash") or hashlib.sha256(sid.encode("utf-8")).hexdigest()),
+                            new_uid,
+                            rc,
+                            tier,
+                            src,
+                            new_jti,
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("expires_at") or 0.0),
+                            rd.get("revoked_at"),
+                        ),
+                    )
+                c.execute("DROP TABLE sessions")
+                c.execute("ALTER TABLE sessions_v3 RENAME TO sessions")
+
+            if need_usess_rebuild:
+                c.execute(
+                    """
+                    CREATE TABLE user_sessions_v3 (
+                        session_id TEXT PRIMARY KEY,
+                        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                        tier INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        expires_at REAL NOT NULL,
+                        source TEXT
+                    )
+                    """
+                )
+                for r in c.execute("SELECT * FROM user_sessions").fetchall():
+                    rd = dict(r)
+                    sid = str(rd.get("session_id") or "").strip()
+                    if not sid:
+                        continue
+                    uid = str(rd.get("user_id") or "").strip()
+                    src = str(rd.get("source") or "web")
+                    tier = int(rd.get("tier") or 3)
+                    role_val = str(rd.get("role") or role_for_tier(tier))
+                    if _is_guest_or_anon_user_id(uid, src, ""):
+                        new_uid = None
+                    else:
+                        new_uid = uid
+                        _ensure_preserve_user_for_fk(
+                            c,
+                            new_uid,
+                            tier=tier if tier in (1, 2, 3) else 3,
+                            role_code=role_for_tier(tier),
+                            display_name=str(rd.get("display_name") or new_uid),
+                            email=str(rd.get("email") or ""),
+                            active=False,
+                        )
+                    c.execute(
+                        """
+                        INSERT INTO user_sessions_v3 (
+                            session_id, user_id, tier, role, created_at, expires_at, source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            sid,
+                            new_uid,
+                            tier,
+                            role_val,
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("expires_at") or 0.0),
+                            src,
+                        ),
+                    )
+                c.execute("DROP TABLE user_sessions")
+                c.execute("ALTER TABLE user_sessions_v3 RENAME TO user_sessions")
+
+        run_write_transaction(conn, _rebuild_tx)
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
+
+
 def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     """Apply idempotent 3NF schema creation, column upgrades, role seeds, and hot indexes."""
     configure_wal_pragmas(conn, readonly=False)
@@ -528,6 +914,8 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     _ensure_column(conn, "devices", "min_role", "TEXT REFERENCES roles(role_code)")
     _ensure_column(conn, "devices", "room", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "devices", "device_type", "TEXT NOT NULL DEFAULT 'switch'")
+
+    _migrate_schema_v3(conn)
 
     def _seed_and_migrate(c: sqlite3.Connection) -> int:
         for role_code, tier, name_vi, desc in DEFAULT_ROLES:
@@ -565,28 +953,26 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
             """
         )
 
-        # Migrate rows from legacy user_sessions into normalized sessions once if needed
+        # Ensure any active non-orphan rows from user_sessions exist in sessions (v3 columns)
         with contextlib.suppress(sqlite3.DatabaseError):
             c.execute(
                 """
                 INSERT OR IGNORE INTO sessions (
-                    session_id, token_hash, user_id, email, display_name,
+                    session_id, token_hash, user_id,
                     role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
                 )
                 SELECT
-                    session_id,
+                    us.session_id,
                     lower(hex(randomblob(16))),
-                    user_id,
-                    COALESCE(email, ''),
-                    COALESCE(display_name, user_id),
-                    CASE WHEN tier = 1 THEN 'ADMIN' WHEN tier = 2 THEN 'MEMBER' ELSE 'CHILD_GUEST' END,
-                    CASE WHEN tier IN (1, 2, 3) THEN tier ELSE 3 END,
-                    COALESCE(source, 'legacy'),
-                    '',
-                    created_at,
-                    expires_at,
+                    CASE WHEN us.user_id IS NOT NULL AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = us.user_id) THEN us.user_id ELSE NULL END,
+                    CASE WHEN us.tier = 1 THEN 'ADMIN' WHEN us.tier = 2 THEN 'MEMBER' ELSE 'CHILD_GUEST' END,
+                    CASE WHEN us.tier IN (1, 2, 3) THEN us.tier ELSE 3 END,
+                    COALESCE(us.source, 'legacy'),
+                    NULL,
+                    us.created_at,
+                    us.expires_at,
                     NULL
-                FROM user_sessions
+                FROM user_sessions us
                 """
             )
 
@@ -594,6 +980,7 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
         migrations = (
             (1, "initial_8_table_schema"),
             (2, "normalized_3nf_wal_sessions_invites_otp_trusted_pin_ratelimit_state"),
+            (3, "schema_v3_fk_hash_only_and_p1_automation"),
         )
         for ver, mname in migrations:
             c.execute(
@@ -604,7 +991,7 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
                 (ver, mname, now_iso),
             )
         row = c.execute("SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations").fetchone()
-        return int(row["v"] if row else 2)
+        return int(row["v"] if row else 3)
 
     version = run_write_transaction(conn, _seed_and_migrate)
     conn.executescript(_HOT_INDEXES_SQL)

@@ -2319,6 +2319,10 @@
           if (dsEl) dsEl.textContent = `${sSafe}%`;
         }
       }
+
+      if (typeof renderMobileAutomation === 'function') {
+        renderMobileAutomation(snap);
+      }
     }
 
     async function toggleDev(devId, explicitTargetState = null) {
@@ -2775,39 +2779,315 @@
       await executeMobileCommand(text);
     };
 
+    const MOBILE_DEV_LABELS = {
+      main_door: 'Cửa chính',
+      living_room_light: 'Đèn phòng khách',
+      bedroom_light: 'Đèn phòng ngủ',
+      fan: 'Quạt trần',
+      ac: 'Điều hòa',
+      garden_pump: 'Máy bơm tưới cây',
+      alarm_siren: 'Còi báo động',
+    };
+    const MOBILE_ACT_LABELS = {
+      turn_on: 'Bật',
+      turn_off: 'Tắt',
+      open_door: 'Mở cửa',
+      close_door: 'Đóng cửa',
+    };
+
+    function escMobileHtml(val) {
+      return String(val == null ? '' : val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function setMobileAutoFeedback(msg, isErr = false) {
+      const fb = document.getElementById('pwaAutoFeedback');
+      if (!fb) return;
+      if (!msg) {
+        fb.hidden = true;
+        fb.textContent = '';
+        return;
+      }
+      fb.hidden = false;
+      fb.textContent = String(msg);
+      fb.style.color = isErr ? 'var(--danger)' : 'var(--accent)';
+    }
+
+    function syncMobileAutoModeFields() {
+      const modeSel = document.getElementById('pwaAutoMode');
+      const mode = modeSel ? modeSel.value : 'timer';
+      const gTC = document.getElementById('pwaModeTimerClockGroup');
+      const tInp = document.getElementById('pwaSchedTime');
+      const cRow = document.getElementById('pwaClockExtraRow');
+      const gRule = document.getElementById('pwaModeRuleGroup');
+      const gScene = document.getElementById('pwaModeSceneGroup');
+      if (gTC) gTC.hidden = mode !== 'timer' && mode !== 'clock';
+      if (tInp) tInp.hidden = mode !== 'timer';
+      if (cRow) cRow.hidden = mode !== 'clock';
+      if (gRule) gRule.hidden = mode !== 'rule';
+      if (gScene) gScene.hidden = mode !== 'scene';
+      setMobileAutoFeedback('');
+    }
+
+    function renderMobileAutomation(snap) {
+      if (!snap || typeof document === 'undefined') return;
+      const tier = Number(snap.current_tier || mobileTier || 1);
+      const uid = String(snap.current_user_id || '');
+      const pol = snap.system_policies || {};
+      const canTimers = tier <= 2 || Boolean(pol.tier3_can_schedule_timer);
+      const canRules = tier <= 2 || Boolean(pol.tier3_can_custom_rules);
+
+      const timers = Array.isArray(snap.timers) ? snap.timers : [];
+      const schedules = Array.isArray(snap.schedules) ? snap.schedules : [];
+      const rules = Array.isArray(snap.automation_rules) ? snap.automation_rules : [];
+      const scenes = Array.isArray(snap.scenes || snap.custom_commands) ? (snap.scenes || snap.custom_commands) : [];
+
+      const schedInline = document.getElementById('upcomingScheduleInline');
+      if (schedInline) {
+        if (timers.length > 0) {
+          const t = timers[0];
+          schedInline.textContent = `${t.device_name} · ${t.action_vi || t.action} (${t.remaining_seconds}s)`;
+        } else if (schedules.length > 0) {
+          const sc = schedules[0];
+          const dLbl = MOBILE_DEV_LABELS[sc.device_id] || sc.device_id;
+          const aLbl = MOBILE_ACT_LABELS[sc.action] || sc.action;
+          schedInline.textContent = `${sc.time_hhmm} · ${aLbl} ${dLbl}`;
+        } else if (rules.length > 0) {
+          schedInline.textContent = `${rules.length} luật liên kết đang hoạt động`;
+        } else if (scenes.length > 0) {
+          schedInline.textContent = `${scenes.length} ngữ cảnh tùy chỉnh`;
+        } else {
+          schedInline.textContent = 'Chưa có lịch';
+        }
+      }
+
+      const container = document.getElementById('mobileAutoContainers');
+      if (container) {
+        container.hidden = timers.length === 0 && schedules.length === 0 && rules.length === 0 && scenes.length === 0;
+      }
+
+      const tWrap = document.getElementById('mobileTimersWrap');
+      const tList = document.getElementById('mobileTimersList');
+      if (tWrap) tWrap.hidden = timers.length === 0;
+      if (tList) {
+        tList.innerHTML = timers.map(t => {
+          const tid = String(t.id || t.timer_id || '');
+          const delBtn = (canTimers && tid)
+            ? `<button type="button" class="mobile-mini-btn danger" data-mob-auto="del-timer" data-mob-id="${escMobileHtml(tid)}">Hủy</button>`
+            : '';
+          return `<div class="mobile-auto-item"><div class="mobile-auto-meta"><div class="mobile-auto-label">${escMobileHtml(t.device_name)} · ${escMobileHtml(t.action_vi || t.action)}</div><div class="mobile-auto-sub">${escMobileHtml(t.remaining_label || (t.remaining_seconds + 's'))}</div></div><div class="mobile-auto-actions">${delBtn}</div></div>`;
+        }).join('');
+      }
+
+      const sWrap = document.getElementById('mobileSchedulesWrap');
+      const sList = document.getElementById('mobileSchedulesList');
+      if (sWrap) sWrap.hidden = schedules.length === 0;
+      if (sList) {
+        sList.innerHTML = schedules.map(sc => {
+          const sid = String(sc.schedule_id || '');
+          const dLbl = MOBILE_DEV_LABELS[sc.device_id] || sc.device_id;
+          const aLbl = MOBILE_ACT_LABELS[sc.action] || sc.action;
+          const canEdit = canTimers && (tier === 1 || String(sc.owner_user_id || '') === uid);
+          const enabledFlag = Boolean(sc.enabled);
+          const btns = canEdit
+            ? `<button type="button" class="mobile-mini-btn" data-mob-auto="toggle-sched" data-mob-id="${escMobileHtml(sid)}" data-mob-enabled="${enabledFlag ? '1' : '0'}">${enabledFlag ? 'Tắt' : 'Bật'}</button><button type="button" class="mobile-mini-btn danger" data-mob-auto="del-sched" data-mob-id="${escMobileHtml(sid)}">Xóa</button>`
+            : '';
+          return `<div class="mobile-auto-item"><div class="mobile-auto-meta"><div class="mobile-auto-label">${escMobileHtml(sc.time_hhmm)} · ${escMobileHtml(aLbl)} ${escMobileHtml(dLbl)}</div><div class="mobile-auto-sub">${sc.schedule_type === 'daily' ? 'Hàng ngày' : 'Một lần'} · ${enabledFlag ? 'Bật' : 'Tạm dừng'}</div></div><div class="mobile-auto-actions">${btns}</div></div>`;
+        }).join('');
+      }
+
+      const rWrap = document.getElementById('mobileRulesWrap');
+      const rList = document.getElementById('mobileRulesList');
+      if (rWrap) rWrap.hidden = rules.length === 0;
+      if (rList) {
+        rList.innerHTML = rules.map(r => {
+          const rid = String(r.rule_id || '');
+          const canDel = canRules && rid && (tier === 1 || String(r.owner_user_id || '') === uid);
+          const btns = canDel
+            ? `<button type="button" class="mobile-mini-btn danger" data-mob-auto="del-rule" data-mob-id="${escMobileHtml(rid)}">Xóa</button>`
+            : '';
+          const title = r.label || `Khi ${MOBILE_DEV_LABELS[r.when_device_id] || r.when_device_id} ${r.when_state} → ${MOBILE_ACT_LABELS[r.then_action] || r.then_action} ${MOBILE_DEV_LABELS[r.then_device_id] || r.then_device_id}`;
+          return `<div class="mobile-auto-item"><div class="mobile-auto-meta"><div class="mobile-auto-label">${escMobileHtml(title)}</div></div><div class="mobile-auto-actions">${btns}</div></div>`;
+        }).join('');
+      }
+
+      const cWrap = document.getElementById('mobileScenesWrap');
+      const cList = document.getElementById('mobileScenesList');
+      if (cWrap) cWrap.hidden = scenes.length === 0;
+      if (cList) {
+        cList.innerHTML = scenes.map(sc => {
+          const cid = String(sc.command_id || '');
+          const stepTxt = (Array.isArray(sc.steps) ? sc.steps : [])
+            .map(s => `${MOBILE_ACT_LABELS[s.action] || s.action} ${MOBILE_DEV_LABELS[s.device_id] || s.device_id}`)
+            .join(', ');
+          const canMod = canRules && (tier === 1 || String(sc.owner_user_id || '') === uid);
+          const modBtns = canMod
+            ? `<button type="button" class="mobile-mini-btn" data-mob-auto="edit-scene" data-mob-id="${escMobileHtml(cid)}">Sửa</button><button type="button" class="mobile-mini-btn danger" data-mob-auto="del-scene" data-mob-id="${escMobileHtml(cid)}">Xóa</button>`
+            : '';
+          return `<div class="mobile-auto-item"><div class="mobile-auto-meta"><div class="mobile-auto-label">"${escMobileHtml(sc.phrase)}"</div><div class="mobile-auto-sub">${escMobileHtml(stepTxt)}</div></div><div class="mobile-auto-actions"><button type="button" class="mobile-mini-btn accent" data-mob-auto="run-scene" data-mob-id="${escMobileHtml(cid)}">Chạy</button>${modBtns}</div></div>`;
+        }).join('');
+      }
+    }
+
+    async function handleMobileAutoAction(act, itemId, btnEl) {
+      if (!itemId) return;
+      if (act === 'edit-scene') {
+        const scenes = (latestSnap && (latestSnap.scenes || latestSnap.custom_commands)) || [];
+        const found = scenes.find(s => String(s.command_id || '') === itemId);
+        if (found) {
+          const modeSel = document.getElementById('pwaAutoMode');
+          const formEl = document.getElementById('pwaScheduleForm');
+          if (modeSel) modeSel.value = 'scene';
+          syncMobileAutoModeFields();
+          if (formEl) formEl.hidden = false;
+          const eInp = document.getElementById('pwaSceneEditId');
+          const pInp = document.getElementById('pwaScenePhrase');
+          const sInp = document.getElementById('pwaSceneSteps');
+          if (eInp) eInp.value = itemId;
+          if (pInp) pInp.value = found.phrase || '';
+          if (sInp) {
+            sInp.value = (found.steps || [])
+              .map(s => `${MOBILE_ACT_LABELS[s.action] || s.action} ${MOBILE_DEV_LABELS[s.device_id] || s.device_id}`)
+              .join(' rồi ');
+          }
+        }
+        return;
+      }
+      let url = '';
+      let method = 'DELETE';
+      let body = undefined;
+      if (act === 'del-timer') url = `/api/timers/${encodeURIComponent(itemId)}`;
+      else if (act === 'del-sched') url = `/api/schedules/${encodeURIComponent(itemId)}`;
+      else if (act === 'toggle-sched') {
+        url = `/api/schedules/${encodeURIComponent(itemId)}`;
+        method = 'PATCH';
+        body = JSON.stringify({ enabled: btnEl && btnEl.getAttribute('data-mob-enabled') !== '1' });
+      } else if (act === 'del-rule') url = `/api/rules/${encodeURIComponent(itemId)}`;
+      else if (act === 'del-scene') url = `/api/scenes/${encodeURIComponent(itemId)}`;
+      else if (act === 'run-scene') {
+        url = `/api/scenes/${encodeURIComponent(itemId)}/run`;
+        method = 'POST';
+      }
+      if (!url) return;
+      const res = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        showMobileActionError(data.error || 'Thao tác tự động thất bại.', false);
+        addLog(`Tự động hóa: ${act}`, 'device', 'Thất bại');
+        return;
+      }
+      const reply = data.reply || data.exact_spoken_reply || `Đã thực hiện ${act}.`;
+      showPwaVoiceResults(act === 'run-scene' ? 'Chạy ngữ cảnh' : 'Tự động hóa', reply);
+      addLog(reply, 'device', 'Thành công');
+      if (data.snapshot) renderState(data.snapshot);
+      else await fetchInitial();
+    }
+
     async function submitPwaSchedule(e) {
       e.preventDefault();
-      const t = document.getElementById('pwaSchedTime').value.trim() || '10 giây nữa';
-      const dev = document.getElementById('pwaSchedDevice').value;
-      const act = document.getElementById('pwaSchedAction').value;
-      document.getElementById('pwaScheduleForm').hidden = true;
+      const modeSel = document.getElementById('pwaAutoMode');
+      const mode = modeSel ? modeSel.value : 'timer';
       const devMap = {
         'Đèn phòng khách': 'living_room_light',
+        'Đèn phòng ngủ': 'bedroom_light',
         'Quạt trần': 'fan',
         'Điều hòa': 'ac',
         'Máy bơm tưới cây': 'garden_pump',
-        'Tưới cây': 'garden_pump'
+        'Tưới cây': 'garden_pump',
+        'Cửa chính': 'main_door',
       };
-      const mSec = t.match(/(\d+(?:\.\d+)?)/);
-      const secVal = mSec ? parseFloat(mSec[1]) : 15;
-      const res = await fetch('/api/mobile/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          device_id: devMap[dev] || 'living_room_light',
-          action: act === 'Tắt' ? 'turn_off' : 'turn_on',
-          seconds: secVal
-        })
-      });
-      const data = await res.json();
-      const reply = data.exact_spoken_reply || data.error || 'Đã đặt lịch.';
-      const schedInline = document.getElementById('upcomingScheduleInline');
-      if (data.ok === false && schedInline) {
-        schedInline.textContent = reply;
+      const actMap = {
+        'Bật': 'turn_on',
+        'Tắt': 'turn_off',
+        'Mở cửa': 'open_door',
+        'Đóng cửa': 'close_door',
+      };
+
+      if (mode === 'timer') {
+        const t = document.getElementById('pwaSchedTime').value.trim() || '10 giây nữa';
+        const dev = document.getElementById('pwaSchedDevice').value;
+        const act = document.getElementById('pwaSchedAction').value;
+        document.getElementById('pwaScheduleForm').hidden = true;
+        const mSec = t.match(/(\d+(?:\.\d+)?)/);
+        const rawNum = mSec ? parseFloat(mSec[1]) : 15;
+        const secVal = /phút/i.test(t) ? rawNum * 60 : (/giờ|tiếng/i.test(t) ? rawNum * 3600 : rawNum);
+        const res = await fetch('/api/mobile/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: devMap[dev] || 'living_room_light',
+            action: actMap[act] || (act === 'Tắt' ? 'turn_off' : 'turn_on'),
+            seconds: secVal
+          })
+        });
+        const data = await res.json();
+        const reply = data.exact_spoken_reply || data.error || 'Đã đặt lịch.';
+        const schedInline = document.getElementById('upcomingScheduleInline');
+        if (data.ok === false && schedInline) {
+          schedInline.textContent = reply;
+        }
+        showPwaVoiceResults(`Hẹn ${t} ${act.toLowerCase()} ${dev.toLowerCase()}`, reply);
+        addLog(`Hẹn giờ: ${dev} (${act})`, 'device', data.ok === false ? 'Thất bại' : 'Thành công');
+        fetchInitial();
+        return;
       }
-      showPwaVoiceResults(`Hẹn ${t} ${act.toLowerCase()} ${dev.toLowerCase()}`, reply);
-      addLog(`Hẹn giờ: ${dev} (${act})`, 'device', data.ok === false ? 'Thất bại' : 'Thành công');
-      fetchInitial();
+
+      let url = '/api/schedules';
+      let method = 'POST';
+      let payload = {};
+      if (mode === 'clock') {
+        const dev = document.getElementById('pwaSchedDevice').value;
+        const act = document.getElementById('pwaSchedAction').value;
+        payload = {
+          device_id: devMap[dev] || 'living_room_light',
+          action: actMap[act] || 'turn_on',
+          time_hhmm: (document.getElementById('pwaClockTime') && document.getElementById('pwaClockTime').value) || '07:00',
+          schedule_type: (document.getElementById('pwaClockRepeat') && document.getElementById('pwaClockRepeat').value) || 'once',
+        };
+      } else if (mode === 'rule') {
+        url = '/api/rules';
+        payload = {
+          when_device_id: document.getElementById('pwaRuleWhenDev').value,
+          when_state: document.getElementById('pwaRuleWhenState').value,
+          then_device_id: document.getElementById('pwaRuleThenDev').value,
+          then_action: document.getElementById('pwaRuleThenAction').value,
+        };
+      } else if (mode === 'scene') {
+        const editId = (document.getElementById('pwaSceneEditId') && document.getElementById('pwaSceneEditId').value.trim()) || '';
+        url = editId ? `/api/scenes/${encodeURIComponent(editId)}` : '/api/scenes';
+        method = editId ? 'PUT' : 'POST';
+        payload = {
+          phrase: (document.getElementById('pwaScenePhrase') && document.getElementById('pwaScenePhrase').value.trim()) || '',
+          steps_text: (document.getElementById('pwaSceneSteps') && document.getElementById('pwaSceneSteps').value.trim()) || '',
+        };
+      }
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        setMobileAutoFeedback(data.error || 'Không thể lưu tự động hóa.', true);
+        addLog(`Tự động hóa (${mode})`, 'device', 'Thất bại');
+        return;
+      }
+      setMobileAutoFeedback('');
+      if (document.getElementById('pwaSceneEditId')) document.getElementById('pwaSceneEditId').value = '';
+      document.getElementById('pwaScheduleForm').hidden = true;
+      const okReply = data.reply || data.exact_spoken_reply || 'Đã lưu cấu hình tự động.';
+      showPwaVoiceResults(`Lưu ${mode}`, okReply);
+      addLog(okReply, 'device', 'Thành công');
+      if (data.snapshot) renderState(data.snapshot);
+      else await fetchInitial();
     }
 
     document.getElementById('btnLearnIr').onclick = async () => {
@@ -2993,7 +3273,7 @@
                 }
               } catch (_) {}
               connectMobileSse();
-            }, 2500);
+            }, 400);
           }
         };
       } catch (_) {
@@ -3107,16 +3387,8 @@
           playMobilePcm24kOrSpeakVi(msg.pcm24k_b64, '');
         }
         if (msg.type === 'voice_auth_rejected') {
-          const rejText = msg.rejection_speech || 'Tôi không nhận ra giọng của bạn.';
+          const rejText = msg.rejection_speech || 'Xin lỗi, bạn không có quyền thực hiện lệnh này.';
           showPwaVoiceResults(msg.label || null, rejText);
-          const rejTs = performance.now();
-          setTimeout(() => {
-            if ((window._lastMobileGeminiAudioChunkTs || 0) < rejTs) {
-              playMobilePcm24kOrSpeakVi('', rejText);
-            }
-          }, 650);
-          const badge = document.getElementById('voiceStateBadge');
-          if (badge) badge.textContent = 'Cần thử lại';
         }
       };
       ws.onclose = () => {
@@ -3306,6 +3578,20 @@
       connectMobileSse();
       fetchInitial().catch(() => {});
       renderMobileHistory();
+      const mobAutoModeEl = document.getElementById('pwaAutoMode');
+      if (mobAutoModeEl) {
+        mobAutoModeEl.addEventListener('change', syncMobileAutoModeFields);
+      }
+      const mobSecSched = document.getElementById('secSchedule');
+      if (mobSecSched) {
+        mobSecSched.addEventListener('click', (ev) => {
+          const btn = ev.target && ev.target.closest ? ev.target.closest('[data-mob-auto]') : null;
+          if (!btn) return;
+          const act = btn.getAttribute('data-mob-auto') || '';
+          const itemId = btn.getAttribute('data-mob-id') || '';
+          handleMobileAutoAction(act, itemId, btn).catch(() => {});
+        });
+      }
       if (!mobilePollIntervalId) {
         mobilePollIntervalId = setInterval(() => {
           _mobilePollTick += 1;
@@ -3346,6 +3632,8 @@ window.copyMobileGuestLink = copyMobileGuestLink;
 window.refreshMobileQr10s = refreshMobileQr10s;
 window.createMobileGuestInvite = createMobileGuestInvite;
 window.pollMobileSecurityAndTimers = pollMobileSecurityAndTimers;
+window.renderMobileAutomation = renderMobileAutomation;
+window.handleMobileAutoAction = handleMobileAutoAction;
 window.submitMobileLogin = submitMobileLogin;
 window.sendMobileLayer2Otp = sendMobileLayer2Otp;
 window.verifyMobileLayer2Otp = verifyMobileLayer2Otp;

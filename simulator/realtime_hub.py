@@ -197,6 +197,7 @@ class RealtimePushHub:
         loop = asyncio.get_running_loop()
         sub = self.register(session, loop=loop)
         try:
+            yield ": connected" + (" " * 2048) + "\nretry: 400\n\n"
             initial_snap = build_snapshot_for_session(engine, sub.session, sync=True)
             yield _format_sse_event(
                 "state_snapshot",

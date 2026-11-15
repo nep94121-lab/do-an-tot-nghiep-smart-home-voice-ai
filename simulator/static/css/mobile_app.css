@@ -764,3 +764,75 @@
   pointer-events: none;
   cursor: not-allowed;
 }
+
+.mobile-auto-block {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+}
+.mobile-auto-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.mobile-auto-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.mobile-auto-meta {
+  min-width: 0;
+  flex: 1;
+}
+.mobile-auto-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.mobile-auto-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mobile-auto-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mobile-mini-btn {
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--text);
+}
+.mobile-mini-btn.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mobile-mini-btn.danger {
+  background: var(--danger-soft);
+  border-color: #f3c1bd;
+  color: var(--danger);
+}
+#pwaScheduleForm input,
+#pwaScheduleForm select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}

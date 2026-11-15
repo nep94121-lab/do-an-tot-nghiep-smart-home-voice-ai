@@ -72,9 +72,14 @@ class TestGuestGuideAndGoneHtml:
 
     def test_vercel_json_routes_guest_guide_before_catchall(self) -> None:
         cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
-        srcs = [r["src"] for r in cfg["routes"]]
-        assert "^/guest_guide/?$" in srcs
-        assert srcs.index("^/guest_guide/?$") < srcs.index("^/(.*)$")
+        redirects = cfg.get("redirects", [])
+        assert any(
+            r.get("source") == "/:path*"
+            and r.get("permanent") is True
+            and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+            for r in redirects
+        )
+        assert "routes" not in cfg
 
 
 class TestLogsPageGateAndVietnameseFeedback:

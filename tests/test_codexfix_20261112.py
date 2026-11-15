@@ -249,7 +249,13 @@ def test_websocket_guest_cannot_toggle_door_or_change_settings(client):
 def test_vercel_guest_routes_use_backend_token_validation():
     from pathlib import Path
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
-    assert next(route for route in config["routes"] if route["src"] == "^/guest/?$")["dest"] == "/api/index.py"
+    redirects = config.get("redirects", [])
+    assert any(
+        r.get("source") == "/:path*"
+        and r.get("permanent") is True
+        and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+        for r in redirects
+    )
 
 
 def test_security_cloud_load_failure_is_not_first_pin_setup(monkeypatch, tmp_path):

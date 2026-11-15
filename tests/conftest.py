@@ -55,6 +55,7 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
     """Restore smarthome.db without ever overwriting the main DB file underneath an active WAL."""
     import simulator.database_sqlite as db_mod
     from simulator.auth.session_store import get_session_store
+    from simulator.db_migrations import close_wal_anchors
 
     db_path = DATA_DIR / "smarthome.db"
     wal_path = DATA_DIR / "smarthome.db-wal"
@@ -72,6 +73,13 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
         if not need_restore:
             return
 
+        close_wal_anchors()
+        db_mod._INITIALIZED_DB_PATHS.clear()
+        try:
+            from simulator.automation_repo import invalidate_automation_cache
+            invalidate_automation_cache()
+        except Exception:
+            pass
         db_mod._SCHEMA_INITIALIZED = False
         db_mod._LAST_KB_MTIME = -1.0
         db_mod._LAST_VP_MTIME = -1.0

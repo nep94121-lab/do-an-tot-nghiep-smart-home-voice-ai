@@ -39,7 +39,7 @@ REQUIRED_ROUTES = [
     "/wokwi",
     "/logs",
     "/app",
-    "/guest_enroll",
+    "/guest_guide",
     "/login",
     "/register",
 ]
@@ -91,23 +91,15 @@ class TestMilestone1RoutingAndPages:
         assert "pageRegisterSubmitBtn" in resp.text
 
     def test_vercel_routes_contain_login_and_register(self, vercel_config: dict[str, Any]):
-        routes = vercel_config.get("routes", [])
-        src_patterns = [r.get("src") for r in routes if "src" in r]
-
-        assert "^/login/?$" in src_patterns
-        assert "^/register/?$" in src_patterns
-
-        login_rule = next(r for r in routes if r.get("src") == "^/login/?$")
-        register_rule = next(r for r in routes if r.get("src") == "^/register/?$")
-
-        assert login_rule.get("dest") == "/simulator/static/login.html"
-        assert register_rule.get("dest") == "/simulator/static/register.html"
-
-        # Verify destination files exist on disk
-        login_file = ROOT / login_rule["dest"].lstrip("/")
-        register_file = ROOT / register_rule["dest"].lstrip("/")
-        assert login_file.exists()
-        assert register_file.exists()
+        redirects = vercel_config.get("redirects", [])
+        assert any(
+            r.get("source") == "/:path*"
+            and r.get("permanent") is True
+            and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+            for r in redirects
+        )
+        assert (ROOT / "simulator" / "static" / "login.html").exists()
+        assert (ROOT / "simulator" / "static" / "register.html").exists()
 
 
 class TestMilestone1PurityAndEncoding:

@@ -97,7 +97,14 @@ def save_owner_pin_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None
 def load_invites_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
     conn = _conn_for_data_dir(data_dir)
     try:
-        rows = conn.execute("SELECT * FROM invites ORDER BY created_at DESC").fetchall()
+        rows = conn.execute(
+            """
+            SELECT jti, token_hash, owner_user_id, role_code, tier, label,
+                   created_at, expires_at, revoked, revoked_at, redeem_count, last_redeem_at, extra_json
+            FROM invites
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
         if not rows:
             return None
         items = []
@@ -109,7 +116,7 @@ def load_invites_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
             rec = {
                 **(extra if isinstance(extra, dict) else {}),
                 "jti": str(r["jti"]),
-                "token": str(r["token"]),
+                "token_hash": str(r["token_hash"]),
                 "tier": int(r["tier"]),
                 "role": str(r["role_code"]),
                 "created_at": float(r["created_at"]),
@@ -119,6 +126,7 @@ def load_invites_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
                 "owner_user_id": str(r["owner_user_id"]),
                 "redeem_count": int(r["redeem_count"] or 0),
             }
+            rec.pop("token", None)
             if float(r["last_redeem_at"] or 0.0) > 0:
                 rec["last_redeem_at"] = float(r["last_redeem_at"])
             items.append(rec)
@@ -133,9 +141,12 @@ def save_invites_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
     items = raw_items if isinstance(raw_items, list) else (list(raw_items.values()) if isinstance(raw_items, dict) else [])
     conn = _conn_for_data_dir(data_dir)
     try:
+        from simulator.db_migrations import _ensure_preserve_user_for_fk
+
         known = {
             "jti",
             "token",
+            "token_hash",
             "tier",
             "role",
             "created_at",
@@ -159,15 +170,21 @@ def save_invites_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
                 if tier not in (2, 3):
                     tier = 3
                 role_code = role_for_tier(tier)
+                owner_uid = str(item.get("owner_user_id") or "tuan_anh").strip() or "tuan_anh"
+                _ensure_preserve_user_for_fk(
+                    c, owner_uid, tier=1, role_code="ADMIN", display_name=owner_uid, active=False
+                )
+                raw_token = str(item.get("token") or "").strip()
+                existing_hash = str(item.get("token_hash") or "").strip()
+                tok_hash = existing_hash or (_hash_token(raw_token) if raw_token else _hash_token(jti))
                 extra = {k: v for k, v in item.items() if k not in known}
                 c.execute(
                     """
                     INSERT INTO invites (
-                        jti, token, token_hash, owner_user_id, role_code, tier, label,
+                        jti, token_hash, owner_user_id, role_code, tier, label,
                         created_at, expires_at, revoked, revoked_at, redeem_count, last_redeem_at, extra_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(jti) DO UPDATE SET
-                        token = excluded.token,
                         token_hash = excluded.token_hash,
                         owner_user_id = excluded.owner_user_id,
                         role_code = excluded.role_code,
@@ -182,9 +199,8 @@ def save_invites_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
                     """,
                     (
                         jti,
-                        str(item.get("token") or ""),
-                        _hash_token(str(item.get("token") or jti)),
-                        str(item.get("owner_user_id") or "tuan_anh"),
+                        tok_hash,
+                        owner_uid,
                         role_code,
                         tier,
                         str(item.get("label") or ""),

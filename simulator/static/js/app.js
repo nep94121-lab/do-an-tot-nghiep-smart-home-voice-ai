@@ -147,6 +147,9 @@
   let latestDevicesMap = {};
   let currentTimersCount = 0;
   let currentRulesCount = 0;
+  let currentSchedulesCount = 0;
+  let currentScenesCount = 0;
+  let latestAutomationSnap = null;
 
   // Mic capture state
   let isRecording = false;
@@ -157,7 +160,11 @@
   let silenceStartMs = 0;
 
   function updateScheduleEmptyState() {
-    const hasAny = currentTimersCount > 0 || currentRulesCount > 0;
+    const hasAny =
+      currentTimersCount > 0 ||
+      currentRulesCount > 0 ||
+      currentSchedulesCount > 0 ||
+      currentScenesCount > 0;
     if (scheduleEmptyText) {
       scheduleEmptyText.hidden = hasAny;
     }
@@ -167,6 +174,10 @@
     if (rulesList && rulesList !== noopEl) {
       rulesList.hidden = currentRulesCount === 0;
     }
+    const clockWrap = byId("scheduleClockWrap");
+    if (clockWrap) clockWrap.hidden = currentSchedulesCount === 0;
+    const sceneWrap = byId("sceneListWrap");
+    if (sceneWrap) sceneWrap.hidden = currentScenesCount === 0;
   }
 
   function updateVnClock() {
@@ -1048,19 +1059,29 @@
     }
   }
 
-  function renderTimers(timers) {
+  function renderTimers(timers, snap) {
     currentTimersCount = timers.length;
     timerCount.textContent = String(timers.length);
     timersList.innerHTML = "";
+    const tier = Number((snap && snap.current_tier) || 1);
+    const pol = (snap && snap.system_policies) || {};
+    const canCancel = tier <= 2 || Boolean(pol.tier3_can_schedule_timer);
     timers.forEach((t) => {
       const div = document.createElement("div");
-      div.className = "timer-item";
+      div.className = "timer-item schedule-row-item";
       const rightLabel = t.target_vn_time
         ? `${t.target_vn_time}`
         : `${t.remaining_label || t.remaining_seconds + "s"}`;
+      const tid = String(t.id || t.timer_id || "");
+      const cancelBtnHtml = (canCancel && tid)
+        ? `<button type="button" class="btn-mini danger" data-auto-act="cancel-timer" data-auto-id="${escapeHtml(tid)}">Hủy</button>`
+        : "";
       div.innerHTML = `
-        <span>${escapeHtml(t.device_name)} · ${escapeHtml(t.action_vi || t.action)}</span>
-        <span class="timer-countdown">${escapeHtml(rightLabel)}</span>
+        <div class="schedule-row-meta">
+          <div class="schedule-row-title">${escapeHtml(t.device_name)} · ${escapeHtml(t.action_vi || t.action)}</div>
+          <div class="schedule-row-sub timer-countdown">${escapeHtml(rightLabel)}</div>
+        </div>
+        <div class="schedule-row-actions">${cancelBtnHtml}</div>
       `;
       timersList.appendChild(div);
     });
@@ -1109,6 +1130,139 @@
       div.innerHTML = `<span>Khi ${escapeHtml(r.when_device_name)} ${escapeHtml(r.when_state)}${escapeHtml(delayPart)} → ${escapeHtml(r.then_action)} ${escapeHtml(r.then_device_name)}</span>`;
       rulesList.appendChild(div);
     });
+
+    updateScheduleEmptyState();
+  }
+
+  const AUTO_DEV_LABELS = {
+    main_door: "Cửa chính",
+    living_room_light: "Đèn phòng khách",
+    bedroom_light: "Đèn phòng ngủ",
+    fan: "Quạt trần",
+    ac: "Điều hòa",
+    garden_pump: "Máy bơm tưới cây",
+    alarm_siren: "Còi báo động",
+  };
+  const AUTO_ACT_LABELS = {
+    turn_on: "Bật",
+    turn_off: "Tắt",
+    open_door: "Mở cửa",
+    close_door: "Đóng cửa",
+  };
+
+  function setAutoFormFeedback(msg, isErr = false) {
+    const fb = byId("autoFormFeedback");
+    if (!fb) return;
+    if (!msg) {
+      fb.hidden = true;
+      fb.textContent = "";
+      return;
+    }
+    fb.hidden = false;
+    fb.textContent = String(msg);
+    fb.style.color = isErr ? "#c62828" : "#1565c0";
+  }
+
+  function renderDesktopAutomation(snap) {
+    latestAutomationSnap = snap;
+    const tier = Number((snap && snap.current_tier) || 1);
+    const uid = String((snap && snap.current_user_id) || "");
+    const pol = (snap && snap.system_policies) || {};
+    const canTimers = tier <= 2 || Boolean(pol.tier3_can_schedule_timer);
+    const canRules = tier <= 2 || Boolean(pol.tier3_can_custom_rules);
+
+    const toggleBtn = byId("btnToggleAutoForm");
+    if (toggleBtn) toggleBtn.hidden = !canTimers && !canRules;
+
+    const schedules = Array.isArray(snap && snap.schedules) ? snap.schedules : [];
+    currentSchedulesCount = schedules.length;
+    const scListEl = byId("scheduleClockList");
+    if (scListEl) {
+      scListEl.innerHTML = "";
+      schedules.forEach((sc) => {
+        const sid = String(sc.schedule_id || "");
+        const devLabel = AUTO_DEV_LABELS[sc.device_id] || sc.device_id || "";
+        const actLabel = AUTO_ACT_LABELS[sc.action] || sc.action || "";
+        const typeLabel = sc.schedule_type === "daily" ? "Hàng ngày" : "Một lần";
+        const enabledFlag = Boolean(sc.enabled);
+        const canEdit = canTimers && (tier === 1 || String(sc.owner_user_id || "") === uid);
+        const actionsHtml = canEdit
+          ? `<button type="button" class="btn-mini" data-auto-act="toggle-schedule" data-auto-id="${escapeHtml(sid)}" data-auto-enabled="${enabledFlag ? "1" : "0"}">${enabledFlag ? "Tắt lịch" : "Bật lịch"}</button><button type="button" class="btn-mini danger" data-auto-act="del-schedule" data-auto-id="${escapeHtml(sid)}">Xóa</button>`
+          : "";
+        const row = document.createElement("div");
+        row.className = "schedule-row-item";
+        row.innerHTML = `
+          <div class="schedule-row-meta">
+            <div class="schedule-row-title">${escapeHtml(sc.time_hhmm || "")} · ${escapeHtml(actLabel)} ${escapeHtml(devLabel)}</div>
+            <div class="schedule-row-sub">${escapeHtml(typeLabel)} · ${enabledFlag ? "Đang bật" : "Tạm dừng"}</div>
+          </div>
+          <div class="schedule-row-actions">${actionsHtml}</div>
+        `;
+        scListEl.appendChild(row);
+      });
+    }
+
+    const dbRules = Array.isArray(snap && snap.automation_rules) ? snap.automation_rules : [];
+    const seenKeys = new Set(
+      (Array.isArray(snap && snap.if_else_rules) ? snap.if_else_rules : []).map(
+        (r) => `${r.when_device_id}|${r.when_state}|${r.then_device_id}|${r.then_action}`
+      )
+    );
+    let extraDbRules = 0;
+    dbRules.forEach((r) => {
+      const k = `${r.when_device_id}|${r.when_state}|${r.then_device_id}|${r.then_action}`;
+      if (seenKeys.has(k) && !r.rule_id) return;
+      extraDbRules += 1;
+      const rid = String(r.rule_id || "");
+      const wDev = AUTO_DEV_LABELS[r.when_device_id] || r.when_device_id;
+      const tDev = AUTO_DEV_LABELS[r.then_device_id] || r.then_device_id;
+      const tAct = AUTO_ACT_LABELS[r.then_action] || r.then_action;
+      const canDel = canRules && rid && (tier === 1 || String(r.owner_user_id || "") === uid);
+      const row = document.createElement("div");
+      row.className = "rule-item schedule-row-item";
+      row.innerHTML = `
+        <div class="schedule-row-meta">
+          <div class="schedule-row-title">${escapeHtml(r.label || `Khi ${wDev} ${r.when_state} → ${tAct} ${tDev}`)}</div>
+        </div>
+        <div class="schedule-row-actions">${canDel ? `<button type="button" class="btn-mini danger" data-auto-act="del-rule" data-auto-id="${escapeHtml(rid)}">Xóa</button>` : ""}</div>
+      `;
+      rulesList.appendChild(row);
+    });
+    currentRulesCount += extraDbRules;
+    rulesCount.textContent = String(currentRulesCount);
+
+    const scenes = Array.isArray(snap && (snap.scenes || snap.custom_commands))
+      ? (snap.scenes || snap.custom_commands)
+      : [];
+    currentScenesCount = scenes.length;
+    const scWrapEl = byId("sceneList");
+    if (scWrapEl) {
+      scWrapEl.innerHTML = "";
+      scenes.forEach((sc) => {
+        const cid = String(sc.command_id || "");
+        const steps = Array.isArray(sc.steps) ? sc.steps : [];
+        const stepTxt = steps
+          .map((s) => `${AUTO_ACT_LABELS[s.action] || s.action} ${AUTO_DEV_LABELS[s.device_id] || s.device_id}`)
+          .join(", ");
+        const canMod = canRules && (tier === 1 || String(sc.owner_user_id || "") === uid);
+        const editHtml = canMod
+          ? `<button type="button" class="btn-mini" data-auto-act="edit-scene" data-auto-id="${escapeHtml(cid)}">Sửa</button><button type="button" class="btn-mini danger" data-auto-act="del-scene" data-auto-id="${escapeHtml(cid)}">Xóa</button>`
+          : "";
+        const row = document.createElement("div");
+        row.className = "schedule-row-item";
+        row.innerHTML = `
+          <div class="schedule-row-meta">
+            <div class="schedule-row-title">"${escapeHtml(sc.phrase || "")}"</div>
+            <div class="schedule-row-sub">${escapeHtml(stepTxt || "Nhiều bước")}</div>
+          </div>
+          <div class="schedule-row-actions">
+            <button type="button" class="btn-mini accent" data-auto-act="run-scene" data-auto-id="${escapeHtml(cid)}">Chạy</button>
+            ${editHtml}
+          </div>
+        `;
+        scWrapEl.appendChild(row);
+      });
+    }
 
     updateScheduleEmptyState();
   }
@@ -1181,8 +1335,8 @@
     );
     renderDevices(reconciledDevices);
 
-    if ((snap.unauthorized_strikes && snap.unauthorized_strikes >= 3) || snap.security_lockdown) {
-      triggerSecurityLockdown();
+    if (snap.security_lockdown === true) {
+      triggerSecurityLockdown("security_lockdown");
     }
 
     if (snap.mqtt) {
@@ -1215,7 +1369,7 @@
       }
     }
 
-    renderTimers(snap.timers || []);
+    renderTimers(snap.timers || [], snap);
     renderRules(
       snap.word_mappings,
       snap.custom_aliases,
@@ -1223,6 +1377,7 @@
       snap.factory_aliases,
       snap.system_policies
     );
+    renderDesktopAutomation(snap);
   }
 
   function updateLatencyUI(toolMs, audioMs, leadMs) {
@@ -1526,7 +1681,7 @@
               }
             } catch (_) {}
             connectRealtimeSse();
-          }, 2500);
+          }, 400);
         }
       };
     } catch (_) {
@@ -1814,17 +1969,7 @@
             }
           }
           if (voiceLockoutNotice) {
-            if (!a.authorized && a.strike_count) {
-              voiceLockoutNotice.hidden = false;
-              voiceLockoutNotice.textContent = a.silent_ignore
-                ? "Tạm khóa điều khiển giọng nói do thử sai nhiều lần."
-                : "Chưa xác thực được giọng nói. Vui lòng thử lại.";
-            } else {
-              voiceLockoutNotice.hidden = true;
-            }
-          }
-          if ((a.strike_count && a.strike_count >= 3) || a.silent_ignore) {
-            triggerSecurityLockdown();
+            voiceLockoutNotice.hidden = true;
           }
           break;
         }
@@ -1836,11 +1981,7 @@
           }
           setAiReplyText(rejSpeech);
           if (voiceLockoutNotice) {
-            voiceLockoutNotice.hidden = false;
-            voiceLockoutNotice.textContent = rejSpeech;
-          }
-          if (msg.strike_count && msg.strike_count >= 3) {
-            triggerSecurityLockdown();
+            voiceLockoutNotice.hidden = true;
           }
           break;
         }
@@ -1850,8 +1991,6 @@
           if (msg.label && msg.label !== "Giọng nói trực tiếp qua Mic") {
             setUserTranscriptText(msg.label);
           }
-          setAiReplyText("Đã tạm ngưng phản hồi với giọng nói chưa đăng ký.");
-          triggerSecurityLockdown();
           break;
 
         case "voice_enrolled": {
@@ -2387,6 +2526,11 @@
       syncOwnerGuestQrStateForSession(inMemoryUserSession);
       return;
     }
+    if (ownerPinStatusPromise) {
+      try {
+        await ownerPinStatusPromise;
+      } catch (_) {}
+    }
     const tier = Number((tierEl && tierEl.value) || 3);
     const pinEl = document.getElementById("ownerGuestQrPin");
     const pinConfirmEl = document.getElementById("ownerGuestQrPinConfirm");
@@ -2487,13 +2631,23 @@
 
 
 
-  function checkOwnerPinStatusIfOwner() {
-    if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) return;
-    if (!inMemoryUserSession || Number(inMemoryUserSession.tier) !== 1) return;
-    fetch("/api/auth3/owner_pin/status", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).then((data) => {
-      const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
-      if (wrap && data && data.pin_set === false) wrap.hidden = false;
-    }).catch(() => {});
+  let ownerPinStatusPromise = null;
+
+  function checkOwnerPinStatusIfOwner(targetUser) {
+    const sess = targetUser || inMemoryUserSession;
+    if (!targetUser && typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
+      return Promise.resolve(null);
+    }
+    if (!sess || Number(sess.tier) !== 1) return Promise.resolve(null);
+    ownerPinStatusPromise = fetch("/api/auth3/owner_pin/status", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const wrap = document.getElementById("ownerGuestQrPinConfirmWrap");
+        if (wrap && data && data.pin_set === false) wrap.hidden = false;
+        return data;
+      })
+      .catch(() => null);
+    return ownerPinStatusPromise;
   }
 
   (function bindOwnerGuestQrUi() {
@@ -3190,7 +3344,7 @@
     });
   }
 
-  function completeGateLoginSession(email, data) {
+  async function completeGateLoginSession(email, data) {
     const userSession = {
       email: (data && data.email) || email,
       display_name: (data && data.display_name) || (data && data.account && data.account.display_name) || email,
@@ -3211,6 +3365,9 @@
     serverSessionConfirmed = !!userSession.session_token;
     if (serverSessionConfirmed) {
       mountOwnerDashboardDom();
+      if (Number(userSession.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
+        await checkOwnerPinStatusIfOwner(userSession);
+      }
     }
     applyLoggedInUserBanner(userSession);
     hideGateOtpPanel();
@@ -3221,9 +3378,6 @@
     closeLoginGateModal();
     if (serverSessionConfirmed) {
       startAuthenticatedRealtimeFlows();
-      if (Number(userSession.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
-        checkOwnerPinStatusIfOwner();
-      }
     }
   }
 
@@ -3273,7 +3427,7 @@
             await sendGateLayer2Otp(email);
           }
         } else {
-          completeGateLoginSession(email, data);
+          await completeGateLoginSession(email, data);
         }
       } else if (gateStatusBox) {
         gateStatusBox.textContent = formatGateAuthError(res, data, "Email hoặc mật khẩu chưa đúng!");
@@ -3397,7 +3551,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok && data.session_token) {
-        completeGateLoginSession(email, data);
+        await completeGateLoginSession(email, data);
       } else if (gateStatusBox) {
         gateStatusBox.textContent = formatGateAuthError(res, data, "Mã OTP không đúng hoặc đã hết hạn.");
       }
@@ -3742,13 +3896,13 @@
         role: roleData.role || "",
         session_token: (inMemoryUserSession && inMemoryUserSession.session_token) || "",
       };
+      if (Number(userObj.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
+        await checkOwnerPinStatusIfOwner(userObj);
+      }
       applyLoggedInUserBanner(userObj);
       if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = false;
       if (!keepGateOpen) closeLoginGateModal();
       startAuthenticatedRealtimeFlows();
-      if (Number(userObj.tier) === 1 && typeof checkOwnerPinStatusIfOwner === "function") {
-        checkOwnerPinStatusIfOwner();
-      }
       return true;
     } catch (_) {
       inMemoryUserSession = null;
@@ -3826,20 +3980,29 @@
     return "";
   }
 
-  function triggerSecurityLockdown(reason = "voice_auth_fail") {
+  function triggerSecurityLockdown(reason = "security_lockdown") {
     const modal = byId("securityLockdownModal");
     const desc = byId("lockdownDesc");
+    const note = byId("lockdownNote");
     const statusBox = byId("lockdownStatusBox");
     const emailInput = byId("lockdownEmail");
     if (!modal) return;
 
-    const isSirenOn = latestDevicesMap && latestDevicesMap.alarm_siren &&
-      (latestDevicesMap.alarm_siren.state === "ON" || latestDevicesMap.alarm_siren.state === "OPEN");
+    const isSirenOn = Boolean(
+      latestDevicesMap &&
+      latestDevicesMap.alarm_siren &&
+      (latestDevicesMap.alarm_siren.state === "ON" || latestDevicesMap.alarm_siren.state === "OPEN")
+    );
 
     if (desc) {
       desc.textContent = isSirenOn
-        ? "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật."
-        : "Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật.";
+        ? "Cảnh báo an ninh đang kích hoạt và còi báo động đang bật. Vui lòng xác minh tài khoản Chủ nhà để mở khóa và tắt còi."
+        : "Hệ thống đang tạm khóa bảo mật (còi báo động đang tắt). Vui lòng xác minh tài khoản Chủ nhà để tiếp tục điều khiển.";
+    }
+    if (note) {
+      note.textContent = isSirenOn
+        ? "Xác minh Chủ nhà để mở khóa an ninh và tắt còi báo động."
+        : "Xác minh Chủ nhà để mở khóa an ninh.";
     }
     if (emailInput && !emailInput.value.trim() && inMemoryUserSession && inMemoryUserSession.email) {
       emailInput.value = String(inMemoryUserSession.email).trim();
@@ -4078,6 +4241,171 @@
   });
 
 
+
+  function syncAutoFormKindVisibility() {
+    const kind = (byId("autoKindSelect") && byId("autoKindSelect").value) || "timer";
+    const gTimer = byId("autoFormTimerGroup");
+    const gClock = byId("autoFormClockGroup");
+    const gRule = byId("autoFormRuleGroup");
+    const gScene = byId("autoFormSceneGroup");
+    if (gTimer) gTimer.hidden = kind !== "timer";
+    if (gClock) gClock.hidden = kind !== "clock";
+    if (gRule) gRule.hidden = kind !== "rule";
+    if (gScene) gScene.hidden = kind !== "scene";
+    setAutoFormFeedback("");
+  }
+
+  function bindDesktopAutomationEvents() {
+    const toggleBtn = byId("btnToggleAutoForm");
+    const panelEl = byId("desktopAutoFormPanel");
+    const cancelBtn = byId("btnAutoCancel");
+    const kindSel = byId("autoKindSelect");
+    const submitBtn = byId("btnAutoSubmit");
+
+    if (toggleBtn && panelEl) {
+      toggleBtn.addEventListener("click", () => {
+        panelEl.hidden = !panelEl.hidden;
+        if (!panelEl.hidden) syncAutoFormKindVisibility();
+      });
+    }
+    if (cancelBtn && panelEl) {
+      cancelBtn.addEventListener("click", () => {
+        const editEl = byId("autoSceneEditId");
+        if (editEl) editEl.value = "";
+        panelEl.hidden = true;
+        setAutoFormFeedback("");
+      });
+    }
+    if (kindSel) {
+      kindSel.addEventListener("change", syncAutoFormKindVisibility);
+    }
+    if (submitBtn) {
+      submitBtn.addEventListener("click", async () => {
+        const kind = (kindSel && kindSel.value) || "timer";
+        let url = "/api/timers";
+        let method = "POST";
+        let payload = {};
+        if (kind === "timer") {
+          const val = Math.max(1, Number((byId("autoTimerValue") && byId("autoTimerValue").value) || 10));
+          const unit = (byId("autoTimerUnit") && byId("autoTimerUnit").value) || "sec";
+          payload = {
+            device_id: (byId("autoTimerDevice") && byId("autoTimerDevice").value) || "living_room_light",
+            action: (byId("autoTimerAction") && byId("autoTimerAction").value) || "turn_on",
+            hours: unit === "hour" ? val : 0,
+            minutes: unit === "min" ? val : 0,
+            seconds: unit === "sec" ? val : 0,
+          };
+        } else if (kind === "clock") {
+          url = "/api/schedules";
+          payload = {
+            device_id: (byId("autoClockDevice") && byId("autoClockDevice").value) || "living_room_light",
+            action: (byId("autoClockAction") && byId("autoClockAction").value) || "turn_on",
+            time_hhmm: (byId("autoClockTime") && byId("autoClockTime").value) || "07:00",
+            schedule_type: (byId("autoClockType") && byId("autoClockType").value) || "once",
+          };
+        } else if (kind === "rule") {
+          url = "/api/rules";
+          payload = {
+            when_device_id: (byId("autoRuleWhenDev") && byId("autoRuleWhenDev").value) || "main_door",
+            when_state: (byId("autoRuleWhenState") && byId("autoRuleWhenState").value) || "OPEN",
+            then_device_id: (byId("autoRuleThenDev") && byId("autoRuleThenDev").value) || "living_room_light",
+            then_action: (byId("autoRuleThenAction") && byId("autoRuleThenAction").value) || "turn_on",
+          };
+        } else if (kind === "scene") {
+          const editId = (byId("autoSceneEditId") && byId("autoSceneEditId").value.trim()) || "";
+          url = editId ? `/api/scenes/${encodeURIComponent(editId)}` : "/api/scenes";
+          method = editId ? "PUT" : "POST";
+          payload = {
+            phrase: (byId("autoScenePhrase") && byId("autoScenePhrase").value.trim()) || "",
+            steps_text: (byId("autoSceneSteps") && byId("autoSceneSteps").value.trim()) || "",
+          };
+        }
+        try {
+          const res = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            setAutoFormFeedback(data.error || "Không thể lưu tự động hóa.", true);
+            return;
+          }
+          if (byId("autoSceneEditId")) byId("autoSceneEditId").value = "";
+          if (panelEl) panelEl.hidden = true;
+          setAutoFormFeedback("");
+          if (data.snapshot) applySnapshot(data.snapshot);
+          appendLog(data.reply || data.exact_spoken_reply || "Đã lưu cấu hình tự động.", "AUTOMATION");
+        } catch (err) {
+          setAutoFormFeedback(`Lỗi kết nối: ${err}`, true);
+        }
+      });
+    }
+
+    const schedSection = document.querySelector("section.panel.schedule");
+    if (schedSection) {
+      schedSection.addEventListener("click", async (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest("[data-auto-act]") : null;
+        if (!btn) return;
+        const act = btn.getAttribute("data-auto-act") || "";
+        const itemId = btn.getAttribute("data-auto-id") || "";
+        if (!itemId) return;
+        if (act === "edit-scene") {
+          const scenes = (latestAutomationSnap && (latestAutomationSnap.scenes || latestAutomationSnap.custom_commands)) || [];
+          const found = scenes.find((s) => String(s.command_id || "") === itemId);
+          if (found && panelEl && kindSel) {
+            kindSel.value = "scene";
+            syncAutoFormKindVisibility();
+            panelEl.hidden = false;
+            if (byId("autoSceneEditId")) byId("autoSceneEditId").value = itemId;
+            if (byId("autoScenePhrase")) byId("autoScenePhrase").value = found.phrase || "";
+            if (byId("autoSceneSteps")) {
+              const stepTxt = (found.steps || [])
+                .map((s) => `${AUTO_ACT_LABELS[s.action] || s.action} ${AUTO_DEV_LABELS[s.device_id] || s.device_id}`)
+                .join(" rồi ");
+              byId("autoSceneSteps").value = stepTxt;
+            }
+          }
+          return;
+        }
+        let url = "";
+        let method = "DELETE";
+        let body = undefined;
+        if (act === "cancel-timer") url = `/api/timers/${encodeURIComponent(itemId)}`;
+        else if (act === "del-schedule") url = `/api/schedules/${encodeURIComponent(itemId)}`;
+        else if (act === "toggle-schedule") {
+          url = `/api/schedules/${encodeURIComponent(itemId)}`;
+          method = "PATCH";
+          body = JSON.stringify({ enabled: btn.getAttribute("data-auto-enabled") !== "1" });
+        } else if (act === "del-rule") url = `/api/rules/${encodeURIComponent(itemId)}`;
+        else if (act === "del-scene") url = `/api/scenes/${encodeURIComponent(itemId)}`;
+        else if (act === "run-scene") {
+          url = `/api/scenes/${encodeURIComponent(itemId)}/run`;
+          method = "POST";
+        }
+        if (!url) return;
+        try {
+          const res = await fetch(url, {
+            method,
+            headers: body ? { "Content-Type": "application/json" } : {},
+            credentials: "same-origin",
+            body,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            appendLog(data.error || "Thao tác tự động thất bại.", "SECURITY");
+            return;
+          }
+          if (data.snapshot) applySnapshot(data.snapshot);
+          appendLog(data.reply || data.exact_spoken_reply || `Đã thực hiện ${act}.`, "AUTOMATION");
+        } catch (err) {
+          appendLog(`Lỗi tự động hóa: ${err}`, "ERROR");
+        }
+      });
+    }
+  }
+  bindDesktopAutomationEvents();
 
   // Export M7 functions to window
   window.retryWsConnection = retryWsConnection;

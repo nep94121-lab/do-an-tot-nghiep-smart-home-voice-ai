@@ -10,6 +10,7 @@ Cung cấp các đối tượng Singleton trung tâm:
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import os
 import pathlib
@@ -28,13 +29,15 @@ _ACTIVE_BRIDGES: list[Any] = []
 _BOOT_VOICE_AUTH = VoiceAuthManager(AUDIO_DIR)
 
 
+async def _send_ws_safe(br: Any, payload: dict[str, Any]) -> None:
+    try:
+        await asyncio.wait_for(br.send_ws_json(payload), timeout=1.5)
+    except Exception:
+        pass
+
+
 async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
-    """Phát sự kiện trực tiếp từ _REST_ENGINE tới toàn bộ các kết nối WebSocket đang hoạt động."""
-    for br in list(_ACTIVE_BRIDGES):
-        try:
-            await br.send_ws_json(event)
-        except Exception:
-            pass
+    """Phát sự kiện trực tiếp từ _REST_ENGINE tới SSE hub và toàn bộ WebSocket đang hoạt động."""
     try:
         from simulator.realtime_hub import get_realtime_hub
 
@@ -42,6 +45,9 @@ async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
         get_realtime_hub().publish_snapshot(_REST_ENGINE, reason=ev_type)
     except Exception:
         pass
+    bridges = list(_ACTIVE_BRIDGES)
+    if bridges:
+        await asyncio.gather(*(_send_ws_safe(br, event) for br in bridges), return_exceptions=True)
 
 
 _REST_ENGINE = SmartHomeEngine(
@@ -71,24 +77,35 @@ def get_active_bridges() -> list[Any]:
     return _ACTIVE_BRIDGES
 
 
-async def broadcast_rest_state_to_bridges() -> None:
-    """Đồng bộ trạng thái thiết bị vật lý của REST Engine sang các kết nối WebSocket và SSE đang hoạt động mà không ghi đè danh tính người nói riêng của từng phiên."""
-    try:
-        _REST_ENGINE.sync_from_shared_store(force=True)
-    except Exception:
-        pass
-    pub_snap = _REST_ENGINE.get_public_device_snapshot()
+async def broadcast_rest_state_to_bridges(
+    *,
+    exclude_bridge: Any = None,
+    sync_engine: bool = True,
+) -> None:
+    """Đồng bộ trạng thái thiết bị vật lý của REST Engine sang SSE hub và mọi WebSocket song song."""
+    if sync_engine:
+        try:
+            _REST_ENGINE.sync_from_shared_store(force=True)
+        except Exception:
+            pass
+    pub_snap = _REST_ENGINE.get_public_device_snapshot(sync=False)
     try:
         from simulator.realtime_hub import get_realtime_hub
 
         get_realtime_hub().publish_snapshot(_REST_ENGINE, reason="rest_broadcast")
     except Exception:
         pass
-    for br in list(_ACTIVE_BRIDGES):
+    bridges = list(_ACTIVE_BRIDGES)
+    if not bridges:
+        return
+    owner_snap: dict[str, Any] | None = None
+    tasks: list[Any] = []
+    for br in bridges:
         try:
-            if hasattr(br.engine, "sync_from_shared_store"):
-                br.engine.sync_from_shared_store(force=False)
             br.engine.server_connected = _REST_ENGINE.server_connected
+            if br.engine is not _REST_ENGINE:
+                br.engine._last_synced_seq = getattr(_REST_ENGINE, "_last_synced_seq", 0)
+                br.engine._last_synced_ts_ns = getattr(_REST_ENGINE, "_last_synced_ts_ns", 0)
             if br.engine.devices is not _REST_ENGINE.devices:
                 br.engine.devices = copy.deepcopy(_REST_ENGINE.devices)
             if br.engine.mqtt_bridge is not _REST_ENGINE.mqtt_bridge:
@@ -96,14 +113,19 @@ async def broadcast_rest_state_to_bridges() -> None:
                 br.engine.mqtt_bridge.dht11_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.dht11_telemetry)
                 br.engine.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.soil_moisture_telemetry)
                 br.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
-            snap_for_br = (
-                br.engine.get_snapshot()
-                if getattr(br.engine, "current_tier", 99) == 1
-                else pub_snap
-            )
-            await br.send_ws_json({"type": "state_snapshot", "snapshot": snap_for_br})
+            if exclude_bridge is not None and br is exclude_bridge:
+                continue
+            if getattr(br.engine, "current_tier", 99) == 1:
+                if owner_snap is None:
+                    owner_snap = _REST_ENGINE.get_snapshot(sync=False)
+                snap_for_br = owner_snap
+            else:
+                snap_for_br = pub_snap
+            tasks.append(_send_ws_safe(br, {"type": "state_snapshot", "snapshot": snap_for_br}))
         except Exception:
             pass
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # Alias tương thích

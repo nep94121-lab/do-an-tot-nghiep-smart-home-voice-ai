@@ -200,30 +200,21 @@ class TestFastAPIServerRoutesAndNegotiation:
 # =============================================================================
 
 class TestVercelConfiguration:
-    """Kiểm tra tính hợp lệ của vercel.json cho các route mới và headers."""
+    """Kiểm tra tính hợp lệ của vercel.json (Edge 308 redirect tới LENOVO) và tài nguyên tĩnh origin."""
 
     def test_vercel_json_syntax_and_routes(self):
         assert VERCEL_JSON.exists(), f"Thiếu file: {VERCEL_JSON}"
         config = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
         assert config.get("version") == 2
-        routes = config.get("routes", [])
+        redirects = config.get("redirects", [])
+        assert any(
+            r.get("source") == "/:path*"
+            and r.get("permanent") is True
+            and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+            for r in redirects
+        ), "Thiếu quy tắc Edge 308 redirect trong vercel.json"
+        assert "routes" not in config
 
-        # Kiểm tra có route sw.js
-        sw_route = next((r for r in routes if "sw" in r.get("src", "")), None)
-        assert sw_route is not None, "Thiếu route cho /sw.js trong vercel.json"
-        assert "sw.js" in sw_route.get("dest", "")
-
-        # Kiểm tra headers cho sw.js
-        headers = config.get("headers", [])
-        sw_header = next((h for h in headers if "sw.js" in h.get("source", "")), None)
-        assert sw_header is not None, "Thiếu headers cho /sw.js trong vercel.json"
-        header_keys = {item["key"].lower(): item["value"] for item in sw_header.get("headers", [])}
-        assert header_keys.get("service-worker-allowed") == "/"
-
-        # Kiểm tra các routes cho offline, 404, 500, qr_expired, 403
-        destinations = [r.get("dest", "") for r in routes]
-        assert any("offline.html" in d for d in destinations), "Thiếu route offline trong vercel.json"
-        assert any("404.html" in d for d in destinations), "Thiếu route 404 trong vercel.json"
-        assert any("500.html" in d for d in destinations), "Thiếu route 500 trong vercel.json"
-        assert any("qr_expired.html" in d for d in destinations), "Thiếu route qr_expired trong vercel.json"
-        assert any("403.html" in d for d in destinations), "Thiếu route 403 trong vercel.json"
+        static_dir = ROOT / "simulator" / "static"
+        for fname in ("sw.js", "offline.html", "404.html", "500.html", "qr_expired.html", "403.html"):
+            assert (static_dir / fname).exists(), f"Thiếu file origin tĩnh: {fname}"

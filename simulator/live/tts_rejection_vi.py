@@ -41,6 +41,7 @@ _WORKING_AOEDE_LIVE_MODEL: str = ""
 _WORKING_AOEDE_API_VERSION: str = ""
 _WORKING_AOEDE_USE_CLIENT_CONTENT: bool = False
 _WARMING_PHRASES: set[str] = set()
+_REJECTED_AOEDE_MODELS: set[tuple[str, str]] = set()
 
 FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
@@ -416,12 +417,12 @@ async def _fetch_live_aoede_pcm24k(
     while idx < len(attempts):
         cand_model, api_ver, use_cc = attempts[idx]
         idx += 1
-        if (cand_model, api_ver, use_cc) in tried:
+        if (cand_model, api_ver, use_cc) in tried or (cand_model, api_ver) in _REJECTED_AOEDE_MODELS:
             continue
         tried.add((cand_model, api_ver, use_cc))
         attempt_timeout = max(0.5, float(per_attempt_timeout))
         if cand_model == AOEDE_LIVE_MODEL and not cached_model and len(attempts) > 1:
-            attempt_timeout = min(1.1, attempt_timeout)
+            attempt_timeout = min(0.65, attempt_timeout)
         try:
             pcm = await asyncio.wait_for(
                 _attempt_one_model(cand_model, api_version=api_ver, use_client_content=use_cc),
@@ -446,6 +447,8 @@ async def _fetch_live_aoede_pcm24k(
                 tok in err_msg.lower()
                 for tok in ("404", "1007", "1008", "not found", "not_found", "unsupported", "invalid argument")
             )
+            if is_model_rejected:
+                _REJECTED_AOEDE_MODELS.add((cand_model, api_ver))
             is_timeout_or_short = (
                 isinstance(exc, (TimeoutError, asyncio.TimeoutError))
                 or "insufficient audio" in err_msg.lower()

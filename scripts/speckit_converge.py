@@ -102,16 +102,16 @@ def run_converge_audit() -> int:
     if owner_ok:
         print("  [CONVERGED] Điều 2 (Voice DSP & Sub-harmonic Guard): Nhận diện 100% giọng Chủ nhà Cấp 1 (F0 trầm 135.6Hz & chuẩn 173.9Hz).")
 
-    # Điều 3: Zero-Drop Gemini Live Bridge in server.py
-    server_code = (ROOT / "simulator" / "server.py").read_text(encoding="utf-8")
+    # Điều 3: Zero-Drop Gemini Live Bridge + Session RBAC trong gemini_bridge.py
+    bridge_code = (ROOT / "simulator" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
     if (
-        "async def _ensure_current_mic_utterance_verified" in server_code
-        and "while not self._closed:" in server_code
-        and "self.last_mic_turn_blocked" in server_code
+        "def _bind_actor_to_engine" in bridge_code
+        and "while not self._closed:" in bridge_code
+        and "_ensure_current_mic_utterance_verified" not in bridge_code
     ):
-        print("  [CONVERGED] Điều 3 (Zero-Drop Live Bridge): Tự động kết nối lại Gemini Live & kiểm tra 1 lần/câu nói.")
+        print("  [CONVERGED] Điều 3 (Zero-Drop Live Bridge): Truyền thẳng PCM & phân quyền theo phiên (đã gỡ speaker verification).")
     else:
-        gaps.append("Vi phạm Điều 3 Hiến pháp: Thiếu cơ chế giữ kết nối tự động hoặc cổng kiểm tra 1 lần/câu nói trong simulator/server.py")
+        gaps.append("Vi phạm Điều 3 Hiến pháp: Thiếu _bind_actor_to_engine hoặc còn dấu vết _ensure_current_mic_utterance_verified trong simulator/live/gemini_bridge.py")
 
     # Điều 4: 3-Tier Invite Links (Tier 1 -> [2, 3], Tier 2 -> [3], Tier 3 -> [])
     auth_mgr = get_auth_3layer_manager()
@@ -199,60 +199,20 @@ def run_converge_audit() -> int:
                 return
             print(f"  [LIVE WS CONNECTED] Đã nhận {init_msg.get('type')} từ ws://127.0.0.1:8088/ws")
 
-            # Reset strikes trước khi test 3-strike qua WS
-            await ws.send(json.dumps({"type": "reset_voice_strikes"}))
-
-            # Gửi 3 lần mẫu Giọng 2 (Người lạ) qua WebSocket
-            strikes_seen: list[dict] = []
-            for _ in range(1, 4):
-                await ws.send(json.dumps({"type": "play_wav_sample", "sample_id": "giong_2_nguoi_la_mo_cua"}))
-                deadline = asyncio.get_event_loop().time() + 5.0
-                while asyncio.get_event_loop().time() < deadline:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-                    m = json.loads(raw)
-                    if m.get("type") in ("voice_auth_rejected", "voice_auth_silent_ignored"):
-                        strikes_seen.append(m)
-                        break
-
-            await ws.send(json.dumps({"type": "reset_voice_strikes"}))
-
-            if (
-                len(strikes_seen) == 3
-                and strikes_seen[0].get("type") == "voice_auth_rejected"
-                and strikes_seen[0].get("rejection_speech") == "Tôi không được phép nhận lệnh từ người lạ."
-                and strikes_seen[1].get("type") == "voice_auth_rejected"
-                and strikes_seen[1].get("rejection_speech") == "Tôi sẽ không trả lời bạn lần nữa."
-                and strikes_seen[2].get("type") == "voice_auth_silent_ignored"
-            ):
-                print("  [LIVE WS 3-STRIKE PASS] Lần 1 & Lần 2 phát đúng câu chặn, Lần 3 im lặng tuyệt đối trên WebSocket thật!")
-            else:
-                gaps.append(f"WebSocket 3-strike sai lệch: {strikes_seen}")
-
-            # Kiểm thử luồng mic_chunk + mic_speech_ended trực tiếp của Chủ nhà Cấp 1
-            import base64
-            for i in range(0, min(len(pcm_v1_bytes), 24576), 4096):
-                c = pcm_v1_bytes[i : i + 4096]
-                await ws.send(
-                    json.dumps({
-                        "type": "mic_chunk",
-                        "pcm16k_b64": base64.b64encode(c).decode("ascii"),
-                        "is_speech": True,
-                    })
-                )
+            # Chưa đăng nhập qua WebSocket -> bị chặn RBAC mà không có voice strike
             await ws.send(json.dumps({"type": "mic_speech_ended"}))
-            mic_verified = False
             deadline = asyncio.get_event_loop().time() + 4.0
+            blocked_ok = False
             while asyncio.get_event_loop().time() < deadline:
                 raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
                 m = json.loads(raw)
-                if m.get("type") == "voice_auth_result" and m.get("sample_id") == "live_mic":
-                    if m.get("analysis", {}).get("authorized") is True:
-                        mic_verified = True
+                if m.get("type") == "rbac_blocked":
+                    blocked_ok = True
                     break
-            if mic_verified:
-                print("  [LIVE MIC STREAM PASS] Luồng mic_chunk + mic_speech_ended nhận diện đúng Giọng Cấp 1 Chủ nhà!")
+            if blocked_ok:
+                print("  [LIVE WS RBAC PASS] Kết nối chưa đăng nhập bị chặn RBAC theo phiên mà không cần voice strike!")
             else:
-                gaps.append("Luồng mic_chunk + mic_speech_ended không trả về voice_auth_result authorized=True cho Chủ nhà!")
+                gaps.append("WebSocket /ws không chặn rbac_blocked cho phiên chưa đăng nhập!")
 
     app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
     if not app_js_path.exists():

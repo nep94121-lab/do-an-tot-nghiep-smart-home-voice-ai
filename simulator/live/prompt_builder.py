@@ -162,7 +162,7 @@ fn_create_alias_rule = types.FunctionDeclaration(
     name="create_alias_rule",
     description=(
         "ĐỔI LỆNH / GÁN KHẨU LỆNH (Command Phrase Remapping): Khi người dùng muốn đổi cả câu lệnh mở/đóng/bật/tắt "
-        "hoặc tạo khẩu lệnh riêng cho 1 hay nhiều thiết bị. "
+        "hoặc tạo khẩu lệnh riêng cho 1 hay nhiều thiết bị. Lưu ngay lập tức vào SQLite, KHÔNG hỏi xác nhận lại. "
         "VD: 'Đổi lệnh mở cửa thành Vừng ơi mở ra' -> phrase='vừng ơi mở ra', target_devices_csv='main_door', target_actions_csv='open'. "
         "Lưu ý: Đổi lệnh cho 1 hành động KHÁC với luật IF-ELSE giữa 2 thiết bị."
     ),
@@ -214,7 +214,7 @@ fn_set_if_else_rule = types.FunctionDeclaration(
         "- Chỉ khi nào người dùng nói rõ cả chiều ngược lại (VD: 'Nếu mở cửa thì mở điều hòa, còn đóng cửa thì tắt điều hòa' "
         "hoặc 'Cho cửa chính và điều hòa đồng bộ đóng mở cùng nhau') thì mới điền `else_device_id` và `else_action`.\n"
         "- Nhờ bám theo trạng thái phần cứng `main_door=OPEN`, nên dù mở cửa bằng lệnh gốc hay lệnh đã đổi ('Vừng ơi mở ra'), "
-        "hễ cửa mở là điều hòa tự động mở theo!"
+        "hễ cửa mở là điều hòa tự động mở theo! Thực thi và lưu ngay lập tức, KHÔNG hỏi xác nhận lại người dùng."
     ),
     parameters={
         "type": "OBJECT",
@@ -576,12 +576,75 @@ fn_set_or_query_sensors = types.FunctionDeclaration(
     },
 )
 
+fn_create_schedule_clock = types.FunctionDeclaration(
+    name="create_schedule_clock",
+    description=(
+        "Đặt LỊCH ĐỒNG HỒ THEO GIỜ THỰC TẾ múi giờ Việt Nam Asia/Saigon (1 lần hoặc hằng ngày). "
+        "Dùng khi người dùng nói giờ cụ thể (VD: 'Đặt lịch bật quạt trần lúc 14 giờ 35', '22:30 tắt hết đèn hằng ngày'). Lưu ngay vào SQLite, không hỏi lại."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
+            "action": {"type": "STRING", "enum": ACTION_ENUM},
+            "time_hhmm": {"type": "STRING", "description": "Giờ định dạng HH:MM 24h theo Asia/Saigon (VD: '14:35', '22:30')."},
+            "schedule_type": {"type": "STRING", "enum": ["once", "daily"], "description": "'once' (1 lần) hoặc 'daily' (hằng ngày)."},
+        },
+        "required": ["device_id", "action", "time_hhmm"],
+    },
+)
+
+fn_create_custom_scene = types.FunctionDeclaration(
+    name="create_custom_scene",
+    description=(
+        "Tạo NGỮ CẢNH / LỆNH TÙY CHỈNH nhiều bước lưu bền vững (VD: 'Tạo lệnh chế độ ngủ là tắt hết đèn và đóng cửa'). "
+        "Lưu ngay lập tức, không hỏi xác nhận lại."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "phrase": {"type": "STRING", "description": "Tên ngữ cảnh/khẩu lệnh (VD: 'chế độ ngủ')."},
+            "steps_text": {"type": "STRING", "description": "Mô tả các hành động thiết bị (VD: 'tắt hết đèn và đóng cửa chính')."},
+        },
+        "required": ["phrase", "steps_text"],
+    },
+)
+
+fn_run_custom_scene = types.FunctionDeclaration(
+    name="run_custom_scene",
+    description="Chạy một ngữ cảnh / lệnh tùy chỉnh đã lưu trước đó (VD: 'chế độ ngủ', 'chế độ ra ngoài').",
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "phrase_or_id": {"type": "STRING", "description": "Tên khẩu lệnh hoặc ID ngữ cảnh cần chạy."},
+        },
+        "required": ["phrase_or_id"],
+    },
+)
+
+fn_delete_automation_item = types.FunctionDeclaration(
+    name="delete_automation_item",
+    description="Xóa lịch theo giờ (schedule), luật liên kết (rule) hoặc ngữ cảnh (scene) đã lưu.",
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "kind": {"type": "STRING", "enum": ["schedule", "rule", "scene"]},
+            "keyword_or_id": {"type": "STRING", "description": "Từ khóa, giờ HH:MM, tên lệnh hoặc ID cần xóa."},
+        },
+        "required": ["kind"],
+    },
+)
+
 ALL_TOOLS = [
     types.Tool(
         function_declarations=[
             fn_control_device,
             fn_schedule_action,
             fn_update_timer,
+            fn_create_schedule_clock,
+            fn_create_custom_scene,
+            fn_run_custom_scene,
+            fn_delete_automation_item,
             fn_set_word_mapping,
             fn_create_alias_rule,
             fn_execute_alias_rule,
@@ -633,6 +696,21 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         ) if if_else_list else "Chưa có"
     )
     timers_txt = "; ".join(pools["timer_pool_items"]) if pools["timer_pool_items"] else "0 hẹn giờ"
+    try:
+        from simulator.automation_repo import (
+            list_automation_rules,
+            list_custom_commands,
+            list_schedules,
+        )
+
+        db_scheds = list_schedules(include_disabled=False)
+        db_rules = list_automation_rules(include_disabled=False)
+        db_scenes = list_custom_commands(include_disabled=False)
+    except Exception:
+        db_scheds, db_rules, db_scenes = [], [], []
+    scheds_txt = "; ".join(f"{s['time_hhmm']} ({s['schedule_type']}): {s['label']}" for s in db_scheds) if db_scheds else "Chưa có"
+    db_rules_txt = "; ".join(r["label"] for r in db_rules) if db_rules else "Chưa có"
+    scenes_txt = "; ".join(f"'{c['phrase']}' => [{c['steps_summary']}]" for c in db_scenes) if db_scenes else "Chưa có"
 
     return (
         "Bạn là trợ lý giọng nói Nhà Thông Minh Bách Khoa do Nguyễn Tuấn Anh tạo ra.\n"
@@ -647,7 +725,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         "2. QUY TẮC NGÔN NGỮ & PHẠM VI:\n"
         "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn.\n"
         "- Cấm ngoại ngữ: Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngôn ngữ khác.\n"
-        f'- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm (\'ừm\', \'ờ\', \'à\', \'alô\') đi kèm lệnh rõ ràng thì chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn/quá ngắn, chỉ đáp đúng câu: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
+        f'- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm (\'ừm\', \'ờ\', \'à\', \'alô\', \'aló\') đi kèm lệnh rõ ràng thì chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn/quá ngắn, chỉ đáp: "Tôi có thể giúp gì cho bạn?" hoặc "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
         "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh:\n"
         "  + Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3).\n"
         "  + Ngoài phạm vi nhà thông minh, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
@@ -656,14 +734,16 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         f"- Trạng thái thiết bị: [{devs_txt}].\n"
         f"- Cảm biến hiện tại: Nhiệt độ {dht.get('temp_c', 28.5)}°C, Độ ẩm không khí {dht.get('humidity_pct', 65.0)}%, Độ ẩm đất {soil.get('soil_moisture_pct', 55.0)}%.\n"
         f"- Bể 1 (Hẹn giờ đang chạy): {timers_txt}.\n"
+        f"- Lịch đồng hồ Asia/Saigon: {scheds_txt}.\n"
         f"- Bể 2 (Từ vựng ánh xạ của {cur_user}): {words_txt}.\n"
         f"- Bể 2 (Khẩu lệnh gộp của {cur_user}): {alias_txt}.\n"
-        f"- Bể 2 (Luật tự động IF-ELSE của {cur_user}): {ifelse_txt}.\n"
+        f"- Ngữ cảnh / Lệnh tùy chỉnh (SQLite): {scenes_txt}.\n"
+        f"- Bể 2 (Luật tự động IF-ELSE của {cur_user}): {ifelse_txt} | Luật DB: {db_rules_txt}.\n"
         "\n"
         "4. QUY TẮC THỰC THI TOOL & TỪ CHỐI CỐ ĐỊNH:\n"
-        "- Khi được phép, gọi Function Tool ngay lập tức rồi mới phản hồi âm thanh ngắn gọn.\n"
+        "- Khi được phép, gọi Function Tool ngay lập tức rồi mới phản hồi âm thanh ngắn gọn. Với đặt lịch, tạo luật hoặc tạo ngữ cảnh mới: lưu ngay lập tức, KHÔNG hỏi xác nhận lại.\n"
         "- Nếu kết quả tool trả về có trường `exact_spoken_reply`, BẮT BUỘC đọc đúng nguyên văn câu đó.\n"
-        f'- Nếu người nói là Người lạ hoặc yêu cầu vượt quyền của cấp hiện tại, TUYỆT ĐỐI KHÔNG gọi tool thực thi mà chỉ nói đúng nguyên văn câu cố định: "{FIXED_REJECTION_PHRASE_VI}".\n'
+        f'- Nếu phiên hiện tại chưa đăng nhập hoặc yêu cầu vượt quyền của cấp hiện tại, TUYỆT ĐỐI KHÔNG gọi tool thực thi mà chỉ nói đúng nguyên văn câu cố định: "{FIXED_REJECTION_PHRASE_VI}".\n'
         f'- Khi âm thanh quá ngắn/ồn/nói đè (Safe-Deny), chỉ nói đúng câu cố định: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
         '- Nếu nhận lệnh hệ thống `[SYSTEM_SAY_EXACT_FIXED_DENIAL]: "<câu>"`, chỉ đọc nguyên văn `<câu>` đó.'
     )

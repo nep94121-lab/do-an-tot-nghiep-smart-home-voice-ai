@@ -199,12 +199,128 @@
           </section>
 
           <section class="panel schedule" aria-labelledby="schedule-title">
-            <div class="panel-head">
-              <h2 id="schedule-title">Lịch</h2>
+            <div class="panel-head panel-head-split">
+              <h2 id="schedule-title">Lịch &amp; Tự động</h2>
+              <button type="button" class="btn-mini accent" id="btnToggleAutoForm">Tạo mới</button>
+            </div>
+            <div id="desktopAutoFormPanel" class="auto-form-panel" hidden>
+              <select id="autoKindSelect" class="auto-select" aria-label="Loại tự động hóa">
+                <option value="timer">Hẹn giờ đếm ngược</option>
+                <option value="clock">Lịch theo giờ (VN)</option>
+                <option value="rule">Luật liên kết thiết bị</option>
+                <option value="scene">Ngữ cảnh nhiều bước</option>
+              </select>
+              <div id="autoFormTimerGroup">
+                <div class="auto-form-row">
+                  <select id="autoTimerDevice" class="auto-select" aria-label="Thiết bị hẹn giờ">
+                    <option value="living_room_light">Đèn phòng khách</option>
+                    <option value="bedroom_light">Đèn phòng ngủ</option>
+                    <option value="fan">Quạt trần</option>
+                    <option value="ac">Điều hòa</option>
+                    <option value="garden_pump">Máy bơm tưới cây</option>
+                    <option value="main_door">Cửa chính</option>
+                    <option value="alarm_siren">Còi báo động</option>
+                  </select>
+                  <select id="autoTimerAction" class="auto-select" aria-label="Thao tác hẹn giờ">
+                    <option value="turn_on">Bật</option>
+                    <option value="turn_off">Tắt</option>
+                    <option value="open_door">Mở cửa</option>
+                    <option value="close_door">Đóng cửa</option>
+                  </select>
+                </div>
+                <div class="auto-form-row">
+                  <input type="number" id="autoTimerValue" class="auto-input" min="1" step="1" value="10" aria-label="Giá trị thời gian">
+                  <select id="autoTimerUnit" class="auto-select" aria-label="Đơn vị thời gian">
+                    <option value="sec">Giây</option>
+                    <option value="min">Phút</option>
+                    <option value="hour">Giờ</option>
+                  </select>
+                </div>
+              </div>
+              <div id="autoFormClockGroup" hidden>
+                <div class="auto-form-row">
+                  <select id="autoClockDevice" class="auto-select" aria-label="Thiết bị đặt lịch">
+                    <option value="living_room_light">Đèn phòng khách</option>
+                    <option value="bedroom_light">Đèn phòng ngủ</option>
+                    <option value="fan">Quạt trần</option>
+                    <option value="ac">Điều hòa</option>
+                    <option value="garden_pump">Máy bơm tưới cây</option>
+                    <option value="main_door">Cửa chính</option>
+                    <option value="alarm_siren">Còi báo động</option>
+                  </select>
+                  <select id="autoClockAction" class="auto-select" aria-label="Thao tác đặt lịch">
+                    <option value="turn_on">Bật</option>
+                    <option value="turn_off">Tắt</option>
+                    <option value="open_door">Mở cửa</option>
+                    <option value="close_door">Đóng cửa</option>
+                  </select>
+                </div>
+                <div class="auto-form-row">
+                  <input type="time" id="autoClockTime" class="auto-input" value="07:00" aria-label="Giờ thực thi">
+                  <select id="autoClockType" class="auto-select" aria-label="Chu kỳ lặp">
+                    <option value="once">Một lần</option>
+                    <option value="daily">Hàng ngày</option>
+                  </select>
+                </div>
+              </div>
+              <div id="autoFormRuleGroup" hidden>
+                <div class="auto-form-row">
+                  <select id="autoRuleWhenDev" class="auto-select" aria-label="Khi thiết bị">
+                    <option value="main_door">Khi Cửa chính</option>
+                    <option value="living_room_light">Khi Đèn phòng khách</option>
+                    <option value="bedroom_light">Khi Đèn phòng ngủ</option>
+                    <option value="fan">Khi Quạt trần</option>
+                    <option value="ac">Khi Điều hòa</option>
+                    <option value="garden_pump">Khi Máy bơm tưới cây</option>
+                    <option value="alarm_siren">Khi Còi báo động</option>
+                  </select>
+                  <select id="autoRuleWhenState" class="auto-select" aria-label="Trạng thái kích hoạt">
+                    <option value="OPEN">Mở</option>
+                    <option value="CLOSED">Đóng</option>
+                    <option value="ON">Bật</option>
+                    <option value="OFF">Tắt</option>
+                  </select>
+                </div>
+                <div class="auto-form-row">
+                  <select id="autoRuleThenDev" class="auto-select" aria-label="Thì tác động thiết bị">
+                    <option value="living_room_light">Thì Đèn phòng khách</option>
+                    <option value="bedroom_light">Thì Đèn phòng ngủ</option>
+                    <option value="fan">Thì Quạt trần</option>
+                    <option value="ac">Thì Điều hòa</option>
+                    <option value="garden_pump">Thì Máy bơm tưới cây</option>
+                    <option value="main_door">Thì Cửa chính</option>
+                    <option value="alarm_siren">Thì Còi báo động</option>
+                  </select>
+                  <select id="autoRuleThenAction" class="auto-select" aria-label="Hành động kết quả">
+                    <option value="turn_on">Bật</option>
+                    <option value="turn_off">Tắt</option>
+                    <option value="open_door">Mở cửa</option>
+                    <option value="close_door">Đóng cửa</option>
+                  </select>
+                </div>
+              </div>
+              <div id="autoFormSceneGroup" hidden>
+                <input type="hidden" id="autoSceneEditId" value="">
+                <input type="text" id="autoScenePhrase" class="auto-input" placeholder="Tên câu lệnh (vd: đi ngủ)" aria-label="Tên ngữ cảnh">
+                <input type="text" id="autoSceneSteps" class="auto-input" placeholder="Các bước (vd: tắt hết đèn rồi bật quạt trần)" aria-label="Các bước thực hiện">
+              </div>
+              <p class="schedule-row-sub" id="autoFormFeedback" hidden></p>
+              <div class="auto-form-row">
+                <button type="button" class="btn-mini accent" id="btnAutoSubmit">Lưu tự động</button>
+                <button type="button" class="btn-mini" id="btnAutoCancel">Đóng</button>
+              </div>
             </div>
             <p class="schedule-empty" id="scheduleEmptyText">Chưa có lịch</p>
             <div id="timerList" class="schedule-list" hidden></div>
+            <div id="scheduleClockWrap" hidden>
+              <div class="auto-section-sub">Lịch đồng hồ (VN)</div>
+              <div id="scheduleClockList" class="schedule-list"></div>
+            </div>
             <div id="ruleList" class="schedule-list" hidden></div>
+            <div id="sceneListWrap" hidden>
+              <div class="auto-section-sub">Ngữ cảnh tùy chỉnh</div>
+              <div id="sceneList" class="schedule-list"></div>
+            </div>
           </section>
 
           <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
@@ -463,9 +579,9 @@
       </div>
       <p class="eyebrow" style="color:var(--red, #c0392b);">AN NINH</p>
       <h1 id="locktitle" style="font-size:24px; line-height:1.3; font-weight:600; letter-spacing:-0.02em; margin:0 0 12px; color:var(--ink);">Cảnh báo an ninh</h1>
-      <p id="lockdownDesc" style="margin:0 0 12px; color:var(--ink); font-size:13px; line-height:1.5;">Phát hiện 3 lần xác thực giọng nói thất bại. Điều khiển giọng nói đã bị khóa và còi báo động đã bật.</p>
+      <p id="lockdownDesc" style="margin:0 0 12px; color:var(--ink); font-size:13px; line-height:1.5;">Hệ thống đang tạm khóa bảo mật (còi báo động đang tắt). Vui lòng xác minh tài khoản Chủ nhà để tiếp tục điều khiển.</p>
       <div id="lockdownNote" class="note red" style="background:#fdecea; color:#c0392b; border:1px solid #f4cbc6; border-radius:12px; padding:12px 14px; margin:16px 0; font-size:13px;">
-        Xác minh để mở khóa và tắt còi báo động.
+        Xác minh Chủ nhà để mở khóa an ninh.
       </div>
 
       <form id="lockdownForm" onsubmit="event.preventDefault(); window.unlockSecurityLockdown();" style="display:grid; gap:12px;">

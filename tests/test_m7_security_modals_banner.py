@@ -222,9 +222,11 @@ class TestAppJsImplementation:
 
     def test_strike_and_lockdown_triggers_in_app_js(self, js_content: str):
         assert "triggerSecurityLockdown" in js_content
-        # Trigger on strikes >= 3 or silent_ignore
-        assert "a.strike_count >= 3" in js_content or "a.strike_count && a.strike_count >= 3" in js_content
-        assert "msg.strike_count >= 3" in js_content or "msg.strike_count && msg.strike_count >= 3" in js_content
+        assert "snap.security_lockdown === true" in js_content
+        assert "còi báo động đang tắt" in js_content
+        assert "còi báo động đang bật" in js_content
+        assert "a.strike_count >= 3" not in js_content
+        assert "msg.strike_count >= 3" not in js_content
 
     def test_mic_permission_triggers_in_app_js(self, js_content: str):
         assert "showMicPermissionModal" in js_content
@@ -320,7 +322,16 @@ if (typeof mockWindow.closeMicPermissionModal !== 'function') throw new Error('c
 if (typeof mockWindow.showWsReconnectBanner !== 'function') throw new Error('showWsReconnectBanner not exported');
 if (typeof mockWindow.retryWsConnection !== 'function') throw new Error('retryWsConnection not exported');
 
+mockWindow.document.getElementById = (id) => {
+  if (!mockWindow._els) mockWindow._els = {};
+  if (!mockWindow._els[id]) mockWindow._els[id] = createMockElement(id);
+  return mockWindow._els[id];
+};
 mockWindow.triggerSecurityLockdown();
+const lockdownDescOff = mockWindow.document.getElementById('lockdownDesc').textContent;
+if (!lockdownDescOff.includes('còi báo động đang tắt')) {
+  throw new Error('Expected siren OFF message in lockdownDesc, got: ' + lockdownDescOff);
+}
 mockWindow.toggleLockdownMode();
 mockWindow.closeSecurityLockdownModal();
 mockWindow.showMicPermissionModal('permission_denied');

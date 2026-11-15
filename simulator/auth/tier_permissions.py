@@ -117,11 +117,38 @@ def restrict_guest_snapshot(snapshot: dict[str, Any], session: Any) -> dict[str,
     tier = int(getattr(session, "tier", 99)) if getattr(session, "is_authenticated", False) else 99
     snap["devices"] = filter_device_list(list(snap.get("devices") or []), tier)
     snap["allowed_device_ids"] = [device["id"] for device in snap["devices"]]
+    allowed_set = set(snap["allowed_device_ids"])
     for key in ("users", "system_policies", "pending_reset_confirmation", "pending_rule", "pending_voice_enrollment", "word_mappings", "factory_aliases", "custom_aliases", "if_else_rules", "t1_global_if_else_rules", "chains"):
         snap.pop(key, None)
     snap["current_tier"] = tier
     snap["role"] = getattr(session, "role", "UNKNOWN")
     snap["current_user_id"] = session.user_id
     snap["current_user_name"] = session.display_name
-    snap["timers"] = [timer for timer in snap.get("timers", []) if timer.get("device_id") in snap["allowed_device_ids"]] if tier <= 2 else []
+    if tier > 3:
+        for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
+            snap.pop(priv_key, None)
+        return snap
+    snap["timers"] = [
+        timer for timer in (snap.get("timers") or [])
+        if timer.get("device_id") in allowed_set
+    ] if tier <= 2 else []
+    snap["schedules"] = [
+        sc for sc in (snap.get("schedules") or [])
+        if isinstance(sc, dict) and sc.get("device_id") in allowed_set
+    ] if tier <= 2 else []
+    snap["automation_rules"] = [
+        rl for rl in (snap.get("automation_rules") or [])
+        if isinstance(rl, dict)
+        and rl.get("when_device_id") in allowed_set
+        and rl.get("then_device_id") in allowed_set
+    ]
+    visible_scenes = []
+    for cmd in (snap.get("custom_commands") or snap.get("scenes") or []):
+        if not isinstance(cmd, dict):
+            continue
+        steps = list(cmd.get("steps") or [])
+        if steps and all(str(st.get("device_id") or "") in allowed_set for st in steps):
+            visible_scenes.append(cmd)
+    snap["custom_commands"] = visible_scenes
+    snap["scenes"] = visible_scenes
     return snap

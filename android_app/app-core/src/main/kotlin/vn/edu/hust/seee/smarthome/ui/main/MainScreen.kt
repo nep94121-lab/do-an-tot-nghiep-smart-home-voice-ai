@@ -12,6 +12,7 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -38,6 +39,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -72,6 +75,7 @@ import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -80,10 +84,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 import vn.edu.hust.seee.smarthome.ui.main.components.BottomTabItem
 import vn.edu.hust.seee.smarthome.ui.main.models.AuthTestCaseItem
+import vn.edu.hust.seee.smarthome.ui.main.models.AutomationRuleItem
 import vn.edu.hust.seee.smarthome.ui.main.models.CapturedVoiceSample
+import vn.edu.hust.seee.smarthome.ui.main.models.ClockScheduleItem
 import vn.edu.hust.seee.smarthome.ui.main.models.CountdownTimerItem
+import vn.edu.hust.seee.smarthome.ui.main.models.CustomSceneItem
+import vn.edu.hust.seee.smarthome.ui.main.models.CustomSceneStep
 import vn.edu.hust.seee.smarthome.ui.main.models.EnrolledVoiceProfile
 import vn.edu.hust.seee.smarthome.ui.main.models.HardwareDevice
+import vn.edu.hust.seee.smarthome.ui.main.models.formatDeviceActionLabel
 import vn.edu.hust.seee.smarthome.ui.main.tabs.AccountScreenTab
 import vn.edu.hust.seee.smarthome.ui.main.tabs.DevicesScreenTab
 import vn.edu.hust.seee.smarthome.ui.main.tabs.HomeScreenTab
@@ -249,7 +258,13 @@ fun MainScreen(
   var soilMoisture by remember { mutableIntStateOf(62) }
 
   val activeTimers = remember { mutableStateListOf<CountdownTimerItem>() }
+  val clockSchedules = remember { mutableStateListOf<ClockScheduleItem>() }
+  val automationRules = remember { mutableStateListOf<AutomationRuleItem>() }
+  val customScenes = remember { mutableStateListOf<CustomSceneItem>() }
   val historyLogs = remember { mutableStateListOf("Ứng dụng đã sẵn sàng.") }
+  val snackbarHostState = remember { SnackbarHostState() }
+  var automationStatusMessage by remember { mutableStateOf("") }
+  var automationStatusIsError by remember { mutableStateOf(false) }
 
   val deviceStates = remember {
     mutableStateMapOf(
@@ -451,8 +466,41 @@ fun MainScreen(
   }
 
   var activeSessionToken by remember { mutableStateOf("") }
+  val sessionCookies = remember { ConcurrentHashMap<String, String>() }
 
   val allowLocalDebugFallback = false
+
+  fun captureCookiesFromResponse(conn: HttpURLConnection) {
+    val headerEntries = conn.headerFields ?: return
+    for ((key, values) in headerEntries) {
+      if (key != null && key.equals("Set-Cookie", ignoreCase = true) && values != null) {
+        for (rawCookie in values) {
+          val pair = rawCookie.substringBefore(";").trim()
+          val eqIdx = pair.indexOf('=')
+          if (eqIdx > 0) {
+            val cName = pair.substring(0, eqIdx).trim()
+            val cVal = pair.substring(eqIdx + 1).trim()
+            if (cVal.isBlank() || rawCookie.contains("Max-Age=0", ignoreCase = true)) {
+              sessionCookies.remove(cName)
+            } else {
+              sessionCookies[cName] = cVal
+            }
+          }
+        }
+      }
+    }
+  }
+
+  fun buildCookieHeader(): String {
+    val merged = LinkedHashMap<String, String>()
+    merged.putAll(sessionCookies)
+    if (activeSessionToken.isNotBlank()) {
+      merged.putIfAbsent("sh_session_token", activeSessionToken)
+      merged.putIfAbsent("session_token", activeSessionToken)
+    }
+    if (merged.isEmpty()) return ""
+    return merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
+  }
 
   suspend fun callServerHttp(
     endpoint: String,
@@ -468,9 +516,10 @@ fun MainScreen(
         listOf(primaryBase, fallbackBase)
       }
       for (base in candidates) {
+        var conn: HttpURLConnection? = null
         try {
           val url = URL("$base$endpoint")
-          val conn = url.openConnection() as HttpURLConnection
+          conn = url.openConnection() as HttpURLConnection
           conn.requestMethod = method
           if (base.startsWith("https://")) {
             conn.connectTimeout = 8000
@@ -482,6 +531,11 @@ fun MainScreen(
           conn.setRequestProperty("Accept", "application/json")
           if (activeSessionToken.isNotBlank()) {
             conn.setRequestProperty("X-Session-Token", activeSessionToken)
+            conn.setRequestProperty("Authorization", "Bearer $activeSessionToken")
+          }
+          val cookieHeader = buildCookieHeader()
+          if (cookieHeader.isNotBlank()) {
+            conn.setRequestProperty("Cookie", cookieHeader)
           }
           if (jsonBody != null) {
             conn.doOutput = true
@@ -489,6 +543,7 @@ fun MainScreen(
             OutputStreamWriter(conn.outputStream).use { it.write(jsonBody); it.flush() }
           }
           val code = conn.responseCode
+          captureCookiesFromResponse(conn)
           if (code in 200..299) {
             val response = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
             serverSynced = true
@@ -498,12 +553,15 @@ fun MainScreen(
           if (code in 400..499) {
             val errBody = conn.errorStream?.let { stream ->
               BufferedReader(InputStreamReader(stream)).use { it.readText() }
-            } ?: "{\"ok\":false}"
+            }?.takeIf { it.isNotBlank() } ?: "{\"ok\":false,\"error\":\"Yêu cầu bị từ chối (HTTP $code).\"}"
             serverSynced = true
             lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             return@withContext errBody
           }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        } finally {
+          try { conn?.disconnect() } catch (_: Exception) {}
+        }
       }
       null
     }
@@ -535,6 +593,152 @@ fun MainScreen(
         if (soilObj != null) {
           soilMoisture = soilObj.optDouble("soil_moisture_pct", soilMoisture.toDouble()).toInt()
         }
+
+        val timersArr = root.optJSONArray("timers")
+        if (timersArr != null) {
+          val parsedTimers = mutableListOf<CountdownTimerItem>()
+          for (i in 0 until timersArr.length()) {
+            val obj = timersArr.optJSONObject(i) ?: continue
+            val id = obj.optString("id").ifBlank { obj.optString("timer_id") }
+            val devId = obj.optString("device_id")
+            if (id.isBlank() && devId.isBlank()) continue
+            val devName = obj.optString("device_name").ifBlank { devId }
+            val act = obj.optString("action", "turn_on").lowercase(Locale.ROOT)
+            val targetOn = act == "turn_on" || act == "open"
+            val remSec = obj.optDouble("remaining_seconds", 0.0).toInt().coerceAtLeast(0)
+            parsedTimers.add(
+              CountdownTimerItem(
+                id = id.ifBlank { "${devId}_$i" },
+                deviceId = devId,
+                deviceName = devName,
+                targetStateOn = targetOn,
+                remainingSeconds = remSec,
+                action = act,
+                actionVi = obj.optString("action_vi").ifBlank { if (targetOn) "Bật" else "Tắt" },
+                remainingLabel = obj.optString("remaining_label"),
+                repeat = obj.optString("repeat", "once"),
+                targetVnTime = obj.optString("target_vn_time"),
+                reason = obj.optString("reason"),
+                label = obj.optString("label"),
+                ownerId = obj.optString("owner_id"),
+                ownerName = obj.optString("owner_name"),
+                ownerTier = obj.optInt("owner_tier", 1),
+              )
+            )
+          }
+          activeTimers.clear()
+          activeTimers.addAll(parsedTimers)
+        }
+
+        val schedulesArr = root.optJSONArray("schedules")
+        if (schedulesArr != null) {
+          val parsedSchedules = mutableListOf<ClockScheduleItem>()
+          for (i in 0 until schedulesArr.length()) {
+            val obj = schedulesArr.optJSONObject(i) ?: continue
+            val sid = obj.optString("schedule_id").ifBlank { obj.optString("id") }
+            if (sid.isBlank()) continue
+            val devId = obj.optString("device_id")
+            val devName = obj.optString("device_name").ifBlank { devId }
+            val act = obj.optString("action", "turn_on").lowercase(Locale.ROOT)
+            parsedSchedules.add(
+              ClockScheduleItem(
+                id = obj.optString("id").ifBlank { sid },
+                scheduleId = sid,
+                deviceId = devId,
+                deviceName = devName,
+                action = act,
+                actionVi = obj.optString("action_vi"),
+                timeHhmm = obj.optString("time_hhmm"),
+                scheduleType = obj.optString("schedule_type", obj.optString("repeat", "once")),
+                runDateVn = obj.optString("run_date_vn"),
+                timezone = obj.optString("timezone", "Asia/Saigon"),
+                enabled = obj.optBoolean("enabled", true),
+                lastFiredDateVn = obj.optString("last_fired_date_vn"),
+                label = obj.optString("label"),
+                ownerUserId = obj.optString("owner_user_id"),
+                ownerName = obj.optString("owner_name"),
+                ownerTier = obj.optInt("owner_tier", 1),
+              )
+            )
+          }
+          clockSchedules.clear()
+          clockSchedules.addAll(parsedSchedules)
+        }
+
+        val rulesArr = root.optJSONArray("automation_rules")
+        if (rulesArr != null) {
+          val parsedRules = mutableListOf<AutomationRuleItem>()
+          for (i in 0 until rulesArr.length()) {
+            val obj = rulesArr.optJSONObject(i) ?: continue
+            val rid = obj.optString("rule_id").ifBlank { obj.optString("id") }
+            if (rid.isBlank()) continue
+            val wDev = obj.optString("when_device_id")
+            val tDev = obj.optString("then_device_id")
+            val eDev = obj.optString("else_device_id")
+            parsedRules.add(
+              AutomationRuleItem(
+                id = obj.optString("id").ifBlank { rid },
+                ruleId = rid,
+                whenDeviceId = wDev,
+                whenDeviceName = obj.optString("when_device_name").ifBlank { wDev },
+                whenState = obj.optString("when_state", "ON"),
+                thenDeviceId = tDev,
+                thenDeviceName = obj.optString("then_device_name").ifBlank { tDev },
+                thenAction = obj.optString("then_action", "turn_on"),
+                elseDeviceId = eDev,
+                elseDeviceName = obj.optString("else_device_name").ifBlank { eDev },
+                elseAction = obj.optString("else_action"),
+                delaySeconds = obj.optDouble("delay_seconds", 0.0),
+                enabled = obj.optBoolean("enabled", true),
+                label = obj.optString("label"),
+                ownerUserId = obj.optString("owner_user_id"),
+                ownerName = obj.optString("owner_name"),
+                ownerTier = obj.optInt("owner_tier", 1),
+              )
+            )
+          }
+          automationRules.clear()
+          automationRules.addAll(parsedRules)
+        }
+
+        val scenesArr = root.optJSONArray("scenes") ?: root.optJSONArray("custom_commands")
+        if (scenesArr != null) {
+          val parsedScenes = mutableListOf<CustomSceneItem>()
+          for (i in 0 until scenesArr.length()) {
+            val obj = scenesArr.optJSONObject(i) ?: continue
+            val cid = obj.optString("command_id").ifBlank { obj.optString("id") }
+            if (cid.isBlank()) continue
+            val stepsArr = obj.optJSONArray("steps")
+            val steps = mutableListOf<CustomSceneStep>()
+            if (stepsArr != null) {
+              for (j in 0 until stepsArr.length()) {
+                val st = stepsArr.optJSONObject(j) ?: continue
+                val sDev = st.optString("device_id")
+                val sAct = st.optString("action")
+                if (sDev.isNotBlank() && sAct.isNotBlank()) {
+                  steps.add(CustomSceneStep(deviceId = sDev, action = sAct))
+                }
+              }
+            }
+            parsedScenes.add(
+              CustomSceneItem(
+                id = obj.optString("id").ifBlank { cid },
+                commandId = cid,
+                phrase = obj.optString("phrase"),
+                phraseNorm = obj.optString("phrase_norm"),
+                steps = steps,
+                stepsSummary = obj.optString("steps_summary"),
+                enabled = obj.optBoolean("enabled", true),
+                ownerUserId = obj.optString("owner_user_id"),
+                ownerName = obj.optString("owner_name"),
+                ownerTier = obj.optInt("owner_tier", 1),
+              )
+            )
+          }
+          customScenes.clear()
+          customScenes.addAll(parsedScenes)
+        }
+
         serverSynced = true
         lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
       } catch (_: Exception) {}
@@ -544,6 +748,273 @@ fun MainScreen(
   suspend fun syncServerState() {
     val resStr = callServerHttp("/api/state", "GET") ?: return
     applyServerSnapshotJson(resStr)
+  }
+
+  fun showAutomationFeedback(
+    message: String,
+    isError: Boolean,
+    speakMessage: String = "",
+    pcm24kB64: String = "",
+  ) {
+    automationStatusMessage = message
+    automationStatusIsError = isError
+    addHistoryLog(message)
+    if (speakMessage.isNotBlank() || isError) {
+      speakerReply = speakMessage.ifBlank { message }
+    }
+    if (speakMessage.isNotBlank()) {
+      speakOutLoud(speakMessage, pcm24kB64)
+    }
+    scope.launch {
+      try {
+        snackbarHostState.currentSnackbarData?.dismiss()
+        snackbarHostState.showSnackbar(message)
+      } catch (_: Exception) {}
+    }
+  }
+
+  fun executeAutomationRequest(
+    endpoint: String,
+    method: String,
+    payload: JSONObject? = null,
+    defaultSuccessMessage: String,
+    defaultErrorMessage: String,
+    speakOnResult: Boolean = false,
+  ) {
+    scope.launch(Dispatchers.IO) {
+      val resStr = callServerHttp(endpoint, method, payload?.toString())
+      if (resStr == null) {
+        withContext(Dispatchers.Main) {
+          showAutomationFeedback("Không thể kết nối máy chủ.", isError = true)
+        }
+        return@launch
+      }
+      val res = try {
+        JSONObject(resStr)
+      } catch (_: Exception) {
+        null
+      }
+      if (res == null) {
+        withContext(Dispatchers.Main) {
+          showAutomationFeedback(defaultErrorMessage, isError = true)
+        }
+        return@launch
+      }
+      val ok = res.optBoolean("ok", false)
+      val rbacBlocked = res.optBoolean("rbac_blocked", false)
+      if (!ok || rbacBlocked) {
+        val errMsg = res.optString("error")
+          .ifBlank { res.optString("message") }
+          .ifBlank { extractServerSpokenReply(res) }
+          .ifBlank { defaultErrorMessage }
+        val speech = if (speakOnResult) extractServerSpokenReply(res) else ""
+        val pcmB64 = res.optString("pcm24k_b64", "")
+        withContext(Dispatchers.Main) {
+          showAutomationFeedback(errMsg, isError = true, speakMessage = speech, pcm24kB64 = pcmB64)
+        }
+        return@launch
+      }
+
+      if (res.has("snapshot") || res.has("timers") || res.has("schedules") || res.has("automation_rules") || res.has("scenes") || res.has("custom_commands")) {
+        applyServerSnapshotJson(resStr)
+      } else {
+        syncServerState()
+      }
+      val replyMsg = extractServerSpokenReply(res)
+        .ifBlank { res.optString("message") }
+        .ifBlank { defaultSuccessMessage }
+      val pcmB64 = res.optString("pcm24k_b64", "")
+      withContext(Dispatchers.Main) {
+        showAutomationFeedback(
+          replyMsg,
+          isError = false,
+          speakMessage = if (speakOnResult) replyMsg else "",
+          pcm24kB64 = pcmB64,
+        )
+      }
+    }
+  }
+
+  fun createCountdownTimer(deviceId: String, action: String, seconds: Int, repeat: String = "once") {
+    val payload = JSONObject().apply {
+      put("device_id", deviceId)
+      put("action", action)
+      put("seconds", seconds)
+      put("minutes", 0)
+      put("hours", 0)
+      put("repeat", repeat)
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/timers",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã tạo hẹn giờ đếm ngược ($seconds giây).",
+      defaultErrorMessage = "Không thể tạo hẹn giờ đếm ngược.",
+    )
+  }
+
+  fun createMobileScheduleTimer(deviceId: String, action: String, seconds: Int) {
+    val payload = JSONObject().apply {
+      put("device_id", deviceId)
+      put("action", action)
+      put("seconds", seconds)
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/mobile/schedule",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã tạo lịch hẹn giờ ($seconds giây).",
+      defaultErrorMessage = "Không thể tạo lịch hẹn giờ.",
+    )
+  }
+
+  fun deleteCountdownTimer(timerId: String) {
+    executeAutomationRequest(
+      endpoint = "/api/timers/${Uri.encode(timerId)}",
+      method = "DELETE",
+      defaultSuccessMessage = "Đã hủy hẹn giờ đếm ngược.",
+      defaultErrorMessage = "Không thể hủy hẹn giờ.",
+    )
+  }
+
+  fun createClockSchedule(
+    deviceId: String,
+    action: String,
+    timeHhmm: String,
+    scheduleType: String = "once",
+    label: String = "",
+  ) {
+    val payload = JSONObject().apply {
+      put("device_id", deviceId)
+      put("action", action)
+      put("time_hhmm", timeHhmm)
+      put("schedule_type", scheduleType)
+      if (label.isNotBlank()) put("label", label)
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/schedules",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã lưu lịch lúc $timeHhmm.",
+      defaultErrorMessage = "Không thể tạo lịch theo giờ.",
+    )
+  }
+
+  fun deleteClockSchedule(scheduleId: String) {
+    executeAutomationRequest(
+      endpoint = "/api/schedules/${Uri.encode(scheduleId)}",
+      method = "DELETE",
+      defaultSuccessMessage = "Đã xóa lịch theo giờ.",
+      defaultErrorMessage = "Không thể xóa lịch theo giờ.",
+    )
+  }
+
+  fun createAutomationRule(
+    whenDeviceId: String,
+    whenState: String,
+    thenDeviceId: String,
+    thenAction: String,
+    label: String = "",
+  ) {
+    val payload = JSONObject().apply {
+      put("when_device_id", whenDeviceId)
+      put("when_state", whenState)
+      put("then_device_id", thenDeviceId)
+      put("then_action", thenAction)
+      if (label.isNotBlank()) put("label", label)
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/rules",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã tạo luật liên kết thiết bị.",
+      defaultErrorMessage = "Không thể tạo luật liên kết.",
+    )
+  }
+
+  fun deleteAutomationRule(ruleId: String) {
+    executeAutomationRequest(
+      endpoint = "/api/rules/${Uri.encode(ruleId)}",
+      method = "DELETE",
+      defaultSuccessMessage = "Đã xóa luật liên kết.",
+      defaultErrorMessage = "Không thể xóa luật liên kết.",
+    )
+  }
+
+  fun createCustomScene(phrase: String, stepsText: String, steps: List<CustomSceneStep> = emptyList()) {
+    val payload = JSONObject().apply {
+      put("phrase", phrase)
+      if (steps.isNotEmpty()) {
+        val arr = JSONArray()
+        steps.forEach { st ->
+          arr.put(JSONObject().apply {
+            put("device_id", st.deviceId)
+            put("action", st.action)
+          })
+        }
+        put("steps", arr)
+      }
+      if (stepsText.isNotBlank()) {
+        put("steps_text", stepsText)
+      }
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/scenes",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã lưu ngữ cảnh '$phrase'.",
+      defaultErrorMessage = "Không thể tạo ngữ cảnh.",
+    )
+  }
+
+  fun deleteCustomScene(commandId: String) {
+    executeAutomationRequest(
+      endpoint = "/api/scenes/${Uri.encode(commandId)}",
+      method = "DELETE",
+      defaultSuccessMessage = "Đã xóa ngữ cảnh.",
+      defaultErrorMessage = "Không thể xóa ngữ cảnh.",
+    )
+  }
+
+  fun runCustomScene(scene: CustomSceneItem) {
+    val payload = JSONObject().apply {
+      if (activeSessionToken.isNotBlank()) put("session_token", activeSessionToken)
+    }
+    executeAutomationRequest(
+      endpoint = "/api/scenes/${Uri.encode(scene.commandId)}/run",
+      method = "POST",
+      payload = payload,
+      defaultSuccessMessage = "Đã chạy ngữ cảnh '${scene.phrase}'.",
+      defaultErrorMessage = "Không thể chạy ngữ cảnh '${scene.phrase}'.",
+      speakOnResult = true,
+    )
+  }
+
+  LaunchedEffect(activeTimers.isNotEmpty(), isOnlineMode) {
+    while (activeTimers.isNotEmpty()) {
+      delay(1000L)
+      var hitZero = false
+      for (i in activeTimers.indices) {
+        val t = activeTimers[i]
+        val next = (t.remainingSeconds - 1).coerceAtLeast(0)
+        if (next == 0) hitZero = true
+        if (next != t.remainingSeconds) {
+          activeTimers[i] = t.copy(
+            remainingSeconds = next,
+            remainingLabel = if (next > 0) "$next giây" else "Sắp thực thi",
+          )
+        }
+      }
+      if (hitZero && isOnlineMode) {
+        delay(800L)
+        syncServerState()
+      }
+    }
   }
 
   LaunchedEffect(isOnlineMode, activeSessionToken) {
@@ -566,6 +1037,11 @@ fun MainScreen(
             readTimeout = 35000
             setRequestProperty("Accept", "text/event-stream")
             setRequestProperty("X-Session-Token", activeSessionToken)
+            setRequestProperty("Authorization", "Bearer $activeSessionToken")
+            val cookieHeader = buildCookieHeader()
+            if (cookieHeader.isNotBlank()) {
+              setRequestProperty("Cookie", cookieHeader)
+            }
           }
           if (conn.responseCode == 200) {
             streamed = true
@@ -678,11 +1154,17 @@ fun MainScreen(
             authStatusColor = accentGreen
             activeSpeakerName = displayName
             val returnedToken = res.optString("session_token", "")
+              .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
             if (returnedToken.isNotBlank()) {
               activeSessionToken = returnedToken
             }
+            val serverTier = res.optInt("tier", 0)
+            if (serverTier in 1..3) {
+              selectedTier = serverTier
+            }
             authStatusMessage = "Đăng nhập thành công: $cleanEmail"
             addHistoryLog("Đăng nhập thành công: $cleanEmail")
+            scope.launch { syncServerState() }
           } else {
             authStatusColor = accentRed
             authStatusMessage = res.optString("error", res.optString("message", "Đăng nhập Lớp 1 thất bại!"))
@@ -706,15 +1188,25 @@ fun MainScreen(
       val resStr = callServerHttp("/api/auth3/layer2_verify_otp", "POST", payload)
       withContext(Dispatchers.Main) {
         if (resStr != null) {
-          val res = JSONObject(resStr)
+          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 2)
             authStatusColor = accentGreen
+            val returnedToken = res.optString("session_token", "")
+              .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
+            if (returnedToken.isNotBlank()) {
+              activeSessionToken = returnedToken
+            }
+            val serverTier = res.optInt("tier", 0)
+            if (serverTier in 1..3) {
+              selectedTier = serverTier
+            }
             authStatusMessage = "Lớp 2 thành công! Hãy đọc mẫu câu xác thực giọng nói."
             addHistoryLog("Lớp 2 xác thực OTP thành công.")
+            scope.launch { syncServerState() }
           } else {
             authStatusColor = accentRed
-            authStatusMessage = res.optString("message", "Mã OTP không đúng hoặc hết hạn!")
+            authStatusMessage = res.optString("error", res.optString("message", "Mã OTP không đúng hoặc hết hạn!"))
           }
         } else {
           if (code.length == 6) {
@@ -767,22 +1259,32 @@ fun MainScreen(
         isUploadingVoiceToServer = false
         hasRecordedAuthSample = true
         if (resStr != null) {
-          val res = JSONObject(resStr)
+          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
           val serverSpeech = extractServerSpokenReply(res)
           val serverPcmB64 = res.optString("pcm24k_b64", "")
           if (res.optBoolean("ok")) {
             authStepDone = maxOf(authStepDone, 3)
             authStatusColor = accentGreen
+            val returnedToken = res.optString("session_token", "")
+              .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
+            if (returnedToken.isNotBlank()) {
+              activeSessionToken = returnedToken
+            }
+            val serverTier = res.optInt("tier", 0)
+            if (serverTier in 1..3) {
+              selectedTier = serverTier
+            }
             authStatusMessage = serverSpeech.ifBlank { "Đã lưu 5/5 mẫu giọng WeSpeaker thành công!" }
             addHistoryLog("Lớp 3: Đã lưu trung bình 5 mẫu vân giọng WeSpeaker.")
             if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
               speakerReply = serverSpeech
               speakOutLoud(serverSpeech, serverPcmB64)
             }
+            scope.launch { syncServerState() }
           } else {
             authStatusColor = accentRed
             val rejSpeech = serverSpeech.ifBlank {
-              res.optString("message", "Giọng nói chưa đạt chuẩn. Hãy thử lại!")
+              res.optString("error", res.optString("message", "Giọng nói chưa đạt chuẩn. Hãy thử lại!"))
             }
             authStatusMessage = rejSpeech
             speakerReply = rejSpeech
@@ -836,7 +1338,22 @@ fun MainScreen(
     voiceInput = ""
 
     val lower = cleanCmd.lowercase(Locale.getDefault())
-    val targetDevice = devices.firstOrNull { dev ->
+    val isAutomationOrMultiPhrase = lower.contains("giây") ||
+      lower.contains("phút") ||
+      lower.contains("giờ") ||
+      lower.contains("lúc ") ||
+      lower.contains("hằng ngày") ||
+      lower.contains("mỗi ngày") ||
+      lower.contains("khi ") ||
+      lower.contains("nếu ") ||
+      lower.contains("hẹn") ||
+      lower.contains("đặt lịch") ||
+      lower.contains("tạo luật") ||
+      lower.contains("tất cả") ||
+      lower.contains("cả hai") ||
+      customScenes.any { it.phraseNorm.isNotBlank() && lower.contains(it.phraseNorm) }
+
+    val targetDevice = if (isAutomationOrMultiPhrase) null else devices.firstOrNull { dev ->
       when (dev.serverId) {
         "living_room_light" -> lower.contains("phòng khách") || lower.contains("đèn khách")
         "bedroom_light" -> lower.contains("phòng ngủ") || lower.contains("đèn ngủ")
@@ -907,6 +1424,9 @@ fun MainScreen(
                 val finalSpeech = serverSpeech.ifBlank { reply }
                 speakerReply = finalSpeech
                 speakOutLoud(finalSpeech, serverPcmB64)
+                if (res.has("snapshot")) {
+                  scope.launch { applyServerSnapshotJson(resStr) }
+                }
               }
             } catch (_: Exception) {
               if (isOnlineMode) speakOutLoud(reply)
@@ -930,15 +1450,21 @@ fun MainScreen(
           put("session_token", activeSessionToken)
         }.toString()
         val resStr = callServerHttp("/api/text_command", "POST", payload)
+        if (resStr != null) {
+          applyServerSnapshotJson(resStr)
+        }
         withContext(Dispatchers.Main) {
           if (resStr != null) {
             try {
               val res = JSONObject(resStr)
               val serverSpeech = extractServerSpokenReply(res)
               val serverPcmB64 = res.optString("pcm24k_b64", "")
-              val finalSpeech = serverSpeech.ifBlank { reply }
+              val finalSpeech = serverSpeech.ifBlank { res.optString("error").ifBlank { reply } }
               speakerReply = finalSpeech
               speakOutLoud(finalSpeech, serverPcmB64)
+              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+                showAutomationFeedback(finalSpeech, isError = true)
+              }
             } catch (_: Exception) {
               if (isOnlineMode) speakOutLoud(reply)
             }
@@ -1132,6 +1658,10 @@ fun MainScreen(
             textSecondary = textSecondary,
             onOpenVoiceSheet = { showVoiceSheet = true },
             onNavigateToDevices = { currentTab = 1 },
+            clockSchedules = clockSchedules,
+            automationRules = automationRules,
+            customScenes = customScenes,
+            onRunScene = { runCustomScene(it) },
           )
           1 -> DevicesScreenTab(
             devices = devices,
@@ -1143,6 +1673,7 @@ fun MainScreen(
                 val denyMsg = "Chỉ chủ nhà mới được điều khiển ${dev.name}."
                 speakerReply = denyMsg
                 speakOutLoud(denyMsg)
+                showAutomationFeedback(denyMsg, isError = true)
               } else {
                 val prevVal = deviceStates[dev.serverId] ?: false
                 deviceStates[dev.serverId] = newValue
@@ -1162,6 +1693,9 @@ fun MainScreen(
                   }.toString()
                   val resStr = callServerHttp("/api/device", "POST", payload)
                   if (resStr != null) {
+                    if (resStr.contains("\"snapshot\"")) {
+                      applyServerSnapshotJson(resStr)
+                    }
                     withContext(Dispatchers.Main) {
                       try {
                         val res = JSONObject(resStr)
@@ -1174,6 +1708,7 @@ fun MainScreen(
                           }
                           speakerReply = rejSpeech
                           speakOutLoud(rejSpeech, serverPcmB64)
+                          showAutomationFeedback(rejSpeech, isError = true)
                         } else if (serverSpeech.isNotBlank()) {
                           speakerReply = serverSpeech
                         }
@@ -1184,13 +1719,29 @@ fun MainScreen(
               }
             },
             activeTimers = activeTimers,
-            onCreateTimerShortcut = { executeVoiceCommand("10 giây nữa bật đèn phòng khách") },
+            onCreateTimerShortcut = { createMobileScheduleTimer("living_room_light", "turn_on", 10) },
             accentCyan = accentCyan,
             cardBg = cardBg,
             cardBorder = cardBorder,
             bgDark = bgDark,
             textPrimary = textPrimary,
             textSecondary = textSecondary,
+            clockSchedules = clockSchedules,
+            automationRules = automationRules,
+            customScenes = customScenes,
+            automationStatusMessage = automationStatusMessage,
+            automationStatusIsError = automationStatusIsError,
+            onClearAutomationStatus = { automationStatusMessage = "" },
+            onCreateTimer = { d, a, s, r -> createCountdownTimer(d, a, s, r) },
+            onDeleteTimer = { deleteCountdownTimer(it) },
+            onCreateSchedule = { d, a, t, ty, l -> createClockSchedule(d, a, t, ty, l) },
+            onDeleteSchedule = { deleteClockSchedule(it) },
+            onCreateRule = { wd, ws, td, ta, l -> createAutomationRule(wd, ws, td, ta, l) },
+            onDeleteRule = { deleteAutomationRule(it) },
+            onCreateScene = { p, st, steps -> createCustomScene(p, st, steps) },
+            onDeleteScene = { deleteCustomScene(it) },
+            onRunScene = { runCustomScene(it) },
+            accentRed = accentRed,
           )
           2 -> VoiceScreenTab(
             selectedTier = selectedTier,
@@ -1260,6 +1811,12 @@ fun MainScreen(
               selectedTier = 3
               activeSpeakerName = "Khách"
               activeSessionToken = ""
+              sessionCookies.clear()
+              activeTimers.clear()
+              clockSchedules.clear()
+              automationRules.clear()
+              customScenes.clear()
+              automationStatusMessage = ""
               authEmail = ""
               authPassword = ""
               authOtpInput = ""
@@ -1299,6 +1856,13 @@ fun MainScreen(
         BottomTabItem("Tài khoản", "user", currentTab == 3, accentCyan, { currentTab = 3 }, Modifier.weight(1f))
       }
     }
+
+    SnackbarHost(
+      hostState = snackbarHostState,
+      modifier = Modifier
+        .align(Alignment.BottomCenter)
+        .padding(horizontal = 16.dp, vertical = 72.dp),
+    )
 
     if (showVoiceSheet) {
       VoiceBottomSheet(

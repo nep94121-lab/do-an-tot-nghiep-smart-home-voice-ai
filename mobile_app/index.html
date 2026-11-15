@@ -273,22 +273,95 @@
 
       <section class="card" id="secSchedule" aria-labelledby="schedule-title">
         <div class="card-head">
-          <h2 id="schedule-title">Lịch</h2>
+          <h2 id="schedule-title">Lịch &amp; Tự động</h2>
           <button type="button" class="text-link" onclick="document.getElementById('pwaScheduleForm').hidden = !document.getElementById('pwaScheduleForm').hidden">Tạo lịch</button>
         </div>
         <div id="upcomingScheduleInline" class="muted">Chưa có lịch</div>
+        <div id="mobileAutoContainers" class="mobile-auto-block" hidden>
+          <div id="mobileTimersWrap" hidden>
+            <div class="mobile-auto-title">Hẹn giờ đếm ngược</div>
+            <div id="mobileTimersList" class="mobile-auto-block"></div>
+          </div>
+          <div id="mobileSchedulesWrap" hidden>
+            <div class="mobile-auto-title">Lịch theo giờ</div>
+            <div id="mobileSchedulesList" class="mobile-auto-block"></div>
+          </div>
+          <div id="mobileRulesWrap" hidden>
+            <div class="mobile-auto-title">Luật liên kết</div>
+            <div id="mobileRulesList" class="mobile-auto-block"></div>
+          </div>
+          <div id="mobileScenesWrap" hidden>
+            <div class="mobile-auto-title">Ngữ cảnh nhiều bước</div>
+            <div id="mobileScenesList" class="mobile-auto-block"></div>
+          </div>
+        </div>
         <form id="pwaScheduleForm" hidden style="margin-top:12px; display:grid; gap:8px;" onsubmit="submitPwaSchedule(event)">
-          <input type="text" id="pwaSchedTime" placeholder="Giờ (ví dụ: 10 giây nữa)" value="10 giây nữa" />
-          <select id="pwaSchedDevice">
-            <option value="Đèn phòng khách">Đèn phòng khách</option>
-            <option value="Quạt trần">Quạt trần</option>
-            <option value="Điều hòa">Điều hòa</option>
-            <option value="Máy bơm tưới cây">Máy bơm tưới cây</option>
+          <select id="pwaAutoMode" aria-label="Loại tự động hóa">
+            <option value="timer">Hẹn giờ đếm ngược</option>
+            <option value="clock">Lịch theo giờ (VN)</option>
+            <option value="rule">Luật liên kết</option>
+            <option value="scene">Ngữ cảnh nhiều bước</option>
           </select>
-          <select id="pwaSchedAction">
-            <option value="Bật">Bật</option>
-            <option value="Tắt">Tắt</option>
-          </select>
+          <div id="pwaModeTimerClockGroup" style="display:grid; gap:8px;">
+            <input type="text" id="pwaSchedTime" placeholder="Giờ (ví dụ: 10 giây nữa)" value="10 giây nữa" />
+            <div id="pwaClockExtraRow" hidden style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <input type="time" id="pwaClockTime" value="07:00" aria-label="Giờ thực thi" />
+              <select id="pwaClockRepeat" aria-label="Lặp lại">
+                <option value="once">Một lần</option>
+                <option value="daily">Hàng ngày</option>
+              </select>
+            </div>
+            <select id="pwaSchedDevice">
+              <option value="Đèn phòng khách">Đèn phòng khách</option>
+              <option value="Quạt trần">Quạt trần</option>
+              <option value="Điều hòa">Điều hòa</option>
+              <option value="Máy bơm tưới cây">Máy bơm tưới cây</option>
+              <option value="Đèn phòng ngủ">Đèn phòng ngủ</option>
+              <option value="Cửa chính">Cửa chính</option>
+            </select>
+            <select id="pwaSchedAction">
+              <option value="Bật">Bật</option>
+              <option value="Tắt">Tắt</option>
+              <option value="Mở cửa">Mở cửa</option>
+              <option value="Đóng cửa">Đóng cửa</option>
+            </select>
+          </div>
+          <div id="pwaModeRuleGroup" hidden style="display:grid; gap:8px;">
+            <select id="pwaRuleWhenDev" aria-label="Khi thiết bị">
+              <option value="main_door">Khi Cửa chính</option>
+              <option value="living_room_light">Khi Đèn phòng khách</option>
+              <option value="bedroom_light">Khi Đèn phòng ngủ</option>
+              <option value="fan">Khi Quạt trần</option>
+              <option value="ac">Khi Điều hòa</option>
+              <option value="garden_pump">Khi Máy bơm tưới cây</option>
+            </select>
+            <select id="pwaRuleWhenState" aria-label="Trạng thái kích hoạt">
+              <option value="OPEN">Mở</option>
+              <option value="CLOSED">Đóng</option>
+              <option value="ON">Bật</option>
+              <option value="OFF">Tắt</option>
+            </select>
+            <select id="pwaRuleThenDev" aria-label="Thì thiết bị">
+              <option value="living_room_light">Thì Đèn phòng khách</option>
+              <option value="bedroom_light">Thì Đèn phòng ngủ</option>
+              <option value="fan">Thì Quạt trần</option>
+              <option value="ac">Thì Điều hòa</option>
+              <option value="garden_pump">Thì Máy bơm tưới cây</option>
+              <option value="main_door">Thì Cửa chính</option>
+            </select>
+            <select id="pwaRuleThenAction" aria-label="Thao tác">
+              <option value="turn_on">Bật</option>
+              <option value="turn_off">Tắt</option>
+              <option value="open_door">Mở cửa</option>
+              <option value="close_door">Đóng cửa</option>
+            </select>
+          </div>
+          <div id="pwaModeSceneGroup" hidden style="display:grid; gap:8px;">
+            <input type="hidden" id="pwaSceneEditId" value="" />
+            <input type="text" id="pwaScenePhrase" placeholder="Tên câu lệnh (vd: đi ngủ)" />
+            <input type="text" id="pwaSceneSteps" placeholder="Các bước (vd: tắt hết đèn rồi bật quạt trần)" />
+          </div>
+          <div id="pwaAutoFeedback" class="muted" hidden></div>
           <div class="btn-row">
             <button type="submit" class="btn primary">Lưu</button>
             <button type="button" class="btn secondary" onclick="document.getElementById('pwaScheduleForm').hidden=true">Hủy</button>

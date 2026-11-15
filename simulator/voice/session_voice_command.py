@@ -230,6 +230,54 @@ async def execute_session_voice_intents(
     transcript: str,
     source: str = "web_voice",
 ) -> dict[str, Any]:
+    from simulator.automation_nlu import process_automation_nlu_command
+
+    nlu_res = await process_automation_nlu_command(
+        text=transcript,
+        engine=engine,
+        session=session,
+        source=source,
+    )
+    if nlu_res is not None:
+        nlu_payload = dict(nlu_res.get("payload") or {})
+        spoken_nlu = str(
+            nlu_payload.get("exact_spoken_reply")
+            or nlu_payload.get("reply")
+            or nlu_payload.get("error")
+            or ""
+        ).strip()
+        aoede_fields_nlu: dict[str, Any] = {}
+        if spoken_nlu and not any(marker in spoken_nlu.lower() for marker in _LEGACY_REPEAT_MARKERS):
+            try:
+                aoede_bundle = await synthesize_aoede_phrase_audio(spoken_nlu, interactive_budget_sec=1.8)
+                aoede_fields_nlu = build_aoede_http_audio_fields(aoede_bundle)
+            except Exception as exc:
+                LOG.debug("aoede voice synthesis fallback skipped (nlu): %s", exc)
+        is_ok_nlu = bool(nlu_payload.get("ok"))
+        is_blocked_nlu = bool(nlu_payload.get("rbac_blocked"))
+        return _strip_legacy_repeat_speech({
+            **nlu_payload,
+            "ok": is_ok_nlu,
+            "executed": is_ok_nlu,
+            "authorized": not is_blocked_nlu,
+            "permission": "DENIED" if is_blocked_nlu else "ALLOWED",
+            "silent": False,
+            "should_reply": bool(spoken_nlu),
+            "ask_repeat": False,
+            "play_audio": bool(spoken_nlu and aoede_fields_nlu.get("pcm24k_b64")),
+            "no_reprompt": True,
+            "recognized_text": transcript,
+            "transcript": transcript,
+            "tier": int(session.tier),
+            "role": session.role,
+            "user_name": session.display_name,
+            "reply": spoken_nlu,
+            "exact_spoken_reply": spoken_nlu,
+            "rejection_speech": spoken_nlu if is_blocked_nlu else "",
+            "reply_text": spoken_nlu,
+            **aoede_fields_nlu,
+        })
+
     raw_intents = parse_vietnamese_voice_command_intents(transcript)
     intents = _normalize_intents(raw_intents, transcript)
     if not intents:

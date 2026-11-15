@@ -414,6 +414,8 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
 
             # 6. user_sessions -> both user_sessions & sessions
             if "user_sessions" in src_tables:
+                from simulator.db_migrations import _ensure_preserve_user_for_fk, _is_guest_or_anon_user_id
+
                 cnt = 0
                 for r in src_conn.execute("SELECT * FROM user_sessions").fetchall():
                     rd = dict(r)
@@ -423,40 +425,51 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     tier = int(rd.get("tier") or 3)
                     if tier not in (1, 2, 3, 4):
                         tier = 3
+                    raw_uid = str(rd.get("user_id") or "").strip()
+                    src_label = str(rd.get("source") or "legacy")
+                    if _is_guest_or_anon_user_id(raw_uid, src_label, ""):
+                        db_uid: str | None = None
+                    else:
+                        db_uid = raw_uid
+                        _ensure_preserve_user_for_fk(
+                            c,
+                            db_uid,
+                            tier=tier if tier in (1, 2, 3) else 3,
+                            role_code=role_for_tier(tier),
+                            display_name=str(rd.get("display_name") or db_uid),
+                            email=str(rd.get("email") or ""),
+                            active=False,
+                        )
                     c.execute(
                         """
                         INSERT OR IGNORE INTO user_sessions (
-                            session_id, user_id, email, display_name, tier, role, created_at, expires_at, source
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            session_id, user_id, tier, role, created_at, expires_at, source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             sid,
-                            str(rd.get("user_id") or ""),
-                            str(rd.get("email") or ""),
-                            str(rd.get("display_name") or ""),
+                            db_uid,
                             tier,
                             str(rd.get("role") or role_for_tier(tier)),
                             float(rd.get("created_at") or 0.0),
                             float(rd.get("expires_at") or 0.0),
-                            str(rd.get("source") or "legacy"),
+                            src_label,
                         ),
                     )
                     c.execute(
                         """
                         INSERT OR IGNORE INTO sessions (
-                            session_id, token_hash, user_id, email, display_name,
+                            session_id, token_hash, user_id,
                             role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, NULL)
+                        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)
                         """,
                         (
                             sid,
                             hashlib.sha256(sid.encode("utf-8")).hexdigest(),
-                            str(rd.get("user_id") or ""),
-                            str(rd.get("email") or ""),
-                            str(rd.get("display_name") or str(rd.get("user_id") or "")),
+                            db_uid,
                             role_for_tier(tier),
                             tier,
-                            str(rd.get("source") or "legacy"),
+                            src_label,
                             float(rd.get("created_at") or 0.0),
                             float(rd.get("expires_at") or 0.0),
                         ),

@@ -6,6 +6,7 @@ import asyncio
 import time
 from typing import Any, Callable
 
+from simulator.engine.audit_logger import append_audit_log
 from simulator.engine.constants_and_time import (
     ACTION_TO_STATE,
     ACTION_VI_LABEL,
@@ -370,18 +371,31 @@ class EngineRulesMixin:
             timers_list.append({
                 "id": tid,
                 "device_id": tinfo["device_id"],
+                "raw_target": tinfo.get("raw_target", tinfo["device_id"]),
                 "device_name": dev_name,
                 "action": tinfo["action"],
                 "action_vi": ACTION_VI_LABEL.get(tinfo["action"], tinfo["action"]),
                 "delay_seconds": tinfo["delay_seconds"],
                 "remaining_seconds": rem,
                 "remaining_label": self.format_duration_vi(rem),
+                "fire_at": float(tinfo.get("fire_at") or now),
+                "repeat": str(tinfo.get("repeat") or "once"),
                 "target_vn_time": tinfo.get("target_vn_time", ""),
                 "reason": tinfo.get("reason", "Hẹn giờ"),
+                "label": tinfo.get("label", tinfo.get("reason", "Hẹn giờ")),
                 "owner_id": tinfo.get("owner_id", "tuan_anh"),
                 "owner_name": tinfo.get("owner_name", "Nguyễn Tuấn Anh"),
                 "owner_tier": tinfo.get("owner_tier", 1),
             })
+        db_schedules: list[dict[str, Any]] = []
+        db_rules: list[dict[str, Any]] = []
+        db_scenes: list[dict[str, Any]] = []
+        try:
+            from simulator.automation_repo import get_automation_snapshot_bundle
+
+            db_schedules, db_rules, db_scenes = get_automation_snapshot_bundle()
+        except Exception:
+            pass
         can_custom = tier <= 2 or self.system_policies.get("tier3_can_custom_rules", False)
         cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
         t1_pool = self._get_user_pool("tuan_anh")
@@ -412,6 +426,10 @@ class EngineRulesMixin:
             "t1_global_if_else_rules": list(t1_pool.get("if_else_rules", [])),
             "chains": list(cur_pool.get("if_else_rules", [])),
             "timers": timers_list,
+            "schedules": db_schedules,
+            "automation_rules": db_rules,
+            "custom_commands": db_scenes,
+            "scenes": db_scenes,
             "mqtt": self.mqtt_bridge.get_summary(),
         }
         if should_include_users:
@@ -700,6 +718,8 @@ class EngineRulesMixin:
                 return await self.execute_device_action(
                     "main_door", "close", source=source, bypass_rbac=True, trigger_chains=False
                 )
+            if "main_door" in self.devices and self.devices["main_door"].get("state") != "CLOSED":
+                self.devices["main_door"]["state"] = "CLOSED"
             lock_msg = (
                 "🔒 [KHÓA AN NINH OFFLINE]: Khi không kết nối Server xác thực giọng nói, "
                 "Cửa chính bị khóa cứng tuyệt đối! Không ai được phép mở cửa khi mất kết nối Server."
@@ -1164,6 +1184,12 @@ class EngineRulesMixin:
                     if t:
                         t.cancel()
                     self.active_timers.pop(tid, None)
+                    try:
+                        from simulator.automation_repo import delete_timer_row
+
+                        delete_timer_row(tid)
+                    except Exception:
+                        pass
 
             if norm_scope in ("rules", "all"):
                 self.pending_rule = None
@@ -1214,6 +1240,12 @@ class EngineRulesMixin:
                 task.cancel()
             self._timer_tasks.clear()
             self.active_timers.clear()
+            try:
+                from simulator.automation_repo import clear_all_timers_rows
+
+                clear_all_timers_rows()
+            except Exception:
+                pass
 
         if norm_scope in ("rules", "all"):
             self.pending_rule = None
@@ -1223,6 +1255,12 @@ class EngineRulesMixin:
             if norm_scope == "rules":
                 self.overlay_rules["users"] = saved_users
             self._save_overlay()
+            try:
+                from simulator.automation_repo import clear_all_rules_and_commands
+
+                clear_all_rules_and_commands()
+            except Exception:
+                pass
 
         if norm_scope == "all":
             from simulator.engine.state_store import TrackedDeviceDict
@@ -1309,3 +1347,114 @@ class EngineRulesMixin:
             "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
             "message": detail,
         }
+
+    async def execute_custom_scene(
+        self,
+        command_id: str,
+        *,
+        session: Any | None = None,
+        source: str = "scene",
+    ) -> dict[str, Any]:
+        """Thực thi ngữ cảnh / lệnh tùy chỉnh nhiều bước từ SQLite `custom_commands`, tôn trọng RBAC."""
+        from simulator.automation_repo import (
+            check_steps_rbac,
+            find_custom_command_by_text,
+            format_device_action_vi,
+            list_custom_commands,
+        )
+
+        cmds = list_custom_commands(include_disabled=False)
+        target_cmd = next((c for c in cmds if c["command_id"] == command_id), None)
+        if target_cmd is None:
+            target_cmd = find_custom_command_by_text(command_id)
+        if target_cmd is None:
+            return {"ok": False, "error": f"Không tìm thấy ngữ cảnh '{command_id}'."}
+
+        eff_tier = int(getattr(session, "tier", 0) or self.current_tier) if session is not None else int(self.current_tier)
+        eff_uid = str(getattr(session, "user_id", "") or self._current_user_id) if session is not None else str(self._current_user_id)
+        eff_uname = str(getattr(session, "display_name", "") or self.get_current_user_name()) if session is not None else self.get_current_user_name()
+        eff_role = str(getattr(session, "role", "") or self.current_role) if session is not None else self.current_role
+        steps = list(target_cmd.get("steps") or [])
+        allowed, rbac_err = check_steps_rbac(steps, eff_tier)
+        if not allowed:
+            await self.emit({
+                "type": "rbac_blocked",
+                "action": "execute_custom_scene",
+                "command_id": target_cmd["command_id"],
+                "role": eff_role,
+                "reason": rbac_err,
+            })
+            append_audit_log(
+                "SECURITY",
+                "scene_rbac_blocked",
+                f"Chặn chạy lệnh {target_cmd['phrase']} ({eff_uid}): {rbac_err}",
+                user_name=eff_uname,
+                tier=eff_tier,
+            )
+            return {"ok": False, "rbac_blocked": True, "error": rbac_err, "exact_spoken_reply": rbac_err}
+
+        all_results: list[dict[str, Any]] = []
+        phrase = str(target_cmd["phrase"])
+        for step in steps:
+            dev_id = str(step.get("device_id") or "")
+            act = str(step.get("action") or "")
+            if not dev_id or not act:
+                continue
+            step_res = await self.execute_device_action(
+                device_id=dev_id,
+                action=act,
+                source=f"Scene {phrase} ({source})",
+                bypass_rbac=False,
+                trigger_chains=True,
+                request_tier=eff_tier,
+                request_user_name=eff_uname,
+                request_role=eff_role,
+            )
+            all_results.extend(step_res.get("results") or [])
+            if step_res.get("rbac_blocked"):
+                err_msg = str(step_res.get("error") or step_res.get("exact_spoken_reply") or "Từ chối quyền thiết bị.")
+                return {"ok": False, "rbac_blocked": True, "error": err_msg, "exact_spoken_reply": err_msg, "results": all_results}
+
+        summary = ", ".join(format_device_action_vi(s.get("device_id", ""), s.get("action", "")) for s in steps)
+        spoken = f"Đã chạy ngữ cảnh {phrase}: {summary}."
+        append_audit_log(
+            "AUTOMATION",
+            "scene_executed",
+            f"Chạy lệnh {phrase} ({summary})",
+            user_name=eff_uname,
+            tier=eff_tier,
+        )
+        await self.emit({
+            "type": "scene_executed",
+            "command_id": target_cmd["command_id"],
+            "phrase": phrase,
+            "steps": steps,
+            "user_id": eff_uid,
+            "message": spoken,
+        })
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        return {
+            "ok": True,
+            "command_id": target_cmd["command_id"],
+            "phrase": phrase,
+            "steps": steps,
+            "results": all_results,
+            "exact_spoken_reply": spoken,
+            "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{spoken}'",
+            "message": spoken,
+        }
+
+    def sync_automation_pools_from_sqlite(self, *, emit_snapshot: bool = False) -> None:
+        """Đồng bộ nhẹ revision khi automation SQLite (schedules/rules/custom_commands) thay đổi."""
+        try:
+            root = getattr(self, "_root_engine", self)
+            if hasattr(root, "persist_to_shared_store"):
+                root.persist_to_shared_store()
+        except Exception:
+            pass
+        if emit_snapshot:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot(sync=False)}))
+            except Exception:
+                pass

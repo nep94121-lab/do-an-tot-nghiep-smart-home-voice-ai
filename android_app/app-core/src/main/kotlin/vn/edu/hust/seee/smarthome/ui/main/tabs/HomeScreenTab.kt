@@ -2,9 +2,11 @@ package vn.edu.hust.seee.smarthome.ui.main.tabs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,11 +22,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 import vn.edu.hust.seee.smarthome.ui.main.LineIcon
+import vn.edu.hust.seee.smarthome.ui.main.models.AutomationRuleItem
+import vn.edu.hust.seee.smarthome.ui.main.models.ClockScheduleItem
 import vn.edu.hust.seee.smarthome.ui.main.models.CountdownTimerItem
+import vn.edu.hust.seee.smarthome.ui.main.models.CustomSceneItem
+import vn.edu.hust.seee.smarthome.ui.main.models.formatDeviceActionLabel
 
 @Composable
 fun HomeScreenTab(
@@ -41,6 +48,10 @@ fun HomeScreenTab(
   onOpenVoiceSheet: () -> Unit,
   onNavigateToDevices: () -> Unit,
   modifier: Modifier = Modifier,
+  clockSchedules: List<ClockScheduleItem> = emptyList(),
+  automationRules: List<AutomationRuleItem> = emptyList(),
+  customScenes: List<CustomSceneItem> = emptyList(),
+  onRunScene: (CustomSceneItem) -> Unit = {},
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -232,23 +243,134 @@ fun HomeScreenTab(
       }
     }
 
-    // Card lịch sắp tới (nếu có)
-    if (activeTimers.isNotEmpty()) {
+    // 3b. Card ngữ cảnh nhanh (Multi-step scenes)
+    val enabledScenes = customScenes.filter { it.enabled }
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(16.dp))
+        .background(cardBg)
+        .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+        .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = "Ngữ cảnh nhanh",
+          color = textPrimary,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+          text = "Quản lý",
+          color = accentCyan,
+          fontSize = 12.sp,
+          fontWeight = FontWeight.Medium,
+          modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onNavigateToDevices() }
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+      }
+
+      if (enabledScenes.isEmpty()) {
+        Text(
+          text = "Chưa có ngữ cảnh. Mở tab Thiết bị để tạo lệnh nhiều bước.",
+          color = textSecondary,
+          fontSize = 12.sp,
+        )
+      } else {
+        enabledScenes.take(4).forEach { scene ->
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(12.dp))
+              .background(bgDark)
+              .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Column(
+              modifier = Modifier.weight(1f).padding(end = 8.dp),
+              verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+              Text(
+                text = scene.phrase,
+                color = textPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+              if (scene.stepsSummary.isNotBlank()) {
+                Text(
+                  text = scene.stepsSummary,
+                  color = textSecondary,
+                  fontSize = 11.sp,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
+            }
+            Button(
+              onClick = { onRunScene(scene) },
+              colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
+              shape = RoundedCornerShape(8.dp),
+              contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+              modifier = Modifier.height(32.dp),
+            ) {
+              Text(
+                text = "Chạy",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+              )
+            }
+          }
+        }
+      }
+    }
+
+    // Card lịch & tự động hóa sắp tới (nếu có)
+    val activeSchedules = clockSchedules.filter { it.enabled }
+    val activeRules = automationRules.filter { it.enabled }
+    if (activeTimers.isNotEmpty() || activeSchedules.isNotEmpty() || activeRules.isNotEmpty()) {
       Column(
         modifier = Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(16.dp))
-        .background(cardBg)
-        .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(16.dp),
+          .background(cardBg)
+          .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+          .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        Text(
-          text = "Lịch",
-          color = textPrimary,
-          fontSize = 16.sp,
-          fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = "Lịch & Tự động hóa",
+            color = textPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+          )
+          Text(
+            text = "Chi tiết",
+            color = accentCyan,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+              .clip(RoundedCornerShape(8.dp))
+              .clickable { onNavigateToDevices() }
+              .padding(horizontal = 6.dp, vertical = 2.dp),
+          )
+        }
         activeTimers.forEach { t ->
           Row(
             modifier = Modifier
@@ -256,23 +378,61 @@ fun HomeScreenTab(
               .clip(RoundedCornerShape(12.dp))
               .background(bgDark)
               .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
-              .padding(horizontal = 12.dp, vertical = 10.dp),
+              .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Text(
-              text = "${if (t.targetStateOn) "Bật" else "Tắt"} ${t.deviceName}",
+              text = formatDeviceActionLabel(t.deviceId, t.deviceName, t.action),
               color = textPrimary,
               fontSize = 13.sp,
               fontWeight = FontWeight.Normal,
+              modifier = Modifier.weight(1f).padding(end = 8.dp),
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
             )
             Text(
-              text = "Còn ${t.remainingSeconds} giây",
+              text = "Còn ${t.remainingLabel.ifBlank { "${t.remainingSeconds} giây" }}",
+              color = accentCyan,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Medium,
+            )
+          }
+        }
+        activeSchedules.take(3).forEach { sc ->
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(12.dp))
+              .background(bgDark)
+              .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = "${sc.timeHhmm} - ${sc.label.ifBlank { formatDeviceActionLabel(sc.deviceId, sc.deviceName, sc.action) }}",
+              color = textPrimary,
+              fontSize = 13.sp,
+              fontWeight = FontWeight.Normal,
+              modifier = Modifier.weight(1f).padding(end = 8.dp),
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+              text = if (sc.scheduleType == "daily") "Hằng ngày" else "Một lần",
               color = textSecondary,
               fontSize = 12.sp,
               fontWeight = FontWeight.Medium,
             )
           }
+        }
+        if (activeRules.isNotEmpty()) {
+          Text(
+            text = "${activeRules.size} luật liên kết thiết bị đang hoạt động",
+            color = textSecondary,
+            fontSize = 12.sp,
+          )
         }
       }
     }

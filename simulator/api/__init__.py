@@ -23,6 +23,7 @@ from simulator.api.deps import (
     get_rest_engine,
 )
 from simulator.api.routes_auth import router as auth_router
+from simulator.api.routes_automation import router as automation_router
 from simulator.api.routes_devices import router as devices_router
 from simulator.api.routes_logs import router as logs_router
 from simulator.api.routes_qr import router as qr_router
@@ -30,6 +31,7 @@ from simulator.api.routes_qr import router as qr_router
 __all__ = [
     "devices_router",
     "auth_router",
+    "automation_router",
     "qr_router",
     "logs_router",
     "_REST_ENGINE",

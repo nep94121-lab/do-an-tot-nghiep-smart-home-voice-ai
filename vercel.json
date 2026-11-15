@@ -2,42 +2,12 @@
   "version": 2,
   "framework": null,
   "cleanUrls": false,
-  "headers": [
+  "outputDirectory": "public",
+  "redirects": [
     {
-      "source": "/sw.js",
-      "headers": [
-        { "key": "Service-Worker-Allowed", "value": "/" },
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
+      "source": "/:path*",
+      "destination": "https://laptop-6i654f8c.tail3020d6.ts.net/:path*",
+      "permanent": true
     }
-  ],
-  "routes": [
-    { "src": "^/api/(.*)$", "dest": "/api/index.py" },
-    { "src": "^/mobile/?$", "status": 307, "headers": { "Location": "/app" } },
-    { "src": "^/sw\\.js$", "dest": "/simulator/static/sw.js", "headers": { "Service-Worker-Allowed": "/", "Cache-Control": "no-cache, no-store, must-revalidate" } },
-    { "src": "^/favicon\\.ico$", "dest": "/simulator/static/favicon.ico" },
-    { "src": "^/offline(\\.(html))?$", "status": 200, "dest": "/simulator/static/offline.html" },
-    { "src": "^/404(\\.(html))?$", "status": 404, "dest": "/simulator/static/404.html" },
-    { "src": "^/500(\\.(html))?$", "status": 500, "dest": "/simulator/static/500.html" },
-    { "src": "^/(qr_expired|qr-expired)(\\.(html))?$", "status": 200, "dest": "/simulator/static/qr_expired.html" },
-    { "src": "^/403(\\.(html))?$", "status": 403, "dest": "/simulator/static/403.html" },
-    { "src": "^/static/(.*)$", "dest": "/simulator/static/$1" },
-    { "src": "^/test_audio/(.*)$", "dest": "/test_audio/$1" },
-    { "src": "^/app/?$", "dest": "/mobile_app/index.html" },
-    { "src": "^/auth/?$", "dest": "/simulator/static/auth.html" },
-    { "src": "^/guest_guide/?$", "dest": "/simulator/static/guest_guide.html" },
-    { "src": "^/guest/?$", "dest": "/api/index.py" },
-    { "src": "^/guest_enroll/?$", "dest": "/api/index.py" },
-    { "src": "^/guest-qr/?$", "dest": "/api/index.py" },
-    { "src": "^/logs/?$", "dest": "/simulator/static/logs.html" },
-    { "src": "^/wokwi/?$", "dest": "/simulator/static/wokwi.html" },
-    { "src": "^/archify/devops/?$", "dest": "/docs/kien_truc/devops-cicd-pipeline.workflow.html" },
-    { "src": "^/archify/erd/?$", "dest": "/docs/kien_truc/smarthome-database.erd.html" },
-    { "src": "^/archify/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
-    { "src": "^/architecture/?$", "dest": "/docs/kien_truc/smart-home-voice-ai.architecture.html" },
-    { "src": "^/login/?$", "dest": "/simulator/static/login.html" },
-    { "src": "^/register/?$", "dest": "/simulator/static/register.html" },
-    { "src": "^/$", "dest": "/simulator/static/index.html" },
-    { "src": "^/(.*)$", "status": 404, "dest": "/simulator/static/404.html" }
   ]
 }

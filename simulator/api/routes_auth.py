@@ -1069,16 +1069,7 @@ def set_dual_session_cookies(
             "mobileLoggedIn",
             "1",
             path="/",
-            httponly=False,
-            secure=is_https,
-            samesite="lax",
-            max_age=max_age,
-        )
-        resp.set_cookie(
-            "mobileLoggedInEmail",
-            email,
-            path="/",
-            httponly=False,
+            httponly=True,
             secure=is_https,
             samesite="lax",
             max_age=max_age,
@@ -1323,9 +1314,9 @@ async def api_auth_logout(request: Request) -> JSONResponse:
     resp = JSONResponse({"ok": True, "logged_out": True})
     resp.delete_cookie("sh_session_token", path="/", httponly=True, secure=is_https, samesite="lax")
     resp.delete_cookie("session_token", path="/", httponly=True, secure=is_https, samesite="lax")
-    resp.delete_cookie("smarthome_session", path="/", httponly=False, secure=is_https, samesite="lax")
-    resp.delete_cookie("mobileLoggedIn", path="/", httponly=False, secure=is_https, samesite="lax")
-    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=False, secure=is_https, samesite="lax")
+    resp.delete_cookie("smarthome_session", path="/", httponly=True, secure=is_https, samesite="lax")
+    resp.delete_cookie("mobileLoggedIn", path="/", httponly=True, secure=is_https, samesite="lax")
+    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=True, secure=is_https, samesite="lax")
     if revoke_trusted:
         revoke_trusted_device(request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME))
         resp.delete_cookie(

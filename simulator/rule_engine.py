@@ -988,10 +988,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 if root is not self:
                     self._last_synced_seq = root._last_synced_seq
                     self._last_synced_ts_ns = root._last_synced_ts_ns
-                try:
-                    sync_engine_state_to_sqlite(root)
-                except Exception:
-                    pass
+                if getattr(backend, "__class__", None).__name__ != "SqliteStateBackend":
+                    try:
+                        sync_engine_state_to_sqlite(root)
+                    except Exception:
+                        pass
 
             for m_kw in mqtt_buf:
                 await self.mqtt_bridge.publish_actuate_command(**m_kw)
@@ -1754,6 +1755,58 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                                 bypass_rbac=True,
                                 trigger_chains=False,
                             )
+
+        # Luật liên kết lưu trong SQLite (`automation_rules`) với giới hạn độ sâu chống vòng lặp
+        try:
+            from simulator.auth.tier_permissions import can_control_device
+            from simulator.automation_repo import list_automation_rules
+
+            db_rules = list_automation_rules(include_disabled=False)
+        except Exception:
+            db_rules = []
+
+        for rule in db_rules:
+            if rule.get("when_device_id") != changed_dev_id:
+                continue
+            rule_tier = int(rule.get("owner_tier") or 1)
+            if_state = str(rule.get("when_state") or "OPEN").upper()
+            delay_sec = float(rule.get("delay_seconds") or 0.0)
+            target_dev = ""
+            target_act = ""
+            prefix_lbl = "IF"
+
+            if new_state == if_state:
+                target_dev = str(rule.get("then_device_id") or "")
+                target_act = str(rule.get("then_action") or "")
+            elif new_state == STATE_TO_OPPOSITE.get(if_state):
+                target_dev = str(rule.get("else_device_id") or "")
+                target_act = str(rule.get("else_action") or "")
+                prefix_lbl = "ELSE"
+
+            if not target_dev or not target_act or target_dev == changed_dev_id:
+                continue
+            if not can_control_device(rule_tier, target_dev):
+                continue
+
+            reason_lbl = f"{prefix_lbl} {self.devices[changed_dev_id]['name']}={new_state}"
+            if delay_sec <= 0.2:
+                res = await self.execute_device_action(
+                    device_id=target_dev,
+                    action=target_act,
+                    source=reason_lbl,
+                    bypass_rbac=True,
+                    trigger_chains=False,
+                )
+                triggered_results.extend(res.get("results", []))
+            else:
+                await self.schedule_action(
+                    device_id=target_dev,
+                    action=target_act,
+                    delay_seconds=delay_sec,
+                    reason=reason_lbl,
+                    bypass_rbac=True,
+                    trigger_chains=False,
+                )
         return triggered_results
 
 

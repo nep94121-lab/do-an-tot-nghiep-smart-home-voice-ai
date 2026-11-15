@@ -169,31 +169,65 @@ class TestAdversarialM2(unittest.TestCase):
 
         asyncio.run(run_offline())
 
-    def test_05_audio_buffering_and_deferred_strikes(self) -> None:
-        """Kiểm tra cơ chế đệm âm thanh: Đoạn ngắn (<0.5s) hoặc vocal fry hoãn áp dụng strike người lạ."""
-        mock_ws = AsyncMock()
-        session = LiveBridgeSession(ws=mock_ws)
+    def test_05_session_rbac_mic_streaming_without_voice_strikes(self) -> None:
+        """Kiểm tra luồng Mic qua WS dùng Session RBAC thuần (truyền thẳng PCM, không kiểm định giọng nói hay tính strike)."""
+        from simulator.auth.session_store import UserSession
+        import time as _time
 
-        # Đoạn âm thanh 0.2s (6400 bytes)
-        session.voice_auth.reset_strikes()
-        short_pcm = b"\x10\x00" * 3200
-        session.mic_utterance_pcm.extend(short_pcm)
+        # 1. Phiên chưa đăng nhập -> bị chặn RBAC khi kết thúc lượt nói, không tăng unauthorized_strikes
+        anon_ws = AsyncMock()
+        anon_ws.headers = {}
+        anon_ws.cookies = {}
+        anon_ws.query_params = {}
+        anon_session = LiveBridgeSession(
+            ws=anon_ws,
+            ws_session=UserSession(
+                session_id="ws_unauthenticated",
+                user_id="anonymous",
+                email="",
+                display_name="Khách (Chưa xác thực)",
+                tier=3,
+                role="CHILD_GUEST",
+                created_at=_time.time(),
+                expires_at=_time.time() + 3600,
+                source="ws_unauthenticated",
+                is_authenticated=False,
+            ),
+        )
+        short_pcm = b"\x10\x00" * 320
+        asyncio.run(anon_session.handle_mic_chunk(short_pcm, is_sp=True))
+        asyncio.run(anon_session.mic_speech_ended())
+        self.assertEqual(anon_session.voice_auth.unauthorized_strikes, 0)
+        self.assertTrue(anon_session.last_mic_turn_blocked)
 
-        asyncio.run(session._ensure_current_mic_utterance_verified())
-        self.assertEqual(session.voice_auth.unauthorized_strikes, 0)
-        self.assertFalse(session.last_mic_turn_blocked)
-
-        # Đoạn âm thanh người lạ thật (> 0.5s) -> Bị phạt strike 1
+        # 2. Phiên Chủ nhà đã xác thực + gửi WAV mẫu bất kỳ -> không bị chặn, đẩy thẳng PCM vào hàng đợi/Gemini
+        owner_ws = AsyncMock()
+        owner_ws.headers = {}
+        owner_ws.cookies = {}
+        owner_ws.query_params = {}
+        owner_session = LiveBridgeSession(
+            ws=owner_ws,
+            ws_session=UserSession(
+                session_id="owner_test_sess",
+                user_id="tuan_anh",
+                email="tuananh.hust@gmail.com",
+                display_name="Nguyễn Tuấn Anh",
+                tier=1,
+                role="ADMIN",
+                created_at=_time.time(),
+                expires_at=_time.time() + 3600,
+                source="test_suite",
+                is_authenticated=True,
+            ),
+        )
         with wave.open(str(self.audio_dir / "giong_2_nguoi_la_mo_cua.wav"), "rb") as wf:
-            intruder_pcm = wf.readframes(wf.getnframes())
-
-        session.mic_turn_verified = False
-        session.mic_utterance_pcm.clear()
-        session.mic_utterance_pcm.extend(intruder_pcm)
-
-        asyncio.run(session._ensure_current_mic_utterance_verified())
-        self.assertEqual(session.voice_auth.unauthorized_strikes, 1)
-        self.assertTrue(session.last_mic_turn_blocked)
+            pcm_bytes = wf.readframes(wf.getnframes())
+        asyncio.run(owner_session.handle_mic_chunk(pcm_bytes[:3200], is_sp=True))
+        asyncio.run(owner_session.mic_speech_ended())
+        self.assertEqual(owner_session.voice_auth.unauthorized_strikes, 0)
+        self.assertFalse(owner_session.last_mic_turn_blocked)
+        self.assertEqual(owner_session.engine.current_tier, 1)
+        self.assertGreater(owner_session._mic_in_flight_queue.qsize(), 0)
 
     def test_06_live_gemini_foreign_language_and_injection(self) -> None:
         """Kiểm tra thực nghiệm đối kháng trên luồng Gemini 3.8 Live: Ngoại ngữ, Prompt Injection & Fillers."""

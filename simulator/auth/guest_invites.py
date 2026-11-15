@@ -134,9 +134,10 @@ def create_invite(
             "o": str(owner_user_id or ""),
         }
     )
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     record = {
         "jti": jti,
-        "token": token,
+        "token_hash": token_hash,
         "tier": guest_tier,
         "role": _ROLES[guest_tier],
         "created_at": now,

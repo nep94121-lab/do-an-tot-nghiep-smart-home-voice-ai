@@ -1598,3 +1598,94 @@ h2,
     justify-self: start;
   }
 }
+
+/* ================= AUTOMATION SCHEDULES, RULES & SCENES ================= */
+.panel-head-split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.btn-mini {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.btn-mini.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-mini.danger {
+  background: var(--red-soft);
+  border-color: #efb9b7;
+  color: var(--red);
+}
+.auto-form-panel {
+  margin: 10px 0 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--page);
+  display: grid;
+  gap: 8px;
+}
+.auto-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.auto-input,
+.auto-select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: #ffffff;
+  color: var(--ink);
+}
+.auto-section-sub {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.schedule-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 12px;
+}
+.schedule-row-meta {
+  min-width: 0;
+  flex: 1;
+}
+.schedule-row-title {
+  font-weight: 500;
+  color: var(--ink);
+  word-break: break-word;
+}
+.schedule-row-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.schedule-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}

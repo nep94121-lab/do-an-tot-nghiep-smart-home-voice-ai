@@ -273,25 +273,12 @@ async def process_voice_command_pipeline(
 
     pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
 
-    # 1. CỔNG KIỂM ĐỊNH CHẤT LƯỢNG ÂM THANH (Mel26 + Deep64 Quality Gate & Overlap Safe-Deny)
-    # Quá ngắn / quá nhỏ / bị rè / nói đè -> Yêu cầu nói lại, KHÔNG kết luận là 'Người lạ'!
+    # 1. CỔNG KIỂM ĐỊNH CHẤT LƯỢNG ÂM THANH (Quá ngắn / quá nhỏ / bị rè / nói đè)
+    # Quá ngắn / quá nhỏ / bị rè / nói đè -> Yêu cầu nói lại, KHÔNG xác thực người nói hay tính strike!
     q_gate = evaluate_audio_quality_gate(pcm16, sr=16000)
-    va_ask_repeat = False
     va_reason = ""
-    if q_gate["ok"] and voice_auth is not None and hasattr(voice_auth, "verify_pcm16k_and_apply_strikes"):
-        prev_strikes = getattr(voice_auth, "unauthorized_strikes", 0)
-        try:
-            va_res = voice_auth.verify_pcm16k_and_apply_strikes(pcm16)
-            if isinstance(va_res, dict) and va_res.get("ask_repeat"):
-                va_ask_repeat = True
-                va_reason = str(va_res.get("reason") or va_res.get("quality_reason") or "SAFE_DENY_ASK_REPEAT")
-        except Exception:
-            pass
-        finally:
-            if hasattr(voice_auth, "unauthorized_strikes"):
-                voice_auth.unauthorized_strikes = prev_strikes
 
-    if not q_gate["ok"] or va_ask_repeat:
+    if not q_gate["ok"]:
         from simulator.live.tts_rejection_vi import (
             build_aoede_http_audio_fields,
             synthesize_aoede_phrase_audio,

@@ -265,26 +265,33 @@ class TestM5QrScanner:
         assert html_soup.find(id="mobileBtnManualCodeInput") is not None, "Thiếu nút #mobileBtnManualCodeInput"
 
     def test_m5_backend_handshake_endpoint(self, client: TestClient):
-        # 1. Kiểm tra gọi endpoint /api/auth3/guest_handshake với token không hợp lệ -> 401
+        # Legacy /api/auth3/guest_handshake and /api/auth3/guest_qr_current are 410 Gone after P0/P1 single-use invite hardening.
         res_invalid = client.post("/api/auth3/guest_handshake", json={"token": "test_invalid_token", "duration": "1d"})
-        assert res_invalid.status_code in [200, 400, 401], f"Endpoint /api/auth3/guest_handshake phản hồi bất thường: {res_invalid.status_code}"
-        assert res_invalid.json().get("ok") is False
+        assert res_invalid.status_code == 410, f"Expected 410 Gone on legacy /api/auth3/guest_handshake, got: {res_invalid.status_code}"
+        assert res_invalid.json().get("gone") is True
 
-        # 2. Kiểm tra gọi với token hợp lệ sinh từ /api/auth3/guest_qr_current -> 200 ok
-        res_gen = client.get("/api/auth3/guest_qr_current?duration=1d&host=localhost:8088&tier=3")
-        assert res_gen.status_code == 200
-        token = res_gen.json().get("token")
-        window = res_gen.json().get("window")
-        assert token, "Không lấy được token từ /api/auth3/guest_qr_current"
-        from simulator.auth_3layer import get_auth_3layer_manager
-        mgr3 = get_auth_3layer_manager()
-        if hasattr(mgr3, "used_qr_tokens"):
-            mgr3.used_qr_tokens.discard(token)
-        res_valid = client.post("/api/auth3/guest_handshake", json={"token": token, "duration": "1d", "window": window})
-        assert res_valid.status_code == 200
-        data = res_valid.json()
-        assert data.get("ok") is True, f"Bắt tay token hợp lệ thất bại: {data}"
-        assert "session" in data or "session_id" in data
+        res_legacy_qr = client.get("/api/auth3/guest_qr_current?duration=1d&host=localhost:8088&tier=3")
+        assert res_legacy_qr.status_code in (405, 410)
+
+        # Verify modern single-use invite creation (Owner cookie + PIN) and /guest redemption.
+        from simulator.auth import owner_pin
+
+        owner_pin.setup_or_replace_pin("1234", "1234", allow_replace=True)
+        owner_cookies = {"sh_session_token": "sess_owner_t1_nep94121", "session_token": "sess_owner_t1_nep94121"}
+        res_create = client.post(
+            "/api/auth3/guest_invites",
+            json={"tier": 3, "ttl_sec": 600, "pin": "1234", "pin_confirm": "1234"},
+            cookies=owner_cookies,
+        )
+        assert res_create.status_code == 200, f"Create single-use invite failed: {res_create.text}"
+        created = res_create.json()
+        assert created.get("ok") is True
+        invite_path = str(created.get("path") or "")
+        assert "/guest?token=" in invite_path
+        res_redeem = client.get(invite_path, follow_redirects=False)
+        assert res_redeem.status_code in (200, 302, 303, 307)
+        if res_redeem.status_code in (302, 303, 307):
+            assert res_redeem.cookies.get("sh_session_token") or "Set-Cookie" in str(res_redeem.headers)
 
 
 # =============================================================================

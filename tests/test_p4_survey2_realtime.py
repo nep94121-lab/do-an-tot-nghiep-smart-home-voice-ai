@@ -61,7 +61,10 @@ class TestBug3WebSocketFallbackAndFavicon:
                 pass
 
         # 3. pollRestStateFallback phải gọi hideWsReconnectBanner() khi thành công
-        fallback_match = re.search(r"function\s+pollRestStateFallback\s*\(\)\s*\{([\s\S]*?)\}", content)
+        fallback_match = re.search(
+            r"function\s+pollRestStateFallback\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}",
+            content,
+        )
         assert fallback_match, "Không tìm thấy hàm pollRestStateFallback trong app.js"
         fallback_body = fallback_match.group(1)
         assert "hideWsReconnectBanner" in fallback_body, (
@@ -69,7 +72,7 @@ class TestBug3WebSocketFallbackAndFavicon:
         )
 
     def test_bug3_mobile_app_js_ws_fallback_sync(self):
-        """mobile_app.js phải đồng bộ espBadge khi fetch /api/state thành công trong ws.onclose."""
+        """mobile_app.js phải đồng bộ trạng thái kết nối khi fetch /api/state thành công trong ws.onclose."""
         mobile_js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
         assert mobile_js_path.exists(), "Tệp simulator/static/js/mobile_app.js không tồn tại!"
         content = mobile_js_path.read_text(encoding="utf-8")
@@ -81,20 +84,20 @@ class TestBug3WebSocketFallbackAndFavicon:
         onclose_body = onclose_match.group(1)
 
         assert "fetch('/api/state')" in onclose_body or 'fetch("/api/state")' in onclose_body
-        assert "espBadge" in onclose_body
+        assert "espBadge" in onclose_body or "updateMobileAuthUiState" in onclose_body
 
     def test_bug3_vercel_json_has_favicon_route(self):
-        """vercel.json phải cấu hình route /favicon.ico trỏ về /simulator/static/favicon.ico."""
+        """vercel.json chuyển hướng HTTP 308 mọi đường dẫn (kể cả /favicon.ico) tới máy chủ LENOVO."""
         vercel_json_path = ROOT / "vercel.json"
         assert vercel_json_path.exists(), "Tệp vercel.json không tồn tại!"
         data = json.loads(vercel_json_path.read_text(encoding="utf-8"))
-
-        routes = data.get("routes", [])
-        favicon_route = next(
-            (r for r in routes if "favicon" in r.get("src", "") and r.get("dest") == "/simulator/static/favicon.ico"),
-            None,
-        )
-        assert favicon_route is not None, "vercel.json thiếu route trỏ /favicon.ico tới /simulator/static/favicon.ico"
+        redirects = data.get("redirects", [])
+        assert any(
+            r.get("source") == "/:path*"
+            and r.get("permanent") is True
+            and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+            for r in redirects
+        ), "vercel.json chưa cấu hình Edge 308 redirect tới máy chủ LENOVO"
 
     def test_bug3_favicon_ico_exists_on_disk_and_valid(self):
         """Tệp simulator/static/favicon.ico phải tồn tại thực tế và có định dạng ICO hợp lệ."""
@@ -124,18 +127,25 @@ class TestBug10OptimisticUIAndDeviceLabels:
         body = func_match.group(1)
 
         # 1. Kiểm tra có cập nhật optimistic trước khi fetch/ws
-        # Phải cập nhật state của dev trước khi gửi fetch/ws
-        assert "dev.state =" in body or "dev.state=" in body, (
-            "toggleDeviceById() chưa cập nhật lạc quan dev.state trước khi chờ server phản hồi"
-        )
+        # Cập nhật state thông qua syncDeviceDOMToState hoặc gán trực tiếp dev.state
+        assert (
+            "dev.state =" in body
+            or "dev.state=" in body
+            or "syncDeviceDOMToState(" in body
+        ), "toggleDeviceById() chưa cập nhật lạc quan DOM/state trước khi chờ server phản hồi"
 
-        # 2. Phải có cơ chế rollback (lưu lại prevState hoặc dev.state trước đó)
-        assert "prevState" in body or "oldState" in body or "rollback" in body, (
-            "toggleDeviceById() thiếu biến lưu trạng thái cũ để rollback khi có lỗi"
-        )
+        # 2. Phải có cơ chế rollback (desiredState/lastClickTs hoặc prevState/rollback trong dispatch)
+        assert (
+            "prevState" in body
+            or "oldState" in body
+            or "rollback" in body
+            or "desiredState" in body
+        ), "toggleDeviceById() thiếu trạng thái mục tiêu để đối soát/rollback khi có lỗi"
 
-        # 3. Phải cập nhật ngay DOM của card thiết bị (switch checked, icon, room label)
-        assert "checked" in body, "toggleDeviceById() chưa cập nhật ngay thuộc tính checked của input switch"
+        # 3. Phải cập nhật ngay DOM của card thiết bị (qua syncDeviceDOMToState hoặc checked)
+        assert "checked" in body or "syncDeviceDOMToState(" in body, (
+            "toggleDeviceById() chưa cập nhật ngay DOM của card thiết bị"
+        )
 
     def test_bug10_app_js_renderDevices_updates_in_place(self):
         """renderDevices() trong app.js không được dùng devicesGrid.innerHTML = '' vô điều kiện,

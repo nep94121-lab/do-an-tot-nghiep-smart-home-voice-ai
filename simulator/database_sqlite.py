@@ -68,9 +68,15 @@ def _now_iso() -> str:
     return datetime.datetime.now(tz).isoformat()
 
 
-def get_connection(db_path: pathlib.Path | None = None) -> sqlite3.Connection:
+def get_connection(
+    db_path: pathlib.Path | None = None,
+    *,
+    readonly: bool = False,
+) -> sqlite3.Connection:
     target = pathlib.Path(db_path) if db_path is not None else _active_db_path()
-    return open_wal_connection(target, readonly=False)
+    if readonly and not target.exists():
+        return open_wal_connection(target, readonly=False)
+    return open_wal_connection(target, readonly=bool(readonly))
 
 
 _SCHEMA_INITIALIZED = False
@@ -347,35 +353,64 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                         ),
                     )
 
-                # 3. Bảng `timers_pool` (Bể 1 - Hẹn giờ)
-                c.execute("DELETE FROM timers_pool")
-                active_timers = getattr(engine, "active_timers", {}) or {}
-                for tid, tinfo in active_timers.items():
-                    owner_id = str(tinfo.get("owner_id") or "tuan_anh")
-                    if owner_id not in users_dict:
-                        owner_id = "tuan_anh"
-                    dev_id = str(tinfo.get("device_id") or "living_room_light")
-                    if dev_id not in devs_dict:
-                        continue
-                    c.execute(
-                        """
-                        INSERT INTO timers_pool (
-                            timer_id, owner_user_id, device_id, action, schedule_mode,
-                            target_time_vn, repeat_rule, label_summary, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            str(tid),
-                            owner_id,
-                            dev_id,
-                            str(tinfo.get("action") or "turn_on"),
-                            str(tinfo.get("mode") or "countdown"),
-                            str(tinfo.get("target_clock_str") or f"{tinfo.get('seconds', 0)}s"),
-                            str(tinfo.get("repeat") or "once"),
-                            str(tinfo.get("label") or tid),
-                            now_str,
-                        ),
-                    )
+                # 3. Bảng `timers_pool` (Bể 1 - Hẹn giờ, upsert an toàn giữ nguyên fire_at_epoch & status)
+                if getattr(engine, "_root_engine", engine) is engine:
+                    db_user_ids = {str(r[0]) for r in c.execute("SELECT user_id FROM users").fetchall()}
+                    db_dev_ids = {str(r[0]) for r in c.execute("SELECT device_id FROM devices").fetchall()}
+                    active_timers = getattr(engine, "active_timers", {}) or {}
+                    now_epoch = time.time()
+                    for tid, tinfo in active_timers.items():
+                        owner_id = str(tinfo.get("owner_id") or "tuan_anh")
+                        if owner_id not in db_user_ids:
+                            owner_id = "tuan_anh" if "tuan_anh" in db_user_ids else next(iter(db_user_ids), "tuan_anh")
+                        dev_id = str(tinfo.get("device_id") or "living_room_light")
+                        if dev_id not in db_dev_ids:
+                            continue
+                        raw_target = str(tinfo.get("raw_target") or dev_id)
+                        smode = str(tinfo.get("mode") or "countdown")
+                        if raw_target != dev_id and ":" not in smode:
+                            smode = f"{smode}:{raw_target}"
+                        fire_at_val = float(tinfo.get("fire_at") or (now_epoch + float(tinfo.get("delay_seconds") or 0.0)))
+                        delay_val = float(tinfo.get("delay_seconds") or 0.0)
+                        lbl_val = str(tinfo.get("label") or tinfo.get("reason") or tid)
+                        c.execute(
+                            """
+                            INSERT INTO timers_pool (
+                                timer_id, owner_user_id, device_id, action, schedule_mode,
+                                target_time_vn, repeat_rule, label_summary, updated_at,
+                                fire_at_epoch, delay_seconds, status, owner_tier, label, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                            ON CONFLICT(timer_id) DO UPDATE SET
+                                owner_user_id = excluded.owner_user_id,
+                                device_id = excluded.device_id,
+                                action = excluded.action,
+                                schedule_mode = excluded.schedule_mode,
+                                target_time_vn = excluded.target_time_vn,
+                                repeat_rule = excluded.repeat_rule,
+                                label_summary = excluded.label_summary,
+                                updated_at = excluded.updated_at,
+                                fire_at_epoch = excluded.fire_at_epoch,
+                                delay_seconds = excluded.delay_seconds,
+                                owner_tier = excluded.owner_tier,
+                                label = excluded.label
+                            """,
+                            (
+                                str(tid),
+                                owner_id,
+                                dev_id,
+                                str(tinfo.get("action") or "turn_on"),
+                                smode,
+                                str(tinfo.get("target_vn_time") or tinfo.get("target_clock_str") or f"{int(delay_val)}s"),
+                                str(tinfo.get("repeat") or "once"),
+                                lbl_val,
+                                now_str,
+                                fire_at_val,
+                                delay_val,
+                                int(tinfo.get("owner_tier") or 1),
+                                lbl_val,
+                                float(tinfo.get("created_at") or now_epoch),
+                            ),
+                        )
 
                 # 4. Bảng `rules_pool` (Bể 2 - Luật IF-ELSE, Khẩu lệnh & Từ vựng)
                 c.execute("DELETE FROM rules_pool")

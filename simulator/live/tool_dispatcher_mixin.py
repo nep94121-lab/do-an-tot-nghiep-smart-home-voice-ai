@@ -189,7 +189,25 @@ class LiveToolDispatcherMixin:
         name = fc.name
         args = dict(fc.args or {})
 
-        await self._ensure_current_mic_utterance_verified()
+        if hasattr(self, "_bind_actor_to_engine"):
+            actor = self._bind_actor_to_engine()
+            if not actor.is_authenticated or actor.is_expired():
+                rej_msg = FIXED_REJECTION_PHRASE_VI
+                await self.send_ws_json({
+                    "type": "rbac_blocked",
+                    "action": name,
+                    "role": "UNKNOWN",
+                    "reason": rej_msg,
+                })
+                return {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "error": rej_msg,
+                    "message": rej_msg,
+                    "rejection_speech": rej_msg,
+                    "exact_spoken_reply": rej_msg,
+                    "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
+                }
 
         _admin_tools = (
             "grant_user_permission",
@@ -229,20 +247,16 @@ class LiveToolDispatcherMixin:
                 }
 
         if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
-            rej_info = self.last_mic_auth_result or {}
-            rej_msg = str(
-                rej_info.get("rejection_speech")
-                or "Tôi không nhận ra giọng của bạn."
-            )
-            f0_val = rej_info.get("f0_hz", 0.0)
+            rej_msg = FIXED_REJECTION_PHRASE_VI
             await self.send_ws_json({
                 "type": "rbac_blocked",
                 "action": name,
                 "role": "UNKNOWN",
-                "reason": f"🚫 Chặn giọng nói không có quyền (F0={f0_val}Hz): {rej_msg}",
+                "reason": rej_msg,
             })
             return {
                 "ok": False,
+                "rbac_blocked": True,
                 "error": rej_msg,
                 "exact_spoken_reply": rej_msg,
                 "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
@@ -305,42 +319,215 @@ class LiveToolDispatcherMixin:
             res = await self.engine.set_word_mapping(
                 custom_word=str(args.get("custom_word", "")),
                 target_meaning=str(args.get("target_meaning", "")),
-                require_confirmation=True,
+                require_confirmation=False,
             )
             if res.get("ok"):
-                await self._sync_rules_context_to_gemini(res.get("message", "Đang chờ xác nhận đổi từ."))
+                await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu đổi từ."))
             return res
 
         if name == "create_alias_rule":
+            phrase_str = str(args.get("phrase", "")).strip()
+            devs_csv = str(args.get("target_devices_csv", "")).strip()
+            acts_csv = str(args.get("target_actions_csv", "")).strip()
             res = await self.engine.create_alias_rule(
-                phrase=str(args.get("phrase", "")),
-                target_devices_csv=str(args.get("target_devices_csv", "")),
-                target_actions_csv=str(args.get("target_actions_csv", "")),
-                require_confirmation=True,
+                phrase=phrase_str,
+                target_devices_csv=devs_csv,
+                target_actions_csv=acts_csv,
+                require_confirmation=False,
             )
             if res.get("ok"):
-                await self._sync_rules_context_to_gemini(res.get("message", "Đang chờ xác nhận đổi khẩu lệnh."))
+                try:
+                    from simulator.automation_repo import upsert_custom_command
+
+                    dev_list = [d.strip() for d in devs_csv.split(",") if d.strip()]
+                    act_list = [a.strip() for a in acts_csv.split(",") if a.strip()]
+                    steps = [
+                        {
+                            "device_id": d,
+                            "action": act_list[idx] if idx < len(act_list) else (act_list[-1] if act_list else "turn_on"),
+                        }
+                        for idx, d in enumerate(dev_list)
+                    ]
+                    if phrase_str and steps:
+                        upsert_custom_command(
+                            phrase=phrase_str,
+                            steps=steps,
+                            owner_user_id=self.engine._current_user_id,
+                            owner_tier=self.engine.current_tier,
+                            owner_name=self.engine.get_current_user_name(),
+                        )
+                        self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+                        await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
+                except Exception:
+                    pass
+                await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu khẩu lệnh."))
             return res
 
         if name == "execute_alias_rule":
-            return await self.engine.execute_alias_rule(phrase=str(args.get("phrase", "")))
+            phrase_q = str(args.get("phrase", "")).strip()
+            try:
+                from simulator.automation_repo import find_custom_command_by_text
+
+                cmd_hit = find_custom_command_by_text(phrase_q)
+            except Exception:
+                cmd_hit = None
+            if cmd_hit is not None:
+                return await self.engine.execute_custom_scene(cmd_hit["command_id"], source="gemini_live")
+            return await self.engine.execute_alias_rule(phrase=phrase_q)
 
         if name in ("set_if_else_rule", "create_chain_rule"):
             eval_now = bool(args.get("evaluate_now", False))
+            wdev = str(args.get("when_device_id", "")).strip()
+            wstate = str(args.get("when_state", "")).strip()
+            tdev = str(args.get("then_device_id", "")).strip()
+            tact = str(args.get("then_action", "")).strip()
+            delay_val = float(args.get("delay_seconds", 0) or 0)
+            edev = str(args.get("else_device_id", "") or "").strip()
+            eact = str(args.get("else_action", "") or "").strip()
             res = await self.engine.set_if_else_rule(
-                when_device_id=str(args.get("when_device_id", "")),
-                when_state=str(args.get("when_state", "")),
-                then_device_id=str(args.get("then_device_id", "")),
-                then_action=str(args.get("then_action", "")),
-                delay_seconds=float(args.get("delay_seconds", 0) or 0),
-                else_device_id=str(args.get("else_device_id", "") or ""),
-                else_action=str(args.get("else_action", "") or ""),
+                when_device_id=wdev,
+                when_state=wstate,
+                then_device_id=tdev,
+                then_action=tact,
+                delay_seconds=delay_val,
+                else_device_id=edev,
+                else_action=eact,
                 evaluate_now=eval_now,
-                require_confirmation=not eval_now,
+                require_confirmation=False,
             )
             if res.get("ok"):
-                await self._sync_rules_context_to_gemini(res.get("message", "Đang chờ xác nhận luật IF."))
+                if not eval_now and wdev and tdev:
+                    try:
+                        from simulator.automation_repo import create_automation_rule
+
+                        create_automation_rule(
+                            owner_user_id=self.engine._current_user_id,
+                            owner_tier=self.engine.current_tier,
+                            owner_name=self.engine.get_current_user_name(),
+                            when_device_id=wdev,
+                            when_state=wstate or "ON",
+                            then_device_id=tdev,
+                            then_action=tact or "turn_on",
+                            else_device_id=edev,
+                            else_action=eact,
+                            delay_seconds=delay_val,
+                        )
+                        self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+                        await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
+                    except Exception:
+                        pass
+                await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu luật IF."))
             return res
+
+        if name == "create_schedule_clock":
+            from simulator.auth.tier_permissions import can_control_device
+            from simulator.automation_repo import create_schedule, format_device_action_vi
+
+            if self.engine.current_tier >= 3 and not self.engine.system_policies.get("tier3_can_schedule_timer", False):
+                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            dev_id = str(args.get("device_id", "living_room_light")).strip()
+            act = str(args.get("action", "turn_on")).strip()
+            hhmm = str(args.get("time_hhmm", "")).strip()
+            sc_type = str(args.get("schedule_type", "once") or "once").strip().lower()
+            if not can_control_device(self.engine.current_tier, dev_id):
+                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            try:
+                sc = create_schedule(
+                    owner_user_id=self.engine._current_user_id,
+                    owner_tier=self.engine.current_tier,
+                    owner_name=self.engine.get_current_user_name(),
+                    device_id=dev_id,
+                    action=act,
+                    time_hhmm=hhmm,
+                    schedule_type=sc_type,
+                )
+            except ValueError as exc:
+                return {"ok": False, "error": str(exc), "exact_spoken_reply": str(exc)}
+            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+            await self.engine.emit({"type": "schedule_created", "schedule": sc})
+            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
+            rep_txt = "hằng ngày " if sc["schedule_type"] == "daily" else ""
+            spoken = f"Đã đặt lịch lúc {sc['time_hhmm']} {rep_txt}{format_device_action_vi(dev_id, act)}."
+            await self._sync_rules_context_to_gemini(spoken)
+            return {"ok": True, "schedule": sc, "exact_spoken_reply": spoken, "message": spoken}
+
+        if name == "create_custom_scene":
+            from simulator.automation_nlu import parse_multi_steps_from_text
+            from simulator.automation_repo import check_steps_rbac, upsert_custom_command
+
+            if self.engine.current_tier >= 3 and not self.engine.system_policies.get("tier3_can_custom_rules", False):
+                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            phrase = str(args.get("phrase", "")).strip()
+            steps_text = str(args.get("steps_text", "")).strip()
+            steps = parse_multi_steps_from_text(steps_text)
+            ok_steps, err_steps = check_steps_rbac(steps, self.engine.current_tier)
+            if not ok_steps:
+                return {"ok": False, "error": err_steps, "exact_spoken_reply": err_steps}
+            try:
+                scene = upsert_custom_command(
+                    phrase=phrase,
+                    steps=steps,
+                    owner_user_id=self.engine._current_user_id,
+                    owner_tier=self.engine.current_tier,
+                    owner_name=self.engine.get_current_user_name(),
+                )
+            except ValueError as exc:
+                return {"ok": False, "error": str(exc), "exact_spoken_reply": str(exc)}
+            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+            await self.engine.emit({"type": "custom_command_created", "command": scene})
+            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
+            spoken = f"Đã lưu lệnh '{scene['phrase']}' gồm {scene['steps_summary']}."
+            await self._sync_rules_context_to_gemini(spoken)
+            return {"ok": True, "command": scene, "exact_spoken_reply": spoken, "message": spoken}
+
+        if name == "run_custom_scene":
+            return await self.engine.execute_custom_scene(
+                str(args.get("phrase_or_id", "")).strip(),
+                source="gemini_live",
+            )
+
+        if name == "delete_automation_item":
+            from simulator.automation_repo import (
+                delete_automation_rule,
+                delete_custom_command,
+                delete_schedule,
+                list_automation_rules,
+                list_custom_commands,
+                list_schedules,
+                normalize_phrase,
+            )
+
+            kind = str(args.get("kind", "schedule") or "schedule").strip().lower()
+            kw = normalize_phrase(str(args.get("keyword_or_id", "")).strip())
+            if self.engine.current_tier >= 3:
+                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            deleted = False
+            if kind == "schedule":
+                for s in list_schedules(include_disabled=True):
+                    if not kw or kw in (s["schedule_id"], s["time_hhmm"], normalize_phrase(s["label"])):
+                        if self.engine.current_tier == 1 or s["owner_user_id"] == self.engine._current_user_id:
+                            deleted = delete_schedule(s["schedule_id"])
+                            break
+            elif kind == "rule":
+                for r in list_automation_rules(include_disabled=True):
+                    if not kw or kw in (r["rule_id"], normalize_phrase(r["label"])):
+                        if self.engine.current_tier == 1 or r["owner_user_id"] == self.engine._current_user_id:
+                            deleted = delete_automation_rule(r["rule_id"])
+                            break
+            elif kind == "scene":
+                for c in list_custom_commands(include_disabled=True):
+                    if not kw or kw in (c["command_id"], c["phrase_norm"]):
+                        if self.engine.current_tier == 1 or c["owner_user_id"] == self.engine._current_user_id:
+                            deleted = delete_custom_command(c["command_id"])
+                            break
+            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
+            spoken = "Đã xóa mục tự động hóa." if deleted else "Không tìm thấy mục phù hợp để xóa."
+            return {"ok": deleted, "exact_spoken_reply": spoken, "message": spoken}
 
         if name == "query_pools":
             q_type = str(args.get("query_type", "all") or "all")

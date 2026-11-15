@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from typing import Any
 
+from simulator.engine.audit_logger import append_audit_log
 from simulator.engine.constants_and_time import (
     ACTION_TO_STATE,
     REPEAT_INTERVAL_SECONDS,
@@ -175,9 +177,13 @@ class EngineTimersMixin:
 
         repeat_mode = repeat if repeat in REPEAT_VI_LABELS else "once"
 
-        self._timer_seq += 1
-        tid = f"timer_{self._timer_seq}"
+        root = getattr(self, "_root_engine", self)
+        root._timer_seq = int(getattr(root, "_timer_seq", 0)) + 1
+        self._timer_seq = root._timer_seq
+        tid = f"timer_{int(time.time() * 1000)}_{root._timer_seq}_{uuid.uuid4().hex[:4]}"
         target_dev_id = "living_room_light" if device_id in ("all_lights", "all_devices") else device_id
+        now_ts = time.time()
+        lbl = f"{self._action_device_phrase_vi(device_id, action)} ({reason})".strip()
         self.active_timers[tid] = {
             "id": tid,
             "device_id": target_dev_id,
@@ -188,48 +194,44 @@ class EngineTimersMixin:
             "target_vn_time": target_vn_time,
             "repeat": repeat_mode,
             "reason": reason,
+            "label": lbl,
+            "mode": "clock" if target_vn_time else "countdown",
+            "created_at": now_ts,
             "owner_id": self._current_user_id,
             "owner_name": self.get_current_user_name(),
             "owner_tier": self.current_tier,
         }
 
-        async def _runner() -> None:
-            try:
-                cur_wait = delay_seconds
-                while True:
-                    await asyncio.sleep(cur_wait)
-                    if repeat_mode == "once":
-                        self.active_timers.pop(tid, None)
-                        self._timer_tasks.pop(tid, None)
-                        await self.execute_device_action(
-                            device_id=device_id,
-                            action=action,
-                            source=f"timer ({reason})",
-                            bypass_rbac=True,
-                            trigger_chains=trigger_chains,
-                        )
-                        break
+        try:
+            from simulator.automation_repo import upsert_timer_row
 
-                    await self.execute_device_action(
-                        device_id=device_id,
-                        action=action,
-                        source=f"timer lặp ({reason})",
-                        bypass_rbac=True,
-                        trigger_chains=trigger_chains,
-                    )
-                    cur_wait = REPEAT_INTERVAL_SECONDS.get(repeat_mode, 86400.0)
-                    if tid in self.active_timers:
-                        self.active_timers[tid]["delay_seconds"] = cur_wait
-                        self.active_timers[tid]["fire_at"] = time.time() + cur_wait
-                        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
-                    else:
-                        break
-            except asyncio.CancelledError:
-                if tid not in self._timer_tasks:
-                    self.active_timers.pop(tid, None)
-                raise
+            upsert_timer_row(
+                timer_id=tid,
+                owner_user_id=self._current_user_id,
+                owner_tier=self.current_tier,
+                owner_name=self.get_current_user_name(),
+                device_id=device_id,
+                action=action,
+                fire_at_epoch=new_fire_at,
+                delay_seconds=delay_seconds,
+                repeat_rule=repeat_mode,
+                schedule_mode="clock" if target_vn_time else "countdown",
+                target_time_vn=target_vn_time or f"{int(round(delay_seconds))}s",
+                label=lbl,
+                status="pending",
+            )
+        except Exception:
+            pass
 
-        self._timer_tasks[tid] = asyncio.create_task(_runner())
+        self._spawn_timer_task(
+            tid=tid,
+            device_id=device_id,
+            action=action,
+            initial_wait=delay_seconds,
+            repeat_mode=repeat_mode,
+            reason=reason,
+            trigger_chains=trigger_chains,
+        )
         await self.emit({
             "type": "timer_scheduled",
             "timer_id": tid,
@@ -258,6 +260,191 @@ class EngineTimersMixin:
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{spoken}'",
             "message": spoken,
         }
+
+    def _spawn_timer_task(
+        self,
+        *,
+        tid: str,
+        device_id: str,
+        action: str,
+        initial_wait: float,
+        repeat_mode: str,
+        reason: str,
+        trigger_chains: bool = True,
+    ) -> None:
+        async def _runner() -> None:
+            try:
+                cur_wait = max(0.05, float(initial_wait))
+                while True:
+                    await asyncio.sleep(cur_wait)
+                    if repeat_mode == "once":
+                        self.active_timers.pop(tid, None)
+                        self._timer_tasks.pop(tid, None)
+                        await self.execute_device_action(
+                            device_id=device_id,
+                            action=action,
+                            source=f"timer ({reason})",
+                            bypass_rbac=True,
+                            trigger_chains=trigger_chains,
+                        )
+                        try:
+                            from simulator.automation_repo import update_timer_status
+
+                            update_timer_status(tid, "fired")
+                        except Exception:
+                            pass
+                        break
+
+                    await self.execute_device_action(
+                        device_id=device_id,
+                        action=action,
+                        source=f"timer lặp ({reason})",
+                        bypass_rbac=True,
+                        trigger_chains=trigger_chains,
+                    )
+                    cur_wait = REPEAT_INTERVAL_SECONDS.get(repeat_mode, 86400.0)
+                    if tid in self.active_timers:
+                        next_fire = time.time() + cur_wait
+                        self.active_timers[tid]["delay_seconds"] = cur_wait
+                        self.active_timers[tid]["fire_at"] = next_fire
+                        try:
+                            from simulator.automation_repo import update_timer_status
+
+                            update_timer_status(tid, "pending", fire_at_epoch=next_fire)
+                        except Exception:
+                            pass
+                        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+                    else:
+                        break
+            except asyncio.CancelledError:
+                if tid not in self._timer_tasks:
+                    self.active_timers.pop(tid, None)
+                raise
+
+        existing = self._timer_tasks.pop(tid, None)
+        if existing is not None and not existing.done():
+            existing.cancel()
+        self._timer_tasks[tid] = asyncio.create_task(_runner())
+
+    async def cancel_timer_by_id(
+        self,
+        timer_id: str,
+        *,
+        actor_user_id: str | None = None,
+        actor_tier: int | None = None,
+    ) -> dict[str, Any]:
+        info = self.active_timers.get(timer_id)
+        eff_tier = int(actor_tier if actor_tier is not None else self.current_tier)
+        eff_uid = str(actor_user_id or self._current_user_id or "")
+        if info is not None and eff_tier >= 3 and not self.system_policies.get("tier3_can_schedule_timer", False):
+            return {"ok": False, "rbac_blocked": True, "error": "Cấp khách (Tầng 3) không có quyền hủy hẹn giờ."}
+        if info is not None and eff_tier == 2 and not self.system_policies.get("tier2_can_override_tier1", False):
+            if int(info.get("owner_tier", 1)) == 1:
+                return {"ok": False, "rbac_blocked": True, "error": "Không thể hủy hẹn giờ của Chủ nhà (Tầng 1)."}
+            if info.get("owner_id") != eff_uid:
+                return {"ok": False, "rbac_blocked": True, "error": "Bạn chỉ được hủy hẹn giờ do chính bạn đặt."}
+
+        t = self._timer_tasks.pop(timer_id, None)
+        if t is not None and not t.done():
+            t.cancel()
+        removed = self.active_timers.pop(timer_id, None)
+        deleted_db = False
+        try:
+            from simulator.automation_repo import delete_timer_row
+
+            deleted_db = delete_timer_row(timer_id)
+        except Exception:
+            deleted_db = False
+
+        if removed is None and not deleted_db:
+            return {"ok": False, "error": "Không tìm thấy hẹn giờ cần hủy."}
+
+        dev_label = (removed or {}).get("device_id", "timer")
+        append_audit_log(
+            "AUTOMATION",
+            "timer_cancelled",
+            f"Hủy hẹn giờ {timer_id} ({dev_label})",
+            user_name=eff_uid or "Hệ thống",
+            tier=eff_tier,
+        )
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
+        return {"ok": True, "timer_id": timer_id, "message": "Đã hủy hẹn giờ."}
+
+    async def restore_timers_from_sqlite(self) -> dict[str, int]:
+        from simulator.automation_repo import list_pending_timers, update_timer_status
+
+        rows = list_pending_timers()
+        restored = 0
+        catchup = 0
+        expired = 0
+        now_ts = time.time()
+        for row in rows:
+            tid = str(row.get("timer_id") or "")
+            if not tid or tid in self._timer_tasks:
+                continue
+            fire_at = float(row.get("fire_at") or 0.0)
+            rem = fire_at - now_ts
+            raw_target = str(row.get("raw_target") or row.get("device_id") or "")
+            action = str(row.get("action") or "turn_on")
+            repeat_mode = str(row.get("repeat") or "once")
+            if repeat_mode not in REPEAT_VI_LABELS:
+                repeat_mode = "once"
+            label = str(row.get("label") or tid)
+
+            if rem <= 0.0:
+                if -rem <= 3600.0 and (raw_target in self.devices or raw_target in ("all_lights", "all_devices")):
+                    try:
+                        await self.execute_device_action(
+                            device_id=raw_target,
+                            action=action,
+                            source=f"timer catchup ({label})",
+                            bypass_rbac=True,
+                            trigger_chains=True,
+                        )
+                        catchup += 1
+                    except Exception:
+                        pass
+                    if repeat_mode == "once":
+                        update_timer_status(tid, "fired")
+                        continue
+                    next_wait = REPEAT_INTERVAL_SECONDS.get(repeat_mode, 86400.0)
+                    fire_at = time.time() + next_wait
+                    rem = next_wait
+                    update_timer_status(tid, "pending", fire_at_epoch=fire_at)
+                else:
+                    update_timer_status(tid, "expired")
+                    expired += 1
+                    continue
+
+            dev_fk = "living_room_light" if raw_target in ("all_lights", "all_devices") else str(row.get("device_id") or raw_target)
+            self.active_timers[tid] = {
+                "id": tid,
+                "device_id": dev_fk,
+                "raw_target": raw_target,
+                "action": action,
+                "delay_seconds": float(row.get("delay_seconds") or rem),
+                "fire_at": fire_at,
+                "target_vn_time": str(row.get("target_vn_time") or ""),
+                "repeat": repeat_mode,
+                "reason": label,
+                "label": label,
+                "mode": "countdown",
+                "created_at": float(row.get("created_at") or now_ts),
+                "owner_id": str(row.get("owner_id") or "tuan_anh"),
+                "owner_name": str(row.get("owner_name") or "Nguyễn Tuấn Anh"),
+                "owner_tier": int(row.get("owner_tier") or 1),
+            }
+            self._spawn_timer_task(
+                tid=tid,
+                device_id=raw_target,
+                action=action,
+                initial_wait=rem,
+                repeat_mode=repeat_mode,
+                reason=label,
+                trigger_chains=True,
+            )
+            restored += 1
+        return {"restored": restored, "catchup": catchup, "expired": expired}
 
     async def update_or_cancel_timer(
         self,
@@ -324,6 +511,12 @@ class EngineTimersMixin:
             if t:
                 t.cancel()
             self.active_timers.pop(tid, None)
+            try:
+                from simulator.automation_repo import delete_timer_row
+
+                delete_timer_row(tid)
+            except Exception:
+                pass
 
         if operation == "cancel":
             await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})

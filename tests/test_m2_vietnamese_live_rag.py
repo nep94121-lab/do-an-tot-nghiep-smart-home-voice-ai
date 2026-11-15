@@ -36,10 +36,10 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.audio_dir = ROOT / "test_audio"
 
     def test_01_make_live_config_vietnamese_and_vad(self) -> None:
-        """Kiểm tra cấu hình Gemini Live bắt buộc tiếng Việt vi-VN, voice Aoede và VAD 1000ms LOW."""
+        """Kiểm tra cấu hình Gemini Live dùng giọng Aoede (không gắn language_code gây lỗi native-audio) và VAD 1000ms LOW."""
         cfg = make_live_config(self.engine)
         self.assertIsNotNone(cfg.speech_config, "Thiếu speech_config trong LiveConnectConfig")
-        self.assertEqual(cfg.speech_config.language_code, "vi-VN")
+        self.assertIn(getattr(cfg.speech_config, "language_code", None), (None, ""))
         self.assertEqual(
             cfg.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
         )
@@ -100,58 +100,69 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.assertTrue(res_pump["ok"])
         self.assertIn("tưới nước", res_pump["exact_spoken_reply"])
 
-    def test_04_short_audio_and_vocal_fry_deferred_strikes(self) -> None:
-        """Kiểm tra cơ chế đệm âm thanh: Đoạn âm thanh quá ngắn (<0.5s) hoặc vocal fry hoãn áp dụng strike người lạ."""
+    def test_04_authenticated_mic_streams_pcm_without_speaker_verification(self) -> None:
+        """Kiểm tra mic WS khi có phiên đăng nhập sẽ stream PCM thẳng không kiểm định giọng nói hay tăng strike."""
+        from simulator.auth.session_store import UserSession
+        import time as _time
+
         mock_ws = AsyncMock()
-        session = LiveBridgeSession(ws=mock_ws)
-
-        # 1. Giả lập đoạn âm thanh ngắn 0.2s (6400 bytes PCM 16kHz)
-        short_pcm = b"\x10\x00" * 3200  # 3200 samples = 0.2s
-        session.mic_utterance_pcm.extend(short_pcm)
-
-        session.voice_auth.reset_strikes()
-        initial_strikes = session.voice_auth.unauthorized_strikes
-        self.assertEqual(initial_strikes, 0)
-
-        # Chạy kiểm tra qua _ensure_current_mic_utterance_verified
-        asyncio.run(session._ensure_current_mic_utterance_verified())
-
-        # Xác nhận: Strike không bị tăng (hoãn áp dụng)
-        self.assertEqual(
-            session.voice_auth.unauthorized_strikes,
-            0,
-            "Đoạn âm thanh <0.5s không được tăng strike phạt người lạ!",
+        mock_ws.headers = {}
+        mock_ws.cookies = {}
+        mock_ws.query_params = {}
+        session = LiveBridgeSession(
+            ws=mock_ws,
+            ws_session=UserSession(
+                session_id="m2_owner_sess",
+                user_id="tuan_anh",
+                email="tuananh.hust@gmail.com",
+                display_name="Nguyễn Tuấn Anh",
+                tier=1,
+                role="ADMIN",
+                created_at=_time.time(),
+                expires_at=_time.time() + 3600,
+                source="test_m2",
+                is_authenticated=True,
+            ),
         )
-        self.assertFalse(
-            session.last_mic_turn_blocked,
-            "Đoạn âm thanh <0.5s không được khóa turn của người dùng!",
-        )
+        short_pcm = b"\x10\x00" * 3200
+        asyncio.run(session.handle_mic_chunk(short_pcm, is_sp=True))
+        asyncio.run(session.mic_speech_ended())
+        self.assertEqual(session.voice_auth.unauthorized_strikes, 0)
+        self.assertFalse(session.last_mic_turn_blocked)
+        self.assertGreater(session._mic_in_flight_queue.qsize(), 0)
 
-    def test_05_real_intruder_gets_strikes_applied(self) -> None:
-        """Kiểm tra âm thanh người lạ thực sự (> 0.5s, file WAV mẫu) vẫn bị tính strike và chặn bình thường."""
+    def test_05_unauthenticated_mic_blocked_by_session_rbac(self) -> None:
+        """Kiểm tra mic WS chưa đăng nhập bị chặn bởi Session RBAC (không dựa vào voice strikes)."""
+        from simulator.auth.session_store import UserSession
+        import time as _time
+
         mock_ws = AsyncMock()
-        session = LiveBridgeSession(ws=mock_ws)
-        session.voice_auth.reset_strikes()
-
+        mock_ws.headers = {}
+        mock_ws.cookies = {}
+        mock_ws.query_params = {}
+        session = LiveBridgeSession(
+            ws=mock_ws,
+            ws_session=UserSession(
+                session_id="ws_unauthenticated",
+                user_id="anonymous",
+                email="",
+                display_name="Khách chưa xác thực",
+                tier=3,
+                role="CHILD_GUEST",
+                created_at=_time.time(),
+                expires_at=_time.time() + 3600,
+                source="ws_unauthenticated",
+                is_authenticated=False,
+            ),
+        )
         with wave.open(str(self.audio_dir / "giong_2_nguoi_la_mo_cua.wav"), "rb") as wf:
             intruder_pcm = wf.readframes(wf.getnframes())
 
-        self.assertGreater(
-            len(intruder_pcm),
-            16000,
-            "File người lạ thực tế phải lớn hơn 0.5s (16000 bytes)",
-        )
-
-        session.mic_turn_verified = False
-        session.mic_utterance_pcm.clear()
-        session.mic_utterance_pcm.extend(intruder_pcm)
-
-        # Chạy kiểm tra
-        asyncio.run(session._ensure_current_mic_utterance_verified())
-
-        # Xác nhận: Bị đánh dấu là người lạ và tăng strike 1
-        self.assertEqual(session.voice_auth.unauthorized_strikes, 1)
+        asyncio.run(session.handle_mic_chunk(intruder_pcm[:3200], is_sp=True))
+        asyncio.run(session.mic_speech_ended())
+        self.assertEqual(session.voice_auth.unauthorized_strikes, 0)
         self.assertTrue(session.last_mic_turn_blocked)
+        self.assertEqual(session._mic_in_flight_queue.qsize(), 0)
 
 
 if __name__ == "__main__":

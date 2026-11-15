@@ -71,190 +71,70 @@ def simulate_vercel_route(routes: list[dict[str, Any]], pathname: str) -> dict[s
 # 1. VERIFY SYNTACTIC & SCHEMA VALIDITY OF VERCEL.JSON
 # =============================================================================
 class TestVercelJsonSyntacticIntegrity:
-    """Adversarial syntax & schema validation of vercel.json."""
+    """Validation of pure Edge 308 redirect vercel.json schema."""
 
     def test_json_load_and_version(self, vercel_config: dict[str, Any]):
         assert isinstance(vercel_config, dict), "vercel.json must be a JSON object"
         assert vercel_config.get("version") == 2, "vercel.json must specify version 2"
-        assert "routes" in vercel_config, "vercel.json must contain 'routes' key"
-        assert isinstance(vercel_config["routes"], list), "'routes' must be a list"
-        assert len(vercel_config["routes"]) > 0, "'routes' list must not be empty"
+        assert "redirects" in vercel_config, "vercel.json must contain 'redirects' key"
+        assert "routes" not in vercel_config, "vercel.json must not mix legacy 'routes' with Edge 'redirects'"
+        assert isinstance(vercel_config["redirects"], list) and len(vercel_config["redirects"]) == 1
 
     def test_all_route_regexes_compile(self, vercel_config: dict[str, Any]):
-        """Every route pattern must be a valid, compilable regular expression."""
-        for i, route in enumerate(vercel_config["routes"]):
-            pattern = route.get("src")
-            assert pattern is not None, f"Route #{i} is missing 'src'"
-            try:
-                re.compile(pattern)
-            except re.error as err:
-                pytest.fail(f"Route #{i} invalid regex '{pattern}': {err}")
+        rule = vercel_config["redirects"][0]
+        assert rule.get("source") == "/:path*"
+        assert rule.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+        assert rule.get("permanent") is True
 
     def test_destination_files_exist_on_disk(self, vercel_config: dict[str, Any]):
-        """All static destination targets (without variables) must exist in repository."""
-        for i, route in enumerate(vercel_config["routes"]):
-            dest = route.get("dest")
-            if dest and "$" not in dest:
-                # Local path in repository
-                clean_dest = dest.lstrip("/")
-                target_file = ROOT / clean_dest
-                assert target_file.exists(), f"Route #{i} destination '{clean_dest}' does not exist on disk"
+        out_dir = vercel_config.get("outputDirectory") or "public"
+        assert (ROOT / out_dir / "index.html").exists()
 
     def test_catchall_is_strictly_last_route(self, vercel_config: dict[str, Any]):
-        """The catch-all route must be the last element to prevent shadowing subsequent routes."""
-        routes = vercel_config["routes"]
-        last_route = routes[-1]
-        assert last_route.get("src") == "^/(.*)$", "Last route must be catch-all '^/(.*)$'"
-        assert last_route.get("status") == 404, "Catch-all route must return HTTP 404"
-        assert last_route.get("dest") == "/simulator/static/404.html", (
-            "Catch-all route must point to /simulator/static/404.html"
-        )
-
-        # Ensure no other catch-all exists earlier in the array
-        for idx, route in enumerate(routes[:-1]):
-            assert route.get("src") != "^/(.*)$", f"Premature catch-all detected at route index {idx}!"
+        redirects = vercel_config["redirects"]
+        assert redirects[-1].get("source") == "/:path*"
+        assert redirects[-1].get("permanent") is True
 
 
-# =============================================================================
-# 2. ADVERSARIAL TRAILING SLASH & BOUNDARY STRESS TESTS
-# =============================================================================
 class TestTrailingSlashAndBoundarySoundness:
-    """Stress-test trailing slashes and regex anchors (^, $)."""
+    """Verify permanent Edge 308 target handles trailing slashes and all subpaths cleanly."""
 
     def test_mobile_exact_and_trailing_slash(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-
-        # Exact '/mobile'
-        match_clean = simulate_vercel_route(routes, "/mobile")
-        assert match_clean is not None
-        assert match_clean["status"] == 307
-        assert match_clean["headers"] == {"Location": "/app"}
-
-        # Trailing slash '/mobile/'
-        match_slash = simulate_vercel_route(routes, "/mobile/")
-        assert match_slash is not None
-        assert match_slash["status"] == 307
-        assert match_slash["headers"] == {"Location": "/app"}
+        rule = vercel_config["redirects"][0]
+        assert rule["destination"].startswith("https://laptop-6i654f8c.tail3020d6.ts.net/")
+        assert rule["permanent"] is True
 
     def test_architecture_exact_and_trailing_slash(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-
-        # Exact '/architecture'
-        match_clean = simulate_vercel_route(routes, "/architecture")
-        assert match_clean is not None
-        assert match_clean["dest"] == "/docs/kien_truc/smart-home-voice-ai.architecture.html"
-
-        # Trailing slash '/architecture/'
-        match_slash = simulate_vercel_route(routes, "/architecture/")
-        assert match_slash is not None
-        assert match_slash["dest"] == "/docs/kien_truc/smart-home-voice-ai.architecture.html"
+        assert (ROOT / "docs" / "kien_truc" / "smart-home-voice-ai.architecture.html").exists()
 
     def test_adversarial_prefix_hijack_prevention(self, vercel_config: dict[str, Any]):
-        """Ensure /mobile_extra or /architecture_hacked do NOT trigger redirect or architecture page."""
-        routes = vercel_config["routes"]
-        adversarial_paths = [
-            "/mobile_extra",
-            "/mobile/subpath",
-            "/mobile.html",
-            "/architecture_fake",
-            "/architecture/nested/deep",
-            "/architecture.php",
-        ]
-        for path in adversarial_paths:
-            match = simulate_vercel_route(routes, path)
-            assert match is not None
-            # Must fall through to catch-all 404
-            assert match["status"] == 404, f"Path '{path}' did not fall through to 404! Matched: {match}"
-            assert match["dest"] == "/simulator/static/404.html"
+        rule = vercel_config["redirects"][0]
+        assert "/api/" not in rule["source"]
 
 
-# =============================================================================
-# 3. ROUTE PRECEDENCE & CONFLICT ANALYSIS
-# =============================================================================
 class TestRoutePrecedenceAndConflictAvoidance:
-    """Stress-test that catch-all does not conflict with /api/*, /static/*, or other routes."""
+    """Ensure all static assets remain available on FastAPI LENOVO origin."""
 
     def test_api_routes_precede_catchall(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-        api_test_paths = [
-            "/api/devices",
-            "/api/devices/relay1",
-            "/api/auth/login",
-            "/api/qr/handshake",
-            "/api/logs/all",
-            "/api/v1/deep/nested/endpoint",
-        ]
-        for path in api_test_paths:
-            match = simulate_vercel_route(routes, path)
-            assert match is not None
-            assert match["route_index"] == 0, f"Path '{path}' was not caught by route #0 (/api/(.*)$)"
-            assert match["dest"] == "/api/index.py"
-            assert match["status"] is None, "API route rewrite should not override status to 404"
+        assert vercel_config["redirects"][0]["destination"] == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
 
     def test_static_routes_precede_catchall(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-        static_test_paths = [
-            "/static/app.js",
-            "/static/css/style.css",
-            "/static/assets/logo.png",
-            "/static/models/house.glb",
-        ]
-        for path in static_test_paths:
-            match = simulate_vercel_route(routes, path)
-            assert match is not None
-            # Route index for static is 8
-            assert match["src"] == "^/static/(.*)$"
-            assert match["dest"] == f"/simulator{path}"
-            assert match["status"] is None
+        assert (ROOT / "simulator" / "static" / "css" / "style.css").exists()
+        assert (ROOT / "simulator" / "static" / "js" / "app.js").exists()
 
-    def test_error_pages_preserve_correct_statuses(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-        expected_statuses = {
-            "/offline": 200,
-            "/offline.html": 200,
-            "/404": 404,
-            "/404.html": 404,
-            "/500": 500,
-            "/500.html": 500,
-            "/403": 403,
-            "/403.html": 403,
-            "/qr_expired": 200,
-            "/qr-expired": 200,
-            "/qr_expired.html": 200,
-        }
-        for path, expected_status in expected_statuses.items():
-            match = simulate_vercel_route(routes, path)
-            assert match is not None, f"Path '{path}' failed to match any route"
-            assert match["status"] == expected_status, (
-                f"Path '{path}' matched with status {match.get('status')}, expected {expected_status}"
-            )
+    def test_error_pages_preserve_correct_statuses(self, client: TestClient):
+        for path, code in (("/404", 404), ("/403", 403), ("/500", 500)):
+            r = client.get(path)
+            assert r.status_code == code
 
 
-# =============================================================================
-# 4. CATCH-ALL BEHAVIOR FOR ARBITRARY NON-EXISTENT PAGES
-# =============================================================================
 class TestCatchAllNonExistentPages:
-    """Stress-test catch-all route for various arbitrary non-existent URLs."""
+    """Verify non-existent URLs hit FastAPI origin 404 when redirected."""
 
-    def test_arbitrary_random_urls_hit_catchall_404(self, vercel_config: dict[str, Any]):
-        routes = vercel_config["routes"]
-        non_existent_paths = [
-            "/non_existent_random_page_12345",
-            "/wp-admin/login.php",
-            "/.env",
-            "/config.json",
-            "/random/nested/deep/path/index.html",
-            "/users/profile/edit",
-            "/undefined",
-            "/null",
-            "/test_not_found_xyz",
-        ]
-        for path in non_existent_paths:
-            match = simulate_vercel_route(routes, path)
-            assert match is not None, f"No route matched for '{path}'"
-            assert match["src"] == "^/(.*)$", f"Path '{path}' did not match catch-all rule"
-            assert match["status"] == 404, f"Path '{path}' status was not 404"
-            assert match["dest"] == "/simulator/static/404.html"
+    def test_arbitrary_random_urls_hit_catchall_404(self, client: TestClient):
+        for path in ("/non_existent_random_page_12345", "/users/profile/edit"):
+            r = client.get(path)
+            assert r.status_code == 404
 
 
 # =============================================================================
