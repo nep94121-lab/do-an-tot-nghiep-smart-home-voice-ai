@@ -21,9 +21,6 @@
         const tokStr = String(activeTok);
         localStorage.setItem('session_token', tokStr);
         sessionStorage.setItem('session_token', tokStr);
-        const secure = (typeof location !== 'undefined' && location.protocol === 'https:') ? '; Secure' : '';
-        document.cookie = 'sh_session_token=' + tokStr + '; path=/; SameSite=Lax' + secure;
-        document.cookie = 'session_token=' + tokStr + '; path=/; SameSite=Lax' + secure;
       }
       sessionStorage.setItem('mobileLoggedIn', '1');
       if (email) sessionStorage.setItem('mobileLoggedInEmail', email);

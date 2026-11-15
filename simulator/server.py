@@ -18,6 +18,10 @@ Hiến pháp Spec Kit (scripts/speckit_converge.py - Điều 3 Zero-Drop Live Br
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import subprocess
@@ -75,6 +79,41 @@ STATIC_DIR = ROOT / "simulator" / "static"
 AUDIO_DIR = ROOT / "test_audio"
 MOBILE_APP_DIR = ROOT / "mobile_app"
 DOCS_ARCH_DIR = ROOT / "docs" / "kien_truc"
+
+
+def _configure_rotating_file_logging() -> None:
+    """Thiết lập ghi nhật ký xoay vòng UTF-8 khi chạy máy chủ thường trú."""
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("VERCEL") == "1":
+        return
+    explicit_log_dir = os.environ.get("SMARTHOME_LOG_DIR", "").strip()
+    log_dir = (
+        pathlib.Path(explicit_log_dir)
+        if explicit_log_dir
+        else pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\logs")
+    )
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "server.log"
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            if isinstance(handler, RotatingFileHandler) and pathlib.Path(handler.baseFilename) == log_path:
+                return
+        fh = RotatingFileHandler(
+            str(log_path),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+        root_logger.addHandler(fh)
+        if root_logger.level == logging.NOTSET or root_logger.level > logging.INFO:
+            root_logger.setLevel(logging.INFO)
+    except Exception:
+        pass
+
+
+_configure_rotating_file_logging()
 
 app = FastAPI(
     title="Smart Home Voice AI Simulator",
@@ -336,6 +375,64 @@ def _resolve_deployment_version_info() -> dict[str, Any]:
 async def api_version() -> JSONResponse:
     """Trả về mã băm commit SHA triển khai hiện tại (Deployment SHA Proof)."""
     return JSONResponse(_resolve_deployment_version_info())
+
+
+@app.get("/api/health")
+async def api_health() -> JSONResponse:
+    """Kiểm tra sức khỏe máy chủ thường trú, SQLite WAL, số bảng 3NF và kết nối real-time."""
+    from simulator.db_migrations import open_wal_connection, resolve_sqlite_db_path
+    from simulator.realtime_hub import get_realtime_hub
+
+    sqlite_ok = False
+    journal_mode = ""
+    table_count = 0
+    db_path = resolve_sqlite_db_path()
+    conn = None
+    try:
+        conn = open_wal_connection(db_path, readonly=True) if db_path.exists() else open_wal_connection(db_path, readonly=False)
+        ping = conn.execute("SELECT 1").fetchone()
+        jm_row = conn.execute("PRAGMA journal_mode;").fetchone()
+        journal_mode = str(jm_row[0] if jm_row else "").lower()
+        table_count = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchone()[0]
+        )
+        sqlite_ok = bool(ping and ping[0] == 1)
+    except Exception:
+        sqlite_ok = False
+    finally:
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+
+    hub = get_realtime_hub()
+    status_code = 200 if sqlite_ok else 503
+    payload = {
+        "ok": sqlite_ok,
+        "status": "healthy" if sqlite_ok else "degraded",
+        "sqlite_ok": sqlite_ok,
+        "journal_mode": journal_mode,
+        "table_count": table_count,
+        "realtime_subscribers": hub.subscriber_count(),
+        "active_ws_bridges": len(_ACTIVE_BRIDGES),
+        **_resolve_deployment_version_info(),
+    }
+    return JSONResponse(payload, status_code=status_code, headers={"Cache-Control": "no-store"})
+
+
+@app.on_event("startup")
+async def _on_server_startup_prewarm() -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
+        return
+    if os.environ.get("VERCEL", "").strip() == "1":
+        return
+    try:
+        from simulator.live.tts_rejection_vi import prewarm_aoede_common_phrases
+
+        asyncio.create_task(prewarm_aoede_common_phrases())
+    except Exception:
+        pass
 
 
 # Cầu nối WebSocket Gemini 3.8 Live Bidirectional Streaming

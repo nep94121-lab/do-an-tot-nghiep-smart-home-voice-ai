@@ -201,6 +201,43 @@ async def api_get_state(request: Request) -> JSONResponse:
     )
 
 
+@router.get("/api/events", response_model=None)
+async def api_sse_events(request: Request) -> JSONResponse | Any:
+    """Server-Sent Events push stream delivering SQLite state updates in real time."""
+    from fastapi.responses import StreamingResponse
+    from simulator.realtime_hub import get_realtime_hub
+
+    sess = resolve_request_session(request, payload=None, engine=None)
+    is_hw = _has_valid_hardware_key(request)
+    if not sess.is_authenticated and not is_hw:
+        return JSONResponse(
+            {
+                "ok": False,
+                "authenticated": False,
+                "error": "Vui lòng đăng nhập để đăng ký luồng sự kiện thời gian thực.",
+            },
+            status_code=401,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+    _REST_ENGINE.sync_from_shared_store(force=True)
+    hub = get_realtime_hub()
+    stream = hub.subscribe_sse(
+        request,
+        sess if sess.is_authenticated else None,
+        _REST_ENGINE,
+        keepalive_sec=15.0,
+    )
+    return StreamingResponse(
+        stream,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 def _session_role_response(request: Request) -> JSONResponse:
     existing_sess = resolve_request_session(request, payload=None, engine=None)
     no_store_headers = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
@@ -898,9 +935,22 @@ async def api_voice_command(request: Request, payload: dict[str, Any] = Body(def
     return JSONResponse(result, status_code=status)
 
 
+_AOEDE_UNAUTH_BUCKETS: dict[str, list[float]] = {}
+_AOEDE_UNAUTH_LOCK = __import__("threading").Lock()
+AOEDE_UNAUTH_RATE_LIMIT = 30
+AOEDE_UNAUTH_WINDOW_SEC = 60.0
+
+
+def _reset_aoede_unauth_rate_limits() -> None:
+    """Đặt lại bộ đếm giới hạn tốc độ unauth cho endpoint /api/voice/aoede_phrase (dùng trong kiểm thử)."""
+    with _AOEDE_UNAUTH_LOCK:
+        _AOEDE_UNAUTH_BUCKETS.clear()
+
+
 @router.post("/api/voice/aoede_phrase")
 async def api_voice_aoede_phrase(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Trả về âm thanh 24kHz PCM/WAV của duy nhất giọng Aoede (Gemini Live)."""
+    from simulator.api.routes_auth import normalize_client_ip
     from simulator.live.tts_rejection_vi import (
         EXTENDED_TTS_SCRIPTS,
         FIXED_REJECTION_PHRASE_VI,
@@ -911,6 +961,16 @@ async def api_voice_aoede_phrase(request: Request, payload: dict[str, Any] = Bod
 
     body = payload if isinstance(payload, dict) else {}
     phrase = str(body.get("phrase") or body.get("text") or "").strip()
+    if not phrase or len(phrase) > 300:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "error": "Nội dung câu thoại phát giọng Aoede không hợp lệ.",
+                }
+            ),
+            status_code=400,
+        )
     session = resolve_request_session(request, payload=body, engine=None)
     is_auth = session is not None and bool(getattr(session, "is_authenticated", False))
     allowed_public_phrases = frozenset(EXTENDED_TTS_SCRIPTS.values()) | {
@@ -927,16 +987,28 @@ async def api_voice_aoede_phrase(request: Request, payload: dict[str, Any] = Bod
             ),
             status_code=400,
         )
-    if not phrase or len(phrase) > 300:
-        return JSONResponse(
-            sanitize_api_payload(
-                {
-                    "ok": False,
-                    "error": "Nội dung câu thoại phát giọng Aoede không hợp lệ.",
-                }
-            ),
-            status_code=400,
-        )
+    if not is_auth:
+        client_ip = normalize_client_ip(request)
+        now = __import__("time").monotonic()
+        cutoff = now - AOEDE_UNAUTH_WINDOW_SEC
+        with _AOEDE_UNAUTH_LOCK:
+            recent = [ts for ts in _AOEDE_UNAUTH_BUCKETS.get(client_ip, []) if ts > cutoff]
+            if len(recent) >= AOEDE_UNAUTH_RATE_LIMIT:
+                retry_after = max(1, int(AOEDE_UNAUTH_WINDOW_SEC - (now - recent[0])) + 1)
+                _AOEDE_UNAUTH_BUCKETS[client_ip] = recent
+                return JSONResponse(
+                    sanitize_api_payload(
+                        {
+                            "ok": False,
+                            "error": "Quá nhiều yêu cầu phát âm thanh chưa đăng nhập. Vui lòng thử lại sau.",
+                            "retry_after_seconds": retry_after,
+                        }
+                    ),
+                    status_code=429,
+                    headers={"Retry-After": str(retry_after)},
+                )
+            recent.append(now)
+            _AOEDE_UNAUTH_BUCKETS[client_ip] = recent
     bundle = await synthesize_aoede_phrase_audio(phrase)
     return JSONResponse(
         sanitize_api_payload(

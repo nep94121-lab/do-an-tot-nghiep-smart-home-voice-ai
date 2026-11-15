@@ -31,7 +31,23 @@ _ORIG_URLOPEN = urllib.request.urlopen
 
 
 def cloud_required() -> bool:
-    return bool(os.environ.get("VERCEL")) or os.environ.get("SMARTHOME_SECURITY_BACKEND") == "github"
+    backend = os.environ.get("SMARTHOME_SECURITY_BACKEND", "").strip().lower()
+    if backend == "sqlite":
+        return False
+    return bool(os.environ.get("VERCEL")) or backend == "github"
+
+
+def _sqlite_security_enabled() -> bool:
+    import sys as _sys
+
+    backend = os.environ.get("SMARTHOME_SECURITY_BACKEND", "").strip().lower()
+    if backend == "sqlite":
+        return True
+    if cloud_required() or os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip():
+        return False
+    if backend == "file":
+        return False
+    return not ("pytest" in _sys.modules or os.environ.get("PYTEST_CURRENT_TEST"))
 
 
 class GitHubSecurityState:
@@ -247,6 +263,18 @@ def load_security_state(filename: str, data_dir: Path) -> bytes | None:
         lock_path = target.with_suffix(target.suffix + ".lock")
         with _interprocess_file_lock(lock_path):
             return target.read_bytes() if target.exists() else None
+    if _sqlite_security_enabled():
+        from simulator.auth import sqlite_security_repo as _sq
+
+        fname = Path(filename).name
+        if fname == "owner_pin.json":
+            return _sq.load_owner_pin_sqlite(data_dir)
+        if fname == "guest_invites.json":
+            return _sq.load_invites_sqlite(data_dir)
+        if fname == "auth3_accounts_state.json":
+            return _sq.load_accounts_sqlite(data_dir)
+        if fname == "login_rate_limit.json":
+            return _sq.load_rate_limits_sqlite(data_dir)
     from simulator.durable_store import load_state_file
     return load_state_file(filename, data_dir=data_dir)
 
@@ -277,6 +305,30 @@ def save_security_state(filename: str, payload: bytes, data_dir: Path) -> None:
                     tmp_path.unlink()
             except Exception:
                 pass
+            raise SecurityStateUnavailable("Security state could not be saved") from exc
+    if _sqlite_security_enabled():
+        from simulator.async_cloud_backup import schedule_github_backup
+        from simulator.auth import sqlite_security_repo as _sq
+
+        fname = Path(filename).name
+        try:
+            if fname == "owner_pin.json":
+                _sq.save_owner_pin_sqlite(payload, data_dir)
+                schedule_github_backup(fname, json.loads(payload.decode("utf-8")))
+                return
+            if fname == "guest_invites.json":
+                _sq.save_invites_sqlite(payload, data_dir)
+                schedule_github_backup(fname, json.loads(payload.decode("utf-8")))
+                return
+            if fname == "auth3_accounts_state.json":
+                _sq.save_accounts_sqlite(payload, data_dir)
+                schedule_github_backup(fname, json.loads(payload.decode("utf-8")))
+                return
+            if fname == "login_rate_limit.json":
+                _sq.save_rate_limits_sqlite(payload, data_dir)
+                schedule_github_backup(fname, json.loads(payload.decode("utf-8")))
+                return
+        except Exception as exc:
             raise SecurityStateUnavailable("Security state could not be saved") from exc
     from simulator.durable_store import save_state_file
     if not save_state_file(filename, payload, sync_cloud=False, data_dir=data_dir):

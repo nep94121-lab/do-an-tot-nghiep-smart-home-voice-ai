@@ -150,7 +150,7 @@ def run_converge_audit() -> int:
         blk_door = await eng.execute_device_action("main_door", "open")
         await eng.set_server_connection_mode(True)
         sq = get_sqlite_overview()
-        if not blk_door.get("ok") and sq.get("ok") and sq.get("table_count") == 8 and sq.get("journal_mode") == "WAL":
+        if not blk_door.get("ok") and sq.get("ok") and sq.get("table_count", 0) >= 8 and sq.get("journal_mode") == "WAL":
             print("  [CONVERGED] Điều 6 (Offline Door Lock & 8-Table 3NF SQLite WAL): Khóa cứng cửa khi Offline & CSDL 3NF chuẩn.")
         else:
             gaps.append(f"Vi phạm Điều 6 Hiến pháp: blk_door={blk_door}, sqlite={sq}")

@@ -953,11 +953,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             return {"ok": False, "rbac_blocked": True, "error": FIXED_REJECTION_PHRASE_VI}
         if name == "control_device":
             args = dict(fc.args or {})
-            return await self.engine.execute_device_action(
+            tool_res = await self.engine.execute_device_action(
                 device_id=str(args.get("device_id") or ""), action=str(args.get("action") or ""),
                 source="session_voice", request_tier=actor.tier,
                 request_role=actor.role, request_user_name=actor.display_name,
             )
+            await _broadcast_rest_state_to_bridges()
+            return tool_res
         await self._ensure_current_mic_utterance_verified()
 
         if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
@@ -1276,6 +1278,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                 "type": "state_snapshot",
                                 "snapshot": self.engine.get_snapshot(),
                             })
+                        await _broadcast_rest_state_to_bridges()
 
                     elif mtype == "manual_factory_reset":
                         ok_cap1, ws_sess = self._is_ws_cap1_authorized(msg)
@@ -1294,6 +1297,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         self.mic_turn_verified = False
                         self.mic_utterance_pcm.clear()
                         await self.engine.factory_reset()
+                        await _broadcast_rest_state_to_bridges()
                         await self._sync_rules_context_to_gemini("Đã reset về mặc định gốc.")
 
                     elif mtype in ("grant_user_permission", "grant"):

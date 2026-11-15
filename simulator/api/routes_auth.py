@@ -34,6 +34,7 @@ from simulator.auth.session_store import (
     get_session_store,
     mint_trusted_device_token,
     resolve_request_session,
+    revoke_trusted_device,
 )
 from simulator.auth_3layer import get_auth_3layer_manager, is_test_otp_fields_allowed
 from simulator.live.gemini_bridge import VOICE_SAMPLES_META
@@ -1017,17 +1018,72 @@ def normalize_client_ip(request: Request) -> str:
 
 
 def _is_https_request(request: Request | None) -> bool:
-    """Xác định request đi qua HTTPS (production Vercel hoặc proxy header) để gắn cờ Secure cho cookie."""
+    """Xác định request đi qua HTTPS (Tailscale Funnel, Vercel hoặc proxy header) để gắn cờ Secure cho cookie."""
     if request is not None:
         xf_proto = str(request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
-        if xf_proto in ("https", "http"):
-            return xf_proto == "https"
+        if xf_proto == "https":
+            return True
         scheme = str(getattr(getattr(request, "url", None), "scheme", "") or "").strip().lower()
         if scheme == "https":
             return True
+        host = str(request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0].strip().lower()
+        if host.endswith(".ts.net") or host.endswith(".vercel.app"):
+            return True
+        if xf_proto == "http":
+            return False
         if scheme == "http" and not os.environ.get("VERCEL"):
             return False
     return bool(os.environ.get("VERCEL"))
+
+
+def set_dual_session_cookies(
+    resp: JSONResponse,
+    session_id: str,
+    request: Request | None,
+    *,
+    max_age: int = 86400,
+    email: str = "",
+) -> JSONResponse:
+    """Gắn cả sh_session_token và session_token với HttpOnly=True và Secure khi chạy qua HTTPS."""
+    is_https = _is_https_request(request)
+    resp.set_cookie(
+        "sh_session_token",
+        session_id,
+        path="/",
+        httponly=True,
+        secure=is_https,
+        samesite="lax",
+        max_age=max_age,
+    )
+    resp.set_cookie(
+        "session_token",
+        session_id,
+        path="/",
+        httponly=True,
+        secure=is_https,
+        samesite="lax",
+        max_age=max_age,
+    )
+    if email:
+        resp.set_cookie(
+            "mobileLoggedIn",
+            "1",
+            path="/",
+            httponly=False,
+            secure=is_https,
+            samesite="lax",
+            max_age=max_age,
+        )
+        resp.set_cookie(
+            "mobileLoggedInEmail",
+            email,
+            path="/",
+            httponly=False,
+            secure=is_https,
+            samesite="lax",
+            max_age=max_age,
+        )
+    return resp
 
 
 @router.post("/api/auth3/layer1_login")
@@ -1093,10 +1149,13 @@ async def api_auth3_layer1_login(payload: dict[str, Any], request: Request) -> J
     if status_code == 429 and res.get("retry_after_seconds"):
         resp.headers["Retry-After"] = str(int(res["retry_after_seconds"]))
     if res.get("ok") and not requires_otp and session_token:
-        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
-        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
-        resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-        resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+        set_dual_session_cookies(
+            resp,
+            session_token,
+            request,
+            max_age=86400,
+            email=canonical_email,
+        )
     return resp
 
 
@@ -1216,10 +1275,13 @@ async def api_auth3_layer2_verify_otp(payload: dict[str, Any], request: Request)
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
     if should_mint_session and session_token:
-        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
-        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
-        resp.set_cookie("mobileLoggedIn", "1", path="/", httponly=False, samesite="lax", max_age=86400)
-        resp.set_cookie("mobileLoggedInEmail", canonical_email, path="/", httponly=False, samesite="lax", max_age=86400)
+        set_dual_session_cookies(
+            resp,
+            session_token,
+            request,
+            max_age=86400,
+            email=canonical_email,
+        )
         if trusted_device_token:
             resp.set_cookie(
                 TRUSTED_DEVICE_COOKIE_NAME,
@@ -1257,13 +1319,15 @@ async def api_auth_logout(request: Request) -> JSONResponse:
                 revoke_trusted = True
     except Exception:
         pass
+    is_https = _is_https_request(request)
     resp = JSONResponse({"ok": True, "logged_out": True})
-    resp.delete_cookie("sh_session_token", path="/", httponly=True, samesite="lax")
-    resp.delete_cookie("session_token", path="/", httponly=False, samesite="lax")
-    resp.delete_cookie("smarthome_session", path="/", httponly=False, samesite="lax")
-    resp.delete_cookie("mobileLoggedIn", path="/", httponly=False, samesite="lax")
-    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=False, samesite="lax")
+    resp.delete_cookie("sh_session_token", path="/", httponly=True, secure=is_https, samesite="lax")
+    resp.delete_cookie("session_token", path="/", httponly=True, secure=is_https, samesite="lax")
+    resp.delete_cookie("smarthome_session", path="/", httponly=False, secure=is_https, samesite="lax")
+    resp.delete_cookie("mobileLoggedIn", path="/", httponly=False, secure=is_https, samesite="lax")
+    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=False, secure=is_https, samesite="lax")
     if revoke_trusted:
+        revoke_trusted_device(request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME))
         resp.delete_cookie(
             TRUSTED_DEVICE_COOKIE_NAME,
             path="/",
@@ -1275,7 +1339,7 @@ async def api_auth_logout(request: Request) -> JSONResponse:
 
 
 @router.post("/api/auth3/register_or_set_password")
-async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONResponse:
+async def api_auth3_register_or_set_password(payload: dict[str, Any], request: Request) -> JSONResponse:
     """Tạo tài khoản hoặc đặt/đổi mật khẩu với 2 ô mật khẩu xác nhận."""
     email = str(payload.get("email", "")).strip()
     mgr = get_auth_3layer_manager()
@@ -1369,8 +1433,7 @@ async def api_auth3_register_or_set_password(payload: dict[str, Any]) -> JSONRes
     status_code = 200 if res.get("ok") else int(res.get("status_code", 400))
     resp = JSONResponse(sanitize_api_payload(res), status_code=status_code)
     if session_token:
-        resp.set_cookie("sh_session_token", session_token, path="/", httponly=True, samesite="lax", max_age=86400)
-        resp.set_cookie("session_token", session_token, path="/", httponly=False, samesite="lax", max_age=86400)
+        set_dual_session_cookies(resp, session_token, request, max_age=86400)
     return resp
 
 
@@ -1627,3 +1690,35 @@ async def api_owner_pin_reset(request: Request, payload: dict[str, Any] | None =
         str(body.get("pin_confirm") or body.get("confirm_pin") or ""),
     )
     return JSONResponse(res, status_code=int(res.get("status_code") or (200 if res.get("ok") else 400)))
+
+
+@router.post("/api/auth/ws_ticket")
+async def api_issue_realtime_ticket(request: Request, payload: dict[str, Any] = None) -> JSONResponse:
+    """Cấp ticket HMAC ngắn hạn (60s) cho kết nối WebSocket / SSE thời gian thực mà không lộ session_token qua cookie JS."""
+    from simulator.realtime_hub import mint_realtime_ticket
+
+    body = payload if isinstance(payload, dict) else {}
+    sess = resolve_request_session(request, payload=body, engine=None)
+    if not sess.is_authenticated:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": False,
+                    "error": "Yêu cầu đăng nhập để cấp ticket kết nối thời gian thực.",
+                }
+            ),
+            status_code=401,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+    ticket = mint_realtime_ticket(sess, ttl_sec=60)
+    return JSONResponse(
+        {
+            "ok": True,
+            "ticket": ticket,
+            "expires_in": 60,
+            "tier": sess.tier,
+            "role": sess.role,
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )

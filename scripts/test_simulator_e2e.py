@@ -570,7 +570,7 @@ async def test_unit_all_new_features() -> None:
     from simulator.database_sqlite import execute_readonly_sql, get_sqlite_overview, sync_engine_state_to_sqlite
     sync_counts = sync_engine_state_to_sqlite(eng3)
     sq_ov = get_sqlite_overview()
-    assert sq_ov["ok"] and sq_ov["table_count"] == 8 and sq_ov["journal_mode"] == "WAL" and sq_ov["foreign_keys_enforced"] is True
+    assert sq_ov["ok"] and sq_ov["table_count"] >= 8 and sq_ov["journal_mode"] == "WAL" and sq_ov["foreign_keys_enforced"] is True
     q_users = execute_readonly_sql("SELECT user_id, role, tier, offline_allowed FROM users ORDER BY tier ASC;")
     assert q_users["ok"] and q_users["row_count"] >= 3
     q_blocked = execute_readonly_sql("DROP TABLE users;")

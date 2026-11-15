@@ -92,17 +92,38 @@
     });
   }
   async function toggleDevice(id, current) {
-    var lowered = String(current || "").toLowerCase();
-    var action = (lowered === "on" || lowered === "open" || lowered === "true") ? (TOGGLE_OFF[id] || "off") : (TOGGLE_ON[id] || "on");
+    var curState = String(deviceState(id) || current || "").toLowerCase();
+    var nextIsOn = !(curState === "on" || curState === "open" || curState === "true");
+    var action = nextIsOn ? (TOGGLE_ON[id] || "on") : (TOGGLE_OFF[id] || "off");
+    var optimisticState = id === "main_door" ? (nextIsOn ? "OPEN" : "CLOSED") : (nextIsOn ? "ON" : "OFF");
+    var prevSnapshot = snapshot ? JSON.parse(JSON.stringify(snapshot)) : {};
+    if (snapshot && Array.isArray(snapshot.devices)) {
+      snapshot.devices = snapshot.devices.map(function (dev) {
+        if (dev && (dev.id === id || dev.device_id === id)) {
+          return Object.assign({}, dev, { state: optimisticState });
+        }
+        return dev;
+      });
+    } else if (snapshot && snapshot.devices && typeof snapshot.devices === "object") {
+      snapshot.devices[id] = Object.assign({}, snapshot.devices[id] || {}, { state: optimisticState });
+    } else {
+      snapshot = snapshot || {};
+      snapshot.devices = [{ id: id, state: optimisticState }];
+    }
+    renderDevices();
     try {
       var res = await fetch("/api/device", {
         method: "POST",
         headers: authHeaders(),
         credentials: "include",
-        body: JSON.stringify({ device_id: id, action: action, source: "guest_web" })
+        body: JSON.stringify({ device_id: id, action: action, target_state: optimisticState, source: "guest_web" })
       });
       var data = await res.json().catch(function () { return {}; });
-      if (data && data.snapshot) snapshot = data.snapshot;
+      if (data && data.snapshot) {
+        snapshot = data.snapshot;
+      } else if (!res.ok || data.ok === false) {
+        snapshot = prevSnapshot;
+      }
       if (!res.ok || data.ok === false) {
         setMsg(data.error || data.exact_spoken_reply || "Không thực hiện được lệnh này.", "error");
       } else {
@@ -110,6 +131,8 @@
       }
       renderDevices();
     } catch (err) {
+      snapshot = prevSnapshot;
+      renderDevices();
       setMsg("Không gửi được lệnh.", "error");
     }
   }
@@ -236,6 +259,21 @@
         if (st.ok) snapshot = await st.json();
       } catch (e) {}
       renderDevices();
+      if (typeof EventSource !== "undefined") {
+        try {
+          var sseUrl = sessionToken ? ("/api/events?token=" + encodeURIComponent(sessionToken)) : "/api/events";
+          var es = new EventSource(sseUrl, { withCredentials: true });
+          es.addEventListener("state_snapshot", function (ev) {
+            try {
+              var msg = JSON.parse(ev.data || "{}");
+              if (msg && msg.snapshot) {
+                snapshot = msg.snapshot;
+                renderDevices();
+              }
+            } catch (_) {}
+          });
+        } catch (_) {}
+      }
       $("guestMicBtn").addEventListener("click", startVoice);
     } catch (err) {
       showInvalid();

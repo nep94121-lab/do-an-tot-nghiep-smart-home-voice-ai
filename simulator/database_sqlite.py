@@ -27,117 +27,40 @@ import sqlite3
 import threading
 from typing import Any
 
+from simulator.db_migrations import (
+    NORMALIZED_TABLE_ORDER,
+    SENSITIVE_SQLITE_TABLES,
+    apply_schema_migrations,
+    bootstrap_device_state_from_devices,
+    open_wal_connection,
+    resolve_sqlite_db_path,
+    role_for_tier,
+    run_write_transaction,
+)
 from simulator.engine.constants_and_time import resolve_data_dir
 from simulator.voice_config import (
+    is_throwaway_qa_identity,
     redact_otp_and_secrets_in_text,
     sanitize_overview_and_logs_payload,
 )
 
 DATA_DIR = resolve_data_dir()
 
-SQLITE_DB_PATH = DATA_DIR / "smarthome.db"
+SQLITE_DB_PATH = resolve_sqlite_db_path()
 _DB_LOCK = threading.RLock()
+_INITIALIZED_DB_PATHS: set[str] = set()
 
-DDL_SCHEMA_SQL = """
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA foreign_keys = ON;
+DDL_SCHEMA_SQL = ""
 
-CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
-    full_name TEXT NOT NULL,
-    role TEXT NOT NULL,
-    tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3)),
-    offline_allowed INTEGER NOT NULL DEFAULT 0,
-    created_by TEXT DEFAULT 'SYSTEM',
-    updated_at TEXT NOT NULL
-);
 
-CREATE TABLE IF NOT EXISTS voiceprints (
-    voiceprint_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    f0_hz REAL NOT NULL,
-    centroid_hz REAL NOT NULL,
-    embedding_26d_json TEXT NOT NULL,
-    embedding_64d_json TEXT NOT NULL,
-    sample_duration_sec REAL NOT NULL DEFAULT 5.0,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS devices (
-    device_id TEXT PRIMARY KEY,
-    device_name TEXT NOT NULL,
-    gpio_pin TEXT NOT NULL,
-    state TEXT NOT NULL,
-    min_tier_required INTEGER NOT NULL DEFAULT 3,
-    offline_controllable INTEGER NOT NULL DEFAULT 1,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS timers_pool (
-    timer_id TEXT PRIMARY KEY,
-    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
-    action TEXT NOT NULL,
-    schedule_mode TEXT NOT NULL,
-    target_time_vn TEXT NOT NULL,
-    repeat_rule TEXT NOT NULL DEFAULT 'once',
-    label_summary TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS rules_pool (
-    rule_id TEXT PRIMARY KEY,
-    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    rule_category TEXT NOT NULL,
-    trigger_expr TEXT NOT NULL,
-    target_device_id TEXT REFERENCES devices(device_id) ON DELETE SET NULL,
-    target_action TEXT NOT NULL,
-    bidirectional INTEGER NOT NULL DEFAULT 0,
-    else_action TEXT DEFAULT '',
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS ir_remote_codes (
-    ir_code_id TEXT PRIMARY KEY,
-    device_id TEXT REFERENCES devices(device_id) ON DELETE SET NULL,
-    appliance_name TEXT NOT NULL,
-    command_action TEXT NOT NULL,
-    protocol TEXT NOT NULL,
-    hex_code TEXT NOT NULL,
-    freq_khz INTEGER NOT NULL DEFAULT 38,
-    learned_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS knowledge_rag (
-    doc_id TEXT PRIMARY KEY,
-    category TEXT NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    keywords_json TEXT NOT NULL DEFAULT '[]',
-    updated_by_user_id TEXT REFERENCES users(user_id) ON DELETE SET NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts_iso TEXT NOT NULL,
-    time_vn TEXT NOT NULL,
-    category TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    user_id TEXT REFERENCES users(user_id) ON DELETE SET NULL,
-    user_name TEXT NOT NULL,
-    tier INTEGER NOT NULL,
-    summary TEXT NOT NULL,
-    details_json TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs(ts_iso DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_cat_tier ON audit_logs(category, tier);
-CREATE INDEX IF NOT EXISTS idx_timers_owner ON timers_pool(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_rules_owner_cat ON rules_pool(owner_user_id, rule_category);
-CREATE INDEX IF NOT EXISTS idx_voiceprints_user ON voiceprints(user_id);
-"""
+def _active_db_path(data_dir: pathlib.Path | None = None) -> pathlib.Path:
+    if data_dir is not None:
+        return pathlib.Path(data_dir) / "smarthome.db"
+    env_dir = __import__("os").environ.get("SMARTHOME_DATA_DIR", "").strip()
+    env_file = __import__("os").environ.get("SMARTHOME_SQLITE_PATH", "").strip()
+    if env_dir or env_file:
+        return resolve_sqlite_db_path()
+    return SQLITE_DB_PATH
 
 
 def _now_iso() -> str:
@@ -145,12 +68,9 @@ def _now_iso() -> str:
     return datetime.datetime.now(tz).isoformat()
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(SQLITE_DB_PATH), timeout=10.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA synchronous = OFF;")
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+def get_connection(db_path: pathlib.Path | None = None) -> sqlite3.Connection:
+    target = pathlib.Path(db_path) if db_path is not None else _active_db_path()
+    return open_wal_connection(target, readonly=False)
 
 
 _SCHEMA_INITIALIZED = False
@@ -187,55 +107,121 @@ def _redact_sqlite_audit_logs_in_conn(conn: sqlite3.Connection) -> int:
     return changed
 
 
-def init_sqlite_database() -> None:
-    """Khởi tạo cấu trúc 8 bảng SQL chuẩn 3NF + Indexes và nạp dữ liệu ban đầu nếu bảng rỗng."""
+def init_sqlite_database(db_path: pathlib.Path | None = None) -> pathlib.Path:
+    """Khởi tạo cấu trúc các bảng SQLite chuẩn 3NF + WAL + Foreign Keys + Indexes."""
     global _SCHEMA_INITIALIZED, _WAL_ANCHOR_CONN
+    target = pathlib.Path(db_path) if db_path is not None else _active_db_path()
     with _DB_LOCK:
-        if _SCHEMA_INITIALIZED and SQLITE_DB_PATH.exists():
-            return
-        conn = get_connection()
-        conn.executescript(DDL_SCHEMA_SQL)
-        _redact_sqlite_audit_logs_in_conn(conn)
-        conn.commit()
-        conn.close()
-        _WAL_ANCHOR_CONN = None
-        _SCHEMA_INITIALIZED = True
-
-
-def insert_audit_log_sqlite(entry: dict[str, Any], user_id: str | None = None) -> None:
-    """Ghi trực tiếp 1 bản ghi nhật ký vào bảng `audit_logs` trong SQLite (ACID Transaction)."""
-    with _DB_LOCK:
-        init_sqlite_database()
-        conn = get_connection()
+        key = str(target.resolve())
+        if (
+            target.exists()
+            and key in _INITIALIZED_DB_PATHS
+            and (_SCHEMA_INITIALIZED or target != SQLITE_DB_PATH)
+        ):
+            return target
+        conn = get_connection(target)
         try:
-            uid = user_id
-            if uid:
-                row = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (uid,)).fetchone()
-                if not row:
-                    uid = None
-            safe_summary = redact_otp_and_secrets_in_text(str(entry.get("summary") or ""))
-            safe_details = sanitize_overview_and_logs_payload(entry.get("details") or {})
-            conn.execute(
-                """
-                INSERT INTO audit_logs (
-                    ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    str(entry.get("ts_iso") or _now_iso()),
-                    str(entry.get("time_vn") or ""),
-                    str(entry.get("category") or "SYSTEM"),
-                    str(entry.get("event_type") or "event"),
-                    uid,
-                    str(entry.get("user") or "Hệ thống"),
-                    int(entry.get("tier") or 1),
-                    safe_summary,
-                    json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False),
-                ),
-            )
+            apply_schema_migrations(conn)
+            _redact_sqlite_audit_logs_in_conn(conn)
             conn.commit()
+        finally:
+            conn.close()
+        _INITIALIZED_DB_PATHS.add(key)
+        if target == SQLITE_DB_PATH:
+            _WAL_ANCHOR_CONN = None
+            _SCHEMA_INITIALIZED = True
+        return target
+
+
+def insert_audit_log_sqlite(
+    entry: dict[str, Any],
+    user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> int | None:
+    """Ghi trực tiếp 1 bản ghi nhật ký vào bảng `audit_logs` trong SQLite (ACID BEGIN IMMEDIATE -> COMMIT)."""
+    with _DB_LOCK:
+        target = init_sqlite_database(db_path)
+        conn = get_connection(target)
+        try:
+            def _write(c: sqlite3.Connection) -> int | None:
+                uid = user_id or entry.get("user_id")
+                if uid:
+                    row = c.execute("SELECT user_id FROM users WHERE user_id = ?", (str(uid),)).fetchone()
+                    if not row:
+                        uid = None
+                safe_summary = redact_otp_and_secrets_in_text(str(entry.get("summary") or ""))
+                safe_details = sanitize_overview_and_logs_payload(entry.get("details") or {})
+                cur = c.execute(
+                    """
+                    INSERT INTO audit_logs (
+                        ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(entry.get("ts_iso") or _now_iso()),
+                        str(entry.get("time_vn") or ""),
+                        str(entry.get("category") or "SYSTEM"),
+                        str(entry.get("event_type") or "event"),
+                        str(uid) if uid else None,
+                        str(entry.get("user") or entry.get("user_name") or "Hệ thống"),
+                        int(entry.get("tier") or 1),
+                        safe_summary,
+                        json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False),
+                    ),
+                )
+                return int(cur.lastrowid) if cur.lastrowid else None
+
+            return run_write_transaction(conn, _write)
         except Exception:
-            pass
+            return None
+        finally:
+            conn.close()
+
+
+def read_audit_logs_sqlite(
+    limit: int = 250,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
+    """Đọc trực tiếp danh sách nhật ký mới nhất từ bảng `audit_logs` trong SQLite WAL."""
+    with _DB_LOCK:
+        target = init_sqlite_database(db_path)
+        conn = open_wal_connection(target, readonly=True)
+        try:
+            rows = conn.execute(
+                """
+                SELECT log_id, ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+                FROM audit_logs
+                ORDER BY log_id DESC
+                LIMIT ?
+                """,
+                (max(1, min(int(limit or 250), 2000)),),
+            ).fetchall()
+            out: list[dict[str, Any]] = []
+            for r in rows:
+                try:
+                    details_obj = json.loads(str(r["details_json"] or "{}"))
+                except Exception:
+                    details_obj = {}
+                out.append(
+                    sanitize_overview_and_logs_payload(
+                        {
+                            "log_id": int(r["log_id"]),
+                            "ts_iso": str(r["ts_iso"] or ""),
+                            "time_vn": str(r["time_vn"] or ""),
+                            "category": str(r["category"] or "SYSTEM"),
+                            "event_type": str(r["event_type"] or "event"),
+                            "user_id": r["user_id"],
+                            "user": str(r["user_name"] or "Hệ thống"),
+                            "user_name": str(r["user_name"] or "Hệ thống"),
+                            "tier": int(r["tier"] or 1),
+                            "summary": str(r["summary"] or ""),
+                            "details": details_obj if isinstance(details_obj, dict) else {},
+                        }
+                    )
+                )
+            return out
+        except Exception:
+            return []
         finally:
             conn.close()
 
@@ -278,26 +264,30 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
         conn = get_connection()
         counts: dict[str, int] = {}
         try:
-            with conn:
-                # 1. Bảng `users`
+            def _sync_tx(c: sqlite3.Connection) -> None:
+                # 1. Bảng `users` (không bao giờ xóa tài khoản thật có email/password đã đăng ký)
                 users_dict = getattr(engine, "users", {}) or {}
-                valid_uids = [str(u) for u, inf in users_dict.items() if int(inf.get("tier", 3)) in (1, 2, 3)]
-                if valid_uids:
-                    placeholders = ",".join("?" for _ in valid_uids)
-                    conn.execute(f"DELETE FROM users WHERE user_id NOT IN ({placeholders})", valid_uids)
+                existing_rows = c.execute("SELECT user_id, email FROM users").fetchall()
+                for er in existing_rows:
+                    euid = str(er["user_id"] or "")
+                    eemail = str(er["email"] or "")
+                    if is_throwaway_qa_identity(euid) or is_throwaway_qa_identity(eemail):
+                        c.execute("DELETE FROM users WHERE user_id = ?", (euid,))
                 for uid, uinfo in users_dict.items():
                     tier_val = int(uinfo.get("tier", 3))
-                    if tier_val not in (1, 2, 3):
+                    if tier_val not in (1, 2, 3) or is_throwaway_qa_identity(uid):
                         continue
-                    conn.execute(
+                    c.execute(
                         """
-                        INSERT INTO users (user_id, full_name, role, tier, offline_allowed, created_by, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO users (
+                            user_id, full_name, role, tier, offline_allowed, created_by, updated_at, role_code
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(user_id) DO UPDATE SET
                             full_name = excluded.full_name,
                             role = excluded.role,
                             tier = excluded.tier,
                             offline_allowed = excluded.offline_allowed,
+                            role_code = excluded.role_code,
                             updated_at = excluded.updated_at
                         """,
                         (
@@ -308,10 +298,11 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             1 if tier_val in (1, 2) else 0,
                             str(uinfo.get("created_by") or "SYSTEM"),
                             now_str,
+                            role_for_tier(tier_val),
                         ),
                     )
 
-                # 2. Bảng `devices`
+                # 2. Bảng `devices` + `device_state`
                 PIN_MAP = {
                     "main_door": "D1",
                     "living_room_light": "D2",
@@ -323,18 +314,23 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                 }
                 devs_dict = getattr(engine, "devices", {}) or {}
                 dev_min_tiers = getattr(engine, "device_min_tiers", {}) or {}
+                bootstrap_device_state_from_devices(c, devs_dict)
                 for did, dinfo in devs_dict.items():
                     offline_ok = 0 if did in ("main_door", "alarm_siren") else 1
-                    conn.execute(
+                    min_t = int(dev_min_tiers.get(did, 3))
+                    c.execute(
                         """
-                        INSERT INTO devices (device_id, device_name, gpio_pin, state, min_tier_required, offline_controllable, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO devices (
+                            device_id, device_name, gpio_pin, state, min_tier_required,
+                            offline_controllable, updated_at, min_role, room, device_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(device_id) DO UPDATE SET
                             device_name = excluded.device_name,
                             gpio_pin = excluded.gpio_pin,
                             state = excluded.state,
                             min_tier_required = excluded.min_tier_required,
                             offline_controllable = excluded.offline_controllable,
+                            min_role = excluded.min_role,
                             updated_at = excluded.updated_at
                         """,
                         (
@@ -342,14 +338,17 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             str(dinfo.get("name") or did),
                             PIN_MAP.get(str(did), "GPIO"),
                             str(dinfo.get("state") or "OFF"),
-                            int(dev_min_tiers.get(did, 3)),
+                            min_t,
                             offline_ok,
                             now_str,
+                            role_for_tier(min_t),
+                            str(dinfo.get("room") or "home"),
+                            str(dinfo.get("type") or "switch"),
                         ),
                     )
 
                 # 3. Bảng `timers_pool` (Bể 1 - Hẹn giờ)
-                conn.execute("DELETE FROM timers_pool")
+                c.execute("DELETE FROM timers_pool")
                 active_timers = getattr(engine, "active_timers", {}) or {}
                 for tid, tinfo in active_timers.items():
                     owner_id = str(tinfo.get("owner_id") or "tuan_anh")
@@ -358,7 +357,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     dev_id = str(tinfo.get("device_id") or "living_room_light")
                     if dev_id not in devs_dict:
                         continue
-                    conn.execute(
+                    c.execute(
                         """
                         INSERT INTO timers_pool (
                             timer_id, owner_user_id, device_id, action, schedule_mode,
@@ -379,7 +378,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     )
 
                 # 4. Bảng `rules_pool` (Bể 2 - Luật IF-ELSE, Khẩu lệnh & Từ vựng)
-                conn.execute("DELETE FROM rules_pool")
+                c.execute("DELETE FROM rules_pool")
                 overlay_rules = getattr(engine, "overlay_rules", {}) or {}
                 user_pools = overlay_rules.get("user_pools", {}) or {}
                 rule_idx = 1
@@ -397,7 +396,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                         t_dev = str(r.get("then_device_id") or r.get("target_device") or "")
                         if t_dev not in devs_dict:
                             t_dev = None
-                        conn.execute(
+                        c.execute(
                             """
                             INSERT OR REPLACE INTO rules_pool (
                                 rule_id, owner_user_id, rule_category, trigger_expr,
@@ -422,7 +421,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                         t_dev = str(first_step.get("device_id") or "")
                         if t_dev not in devs_dict:
                             t_dev = None
-                        conn.execute(
+                        c.execute(
                             """
                             INSERT OR REPLACE INTO rules_pool (
                                 rule_id, owner_user_id, rule_category, trigger_expr,
@@ -441,7 +440,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     for src_word, dst_word in (pool.get("word_mappings", {}) or {}).items():
                         rid = f"{owner_id}_vocab_{rule_idx}"
                         rule_idx += 1
-                        conn.execute(
+                        c.execute(
                             """
                             INSERT OR REPLACE INTO rules_pool (
                                 rule_id, owner_user_id, rule_category, trigger_expr,
@@ -451,21 +450,21 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             (rid, owner_id, str(src_word), str(dst_word), now_str),
                         )
 
-                # 5. Bảng `voiceprints` (từ simulator/data/voiceprints.json)
+                # 5. Bảng `voiceprints` (từ DATA_DIR/voiceprints.json)
                 global _LAST_VP_MTIME, _LAST_IR_MTIME
-                vp_file = DATA_DIR / "voiceprints.json"
+                vp_file = _active_db_path().parent / "voiceprints.json"
+                if not vp_file.exists():
+                    vp_file = DATA_DIR / "voiceprints.json"
                 if vp_file.exists():
                     try:
                         vp_mtime = vp_file.stat().st_mtime
-                        cur_vp = conn.execute("SELECT COUNT(*) FROM voiceprints").fetchone()[0]
+                        cur_vp = c.execute("SELECT COUNT(*) FROM voiceprints").fetchone()[0]
                         if cur_vp == 0 or vp_mtime != _LAST_VP_MTIME:
-                            conn.execute("DELETE FROM voiceprints")
+                            c.execute("DELETE FROM voiceprints")
                             vp_data = json.loads(vp_file.read_text(encoding="utf-8"))
                             profiles = vp_data.get("profiles", vp_data) if isinstance(vp_data, dict) else {}
                             for vkey, vinfo in profiles.items():
-                                if not isinstance(vinfo, dict):
-                                    continue
-                                if not vinfo.get("authorized", True):
+                                if not isinstance(vinfo, dict) or not vinfo.get("authorized", True):
                                     continue
                                 v_tier = int(vinfo.get("tier", 3))
                                 if v_tier not in (1, 2, 3):
@@ -476,11 +475,12 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                 if uid == "UNKNOWN":
                                     continue
                                 if uid not in users_dict:
-                                    v_role = "ADMIN" if v_tier == 1 else ("MEMBER" if v_tier == 2 else "CHILD_GUEST")
-                                    conn.execute(
+                                    v_role = role_for_tier(v_tier)
+                                    c.execute(
                                         """
-                                        INSERT OR IGNORE INTO users (user_id, full_name, role, tier, offline_allowed, created_by, updated_at)
-                                        VALUES (?, ?, ?, ?, ?, 'SYSTEM', ?)
+                                        INSERT OR IGNORE INTO users (
+                                            user_id, full_name, role, tier, offline_allowed, created_by, updated_at, role_code
+                                        ) VALUES (?, ?, ?, ?, ?, 'SYSTEM', ?, ?)
                                         """,
                                         (
                                             uid,
@@ -489,11 +489,12 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                             v_tier,
                                             1 if v_tier in (1, 2) else 0,
                                             now_str,
+                                            v_role,
                                         ),
                                     )
                                 emb26 = vinfo.get("embedding") or []
                                 emb64 = vinfo.get("deep_embedding") or vinfo.get("deep_embedding_64d") or emb26
-                                conn.execute(
+                                c.execute(
                                     """
                                     INSERT OR REPLACE INTO voiceprints (
                                         voiceprint_id, user_id, f0_hz, centroid_hz,
@@ -515,12 +516,14 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     except Exception:
                         pass
 
-                # 6. Bảng `ir_remote_codes` (từ simulator/data/ir_devices_db.json)
-                ir_file = DATA_DIR / "ir_devices_db.json"
+                # 6. Bảng `ir_remote_codes`
+                ir_file = _active_db_path().parent / "ir_devices_db.json"
+                if not ir_file.exists():
+                    ir_file = DATA_DIR / "ir_devices_db.json"
                 if ir_file.exists():
                     try:
                         ir_mtime = ir_file.stat().st_mtime
-                        cur_ir = conn.execute("SELECT COUNT(*) FROM ir_remote_codes").fetchone()[0]
+                        cur_ir = c.execute("SELECT COUNT(*) FROM ir_remote_codes").fetchone()[0]
                         if cur_ir == 0 or ir_mtime != _LAST_IR_MTIME:
                             ir_data = json.loads(ir_file.read_text(encoding="utf-8"))
                             appliances = ir_data.get("appliances", {}) if isinstance(ir_data, dict) else {}
@@ -530,7 +533,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                 dev_ref = "ac" if "ac" in app_key or "dieu_hoa" in app_key else ("fan" if "fan" in app_key or "quat" in app_key else None)
                                 for cmd_act, hex_val in (app_info.get("commands", {}) or {}).items():
                                     ir_id = f"{app_key}_{cmd_act}"
-                                    conn.execute(
+                                    c.execute(
                                         """
                                         INSERT OR REPLACE INTO ir_remote_codes (
                                             ir_code_id, device_id, appliance_name, command_action,
@@ -543,13 +546,15 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     except Exception:
                         pass
 
-                # 7. Bảng `knowledge_rag` (từ simulator/data/knowledge_base.json)
+                # 7. Bảng `knowledge_rag`
                 global _LAST_KB_MTIME
-                kb_file = DATA_DIR / "knowledge_base.json"
+                kb_file = _active_db_path().parent / "knowledge_base.json"
+                if not kb_file.exists():
+                    kb_file = DATA_DIR / "knowledge_base.json"
                 if kb_file.exists():
                     try:
                         kb_mtime = kb_file.stat().st_mtime
-                        cur_kb = conn.execute("SELECT COUNT(*) FROM knowledge_rag").fetchone()[0]
+                        cur_kb = c.execute("SELECT COUNT(*) FROM knowledge_rag").fetchone()[0]
                         if cur_kb == 0 or kb_mtime != _LAST_KB_MTIME:
                             kb_raw = json.loads(kb_file.read_text(encoding="utf-8"))
                             kb_list = kb_raw.get("items", []) if isinstance(kb_raw, dict) else (kb_raw if isinstance(kb_raw, list) else [])
@@ -561,7 +566,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                 kw_val = item.get("keywords") or []
                                 if isinstance(kw_val, str):
                                     kw_val = [k.strip() for k in kw_val.split(",") if k.strip()]
-                                conn.execute(
+                                c.execute(
                                     """
                                     INSERT OR REPLACE INTO knowledge_rag (
                                         doc_id, category, title, content, keywords_json, updated_by_user_id, updated_at
@@ -581,8 +586,10 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                         pass
 
                 # 8. Bảng `audit_logs`: Nếu bảng đang trống thì nạp tối đa 150 dòng mới nhất từ system_audit_logs.jsonl
-                cur_logs = conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
-                jsonl_file = DATA_DIR / "system_audit_logs.jsonl"
+                cur_logs = c.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
+                jsonl_file = _active_db_path().parent / "system_audit_logs.jsonl"
+                if not jsonl_file.exists():
+                    jsonl_file = DATA_DIR / "system_audit_logs.jsonl"
                 if cur_logs == 0 and jsonl_file.exists():
                     try:
                         lines = jsonl_file.read_text(encoding="utf-8").splitlines()[-150:]
@@ -591,7 +598,7 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             if not ln_s:
                                 continue
                             entry = sanitize_overview_and_logs_payload(json.loads(ln_s))
-                            conn.execute(
+                            c.execute(
                                 """
                                 INSERT INTO audit_logs (
                                     ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
@@ -611,42 +618,47 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     except Exception:
                         pass
 
-                for tbl in (
-                    "users",
-                    "voiceprints",
-                    "devices",
-                    "timers_pool",
-                    "rules_pool",
-                    "ir_remote_codes",
-                    "knowledge_rag",
-                    "audit_logs",
-                ):
-                    counts[tbl] = int(conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0])
+            run_write_transaction(conn, _sync_tx)
+            for tbl in NORMALIZED_TABLE_ORDER:
+                counts[tbl] = int(conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0])
         finally:
             conn.close()
         return counts
 
 
+def _safe_sample_rows_for_table(conn: sqlite3.Connection, tname: str) -> list[dict[str, Any]]:
+    if tname in SENSITIVE_SQLITE_TABLES:
+        if tname == "users":
+            rows = conn.execute(
+                "SELECT user_id, full_name, role, tier, role_code, permission_active, permission_status, offline_allowed, updated_at FROM users LIMIT 15"
+            ).fetchall()
+            return [sanitize_overview_and_logs_payload(dict(r)) for r in rows]
+        return []
+    order_clause = "ORDER BY log_id DESC" if tname == "audit_logs" else ""
+    rows = conn.execute(f"SELECT * FROM {tname} {order_clause} LIMIT 15").fetchall()
+    return [sanitize_overview_and_logs_payload(dict(r)) for r in rows]
+
+
 def get_sqlite_overview() -> dict[str, Any]:
-    """Trả về thông tin chi tiết 8 bảng SQLite (`smarthome.db`), cấu hình WAL/FK, số dòng và dữ liệu mẫu."""
+    """Trả về thông tin chi tiết toàn bộ bảng SQLite chuẩn hoá 3NF, WAL/FK/SYNC/Timeout, indexes và số dòng."""
     with _DB_LOCK:
-        init_sqlite_database()
-        conn = get_connection()
+        target = init_sqlite_database()
+        conn = get_connection(target)
         try:
             journal_mode = conn.execute("PRAGMA journal_mode;").fetchone()[0]
             fk_enabled = conn.execute("PRAGMA foreign_keys;").fetchone()[0]
+            sync_mode = conn.execute("PRAGMA synchronous;").fetchone()[0]
+            busy_ms = conn.execute("PRAGMA busy_timeout;").fetchone()[0]
+            existing_tables = {
+                str(r["name"])
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                ).fetchall()
+            }
             tables_meta: list[dict[str, Any]] = []
-            table_names = [
-                "users",
-                "voiceprints",
-                "devices",
-                "timers_pool",
-                "rules_pool",
-                "ir_remote_codes",
-                "knowledge_rag",
-                "audit_logs",
-            ]
-            for tname in table_names:
+            for tname in NORMALIZED_TABLE_ORDER:
+                if tname not in existing_tables:
+                    continue
                 row_count = int(conn.execute(f"SELECT COUNT(*) FROM {tname}").fetchone()[0])
                 cols_info = [
                     {
@@ -665,10 +677,9 @@ def get_sqlite_overview() -> dict[str, Any]:
                     }
                     for r in conn.execute(f"PRAGMA foreign_key_list({tname})").fetchall()
                 ]
-                order_clause = "ORDER BY log_id DESC" if tname == "audit_logs" else ""
-                sample_rows = [
-                    dict(r)
-                    for r in conn.execute(f"SELECT * FROM {tname} {order_clause} LIMIT 15").fetchall()
+                idx_info = [
+                    {"name": str(r["name"]), "unique": bool(r["unique"])}
+                    for r in conn.execute(f"PRAGMA index_list({tname})").fetchall()
                 ]
                 tables_meta.append(
                     {
@@ -676,19 +687,22 @@ def get_sqlite_overview() -> dict[str, Any]:
                         "row_count": row_count,
                         "columns": cols_info,
                         "foreign_keys": fks_info,
-                        "sample_rows": sample_rows,
+                        "indexes": idx_info,
+                        "sample_rows": _safe_sample_rows_for_table(conn, tname),
                     }
                 )
 
-            db_size = SQLITE_DB_PATH.stat().st_size if SQLITE_DB_PATH.exists() else 0
+            db_size = target.stat().st_size if target.exists() else 0
             return {
                 "ok": True,
                 "engine": "SQLite 3 Relational Database (ACID + WAL Mode)",
                 "sqlite_version": sqlite3.sqlite_version,
-                "db_file": "simulator/data/smarthome.db",
+                "db_file": str(target),
                 "db_size_bytes": db_size,
                 "journal_mode": str(journal_mode).upper(),
                 "foreign_keys_enforced": bool(fk_enabled),
+                "synchronous_mode": int(sync_mode),
+                "busy_timeout_ms": int(busy_ms),
                 "table_count": len(tables_meta),
                 "tables": tables_meta,
             }
@@ -720,10 +734,8 @@ def execute_readonly_sql(sql_query: str, limit: int = 100) -> dict[str, Any]:
         }
 
     with _DB_LOCK:
-        init_sqlite_database()
-        db_uri = f"file:{SQLITE_DB_PATH.as_posix()}?mode=ro"
-        conn = sqlite3.connect(db_uri, uri=True, timeout=5.0)
-        conn.row_factory = sqlite3.Row
+        target = init_sqlite_database()
+        conn = open_wal_connection(target, readonly=True)
         try:
             cur = conn.execute(q)
             rows = [dict(r) for r in cur.fetchmany(limit)]

@@ -50,10 +50,15 @@ def _is_owner_session(session: Any) -> bool:
     return int(getattr(session, "tier", 99) or 99) == 1 or str(getattr(session, "role", "")).upper() == "ADMIN"
 
 
-def _attach_session_cookies(resp: JSONResponse, session_id: str, max_age: int) -> JSONResponse:
-    resp.set_cookie("sh_session_token", session_id, path="/", httponly=True, samesite="lax", max_age=max_age)
-    resp.set_cookie("session_token", session_id, path="/", httponly=False, samesite="lax", max_age=max_age)
-    return resp
+def _attach_session_cookies(
+    resp: JSONResponse,
+    session_id: str,
+    max_age: int,
+    request: Request | None = None,
+) -> JSONResponse:
+    from simulator.api.routes_auth import set_dual_session_cookies
+
+    return set_dual_session_cookies(resp, session_id, request, max_age=max_age)
 
 
 def _request_origin(request: Request) -> str:
@@ -156,7 +161,7 @@ async def api_guest_redeem(request: Request, payload: dict[str, Any] = Body(defa
         },
         headers={"Cache-Control": "no-store"},
     )
-    return _attach_session_cookies(resp, session.session_id, ttl)
+    return _attach_session_cookies(resp, session.session_id, ttl, request)
 
 
 @router.post("/api/auth3/guest_invites")

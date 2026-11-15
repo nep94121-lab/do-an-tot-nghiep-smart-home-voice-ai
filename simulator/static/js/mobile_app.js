@@ -65,7 +65,7 @@
     let selectedRoomFilter = 'all';
     const pendingDeviceMutations = new Map();
     const MUTATION_GUARD_WINDOW_MS = 4000;
-    const MOBILE_DEVICE_DEBOUNCE_MS = 50;
+    const MOBILE_DEVICE_DEBOUNCE_MS = 20;
     const MOBILE_CLIENT_ID =
       (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
         ? `mob_${crypto.randomUUID()}`
@@ -170,6 +170,22 @@
       } catch (_) {}
     }
 
+    let _mobileSse = null;
+    let _mobileSseConnected = false;
+    let _mobileSseReconnectTimer = null;
+
+    function closeMobileSse() {
+      _mobileSseConnected = false;
+      if (_mobileSseReconnectTimer) {
+        clearTimeout(_mobileSseReconnectTimer);
+        _mobileSseReconnectTimer = null;
+      }
+      if (_mobileSse) {
+        try { _mobileSse.close(); } catch (_) {}
+        _mobileSse = null;
+      }
+    }
+
     function clearMobileAuthState() {
       mobileSessionGeneration += 1;
       mobileLoggedIn = false;
@@ -177,6 +193,11 @@
       mobileRole = null;
       mobileTier = null;
       mobileDisplayName = '';
+      closeMobileSse();
+      if (ws) {
+        try { ws.onclose = null; ws.close(); } catch (_) {}
+        ws = null;
+      }
       clearMobileClientTokens();
     }
 
@@ -2930,13 +2951,59 @@
 
     const isMobileVercel = (typeof window !== 'undefined') && (
       (typeof location !== 'undefined' && Boolean((location.hostname || location.host || '').includes('vercel.app'))) ||
-      !isLocalMobileHost ||
       Boolean(window._FORCE_HTTP_POLLING)
     );
 
+    function connectMobileSse(explicitTicket = '') {
+      if (!mobileLoggedIn || typeof EventSource === 'undefined') return;
+      if (_mobileSse && _mobileSse.readyState !== 2 && !explicitTicket) return;
+      closeMobileSse();
+      try {
+        const sseUrl = explicitTicket
+          ? `/api/events?ticket=${encodeURIComponent(explicitTicket)}`
+          : '/api/events';
+        _mobileSse = new EventSource(sseUrl, { withCredentials: true });
+        _mobileSse.onopen = () => {
+          _mobileSseConnected = true;
+        };
+        _mobileSse.addEventListener('state_snapshot', (ev) => {
+          _mobileSseConnected = true;
+          try {
+            const msg = JSON.parse(ev.data || '{}');
+            if (msg && msg.snapshot && msg.snapshot.devices) {
+              renderState(msg.snapshot);
+            }
+          } catch (_) {}
+        });
+        _mobileSse.onerror = () => {
+          _mobileSseConnected = false;
+          closeMobileSse();
+          if (mobileLoggedIn && !_mobileSseReconnectTimer) {
+            _mobileSseReconnectTimer = setTimeout(async () => {
+              _mobileSseReconnectTimer = null;
+              if (!mobileLoggedIn) return;
+              try {
+                const rT = await fetch('/api/auth/ws_ticket', { method: 'POST', credentials: 'include' });
+                if (rT && rT.ok) {
+                  const dT = await rT.json().catch(() => ({}));
+                  if (dT && dT.ticket) {
+                    connectMobileSse(dT.ticket);
+                    return;
+                  }
+                }
+              } catch (_) {}
+              connectMobileSse();
+            }, 2500);
+          }
+        };
+      } catch (_) {
+        _mobileSseConnected = false;
+      }
+    }
+
     function connectMobileWebSocket() {
-      if (isMobileVercel || !isLocalMobileHost || (typeof window !== 'undefined' && window._disableWebSocket)) {
-        /* On Vercel serverless or non-localhost domains, skip WebSocket and poll HTTP cleanly */
+      if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
+        /* On Vercel serverless, skip WebSocket and rely on SSE + HTTP fallback */
         fetchInitial().catch(() => {});
         return;
       }
@@ -3062,8 +3129,8 @@
           .catch(() => {
             updateMobileAuthUiState(false);
           });
-        /* Auto-reconnect after 4s only when on localhost and logged in */
-        if (!isMobileVercel && isLocalMobileHost) {
+        /* Auto-reconnect after 4s on direct server hosts when logged in */
+        if (!isMobileVercel) {
           setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
         }
       };
@@ -3236,12 +3303,15 @@
       if (_mobileAppInited) return;
       _mobileAppInited = true;
       connectMobileWebSocket();
+      connectMobileSse();
       fetchInitial().catch(() => {});
       renderMobileHistory();
       if (!mobilePollIntervalId) {
         mobilePollIntervalId = setInterval(() => {
           _mobilePollTick += 1;
           if (typeof document !== 'undefined' && document.hidden && (_mobilePollTick % 2) !== 0) return;
+          const wsReady = typeof WebSocket !== 'undefined' && ws && ws.readyState === WebSocket.OPEN;
+          if ((wsReady || _mobileSseConnected) && (_mobilePollTick % 25) !== 0) return;
           pollMobileSecurityAndTimers(false);
         }, 1000);
       }

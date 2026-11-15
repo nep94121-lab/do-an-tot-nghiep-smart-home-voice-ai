@@ -63,11 +63,16 @@ LOGIN_LOCKOUT_SECONDS = 900
 
 
 def _should_use_cas_store() -> bool:
+    import sys as _sys
+
     if _AUTOTEST_SANDBOX.get():
         return False
     if os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip():
         return True
-    if os.environ.get("SMARTHOME_SECURITY_BACKEND", "").strip().lower() == "github":
+    backend = os.environ.get("SMARTHOME_SECURITY_BACKEND", "").strip().lower()
+    if backend in ("sqlite", "github"):
+        return True
+    if not ("pytest" in _sys.modules or os.environ.get("PYTEST_CURRENT_TEST")) and not os.environ.get("VERCEL"):
         return True
     return bool(
         os.environ.get("SMARTHOME_SECURITY_TOKEN", "").strip()
@@ -496,6 +501,11 @@ class ThreeLayerAuthManager(
         override = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
         if override:
             p = Path(override)
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        env_dir = os.environ.get("SMARTHOME_DATA_DIR", "").strip()
+        if env_dir and not os.environ.get("VERCEL"):
+            p = Path(env_dir)
             p.mkdir(parents=True, exist_ok=True)
             return p
         return DATA_DIR

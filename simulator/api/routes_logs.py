@@ -375,12 +375,21 @@ async def api_logs_dashboard(
 _FORBIDDEN_SQL_KEYWORDS = (
     "accounts_3layer",
     "user_sessions",
+    "sessions",
+    "invites",
+    "otp_challenges",
+    "trusted_devices",
+    "owner_pin_security",
+    "login_rate_limits",
+    "aoede_audio_cache",
     "voiceprint",
     "password",
     "embedding",
     "otp",
     "secret",
     "token",
+    "hash",
+    "salt",
 )
 
 

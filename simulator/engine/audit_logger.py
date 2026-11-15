@@ -75,19 +75,29 @@ def append_audit_log(
     }
     try:
         from simulator.database_sqlite import insert_audit_log_sqlite
+
+        insert_audit_log_sqlite(entry)
         line = json.dumps(entry, ensure_ascii=False) + "\n"
+        AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with AUDIT_LOG_FILE.open("a", encoding="utf-8", newline="\n") as f:
             f.write(line)
-        insert_audit_log_sqlite(entry)
     except Exception:
         pass
     return entry
 
 
 def read_audit_logs(limit: int = 250) -> list[dict[str, Any]]:
-    """Đọc danh sách log mới nhất từ simulator/data/system_audit_logs.jsonl."""
+    """Đọc danh sách log mới nhất ưu tiên từ SQLite WAL `audit_logs`, fallback sang JSONL nếu bảng trống."""
     if not _AUDIT_JSONL_REDACTED_ON_BOOT:
         redact_stored_audit_logs_jsonl()
+    try:
+        from simulator.database_sqlite import read_audit_logs_sqlite
+
+        sql_rows = read_audit_logs_sqlite(limit=limit)
+        if sql_rows:
+            return sql_rows
+    except Exception:
+        pass
     if not AUDIT_LOG_FILE.exists():
         return []
     try:

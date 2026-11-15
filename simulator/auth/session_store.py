@@ -143,28 +143,47 @@ class SessionStore:
         except Exception:
             pass
 
+    def _open_conn(self) -> sqlite3.Connection:
+        from simulator.database_sqlite import init_sqlite_database
+        from simulator.db_migrations import open_wal_connection
+
+        target = init_sqlite_database(self.db_path)
+        return open_wal_connection(target, readonly=False)
+
     def _init_sqlite(self) -> None:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            with (
-                self._lock,
-                _SQLITE_GLOBAL_LOCK,
-                contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
-            ):
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS user_sessions (
-                        session_id TEXT PRIMARY KEY,
-                        user_id TEXT NOT NULL,
-                        email TEXT,
-                        display_name TEXT,
-                        tier INTEGER NOT NULL,
-                        role TEXT NOT NULL,
-                        created_at REAL NOT NULL,
-                        expires_at REAL NOT NULL,
-                        source TEXT
+            with self._lock, _SQLITE_GLOBAL_LOCK:
+                conn = self._open_conn()
+                try:
+                    # Also ensure valid active rows from user_sessions exist in sessions
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO sessions (
+                            session_id, token_hash, user_id, email, display_name,
+                            role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
+                        )
+                        SELECT
+                            session_id,
+                            lower(hex(randomblob(16))),
+                            user_id,
+                            COALESCE(email, ''),
+                            COALESCE(display_name, user_id),
+                            CASE WHEN tier = 1 THEN 'ADMIN' WHEN tier = 2 THEN 'MEMBER' ELSE 'CHILD_GUEST' END,
+                            CASE WHEN tier IN (1, 2, 3) THEN tier ELSE 3 END,
+                            COALESCE(source, 'legacy'),
+                            '',
+                            created_at,
+                            expires_at,
+                            NULL
+                        FROM user_sessions
+                        WHERE expires_at > ?
+                        """,
+                        (time.time(),),
                     )
-                """)
-                conn.commit()
+                    conn.commit()
+                finally:
+                    conn.close()
         except Exception:
             pass
 
@@ -319,20 +338,74 @@ class SessionStore:
         )
         with self._lock:
             self._revoked_sids.discard(sid)
-            self._memory_cache[sid] = sess
             try:
-                with (
-                    _SQLITE_GLOBAL_LOCK,
-                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
-                ):
-                    conn.execute("""
-                        INSERT OR REPLACE INTO user_sessions
-                        (session_id, user_id, email, display_name, tier, role, created_at, expires_at, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (sess.session_id, sess.user_id, sess.email, sess.display_name, sess.tier, sess.role, sess.created_at, sess.expires_at, sess.source))
-                    conn.commit()
+                from simulator.db_migrations import role_for_tier, run_write_transaction
+
+                with _SQLITE_GLOBAL_LOCK:
+                    conn = self._open_conn()
+                    try:
+                        tok_hash = hashlib.sha256(sess.session_id.encode("utf-8")).hexdigest()
+                        invite_jti = sess.source.split(":", 1)[1] if str(sess.source).startswith("guest_invite:") else ""
+                        rc = role_for_tier(sess.tier)
+
+                        def _tx(c: sqlite3.Connection) -> None:
+                            c.execute(
+                                """
+                                INSERT INTO sessions (
+                                    session_id, token_hash, user_id, email, display_name,
+                                    role_code, tier, source, invite_jti, created_at, expires_at, revoked_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                                ON CONFLICT(session_id) DO UPDATE SET
+                                    token_hash = excluded.token_hash,
+                                    user_id = excluded.user_id,
+                                    email = excluded.email,
+                                    display_name = excluded.display_name,
+                                    role_code = excluded.role_code,
+                                    tier = excluded.tier,
+                                    source = excluded.source,
+                                    invite_jti = excluded.invite_jti,
+                                    expires_at = excluded.expires_at,
+                                    revoked_at = NULL
+                                """,
+                                (
+                                    sess.session_id,
+                                    tok_hash,
+                                    sess.user_id,
+                                    sess.email,
+                                    sess.display_name,
+                                    rc,
+                                    sess.tier,
+                                    sess.source,
+                                    invite_jti,
+                                    sess.created_at,
+                                    sess.expires_at,
+                                ),
+                            )
+                            c.execute(
+                                """
+                                INSERT OR REPLACE INTO user_sessions
+                                (session_id, user_id, email, display_name, tier, role, created_at, expires_at, source)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    sess.session_id,
+                                    sess.user_id,
+                                    sess.email,
+                                    sess.display_name,
+                                    sess.tier,
+                                    sess.role,
+                                    sess.created_at,
+                                    sess.expires_at,
+                                    sess.source,
+                                ),
+                            )
+
+                        run_write_transaction(conn, _tx)
+                    finally:
+                        conn.close()
             except Exception:
                 pass
+            self._memory_cache[sid] = sess
             if source != "seed":
                 self._save_durable_sessions()
         return sess
@@ -350,6 +423,75 @@ class SessionStore:
         with self._lock:
             if sid in self._revoked_sids:
                 return None
+
+            # SQLite single source of truth check when row exists (catches revocation or restart persistence)
+            try:
+                with _SQLITE_GLOBAL_LOCK:
+                    conn = self._open_conn()
+                    try:
+                        cur = conn.execute(
+                            """
+                            SELECT session_id, user_id, email, display_name, tier, role_code, created_at, expires_at, source, revoked_at
+                            FROM sessions WHERE session_id = ?
+                            """,
+                            (sid,),
+                        )
+                        row = cur.fetchone()
+                        if row is None:
+                            cur2 = conn.execute(
+                                "SELECT session_id, user_id, email, display_name, tier, role, created_at, expires_at, source FROM user_sessions WHERE session_id = ?",
+                                (sid,),
+                            )
+                            row2 = cur2.fetchone()
+                        else:
+                            row2 = None
+                    finally:
+                        conn.close()
+                if row is not None:
+                    if row["revoked_at"] is not None:
+                        self._revoked_sids.add(sid)
+                        self._memory_cache.pop(sid, None)
+                        return None
+                    sess = UserSession(
+                        session_id=row["session_id"],
+                        user_id=row["user_id"],
+                        email=row["email"] or "",
+                        display_name=row["display_name"] or row["user_id"],
+                        tier=int(row["tier"]),
+                        role=row["role_code"],
+                        created_at=float(row["created_at"]),
+                        expires_at=float(row["expires_at"]),
+                        source=row["source"] or "sqlite",
+                        is_authenticated=True,
+                    )
+                    if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
+                        self._memory_cache.pop(sid, None)
+                        self._delete_sqlite_session(sid)
+                        return None
+                    self._memory_cache[sid] = sess
+                    return sess
+                if row2 is not None:
+                    sess = UserSession(
+                        session_id=row2[0],
+                        user_id=row2[1],
+                        email=row2[2] or "",
+                        display_name=row2[3] or row2[1],
+                        tier=int(row2[4]),
+                        role=row2[5],
+                        created_at=float(row2[6]),
+                        expires_at=float(row2[7]),
+                        source=row2[8] or "sqlite",
+                        is_authenticated=True,
+                    )
+                    if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
+                        self._memory_cache.pop(sid, None)
+                        self._delete_sqlite_session(sid)
+                        return None
+                    self._memory_cache[sid] = sess
+                    return sess
+            except Exception:
+                pass
+
             sess = self._memory_cache.get(sid)
             if sess:
                 if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
@@ -357,38 +499,6 @@ class SessionStore:
                     self._delete_sqlite_session(sid)
                     return None
                 return sess
-
-            # SQLite fallback
-            try:
-                with (
-                    _SQLITE_GLOBAL_LOCK,
-                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
-                ):
-                    cur = conn.execute(
-                        "SELECT session_id, user_id, email, display_name, tier, role, created_at, expires_at, source FROM user_sessions WHERE session_id = ?",
-                        (sid,),
-                    )
-                    row = cur.fetchone()
-                if row:
-                    sess = UserSession(
-                        session_id=row[0],
-                        user_id=row[1],
-                        email=row[2] or "",
-                        display_name=row[3] or row[1],
-                        tier=int(row[4]),
-                        role=row[5],
-                        created_at=float(row[6]),
-                        expires_at=float(row[7]),
-                        source=row[8] or "sqlite",
-                        is_authenticated=True,
-                    )
-                    if sess.is_expired() or is_throwaway_qa_identity(sess.user_id) or is_throwaway_qa_identity(sess.email):
-                        self._delete_sqlite_session(sid)
-                        return None
-                    self._memory_cache[sid] = sess
-                    return sess
-            except Exception:
-                pass
 
             # Stateless HMAC-signed token fallback (serverless cross-instance consistency)
             signed_sess = self._decode_signed_token(sid)
@@ -412,13 +522,22 @@ class SessionStore:
 
     def _delete_sqlite_session(self, session_id: str) -> bool:
         try:
-            with (
-                _SQLITE_GLOBAL_LOCK,
-                contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
-            ):
-                cur = conn.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
-                conn.commit()
-                return cur.rowcount > 0
+            from simulator.db_migrations import run_write_transaction
+
+            with _SQLITE_GLOBAL_LOCK:
+                conn = self._open_conn()
+                try:
+                    def _tx(c: sqlite3.Connection) -> bool:
+                        c1 = c.execute(
+                            "UPDATE sessions SET revoked_at = ? WHERE session_id = ? AND revoked_at IS NULL",
+                            (time.time(), session_id),
+                        )
+                        c2 = c.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
+                        return (c1.rowcount or 0) > 0 or (c2.rowcount or 0) > 0
+
+                    return run_write_transaction(conn, _tx)
+                finally:
+                    conn.close()
         except Exception:
             return False
 
@@ -431,22 +550,35 @@ class SessionStore:
                 del self._memory_cache[k]
                 count += 1
             try:
-                with (
-                    _SQLITE_GLOBAL_LOCK,
-                    contextlib.closing(sqlite3.connect(str(self.db_path), timeout=5.0)) as conn,
-                ):
-                    cur = conn.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (now,))
-                    conn.commit()
-                    count = max(count, cur.rowcount)
+                from simulator.db_migrations import run_write_transaction
+
+                with _SQLITE_GLOBAL_LOCK:
+                    conn = self._open_conn()
+                    try:
+                        def _tx(c: sqlite3.Connection) -> int:
+                            c1 = c.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
+                            c2 = c.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (now,))
+                            return max(int(c1.rowcount or 0), int(c2.rowcount or 0))
+
+                        count = max(count, run_write_transaction(conn, _tx))
+                    finally:
+                        conn.close()
             except Exception:
                 pass
         return count
 
 
 _SESSION_STORE = SessionStore()
+_DEFAULT_SESSION_STORE = _SESSION_STORE
 
 
 def get_session_store() -> SessionStore:
+    if _SESSION_STORE is _DEFAULT_SESSION_STORE:
+        from simulator.db_migrations import resolve_sqlite_db_path
+
+        live_path = resolve_sqlite_db_path()
+        if _SESSION_STORE.db_path != live_path:
+            _SESSION_STORE.db_path = live_path
     return _SESSION_STORE
 
 
@@ -738,7 +870,23 @@ def mint_trusted_device_token(
     raw_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     b64_part = base64.urlsafe_b64encode(raw_json).decode("ascii").rstrip("=")
     sig = hmac.new(_get_session_hmac_key(), b"trusted_device:" + b64_part.encode("ascii"), hashlib.sha256).hexdigest()[:28]
-    return f"tdev_{b64_part}.{sig}"
+    tok = f"tdev_{b64_part}.{sig}"
+    if not os.environ.get("VERCEL") and ("pytest" not in sys.modules or os.environ.get("SMARTHOME_SECURITY_BACKEND") == "sqlite"):
+        try:
+            from simulator.auth.sqlite_security_repo import record_trusted_device_sqlite
+
+            record_trusted_device_sqlite(
+                tok,
+                str(account_id or "").strip(),
+                str(email or "").strip().lower(),
+                user_agent,
+                issued_at,
+                issued_at + ttl,
+                data_dir=get_session_store().db_path.parent,
+            )
+        except Exception:
+            pass
+    return tok
 
 
 def verify_trusted_device_token(
@@ -784,9 +932,31 @@ def verify_trusted_device_token(
             return False
         if not hmac.compare_digest(str(data.get("uaf") or ""), _ua_fingerprint(expected_user_agent)):
             return False
+        if not os.environ.get("VERCEL") and ("pytest" not in sys.modules or os.environ.get("SMARTHOME_SECURITY_BACKEND") == "sqlite"):
+            try:
+                from simulator.auth.sqlite_security_repo import is_trusted_device_revoked_sqlite
+
+                if is_trusted_device_revoked_sqlite(raw, data_dir=get_session_store().db_path.parent):
+                    return False
+            except Exception:
+                pass
         return True
     except Exception:
         return False
+
+
+def revoke_trusted_device(token: str | None) -> None:
+    """Revoke a trusted-device token in SQLite when logging out with device revocation."""
+    raw = str(token or "").strip()
+    if not raw:
+        return
+    if not os.environ.get("VERCEL") and ("pytest" not in sys.modules or os.environ.get("SMARTHOME_SECURITY_BACKEND") == "sqlite"):
+        try:
+            from simulator.auth.sqlite_security_repo import revoke_trusted_device_sqlite
+
+            revoke_trusted_device_sqlite(raw, data_dir=get_session_store().db_path.parent)
+        except Exception:
+            pass
 
 
 def resolve_request_session(
@@ -814,8 +984,15 @@ def resolve_request_session(
         if not token and hasattr(request, "cookies"):
             token = str(request.cookies.get("sh_session_token") or request.cookies.get("session_token") or "").strip()
 
-        # 4. Query param token
+        # 4. Query param token or short-lived HMAC realtime ticket
         if not token and hasattr(request, "query_params"):
+            ticket = str(request.query_params.get("ticket") or "").strip()
+            if ticket:
+                from simulator.realtime_hub import verify_realtime_ticket
+
+                t_sess = verify_realtime_ticket(ticket)
+                if t_sess is not None:
+                    return t_sess
             token = str(request.query_params.get("token") or "").strip()
 
     # 5. Body payload session_token hoặc guest_session_id
@@ -882,6 +1059,13 @@ def resolve_strict_ws_session(
 
         query_params = getattr(ws, "query_params", None)
         if not token and query_params is not None and hasattr(query_params, "get"):
+            ticket = str(query_params.get("ticket") or "").strip()
+            if ticket:
+                from simulator.realtime_hub import verify_realtime_ticket
+
+                t_sess = verify_realtime_ticket(ticket)
+                if t_sess is not None:
+                    return t_sess
             token = str(
                 query_params.get("token") or query_params.get("session_token") or ""
             ).strip()

@@ -265,6 +265,12 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 sync_engine_state_to_sqlite(self)
             except Exception:
                 pass
+            try:
+                from simulator.realtime_hub import get_realtime_hub
+
+                get_realtime_hub().publish_snapshot(self, reason="state_persist")
+            except Exception:
+                pass
             return saved
 
     def _apply_shared_dict(

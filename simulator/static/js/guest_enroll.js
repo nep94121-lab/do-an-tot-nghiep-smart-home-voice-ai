@@ -156,8 +156,16 @@ async function initQrHandshake() {
     try {
       hasSession = Boolean(
         (window.localStorage && (window.localStorage.getItem('session_token') || window.localStorage.getItem('smarthome_auth_session'))) ||
-        (document.cookie && (document.cookie.includes('sh_session_token=') || document.cookie.includes('session_token=')))
+        (window.sessionStorage && window.sessionStorage.getItem('session_token')) ||
+        (document.cookie && (document.cookie.includes('sh_session_token=') || document.cookie.includes('session_token=') || document.cookie.includes('mobileLoggedIn=')))
       );
+      if (!hasSession) {
+        const roleResp = await fetch('/api/session/role', { credentials: 'include' });
+        if (roleResp && roleResp.ok) {
+          const roleData = await roleResp.json().catch(() => ({}));
+          hasSession = Boolean(roleData && roleData.authenticated);
+        }
+      }
     } catch (_) {}
     if (hasSession) {
       await refreshGuestQrNow();

@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import hashlib
+import inspect
 import io
 import logging
 import os
 import pathlib
+import time
 import wave
 from typing import Any
 
@@ -29,13 +33,14 @@ SAMPLE_RATE = 24000
 AOEDE_VOICE_NAME = "Aoede"
 AOEDE_LIVE_MODEL = "gemini-3.8-live"
 _AOEDE_FALLBACK_LIVE_MODELS: tuple[str, ...] = (
-    "gemini-3.1-flash-live-preview",
     "gemini-2.5-flash-native-audio-preview-12-2025",
     "gemini-2.0-flash-live-001",
+    "gemini-3.1-flash-live-preview",
 )
 _WORKING_AOEDE_LIVE_MODEL: str = ""
 _WORKING_AOEDE_API_VERSION: str = ""
 _WORKING_AOEDE_USE_CLIENT_CONTENT: bool = False
+_WARMING_PHRASES: set[str] = set()
 
 FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
@@ -143,7 +148,145 @@ def _create_live_client(clean_key: str, api_version: str = "v1beta") -> Any:
         return genai.Client(api_key=clean_key)
 
 
-async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
+def _normalize_aoede_phrase(phrase: str) -> str:
+    return " ".join((phrase or "").strip().split())
+
+
+def _aoede_cache_key(phrase_norm: str) -> str:
+    return hashlib.sha256(f"{AOEDE_VOICE_NAME}:{phrase_norm}".encode("utf-8")).hexdigest()
+
+
+def _resolve_aoede_db_path() -> pathlib.Path | None:
+    if os.environ.get("SMARTHOME_DISABLE_SQLITE", "").strip() == "1":
+        return None
+    if os.environ.get("VERCEL", "").strip() == "1":
+        return None
+    if (
+        os.environ.get("SMARTHOME_STATE_BACKEND", "").strip().lower() == "file"
+        and not os.environ.get("SMARTHOME_SQLITE_PATH", "").strip()
+    ):
+        return None
+    try:
+        from simulator.db_migrations import resolve_sqlite_db_path
+
+        return resolve_sqlite_db_path()
+    except Exception:
+        return None
+
+
+def _read_sqlite_aoede_cache(phrase: str) -> tuple[bytes, str]:
+    db_path = _resolve_aoede_db_path()
+    if db_path is None or not db_path.exists():
+        return b"", ""
+    norm = _normalize_aoede_phrase(phrase)
+    if not norm:
+        return b"", ""
+    key = _aoede_cache_key(norm)
+    conn = None
+    try:
+        from simulator.db_migrations import open_wal_connection
+
+        conn = open_wal_connection(db_path, readonly=True)
+        row = conn.execute(
+            """
+            SELECT pcm_bytes, model_id FROM aoede_audio_cache
+            WHERE cache_key = ? OR (phrase_norm = ? AND voice_name = ?)
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (key, norm, AOEDE_VOICE_NAME),
+        ).fetchone()
+        if row is not None and row["pcm_bytes"]:
+            raw = bytes(row["pcm_bytes"])
+            if len(raw) >= 2400:
+                return raw, str(row["model_id"] or "")
+    except Exception:
+        pass
+    finally:
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+    return b"", ""
+
+
+def _write_sqlite_aoede_cache(phrase: str, pcm_bytes: bytes, model_id: str) -> None:
+    if len(pcm_bytes) < 2400:
+        return
+    db_path = _resolve_aoede_db_path()
+    if db_path is None or not db_path.exists():
+        return
+    norm = _normalize_aoede_phrase(phrase)
+    if not norm:
+        return
+    key = _aoede_cache_key(norm)
+    conn = None
+    try:
+        from simulator.db_migrations import (
+            apply_schema_migrations,
+            open_wal_connection,
+            run_write_transaction,
+        )
+
+        conn = open_wal_connection(db_path, readonly=False)
+
+        def _upsert(c: Any) -> None:
+            c.execute(
+                """
+                INSERT INTO aoede_audio_cache (
+                    cache_key, phrase_norm, voice_name, model_id, sample_rate, pcm_bytes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    phrase_norm = excluded.phrase_norm,
+                    voice_name = excluded.voice_name,
+                    model_id = excluded.model_id,
+                    sample_rate = excluded.sample_rate,
+                    pcm_bytes = excluded.pcm_bytes,
+                    created_at = excluded.created_at
+                """,
+                (key, norm, AOEDE_VOICE_NAME, str(model_id or ""), SAMPLE_RATE, pcm_bytes, time.time()),
+            )
+
+        try:
+            run_write_transaction(conn, _upsert)
+        except Exception:
+            apply_schema_migrations(conn)
+            run_write_transaction(conn, _upsert)
+    except Exception as exc:
+        _LOGGER.debug("Skipping SQLite aoede_audio_cache write: %s", exc)
+    finally:
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+
+
+def _load_last_working_aoede_model() -> str:
+    db_path = _resolve_aoede_db_path()
+    if db_path is None or not db_path.exists():
+        return ""
+    conn = None
+    try:
+        from simulator.db_migrations import open_wal_connection
+
+        conn = open_wal_connection(db_path, readonly=True)
+        row = conn.execute(
+            "SELECT model_id FROM aoede_audio_cache WHERE model_id != '' ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        if row and row["model_id"]:
+            return str(row["model_id"])
+    except Exception:
+        pass
+    finally:
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+    return ""
+
+
+async def _fetch_live_aoede_pcm24k(
+    phrase: str,
+    api_key: str,
+    *,
+    per_attempt_timeout: float = 2.2,
+) -> bytes:
     """Gọi trực tiếp Gemini Live (gemini-3.8-live / fallback Live cùng giọng 'Aoede') tạo PCM 24kHz."""
     global _WORKING_AOEDE_LIVE_MODEL, _WORKING_AOEDE_API_VERSION, _WORKING_AOEDE_USE_CLIENT_CONTENT
     if genai is None or types is None:
@@ -250,12 +393,13 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
         return pcm
 
     attempts: list[tuple[str, str, bool]] = []
-    if _WORKING_AOEDE_LIVE_MODEL:
+    cached_model = _WORKING_AOEDE_LIVE_MODEL or _load_last_working_aoede_model()
+    if cached_model:
         attempts.append(
             (
-                _WORKING_AOEDE_LIVE_MODEL,
+                cached_model,
                 _WORKING_AOEDE_API_VERSION or "v1beta",
-                _WORKING_AOEDE_USE_CLIENT_CONTENT,
+                _WORKING_AOEDE_USE_CLIENT_CONTENT if _WORKING_AOEDE_LIVE_MODEL else (not cached_model.startswith("gemini-3.")),
             )
         )
     if (AOEDE_LIVE_MODEL, "v1beta", False) not in attempts:
@@ -275,10 +419,13 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
         if (cand_model, api_ver, use_cc) in tried:
             continue
         tried.add((cand_model, api_ver, use_cc))
+        attempt_timeout = max(0.5, float(per_attempt_timeout))
+        if cand_model == AOEDE_LIVE_MODEL and not cached_model and len(attempts) > 1:
+            attempt_timeout = min(1.1, attempt_timeout)
         try:
             pcm = await asyncio.wait_for(
                 _attempt_one_model(cand_model, api_version=api_ver, use_client_content=use_cc),
-                timeout=8.5,
+                timeout=attempt_timeout,
             )
             _WORKING_AOEDE_LIVE_MODEL = cand_model
             _WORKING_AOEDE_API_VERSION = api_ver
@@ -319,15 +466,82 @@ async def _fetch_live_aoede_pcm24k(phrase: str, api_key: str) -> bytes:
     raise RuntimeError("No Aoede live model candidates configured")
 
 
+async def _invoke_live_aoede_fetch(
+    phrase: str,
+    api_key: str,
+    *,
+    per_attempt_timeout: float,
+) -> bytes:
+    """Invoke _fetch_live_aoede_pcm24k while preserving compatibility with 2-arg monkeypatch fakes."""
+    fn = _fetch_live_aoede_pcm24k
+    try:
+        params = inspect.signature(fn).parameters
+        accepts_timeout = (
+            "per_attempt_timeout" in params
+            or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+        )
+    except (TypeError, ValueError):
+        accepts_timeout = False
+    if accepts_timeout:
+        return await fn(phrase, api_key, per_attempt_timeout=per_attempt_timeout)
+    return await fn(phrase, api_key)
+
+
+async def _background_warm_phrase(phrase: str, api_key: str) -> None:
+    norm = _normalize_aoede_phrase(phrase)
+    if not norm or norm in _WARMING_PHRASES:
+        return
+    _WARMING_PHRASES.add(norm)
+    try:
+        live_pcm = await asyncio.wait_for(
+            _invoke_live_aoede_fetch(norm, api_key, per_attempt_timeout=8.0),
+            timeout=10.0,
+        )
+        if len(live_pcm) >= 2400:
+            model_id = _WORKING_AOEDE_LIVE_MODEL or AOEDE_LIVE_MODEL
+            _LIVE_AOEDE_SESSION_CACHE[norm] = live_pcm
+            _LIVE_AOEDE_SOURCE_CACHE[norm] = "gemini_live_aoede"
+            _LIVE_AOEDE_MODEL_CACHE[norm] = model_id
+            _write_sqlite_aoede_cache(norm, live_pcm, model_id)
+    except Exception:
+        pass
+    finally:
+        _WARMING_PHRASES.discard(norm)
+
+
 async def synthesize_aoede_phrase_audio(
-    phrase: str, *, allow_live_refresh: bool = True
+    phrase: str,
+    *,
+    allow_live_refresh: bool = True,
+    interactive_budget_sec: float = 2.4,
 ) -> dict[str, Any]:
-    """Trả về gói âm thanh PCM16 24kHz & WAV chuẩn của duy nhất giọng Aoede (Gemini Live)."""
+    """Trả về gói âm thanh PCM16 24kHz & WAV chuẩn của duy nhất giọng Aoede (Gemini Live) kèm SQLite cache."""
     clean_phrase = (phrase or "").strip()
     target_phrase = clean_phrase or FIXED_REJECTION_PHRASE_VI
-    pcm24k = _LIVE_AOEDE_SESSION_CACHE.get(target_phrase, b"")
-    audio_source = _LIVE_AOEDE_SOURCE_CACHE.get(target_phrase, "") if pcm24k else ""
-    audio_model = _LIVE_AOEDE_MODEL_CACHE.get(target_phrase, "") if pcm24k else ""
+    norm_phrase = _normalize_aoede_phrase(target_phrase)
+
+    pcm24k = _LIVE_AOEDE_SESSION_CACHE.get(target_phrase) or _LIVE_AOEDE_SESSION_CACHE.get(norm_phrase, b"")
+    audio_source = (
+        _LIVE_AOEDE_SOURCE_CACHE.get(target_phrase)
+        or _LIVE_AOEDE_SOURCE_CACHE.get(norm_phrase, "")
+    ) if pcm24k else ""
+    audio_model = (
+        _LIVE_AOEDE_MODEL_CACHE.get(target_phrase)
+        or _LIVE_AOEDE_MODEL_CACHE.get(norm_phrase, "")
+    ) if pcm24k else ""
+
+    if not pcm24k:
+        db_pcm, db_model = _read_sqlite_aoede_cache(norm_phrase)
+        if len(db_pcm) >= 2400:
+            pcm24k = db_pcm
+            audio_model = db_model or _WORKING_AOEDE_LIVE_MODEL or "gemini-2.5-flash-native-audio-preview-12-2025"
+            audio_source = "gemini_live_aoede" if audio_model != "bundled_aoede" else "bundled_aoede_wav"
+            _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
+            _LIVE_AOEDE_SOURCE_CACHE[target_phrase] = audio_source
+            _LIVE_AOEDE_MODEL_CACHE[target_phrase] = audio_model
+            _LIVE_AOEDE_SESSION_CACHE[norm_phrase] = pcm24k
+            _LIVE_AOEDE_SOURCE_CACHE[norm_phrase] = audio_source
+            _LIVE_AOEDE_MODEL_CACHE[norm_phrase] = audio_model
 
     is_offline = (
         os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1"
@@ -337,11 +551,22 @@ async def synthesize_aoede_phrase_audio(
         os.environ.get("GEMINI_API_KEY", "")
         or os.environ.get("GOOGLE_API_KEY", "")
     )
+    if not raw_api_key and not is_offline:
+        with contextlib.suppress(Exception):
+            from simulator.api.deps import load_key
+
+            raw_api_key = load_key()
     api_key = raw_api_key.strip().strip('"').strip("'").strip()
     if not pcm24k and allow_live_refresh and api_key and not is_offline:
         try:
+            budget = max(0.8, float(interactive_budget_sec))
             live_pcm = await asyncio.wait_for(
-                _fetch_live_aoede_pcm24k(target_phrase, api_key), timeout=25.0
+                _invoke_live_aoede_fetch(
+                    target_phrase,
+                    api_key,
+                    per_attempt_timeout=min(2.2, budget),
+                ),
+                timeout=budget,
             )
             if len(live_pcm) >= 2400:
                 pcm24k = live_pcm
@@ -350,11 +575,18 @@ async def synthesize_aoede_phrase_audio(
                 _LIVE_AOEDE_SESSION_CACHE[target_phrase] = pcm24k
                 _LIVE_AOEDE_SOURCE_CACHE[target_phrase] = audio_source
                 _LIVE_AOEDE_MODEL_CACHE[target_phrase] = audio_model
+                _LIVE_AOEDE_SESSION_CACHE[norm_phrase] = pcm24k
+                _LIVE_AOEDE_SOURCE_CACHE[norm_phrase] = audio_source
+                _LIVE_AOEDE_MODEL_CACHE[norm_phrase] = audio_model
+                _write_sqlite_aoede_cache(norm_phrase, pcm24k, audio_model)
         except Exception as exc:
             err_msg = str(exc)
             if api_key:
                 err_msg = err_msg.replace(api_key, "***")
             _LOGGER.warning("Aoede live audio synthesis failed (%s): %s", type(exc).__name__, err_msg[:180])
+            if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+                with contextlib.suppress(RuntimeError):
+                    asyncio.create_task(_background_warm_phrase(target_phrase, api_key))
             pcm24k = b""
 
     if not pcm24k:
@@ -411,3 +643,54 @@ def build_aoede_http_audio_fields(bundle: dict[str, Any]) -> dict[str, Any]:
     if bundle.get("audio_model"):
         fields["audio_model"] = str(bundle["audio_model"])
     return fields
+
+
+async def prewarm_aoede_common_phrases() -> int:
+    """Làm ấm trước bộ câu thoại Aoede phổ biến vào SQLite WAL cache khi server khởi động."""
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
+        return 0
+    phrases: list[str] = [
+        FIXED_REJECTION_PHRASE_VI,
+        FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+        "Đã bật đèn phòng khách.",
+        "Đã tắt đèn phòng khách.",
+        "Đã bật Đèn phòng khách.",
+        "Đã tắt Đèn phòng khách.",
+        "Đã bật đèn phòng ngủ.",
+        "Đã tắt đèn phòng ngủ.",
+        "Đã bật quạt trần.",
+        "Đã tắt quạt trần.",
+        "Đã bật điều hòa.",
+        "Đã tắt điều hòa.",
+        "Đã mở cửa chính.",
+        "Đã khóa cửa chính.",
+        "Đã đóng cửa chính.",
+        "Đã bật bơm tưới sân vườn.",
+        "Đã tắt bơm tưới sân vườn.",
+        "Đã bật còi báo động.",
+        "Đã tắt còi báo động.",
+        "Cửa chính đã mở.",
+        "Cửa chính đã đóng.",
+        "Đèn phòng khách đã bật.",
+        "Đèn phòng khách đã tắt.",
+    ]
+    for p in EXTENDED_TTS_SCRIPTS.values():
+        if p not in phrases:
+            phrases.append(p)
+    warmed = 0
+    for phrase in phrases:
+        norm = _normalize_aoede_phrase(phrase)
+        if not norm:
+            continue
+        existing, _ = _read_sqlite_aoede_cache(norm)
+        if len(existing) >= 2400:
+            _LIVE_AOEDE_SESSION_CACHE[norm] = existing
+            _LIVE_AOEDE_SOURCE_CACHE[norm] = "gemini_live_aoede"
+            continue
+        try:
+            res = await synthesize_aoede_phrase_audio(norm, allow_live_refresh=True, interactive_budget_sec=9.0)
+            if res.get("pcm24k_b64") and res.get("audio_source") == "gemini_live_aoede":
+                warmed += 1
+        except Exception:
+            pass
+    return warmed

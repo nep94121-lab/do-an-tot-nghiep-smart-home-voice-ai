@@ -35,6 +35,13 @@ async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
             await br.send_ws_json(event)
         except Exception:
             pass
+    try:
+        from simulator.realtime_hub import get_realtime_hub
+
+        ev_type = str(event.get("type") or "engine_event") if isinstance(event, dict) else "engine_event"
+        get_realtime_hub().publish_snapshot(_REST_ENGINE, reason=ev_type)
+    except Exception:
+        pass
 
 
 _REST_ENGINE = SmartHomeEngine(
@@ -65,10 +72,22 @@ def get_active_bridges() -> list[Any]:
 
 
 async def broadcast_rest_state_to_bridges() -> None:
-    """Đồng bộ trạng thái thiết bị vật lý của REST Engine sang các kết nối WebSocket đang hoạt động mà không ghi đè danh tính người nói riêng của từng phiên."""
+    """Đồng bộ trạng thái thiết bị vật lý của REST Engine sang các kết nối WebSocket và SSE đang hoạt động mà không ghi đè danh tính người nói riêng của từng phiên."""
+    try:
+        _REST_ENGINE.sync_from_shared_store(force=True)
+    except Exception:
+        pass
     pub_snap = _REST_ENGINE.get_public_device_snapshot()
+    try:
+        from simulator.realtime_hub import get_realtime_hub
+
+        get_realtime_hub().publish_snapshot(_REST_ENGINE, reason="rest_broadcast")
+    except Exception:
+        pass
     for br in list(_ACTIVE_BRIDGES):
         try:
+            if hasattr(br.engine, "sync_from_shared_store"):
+                br.engine.sync_from_shared_store(force=False)
             br.engine.server_connected = _REST_ENGINE.server_connected
             if br.engine.devices is not _REST_ENGINE.devices:
                 br.engine.devices = copy.deepcopy(_REST_ENGINE.devices)
@@ -92,7 +111,10 @@ _broadcast_rest_state_to_bridges = broadcast_rest_state_to_bridges
 
 
 def load_key() -> str:
-    """Đọc GEMINI_API_KEY từ .env hoặc biến môi trường."""
+    """Đọc GEMINI_API_KEY từ biến môi trường hoặc tệp .env."""
+    env_val = os.environ.get("GEMINI_API_KEY", "").strip()
+    if env_val:
+        return env_val
     env_file = ROOT / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -100,7 +122,7 @@ def load_key() -> str:
                 val = line.split("=", 1)[1].strip()
                 if val:
                     return val
-    return os.environ.get("GEMINI_API_KEY", "").strip()
+    return ""
 
 
 KEY = load_key()

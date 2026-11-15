@@ -835,12 +835,352 @@ class GitHubCasStateBackend:
                 return
 
 
+class SqliteStateBackend:
+    """Single-source-of-truth device state backend backed by SQLite WAL ACID transactions."""
+
+    is_remote: bool = False
+    supports_cas: bool = True
+    authoritative_cas: bool = True
+
+    def __init__(self, db_path: pathlib.Path | None = None) -> None:
+        self._explicit_db_path = pathlib.Path(db_path) if db_path is not None else None
+        self._lock = threading.RLock()
+        self._last_ts_ns: int = 0
+
+    def _db_path(self) -> pathlib.Path:
+        if self._explicit_db_path is not None:
+            return self._explicit_db_path
+        from simulator.db_migrations import resolve_sqlite_db_path
+
+        return resolve_sqlite_db_path()
+
+    def _open_ready_conn(self) -> Any:
+        from simulator.database_sqlite import init_sqlite_database
+        from simulator.db_migrations import bootstrap_device_state_from_devices, open_wal_connection
+
+        target = init_sqlite_database(self._db_path())
+        conn = open_wal_connection(target, readonly=False)
+        row = conn.execute("SELECT COUNT(*) FROM device_state").fetchone()
+        meta_row = conn.execute("SELECT COUNT(*) FROM system_state_meta WHERE id = 1").fetchone()
+        if int(row[0]) < len(DEFAULT_DEVICES) or int(meta_row[0]) == 0:
+            conn.execute("BEGIN IMMEDIATE;")
+            try:
+                bootstrap_device_state_from_devices(conn, DEFAULT_DEVICES)
+                conn.execute("COMMIT;")
+            except Exception:
+                conn.execute("ROLLBACK;")
+                raise
+        return conn
+
+    def _read_snapshot_in_conn(self, conn: Any) -> dict[str, Any] | None:
+        meta = conn.execute(
+            """
+            SELECT revision_seq, revision_ts_ns, server_connected, pump_manual_override_off,
+                   dht11_json, soil_moisture_json, updated_at
+            FROM system_state_meta WHERE id = 1
+            """
+        ).fetchone()
+        dev_rows = conn.execute(
+            """
+            SELECT d.device_id, d.device_name, d.gpio_pin, d.room, d.device_type, d.min_role,
+                   ds.state, ds.version, ds.updated_at, ds.last_client_id, ds.last_client_seq,
+                   ds.last_client_ts_ms, ds.last_request_id, ds.last_requested_state,
+                   ds.client_seqs_json, ds.extra_json
+            FROM devices d
+            LEFT JOIN device_state ds ON ds.device_id = d.device_id
+            """
+        ).fetchall()
+        if not dev_rows or meta is None:
+            return None
+        devices_map: dict[str, Any] = {}
+        for r in dev_rows:
+            did = str(r["device_id"])
+            base = dict(DEFAULT_DEVICES.get(did, {"id": did}))
+            try:
+                client_seqs = json.loads(str(r["client_seqs_json"] or "{}"))
+            except Exception:
+                client_seqs = {}
+            try:
+                extra = json.loads(str(r["extra_json"] or "{}"))
+            except Exception:
+                extra = {}
+            entry: dict[str, Any] = {
+                **base,
+                **(extra if isinstance(extra, dict) else {}),
+                "id": did,
+                "name": str(r["device_name"] or base.get("name") or did),
+                "gpio": str(r["gpio_pin"] or base.get("gpio") or "GPIO"),
+                "room": str(r["room"] or base.get("room") or "home"),
+                "type": str(r["device_type"] or base.get("type") or "switch"),
+                "min_role": str(r["min_role"] or base.get("min_role") or "CHILD_GUEST"),
+                "state": str(r["state"] if r["state"] is not None else base.get("state") or "OFF"),
+                "version": int(r["version"] or 1),
+                "updated_at": float(r["updated_at"] or 0.0),
+                "last_client_id": str(r["last_client_id"] or ""),
+                "last_client_seq": int(r["last_client_seq"] or 0),
+                "last_client_ts_ms": int(r["last_client_ts_ms"] or 0),
+                "last_request_id": str(r["last_request_id"] or ""),
+                "last_requested_state": str(r["last_requested_state"] or ""),
+                "client_seqs": client_seqs if isinstance(client_seqs, dict) else {},
+            }
+            devices_map[did] = entry
+        out: dict[str, Any] = {
+            "revision_seq": int(meta["revision_seq"] or 0),
+            "revision_ts_ns": int(meta["revision_ts_ns"] or 0),
+            "server_connected": bool(meta["server_connected"]),
+            "pump_manual_override_off": bool(meta["pump_manual_override_off"]),
+            "devices": devices_map,
+        }
+        try:
+            dht = json.loads(str(meta["dht11_json"] or "{}"))
+            if isinstance(dht, dict) and dht:
+                out["dht11_telemetry"] = dht
+        except Exception:
+            pass
+        try:
+            soil = json.loads(str(meta["soil_moisture_json"] or "{}"))
+            if isinstance(soil, dict) and soil:
+                out["soil_moisture_telemetry"] = soil
+        except Exception:
+            pass
+        return out
+
+    def _write_snapshot_in_tx(self, conn: Any, snap: dict[str, Any]) -> None:
+        import datetime as _dt
+
+        now = time.time()
+        tz = _dt.timezone(_dt.timedelta(hours=7))
+        now_iso = _dt.datetime.now(tz).isoformat()
+        dht_obj = snap.get("dht11_telemetry") or {}
+        soil_obj = snap.get("soil_moisture_telemetry") or {}
+        conn.execute(
+            """
+            INSERT INTO system_state_meta (
+                id, revision_seq, revision_ts_ns, server_connected, pump_manual_override_off,
+                dht_temp_c, dht_hum_pct, soil_moisture_pct, dht11_json, soil_moisture_json, updated_at
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                revision_seq = excluded.revision_seq,
+                revision_ts_ns = excluded.revision_ts_ns,
+                server_connected = excluded.server_connected,
+                pump_manual_override_off = excluded.pump_manual_override_off,
+                dht_temp_c = excluded.dht_temp_c,
+                dht_hum_pct = excluded.dht_hum_pct,
+                soil_moisture_pct = excluded.soil_moisture_pct,
+                dht11_json = excluded.dht11_json,
+                soil_moisture_json = excluded.soil_moisture_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                int(snap.get("revision_seq") or 0),
+                int(snap.get("revision_ts_ns") or 0),
+                1 if snap.get("server_connected", True) else 0,
+                1 if snap.get("pump_manual_override_off", False) else 0,
+                dht_obj.get("temp_c") if isinstance(dht_obj, dict) else None,
+                dht_obj.get("humidity_pct") if isinstance(dht_obj, dict) else None,
+                soil_obj.get("soil_moisture_pct") if isinstance(soil_obj, dict) else None,
+                json.dumps(dht_obj, ensure_ascii=False) if isinstance(dht_obj, dict) else "{}",
+                json.dumps(soil_obj, ensure_ascii=False) if isinstance(soil_obj, dict) else "{}",
+                now,
+            ),
+        )
+        known_cols = {
+            "id",
+            "name",
+            "gpio",
+            "room",
+            "type",
+            "min_role",
+            "state",
+            "version",
+            "updated_at",
+            "last_client_id",
+            "last_client_seq",
+            "last_client_ts_ms",
+            "last_request_id",
+            "last_requested_state",
+            "client_seqs",
+        }
+        devices_dict = snap.get("devices") or {}
+        if isinstance(devices_dict, dict):
+            for did, dinfo in devices_dict.items():
+                if not isinstance(dinfo, dict):
+                    continue
+                extra = {k: v for k, v in dinfo.items() if k not in known_cols}
+                min_role = str(dinfo.get("min_role") or DEFAULT_DEVICES.get(did, {}).get("min_role") or "CHILD_GUEST")
+                if min_role not in ("ADMIN", "MEMBER", "CHILD_GUEST"):
+                    min_role = "CHILD_GUEST"
+                min_tier = 1 if min_role == "ADMIN" else (2 if min_role == "MEMBER" else 3)
+                state_str = str(dinfo.get("state") or "OFF")
+                conn.execute(
+                    """
+                    INSERT INTO devices (
+                        device_id, device_name, gpio_pin, state, min_tier_required,
+                        offline_controllable, updated_at, min_role, room, device_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(device_id) DO UPDATE SET
+                        state = excluded.state,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        str(did),
+                        str(dinfo.get("name") or did),
+                        str(dinfo.get("gpio") or "GPIO"),
+                        state_str,
+                        min_tier,
+                        0 if did in ("main_door", "alarm_siren") else 1,
+                        now_iso,
+                        min_role,
+                        str(dinfo.get("room") or "home"),
+                        str(dinfo.get("type") or "switch"),
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO device_state (
+                        device_id, state, version, updated_at, last_client_id, last_client_seq,
+                        last_client_ts_ms, last_request_id, last_requested_state, client_seqs_json, extra_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(device_id) DO UPDATE SET
+                        state = excluded.state,
+                        version = excluded.version,
+                        updated_at = excluded.updated_at,
+                        last_client_id = excluded.last_client_id,
+                        last_client_seq = excluded.last_client_seq,
+                        last_client_ts_ms = excluded.last_client_ts_ms,
+                        last_request_id = excluded.last_request_id,
+                        last_requested_state = excluded.last_requested_state,
+                        client_seqs_json = excluded.client_seqs_json,
+                        extra_json = excluded.extra_json
+                    """,
+                    (
+                        str(did),
+                        state_str,
+                        int(dinfo.get("version") or 1),
+                        float(dinfo.get("updated_at") or now),
+                        str(dinfo.get("last_client_id") or ""),
+                        int(dinfo.get("last_client_seq") or 0),
+                        int(dinfo.get("last_client_ts_ms") or 0),
+                        str(dinfo.get("last_request_id") or ""),
+                        str(dinfo.get("last_requested_state") or ""),
+                        json.dumps(dinfo.get("client_seqs") or {}, ensure_ascii=False),
+                        json.dumps(extra, ensure_ascii=False),
+                    ),
+                )
+
+    def read_cas(self) -> tuple[dict[str, Any] | None, int, str]:
+        with self._lock:
+            conn = self._open_ready_conn()
+            try:
+                snap = self._read_snapshot_in_conn(conn)
+                if snap is None:
+                    return None, 0, ""
+                rev = int(snap.get("revision_seq") or 0)
+                return snap, rev, str(rev)
+            finally:
+                conn.close()
+
+    def load_state(self) -> dict[str, Any] | None:
+        snap, _rev, _tok = self.read_cas()
+        return snap
+
+    def compare_and_swap(
+        self,
+        state: dict[str, Any],
+        *,
+        expected_revision: int,
+        expected_token: str = "",
+    ) -> tuple[bool, dict[str, Any]]:
+        with self._lock:
+            conn = self._open_ready_conn()
+            try:
+                conn.execute("BEGIN IMMEDIATE;")
+                cur_row = conn.execute("SELECT revision_seq FROM system_state_meta WHERE id = 1").fetchone()
+                cur_rev = int(cur_row["revision_seq"] or 0) if cur_row is not None else 0
+                if cur_rev != int(expected_revision) or (expected_token and expected_token != str(cur_rev)):
+                    fresh = self._read_snapshot_in_conn(conn)
+                    conn.execute("ROLLBACK;")
+                    return False, fresh or {}
+                snap = copy.deepcopy(state)
+                seq = int(expected_revision) + 1
+                ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0) or 0), self._last_ts_ns + 1)
+                snap["revision_seq"] = seq
+                snap["revision_ts_ns"] = ts_ns
+                self._last_ts_ns = max(self._last_ts_ns, ts_ns)
+                self._write_snapshot_in_tx(conn, snap)
+                conn.execute("COMMIT;")
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK;")
+                except Exception:
+                    pass
+                raise
+            finally:
+                conn.close()
+        from simulator.async_cloud_backup import schedule_github_backup
+
+        schedule_github_backup("shared_device_state.json", snap)
+        return True, snap
+
+    def save_state(self, state: dict[str, Any], *, preserve_revision: bool = False) -> dict[str, Any]:
+        with self._lock:
+            conn = self._open_ready_conn()
+            try:
+                conn.execute("BEGIN IMMEDIATE;")
+                cur_row = conn.execute("SELECT revision_seq, revision_ts_ns FROM system_state_meta WHERE id = 1").fetchone()
+                cur_seq = int(cur_row["revision_seq"] or 0) if cur_row is not None else 0
+                cur_ts_ns = int(cur_row["revision_ts_ns"] or 0) if cur_row is not None else 0
+                snap = copy.deepcopy(state)
+                if preserve_revision and int(snap.get("revision_seq", 0)) > 0:
+                    seq = max(int(snap["revision_seq"]), cur_seq)
+                    ts_ns = max(int(snap.get("revision_ts_ns") or 0), cur_ts_ns, time.time_ns())
+                else:
+                    seq = max(int(snap.get("revision_seq", 0) or 0), cur_seq) + 1
+                    ts_ns = max(time.time_ns(), int(snap.get("revision_ts_ns", 0) or 0), cur_ts_ns + 1, self._last_ts_ns + 1)
+                snap["revision_seq"] = seq
+                snap["revision_ts_ns"] = ts_ns
+                self._last_ts_ns = max(self._last_ts_ns, ts_ns)
+                self._write_snapshot_in_tx(conn, snap)
+                conn.execute("COMMIT;")
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK;")
+                except Exception:
+                    pass
+                raise
+            finally:
+                conn.close()
+        from simulator.async_cloud_backup import schedule_github_backup
+
+        schedule_github_backup("shared_device_state.json", snap)
+        return snap
+
+    def clear(self) -> None:
+        with self._lock:
+            conn = self._open_ready_conn()
+            try:
+                conn.execute("BEGIN IMMEDIATE;")
+                conn.execute("DELETE FROM device_state;")
+                conn.execute("DELETE FROM system_state_meta;")
+                bootstrap_devices = build_default_shared_state_payload()
+                self._write_snapshot_in_tx(conn, bootstrap_devices)
+                conn.execute("COMMIT;")
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK;")
+                except Exception:
+                    pass
+                raise
+            finally:
+                conn.close()
+
+
 _DEFAULT_BACKEND: StateBackend | None = None
 _BACKEND_LOCK = threading.RLock()
 
 
 def create_state_backend_from_env() -> StateBackend:
-    """Ưu tiên GitHubCasStateBackend (CAS miễn phí) trước VercelBlobStateBackend, fallback FileStateBackend."""
+    """Chọn backend trạng thái: SQLite WAL (máy chủ cố định LENOVO), GitHub CAS, Vercel Blob hoặc File."""
     forced_mode = os.environ.get("SMARTHOME_STATE_BACKEND", "").strip().lower()
     blob_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip().strip('"').strip("'").strip()
     blob_prefix = os.environ.get("SMARTHOME_BLOB_PREFIX", "smarthome_shared_state_v1/").strip()
@@ -853,11 +1193,13 @@ def create_state_backend_from_env() -> StateBackend:
     running_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
     force_blob = os.environ.get("SMARTHOME_FORCE_BLOB_STORE", "").strip() == "1"
     force_gh = os.environ.get("SMARTHOME_FORCE_GITHUB_CAS", "").strip() == "1"
+    custom_path = os.environ.get("SMARTHOME_STATE_FILE", "").strip()
 
+    if forced_mode == "sqlite":
+        return SqliteStateBackend()
     if forced_mode == "memory":
         return InMemoryStateBackend()
     if forced_mode == "file":
-        custom_path = os.environ.get("SMARTHOME_STATE_FILE", "").strip()
         return FileStateBackend(pathlib.Path(custom_path) if custom_path else None)
     if forced_mode in ("github", "github_cas") and sec_repo and sec_token:
         return GitHubCasStateBackend(
@@ -869,6 +1211,10 @@ def create_state_backend_from_env() -> StateBackend:
     if forced_mode == "blob" and blob_token:
         return VercelBlobStateBackend(token=blob_token, prefix=blob_prefix)
 
+    # On permanent LENOVO host (non-pytest, non-Vercel) default to local SQLite WAL unless CAS test overrides
+    if not running_pytest and not os.environ.get("VERCEL") and not custom_path and not force_gh and not sec_api_base:
+        return SqliteStateBackend()
+
     if sec_repo and sec_token and (not running_pytest or force_gh or bool(sec_api_base)):
         return GitHubCasStateBackend(
             repository=sec_repo,
@@ -879,7 +1225,6 @@ def create_state_backend_from_env() -> StateBackend:
     if blob_token and (not running_pytest or force_blob):
         return VercelBlobStateBackend(token=blob_token, prefix=blob_prefix)
 
-    custom_path = os.environ.get("SMARTHOME_STATE_FILE", "").strip()
     return FileStateBackend(pathlib.Path(custom_path) if custom_path else None)
 
 

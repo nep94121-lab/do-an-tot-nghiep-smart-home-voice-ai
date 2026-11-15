@@ -460,11 +460,12 @@ fun MainScreen(
     jsonBody: String? = null,
   ): String? {
     return withContext(Dispatchers.IO) {
-      val prodBase = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
+      val primaryBase = "https://laptop-6i654f8c.tail3020d6.ts.net"
+      val fallbackBase = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
       val candidates = if (allowLocalDebugFallback) {
-        listOf(prodBase, "http://10.0.2.2:8088", "http://127.0.0.1:8088", "http://localhost:8088")
+        listOf(primaryBase, fallbackBase, "http://10.0.2.2:8088", "http://127.0.0.1:8088", "http://localhost:8088")
       } else {
-        listOf(prodBase)
+        listOf(primaryBase, fallbackBase)
       }
       for (base in candidates) {
         try {
@@ -508,11 +509,11 @@ fun MainScreen(
     }
   }
 
-  suspend fun syncServerState() {
-    val resStr = callServerHttp("/api/state", "GET") ?: return
+  suspend fun applyServerSnapshotJson(resStr: String) {
     withContext(Dispatchers.Main) {
       try {
-        val root = JSONObject(resStr)
+        val raw = JSONObject(resStr)
+        val root = raw.optJSONObject("snapshot") ?: raw
         val devArr = root.optJSONArray("devices")
         if (devArr != null) {
           for (i in 0 until devArr.length()) {
@@ -534,13 +535,62 @@ fun MainScreen(
         if (soilObj != null) {
           soilMoisture = soilObj.optDouble("soil_moisture_pct", soilMoisture.toDouble()).toInt()
         }
+        serverSynced = true
+        lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
       } catch (_: Exception) {}
     }
   }
 
-  LaunchedEffect(isOnlineMode) {
-    if (isOnlineMode) {
+  suspend fun syncServerState() {
+    val resStr = callServerHttp("/api/state", "GET") ?: return
+    applyServerSnapshotJson(resStr)
+  }
+
+  LaunchedEffect(isOnlineMode, activeSessionToken) {
+    if (!isOnlineMode) return@LaunchedEffect
+    syncServerState()
+    if (activeSessionToken.isBlank()) return@LaunchedEffect
+    val sseBases = listOf(
+      "https://laptop-6i654f8c.tail3020d6.ts.net",
+      "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app",
+    )
+    while (isOnlineMode && activeSessionToken.isNotBlank()) {
+      var streamed = false
+      for (base in sseBases) {
+        var conn: HttpURLConnection? = null
+        try {
+          val url = URL("$base/api/events")
+          conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 5000
+            readTimeout = 35000
+            setRequestProperty("Accept", "text/event-stream")
+            setRequestProperty("X-Session-Token", activeSessionToken)
+          }
+          if (conn.responseCode == 200) {
+            streamed = true
+            BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+              var line: String?
+              while (isOnlineMode) {
+                line = reader.readLine() ?: break
+                val trimmed = line.trim()
+                if (trimmed.startsWith("data:")) {
+                  val payloadJson = trimmed.removePrefix("data:").trim()
+                  if (payloadJson.startsWith("{")) {
+                    applyServerSnapshotJson(payloadJson)
+                  }
+                }
+              }
+            }
+          }
+        } catch (_: Exception) {
+        } finally {
+          try { conn?.disconnect() } catch (_: Exception) {}
+        }
+        if (streamed) break
+      }
       syncServerState()
+      delay(if (streamed) 2000L else 25000L)
     }
   }
 

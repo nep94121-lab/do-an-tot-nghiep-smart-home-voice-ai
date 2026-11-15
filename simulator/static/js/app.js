@@ -77,11 +77,8 @@
   const btnFactoryReset = byId("btnReset") || noopEl;
   const vnClockText = byId("vnClockText");
 
-  const isNonLocalHost = (typeof location !== "undefined") && Boolean(location.hostname) &&
-    location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
   const isVercelServerless = (typeof window !== "undefined") && (
     (typeof location !== "undefined" && Boolean((location.hostname || location.host || "").includes("vercel.app"))) ||
-    isNonLocalHost ||
     Boolean(window._FORCE_HTTP_POLLING)
   );
 
@@ -428,7 +425,7 @@
     deviceActiveSummary.textContent = `${activeCount} đang bật`;
   }
 
-  const DEVICE_DEBOUNCE_MS = 50;
+  const DEVICE_DEBOUNCE_MS = 20;
   const PENDING_INTENT_HOLD_MS = 4000;
   const WS_PENDING_TIMEOUT_MS = 15000;
   const CLIENT_ID =
@@ -1474,6 +1471,69 @@
     }, 2500);
   }
 
+  let _sseSource = null;
+  let _sseConnected = false;
+  let _sseReconnectTimer = null;
+
+  function closeRealtimeSse() {
+    _sseConnected = false;
+    if (_sseReconnectTimer) {
+      clearTimeout(_sseReconnectTimer);
+      _sseReconnectTimer = null;
+    }
+    if (_sseSource) {
+      try { _sseSource.close(); } catch (_) {}
+      _sseSource = null;
+    }
+  }
+
+  function connectRealtimeSse(explicitTicket = "") {
+    if (!serverSessionConfirmed || typeof EventSource === "undefined") return;
+    if (_sseSource && _sseSource.readyState !== 2 && !explicitTicket) return;
+    closeRealtimeSse();
+    try {
+      const sseUrl = explicitTicket
+        ? `/api/events?ticket=${encodeURIComponent(explicitTicket)}`
+        : "/api/events";
+      _sseSource = new EventSource(sseUrl, { withCredentials: true });
+      _sseSource.onopen = () => {
+        _sseConnected = true;
+      };
+      _sseSource.addEventListener("state_snapshot", (ev) => {
+        _sseConnected = true;
+        try {
+          const msg = JSON.parse(ev.data || "{}");
+          if (msg && msg.snapshot) {
+            applySnapshot(msg.snapshot);
+          }
+        } catch (_) {}
+      });
+      _sseSource.onerror = () => {
+        _sseConnected = false;
+        closeRealtimeSse();
+        if (serverSessionConfirmed && !_sseReconnectTimer) {
+          _sseReconnectTimer = setTimeout(async () => {
+            _sseReconnectTimer = null;
+            if (!serverSessionConfirmed) return;
+            try {
+              const rT = await fetch("/api/auth/ws_ticket", { method: "POST", credentials: "include" });
+              if (rT && rT.ok) {
+                const dT = await rT.json().catch(() => ({}));
+                if (dT && dT.ticket) {
+                  connectRealtimeSse(dT.ticket);
+                  return;
+                }
+              }
+            } catch (_) {}
+            connectRealtimeSse();
+          }, 2500);
+        }
+      };
+    } catch (_) {
+      _sseConnected = false;
+    }
+  }
+
   function connectWebSocket() {
     if (!serverSessionConfirmed) return;
     if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
@@ -2516,7 +2576,7 @@
     }
     setUserTranscriptText(cmd);
     setAiReplyText("Đang xử lý...");
-    if (isWsOpen()) {
+    if (typeof window !== "undefined" && window._USE_WS_SEND_TEXT && isWsOpen()) {
       sendWs({ type: "send_text", text: cmd });
       return;
     }
@@ -2796,11 +2856,7 @@
   function setSessionCookies(token) {
     const tok = String(token || "").trim();
     if (!tok) return;
-    try {
-      const secure = (typeof location !== "undefined" && location.protocol === "https:") ? "; Secure" : "";
-      document.cookie = "sh_session_token=" + tok + "; path=/; SameSite=Lax" + secure;
-      document.cookie = "session_token=" + tok + "; path=/; SameSite=Lax" + secure;
-    } catch (_) {}
+    // HttpOnly + Secure cookies are set server-side; avoid exposing session tokens in document.cookie.
   }
 
   function hasClientAuthHint() {
@@ -2888,6 +2944,7 @@
     loadVoiceSamples();
     pollRestStateFallback(true);
     connectWebSocket();
+    connectRealtimeSse();
   }
 
   function syncAuthFromSnapshot(snap) {
@@ -2965,6 +3022,7 @@
         clearTimeout(wsReconnectTimer);
         wsReconnectTimer = null;
       }
+      closeRealtimeSse();
     } catch (_) {}
     hideGateOtpPanel();
     if (forgotOtpCooldownTimer) {
@@ -4045,6 +4103,7 @@
   setInterval(() => {
     _homeRestPollTick += 1;
     if (typeof document !== 'undefined' && document.hidden && (_homeRestPollTick % 2) !== 0) return;
+    if ((isWsOpen() || _sseConnected) && (_homeRestPollTick % 25) !== 0) return;
     if (serverSessionConfirmed) pollRestStateFallback();
   }, 1000);
   if (typeof document !== 'undefined' && document.addEventListener) {
