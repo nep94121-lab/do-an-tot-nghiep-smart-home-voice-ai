@@ -755,6 +755,11 @@ ALL_TOOLS = [
     )
 ]
 
+if hasattr(types, "Behavior"):
+    for _tool_group in ALL_TOOLS:
+        for _fn_decl in (_tool_group.function_declarations or []):
+            _fn_decl.behavior = types.Behavior.BLOCKING
+
 
 FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."

@@ -500,11 +500,16 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             "tool_ms": tool_ms,
                                         })
 
+                                        compact_res = (
+                                            {k: v for k, v in exec_result.items() if k != "snapshot"}
+                                            if isinstance(exec_result, dict)
+                                            else exec_result
+                                        )
                                         fn_responses.append(
                                             types.FunctionResponse(
                                                 id=fc.id,
                                                 name=fc.name,
-                                                response={"result": exec_result},
+                                                response={"result": compact_res},
                                             )
                                         )
                                     try:
