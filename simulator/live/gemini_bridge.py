@@ -531,19 +531,34 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                                         exec_result = await self.handle_tool_call(fc)
 
-                                        pending_tool_ws_events.append({
-                                            "type": "tool_call_executed",
-                                            "name": fc.name,
-                                            "args": dict(fc.args or {}),
-                                            "result": exec_result,
-                                            "tool_ms": tool_ms,
-                                        })
-
-                                        compact_res = (
+                                        result_no_snap = (
                                             {k: v for k, v in exec_result.items() if k != "snapshot"}
                                             if isinstance(exec_result, dict)
                                             else exec_result
                                         )
+                                        pending_tool_ws_events.append({
+                                            "type": "tool_call_executed",
+                                            "name": fc.name,
+                                            "args": dict(fc.args or {}),
+                                            "result": result_no_snap,
+                                            "tool_ms": tool_ms,
+                                        })
+
+                                        if (
+                                            fc.name == "control_device"
+                                            and isinstance(exec_result, dict)
+                                            and exec_result.get("ok")
+                                            and not exec_result.get("rbac_blocked")
+                                        ):
+                                            compact_res = {
+                                                "ok": True,
+                                                "device_id": exec_result.get("device_id"),
+                                                "state": exec_result.get("state"),
+                                                "exact_spoken_reply": exec_result.get("exact_spoken_reply"),
+                                                "instruction_for_ai": exec_result.get("instruction_for_ai"),
+                                            }
+                                        else:
+                                            compact_res = result_no_snap
                                         fn_responses.append(
                                             types.FunctionResponse(
                                                 id=fc.id,
@@ -791,10 +806,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 self._turn_completed_flag = False
             elif self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
                 self.speech_end_ts = now_sp
-        elif (
-            self._awaiting_model_turn_after_speech
-            or self.turn_first_tool_ts is not None
-            or self.turn_first_audio_ts is not None
+        elif not self.mic_utterance_active and (
+            self._awaiting_model_turn_after_speech or not self._turn_completed_flag
         ):
             return
 
@@ -802,7 +815,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             await self._send_pcm_frame_to_gemini(frame)
 
     async def mic_speech_ended(self) -> None:
-        """Kết thúc lượt nói từ Mic: xả phần dư PCM + silence đuôi sang Gemini Live để chốt VAD."""
+        """Kết thúc lượt nói từ Mic: xả phần dư PCM + báo audio_stream_end (Hybrid VAD) sang Gemini Live."""
         self.vad_stream_filter.reset()
         self.mic_utterance_active = False
         self._awaiting_model_turn_after_speech = True
@@ -830,11 +843,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if tail_frame is not None:
             await self._send_pcm_frame_to_gemini(tail_frame)
 
-        if self.gemini_session is not None:
-            if self._mic_silence_task is None or self._mic_silence_task.done():
-                self._mic_silence_task = asyncio.create_task(
-                    self._flush_mic_silence_to_gemini()
-                )
+        if self.gemini_session is not None and not self.last_mic_turn_silent_ignore:
+            try:
+                await self.gemini_session.send_realtime_input(audio_stream_end=True)
+            except Exception:
+                if self._mic_silence_task is None or self._mic_silence_task.done():
+                    self._mic_silence_task = asyncio.create_task(
+                        self._flush_mic_silence_to_gemini()
+                    )
         await self.send_ws_json({
             "type": "speech_ended_marker",
             "source": "live_mic",

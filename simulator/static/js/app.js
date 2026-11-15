@@ -2256,14 +2256,16 @@
         await micAudioCtx.resume();
       }
       const source = micAudioCtx.createMediaStreamSource(micStream);
-      micProcessor = micAudioCtx.createScriptProcessor(512, 1, 1);
+      micProcessor = micAudioCtx.createScriptProcessor(256, 1, 1);
 
       wasSpeaking = false;
       silenceStartMs = 0;
       awaitingTurnAfterSpeech = false;
       activeMicPcmChunks = [];
       let preRollMicChunks = [];
-      startBrowserSpeechRecognitionVi();
+      if (!isWsOpen()) {
+        startBrowserSpeechRecognitionVi();
+      }
       let noiseFloorRms = 0.008;
       let speechStartMs = 0;
 
@@ -2292,7 +2294,7 @@
           return;
         }
 
-        const speechThreshold = Math.min(0.05, Math.max(0.018, noiseFloorRms * 2.1));
+        const speechThreshold = Math.min(0.05, Math.max(0.012, noiseFloorRms * 2.1));
         const isSpeech = rms > speechThreshold;
         if (!isSpeech) {
           noiseFloorRms = noiseFloorRms * 0.9 + rms * 0.1;
@@ -2304,17 +2306,30 @@
 
         if (!isSpeech && !wasSpeaking) {
           preRollMicChunks.push(chunkBytes);
-          if (preRollMicChunks.length > 2) {
+          if (preRollMicChunks.length > 3) {
             preRollMicChunks.shift();
           }
         }
 
         if (isSpeech) {
+          const wasAwaitingTurn = awaitingTurnAfterSpeech;
           awaitingTurnAfterSpeech = false;
           if (!wasSpeaking) {
             speechStartMs = nowMs;
             while (preRollMicChunks.length > 0) {
-              activeMicPcmChunks.push(preRollMicChunks.shift());
+              const preChunk = preRollMicChunks.shift();
+              activeMicPcmChunks.push(preChunk);
+              if (wasAwaitingTurn && isWsOpen()) {
+                let preBin = "";
+                for (let i = 0; i < preChunk.byteLength; i++) {
+                  preBin += String.fromCharCode(preChunk[i]);
+                }
+                sendWs({
+                  type: "mic_chunk",
+                  pcm16k_b64: btoa(preBin),
+                  is_speech: true,
+                });
+              }
             }
           }
           wasSpeaking = true;
@@ -2344,7 +2359,7 @@
           if (silenceStartMs === 0) {
             silenceStartMs = nowMs - (input.length / 16000) * 1000;
           }
-          if (nowMs - silenceStartMs >= 220) {
+          if (nowMs - silenceStartMs >= 195) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;

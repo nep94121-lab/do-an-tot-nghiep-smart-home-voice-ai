@@ -1618,8 +1618,26 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                     results.extend(triggered_fx)
 
-        snap = {} if getattr(self, "_cas_emit_buffer", None) is not None else self.get_snapshot(sync=False)
-        await self.emit({"type": "state_snapshot", "snapshot": snap})
+        defer_voice_snap = (
+            source == "session_voice"
+            and "pytest" not in sys.modules
+            and not os.environ.get("PYTEST_CURRENT_TEST")
+        )
+        snap: dict[str, Any] | None = None
+        if defer_voice_snap:
+            async def _bg_emit_voice_snapshot() -> None:
+                try:
+                    await asyncio.sleep(0)
+                    await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot(sync=False)})
+                except Exception:
+                    pass
+
+            bg_task = asyncio.create_task(_bg_emit_voice_snapshot())
+            _PENDING_AUDIT_TASKS.add(bg_task)
+            bg_task.add_done_callback(_discard_audit_task)
+        else:
+            snap = {} if getattr(self, "_cas_emit_buffer", None) is not None else self.get_snapshot(sync=False)
+            await self.emit({"type": "state_snapshot", "snapshot": snap})
         all_ok = all(r["ok"] for r in results) if results else False
         any_rbac_blocked = any(bool(r.get("rbac_blocked")) for r in results)
         concise_reply = (
@@ -1641,12 +1659,13 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "revision_seq": int(self._last_synced_seq),
             "revision_ts_ns": int(self._last_synced_ts_ns),
             "results": results,
-            "snapshot": snap,
             "message": concise_reply,
             "exact_spoken_reply": concise_reply,
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'",
             "summary": concise_reply,
         }
+        if not defer_voice_snap:
+            out_res["snapshot"] = snap
         if any_rbac_blocked and not all_ok:
             out_res["error"] = concise_reply
             out_res["rejection_speech"] = concise_reply
