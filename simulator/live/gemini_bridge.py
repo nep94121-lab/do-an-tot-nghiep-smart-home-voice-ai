@@ -262,6 +262,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self._cached_ws_actor_ts: float = 0.0
         self._mic_preroll_pcm: list[bytes] = []
         self._mic_in_flight_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
+        self._live_pcm_tx_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=400)
+        self._pcm_tx_task: asyncio.Task[None] | None = None
         self._bind_actor_to_engine()
         # Chỉ tự động đưa vào _ACTIVE_BRIDGES nếu là WebSocket thật (không phải Mock trong unit test)
         is_mock_ws = hasattr(self.ws, "assert_called") or hasattr(self.ws, "assert_awaited") or hasattr(self.ws, "_mock_return_value")
@@ -273,16 +275,33 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if self in _ACTIVE_BRIDGES:
             _ACTIVE_BRIDGES.remove(self)
 
+    def _is_cached_actor_fresh(self, msg: dict[str, Any] | None = None) -> bool:
+        cached = self._cached_ws_actor
+        if cached is None:
+            return False
+        if isinstance(msg, dict):
+            if msg.get("session_token") or msg.get("token"):
+                return False
+            mtype = msg.get("type")
+            if mtype not in (None, "mic_chunk", "mic_speech_ended"):
+                return False
+        now_pc = time.perf_counter()
+        if (now_pc - self._cached_ws_actor_ts) >= 2.0:
+            return False
+        if cached.is_expired():
+            return False
+        if cached.session_id in get_session_store()._revoked_sids:
+            return False
+        rest_user = _REST_ENGINE.users.get(cached.user_id)
+        if isinstance(rest_user, dict) and not rest_user.get("active", True):
+            return False
+        return True
+
     def _resolve_ws_session(self, msg: dict[str, Any] | None = None) -> UserSession:
         """Xác định phiên WebSocket phía server từ Header/Cookie/Query/Token (tuyệt đối không tin role từ client)."""
         now_pc = time.perf_counter()
-        if (
-            msg is None
-            and self._cached_ws_actor is not None
-            and (now_pc - self._cached_ws_actor_ts) < 1.5
-            and not self._cached_ws_actor.is_expired()
-        ):
-            return self._cached_ws_actor
+        if self._is_cached_actor_fresh(msg):
+            return self._cached_ws_actor  # type: ignore[return-value]
         sess = resolve_strict_ws_session(self.ws, msg=msg)
         if sess.is_authenticated and not sess.is_expired():
             self.ws_session = sess
@@ -318,32 +337,59 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         )
         return is_cap1, sess
 
-    def _bind_actor_to_engine(self, msg: dict[str, Any] | None = None) -> UserSession:
-        """Gắn trực tiếp danh tính và tầng quyền từ phiên WebSocket đã xác thực vào engine (không dùng nhận diện giọng nói)."""
-        actor = self._resolve_ws_session(msg)
+    def _apply_actor_to_engine(self, actor: UserSession) -> UserSession:
         if actor.is_authenticated and not actor.is_expired():
             uid = str(actor.user_id or "guest").strip() or "guest"
-            if uid not in self.engine.users or not isinstance(self.engine.users.get(uid), dict):
+            target_tier = int(actor.tier)
+            target_role = str(actor.role or "GUEST")
+            target_name = str(actor.display_name or uid)
+            existing = self.engine.users.get(uid)
+            need_set_active = (
+                not isinstance(existing, dict)
+                or getattr(self.engine, "_current_user_id", None) != uid
+                or self.engine.current_tier != target_tier
+                or self.engine.current_role != target_role
+                or self.last_mic_turn_blocked
+            )
+            if not isinstance(existing, dict):
                 self.engine.users[uid] = {
                     "id": uid,
-                    "name": str(actor.display_name or uid),
-                    "tier": int(actor.tier),
-                    "role": str(actor.role or "GUEST"),
+                    "name": target_name,
+                    "tier": target_tier,
+                    "role": target_role,
                     "active": True,
                 }
             else:
-                self.engine.users[uid]["name"] = str(actor.display_name or self.engine.users[uid].get("name") or uid)
-                self.engine.users[uid]["tier"] = int(actor.tier)
-                self.engine.users[uid]["role"] = str(actor.role or self.engine.users[uid].get("role") or "GUEST")
-                self.engine.users[uid]["active"] = True
-            self.engine.set_active_user(uid)
+                if existing.get("name") != target_name:
+                    existing["name"] = str(actor.display_name or existing.get("name") or uid)
+                if existing.get("tier") != target_tier:
+                    existing["tier"] = target_tier
+                if existing.get("role") != target_role:
+                    existing["role"] = target_role
+                if not existing.get("active", True):
+                    existing["active"] = True
+            if need_set_active:
+                self.engine.set_active_user(uid)
             self.last_mic_turn_blocked = False
             self.last_mic_turn_silent_ignore = False
         else:
-            self.engine.set_active_user("UNKNOWN")
+            if getattr(self.engine, "_current_user_id", None) != "UNKNOWN" or not self.last_mic_turn_blocked:
+                self.engine.set_active_user("UNKNOWN")
             self.last_mic_turn_blocked = True
             self.last_mic_turn_silent_ignore = False
         return actor
+
+    def _bind_actor_to_engine(self, msg: dict[str, Any] | None = None) -> UserSession:
+        """Gắn trực tiếp danh tính và tầng quyền từ phiên WebSocket đã xác thực vào engine (không dùng nhận diện giọng nói)."""
+        actor = self._resolve_ws_session(msg)
+        return self._apply_actor_to_engine(actor)
+
+    async def _bind_actor_to_engine_async(self, msg: dict[str, Any] | None = None) -> UserSession:
+        """Gắn danh tính/quyền bất đồng bộ, tránh chặn event loop khi truy vấn SQLite lúc cache hết hạn."""
+        if self._is_cached_actor_fresh(msg):
+            return self._apply_actor_to_engine(self._cached_ws_actor)  # type: ignore[arg-type]
+        actor = await asyncio.to_thread(self._resolve_ws_session, msg)
+        return self._apply_actor_to_engine(actor)
 
 
     async def send_ws_json(self, payload: dict[str, Any]) -> None:
@@ -432,7 +478,11 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 pass
 
     async def _trigger_aoede_fixed_denial(
-        self, spoken_phrase: str, auth_res: dict[str, Any] | None = None
+        self,
+        spoken_phrase: str,
+        auth_res: dict[str, Any] | None = None,
+        *,
+        inside_tool_call: bool = False,
     ) -> None:
         """Yêu cầu Gemini Live (giọng Aoede duy nhất) đọc nguyên văn câu cố định khi không đủ quyền RBAC."""
         role_tag = str((auth_res or {}).get("role") or self.engine.current_role or "UNKNOWN")
@@ -459,6 +509,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     })
             except Exception:
                 pass
+            return
+        if inside_tool_call:
             return
         try:
             await self.gemini_session.send_client_content(
@@ -754,10 +806,85 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         except Exception:
             pass
 
+    def _enqueue_live_pcm_tx(self, item: bytes | None) -> None:
+        if self._live_pcm_tx_queue.full():
+            try:
+                self._live_pcm_tx_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+        try:
+            self._live_pcm_tx_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            pass
+
+    async def _gemini_pcm_sender_loop(self) -> None:
+        """Gửi luồng PCM sang Gemini Live trên coroutine riêng để không chặn vòng đọc WebSocket."""
+        try:
+            while not self._closed:
+                first = await self._live_pcm_tx_queue.get()
+                if self._closed:
+                    break
+                if first is None:
+                    sess = self.gemini_session
+                    if sess is not None:
+                        try:
+                            await sess.send_realtime_input(audio_stream_end=True)
+                        except Exception:
+                            pass
+                    continue
+
+                buf = bytearray(first)
+                saw_stream_end = False
+                while len(buf) < 3200 and not self._live_pcm_tx_queue.empty():
+                    try:
+                        nxt = self._live_pcm_tx_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if nxt is None:
+                        saw_stream_end = True
+                        break
+                    buf.extend(nxt)
+
+                sess = self.gemini_session
+                if sess is not None:
+                    try:
+                        await sess.send_realtime_input(
+                            audio=types.Blob(data=bytes(buf), mime_type="audio/pcm;rate=16000")
+                        )
+                    except Exception:
+                        pass
+                else:
+                    for off in range(0, len(buf), PCM_FRAME_BYTES):
+                        part = bytes(buf[off : off + PCM_FRAME_BYTES])
+                        if not part:
+                            continue
+                        if self._mic_in_flight_queue.full():
+                            try:
+                                self._mic_in_flight_queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                pass
+                        try:
+                            self._mic_in_flight_queue.put_nowait(part)
+                        except asyncio.QueueFull:
+                            pass
+
+                if saw_stream_end:
+                    sess_end = self.gemini_session
+                    if sess_end is not None:
+                        try:
+                            await sess_end.send_realtime_input(audio_stream_end=True)
+                        except Exception:
+                            pass
+        except asyncio.CancelledError:
+            raise
+
     async def _send_pcm_frame_to_gemini(self, frame: bytes) -> None:
         if not frame:
             return
         if self.gemini_session is not None:
+            if self._pcm_tx_task is not None and not self._pcm_tx_task.done():
+                self._enqueue_live_pcm_tx(frame)
+                return
             try:
                 await self.gemini_session.send_realtime_input(
                     audio=types.Blob(data=frame, mime_type="audio/pcm;rate=16000")
@@ -775,12 +902,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         except asyncio.QueueFull:
             pass
 
-    async def handle_mic_chunk(self, pcm_bytes: bytes, is_sp: bool = True) -> None:
+    async def handle_mic_chunk(
+        self, pcm_bytes: bytes, is_sp: bool = True, actor: UserSession | None = None
+    ) -> None:
         """Truyền thẳng PCM 16kHz 640B sang Gemini Live ngay khi nhận chunk (không xác thực giọng nói)."""
         if not pcm_bytes:
             return
 
-        actor = self._bind_actor_to_engine()
+        if actor is None:
+            actor = self._bind_actor_to_engine()
         self.mic_recent_pcm.extend(pcm_bytes)
         if len(self.mic_recent_pcm) > 160000:
             del self.mic_recent_pcm[:-160000]
@@ -810,13 +940,16 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         for frame in self.pcm_framing_buffer.push_chunk(pcm_bytes):
             await self._send_pcm_frame_to_gemini(frame)
 
-    async def mic_speech_ended(self, stream_end: bool = False) -> None:
+    async def mic_speech_ended(
+        self, stream_end: bool = False, actor: UserSession | None = None
+    ) -> None:
         """Kết thúc lượt nói từ Mic: giữ luồng PCM liên tục khi đang mở mic; chỉ audio_stream_end khi stopMic."""
         self.vad_stream_filter.reset()
         self.mic_utterance_active = False
         self._awaiting_model_turn_after_speech = True
         self._mic_preroll_pcm.clear()
-        actor = self._bind_actor_to_engine()
+        if actor is None:
+            actor = self._bind_actor_to_engine()
         if not actor.is_authenticated or actor.is_expired():
             self.pcm_framing_buffer.clear()
             await self.send_ws_json({
@@ -849,10 +982,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 and self.turn_first_audio_ts is None
                 and not self.last_mic_turn_silent_ignore
             ):
-                try:
-                    await self.gemini_session.send_realtime_input(audio_stream_end=True)
-                except Exception:
-                    pass
+                if self._pcm_tx_task is not None and not self._pcm_tx_task.done():
+                    self._enqueue_live_pcm_tx(None)
+                else:
+                    try:
+                        await self.gemini_session.send_realtime_input(audio_stream_end=True)
+                    except Exception:
+                        pass
         await self.send_ws_json({
             "type": "speech_ended_marker",
             "source": "live_mic",
@@ -869,7 +1005,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 "role": "UNKNOWN",
                 "reason": FIXED_REJECTION_PHRASE_VI,
             })
-            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI, inside_tool_call=True)
             return {
                 "ok": False,
                 "rbac_blocked": True,
@@ -894,7 +1030,9 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     "role": actor.role,
                     "reason": rej_msg,
                 })
-                await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role})
+                await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role}, inside_tool_call=True)
+                tool_res = dict(tool_res)
+                tool_res["instruction_for_ai"] = f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu này: '{rej_msg}'"
             return tool_res
 
         _admin_only_tools = (
@@ -917,7 +1055,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     "role": self.engine.current_role,
                     "reason": rej_msg,
                 })
-                await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role})
+                await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role}, inside_tool_call=True)
                 return {
                     "ok": False,
                     "rbac_blocked": True,
@@ -952,7 +1090,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu này: '{rej_msg}'"
                 )
                 if not res.get("silent_cancel") and not res.get("cancelled"):
-                    await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role})
+                    await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role}, inside_tool_call=True)
         return res
 
     async def run(self) -> None:
@@ -973,13 +1111,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
         recv_task = asyncio.create_task(self.gemini_receive_loop())
         timer_tick_task = asyncio.create_task(self._periodic_timer_sync())
+        self._pcm_tx_task = asyncio.create_task(self._gemini_pcm_sender_loop())
         try:
             while True:
                 raw = await self.ws.receive_text()
                 try:
                     msg = json.loads(raw)
                     mtype = msg.get("type")
-                    actor = self._bind_actor_to_engine(msg)
+                    actor = await self._bind_actor_to_engine_async(msg)
                     guest_messages = {"manual_toggle", "send_text", "mic_chunk", "mic_speech_ended"}
                     if not actor.is_authenticated or (actor.tier > 1 and mtype not in guest_messages):
                         await self.send_ws_json({"type": "rbac_blocked", "ok": False, "action": mtype, "reason": FIXED_REJECTION_PHRASE_VI})
@@ -988,10 +1127,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     if mtype == "mic_chunk":
                         pcm_bytes = base64.b64decode(msg["pcm16k_b64"])
                         is_sp = bool(msg.get("is_speech", True))
-                        await self.handle_mic_chunk(pcm_bytes, is_sp)
+                        await self.handle_mic_chunk(pcm_bytes, is_sp, actor=actor)
 
                     elif mtype == "mic_speech_ended":
-                        await self.mic_speech_ended(stream_end=bool(msg.get("stream_end", False)))
+                        await self.mic_speech_ended(stream_end=bool(msg.get("stream_end", False)), actor=actor)
 
                     elif mtype == "play_wav_sample":
                         sample_id = str(msg.get("sample_id", ""))
@@ -1329,6 +1468,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             self._closed = True
             recv_task.cancel()
             timer_tick_task.cancel()
+            if self._pcm_tx_task:
+                self._pcm_tx_task.cancel()
             if self._wav_streaming_task:
                 self._wav_streaming_task.cancel()
             if self._mic_silence_task:
