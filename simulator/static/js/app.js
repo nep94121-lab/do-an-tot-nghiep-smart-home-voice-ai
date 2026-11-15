@@ -2245,18 +2245,17 @@
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
         },
       });
-      micAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (micAudioCtx.state === "suspended") {
         await micAudioCtx.resume();
       }
       const source = micAudioCtx.createMediaStreamSource(micStream);
-      micProcessor = micAudioCtx.createScriptProcessor(512, 1, 1);
+      micProcessor = micAudioCtx.createScriptProcessor(2048, 1, 1);
 
       wasSpeaking = false;
       silenceStartMs = 0;
@@ -2376,8 +2375,6 @@
         micSilentGain.gain.value = 0;
         micProcessor.connect(micSilentGain);
         micSilentGain.connect(micAudioCtx.destination);
-      } else {
-        micProcessor.connect(micAudioCtx.destination);
       }
       setMicListeningState(true);
     } catch (err) {

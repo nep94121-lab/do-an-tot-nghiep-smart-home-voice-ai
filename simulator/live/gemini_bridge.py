@@ -1021,7 +1021,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 source="session_voice", request_tier=actor.tier,
                 request_role=actor.role, request_user_name=actor.display_name,
             )
-            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=False))
+            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=True))
             if isinstance(tool_res, dict) and (not tool_res.get("ok", True) or tool_res.get("rbac_blocked")):
                 rej_msg = str(tool_res.get("exact_spoken_reply") or tool_res.get("error") or FIXED_REJECTION_PHRASE_VI)
                 await self.send_ws_json({
@@ -1069,7 +1069,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         res = await super().handle_tool_call(fc)
         if isinstance(res, dict) and res.get("ok"):
             try:
-                asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=False))
+                asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=True))
             except Exception:
                 pass
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
