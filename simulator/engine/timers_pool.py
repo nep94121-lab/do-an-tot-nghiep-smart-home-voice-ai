@@ -27,25 +27,14 @@ class EngineTimersMixin:
     _current_user_id: str
 
     def _check_t1_timer_conflict(self, device_id: str, new_fire_at: float) -> str | None:
-        """Kiểm tra xem cấp dưới có đặt lệnh vướng vào khung giờ hẹn giờ của Tầng 1 Nguyễn Tuấn Anh hay không."""
-        if self.current_tier <= 1 or self.system_policies.get("tier2_can_override_tier1", False):
-            return None
-        target_dev_id = "living_room_light" if device_id in ("all_lights", "all_devices") else device_id
-        for tinfo in self.active_timers.values():
-            if tinfo.get("owner_tier", 1) != 1:
-                continue
-            same_dev = (
-                device_id == "all_devices"
-                or tinfo.get("raw_target") == "all_devices"
-                or tinfo.get("device_id") == target_dev_id
-                or tinfo.get("raw_target") == device_id
-            )
-            if not same_dev:
-                continue
-            if abs(new_fire_at - tinfo["fire_at"]) <= 1800.0:
-                dname = self.devices.get(target_dev_id, {}).get("name", target_dev_id)
-                return f"Không thể đặt hẹn giờ: {dname} đang có lịch hẹn giờ của Tầng 1 Nguyễn Tuấn Anh trong khung giờ này."
-        return None
+        """ADDENDUM D: Kiểm tra xung đột ±60s trên mọi thiết bị với toàn bộ hẹn giờ và lịch Cấp 1."""
+        from simulator.automation_repo import check_tier1_schedule_conflict
+
+        return check_tier1_schedule_conflict(
+            actor_tier=self.current_tier,
+            fire_epoch=float(new_fire_at),
+            engine=self,
+        )
 
     async def schedule_timer_flexible(
         self,
@@ -336,12 +325,22 @@ class EngineTimersMixin:
         info = self.active_timers.get(timer_id)
         eff_tier = int(actor_tier if actor_tier is not None else self.current_tier)
         eff_uid = str(actor_user_id or self._current_user_id or "")
-        if info is not None and eff_tier >= 3 and not self.system_policies.get("tier3_can_schedule_timer", False):
-            return {"ok": False, "rbac_blocked": True, "error": "Cấp khách (Tầng 3) không có quyền hủy hẹn giờ."}
-        if info is not None and eff_tier == 2 and not self.system_policies.get("tier2_can_override_tier1", False):
-            if int(info.get("owner_tier", 1)) == 1:
+        if eff_tier >= 3:
+            return {"ok": False, "rbac_blocked": True, "error": "Khách chỉ được bật tắt thiết bị thôi ạ."}
+        db_row = None
+        if info is None:
+            try:
+                from simulator.automation_repo import list_pending_timers
+
+                db_row = next((r for r in list_pending_timers() if str(r.get("timer_id") or r.get("id")) == str(timer_id)), None)
+            except Exception:
+                db_row = None
+        target_info = info or db_row
+        if target_info is not None and eff_tier == 2 and not self.system_policies.get("tier2_can_override_tier1", False):
+            owner_id = str(target_info.get("owner_user_id") or target_info.get("owner_id") or "")
+            if int(target_info.get("owner_tier", 1)) == 1:
                 return {"ok": False, "rbac_blocked": True, "error": "Không thể hủy hẹn giờ của Chủ nhà (Tầng 1)."}
-            if info.get("owner_id") != eff_uid:
+            if owner_id != eff_uid:
                 return {"ok": False, "rbac_blocked": True, "error": "Bạn chỉ được hủy hẹn giờ do chính bạn đặt."}
 
         t = self._timer_tasks.pop(timer_id, None)
@@ -458,10 +457,10 @@ class EngineTimersMixin:
         vn_date: str = "",
         repeat: str = "once",
     ) -> dict[str, Any]:
-        if self.current_tier >= 3 and not self.system_policies.get("tier3_can_schedule_timer", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền sửa hoặc hủy hẹn giờ."
+        if self.current_tier >= 3:
+            msg = "Khách chỉ được bật tắt thiết bị thôi ạ."
             await self.emit({"type": "rbac_blocked", "device_id": device_id, "action": "update_or_cancel_timer", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {"ok": False, "rbac_blocked": True, "error": msg, "exact_spoken_reply": msg}
 
         all_matched = [
             tid

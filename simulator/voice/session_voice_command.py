@@ -255,9 +255,11 @@ async def execute_session_voice_intents(
                 LOG.debug("aoede voice synthesis fallback skipped (nlu): %s", exc)
         is_ok_nlu = bool(nlu_payload.get("ok"))
         is_blocked_nlu = bool(nlu_payload.get("rbac_blocked"))
+        http_status_nlu = int(nlu_res.get("status_code") or (403 if is_blocked_nlu else 200))
         return _strip_legacy_repeat_speech({
             **nlu_payload,
             "ok": is_ok_nlu,
+            "http_status": http_status_nlu,
             "executed": is_ok_nlu,
             "authorized": not is_blocked_nlu,
             "permission": "DENIED" if is_blocked_nlu else "ALLOWED",
@@ -397,7 +399,7 @@ async def process_session_voice_command(
         transcript=transcript,
         source=source,
     )
-    status = 200
-    if body.get("rbac_blocked") and not body.get("ok"):
+    status = int(body.get("http_status") or 200)
+    if status == 200 and body.get("rbac_blocked") and not body.get("ok"):
         status = 403
     return body, status

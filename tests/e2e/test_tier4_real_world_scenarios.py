@@ -143,28 +143,31 @@ class TestTier4RealWorldScenarios:
         print("\n--- [GIAI ĐOẠN 4: BUỔI TỐI (21:00)] ---")
         voice_auth_mgr.reset_strikes()
 
-        # Kẻ lạ thử nói lệnh mở cửa:
-        # Lần 1: Cảnh báo từ chối
+        # Kẻ lạ thử nói lệnh mở cửa (Điều 1: phản hồi câu cố định thống nhất):
+        fixed_phrase = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+        # Lần 1
         int_1 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert int_1["authorized"] is False
         assert int_1["strike_count"] == 1
-        assert int_1["rejection_speech"] == "Tôi không được phép nhận lệnh từ người lạ."
+        assert int_1["rejection_speech"] == fixed_phrase
         assert int_1["should_reply"] is True
+        assert int_1["silent_ignore"] is False
 
-        # Lần 2: Cảnh báo nhắc lại
+        # Lần 2
         int_2 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert int_2["authorized"] is False
         assert int_2["strike_count"] == 2
-        assert int_2["rejection_speech"] == "Tôi sẽ không trả lời bạn lần nữa."
+        assert int_2["rejection_speech"] == fixed_phrase
         assert int_2["should_reply"] is True
+        assert int_2["silent_ignore"] is False
 
-        # Lần 3: IM LẶNG TUYỆT ĐỐI (Silent Lockout)
+        # Lần 3
         int_3 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert int_3["authorized"] is False
         assert int_3["strike_count"] == 3
-        assert int_3["silent_ignore"] is True
-        assert int_3["should_reply"] is False
-        assert int_3["rejection_speech"] == ""
+        assert int_3["silent_ignore"] is False
+        assert int_3["should_reply"] is True
+        assert int_3["rejection_speech"] == fixed_phrase
 
         # Kích hoạt Còi báo động an ninh xua đuổi kẻ đột nhập
         async def _intruder_alarm() -> None:

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (smarthome.db) Diagram</title>
+  <title>Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v4) Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,9 +5194,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="BLUEPRINT / REV 01"
            data-preset-badge-editorial="EDITORIAL / FIELD NOTE">
         <div class="pulse-dot"></div>
-        <h1>Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (smarthome.db)</h1>
+        <h1>Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v4)</h1>
       </div>
-      <p class="subtitle">8 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys) đồng bộ Write-Through xuống Flash LittleFS ESP8266</p>
+      <p class="subtitle">25 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys ON) — Bể Riêng Theo Chủ Sở Hữu &amp; Xác Nhận 4 Bước</p>
     </div>
 
 
@@ -5204,9 +5204,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1507 594" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="blueprint" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (smarthome.db)</title>
-        <desc id="archify-diagram-description">8 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys) đồng bộ Write-Through xuống Flash LittleFS ESP8266</desc>
+      <svg viewBox="0 0 2013 990" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="blueprint" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+        <title id="archify-diagram-title">Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v4)</title>
+        <desc id="archify-diagram-description">25 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys ON) — Bể Riêng Theo Chủ Sở Hữu &amp; Xác Nhận 4 Bước</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5225,16 +5225,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5"/>
           </pattern>
           <!-- Cardinality symbols -->
+          <marker id="er-one-start" markerWidth="24" markerHeight="18" refX="0" refY="8" orient="auto" markerUnits="userSpaceOnUse" class="a-default" style="stroke: var(--text-muted)" stroke-width="1.75">
+            <path d="M 5 1 L 5 15"/>
+          </marker>
           <marker id="er-one-end" markerWidth="24" markerHeight="18" refX="22" refY="8" orient="auto" markerUnits="userSpaceOnUse" class="a-default" style="stroke: var(--text-muted)" stroke-width="1.75">
             <path d="M 17 1 L 17 15"/>
           </marker>
           <marker id="er-many-start" markerWidth="24" markerHeight="18" refX="0" refY="8" orient="auto" markerUnits="userSpaceOnUse" class="a-default" style="stroke: var(--text-muted)" stroke-width="1.75">
             <path d="M 14 8 L 0 1 M 14 8 L 0 8 M 14 8 L 0 15"/>
-          </marker>
-          <marker id="er-many-optional-start" markerWidth="24" markerHeight="18" refX="0" refY="8" orient="auto" markerUnits="userSpaceOnUse" class="a-default" style="stroke: var(--text-muted)" stroke-width="1.75">
-            <path d="M 14 8 L 0 1 M 14 8 L 0 8 M 14 8 L 0 15"/>
-            <circle cx="18.5" cy="8" r="2.6" class="c-mask"/>
-            <circle cx="18.5" cy="8" r="2.6"/>
           </marker>
         </defs>
         <style>
@@ -5290,671 +5288,1340 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
-        <g data-domain-band="Identity &amp; Voice" class="er-hue-database">
-          <rect x="20" y="22" width="319" height="482" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="28" y="15" width="114" height="15" rx="7.5" class="c-mask"/>
-          <rect x="28" y="15" width="114" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Identity &amp; Voice</text>
+        <g data-domain-band="Identity &amp; Auth" class="er-hue-database">
+          <rect x="20" y="22" width="747" height="570" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="28" y="15" width="107" height="15" rx="7.5" class="c-mask"/>
+          <rect x="28" y="15" width="107" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Identity &amp; Auth</text>
         </g>
-        <g data-domain-band="Pools (Bể 1 &amp; Bể 2)" class="er-hue-frontend">
-          <rect x="437" y="22" width="292" height="502" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="445" y="15" width="132" height="15" rx="7.5" class="c-mask"/>
-          <rect x="445" y="15" width="132" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="452" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Pools (Bể 1 &amp; Bể 2)</text>
+        <g data-domain-band="Security Auth" class="er-hue-frontend">
+          <rect x="20" y="624" width="747" height="296" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="28" y="617" width="95" height="15" rx="7.5" class="c-mask"/>
+          <rect x="28" y="617" width="95" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="35" y="627.6" class="t-muted er-band-label" font-size="9" font-weight="700">Security Auth</text>
         </g>
-        <g data-domain-band="IoT Hardware &amp; IR" class="er-hue-backend">
-          <rect x="838" y="22" width="319" height="482" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="846" y="15" width="120" height="15" rx="7.5" class="c-mask"/>
-          <rect x="846" y="15" width="120" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="853" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">IoT Hardware &amp; IR</text>
+        <g data-domain-band="Per-User Pools" class="er-hue-backend">
+          <rect x="899" y="22" width="668" height="590" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="907" y="15" width="101" height="15" rx="7.5" class="c-mask"/>
+          <rect x="907" y="15" width="101" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="914" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Per-User Pools</text>
         </g>
-        <g data-domain-band="Knowledge &amp; Audit" class="er-hue-cloud">
-          <rect x="1211" y="22" width="284" height="522" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="1219" y="15" width="120" height="15" rx="7.5" class="c-mask"/>
-          <rect x="1219" y="15" width="120" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="1226" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Knowledge &amp; Audit</text>
+        <g data-domain-band="Runtime &amp; Meta" class="er-hue-cloud">
+          <rect x="899" y="624" width="668" height="276" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="907" y="617" width="101" height="15" rx="7.5" class="c-mask"/>
+          <rect x="907" y="617" width="101" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="914" y="627.6" class="t-muted er-band-label" font-size="9" font-weight="700">Runtime &amp; Meta</text>
+        </g>
+        <g data-domain-band="Hardware &amp; IR" class="er-hue-messagebus">
+          <rect x="1682" y="22" width="319" height="550" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="1690" y="15" width="95" height="15" rx="7.5" class="c-mask"/>
+          <rect x="1690" y="15" width="95" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="1697" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Hardware &amp; IR</text>
+        </g>
+        <g data-domain-band="Knowledge &amp; Audit" class="er-hue-security">
+          <rect x="1682" y="624" width="319" height="316" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="1690" y="617" width="120" height="15" rx="7.5" class="c-mask"/>
+          <rect x="1690" y="617" width="120" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="1697" y="627.6" class="t-muted er-band-label" font-size="9" font-weight="700">Knowledge &amp; Audit</text>
         </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
              to the shared side, so a cardinality glyph that reaches further out
              has to stay readable over it, and the ring's mask has to be able to
              punch through) -->
-        <path data-er-trunk="" data-composition-points="324.5,116;324.5,148" d="M 324.5 116 L 324.5 148" class="a-default" stroke-width="1.5"/>
+        <path data-er-trunk="" data-composition-points="343,100;343,104" d="M 343 100 L 343 104" class="a-default" stroke-width="1.5"/>
+        <path data-er-trunk="" data-composition-points="444,128;444,320" d="M 444 128 L 444 320" class="a-default" stroke-width="1.5"/>
+        <path data-er-trunk="" data-composition-points="771,76.57142857142857;771,526" d="M 771 76.57142857142857 L 771 526" class="a-default" stroke-width="1.5"/>
+        <path data-er-trunk="" data-composition-points="1678,76.8;1678,118" d="M 1678 76.8 L 1678 118" class="a-default" stroke-width="1.5"/>
 
         <!-- Relationship paths (before entities for correct z-order) -->
-        <path data-edge-from="voiceprints" data-edge-to="users" data-edge-label="vân giọng của" data-edge-key="0" data-edge-id="vp_user" data-er-ends="many one" data-composition-points="179.5,300;179.5,216" d="M 179.5 300 L 179.5 216" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="timers_pool" data-edge-to="users" data-edge-label="đặt bởi" data-edge-key="1" data-edge-id="timer_user" data-er-ends="many one" data-composition-points="449,148;324.5,148;324.5,116;308.5,116" d="M 449 148 L 324.5 148 M 324.5 116 L 308.5 116" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="timers_pool" data-edge-to="devices" data-edge-label="hẹn thiết bị" data-edge-key="2" data-edge-id="timer_dev" data-er-ends="many one" data-composition-points="717,148;783.5,148;783.5,116;850,116" d="M 717 148 L 775.5 148 Q 783.5 148 783.5 140 L 783.5 124 Q 783.5 116 791.5 116 L 850 116" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="rules_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="3" data-edge-id="rule_user" data-er-ends="many one" data-composition-points="449,408;378.75,408;378.75,140;308.5,140" d="M 449 408 L 386.75 408 Q 378.75 408 378.75 400 L 378.75 148 Q 378.75 140 370.75 140 L 308.5 140" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="rules_pool" data-edge-to="devices" data-edge-label="tác động lên" data-edge-key="4" data-edge-id="rule_dev" data-er-ends="many one optional" data-composition-points="717,408;783.5,408;783.5,140;850,140" d="M 717 408 L 775.5 408 Q 783.5 408 783.5 400 L 783.5 148 Q 783.5 140 791.5 140 L 850 140" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="ir_remote_codes" data-edge-to="devices" data-edge-label="mã IR của" data-edge-key="5" data-edge-id="ir_dev" data-er-ends="many one optional" data-composition-points="997.5,300;997.5,216" d="M 997.5 300 L 997.5 216" class="a-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="knowledge_rag" data-edge-to="users" data-edge-label="cập nhật bởi" data-edge-key="6" data-edge-id="kb_user" data-er-ends="many one optional" data-composition-points="1223,128;1158,128;1158,27;332.5,27;332.5,92;308.5,92" d="M 1223 128 L 1166 128 Q 1158 128 1158 120 L 1158 35 Q 1158 27 1150 27 L 340.5 27 Q 332.5 27 332.5 35 L 332.5 84 Q 332.5 92 324.5 92 L 308.5 92" class="a-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="audit_logs" data-edge-to="users" data-edge-label="thực hiện bởi" data-edge-key="7" data-edge-id="log_user" data-er-ends="many one optional" data-composition-points="1223,418;1140.5,418;1140.5,529;436,529;436,164;308.5,164" d="M 1223 418 L 1148.5 418 Q 1140.5 418 1140.5 426 L 1140.5 521 Q 1140.5 529 1132.5 529 L 444 529 Q 436 529 436 521 L 436 172 Q 436 164 428 164 L 308.5 164" class="a-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="users" data-edge-to="roles" data-edge-label="bậc quyền" data-edge-key="0" data-edge-id="u_role" data-er-ends="many one" data-composition-points="460,104;343,104;343,100;327,100" d="M 460 104 L 343 104 M 343 100 L 327 100" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="devices" data-edge-to="roles" data-edge-label="yêu cầu tối thiểu" data-edge-key="1" data-edge-id="dev_role" data-er-ends="many one" data-composition-points="1694,56;1568,56;1568,27;351,27;351,76;327,76" d="M 1694 56 L 1576 56 Q 1568 56 1568 48 L 1568 35 Q 1568 27 1560 27 L 359 27 Q 351 27 351 35 L 351 68 Q 351 76 343 76 L 327 76" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="invites" data-edge-to="users" data-edge-label="tạo bởi" data-edge-key="2" data-edge-id="inv_owner" data-er-ends="many one" data-composition-points="327,320;444,320;444,128;460,128" d="M 327 320 L 444 320 M 444 128 L 460 128" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="sessions" data-edge-to="users" data-edge-label="phiên của" data-edge-key="3" data-edge-id="sess_user" data-er-ends="many one" data-composition-points="595.5,254;595.5,216" d="M 595.5 254 L 595.5 216" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="sessions" data-edge-to="invites" data-edge-label="từ lời mời" data-edge-key="4" data-edge-id="sess_inv" data-er-ends="many one" data-composition-points="460,344;327,344" d="M 460 344 L 327 344" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="user_sessions" data-edge-to="users" data-edge-label="phiên cũ của" data-edge-key="5" data-edge-id="usess_user" data-er-ends="many one" data-composition-points="327,516;393.5,516;393.5,152;460,152" d="M 327 516 L 385.5 516 Q 393.5 516 393.5 508 L 393.5 160 Q 393.5 152 401.5 152 L 460 152" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="voiceprints" data-edge-to="users" data-edge-label="hồ sơ cũ" data-edge-key="6" data-edge-id="vp_user" data-er-ends="many one" data-composition-points="755,506;779,506;779,128;755,128" d="M 755 506 L 771 506 Q 779 506 779 498 L 779 136 Q 779 128 771 128 L 755 128" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="device_state" data-edge-to="devices" data-edge-label="trạng thái 1-1" data-edge-key="7" data-edge-id="ds_dev" data-er-ends="one" data-composition-points="1829.5,254;1829.5,176" d="M 1829.5 254 L 1829.5 176" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="timers_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="8" data-edge-id="timer_user" data-er-ends="many one" data-composition-points="911,118;771,118;771,76.57142857142857;755,76.57142857142857" d="M 911 118 L 771 118 M 771 76.57142857142857 L 755 76.57142857142857" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="timers_pool" data-edge-to="devices" data-edge-label="tác động" data-edge-key="9" data-edge-id="timer_dev" data-er-ends="many one" data-composition-points="1206,118;1247,118;1247,27;1670,27;1670,97.6;1694,97.6" d="M 1206 118 L 1239 118 Q 1247 118 1247 110 L 1247 35 Q 1247 27 1255 27 L 1662 27 Q 1670 27 1670 35 L 1670 89.6 Q 1670 97.6 1678 97.6 L 1694 97.6" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="schedules" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="10" data-edge-id="sched_user" data-er-ends="many one" data-composition-points="1407.5,196;1407.5,220;779,220;779,128;755,128" d="M 1407.5 196 L 1407.5 212 Q 1407.5 220 1399.5 220 L 787 220 Q 779 220 779 212 L 779 136 Q 779 128 771 128 L 755 128" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="schedules" data-edge-to="devices" data-edge-label="lịch thiết bị" data-edge-key="11" data-edge-id="sched_dev" data-er-ends="many one" data-composition-points="1555,118;1678,118;1678,76.8;1694,76.8" d="M 1555 118 L 1678 118 M 1678 76.8 L 1694 76.8" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="automation_rules" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="12" data-edge-id="ar_user" data-er-ends="many one" data-composition-points="911,332;771,332;771,117.71428571428571;755,117.71428571428571" d="M 911 332 L 771 332 M 771 117.71428571428571 L 755 117.71428571428571" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="automation_rules" data-edge-to="devices" data-edge-label="nguồn kích" data-edge-key="13" data-edge-id="ar_when" data-er-ends="many one" data-composition-points="1206,344;1230,344;1230,403;1670,403;1670,139.2;1694,139.2" d="M 1206 344 L 1222 344 Q 1230 344 1230 352 L 1230 395 Q 1230 403 1238 403 L 1662 403 Q 1670 403 1670 395 L 1670 147.2 Q 1670 139.2 1678 139.2 L 1694 139.2" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="automation_rules" data-edge-to="devices" data-edge-label="đích tác động" data-edge-key="14" data-edge-id="ar_then" data-er-ends="many one" data-composition-points="1206,320;1230,320;1230,403;1670,403;1670,118.4;1694,118.4" d="M 1206 320 L 1222 320 Q 1230 320 1230 328 L 1230 395 Q 1230 403 1238 403 L 1662 403 Q 1670 403 1670 395 L 1670 126.4 Q 1670 118.4 1678 118.4 L 1694 118.4" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="custom_commands" data-edge-to="users" data-edge-label="lệnh riêng của" data-edge-key="15" data-edge-id="cc_user" data-er-ends="many one" data-composition-points="1260,322;1236,322;1236,240;607.5,240;607.5,216" d="M 1260 322 L 1244 322 Q 1236 322 1236 314 L 1236 248 Q 1236 240 1228 240 L 615.5 240 Q 607.5 240 607.5 232 L 607.5 216" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="pending_confirmations" data-edge-to="users" data-edge-label="chờ xác nhận 20s" data-edge-key="16" data-edge-id="pc_user" data-er-ends="many one" data-composition-points="911,526;771,526;771,158.85714285714286;755,158.85714285714286" d="M 911 526 L 771 526 M 771 158.85714285714286 L 755 158.85714285714286" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="rules_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="17" data-edge-id="rp_user" data-er-ends="many one" data-composition-points="1407.5,448;1407.5,424;779,424;779,128;755,128" d="M 1407.5 448 L 1407.5 432 Q 1407.5 424 1399.5 424 L 787 424 Q 779 424 779 416 L 779 136 Q 779 128 771 128 L 755 128" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="rules_pool" data-edge-to="devices" data-edge-label="tác động" data-edge-key="18" data-edge-id="rp_dev" data-er-ends="many one" data-composition-points="1555,506;1624.5,506;1624.5,160;1694,160" d="M 1555 506 L 1616.5 506 Q 1624.5 506 1624.5 498 L 1624.5 168 Q 1624.5 160 1632.5 160 L 1694 160" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="ir_remote_codes" data-edge-to="devices" data-edge-label="mã IR 38kHz" data-edge-key="19" data-edge-id="ir_dev" data-er-ends="many one" data-composition-points="1694,506;1670,506;1670,108;1694,108" d="M 1694 506 L 1678 506 Q 1670 506 1670 498 L 1670 116 Q 1670 108 1678 108 L 1694 108" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="knowledge_rag" data-edge-to="users" data-edge-label="cập nhật bởi" data-edge-key="20" data-edge-id="kb_user" data-er-ends="many one" data-composition-points="1694,700;1616.5,700;1616.5,617;779,617;779,179.42857142857144;755,179.42857142857144" d="M 1694 700 L 1624.5 700 Q 1616.5 700 1616.5 692 L 1616.5 625 Q 1616.5 617 1608.5 617 L 787 617 Q 779 617 779 609 L 779 187.42857142857144 Q 779 179.42857142857144 771 179.42857142857144 L 755 179.42857142857144" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="audit_logs" data-edge-to="users" data-edge-label="ghi nhận của" data-edge-key="21" data-edge-id="log_user" data-er-ends="many one" data-composition-points="1694,864;1616.5,864;1616.5,617;779,617;779,200;755,200" d="M 1694 864 L 1624.5 864 Q 1616.5 864 1616.5 856 L 1616.5 625 Q 1616.5 617 1608.5 617 L 787 617 Q 779 617 779 609 L 779 208 Q 779 200 771 200 L 755 200" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
 
         <!-- Entities -->
-        <g id="node-users" data-node-id="users" data-node-label="users" tabindex="0" role="button" aria-label="Focus users, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Voice" data-node-context="Entity" class="er-hue-database">
-          <title>users · Entity · Identity &amp; Voice</title>
-          <rect x="50.5" y="40" width="258" height="176" rx="8" class="c-mask"/>
-          <rect x="50.5" y="40" width="258" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 58.5 40 H 300.5 A 8 8 0 0 1 308.5 48 V 70 H 50.5 V 48 A 8 8 0 0 1 58.5 40 Z"/>
-          <path class="er-table-cap" d="M 62.5 41.4 H 296.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(58.5 47) scale(0.875)">
+        <g id="node-roles" data-node-id="roles" data-node-label="roles" tabindex="0" role="button" aria-label="Focus roles, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>roles · Entity · Identity &amp; Auth</title>
+          <rect x="32" y="40" width="295" height="96" rx="8" class="c-mask"/>
+          <rect x="32" y="40" width="295" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 40 H 319 A 8 8 0 0 1 327 48 V 70 H 32 V 48 A 8 8 0 0 1 40 40 Z"/>
+          <path class="er-table-cap" d="M 44 41.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="179.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">users</text>
-          <line x1="50.5" y1="70" x2="308.5" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="179.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">roles</text>
+          <line x1="32" y1="70" x2="327" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="50.5" y1="70" x2="308.5" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="70" x2="327" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="60.5" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="71.5" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="92.5" y="85" class="t-primary er-name-pk" font-size="11">user_id</text>
-            <text data-detail="context" x="296.5" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="42" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="85" class="t-primary er-name-pk" font-size="11">role_code</text>
+            <text data-detail="context" x="315" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="50.5" y1="90" x2="308.5" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="54.5" y="91" width="250" height="18" rx="4" class="er-zebra"/>
+            <line x1="32" y1="90" x2="327" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="91" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="92.5" y="105" class="t-primary" font-size="11">full_name</text>
-            <text data-detail="context" x="296.5" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="74" y="105" class="t-primary" font-size="11">tier</text>
+            <text data-detail="context" x="315" y="105" class="er-type" font-size="10.5" text-anchor="end">INT UNIQUE</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="50.5" y1="110" x2="308.5" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="110" x2="327" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="92.5" y="125" class="t-primary" font-size="11">role</text>
-            <text data-detail="context" x="296.5" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="3">
-            <line x1="50.5" y1="130" x2="308.5" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="54.5" y="131" width="250" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="92.5" y="145" class="t-primary" font-size="11">tier</text>
-            <text data-detail="context" x="296.5" y="145" class="er-type" font-size="10.5" text-anchor="end">INT CHECK(1..3)</text>
-          </g>
-          <g data-detail="context" data-er-row="4">
-            <line x1="50.5" y1="150" x2="308.5" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="92.5" y="165" class="t-primary" font-size="11">offline_allowed</text>
-            <text data-detail="context" x="296.5" y="165" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
-            <line x1="50.5" y1="170" x2="308.5" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="54.5" y="171" width="250" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="92.5" y="185" class="t-primary" font-size="11">created_by</text>
-            <text data-detail="context" x="296.5" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="50.5" y1="190" x2="308.5" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="92.5" y="205" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="296.5" y="205" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="74" y="125" class="t-primary" font-size="11">display_name_vi</text>
+            <text data-detail="context" x="315" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
         </g>
 
-        <g id="node-voiceprints" data-node-id="voiceprints" data-node-label="voiceprints" tabindex="0" role="button" aria-label="Focus voiceprints, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Voice" data-node-context="Entity" class="er-hue-database">
-          <title>voiceprints · Entity · Identity &amp; Voice</title>
-          <rect x="32" y="300" width="295" height="196" rx="8" class="c-mask"/>
-          <rect x="32" y="300" width="295" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 40 300 H 319 A 8 8 0 0 1 327 308 V 330 H 32 V 308 A 8 8 0 0 1 40 300 Z"/>
-          <path class="er-table-cap" d="M 44 301.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 307) scale(0.875)">
+        <g id="node-users" data-node-id="users" data-node-label="users" tabindex="0" role="button" aria-label="Focus users, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>users · Entity · Identity &amp; Auth</title>
+          <rect x="460" y="40" width="295" height="176" rx="8" class="c-mask"/>
+          <rect x="460" y="40" width="295" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 468 40 H 747 A 8 8 0 0 1 755 48 V 70 H 460 V 48 A 8 8 0 0 1 468 40 Z"/>
+          <path class="er-table-cap" d="M 472 41.4 H 743" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="179.5" y="319" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">voiceprints</text>
-          <line x1="32" y1="330" x2="327" y2="330" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="607.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">users</text>
+          <line x1="460" y1="70" x2="755" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="32" y1="330" x2="327" y2="330" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="70" x2="755" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="42" y="335" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="345" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="74" y="345" class="t-primary er-name-pk" font-size="11">voiceprint_id</text>
-            <text data-detail="context" x="315" y="345" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="470" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="481" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="502" y="85" class="t-primary er-name-pk" font-size="11">user_id</text>
+            <text data-detail="context" x="743" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="32" y1="350" x2="327" y2="350" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="351" width="287" height="18" rx="4" class="er-zebra"/>
-            <rect x="42" y="355" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="365" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="74" y="365" class="t-primary" font-size="11">user_id</text>
-            <text data-detail="context" x="315" y="365" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <line x1="460" y1="90" x2="755" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="91" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="502" y="105" class="t-primary" font-size="11">full_name</text>
+            <text data-detail="context" x="743" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="32" y1="370" x2="327" y2="370" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="110" x2="755" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-
-            <text data-detail="context" x="74" y="385" class="t-primary" font-size="11">f0_hz</text>
-            <text data-detail="context" x="315" y="385" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
+            <rect x="470" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="481" y="125" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="502" y="125" class="t-primary" font-size="11">role_code</text>
+            <text data-detail="context" x="743" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="32" y1="390" x2="327" y2="390" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="391" width="287" height="18" rx="4" class="er-zebra"/>
+            <line x1="460" y1="130" x2="755" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="131" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="405" class="t-primary" font-size="11">centroid_hz</text>
-            <text data-detail="context" x="315" y="405" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
+            <text data-detail="context" x="502" y="145" class="t-primary" font-size="11">tier</text>
+            <text data-detail="context" x="743" y="145" class="er-type" font-size="10.5" text-anchor="end">INT CHECK(1..3)</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="32" y1="410" x2="327" y2="410" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="150" x2="755" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="74" y="425" class="t-primary" font-size="11">embedding_26d_json</text>
-            <text data-detail="context" x="315" y="425" class="er-type" font-size="10.5" text-anchor="end">TEXT (26d Fast)</text>
+            <text data-detail="context" x="502" y="165" class="t-primary" font-size="11">email</text>
+            <text data-detail="context" x="743" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="32" y1="430" x2="327" y2="430" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="431" width="287" height="18" rx="4" class="er-zebra"/>
+            <line x1="460" y1="170" x2="755" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="171" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="445" class="t-primary" font-size="11">embedding_64d_json</text>
-            <text data-detail="context" x="315" y="445" class="er-type" font-size="10.5" text-anchor="end">TEXT (64d Deep)</text>
+            <text data-detail="context" x="502" y="185" class="t-primary" font-size="11">can_create_links</text>
+            <text data-detail="context" x="743" y="185" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
           </g>
           <g data-detail="context" data-er-row="6">
-            <line x1="32" y1="450" x2="327" y2="450" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="190" x2="755" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="74" y="465" class="t-primary" font-size="11">sample_duration_sec</text>
-            <text data-detail="context" x="315" y="465" class="er-type" font-size="10.5" text-anchor="end">REAL DEFAULT 5.0</text>
-          </g>
-          <g data-detail="context" data-er-row="7">
-            <line x1="32" y1="470" x2="327" y2="470" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="471" width="287" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="74" y="485" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="315" y="485" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="502" y="205" class="t-primary" font-size="11">is_active</text>
+            <text data-detail="context" x="743" y="205" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 1</text>
           </g>
         </g>
 
-        <g id="node-timers_pool" data-node-id="timers_pool" data-node-label="timers_pool" tabindex="0" role="button" aria-label="Focus timers_pool, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Pools (Bể 1 &amp; Bể 2)" data-node-context="Entity" class="er-hue-frontend">
-          <title>timers_pool · Entity · Pools (Bể 1 &amp; Bể 2)</title>
-          <rect x="449" y="40" width="268" height="216" rx="8" class="c-mask"/>
-          <rect x="449" y="40" width="268" height="216" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 457 40 H 709 A 8 8 0 0 1 717 48 V 70 H 449 V 48 A 8 8 0 0 1 457 40 Z"/>
-          <path class="er-table-cap" d="M 461 41.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(457 47) scale(0.875)">
+        <g id="node-invites" data-node-id="invites" data-node-label="invites" tabindex="0" role="button" aria-label="Focus invites, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>invites · Entity · Identity &amp; Auth</title>
+          <rect x="32" y="254" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="32" y="254" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 254 H 319 A 8 8 0 0 1 327 262 V 284 H 32 V 262 A 8 8 0 0 1 40 254 Z"/>
+          <path class="er-table-cap" d="M 44 255.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 261) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="583" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">timers_pool</text>
-          <line x1="449" y1="70" x2="717" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="179.5" y="273" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">invites</text>
+          <line x1="32" y1="284" x2="327" y2="284" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="449" y1="70" x2="717" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="284" x2="327" y2="284" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="459" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="470" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="491" y="85" class="t-primary er-name-pk" font-size="11">timer_id</text>
-            <text data-detail="context" x="705" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="42" y="289" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="299" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="299" class="t-primary er-name-pk" font-size="11">jti</text>
+            <text data-detail="context" x="315" y="299" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="449" y1="90" x2="717" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="91" width="260" height="18" rx="4" class="er-zebra"/>
-            <rect x="459" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="470" y="105" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="491" y="105" class="t-primary" font-size="11">owner_user_id</text>
-            <text data-detail="context" x="705" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <line x1="32" y1="304" x2="327" y2="304" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="305" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="319" class="t-primary" font-size="11">token_hash</text>
+            <text data-detail="context" x="315" y="319" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="449" y1="110" x2="717" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="324" x2="327" y2="324" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="459" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="470" y="125" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="491" y="125" class="t-primary" font-size="11">device_id</text>
-            <text data-detail="context" x="705" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="42" y="329" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="339" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="74" y="339" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="315" y="339" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="449" y1="130" x2="717" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="131" width="260" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="491" y="145" class="t-primary" font-size="11">action</text>
-            <text data-detail="context" x="705" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <line x1="32" y1="344" x2="327" y2="344" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="345" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="349" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="359" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="74" y="359" class="t-primary" font-size="11">role_code</text>
+            <text data-detail="context" x="315" y="359" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="449" y1="150" x2="717" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="364" x2="327" y2="364" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="491" y="165" class="t-primary" font-size="11">schedule_mode</text>
-            <text data-detail="context" x="705" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="379" class="t-primary" font-size="11">tier</text>
+            <text data-detail="context" x="315" y="379" class="er-type" font-size="10.5" text-anchor="end">INT CHECK(2..3)</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="449" y1="170" x2="717" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="171" width="260" height="18" rx="4" class="er-zebra"/>
+            <line x1="32" y1="384" x2="327" y2="384" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="385" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="491" y="185" class="t-primary" font-size="11">target_time_vn</text>
-            <text data-detail="context" x="705" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT (AM/PM)</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="449" y1="190" x2="717" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="491" y="205" class="t-primary" font-size="11">repeat_rule</text>
-            <text data-detail="context" x="705" y="205" class="er-type" font-size="10.5" text-anchor="end">TEXT DEFAULT &#39;once&#39;</text>
-          </g>
-          <g data-detail="context" data-er-row="7">
-            <line x1="449" y1="210" x2="717" y2="210" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="211" width="260" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="491" y="225" class="t-primary" font-size="11">label_summary</text>
-            <text data-detail="context" x="705" y="225" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="8">
-            <line x1="449" y1="230" x2="717" y2="230" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="491" y="245" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="705" y="245" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="74" y="399" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="315" y="399" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
           </g>
         </g>
 
-        <g id="node-rules_pool" data-node-id="rules_pool" data-node-label="rules_pool" tabindex="0" role="button" aria-label="Focus rules_pool, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Pools (Bể 1 &amp; Bể 2)" data-node-context="Entity" class="er-hue-frontend">
-          <title>rules_pool · Entity · Pools (Bể 1 &amp; Bể 2)</title>
-          <rect x="449" y="300" width="268" height="216" rx="8" class="c-mask"/>
-          <rect x="449" y="300" width="268" height="216" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 457 300 H 709 A 8 8 0 0 1 717 308 V 330 H 449 V 308 A 8 8 0 0 1 457 300 Z"/>
-          <path class="er-table-cap" d="M 461 301.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(457 307) scale(0.875)">
+        <g id="node-sessions" data-node-id="sessions" data-node-label="sessions" tabindex="0" role="button" aria-label="Focus sessions, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>sessions · Entity · Identity &amp; Auth</title>
+          <rect x="460" y="254" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="460" y="254" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 468 254 H 747 A 8 8 0 0 1 755 262 V 284 H 460 V 262 A 8 8 0 0 1 468 254 Z"/>
+          <path class="er-table-cap" d="M 472 255.4 H 743" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 261) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="583" y="319" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">rules_pool</text>
-          <line x1="449" y1="330" x2="717" y2="330" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="607.5" y="273" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">sessions</text>
+          <line x1="460" y1="284" x2="755" y2="284" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="449" y1="330" x2="717" y2="330" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="284" x2="755" y2="284" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="459" y="335" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="470" y="345" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="491" y="345" class="t-primary er-name-pk" font-size="11">rule_id</text>
-            <text data-detail="context" x="705" y="345" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="470" y="289" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="481" y="299" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="502" y="299" class="t-primary er-name-pk" font-size="11">session_id</text>
+            <text data-detail="context" x="743" y="299" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="449" y1="350" x2="717" y2="350" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="351" width="260" height="18" rx="4" class="er-zebra"/>
-            <rect x="459" y="355" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="470" y="365" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="491" y="365" class="t-primary" font-size="11">owner_user_id</text>
-            <text data-detail="context" x="705" y="365" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <line x1="460" y1="304" x2="755" y2="304" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="305" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="502" y="319" class="t-primary" font-size="11">token_hash</text>
+            <text data-detail="context" x="743" y="319" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="449" y1="370" x2="717" y2="370" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="324" x2="755" y2="324" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-
-            <text data-detail="context" x="491" y="385" class="t-primary" font-size="11">rule_category</text>
-            <text data-detail="context" x="705" y="385" class="er-type" font-size="10.5" text-anchor="end">TEXT (IF/ALIAS)</text>
+            <rect x="470" y="329" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="481" y="339" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="502" y="339" class="t-primary" font-size="11">user_id</text>
+            <text data-detail="context" x="743" y="339" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="449" y1="390" x2="717" y2="390" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="391" width="260" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="491" y="405" class="t-primary" font-size="11">trigger_expr</text>
-            <text data-detail="context" x="705" y="405" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <line x1="460" y1="344" x2="755" y2="344" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="345" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="470" y="349" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="481" y="359" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="502" y="359" class="t-primary" font-size="11">role_code</text>
+            <text data-detail="context" x="743" y="359" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="449" y1="410" x2="717" y2="410" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="364" x2="755" y2="364" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="459" y="415" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="470" y="425" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="491" y="425" class="t-primary" font-size="11">target_device_id</text>
-            <text data-detail="context" x="705" y="425" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="470" y="369" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="481" y="379" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="502" y="379" class="t-primary" font-size="11">invite_jti</text>
+            <text data-detail="context" x="743" y="379" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="449" y1="430" x2="717" y2="430" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="431" width="260" height="18" rx="4" class="er-zebra"/>
+            <line x1="460" y1="384" x2="755" y2="384" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="385" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="491" y="445" class="t-primary" font-size="11">target_action</text>
-            <text data-detail="context" x="705" y="445" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="449" y1="450" x2="717" y2="450" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="491" y="465" class="t-primary" font-size="11">bidirectional</text>
-            <text data-detail="context" x="705" y="465" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
-          </g>
-          <g data-detail="context" data-er-row="7">
-            <line x1="449" y1="470" x2="717" y2="470" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="453" y="471" width="260" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="491" y="485" class="t-primary" font-size="11">else_action</text>
-            <text data-detail="context" x="705" y="485" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="8">
-            <line x1="449" y1="490" x2="717" y2="490" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="491" y="505" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="705" y="505" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="502" y="399" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="743" y="399" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
           </g>
         </g>
 
-        <g id="node-devices" data-node-id="devices" data-node-label="devices" tabindex="0" role="button" aria-label="Focus devices, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="IoT Hardware &amp; IR" data-node-context="Entity" class="er-hue-backend">
-          <title>devices · Entity · IoT Hardware &amp; IR</title>
-          <rect x="850" y="40" width="295" height="176" rx="8" class="c-mask"/>
-          <rect x="850" y="40" width="295" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 858 40 H 1137 A 8 8 0 0 1 1145 48 V 70 H 850 V 48 A 8 8 0 0 1 858 40 Z"/>
-          <path class="er-table-cap" d="M 862 41.4 H 1133" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(858 47) scale(0.875)">
+        <g id="node-user_sessions" data-node-id="user_sessions" data-node-label="user_sessions" tabindex="0" role="button" aria-label="Focus user_sessions, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>user_sessions · Entity · Identity &amp; Auth</title>
+          <rect x="32" y="448" width="295" height="136" rx="8" class="c-mask"/>
+          <rect x="32" y="448" width="295" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 448 H 319 A 8 8 0 0 1 327 456 V 478 H 32 V 456 A 8 8 0 0 1 40 448 Z"/>
+          <path class="er-table-cap" d="M 44 449.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 455) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="997.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">devices</text>
-          <line x1="850" y1="70" x2="1145" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="179.5" y="467" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">user_sessions</text>
+          <line x1="32" y1="478" x2="327" y2="478" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="850" y1="70" x2="1145" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="478" x2="327" y2="478" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="860" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="871" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="892" y="85" class="t-primary er-name-pk" font-size="11">device_id</text>
-            <text data-detail="context" x="1133" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="42" y="483" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="493" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="493" class="t-primary er-name-pk" font-size="11">session_id</text>
+            <text data-detail="context" x="315" y="493" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="850" y1="90" x2="1145" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="854" y="91" width="287" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="892" y="105" class="t-primary" font-size="11">device_name</text>
-            <text data-detail="context" x="1133" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <line x1="32" y1="498" x2="327" y2="498" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="499" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="503" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="513" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="74" y="513" class="t-primary" font-size="11">user_id</text>
+            <text data-detail="context" x="315" y="513" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="850" y1="110" x2="1145" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="518" x2="327" y2="518" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="892" y="125" class="t-primary" font-size="11">gpio_pin</text>
-            <text data-detail="context" x="1133" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT (D1..D8)</text>
+            <text data-detail="context" x="74" y="533" class="t-primary" font-size="11">tier</text>
+            <text data-detail="context" x="315" y="533" class="er-type" font-size="10.5" text-anchor="end">INT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="850" y1="130" x2="1145" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="854" y="131" width="287" height="18" rx="4" class="er-zebra"/>
+            <line x1="32" y1="538" x2="327" y2="538" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="539" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="892" y="145" class="t-primary" font-size="11">state</text>
-            <text data-detail="context" x="1133" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT (ON/OFF/OPEN)</text>
+            <text data-detail="context" x="74" y="553" class="t-primary" font-size="11">role</text>
+            <text data-detail="context" x="315" y="553" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="850" y1="150" x2="1145" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="558" x2="327" y2="558" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="892" y="165" class="t-primary" font-size="11">min_tier_required</text>
-            <text data-detail="context" x="1133" y="165" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 3</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
-            <line x1="850" y1="170" x2="1145" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="854" y="171" width="287" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="892" y="185" class="t-primary" font-size="11">offline_controllable</text>
-            <text data-detail="context" x="1133" y="185" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 1</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="850" y1="190" x2="1145" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="892" y="205" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="1133" y="205" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="74" y="573" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="315" y="573" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
           </g>
         </g>
 
-        <g id="node-ir_remote_codes" data-node-id="ir_remote_codes" data-node-label="ir_remote_codes" tabindex="0" role="button" aria-label="Focus ir_remote_codes, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="IoT Hardware &amp; IR" data-node-context="Entity" class="er-hue-backend">
-          <title>ir_remote_codes · Entity · IoT Hardware &amp; IR</title>
-          <rect x="867.5" y="300" width="260" height="196" rx="8" class="c-mask"/>
-          <rect x="867.5" y="300" width="260" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 875.5 300 H 1119.5 A 8 8 0 0 1 1127.5 308 V 330 H 867.5 V 308 A 8 8 0 0 1 875.5 300 Z"/>
-          <path class="er-table-cap" d="M 879.5 301.4 H 1115.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(875.5 307) scale(0.875)">
+        <g id="node-voiceprints" data-node-id="voiceprints" data-node-label="voiceprints" tabindex="0" role="button" aria-label="Focus voiceprints, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Identity &amp; Auth" data-node-context="Entity" class="er-hue-database">
+          <title>voiceprints · Entity · Identity &amp; Auth</title>
+          <rect x="460" y="448" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="460" y="448" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 468 448 H 747 A 8 8 0 0 1 755 456 V 478 H 460 V 456 A 8 8 0 0 1 468 448 Z"/>
+          <path class="er-table-cap" d="M 472 449.4 H 743" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 455) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="997.5" y="319" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">ir_remote_codes</text>
-          <line x1="867.5" y1="330" x2="1127.5" y2="330" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="607.5" y="467" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">voiceprints</text>
+          <line x1="460" y1="478" x2="755" y2="478" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="867.5" y1="330" x2="1127.5" y2="330" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="478" x2="755" y2="478" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="877.5" y="335" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="888.5" y="345" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="909.5" y="345" class="t-primary er-name-pk" font-size="11">ir_code_id</text>
-            <text data-detail="context" x="1115.5" y="345" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="470" y="483" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="481" y="493" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="502" y="493" class="t-primary er-name-pk" font-size="11">voiceprint_id</text>
+            <text data-detail="context" x="743" y="493" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="867.5" y1="350" x2="1127.5" y2="350" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="871.5" y="351" width="252" height="18" rx="4" class="er-zebra"/>
-            <rect x="877.5" y="355" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="888.5" y="365" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="909.5" y="365" class="t-primary" font-size="11">device_id</text>
-            <text data-detail="context" x="1115.5" y="365" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <line x1="460" y1="498" x2="755" y2="498" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="499" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="470" y="503" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="481" y="513" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="502" y="513" class="t-primary" font-size="11">user_id</text>
+            <text data-detail="context" x="743" y="513" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="867.5" y1="370" x2="1127.5" y2="370" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="460" y1="518" x2="755" y2="518" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="909.5" y="385" class="t-primary" font-size="11">appliance_name</text>
-            <text data-detail="context" x="1115.5" y="385" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="502" y="533" class="t-primary" font-size="11">f0_hz</text>
+            <text data-detail="context" x="743" y="533" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="867.5" y1="390" x2="1127.5" y2="390" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="871.5" y="391" width="252" height="18" rx="4" class="er-zebra"/>
+            <line x1="460" y1="538" x2="755" y2="538" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="539" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="909.5" y="405" class="t-primary" font-size="11">command_action</text>
-            <text data-detail="context" x="1115.5" y="405" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="4">
-            <line x1="867.5" y1="410" x2="1127.5" y2="410" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="909.5" y="425" class="t-primary" font-size="11">protocol</text>
-            <text data-detail="context" x="1115.5" y="425" class="er-type" font-size="10.5" text-anchor="end">TEXT (38kHz)</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
-            <line x1="867.5" y1="430" x2="1127.5" y2="430" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="871.5" y="431" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="909.5" y="445" class="t-primary" font-size="11">hex_code</text>
-            <text data-detail="context" x="1115.5" y="445" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="867.5" y1="450" x2="1127.5" y2="450" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="909.5" y="465" class="t-primary" font-size="11">freq_khz</text>
-            <text data-detail="context" x="1115.5" y="465" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 38</text>
-          </g>
-          <g data-detail="context" data-er-row="7">
-            <line x1="867.5" y1="470" x2="1127.5" y2="470" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="871.5" y="471" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="909.5" y="485" class="t-primary" font-size="11">learned_at</text>
-            <text data-detail="context" x="1115.5" y="485" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="502" y="553" class="t-primary" font-size="11">updated_at</text>
+            <text data-detail="context" x="743" y="553" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
         </g>
 
-        <g id="node-knowledge_rag" data-node-id="knowledge_rag" data-node-label="knowledge_rag" tabindex="0" role="button" aria-label="Focus knowledge_rag, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Knowledge &amp; Audit" data-node-context="Entity" class="er-hue-cloud">
+        <g id="node-otp_challenges" data-node-id="otp_challenges" data-node-label="otp_challenges" tabindex="0" role="button" aria-label="Focus otp_challenges, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Security Auth" data-node-context="Entity" class="er-hue-frontend">
+          <title>otp_challenges · Entity · Security Auth</title>
+          <rect x="32" y="642" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="32" y="642" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 642 H 319 A 8 8 0 0 1 327 650 V 672 H 32 V 650 A 8 8 0 0 1 40 642 Z"/>
+          <path class="er-table-cap" d="M 44 643.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 649) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="179.5" y="661" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">otp_challenges</text>
+          <line x1="32" y1="672" x2="327" y2="672" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="32" y1="672" x2="327" y2="672" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="42" y="677" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="687" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="687" class="t-primary er-name-pk" font-size="11">challenge_id</text>
+            <text data-detail="context" x="315" y="687" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="32" y1="692" x2="327" y2="692" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="693" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="707" class="t-primary" font-size="11">email</text>
+            <text data-detail="context" x="315" y="707" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="32" y1="712" x2="327" y2="712" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="727" class="t-primary" font-size="11">otp_hash</text>
+            <text data-detail="context" x="315" y="727" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="32" y1="732" x2="327" y2="732" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="733" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="747" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="315" y="747" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
+          </g>
+        </g>
+
+        <g id="node-trusted_devices" data-node-id="trusted_devices" data-node-label="trusted_devices" tabindex="0" role="button" aria-label="Focus trusted_devices, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Security Auth" data-node-context="Entity" class="er-hue-frontend">
+          <title>trusted_devices · Entity · Security Auth</title>
+          <rect x="460" y="642" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="460" y="642" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 468 642 H 747 A 8 8 0 0 1 755 650 V 672 H 460 V 650 A 8 8 0 0 1 468 642 Z"/>
+          <path class="er-table-cap" d="M 472 643.4 H 743" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 649) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="607.5" y="661" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">trusted_devices</text>
+          <line x1="460" y1="672" x2="755" y2="672" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="460" y1="672" x2="755" y2="672" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="470" y="677" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="481" y="687" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="502" y="687" class="t-primary er-name-pk" font-size="11">device_token_hash</text>
+            <text data-detail="context" x="743" y="687" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="460" y1="692" x2="755" y2="692" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="693" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="502" y="707" class="t-primary" font-size="11">account_id</text>
+            <text data-detail="context" x="743" y="707" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="460" y1="712" x2="755" y2="712" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="502" y="727" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="743" y="727" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="460" y1="732" x2="755" y2="732" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="733" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="502" y="747" class="t-primary" font-size="11">revoked</text>
+            <text data-detail="context" x="743" y="747" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
+          </g>
+        </g>
+
+        <g id="node-owner_pin_security" data-node-id="owner_pin_security" data-node-label="owner_pin_security" tabindex="0" role="button" aria-label="Focus owner_pin_security, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Security Auth" data-node-context="Entity" class="er-hue-frontend">
+          <title>owner_pin_security · Entity · Security Auth</title>
+          <rect x="32" y="796" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="32" y="796" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 796 H 319 A 8 8 0 0 1 327 804 V 826 H 32 V 804 A 8 8 0 0 1 40 796 Z"/>
+          <path class="er-table-cap" d="M 44 797.4 H 315" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 803) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="179.5" y="815" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">owner_pin_security</text>
+          <line x1="32" y1="826" x2="327" y2="826" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="32" y1="826" x2="327" y2="826" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="42" y="831" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="841" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="841" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="315" y="841" class="er-type" font-size="10.5" text-anchor="end">INT CHECK(1)</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="32" y1="846" x2="327" y2="846" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="847" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="861" class="t-primary" font-size="11">pin_hash</text>
+            <text data-detail="context" x="315" y="861" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="32" y1="866" x2="327" y2="866" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="881" class="t-primary" font-size="11">failed_attempts</text>
+            <text data-detail="context" x="315" y="881" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="32" y1="886" x2="327" y2="886" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="887" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="901" class="t-primary" font-size="11">locked</text>
+            <text data-detail="context" x="315" y="901" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
+          </g>
+        </g>
+
+        <g id="node-login_rate_limits" data-node-id="login_rate_limits" data-node-label="login_rate_limits" tabindex="0" role="button" aria-label="Focus login_rate_limits, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Security Auth" data-node-context="Entity" class="er-hue-frontend">
+          <title>login_rate_limits · Entity · Security Auth</title>
+          <rect x="460" y="796" width="295" height="96" rx="8" class="c-mask"/>
+          <rect x="460" y="796" width="295" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:9" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 468 796 H 747 A 8 8 0 0 1 755 804 V 826 H 460 V 804 A 8 8 0 0 1 468 796 Z"/>
+          <path class="er-table-cap" d="M 472 797.4 H 743" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 803) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="607.5" y="815" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">login_rate_limits</text>
+          <line x1="460" y1="826" x2="755" y2="826" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="460" y1="826" x2="755" y2="826" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="470" y="831" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="481" y="841" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="502" y="841" class="t-primary er-name-pk" font-size="11">scope_key</text>
+            <text data-detail="context" x="743" y="841" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="460" y1="846" x2="755" y2="846" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="464" y="847" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="502" y="861" class="t-primary" font-size="11">attempts_json</text>
+            <text data-detail="context" x="743" y="861" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="460" y1="866" x2="755" y2="866" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="502" y="881" class="t-primary" font-size="11">locked_until</text>
+            <text data-detail="context" x="743" y="881" class="er-type" font-size="10.5" text-anchor="end">REAL DEFAULT 0</text>
+          </g>
+        </g>
+
+        <g id="node-timers_pool" data-node-id="timers_pool" data-node-label="timers_pool" tabindex="0" role="button" aria-label="Focus timers_pool, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>timers_pool · Entity · Per-User Pools</title>
+          <rect x="911" y="40" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="911" y="40" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 919 40 H 1198 A 8 8 0 0 1 1206 48 V 70 H 911 V 48 A 8 8 0 0 1 919 40 Z"/>
+          <path class="er-table-cap" d="M 923 41.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(919 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1058.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">timers_pool</text>
+          <line x1="911" y1="70" x2="1206" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="911" y1="70" x2="1206" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="932" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="953" y="85" class="t-primary er-name-pk" font-size="11">timer_id</text>
+            <text data-detail="context" x="1194" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="911" y1="90" x2="1206" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="91" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="921" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="105" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="105" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1194" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="911" y1="110" x2="1206" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="125" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="125" class="t-primary" font-size="11">device_id</text>
+            <text data-detail="context" x="1194" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="911" y1="130" x2="1206" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="131" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="145" class="t-primary" font-size="11">action</text>
+            <text data-detail="context" x="1194" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="911" y1="150" x2="1206" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="953" y="165" class="t-primary" font-size="11">fire_at_epoch</text>
+            <text data-detail="context" x="1194" y="165" class="er-type" font-size="10.5" text-anchor="end">REAL NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="911" y1="170" x2="1206" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="171" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="185" class="t-primary" font-size="11">status</text>
+            <text data-detail="context" x="1194" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT DEFAULT &#39;pending&#39;</text>
+          </g>
+        </g>
+
+        <g id="node-schedules" data-node-id="schedules" data-node-label="schedules" tabindex="0" role="button" aria-label="Focus schedules, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>schedules · Entity · Per-User Pools</title>
+          <rect x="1260" y="40" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="1260" y="40" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:10" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1268 40 H 1547 A 8 8 0 0 1 1555 48 V 70 H 1260 V 48 A 8 8 0 0 1 1268 40 Z"/>
+          <path class="er-table-cap" d="M 1272 41.4 H 1543" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1268 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1407.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">schedules</text>
+          <line x1="1260" y1="70" x2="1555" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1260" y1="70" x2="1555" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1281" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1302" y="85" class="t-primary er-name-pk" font-size="11">schedule_id</text>
+            <text data-detail="context" x="1543" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1260" y1="90" x2="1555" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="91" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1270" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1281" y="105" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1302" y="105" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1543" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1260" y1="110" x2="1555" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1281" y="125" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1302" y="125" class="t-primary" font-size="11">device_id</text>
+            <text data-detail="context" x="1543" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1260" y1="130" x2="1555" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="131" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="145" class="t-primary" font-size="11">time_hhmm</text>
+            <text data-detail="context" x="1543" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="1260" y1="150" x2="1555" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="165" class="t-primary" font-size="11">schedule_type</text>
+            <text data-detail="context" x="1543" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT (once/daily)</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="1260" y1="170" x2="1555" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="171" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="185" class="t-primary" font-size="11">timezone</text>
+            <text data-detail="context" x="1543" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT Asia/Saigon</text>
+          </g>
+        </g>
+
+        <g id="node-automation_rules" data-node-id="automation_rules" data-node-label="automation_rules" tabindex="0" role="button" aria-label="Focus automation_rules, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>automation_rules · Entity · Per-User Pools</title>
+          <rect x="911" y="254" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="911" y="254" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 919 254 H 1198 A 8 8 0 0 1 1206 262 V 284 H 911 V 262 A 8 8 0 0 1 919 254 Z"/>
+          <path class="er-table-cap" d="M 923 255.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(919 261) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1058.5" y="273" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">automation_rules</text>
+          <line x1="911" y1="284" x2="1206" y2="284" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="911" y1="284" x2="1206" y2="284" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="289" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="932" y="299" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="953" y="299" class="t-primary er-name-pk" font-size="11">rule_id</text>
+            <text data-detail="context" x="1194" y="299" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="911" y1="304" x2="1206" y2="304" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="305" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="921" y="309" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="319" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="319" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1194" y="319" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="911" y1="324" x2="1206" y2="324" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="329" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="339" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="339" class="t-primary" font-size="11">when_device_id</text>
+            <text data-detail="context" x="1194" y="339" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="911" y1="344" x2="1206" y2="344" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="345" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="921" y="349" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="359" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="359" class="t-primary" font-size="11">then_device_id</text>
+            <text data-detail="context" x="1194" y="359" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="911" y1="364" x2="1206" y2="364" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="369" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="379" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="379" class="t-primary" font-size="11">else_device_id</text>
+            <text data-detail="context" x="1194" y="379" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="911" y1="384" x2="1206" y2="384" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="385" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="399" class="t-primary" font-size="11">enabled</text>
+            <text data-detail="context" x="1194" y="399" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 1</text>
+          </g>
+        </g>
+
+        <g id="node-custom_commands" data-node-id="custom_commands" data-node-label="custom_commands" tabindex="0" role="button" aria-label="Focus custom_commands, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>custom_commands · Entity · Per-User Pools</title>
+          <rect x="1260" y="254" width="295" height="136" rx="8" class="c-mask"/>
+          <rect x="1260" y="254" width="295" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1268 254 H 1547 A 8 8 0 0 1 1555 262 V 284 H 1260 V 262 A 8 8 0 0 1 1268 254 Z"/>
+          <path class="er-table-cap" d="M 1272 255.4 H 1543" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1268 261) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1407.5" y="273" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">custom_commands</text>
+          <line x1="1260" y1="284" x2="1555" y2="284" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1260" y1="284" x2="1555" y2="284" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="289" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1281" y="299" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1302" y="299" class="t-primary er-name-pk" font-size="11">command_id</text>
+            <text data-detail="context" x="1543" y="299" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1260" y1="304" x2="1555" y2="304" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="305" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1270" y="309" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1281" y="319" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1302" y="319" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1543" y="319" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1260" y1="324" x2="1555" y2="324" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="339" class="t-primary" font-size="11">phrase</text>
+            <text data-detail="context" x="1543" y="339" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1260" y1="344" x2="1555" y2="344" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="345" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="359" class="t-primary" font-size="11">phrase_norm</text>
+            <text data-detail="context" x="1543" y="359" class="er-type" font-size="10.5" text-anchor="end">TEXT UNIQUE/owner</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="1260" y1="364" x2="1555" y2="364" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="379" class="t-primary" font-size="11">steps_json</text>
+            <text data-detail="context" x="1543" y="379" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+        </g>
+
+        <g id="node-pending_confirmations" data-node-id="pending_confirmations" data-node-label="pending_confirmations" tabindex="0" role="button" aria-label="Focus pending_confirmations, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>pending_confirmations · Entity · Per-User Pools</title>
+          <rect x="911" y="448" width="295" height="156" rx="8" class="c-mask"/>
+          <rect x="911" y="448" width="295" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 919 448 H 1198 A 8 8 0 0 1 1206 456 V 478 H 911 V 456 A 8 8 0 0 1 919 448 Z"/>
+          <path class="er-table-cap" d="M 923 449.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(919 455) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1058.5" y="467" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">pending_confirmations</text>
+          <line x1="911" y1="478" x2="1206" y2="478" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="911" y1="478" x2="1206" y2="478" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="483" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="932" y="493" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="953" y="493" class="t-primary er-name-pk" font-size="11">pending_id</text>
+            <text data-detail="context" x="1194" y="493" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="911" y1="498" x2="1206" y2="498" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="499" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="921" y="503" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="932" y="513" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="953" y="513" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1194" y="513" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="911" y1="518" x2="1206" y2="518" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="953" y="533" class="t-primary" font-size="11">session_key</text>
+            <text data-detail="context" x="1194" y="533" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="911" y1="538" x2="1206" y2="538" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="539" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="553" class="t-primary" font-size="11">action_kind</text>
+            <text data-detail="context" x="1194" y="553" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="911" y1="558" x2="1206" y2="558" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="953" y="573" class="t-primary" font-size="11">expires_at</text>
+            <text data-detail="context" x="1194" y="573" class="er-type" font-size="10.5" text-anchor="end">REAL (TTL 20s)</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="911" y1="578" x2="1206" y2="578" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="579" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="593" class="t-primary" font-size="11">status</text>
+            <text data-detail="context" x="1194" y="593" class="er-type" font-size="10.5" text-anchor="end">TEXT DEFAULT &#39;pending&#39;</text>
+          </g>
+        </g>
+
+        <g id="node-rules_pool" data-node-id="rules_pool" data-node-label="rules_pool" tabindex="0" role="button" aria-label="Focus rules_pool, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Per-User Pools" data-node-context="Entity" class="er-hue-backend">
+          <title>rules_pool · Entity · Per-User Pools</title>
+          <rect x="1260" y="448" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="1260" y="448" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1268 448 H 1547 A 8 8 0 0 1 1555 456 V 478 H 1260 V 456 A 8 8 0 0 1 1268 448 Z"/>
+          <path class="er-table-cap" d="M 1272 449.4 H 1543" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1268 455) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1407.5" y="467" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">rules_pool</text>
+          <line x1="1260" y1="478" x2="1555" y2="478" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1260" y1="478" x2="1555" y2="478" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="483" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1281" y="493" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1302" y="493" class="t-primary er-name-pk" font-size="11">rule_id</text>
+            <text data-detail="context" x="1543" y="493" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1260" y1="498" x2="1555" y2="498" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="499" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1270" y="503" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1281" y="513" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1302" y="513" class="t-primary" font-size="11">owner_user_id</text>
+            <text data-detail="context" x="1543" y="513" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1260" y1="518" x2="1555" y2="518" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="533" class="t-primary" font-size="11">rule_category</text>
+            <text data-detail="context" x="1543" y="533" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1260" y1="538" x2="1555" y2="538" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="539" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1270" y="543" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1281" y="553" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1302" y="553" class="t-primary" font-size="11">target_device_id</text>
+            <text data-detail="context" x="1543" y="553" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-aoede_audio_cache" data-node-id="aoede_audio_cache" data-node-label="aoede_audio_cache" tabindex="0" role="button" aria-label="Focus aoede_audio_cache, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Runtime &amp; Meta" data-node-context="Entity" class="er-hue-cloud">
+          <title>aoede_audio_cache · Entity · Runtime &amp; Meta</title>
+          <rect x="911" y="642" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="911" y="642" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 919 642 H 1198 A 8 8 0 0 1 1206 650 V 672 H 911 V 650 A 8 8 0 0 1 919 642 Z"/>
+          <path class="er-table-cap" d="M 923 643.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(919 649) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1058.5" y="661" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">aoede_audio_cache</text>
+          <line x1="911" y1="672" x2="1206" y2="672" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="911" y1="672" x2="1206" y2="672" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="677" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="932" y="687" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="953" y="687" class="t-primary er-name-pk" font-size="11">cache_key</text>
+            <text data-detail="context" x="1194" y="687" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="911" y1="692" x2="1206" y2="692" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="693" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="707" class="t-primary" font-size="11">phrase_norm</text>
+            <text data-detail="context" x="1194" y="707" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="911" y1="712" x2="1206" y2="712" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="953" y="727" class="t-primary" font-size="11">voice_name</text>
+            <text data-detail="context" x="1194" y="727" class="er-type" font-size="10.5" text-anchor="end">TEXT DEFAULT &#39;Aoede&#39;</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="911" y1="732" x2="1206" y2="732" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="733" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="747" class="t-primary" font-size="11">pcm_bytes</text>
+            <text data-detail="context" x="1194" y="747" class="er-type" font-size="10.5" text-anchor="end">BLOB 24kHz</text>
+          </g>
+        </g>
+
+        <g id="node-system_state_meta" data-node-id="system_state_meta" data-node-label="system_state_meta" tabindex="0" role="button" aria-label="Focus system_state_meta, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Runtime &amp; Meta" data-node-context="Entity" class="er-hue-cloud">
+          <title>system_state_meta · Entity · Runtime &amp; Meta</title>
+          <rect x="1260" y="642" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="1260" y="642" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1268 642 H 1547 A 8 8 0 0 1 1555 650 V 672 H 1260 V 650 A 8 8 0 0 1 1268 642 Z"/>
+          <path class="er-table-cap" d="M 1272 643.4 H 1543" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1268 649) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1407.5" y="661" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">system_state_meta</text>
+          <line x1="1260" y1="672" x2="1555" y2="672" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1260" y1="672" x2="1555" y2="672" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="677" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1281" y="687" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1302" y="687" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="1543" y="687" class="er-type" font-size="10.5" text-anchor="end">INT CHECK(1)</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1260" y1="692" x2="1555" y2="692" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="693" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="707" class="t-primary" font-size="11">revision_seq</text>
+            <text data-detail="context" x="1543" y="707" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 0</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1260" y1="712" x2="1555" y2="712" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="727" class="t-primary" font-size="11">dht_temp_c</text>
+            <text data-detail="context" x="1543" y="727" class="er-type" font-size="10.5" text-anchor="end">REAL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1260" y1="732" x2="1555" y2="732" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="733" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="747" class="t-primary" font-size="11">soil_moisture_pct</text>
+            <text data-detail="context" x="1543" y="747" class="er-type" font-size="10.5" text-anchor="end">REAL</text>
+          </g>
+        </g>
+
+        <g id="node-system_kv_meta" data-node-id="system_kv_meta" data-node-label="system_kv_meta" tabindex="0" role="button" aria-label="Focus system_kv_meta, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Runtime &amp; Meta" data-node-context="Entity" class="er-hue-cloud">
+          <title>system_kv_meta · Entity · Runtime &amp; Meta</title>
+          <rect x="911" y="796" width="295" height="96" rx="8" class="c-mask"/>
+          <rect x="911" y="796" width="295" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 919 796 H 1198 A 8 8 0 0 1 1206 804 V 826 H 911 V 804 A 8 8 0 0 1 919 796 Z"/>
+          <path class="er-table-cap" d="M 923 797.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(919 803) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1058.5" y="815" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">system_kv_meta</text>
+          <line x1="911" y1="826" x2="1206" y2="826" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="911" y1="826" x2="1206" y2="826" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="921" y="831" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="932" y="841" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="953" y="841" class="t-primary er-name-pk" font-size="11">meta_key</text>
+            <text data-detail="context" x="1194" y="841" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="911" y1="846" x2="1206" y2="846" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="915" y="847" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="953" y="861" class="t-primary" font-size="11">meta_value_json</text>
+            <text data-detail="context" x="1194" y="861" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="911" y1="866" x2="1206" y2="866" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="953" y="881" class="t-primary" font-size="11">updated_at</text>
+            <text data-detail="context" x="1194" y="881" class="er-type" font-size="10.5" text-anchor="end">REAL</text>
+          </g>
+        </g>
+
+        <g id="node-schema_migrations" data-node-id="schema_migrations" data-node-label="schema_migrations" tabindex="0" role="button" aria-label="Focus schema_migrations, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Runtime &amp; Meta" data-node-context="Entity" class="er-hue-cloud">
+          <title>schema_migrations · Entity · Runtime &amp; Meta</title>
+          <rect x="1260" y="796" width="295" height="96" rx="8" class="c-mask"/>
+          <rect x="1260" y="796" width="295" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1268 796 H 1547 A 8 8 0 0 1 1555 804 V 826 H 1260 V 804 A 8 8 0 0 1 1268 796 Z"/>
+          <path class="er-table-cap" d="M 1272 797.4 H 1543" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1268 803) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1407.5" y="815" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">schema_migrations</text>
+          <line x1="1260" y1="826" x2="1555" y2="826" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1260" y1="826" x2="1555" y2="826" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1270" y="831" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1281" y="841" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1302" y="841" class="t-primary er-name-pk" font-size="11">version</text>
+            <text data-detail="context" x="1543" y="841" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1260" y1="846" x2="1555" y2="846" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1264" y="847" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1302" y="861" class="t-primary" font-size="11">name</text>
+            <text data-detail="context" x="1543" y="861" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1260" y1="866" x2="1555" y2="866" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1302" y="881" class="t-primary" font-size="11">applied_at</text>
+            <text data-detail="context" x="1543" y="881" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+        </g>
+
+        <g id="node-devices" data-node-id="devices" data-node-label="devices" tabindex="0" role="button" aria-label="Focus devices, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Hardware &amp; IR" data-node-context="Entity" class="er-hue-messagebus">
+          <title>devices · Entity · Hardware &amp; IR</title>
+          <rect x="1694" y="40" width="295" height="136" rx="8" class="c-mask"/>
+          <rect x="1694" y="40" width="295" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1702 40 H 1981 A 8 8 0 0 1 1989 48 V 70 H 1694 V 48 A 8 8 0 0 1 1702 40 Z"/>
+          <path class="er-table-cap" d="M 1706 41.4 H 1977" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1702 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1841.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">devices</text>
+          <line x1="1694" y1="70" x2="1989" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1694" y1="70" x2="1989" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1704" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1715" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1736" y="85" class="t-primary er-name-pk" font-size="11">device_id</text>
+            <text data-detail="context" x="1977" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1694" y1="90" x2="1989" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="91" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1736" y="105" class="t-primary" font-size="11">device_name</text>
+            <text data-detail="context" x="1977" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1694" y1="110" x2="1989" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1736" y="125" class="t-primary" font-size="11">gpio_pin</text>
+            <text data-detail="context" x="1977" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT (D1..D8)</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1694" y1="130" x2="1989" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="131" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1736" y="145" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="1977" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT (ON/OFF/OPEN)</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="1694" y1="150" x2="1989" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1704" y="155" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1715" y="165" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1736" y="165" class="t-primary" font-size="11">min_role</text>
+            <text data-detail="context" x="1977" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-device_state" data-node-id="device_state" data-node-label="device_state" tabindex="0" role="button" aria-label="Focus device_state, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Hardware &amp; IR" data-node-context="Entity" class="er-hue-messagebus">
+          <title>device_state · Entity · Hardware &amp; IR</title>
+          <rect x="1694" y="254" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="1694" y="254" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1702 254 H 1981 A 8 8 0 0 1 1989 262 V 284 H 1694 V 262 A 8 8 0 0 1 1702 254 Z"/>
+          <path class="er-table-cap" d="M 1706 255.4 H 1977" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1702 261) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1841.5" y="273" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">device_state</text>
+          <line x1="1694" y1="284" x2="1989" y2="284" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1694" y1="284" x2="1989" y2="284" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1704" y="289" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1715" y="299" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1736" y="299" class="t-primary er-name-pk" font-size="11">device_id</text>
+            <text data-detail="context" x="1977" y="299" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1694" y1="304" x2="1989" y2="304" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="305" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1736" y="319" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="1977" y="319" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1694" y1="324" x2="1989" y2="324" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1736" y="339" class="t-primary" font-size="11">version</text>
+            <text data-detail="context" x="1977" y="339" class="er-type" font-size="10.5" text-anchor="end">INT DEFAULT 1</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1694" y1="344" x2="1989" y2="344" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="345" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1736" y="359" class="t-primary" font-size="11">last_client_id</text>
+            <text data-detail="context" x="1977" y="359" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-ir_remote_codes" data-node-id="ir_remote_codes" data-node-label="ir_remote_codes" tabindex="0" role="button" aria-label="Focus ir_remote_codes, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Hardware &amp; IR" data-node-context="Entity" class="er-hue-messagebus">
+          <title>ir_remote_codes · Entity · Hardware &amp; IR</title>
+          <rect x="1694" y="448" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="1694" y="448" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1702 448 H 1981 A 8 8 0 0 1 1989 456 V 478 H 1694 V 456 A 8 8 0 0 1 1702 448 Z"/>
+          <path class="er-table-cap" d="M 1706 449.4 H 1977" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1702 455) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1841.5" y="467" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">ir_remote_codes</text>
+          <line x1="1694" y1="478" x2="1989" y2="478" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1694" y1="478" x2="1989" y2="478" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1704" y="483" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1715" y="493" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1736" y="493" class="t-primary er-name-pk" font-size="11">ir_code_id</text>
+            <text data-detail="context" x="1977" y="493" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1694" y1="498" x2="1989" y2="498" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="499" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1704" y="503" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1715" y="513" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1736" y="513" class="t-primary" font-size="11">device_id</text>
+            <text data-detail="context" x="1977" y="513" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1694" y1="518" x2="1989" y2="518" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1736" y="533" class="t-primary" font-size="11">command_action</text>
+            <text data-detail="context" x="1977" y="533" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1694" y1="538" x2="1989" y2="538" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="539" width="287" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1736" y="553" class="t-primary" font-size="11">hex_code</text>
+            <text data-detail="context" x="1977" y="553" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+          </g>
+        </g>
+
+        <g id="node-knowledge_rag" data-node-id="knowledge_rag" data-node-label="knowledge_rag" tabindex="0" role="button" aria-label="Focus knowledge_rag, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Knowledge &amp; Audit" data-node-context="Entity" class="er-hue-security">
           <title>knowledge_rag · Entity · Knowledge &amp; Audit</title>
-          <rect x="1223" y="40" width="260" height="176" rx="8" class="c-mask"/>
-          <rect x="1223" y="40" width="260" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 1231 40 H 1475 A 8 8 0 0 1 1483 48 V 70 H 1223 V 48 A 8 8 0 0 1 1231 40 Z"/>
-          <path class="er-table-cap" d="M 1235 41.4 H 1471" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1231 47) scale(0.875)">
+          <rect x="1694" y="642" width="295" height="116" rx="8" class="c-mask"/>
+          <rect x="1694" y="642" width="295" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1702 642 H 1981 A 8 8 0 0 1 1989 650 V 672 H 1694 V 650 A 8 8 0 0 1 1702 642 Z"/>
+          <path class="er-table-cap" d="M 1706 643.4 H 1977" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1702 649) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1353" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">knowledge_rag</text>
-          <line x1="1223" y1="70" x2="1483" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1841.5" y="661" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">knowledge_rag</text>
+          <line x1="1694" y1="672" x2="1989" y2="672" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="1223" y1="70" x2="1483" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1694" y1="672" x2="1989" y2="672" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="1233" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1244" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1265" y="85" class="t-primary er-name-pk" font-size="11">doc_id</text>
-            <text data-detail="context" x="1471" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="1704" y="677" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1715" y="687" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1736" y="687" class="t-primary er-name-pk" font-size="11">doc_id</text>
+            <text data-detail="context" x="1977" y="687" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="1223" y1="90" x2="1483" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="91" width="252" height="18" rx="4" class="er-zebra"/>
+            <line x1="1694" y1="692" x2="1989" y2="692" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="693" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="1265" y="105" class="t-primary" font-size="11">category</text>
-            <text data-detail="context" x="1471" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="1736" y="707" class="t-primary" font-size="11">category</text>
+            <text data-detail="context" x="1977" y="707" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="1223" y1="110" x2="1483" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1694" y1="712" x2="1989" y2="712" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="1265" y="125" class="t-primary" font-size="11">title</text>
-            <text data-detail="context" x="1471" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="1736" y="727" class="t-primary" font-size="11">title</text>
+            <text data-detail="context" x="1977" y="727" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="1223" y1="130" x2="1483" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="131" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="1265" y="145" class="t-primary" font-size="11">content</text>
-            <text data-detail="context" x="1471" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="4">
-            <line x1="1223" y1="150" x2="1483" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="1265" y="165" class="t-primary" font-size="11">keywords_json</text>
-            <text data-detail="context" x="1471" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
-            <line x1="1223" y1="170" x2="1483" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="171" width="252" height="18" rx="4" class="er-zebra"/>
-            <rect x="1233" y="175" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1244" y="185" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="1265" y="185" class="t-primary" font-size="11">updated_by_user_id</text>
-            <text data-detail="context" x="1471" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="1223" y1="190" x2="1483" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="1265" y="205" class="t-primary" font-size="11">updated_at</text>
-            <text data-detail="context" x="1471" y="205" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <line x1="1694" y1="732" x2="1989" y2="732" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="733" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1704" y="737" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1715" y="747" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1736" y="747" class="t-primary" font-size="11">updated_by_user_id</text>
+            <text data-detail="context" x="1977" y="747" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
         </g>
 
-        <g id="node-audit_logs" data-node-id="audit_logs" data-node-label="audit_logs" tabindex="0" role="button" aria-label="Focus audit_logs, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Knowledge &amp; Audit" data-node-context="Entity" class="er-hue-cloud">
+        <g id="node-audit_logs" data-node-id="audit_logs" data-node-label="audit_logs" tabindex="0" role="button" aria-label="Focus audit_logs, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="Knowledge &amp; Audit" data-node-context="Entity" class="er-hue-security">
           <title>audit_logs · Entity · Knowledge &amp; Audit</title>
-          <rect x="1223" y="300" width="260" height="236" rx="8" class="c-mask"/>
-          <rect x="1223" y="300" width="260" height="236" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 1231 300 H 1475 A 8 8 0 0 1 1483 308 V 330 H 1223 V 308 A 8 8 0 0 1 1231 300 Z"/>
-          <path class="er-table-cap" d="M 1235 301.4 H 1471" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1231 307) scale(0.875)">
+          <rect x="1694" y="796" width="295" height="136" rx="8" class="c-mask"/>
+          <rect x="1694" y="796" width="295" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1702 796 H 1981 A 8 8 0 0 1 1989 804 V 826 H 1694 V 804 A 8 8 0 0 1 1702 796 Z"/>
+          <path class="er-table-cap" d="M 1706 797.4 H 1977" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1702 803) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1353" y="319" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">audit_logs</text>
-          <line x1="1223" y1="330" x2="1483" y2="330" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1841.5" y="815" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">audit_logs</text>
+          <line x1="1694" y1="826" x2="1989" y2="826" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="1223" y1="330" x2="1483" y2="330" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1694" y1="826" x2="1989" y2="826" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="1233" y="335" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1244" y="345" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1265" y="345" class="t-primary er-name-pk" font-size="11">log_id</text>
-            <text data-detail="context" x="1471" y="345" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <rect x="1704" y="831" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1715" y="841" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1736" y="841" class="t-primary er-name-pk" font-size="11">log_id</text>
+            <text data-detail="context" x="1977" y="841" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="1223" y1="350" x2="1483" y2="350" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="351" width="252" height="18" rx="4" class="er-zebra"/>
+            <line x1="1694" y1="846" x2="1989" y2="846" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="847" width="287" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="1265" y="365" class="t-primary" font-size="11">ts_iso</text>
-            <text data-detail="context" x="1471" y="365" class="er-type" font-size="10.5" text-anchor="end">TEXT (INDEXED)</text>
+            <text data-detail="context" x="1736" y="861" class="t-primary" font-size="11">ts_iso</text>
+            <text data-detail="context" x="1977" y="861" class="er-type" font-size="10.5" text-anchor="end">TEXT (INDEXED)</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="1223" y1="370" x2="1483" y2="370" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1694" y1="866" x2="1989" y2="866" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="1265" y="385" class="t-primary" font-size="11">time_vn</text>
-            <text data-detail="context" x="1471" y="385" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="1736" y="881" class="t-primary" font-size="11">category</text>
+            <text data-detail="context" x="1977" y="881" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="1223" y1="390" x2="1483" y2="390" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="391" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="1265" y="405" class="t-primary" font-size="11">category</text>
-            <text data-detail="context" x="1471" y="405" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <line x1="1694" y1="886" x2="1989" y2="886" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1698" y="887" width="287" height="18" rx="4" class="er-zebra"/>
+            <rect x="1704" y="891" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1715" y="901" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1736" y="901" class="t-primary" font-size="11">user_id</text>
+            <text data-detail="context" x="1977" y="901" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="1223" y1="410" x2="1483" y2="410" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1694" y1="906" x2="1989" y2="906" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="1265" y="425" class="t-primary" font-size="11">event_type</text>
-            <text data-detail="context" x="1471" y="425" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
-            <line x1="1223" y1="430" x2="1483" y2="430" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="431" width="252" height="18" rx="4" class="er-zebra"/>
-            <rect x="1233" y="435" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1244" y="445" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="1265" y="445" class="t-primary" font-size="11">user_id</text>
-            <text data-detail="context" x="1471" y="445" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="6">
-            <line x1="1223" y1="450" x2="1483" y2="450" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="1265" y="465" class="t-primary" font-size="11">user_name</text>
-            <text data-detail="context" x="1471" y="465" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="7">
-            <line x1="1223" y1="470" x2="1483" y2="470" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="471" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="1265" y="485" class="t-primary" font-size="11">tier</text>
-            <text data-detail="context" x="1471" y="485" class="er-type" font-size="10.5" text-anchor="end">INT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="8">
-            <line x1="1223" y1="490" x2="1483" y2="490" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="1265" y="505" class="t-primary" font-size="11">summary</text>
-            <text data-detail="context" x="1471" y="505" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
-          </g>
-          <g data-detail="context" data-er-row="9">
-            <line x1="1223" y1="510" x2="1483" y2="510" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1227" y="511" width="252" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="1265" y="525" class="t-primary" font-size="11">details_json</text>
-            <text data-detail="context" x="1471" y="525" class="er-type" font-size="10.5" text-anchor="end">TEXT NOT NULL</text>
+            <text data-detail="context" x="1736" y="921" class="t-primary" font-size="11">summary</text>
+            <text data-detail="context" x="1977" y="921" class="er-type" font-size="10.5" text-anchor="end">TEXT (0-emoji)</text>
           </g>
         </g>
 
         <!-- Relationship labels -->
-        <g data-detail="context" data-edge-from="voiceprints" data-edge-to="users" data-edge-label="vân giọng của" data-edge-key="0" data-edge-id="vp_user" data-er-ends="many one">
-          <rect x="90.95999999999998" y="251" width="82.54" height="14" rx="3" class="c-mask"/>
-          <text x="132.23" y="261" class="t-muted" font-size="9" text-anchor="middle">vân giọng của</text>
+        <g data-detail="context" data-edge-from="users" data-edge-to="roles" data-edge-label="bậc quyền" data-edge-key="0" data-edge-id="u_role" data-er-ends="many one">
+          <rect x="371.39" y="84" width="60.22" height="14" rx="3" class="c-mask"/>
+          <text x="401.5" y="94" class="t-muted" font-size="9" text-anchor="middle">bậc quyền</text>
         </g>
-        <g data-detail="context" data-edge-from="timers_pool" data-edge-to="users" data-edge-label="đặt bởi" data-edge-key="1" data-edge-id="timer_user" data-er-ends="many one">
-          <rect x="362.22" y="120" width="49.06" height="14" rx="3" class="c-mask"/>
-          <text x="386.75" y="130" class="t-muted" font-size="9" text-anchor="middle">đặt bởi</text>
+        <g data-detail="context" data-edge-from="devices" data-edge-to="roles" data-edge-label="yêu cầu tối thiểu" data-edge-key="1" data-edge-id="dev_role" data-er-ends="many one">
+          <rect x="907.07" y="7" width="104.86" height="14" rx="3" class="c-mask"/>
+          <text x="959.5" y="17" class="t-muted" font-size="9" text-anchor="middle">yêu cầu tối thiểu</text>
         </g>
-        <g data-detail="context" data-edge-from="timers_pool" data-edge-to="devices" data-edge-label="hẹn thiết bị" data-edge-key="2" data-edge-id="timer_dev" data-er-ends="many one">
-          <rect x="745.02" y="112" width="76.96" height="14" rx="3" class="c-mask"/>
-          <text x="783.5" y="122" class="t-muted" font-size="9" text-anchor="middle">hẹn thiết bị</text>
+        <g data-detail="context" data-edge-from="invites" data-edge-to="users" data-edge-label="tạo bởi" data-edge-key="2" data-edge-id="inv_owner" data-er-ends="many one">
+          <rect x="331.72" y="292" width="49.06" height="14" rx="3" class="c-mask"/>
+          <text x="356.25" y="302" class="t-muted" font-size="9" text-anchor="middle">tạo bởi</text>
         </g>
-        <g data-detail="context" data-edge-from="rules_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="3" data-edge-id="rule_user" data-er-ends="many one">
-          <rect x="363.4125" y="380" width="65.8" height="14" rx="3" class="c-mask"/>
-          <text x="396.3125" y="390" class="t-muted" font-size="9" text-anchor="middle">sở hữu bởi</text>
+        <g data-detail="context" data-edge-from="sessions" data-edge-to="users" data-edge-label="phiên của" data-edge-key="3" data-edge-id="sess_user" data-er-ends="many one">
+          <rect x="521.28" y="228" width="60.22" height="14" rx="3" class="c-mask"/>
+          <text x="551.39" y="238" class="t-muted" font-size="9" text-anchor="middle">phiên của</text>
         </g>
-        <g data-detail="context" data-edge-from="rules_pool" data-edge-to="devices" data-edge-label="tác động lên" data-edge-key="4" data-edge-id="rule_dev" data-er-ends="many one optional">
-          <rect x="745.02" y="254" width="76.96" height="14" rx="3" class="c-mask"/>
-          <text x="783.5" y="264" class="t-muted" font-size="9" text-anchor="middle">tác động lên</text>
+        <g data-detail="context" data-edge-from="sessions" data-edge-to="invites" data-edge-label="từ lời mời" data-edge-key="4" data-edge-id="sess_inv" data-er-ends="many one">
+          <rect x="360.6" y="324" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="393.5" y="334" class="t-muted" font-size="9" text-anchor="middle">từ lời mời</text>
         </g>
-        <g data-detail="context" data-edge-from="ir_remote_codes" data-edge-to="devices" data-edge-label="mã IR của" data-edge-key="5" data-edge-id="ir_dev" data-er-ends="many one optional">
-          <rect x="931.28" y="251" width="60.22" height="14" rx="3" class="c-mask"/>
-          <text x="961.39" y="261" class="t-muted" font-size="9" text-anchor="middle">mã IR của</text>
+        <g data-detail="context" data-edge-from="user_sessions" data-edge-to="users" data-edge-label="phiên cũ của" data-edge-key="5" data-edge-id="usess_user" data-er-ends="many one">
+          <rect x="310.53999999999996" y="418" width="76.96" height="14" rx="3" class="c-mask"/>
+          <text x="349.02" y="428" class="t-muted" font-size="9" text-anchor="middle">phiên cũ của</text>
         </g>
-        <g data-detail="context" data-edge-from="knowledge_rag" data-edge-to="users" data-edge-label="cập nhật bởi" data-edge-key="6" data-edge-id="kb_user" data-er-ends="many one optional">
-          <rect x="706.77" y="7" width="76.96" height="14" rx="3" class="c-mask"/>
-          <text x="745.25" y="17" class="t-muted" font-size="9" text-anchor="middle">cập nhật bởi</text>
+        <g data-detail="context" data-edge-from="voiceprints" data-edge-to="users" data-edge-label="hồ sơ cũ" data-edge-key="6" data-edge-id="vp_user" data-er-ends="many one">
+          <rect x="785" y="404.5" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="812.32" y="414.5" class="t-muted" font-size="9" text-anchor="middle">hồ sơ cũ</text>
         </g>
-        <g data-detail="context" data-edge-from="audit_logs" data-edge-to="users" data-edge-label="thực hiện bởi" data-edge-key="7" data-edge-id="log_user" data-er-ends="many one optional">
-          <rect x="1051.96" y="508.125" width="82.54" height="14" rx="3" class="c-mask"/>
-          <text x="1093.23" y="518.125" class="t-muted" font-size="9" text-anchor="middle">thực hiện bởi</text>
+        <g data-detail="context" data-edge-from="device_state" data-edge-to="devices" data-edge-label="trạng thái 1-1" data-edge-key="7" data-edge-id="ds_dev" data-er-ends="one">
+          <rect x="1735.38" y="208" width="88.12" height="14" rx="3" class="c-mask"/>
+          <text x="1779.44" y="218" class="t-muted" font-size="9" text-anchor="middle">trạng thái 1-1</text>
+        </g>
+        <g data-detail="context" data-edge-from="timers_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="8" data-edge-id="timer_user" data-er-ends="many one">
+          <rect x="808.1" y="98" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="841" y="108" class="t-muted" font-size="9" text-anchor="middle">sở hữu bởi</text>
+        </g>
+        <g data-detail="context" data-edge-from="timers_pool" data-edge-to="devices" data-edge-label="tác động" data-edge-key="9" data-edge-id="timer_dev" data-er-ends="many one">
+          <rect x="1431.18" y="7" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="1458.5" y="17" class="t-muted" font-size="9" text-anchor="middle">tác động</text>
+        </g>
+        <g data-detail="context" data-edge-from="schedules" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="10" data-edge-id="sched_user" data-er-ends="many one">
+          <rect x="1060.35" y="200" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="1093.25" y="210" class="t-muted" font-size="9" text-anchor="middle">sở hữu bởi</text>
+        </g>
+        <g data-detail="context" data-edge-from="schedules" data-edge-to="devices" data-edge-label="lịch thiết bị" data-edge-key="11" data-edge-id="sched_dev" data-er-ends="many one">
+          <rect x="1575.23" y="90" width="82.54" height="14" rx="3" class="c-mask"/>
+          <text x="1616.5" y="100" class="t-muted" font-size="9" text-anchor="middle">lịch thiết bị</text>
+        </g>
+        <g data-detail="context" data-edge-from="automation_rules" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="12" data-edge-id="ar_user" data-er-ends="many one">
+          <rect x="808.1" y="312" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="841" y="322" class="t-muted" font-size="9" text-anchor="middle">sở hữu bởi</text>
+        </g>
+        <g data-detail="context" data-edge-from="automation_rules" data-edge-to="devices" data-edge-label="nguồn kích" data-edge-key="13" data-edge-id="ar_when" data-er-ends="many one">
+          <rect x="1527.1" y="413" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="1560" y="423" class="t-muted" font-size="9" text-anchor="middle">nguồn kích</text>
+        </g>
+        <g data-detail="context" data-edge-from="automation_rules" data-edge-to="devices" data-edge-label="đích tác động" data-edge-key="14" data-edge-id="ar_then" data-er-ends="many one">
+          <rect x="1676" y="182.54999999999998" width="82.54" height="14" rx="3" class="c-mask"/>
+          <text x="1717.27" y="192.54999999999998" class="t-muted" font-size="9" text-anchor="middle">đích tác động</text>
+        </g>
+        <g data-detail="context" data-edge-from="custom_commands" data-edge-to="users" data-edge-label="lệnh riêng của" data-edge-key="15" data-edge-id="cc_user" data-er-ends="many one">
+          <rect x="642.0025" y="220" width="88.12" height="14" rx="3" class="c-mask"/>
+          <text x="686.0625" y="230" class="t-muted" font-size="9" text-anchor="middle">lệnh riêng của</text>
+        </g>
+        <g data-detail="context" data-edge-from="pending_confirmations" data-edge-to="users" data-edge-label="chờ xác nhận 20s" data-edge-key="16" data-edge-id="pc_user" data-er-ends="many one">
+          <rect x="791.36" y="498" width="99.28" height="14" rx="3" class="c-mask"/>
+          <text x="841" y="508" class="t-muted" font-size="9" text-anchor="middle">chờ xác nhận 20s</text>
+        </g>
+        <g data-detail="context" data-edge-from="rules_pool" data-edge-to="users" data-edge-label="sở hữu bởi" data-edge-key="17" data-edge-id="rp_user" data-er-ends="many one">
+          <rect x="824.6625" y="434" width="65.8" height="14" rx="3" class="c-mask"/>
+          <text x="857.5625" y="444" class="t-muted" font-size="9" text-anchor="middle">sở hữu bởi</text>
+        </g>
+        <g data-detail="context" data-edge-from="rules_pool" data-edge-to="devices" data-edge-label="tác động" data-edge-key="18" data-edge-id="rp_dev" data-er-ends="many one">
+          <rect x="1597.18" y="313" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="1624.5" y="323" class="t-muted" font-size="9" text-anchor="middle">tác động</text>
+        </g>
+        <g data-detail="context" data-edge-from="ir_remote_codes" data-edge-to="devices" data-edge-label="mã IR 38kHz" data-edge-key="19" data-edge-id="ir_dev" data-er-ends="many one">
+          <rect x="1676" y="399.5" width="71.38" height="14" rx="3" class="c-mask"/>
+          <text x="1711.69" y="409.5" class="t-muted" font-size="9" text-anchor="middle">mã IR 38kHz</text>
+        </g>
+        <g data-detail="context" data-edge-from="knowledge_rag" data-edge-to="users" data-edge-label="cập nhật bởi" data-edge-key="20" data-edge-id="kb_user" data-er-ends="many one">
+          <rect x="1368.645" y="597" width="76.96" height="14" rx="3" class="c-mask"/>
+          <text x="1407.125" y="607" class="t-muted" font-size="9" text-anchor="middle">cập nhật bởi</text>
+        </g>
+        <g data-detail="context" data-edge-from="audit_logs" data-edge-to="users" data-edge-label="ghi nhận của" data-edge-key="21" data-edge-id="log_user" data-er-ends="many one">
+          <rect x="1473.3325" y="597" width="76.96" height="14" rx="3" class="c-mask"/>
+          <text x="1511.8125" y="607" class="t-muted" font-size="9" text-anchor="middle">ghi nhận của</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="558" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="578" data-legend-width="126">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Primary key" x="18" y="563" width="138" height="22" rx="11"/><rect x="24" y="568" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="578" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
-            <text x="54" y="578" class="t-primary" font-size="12" font-weight="600">Primary key</text>
+          <text x="24" y="954" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="974" data-legend-width="126">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Primary key" x="18" y="959" width="138" height="22" rx="11"/><rect x="24" y="964" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="974" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
+            <text x="54" y="974" class="t-primary" font-size="12" font-weight="600">Primary key</text>
           </g>
-          <g data-legend-semantic-kind="fk" data-legend-x="172" data-legend-baseline="578" data-legend-width="126">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Foreign key" x="166" y="563" width="138" height="22" rx="11"/><rect x="172" y="568" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="183" y="578" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
-            <text x="202" y="578" class="t-primary" font-size="12" font-weight="600">Foreign key</text>
+          <g data-legend-semantic-kind="fk" data-legend-x="172" data-legend-baseline="974" data-legend-width="126">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Foreign key" x="166" y="959" width="138" height="22" rx="11"/><rect x="172" y="964" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="183" y="974" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
+            <text x="202" y="974" class="t-primary" font-size="12" font-weight="600">Foreign key</text>
           </g>
-          <g data-legend-semantic-kind="one" data-legend-x="320" data-legend-baseline="578" data-legend-width="75">
-            <line x1="316" y1="566" x2="316" y2="582" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="One" x="324" y="563" width="77" height="22" rx="11"/><line x1="330" y1="574" x2="358" y2="574" class="er-legend-route" stroke-width="1.5"/><line x1="358" y1="567" x2="358" y2="581" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(336 566)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
-            <text x="368" y="578" class="t-primary" font-size="12" font-weight="600">One</text>
+          <g data-legend-semantic-kind="one" data-legend-x="320" data-legend-baseline="974" data-legend-width="75">
+            <line x1="316" y1="962" x2="316" y2="978" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="One" x="324" y="959" width="77" height="22" rx="11"/><line x1="330" y1="970" x2="358" y2="970" class="er-legend-route" stroke-width="1.5"/><line x1="358" y1="963" x2="358" y2="977" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(336 962)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
+            <text x="368" y="974" class="t-primary" font-size="12" font-weight="600">One</text>
           </g>
-          <g data-legend-semantic-kind="many" data-legend-x="417" data-legend-baseline="578" data-legend-width="73">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Many" x="411" y="563" width="85" height="22" rx="11"/><line x1="417" y1="574" x2="445" y2="574" class="er-legend-route" stroke-width="1.5"/><line x1="445" y1="567" x2="445" y2="581" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(423 566)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
-            <text x="455" y="578" class="t-primary" font-size="12" font-weight="600">Many</text>
-          </g>
-          <g data-legend-semantic-kind="optional" data-legend-x="512" data-legend-baseline="578" data-legend-width="108">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Optional" x="506" y="563" width="120" height="22" rx="11"/><line x1="512" y1="574" x2="540" y2="574" class="er-legend-route" stroke-width="1.5"/><line x1="540" y1="567" x2="540" y2="581" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(518 566)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><circle cx="3.5" cy="8" r="2.6" class="c-mask"/><circle cx="3.5" cy="8" r="2.6"/></g>
-            <text x="550" y="578" class="t-primary" font-size="12" font-weight="600">Optional</text>
+          <g data-legend-semantic-kind="many" data-legend-x="417" data-legend-baseline="974" data-legend-width="73">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Many" x="411" y="959" width="85" height="22" rx="11"/><line x1="417" y1="970" x2="445" y2="970" class="er-legend-route" stroke-width="1.5"/><line x1="445" y1="963" x2="445" y2="977" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(423 962)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
+            <text x="455" y="974" class="t-primary" font-size="12" font-weight="600">Many</text>
           </g>
         </g>
       </svg>
@@ -6137,33 +6804,33 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot emerald"></div>
-          <h3>Chuẩn Quan Hệ 3NF &amp; ACID (WAL Mode)</h3>
+          <h3>25 Bảng 3NF + WAL Mode + Foreign Keys ON</h3>
         </div>
         <ul>
-          <li>Lưu trữ tại simulator/data/smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON</li>
-          <li>Đánh 5 chỉ mục (INDEX) tăng tốc truy vấn lịch sử câu lệnh và bể hẹn giờ/luật &lt; 1ms</li>
+          <li>Lưu tại smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON (CASCADE DELETE)</li>
+          <li>sessions, user_sessions và invites gắn đầy đủ khóa ngoại tới users; invites chỉ lưu token_hash SHA-256</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>Kiến Trúc Lai Server SQL &lt;-&gt; Mạch Flash JSON</h3>
+          <h3>3 Bể Tự Động Hóa Riêng Theo Người + Xác Nhận 4 Bước</h3>
         </div>
         <ul>
-          <li>Trên Server: 8 bảng SQLite 3 lưu trữ bền vững toàn bộ lịch sử, vân giọng 26d/64d, Bể 1, Bể 2 và RAG</li>
-          <li>Dưới Mạch ESP8266: Tự động kết xuất bản sao nhẹ (~1.4KB) nạp xuống 4MB LittleFS dùng khi Offline</li>
+          <li>timers_pool + schedules, automation_rules, custom_commands cách ly theo owner_user_id</li>
+          <li>pending_confirmations lưu server-side theo (owner_user_id, session_key), tự hết hạn sau 20 giây</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>An Ninh Phân Quyền Offline Trên Bảng users &amp; devices</h3>
+          <h3>RBAC 3 Cấp &amp; Chống Trùng Lịch Cấp 2 vs Cấp 1</h3>
         </div>
         <ul>
-          <li>users.offline_allowed = 1 chỉ áp dụng cho Tầng 1 (Chủ nhà) &amp; Tầng 2 (Gia đình); chặn Tầng 3 (Khách)</li>
-          <li>devices.offline_controllable = 0 khóa cứng Cửa chính (D1) và Còi báo động (D8) khi mất Server</li>
+          <li>users.can_create_links mặc định = 0 với Gia đình (Cấp 2); Khách (Cấp 3) chỉ bật/tắt thiết bị (HTTP 403)</li>
+          <li>Cấp 2 đặt hẹn giờ/lịch trùng Cấp 1 (±60s, múi giờ Asia/Saigon) bị từ chối HTTP 409 và ghi audit_logs 0 emoji</li>
         </ul>
       </div>
     </div>

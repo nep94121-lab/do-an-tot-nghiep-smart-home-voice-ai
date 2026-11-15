@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from google.genai import types
@@ -12,6 +13,23 @@ from google.genai import types
 from simulator.api.deps import (
     _REST_ENGINE,
     broadcast_rest_state_to_bridges as _broadcast_rest_state_to_bridges,
+)
+from simulator.automation_nlu import (
+    _deny_mutation_error,
+    _parse_clock_hhmm_vi,
+    format_pool_items_summary,
+    handle_confirmation_reply,
+    parse_multi_steps_from_text,
+    prepare_pending_mutation,
+)
+from simulator.automation_repo import (
+    GUEST_ONLY_TOGGLE_MSG_VI,
+    can_user_create_links,
+    check_steps_rbac,
+    check_tier1_schedule_conflict,
+    find_custom_command_by_text,
+    format_device_action_vi,
+    resolve_target_user_by_query,
 )
 from simulator.live.prompt_builder import FIXED_REJECTION_PHRASE_VI
 from simulator.voice.enrollment_quality import check_enrollment_quality_gate
@@ -185,6 +203,40 @@ class LiveToolDispatcherMixin:
                 pass
         return res
 
+    def _actor_session(self) -> Any:
+        if hasattr(self, "_resolve_ws_session"):
+            try:
+                sess = self._resolve_ws_session()
+                if sess is not None and getattr(sess, "is_authenticated", False):
+                    return sess
+            except Exception:
+                pass
+        return SimpleNamespace(
+            user_id=str(getattr(self.engine, "_current_user_id", "") or "tuan_anh"),
+            tier=int(getattr(self.engine, "current_tier", 3) or 3),
+            display_name=str(self.engine.get_current_user_name() or "User"),
+            role=str(getattr(self.engine, "current_role", "GUEST") or "GUEST"),
+            session_id=f"live:{id(self)}",
+            token_hash="",
+        )
+
+    @staticmethod
+    def _wrap_nlu_tool_result(nlu_res: dict[str, Any]) -> dict[str, Any]:
+        payload = dict((nlu_res or {}).get("payload") or {})
+        spoken = str(
+            payload.get("exact_spoken_reply")
+            or payload.get("reply")
+            or payload.get("error")
+            or ""
+        ).strip()
+        if spoken and "instruction_for_ai" not in payload:
+            payload["instruction_for_ai"] = (
+                f"BẮT BUỘC nói ngắn gọn, đúng nguyên văn câu sau: '{spoken}'"
+            )
+        if "message" not in payload and spoken:
+            payload["message"] = spoken
+        return payload
+
     async def handle_tool_call(self, fc: Any) -> dict[str, Any]:
         name = fc.name
         args = dict(fc.args or {})
@@ -209,42 +261,34 @@ class LiveToolDispatcherMixin:
                     "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
                 }
 
+        actor_sess = self._actor_session()
+        actor_uid = str(getattr(actor_sess, "user_id", "") or "tuan_anh").strip()
+        actor_tier = int(getattr(actor_sess, "tier", 3) or 3)
+        live_session_key = f"live:{actor_uid}"
+
         _admin_tools = (
             "grant_user_permission",
             "revoke_user_permission",
-            "start_voice_enrollment",
-            "finalize_voice_enrollment",
+            "manage_member_link_permission",
             "set_query_permission_policy",
             "admin_update_system_policy",
             "admin_upsert_knowledge_rag",
             "factory_reset",
-            "request_factory_reset",
-            "confirm_factory_reset",
-            "factory_reset_rules",
         )
-        if name in _admin_tools or (
-            name == "confirm_pending_action" and bool(getattr(self.engine, "pending_reset_confirmation", False))
-        ):
+        if name in _admin_tools:
             ok_cap1_sess = True
             if hasattr(self, "_is_ws_cap1_authorized"):
                 ok_cap1_sess, _ = self._is_ws_cap1_authorized()
-            if not ok_cap1_sess or self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
-                rej_msg = FIXED_REJECTION_PHRASE_VI
-                await self.send_ws_json({
-                    "type": "rbac_blocked",
-                    "action": name,
-                    "role": self.engine.current_role,
-                    "reason": rej_msg,
-                })
-                return {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "error": rej_msg,
-                    "message": rej_msg,
-                    "rejection_speech": rej_msg,
-                    "exact_spoken_reply": rej_msg,
-                    "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
-                }
+            if not ok_cap1_sess or self.engine.current_tier != 1 or str(self.engine.current_role).upper() not in ("ADMIN", "OWNER"):
+                err_nlu = _deny_mutation_error(
+                    session=actor_sess,
+                    source="gemini_live",
+                    category=f"rbac_deny_{name}",
+                    msg=GUEST_ONLY_TOGGLE_MSG_VI if actor_tier >= 3 else "Chỉ chủ nhà cấp 1 mới có quyền thực hiện lệnh này ạ.",
+                    status_code=403,
+                    target=name,
+                )
+                return self._wrap_nlu_tool_result(err_nlu)
 
         if self.last_mic_turn_blocked or self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4:
             rej_msg = FIXED_REJECTION_PHRASE_VI
@@ -262,37 +306,343 @@ class LiveToolDispatcherMixin:
                 "instruction_for_ai": f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng câu: '{rej_msg}'",
             }
 
+        if name in ("start_voice_enrollment", "finalize_voice_enrollment"):
+            msg_ret = "Tính năng nhận diện giọng nói đã được gỡ bỏ; phân quyền dùng tài khoản và lời mời."
+            return {"ok": False, "status": "RETIRED_ENDPOINT", "error": msg_ret, "exact_spoken_reply": msg_ret}
+
         if name == "control_device":
-            return await self.engine.execute_device_action(
+            res_ctrl = await self.engine.execute_device_action(
                 device_id=str(args.get("device_id", "")),
                 action=str(args.get("action", "")),
                 source="gemini_live",
                 trigger_chains=True,
+                actor_tier=actor_tier,
+                actor_name=str(getattr(actor_sess, "display_name", "") or actor_uid),
             )
+            try:
+                await _broadcast_rest_state_to_bridges()
+            except Exception:
+                pass
+            return res_ctrl
+
+        if name in ("confirm_or_cancel_pending_action", "confirm_pending_action", "confirm_factory_reset"):
+            confirmed = bool(args.get("confirmed", True))
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category=f"rbac_deny_{name}",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="pending_confirmation",
+                    )
+                )
+            conf_res = await handle_confirmation_reply(
+                raw_text=("xác nhận" if confirmed else "hủy"),
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+            )
+            if conf_res is not None:
+                out = self._wrap_nlu_tool_result(conf_res)
+                if out.get("ok"):
+                    await self._sync_rules_context_to_gemini(out.get("exact_spoken_reply", "Đã xác nhận. Xong rồi ạ."))
+                    try:
+                        await _broadcast_rest_state_to_bridges()
+                    except Exception:
+                        pass
+                return out
+            if getattr(self.engine, "pending_reset_confirmation", False) or getattr(self.engine, "pending_action_confirmation", None):
+                res_legacy = await self.engine.confirm_pending_action(confirmed=confirmed)
+                if res_legacy.get("ok"):
+                    await self._sync_rules_context_to_gemini(res_legacy.get("message", "Đã xử lý xác nhận."))
+                return res_legacy
+            return {
+                "ok": False,
+                "silent_cancel": True,
+                "reply": "Đã hủy.",
+                "exact_spoken_reply": "Đã hủy.",
+                "instruction_for_ai": "BẮT BUỘC nói ngắn gọn đúng câu: 'Đã hủy.'",
+            }
+
+        if name == "query_pools_or_members":
+            p_kind = str(args.get("pool_kind", "timers") or "timers").strip().lower()
+            t_name = str(args.get("target_member_name", "") or "").strip() or None
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category=f"rbac_deny_query_{p_kind}",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target=p_kind,
+                    )
+                )
+            ok_q, code_q, spoken_q, data_q = format_pool_items_summary(
+                pool_kind=p_kind,
+                engine=self.engine,
+                session=actor_sess,
+                target_query=t_name,
+            )
+            return self._wrap_nlu_tool_result({
+                "handled": True,
+                "status_code": code_q,
+                "payload": {
+                    "ok": ok_q,
+                    "kind": f"query_{p_kind}",
+                    **data_q,
+                    "reply": spoken_q,
+                    "exact_spoken_reply": spoken_q,
+                },
+            })
+
+        if name in ("reset_user_pool", "request_factory_reset"):
+            raw_pool = str(args.get("pool_kind") or args.get("scope") or "custom_commands").strip().lower()
+            pool_map = {
+                "rules": "custom_commands",
+                "custom_commands": "custom_commands",
+                "commands": "custom_commands",
+                "links": "links",
+                "if_else": "links",
+                "timers": "timers",
+                "schedules": "timers",
+                "all": "all",
+                "voice": "custom_commands",
+            }
+            pool_kind = pool_map.get(raw_pool, "custom_commands")
+            t_name = str(args.get("target_member_name", "") or "").strip()
+            clear_all = bool(args.get("clear_all", False))
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category=f"rbac_deny_reset_{pool_kind}",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target=pool_kind,
+                    )
+                )
+            target_uid = actor_uid
+            target_label = "của bạn"
+            if clear_all:
+                if actor_tier != 1:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category=f"rbac_deny_reset_all_{pool_kind}",
+                            msg="Chỉ chủ nhà cấp 1 mới được reset dữ liệu của mọi người ạ.",
+                            status_code=403,
+                            target=pool_kind,
+                        )
+                    )
+                target_label = "của mọi người"
+            elif t_name:
+                resolved = resolve_target_user_by_query(t_name)
+                if resolved is None:
+                    msg_nf = f"Không tìm thấy thành viên '{t_name}' ạ."
+                    return {"ok": False, "error": msg_nf, "exact_spoken_reply": msg_nf}
+                if actor_tier != 1 and str(resolved["user_id"]) != actor_uid:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category=f"rbac_deny_cross_reset_{pool_kind}",
+                            msg="Chỉ chủ nhà cấp 1 mới được reset dữ liệu của người khác ạ.",
+                            status_code=403,
+                            target=str(resolved["user_id"]),
+                        )
+                    )
+                target_uid = str(resolved["user_id"])
+                target_label = f"của {resolved['display_name']}"
+            pool_vi = {
+                "custom_commands": "Reset lệnh custom",
+                "links": "Reset liên kết thiết bị",
+                "timers": "Xóa toàn bộ hẹn giờ và lịch hẹn",
+                "all": "Reset toàn bộ dữ liệu tùy chỉnh",
+            }.get(pool_kind, "Reset dữ liệu")
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="reset_pool",
+                payload={
+                    "pool_kind": pool_kind,
+                    "target_owner_id": target_uid,
+                    "clear_all": clear_all,
+                    "target_display_name": target_label,
+                },
+                prompt_summary=f"{pool_vi} {target_label}",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
+
+        if name == "manage_member_link_permission":
+            t_name = str(args.get("target_member_name", "") or "").strip()
+            allowed_flag = bool(args.get("allowed", True))
+            resolved = resolve_target_user_by_query(t_name)
+            if resolved is None:
+                msg_nf = f"Không tìm thấy thành viên '{t_name}' ạ."
+                return {"ok": False, "error": msg_nf, "exact_spoken_reply": msg_nf}
+            verb_txt = "Cấp quyền tạo liên kết cho" if allowed_flag else "Thu hồi quyền tạo liên kết của"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="set_member_link_permission",
+                payload={
+                    "target_user_id": resolved["user_id"],
+                    "target_name": resolved["display_name"],
+                    "target_tier": resolved["tier"],
+                    "allowed": allowed_flag,
+                },
+                prompt_summary=f"{verb_txt} {resolved['display_name']}",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "schedule_action":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_timer",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="timers",
+                    )
+                )
+            dev_id = str(args.get("device_id", "") or "living_room_light").strip()
+            act = str(args.get("action", "") or "turn_on").strip()
             sec = float(args.get("seconds", args.get("delay_seconds", 0)) or 0)
             hrs = float(args.get("hours", 0) or 0)
             mins = float(args.get("minutes", 0) or 0)
-            vn_ampm = str(args.get("vn_time_ampm", "") or "")
-            vn_date = str(args.get("vn_date", "") or "")
-            repeat = str(args.get("repeat", "once") or "once")
-            if (sec > 0 or mins > 0 or hrs > 0) and not vn_date:
-                vn_ampm = ""
-            res = await self.engine.schedule_timer_flexible(
-                device_id=str(args.get("device_id", "")),
-                action=str(args.get("action", "")),
-                hours=hrs,
-                minutes=mins,
-                seconds=sec,
-                vn_time_ampm=vn_ampm,
-                vn_date=vn_date,
-                repeat=repeat,
+            vn_ampm = str(args.get("vn_time_ampm", "") or "").strip()
+            repeat = str(args.get("repeat", "once") or "once").strip().lower()
+            total_sec = hrs * 3600.0 + mins * 60.0 + sec
+
+            if total_sec <= 0 and vn_ampm:
+                hhmm, parsed_daily, _ = _parse_clock_hhmm_vi(f"lúc {vn_ampm}")
+                if hhmm:
+                    sc_type = "daily" if (repeat == "daily" or parsed_daily) else "once"
+                    allowed_td, reason_td = self.engine.check_device_permission(dev_id, actor_tier=actor_tier)
+                    if not allowed_td:
+                        return self._wrap_nlu_tool_result(
+                            _deny_mutation_error(
+                                session=actor_sess,
+                                source="gemini_live",
+                                category="rbac_deny_schedule_device",
+                                msg=reason_td,
+                                status_code=403,
+                                target=dev_id,
+                            )
+                        )
+                    conflict_msg = check_tier1_schedule_conflict(
+                        actor_tier=actor_tier,
+                        time_hhmm=hhmm,
+                        schedule_type=sc_type,
+                        engine=self.engine,
+                    )
+                    if conflict_msg:
+                        return self._wrap_nlu_tool_result(
+                            _deny_mutation_error(
+                                session=actor_sess,
+                                source="gemini_live",
+                                category="tier1_schedule_conflict",
+                                msg=conflict_msg,
+                                status_code=409,
+                                target="schedules",
+                            )
+                        )
+                    rep_txt = "hằng ngày " if sc_type == "daily" else ""
+                    nlu_res = await prepare_pending_mutation(
+                        engine=self.engine,
+                        session=actor_sess,
+                        source="gemini_live",
+                        session_key=live_session_key,
+                        action_kind="create_schedule",
+                        payload={
+                            "target_devs": [dev_id],
+                            "action": act,
+                            "time_hhmm": hhmm,
+                            "schedule_type": sc_type,
+                        },
+                        prompt_summary=f"Đặt lịch lúc {hhmm} {rep_txt}{format_device_action_vi(dev_id, act)}",
+                    )
+                    return self._wrap_nlu_tool_result(nlu_res)
+
+            if total_sec <= 0:
+                total_sec = 10.0
+            allowed_td, reason_td = self.engine.check_device_permission(dev_id, actor_tier=actor_tier)
+            if not allowed_td:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_timer_device",
+                        msg=reason_td,
+                        status_code=403,
+                        target=dev_id,
+                    )
+                )
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=actor_tier,
+                fire_epoch=time.time() + total_sec,
+                engine=self.engine,
             )
-            await self._sync_rules_context_to_gemini(res.get("message", "Đã đặt hẹn giờ."))
-            return res
+            if conflict_msg:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="tier1_timer_conflict",
+                        msg=conflict_msg,
+                        status_code=409,
+                        target="timers",
+                    )
+                )
+            sec_i = max(1, int(round(total_sec)))
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_timer",
+                payload={"device_id": dev_id, "action": act, "seconds": total_sec},
+                prompt_summary=f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "update_timer":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_update_timer",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="timers",
+                    )
+                )
+            op = str(args.get("operation", "modify") or "modify").strip().lower()
+            dev_id = str(args.get("device_id", "all_devices") or "all_devices").strip()
+            if op == "cancel":
+                nlu_res = await prepare_pending_mutation(
+                    engine=self.engine,
+                    session=actor_sess,
+                    source="gemini_live",
+                    session_key=live_session_key,
+                    action_kind="delete_timer",
+                    payload={"device_id": dev_id},
+                    prompt_summary=f"Hủy hẹn giờ {dev_id}",
+                )
+                return self._wrap_nlu_tool_result(nlu_res)
             sec = float(args.get("seconds", 0) or 0)
             hrs = float(args.get("hours", 0) or 0)
             mins = float(args.get("minutes", 0) or 0)
@@ -302,8 +652,8 @@ class LiveToolDispatcherMixin:
             if (sec > 0 or mins > 0 or hrs > 0) and not vn_date:
                 vn_ampm = ""
             res = await self.engine.update_or_cancel_timer(
-                device_id=str(args.get("device_id", "all_devices")),
-                operation=str(args.get("operation", "modify")),
+                device_id=dev_id,
+                operation=op,
                 new_action=str(args.get("new_action", "") or ""),
                 hours=hrs,
                 minutes=mins,
@@ -316,6 +666,17 @@ class LiveToolDispatcherMixin:
             return res
 
         if name == "set_word_mapping":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_word_mapping",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="word_mappings",
+                    )
+                )
             res = await self.engine.set_word_mapping(
                 custom_word=str(args.get("custom_word", "")),
                 target_meaning=str(args.get("target_meaning", "")),
@@ -326,211 +687,335 @@ class LiveToolDispatcherMixin:
             return res
 
         if name == "create_alias_rule":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_alias",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
             phrase_str = str(args.get("phrase", "")).strip()
             devs_csv = str(args.get("target_devices_csv", "")).strip()
             acts_csv = str(args.get("target_actions_csv", "")).strip()
-            res = await self.engine.create_alias_rule(
-                phrase=phrase_str,
-                target_devices_csv=devs_csv,
-                target_actions_csv=acts_csv,
-                require_confirmation=False,
+            dev_list = [d.strip() for d in devs_csv.split(",") if d.strip()]
+            act_list = [a.strip() for a in acts_csv.split(",") if a.strip()]
+            steps = [
+                {
+                    "device_id": d,
+                    "action": act_list[idx] if idx < len(act_list) else (act_list[-1] if act_list else "turn_on"),
+                }
+                for idx, d in enumerate(dev_list)
+            ]
+            ok_steps, err_steps = check_steps_rbac(steps, actor_tier)
+            if not ok_steps:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_alias_device",
+                        msg=err_steps,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
+            steps_summary = ", ".join(format_device_action_vi(s["device_id"], s["action"]) for s in steps)
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_custom_command",
+                payload={"phrase": phrase_str, "steps": steps},
+                prompt_summary=f"Tạo lệnh '{phrase_str}' gồm {steps_summary}",
             )
-            if res.get("ok"):
-                try:
-                    from simulator.automation_repo import upsert_custom_command
-
-                    dev_list = [d.strip() for d in devs_csv.split(",") if d.strip()]
-                    act_list = [a.strip() for a in acts_csv.split(",") if a.strip()]
-                    steps = [
-                        {
-                            "device_id": d,
-                            "action": act_list[idx] if idx < len(act_list) else (act_list[-1] if act_list else "turn_on"),
-                        }
-                        for idx, d in enumerate(dev_list)
-                    ]
-                    if phrase_str and steps:
-                        upsert_custom_command(
-                            phrase=phrase_str,
-                            steps=steps,
-                            owner_user_id=self.engine._current_user_id,
-                            owner_tier=self.engine.current_tier,
-                            owner_name=self.engine.get_current_user_name(),
-                        )
-                        self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-                        await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
-                except Exception:
-                    pass
-                await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu khẩu lệnh."))
-            return res
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "execute_alias_rule":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_run_alias",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
             phrase_q = str(args.get("phrase", "")).strip()
-            try:
-                from simulator.automation_repo import find_custom_command_by_text
-
-                cmd_hit = find_custom_command_by_text(phrase_q)
-            except Exception:
-                cmd_hit = None
+            cmd_hit = find_custom_command_by_text(phrase_q, owner_user_id=actor_uid)
             if cmd_hit is not None:
-                return await self.engine.execute_custom_scene(cmd_hit["command_id"], source="gemini_live")
+                res_sc = await self.engine.execute_custom_scene(cmd_hit["command_id"], source="gemini_live")
+                try:
+                    await _broadcast_rest_state_to_bridges()
+                except Exception:
+                    pass
+                return res_sc
             return await self.engine.execute_alias_rule(phrase=phrase_q)
 
         if name in ("set_if_else_rule", "create_chain_rule"):
-            eval_now = bool(args.get("evaluate_now", False))
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_link",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="automation_rules",
+                    )
+                )
+            if not can_user_create_links(actor_uid, actor_tier, engine=self.engine):
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_link_permission",
+                        msg="Bạn chưa được chủ nhà cấp quyền tạo liên kết thiết bị.",
+                        status_code=403,
+                        target="automation_rules",
+                    )
+                )
             wdev = str(args.get("when_device_id", "")).strip()
-            wstate = str(args.get("when_state", "")).strip()
+            wstate = str(args.get("when_state", "ON") or "ON").strip()
             tdev = str(args.get("then_device_id", "")).strip()
-            tact = str(args.get("then_action", "")).strip()
-            delay_val = float(args.get("delay_seconds", 0) or 0)
+            tact = str(args.get("then_action", "turn_on") or "turn_on").strip()
             edev = str(args.get("else_device_id", "") or "").strip()
             eact = str(args.get("else_action", "") or "").strip()
-            res = await self.engine.set_if_else_rule(
-                when_device_id=wdev,
-                when_state=wstate,
-                then_device_id=tdev,
-                then_action=tact,
-                delay_seconds=delay_val,
-                else_device_id=edev,
-                else_action=eact,
-                evaluate_now=eval_now,
-                require_confirmation=False,
-            )
-            if res.get("ok"):
-                if not eval_now and wdev and tdev:
-                    try:
-                        from simulator.automation_repo import create_automation_rule
-
-                        create_automation_rule(
-                            owner_user_id=self.engine._current_user_id,
-                            owner_tier=self.engine.current_tier,
-                            owner_name=self.engine.get_current_user_name(),
-                            when_device_id=wdev,
-                            when_state=wstate or "ON",
-                            then_device_id=tdev,
-                            then_action=tact or "turn_on",
-                            else_device_id=edev,
-                            else_action=eact,
-                            delay_seconds=delay_val,
+            allowed_then, reason_then = self.engine.check_device_permission(tdev, actor_tier=actor_tier)
+            if not allowed_then:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_link_device",
+                        msg=reason_then,
+                        status_code=403,
+                        target=tdev,
+                    )
+                )
+            if edev:
+                allowed_else, reason_else = self.engine.check_device_permission(edev, actor_tier=actor_tier)
+                if not allowed_else:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_link_else_device",
+                            msg=reason_else,
+                            status_code=403,
+                            target=edev,
                         )
-                        self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-                        await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
-                    except Exception:
-                        pass
-                await self._sync_rules_context_to_gemini(res.get("message", "Đã lưu luật IF."))
-            return res
+                    )
+            if wdev and wdev == tdev:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="invalid_automation_rule_cycle",
+                        msg="Không thể tạo liên kết tự kích hoạt chính thiết bị nguồn.",
+                        status_code=400,
+                        target=wdev,
+                    )
+                )
+            prompt_desc = f"Tạo liên kết khi {wdev}={wstate} thì {format_device_action_vi(tdev, tact)}"
+            if edev:
+                prompt_desc += f", ngược lại {format_device_action_vi(edev, eact)}"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_automation_rule",
+                payload={
+                    "when_device_id": wdev,
+                    "when_state": wstate,
+                    "then_device_id": tdev,
+                    "then_action": tact,
+                    "else_device_id": edev,
+                    "else_action": eact,
+                },
+                prompt_summary=prompt_desc,
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "create_schedule_clock":
-            from simulator.auth.tier_permissions import can_control_device
-            from simulator.automation_repo import create_schedule, format_device_action_vi
-
-            if self.engine.current_tier >= 3 and not self.engine.system_policies.get("tier3_can_schedule_timer", False):
-                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_schedule",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="schedules",
+                    )
+                )
             dev_id = str(args.get("device_id", "living_room_light")).strip()
             act = str(args.get("action", "turn_on")).strip()
             hhmm = str(args.get("time_hhmm", "")).strip()
             sc_type = str(args.get("schedule_type", "once") or "once").strip().lower()
-            if not can_control_device(self.engine.current_tier, dev_id):
-                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-            try:
-                sc = create_schedule(
-                    owner_user_id=self.engine._current_user_id,
-                    owner_tier=self.engine.current_tier,
-                    owner_name=self.engine.get_current_user_name(),
-                    device_id=dev_id,
-                    action=act,
-                    time_hhmm=hhmm,
-                    schedule_type=sc_type,
+            allowed_td, reason_td = self.engine.check_device_permission(dev_id, actor_tier=actor_tier)
+            if not allowed_td:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_schedule_device",
+                        msg=reason_td,
+                        status_code=403,
+                        target=dev_id,
+                    )
                 )
-            except ValueError as exc:
-                return {"ok": False, "error": str(exc), "exact_spoken_reply": str(exc)}
-            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-            await self.engine.emit({"type": "schedule_created", "schedule": sc})
-            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
-            rep_txt = "hằng ngày " if sc["schedule_type"] == "daily" else ""
-            spoken = f"Đã đặt lịch lúc {sc['time_hhmm']} {rep_txt}{format_device_action_vi(dev_id, act)}."
-            await self._sync_rules_context_to_gemini(spoken)
-            return {"ok": True, "schedule": sc, "exact_spoken_reply": spoken, "message": spoken}
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=actor_tier,
+                time_hhmm=hhmm,
+                schedule_type=sc_type,
+                engine=self.engine,
+            )
+            if conflict_msg:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="tier1_schedule_conflict",
+                        msg=conflict_msg,
+                        status_code=409,
+                        target="schedules",
+                    )
+                )
+            rep_txt = "hằng ngày " if sc_type == "daily" else ""
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_schedule",
+                payload={
+                    "target_devs": [dev_id],
+                    "action": act,
+                    "time_hhmm": hhmm,
+                    "schedule_type": sc_type,
+                },
+                prompt_summary=f"Đặt lịch lúc {hhmm} {rep_txt}{format_device_action_vi(dev_id, act)}",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "create_custom_scene":
-            from simulator.automation_nlu import parse_multi_steps_from_text
-            from simulator.automation_repo import check_steps_rbac, upsert_custom_command
-
-            if self.engine.current_tier >= 3 and not self.engine.system_policies.get("tier3_can_custom_rules", False):
-                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_custom_command",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
             phrase = str(args.get("phrase", "")).strip()
             steps_text = str(args.get("steps_text", "")).strip()
             steps = parse_multi_steps_from_text(steps_text)
-            ok_steps, err_steps = check_steps_rbac(steps, self.engine.current_tier)
+            if not steps:
+                msg_empty = "Không nhận diện được các bước thiết bị cho lệnh tùy chỉnh."
+                return {"ok": False, "error": msg_empty, "exact_spoken_reply": msg_empty}
+            ok_steps, err_steps = check_steps_rbac(steps, actor_tier)
             if not ok_steps:
-                return {"ok": False, "error": err_steps, "exact_spoken_reply": err_steps}
-            try:
-                scene = upsert_custom_command(
-                    phrase=phrase,
-                    steps=steps,
-                    owner_user_id=self.engine._current_user_id,
-                    owner_tier=self.engine.current_tier,
-                    owner_name=self.engine.get_current_user_name(),
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_custom_command_device",
+                        msg=err_steps,
+                        status_code=403,
+                        target="custom_commands",
+                    )
                 )
-            except ValueError as exc:
-                return {"ok": False, "error": str(exc), "exact_spoken_reply": str(exc)}
-            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-            await self.engine.emit({"type": "custom_command_created", "command": scene})
-            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
-            spoken = f"Đã lưu lệnh '{scene['phrase']}' gồm {scene['steps_summary']}."
-            await self._sync_rules_context_to_gemini(spoken)
-            return {"ok": True, "command": scene, "exact_spoken_reply": spoken, "message": spoken}
+            steps_summary = ", ".join(format_device_action_vi(s["device_id"], s["action"]) for s in steps)
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_custom_command",
+                payload={"phrase": phrase, "steps": steps},
+                prompt_summary=f"Tạo lệnh '{phrase}' gồm {steps_summary}",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "run_custom_scene":
-            return await self.engine.execute_custom_scene(
-                str(args.get("phrase_or_id", "")).strip(),
-                source="gemini_live",
-            )
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_run_custom_command",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
+            phrase_or_id = str(args.get("phrase_or_id", "")).strip()
+            cmd_hit = find_custom_command_by_text(phrase_or_id, owner_user_id=actor_uid)
+            target_id = cmd_hit["command_id"] if cmd_hit is not None else phrase_or_id
+            res_sc = await self.engine.execute_custom_scene(target_id, source="gemini_live")
+            try:
+                await _broadcast_rest_state_to_bridges()
+            except Exception:
+                pass
+            return res_sc
 
         if name == "delete_automation_item":
-            from simulator.automation_repo import (
-                delete_automation_rule,
-                delete_custom_command,
-                delete_schedule,
-                list_automation_rules,
-                list_custom_commands,
-                list_schedules,
-                normalize_phrase,
-            )
-
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_delete_automation",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="automation",
+                    )
+                )
             kind = str(args.get("kind", "schedule") or "schedule").strip().lower()
-            kw = normalize_phrase(str(args.get("keyword_or_id", "")).strip())
-            if self.engine.current_tier >= 3:
-                msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
-                return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-            deleted = False
-            if kind == "schedule":
-                for s in list_schedules(include_disabled=True):
-                    if not kw or kw in (s["schedule_id"], s["time_hhmm"], normalize_phrase(s["label"])):
-                        if self.engine.current_tier == 1 or s["owner_user_id"] == self.engine._current_user_id:
-                            deleted = delete_schedule(s["schedule_id"])
-                            break
-            elif kind == "rule":
-                for r in list_automation_rules(include_disabled=True):
-                    if not kw or kw in (r["rule_id"], normalize_phrase(r["label"])):
-                        if self.engine.current_tier == 1 or r["owner_user_id"] == self.engine._current_user_id:
-                            deleted = delete_automation_rule(r["rule_id"])
-                            break
-            elif kind == "scene":
-                for c in list_custom_commands(include_disabled=True):
-                    if not kw or kw in (c["command_id"], c["phrase_norm"]):
-                        if self.engine.current_tier == 1 or c["owner_user_id"] == self.engine._current_user_id:
-                            deleted = delete_custom_command(c["command_id"])
-                            break
-            self.engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-            await self.engine.emit({"type": "state_snapshot", "snapshot": self.engine.get_snapshot()})
-            spoken = "Đã xóa mục tự động hóa." if deleted else "Không tìm thấy mục phù hợp để xóa."
-            return {"ok": deleted, "exact_spoken_reply": spoken, "message": spoken}
+            kw = str(args.get("keyword_or_id", "")).strip()
+            kind_map = {
+                "schedule": ("delete_schedule", {"time_hhmm": kw if ":" in kw else None, "schedule_id": kw if kw.startswith("sc_") else ""}),
+                "rule": ("delete_automation_rule", {"rule_id": kw if kw.startswith("rule_") else ""}),
+                "scene": ("delete_custom_command", {"phrase": kw, "command_id": kw if kw.startswith("cmd_") else ""}),
+            }
+            act_k, pl = kind_map.get(kind, ("delete_schedule", {}))
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind=act_k,
+                payload=pl,
+                prompt_summary=f"Xóa {kind} '{kw}'".strip(),
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "query_pools":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_query_pools",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="pools",
+                    )
+                )
             q_type = str(args.get("query_type", "all") or "all")
+            if q_type == "timers":
+                _, _, sp_t, d_t = format_pool_items_summary(pool_kind="timers", engine=self.engine, session=actor_sess)
+                return self._wrap_nlu_tool_result({"handled": True, "status_code": 200, "payload": {"ok": True, **d_t, "reply": sp_t, "exact_spoken_reply": sp_t}})
             t_dev = str(args.get("target_device_id", "") or "")
             return self.engine.get_pools_summary(query_type=q_type, target_device_id=t_dev)
 
@@ -741,23 +1226,5 @@ class LiveToolDispatcherMixin:
                 "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
                 "message": spoken,
             }
-
-        if name == "request_factory_reset":
-            scope = str(args.get("scope", "all") or "all")
-            return await self.engine.request_factory_reset(scope=scope)
-
-        if name in ("confirm_pending_action", "confirm_factory_reset", "factory_reset_rules"):
-            confirmed = bool(args.get("confirmed", True))
-            res = await self.engine.confirm_pending_action(confirmed=confirmed)
-            if res.get("ok"):
-                if res.get("reset_scope") in ("voice", "all"):
-                    await self.send_ws_json({
-                        "type": "voice_auth_result",
-                        "sample_id": "reset_voice",
-                        "label": "Đã reset giọng nói chỉ về của Chủ nhà",
-                        "analysis": self.voice_auth.last_analysis,
-                    })
-                await self._sync_rules_context_to_gemini(res.get("message", "Đã xử lý xác nhận."))
-            return res
 
         return {"ok": False, "error": f"Hàm '{name}' không được hỗ trợ."}

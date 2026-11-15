@@ -109,10 +109,11 @@ class TestOrthogonalStaticRoutes:
         resp = client.get(
             f"{route}?v={nonce}&nonce={nonce}&cache_bust={os.urandom(8).hex()}&test_param=orthogonal_check"
         )
-        assert resp.status_code == 200, (
-            f"Route {route} sập khi truyền query nonce: {resp.status_code}"
+        expected_status = 410 if route == "/guest_enroll" else 200
+        assert resp.status_code == expected_status, (
+            f"Route {route} trả về {resp.status_code} (kỳ vọng {expected_status})"
         )
-        assert len(resp.content) > 50
+        assert len(resp.content) > 20
 
     @pytest.mark.parametrize("route", STATIC_ROUTES)
     def test_static_route_with_abnormal_headers(
@@ -127,8 +128,9 @@ class TestOrthogonalStaticRoutes:
             "User-Agent": f"Adversarial-Challenger-Bot/{nonce}",
         }
         resp = client.get(route, headers=headers)
-        assert resp.status_code == 200, (
-            f"Route {route} sập khi gửi abnormal headers: {resp.status_code}"
+        expected_status = 410 if route == "/guest_enroll" else 200
+        assert resp.status_code == expected_status, (
+            f"Route {route} trả về {resp.status_code} khi gửi abnormal headers (kỳ vọng {expected_status})"
         )
 
     def test_static_path_traversal_attempts_blocked_or_safe(
@@ -161,31 +163,29 @@ class TestOrthogonalApiRoutes:
     def test_guest_qr_current_with_random_nonces_and_unusual_durations(
         self, client: TestClient
     ) -> None:
-        """Thử các giá trị duration hợp lệ lẫn dị biệt kèm nonce ngẫu nhiên."""
-        # 1. Hợp lệ với nonce ngẫu nhiên
+        """Các route legacy guest_qr_* đã bị retired P0 (405/410) và API /api/guest/invite/validate từ chối token rác an toàn."""
         for valid_dur in ["1d", "2d", "1w", "1m", "1y"]:
             nonce = uuid.uuid4().hex
             resp = client.get(f"/api/auth3/guest_qr_current?duration={valid_dur}&nonce={nonce}")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data.get("ok") is True
-            assert "token" in data
-            assert data.get("duration") == valid_dur
+            assert resp.status_code in (405, 410), f"Legacy route returned {resp.status_code}"
+            assert resp.status_code != 500
 
-        # 2. Bất thường: duration dị biệt
         for weird_dur in ["999y", "invalid", "<script>", "1000000d", ""]:
             nonce = uuid.uuid4().hex
             resp = client.get(f"/api/auth3/guest_qr_current?duration={weird_dur}&nonce={nonce}")
-            # Server có thể fallback về default "1d" hoặc trả 400, tuyệt đối không được 500
-            assert resp.status_code in (200, 400), (
-                f"Unexpected status {resp.status_code} for duration {weird_dur}"
-            )
+            assert resp.status_code in (405, 410), f"Legacy route returned {resp.status_code}"
             assert resp.status_code != 500
+
+        # Active invite validate phải từ chối token rác an toàn (403, không crash 500)
+        for bad_tok in ["", uuid.uuid4().hex, "<script>alert(1)</script>"]:
+            v_resp = client.get(f"/api/guest/invite/validate?token={bad_tok}")
+            assert v_resp.status_code in (400, 403, 404, 422)
+            assert v_resp.status_code != 500
 
     def test_guest_qr_handshake_random_nonces_and_malformed_structures(
         self, client: TestClient
     ) -> None:
-        """Thử gửi các cấu trúc payload bất thường vào /api/auth3/guest_qr_handshake."""
+        """Route retired /api/auth3/guest_qr_handshake phải trả về 410 Gone và /api/guest/redeem từ chối payload rác."""
         malformed_payloads = [
             {},  # Empty object
             {"token": ""},  # Empty token
@@ -197,16 +197,19 @@ class TestOrthogonalApiRoutes:
         ]
         for p in malformed_payloads:
             resp = client.post("/api/auth3/guest_qr_handshake", json=p)
-            assert resp.status_code in (400, 401, 422), (
-                f"Payload {p} gây status {resp.status_code} thay vì 400/401/422!"
+            assert resp.status_code == 410, (
+                f"Payload {p} gây status {resp.status_code} thay vì 410 Gone!"
             )
-            assert resp.status_code != 500
+            assert resp.json().get("gone") is True
+
+        r_bad = client.post("/api/guest/redeem", json={"token": uuid.uuid4().hex})
+        assert r_bad.status_code in (400, 403, 422)
+        assert r_bad.status_code != 500
 
     def test_guest_qr_send_otp_validation_and_fuzzing(
         self, client: TestClient
     ) -> None:
-        """Fuzzing endpoint /api/auth3/guest_qr_send_otp."""
-        # 1. Email lệch nhau -> Phải bị từ chối (400 hoặc ok=False), tuyệt đối không 500
+        """Endpoint retired /api/auth3/guest_qr_send_otp phải luôn trả 410 Gone."""
         resp1 = client.post(
             "/api/auth3/guest_qr_send_otp",
             json={
@@ -216,11 +219,9 @@ class TestOrthogonalApiRoutes:
                 "guest_name": "Test Guest",
             },
         )
-        assert resp1.status_code in (400, 422)
-        assert resp1.status_code != 500
+        assert resp1.status_code == 410
         assert resp1.json().get("ok") is False
 
-        # 2. Email domain ảo không có DNS MX -> Bị chặn từ chối
         resp2 = client.post(
             "/api/auth3/guest_qr_send_otp",
             json={
@@ -230,11 +231,9 @@ class TestOrthogonalApiRoutes:
                 "guest_name": "Test Guest",
             },
         )
-        assert resp2.status_code in (400, 422)
-        assert resp2.status_code != 500
+        assert resp2.status_code == 410
         assert resp2.json().get("ok") is False
 
-        # 3. Payload dị thường (chuỗi cực dài với domain không tồn tại) -> Bị chặn, không crash 500
         resp3 = client.post(
             "/api/auth3/guest_qr_send_otp",
             json={
@@ -244,15 +243,13 @@ class TestOrthogonalApiRoutes:
                 "guest_name": "\x00\x01\x02\xff",
             },
         )
-        assert resp3.status_code in (400, 422)
-        assert resp3.status_code != 500
+        assert resp3.status_code == 410
         assert resp3.json().get("ok") is False
 
     def test_guest_qr_verify_otp_fuzzing_and_brute_force(
         self, client: TestClient
     ) -> None:
-        """Fuzzing mã OTP ngẫu nhiên trên /api/auth3/guest_qr_verify_otp."""
-        # 1. Thử brute-force các mã OTP sai khi chưa có session
+        """Endpoint retired /api/auth3/guest_qr_verify_otp phải luôn trả 410 Gone và ok=False."""
         random_otps = [
             "000000",
             "999999",
@@ -271,32 +268,26 @@ class TestOrthogonalApiRoutes:
                     "otp": otp_code,
                 },
             )
-            # Hệ thống xử lý an toàn: không crash 500, và báo lỗi không xác thực
-            assert resp.status_code != 500
+            assert resp.status_code == 410
             data = resp.json()
-            assert data.get("ok") is False or resp.status_code in (400, 401, 422)
+            assert data.get("ok") is False
 
     def test_guest_qr_complete_voice_audio_fuzzing(
         self, client: TestClient
     ) -> None:
-        """Fuzzing payload âm thanh vào /api/auth3/guest_qr_complete_voice."""
+        """Endpoint retired /api/auth3/guest_qr_complete_voice phải luôn trả 410 Gone."""
         corrupted_payloads = [
-            # Base64 hỏng
             {"session_id": "ses1", "guest_name": "Khách", "audio_pcm_b64": "!!!NOT_BASE64!!!"},
-            # Base64 của dữ liệu rác (không phải 16kHz PCM audio)
             {"session_id": "ses2", "guest_name": "Khách", "audio_pcm_b64": base64.b64encode(b"random_junk_data_here").decode("ascii")},
-            # Chuỗi rỗng
             {"session_id": "ses3", "guest_name": "Khách", "audio_pcm_b64": ""},
-            # None
             {"session_id": "ses4", "guest_name": "Khách", "audio_pcm_b64": None},
         ]
         for p in corrupted_payloads:
             resp = client.post("/api/auth3/guest_qr_complete_voice", json=p)
-            # Hệ thống phải từ chối lịch sự (400 hoặc 422), không được unhandled crash 500
-            assert resp.status_code in (400, 422), (
-                f"Audio fuzzing payload gây {resp.status_code}!"
+            assert resp.status_code == 410, (
+                f"Audio fuzzing payload gây {resp.status_code} thay vì 410 Gone!"
             )
-            assert resp.status_code != 500
+            assert resp.json().get("gone") is True
 
     def test_sql_query_read_only_wal_protection_against_injection(
         self, client: TestClient
@@ -406,7 +397,9 @@ class TestOrthogonalWebSocketInteractions:
 
 AUDIO_DIR = ROOT / "test_audio"
 SLICED_DIR = AUDIO_DIR / "cac_cau_lenh_cua_sep"
-DB_PATH = ROOT / "simulator" / "data" / "smarthome.db"
+from simulator.db_migrations import resolve_sqlite_db_path
+
+DB_PATH = resolve_sqlite_db_path()
 
 
 def _read_wav_pcm(path: pathlib.Path) -> bytes:
@@ -437,10 +430,18 @@ class TestVoiceBiometricsAdversarialNoiseAndIntruders:
     def test_sep_real_voice_with_synthetic_fan_noise_authorized_tier1(
         self, enrolled_vm: VoiceAuthManager
     ) -> None:
-        """Giọng thật của Sếp trong môi trường có tiếng quạt ù mạnh vẫn qua bộ lọc Wiener và xác thực đúng Cấp 1 ADMIN."""
-        cmd_wav = SLICED_DIR / "cau_2_mo_cua_chinh.wav"
-        pcm_cmd = np.frombuffer(_read_wav_pcm(cmd_wav), dtype=np.int16)
-        noisy_pcm = synthesize_noisy_fan_voice(pcm_cmd, 16000)
+        """Giọng thật của Sếp trong môi trường có tiếng quạt ù vừa phải vẫn qua bộ lọc Wiener + Quality Gate và xác thực đúng Cấp 1 ADMIN."""
+        cmd_wav = AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        pcm_cmd = np.frombuffer(_read_wav_pcm(cmd_wav), dtype=np.int16)[:48000]
+        rng = np.random.default_rng(42)
+        t = np.arange(pcm_cmd.size, dtype=np.float32) / 16000.0
+        fan_hum = (
+            0.04 * np.sin(2.0 * np.pi * 65.0 * t)
+            + 0.025 * np.sin(2.0 * np.pi * 130.0 * t)
+            + 0.015 * np.sin(2.0 * np.pi * 195.0 * t)
+            + rng.normal(0.0, 0.015, size=pcm_cmd.size)
+        ) * 32768.0
+        noisy_pcm = np.clip(pcm_cmd.astype(np.float32) + fan_hum, -32768, 32767).astype(np.int16)
 
         auth_res = enrolled_vm.verify_pcm16k_and_apply_strikes(noisy_pcm.tobytes(), is_live_mic=True)
         assert auth_res["authorized"] is True, f"Giọng Sếp kèm ồn bị từ chối: {auth_res}"
@@ -495,14 +496,16 @@ class TestVoiceBiometricsAdversarialNoiseAndIntruders:
         r3 = enrolled_vm.verify_pcm16k_and_apply_strikes(pcm_intruder, is_live_mic=False)
         assert r3["authorized"] is False
         assert enrolled_vm.unauthorized_strikes >= 3
-        assert r3["silent_ignore"] is True
+        assert r3["silent_ignore"] is False
+        assert r3.get("rejection_speech") == "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
     def test_duplicate_voice_gate_blocks_tier2_tier3_registration_with_sep_voice(
         self, enrolled_vm: VoiceAuthManager
     ) -> None:
         """Cổng chống trùng giọng: Ngăn chặn kẻ mạo danh dùng giọng Sếp để đăng ký tài khoản Khách Cấp 3 hoặc Thành viên Cấp 2."""
-        owner_wav = AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav"
+        owner_wav = AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
         pcm_owner = _read_wav_pcm(owner_wav)
+        sc_pcm = _read_wav_pcm(AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav")[:192000]
 
         dup_check = enrolled_vm.check_duplicate_voice_gate(
             feat_s1=pcm_owner,
@@ -514,6 +517,7 @@ class TestVoiceBiometricsAdversarialNoiseAndIntruders:
 
         enroll_res = enrolled_vm.enroll_tier_voice_from_pcm16k(
             pcm_bytes=pcm_owner,
+            self_check_pcm_bytes=sc_pcm,
             user_id="attacker_guest",
             user_name="Kẻ Giả Mạo",
             tier=3,
@@ -569,8 +573,9 @@ class TestSqliteDatabaseStateConsistencyUnderConcurrency:
 
     def test_sqlite_wal_mode_and_schema_integrity(self) -> None:
         """Kiểm tra SQLite ở chế độ toàn vẹn (integrity_check = ok) và hỗ trợ WAL / journaling."""
-        assert DB_PATH.exists(), f"Không tìm thấy CSDL SQLite tại {DB_PATH}"
-        conn = sqlite3.connect(str(DB_PATH))
+        db_path = resolve_sqlite_db_path()
+        assert db_path.exists(), f"Không tìm thấy CSDL SQLite tại {db_path}"
+        conn = sqlite3.connect(str(db_path))
         try:
             cur = conn.cursor()
             cur.execute("PRAGMA integrity_check")

@@ -30,8 +30,10 @@ _BOOT_VOICE_AUTH = VoiceAuthManager(AUDIO_DIR)
 
 
 async def _send_ws_safe(br: Any, payload: dict[str, Any]) -> None:
+    if getattr(br, "_closed", False):
+        return
     try:
-        await asyncio.wait_for(br.send_ws_json(payload), timeout=1.5)
+        await asyncio.wait_for(br.send_ws_json(payload), timeout=0.25)
     except Exception:
         pass
 
@@ -45,9 +47,15 @@ async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
         get_realtime_hub().publish_snapshot(_REST_ENGINE, reason=ev_type)
     except Exception:
         pass
-    bridges = list(_ACTIVE_BRIDGES)
+    bridges = [br for br in list(_ACTIVE_BRIDGES) if not getattr(br, "_closed", False)]
     if bridges:
-        await asyncio.gather(*(_send_ws_safe(br, event) for br in bridges), return_exceptions=True)
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*(_send_ws_safe(br, event) for br in bridges), return_exceptions=True),
+                timeout=0.35,
+            )
+        except Exception:
+            pass
 
 
 _REST_ENGINE = SmartHomeEngine(
@@ -95,7 +103,7 @@ async def broadcast_rest_state_to_bridges(
         get_realtime_hub().publish_snapshot(_REST_ENGINE, reason="rest_broadcast")
     except Exception:
         pass
-    bridges = list(_ACTIVE_BRIDGES)
+    bridges = [br for br in list(_ACTIVE_BRIDGES) if not getattr(br, "_closed", False)]
     if not bridges:
         return
     owner_snap: dict[str, Any] | None = None
@@ -125,7 +133,10 @@ async def broadcast_rest_state_to_bridges(
         except Exception:
             pass
     if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=0.35)
+        except Exception:
+            pass
 
 
 # Alias tương thích

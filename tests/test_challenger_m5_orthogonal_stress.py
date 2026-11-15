@@ -55,22 +55,29 @@ AUDIO_DIR = ROOT / "test_audio"
 
 
 def load_wav_pcm(relative_path: str) -> np.ndarray:
-    if relative_path in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
-        relative_path = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
+    slice_limit: int | None = None
+    if relative_path in (
+        "giong_1_chu_nha_mo_cua.wav",
+        "mo_cua_chinh.wav",
+        "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav",
+    ):
+        relative_path = "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        slice_limit = 48000
     p = AUDIO_DIR / relative_path
     if not p.exists():
         raise FileNotFoundError(f"Missing audio asset: {p}")
     with wave.open(str(p), "rb") as w:
-        return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        arr = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        return arr[:slice_limit] if slice_limit is not None else arr
 
 
 def synthesize_vocal_fry_82hz(f0_hz: float = 82.0, duration_sec: float = 0.5, sr: int = 16000) -> np.ndarray:
     n_samples = int(sr * duration_sec)
     t = np.arange(n_samples, dtype=np.float32) / sr
     sig = (
-        0.32 * np.sin(2.0 * np.pi * f0_hz * t)
-        + 0.12 * np.sin(2.0 * np.pi * 2.0 * f0_hz * t)
-        + 0.04 * np.sin(2.0 * np.pi * 3.0 * f0_hz * t)
+        0.20 * np.sin(2.0 * np.pi * f0_hz * t)
+        + 0.18 * np.sin(2.0 * np.pi * 2.0 * f0_hz * t)
+        + 0.12 * np.sin(2.0 * np.pi * 3.0 * f0_hz * t)
     )
     env = np.sin(np.pi * np.linspace(0.0, 1.0, n_samples, endpoint=False)) ** 2
     out = sig * env * 32767.0
@@ -268,28 +275,31 @@ class TestSqliteWalConcurrencyAndIntegrity:
 
     def test_acid_atomicity_transaction_rollback(self) -> None:
         """Xác nhận tính toàn vẹn Transaction ACID: Rollback khi gặp lỗi vi phạm ràng buộc Foreign Key."""
+        from simulator.db_migrations import run_write_transaction
+
         init_sqlite_database()
         conn = get_connection()
         try:
             initial_count = conn.execute("SELECT COUNT(*) FROM audit_logs WHERE event_type = 'ev1'").fetchone()[0]
+
+            def _atomic_two_inserts(c: sqlite3.Connection) -> None:
+                c.execute(
+                    """
+                    INSERT INTO audit_logs (
+                        ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+                    ) VALUES ('2026-11-04T00:00:00Z', '00:00:00', 'TEST', 'ev1', 'tuan_anh', 'Tuấn Anh', 1, 'sum1', '{}')
+                    """
+                )
+                c.execute(
+                    """
+                    INSERT INTO audit_logs (
+                        ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
+                    ) VALUES ('2026-11-04T00:00:00Z', '00:00:00', 'TEST', 'ev2', 'non_existent_user_9999', 'Ghost', 3, 'sum2', '{}')
+                    """
+                )
+
             with pytest.raises(sqlite3.IntegrityError):
-                with conn:
-                    # Chèn bản ghi hợp lệ
-                    conn.execute(
-                        """
-                        INSERT INTO audit_logs (
-                            ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
-                        ) VALUES ('2026-11-04T00:00:00Z', '00:00:00', 'TEST', 'ev1', 'tuan_anh', 'Tuấn Anh', 1, 'sum1', '{}')
-                        """
-                    )
-                    # Chèn bản ghi vi phạm Foreign Key (user_id không tồn tại)
-                    conn.execute(
-                        """
-                        INSERT INTO audit_logs (
-                            ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
-                        ) VALUES ('2026-11-04T00:00:00Z', '00:00:00', 'TEST', 'ev2', 'non_existent_user_9999', 'Ghost', 3, 'sum2', '{}')
-                        """
-                    )
+                run_write_transaction(conn, _atomic_two_inserts)
             # Sau khi bị rollback, số lượng bản ghi ev1 phải bằng ban đầu (0)
             final_count = conn.execute("SELECT COUNT(*) FROM audit_logs WHERE event_type = 'ev1'").fetchone()[0]
             assert final_count == initial_count, (

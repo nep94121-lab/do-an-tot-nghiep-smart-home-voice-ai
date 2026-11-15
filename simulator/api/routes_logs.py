@@ -44,8 +44,14 @@ def _mask_string_secrets_and_emails(raw_str: str) -> str:
         flags=re.IGNORECASE,
     )
     t = re.sub(
-        r"(Mã\s*OTP(?:\s*[^:\d\n]{0,30})?[:=]\s*)(\d{4,8})",
-        r"\1******",
+        r"(Mã\s*OTP\s*['\"]?)(\d{4,10})(['\"]?)",
+        r"\1******\3",
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(
+        r"(Mã\s*OTP(?:\s*[^:\d\n]{0,30})?[:=]\s*['\"]?)(\d{4,10})(['\"]?)",
+        r"\1******\3",
         t,
         flags=re.IGNORECASE,
     )

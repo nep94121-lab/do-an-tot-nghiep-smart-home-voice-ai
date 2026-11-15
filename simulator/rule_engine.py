@@ -96,6 +96,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
     ):
         self._root_engine: "SmartHomeEngine" = self
         self._state_sync_lock = threading.RLock()
+        self._cas_owner_lock = threading.Lock()
+        self._cas_owner_tid: int | None = None
+        self._cas_owner_task_id: int | None = None
         self._applying_shared_state_depth: int = 1
         self._applying_shared_state: bool = True
         self._initialized_devices: bool = False
@@ -153,6 +156,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         view = object.__new__(SmartHomeEngine)
         object.__setattr__(view, "_root_engine", root)
         object.__setattr__(view, "_state_sync_lock", root._state_sync_lock)
+        object.__setattr__(view, "_cas_owner_lock", root._cas_owner_lock)
+        object.__setattr__(view, "_cas_owner_tid", None)
+        object.__setattr__(view, "_cas_owner_task_id", None)
         object.__setattr__(view, "_applying_shared_state_depth", 0)
         object.__setattr__(view, "_applying_shared_state", True)
         object.__setattr__(view, "_initialized_devices", False)
@@ -912,7 +918,53 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             return "close"
         return act_low or "open"
 
+    def _is_in_active_mutation(self) -> bool:
+        """Kiểm tra caller hiện tại có đang nằm trong giao dịch CAS/state của chính thread/task đó hay không."""
+        root = getattr(self, "_root_engine", self)
+        if root._mutation_depth <= 0:
+            return False
+        cur_tid = threading.get_ident()
+        try:
+            cur_task = asyncio.current_task()
+            cur_task_id = id(cur_task) if cur_task is not None else None
+        except RuntimeError:
+            cur_task_id = None
+        with root._cas_owner_lock:
+            owner_tid = getattr(root, "_cas_owner_tid", None)
+            owner_task_id = getattr(root, "_cas_owner_task_id", None)
+        if owner_tid is None:
+            return True
+        if owner_tid != cur_tid:
+            return False
+        if owner_task_id is not None and cur_task_id is not None and owner_task_id != cur_task_id:
+            return False
+        return True
+
     async def _execute_with_cas_retry(self, op_factory: Any) -> dict[str, Any]:
+        """Tuần tự hóa các thread/task cùng chia sẻ SmartHomeEngine trước khi chạy vòng lặp CAS."""
+        root = getattr(self, "_root_engine", self)
+        cur_tid = threading.get_ident()
+        try:
+            cur_task = asyncio.current_task()
+            cur_task_id = id(cur_task) if cur_task is not None else None
+        except RuntimeError:
+            cur_task_id = None
+        while True:
+            with root._cas_owner_lock:
+                if root._cas_owner_tid is None:
+                    root._cas_owner_tid = cur_tid
+                    root._cas_owner_task_id = cur_task_id
+                    break
+            await asyncio.sleep(0.001)
+        try:
+            return await self._execute_with_cas_retry_unlocked(op_factory)
+        finally:
+            with root._cas_owner_lock:
+                if root._cas_owner_tid == cur_tid and root._cas_owner_task_id == cur_task_id:
+                    root._cas_owner_tid = None
+                    root._cas_owner_task_id = None
+
+    async def _execute_with_cas_retry_unlocked(self, op_factory: Any) -> dict[str, Any]:
         """Thực thi chuyển đổi trạng thái dưới vòng lặp Compare-And-Swap, chỉ phát side-effects sau khi commit."""
         import secrets as _secrets
 
@@ -1119,7 +1171,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         **kwargs: Any,
     ) -> dict[str, Any]:
         root = getattr(self, "_root_engine", self)
-        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+        if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
             return await self._execute_with_cas_retry(
                 lambda: self._execute_device_action_once(
                     device_id=device_id,
@@ -1559,7 +1611,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
     async def update_sensor_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         root = getattr(self, "_root_engine", self)
-        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+        if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
             return await self._execute_with_cas_retry(
                 lambda: self._update_sensor_telemetry_once(temp_c, humidity_pct, wifi_rssi_dbm)
             )
@@ -1598,7 +1650,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
     ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
         root = getattr(self, "_root_engine", self)
-        if getattr(root.state_backend, "supports_cas", False) and root._mutation_depth == 0:
+        if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
             return await self._execute_with_cas_retry(
                 lambda: self._update_soil_moisture_telemetry_once(
                     soil_moisture_pct,
@@ -1761,7 +1813,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             from simulator.auth.tier_permissions import can_control_device
             from simulator.automation_repo import list_automation_rules
 
-            db_rules = list_automation_rules(include_disabled=False)
+            db_rules = sorted(
+                list_automation_rules(include_disabled=False),
+                key=lambda r: int(r.get("owner_tier") or 1),
+            )
         except Exception:
             db_rules = []
 
@@ -1769,6 +1824,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             if rule.get("when_device_id") != changed_dev_id:
                 continue
             rule_tier = int(rule.get("owner_tier") or 1)
+            if rule_tier >= 3:
+                continue
             if_state = str(rule.get("when_state") or "OPEN").upper()
             delay_sec = float(rule.get("delay_seconds") or 0.0)
             target_dev = ""
@@ -1787,6 +1844,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 continue
             if not can_control_device(rule_tier, target_dev):
                 continue
+            if rule_tier > 1 and target_dev in t1_locked_targets:
+                continue
+            if rule_tier == 1:
+                t1_locked_targets.add(target_dev)
 
             reason_lbl = f"{prefix_lbl} {self.devices[changed_dev_id]['name']}={new_state}"
             if delay_sec <= 0.2:

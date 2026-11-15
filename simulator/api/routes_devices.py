@@ -20,6 +20,7 @@ import hmac
 import json
 import os
 import re
+import time
 from typing import Any
 
 from fastapi import APIRouter, Body, Request
@@ -431,10 +432,11 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
     effective_tier = session.tier
     user_name = session.display_name
 
-    if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
-        msg = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
+    if effective_tier >= 3:
+        from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
+
         append_audit_log(
-            category="TIMER_RULE",
+            category="SECURITY",
             event_type="mobile_schedule_blocked_rbac",
             summary=f"[RBAC] Chặn tạo lịch hẹn giờ từ {user_name} (Tầng {effective_tier}): {dev_id} -> {act}",
             user_name=user_name,
@@ -446,8 +448,8 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
                 "ok": False,
                 "rbac_blocked": True,
                 "tier": effective_tier,
-                "error": msg,
-                "exact_spoken_reply": msg,
+                "error": GUEST_ONLY_TOGGLE_MSG_VI,
+                "exact_spoken_reply": GUEST_ONLY_TOGGLE_MSG_VI,
             },
             status_code=403,
         )
@@ -466,11 +468,51 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
                 status_code=403,
             )
 
-    res = await _REST_ENGINE.schedule_timer_flexible(
-        device_id=dev_id,
-        action=act,
-        seconds=sec,
+    from simulator.automation_repo import check_tier1_schedule_conflict
+
+    conflict_msg = check_tier1_schedule_conflict(
+        actor_tier=effective_tier,
+        fire_epoch=time.time() + float(sec or 0.0),
+        engine=_REST_ENGINE,
     )
+    if conflict_msg:
+        append_audit_log(
+            category="SECURITY",
+            event_type="mobile_schedule_conflict_tier1",
+            summary=f"[RBAC] Chặn Cấp 2 ({user_name}) đặt hẹn giờ trùng lịch Cấp 1: {conflict_msg}",
+            user_name=user_name,
+            tier=effective_tier,
+            details={"device_id": dev_id, "action": act, "seconds": sec, "conflict": True},
+        )
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "conflict_tier1": True,
+                "tier": effective_tier,
+                "error": conflict_msg,
+                "exact_spoken_reply": conflict_msg,
+            },
+            status_code=409,
+        )
+
+    prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
+    prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
+    try:
+        _REST_ENGINE._current_user_id = str(session.user_id)
+        _REST_ENGINE._current_role = str(session.role)
+        res = await _REST_ENGINE.schedule_timer_flexible(
+            device_id=dev_id,
+            action=act,
+            seconds=sec,
+        )
+    finally:
+        _REST_ENGINE._current_user_id = prev_uid
+        _REST_ENGINE._current_role = prev_role
+    if not res.get("ok"):
+        err_s = str(res.get("error", ""))
+        code = 409 if "Trùng lịch" in err_s else (403 if res.get("rbac_blocked") else 400)
+        return JSONResponse(res, status_code=code)
     append_audit_log(
         category="TIMER_RULE",
         event_type="mobile_schedule_created",
@@ -658,10 +700,10 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         })
 
     t_low = text.lower()
-    is_sensor_or_reset = any(
-        k in t_low for k in ("nhiệt độ", "nhiet do", "độ ẩm đất", "cảm biến đất", "trạng thái", "trang thai", "reset")
+    is_sensor_query = any(
+        k in t_low for k in ("nhiệt độ", "nhiet do", "độ ẩm đất", "cảm biến đất", "trạng thái", "trang thai")
     )
-    if not is_sensor_or_reset:
+    if not is_sensor_query:
         from simulator.automation_nlu import process_automation_nlu_command
 
         nlu_res = await process_automation_nlu_command(
@@ -775,12 +817,33 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         res = await _REST_ENGINE.learn_ir_remote_command("Điều hòa", "open")
         return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
 
-    for phrase in _REST_ENGINE.get_merged_aliases():
+    for phrase in _REST_ENGINE.get_merged_aliases(user_id=session.user_id):
         if phrase in t_low:
-            error = _owner_error(request, body)
-            if error is not None:
-                return error
-            res = await _REST_ENGINE.execute_alias_rule(phrase)
+            if not session.is_authenticated:
+                return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
+            if effective_tier >= 3:
+                from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
+
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "tier": effective_tier,
+                        "error": GUEST_ONLY_TOGGLE_MSG_VI,
+                        "reply": GUEST_ONLY_TOGGLE_MSG_VI,
+                        "exact_spoken_reply": GUEST_ONLY_TOGGLE_MSG_VI,
+                    },
+                    status_code=403,
+                )
+            prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
+            prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
+            try:
+                _REST_ENGINE._current_user_id = str(session.user_id)
+                _REST_ENGINE._current_role = str(session.role)
+                res = await _REST_ENGINE.execute_alias_rule(phrase)
+            finally:
+                _REST_ENGINE._current_user_id = prev_uid
+                _REST_ENGINE._current_role = prev_role
             await broadcast_rest_state_to_bridges()
             return JSONResponse({
                 "ok": bool(res.get("ok", True)),
@@ -789,7 +852,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 "results": res.get("results", []),
             })
 
-    # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (예: "Hẹn 10 giây nữa bật đèn phòng khách")
+    # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (fallback nếu chưa đi qua automation_nlu)
     if "hẹn" in t_low or "đặt lịch" in t_low:
         if not session.is_authenticated:
             return JSONResponse(
@@ -802,16 +865,17 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 },
                 status_code=401,
             )
-        if effective_tier >= 3 and not bool(_REST_ENGINE.system_policies.get("tier3_can_schedule_timer", False)):
-            msg_sched = "Từ chối: Khách (Cấp 3) không có quyền tạo lịch hẹn giờ thiết bị."
+        if effective_tier >= 3:
+            from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
+
             return JSONResponse(
                 {
                     "ok": False,
                     "rbac_blocked": True,
                     "tier": effective_tier,
-                    "error": msg_sched,
-                    "reply": msg_sched,
-                    "exact_spoken_reply": msg_sched,
+                    "error": GUEST_ONLY_TOGGLE_MSG_VI,
+                    "reply": GUEST_ONLY_TOGGLE_MSG_VI,
+                    "exact_spoken_reply": GUEST_ONLY_TOGGLE_MSG_VI,
                 },
                 status_code=403,
             )
@@ -840,21 +904,31 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         hours = float(m_hr.group(1)) if m_hr else 0.0
         if seconds <= 0 and minutes <= 0 and hours <= 0:
             seconds = 10.0
-        res_timer = await _REST_ENGINE.schedule_timer_flexible(
-            device_id=dev_id,
-            action=act,
-            seconds=seconds,
-            minutes=minutes,
-            hours=hours,
-        )
+        prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
+        prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
+        try:
+            _REST_ENGINE._current_user_id = str(session.user_id)
+            _REST_ENGINE._current_role = str(session.role)
+            res_timer = await _REST_ENGINE.schedule_timer_flexible(
+                device_id=dev_id,
+                action=act,
+                seconds=seconds,
+                minutes=minutes,
+                hours=hours,
+            )
+        finally:
+            _REST_ENGINE._current_user_id = prev_uid
+            _REST_ENGINE._current_role = prev_role
         await broadcast_rest_state_to_bridges()
-        spoken_timer = res_timer.get("exact_spoken_reply") or res_timer.get("message") or f"Đã đặt hẹn giờ cho {dev_id}."
+        spoken_timer = res_timer.get("exact_spoken_reply") or res_timer.get("message") or res_timer.get("error") or f"Đã đặt hẹn giờ cho {dev_id}."
+        code_t = 409 if "Trùng lịch" in str(res_timer.get("error", "")) else (403 if res_timer.get("rbac_blocked") else (200 if res_timer.get("ok", True) else 400))
         return JSONResponse({
             "ok": bool(res_timer.get("ok", True)),
+            "rbac_blocked": bool(res_timer.get("rbac_blocked", False)),
             "reply": spoken_timer,
             "exact_spoken_reply": spoken_timer,
             "timer": res_timer,
-        })
+        }, status_code=code_t)
 
     tn_cmd = strip_vietnamese_diacritics(t_low)
     if any(k in tn_cmd for k in ("reset he thong", "khoi phuc cai dat goc", "factory reset")):

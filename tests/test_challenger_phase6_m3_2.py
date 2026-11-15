@@ -60,6 +60,11 @@ class ChallengerM3Dummy(AuthInviteGmailMixin):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _allowlist_test_recipient(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
+
+
 @pytest.fixture
 def challenger_dummy() -> ChallengerM3Dummy:
     return ChallengerM3Dummy()
@@ -620,7 +625,7 @@ class TestSecurityZeroLeakAdversarial:
 
     def test_missing_secret_safe_error_response_no_traceback_leak(self, challenger_dummy: ChallengerM3Dummy):
         """Khi thiếu secret, hàm trả về kết quả an toàn với mã lỗi rõ ràng, không throw unhandled exception."""
-        with patch.dict(os.environ, {}, clear=True), \
+        with patch.dict(os.environ, {"REAL_EMAIL_ALLOWLIST": "senat6031@gmail.com"}, clear=True), \
              patch("subprocess.run", side_effect=Exception("No gws installed")):
 
             res = challenger_dummy.send_real_gmail_otp(

@@ -25,6 +25,7 @@ import pathlib
 import re
 import sqlite3
 import threading
+import time
 from typing import Any
 
 from simulator.db_migrations import (
@@ -68,6 +69,38 @@ def _now_iso() -> str:
     return datetime.datetime.now(tz).isoformat()
 
 
+_AUDIT_EMOJI_RE = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"
+    "\U0001F1E6-\U0001F1FF"
+    "\U00002600-\U000027BF"
+    "\U00002300-\U000023FF"
+    "\U00002B00-\U00002BFF"
+    "\U0000FE00-\U0000FE0F"
+    "\U0000200D"
+    "\U000020E3"
+    "\U000025AA-\U000025FE"
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def strip_emojis_for_audit(text: str) -> str:
+    """Loại bỏ toàn bộ emoji/ký hiệu pictograph khỏi log để đảm bảo /logs 0 emoji."""
+    cleaned = _AUDIT_EMOJI_RE.sub("", str(text or ""))
+    return re.sub(r" {2,}", " ", cleaned).strip()
+
+
+def _strip_emojis_in_obj(obj: Any) -> Any:
+    if isinstance(obj, str):
+        return strip_emojis_for_audit(obj)
+    if isinstance(obj, list):
+        return [_strip_emojis_in_obj(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _strip_emojis_in_obj(v) for k, v in obj.items()}
+    return obj
+
+
 def get_connection(
     db_path: pathlib.Path | None = None,
     *,
@@ -95,13 +128,13 @@ def _redact_sqlite_audit_logs_in_conn(conn: sqlite3.Connection) -> int:
             lid = r["log_id"]
             orig_sum = str(r["summary"] or "")
             orig_det = str(r["details_json"] or "{}")
-            new_sum = redact_otp_and_secrets_in_text(orig_sum)
+            new_sum = strip_emojis_for_audit(redact_otp_and_secrets_in_text(orig_sum))
             try:
                 parsed_det = json.loads(orig_det)
-                sanitized_det = sanitize_overview_and_logs_payload(parsed_det)
+                sanitized_det = _strip_emojis_in_obj(sanitize_overview_and_logs_payload(parsed_det))
                 new_det = json.dumps(sanitized_det, ensure_ascii=False)
             except Exception:
-                new_det = redact_otp_and_secrets_in_text(orig_det)
+                new_det = strip_emojis_for_audit(redact_otp_and_secrets_in_text(orig_det))
             if new_sum != orig_sum or new_det != orig_det:
                 conn.execute(
                     "UPDATE audit_logs SET summary = ?, details_json = ? WHERE log_id = ?",
@@ -155,8 +188,8 @@ def insert_audit_log_sqlite(
                     row = c.execute("SELECT user_id FROM users WHERE user_id = ?", (str(uid),)).fetchone()
                     if not row:
                         uid = None
-                safe_summary = redact_otp_and_secrets_in_text(str(entry.get("summary") or ""))
-                safe_details = sanitize_overview_and_logs_payload(entry.get("details") or {})
+                safe_summary = strip_emojis_for_audit(redact_otp_and_secrets_in_text(str(entry.get("summary") or "")))
+                safe_details = _strip_emojis_in_obj(sanitize_overview_and_logs_payload(entry.get("details") or {}))
                 cur = c.execute(
                     """
                     INSERT INTO audit_logs (
@@ -166,10 +199,10 @@ def insert_audit_log_sqlite(
                     (
                         str(entry.get("ts_iso") or _now_iso()),
                         str(entry.get("time_vn") or ""),
-                        str(entry.get("category") or "SYSTEM"),
-                        str(entry.get("event_type") or "event"),
+                        strip_emojis_for_audit(str(entry.get("category") or "SYSTEM")),
+                        strip_emojis_for_audit(str(entry.get("event_type") or "event")),
                         str(uid) if uid else None,
-                        str(entry.get("user") or entry.get("user_name") or "Hệ thống"),
+                        strip_emojis_for_audit(str(entry.get("user") or entry.get("user_name") or "Hệ thống")),
                         int(entry.get("tier") or 1),
                         safe_summary,
                         json.dumps(safe_details if isinstance(safe_details, dict) else {}, ensure_ascii=False),
@@ -209,20 +242,22 @@ def read_audit_logs_sqlite(
                 except Exception:
                     details_obj = {}
                 out.append(
-                    sanitize_overview_and_logs_payload(
-                        {
-                            "log_id": int(r["log_id"]),
-                            "ts_iso": str(r["ts_iso"] or ""),
-                            "time_vn": str(r["time_vn"] or ""),
-                            "category": str(r["category"] or "SYSTEM"),
-                            "event_type": str(r["event_type"] or "event"),
-                            "user_id": r["user_id"],
-                            "user": str(r["user_name"] or "Hệ thống"),
-                            "user_name": str(r["user_name"] or "Hệ thống"),
-                            "tier": int(r["tier"] or 1),
-                            "summary": str(r["summary"] or ""),
-                            "details": details_obj if isinstance(details_obj, dict) else {},
-                        }
+                    _strip_emojis_in_obj(
+                        sanitize_overview_and_logs_payload(
+                            {
+                                "log_id": int(r["log_id"]),
+                                "ts_iso": str(r["ts_iso"] or ""),
+                                "time_vn": str(r["time_vn"] or ""),
+                                "category": str(r["category"] or "SYSTEM"),
+                                "event_type": str(r["event_type"] or "event"),
+                                "user_id": r["user_id"],
+                                "user": str(r["user_name"] or "Hệ thống"),
+                                "user_name": str(r["user_name"] or "Hệ thống"),
+                                "tier": int(r["tier"] or 1),
+                                "summary": str(r["summary"] or ""),
+                                "details": details_obj if isinstance(details_obj, dict) else {},
+                            }
+                        )
                     )
                 )
             return out
@@ -242,9 +277,9 @@ def clear_audit_logs_sqlite() -> None:
         now_str = now_dt.isoformat()
         time_vn_str = now_dt.strftime("%H:%M:%S %d/%m/%Y")
         try:
-            with conn:
-                conn.execute("DELETE FROM audit_logs")
-                conn.execute(
+            def _clear_tx(c: sqlite3.Connection) -> None:
+                c.execute("DELETE FROM audit_logs")
+                c.execute(
                     """
                     INSERT INTO audit_logs (
                         ts_iso, time_vn, category, event_type, user_id, user_name, tier, summary, details_json
@@ -256,6 +291,8 @@ def clear_audit_logs_sqlite() -> None:
                         json.dumps({"action": "clear_audit_logs_sqlite"}, ensure_ascii=False),
                     ),
                 )
+
+            run_write_transaction(conn, _clear_tx)
         except Exception:
             pass
         finally:
@@ -646,8 +683,8 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                                     str(entry.get("event_type") or "event"),
                                     str(entry.get("user") or "Hệ thống"),
                                     int(entry.get("tier") or 1),
-                                    redact_otp_and_secrets_in_text(str(entry.get("summary") or "")),
-                                    json.dumps(sanitize_overview_and_logs_payload(entry.get("details") or {}), ensure_ascii=False),
+                                    strip_emojis_for_audit(redact_otp_and_secrets_in_text(str(entry.get("summary") or ""))),
+                                    json.dumps(_strip_emojis_in_obj(sanitize_overview_and_logs_payload(entry.get("details") or {})), ensure_ascii=False),
                                 ),
                             )
                     except Exception:
@@ -671,7 +708,10 @@ def _safe_sample_rows_for_table(conn: sqlite3.Connection, tname: str) -> list[di
         return []
     order_clause = "ORDER BY log_id DESC" if tname == "audit_logs" else ""
     rows = conn.execute(f"SELECT * FROM {tname} {order_clause} LIMIT 15").fetchall()
-    return [sanitize_overview_and_logs_payload(dict(r)) for r in rows]
+    cleaned_rows = [sanitize_overview_and_logs_payload(dict(r)) for r in rows]
+    if tname == "audit_logs":
+        return [_strip_emojis_in_obj(r) for r in cleaned_rows]
+    return cleaned_rows
 
 
 def get_sqlite_overview() -> dict[str, Any]:

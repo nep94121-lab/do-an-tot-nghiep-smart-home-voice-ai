@@ -161,9 +161,10 @@ class EngineRulesMixin:
                     "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
                     "summary": spoken,
                 }
-            deny_msg = "Bạn đang ở Cấp 3 (Khách), chỉ được hỏi về lệnh đóng mở thiết bị cơ bản."
+            deny_msg = "Khách chỉ được bật tắt thiết bị thôi ạ."
             return {
                 "ok": False,
+                "rbac_blocked": True,
                 "query_type": q_type,
                 "current_user_id": self._current_user_id,
                 "current_user_name": self.get_current_user_name(),
@@ -180,7 +181,7 @@ class EngineRulesMixin:
         snap = self.get_snapshot()
         all_timers = snap["timers"]
         if q_mode != "open_all" and self.current_tier == 2:
-            timers = [t for t in all_timers if t.get("owner_id") == self._current_user_id]
+            timers = [t for t in all_timers if str(t.get("owner_user_id") or t.get("owner_id") or "") == self._current_user_id]
         else:
             timers = all_timers
 
@@ -396,7 +397,29 @@ class EngineRulesMixin:
             db_schedules, db_rules, db_scenes = get_automation_snapshot_bundle()
         except Exception:
             pass
-        can_custom = tier <= 2 or self.system_policies.get("tier3_can_custom_rules", False)
+        if tier >= 3:
+            timers_list = []
+            db_schedules = []
+            db_rules = []
+            db_scenes = []
+        elif tier == 2:
+            timers_list = [
+                t for t in timers_list
+                if str(t.get("owner_user_id") or t.get("owner_id") or "") == uid
+            ]
+            db_schedules = [
+                s for s in db_schedules
+                if str(s.get("owner_user_id") or "") == uid
+            ]
+            db_rules = [
+                r for r in db_rules
+                if str(r.get("owner_user_id") or "") == uid
+            ]
+            db_scenes = [
+                c for c in db_scenes
+                if str(c.get("owner_user_id") or "") == uid
+            ]
+        can_custom = tier <= 2
         cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
         t1_pool = self._get_user_pool("tuan_anh")
         should_include_users = bool(include_users) if include_users is not None else (tier == 1 and role == "ADMIN")
@@ -810,16 +833,16 @@ class EngineRulesMixin:
     async def execute_alias_rule(self, phrase: str) -> dict[str, Any]:
         if not self.server_connected:
             msg = (
-                f"⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Khi không kết nối Server, khẩu lệnh tùy chỉnh '{phrase}' "
+                f"[CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Khi không kết nối Server, khẩu lệnh tùy chỉnh '{phrase}' "
                 "bị vô hiệu hóa! Hệ thống đã về lệnh mặc định và khóa cứng Cửa chính."
             )
             await self.emit({"type": "rbac_blocked", "action": "execute_alias_rule", "role": "OFFLINE_DEFAULT", "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
-        if self.current_tier >= 3 and not self.system_policies.get("tier3_can_custom_rules", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) chỉ được gọi các lệnh đóng mở cố định, không sử dụng khẩu lệnh tùy chỉnh."
+        if self.current_tier >= 3:
+            msg = "Khách chỉ được bật tắt thiết bị thôi ạ."
             await self.emit({"type": "rbac_blocked", "action": "execute_alias_rule", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
+            return {"ok": False, "rbac_blocked": True, "error": msg, "exact_spoken_reply": msg}
 
         phrase_clean = phrase.strip().lower()
         aliases = self.get_merged_aliases()
@@ -1357,23 +1380,50 @@ class EngineRulesMixin:
     ) -> dict[str, Any]:
         """Thực thi ngữ cảnh / lệnh tùy chỉnh nhiều bước từ SQLite `custom_commands`, tôn trọng RBAC."""
         from simulator.automation_repo import (
+            GUEST_ONLY_TOGGLE_MSG_VI,
             check_steps_rbac,
             find_custom_command_by_text,
             format_device_action_vi,
             list_custom_commands,
         )
 
-        cmds = list_custom_commands(include_disabled=False)
-        target_cmd = next((c for c in cmds if c["command_id"] == command_id), None)
-        if target_cmd is None:
-            target_cmd = find_custom_command_by_text(command_id)
-        if target_cmd is None:
-            return {"ok": False, "error": f"Không tìm thấy ngữ cảnh '{command_id}'."}
-
         eff_tier = int(getattr(session, "tier", 0) or self.current_tier) if session is not None else int(self.current_tier)
         eff_uid = str(getattr(session, "user_id", "") or self._current_user_id) if session is not None else str(self._current_user_id)
         eff_uname = str(getattr(session, "display_name", "") or self.get_current_user_name()) if session is not None else self.get_current_user_name()
         eff_role = str(getattr(session, "role", "") or self.current_role) if session is not None else self.current_role
+
+        if eff_tier >= 3:
+            append_audit_log(
+                "SECURITY",
+                "scene_rbac_blocked",
+                f"Chặn Cấp 3 gọi lệnh custom ({eff_uid}): {GUEST_ONLY_TOGGLE_MSG_VI}",
+                user_name=eff_uname,
+                tier=eff_tier,
+            )
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": GUEST_ONLY_TOGGLE_MSG_VI,
+                "exact_spoken_reply": GUEST_ONLY_TOGGLE_MSG_VI,
+            }
+
+        all_cmds = list_custom_commands(include_disabled=False)
+        target_cmd = next((c for c in all_cmds if c["command_id"] == command_id), None)
+        if target_cmd is None:
+            target_cmd = find_custom_command_by_text(command_id, owner_user_id=eff_uid)
+        if target_cmd is None:
+            return {"ok": False, "error": f"Không tìm thấy ngữ cảnh '{command_id}'."}
+        if eff_tier >= 2 and str(target_cmd.get("owner_user_id") or "") != eff_uid:
+            deny = "Bạn chỉ được sử dụng lệnh tùy chỉnh trong bể riêng của mình."
+            append_audit_log(
+                "SECURITY",
+                "scene_rbac_blocked",
+                f"Chặn Cấp 2 ({eff_uid}) chạy lệnh custom của {target_cmd.get('owner_user_id')}",
+                user_name=eff_uname,
+                tier=eff_tier,
+            )
+            return {"ok": False, "rbac_blocked": True, "error": deny, "exact_spoken_reply": deny}
+
         steps = list(target_cmd.get("steps") or [])
         allowed, rbac_err = check_steps_rbac(steps, eff_tier)
         if not allowed:

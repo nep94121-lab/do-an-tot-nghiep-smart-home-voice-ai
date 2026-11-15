@@ -51,7 +51,7 @@ class TestTier1FeatureCoverage:
         assert res["speaker_id"] == "intruder_voice_2"
         assert res["tier"] == 99
         assert res["strike_count"] == 1
-        assert res["rejection_speech"] == "Tôi không được phép nhận lệnh từ người lạ."
+        assert res["rejection_speech"] == "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
     def test_feat01_pitch_shift_tolerance(
         self, voice_auth_mgr: VoiceAuthManager, pcm_owner_bytes: bytes
@@ -81,13 +81,11 @@ class TestTier1FeatureCoverage:
     def test_feat02_multi_speaker_priority(
         self, voice_auth_mgr: VoiceAuthManager, pcm_dual_speakers_bytes: bytes
     ) -> None:
-        """FEAT-02: 2 người cùng nói -> Ưu tiên nhận diện Chủ nhà Cấp 1."""
+        """FEAT-02: 2 người cùng nói -> Từ chối an toàn (OVERLAPPING_SPEAKERS, ADDENDUM)."""
         res = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_dual_speakers_bytes)
-        assert res["authorized"] is True
+        assert res["authorized"] is False
         assert res["multi_speaker_detected"] is True
-        assert res["speaker_count"] >= 2
-        assert res["speaker_id"] == "owner_voice_1"
-        assert "Chủ nhà" in res["priority_reason"] or "Cấp 1" in res["priority_reason"]
+        assert res.get("reason") == "OVERLAPPING_SPEAKERS"
 
     def test_feat04_voice_enrollment_quality_gate(self) -> None:
         """FEAT-04: Cổng kiểm định chất lượng giọng thu âm trang đầu (Đạt vs Chưa đạt)."""
@@ -110,7 +108,7 @@ class TestTier1FeatureCoverage:
         assert "chưa" in bad_text
 
     def test_feat05_06_gemini_live_vietnamese_vad_config(self) -> None:
-        """FEAT-05 & FEAT-06: Cấu hình Gemini Live speech_config vi-VN và VAD silence_duration_ms=1000."""
+        """FEAT-05 & FEAT-06: Cấu hình Gemini Live speech_config và VAD low-latency silence_duration_ms=350."""
         prompt_builder_path = ROOT / "simulator" / "live" / "prompt_builder.py"
         target_path = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "simulator" / "server.py")
         code = target_path.read_text(encoding="utf-8")
@@ -124,9 +122,9 @@ class TestTier1FeatureCoverage:
 
         has_vad_tuning = (
             "silence_duration_ms" in code
-            and ("1000" in code or "silence_duration_ms=1000" in code or "END_SENSITIVITY_LOW" in code)
+            and ("350" in code or "silence_duration_ms=350" in code or "END_SENSITIVITY_HIGH" in code)
         )
-        assert has_vad_tuning, "Thiếu cấu hình VAD nâng cao chống ngắt ngập ngừng trong simulator/live/prompt_builder.py!"
+        assert has_vad_tuning, "Thiếu cấu hình VAD low-latency trong simulator/live/prompt_builder.py!"
 
     def test_feat07_system_instruction_prompt_guard(self) -> None:
         """FEAT-07: Vietnamese & Filler Prompt Guard trong System Instruction."""
@@ -167,9 +165,9 @@ class TestTier1FeatureCoverage:
         r1_3 = add_family_email_helper(mgr, "tuan_anh", "khach_test_c3@gmail.com", target_tier=3)
         assert r1_3.get("ok") is True
 
-        # C2 (thanh_vien_a) chỉ được thêm C3 -> Hợp lệ
+        # C2 (thanh_vien_a) cố thêm C3 -> BỊ CHẶN theo Điều 4 (Chỉ Chủ nhà Cấp 1 mời/thêm)
         r2_3 = add_family_email_helper(mgr, "thanh_vien_a", "khach_tu_c2@gmail.com", target_tier=3)
-        assert r2_3.get("ok") is True
+        assert r2_3.get("ok") is False, "Chỉ Chủ nhà Cấp 1 mới được phép mời/thêm thành viên!"
 
         # C2 cố thêm C1 hoặc C2 -> BỊ CHẶN (HTTP 403 / ok=False)
         r2_2 = add_family_email_helper(mgr, "thanh_vien_a", "hack_c2@gmail.com", target_tier=2)
@@ -227,8 +225,10 @@ class TestTier1FeatureCoverage:
             content = gradle_props.read_text(encoding="utf-8")
             assert "android.overridePathCheck=true" in content
 
-        apk_path = ROOT / "android_app" / "build" / "SmartHomeVoiceAI-debug.apk"
-        assert apk_path.exists(), f"Không tìm thấy APK debug tại {apk_path}"
+        apk_primary = ROOT / "android_app" / "app" / "build" / "app-debug.apk"
+        apk_fallback = ROOT / "android_app" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+        apk_path = apk_primary if apk_primary.exists() else apk_fallback
+        assert apk_path.exists(), f"Không tìm thấy APK debug tại {apk_primary} hoặc {apk_fallback}"
         assert apk_path.stat().st_size > 1000000, "Dung lượng APK quá nhỏ!"
 
     def test_feat13_constitution_convergence(self) -> None:

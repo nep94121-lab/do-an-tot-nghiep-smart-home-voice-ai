@@ -381,11 +381,10 @@ class TestEnrollVoiceSampleAudioPcmB64Alias:
                 "source_device": "Microphone Web Audio 16kHz",
             },
         )
-        assert resp.status_code == 200, f"Enroll thất bại: {resp.text}"
+        assert resp.status_code == 410, f"Kỳ vọng 410 Gone sau P0: {resp.text}"
         data = resp.json()
-        assert "ok" in data
-        assert data.get("ok") is True
-        assert data.get("status") == "DA_DAT"
+        assert data.get("ok") is False
+        assert data.get("gone") is True
 
     def test_enroll_voice_sample_rejects_duplicate_voice_of_owner(
         self, client: TestClient
@@ -416,11 +415,10 @@ class TestEnrollVoiceSampleAudioPcmB64Alias:
                 "source_device": "Microphone Web Audio 16kHz",
             },
         )
-        assert resp.status_code == 400, f"Không từ chối trùng giọng: status={resp.status_code}, body={resp.text}"
+        assert resp.status_code == 410, f"Kỳ vọng 410 Gone sau P0: status={resp.status_code}, body={resp.text}"
         data = resp.json()
         assert data.get("ok") is False
-        assert data.get("status") == "DUPLICATE_VOICE_REJECTED"
-        assert "trùng" in data.get("message", "").lower() or "trùng" in data.get("error", "").lower()
+        assert data.get("gone") is True
 
     def test_enroll_voice_sample_corrupted_base64_handled_gracefully(
         self, client: TestClient

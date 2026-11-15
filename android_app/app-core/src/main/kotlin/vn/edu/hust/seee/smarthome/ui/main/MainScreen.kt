@@ -1066,7 +1066,7 @@ fun MainScreen(
         if (streamed) break
       }
       syncServerState()
-      delay(if (streamed) 2000L else 25000L)
+      delay(if (streamed) 250L else 3000L)
     }
   }
 

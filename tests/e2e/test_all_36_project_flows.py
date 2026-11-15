@@ -49,6 +49,7 @@ from tests.e2e.conftest import (
     check_duplicate_voice_gate_helper,
     consume_guest_handshake_helper,
     generate_dynamic_qr_token_helper,
+    make_valid_enroll_pair,
     read_wav_pcm16,
     send_and_verify_email_otp_helper,
     validate_dns_mx_record_helper,
@@ -122,40 +123,44 @@ class TestGroup1VoiceDspAndQuality:
     def test_flow_03_dual_speaker_priority_resolution(
         self, clean_voice_auth: VoiceAuthManager, pcm_dual_speakers_bytes: bytes
     ) -> None:
-        """Luồng 3: Tách 2 người nói cùng lúc (Chủ nhà C1 + Người lạ -> ưu tiên Cấp 1)."""
+        """Luồng 3: Tách 2 người nói cùng lúc -> Từ chối an toàn (OVERLAPPING_SPEAKERS, ADDENDUM)."""
         vm = clean_voice_auth
         res = vm.verify_pcm16k_and_apply_strikes(pcm_dual_speakers_bytes)
-        assert res.get("authorized") is True
-        assert res.get("tier") == 1
-        assert res.get("speaker_id") == "owner_voice_1"
+        assert res.get("authorized") is False
+        assert res.get("multi_speaker_detected") is True
+        assert res.get("reason") == "OVERLAPPING_SPEAKERS"
 
     def test_flow_04_stranger_three_strike_lockout_and_reset(
         self, clean_voice_auth: VoiceAuthManager, pcm_intruder_bytes: bytes
     ) -> None:
-        """Luồng 4: Chặn Người lạ 3-Strike ("Quá tam ba bận") & Reset Strikes."""
+        """Luồng 4: Người lạ thử 3 lần (Điều 1 câu từ chối cố định thống nhất) & Reset Strikes."""
         vm = clean_voice_auth
         vm.reset_strikes()
+        fixed_phrase = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
         # Strike 1
         s1 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert s1.get("authorized") is False
         assert s1.get("strike_count") == 1
         assert s1.get("silent_ignore") is False
-        assert "Tôi không được phép nhận lệnh từ người lạ" in s1.get("rejection_speech", "")
+        assert s1.get("should_reply") is True
+        assert s1.get("rejection_speech") == fixed_phrase
 
         # Strike 2
         s2 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert s2.get("authorized") is False
         assert s2.get("strike_count") == 2
         assert s2.get("silent_ignore") is False
-        assert "Tôi sẽ không trả lời bạn lần nữa" in s2.get("rejection_speech", "")
+        assert s2.get("should_reply") is True
+        assert s2.get("rejection_speech") == fixed_phrase
 
         # Strike 3
         s3 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert s3.get("authorized") is False
         assert s3.get("strike_count") >= 3
-        assert s3.get("silent_ignore") is True
-        assert s3.get("rejection_speech") == ""
+        assert s3.get("silent_ignore") is False
+        assert s3.get("should_reply") is True
+        assert s3.get("rejection_speech") == fixed_phrase
 
         # Reset bộ đếm
         vm.reset_strikes()
@@ -164,11 +169,12 @@ class TestGroup1VoiceDspAndQuality:
     def test_flow_05_topbar_voice_enrollment(
         self, clean_voice_auth: VoiceAuthManager, pcm_tier2_bytes: bytes
     ) -> None:
-        """Luồng 5: Thu âm giọng gốc trực tiếp trên thanh Topbar trang chủ."""
+        """Luồng 5: Thu âm giọng gốc + đối chiếu tự kiểm chứng hợp lệ."""
         vm = clean_voice_auth
-        pcm_tiled = np.tile(np.frombuffer(pcm_tier2_bytes, dtype=np.int16), 3).tobytes()
+        enroll_pcm, sc_pcm = make_valid_enroll_pair(2)
         res = vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=pcm_tiled,
+            pcm_bytes=enroll_pcm,
+            self_check_pcm_bytes=sc_pcm,
             user_id="thanh_vien_topbar",
             user_name="Thành Viên Topbar",
             tier=2,
@@ -263,18 +269,18 @@ class TestGroup2GuestQrAndDuration:
     def test_flow_11_dedicated_guest_enrollment(
         self, clean_voice_auth: VoiceAuthManager, pcm_tier3_bytes: bytes
     ) -> None:
-        """Luồng 11: Khách quét QR vào trang thu âm riêng -> Thu âm đạt chuẩn lưu Cấp 3 (không cần email)."""
+        """Luồng 11: Khách dùng link mời vào luồng thu âm -> Thu âm đạt chuẩn + tự kiểm chứng lưu Cấp 3 (không cần email)."""
         vm = clean_voice_auth
-        pcm_guest_3s = np.tile(np.frombuffer(pcm_tier3_bytes, dtype=np.int16), 3).tobytes()
+        enroll_pcm, sc_pcm = make_valid_enroll_pair(3)
 
         # Kiểm định chất lượng đạt chuẩn
-        q_res = validate_voice_quality_helper(np.frombuffer(pcm_guest_3s, dtype=np.int16), 16000)
+        q_res = validate_voice_quality_helper(np.frombuffer(enroll_pcm, dtype=np.int16), 16000)
         assert q_res.get("ok") is True
 
-        # Lưu thành công vào Cấp 3 kèm expires_at
-        exp_ts = time.time() + 86400.0
+        # Lưu thành công vào Cấp 3 kèm self-check hợp lệ
         res = vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=pcm_guest_3s,
+            pcm_bytes=enroll_pcm,
+            self_check_pcm_bytes=sc_pcm,
             user_id="khach_qr_01",
             user_name="Khách QR",
             tier=3,
@@ -371,8 +377,10 @@ class TestGroup3FamilyAuthAndAllowlist:
         assert auth_mgr.add_family_email("tuan_anh", "me_yeu@gmail.com", 2).get("ok") is True
         assert auth_mgr.add_family_email("tuan_anh", "khach_quy@gmail.com", 3).get("ok") is True
 
-        # C2 thêm C3 -> OK
-        assert auth_mgr.add_family_email("thanh_vien_a", "chau_gai@gmail.com", 3).get("ok") is True
+        # C2 cố thêm C3 -> Bị chặn 403 theo Điều 4 (Chỉ Chủ nhà Cấp 1 mời/thêm)
+        r_c2_c3 = auth_mgr.add_family_email("thanh_vien_a", "chau_gai@gmail.com", 3)
+        assert r_c2_c3.get("ok") is False
+        assert r_c2_c3.get("status_code") == 403
 
         # C2 cố thêm C1 hoặc C2 -> Bị chặn 403
         r_c2_c1 = auth_mgr.add_family_email("thanh_vien_a", "fake_c1@gmail.com", 1)
@@ -628,11 +636,16 @@ class TestGroup6AdminRagOfflineAndPlatforms:
             assert engine.current_tier == 1
 
             res = await engine.admin_update_system_policy(
-                policy_key="tier3_can_schedule_timer",
-                policy_value="true",
+                policy_key="require_rule_confirmation",
+                policy_value="false",
             )
             assert res.get("ok") is True
-            assert engine.system_policies.get("tier3_can_schedule_timer") is True
+            assert engine.system_policies.get("require_rule_confirmation") is False
+            res_restore = await engine.admin_update_system_policy(
+                policy_key="require_rule_confirmation",
+                policy_value="true",
+            )
+            assert res_restore.get("ok") is True
 
         asyncio.run(_run())
 

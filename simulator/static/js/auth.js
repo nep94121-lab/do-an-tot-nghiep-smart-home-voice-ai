@@ -469,8 +469,17 @@ async function initAuthPageSessionGate() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    initAuthPageSessionGate();
+  });
+} else {
   initAuthPageSessionGate();
+}
+window.addEventListener('smarthome:spa-navigated', (ev) => {
+  if (ev && ev.detail && ev.detail.to === '/auth') {
+    initAuthPageSessionGate();
+  }
 });
 
 window.tierBadgeClass = tierBadgeClass;

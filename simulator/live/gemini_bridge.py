@@ -26,12 +26,12 @@ from google import genai
 from google.genai import types
 
 VOICE_SAMPLES_META: dict[str, str] = {
-    "giong_1_chu_nha_mo_cua": "✅ Giọng Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - Toàn quyền): Mở cửa chính",
-    "giong_cap2_thanh_vien_a": "👨‍👩‍👧 Giọng Cấp 2 (Thành viên A - Chặn Cửa D1 & Còi D8): Mở cửa chính",
-    "giong_cap3_khach_c": "🧒 Giọng Cấp 3 (Khách C - Chỉ bật Đèn/Quạt, Chặn Cửa/Còi/ĐH/Bơm): Mở cửa chính",
-    "giong_1_kem_tieng_on_quat": "🌀 Giọng Cấp 1 + Ồn Quạt (-24dB ➡️ Lọc Tầng 2): Mở cửa chính",
-    "hai_nguoi_cung_noi_cap1_va_nguoi_la": "👥 2 Người Cùng Nói (Chủ nhà C1 + Người lạ ➡️ Ưu tiên C1): Mở cửa chính",
-    "giong_2_nguoi_la_mo_cua": "🚫 Giọng Người lạ (Không phép - Chặn 2 lần ➡️ Im lặng): Mở cửa chính",
+    "giong_1_chu_nha_mo_cua": "[OK] Giọng Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - Toàn quyền): Mở cửa chính",
+    "giong_cap2_thanh_vien_a": "Giọng Cấp 2 (Thành viên A - Chặn Cửa D1 & Còi D8): Mở cửa chính",
+    "giong_cap3_khach_c": "Giọng Cấp 3 (Khách C - Chỉ bật Đèn/Quạt, Chặn Cửa/Còi/ĐH/Bơm): Mở cửa chính",
+    "giong_1_kem_tieng_on_quat": "Giọng Cấp 1 + Ồn Quạt (-24dB -> Lọc Tầng 2): Mở cửa chính",
+    "hai_nguoi_cung_noi_cap1_va_nguoi_la": "2 Người Cùng Nói (Chủ nhà C1 + Người lạ -> Ưu tiên C1): Mở cửa chính",
+    "giong_2_nguoi_la_mo_cua": "[DENY] Giọng Người lạ (Không phép - Chặn 2 lần -> Im lặng): Mở cửa chính",
     "mo_cua_chinh": "Mở cửa chính",
     "bat_den_phong_khach": "Bật đèn phòng khách",
     "tat_quat": "Tắt quạt",
@@ -278,14 +278,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         return sess
 
     def _is_ws_cap1_authorized(self, msg: dict[str, Any] | None = None) -> tuple[bool, UserSession]:
-        """Kiểm tra phiên WebSocket hiện tại có phải Chủ nhà Cấp 1 (Tuấn Anh) đã xác thực server-side hay không."""
+        """Kiểm tra phiên WebSocket hiện tại có phải Chủ nhà Cấp 1 đã xác thực server-side hay không."""
         sess = self._resolve_ws_session(msg)
         is_cap1 = bool(
             sess.is_authenticated
             and not sess.is_expired()
             and int(sess.tier) == 1
-            and str(sess.role).upper() == "ADMIN"
-            and str(sess.user_id) == OWNER_ID
+            and str(sess.role).upper() in ("ADMIN", "OWNER")
         )
         return is_cap1, sess
 
@@ -665,36 +664,33 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "label": label,
         })
 
-        sil_start = time.perf_counter()
-        for i in range(13):
-            if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
-                break
-            delay = sil_start + (i + 1) * 0.01 - time.perf_counter()
-            if delay > 0:
-                await asyncio.sleep(delay)
-            if self.gemini_session is not None:
-                for _ in range(5):
+        if self.gemini_session is not None:
+            try:
+                await self.gemini_session.send_realtime_input(audio_stream_end=True)
+            except Exception:
+                for _ in range(3):
                     await self.gemini_session.send_realtime_input(
                         audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
                     )
 
     async def _flush_mic_silence_to_gemini(self) -> None:
         try:
-            sil_start = time.perf_counter()
-            for i in range(13):
-                if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
+            if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
+                return
+            try:
+                await self.gemini_session.send_realtime_input(audio_stream_end=True)
+                return
+            except Exception:
+                pass
+            for _ in range(3):
+                if self._closed or self.gemini_session is None:
                     break
                 if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
                     break
-                delay = sil_start + (i + 1) * 0.01 - time.perf_counter()
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                if self._closed or self.gemini_session is None:
-                    break
-                for _ in range(5):
-                    await self.gemini_session.send_realtime_input(
-                        audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
-                    )
+                await self.gemini_session.send_realtime_input(
+                    audio=types.Blob(data=SILENCE, mime_type="audio/pcm;rate=16000")
+                )
+                await asyncio.sleep(0.02)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -834,22 +830,17 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         _admin_only_tools = (
             "grant_user_permission",
             "revoke_user_permission",
-            "start_voice_enrollment",
-            "finalize_voice_enrollment",
+            "manage_member_link_permission",
             "set_query_permission_policy",
             "admin_update_system_policy",
             "admin_upsert_knowledge_rag",
             "factory_reset",
-            "request_factory_reset",
-            "confirm_factory_reset",
-            "factory_reset_rules",
         )
-        if name in _admin_only_tools or (
-            name == "confirm_pending_action" and bool(getattr(self.engine, "pending_reset_confirmation", False))
-        ):
+        if name in _admin_only_tools:
             ok_cap1_sess, _ = self._is_ws_cap1_authorized()
-            if not ok_cap1_sess or self.engine.current_tier != 1 or self.engine.current_role != "ADMIN":
-                rej_msg = FIXED_REJECTION_PHRASE_VI
+            if not ok_cap1_sess or self.engine.current_tier != 1 or str(self.engine.current_role).upper() not in ("ADMIN", "OWNER"):
+                from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
+                rej_msg = GUEST_ONLY_TOGGLE_MSG_VI if int(actor.tier) >= 3 else "Chỉ chủ nhà cấp 1 mới có quyền thực hiện lệnh này ạ."
                 await self.send_ws_json({
                     "type": "rbac_blocked",
                     "action": name,
@@ -868,17 +859,30 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 }
 
         res = await super().handle_tool_call(fc)
+        if isinstance(res, dict) and res.get("ok"):
+            try:
+                await _broadcast_rest_state_to_bridges()
+            except Exception:
+                pass
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):
             if res.get("status") != "DURABLE_PERSISTENCE_FAILED":
+                specific_reply = str(
+                    res.get("exact_spoken_reply")
+                    or res.get("reply")
+                    or res.get("error")
+                    or ""
+                ).strip()
+                rej_msg = specific_reply or FIXED_REJECTION_PHRASE_VI
                 res = dict(res)
-                res["error"] = FIXED_REJECTION_PHRASE_VI
-                res["message"] = FIXED_REJECTION_PHRASE_VI
-                res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
-                res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
+                res["error"] = rej_msg
+                res["message"] = rej_msg
+                res["rejection_speech"] = rej_msg
+                res["exact_spoken_reply"] = rej_msg
                 res["instruction_for_ai"] = (
-                    f"TUYỆT ĐỐI KHÔNG thực hiện lệnh. Chỉ nói ngắn gọn đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
+                    f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu này: '{rej_msg}'"
                 )
-                await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI, auth_res={"role": actor.role})
+                if not res.get("silent_cancel") and not res.get("cancelled"):
+                    await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role})
         return res
 
     async def run(self) -> None:

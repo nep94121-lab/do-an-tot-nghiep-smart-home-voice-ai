@@ -28,6 +28,11 @@ from simulator.server import app
 ROOT = Path(__file__).resolve().parent.parent
 
 
+@pytest.fixture(autouse=True)
+def _allowlist_test_recipient(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
+
+
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
@@ -50,6 +55,7 @@ class TestPhase5R3PasswordResetOtpEmail:
             k: v for k, v in os.environ.items()
             if k not in ("GMAIL_APP_PASSWORD", "SMTP_PASSWORD")
         }
+        env_without_secrets["REAL_EMAIL_ALLOWLIST"] = "senat6031@gmail.com"
 
         with patch.dict(os.environ, env_without_secrets, clear=True), \
              patch("subprocess.run", side_effect=FileNotFoundError("gws command not found")):
@@ -101,7 +107,7 @@ class TestPhase5R3PasswordResetOtpEmail:
             assert data.get("gmail_delivery", {}).get("sent_real_gmail") is True, (
                 f"sent_real_gmail không phải True: {data}"
             )
-            assert data.get("gmail_delivery", {}).get("actual_recipient") == "senat6031@gmail.com"
+            assert data.get("email") == "senat6031@gmail.com"
 
             # Đảm bảo smtplib.SMTP được gọi
             assert mock_smtp_cls.called, "smtplib.SMTP chưa được gọi để gửi mail!"

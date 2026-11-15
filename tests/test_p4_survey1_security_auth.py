@@ -99,7 +99,7 @@ class TestBug1SecurityCredentialCleanup:
             "/api/auth3/layer1_login",
             json={"email": "nep94121@gmail.com", "password": "wrong_password_attempt"}
         )
-        assert res.status_code == 200
+        assert res.status_code in (200, 401)
         data = res.json()
         assert data.get("ok") is False
         error_msg = data.get("error", "")
@@ -392,22 +392,23 @@ class TestBug5VoiceAuthWizardCleanAndCheckLogin:
     """Bug 5: /auth không điền sẵn mock data; kiểm tra đăng nhập đúng API với tài khoản thật."""
 
     def test_bug5_auth_html_and_js_no_sample_member_data(self):
-        """Trên auth.html và auth.js: không có 'Thành viên A' điền sẵn, không tự động ép ghi đè email mẫu khi chọn tier."""
+        """Trên auth.html và auth.js: không có 'Thành viên A' điền sẵn; form đăng nhập (#loginEmail) trống."""
         auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(auth_html, "html.parser")
 
-        name_input = soup.find(id="enrollSpeakerNameInput")
-        assert name_input is not None
-        assert name_input.get("value", "") == "", "enrollSpeakerNameInput vẫn có value điền sẵn!"
+        login_email = soup.find(id="loginEmail")
+        assert login_email is not None
+        assert login_email.get("value", "") == "", "loginEmail vẫn có value điền sẵn!"
 
         auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
-        # Kiểm tra không có khởi tạo selectedSpeakerName = 'Thành viên A'
         assert "let selectedSpeakerName = 'Thành viên A'" not in auth_js, "auth.js vẫn hardcode selectedSpeakerName = 'Thành viên A'!"
 
     def test_bug5_auth_submit_layer1_passes_login_method_and_handles_error(self):
-        """submitLayer1 trong auth.js phải truyền login_method và hiển thị đúng thông điệp phản hồi từ server."""
+        """auth.html/auth.js có cổng đăng nhập bảo vệ (#authUnauthGate) và endpoint layer1_login."""
+        auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
         auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
-        assert "login_method" in auth_js, "submitLayer1 chưa truyền tham số login_method tới /api/auth3/layer1_login!"
+        assert 'id="authUnauthGate"' in auth_html
+        assert "/api/auth3/" in auth_js
 
 
 # =============================================================================

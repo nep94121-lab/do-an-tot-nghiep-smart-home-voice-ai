@@ -52,74 +52,67 @@ def client() -> TestClient:
 # =============================================================================
 
 class TestTOTPHandshakeAdversarial:
-    """Tấn công đối kháng TOTP Handshake:
-    - Thử nghiệm vượt mặt qua target_window bịa đặt với các vector: window hiện tại, quá khứ, tương lai, âm, chuỗi chữ.
-    - Thử nghiệm gửi token rác, nonce ngẫu nhiên, token đã bị burn (Replay).
-    """
+    """Kiểm định hậu P0: các route guest_qr_* legacy đã bị retired (405/410) và link mời Cấp 1 (/api/guest/*) hoạt động single-use."""
 
     def test_valid_handshake_succeeds(self, client: TestClient) -> None:
-        """Token hợp lệ sinh ra từ server phải handshake thành công (HTTP 200)."""
+        """Legacy TOTP endpoint đã retired (405/410); Owner PIN + /api/guest/invites + /api/guest/redeem là single-use."""
         cur = client.get("/api/auth3/guest_qr_current?duration=1d")
-        assert cur.status_code == 200
-        tok = cur.json()["token"]
-        win = cur.json()["window"]
+        assert cur.status_code in (405, 410)
+        hs = client.post("/api/auth3/guest_qr_handshake", json={"token": "x", "duration": "1d"})
+        assert hs.status_code == 410 and hs.json().get("gone") is True
 
-        # Handshake với token hợp lệ và window đúng
-        hs = client.post("/api/auth3/guest_qr_handshake", json={
-            "token": tok,
-            "target_window": win,
-            "duration": "1d",
-        })
-        assert hs.status_code == 200
-        data = hs.json()
-        assert data["ok"] is True
-        assert "guest_session_id" in data
-        assert data["session"]["lock_ttl_sec"] == 180
+        # Active flow: Owner PIN + /api/guest/invites + validate + single-use redeem
+        pin_payload = {"pin": "1357", "pin_confirm": "1357", "duration_code": "1d", "guest_name": "Khách M3"}
+        inv = client.post(
+            "/api/guest/invites",
+            headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+            json=pin_payload,
+        )
+        if inv.status_code == 400 and "PIN" in str(inv.json()):
+            inv = client.post(
+                "/api/guest/invites",
+                headers={"X-Session-Token": "sess_owner_t1_nep94121"},
+                json={"pin": "1357", "duration_code": "1d", "guest_name": "Khách M3"},
+            )
+        assert inv.status_code == 200, inv.text
+        tok = inv.json()["token"]
+        assert client.get(f"/api/guest/invite/validate?token={tok}").status_code == 200
+        r1 = client.post("/api/guest/redeem", json={"token": tok})
+        assert r1.status_code == 200 and r1.json().get("ok") is True
+        # Cùng trình duyệt (có cookie phiên đã gắn) reload link mời vẫn idempotent
+        r_same = client.post("/api/guest/redeem", json={"token": tok})
+        assert r_same.status_code == 200 and r_same.json().get("session_token") == r1.json().get("session_token")
+        # Trình duyệt/thiết bị thứ 2 (không có cookie gắn kết) phải bị chặn 403 used
+        other_client = TestClient(app, raise_server_exceptions=False)
+        r2 = other_client.post("/api/guest/redeem", json={"token": tok})
+        assert r2.status_code == 403 and r2.json().get("reason") == "used"
 
     def test_forged_target_window_with_bogus_token_rejected_401(self, client: TestClient) -> None:
-        """Kẻ tấn công gửi token bịa đặt kèm các vector target_window:
-        - window hiện tại
-        - window quá khứ (-1000)
-        - window tương lai (+1000)
-        - window âm (-1, -99999)
-        Tất cả BẮT BUỘC bị từ chối 100% với HTTP 401.
-        """
+        """Các vector target_window bịa đặt vào legacy guest_qr_handshake đều bị chặn 410 Gone."""
         cur_win = int(time.time() // 10)
-        test_windows = [
+        for label, w_val in [
             ("cur_window", cur_win),
             ("past_window_1000", cur_win - 1000),
             ("future_window_1000", cur_win + 1000),
             ("negative_window_minus_1", -1),
             ("negative_window_minus_99999", -99999),
-        ]
-
-        for label, w_val in test_windows:
+        ]:
             res = client.post("/api/auth3/guest_qr_handshake", json={
                 "token": f"forged_token_{label}",
                 "target_window": w_val,
                 "duration": "1d",
             })
-            assert res.status_code == 401, f"Thất bại tại vector {label}: status={res.status_code}"
-            assert res.json()["ok"] is False
-            assert "không hợp lệ hoặc đã hết hạn" in res.json()["error"]
+            assert res.status_code == 410 and res.json()["ok"] is False
 
     def test_genuine_token_with_mismatched_target_window_rejected_401(self, client: TestClient) -> None:
-        """Token thật nhưng bị gửi kèm target_window bịa đặt/sai lệch -> Bị từ chối với HTTP 401."""
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d").json()
-        tok = cur["token"]
-        real_win = cur["window"]
-
-        res = client.post("/api/auth3/guest_qr_handshake", json={
-            "token": tok,
-            "target_window": real_win + 5,
-            "duration": "1d",
-        })
-        assert res.status_code == 401
-        assert res.json()["ok"] is False
-        assert "không khớp thông số cửa sổ thời gian" in res.json()["error"]
+        """Validate/redeem token không tồn tại trên active route bị từ chối 403; legacy handshake bị 410."""
+        v = client.get("/api/guest/invite/validate?token=nonexistent_mismatch_tok")
+        assert v.status_code == 403
+        res = client.post("/api/auth3/guest_qr_handshake", json={"token": "tok", "target_window": 999, "duration": "1d"})
+        assert res.status_code == 410 and res.json()["ok"] is False
 
     def test_garbage_tokens_and_random_nonces_rejected_401(self, client: TestClient) -> None:
-        """Token rác, SQL injection string, và nonce ngẫu nhiên -> Bị từ chối với HTTP 401."""
+        """Token rác, SQLi, XSS vào cả legacy (410) và active redeem (403) đều bị từ chối."""
         garbage_vectors = [
             "trash_token_xyz",
             "0000000000000000",
@@ -128,64 +121,34 @@ class TestTOTPHandshakeAdversarial:
             os.urandom(8).hex(),
             os.urandom(16).hex(),
         ]
-
         for g_tok in garbage_vectors:
-            res = client.post("/api/auth3/guest_qr_handshake", json={
-                "token": g_tok,
-                "duration": "1d",
-            })
-            assert res.status_code == 401
-            assert res.json()["ok"] is False
-            assert "không hợp lệ hoặc đã hết hạn" in res.json()["error"]
+            res = client.post("/api/auth3/guest_qr_handshake", json={"token": g_tok, "duration": "1d"})
+            assert res.status_code == 410 and res.json()["ok"] is False
+            r_act = client.post("/api/guest/redeem", json={"token": g_tok})
+            assert r_act.status_code == 403 and r_act.json().get("ok") is False
 
     def test_replay_attack_burnt_token_rejected_400(self, client: TestClient) -> None:
-        """Tấn công Replay: Token đã bị đốt (burned) sau lần handshake đầu tiên.
-        Lần 2, 3 bắt buộc bị từ chối với HTTP 400 (Single-Use Token).
-        """
-        cur = client.get("/api/auth3/guest_qr_current?duration=1d").json()
-        tok = cur["token"]
-
-        # Lần 1: Thành công
-        r1 = client.post("/api/auth3/guest_qr_handshake", json={"token": tok, "duration": "1d"})
-        assert r1.status_code == 200
-        assert r1.json()["ok"] is True
-
-        # Lần 2 (Replay cùng tham số): Bị từ chối 400
-        r2 = client.post("/api/auth3/guest_qr_handshake", json={"token": tok, "duration": "1d"})
-        assert r2.status_code == 400
-        assert r2.json()["ok"] is False
-        assert "Single-Use" in r2.json()["error"] or "đã được sử dụng" in r2.json()["error"]
-
-        # Lần 3 (Replay kèm target_window bịa đặt): Bị từ chối 400
-        r3 = client.post("/api/auth3/guest_qr_handshake", json={
-            "token": tok,
-            "target_window": int(time.time() // 10) + 10,
-            "duration": "1y",
-        })
-        assert r3.status_code == 400
-        assert r3.json()["ok"] is False
+        """Legacy endpoint retired (410); đồng thời unauth POST /api/guest/invites bị chặn 401."""
+        unauth = client.post("/api/guest/invites", json={"pin": "1357", "duration_code": "1d"})
+        assert unauth.status_code == 401
+        r1 = client.post("/api/auth3/guest_qr_handshake", json={"token": "tok", "duration": "1d"})
+        assert r1.status_code == 410 and r1.json()["ok"] is False
 
     def test_empty_token_rejected_400(self, client: TestClient) -> None:
-        """Token rỗng bị từ chối ngay với HTTP 400."""
+        """Token rỗng bị từ chối trên cả active redeem (400/403) và legacy (410)."""
         r = client.post("/api/auth3/guest_qr_handshake", json={"token": "", "duration": "1d"})
-        assert r.status_code == 400
-        assert r.json()["ok"] is False
-        assert "Thiếu mã token" in r.json()["error"]
+        assert r.status_code == 410 and r.json()["ok"] is False
+        r_act = client.post("/api/guest/redeem", json={"token": ""})
+        assert r_act.status_code in (400, 403) and r_act.json().get("ok") is False
 
     def test_string_target_window_vulnerability_finding(self, client: TestClient) -> None:
-        """CHALLENGER DEFECT FINDING:
-        Khi client gửi target_window là chuỗi ký tự ('abc', 'invalid_win', '12.34', '{}'),
-        hàm api_auth3_guest_qr_handshake (routes_qr.py:150) thực hiện int(target_window)
-        mà không bắt ngoại lệ ValueError -> Gây ra HTTP 500 Internal Server Error (crash endpoint)
-        thay vì chặn bằng HTTP 400 Bad Request hoặc HTTP 401.
-        """
+        """Các giá trị target_window dị thường gửi tới endpoint retired không gây crash 500 (trả 410 Gone)."""
         for malformed_win in ["abc", "invalid_win", "12.34"]:
             res = client.post("/api/auth3/guest_qr_handshake", json={
                 "token": "test_token",
                 "target_window": malformed_win,
             })
-            # Xác nhận Defect 1 đã được vá: trả về 400 Bad Request thay vì crash 500
-            assert res.status_code == 400, f"Expected 400 Bad Request due to sanitized ValueError in routes_qr.py:150, got {res.status_code}"
+            assert res.status_code == 410, f"Expected 410 Gone, got {res.status_code}"
 
 
 # =============================================================================
@@ -205,7 +168,7 @@ class TestWebSocketLiveAndBuffer:
         2. system_prompt_updated
         3. gemini_status
         """
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             m1 = ws.receive_json()
             assert m1.get("type") == "state_snapshot"
             assert "devices" in m1.get("snapshot", {})
@@ -219,7 +182,7 @@ class TestWebSocketLiveAndBuffer:
 
     def test_websocket_silence_and_short_pcm_chunks(self, client: TestClient) -> None:
         """Gửi chunk im lặng và chunk âm thanh PCM 16kHz ngắn (20ms = 320 samples) qua WebSocket."""
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             # Drain initial msgs
             ws.receive_json()
             ws.receive_json()
@@ -249,7 +212,7 @@ class TestWebSocketLiveAndBuffer:
 
     def test_websocket_valid_vietnamese_command_offline_mode(self, client: TestClient) -> None:
         """Gửi lệnh thoại tiếng Việt hợp lệ qua WebSocket (chế độ offline để test toàn vẹn Actuate-First)."""
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             # Drain initial msgs
             ws.receive_json()
             ws.receive_json()
@@ -263,7 +226,7 @@ class TestWebSocketLiveAndBuffer:
 
             # Lắng nghe phản hồi cho đến khi hoàn thành lượt turn_complete
             events = []
-            while True:
+            for _ in range(30):
                 msg = ws.receive_json()
                 events.append(msg.get("type"))
                 if msg.get("type") == "turn_complete":
@@ -283,7 +246,7 @@ class TestWebSocketLiveAndBuffer:
         - Khi gemini_session = None (upstream chưa kết nối hoặc đang reconnect), các chunk được đệm vào _mic_in_flight_queue.
         - Sức chứa maxsize=100 được duy trì an toàn, không bị tràn bộ nhớ hoặc treo tiến trình.
         """
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             ws.receive_json()
             ws.receive_json()
             ws.receive_json()
@@ -322,14 +285,14 @@ class TestWebSocketLiveAndBuffer:
         assert len(_ACTIVE_BRIDGES) == 0
 
         # Chu kỳ 1: Kết nối và ngắt - xác nhận chỉ đăng ký 1 lần duy nhất
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             assert len(_ACTIVE_BRIDGES) == 1, f"Expected 1 registration (fixed double append), got {len(_ACTIVE_BRIDGES)}"
 
         # Sau khi ngắt: Dọn sạch hoàn toàn 100%, không còn phiên ma
         assert len(_ACTIVE_BRIDGES) == 0, f"Expected 0 ghost sessions, got {len(_ACTIVE_BRIDGES)}"
 
         # Chu kỳ 2: Kết nối và ngắt lần 2
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers={"X-Session-Token": "sess_owner_t1_nep94121"}) as ws:
             assert len(_ACTIVE_BRIDGES) == 1, f"Expected 1 registration, got {len(_ACTIVE_BRIDGES)}"
 
         # Sau chu kỳ 2: Tiếp tục dọn sạch

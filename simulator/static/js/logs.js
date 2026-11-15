@@ -600,7 +600,15 @@
     }
 
     let searchDebounceTimer = null;
-    window.addEventListener('DOMContentLoaded', () => {
+    let _logsPageInitialized = false;
+    function initLogsPageOnce() {
+      if (_logsPageInitialized) {
+        Promise.resolve(loadDashboard()).then((ok) => {
+          if (ok) executeCustomSql();
+        });
+        return;
+      }
+      _logsPageInitialized = true;
       setLogsAdminUiState(false);
 
       const adminMenu = document.getElementById('logsAdminMenu');
@@ -644,6 +652,16 @@
           executeCustomSql();
         }
       });
+    }
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initLogsPageOnce);
+    } else {
+      initLogsPageOnce();
+    }
+    window.addEventListener('smarthome:spa-navigated', (ev) => {
+      if (ev && ev.detail && ev.detail.to === '/logs') {
+        initLogsPageOnce();
+      }
     });
 
 // Window exports for inline event handlers

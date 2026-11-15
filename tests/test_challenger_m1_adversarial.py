@@ -59,13 +59,16 @@ VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
 
 
 def load_wav_pcm(name: str) -> np.ndarray:
+    slice_limit: int | None = None
     if name in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
-        name = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
+        name = "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        slice_limit = 48000
     path = AUDIO_DIR / name
     if not path.exists():
         raise FileNotFoundError(f"Missing audio file: {path}")
     with wave.open(str(path), "rb") as w:
-        return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        arr = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        return arr[:slice_limit] if slice_limit is not None else arr
 
 
 def inject_jitter_and_shimmer(
@@ -286,8 +289,15 @@ class TestAntiCollisionGateVerification:
         orig_role = vm.profiles["owner_voice_1"]["role"]
         assert orig_tier == 1 and orig_role == "ADMIN"
 
+        enroll_full = (AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav")
+        sc_full = (AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav")
+        with wave.open(str(enroll_full), "rb") as w_e:
+            enroll_bytes = w_e.readframes(w_e.getnframes())
+        with wave.open(str(sc_full), "rb") as w_s:
+            sc_bytes = w_s.readframes(w_s.getnframes())[:192000]
         res = vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=pcm_owner.tobytes(),
+            pcm_bytes=enroll_bytes,
+            self_check_pcm_bytes=sc_bytes,
             user_id="fake_guest",
             user_name="Khách Mạo Danh",
             tier=3,
@@ -337,13 +347,20 @@ class TestAntiCollisionGateVerification:
         """Sau khi luồng đăng ký khách bị từ chối do trùng giọng C1:
         Chủ nhà lập tức ra lệnh bằng giọng nói -> Được phê duyệt 100% Cấp 1, 0 strike, không bị kẹt quyền.
         """
-        # Kích hoạt từ chối trùng
-        _ = vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=pcm_owner.tobytes(),
+        # Kích hoạt từ chối trùng bằng cặp enroll + self-check hợp lệ
+        with wave.open(str(AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"), "rb") as w_e:
+            enroll_bytes = w_e.readframes(w_e.getnframes())
+        with wave.open(str(AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav"), "rb") as w_s:
+            sc_bytes = w_s.readframes(w_s.getnframes())[:192000]
+        dup_probe = vm.enroll_tier_voice_from_pcm16k(
+            pcm_bytes=enroll_bytes,
+            self_check_pcm_bytes=sc_bytes,
             user_id="temp_guest_probe",
             tier=3,
             check_duplicate=True,
         )
+        assert dup_probe.get("ok") is False
+        assert dup_probe.get("status") == "DUPLICATE_VOICE_REJECTED"
 
         # Chủ nhà ra lệnh
         cmd_res = vm.verify_pcm16k_and_apply_strikes(pcm_owner.tobytes(), is_live_mic=True)

@@ -41,6 +41,11 @@ def now_saigon_iso() -> str:
     return now_saigon().isoformat()
 
 
+TIER1_SCHEDULE_CONFLICT_MSG_VI = "Trùng lịch của chủ nhà, em không đặt được ạ."
+GUEST_ONLY_TOGGLE_MSG_VI = "Khách chỉ được bật tắt thiết bị thôi ạ."
+PENDING_CONFIRM_TTL_SEC = 20.0
+
+
 def strip_accents(text: str) -> str:
     if not text:
         return ""
@@ -306,13 +311,16 @@ def clear_all_timers_rows(*, db_path: pathlib.Path | None = None) -> None:
             conn.close()
 
 
-def list_pending_timers(*, db_path: pathlib.Path | None = None) -> list[dict[str, Any]]:
+def list_pending_timers(
+    *,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
     with _DB_LOCK:
         target = _resolve_db(db_path)
         conn = get_connection(target)
         try:
-            rows = conn.execute(
-                """
+            sql = """
                 SELECT tp.timer_id, tp.owner_user_id, COALESCE(u.full_name, tp.owner_user_id) AS owner_name,
                        tp.owner_tier, tp.device_id, tp.action, tp.schedule_mode,
                        tp.target_time_vn, tp.repeat_rule, tp.label_summary, tp.label,
@@ -320,9 +328,13 @@ def list_pending_timers(*, db_path: pathlib.Path | None = None) -> list[dict[str
                 FROM timers_pool tp
                 LEFT JOIN users u ON u.user_id = tp.owner_user_id
                 WHERE LOWER(COALESCE(tp.status, 'pending')) = 'pending'
-                ORDER BY tp.fire_at_epoch ASC, tp.created_at ASC
-                """
-            ).fetchall()
+            """
+            params: tuple[Any, ...] = ()
+            if owner_user_id is not None and str(owner_user_id).strip():
+                sql += " AND tp.owner_user_id = ? "
+                params = (str(owner_user_id).strip(),)
+            sql += " ORDER BY tp.fire_at_epoch ASC, tp.created_at ASC"
+            rows = conn.execute(sql, params).fetchall()
             out: list[dict[str, Any]] = []
             for r in rows:
                 smode = str(r["schedule_mode"] or "countdown")
@@ -331,6 +343,7 @@ def list_pending_timers(*, db_path: pathlib.Path | None = None) -> list[dict[str
                     "id": str(r["timer_id"]),
                     "timer_id": str(r["timer_id"]),
                     "owner_id": str(r["owner_user_id"]),
+                    "owner_user_id": str(r["owner_user_id"]),
                     "owner_name": str(r["owner_name"]),
                     "owner_tier": int(r["owner_tier"] or 1),
                     "device_id": str(r["device_id"]),
@@ -395,11 +408,18 @@ def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool 
     return out
 
 
-def list_schedules(*, include_disabled: bool = True, db_path: pathlib.Path | None = None) -> list[dict[str, Any]]:
+def list_schedules(
+    *,
+    include_disabled: bool = True,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
     scheds, _, _ = get_automation_snapshot_bundle(db_path=db_path)
-    if include_disabled:
-        return scheds
-    return [s for s in scheds if s.get("enabled")]
+    out = scheds if include_disabled else [s for s in scheds if s.get("enabled")]
+    if owner_user_id is not None and str(owner_user_id).strip():
+        uid = str(owner_user_id).strip()
+        out = [s for s in out if str(s.get("owner_user_id") or "") == uid]
+    return out
 
 
 def create_schedule(
@@ -693,15 +713,27 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
     return out
 
 
-def list_automation_rules(*, include_disabled: bool = False, db_path: pathlib.Path | None = None) -> list[dict[str, Any]]:
+def list_automation_rules(
+    *,
+    include_disabled: bool = False,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
     if not include_disabled:
         _, rules, _ = get_automation_snapshot_bundle(db_path=db_path)
+        if owner_user_id is not None and str(owner_user_id).strip():
+            uid = str(owner_user_id).strip()
+            return [r for r in rules if str(r.get("owner_user_id") or "") == uid]
         return rules
     with _DB_LOCK:
         target = _resolve_db(db_path)
         conn = get_connection(target, readonly=True)
         try:
-            return _list_automation_rules_in_conn(conn, include_disabled=include_disabled)
+            rules = _list_automation_rules_in_conn(conn, include_disabled=include_disabled)
+            if owner_user_id is not None and str(owner_user_id).strip():
+                uid = str(owner_user_id).strip()
+                return [r for r in rules if str(r.get("owner_user_id") or "") == uid]
+            return rules
         finally:
             conn.close()
 
@@ -930,15 +962,27 @@ def _list_custom_commands_in_conn(conn: sqlite3.Connection, *, include_disabled:
     return out
 
 
-def list_custom_commands(*, include_disabled: bool = False, db_path: pathlib.Path | None = None) -> list[dict[str, Any]]:
+def list_custom_commands(
+    *,
+    include_disabled: bool = False,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
     if not include_disabled:
         _, _, cmds = get_automation_snapshot_bundle(db_path=db_path)
+        if owner_user_id is not None and str(owner_user_id).strip():
+            uid = str(owner_user_id).strip()
+            return [c for c in cmds if str(c.get("owner_user_id") or "") == uid]
         return cmds
     with _DB_LOCK:
         target = _resolve_db(db_path)
         conn = get_connection(target, readonly=True)
         try:
-            return _list_custom_commands_in_conn(conn, include_disabled=include_disabled)
+            cmds = _list_custom_commands_in_conn(conn, include_disabled=include_disabled)
+            if owner_user_id is not None and str(owner_user_id).strip():
+                uid = str(owner_user_id).strip()
+                return [c for c in cmds if str(c.get("owner_user_id") or "") == uid]
+            return cmds
         finally:
             conn.close()
 
@@ -1002,7 +1046,8 @@ def upsert_custom_command(
                     "SELECT command_id FROM custom_commands WHERE command_id = ?", (cid,)
                 ).fetchone()
                 existing_by_norm = c.execute(
-                    "SELECT command_id FROM custom_commands WHERE phrase_norm = ?", (norm,)
+                    "SELECT command_id FROM custom_commands WHERE owner_user_id = ? AND phrase_norm = ?",
+                    (uid, norm),
                 ).fetchone()
                 if existing_by_id is not None:
                     if existing_by_norm is not None and str(existing_by_norm["command_id"]) != cid:
@@ -1073,7 +1118,9 @@ def upsert_custom_command(
             conn.close()
     invalidate_automation_cache(db_path)
 
-    items = [c for c in list_custom_commands(include_disabled=True, db_path=db_path) if c["command_id"] == final_cid]
+    items = [c for c in list_custom_commands(include_disabled=True, owner_user_id=owner_user_id, db_path=db_path) if c["command_id"] == final_cid]
+    if not items:
+        items = [c for c in list_custom_commands(include_disabled=True, db_path=db_path) if c["command_id"] == final_cid]
     return items[0]
 
 
@@ -1094,11 +1141,16 @@ def delete_custom_command(command_id: str, *, db_path: pathlib.Path | None = Non
     return deleted
 
 
-def find_custom_command_by_text(text: str, *, db_path: pathlib.Path | None = None) -> dict[str, Any] | None:
+def find_custom_command_by_text(
+    text: str,
+    *,
+    owner_user_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any] | None:
     norm_text = normalize_phrase(text)
     if not norm_text:
         return None
-    commands = list_custom_commands(include_disabled=False, db_path=db_path)
+    commands = list_custom_commands(include_disabled=False, owner_user_id=owner_user_id, db_path=db_path)
     for cmd in commands:
         if cmd["phrase_norm"] == norm_text:
             return cmd
@@ -1146,3 +1198,611 @@ def check_steps_rbac(steps: list[dict[str, Any]], actor_tier: int) -> tuple[bool
             dname = DEVICE_LABELS_VI.get(did, did)
             return False, f"Từ chối: Cấp {actor_tier} không có quyền điều khiển {dname} trong ngữ cảnh này."
     return True, ""
+
+
+# =============================================================================
+# HOUSEHOLD MEMBERS, PERMISSIONS, ±60s CONFLICT, SCOPED RESETS & 4-STEP CONFIRM
+# =============================================================================
+
+def list_household_members(
+    *,
+    include_inactive: bool = False,
+    db_path: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target, readonly=True)
+        try:
+            sql = """
+                SELECT user_id, full_name, role, tier, role_code, email,
+                       permission_active, permission_status, is_active,
+                       COALESCE(can_create_links, 0) AS can_create_links, updated_at
+                FROM users
+                WHERE tier IN (1, 2, 3)
+            """
+            if not include_inactive:
+                sql += " AND COALESCE(is_active, 1) = 1 AND COALESCE(permission_active, 1) = 1 "
+            sql += " ORDER BY tier ASC, full_name ASC, user_id ASC"
+            rows = conn.execute(sql).fetchall()
+            out: list[dict[str, Any]] = []
+            for r in rows:
+                uid = str(r["user_id"] or "")
+                if uid in ("anonymous", "expired_or_invalid", "ws_unauthenticated"):
+                    continue
+                t_val = int(r["tier"] or 3)
+                full_name_s = str(r["full_name"] or uid)
+                out.append({
+                    "user_id": uid,
+                    "full_name": full_name_s,
+                    "display_name": full_name_s,
+                    "role": str(r["role"] or role_for_tier(t_val)),
+                    "role_code": str(r["role_code"] or role_for_tier(t_val)),
+                    "tier": t_val,
+                    "email": str(r["email"] or ""),
+                    "permission_active": bool(int(r["permission_active"] or 0)),
+                    "permission_status": str(r["permission_status"] or "ACTIVE"),
+                    "is_active": bool(int(r["is_active"] or 0)),
+                    "can_create_links": True if t_val <= 1 else (bool(int(r["can_create_links"] or 0)) if t_val == 2 else False),
+                    "updated_at": str(r["updated_at"] or ""),
+                })
+            return out
+        finally:
+            conn.close()
+
+
+def resolve_target_user_by_query(
+    query: str,
+    *,
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any] | None:
+    norm_q = normalize_phrase(query)
+    if not norm_q:
+        return None
+    members = list_household_members(include_inactive=True, db_path=db_path)
+    for m in members:
+        if norm_q in (
+            normalize_phrase(m.get("full_name") or ""),
+            normalize_phrase(m.get("user_id") or ""),
+            normalize_phrase((m.get("email") or "").split("@")[0]),
+        ):
+            return m
+    matches = []
+    for m in members:
+        hay = " ".join([
+            normalize_phrase(m.get("full_name") or ""),
+            normalize_phrase(m.get("user_id") or ""),
+            normalize_phrase((m.get("email") or "").split("@")[0]),
+        ])
+        if norm_q in hay or hay in norm_q:
+            matches.append(m)
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        # Prefer token match on name words
+        toks = set(norm_q.split())
+        best = max(matches, key=lambda item: len(toks & set(normalize_phrase(item.get("full_name") or "").split())))
+        return best
+    return None
+
+
+def can_user_create_links(
+    user_id: str,
+    tier: int,
+    *,
+    engine: Any = None,
+    db_path: pathlib.Path | None = None,
+) -> bool:
+    t_val = int(tier or 3)
+    if t_val <= 1:
+        return True
+    if t_val >= 3:
+        return False
+    uid = str(user_id or "").strip()
+    if not uid:
+        return False
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target, readonly=True)
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(can_create_links, 0) AS allowed FROM users WHERE user_id = ?",
+                (uid,),
+            ).fetchone()
+            if row is not None:
+                return bool(int(row["allowed"] or 0))
+        finally:
+            conn.close()
+    return False
+
+
+def set_user_can_create_links(
+    user_id: str,
+    allowed: bool,
+    *,
+    owner_tier: int = 2,
+    display_name: str = "",
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    now_iso = now_saigon_iso()
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> str:
+                uid = _ensure_fk_parents(
+                    c, owner_user_id=user_id, owner_tier=owner_tier, owner_name=display_name
+                )
+                c.execute(
+                    "UPDATE users SET can_create_links = ?, updated_at = ? WHERE user_id = ?",
+                    (1 if allowed else 0, now_iso, uid),
+                )
+                return uid
+
+            uid = run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+    return {"user_id": uid, "can_create_links": bool(allowed)}
+
+
+def _tod_diff_sec(sec_a: float, sec_b: float) -> float:
+    d = abs(float(sec_a) - float(sec_b)) % 86400.0
+    return min(d, 86400.0 - d)
+
+
+def _schedule_epoch_and_tod(
+    *,
+    time_hhmm: str,
+    run_date_vn: str = "",
+    now_vn: datetime.datetime | None = None,
+) -> tuple[float, float]:
+    hh, mm = [int(p) for p in str(time_hhmm).strip().split(":", 1)]
+    tod = float(hh * 3600 + mm * 60)
+    ref_now = now_vn or now_saigon()
+    date_str = str(run_date_vn or "").strip()
+    if date_str:
+        try:
+            dt_d = datetime.date.fromisoformat(date_str)
+            dt = datetime.datetime(dt_d.year, dt_d.month, dt_d.day, hh, mm, 0, tzinfo=SAIGON_TZ)
+            return dt.timestamp(), tod
+        except Exception:
+            pass
+    target_dt = ref_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if target_dt <= ref_now:
+        target_dt = target_dt + datetime.timedelta(days=1)
+    return target_dt.timestamp(), tod
+
+
+def check_tier1_schedule_conflict(
+    *,
+    actor_tier: int,
+    fire_epoch: float | None = None,
+    time_hhmm: str | None = None,
+    schedule_type: str = "once",
+    run_date_vn: str = "",
+    exclude_timer_id: str | None = None,
+    exclude_schedule_id: str | None = None,
+    engine: Any = None,
+    db_path: pathlib.Path | None = None,
+) -> str | None:
+    """ADDENDUM D: Cấp 2 không được đặt hẹn giờ/lịch trùng khung giờ (±60s, mọi thiết bị) với Cấp 1."""
+    if int(actor_tier or 3) <= 1:
+        return None
+    if engine is not None and (getattr(engine, "system_policies", {}) or {}).get("tier2_can_override_tier1", False):
+        return None
+
+    now_vn = now_saigon()
+    now_ts = time.time()
+    cand_epoch: float | None = None
+    cand_tod: float | None = None
+    cand_is_daily = str(schedule_type or "once").strip().lower() == "daily"
+
+    if fire_epoch is not None:
+        cand_epoch = float(fire_epoch)
+        cand_dt = datetime.datetime.fromtimestamp(cand_epoch, tz=SAIGON_TZ)
+        cand_tod = float(cand_dt.hour * 3600 + cand_dt.minute * 60 + cand_dt.second)
+    elif time_hhmm:
+        cand_epoch, cand_tod = _schedule_epoch_and_tod(
+            time_hhmm=time_hhmm,
+            run_date_vn=run_date_vn,
+            now_vn=now_vn,
+        )
+    if cand_tod is None and cand_epoch is None:
+        return None
+
+    # 1. Check all pending Tier 1 timers (SQLite + active in-memory engine timers across ALL devices)
+    t1_timers: dict[str, dict[str, Any]] = {}
+    for row in list_pending_timers(db_path=db_path):
+        tid = str(row.get("timer_id") or row.get("id") or "")
+        if tid:
+            t1_timers[tid] = row
+    if engine is not None:
+        for tid, info in (getattr(engine, "active_timers", {}) or {}).items():
+            t1_timers.setdefault(str(tid), info)
+
+    for tid, tinfo in t1_timers.items():
+        if exclude_timer_id and tid == str(exclude_timer_id):
+            continue
+        if int(tinfo.get("owner_tier") or 1) != 1:
+            continue
+        t1_epoch = float(tinfo.get("fire_at") or 0.0)
+        if t1_epoch <= now_ts - 2.0:
+            continue
+        t1_dt = datetime.datetime.fromtimestamp(t1_epoch, tz=SAIGON_TZ)
+        t1_tod = float(t1_dt.hour * 3600 + t1_dt.minute * 60 + t1_dt.second)
+        if cand_is_daily and cand_tod is not None:
+            if _tod_diff_sec(cand_tod, t1_tod) <= 60.0:
+                return TIER1_SCHEDULE_CONFLICT_MSG_VI
+        elif cand_epoch is not None and abs(cand_epoch - t1_epoch) <= 60.0:
+            return TIER1_SCHEDULE_CONFLICT_MSG_VI
+
+    # 2. Check all enabled Tier 1 schedules (SQLite `schedules`, once & daily across ALL devices)
+    for sc in list_schedules(include_disabled=False, db_path=db_path):
+        sid = str(sc.get("schedule_id") or sc.get("id") or "")
+        if exclude_schedule_id and sid == str(exclude_schedule_id):
+            continue
+        if int(sc.get("owner_tier") or 1) != 1 or not sc.get("enabled", True):
+            continue
+        sc_hhmm = str(sc.get("time_hhmm") or "").strip()
+        if ":" not in sc_hhmm:
+            continue
+        sc_epoch, sc_tod = _schedule_epoch_and_tod(
+            time_hhmm=sc_hhmm,
+            run_date_vn=str(sc.get("run_date_vn") or ""),
+            now_vn=now_vn,
+        )
+        sc_is_daily = str(sc.get("schedule_type") or "once").strip().lower() == "daily"
+        if cand_is_daily or sc_is_daily:
+            if cand_tod is not None and _tod_diff_sec(cand_tod, sc_tod) <= 60.0:
+                return TIER1_SCHEDULE_CONFLICT_MSG_VI
+        elif cand_epoch is not None and abs(cand_epoch - sc_epoch) <= 60.0:
+            return TIER1_SCHEDULE_CONFLICT_MSG_VI
+
+    return None
+
+
+def reset_custom_commands_scoped(
+    *,
+    target_owner_id: str | None = None,
+    clear_all: bool = False,
+    engine: Any = None,
+    db_path: pathlib.Path | None = None,
+) -> int:
+    uid = str(target_owner_id or "").strip()
+    if not clear_all and not uid:
+        return 0
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> int:
+                if clear_all:
+                    cur1 = c.execute("DELETE FROM custom_commands")
+                    c.execute("DELETE FROM rules_pool WHERE rule_category IN ('custom', 'alias', 'word_mapping', 'scene')")
+                    return int(cur1.rowcount or 0)
+                cur1 = c.execute("DELETE FROM custom_commands WHERE owner_user_id = ?", (uid,))
+                c.execute(
+                    "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('custom', 'alias', 'word_mapping', 'scene')",
+                    (uid,),
+                )
+                return int(cur1.rowcount or 0)
+
+            removed = run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+
+    invalidate_automation_cache(db_path)
+    if engine is not None:
+        try:
+            ov = getattr(engine, "overlay_rules", None)
+            if isinstance(ov, dict):
+                if clear_all:
+                    ov["user_pools"] = {}
+                    ov["aliases"] = {}
+                    ov["word_mappings"] = {}
+                else:
+                    up = ov.setdefault("user_pools", {}).setdefault(uid, {})
+                    up["aliases"] = {}
+                    up["word_mappings"] = {}
+                if hasattr(engine, "_save_overlay"):
+                    engine._save_overlay()
+        except Exception:
+            pass
+    return removed
+
+
+def reset_links_scoped(
+    *,
+    target_owner_id: str | None = None,
+    clear_all: bool = False,
+    engine: Any = None,
+    db_path: pathlib.Path | None = None,
+) -> int:
+    uid = str(target_owner_id or "").strip()
+    if not clear_all and not uid:
+        return 0
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> int:
+                if clear_all:
+                    cur1 = c.execute("DELETE FROM automation_rules")
+                    c.execute("DELETE FROM rules_pool WHERE rule_category IN ('if_else', 'link')")
+                    return int(cur1.rowcount or 0)
+                cur1 = c.execute("DELETE FROM automation_rules WHERE owner_user_id = ?", (uid,))
+                c.execute(
+                    "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('if_else', 'link')",
+                    (uid,),
+                )
+                return int(cur1.rowcount or 0)
+
+            removed = run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+
+    invalidate_automation_cache(db_path)
+    if engine is not None:
+        try:
+            ov = getattr(engine, "overlay_rules", None)
+            if isinstance(ov, dict):
+                if clear_all:
+                    ov["if_else_rules"] = []
+                    for u_data in (ov.get("user_pools") or {}).values():
+                        if isinstance(u_data, dict):
+                            u_data["if_else_rules"] = []
+                else:
+                    up = ov.setdefault("user_pools", {}).setdefault(uid, {})
+                    up["if_else_rules"] = []
+                if hasattr(engine, "_save_overlay"):
+                    engine._save_overlay()
+        except Exception:
+            pass
+    return removed
+
+
+def reset_timers_and_schedules_scoped(
+    *,
+    target_owner_id: str | None = None,
+    clear_all: bool = False,
+    engine: Any = None,
+    db_path: pathlib.Path | None = None,
+) -> int:
+    uid = str(target_owner_id or "").strip()
+    if not clear_all and not uid:
+        return 0
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> int:
+                if clear_all:
+                    c1 = c.execute("DELETE FROM timers_pool")
+                    c2 = c.execute("DELETE FROM schedules")
+                    return int(c1.rowcount or 0) + int(c2.rowcount or 0)
+                c1 = c.execute("DELETE FROM timers_pool WHERE owner_user_id = ?", (uid,))
+                c2 = c.execute("DELETE FROM schedules WHERE owner_user_id = ?", (uid,))
+                return int(c1.rowcount or 0) + int(c2.rowcount or 0)
+
+            removed = run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+
+    invalidate_automation_cache(db_path)
+    if engine is not None:
+        try:
+            tasks = getattr(engine, "_timer_tasks", {}) or {}
+            active = getattr(engine, "active_timers", {}) or {}
+            target_tids = [
+                tid for tid, info in list(active.items())
+                if clear_all or str(info.get("owner_id") or info.get("owner_user_id") or "") == uid
+            ]
+            for tid in target_tids:
+                t = tasks.pop(tid, None)
+                if t is not None and not t.done():
+                    t.cancel()
+                active.pop(tid, None)
+                removed = max(removed, 1)
+        except Exception:
+            pass
+    return removed
+
+
+def create_pending_confirmation(
+    *,
+    owner_user_id: str,
+    owner_tier: int,
+    session_key: str,
+    action_kind: str,
+    payload: dict[str, Any],
+    prompt_question: str,
+    owner_name: str = "",
+    ttl_sec: float = PENDING_CONFIRM_TTL_SEC,
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    now_ts = time.time()
+    exp_ts = now_ts + max(1.0, float(ttl_sec or PENDING_CONFIRM_TTL_SEC))
+    pid = f"pconf_{int(now_ts * 1000)}_{uuid.uuid4().hex[:6]}"
+    skey = str(session_key or owner_user_id).strip() or str(owner_user_id)
+    payload_str = json.dumps(payload or {}, ensure_ascii=False)
+
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> str:
+                uid = _ensure_fk_parents(
+                    c, owner_user_id=owner_user_id, owner_tier=owner_tier, owner_name=owner_name
+                )
+                c.execute(
+                    """
+                    UPDATE pending_confirmations
+                    SET status = 'expired'
+                    WHERE status = 'pending' AND expires_at <= ?
+                    """,
+                    (now_ts,),
+                )
+                c.execute(
+                    """
+                    UPDATE pending_confirmations
+                    SET status = 'superseded'
+                    WHERE owner_user_id = ? AND session_key = ? AND status = 'pending'
+                    """,
+                    (uid, skey),
+                )
+                c.execute(
+                    """
+                    INSERT INTO pending_confirmations (
+                        pending_id, session_key, owner_user_id, owner_tier,
+                        action_kind, payload_json, prompt_question,
+                        created_at, expires_at, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                    """,
+                    (
+                        pid,
+                        skey,
+                        uid,
+                        int(owner_tier if owner_tier in (1, 2, 3) else 1),
+                        str(action_kind),
+                        payload_str,
+                        str(prompt_question or ""),
+                        now_ts,
+                        exp_ts,
+                    ),
+                )
+                return uid
+
+            resolved_uid = run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+
+    return {
+        "pending_id": pid,
+        "session_key": skey,
+        "owner_user_id": resolved_uid,
+        "owner_tier": int(owner_tier if owner_tier in (1, 2, 3) else 1),
+        "action_kind": str(action_kind),
+        "payload": payload or {},
+        "prompt_question": str(prompt_question or ""),
+        "created_at": now_ts,
+        "expires_at": exp_ts,
+        "status": "pending",
+    }
+
+
+def _row_to_pending_dict(r: sqlite3.Row) -> dict[str, Any]:
+    try:
+        payload_obj = json.loads(str(r["payload_json"] or "{}"))
+    except Exception:
+        payload_obj = {}
+    return {
+        "pending_id": str(r["pending_id"]),
+        "session_key": str(r["session_key"]),
+        "owner_user_id": str(r["owner_user_id"]),
+        "owner_tier": int(r["owner_tier"] or 1),
+        "action_kind": str(r["action_kind"]),
+        "payload": payload_obj if isinstance(payload_obj, dict) else {},
+        "prompt_question": str(r["prompt_question"] or ""),
+        "created_at": float(r["created_at"] or 0.0),
+        "expires_at": float(r["expires_at"] or 0.0),
+        "status": str(r["status"] or "pending"),
+    }
+
+
+def get_pending_confirmation(
+    *,
+    owner_user_id: str,
+    session_key: str = "",
+    db_path: pathlib.Path | None = None,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Return (active_pending_or_None, was_expired_recently_for_user)."""
+    uid = str(owner_user_id or "").strip()
+    if not uid:
+        return None, False
+    skey = str(session_key or "").strip()
+    now_ts = time.time()
+
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> tuple[dict[str, Any] | None, bool]:
+                cur_exp = c.execute(
+                    """
+                    UPDATE pending_confirmations
+                    SET status = 'expired'
+                    WHERE owner_user_id = ? AND status = 'pending' AND expires_at <= ?
+                    """,
+                    (uid, now_ts),
+                )
+                was_exp = int(cur_exp.rowcount or 0) > 0
+                row = None
+                if skey:
+                    row = c.execute(
+                        """
+                        SELECT * FROM pending_confirmations
+                        WHERE owner_user_id = ? AND session_key = ? AND status = 'pending' AND expires_at > ?
+                        ORDER BY created_at DESC LIMIT 1
+                        """,
+                        (uid, skey, now_ts),
+                    ).fetchone()
+                if row is None:
+                    row = c.execute(
+                        """
+                        SELECT * FROM pending_confirmations
+                        WHERE owner_user_id = ? AND status = 'pending' AND expires_at > ?
+                        ORDER BY created_at DESC LIMIT 1
+                        """,
+                        (uid, now_ts),
+                    ).fetchone()
+                if row is not None:
+                    return _row_to_pending_dict(row), False
+                return None, was_exp
+
+            return run_write_transaction(conn, _tx)
+        finally:
+            conn.close()
+
+
+def consume_or_cancel_pending_confirmation(
+    pending_id: str,
+    *,
+    owner_user_id: str,
+    new_status: str = "confirmed",
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any] | None:
+    pid = str(pending_id or "").strip()
+    uid = str(owner_user_id or "").strip()
+    if not pid or not uid:
+        return None
+    status_val = "cancelled" if str(new_status).lower() == "cancelled" else "confirmed"
+    now_ts = time.time()
+
+    with _DB_LOCK:
+        target = _resolve_db(db_path)
+        conn = get_connection(target)
+        try:
+            def _tx(c: sqlite3.Connection) -> dict[str, Any] | None:
+                c.execute(
+                    "UPDATE pending_confirmations SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?",
+                    (now_ts,),
+                )
+                row = c.execute(
+                    """
+                    SELECT * FROM pending_confirmations
+                    WHERE pending_id = ? AND owner_user_id = ? AND status = 'pending' AND expires_at > ?
+                    """,
+                    (pid, uid, now_ts),
+                ).fetchone()
+                if row is None:
+                    return None
+                c.execute(
+                    "UPDATE pending_confirmations SET status = ? WHERE pending_id = ?",
+                    (status_val, pid),
+                )
+                out = _row_to_pending_dict(row)
+                out["status"] = status_val
+                return out
+
+            return run_write_transaction(conn, _tx)
+        finally:
+            conn.close()

@@ -1176,7 +1176,14 @@
     }
 
     // Lắng nghe sự kiện xoay chiết áp <wokwi-potentiometer id="w_soil_pot">
-    window.addEventListener('DOMContentLoaded', () => {
+    let _wokwiPageInitialized = false;
+    function initWokwiPageOnce() {
+      if (_wokwiPageInitialized) {
+        fetchState();
+        requestAnimationFrame(() => drawWires());
+        return;
+      }
+      _wokwiPageInitialized = true;
       buildNodeMCUPins();
       buildBreadboard400();
       drawWires();
@@ -1281,6 +1288,18 @@
           }
         } catch (e) {}
       };
+    }
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initWokwiPageOnce);
+    } else {
+      initWokwiPageOnce();
+    }
+    window.addEventListener('smarthome:spa-navigated', (ev) => {
+      if (ev && ev.detail && ev.detail.to === '/wokwi') {
+        initWokwiPageOnce();
+      } else if (window._stopWokwiHttpPolling) {
+        window._stopWokwiHttpPolling();
+      }
     });
   
 

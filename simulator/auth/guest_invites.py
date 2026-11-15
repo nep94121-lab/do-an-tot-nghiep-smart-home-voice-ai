@@ -6,12 +6,20 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import threading
 import time
 from typing import Any
 
-from simulator.auth.security_state import cloud_required, load_security_state, save_security_state, SecurityStateUnavailable, atomic_security
+from simulator.auth.security_state import (
+    SecurityStateUnavailable,
+    _sqlite_security_enabled,
+    atomic_security,
+    cloud_required,
+    load_security_state,
+    save_security_state,
+)
 
 from simulator.auth.session_store import (
     SessionStore,
@@ -27,6 +35,7 @@ INVITE_TTL_MAX_SEC = 86400
 _INVITE_PREFIX = "inv_"
 _LOCK = threading.RLock()
 _CACHE: dict[str, dict[str, Any]] | None = None
+_CACHE_DIR: str | None = None
 _ROLES = {2: "MEMBER", 3: "CHILD_GUEST"}
 
 
@@ -36,12 +45,14 @@ def _data_dir():
 
 
 def _load() -> dict[str, dict[str, Any]]:
-    global _CACHE
-    if _CACHE is not None and not cloud_required():
+    global _CACHE, _CACHE_DIR
+    ddir = _data_dir()
+    ddir_key = str(ddir)
+    if _CACHE is not None and _CACHE_DIR == ddir_key and not cloud_required():
         return {key: dict(value) for key, value in _CACHE.items()}
     data: dict[str, dict[str, Any]] = {}
     try:
-        raw = load_security_state("guest_invites.json", _data_dir())
+        raw = load_security_state("guest_invites.json", ddir)
         if raw:
             parsed = json.loads(raw.decode("utf-8"))
             items = parsed.get("invites") if isinstance(parsed, dict) else parsed
@@ -58,15 +69,34 @@ def _load() -> dict[str, dict[str, Any]]:
     except Exception as exc:
         raise SecurityStateUnavailable("Invalid security state") from exc
     _CACHE = data
+    _CACHE_DIR = ddir_key
     return data
 
 
 def _save(data: dict[str, dict[str, Any]]) -> None:
-    global _CACHE
-    items = list(data.values())
-    payload = json.dumps({"invites": items}, ensure_ascii=False).encode("utf-8")
-    save_security_state("guest_invites.json", payload, _data_dir())
+    global _CACHE, _CACHE_DIR
+    ddir = _data_dir()
+    safe_items: list[dict[str, Any]] = []
+    for item in data.values():
+        if isinstance(item, dict):
+            cleaned = dict(item)
+            cleaned.pop("token", None)
+            safe_items.append(cleaned)
+    payload = json.dumps({"invites": safe_items}, ensure_ascii=False).encode("utf-8")
+    save_security_state("guest_invites.json", payload, ddir)
+    if (
+        not cloud_required()
+        and not os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+        and not _sqlite_security_enabled()
+    ):
+        try:
+            from simulator.auth.sqlite_security_repo import save_invites_sqlite
+
+            save_invites_sqlite(payload, ddir)
+        except Exception:
+            pass
     _CACHE = data
+    _CACHE_DIR = str(ddir)
 
 
 def _encode_token(payload: dict[str, Any]) -> str:
@@ -391,7 +421,8 @@ def redeem_token(
 
 
 def reset_invite_store_for_tests() -> None:
-    global _CACHE
+    global _CACHE, _CACHE_DIR
     with _LOCK:
         _CACHE = {}
+        _CACHE_DIR = str(_data_dir())
         _save({})

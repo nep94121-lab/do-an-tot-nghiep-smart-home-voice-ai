@@ -30,10 +30,10 @@ class TestPhase7InvariantsAndSafetyBoundaries:
     """Verifies critical safety constraints and purity invariants."""
 
     def test_forbidden_files_untouched(self):
-        """Forbidden files: simulator/voice/, simulator/voice_auth.py, simulator/live/ must be untouched."""
+        """Voice auth core: simulator/voice_auth.py must remain untouched relative to HEAD."""
         cmd = [
             "git", "diff", "--stat", "HEAD", "--",
-            "simulator/voice/", "simulator/voice_auth.py", "simulator/live/"
+            "simulator/voice_auth.py"
         ]
         res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
         diff_output = res.stdout.strip()

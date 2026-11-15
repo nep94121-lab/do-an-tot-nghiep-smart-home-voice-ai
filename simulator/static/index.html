@@ -8,6 +8,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="prefetch" href="/auth" as="document">
+  <link rel="prefetch" href="/wokwi" as="document">
+  <link rel="prefetch" href="/logs" as="document">
+  <link rel="prefetch" href="/static/css/auth.css" as="style">
+  <link rel="prefetch" href="/static/css/wokwi.css" as="style">
+  <link rel="prefetch" href="/static/css/logs.css" as="style">
 </head>
 <body>
   <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
@@ -449,7 +455,7 @@
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; margin-top:2px;">
-          <a href="#" class="subtle" id="linkGateForgot" style="text-decoration:none; color:var(--accent);">Quên mật khẩu?</a>
+          <a href="/login" class="subtle" id="linkGateForgot" style="text-decoration:none; color:var(--accent);">Quên mật khẩu?</a>
           <a href="/guest_guide" class="subtle" id="gateOpenGuestGuideLink" style="text-decoration:none; color:var(--accent);">Hướng dẫn Khách</a>
           <a href="/register" class="subtle" id="linkGateRegister" style="text-decoration:none; color:var(--accent);">Đăng ký</a>
         </div>
@@ -505,7 +511,7 @@
             <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('gateRegConfirmPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:16px;" aria-label="Hiện mật khẩu"><svg class="icon" style="width:18px;height:18px;" aria-hidden="true"><use href="#i-eye"/></svg></button>
           </div>
         </div>
-        <button type="button" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
+        <button type="submit" id="btnSubmitGateRegister" class="btn btn-primary" style="width:100%;">
           Xác nhận 2 mật khẩu &amp; Lưu tài khoản
         </button>
       </form>
@@ -556,7 +562,7 @@
           </div>
           <div style="display:flex; gap:6px;">
             <button type="button" id="btnBackForgotStep2" class="btn btn-secondary" style="flex:1; font-size:12px;">Quay lại Bước 2</button>
-            <button type="button" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
+            <button type="submit" id="btnSubmitForgotReset" class="btn btn-primary" style="flex:2;">
               Đặt lại mật khẩu
             </button>
           </div>
@@ -653,5 +659,6 @@
   <script src="/static/vendor/GLTFLoader.js"></script>
   <script src="/static/house3d.js"></script>
   <script src="/static/js/app.js"></script>
+  <script src="/static/js/spa_nav.js" defer></script>
 </body>
 </html>

@@ -83,45 +83,21 @@ def test_c1_admin_adds_c2_and_c3_success(auth_mgr: ThreeLayerAuthManager) -> Non
 
 
 def test_c2_member_can_only_add_c3_and_blocked_for_c1_or_c2(auth_mgr: ThreeLayerAuthManager) -> None:
-    """Thành viên Cấp 2 (thanh_vien_a) chỉ được thêm Cấp 3. Cố thêm C1 hoặc C2 bị chặn 100% (403)."""
-    # C2 thêm C3 -> Thành công
-    res_ok = auth_mgr.add_family_email("thanh_vien_a", "nguoi_giup_viec@gmail.com", 3, source="Test C2->C3")
-    assert res_ok["ok"] is True
-    assert res_ok["status_code"] == 200
-    assert res_ok["entry"]["target_tier"] == 3
-
-    # C2 cố thêm C2 -> Bị chặn 403
-    res_block_c2 = auth_mgr.add_family_email("thanh_vien_a", "ban_than@gmail.com", 2, source="Test C2->C2 Attack")
-    assert res_block_c2["ok"] is False
-    assert res_block_c2["status_code"] == 403
-    assert "Cấp 2 chỉ có quyền thêm thành viên Cấp 3" in res_block_c2["error"]
-
-    # C2 cố leo quyền thêm C1 -> Bị chặn 403
-    res_block_c1 = auth_mgr.add_family_email("thanh_vien_a", "fake_admin@gmail.com", 1, source="Test C2->C1 Attack")
-    assert res_block_c1["ok"] is False
-    assert res_block_c1["status_code"] == 403
-    assert "Cấp 2 chỉ có quyền thêm thành viên Cấp 3" in res_block_c1["error"]
+    """Chính sách Điều 4: Thành viên Cấp 2 (thanh_vien_a) bị chặn 403 khi mời bất kỳ cấp nào (chỉ Cấp 1 được mời)."""
+    for tier, mail in [(3, "nguoi_giup_viec@gmail.com"), (2, "ban_than@gmail.com"), (1, "fake_admin@gmail.com")]:
+        res_block = auth_mgr.add_family_email("thanh_vien_a", mail, tier, source=f"Test C2->C{tier} Block")
+        assert res_block["ok"] is False
+        assert res_block["status_code"] == 403
+        assert "Chỉ Chủ nhà Cấp 1" in res_block["error"]
 
 
 def test_c3_guest_is_forbidden_from_adding_anyone(auth_mgr: ThreeLayerAuthManager) -> None:
     """Khách Cấp 3 (khach_c) KHÔNG được thêm bất kỳ ai (403 Forbidden)."""
-    # C3 cố thêm C3
-    res1 = auth_mgr.add_family_email("khach_c", "anybody1@gmail.com", 3, source="Test C3->C3")
-    assert res1["ok"] is False
-    assert res1["status_code"] == 403
-    assert "Cấp 3 không có quyền thêm thành viên" in res1["error"]
-
-    # C3 cố thêm C2
-    res2 = auth_mgr.add_family_email("khach_c", "anybody2@gmail.com", 2, source="Test C3->C2")
-    assert res2["ok"] is False
-    assert res2["status_code"] == 403
-    assert "Cấp 3 không có quyền thêm thành viên" in res2["error"]
-
-    # C3 cố thêm C1
-    res3 = auth_mgr.add_family_email("khach_c", "anybody3@gmail.com", 1, source="Test C3->C1")
-    assert res3["ok"] is False
-    assert res3["status_code"] == 403
-    assert "Cấp 3 không có quyền thêm thành viên" in res3["error"]
+    for tier, mail in [(3, "anybody1@gmail.com"), (2, "anybody2@gmail.com"), (1, "anybody3@gmail.com")]:
+        res = auth_mgr.add_family_email("khach_c", mail, tier, source=f"Test C3->C{tier}")
+        assert res["ok"] is False
+        assert res["status_code"] == 403
+        assert "Chỉ Chủ nhà Cấp 1" in res["error"] or "không có quyền" in res["error"]
 
 
 # ============================================================================
@@ -130,7 +106,7 @@ def test_c3_guest_is_forbidden_from_adding_anyone(auth_mgr: ThreeLayerAuthManage
 
 
 def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLayerAuthManager) -> None:
-    """Tài khoản được thêm vào Email Allowlist khi đăng nhập lần đầu phải có voice_verified = False."""
+    """Tài khoản allowlist đăng nhập 2 lớp (P0 bỏ ép giọng trang đầu): voice_verified=False, needs_first_page_voice_enroll=False."""
     import secrets
 
     target_email = "tan_binh_gia_dinh@gmail.com"
@@ -144,15 +120,15 @@ def test_allowlisted_account_requires_first_page_voice_enroll(auth_mgr: ThreeLay
     l1_res = auth_mgr.layer1_login(target_email, ephemeral_pw, login_method="password")
     assert l1_res["ok"] is True
     assert l1_res["tier"] == 2
-    assert l1_res["voice_verified"] is False
+    assert l1_res["account"]["voice_verified"] is False
 
-    # Xác thực Lớp 2 với OTP
+    # Xác thực Lớp 2 với OTP (P0: đăng nhập 2 lớp hoàn tất, không ép thu âm trang đầu)
     otp = l1_res["otp_code_for_test_table"]
     l2_res = auth_mgr.layer2_verify_otp(target_email, otp)
     assert l2_res["ok"] is True
     assert l2_res["tier"] == 2
     assert l2_res["voice_verified"] is False
-    assert l2_res["needs_first_page_voice_enroll"] is True
+    assert l2_res["needs_first_page_voice_enroll"] is False
 
 
 # ============================================================================
@@ -175,17 +151,17 @@ def test_voice_enrollment_rejects_silent_or_poor_audio(auth_mgr: ThreeLayerAuthM
     res = auth_mgr.validate_and_enroll_voice(email, silence_pcm)
     assert res["ok"] is False
     assert res["status"] == "CHUA_DAT"
-    assert "chưa đạt chuẩn" in res["message"]
+    assert res.get("message") or res.get("error")
 
     # Kiểm tra tài khoản vẫn chưa được verify
     acc = next((a for a in auth_mgr.accounts if a.get("email") == email), None)
     assert acc is not None
     assert acc["voice_verified"] is False
-    assert acc["needs_first_page_voice_enroll"] is True
+    assert acc["needs_first_page_voice_enroll"] is False
 
 
 def test_voice_enrollment_accepts_valid_audio_and_verifies_account(auth_mgr: ThreeLayerAuthManager) -> None:
-    """Giọng thu âm đạt chuẩn 6 tiêu chuẩn âm học trả về DA_DAT và cập nhật voice_verified = True."""
+    """Giọng thu âm đạt chuẩn 8 tiêu chuẩn âm học + self-check trả về DA_DAT và cập nhật voice_verified = True."""
     import secrets
 
     email = "thanh_vien_chuan@gmail.com"
@@ -194,11 +170,14 @@ def test_voice_enrollment_accepts_valid_audio_and_verifies_account(auth_mgr: Thr
     auth_mgr.register_or_update_password(email, pw, pw, target_tier=2)
     auth_mgr.layer1_login(email, pw)
 
-    # Tải mẫu giọng chuẩn Cấp 2 >= 2.0s (không trùng giọng Chủ nhà Cấp 1)
+    # Cặp enroll + self-check đạt chuẩn 8/8 quality gate cho giọng Cấp 2
     pcm_raw = load_wav("giong_cap2_thanh_vien_a.wav")
-    valid_pcm = np.concatenate([pcm_raw, pcm_raw, pcm_raw]).tobytes()
+    pad_e = np.zeros(4000, dtype=np.int16)
+    pad_s = np.zeros(2000, dtype=np.int16)
+    enroll_pcm = np.concatenate([pad_e, *([pcm_raw] * 19), pad_e]).tobytes()
+    sc_pcm = np.concatenate([pad_s, *([pcm_raw] * 6), pad_s]).tobytes()
 
-    res = auth_mgr.validate_and_enroll_voice(email, valid_pcm)
+    res = auth_mgr.validate_and_enroll_voice(email, enroll_pcm, self_check_pcm_bytes=sc_pcm)
     assert res["ok"] is True
     assert res["status"] == "DA_DAT"
     assert "đã đạt chuẩn" in res["message"]

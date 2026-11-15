@@ -161,10 +161,8 @@ fn_set_word_mapping = types.FunctionDeclaration(
 fn_create_alias_rule = types.FunctionDeclaration(
     name="create_alias_rule",
     description=(
-        "ĐỔI LỆNH / GÁN KHẨU LỆNH (Command Phrase Remapping): Khi người dùng muốn đổi cả câu lệnh mở/đóng/bật/tắt "
-        "hoặc tạo khẩu lệnh riêng cho 1 hay nhiều thiết bị. Lưu ngay lập tức vào SQLite, KHÔNG hỏi xác nhận lại. "
-        "VD: 'Đổi lệnh mở cửa thành Vừng ơi mở ra' -> phrase='vừng ơi mở ra', target_devices_csv='main_door', target_actions_csv='open'. "
-        "Lưu ý: Đổi lệnh cho 1 hành động KHÁC với luật IF-ELSE giữa 2 thiết bị."
+        "ĐỔI LỆNH / GÁN KHẨU LỆNH (Command Phrase Remapping): Khi người dùng muốn đổi câu lệnh mở/đóng/bật/tắt "
+        "hoặc tạo khẩu lệnh riêng cho 1 hay nhiều thiết bị. Server sẽ lưu nháp chờ xác nhận (TTL 20s) và trả câu '... đúng không ạ?' — BẮT BUỘC đọc nguyên văn để người dùng xác nhận rồi mới ghi SQLite."
     ),
     parameters={
         "type": "OBJECT",
@@ -207,14 +205,9 @@ fn_execute_alias_rule = types.FunctionDeclaration(
 fn_set_if_else_rule = types.FunctionDeclaration(
     name="set_if_else_rule",
     description=(
-        "Thiết lập QUAN HỆ IF SÁT NGHĨA giữa các thiết bị theo TRẠNG THÁI (State-Driven).\n"
-        "- QUY TẮC SÁT NGHĨA 1 CHIỀU (CỰC KỲ QUAN TRỌNG): Nếu người dùng chỉ nói 1 chiều (VD: 'Nếu mở cửa chính thì mở điều hòa'), "
-        "BẮT BUỘC ĐỂ TRỐNG `else_device_id=''` và `else_action=''`! TUYỆT ĐỐI KHÔNG tự suy diễn 'đóng cửa thì tắt điều hòa'. "
-        "Khi đó, nếu đóng cửa chính thì điều hòa vẫn giữ nguyên không tắt.\n"
-        "- Chỉ khi nào người dùng nói rõ cả chiều ngược lại (VD: 'Nếu mở cửa thì mở điều hòa, còn đóng cửa thì tắt điều hòa' "
-        "hoặc 'Cho cửa chính và điều hòa đồng bộ đóng mở cùng nhau') thì mới điền `else_device_id` và `else_action`.\n"
-        "- Nhờ bám theo trạng thái phần cứng `main_door=OPEN`, nên dù mở cửa bằng lệnh gốc hay lệnh đã đổi ('Vừng ơi mở ra'), "
-        "hễ cửa mở là điều hòa tự động mở theo! Thực thi và lưu ngay lập tức, KHÔNG hỏi xác nhận lại người dùng."
+        "Thiết lập LIÊN KẾT / LUẬT TỰ ĐỘNG IF-THEN giữa các thiết bị (VD: 'từ giờ mở cửa chính thì mở cả đèn', 'khi bật quạt thì bật đèn'). "
+        "Chỉ điền `else_device_id` khi người dùng nói rõ vế ngược lại. "
+        "Khi gọi tool, server kiểm tra phân quyền (Cấp 2 cần được Cấp 1 cấp quyền liên kết) rồi lưu nháp chờ xác nhận (20s) và trả `exact_spoken_reply` — BẮT BUỘC đọc nguyên văn để hỏi xác nhận."
     ),
     parameters={
         "type": "OBJECT",
@@ -580,7 +573,7 @@ fn_create_schedule_clock = types.FunctionDeclaration(
     name="create_schedule_clock",
     description=(
         "Đặt LỊCH ĐỒNG HỒ THEO GIỜ THỰC TẾ múi giờ Việt Nam Asia/Saigon (1 lần hoặc hằng ngày). "
-        "Dùng khi người dùng nói giờ cụ thể (VD: 'Đặt lịch bật quạt trần lúc 14 giờ 35', '22:30 tắt hết đèn hằng ngày'). Lưu ngay vào SQLite, không hỏi lại."
+        "Server kiểm tra xung đột lịch Cấp 2 với Cấp 1 (+/-60s) và tạo nháp chờ xác nhận 20s; BẮT BUỘC đọc nguyên văn `exact_spoken_reply` trả về."
     ),
     parameters={
         "type": "OBJECT",
@@ -597,8 +590,8 @@ fn_create_schedule_clock = types.FunctionDeclaration(
 fn_create_custom_scene = types.FunctionDeclaration(
     name="create_custom_scene",
     description=(
-        "Tạo NGỮ CẢNH / LỆNH TÙY CHỈNH nhiều bước lưu bền vững (VD: 'Tạo lệnh chế độ ngủ là tắt hết đèn và đóng cửa'). "
-        "Lưu ngay lập tức, không hỏi xác nhận lại."
+        "Tạo LỆNH TÙY CHỈNH / NGỮ CẢNH nhiều bước (VD: 'tạo lệnh mới giờ đi ngủ là tắt hết đèn'). "
+        "Server lưu nháp chờ xác nhận 20s và trả `exact_spoken_reply` ('... đúng không ạ?'); BẮT BUỘC đọc nguyên văn rồi chờ người dùng nói 'xác nhận'/'không'."
     ),
     parameters={
         "type": "OBJECT",
@@ -612,7 +605,7 @@ fn_create_custom_scene = types.FunctionDeclaration(
 
 fn_run_custom_scene = types.FunctionDeclaration(
     name="run_custom_scene",
-    description="Chạy một ngữ cảnh / lệnh tùy chỉnh đã lưu trước đó (VD: 'chế độ ngủ', 'chế độ ra ngoài').",
+    description="Chạy một ngữ cảnh / lệnh tùy chỉnh đã lưu trong bể của người đang nói (VD: 'chế độ ngủ', 'giờ đi ngủ').",
     parameters={
         "type": "OBJECT",
         "properties": {
@@ -624,7 +617,7 @@ fn_run_custom_scene = types.FunctionDeclaration(
 
 fn_delete_automation_item = types.FunctionDeclaration(
     name="delete_automation_item",
-    description="Xóa lịch theo giờ (schedule), luật liên kết (rule) hoặc ngữ cảnh (scene) đã lưu.",
+    description="Yêu cầu xóa 1 lịch theo giờ (schedule), liên kết (rule) hoặc lệnh custom (scene) cụ thể. Server lưu nháp chờ xác nhận 20s.",
     parameters={
         "type": "OBJECT",
         "properties": {
@@ -632,6 +625,100 @@ fn_delete_automation_item = types.FunctionDeclaration(
             "keyword_or_id": {"type": "STRING", "description": "Từ khóa, giờ HH:MM, tên lệnh hoặc ID cần xóa."},
         },
         "required": ["kind"],
+    },
+)
+
+fn_confirm_or_cancel_pending_action = types.FunctionDeclaration(
+    name="confirm_or_cancel_pending_action",
+    description=(
+        "Bước 2 luồng xác nhận 4 bước: BẮT BUỘC gọi khi người dùng trả lời 'xác nhận', 'đúng', 'ừ', 'ok', 'đồng ý' (-> confirmed=True) "
+        "hoặc 'không', 'hủy', 'thôi', 'đừng' (-> confirmed=False) để chốt hoặc hủy thay đổi đang chờ xác nhận trong bể."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "confirmed": {
+                "type": "BOOLEAN",
+                "description": "True để xác nhận ghi SQLite ('Đã xác nhận. Xong rồi ạ.'); False để hủy ('Đã hủy.').",
+            },
+        },
+        "required": ["confirmed"],
+    },
+)
+
+fn_query_pools_or_members = types.FunctionDeclaration(
+    name="query_pools_or_members",
+    description=(
+        "Đọc ĐÚNG bể dữ liệu SQLite theo chủ sở hữu đang đăng nhập (Cấp 1 xem toàn bộ kèm 'của <tên>', Cấp 2 chỉ xem của chính mình, Cấp 3 bị từ chối):\n"
+        "- 'timers': 'tôi có những hẹn giờ nào', 'hẹn giờ của Mẹ'\n"
+        "- 'custom_commands': 'tôi có những lệnh custom nào'\n"
+        "- 'links': 'có những liên kết nào'\n"
+        "- 'members': 'nhà có mấy thành viên, tên gì, cấp mấy'."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "pool_kind": {
+                "type": "STRING",
+                "enum": ["timers", "custom_commands", "links", "members"],
+                "description": "Loại dữ liệu cần đọc từ SQLite.",
+            },
+            "target_member_name": {
+                "type": "STRING",
+                "description": "(Chỉ Cấp 1) Tên thành viên khi hỏi riêng của người đó (VD: 'Mẹ'). Để trống nếu hỏi mặc định.",
+            },
+        },
+        "required": ["pool_kind"],
+    },
+)
+
+fn_reset_user_pool = types.FunctionDeclaration(
+    name="reset_user_pool",
+    description=(
+        "Yêu cầu reset bể dữ liệu ('reset lệnh custom', 'reset liên kết', 'xóa hẹn giờ'). "
+        "Mặc định chỉ reset bể của chính người đang nói; chỉ Cấp 1 mới được truyền `target_member_name` hoặc `clear_all=True`. "
+        "Server tạo nháp chờ xác nhận 20s và trả '... đúng không ạ?'."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "pool_kind": {
+                "type": "STRING",
+                "enum": ["custom_commands", "links", "timers", "all"],
+                "description": "Bể cần reset.",
+            },
+            "target_member_name": {
+                "type": "STRING",
+                "description": "(Chỉ Cấp 1) Tên thành viên cần reset bể (VD: 'Mẹ'). Để trống nếu reset bể của chính mình.",
+            },
+            "clear_all": {
+                "type": "BOOLEAN",
+                "description": "(Chỉ Cấp 1) True nếu nói 'của mọi người'.",
+            },
+        },
+        "required": ["pool_kind"],
+    },
+)
+
+fn_manage_member_link_permission = types.FunctionDeclaration(
+    name="manage_member_link_permission",
+    description=(
+        "(Chỉ Cấp 1) Cấp hoặc thu hồi quyền tạo liên kết thiết bị cho thành viên Cấp 2 (VD: 'cấp quyền tạo liên kết cho Mẹ'). "
+        "Server lưu nháp chờ xác nhận 20s."
+    ),
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "target_member_name": {
+                "type": "STRING",
+                "description": "Tên thành viên cần cấp hoặc thu hồi quyền tạo liên kết.",
+            },
+            "allowed": {
+                "type": "BOOLEAN",
+                "description": "True để cấp quyền, False để thu hồi quyền.",
+            },
+        },
+        "required": ["target_member_name", "allowed"],
     },
 )
 
@@ -645,14 +732,16 @@ ALL_TOOLS = [
             fn_create_custom_scene,
             fn_run_custom_scene,
             fn_delete_automation_item,
+            fn_confirm_or_cancel_pending_action,
+            fn_query_pools_or_members,
+            fn_reset_user_pool,
+            fn_manage_member_link_permission,
             fn_set_word_mapping,
             fn_create_alias_rule,
             fn_execute_alias_rule,
             fn_set_if_else_rule,
             fn_query_pools,
             fn_query_knowledge_rag,
-            fn_start_voice_enrollment,
-            fn_finalize_voice_enrollment,
             fn_grant_permission,
             fn_revoke_permission,
             fn_set_query_permission_policy,
@@ -696,6 +785,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         ) if if_else_list else "Chưa có"
     )
     timers_txt = "; ".join(pools["timer_pool_items"]) if pools["timer_pool_items"] else "0 hẹn giờ"
+    cur_uid = str(getattr(engine, "_current_user_id", "") or "").strip()
     try:
         from simulator.automation_repo import (
             list_automation_rules,
@@ -703,27 +793,51 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
             list_schedules,
         )
 
-        db_scheds = list_schedules(include_disabled=False)
-        db_rules = list_automation_rules(include_disabled=False)
-        db_scenes = list_custom_commands(include_disabled=False)
+        if cur_tier >= 3:
+            db_scheds, db_rules, db_scenes = [], [], []
+        else:
+            owner_q = None if cur_tier == 1 else (cur_uid or None)
+            db_scheds = list_schedules(include_disabled=False, owner_user_id=owner_q)
+            db_rules = list_automation_rules(include_disabled=False, owner_user_id=owner_q)
+            db_scenes = list_custom_commands(include_disabled=False, owner_user_id=owner_q)
     except Exception:
         db_scheds, db_rules, db_scenes = [], [], []
-    scheds_txt = "; ".join(f"{s['time_hhmm']} ({s['schedule_type']}): {s['label']}" for s in db_scheds) if db_scheds else "Chưa có"
-    db_rules_txt = "; ".join(r["label"] for r in db_rules) if db_rules else "Chưa có"
-    scenes_txt = "; ".join(f"'{c['phrase']}' => [{c['steps_summary']}]" for c in db_scenes) if db_scenes else "Chưa có"
+    if cur_tier >= 3:
+        alias_txt = "Khách không có lệnh riêng"
+        words_txt = "Không có"
+        ifelse_txt = "Khách không có liên kết"
+        timers_txt = "Khách không có hẹn giờ"
+        scheds_txt = "Không có"
+        db_rules_txt = "Không có"
+        scenes_txt = "Không có"
+    else:
+        scheds_txt = "; ".join(
+            f"{s['time_hhmm']} ({s['schedule_type']}): {s['label']}"
+            + (f" [của {s.get('owner_name') or s.get('owner_user_id')}]" if cur_tier == 1 else "")
+            for s in db_scheds
+        ) if db_scheds else "Chưa có"
+        db_rules_txt = "; ".join(
+            r["label"] + (f" [của {r.get('owner_name') or r.get('owner_user_id')}]" if cur_tier == 1 else "")
+            for r in db_rules
+        ) if db_rules else "Chưa có"
+        scenes_txt = "; ".join(
+            f"'{c['phrase']}' => [{c['steps_summary']}]"
+            + (f" [của {c.get('owner_name') or c.get('owner_user_id')}]" if cur_tier == 1 else "")
+            for c in db_scenes
+        ) if db_scenes else "Chưa có"
 
     return (
         "Bạn là trợ lý giọng nói Nhà Thông Minh Bách Khoa do Nguyễn Tuấn Anh tạo ra.\n"
-        "Giọng đọc mặc định duy nhất: Aoede (24kHz). Luôn trả lời ngắn gọn trong 1 câu tiếng Việt tự nhiên.\n"
+        "Giọng đọc mặc định duy nhất: Aoede (24kHz). Luôn trả lời thật ngắn gọn trong 1-2 câu tiếng Việt tự nhiên.\n"
         "\n"
         "1. DANH TÍNH & CẤP QUYỀN HIỆN TẠI (ĐÃ XÁC THỰC SERVER-SIDE):\n"
         f"- Người đang nói: {cur_user} (Cấp {cur_tier} — Vai trò: {cur_role}).\n"
-        "- Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - ADMIN): Toàn quyền mọi thiết bị, hẹn giờ, luật IF-ELSE, đổi từ/lệnh, và ĐỘC QUYỀN cấp/thu hồi quyền (`grant_user_permission`, `revoke_user_permission`) & đăng ký giọng nói (`start_voice_enrollment`, `finalize_voice_enrollment`).\n"
-        "- Cấp 2 (Thành viên - MEMBER): Điều khiển đèn, quạt, điều hòa, máy bơm, hẹn giờ, luật IF-ELSE. CẤM mở/đóng cửa chính (`main_door`), còi báo động (`alarm_siren`), và CẤM cấp/thu hồi quyền hoặc đăng ký giọng nói.\n"
-        "- Cấp 3 (Khách - CHILD_GUEST): Chỉ bật/tắt đèn (`living_room_light`, `bedroom_light`, `all_lights`) và quạt (`fan`). CẤM cửa chính, còi, điều hòa, máy bơm, hẹn giờ, luật, cấp quyền.\n"
+        "- Cấp 1 (Chủ nhà - ADMIN/OWNER): Toàn quyền thiết bị, xem/sửa/reset bể của mọi người, quản lý thành viên & cấp quyền tạo liên kết.\n"
+        "- Cấp 2 (Gia đình - MEMBER): Điều khiển đèn/quạt/điều hòa/máy bơm; CHỈ xem/tạo/reset lệnh custom & hẹn giờ CỦA CHÍNH MÌNH; CẤM cửa chính, còi báo động, trùng lịch ±60s với Cấp 1 ('Trùng lịch của chủ nhà, em không đặt được ạ.'), và tạo liên kết trừ khi được Cấp 1 cấp quyền.\n"
+        "- Cấp 3 (Khách - GUEST): CHỈ bật/tắt đèn và quạt. Mọi yêu cầu khác trả lời đúng câu: 'Khách chỉ được bật tắt thiết bị thôi ạ.'.\n"
         "\n"
         "2. QUY TẮC NGÔN NGỮ & PHẠM VI:\n"
-        "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn.\n"
+        "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn (<= 1-2 câu).\n"
         "- Cấm ngoại ngữ: Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngôn ngữ khác.\n"
         f'- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm (\'ừm\', \'ờ\', \'à\', \'alô\', \'aló\') đi kèm lệnh rõ ràng thì chỉ trích xuất lệnh tiếng Việt; nếu chỉ là âm đệm/ồn/quá ngắn, chỉ đáp: "Tôi có thể giúp gì cho bạn?" hoặc "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
         "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh:\n"
@@ -740,10 +854,13 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         f"- Ngữ cảnh / Lệnh tùy chỉnh (SQLite): {scenes_txt}.\n"
         f"- Bể 2 (Luật tự động IF-ELSE của {cur_user}): {ifelse_txt} | Luật DB: {db_rules_txt}.\n"
         "\n"
-        "4. QUY TẮC THỰC THI TOOL & TỪ CHỐI CỐ ĐỊNH:\n"
-        "- Khi được phép, gọi Function Tool ngay lập tức rồi mới phản hồi âm thanh ngắn gọn. Với đặt lịch, tạo luật hoặc tạo ngữ cảnh mới: lưu ngay lập tức, KHÔNG hỏi xác nhận lại.\n"
-        "- Nếu kết quả tool trả về có trường `exact_spoken_reply`, BẮT BUỘC đọc đúng nguyên văn câu đó.\n"
-        f'- Nếu phiên hiện tại chưa đăng nhập hoặc yêu cầu vượt quyền của cấp hiện tại, TUYỆT ĐỐI KHÔNG gọi tool thực thi mà chỉ nói đúng nguyên văn câu cố định: "{FIXED_REJECTION_PHRASE_VI}".\n'
+        "4. QUY TẮC THỰC THI TOOL, XÁC NHẬN 4 BƯỚC & TỪ CHỐI:\n"
+        "- Bật/tắt thiết bị đơn thuần (`control_device`): gọi tool NGAY LẬP TỨC không cần hỏi xác nhận, rồi trả lời ngắn.\n"
+        "- MỌI thay đổi vào bể (tạo/sửa/xóa lệnh custom, liên kết, hẹn giờ/lịch, reset, cấp quyền): BẮT BUỘC gọi tool tương ứng trước; KHÔNG tự bịa câu xác nhận khi chưa gọi tool; đọc đúng `exact_spoken_reply` ('... đúng không ạ?') của tool.\n"
+        "- Khi người dùng trả lời 'xác nhận'/'đúng'/'ừ'/'ok' hoặc 'không'/'hủy': gọi ngay `confirm_or_cancel_pending_action(confirmed=True/False)` và đọc nguyên văn `exact_spoken_reply` ('Đã xác nhận. Xong rồi ạ.' hoặc 'Đã hủy.').\n"
+        "- Khi hỏi bể hoặc thành viên: LUÔN gọi `query_pools_or_members` để đọc đúng SQLite theo phân quyền (KHÔNG tự đoán).\n"
+        "- Nếu tool trả về `exact_spoken_reply`, BẮT BUỘC đọc đúng nguyên văn câu đó.\n"
+        f'- Nếu phiên hiện tại chưa đăng nhập, chỉ nói: "{FIXED_REJECTION_PHRASE_VI}". Với Cấp 3 hỏi/sửa bể, chỉ nói: "Khách chỉ được bật tắt thiết bị thôi ạ.".\n'
         f'- Khi âm thanh quá ngắn/ồn/nói đè (Safe-Deny), chỉ nói đúng câu cố định: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
         '- Nếu nhận lệnh hệ thống `[SYSTEM_SAY_EXACT_FIXED_DENIAL]: "<câu>"`, chỉ đọc nguyên văn `<câu>` đó.'
     )
@@ -761,9 +878,10 @@ def make_live_config(engine: SmartHomeEngine) -> types.LiveConnectConfig:
         output_audio_transcription=types.AudioTranscriptionConfig(),
         realtime_input_config=types.RealtimeInputConfig(
             automatic_activity_detection=types.AutomaticActivityDetection(
-                silence_duration_ms=1000,
-                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW,
-                prefix_padding_ms=300,
+                silence_duration_ms=350,
+                start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                prefix_padding_ms=100,
             )
         ),
         system_instruction=types.Content(parts=[types.Part(text=build_system_instruction(engine))]),

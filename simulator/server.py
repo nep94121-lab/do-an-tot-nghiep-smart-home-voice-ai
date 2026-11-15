@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
+from email.utils import formatdate
 from logging.handlers import RotatingFileHandler
 import os
 import pathlib
@@ -30,6 +32,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -131,14 +134,58 @@ app.add_middleware(
 )
 
 
+def _compute_file_etag(stat_result: os.stat_result) -> str:
+    etag_base = f"{stat_result.st_mtime}-{stat_result.st_size}"
+    digest = hashlib.md5(etag_base.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f'"{digest}"'
+
+
+def _etag_matches(if_none_match: str | None, etag: str) -> bool:
+    if not if_none_match:
+        return False
+    raw = if_none_match.strip()
+    if raw == "*":
+        return True
+    norm_target = etag.removeprefix("W/").strip()
+    for part in raw.split(","):
+        if part.strip().removeprefix("W/").strip() == norm_target:
+            return True
+    return False
+
+
+def _serve_cached_html(request: Request | None, file_path: pathlib.Path) -> Response:
+    stat_result = os.stat(file_path)
+    etag = _compute_file_etag(stat_result)
+    last_modified = formatdate(stat_result.st_mtime, usegmt=True)
+    headers = {
+        "Cache-Control": "private, max-age=0, must-revalidate",
+        "ETag": etag,
+        "Last-Modified": last_modified,
+    }
+    if request is not None and request.method in ("GET", "HEAD") and _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    return FileResponse(file_path, media_type="text/html", stat_result=stat_result, headers=headers)
+
+
 @app.middleware("http")
-async def disable_static_cache(request: Request, call_next: Any) -> Response:
-    """Vô hiệu hóa bộ nhớ đệm trình duyệt để phản ánh ngay lập tức thay đổi UI/Static."""
+async def configure_http_cache_headers(request: Request, call_next: Any) -> Response:
+    """Bật cache ETag/304 cho /static/* và HTML; giữ no-store tuyệt đối cho /api/* và invite."""
     response = await call_next(request)
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    path = request.url.path or "/"
+    if (path.startswith("/static/") or path.startswith("/test_audio/")) and response.status_code in (200, 304):
+        response.headers["Cache-Control"] = "public, max-age=3600"
+        return response
+    if path == "/sw.js" and response.status_code in (200, 304):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+    if "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
+
+
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 @app.exception_handler(404)
@@ -190,23 +237,23 @@ app.mount("/test_audio", StaticFiles(directory=str(AUDIO_DIR)), name="test_audio
 
 # Giao diện người dùng Web & Mobile
 @app.get("/")
-async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+async def index(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "index.html")
 
 
 @app.get("/login")
-async def login_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "login.html")
+async def login_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "login.html")
 
 
 @app.get("/register")
-async def register_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "register.html")
+async def register_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "register.html")
 
 
 @app.get("/app")
-async def mobile_app_index() -> FileResponse:
-    return FileResponse(MOBILE_APP_DIR / "index.html")
+async def mobile_app_index(request: Request) -> Response:
+    return _serve_cached_html(request, MOBILE_APP_DIR / "index.html")
 
 
 @app.get("/mobile")
@@ -216,52 +263,52 @@ async def mobile_redirect() -> RedirectResponse:
 
 
 @app.get("/wokwi")
-async def wokwi_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "wokwi.html")
+async def wokwi_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "wokwi.html")
 
 
 @app.get("/logs")
-async def logs_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "logs.html")
+async def logs_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "logs.html")
 
 
 @app.get("/auth")
-async def auth_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "auth.html")
+async def auth_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "auth.html")
 
 
 @app.get("/guest_guide")
 @app.get("/guest_guide/")
-async def guest_guide_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "guest_guide.html")
+async def guest_guide_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "guest_guide.html")
 
 
 @app.get("/guest_legacy_removed")
 @app.get("/guest_enroll_legacy_removed")
 @app.get("/guest-qr_legacy_removed")
-async def guest_enroll_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "guest_enroll.html")
+async def guest_enroll_page(request: Request) -> Response:
+    return _serve_cached_html(request, STATIC_DIR / "guest_enroll.html")
 
 
 @app.get("/archify")
-async def archify_architecture_page() -> FileResponse:
-    return FileResponse(DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
+async def archify_architecture_page(request: Request) -> Response:
+    return _serve_cached_html(request, DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
 
 
 @app.get("/architecture")
-async def architecture_page() -> FileResponse:
+async def architecture_page(request: Request) -> Response:
     """Trang Sơ đồ Kiến trúc Hệ thống tương tác (Archify)."""
-    return FileResponse(DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
+    return _serve_cached_html(request, DOCS_ARCH_DIR / "smart-home-voice-ai.architecture.html")
 
 
 @app.get("/archify/devops")
-async def archify_devops_page() -> FileResponse:
-    return FileResponse(DOCS_ARCH_DIR / "devops-cicd-pipeline.workflow.html")
+async def archify_devops_page(request: Request) -> Response:
+    return _serve_cached_html(request, DOCS_ARCH_DIR / "devops-cicd-pipeline.workflow.html")
 
 
 @app.get("/archify/erd")
-async def archify_erd_page() -> FileResponse:
-    return FileResponse(DOCS_ARCH_DIR / "smarthome-database.erd.html")
+async def archify_erd_page(request: Request) -> Response:
+    return _serve_cached_html(request, DOCS_ARCH_DIR / "smarthome-database.erd.html")
 
 
 @app.get("/favicon.ico")

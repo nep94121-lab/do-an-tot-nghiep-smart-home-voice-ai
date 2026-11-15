@@ -124,27 +124,39 @@ def restrict_guest_snapshot(snapshot: dict[str, Any], session: Any) -> dict[str,
     snap["role"] = getattr(session, "role", "UNKNOWN")
     snap["current_user_id"] = session.user_id
     snap["current_user_name"] = session.display_name
-    if tier > 3:
+    if tier >= 3:
         for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
-            snap.pop(priv_key, None)
+            snap[priv_key] = [] if tier == 3 else []
+        if tier > 3:
+            for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
+                snap.pop(priv_key, None)
         return snap
+
+    uid = str(getattr(session, "user_id", "") or "")
     snap["timers"] = [
         timer for timer in (snap.get("timers") or [])
-        if timer.get("device_id") in allowed_set
-    ] if tier <= 2 else []
+        if isinstance(timer, dict)
+        and timer.get("device_id") in allowed_set
+        and str(timer.get("owner_user_id") or timer.get("owner_id") or "") == uid
+    ]
     snap["schedules"] = [
         sc for sc in (snap.get("schedules") or [])
-        if isinstance(sc, dict) and sc.get("device_id") in allowed_set
-    ] if tier <= 2 else []
+        if isinstance(sc, dict)
+        and sc.get("device_id") in allowed_set
+        and str(sc.get("owner_user_id") or sc.get("owner_id") or "") == uid
+    ]
     snap["automation_rules"] = [
         rl for rl in (snap.get("automation_rules") or [])
         if isinstance(rl, dict)
         and rl.get("when_device_id") in allowed_set
         and rl.get("then_device_id") in allowed_set
+        and str(rl.get("owner_user_id") or rl.get("owner_id") or "") == uid
     ]
     visible_scenes = []
     for cmd in (snap.get("custom_commands") or snap.get("scenes") or []):
         if not isinstance(cmd, dict):
+            continue
+        if str(cmd.get("owner_user_id") or cmd.get("owner_id") or "") != uid:
             continue
         steps = list(cmd.get("steps") or [])
         if steps and all(str(st.get("device_id") or "") in allowed_set for st in steps):

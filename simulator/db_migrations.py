@@ -47,6 +47,7 @@ NORMALIZED_TABLE_ORDER: tuple[str, ...] = (
     "schedules",
     "automation_rules",
     "custom_commands",
+    "pending_confirmations",
     "rules_pool",
     "ir_remote_codes",
     "knowledge_rag",
@@ -100,7 +101,8 @@ CREATE TABLE IF NOT EXISTS users (
     is_allowlisted INTEGER NOT NULL DEFAULT 1,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT '',
-    account_meta_json TEXT NOT NULL DEFAULT '{}'
+    account_meta_json TEXT NOT NULL DEFAULT '{}',
+    can_create_links INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS voiceprints (
@@ -313,13 +315,27 @@ CREATE TABLE IF NOT EXISTS automation_rules (
 CREATE TABLE IF NOT EXISTS custom_commands (
     command_id TEXT PRIMARY KEY,
     phrase TEXT NOT NULL,
-    phrase_norm TEXT NOT NULL UNIQUE,
+    phrase_norm TEXT NOT NULL,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     owner_tier INTEGER NOT NULL DEFAULT 1,
     steps_json TEXT NOT NULL DEFAULT '[]',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at REAL NOT NULL DEFAULT 0,
-    updated_at REAL NOT NULL DEFAULT 0
+    updated_at REAL NOT NULL DEFAULT 0,
+    UNIQUE(owner_user_id, phrase_norm)
+);
+
+CREATE TABLE IF NOT EXISTS pending_confirmations (
+    pending_id TEXT PRIMARY KEY,
+    session_key TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    owner_tier INTEGER NOT NULL,
+    action_kind TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    prompt_question TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
 );
 
 CREATE TABLE IF NOT EXISTS rules_pool (
@@ -379,7 +395,8 @@ CREATE INDEX IF NOT EXISTS idx_schedules_enabled_time ON schedules(enabled, time
 CREATE INDEX IF NOT EXISTS idx_schedules_owner ON schedules(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_automation_rules_trigger ON automation_rules(enabled, when_device_id, when_state);
 CREATE INDEX IF NOT EXISTS idx_automation_rules_owner ON automation_rules(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_custom_commands_enabled ON custom_commands(enabled, phrase_norm);
+CREATE INDEX IF NOT EXISTS idx_custom_commands_owner ON custom_commands(owner_user_id, enabled, phrase_norm);
+CREATE INDEX IF NOT EXISTS idx_pending_confirmations_lookup ON pending_confirmations(owner_user_id, session_key, status, expires_at);
 CREATE INDEX IF NOT EXISTS idx_rules_owner_cat ON rules_pool(owner_user_id, rule_category);
 CREATE INDEX IF NOT EXISTS idx_voiceprints_user ON voiceprints(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_role_tier ON users(role_code, tier);
@@ -893,6 +910,57 @@ def _migrate_schema_v3(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON;")
 
 
+def _migrate_custom_commands_per_owner(conn: sqlite3.Connection) -> None:
+    """Nâng cấp custom_commands từ UNIQUE(phrase_norm) toàn cục sang UNIQUE(owner_user_id, phrase_norm)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='custom_commands'"
+    ).fetchone()
+    if row is None:
+        return
+    sql_norm = " ".join(str(row["sql"] or "").lower().split())
+    if "unique(owner_user_id, phrase_norm)" in sql_norm or "unique (owner_user_id, phrase_norm)" in sql_norm:
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF;")
+    try:
+        def _rebuild_cc_tx(c: sqlite3.Connection) -> None:
+            c.execute("DROP INDEX IF EXISTS idx_custom_commands_enabled")
+            c.execute(
+                """
+                CREATE TABLE custom_commands_v4 (
+                    command_id TEXT PRIMARY KEY,
+                    phrase TEXT NOT NULL,
+                    phrase_norm TEXT NOT NULL,
+                    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    owner_tier INTEGER NOT NULL DEFAULT 1,
+                    steps_json TEXT NOT NULL DEFAULT '[]',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at REAL NOT NULL DEFAULT 0,
+                    updated_at REAL NOT NULL DEFAULT 0,
+                    UNIQUE(owner_user_id, phrase_norm)
+                )
+                """
+            )
+            c.execute(
+                """
+                INSERT OR IGNORE INTO custom_commands_v4 (
+                    command_id, phrase, phrase_norm, owner_user_id,
+                    owner_tier, steps_json, enabled, created_at, updated_at
+                )
+                SELECT
+                    command_id, phrase, phrase_norm, owner_user_id,
+                    owner_tier, steps_json, enabled, created_at, updated_at
+                FROM custom_commands
+                """
+            )
+            c.execute("DROP TABLE custom_commands")
+            c.execute("ALTER TABLE custom_commands_v4 RENAME TO custom_commands")
+
+        run_write_transaction(conn, _rebuild_cc_tx)
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
+
+
 def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     """Apply idempotent 3NF schema creation, column upgrades, role seeds, and hot indexes."""
     configure_wal_pragmas(conn, readonly=False)
@@ -910,12 +978,14 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     _ensure_column(conn, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
     _ensure_column(conn, "users", "created_at", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "users", "account_meta_json", "TEXT NOT NULL DEFAULT '{}'")
+    _ensure_column(conn, "users", "can_create_links", "INTEGER NOT NULL DEFAULT 0")
 
     _ensure_column(conn, "devices", "min_role", "TEXT REFERENCES roles(role_code)")
     _ensure_column(conn, "devices", "room", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "devices", "device_type", "TEXT NOT NULL DEFAULT 'switch'")
 
     _migrate_schema_v3(conn)
+    _migrate_custom_commands_per_owner(conn)
 
     def _seed_and_migrate(c: sqlite3.Connection) -> int:
         for role_code, tier, name_vi, desc in DEFAULT_ROLES:
@@ -981,6 +1051,7 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
             (1, "initial_8_table_schema"),
             (2, "normalized_3nf_wal_sessions_invites_otp_trusted_pin_ratelimit_state"),
             (3, "schema_v3_fk_hash_only_and_p1_automation"),
+            (4, "schema_v4_per_owner_pools_and_confirmations"),
         )
         for ver, mname in migrations:
             c.execute(

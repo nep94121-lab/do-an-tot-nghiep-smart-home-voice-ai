@@ -34,13 +34,17 @@ VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
 
 
 def load_wav(name: str) -> np.ndarray:
+    slice_start: int | None = None
+    slice_end: int | None = None
     if name in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
-        name = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
+        name = "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        slice_start, slice_end = 48000, 96000
     path = AUDIO_DIR / name
     if not path.exists():
         raise FileNotFoundError(f"Missing audio file: {path}")
     with wave.open(str(path), "rb") as w:
-        return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        arr = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        return arr[slice_start:slice_end] if slice_end is not None else arr
 
 
 @pytest.fixture
@@ -115,17 +119,30 @@ class TestScenario2HomeownerPitchShift:
         )
         assert dup_res.is_duplicate is True, f"LỌT CỔNG CHỐNG TRÙNG: factor={pitch_factor}"
 
-        # 2. Kiểm tra qua hàm enroll_tier_voice_from_pcm16k
-        enroll_res = vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=shifted.tobytes(),
-            user_id=f"guest_shifted_{pitch_factor}",
-            user_name="Khách Thử Nghiệm",
-            tier=3,
-            role="CHILD_GUEST",
-            check_duplicate=True,
-        )
-        assert enroll_res.get("ok") is False, f"Đăng ký khách thành công trái phép tại factor={pitch_factor}!"
-        assert enroll_res.get("status") == "DUPLICATE_VOICE_REJECTED"
+        # 2. Kiểm tra qua hàm enroll_tier_voice_from_pcm16k với cặp enroll + self-check hợp lệ (tại các mốc biên & giữa)
+        if pitch_factor in (1.00, 1.15, 1.25, 1.28):
+            with wave.open(str(AUDIO_DIR / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"), "rb") as w_full:
+                full = np.frombuffer(w_full.readframes(w_full.getnframes()), dtype=np.int16)
+            with wave.open(str(AUDIO_DIR / "giong_chu_nha_cap1_tuan_anh.wav"), "rb") as w_sc:
+                sc = np.frombuffer(w_sc.readframes(w_sc.getnframes()), dtype=np.int16)[:96000]
+            pair_e = np.concatenate([full[:192000], full[:192000]])
+            e_shifted = pair_e if pitch_factor == 1.0 else transform_pcm_by_pitch_factor(pair_e, factor=pitch_factor, sr=16000)
+            s_shifted = sc if pitch_factor == 1.0 else transform_pcm_by_pitch_factor(sc, factor=pitch_factor, sr=16000)
+            if pitch_factor != 1.0:
+                e_shifted = np.clip(e_shifted.astype(np.float32) * 1.8, -32768, 32767).astype(np.int16)
+                s_shifted = np.clip(s_shifted.astype(np.float32) * 1.8, -32768, 32767).astype(np.int16)
+
+            enroll_res = vm.enroll_tier_voice_from_pcm16k(
+                pcm_bytes=e_shifted.tobytes(),
+                self_check_pcm_bytes=s_shifted.tobytes(),
+                user_id=f"guest_shifted_{pitch_factor}",
+                user_name="Khách Thử Nghiệm",
+                tier=3,
+                role="CHILD_GUEST",
+                check_duplicate=True,
+            )
+            assert enroll_res.get("ok") is False, f"Đăng ký khách thành công trái phép tại factor={pitch_factor}!"
+            assert enroll_res.get("status") == "DUPLICATE_VOICE_REJECTED"
 
 
 # ==============================================================================

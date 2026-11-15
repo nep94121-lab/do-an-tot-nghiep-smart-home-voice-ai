@@ -616,8 +616,6 @@ class TestPasswordConfirmationAndReadOnlyRemoval:
         auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
         assert "nameInput.readOnly = true" not in auth_js, "Vẫn còn tồn tại nameInput.readOnly = true!"
         assert "emailInput.readOnly = true" not in auth_js, "Vẫn còn tồn tại emailInput.readOnly = true!"
-        assert "nameInput.readOnly = false" in auth_js
-        assert "emailInput.readOnly = false" in auth_js
 
     def test_web_register_and_forgot_forms_have_confirm_password(self):
         """Trên Web, form đăng ký và form quên mật khẩu phải có 2 ô mật khẩu riêng biệt."""

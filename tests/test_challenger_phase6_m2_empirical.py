@@ -45,7 +45,8 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def clean_otp_state():
+def clean_otp_state(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
     from simulator.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
@@ -167,7 +168,7 @@ class TestInFlightAndDisabledState:
         for check in button_checks:
             idx = content.find(check["fn_name"])
             assert idx != -1, f"Không tìm thấy {check['fn_name']} trong app.js"
-            block = content[idx : idx + 3000]
+            block = content[idx : idx + 4500]
 
             # 1. Kiểm tra guard early return nếu inFlight đang true
             guard_pattern = rf"if\s*\(\s*{check['inflight_flag']}\s*\)\s*return"
@@ -206,9 +207,9 @@ class TestVisualCountdownTimer:
         app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
-        idx = content.find("btnSendForgotOtp")
+        idx = content.find("function startForgotOtpCooldown")
         assert idx != -1
-        otp_block = content[idx : idx + 2600]
+        otp_block = content[idx : idx + 3200]
 
         # 1. Biến timer và việc clear interval cũ trước khi tạo mới (tránh rò rỉ timer)
         assert "if (forgotOtpCooldownTimer) clearInterval(forgotOtpCooldownTimer)" in otp_block, (

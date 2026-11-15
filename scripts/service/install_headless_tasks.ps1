@@ -38,9 +38,15 @@ function Register-HeadlessTask {
         Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $PrimaryTriggers -Settings $Settings -Principal $principalS4U -Force -ErrorAction Stop | Out-Null
         return "S4U"
     } catch {
-        $principalInteractive = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $FallbackTriggers -Settings $Settings -Principal $principalInteractive -Force -ErrorAction Stop | Out-Null
-        return "Interactive"
+        try {
+            $principalS4UFb = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType S4U -RunLevel Limited
+            Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $FallbackTriggers -Settings $Settings -Principal $principalS4UFb -Force -ErrorAction Stop | Out-Null
+            return "S4U"
+        } catch {
+            $principalInteractive = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+            Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $FallbackTriggers -Settings $Settings -Principal $principalInteractive -Force -ErrorAction Stop | Out-Null
+            return "Interactive"
+        }
     }
 }
 
@@ -62,7 +68,7 @@ $svcSettings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -Hidden
 
-$svcMode = Register-HeadlessTask -TaskName "SmartHomeServer_Permanent" -Arguments $svcArgs -PrimaryTriggers $svcPrimaryTriggers -FallbackTriggers $svcFallbackTriggers -Settings $svcSettings -AllowSystemBoot $false
+$svcMode = Register-HeadlessTask -TaskName "SmartHomeServer_Permanent" -Arguments $svcArgs -PrimaryTriggers $svcPrimaryTriggers -FallbackTriggers $svcFallbackTriggers -Settings $svcSettings -AllowSystemBoot $true
 
 # Belt-and-suspenders HKCU Run entry so headless service auto-starts cleanly on user logon even without Admin S4U rights
 try {
@@ -83,7 +89,7 @@ $wdSettings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -Hidden
 
-$wdMode = Register-HeadlessTask -TaskName "SmartHomeServer_Watchdog" -Arguments $wdArgs -PrimaryTriggers $wdTrigger -FallbackTriggers $wdTrigger -Settings $wdSettings -AllowSystemBoot $false
+$wdMode = Register-HeadlessTask -TaskName "SmartHomeServer_Watchdog" -Arguments $wdArgs -PrimaryTriggers $wdTrigger -FallbackTriggers $wdTrigger -Settings $wdSettings -AllowSystemBoot $true
 
 $bkArgs = "--headless powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$backupScript`" -RepoRoot `"$RepoRoot`""
 $bkTrigger = New-ScheduledTaskTrigger -Daily -At "03:15"
@@ -95,7 +101,7 @@ $bkSettings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -Hidden
 
-$bkMode = Register-HeadlessTask -TaskName "SmartHomeServer_DailyBackup" -Arguments $bkArgs -PrimaryTriggers $bkTrigger -FallbackTriggers $bkTrigger -Settings $bkSettings -AllowSystemBoot $false
+$bkMode = Register-HeadlessTask -TaskName "SmartHomeServer_DailyBackup" -Arguments $bkArgs -PrimaryTriggers $bkTrigger -FallbackTriggers $bkTrigger -Settings $bkSettings -AllowSystemBoot $true
 
 if ($StartNow) {
     Start-ScheduledTask -TaskName "SmartHomeServer_Permanent"

@@ -1681,7 +1681,7 @@
               }
             } catch (_) {}
             connectRealtimeSse();
-          }, 400);
+          }, 250);
         }
       };
     } catch (_) {
@@ -2071,7 +2071,7 @@
 
       if (!isVercelServerless && wsRetryCount < WS_MAX_RETRIES && wsRetryCount > 0) {
         if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-        wsReconnectTimer = setTimeout(connectWebSocket, 4000);
+        wsReconnectTimer = setTimeout(connectWebSocket, 250);
       }
     };
   }
@@ -2337,7 +2337,7 @@
           }
           if (silenceStartMs === 0) {
             silenceStartMs = nowMs;
-          } else if (nowMs - silenceStartMs > 520) {
+          } else if (nowMs - silenceStartMs > 350) {
             wasSpeaking = false;
             speechStartMs = 0;
             silenceStartMs = 0;
@@ -3728,6 +3728,7 @@
       if (remaining <= 0) {
         clearInterval(forgotOtpCooldownTimer);
         forgotOtpCooldownTimer = null;
+        if (btnSendForgotOtp) btnSendForgotOtp.disabled = false;
         setForgotSendButtonsLabel(false, "Gửi OTP");
       } else {
         setForgotSendButtonsLabel(true, `Gửi lại sau (${remaining}s)`);

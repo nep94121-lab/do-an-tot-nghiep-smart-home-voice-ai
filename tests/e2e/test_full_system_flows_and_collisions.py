@@ -48,6 +48,7 @@ from tests.e2e.conftest import (
     check_duplicate_voice_gate_helper,
     consume_guest_handshake_helper,
     generate_dynamic_qr_token_helper,
+    make_valid_enroll_pair,
     read_wav_pcm16,
     send_and_verify_email_otp_helper,
     validate_dns_mx_record_helper,
@@ -226,8 +227,9 @@ class TestCollisionScenario2DynamicQRLifecycleAndTier1Immunity:
             assert dup_chk is True
             assert dup_msg == "TRUNG_GIONG_NGUOI_TRONG_NHA"
 
-            # Lần 3: Giọng khách mới đạt chuẩn (thời lượng >= 2.0s) -> Lưu thành công Cấp 3 kèm expires_at
-            pcm_guest_arr = np.tile(np.frombuffer(pcm_tier3_bytes, dtype=np.int16), 3)
+            # Lần 3: Giọng khách mới đạt chuẩn (đủ 11s+ speech) -> Đạt chuẩn kiểm định
+            enroll_c3, _ = make_valid_enroll_pair(3)
+            pcm_guest_arr = np.frombuffer(enroll_c3, dtype=np.int16)
             q3 = validate_voice_quality_helper(pcm_guest_arr, 16000)
             assert q3.get("ok") is True
             assert q3.get("status") == "DA_DAT"
@@ -377,9 +379,10 @@ class TestCollisionScenario3EmailBindingAndFamilyHierarchy:
             res_c1_add_c2 = auth_mgr.add_family_email("tuan_anh", "em_gai@gmail.com", 2)
             assert res_c1_add_c2.get("ok") is True
 
-            # Cấp 2 (thanh_vien_a) thêm Cấp 3 (Khách) -> Cho phép
+            # Cấp 2 (thanh_vien_a) cố thêm Cấp 3 (Khách) -> BỊ CHẶN 100% (403, Điều 4 chỉ Chủ nhà Cấp 1)
             res_c2_add_c3 = auth_mgr.add_family_email("thanh_vien_a", "ban_than@gmail.com", 3)
-            assert res_c2_add_c3.get("ok") is True
+            assert res_c2_add_c3.get("ok") is False
+            assert res_c2_add_c3.get("status_code") == 403
 
             # Cấp 2 (thanh_vien_a) cố thêm hoặc ghi đè Cấp 1 -> BỊ CHẶN 100% (403)
             res_c2_add_c1 = auth_mgr.add_family_email("thanh_vien_a", "tuan_anh_override@gmail.com", 1)
@@ -424,24 +427,26 @@ class TestCollisionScenario4ModeSwitchAndStrangerRecovery:
             vm = clean_voice_auth
             vm.reset_strikes()
 
-            # 1. Người lạ nói 3 lần liên tiếp (3-strike sequence)
+            # 1. Người lạ nói 3 lần liên tiếp (Điều 1 câu từ chối cố định thống nhất)
+            fixed_phrase = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
             s1 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
             assert s1.get("authorized") is False
             assert s1.get("strike_count") == 1
             assert s1.get("silent_ignore") is False
-            assert "Tôi không được phép nhận lệnh từ người lạ" in s1.get("rejection_speech", "")
+            assert s1.get("rejection_speech") == fixed_phrase
 
             s2 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
             assert s2.get("authorized") is False
             assert s2.get("strike_count") == 2
             assert s2.get("silent_ignore") is False
-            assert "Tôi sẽ không trả lời bạn lần nữa" in s2.get("rejection_speech", "")
+            assert s2.get("rejection_speech") == fixed_phrase
 
             s3 = vm.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
             assert s3.get("authorized") is False
             assert s3.get("strike_count") >= 3
-            assert s3.get("silent_ignore") is True
-            assert s3.get("rejection_speech") == "", "Lần 3 trở đi phải im lặng tuyệt đối"
+            assert s3.get("silent_ignore") is False
+            assert s3.get("should_reply") is True
+            assert s3.get("rejection_speech") == fixed_phrase
 
             # 2. PHỤC HỒI NGAY LẬP TỨC CHO CHỦ NHÀ CẤP 1 (INVARIANT RECOVERY):
             # Ngay sau Lần 3 im lặng của kẻ lạ, Chủ nhà Cấp 1 nói vào Mic

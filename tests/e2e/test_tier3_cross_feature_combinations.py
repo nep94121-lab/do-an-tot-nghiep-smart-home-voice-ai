@@ -191,8 +191,10 @@ class TestTier3CrossFeatureCombinations:
         for _ in range(3):
             res = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
 
-        # Lần 3 đạt lockout
-        assert res["silent_ignore"] is True
+        # Lần 3: Điều 1 câu từ chối cố định thống nhất (should_reply=True, silent_ignore=False)
+        assert res["silent_ignore"] is False
+        assert res["should_reply"] is True
+        assert res["rejection_speech"] == "Xin lỗi, bạn không có quyền thực hiện lệnh này."
         assert res["strike_count"] == 3
 
         async def _run_alarm() -> None:
@@ -217,16 +219,16 @@ class TestTier3CrossFeatureCombinations:
         smart_home_engine: SmartHomeEngine,
         pcm_dual_speakers_bytes: bytes,
     ) -> None:
-        """Phối hợp 6: 2 người nói đồng thời -> Ưu tiên Chủ nhà, bỏ qua Người lạ, thực thi an toàn."""
-        # 1. DSP nhận diện 2 người nói
+        """Phối hợp 6: 2 người nói đồng thời -> Từ chối an toàn (OVERLAPPING_SPEAKERS), sau đó Cấp 1 đơn vẫn mở cửa an toàn."""
+        # 1. DSP phát hiện nói đè nhiều người -> từ chối an toàn
         auth_res = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_dual_speakers_bytes)
-        assert auth_res["authorized"] is True
+        assert auth_res["authorized"] is False
         assert auth_res["multi_speaker_detected"] is True
-        assert auth_res["speaker_id"] == "owner_voice_1"
+        assert auth_res.get("reason") == "OVERLAPPING_SPEAKERS"
 
         async def _run() -> None:
-            # 2. Thực thi lệnh của người được ưu tiên
-            smart_home_engine.set_active_user(auth_res.get("user_id", "tuan_anh"))
+            # 2. Chủ nhà Cấp 1 đơn xác thực thực thi lệnh mở cửa an toàn
+            smart_home_engine.set_active_user("tuan_anh")
 
             cmd_res = await smart_home_engine.execute_device_action("main_door", "open")
             assert cmd_res["ok"] is True

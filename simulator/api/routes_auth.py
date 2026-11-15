@@ -1074,6 +1074,7 @@ def set_dual_session_cookies(
             samesite="lax",
             max_age=max_age,
         )
+    resp.delete_cookie("mobileLoggedInEmail", path="/", httponly=True, secure=is_https, samesite="lax")
     return resp
 
 

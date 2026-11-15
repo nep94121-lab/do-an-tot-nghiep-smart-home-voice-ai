@@ -2,281 +2,451 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (smarthome.db)",
-    "subtitle": "8 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys) đồng bộ Write-Through xuống Flash LittleFS ESP8266",
+    "title": "Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v4)",
+    "subtitle": "25 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys ON) — Bể Riêng Theo Chủ Sở Hữu & Xác Nhận 4 Bước",
     "output": "docs/kien_truc/smarthome-database.erd.html",
     "quality_profile": "standard",
     "visual_preset": "blueprint",
     "views": [
       {
-        "id": "identity_voice",
-        "label": "1. Người Dùng & Vân Giọng (26d/64d)",
-        "focus": ["users", "voiceprints"],
-        "note": "Phân quyền 3 tầng (Chủ nhà T1, Gia đình T2, Khách T3) và vector giọng nói kép 26d/64d"
+        "id": "identity_auth_25",
+        "label": "1. Danh Tính, Phiên & Bảo Mật (FK -> users)",
+        "focus": ["roles", "users", "sessions", "user_sessions", "invites", "otp_challenges", "trusted_devices", "owner_pin_security", "login_rate_limits", "voiceprints"],
+        "note": "sessions/user_sessions gắn FK CASCADE tới users; invites chỉ lưu token_hash SHA-256"
       },
       {
-        "id": "pools_timers_rules",
-        "label": "2. Bể Hẹn Giờ & Bể Luật Động",
-        "focus": ["users", "devices", "timers_pool", "rules_pool"],
-        "note": "Bể 1 (timers_pool) và Bể 2 (rules_pool: IF-ELSE, Khẩu lệnh custom, Đổi từ) gắn khóa ngoại tới users & devices"
+        "id": "isolated_pools_addendum",
+        "label": "2. Bể Riêng Theo Người & Xác Nhận 4 Bước",
+        "focus": ["users", "devices", "timers_pool", "schedules", "automation_rules", "custom_commands", "pending_confirmations", "rules_pool"],
+        "note": "Mỗi người dùng có 3 bể riêng theo owner_user_id cùng pending_confirmations TTL 20s"
       },
       {
-        "id": "hardware_audit",
-        "label": "3. Thiết Bị GPIO, IR & Nhật Ký Audit",
-        "focus": ["devices", "ir_remote_codes", "knowledge_rag", "audit_logs"],
-        "note": "Quản lý 8 chân GPIO ESP8266, kho mã hồng ngoại 38kHz, tri thức RAG và bảng audit_logs đánh chỉ mục thời gian"
+        "id": "hardware_logs_meta",
+        "label": "3. Thiết Bị, IR, RAG, Cache & Audit 0-Emoji",
+        "focus": ["devices", "device_state", "ir_remote_codes", "knowledge_rag", "audit_logs", "aoede_audio_cache", "system_state_meta", "system_kv_meta", "schema_migrations"],
+        "note": "Đồng bộ monotonic revision_seq, mã IR 38kHz, Aoede PCM cache và nhật ký 0 emoji"
       }
     ]
   },
   "layout": {
     "mode": "grid",
-    "gapX": 78,
-    "gapY": 44
+    "gapX": 54,
+    "gapY": 38
   },
   "entities": [
     {
-      "id": "users",
-      "label": "users",
-      "tag": "Identity & Voice",
+      "id": "roles",
+      "label": "roles",
+      "tag": "Identity & Auth",
       "row": 0,
       "col": 0,
-      "width": 258,
+      "width": 295,
+      "attributes": [
+        { "name": "role_code", "type": "TEXT", "key": "pk" },
+        { "name": "tier", "type": "INT UNIQUE" },
+        { "name": "display_name_vi", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "users",
+      "label": "users",
+      "tag": "Identity & Auth",
+      "row": 0,
+      "col": 1,
+      "width": 295,
       "attributes": [
         { "name": "user_id", "type": "TEXT", "key": "pk" },
         { "name": "full_name", "type": "TEXT NOT NULL" },
-        { "name": "role", "type": "TEXT NOT NULL" },
+        { "name": "role_code", "type": "TEXT", "key": "fk", "references": "roles.role_code" },
         { "name": "tier", "type": "INT CHECK(1..3)" },
-        { "name": "offline_allowed", "type": "INT DEFAULT 0" },
-        { "name": "created_by", "type": "TEXT" },
-        { "name": "updated_at", "type": "TEXT NOT NULL" }
+        { "name": "email", "type": "TEXT" },
+        { "name": "can_create_links", "type": "INT DEFAULT 0" },
+        { "name": "is_active", "type": "INT DEFAULT 1" }
+      ]
+    },
+    {
+      "id": "invites",
+      "label": "invites",
+      "tag": "Identity & Auth",
+      "row": 1,
+      "col": 0,
+      "width": 295,
+      "attributes": [
+        { "name": "jti", "type": "TEXT", "key": "pk" },
+        { "name": "token_hash", "type": "TEXT NOT NULL" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "role_code", "type": "TEXT", "key": "fk", "references": "roles.role_code" },
+        { "name": "tier", "type": "INT CHECK(2..3)" },
+        { "name": "expires_at", "type": "REAL NOT NULL" }
+      ]
+    },
+    {
+      "id": "sessions",
+      "label": "sessions",
+      "tag": "Identity & Auth",
+      "row": 1,
+      "col": 1,
+      "width": 295,
+      "attributes": [
+        { "name": "session_id", "type": "TEXT", "key": "pk" },
+        { "name": "token_hash", "type": "TEXT NOT NULL" },
+        { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "role_code", "type": "TEXT", "key": "fk", "references": "roles.role_code" },
+        { "name": "invite_jti", "type": "TEXT", "key": "fk", "references": "invites.jti" },
+        { "name": "expires_at", "type": "REAL NOT NULL" }
+      ]
+    },
+    {
+      "id": "user_sessions",
+      "label": "user_sessions",
+      "tag": "Identity & Auth",
+      "row": 2,
+      "col": 0,
+      "width": 295,
+      "attributes": [
+        { "name": "session_id", "type": "TEXT", "key": "pk" },
+        { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "tier", "type": "INT NOT NULL" },
+        { "name": "role", "type": "TEXT NOT NULL" },
+        { "name": "expires_at", "type": "REAL NOT NULL" }
       ]
     },
     {
       "id": "voiceprints",
       "label": "voiceprints",
-      "tag": "Identity & Voice",
-      "row": 1,
-      "col": 0,
+      "tag": "Identity & Auth",
+      "row": 2,
+      "col": 1,
       "width": 295,
       "attributes": [
         { "name": "voiceprint_id", "type": "TEXT", "key": "pk" },
         { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
         { "name": "f0_hz", "type": "REAL NOT NULL" },
-        { "name": "centroid_hz", "type": "REAL NOT NULL" },
-        { "name": "embedding_26d_json", "type": "TEXT (26d Fast)" },
-        { "name": "embedding_64d_json", "type": "TEXT (64d Deep)" },
-        { "name": "sample_duration_sec", "type": "REAL DEFAULT 5.0" },
         { "name": "updated_at", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "otp_challenges",
+      "label": "otp_challenges",
+      "tag": "Security Auth",
+      "row": 3,
+      "col": 0,
+      "width": 295,
+      "attributes": [
+        { "name": "challenge_id", "type": "TEXT", "key": "pk" },
+        { "name": "email", "type": "TEXT NOT NULL" },
+        { "name": "otp_hash", "type": "TEXT NOT NULL" },
+        { "name": "expires_at", "type": "REAL NOT NULL" }
+      ]
+    },
+    {
+      "id": "trusted_devices",
+      "label": "trusted_devices",
+      "tag": "Security Auth",
+      "row": 3,
+      "col": 1,
+      "width": 295,
+      "attributes": [
+        { "name": "device_token_hash", "type": "TEXT", "key": "pk" },
+        { "name": "account_id", "type": "TEXT NOT NULL" },
+        { "name": "expires_at", "type": "REAL NOT NULL" },
+        { "name": "revoked", "type": "INT DEFAULT 0" }
+      ]
+    },
+    {
+      "id": "owner_pin_security",
+      "label": "owner_pin_security",
+      "tag": "Security Auth",
+      "row": 4,
+      "col": 0,
+      "width": 295,
+      "attributes": [
+        { "name": "id", "type": "INT CHECK(1)", "key": "pk" },
+        { "name": "pin_hash", "type": "TEXT NOT NULL" },
+        { "name": "failed_attempts", "type": "INT DEFAULT 0" },
+        { "name": "locked", "type": "INT DEFAULT 0" }
+      ]
+    },
+    {
+      "id": "login_rate_limits",
+      "label": "login_rate_limits",
+      "tag": "Security Auth",
+      "row": 4,
+      "col": 1,
+      "width": 295,
+      "attributes": [
+        { "name": "scope_key", "type": "TEXT", "key": "pk" },
+        { "name": "attempts_json", "type": "TEXT NOT NULL" },
+        { "name": "locked_until", "type": "REAL DEFAULT 0" }
       ]
     },
     {
       "id": "timers_pool",
       "label": "timers_pool",
-      "tag": "Pools (Bể 1 & Bể 2)",
+      "tag": "Per-User Pools",
       "row": 0,
-      "col": 1,
-      "width": 268,
+      "col": 2,
+      "width": 295,
       "attributes": [
         { "name": "timer_id", "type": "TEXT", "key": "pk" },
         { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
         { "name": "device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
         { "name": "action", "type": "TEXT NOT NULL" },
-        { "name": "schedule_mode", "type": "TEXT" },
-        { "name": "target_time_vn", "type": "TEXT (AM/PM)" },
-        { "name": "repeat_rule", "type": "TEXT DEFAULT 'once'" },
-        { "name": "label_summary", "type": "TEXT" },
-        { "name": "updated_at", "type": "TEXT NOT NULL" }
+        { "name": "fire_at_epoch", "type": "REAL NOT NULL" },
+        { "name": "status", "type": "TEXT DEFAULT 'pending'" }
+      ]
+    },
+    {
+      "id": "schedules",
+      "label": "schedules",
+      "tag": "Per-User Pools",
+      "row": 0,
+      "col": 3,
+      "width": 295,
+      "attributes": [
+        { "name": "schedule_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "time_hhmm", "type": "TEXT NOT NULL" },
+        { "name": "schedule_type", "type": "TEXT (once/daily)" },
+        { "name": "timezone", "type": "TEXT Asia/Saigon" }
+      ]
+    },
+    {
+      "id": "automation_rules",
+      "label": "automation_rules",
+      "tag": "Per-User Pools",
+      "row": 1,
+      "col": 2,
+      "width": 295,
+      "attributes": [
+        { "name": "rule_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "when_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "then_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "else_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
+        { "name": "enabled", "type": "INT DEFAULT 1" }
+      ]
+    },
+    {
+      "id": "custom_commands",
+      "label": "custom_commands",
+      "tag": "Per-User Pools",
+      "row": 1,
+      "col": 3,
+      "width": 295,
+      "attributes": [
+        { "name": "command_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "phrase", "type": "TEXT NOT NULL" },
+        { "name": "phrase_norm", "type": "TEXT UNIQUE/owner" },
+        { "name": "steps_json", "type": "TEXT NOT NULL" }
+      ]
+    },
+    {
+      "id": "pending_confirmations",
+      "label": "pending_confirmations",
+      "tag": "Per-User Pools",
+      "row": 2,
+      "col": 2,
+      "width": 295,
+      "attributes": [
+        { "name": "pending_id", "type": "TEXT", "key": "pk" },
+        { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
+        { "name": "session_key", "type": "TEXT NOT NULL" },
+        { "name": "action_kind", "type": "TEXT NOT NULL" },
+        { "name": "expires_at", "type": "REAL (TTL 20s)" },
+        { "name": "status", "type": "TEXT DEFAULT 'pending'" }
       ]
     },
     {
       "id": "rules_pool",
       "label": "rules_pool",
-      "tag": "Pools (Bể 1 & Bể 2)",
-      "row": 1,
-      "col": 1,
-      "width": 268,
+      "tag": "Per-User Pools",
+      "row": 2,
+      "col": 3,
+      "width": 295,
       "attributes": [
         { "name": "rule_id", "type": "TEXT", "key": "pk" },
         { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
-        { "name": "rule_category", "type": "TEXT (IF/ALIAS)" },
-        { "name": "trigger_expr", "type": "TEXT NOT NULL" },
-        { "name": "target_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
-        { "name": "target_action", "type": "TEXT NOT NULL" },
-        { "name": "bidirectional", "type": "INT DEFAULT 0" },
-        { "name": "else_action", "type": "TEXT" },
-        { "name": "updated_at", "type": "TEXT NOT NULL" }
+        { "name": "rule_category", "type": "TEXT NOT NULL" },
+        { "name": "target_device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" }
+      ]
+    },
+    {
+      "id": "aoede_audio_cache",
+      "label": "aoede_audio_cache",
+      "tag": "Runtime & Meta",
+      "row": 3,
+      "col": 2,
+      "width": 295,
+      "attributes": [
+        { "name": "cache_key", "type": "TEXT", "key": "pk" },
+        { "name": "phrase_norm", "type": "TEXT NOT NULL" },
+        { "name": "voice_name", "type": "TEXT DEFAULT 'Aoede'" },
+        { "name": "pcm_bytes", "type": "BLOB 24kHz" }
+      ]
+    },
+    {
+      "id": "system_state_meta",
+      "label": "system_state_meta",
+      "tag": "Runtime & Meta",
+      "row": 3,
+      "col": 3,
+      "width": 295,
+      "attributes": [
+        { "name": "id", "type": "INT CHECK(1)", "key": "pk" },
+        { "name": "revision_seq", "type": "INT DEFAULT 0" },
+        { "name": "dht_temp_c", "type": "REAL" },
+        { "name": "soil_moisture_pct", "type": "REAL" }
+      ]
+    },
+    {
+      "id": "system_kv_meta",
+      "label": "system_kv_meta",
+      "tag": "Runtime & Meta",
+      "row": 4,
+      "col": 2,
+      "width": 295,
+      "attributes": [
+        { "name": "meta_key", "type": "TEXT", "key": "pk" },
+        { "name": "meta_value_json", "type": "TEXT" },
+        { "name": "updated_at", "type": "REAL" }
+      ]
+    },
+    {
+      "id": "schema_migrations",
+      "label": "schema_migrations",
+      "tag": "Runtime & Meta",
+      "row": 4,
+      "col": 3,
+      "width": 295,
+      "attributes": [
+        { "name": "version", "type": "INTEGER", "key": "pk" },
+        { "name": "name", "type": "TEXT NOT NULL" },
+        { "name": "applied_at", "type": "TEXT NOT NULL" }
       ]
     },
     {
       "id": "devices",
       "label": "devices",
-      "tag": "IoT Hardware & IR",
+      "tag": "Hardware & IR",
       "row": 0,
-      "col": 2,
+      "col": 4,
       "width": 295,
       "attributes": [
         { "name": "device_id", "type": "TEXT", "key": "pk" },
         { "name": "device_name", "type": "TEXT NOT NULL" },
         { "name": "gpio_pin", "type": "TEXT (D1..D8)" },
         { "name": "state", "type": "TEXT (ON/OFF/OPEN)" },
-        { "name": "min_tier_required", "type": "INT DEFAULT 3" },
-        { "name": "offline_controllable", "type": "INT DEFAULT 1" },
-        { "name": "updated_at", "type": "TEXT NOT NULL" }
+        { "name": "min_role", "type": "TEXT", "key": "fk", "references": "roles.role_code" }
+      ]
+    },
+    {
+      "id": "device_state",
+      "label": "device_state",
+      "tag": "Hardware & IR",
+      "row": 1,
+      "col": 4,
+      "width": 295,
+      "attributes": [
+        { "name": "device_id", "type": "TEXT", "key": "pk", "references": "devices.device_id" },
+        { "name": "state", "type": "TEXT NOT NULL" },
+        { "name": "version", "type": "INT DEFAULT 1" },
+        { "name": "last_client_id", "type": "TEXT" }
       ]
     },
     {
       "id": "ir_remote_codes",
       "label": "ir_remote_codes",
-      "tag": "IoT Hardware & IR",
-      "row": 1,
-      "col": 2,
-      "width": 260,
+      "tag": "Hardware & IR",
+      "row": 2,
+      "col": 4,
+      "width": 295,
       "attributes": [
         { "name": "ir_code_id", "type": "TEXT", "key": "pk" },
         { "name": "device_id", "type": "TEXT", "key": "fk", "references": "devices.device_id" },
-        { "name": "appliance_name", "type": "TEXT NOT NULL" },
         { "name": "command_action", "type": "TEXT NOT NULL" },
-        { "name": "protocol", "type": "TEXT (38kHz)" },
-        { "name": "hex_code", "type": "TEXT NOT NULL" },
-        { "name": "freq_khz", "type": "INT DEFAULT 38" },
-        { "name": "learned_at", "type": "TEXT NOT NULL" }
+        { "name": "hex_code", "type": "TEXT NOT NULL" }
       ]
     },
     {
       "id": "knowledge_rag",
       "label": "knowledge_rag",
       "tag": "Knowledge & Audit",
-      "row": 0,
-      "col": 3,
-      "width": 260,
+      "row": 3,
+      "col": 4,
+      "width": 295,
       "attributes": [
         { "name": "doc_id", "type": "TEXT", "key": "pk" },
         { "name": "category", "type": "TEXT NOT NULL" },
         { "name": "title", "type": "TEXT NOT NULL" },
-        { "name": "content", "type": "TEXT NOT NULL" },
-        { "name": "keywords_json", "type": "TEXT" },
-        { "name": "updated_by_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
-        { "name": "updated_at", "type": "TEXT NOT NULL" }
+        { "name": "updated_by_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" }
       ]
     },
     {
       "id": "audit_logs",
       "label": "audit_logs",
       "tag": "Knowledge & Audit",
-      "row": 1,
-      "col": 3,
-      "width": 260,
+      "row": 4,
+      "col": 4,
+      "width": 295,
       "attributes": [
         { "name": "log_id", "type": "INTEGER", "key": "pk" },
         { "name": "ts_iso", "type": "TEXT (INDEXED)" },
-        { "name": "time_vn", "type": "TEXT NOT NULL" },
         { "name": "category", "type": "TEXT NOT NULL" },
-        { "name": "event_type", "type": "TEXT NOT NULL" },
         { "name": "user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
-        { "name": "user_name", "type": "TEXT NOT NULL" },
-        { "name": "tier", "type": "INT NOT NULL" },
-        { "name": "summary", "type": "TEXT NOT NULL" },
-        { "name": "details_json", "type": "TEXT NOT NULL" }
+        { "name": "summary", "type": "TEXT (0-emoji)" }
       ]
     }
   ],
   "relationships": [
-    {
-      "id": "vp_user",
-      "from": "voiceprints",
-      "to": "users",
-      "label": "vân giọng của",
-      "fromCardinality": "many",
-      "toCardinality": "one"
-    },
-    {
-      "id": "timer_user",
-      "from": "timers_pool",
-      "to": "users",
-      "label": "đặt bởi",
-      "fromCardinality": "many",
-      "toCardinality": "one"
-    },
-    {
-      "id": "timer_dev",
-      "from": "timers_pool",
-      "to": "devices",
-      "label": "hẹn thiết bị",
-      "fromCardinality": "many",
-      "toCardinality": "one"
-    },
-    {
-      "id": "rule_user",
-      "from": "rules_pool",
-      "to": "users",
-      "label": "sở hữu bởi",
-      "fromCardinality": "many",
-      "toCardinality": "one"
-    },
-    {
-      "id": "rule_dev",
-      "from": "rules_pool",
-      "to": "devices",
-      "label": "tác động lên",
-      "fromCardinality": "many",
-      "fromOptional": true,
-      "toCardinality": "one",
-      "identifying": false
-    },
-    {
-      "id": "ir_dev",
-      "from": "ir_remote_codes",
-      "to": "devices",
-      "label": "mã IR của",
-      "fromCardinality": "many",
-      "fromOptional": true,
-      "toCardinality": "one",
-      "identifying": false
-    },
-    {
-      "id": "kb_user",
-      "from": "knowledge_rag",
-      "to": "users",
-      "label": "cập nhật bởi",
-      "fromCardinality": "many",
-      "fromOptional": true,
-      "toCardinality": "one",
-      "identifying": false
-    },
-    {
-      "id": "log_user",
-      "from": "audit_logs",
-      "to": "users",
-      "label": "thực hiện bởi",
-      "fromCardinality": "many",
-      "fromOptional": true,
-      "toCardinality": "one",
-      "identifying": false
-    }
+    { "id": "u_role", "from": "users", "to": "roles", "label": "bậc quyền", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "dev_role", "from": "devices", "to": "roles", "label": "yêu cầu tối thiểu", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "inv_owner", "from": "invites", "to": "users", "label": "tạo bởi", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "sess_user", "from": "sessions", "to": "users", "label": "phiên của", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "sess_inv", "from": "sessions", "to": "invites", "label": "từ lời mời", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
+    { "id": "usess_user", "from": "user_sessions", "to": "users", "label": "phiên cũ của", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "vp_user", "from": "voiceprints", "to": "users", "label": "hồ sơ cũ", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "ds_dev", "from": "device_state", "to": "devices", "label": "trạng thái 1-1", "fromCardinality": "one", "toCardinality": "one" },
+    { "id": "timer_user", "from": "timers_pool", "to": "users", "label": "sở hữu bởi", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "timer_dev", "from": "timers_pool", "to": "devices", "label": "tác động", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "sched_user", "from": "schedules", "to": "users", "label": "sở hữu bởi", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "sched_dev", "from": "schedules", "to": "devices", "label": "lịch thiết bị", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "ar_user", "from": "automation_rules", "to": "users", "label": "sở hữu bởi", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "ar_when", "from": "automation_rules", "to": "devices", "label": "nguồn kích", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "ar_then", "from": "automation_rules", "to": "devices", "label": "đích tác động", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "cc_user", "from": "custom_commands", "to": "users", "label": "lệnh riêng của", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "pc_user", "from": "pending_confirmations", "to": "users", "label": "chờ xác nhận 20s", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "rp_user", "from": "rules_pool", "to": "users", "label": "sở hữu bởi", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "rp_dev", "from": "rules_pool", "to": "devices", "label": "tác động", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
+    { "id": "ir_dev", "from": "ir_remote_codes", "to": "devices", "label": "mã IR 38kHz", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
+    { "id": "kb_user", "from": "knowledge_rag", "to": "users", "label": "cập nhật bởi", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
+    { "id": "log_user", "from": "audit_logs", "to": "users", "label": "ghi nhận của", "fromCardinality": "many", "toCardinality": "one", "identifying": false }
   ],
   "cards": [
     {
       "dot": "emerald",
-      "title": "Chuẩn Quan Hệ 3NF & ACID (WAL Mode)",
+      "title": "25 Bảng 3NF + WAL Mode + Foreign Keys ON",
       "items": [
-        "Lưu trữ tại simulator/data/smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON",
-        "Đánh 5 chỉ mục (INDEX) tăng tốc truy vấn lịch sử câu lệnh và bể hẹn giờ/luật < 1ms"
+        "Lưu tại smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON (CASCADE DELETE)",
+        "sessions, user_sessions và invites gắn đầy đủ khóa ngoại tới users; invites chỉ lưu token_hash SHA-256"
       ]
     },
     {
       "dot": "amber",
-      "title": "Kiến Trúc Lai Server SQL <-> Mạch Flash JSON",
+      "title": "3 Bể Tự Động Hóa Riêng Theo Người + Xác Nhận 4 Bước",
       "items": [
-        "Trên Server: 8 bảng SQLite 3 lưu trữ bền vững toàn bộ lịch sử, vân giọng 26d/64d, Bể 1, Bể 2 và RAG",
-        "Dưới Mạch ESP8266: Tự động kết xuất bản sao nhẹ (~1.4KB) nạp xuống 4MB LittleFS dùng khi Offline"
+        "timers_pool + schedules, automation_rules, custom_commands cách ly theo owner_user_id",
+        "pending_confirmations lưu server-side theo (owner_user_id, session_key), tự hết hạn sau 20 giây"
       ]
     },
     {
       "dot": "cyan",
-      "title": "An Ninh Phân Quyền Offline Trên Bảng users & devices",
+      "title": "RBAC 3 Cấp & Chống Trùng Lịch Cấp 2 vs Cấp 1",
       "items": [
-        "users.offline_allowed = 1 chỉ áp dụng cho Tầng 1 (Chủ nhà) & Tầng 2 (Gia đình); chặn Tầng 3 (Khách)",
-        "devices.offline_controllable = 0 khóa cứng Cửa chính (D1) và Còi báo động (D8) khi mất Server"
+        "users.can_create_links mặc định = 0 với Gia đình (Cấp 2); Khách (Cấp 3) chỉ bật/tắt thiết bị (HTTP 403)",
+        "Cấp 2 đặt hẹn giờ/lịch trùng Cấp 1 (±60s, múi giờ Asia/Saigon) bị từ chối HTTP 409 và ghi audit_logs 0 emoji"
       ]
     }
   ]

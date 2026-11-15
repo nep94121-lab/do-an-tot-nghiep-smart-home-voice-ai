@@ -51,14 +51,14 @@ class TestTier2BoundaryCornerCases:
         assert res["silent_ignore"] is False
 
     def test_long_hesitation_pause_vad_config(self) -> None:
-        """ADV-01/ADV-04: Ngập ngừng dài 1-2s không bị VAD ngắt lượt giữa chừng."""
+        """ADV-01/ADV-04: Cấu hình VAD low-latency (350ms + END_SENSITIVITY_HIGH) phản hồi nhanh, tránh đơ lượt."""
         prompt_builder_path = ROOT / "simulator" / "live" / "prompt_builder.py"
         target_file = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "simulator" / "server.py")
         server_code = target_file.read_text(encoding="utf-8")
-        # Đảm bảo cấu hình silence_duration_ms tối thiểu 1000ms
-        assert "silence_duration_ms=1000" in server_code or "silence_duration_ms = 1000" in server_code or "1000" in server_code
-        # Đảm bảo có VAD sensitivity LOW chống ngắt turn
-        assert "END_SENSITIVITY_LOW" in server_code or "end_of_speech_sensitivity" in server_code
+        # Đảm bảo cấu hình silence_duration_ms 350ms low-latency (ADDENDUM E)
+        assert "silence_duration_ms=350" in server_code or "silence_duration_ms = 350" in server_code or "350" in server_code
+        # Đảm bảo có VAD sensitivity HIGH cho end-of-speech phản hồi nhanh
+        assert "END_SENSITIVITY_HIGH" in server_code or "end_of_speech_sensitivity" in server_code
 
     def test_low_volume_boundary_rms(self) -> None:
         """Kiểm thử biên âm lượng sát ngưỡng RMS 0.02."""
@@ -81,8 +81,9 @@ class TestTier2BoundaryCornerCases:
     def test_stranger_three_strike_lockout_exact_sequence(
         self, voice_auth_mgr: VoiceAuthManager, pcm_intruder_bytes: bytes
     ) -> None:
-        """ADV-03: Người lạ thử 3 lần liên tiếp: Lần 1 & 2 cảnh báo, Lần 3+ im lặng tuyệt đối."""
+        """ADV-03: Người lạ thử 4 lần liên tiếp -> Điều 1 câu từ chối cố định thống nhất."""
         voice_auth_mgr.reset_strikes()
+        fixed_phrase = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
 
         # Strike 1
         s1 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
@@ -90,7 +91,7 @@ class TestTier2BoundaryCornerCases:
         assert s1["strike_count"] == 1
         assert s1["should_reply"] is True
         assert s1["silent_ignore"] is False
-        assert s1["rejection_speech"] == "Tôi không được phép nhận lệnh từ người lạ."
+        assert s1["rejection_speech"] == fixed_phrase
 
         # Strike 2
         s2 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
@@ -98,36 +99,41 @@ class TestTier2BoundaryCornerCases:
         assert s2["strike_count"] == 2
         assert s2["should_reply"] is True
         assert s2["silent_ignore"] is False
-        assert s2["rejection_speech"] == "Tôi sẽ không trả lời bạn lần nữa."
+        assert s2["rejection_speech"] == fixed_phrase
 
-        # Strike 3 (Silent Lockout)
+        # Strike 3
         s3 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert s3["authorized"] is False
         assert s3["strike_count"] == 3
-        assert s3["should_reply"] is False
-        assert s3["silent_ignore"] is True
-        assert s3["rejection_speech"] == ""
+        assert s3["should_reply"] is True
+        assert s3["silent_ignore"] is False
+        assert s3["rejection_speech"] == fixed_phrase
 
-        # Strike 4 (Tiếp tục im lặng tuyệt đối)
+        # Strike 4
         s4 = voice_auth_mgr.verify_pcm16k_and_apply_strikes(pcm_intruder_bytes)
         assert s4["authorized"] is False
         assert s4["strike_count"] >= 4
-        assert s4["silent_ignore"] is True
-        assert s4["should_reply"] is False
+        assert s4["silent_ignore"] is False
+        assert s4["should_reply"] is True
+        assert s4["rejection_speech"] == fixed_phrase
 
     def test_tier2_add_tier1_or_tier2_forbidden(self) -> None:
-        """ADV-06: Cấp 2 cố thêm Cấp 1 hoặc Cấp 2 bị chặn 100% với HTTP 403 / ok=False."""
+        """ADV-06: Cấp 2 cố thêm Cấp 1, Cấp 2 hoặc Cấp 3 bị chặn 100% với HTTP 403 / ok=False (Điều 4 C1-only)."""
         mgr = get_auth_3layer_manager()
 
         # C2 cố thêm C1
         r_c2_to_c1 = add_family_email_helper(mgr, "thanh_vien_a", "hack_c1@gmail.com", target_tier=1)
         assert r_c2_to_c1.get("ok") is False
-        assert "Cấp 2 chỉ được thêm Cấp 3" in r_c2_to_c1.get("error", "") or r_c2_to_c1.get("status_code") == 403
+        assert "Chỉ Chủ nhà Cấp 1" in r_c2_to_c1.get("error", "") or r_c2_to_c1.get("status_code") == 403
 
         # C2 cố thêm C2
         r_c2_to_c2 = add_family_email_helper(mgr, "thanh_vien_a", "hack_c2@gmail.com", target_tier=2)
         assert r_c2_to_c2.get("ok") is False
-        assert "Cấp 2 chỉ được thêm Cấp 3" in r_c2_to_c2.get("error", "") or r_c2_to_c2.get("status_code") == 403
+        assert "Chỉ Chủ nhà Cấp 1" in r_c2_to_c2.get("error", "") or r_c2_to_c2.get("status_code") == 403
+
+        # C2 cố thêm C3 (Điều 4: chỉ Chủ nhà Cấp 1 mời/thêm)
+        r_c2_to_c3 = add_family_email_helper(mgr, "thanh_vien_a", "hack_c3@gmail.com", target_tier=3)
+        assert r_c2_to_c3.get("ok") is False
 
     def test_tier3_add_anyone_forbidden(self) -> None:
         """ADV-07: Cấp 3 cố thêm bất kỳ thành viên nào bị chặn 100% với HTTP 403 / ok=False."""

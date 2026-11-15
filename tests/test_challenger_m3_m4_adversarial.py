@@ -66,7 +66,8 @@ def test_vuln_missing_actor_id_defaults_to_c1_admin(test_client: TestClient) -> 
     assert resp.status_code in (401, 403), f"Kỳ vọng HTTP 401/403, nhận: {resp.status_code}"
     body = resp.json()
     assert body.get("ok") is False
-    assert "Thiếu thông tin người thêm" in body.get("error", "")
+    err_txt = body.get("error", "")
+    assert ("Yêu cầu đăng nhập" in err_txt or "Thiếu thông tin người thêm" in err_txt), f"Unexpected error: {err_txt}"
 
 
 def test_vuln_c2_can_demote_c1_admin_via_allowlist(auth_mgr_isolated: ThreeLayerAuthManager) -> None:
@@ -84,7 +85,11 @@ def test_vuln_c2_can_demote_c1_admin_via_allowlist(auth_mgr_isolated: ThreeLayer
     # Xác nhận phòng thủ: Hệ thống chặn và trả về lỗi 403
     assert res.get("ok") is False, "Hệ thống phải chặn C2 hạ cấp tài khoản C1 Admin!"
     assert res.get("status_code") == 403
-    assert "Không thể hạ cấp hoặc thay đổi tài khoản Chủ nhà Cấp 1" in res.get("error", "")
+    err_c2 = res.get("error", "")
+    assert (
+        "Chỉ Chủ nhà Cấp 1" in err_c2
+        or "Không thể hạ cấp hoặc thay đổi tài khoản Chủ nhà Cấp 1" in err_c2
+    ), f"Unexpected C2 demotion error: {err_c2}"
     admin_after = auth_mgr_isolated.find_account("nep94121@gmail.com")
     assert admin_after["tier"] == 1
     assert admin_after["voice_verified"] is True
@@ -101,10 +106,10 @@ def test_vuln_unauthenticated_voice_deverification_dos(test_client: TestClient) 
         "pcm16k_b64": "",
     }
     resp = test_client.post("/api/auth3/enroll_voice_sample", json=payload)
-    assert resp.status_code == 200
+    assert resp.status_code == 410
     body = resp.json()
     assert body.get("ok") is False
-    assert body.get("status") == "CHUA_DAT"
+    assert body.get("gone") is True
 
     # Xác nhận phòng thủ: cờ voice_verified của Chủ nhà không bị tước bỏ
     mgr = get_auth_manager()

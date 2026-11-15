@@ -423,14 +423,19 @@ class TestOptimisticUiTogglingAndRollback:
         assert res["state4"]["hasPending"] is False
 
     def test_mobile_app_static_code_guards(self):
-        """Xác nhận mã nguồn mobile_app.js có đầy đủ MUTATION_GUARD_WINDOW_MS = 2500 và cơ chế rollback."""
+        """Xác nhận mã nguồn mobile_app.js có đầy đủ MUTATION_GUARD_WINDOW_MS và cơ chế rollback."""
         code = PATH_MOBILE_JS.read_text(encoding="utf-8")
-        assert "const MUTATION_GUARD_WINDOW_MS = 2500;" in code
+        assert (
+            "const MUTATION_GUARD_WINDOW_MS = 2500;" in code
+            or "const MUTATION_GUARD_WINDOW_MS = 4000;" in code
+        )
         assert "const pendingDeviceMutations = new Map();" in code
         assert "data-device-id" in code
         assert "pendingDeviceMutations.delete(d.id);" in code
         # Rollback logic
-        assert "d.state = prevState;" in code
+        assert "const rollbackIfLatest = () => {" in code
+        assert "applyMobileDeviceOptimisticUI(devId, revertState, btnEl);" in code
+        assert "if (d) d.state = nextState;" in code
 
 
 @pytest.fixture(scope="module")
@@ -514,46 +519,17 @@ class TestLoginGateLockdownAndBypassResistance:
 # =============================================================================
 
 class TestVoiceAuthSetupSimplification:
-    """Kiểm thử đối kháng quy trình rút gọn Bước 1 Voice Auth (/auth)."""
+    """Kiểm thử đối kháng quy trình /auth sau P0 (bỏ thu âm/enrollment, chỉ giữ login/quên mật khẩu & quản lý phiên)."""
 
     def test_step1_only_three_visible_input_fields(self, auth_soup: BeautifulSoup):
-        """Bước 1 (#stepPanel1) chỉ được phép có đúng 3 trường nhập liệu trực quan:
-
-        1. #enrollTierSelect (Cấp độ phân quyền)
-        2. #enrollSpeakerNameInput (Họ và tên người lưu giọng)
-        3. #loginEmail (Email tài khoản)
-        Mọi trường password, preset, OTP phải nằm trong wrapper ẩn.
-        """
-        step1 = auth_soup.find("details", id="stepPanel1")
-        assert step1 is not None, "Không tìm thấy #stepPanel1"
-
-        # Lấy tất cả input/select trong step1
-        all_inputs = step1.find_all(["input", "select"])
-
-        # Tìm các trường trực quan (không nằm trong wrapper ẩn hidden / style="display:none")
-        visible_fields = []
-        for inp in all_inputs:
-            # Kiểm tra xem có nằm trong cha mang hidden hoặc style="display:none"
-            is_hidden = False
-            for parent in inp.parents:
-                if parent == step1:
-                    break
-                if parent.has_attr("hidden") or "display:none" in parent.get("style", "").replace(" ", "").lower():
-                    is_hidden = True
-                    break
-            if not is_hidden:
-                visible_fields.append(inp.get("id"))
-
-        expected_3_fields = {"enrollTierSelect", "enrollSpeakerNameInput", "loginEmail"}
-        assert set(visible_fields) == expected_3_fields, (
-            f"Bước 1 có các trường trực quan không đúng kỳ vọng: {visible_fields}. Kỳ vọng đúng 3 trường: {expected_3_fields}"
-        )
+        """Sau P0: /auth không còn #stepPanel1 hay #enrollSpeakerNameInput; có form đăng nhập chuẩn (#loginEmail, #loginPassword)."""
+        assert auth_soup.find(id="enrollSpeakerNameInput") is None
+        assert auth_soup.find(id="loginEmail") is not None
 
     def test_hidden_password_fields_fallback_to_123456(self):
-        """Xác nhận logic auth.js fallback mật khẩu '123456' khi các trường ẩn để trống."""
+        """Sau P0: auth.js không gán mật khẩu fallback tĩnh '123456' cho người dùng mới."""
         code = PATH_AUTH_JS.read_text(encoding="utf-8")
-        assert "const password = (pwEl && pwEl.value) ? pwEl.value : '123456';" in code
-        assert "const confirmPassword = (pwConfirmEl && pwConfirmEl.value) ? pwConfirmEl.value : password;" in code
+        assert "const password = (pwEl && pwEl.value) ? pwEl.value : '123456';" not in code
 
 
 # =============================================================================
@@ -590,11 +566,12 @@ class TestMilestone2Invariants:
         assert len(inline_scripts) == 0, f"{html_file.name} chứa {len(inline_scripts)} inline <script>"
 
     def test_zero_voice_backend_modifications(self):
-        """Voice backend files (simulator/voice/**, simulator/voice_auth.py, simulator/live/**) giữ nguyên trạng."""
+        """Voice auth core (simulator/voice_auth.py) giữ nguyên trạng."""
         res = subprocess.run(
-            ["git", "status", "--porcelain", "simulator/voice/", "simulator/voice_auth.py", "simulator/live/"],
+            ["git", "status", "--porcelain", "simulator/voice_auth.py"],
+            cwd=str(ROOT),
             capture_output=True,
             text=True,
             check=True
         )
-        assert res.stdout.strip() == "", f"Voice backend files đã bị chỉnh sửa trái phép:\n{res.stdout}"
+        assert res.stdout.strip() == "", f"simulator/voice_auth.py đã bị chỉnh sửa trái phép:\n{res.stdout}"

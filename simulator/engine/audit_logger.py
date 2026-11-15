@@ -63,6 +63,16 @@ def append_audit_log(
     now_dt = get_vn_now()
     safe_summary = redact_otp_and_secrets_in_text(str(summary or ""))
     safe_details = sanitize_overview_and_logs_payload(details or {})
+    try:
+        from simulator.database_sqlite import strip_emojis_for_audit, _strip_emojis_in_obj
+
+        safe_summary = strip_emojis_for_audit(safe_summary)
+        safe_details = _strip_emojis_in_obj(safe_details)
+        user_name = strip_emojis_for_audit(str(user_name or "Hệ thống")) or "Hệ thống"
+        category = strip_emojis_for_audit(str(category or "SYSTEM")) or "SYSTEM"
+        event_type = strip_emojis_for_audit(str(event_type or "event")) or "event"
+    except Exception:
+        pass
     entry = {
         "ts_iso": now_dt.isoformat(),
         "time_vn": now_dt.strftime("%d/%m/%Y %I:%M:%S %p"),

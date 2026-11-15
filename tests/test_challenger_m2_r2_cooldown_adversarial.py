@@ -207,10 +207,11 @@ class TestChallengerM2R2CooldownAdversarial:
         # Create brand-new ThreeLayerAuthManager instance
         new_mgr = ThreeLayerAuthManager()
 
-        # Verify new_mgr loaded pending_otps from disk
+        # Verify new_mgr loaded pending_otps from disk (hash-only persistence)
         assert email in new_mgr.pending_otps, "New manager instance must restore pending OTP from disk"
         restored = new_mgr.pending_otps[email]
-        assert restored.get("otp_code") == resp1.get("otp_code_for_test")
+        orig_hash = auth_mgr.pending_otps[email].get("otp_hash")
+        assert orig_hash and restored.get("otp_hash") == orig_hash
 
         # Mock send_real_gmail_otp on new instance to guarantee no send occurs
         mock_send = MagicMock(return_value={"sent_real_gmail": False})
@@ -232,6 +233,8 @@ class TestChallengerM2R2CooldownAdversarial:
         resp0 = auth_mgr.request_password_reset_otp(email=email, send_gmail=False)
         expected_otp = resp0.get("otp_code_for_test")
         assert expected_otp is not None
+        expected_hash = auth_mgr.pending_otps[email].get("otp_hash")
+        assert expected_hash
 
         for i in range(1, 6):
             inst = ThreeLayerAuthManager()
@@ -242,7 +245,7 @@ class TestChallengerM2R2CooldownAdversarial:
             assert resp_i.get("ok") is True, f"Instance {i} failed"
             assert resp_i.get("idempotent") is True, f"Instance {i} did not enforce cooldown"
             assert resp_i.get("cooldown_active") is True, f"Instance {i} cooldown_active is not True"
-            assert resp_i.get("otp_code_for_test") == expected_otp, f"Instance {i} changed OTP code"
+            assert inst.pending_otps[email].get("otp_hash") == expected_hash, f"Instance {i} changed OTP hash"
             mock_send.assert_not_called()
 
     def test_cross_instance_otp_code_verification_and_consumption(

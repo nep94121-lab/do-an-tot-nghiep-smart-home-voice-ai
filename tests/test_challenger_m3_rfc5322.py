@@ -83,6 +83,11 @@ class ChallengerTestAuthManager(AuthInviteGmailMixin):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _allowlist_test_recipient(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
+
+
 @pytest.fixture
 def auth_mgr() -> ChallengerTestAuthManager:
     return ChallengerTestAuthManager()
@@ -729,6 +734,7 @@ class TestZeroLeakSecurityAudit:
             k: v for k, v in os.environ.items()
             if k not in ("GMAIL_APP_PASSWORD", "SMTP_PASSWORD")
         }
+        env_without_secrets["REAL_EMAIL_ALLOWLIST"] = "senat6031@gmail.com"
 
         with patch.dict(os.environ, env_without_secrets, clear=True), \
              patch("subprocess.run", side_effect=FileNotFoundError("gws command not found")):

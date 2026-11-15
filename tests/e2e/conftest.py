@@ -31,13 +31,34 @@ AUDIO_DIR = ROOT / "test_audio"
 
 def read_wav_pcm16(filename: str) -> bytes:
     """Đọc tệp âm thanh WAV PCM 16-bit 16kHz."""
+    slice_range: tuple[int, int] | None = None
     if filename in ("giong_1_chu_nha_mo_cua.wav", "mo_cua_chinh.wav"):
-        filename = "cac_cau_lenh_cua_sep/cau_2_mo_cua_chinh.wav"
+        filename = "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"
+        slice_range = (96000, 192000)
     path = AUDIO_DIR / filename
     if not path.exists():
         raise FileNotFoundError(f"Không tìm thấy tệp âm thanh kiểm thử: {path}")
     with wave.open(str(path), "rb") as w:
-        return w.readframes(w.getnframes())
+        raw = w.readframes(w.getnframes())
+        return raw[slice_range[0] : slice_range[1]] if slice_range is not None else raw
+
+
+def make_valid_enroll_pair(tier: int) -> tuple[bytes, bytes]:
+    """Tạo cặp (enroll_pcm, self_check_pcm) đạt chuẩn 8/8 ENROLL_QUALITY cho tier 1/2/3."""
+    if tier == 1:
+        return (
+            read_wav_pcm16("00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"),
+            read_wav_pcm16("giong_chu_nha_cap1_tuan_anh.wav")[:192000],
+        )
+    src = "giong_cap2_thanh_vien_a.wav" if tier == 2 else "giong_cap3_khach_c.wav"
+    repeats_e, repeats_s = (19, 6) if tier == 2 else (17, 5)
+    arr = np.frombuffer(read_wav_pcm16(src), dtype=np.int16)
+    pad_e = np.zeros(4000, dtype=np.int16)
+    pad_s = np.zeros(2000, dtype=np.int16)
+    return (
+        np.concatenate([pad_e, *([arr] * repeats_e), pad_e]).tobytes(),
+        np.concatenate([pad_s, *([arr] * repeats_s), pad_s]).tobytes(),
+    )
 
 
 @pytest.fixture
@@ -54,8 +75,17 @@ def pcm_intruder_bytes() -> bytes:
 
 @pytest.fixture
 def pcm_noisy_fan_bytes() -> bytes:
-    """Mẫu âm thanh giọng Chủ nhà kèm tiếng ồn quạt trần lớn."""
-    return read_wav_pcm16("giong_1_kem_tieng_on_quat.wav")
+    """Mẫu âm thanh giọng Chủ nhà (3.0s) kèm tiếng ồn quạt trần (65Hz/130Hz/195Hz + broadband)."""
+    owner = np.frombuffer(read_wav_pcm16("giong_1_chu_nha_mo_cua.wav"), dtype=np.int16)
+    t = np.arange(len(owner), dtype=np.float32) / 16000.0
+    rng = np.random.default_rng(42)
+    hum = 1.05 * (
+        0.04 * np.sin(2 * np.pi * 65.0 * t)
+        + 0.025 * np.sin(2 * np.pi * 130.0 * t)
+        + 0.015 * np.sin(2 * np.pi * 195.0 * t)
+        + rng.normal(0.0, 0.015, len(owner))
+    ) * 32768.0
+    return np.clip(owner.astype(np.float32) + hum, -32768, 32767).astype(np.int16).tobytes()
 
 
 @pytest.fixture
@@ -72,28 +102,37 @@ def pcm_tier2_bytes() -> bytes:
 
 @pytest.fixture
 def pcm_tier3_bytes() -> bytes:
-    """Mẫu âm thanh Khách Cấp 3."""
-    return read_wav_pcm16("giong_cap3_khach_c.wav")
+    """Mẫu âm thanh Khách Cấp 3 (>= 1.5s giọng nói sạch)."""
+    raw = read_wav_pcm16("giong_cap3_khach_c.wav")
+    return raw + raw
+
+
+_CACHED_KHACH_C_BUNDLE: tuple[str | None, str] | None = None
 
 
 @pytest.fixture
 def voice_auth_mgr() -> Generator[VoiceAuthManager, None, None]:
     """Khởi tạo VoiceAuthManager và dọn dẹp strikes trước/sau mỗi test."""
+    global _CACHED_KHACH_C_BUNDLE
     from simulator.voice_auth import VOICEPRINT_FILE
     orig_voiceprints = VOICEPRINT_FILE.read_text(encoding="utf-8") if VOICEPRINT_FILE.exists() else None
-    vm = VoiceAuthManager(AUDIO_DIR)
-    t3_wav = AUDIO_DIR / "giong_cap3_khach_c.wav"
-    if t3_wav.exists():
-        with wave.open(str(t3_wav), "rb") as w:
-            t3_pcm = w.readframes(w.getnframes())
+    if _CACHED_KHACH_C_BUNDLE is not None and _CACHED_KHACH_C_BUNDLE[0] == orig_voiceprints:
+        VOICEPRINT_FILE.write_text(_CACHED_KHACH_C_BUNDLE[1], encoding="utf-8")
+        vm = VoiceAuthManager(AUDIO_DIR)
+    else:
+        vm = VoiceAuthManager(AUDIO_DIR)
+        t3_enroll, t3_sc = make_valid_enroll_pair(3)
         vm.enroll_tier_voice_from_pcm16k(
-            pcm_bytes=t3_pcm,
+            pcm_bytes=t3_enroll,
+            self_check_pcm_bytes=t3_sc,
             user_id="khach_c",
             user_name="Khách C",
             tier=3,
             role="GUEST",
             check_duplicate=False,
         )
+        if VOICEPRINT_FILE.exists():
+            _CACHED_KHACH_C_BUNDLE = (orig_voiceprints, VOICEPRINT_FILE.read_text(encoding="utf-8"))
     vm.reset_strikes()
     try:
         yield vm

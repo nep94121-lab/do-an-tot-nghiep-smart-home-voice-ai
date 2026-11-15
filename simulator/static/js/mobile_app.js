@@ -3273,7 +3273,7 @@
                 }
               } catch (_) {}
               connectMobileSse();
-            }, 400);
+            }, 250);
           }
         };
       } catch (_) {
@@ -3401,9 +3401,9 @@
           .catch(() => {
             updateMobileAuthUiState(false);
           });
-        /* Auto-reconnect after 4s on direct server hosts when logged in */
+        /* Auto-reconnect fast on direct server hosts when logged in */
         if (!isMobileVercel) {
-          setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 4000);
+          setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 250);
         }
       };
       ws.onerror = () => {};

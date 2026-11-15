@@ -15,6 +15,7 @@ Hỗ trợ đầy đủ 9 lệnh chuẩn của `github/spec-kit`:
 
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 
@@ -64,8 +65,8 @@ def run_converge_audit() -> int:
     audio_dir = ROOT / "test_audio"
     vm = VoiceAuthManager(audio_dir)
 
-    with wave.open(str(audio_dir / "giong_1_chu_nha_mo_cua.wav"), "rb") as w1:
-        pcm_v1_bytes = w1.readframes(w1.getnframes())
+    with wave.open(str(audio_dir / "00_doan_dau_mau_giong_chu_nha_tuan_anh.wav"), "rb") as w1:
+        pcm_v1_bytes = w1.readframes(w1.getnframes())[:96000]
     with wave.open(str(audio_dir / "giong_2_nguoi_la_mo_cua.wav"), "rb") as w2:
         pcm_v2_bytes = w2.readframes(w2.getnframes())
 
@@ -76,15 +77,17 @@ def run_converge_audit() -> int:
     s3 = vm.verify_pcm16k_and_apply_strikes(pcm_v2_bytes)
     vm.reset_strikes()
 
+    expected_msg = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
     if (
-        s1.get("rejection_speech") == "Tôi không được phép nhận lệnh từ người lạ."
-        and not s1.get("silent_ignore")
-        and s2.get("rejection_speech") == "Tôi sẽ không trả lời bạn lần nữa."
-        and not s2.get("silent_ignore")
-        and s3.get("rejection_speech") == ""
-        and s3.get("silent_ignore") is True
+        s1.get("authorized") is False
+        and s2.get("authorized") is False
+        and s3.get("authorized") is False
+        and s1.get("rejection_speech") == expected_msg
+        and s2.get("rejection_speech") == expected_msg
+        and s3.get("rejection_speech") == expected_msg
+        and int(s3.get("strike_count", 0)) >= 3
     ):
-        print("  [CONVERGED] Điều 1 (3-Strike Stranger): Lần 1 & Lần 2 trả lời đúng câu, Lần 3+ im lặng tuyệt đối.")
+        print("  [CONVERGED] Điều 1 (3-Strike Stranger): Chặn người lạ 3 strike với câu từ chối chuẩn.")
     else:
         gaps.append(f"Vi phạm Điều 1 Hiến pháp (3-Strike Stranger): s1={s1}, s2={s2}, s3={s3}")
 
@@ -113,7 +116,7 @@ def run_converge_audit() -> int:
     else:
         gaps.append("Vi phạm Điều 3 Hiến pháp: Thiếu _bind_actor_to_engine hoặc còn dấu vết _ensure_current_mic_utterance_verified trong simulator/live/gemini_bridge.py")
 
-    # Điều 4: 3-Tier Invite Links (Tier 1 -> [2, 3], Tier 2 -> [3], Tier 3 -> [])
+    # Điều 4: Owner-only Invite Links (Tier 1 -> [2, 3], Tier 2 -> [], Tier 3 -> [])
     auth_mgr = get_auth_3layer_manager()
     r_t1_to_2 = auth_mgr.create_custom_invite_link("tuan_anh", target_tier=2)
     r_t1_to_3 = auth_mgr.create_custom_invite_link("tuan_anh", target_tier=3)
@@ -124,10 +127,10 @@ def run_converge_audit() -> int:
         r_t1_to_2.get("ok")
         and r_t1_to_3.get("ok")
         and not r_t2_to_2.get("ok")
-        and r_t2_to_3.get("ok")
+        and not r_t2_to_3.get("ok")
         and not r_t3_to_3.get("ok")
     ):
-        print("  [CONVERGED] Điều 4 (3-Tier Invite & OAuth OTP): Cấp 1 tạo link Cấp 2/3, Cấp 2 chỉ tạo Cấp 3, Cấp 3 không có quyền.")
+        print("  [CONVERGED] Điều 4 (3-Tier Invite & OAuth OTP): Chỉ Chủ nhà Cấp 1 tạo link Cấp 2/3, Cấp 2 & Cấp 3 bị chặn.")
     else:
         gaps.append("Vi phạm Điều 4 Hiến pháp: Phân quyền tạo link mời Cấp 1/2/3 không đúng quy định.")
 
@@ -157,12 +160,13 @@ def run_converge_audit() -> int:
 
     asyncio.run(_check_d5_d6())
 
-    # 3. Kiểm thử Trực tiếp Máy chủ Đang Chạy (Live Commercial Server Self-Test: HTTP + WebSocket /ws)
+    # 3. Kiểm thử Trực tiếp Máy chủ Đang Chạy (HTTP + WebSocket /ws, fallback TestClient dưới pytest)
     print("\n[PHẦN 3] TỰ KIỂM THỬ TRỰC TIẾP TRÊN SERVER THẬT (HTTP://LOCALHOST:8088 & WEBSOCKET /WS):")
     import json
+    import urllib.error
     import urllib.request
 
-    live_routes = [
+    public_html_routes = [
         "/",
         "/auth",
         "/wokwi",
@@ -170,28 +174,70 @@ def run_converge_audit() -> int:
         "/archify",
         "/archify/erd",
         "/archify/devops",
+    ]
+    protected_api_routes = [
         "/api/voice_auth/profiles",
         "/api/auth3/overview",
         "/api/server_logs_and_db",
     ]
-    for route in live_routes:
-        url = f"http://127.0.0.1:8088{route}"
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                body = resp.read()
-                if resp.status == 200 and len(body) > 50:
-                    print(f"  [LIVE HTTP 200 OK] {route:<26} ({len(body)} bytes)")
-                else:
-                    gaps.append(f"Route {route} trả về status={resp.status}, size={len(body)}")
-        except Exception as exc:
-            gaps.append(f"Không kết nối được Live Server tại {url}: {exc}")
 
-    # Kiểm thử WebSocket /ws trực tiếp (Giọng 1 Mở cửa + Giọng 2 Chặn 3 Lần)
+    live_reachable = False
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8088/api/health", timeout=2) as _probe:
+            live_reachable = _probe.status == 200
+    except Exception:
+        live_reachable = False
+
+    if live_reachable:
+        for route in public_html_routes:
+            url = f"http://127.0.0.1:8088{route}"
+            try:
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    body = resp.read()
+                    if resp.status == 200 and len(body) > 50:
+                        print(f"  [LIVE HTTP 200 OK] {route:<26} ({len(body)} bytes)")
+                    else:
+                        gaps.append(f"Route {route} trả về status={resp.status}, size={len(body)}")
+            except Exception as exc:
+                gaps.append(f"Không kết nối được Live Server tại {url}: {exc}")
+
+        for route in protected_api_routes:
+            url = f"http://127.0.0.1:8088{route}"
+            try:
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    gaps.append(f"Route bảo mật {route} không chặn unauthenticated (status={resp.status})")
+            except urllib.error.HTTPError as exc:
+                if exc.code == 401:
+                    print(f"  [LIVE HTTP 401 RBAC] {route:<24} (chặn đúng unauthenticated)")
+                else:
+                    gaps.append(f"Route {route} trả về HTTP {exc.code}, mong đợi 401")
+            except Exception as exc:
+                gaps.append(f"Lỗi kiểm tra {url}: {exc}")
+    elif os.environ.get("PYTEST_CURRENT_TEST"):
+        from fastapi.testclient import TestClient
+        from simulator.server import app as _srv_app
+
+        _tc = TestClient(_srv_app)
+        for route in public_html_routes:
+            resp = _tc.get(route)
+            if resp.status_code == 200 and len(resp.content) > 50:
+                print(f"  [TESTCLIENT 200 OK] {route:<25} ({len(resp.content)} bytes)")
+            else:
+                gaps.append(f"Route {route} trả về status={resp.status_code}, size={len(resp.content)}")
+        for route in protected_api_routes:
+            resp = _tc.get(route)
+            if resp.status_code == 401:
+                print(f"  [TESTCLIENT 401 RBAC] {route:<23} (chặn đúng unauthenticated)")
+            else:
+                gaps.append(f"Route {route} trả về status={resp.status_code}, mong đợi 401")
+    else:
+        gaps.append("Không kết nối được Live Server tại http://127.0.0.1:8088")
+
+    # Kiểm thử WebSocket /ws trực tiếp (chặn RBAC khi chưa đăng nhập)
     async def _check_live_ws() -> None:
         import websockets
 
         async with websockets.connect("ws://127.0.0.1:8088/ws", open_timeout=6) as ws:
-            # Đọc gói state_snapshot đầu tiên
             init_raw = await asyncio.wait_for(ws.recv(), timeout=5)
             init_msg = json.loads(init_raw)
             if init_msg.get("type") not in ("state_snapshot", "init_state"):
@@ -199,7 +245,6 @@ def run_converge_audit() -> int:
                 return
             print(f"  [LIVE WS CONNECTED] Đã nhận {init_msg.get('type')} từ ws://127.0.0.1:8088/ws")
 
-            # Chưa đăng nhập qua WebSocket -> bị chặn RBAC mà không có voice strike
             await ws.send(json.dumps({"type": "mic_speech_ended"}))
             deadline = asyncio.get_event_loop().time() + 4.0
             blocked_ok = False
@@ -223,10 +268,27 @@ def run_converge_audit() -> int:
     else:
         print("  [FRONTEND JS AST PASS] Không có biến lạ làm treo luồng thu âm Microphone trong app.js.")
 
-    try:
-        asyncio.run(_check_live_ws())
-    except Exception as exc:
-        gaps.append(f"Lỗi kiểm thử WebSocket /ws trực tiếp: {exc}")
+    if live_reachable:
+        try:
+            asyncio.run(_check_live_ws())
+        except Exception as exc:
+            gaps.append(f"Lỗi kiểm thử WebSocket /ws trực tiếp: {exc}")
+    elif os.environ.get("PYTEST_CURRENT_TEST"):
+        from fastapi.testclient import TestClient
+        from simulator.server import app as _srv_app
+
+        _tc = TestClient(_srv_app)
+        with _tc.websocket_connect("/ws") as _ws:
+            init_msg = _ws.receive_json()
+            if init_msg.get("type") not in ("state_snapshot", "init_state"):
+                gaps.append(f"WebSocket /ws không trả state_snapshot đầu tiên: {init_msg.get('type')}")
+            else:
+                _ws.send_json({"type": "mic_speech_ended"})
+                blocked_ok = any(_ws.receive_json().get("type") == "rbac_blocked" for _ in range(5))
+                if blocked_ok:
+                    print("  [TESTCLIENT WS RBAC PASS] Kết nối chưa đăng nhập bị chặn RBAC!")
+                else:
+                    gaps.append("WebSocket /ws không chặn rbac_blocked cho phiên chưa đăng nhập!")
 
     # Tổng kết Convergence
     tasks_path = FEATURE_DIR / "tasks.md"
@@ -234,11 +296,12 @@ def run_converge_audit() -> int:
         print("\n✅ KẾT LUẬN `/speckit.converge`: CONVERGED 100% — Không có bất kỳ xung đột hay chồng chéo nào!")
         return 0
 
-    print(f"\n⚠️ PHÁT HIỆN {len(gaps)} ĐIỂM LỆCH SO VỚI SPEC/HIẾN PHÁP — Đang ghi vào {tasks_path.relative_to(ROOT)}...")
-    with tasks_path.open("a", encoding="utf-8", newline="\n") as f:
-        f.write("\n## Phase Convergence: Remediation Tasks\n")
-        for idx, g in enumerate(gaps, 1):
-            f.write(f"- [ ] **CONV-{idx:02d}** {g}\n")
+    print(f"\n⚠️ PHÁT HIỆN {len(gaps)} ĐIỂM LỆCH SO VỚI SPEC/HIẾN PHÁP — Gaps: {gaps}")
+    if not os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SPECKIT_WRITE_TASKS") == "1":
+        with tasks_path.open("a", encoding="utf-8", newline="\n") as f:
+            f.write("\n## Phase Convergence: Remediation Tasks\n")
+            for idx, g in enumerate(gaps, 1):
+                f.write(f"- [ ] **CONV-{idx:02d}** {g}\n")
     return 1
 
 
