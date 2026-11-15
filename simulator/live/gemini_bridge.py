@@ -682,7 +682,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         try:
             if self._closed or self.gemini_session is None or self.last_mic_turn_silent_ignore:
                 return
-            for _ in range(8):
+            for _ in range(22):
                 if self._closed or self.gemini_session is None:
                     break
                 if self.turn_first_tool_ts is not None or self.turn_first_audio_ts is not None:
@@ -731,21 +731,11 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             self.mic_utterance_active = True
             return
 
-        if not self.mic_utterance_active:
-            if not is_sp:
-                self._mic_preroll_pcm.append(pcm_bytes)
-                if len(self._mic_preroll_pcm) > 2:
-                    self._mic_preroll_pcm.pop(0)
-                return
+        if is_sp and not self.mic_utterance_active:
             self.mic_utterance_active = True
             if self._mic_silence_task and not self._mic_silence_task.done():
                 self._mic_silence_task.cancel()
-            self.pcm_framing_buffer.clear()
             self._reset_turn_metrics(anchor_ts=time.perf_counter())
-            for pre in self._mic_preroll_pcm:
-                for pre_frame in self.pcm_framing_buffer.push_chunk(pre):
-                    await self._send_pcm_frame_to_gemini(pre_frame)
-            self._mic_preroll_pcm.clear()
 
         for frame in self.pcm_framing_buffer.push_chunk(pcm_bytes):
             await self._send_pcm_frame_to_gemini(frame)
