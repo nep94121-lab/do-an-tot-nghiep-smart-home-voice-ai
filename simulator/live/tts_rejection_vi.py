@@ -650,7 +650,11 @@ def build_aoede_http_audio_fields(bundle: dict[str, Any]) -> dict[str, Any]:
 
 async def prewarm_aoede_common_phrases() -> int:
     """Làm ấm trước bộ câu thoại Aoede phổ biến vào SQLite WAL cache khi server khởi động."""
-    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1"
+        or os.environ.get("SMARTHOME_SKIP_PREWARM", "").strip() == "1"
+    ):
         return 0
     phrases: list[str] = [
         FIXED_REJECTION_PHRASE_VI,
@@ -682,6 +686,19 @@ async def prewarm_aoede_common_phrases() -> int:
             phrases.append(p)
     warmed = 0
     for phrase in phrases:
+        for _ in range(30):
+            active_mic = False
+            with contextlib.suppress(Exception):
+                from simulator.api.deps import _ACTIVE_BRIDGES
+
+                active_mic = any(
+                    getattr(br, "mic_utterance_active", False)
+                    for br in list(_ACTIVE_BRIDGES)
+                    if not getattr(br, "_closed", False)
+                )
+            if not active_mic:
+                break
+            await asyncio.sleep(1.0)
         norm = _normalize_aoede_phrase(phrase)
         if not norm:
             continue

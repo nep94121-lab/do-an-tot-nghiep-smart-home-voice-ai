@@ -437,8 +437,14 @@ class SessionStore:
 
             # SQLite single source of truth check when row exists (catches revocation or restart persistence)
             try:
+                from simulator.db_migrations import open_wal_connection
+
                 with _SQLITE_GLOBAL_LOCK:
-                    conn = self._open_conn()
+                    conn = (
+                        open_wal_connection(self.db_path, readonly=True)
+                        if self.db_path.exists()
+                        else self._open_conn()
+                    )
                     try:
                         cur = conn.execute(
                             """

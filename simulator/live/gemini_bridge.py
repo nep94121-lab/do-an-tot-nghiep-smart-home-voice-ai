@@ -244,6 +244,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self._wav_streaming_task: asyncio.Task | None = None
         self._mic_silence_task: asyncio.Task | None = None
         self._closed = False
+        self._cached_ws_actor: UserSession | None = None
+        self._cached_ws_actor_ts: float = 0.0
         self._mic_preroll_pcm: list[bytes] = []
         self._mic_in_flight_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
         self._bind_actor_to_engine()
@@ -259,21 +261,35 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
     def _resolve_ws_session(self, msg: dict[str, Any] | None = None) -> UserSession:
         """Xác định phiên WebSocket phía server từ Header/Cookie/Query/Token (tuyệt đối không tin role từ client)."""
+        now_pc = time.perf_counter()
+        if (
+            msg is None
+            and self._cached_ws_actor is not None
+            and (now_pc - self._cached_ws_actor_ts) < 1.5
+            and not self._cached_ws_actor.is_expired()
+        ):
+            return self._cached_ws_actor
         sess = resolve_strict_ws_session(self.ws, msg=msg)
         if sess.is_authenticated and not sess.is_expired():
             self.ws_session = sess
             self._explicit_ws_session = False
+            self._cached_ws_actor = sess
+            self._cached_ws_actor_ts = now_pc
             return sess
         if self.ws_session is not None:
             stored = get_session_store().get_session(self.ws_session.session_id)
             if stored is not None:
                 if session_is_current(stored):
+                    self._cached_ws_actor = stored
+                    self._cached_ws_actor_ts = now_pc
                     return stored
             elif (
                 self._explicit_ws_session
                 and self.ws_session.is_authenticated
                 and not self.ws_session.is_expired()
             ):
+                self._cached_ws_actor = self.ws_session
+                self._cached_ws_actor_ts = now_pc
                 return self.ws_session
         return sess
 
@@ -326,37 +342,40 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             from simulator.auth.tier_permissions import restrict_guest_snapshot
             payload = dict(payload)
             payload["snapshot"] = restrict_guest_snapshot(payload["snapshot"], self._resolve_ws_session())
+        audit_kwargs: dict[str, Any] | None = None
         if ptype == "turn_complete":
             heard = str(payload.get("heard", "")).strip()
             said = str(payload.get("said", "")).strip()
             t_ms = payload.get("tool_ms")
             a_ms = payload.get("audio_ms")
-            append_audit_log(
-                category="VOICE_CMD",
-                event_type="turn_complete",
-                summary=f"Nói: '{heard}' -> AI đáp: '{said}' (Tool: {t_ms or '--'}ms, Audio: {a_ms or '--'}ms)",
-                user_name=self.engine.get_current_user_name(),
-                tier=self.engine.current_tier,
-                details=payload,
-            )
+            audit_kwargs = {
+                "category": "VOICE_CMD",
+                "event_type": "turn_complete",
+                "summary": f"Nói: '{heard}' -> AI đáp: '{said}' (Tool: {t_ms or '--'}ms, Audio: {a_ms or '--'}ms)",
+                "user_name": self.engine.get_current_user_name(),
+                "tier": self.engine.current_tier,
+                "details": payload,
+            }
         elif ptype == "tool_call_executed":
             tname = str(payload.get("name", ""))
             targs = payload.get("args", {})
             t_ms = payload.get("tool_ms")
             cat = "KNOWLEDGE_BASE" if "knowledge_rag" in tname else "VOICE_CMD"
-            append_audit_log(
-                category=cat,
-                event_type="tool_call_executed",
-                summary=f"Gọi Tool `{tname}`({json.dumps(targs, ensure_ascii=False)}) trong {t_ms or '--'}ms",
-                user_name=self.engine.get_current_user_name(),
-                tier=self.engine.current_tier,
-                details=payload,
-            )
+            audit_kwargs = {
+                "category": cat,
+                "event_type": "tool_call_executed",
+                "summary": f"Gọi Tool `{tname}`({json.dumps(targs, ensure_ascii=False)}) trong {t_ms or '--'}ms",
+                "user_name": self.engine.get_current_user_name(),
+                "tier": self.engine.current_tier,
+                "details": payload,
+            }
         if self.ws is not None:
             try:
                 await self.ws.send_text(json.dumps(payload, ensure_ascii=False))
             except Exception:
                 pass
+        if audit_kwargs is not None:
+            await asyncio.to_thread(append_audit_log, **audit_kwargs)
 
     def _reset_turn_metrics(self, anchor_ts: float | None = None) -> None:
         self.speech_end_ts = anchor_ts or time.perf_counter()
@@ -482,6 +501,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                                 if msg.tool_call and msg.tool_call.function_calls:
                                     fn_responses = []
+                                    pending_tool_ws_events: list[dict[str, Any]] = []
                                     for fc in msg.tool_call.function_calls:
                                         if self.turn_first_tool_ts is None:
                                             self.turn_first_tool_ts = now
@@ -492,7 +512,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                                         exec_result = await self.handle_tool_call(fc)
 
-                                        await self.send_ws_json({
+                                        pending_tool_ws_events.append({
                                             "type": "tool_call_executed",
                                             "name": fc.name,
                                             "args": dict(fc.args or {}),
@@ -516,6 +536,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                         await session.send_tool_response(function_responses=fn_responses)
                                     except Exception:
                                         pass
+                                    for ev in pending_tool_ws_events:
+                                        await self.send_ws_json(ev)
 
                                 sc = msg.server_content
                                 if sc:
@@ -731,11 +753,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             self.mic_utterance_active = True
             return
 
-        if is_sp and not self.mic_utterance_active:
-            self.mic_utterance_active = True
-            if self._mic_silence_task and not self._mic_silence_task.done():
-                self._mic_silence_task.cancel()
-            self._reset_turn_metrics(anchor_ts=time.perf_counter())
+        if is_sp:
+            now_sp = time.perf_counter()
+            if not self.mic_utterance_active:
+                self.mic_utterance_active = True
+                if self._mic_silence_task and not self._mic_silence_task.done():
+                    self._mic_silence_task.cancel()
+                self._reset_turn_metrics(anchor_ts=now_sp)
+            elif self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
+                self.speech_end_ts = now_sp
 
         for frame in self.pcm_framing_buffer.push_chunk(pcm_bytes):
             await self._send_pcm_frame_to_gemini(frame)
@@ -761,7 +787,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             })
             return
 
-        if self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
+        if self.speech_end_ts is None and self.turn_first_tool_ts is None and self.turn_first_audio_ts is None:
             self.speech_end_ts = time.perf_counter()
 
         tail_frame = self.pcm_framing_buffer.flush_utterance_tail()
@@ -805,7 +831,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 source="session_voice", request_tier=actor.tier,
                 request_role=actor.role, request_user_name=actor.display_name,
             )
-            await _broadcast_rest_state_to_bridges()
+            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self))
             if isinstance(tool_res, dict) and (not tool_res.get("ok", True) or tool_res.get("rbac_blocked")):
                 rej_msg = str(tool_res.get("exact_spoken_reply") or tool_res.get("error") or FIXED_REJECTION_PHRASE_VI)
                 await self.send_ws_json({
@@ -851,7 +877,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         res = await super().handle_tool_call(fc)
         if isinstance(res, dict) and res.get("ok"):
             try:
-                await _broadcast_rest_state_to_bridges()
+                asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self))
             except Exception:
                 pass
         if isinstance(res, dict) and (not res.get("ok", True) or res.get("rbac_blocked")):

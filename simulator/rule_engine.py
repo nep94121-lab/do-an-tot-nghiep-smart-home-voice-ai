@@ -418,7 +418,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
         if not dirty:
             cur_states = {k: v.get("state") for k, v in self.devices.items() if isinstance(v, dict)}
-            if self._last_synced_seq != prev_synced_seq or cur_states != prev_states:
+            if (
+                (self._last_synced_seq != prev_synced_seq or cur_states != prev_states)
+                and getattr(getattr(self, "_root_engine", self).state_backend, "__class__", None).__name__
+                != "SqliteStateBackend"
+            ):
                 try:
                     sync_engine_state_to_sqlite(self)
                 except Exception:
@@ -607,9 +611,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             await self.on_event(event)
         ev_type = str(event.get("type", ""))
         if ev_type and ev_type not in ("state_snapshot", "mqtt_message", "mqtt_packet"):
-            if getattr(self, "_mutation_depth", 0) == 0:
+            backend_name = getattr(getattr(self, "_root_engine", self).state_backend, "__class__", None).__name__
+            skip_sqlite_sync = backend_name == "SqliteStateBackend" and ev_type in (
+                "device_updated",
+                "device_actuated",
+                "device_already_in_state",
+            )
+            if getattr(self, "_mutation_depth", 0) == 0 and not skip_sqlite_sync:
                 try:
-                    sync_engine_state_to_sqlite(self)
+                    await asyncio.to_thread(sync_engine_state_to_sqlite, self)
                 except Exception:
                     pass
             cat_map = {
@@ -648,7 +658,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     else ev_type
                 )
             )
-            append_audit_log(
+            await asyncio.to_thread(
+                append_audit_log,
                 category=cat,
                 event_type=ev_type,
                 summary=msg,
@@ -972,7 +983,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         backend = root.state_backend
         last_result: dict[str, Any] = {"ok": False, "error": "CAS conflict"}
         for attempt in range(10):
-            shared, exp_rev, exp_tok = backend.read_cas()
+            if getattr(backend, "__class__", None).__name__ == "SqliteStateBackend":
+                shared, exp_rev, exp_tok = await asyncio.to_thread(backend.read_cas)
+            else:
+                shared, exp_rev, exp_tok = backend.read_cas()
             with root._state_sync_lock:
                 if isinstance(shared, dict) and isinstance(shared.get("devices"), dict):
                     root._apply_shared_dict(shared, authoritative=True, dirty_ids=set())
@@ -1017,11 +1031,19 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
             if needs_commit:
                 payload = root._build_shared_state_payload()
-                ok_cas, committed = backend.compare_and_swap(
-                    payload,
-                    expected_revision=exp_rev,
-                    expected_token=exp_tok,
-                )
+                if getattr(backend, "__class__", None).__name__ == "SqliteStateBackend":
+                    ok_cas, committed = await asyncio.to_thread(
+                        backend.compare_and_swap,
+                        payload,
+                        expected_revision=exp_rev,
+                        expected_token=exp_tok,
+                    )
+                else:
+                    ok_cas, committed = backend.compare_and_swap(
+                        payload,
+                        expected_revision=exp_rev,
+                        expected_token=exp_tok,
+                    )
                 if not ok_cas:
                     if isinstance(committed, dict) and isinstance(committed.get("devices"), dict):
                         with root._state_sync_lock:
