@@ -554,17 +554,31 @@ class TestAddendumRBACAndConflicts:
         )
         assert r_self_grant.status_code == 403
 
-        # Tier 1 grants -> Tier 2 succeeds -> Tier 1 revokes -> Tier 2 denied again
+        # Tier 1 grants -> Step 1 stages confirmation -> Step 2 confirms -> Tier 2 succeeds -> Tier 1 revokes
         r_grant = client.post(
             "/api/members/thanh_vien_a/link_permission",
             headers=H_TIER1,
             json={"allowed": True},
         )
-        assert r_grant.status_code == 200
+        assert r_grant.status_code == 200 and r_grant.json().get("requires_confirmation") is True
+        assert can_user_create_links("thanh_vien_a", 2) is False
+        r_grant2 = client.post(
+            "/api/automation/confirm",
+            headers=H_TIER1,
+            json={"pending_id": r_grant.json()["pending_id"], "confirmed": True},
+        )
+        assert r_grant2.status_code == 200
         assert can_user_create_links("thanh_vien_a", 2) is True
 
         r_allowed = client.post("/api/rules", headers=H_TIER2, json=rule_body)
-        assert r_allowed.status_code == 200
+        assert r_allowed.status_code == 200 and r_allowed.json().get("requires_confirmation") is True
+        assert len(list_automation_rules(owner_user_id="thanh_vien_a")) == 0
+        r_allowed2 = client.post(
+            "/api/automation/confirm",
+            headers=H_TIER2,
+            json={"pending_id": r_allowed.json()["pending_id"], "confirmed": True},
+        )
+        assert r_allowed2.status_code == 200
         assert len(list_automation_rules(owner_user_id="thanh_vien_a")) == 1
 
         r_revoke = client.post(
@@ -572,7 +586,13 @@ class TestAddendumRBACAndConflicts:
             headers=H_TIER1,
             json={"allowed": False},
         )
-        assert r_revoke.status_code == 200
+        assert r_revoke.status_code == 200 and r_revoke.json().get("requires_confirmation") is True
+        r_revoke2 = client.post(
+            "/api/automation/confirm",
+            headers=H_TIER1,
+            json={"pending_id": r_revoke.json()["pending_id"], "confirmed": True},
+        )
+        assert r_revoke2.status_code == 200
         r_denied2 = client.post(
             "/api/rules",
             headers=H_TIER2,
@@ -596,7 +616,13 @@ class TestAddendumRBACAndConflicts:
                 "schedule_type": "daily",
             },
         )
-        assert r_t1.status_code == 200
+        assert r_t1.status_code == 200 and r_t1.json().get("requires_confirmation") is True
+        r_t1_c = client.post(
+            "/api/automation/confirm",
+            headers=H_TIER1,
+            json={"pending_id": r_t1.json()["pending_id"], "confirmed": True},
+        )
+        assert r_t1_c.status_code == 200
 
         # Same minute / +-60s by Tier 2 triggers 409 exact message
         r_t2_exact = client.post(
@@ -628,7 +654,7 @@ class TestAddendumRBACAndConflicts:
         assert r_t2_60s.status_code == 409
         assert r_t2_60s.json().get("exact_spoken_reply") == TIER1_SCHEDULE_CONFLICT_MSG_VI
 
-        # Outside +-60s (08:05) succeeds
+        # Outside +-60s (08:05) stages cleanly then confirms
         r_t2_far = client.post(
             "/api/schedules",
             headers=H_TIER2,
@@ -639,7 +665,13 @@ class TestAddendumRBACAndConflicts:
                 "schedule_type": "daily",
             },
         )
-        assert r_t2_far.status_code == 200
+        assert r_t2_far.status_code == 200 and r_t2_far.json().get("requires_confirmation") is True
+        r_t2_far_c = client.post(
+            "/api/automation/confirm",
+            headers=H_TIER2,
+            json={"pending_id": r_t2_far.json()["pending_id"], "confirmed": True},
+        )
+        assert r_t2_far_c.status_code == 200
 
 
 # ==============================================================================

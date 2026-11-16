@@ -2933,6 +2933,86 @@
       }
     }
 
+    function clearMobileAutoConfirmBar() {
+      const oldBar = document.getElementById('mobileAutoConfirmBar');
+      if (oldBar && oldBar.parentNode) oldBar.parentNode.removeChild(oldBar);
+    }
+
+    function showMobileAutoConfirmBar(pendingData, onConfirmed) {
+      clearMobileAutoConfirmBar();
+      const pid = String((pendingData && (pendingData.pending_id || pendingData.confirm_token)) || '');
+      if (!pid) return;
+      const anchor = document.getElementById('pwaScheduleForm') || document.getElementById('upcomingScheduleInline');
+      const host = (anchor && anchor.parentNode) || document.getElementById('tabViewSchedule');
+      if (!host) return;
+      const bar = document.createElement('div');
+      bar.id = 'mobileAutoConfirmBar';
+      bar.className = 'mobile-auto-item';
+      const meta = document.createElement('div');
+      meta.className = 'mobile-auto-meta';
+      const lbl = document.createElement('div');
+      lbl.className = 'mobile-auto-label';
+      lbl.textContent = String((pendingData && (pendingData.prompt_question || pendingData.reply || pendingData.exact_spoken_reply)) || 'Xác nhận thao tác này đúng không ạ?');
+      meta.appendChild(lbl);
+      const actions = document.createElement('div');
+      actions.className = 'mobile-auto-actions';
+      const yesBtn = document.createElement('button');
+      yesBtn.type = 'button';
+      yesBtn.id = 'btnMobileConfirmYes';
+      yesBtn.className = 'mobile-mini-btn accent';
+      yesBtn.textContent = 'Xác nhận';
+      const noBtn = document.createElement('button');
+      noBtn.type = 'button';
+      noBtn.id = 'btnMobileConfirmNo';
+      noBtn.className = 'mobile-mini-btn danger';
+      noBtn.textContent = 'Hủy';
+      actions.appendChild(yesBtn);
+      actions.appendChild(noBtn);
+      bar.appendChild(meta);
+      bar.appendChild(actions);
+      if (anchor && anchor.parentNode === host) {
+        host.insertBefore(bar, anchor.nextSibling);
+      } else {
+        host.appendChild(bar);
+      }
+
+      const sendDecision = async (confirmed) => {
+        yesBtn.disabled = true;
+        noBtn.disabled = true;
+        try {
+          const res = await fetch('/api/automation/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pending_id: pid, confirm_token: pid, confirmed }),
+          });
+          const data = await res.json().catch(() => ({}));
+          clearMobileAutoConfirmBar();
+          if (data.snapshot) renderState(data.snapshot);
+          if (!confirmed) {
+            showPwaVoiceResults('Tự động hóa', data.reply || 'Đã hủy.');
+            addLog('Hủy thao tác tự động', 'device', 'Đã hủy');
+            return;
+          }
+          if (!res.ok || data.ok === false) {
+            setMobileAutoFeedback(data.error || 'Xác nhận thất bại.', true);
+            showMobileActionError(data.error || 'Xác nhận thất bại.', false);
+            return;
+          }
+          setMobileAutoFeedback('');
+          if (typeof onConfirmed === 'function') onConfirmed(data);
+          const okReply = data.reply || data.exact_spoken_reply || 'Đã xác nhận.';
+          showPwaVoiceResults('Tự động hóa', okReply);
+          addLog(okReply, 'device', 'Thành công');
+          if (!data.snapshot) await fetchInitial();
+        } catch (err) {
+          clearMobileAutoConfirmBar();
+          setMobileAutoFeedback(`Lỗi xác nhận: ${err}`, true);
+        }
+      };
+      yesBtn.addEventListener('click', () => sendDecision(true));
+      noBtn.addEventListener('click', () => sendDecision(false));
+    }
+
     async function handleMobileAutoAction(act, itemId, btnEl) {
       if (!itemId) return;
       if (act === 'edit-scene') {
@@ -2984,6 +3064,10 @@
         addLog(`Tự động hóa: ${act}`, 'device', 'Thất bại');
         return;
       }
+      if (data.requires_confirmation && (data.pending_id || data.confirm_token)) {
+        showMobileAutoConfirmBar(data);
+        return;
+      }
       const reply = data.reply || data.exact_spoken_reply || `Đã thực hiện ${act}.`;
       showPwaVoiceResults(act === 'run-scene' ? 'Chạy ngữ cảnh' : 'Tự động hóa', reply);
       addLog(reply, 'device', 'Thành công');
@@ -3029,6 +3113,14 @@
           })
         });
         const data = await res.json();
+        if (data.requires_confirmation && (data.pending_id || data.confirm_token)) {
+          const schedInline = document.getElementById('upcomingScheduleInline');
+          if (schedInline) schedInline.textContent = data.prompt_question || data.reply || '';
+          showMobileAutoConfirmBar(data, () => {
+            showPwaVoiceResults(`Hẹn ${t} ${act.toLowerCase()} ${dev.toLowerCase()}`, 'Đã xác nhận. Xong rồi ạ.');
+          });
+          return;
+        }
         const reply = data.exact_spoken_reply || data.error || 'Đã đặt lịch.';
         const schedInline = document.getElementById('upcomingScheduleInline');
         if (data.ok === false && schedInline) {
@@ -3078,6 +3170,14 @@
       if (!res.ok || data.ok === false) {
         setMobileAutoFeedback(data.error || 'Không thể lưu tự động hóa.', true);
         addLog(`Tự động hóa (${mode})`, 'device', 'Thất bại');
+        return;
+      }
+      if (data.requires_confirmation && (data.pending_id || data.confirm_token)) {
+        setMobileAutoFeedback(data.prompt_question || data.reply || 'Vui lòng xác nhận để lưu.', false);
+        showMobileAutoConfirmBar(data, () => {
+          if (document.getElementById('pwaSceneEditId')) document.getElementById('pwaSceneEditId').value = '';
+          document.getElementById('pwaScheduleForm').hidden = true;
+        });
         return;
       }
       setMobileAutoFeedback('');

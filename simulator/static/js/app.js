@@ -1164,6 +1164,85 @@
     fb.style.color = isErr ? "#c62828" : "#1565c0";
   }
 
+  function clearDesktopAutoConfirmBar() {
+    const oldBar = byIdInHomeOrDoc("desktopAutoConfirmBar");
+    if (oldBar && oldBar.parentNode) oldBar.parentNode.removeChild(oldBar);
+  }
+
+  function showDesktopAutoConfirmBar(pendingData, onConfirmed) {
+    clearDesktopAutoConfirmBar();
+    const pid = String((pendingData && (pendingData.pending_id || pendingData.confirm_token)) || "");
+    if (!pid) return;
+    const schedSection = findInHomeOrDoc("section.panel.schedule");
+    const panelEl = byIdInHomeOrDoc("desktopAutoFormPanel");
+    const hostParent = (schedSection || (panelEl && panelEl.parentNode) || document.body);
+    const bar = document.createElement("div");
+    bar.id = "desktopAutoConfirmBar";
+    bar.className = "schedule-row-item";
+    const question = String((pendingData && (pendingData.prompt_question || pendingData.reply || pendingData.exact_spoken_reply)) || "Xác nhận thao tác này đúng không ạ?");
+    const meta = document.createElement("div");
+    meta.className = "schedule-row-meta";
+    const titleEl = document.createElement("div");
+    titleEl.className = "schedule-row-title";
+    titleEl.textContent = question;
+    meta.appendChild(titleEl);
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "schedule-row-actions";
+    const yesBtn = document.createElement("button");
+    yesBtn.type = "button";
+    yesBtn.id = "btnAutoConfirmYes";
+    yesBtn.className = "btn-mini accent";
+    yesBtn.textContent = "Xác nhận";
+    const noBtn = document.createElement("button");
+    noBtn.type = "button";
+    noBtn.id = "btnAutoConfirmNo";
+    noBtn.className = "btn-mini danger";
+    noBtn.textContent = "Hủy";
+    actionsEl.appendChild(yesBtn);
+    actionsEl.appendChild(noBtn);
+    bar.appendChild(meta);
+    bar.appendChild(actionsEl);
+    if (panelEl && panelEl.parentNode === hostParent) {
+      panelEl.parentNode.insertBefore(bar, panelEl.nextSibling);
+    } else if (hostParent) {
+      hostParent.insertBefore(bar, hostParent.firstChild ? hostParent.firstChild.nextSibling : null);
+    }
+
+    const sendDecision = async (confirmed) => {
+      yesBtn.disabled = true;
+      noBtn.disabled = true;
+      try {
+        const res = await fetch("/api/automation/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ pending_id: pid, confirm_token: pid, confirmed }),
+        });
+        const data = await res.json().catch(() => ({}));
+        clearDesktopAutoConfirmBar();
+        if (data.snapshot) applySnapshot(data.snapshot);
+        if (!confirmed) {
+          setAutoFormFeedback(data.reply || "Đã hủy.", false);
+          logEvent(data.reply || "Đã hủy thao tác.", "ok");
+          return;
+        }
+        if (!res.ok || data.ok === false) {
+          setAutoFormFeedback(data.error || "Xác nhận thất bại.", true);
+          logEvent(data.error || "Xác nhận thất bại.", "err");
+          return;
+        }
+        if (typeof onConfirmed === "function") onConfirmed(data);
+        setAutoFormFeedback("");
+        logEvent(data.reply || data.exact_spoken_reply || "Đã xác nhận.", "ok");
+      } catch (err) {
+        clearDesktopAutoConfirmBar();
+        setAutoFormFeedback(`Lỗi xác nhận: ${err}`, true);
+      }
+    };
+    yesBtn.addEventListener("click", () => sendDecision(true));
+    noBtn.addEventListener("click", () => sendDecision(false));
+  }
+
   function renderDesktopAutomation(snap) {
     latestAutomationSnap = snap;
     const tier = Number((snap && snap.current_tier) || 1);
@@ -4373,6 +4452,14 @@
             setAutoFormFeedback(data.error || "Không thể lưu tự động hóa.", true);
             return;
           }
+          if (data.requires_confirmation && (data.pending_id || data.confirm_token)) {
+            setAutoFormFeedback(data.prompt_question || data.reply || "Vui lòng xác nhận để lưu.", false);
+            showDesktopAutoConfirmBar(data, () => {
+              if (byId("autoSceneEditId")) byId("autoSceneEditId").value = "";
+              if (panelEl) panelEl.hidden = true;
+            });
+            return;
+          }
           if (byId("autoSceneEditId")) byId("autoSceneEditId").value = "";
           if (panelEl) panelEl.hidden = true;
           setAutoFormFeedback("");
@@ -4437,6 +4524,10 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.ok === false) {
             logEvent(data.error || "Thao tác tự động thất bại.", "err");
+            return;
+          }
+          if (data.requires_confirmation && (data.pending_id || data.confirm_token)) {
+            showDesktopAutoConfirmBar(data);
             return;
           }
           if (data.snapshot) applySnapshot(data.snapshot);

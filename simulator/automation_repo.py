@@ -735,22 +735,17 @@ def list_automation_rules(
             conn.close()
 
 
-def create_automation_rule(
+def validate_automation_rule_input(
     *,
-    owner_user_id: str,
-    owner_tier: int,
     when_device_id: str,
     when_state: str,
     then_device_id: str,
     then_action: str,
     else_device_id: str = "",
     else_action: str = "",
-    delay_seconds: float = 0.0,
-    label: str = "",
-    owner_name: str = "",
-    rule_id: str | None = None,
     db_path: pathlib.Path | None = None,
-) -> dict[str, Any]:
+) -> tuple[str, str, str, str, str, str]:
+    """Validate linked rule endpoints, actions, and acyclicity before staging or saving."""
     if when_device_id not in DEFAULT_DEVICES or then_device_id not in DEFAULT_DEVICES:
         raise ValueError("Thiết bị điều kiện hoặc thiết bị đích không tồn tại.")
     if when_device_id == then_device_id:
@@ -760,10 +755,10 @@ def create_automation_rule(
         raise ValueError(f"Trạng thái điều kiện '{when_state}' không hợp lệ.")
     if then_action not in ACTION_TO_STATE:
         raise ValueError(f"Hành động đích '{then_action}' không hợp lệ.")
-    valid_else_dev = else_device_id if else_device_id in DEFAULT_DEVICES else None
+    valid_else_dev = else_device_id if else_device_id in DEFAULT_DEVICES else ""
     valid_else_act = else_action if (valid_else_dev and else_action in ACTION_TO_STATE) else ""
     if not valid_else_act:
-        valid_else_dev = None
+        valid_else_dev = ""
 
     existing = list_automation_rules(include_disabled=False, db_path=db_path)
     edges = [
@@ -780,6 +775,42 @@ def create_automation_rule(
         edges.append((when_device_id, valid_else_dev))
     if _rules_have_cycle(edges):
         raise ValueError("Từ chối tạo luật liên kết vì gây vòng lặp giữa các thiết bị.")
+    return when_device_id, norm_when_state, then_device_id, then_action, valid_else_dev, valid_else_act
+
+
+def create_automation_rule(
+    *,
+    owner_user_id: str,
+    owner_tier: int,
+    when_device_id: str,
+    when_state: str,
+    then_device_id: str,
+    then_action: str,
+    else_device_id: str = "",
+    else_action: str = "",
+    delay_seconds: float = 0.0,
+    label: str = "",
+    owner_name: str = "",
+    rule_id: str | None = None,
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    (
+        when_device_id,
+        norm_when_state,
+        then_device_id,
+        then_action,
+        valid_else_dev_str,
+        valid_else_act,
+    ) = validate_automation_rule_input(
+        when_device_id=when_device_id,
+        when_state=when_state,
+        then_device_id=then_device_id,
+        then_action=then_action,
+        else_device_id=else_device_id,
+        else_action=else_action,
+        db_path=db_path,
+    )
+    valid_else_dev: str | None = valid_else_dev_str or None
 
     rid = rule_id or f"rule_{int(time.time() * 1000)}_{uuid.uuid4().hex[:6]}"
     now_ts = time.time()
@@ -1193,11 +1224,21 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
 def check_steps_rbac(steps: list[dict[str, Any]], actor_tier: int) -> tuple[bool, str]:
     for step in steps or []:
         did = str(step.get("device_id") or "")
+        act = str(step.get("action") or "turn_on").lower()
         if not did:
             continue
-        if not can_control_device(actor_tier, did):
-            dname = DEVICE_LABELS_VI.get(did, did)
-            return False, f"Từ chối: Cấp {actor_tier} không có quyền điều khiển {dname} trong ngữ cảnh này."
+        if did == "all_lights":
+            expanded = ["living_room_light", "bedroom_light"]
+        elif did == "all_devices":
+            expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
+                "living_room_light", "bedroom_light", "fan", "ac"
+            ]
+        else:
+            expanded = [did]
+        for target_dev in expanded:
+            if not can_control_device(actor_tier, target_dev):
+                dname = DEVICE_LABELS_VI.get(target_dev, target_dev)
+                return False, f"Từ chối: Cấp {actor_tier} không có quyền điều khiển {dname} trong ngữ cảnh này."
     return True, ""
 
 
@@ -1764,17 +1805,20 @@ def get_pending_confirmation(
             conn.close()
 
 
-def consume_or_cancel_pending_confirmation(
+def inspect_and_consume_pending_confirmation(
     pending_id: str,
     *,
     owner_user_id: str,
     new_status: str = "confirmed",
+    expected_action_kind: str | None = None,
+    expected_payload_match: dict[str, Any] | None = None,
     db_path: pathlib.Path | None = None,
-) -> dict[str, Any] | None:
+) -> tuple[str, dict[str, Any] | None]:
+    """Atomically inspect and consume/cancel a pending confirmation bound to owner_user_id."""
     pid = str(pending_id or "").strip()
     uid = str(owner_user_id or "").strip()
     if not pid or not uid:
-        return None
+        return "not_found", None
     status_val = "cancelled" if str(new_status).lower() == "cancelled" else "confirmed"
     now_ts = time.time()
 
@@ -1782,28 +1826,70 @@ def consume_or_cancel_pending_confirmation(
         target = _resolve_db(db_path)
         conn = get_connection(target)
         try:
-            def _tx(c: sqlite3.Connection) -> dict[str, Any] | None:
+            def _tx(c: sqlite3.Connection) -> tuple[str, dict[str, Any] | None]:
                 c.execute(
                     "UPDATE pending_confirmations SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?",
                     (now_ts,),
                 )
                 row = c.execute(
-                    """
-                    SELECT * FROM pending_confirmations
-                    WHERE pending_id = ? AND owner_user_id = ? AND status = 'pending' AND expires_at > ?
-                    """,
-                    (pid, uid, now_ts),
+                    "SELECT * FROM pending_confirmations WHERE pending_id = ?",
+                    (pid,),
                 ).fetchone()
                 if row is None:
-                    return None
-                c.execute(
-                    "UPDATE pending_confirmations SET status = ? WHERE pending_id = ?",
-                    (status_val, pid),
+                    return "not_found", None
+                row_dict = _row_to_pending_dict(row)
+                if str(row["owner_user_id"]) != uid:
+                    return "wrong_owner", row_dict
+                if str(row["status"]) == "expired" or float(row["expires_at"] or 0.0) <= now_ts:
+                    if str(row["status"]) == "pending":
+                        c.execute(
+                            "UPDATE pending_confirmations SET status = 'expired' WHERE pending_id = ?",
+                            (pid,),
+                        )
+                    row_dict["status"] = "expired"
+                    return "expired", row_dict
+                if str(row["status"]) != "pending":
+                    return "already_used", row_dict
+                if expected_action_kind is not None and str(row["action_kind"]) != str(expected_action_kind):
+                    return "wrong_action", row_dict
+                if expected_payload_match:
+                    row_payload = row_dict.get("payload") or {}
+                    for k, expected_v in expected_payload_match.items():
+                        if str(row_payload.get(k) or "") != str(expected_v or ""):
+                            return "wrong_action", row_dict
+                cur = c.execute(
+                    """
+                    UPDATE pending_confirmations
+                    SET status = ?
+                    WHERE pending_id = ? AND owner_user_id = ? AND status = 'pending' AND expires_at > ?
+                    """,
+                    (status_val, pid, uid, now_ts),
                 )
-                out = _row_to_pending_dict(row)
-                out["status"] = status_val
-                return out
+                if int(cur.rowcount or 0) != 1:
+                    return "already_used", row_dict
+                row_dict["status"] = status_val
+                return "ok", row_dict
 
             return run_write_transaction(conn, _tx)
         finally:
             conn.close()
+
+
+def consume_or_cancel_pending_confirmation(
+    pending_id: str,
+    *,
+    owner_user_id: str,
+    new_status: str = "confirmed",
+    expected_action_kind: str | None = None,
+    expected_payload_match: dict[str, Any] | None = None,
+    db_path: pathlib.Path | None = None,
+) -> dict[str, Any] | None:
+    reason, row_dict = inspect_and_consume_pending_confirmation(
+        pending_id,
+        owner_user_id=owner_user_id,
+        new_status=new_status,
+        expected_action_kind=expected_action_kind,
+        expected_payload_match=expected_payload_match,
+        db_path=db_path,
+    )
+    return row_dict if reason == "ok" else None

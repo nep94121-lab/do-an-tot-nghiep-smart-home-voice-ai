@@ -16,11 +16,13 @@ import re
 import time
 from typing import Any
 
+from simulator.auth.tier_permissions import can_control_device
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
     PENDING_CONFIRM_TTL_SEC,
     TIER1_SCHEDULE_CONFLICT_MSG_VI,
     can_user_create_links,
+    check_steps_rbac,
     check_tier1_schedule_conflict,
     consume_or_cancel_pending_confirmation,
     create_automation_rule,
@@ -44,6 +46,7 @@ from simulator.automation_repo import (
     reset_timers_and_schedules_scoped,
     set_user_can_create_links,
     strip_accents,
+    update_schedule,
     upsert_custom_command,
 )
 from simulator.database_sqlite import strip_emojis_for_audit
@@ -417,11 +420,14 @@ async def prepare_pending_mutation(
         "status_code": 200,
         "payload": {
             "ok": True,
+            "confirmed": False,
             "requires_confirmation": True,
             "kind": "confirmation_required",
             "pending_id": pending["pending_id"],
+            "confirm_token": pending["pending_id"],
             "expires_at": pending["expires_at"],
             "action_kind": action_kind,
+            "prompt_question": question,
             "reply": question,
             "exact_spoken_reply": question,
             "snapshot": engine.get_snapshot(session=session, sync=False) if engine is not None else {},
@@ -452,27 +458,37 @@ async def execute_confirmed_mutation(
     if action_kind == "create_custom_command":
         phrase = str(payload.get("phrase") or "").strip()
         steps = list(payload.get("steps") or [])
-        for st in steps:
-            allowed_dev, reason_dev = engine.check_device_permission(st["device_id"], actor_tier=tier)
-            if not allowed_dev:
-                return _deny_mutation_error(
-                    session=session,
-                    source=source,
-                    category="rbac_deny_custom_command",
-                    msg=reason_dev,
-                    status_code=403,
-                    target=str(st["device_id"]),
-                )
-        created = upsert_custom_command(
-            phrase=phrase,
-            steps=steps,
-            owner_user_id=user_id,
-            owner_tier=tier,
-            owner_name=user_name,
-        )
+        allowed_steps, rbac_msg = check_steps_rbac(steps, tier)
+        if not allowed_steps:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_custom_command",
+                msg=rbac_msg,
+                status_code=403,
+                target="custom_commands",
+            )
+        try:
+            created = upsert_custom_command(
+                phrase=phrase,
+                steps=steps,
+                owner_user_id=user_id,
+                owner_tier=tier,
+                owner_name=user_name,
+            )
+        except ValueError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_custom_command",
+                msg=str(exc),
+                status_code=400,
+                target="custom_commands",
+            )
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+        append_audit_log("AUTOMATION", "scene_created", f"Lưu ngữ cảnh '{created['phrase']}'", user_name=user_name, tier=tier)
         await engine.emit({"type": "custom_command_created", "command": created})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -481,10 +497,85 @@ async def execute_confirmed_mutation(
                 "ok": True,
                 "confirmed": True,
                 "kind": "custom_command_created",
+                "scene": created,
                 "command": created,
+                "scenes": snap.get("scenes", []),
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
+            },
+        }
+
+    if action_kind == "update_custom_command":
+        cid = str(payload.get("command_id") or "").strip()
+        existing = next((c for c in list_custom_commands(include_disabled=True) if c["command_id"] == cid), None)
+        if existing is None:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="scene_not_found",
+                msg="Không tìm thấy ngữ cảnh.",
+                status_code=404,
+                target=cid,
+            )
+        if tier > 1 and existing["owner_user_id"] != user_id:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="scene_update_blocked",
+                msg="Bạn chỉ có quyền sửa ngữ cảnh của chính mình.",
+                status_code=403,
+                target=cid,
+            )
+        phrase = str(payload.get("phrase") or existing["phrase"]).strip()
+        steps = list(payload.get("steps") or existing["steps"])
+        enabled = bool(payload["enabled"]) if "enabled" in payload else bool(existing["enabled"])
+        allowed_steps, rbac_msg = check_steps_rbac(steps, tier)
+        if not allowed_steps:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_custom_command",
+                msg=rbac_msg,
+                status_code=403,
+                target=cid,
+            )
+        try:
+            scene = upsert_custom_command(
+                phrase=phrase,
+                steps=steps,
+                owner_user_id=existing["owner_user_id"],
+                owner_tier=int(existing["owner_tier"]),
+                enabled=enabled,
+                command_id=cid,
+            )
+        except ValueError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_custom_command",
+                msg=str(exc),
+                status_code=400,
+                target=cid,
+            )
+        engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+        append_audit_log("AUTOMATION", "scene_updated", f"Cập nhật ngữ cảnh '{scene['phrase']}'", user_name=user_name, tier=tier)
+        await engine.emit({"type": "custom_command_updated", "command": scene})
+        snap = engine.get_snapshot(session=session, sync=False)
+        spoken = "Đã xác nhận. Xong rồi ạ."
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "kind": "custom_command_updated",
+                "scene": scene,
+                "command": scene,
+                "scenes": snap.get("scenes", []),
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": snap,
             },
         }
 
@@ -504,6 +595,8 @@ async def execute_confirmed_mutation(
         t_act = str(payload.get("then_action") or "turn_on")
         e_dev = str(payload.get("else_device_id") or "")
         e_act = str(payload.get("else_action") or "")
+        delay_sec = float(payload.get("delay_seconds") or 0.0)
+        label = str(payload.get("label") or "").strip()
 
         allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier)
         if not allowed_then:
@@ -536,6 +629,8 @@ async def execute_confirmed_mutation(
                 then_action=t_act,
                 else_device_id=e_dev,
                 else_action=e_act,
+                delay_seconds=delay_sec,
+                label=label,
                 owner_name=user_name,
             )
         except ValueError as exc:
@@ -548,8 +643,9 @@ async def execute_confirmed_mutation(
                 target="automation_rules",
             )
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+        append_audit_log("AUTOMATION", "rule_created", f"Tạo luật {rule['rule_id']} ({rule['label']})", user_name=user_name, tier=tier)
         await engine.emit({"type": "automation_rule_created", "rule": rule})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -559,9 +655,10 @@ async def execute_confirmed_mutation(
                 "confirmed": True,
                 "kind": "automation_rule_created",
                 "rule": rule,
+                "rules": snap.get("automation_rules", []),
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -570,6 +667,8 @@ async def execute_confirmed_mutation(
         act = str(payload.get("action") or "turn_on")
         hhmm = str(payload.get("time_hhmm") or "")
         schedule_type = str(payload.get("schedule_type") or "once")
+        run_date_vn = str(payload.get("run_date_vn") or "")
+        label = str(payload.get("label") or "")
         for td in target_devs:
             allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
             if not allowed_td:
@@ -585,6 +684,7 @@ async def execute_confirmed_mutation(
             actor_tier=tier,
             time_hhmm=hhmm,
             schedule_type=schedule_type,
+            run_date_vn=run_date_vn,
             engine=engine,
         )
         if conflict_msg:
@@ -596,21 +696,35 @@ async def execute_confirmed_mutation(
                 status_code=409,
                 target="schedules",
             )
-        created_list = [
-            create_schedule(
-                owner_user_id=user_id,
-                owner_tier=tier,
-                device_id=td,
-                action=act,
-                time_hhmm=hhmm,
-                schedule_type=schedule_type,
-                owner_name=user_name,
+        try:
+            created_list = [
+                create_schedule(
+                    owner_user_id=user_id,
+                    owner_tier=tier,
+                    device_id=td,
+                    action=act,
+                    time_hhmm=hhmm,
+                    schedule_type=schedule_type,
+                    run_date_vn=run_date_vn,
+                    label=label,
+                    owner_name=user_name,
+                )
+                for td in target_devs
+            ]
+        except ValueError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_schedule",
+                msg=str(exc),
+                status_code=400,
+                target="schedules",
             )
-            for td in target_devs
-        ]
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-        await engine.emit({"type": "schedule_created", "schedules": created_list})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        for sc in created_list:
+            append_audit_log("AUTOMATION", "schedule_created", f"Đặt lịch {sc['schedule_id']} ({sc['device_id']}:{sc['action']} lúc {sc['time_hhmm']})", user_name=user_name, tier=tier)
+        await engine.emit({"type": "schedule_created", "schedules": created_list, "owner_user_id": user_id})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -620,17 +734,119 @@ async def execute_confirmed_mutation(
                 "confirmed": True,
                 "kind": "schedule_created",
                 "schedule": created_list[0] if created_list else None,
-                "schedules": created_list,
+                "schedules": snap.get("schedules", []),
+                "created_schedules": created_list,
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
+            },
+        }
+
+    if action_kind == "update_schedule":
+        sid = str(payload.get("schedule_id") or "").strip()
+        existing = next((s for s in list_schedules(include_disabled=True) if s["schedule_id"] == sid), None)
+        if existing is None:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="schedule_not_found",
+                msg="Không tìm thấy lịch hẹn.",
+                status_code=404,
+                target=sid,
+            )
+        if tier > 1 and existing["owner_user_id"] != user_id:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="schedule_update_blocked",
+                msg="Bạn chỉ có quyền sửa lịch của chính mình.",
+                status_code=403,
+                target=sid,
+            )
+        new_dev = payload.get("device_id")
+        if new_dev is not None and not can_control_device(tier, str(new_dev)):
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_schedule_device",
+                msg=f"Bậc {tier} không có quyền điều khiển {new_dev}.",
+                status_code=403,
+                target=str(new_dev),
+            )
+        new_enabled = bool(payload["enabled"]) if payload.get("enabled") is not None else bool(existing.get("enabled", True))
+        cand_hhmm = str(payload.get("time_hhmm") or existing["time_hhmm"]).strip()
+        cand_type = str(payload.get("schedule_type") or existing["schedule_type"]).strip()
+        cand_date = str(payload.get("run_date_vn") or existing.get("run_date_vn") or "")
+        if new_enabled:
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=tier,
+                time_hhmm=cand_hhmm,
+                schedule_type=cand_type,
+                run_date_vn=cand_date,
+                exclude_schedule_id=sid,
+                engine=engine,
+            )
+            if conflict_msg:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="tier1_schedule_conflict",
+                    msg=conflict_msg,
+                    status_code=409,
+                    target=sid,
+                )
+        try:
+            updated = update_schedule(
+                sid,
+                time_hhmm=payload.get("time_hhmm"),
+                schedule_type=payload.get("schedule_type"),
+                device_id=new_dev,
+                action=payload.get("action"),
+                enabled=payload.get("enabled"),
+                label=payload.get("label"),
+            )
+        except ValueError as exc:
+            err_s = str(exc)
+            st_c = 409 if "Trùng lịch" in err_s else 400
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_schedule_update",
+                msg=err_s,
+                status_code=st_c,
+                target=sid,
+            )
+        engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
+        append_audit_log("AUTOMATION", "schedule_updated", f"Cập nhật lịch {sid}", user_name=user_name, tier=tier)
+        await engine.emit({"type": "schedule_updated", "schedule": updated})
+        snap = engine.get_snapshot(session=session, sync=False)
+        spoken = "Đã xác nhận. Xong rồi ạ."
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "kind": "schedule_updated",
+                "schedule": updated,
+                "schedules": snap.get("schedules", []),
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": snap,
             },
         }
 
     if action_kind == "create_timer":
         dev = str(payload.get("device_id") or "living_room_light")
         act = str(payload.get("action") or "turn_on")
-        total_sec = float(payload.get("seconds") or 10.0)
+        hours = float(payload.get("hours") or 0.0)
+        minutes = float(payload.get("minutes") or 0.0)
+        seconds = float(payload.get("seconds") or 0.0)
+        repeat = str(payload.get("repeat") or "once").strip() or "once"
+        total_sec = hours * 3600.0 + minutes * 60.0 + seconds
+        if total_sec <= 0:
+            seconds = 10.0
+            total_sec = 10.0
         for td in _expand_targets(dev):
             allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
             if not allowed_td:
@@ -645,6 +861,7 @@ async def execute_confirmed_mutation(
         conflict_msg = check_tier1_schedule_conflict(
             actor_tier=tier,
             fire_epoch=time.time() + total_sec,
+            schedule_type=repeat,
             engine=engine,
         )
         if conflict_msg:
@@ -664,7 +881,10 @@ async def execute_confirmed_mutation(
             res_t = await engine.schedule_timer_flexible(
                 device_id=dev,
                 action=act,
-                seconds=total_sec,
+                hours=hours,
+                minutes=minutes,
+                seconds=seconds,
+                repeat=repeat,
             )
         finally:
             engine._current_user_id = prev_uid
@@ -680,7 +900,8 @@ async def execute_confirmed_mutation(
                 status_code=st_code,
                 target=dev,
             )
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        append_audit_log("AUTOMATION", "timer_created", f"Tạo hẹn giờ {res_t.get('timer_id')} ({dev}:{act})", user_name=user_name, tier=tier)
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -689,10 +910,162 @@ async def execute_confirmed_mutation(
                 "ok": True,
                 "confirmed": True,
                 "kind": "timer_created",
+                "timer_id": res_t.get("timer_id"),
                 "timer": res_t,
+                "timers": snap.get("timers", []),
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
+            },
+        }
+
+    if action_kind == "modify_timer":
+        tid = str(payload.get("timer_id") or "").strip()
+        dev_id = str(payload.get("device_id") or "all_devices").strip()
+        new_action = str(payload.get("new_action") or payload.get("action") or "").strip()
+        hours = float(payload.get("hours") or 0.0)
+        minutes = float(payload.get("minutes") or 0.0)
+        seconds = float(payload.get("seconds") or 0.0)
+        vn_ampm = str(payload.get("vn_time_ampm") or "").strip()
+        vn_date = str(payload.get("vn_date") or "").strip()
+        repeat = str(payload.get("repeat") or "once").strip() or "once"
+
+        if tid:
+            existing_t = engine.active_timers.get(tid) or next(
+                (r for r in list_pending_timers() if str(r.get("timer_id") or r.get("id")) == tid),
+                None,
+            )
+            if existing_t is None:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="timer_not_found",
+                    msg="Không tìm thấy hẹn giờ cần cập nhật.",
+                    status_code=404,
+                    target=tid,
+                )
+            t_owner = str(existing_t.get("owner_user_id") or existing_t.get("owner_id") or "")
+            t_owner_tier = int(existing_t.get("owner_tier") or 1)
+            if tier > 1 and (t_owner_tier == 1 or t_owner != user_id):
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="timer_update_blocked",
+                    msg="Bạn chỉ có quyền sửa hẹn giờ của chính mình.",
+                    status_code=403,
+                    target=tid,
+                )
+            target_dev = str(payload.get("device_id") or existing_t.get("raw_target") or existing_t.get("device_id") or "living_room_light")
+            target_act = new_action or str(existing_t.get("action") or "turn_on")
+            for td in _expand_targets(target_dev):
+                allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+                if not allowed_td:
+                    return _deny_mutation_error(
+                        session=session,
+                        source=source,
+                        category="rbac_deny_timer_device",
+                        msg=reason_td,
+                        status_code=403,
+                        target=td,
+                    )
+            total_sec = hours * 3600.0 + minutes * 60.0 + seconds
+            if total_sec <= 0 and not vn_ampm:
+                total_sec = max(1.0, float(existing_t.get("delay_seconds") or 10.0))
+                seconds = total_sec
+            if total_sec > 0:
+                conflict_msg = check_tier1_schedule_conflict(
+                    actor_tier=tier,
+                    fire_epoch=time.time() + total_sec,
+                    schedule_type=repeat,
+                    exclude_timer_id=tid,
+                    engine=engine,
+                )
+                if conflict_msg:
+                    return _deny_mutation_error(
+                        session=session,
+                        source=source,
+                        category="tier1_timer_conflict",
+                        msg=conflict_msg,
+                        status_code=409,
+                        target=tid,
+                    )
+            cancel_res = await engine.cancel_timer_by_id(tid, actor_user_id=user_id, actor_tier=tier)
+            if not cancel_res.get("ok"):
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="timer_update_failed",
+                    msg=str(cancel_res.get("error") or "Không thể cập nhật hẹn giờ."),
+                    status_code=403 if cancel_res.get("rbac_blocked") else 400,
+                    target=tid,
+                )
+            prev_uid = getattr(engine, "_current_user_id", user_id)
+            prev_role = getattr(engine, "_current_role", role)
+            try:
+                engine._current_user_id = user_id
+                engine._current_role = role
+                res_m = await engine.schedule_timer_flexible(
+                    device_id=target_dev,
+                    action=target_act,
+                    hours=hours,
+                    minutes=minutes,
+                    seconds=seconds,
+                    vn_time_ampm=vn_ampm,
+                    vn_date=vn_date,
+                    repeat=repeat,
+                    reason="Đã sửa hẹn giờ",
+                )
+            finally:
+                engine._current_user_id = prev_uid
+                engine._current_role = prev_role
+        else:
+            prev_uid = getattr(engine, "_current_user_id", user_id)
+            prev_role = getattr(engine, "_current_role", role)
+            try:
+                engine._current_user_id = user_id
+                engine._current_role = role
+                res_m = await engine.update_or_cancel_timer(
+                    device_id=dev_id,
+                    operation="modify",
+                    new_action=new_action,
+                    hours=hours,
+                    minutes=minutes,
+                    seconds=seconds,
+                    vn_time_ampm=vn_ampm,
+                    vn_date=vn_date,
+                    repeat=repeat,
+                )
+            finally:
+                engine._current_user_id = prev_uid
+                engine._current_role = prev_role
+
+        if not res_m.get("ok"):
+            err_m = str(res_m.get("exact_spoken_reply") or res_m.get("error") or "Không thể cập nhật hẹn giờ.")
+            st_m = 409 if "trùng lịch" in err_m.lower() else (403 if res_m.get("rbac_blocked") else 400)
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="timer_update_failed",
+                msg=err_m,
+                status_code=st_m,
+                target=tid or dev_id,
+            )
+        append_audit_log("AUTOMATION", "timer_updated", f"Cập nhật hẹn giờ {res_m.get('timer_id')}", user_name=user_name, tier=tier)
+        snap = engine.get_snapshot(session=session, sync=False)
+        spoken = "Đã xác nhận. Xong rồi ạ."
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "kind": "timer_updated",
+                "timer_id": res_m.get("timer_id"),
+                "timer": res_m,
+                "timers": snap.get("timers", []),
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": snap,
             },
         }
 
@@ -713,7 +1086,7 @@ async def execute_confirmed_mutation(
             engine._current_role = prev_role
         if not res_c.get("ok"):
             err_c = str(res_c.get("exact_spoken_reply") or res_c.get("error") or "Không tìm thấy hẹn giờ phù hợp để hủy.")
-            st_code = 403 if res_c.get("rbac_blocked") else 400
+            st_code = 403 if res_c.get("rbac_blocked") else (404 if "Không tìm thấy" in err_c else 400)
             return _deny_mutation_error(
                 session=session,
                 source=source,
@@ -722,7 +1095,7 @@ async def execute_confirmed_mutation(
                 status_code=st_code,
                 target=tid or dev,
             )
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -730,10 +1103,12 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": True,
                 "confirmed": True,
+                "deleted": True,
+                "timer_id": tid or None,
                 "kind": "timer_deleted",
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -742,19 +1117,46 @@ async def execute_confirmed_mutation(
         hhmm = payload.get("time_hhmm")
         sid = str(payload.get("schedule_id") or "").strip()
         deleted = 0
-        for sc in list_schedules(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
-            if sid and sc["schedule_id"] != sid:
-                continue
-            if dev and sc["device_id"] != dev:
-                continue
-            if hhmm and sc["time_hhmm"] != hhmm:
-                continue
-            if delete_schedule(sc["schedule_id"]):
-                deleted += 1
-                break
+        deleted_owner = user_id
+        if sid:
+            existing = next((s for s in list_schedules(include_disabled=True) if s["schedule_id"] == sid), None)
+            if existing is None:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="schedule_not_found",
+                    msg="Không tìm thấy lịch hẹn.",
+                    status_code=404,
+                    target=sid,
+                )
+            if tier > 1 and existing["owner_user_id"] != user_id:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="schedule_delete_blocked",
+                    msg="Bạn chỉ có quyền xóa lịch của chính mình.",
+                    status_code=403,
+                    target=sid,
+                )
+            deleted_owner = str(existing["owner_user_id"])
+            if delete_schedule(sid):
+                deleted = 1
+                append_audit_log("AUTOMATION", "schedule_deleted", f"Xóa lịch {sid}", user_name=user_name, tier=tier)
+        else:
+            for sc in list_schedules(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
+                if dev and sc["device_id"] != dev:
+                    continue
+                if hhmm and sc["time_hhmm"] != hhmm:
+                    continue
+                if delete_schedule(sc["schedule_id"]):
+                    deleted += 1
+                    deleted_owner = str(sc["owner_user_id"])
+                    sid = str(sc["schedule_id"])
+                    append_audit_log("AUTOMATION", "schedule_deleted", f"Xóa lịch {sid}", user_name=user_name, tier=tier)
+                    break
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-        await engine.emit({"type": "schedule_deleted", "deleted": deleted})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        await engine.emit({"type": "schedule_deleted", "schedule_id": sid, "owner_user_id": deleted_owner, "deleted": deleted})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ." if deleted else "Không tìm thấy lịch phù hợp để xóa."
         return {
             "handled": True,
@@ -762,10 +1164,12 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": deleted > 0,
                 "confirmed": deleted > 0,
+                "deleted": deleted > 0,
+                "schedule_id": sid or None,
                 "kind": "schedule_deleted",
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -773,17 +1177,44 @@ async def execute_confirmed_mutation(
         dev = payload.get("device_id")
         rid = str(payload.get("rule_id") or "").strip()
         deleted = 0
-        for r in list_automation_rules(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
-            if rid and r["rule_id"] != rid:
-                continue
-            if dev and r["when_device_id"] != dev and r["then_device_id"] != dev:
-                continue
-            if delete_automation_rule(r["rule_id"]):
-                deleted += 1
-                break
+        deleted_owner = user_id
+        if rid:
+            existing = next((r for r in list_automation_rules(include_disabled=True) if r["rule_id"] == rid), None)
+            if existing is None:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rule_not_found",
+                    msg="Không tìm thấy luật liên kết.",
+                    status_code=404,
+                    target=rid,
+                )
+            if tier > 1 and existing["owner_user_id"] != user_id:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rule_delete_blocked",
+                    msg="Bạn chỉ có quyền xóa luật của chính mình.",
+                    status_code=403,
+                    target=rid,
+                )
+            deleted_owner = str(existing["owner_user_id"])
+            if delete_automation_rule(rid):
+                deleted = 1
+                append_audit_log("AUTOMATION", "rule_deleted", f"Xóa luật {rid}", user_name=user_name, tier=tier)
+        else:
+            for r in list_automation_rules(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
+                if dev and r["when_device_id"] != dev and r["then_device_id"] != dev:
+                    continue
+                if delete_automation_rule(r["rule_id"]):
+                    deleted += 1
+                    deleted_owner = str(r["owner_user_id"])
+                    rid = str(r["rule_id"])
+                    append_audit_log("AUTOMATION", "rule_deleted", f"Xóa luật {rid}", user_name=user_name, tier=tier)
+                    break
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-        await engine.emit({"type": "automation_rule_deleted", "deleted": deleted})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        await engine.emit({"type": "automation_rule_deleted", "rule_id": rid, "owner_user_id": deleted_owner, "deleted": deleted})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ." if deleted else "Không tìm thấy liên kết phù hợp để xóa."
         return {
             "handled": True,
@@ -791,10 +1222,12 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": deleted > 0,
                 "confirmed": deleted > 0,
+                "deleted": deleted > 0,
+                "rule_id": rid or None,
                 "kind": "automation_rule_deleted",
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -802,17 +1235,44 @@ async def execute_confirmed_mutation(
         cid = str(payload.get("command_id") or "").strip()
         phrase_q = normalize_phrase(str(payload.get("phrase") or ""))
         deleted = 0
-        for cmd in list_custom_commands(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
-            if cid and cmd["command_id"] != cid:
-                continue
-            if phrase_q and cmd["phrase_norm"] not in phrase_q and phrase_q not in cmd["phrase_norm"]:
-                continue
-            if delete_custom_command(cmd["command_id"]):
-                deleted += 1
-                break
+        deleted_owner = user_id
+        if cid:
+            existing = next((c for c in list_custom_commands(include_disabled=True) if c["command_id"] == cid), None)
+            if existing is None:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="scene_not_found",
+                    msg="Không tìm thấy ngữ cảnh.",
+                    status_code=404,
+                    target=cid,
+                )
+            if tier > 1 and existing["owner_user_id"] != user_id:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="scene_delete_blocked",
+                    msg="Bạn chỉ có quyền xóa ngữ cảnh của chính mình.",
+                    status_code=403,
+                    target=cid,
+                )
+            deleted_owner = str(existing["owner_user_id"])
+            if delete_custom_command(cid):
+                deleted = 1
+                append_audit_log("AUTOMATION", "scene_deleted", f"Xóa ngữ cảnh '{existing['phrase']}'", user_name=user_name, tier=tier)
+        else:
+            for cmd in list_custom_commands(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
+                if phrase_q and cmd["phrase_norm"] not in phrase_q and phrase_q not in cmd["phrase_norm"]:
+                    continue
+                if delete_custom_command(cmd["command_id"]):
+                    deleted += 1
+                    deleted_owner = str(cmd["owner_user_id"])
+                    cid = str(cmd["command_id"])
+                    append_audit_log("AUTOMATION", "scene_deleted", f"Xóa ngữ cảnh '{cmd['phrase']}'", user_name=user_name, tier=tier)
+                    break
         engine.sync_automation_pools_from_sqlite(emit_snapshot=False)
-        await engine.emit({"type": "custom_command_deleted", "deleted": deleted})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        await engine.emit({"type": "custom_command_deleted", "command_id": cid, "owner_user_id": deleted_owner, "deleted": deleted})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ." if deleted else "Không tìm thấy lệnh tùy chỉnh phù hợp để xóa."
         return {
             "handled": True,
@@ -820,10 +1280,12 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": deleted > 0,
                 "confirmed": deleted > 0,
+                "deleted": deleted > 0,
+                "command_id": cid or None,
                 "kind": "custom_command_deleted",
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -869,7 +1331,7 @@ async def execute_confirmed_mutation(
                 "removed": removed,
             }
         )
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -882,7 +1344,7 @@ async def execute_confirmed_mutation(
                 "removed": removed,
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
             },
         }
 
@@ -897,8 +1359,19 @@ async def execute_confirmed_mutation(
                 target=str(payload.get("target_user_id") or ""),
             )
         t_uid = str(payload.get("target_user_id") or "").strip()
-        t_name = str(payload.get("target_name") or t_uid).strip()
-        t_tier = int(payload.get("target_tier") or 2)
+        members = {m["user_id"]: m for m in list_household_members(include_inactive=True)}
+        if t_uid not in members:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="member_not_found",
+                msg="Không tìm thấy thành viên.",
+                status_code=404,
+                target=t_uid,
+            )
+        target_m = members[t_uid]
+        t_name = str(payload.get("target_name") or target_m.get("full_name") or t_uid).strip()
+        t_tier = int(payload.get("target_tier") or target_m.get("tier") or 2)
         allowed = bool(payload.get("allowed", False))
         res_u = set_user_can_create_links(
             t_uid,
@@ -906,8 +1379,15 @@ async def execute_confirmed_mutation(
             owner_tier=t_tier,
             display_name=t_name,
         )
+        append_audit_log(
+            "SECURITY",
+            "member_link_permission_updated",
+            f"Chủ nhà cập nhật quyền tạo liên kết cho {t_name} ({t_uid}): {allowed}",
+            user_name=user_name,
+            tier=1,
+        )
         await engine.emit({"type": "member_permission_updated", "member": res_u})
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã xác nhận. Xong rồi ạ."
         return {
             "handled": True,
@@ -916,10 +1396,37 @@ async def execute_confirmed_mutation(
                 "ok": True,
                 "confirmed": True,
                 "kind": "member_permission_updated",
+                **res_u,
                 "member": res_u,
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+                "snapshot": snap,
+            },
+        }
+
+    if action_kind == "factory_reset":
+        if tier != 1:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_factory_reset",
+                msg="Chỉ chủ nhà cấp 1 mới được khôi phục cài đặt gốc ạ.",
+                status_code=403,
+                target="factory_reset",
+            )
+        res_rst = await engine.manual_factory_reset()
+        snap = engine.get_snapshot(session=session, sync=False)
+        spoken = str(res_rst.get("exact_spoken_reply") or "Đã xác nhận. Đã khôi phục cài đặt gốc toàn hệ thống.")
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "kind": "factory_reset",
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": snap,
             },
         }
 
@@ -987,7 +1494,11 @@ async def handle_confirmation_reply(
         )
         if engine is not None:
             try:
-                await engine.emit({"type": "pending_confirmation_cancelled", "pending_id": pending["pending_id"]})
+                await engine.emit({
+                    "type": "pending_confirmation_cancelled",
+                    "pending_id": pending["pending_id"],
+                    "owner_user_id": user_id,
+                })
             except Exception:
                 pass
         spoken = "Đã hủy."

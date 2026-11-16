@@ -651,19 +651,45 @@ class LiveToolDispatcherMixin:
             repeat = str(args.get("repeat", "once") or "once")
             if (sec > 0 or mins > 0 or hrs > 0) and not vn_date:
                 vn_ampm = ""
-            res = await self.engine.update_or_cancel_timer(
-                device_id=dev_id,
-                operation=op,
-                new_action=str(args.get("new_action", "") or ""),
-                hours=hrs,
-                minutes=mins,
-                seconds=sec,
-                vn_time_ampm=vn_ampm,
-                vn_date=vn_date,
-                repeat=repeat,
+            total_sec = hrs * 3600.0 + mins * 60.0 + sec
+            new_act = str(args.get("new_action", "") or "")
+            if total_sec > 0:
+                conflict_msg = check_tier1_schedule_conflict(
+                    actor_tier=actor_tier,
+                    fire_epoch=time.time() + total_sec,
+                    schedule_type=repeat,
+                    engine=self.engine,
+                )
+                if conflict_msg:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="tier1_timer_conflict",
+                            msg=conflict_msg,
+                            status_code=409,
+                            target="timers",
+                        )
+                    )
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="modify_timer",
+                payload={
+                    "device_id": dev_id,
+                    "new_action": new_act,
+                    "hours": hrs,
+                    "minutes": mins,
+                    "seconds": sec,
+                    "vn_time_ampm": vn_ampm,
+                    "vn_date": vn_date,
+                    "repeat": repeat,
+                },
+                prompt_summary=f"Cập nhật hẹn giờ {dev_id}",
             )
-            await self._sync_rules_context_to_gemini(res.get("message", "Đã cập nhật hẹn giờ."))
-            return res
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "set_word_mapping":
             if actor_tier >= 3:

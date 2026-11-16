@@ -15,9 +15,10 @@ from simulator.api.deps import (
 )
 from simulator.auth.session_store import resolve_request_session
 from simulator.auth.tier_permissions import can_control_device
-from simulator.automation_nlu import parse_multi_steps_from_text
+from simulator.automation_nlu import parse_multi_steps_from_text, prepare_pending_mutation, execute_confirmed_mutation
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
+    _normalize_steps,
     can_user_create_links,
     check_steps_rbac,
     check_tier1_schedule_conflict,
@@ -26,13 +27,18 @@ from simulator.automation_repo import (
     delete_automation_rule,
     delete_custom_command,
     delete_schedule,
+    format_device_action_vi,
+    inspect_and_consume_pending_confirmation,
     list_automation_rules,
     list_custom_commands,
     list_household_members,
+    list_pending_timers,
     list_schedules,
+    normalize_phrase,
     set_user_can_create_links,
     update_schedule,
     upsert_custom_command,
+    validate_automation_rule_input,
 )
 from simulator.engine.audit_logger import append_audit_log
 from simulator.engine.constants_and_time import ACTION_TO_STATE, DEFAULT_DEVICES
@@ -79,6 +85,217 @@ def _can_manage_timers(sess: Any) -> bool:
 
 def _can_manage_rules(sess: Any) -> bool:
     return int(getattr(sess, "tier", 3) or 3) <= 2
+
+
+def _extract_confirm_token(request: Request, body: dict[str, Any] | None = None) -> str:
+    b = body if isinstance(body, dict) else {}
+    raw = (
+        b.get("confirm_token")
+        or b.get("pending_id")
+        or request.query_params.get("confirm_token")
+        or request.query_params.get("pending_id")
+        or request.headers.get("X-Confirm-Token")
+        or request.headers.get("X-Pending-Id")
+        or ""
+    )
+    return str(raw).strip()
+
+
+def _parse_confirmed_flag(body: dict[str, Any]) -> bool:
+    decision = str(body.get("decision") or "").strip().lower()
+    if decision in ("cancel", "cancelled", "no", "false", "huy", "khong"):
+        return False
+    if "confirmed" in body:
+        val = body["confirmed"]
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, str):
+            return val.strip().lower() not in ("false", "0", "no", "cancel", "")
+        return bool(val)
+    return True
+
+
+def _confirmation_failure_response(reason: str) -> JSONResponse:
+    if reason == "wrong_owner":
+        return JSONResponse(
+            {
+                "ok": False,
+                "rbac_blocked": True,
+                "error": "Bạn không có quyền xác nhận thao tác của người khác.",
+            },
+            status_code=403,
+        )
+    if reason == "expired":
+        return JSONResponse(
+            {
+                "ok": False,
+                "cancelled": True,
+                "expired": True,
+                "error": "Yêu cầu xác nhận đã hết hạn (20 giây).",
+                "reply": "Đã hủy.",
+                "exact_spoken_reply": "Đã hủy.",
+            },
+            status_code=409,
+        )
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "Mã xác nhận không hợp lệ hoặc đã được sử dụng.",
+        },
+        status_code=400,
+    )
+
+
+async def stage_or_execute_rest_confirmation(
+    *,
+    request: Request,
+    sess: Any,
+    body: dict[str, Any] | None,
+    action_kind: str,
+    payload: dict[str, Any],
+    prompt_summary: str,
+    source: str,
+    expected_payload_match: dict[str, Any] | None = None,
+) -> JSONResponse:
+    """Stage a 4-step pending confirmation or execute after validating a single-use owner token."""
+    token = _extract_confirm_token(request, body)
+    if not token:
+        staged = await prepare_pending_mutation(
+            engine=_REST_ENGINE,
+            session=sess,
+            source=source,
+            action_kind=action_kind,
+            payload=payload,
+            prompt_summary=prompt_summary,
+        )
+        return JSONResponse(staged["payload"], status_code=int(staged["status_code"]))
+
+    reason, consumed = inspect_and_consume_pending_confirmation(
+        token,
+        owner_user_id=str(sess.user_id),
+        new_status="confirmed",
+        expected_action_kind=action_kind,
+        expected_payload_match=expected_payload_match,
+    )
+    if reason != "ok" or consumed is None:
+        return _confirmation_failure_response(reason)
+
+    res = await execute_confirmed_mutation(
+        engine=_REST_ENGINE,
+        session=sess,
+        source=source,
+        action_kind=consumed["action_kind"],
+        payload=consumed["payload"],
+    )
+    if int(res["status_code"]) == 200:
+        await broadcast_rest_state_to_bridges()
+        snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+        res["payload"]["snapshot"] = snap
+    return JSONResponse(res["payload"], status_code=int(res["status_code"]))
+
+
+async def _handle_confirm_automation(
+    request: Request,
+    body: dict[str, Any],
+    *,
+    path_pending_id: str = "",
+) -> JSONResponse:
+    sess, err = _require_auth(request, body)
+    if err is not None:
+        return err
+    g_err = _deny_guest_tier3(sess, "POST /api/automation/confirm")
+    if g_err is not None:
+        return g_err
+
+    pid = str(path_pending_id or _extract_confirm_token(request, body)).strip()
+    if not pid:
+        return JSONResponse({"ok": False, "error": "Thiếu pending_id / confirm_token xác nhận."}, status_code=400)
+
+    confirmed = _parse_confirmed_flag(body)
+    new_status = "confirmed" if confirmed else "cancelled"
+    reason, row = inspect_and_consume_pending_confirmation(
+        pid,
+        owner_user_id=str(sess.user_id),
+        new_status=new_status,
+    )
+    if reason != "ok" or row is None:
+        return _confirmation_failure_response(reason)
+
+    if not confirmed:
+        await _REST_ENGINE.emit({
+            "type": "pending_confirmation_cancelled",
+            "pending_id": pid,
+            "owner_user_id": str(sess.user_id),
+        })
+        await broadcast_rest_state_to_bridges()
+        snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+        return JSONResponse(
+            {
+                "ok": False,
+                "cancelled": True,
+                "kind": "confirmation_cancelled",
+                "pending_id": pid,
+                "reply": "Đã hủy.",
+                "exact_spoken_reply": "Đã hủy.",
+                "snapshot": snap,
+            },
+            status_code=200,
+        )
+
+    res = await execute_confirmed_mutation(
+        engine=_REST_ENGINE,
+        session=sess,
+        source=f"REST ({sess.display_name})",
+        action_kind=row["action_kind"],
+        payload=row["payload"],
+    )
+    if int(res["status_code"]) == 200:
+        await broadcast_rest_state_to_bridges()
+        res["payload"]["snapshot"] = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+    return JSONResponse(res["payload"], status_code=int(res["status_code"]))
+
+
+async def _optional_json_body(request: Request) -> dict[str, Any]:
+    """Read an optional JSON dict body without rejecting empty DELETE requests."""
+    try:
+        raw = await request.body()
+        if not raw or not raw.strip():
+            return {}
+        import json as _json
+
+        parsed = _json.loads(raw.decode("utf-8"))
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _parse_hhmm_or_error(raw_hhmm: str) -> tuple[str | None, JSONResponse | None]:
+    txt = str(raw_hhmm or "").strip()
+    if ":" not in txt:
+        return None, JSONResponse({"ok": False, "error": "Giờ phải nằm trong 00:00 đến 23:59."}, status_code=400)
+    try:
+        hh, mm = [int(p) for p in txt.split(":", 1)]
+    except (TypeError, ValueError):
+        return None, JSONResponse({"ok": False, "error": "Giờ phải nằm trong 00:00 đến 23:59."}, status_code=400)
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        return None, JSONResponse({"ok": False, "error": "Giờ phải nằm trong 00:00 đến 23:59."}, status_code=400)
+    return f"{hh:02d}:{mm:02d}", None
+
+
+@router.post("/api/automation/confirm")
+async def api_confirm_automation(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    body = payload if isinstance(payload, dict) else {}
+    return await _handle_confirm_automation(request, body)
+
+
+@router.post("/api/confirmations/{pending_id}")
+async def api_confirm_automation_by_id(
+    request: Request,
+    pending_id: str,
+    payload: dict[str, Any] = Body(default={}),
+) -> JSONResponse:
+    body = payload if isinstance(payload, dict) else {}
+    return await _handle_confirm_automation(request, body, path_pending_id=pending_id)
 
 
 @router.get("/api/automation")
@@ -143,7 +360,8 @@ async def api_create_timer(request: Request, payload: dict[str, Any] = Body(defa
         seconds = 10.0
     repeat = str(body.get("repeat") or "once").strip() or "once"
 
-    fire_epoch = time.time() + (hours * 3600.0 + minutes * 60.0 + seconds)
+    total_sec = hours * 3600.0 + minutes * 60.0 + seconds
+    fire_epoch = time.time() + total_sec
     conflict_msg = check_tier1_schedule_conflict(
         actor_tier=int(sess.tier),
         fire_epoch=fire_epoch,
@@ -169,62 +387,169 @@ async def api_create_timer(request: Request, payload: dict[str, Any] = Body(defa
             status_code=409,
         )
 
-    prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
-    prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
+    sec_i = max(1, int(round(total_sec)))
+    summary = f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(device_id, action).lower()}"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="create_timer",
+        payload={
+            "device_id": device_id,
+            "action": action,
+            "hours": hours,
+            "minutes": minutes,
+            "seconds": seconds,
+            "repeat": repeat,
+        },
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+    )
+
+
+@router.patch("/api/timers/{timer_id}")
+@router.put("/api/timers/{timer_id}")
+async def api_update_timer(
+    request: Request,
+    timer_id: str,
+    payload: dict[str, Any] = Body(default={}),
+) -> JSONResponse:
+    body = payload if isinstance(payload, dict) else {}
+    sess, err = _require_auth(request, body)
+    if err is not None:
+        return err
+    if not _can_manage_timers(sess):
+        return _deny_guest_tier3(sess, "PATCH /api/timers")
+
+    existing = _REST_ENGINE.active_timers.get(timer_id) or next(
+        (r for r in list_pending_timers() if str(r.get("timer_id") or r.get("id")) == str(timer_id)),
+        None,
+    )
+    if existing is None:
+        return JSONResponse({"ok": False, "error": "Không tìm thấy hẹn giờ cần cập nhật."}, status_code=404)
+
+    eff_tier = int(sess.tier)
+    owner_id = str(existing.get("owner_user_id") or existing.get("owner_id") or "")
+    owner_tier = int(existing.get("owner_tier") or 1)
+    if eff_tier == 2 and not _REST_ENGINE.system_policies.get("tier2_can_override_tier1", False):
+        if owner_tier == 1:
+            append_audit_log("SECURITY", "timer_update_blocked", f"RBAC Chặn Cấp 2 ({sess.display_name}) sửa hẹn giờ Cấp 1 {timer_id}", user_name=sess.display_name, tier=eff_tier)
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Không thể sửa hẹn giờ của Chủ nhà (Tầng 1)."}, status_code=403)
+        if owner_id != sess.user_id:
+            append_audit_log("SECURITY", "timer_update_blocked", f"RBAC Chặn {sess.display_name} sửa hẹn giờ của {owner_id}", user_name=sess.display_name, tier=eff_tier)
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền sửa hẹn giờ của chính mình."}, status_code=403)
+
+    target_dev = str(body.get("device_id") or existing.get("raw_target") or existing.get("device_id") or "living_room_light").strip()
+    new_action = str(body.get("new_action") or body.get("action") or existing.get("action") or "turn_on").strip().lower()
+    if new_action not in ACTION_TO_STATE:
+        return JSONResponse({"ok": False, "error": f"Hành động '{new_action}' không hợp lệ."}, status_code=400)
+    target_devs = (
+        ["living_room_light", "bedroom_light"]
+        if target_dev == "all_lights"
+        else (list(DEFAULT_DEVICES.keys()) if target_dev == "all_devices" else [target_dev])
+    )
+    for td in target_devs:
+        if td not in DEFAULT_DEVICES:
+            return JSONResponse({"ok": False, "error": f"Thiết bị '{td}' không hợp lệ."}, status_code=400)
+        if not can_control_device(eff_tier, td):
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": f"Bậc {eff_tier} không có quyền điều khiển {td}."}, status_code=403)
+
     try:
-        _REST_ENGINE._current_user_id = str(sess.user_id)
-        _REST_ENGINE._current_role = str(sess.role)
-        res = await _REST_ENGINE.schedule_timer_flexible(
-            device_id=device_id,
-            action=action,
-            hours=hours,
-            minutes=minutes,
-            seconds=seconds,
-            repeat=repeat,
+        has_time_fields = any(k in body for k in ("hours", "minutes", "seconds"))
+        if has_time_fields:
+            hours = max(0.0, float(body.get("hours") or 0.0))
+            minutes = max(0.0, float(body.get("minutes") or 0.0))
+            seconds = max(0.0, float(body.get("seconds") or 0.0))
+        else:
+            hours = 0.0
+            minutes = 0.0
+            seconds = max(1.0, float(existing.get("delay_seconds") or 10.0))
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "Thời gian đếm ngược không hợp lệ."}, status_code=400)
+
+    total_sec = hours * 3600.0 + minutes * 60.0 + seconds
+    repeat = str(body.get("repeat") or existing.get("repeat_rule") or "once").strip() or "once"
+    if total_sec <= 0:
+        seconds = max(1.0, float(existing.get("delay_seconds") or 10.0))
+        total_sec = seconds
+
+    conflict_msg = check_tier1_schedule_conflict(
+        actor_tier=eff_tier,
+        fire_epoch=time.time() + total_sec,
+        schedule_type=repeat,
+        exclude_timer_id=timer_id,
+        engine=_REST_ENGINE,
+    )
+    if conflict_msg:
+        append_audit_log("SECURITY", "timer_conflict_tier1", f"RBAC Chặn Cấp 2 ({sess.display_name}) sửa hẹn giờ trùng lịch Cấp 1: {conflict_msg}", user_name=sess.display_name, tier=eff_tier)
+        return JSONResponse(
+            {"ok": False, "rbac_blocked": True, "conflict_tier1": True, "error": conflict_msg, "exact_spoken_reply": conflict_msg},
+            status_code=409,
         )
-    finally:
-        _REST_ENGINE._current_user_id = prev_uid
-        _REST_ENGINE._current_role = prev_role
 
-    if not res.get("ok"):
-        err_s = str(res.get("error", ""))
-        code = 409 if "Trùng lịch" in err_s else (403 if ("Từ chối" in err_s or res.get("rbac_blocked")) else 400)
-        return JSONResponse(res, status_code=code)
-
-    append_audit_log("AUTOMATION", "timer_created", f"Tạo hẹn giờ {res.get('timer_id')} ({device_id}:{action})", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({
-        "ok": True,
-        "timer_id": res.get("timer_id"),
-        "reply": res.get("exact_spoken_reply", ""),
-        "exact_spoken_reply": res.get("exact_spoken_reply", ""),
-        "timers": snap.get("timers", []),
-        "snapshot": snap,
-    })
+    sec_i = max(1, int(round(total_sec)))
+    summary = f"Cập nhật hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(target_dev, new_action).lower()}"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="modify_timer",
+        payload={
+            "timer_id": timer_id,
+            "device_id": target_dev,
+            "new_action": new_action,
+            "hours": hours,
+            "minutes": minutes,
+            "seconds": seconds,
+            "repeat": repeat,
+        },
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"timer_id": timer_id},
+    )
 
 
 @router.delete("/api/timers/{timer_id}")
 async def api_delete_timer(request: Request, timer_id: str) -> JSONResponse:
-    sess, err = _require_auth(request)
+    body = await _optional_json_body(request)
+    sess, err = _require_auth(request, body)
     if err is not None:
         return err
     g_err = _deny_guest_tier3(sess, "DELETE /api/timers")
     if g_err is not None:
         return g_err
-    res = await _REST_ENGINE.cancel_timer_by_id(
-        timer_id,
-        actor_user_id=sess.user_id,
-        actor_tier=int(sess.tier),
+
+    existing = _REST_ENGINE.active_timers.get(timer_id) or next(
+        (r for r in list_pending_timers() if str(r.get("timer_id") or r.get("id")) == str(timer_id)),
+        None,
     )
-    if not res.get("ok"):
-        if res.get("rbac_blocked"):
-            append_audit_log("SECURITY", "timer_delete_blocked", str(res.get("error") or ""), user_name=sess.display_name, tier=int(sess.tier))
-        code = 403 if res.get("rbac_blocked") else 404
-        return JSONResponse(res, status_code=code)
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "deleted": True, "timer_id": timer_id, "snapshot": snap})
+    if existing is None:
+        return JSONResponse({"ok": False, "error": "Không tìm thấy hẹn giờ cần hủy."}, status_code=404)
+
+    eff_tier = int(sess.tier)
+    owner_id = str(existing.get("owner_user_id") or existing.get("owner_id") or "")
+    owner_tier = int(existing.get("owner_tier") or 1)
+    if eff_tier == 2 and not _REST_ENGINE.system_policies.get("tier2_can_override_tier1", False):
+        if owner_tier == 1:
+            msg = "Không thể hủy hẹn giờ của Chủ nhà (Tầng 1)."
+            append_audit_log("SECURITY", "timer_delete_blocked", msg, user_name=sess.display_name, tier=eff_tier)
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": msg}, status_code=403)
+        if owner_id != sess.user_id:
+            msg = "Bạn chỉ được hủy hẹn giờ do chính bạn đặt."
+            append_audit_log("SECURITY", "timer_delete_blocked", msg, user_name=sess.display_name, tier=eff_tier)
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": msg}, status_code=403)
+
+    dev_name = str(existing.get("device_id") or "thiết bị")
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="delete_timer",
+        payload={"timer_id": timer_id},
+        prompt_summary=f"Hủy hẹn giờ {dev_name}",
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"timer_id": timer_id},
+    )
 
 
 # =============================================================================
@@ -265,22 +590,25 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
         msg = f"Từ chối: Bậc {sess.tier} không có quyền đặt lịch cho {device_id}."
         append_audit_log("SECURITY", "schedule_rbac_blocked", msg, user_name=sess.display_name, tier=int(sess.tier))
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": msg}, status_code=403)
+    if action not in ACTION_TO_STATE:
+        return JSONResponse({"ok": False, "error": f"Hành động '{action}' không hợp lệ."}, status_code=400)
+    hhmm_norm, hhmm_err = _parse_hhmm_or_error(time_hhmm)
+    if hhmm_err is not None or hhmm_norm is None:
+        return hhmm_err
+    st_type = "daily" if schedule_type == "daily" else "once"
 
-    try:
-        conflict_msg = check_tier1_schedule_conflict(
-            actor_tier=int(sess.tier),
-            time_hhmm=time_hhmm,
-            schedule_type=schedule_type,
-            run_date_vn=run_date_vn,
-            engine=_REST_ENGINE,
-        )
-    except Exception:
-        conflict_msg = None
+    conflict_msg = check_tier1_schedule_conflict(
+        actor_tier=int(sess.tier),
+        time_hhmm=hhmm_norm,
+        schedule_type=st_type,
+        run_date_vn=run_date_vn,
+        engine=_REST_ENGINE,
+    )
     if conflict_msg:
         append_audit_log(
             "SECURITY",
             "schedule_conflict_tier1",
-            f"RBAC Chặn Cấp 2 ({sess.display_name}) đặt lịch {time_hhmm} trùng Cấp 1: {conflict_msg}",
+            f"RBAC Chặn Cấp 2 ({sess.display_name}) đặt lịch {hhmm_norm} trùng Cấp 1: {conflict_msg}",
             user_name=sess.display_name,
             tier=int(sess.tier),
         )
@@ -295,27 +623,24 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
             status_code=409,
         )
 
-    try:
-        sc = create_schedule(
-            owner_user_id=sess.user_id,
-            owner_tier=int(sess.tier),
-            owner_name=sess.display_name,
-            device_id=device_id,
-            action=action,
-            time_hhmm=time_hhmm,
-            schedule_type=schedule_type,
-            run_date_vn=run_date_vn,
-            label=label,
-        )
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "schedule_created", f"Đặt lịch {sc['schedule_id']} ({device_id}:{action} lúc {sc['time_hhmm']})", user_name=sess.display_name, tier=int(sess.tier))
-    await _REST_ENGINE.emit({"type": "schedule_created", "schedule": sc})
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "schedule": sc, "schedules": snap.get("schedules", []), "snapshot": snap})
+    rep_txt = "hằng ngày" if st_type == "daily" else "một lần"
+    summary = f"Đặt lịch {format_device_action_vi(device_id, action).lower()} lúc {hhmm_norm} ({rep_txt})"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="create_schedule",
+        payload={
+            "target_devs": [device_id],
+            "action": action,
+            "time_hhmm": hhmm_norm,
+            "schedule_type": st_type,
+            "run_date_vn": run_date_vn,
+            "label": label,
+        },
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+    )
 
 
 @router.patch("/api/schedules/{schedule_id}")
@@ -336,24 +661,39 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền sửa lịch của chính mình."}, status_code=403)
 
     new_dev = str(body.get("device_id") or "").strip() or None
-    if new_dev is not None and not can_control_device(int(sess.tier), new_dev):
-        return JSONResponse({"ok": False, "rbac_blocked": True, "error": f"Bậc {sess.tier} không có quyền điều khiển {new_dev}."}, status_code=403)
+    if new_dev is not None:
+        if new_dev not in DEFAULT_DEVICES:
+            return JSONResponse({"ok": False, "error": f"Thiết bị '{new_dev}' không hợp lệ."}, status_code=400)
+        if not can_control_device(int(sess.tier), new_dev):
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": f"Bậc {sess.tier} không có quyền điều khiển {new_dev}."}, status_code=403)
 
+    new_action = str(body.get("action") or "").strip().lower() or None
+    if new_action is not None and new_action not in ACTION_TO_STATE:
+        return JSONResponse({"ok": False, "error": f"Hành động '{new_action}' không hợp lệ."}, status_code=400)
+
+    new_hhmm: str | None = None
+    if "time_hhmm" in body and body.get("time_hhmm") is not None:
+        new_hhmm, hhmm_err = _parse_hhmm_or_error(str(body.get("time_hhmm")))
+        if hhmm_err is not None:
+            return hhmm_err
+
+    new_type = str(body.get("schedule_type") or body.get("repeat") or "").strip().lower() or None
+    if new_type is not None:
+        new_type = "daily" if new_type == "daily" else "once"
+    new_run_date = str(body.get("run_date_vn") or "").strip() if "run_date_vn" in body else None
     new_enabled = bool(body.get("enabled")) if "enabled" in body else bool(existing.get("enabled", True))
     if new_enabled:
-        cand_hhmm = str(body.get("time_hhmm") or existing["time_hhmm"]).strip()
-        cand_type = str(body.get("schedule_type") or body.get("repeat") or existing["schedule_type"]).strip()
-        try:
-            conflict_msg = check_tier1_schedule_conflict(
-                actor_tier=int(sess.tier),
-                time_hhmm=cand_hhmm,
-                schedule_type=cand_type,
-                run_date_vn=str(existing.get("run_date_vn") or ""),
-                exclude_schedule_id=schedule_id,
-                engine=_REST_ENGINE,
-            )
-        except Exception:
-            conflict_msg = None
+        cand_hhmm = new_hhmm or existing["time_hhmm"]
+        cand_type = new_type or existing["schedule_type"]
+        cand_date = new_run_date if new_run_date is not None else str(existing.get("run_date_vn") or "")
+        conflict_msg = check_tier1_schedule_conflict(
+            actor_tier=int(sess.tier),
+            time_hhmm=cand_hhmm,
+            schedule_type=cand_type,
+            run_date_vn=cand_date,
+            exclude_schedule_id=schedule_id,
+            engine=_REST_ENGINE,
+        )
         if conflict_msg:
             append_audit_log("SECURITY", "schedule_conflict_tier1", f"RBAC Chặn Cấp 2 ({sess.display_name}) sửa lịch trùng Cấp 1", user_name=sess.display_name, tier=int(sess.tier))
             return JSONResponse(
@@ -361,29 +701,37 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
                 status_code=409,
             )
 
-    try:
-        updated = update_schedule(
-            schedule_id,
-            time_hhmm=body.get("time_hhmm"),
-            schedule_type=body.get("schedule_type") or body.get("repeat"),
-            device_id=new_dev,
-            action=body.get("action"),
-            enabled=body.get("enabled") if "enabled" in body else None,
-            label=body.get("label"),
-        )
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "schedule_updated", f"Cập nhật lịch {schedule_id}", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "schedule": updated, "schedules": snap.get("schedules", []), "snapshot": snap})
+    cand_dev = new_dev or existing["device_id"]
+    cand_act = new_action or existing["action"]
+    cand_time = new_hhmm or existing["time_hhmm"]
+    summary = f"Cập nhật lịch {format_device_action_vi(cand_dev, cand_act).lower()} lúc {cand_time}"
+    update_payload: dict[str, Any] = {
+        "schedule_id": schedule_id,
+        "time_hhmm": new_hhmm,
+        "schedule_type": new_type,
+        "device_id": new_dev,
+        "action": new_action,
+        "enabled": body.get("enabled") if "enabled" in body else None,
+        "label": body.get("label"),
+    }
+    if new_run_date is not None:
+        update_payload["run_date_vn"] = new_run_date
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="update_schedule",
+        payload=update_payload,
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"schedule_id": schedule_id},
+    )
 
 
 @router.delete("/api/schedules/{schedule_id}")
 async def api_delete_schedule(request: Request, schedule_id: str) -> JSONResponse:
-    sess, err = _require_auth(request)
+    body = await _optional_json_body(request)
+    sess, err = _require_auth(request, body)
     if err is not None:
         return err
     if not _can_manage_timers(sess):
@@ -396,12 +744,17 @@ async def api_delete_schedule(request: Request, schedule_id: str) -> JSONRespons
         append_audit_log("SECURITY", "schedule_delete_blocked", f"RBAC Chặn {sess.display_name} xóa lịch của {existing['owner_user_id']}", user_name=sess.display_name, tier=int(sess.tier))
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền xóa lịch của chính mình."}, status_code=403)
 
-    delete_schedule(schedule_id)
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "schedule_deleted", f"Xóa lịch {schedule_id}", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "deleted": True, "schedule_id": schedule_id, "snapshot": snap})
+    summary = f"Xóa lịch {format_device_action_vi(existing['device_id'], existing['action']).lower()} lúc {existing['time_hhmm']}"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="delete_schedule",
+        payload={"schedule_id": schedule_id},
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"schedule_id": schedule_id},
+    )
 
 
 # =============================================================================
@@ -442,39 +795,48 @@ async def api_create_rule(request: Request, payload: dict[str, Any] = Body(defau
     delay_sec = float(body.get("delay_seconds") or 0.0)
     label = str(body.get("label") or "").strip()
 
-    if not can_control_device(int(sess.tier), tdev):
+    if tdev in DEFAULT_DEVICES and not can_control_device(int(sess.tier), tdev):
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": f"Bậc {sess.tier} không có quyền điều khiển {tdev}."}, status_code=403)
-    if edev and not can_control_device(int(sess.tier), edev):
+    if edev and edev in DEFAULT_DEVICES and not can_control_device(int(sess.tier), edev):
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": f"Bậc {sess.tier} không có quyền điều khiển {edev}."}, status_code=403)
 
     try:
-        rule = create_automation_rule(
-            owner_user_id=sess.user_id,
-            owner_tier=int(sess.tier),
-            owner_name=sess.display_name,
+        v_wdev, v_wstate, v_tdev, v_tact, v_edev, v_eact = validate_automation_rule_input(
             when_device_id=wdev,
             when_state=wstate,
             then_device_id=tdev,
             then_action=tact,
             else_device_id=edev,
             else_action=eact,
-            delay_seconds=delay_sec,
-            label=label,
         )
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "rule_created", f"Tạo luật {rule['rule_id']} ({rule['label']})", user_name=sess.display_name, tier=int(sess.tier))
-    await _REST_ENGINE.emit({"type": "automation_rule_created", "rule": rule})
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "rule": rule, "rules": snap.get("automation_rules", []), "snapshot": snap})
+    summary = f"Tạo liên kết khi {DEFAULT_DEVICES[v_wdev]['name']} {v_wstate} thì {format_device_action_vi(v_tdev, v_tact).lower()}"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="create_automation_rule",
+        payload={
+            "when_device_id": v_wdev,
+            "when_state": v_wstate,
+            "then_device_id": v_tdev,
+            "then_action": v_tact,
+            "else_device_id": v_edev,
+            "else_action": v_eact,
+            "delay_seconds": delay_sec,
+            "label": label,
+        },
+        prompt_summary=summary,
+        source=f"REST ({sess.display_name})",
+    )
 
 
 @router.delete("/api/rules/{rule_id}")
 async def api_delete_rule(request: Request, rule_id: str) -> JSONResponse:
-    sess, err = _require_auth(request)
+    body = await _optional_json_body(request)
+    sess, err = _require_auth(request, body)
     if err is not None:
         return err
     if not _can_manage_rules(sess):
@@ -487,12 +849,16 @@ async def api_delete_rule(request: Request, rule_id: str) -> JSONResponse:
         append_audit_log("SECURITY", "rule_delete_blocked", f"RBAC Chặn {sess.display_name} xóa luật của {existing['owner_user_id']}", user_name=sess.display_name, tier=int(sess.tier))
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền xóa luật của chính mình."}, status_code=403)
 
-    delete_automation_rule(rule_id)
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "rule_deleted", f"Xóa luật {rule_id}", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "deleted": True, "rule_id": rule_id, "snapshot": snap})
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="delete_automation_rule",
+        payload={"rule_id": rule_id},
+        prompt_summary=f"Xóa luật liên kết '{existing.get('label') or rule_id}'",
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"rule_id": rule_id},
+    )
 
 
 # =============================================================================
@@ -521,32 +887,30 @@ async def api_create_scene(request: Request, payload: dict[str, Any] = Body(defa
         return _deny_guest_tier3(sess, "POST /api/scenes")
 
     phrase = str(body.get("phrase") or "").strip()
+    if not normalize_phrase(phrase):
+        return JSONResponse({"ok": False, "error": "Tên câu lệnh không được để trống."}, status_code=400)
     steps = body.get("steps")
     if not isinstance(steps, list) or not steps:
         steps_text = str(body.get("steps_text") or body.get("actions_text") or "").strip()
         steps = parse_multi_steps_from_text(steps_text)
+    clean_steps = _normalize_steps(steps if isinstance(steps, list) else [])
+    if not clean_steps:
+        return JSONResponse({"ok": False, "error": "Chưa có bước thực hiện hợp lệ nào."}, status_code=400)
 
-    allowed_steps, rbac_msg = check_steps_rbac(steps if isinstance(steps, list) else [], int(sess.tier))
+    allowed_steps, rbac_msg = check_steps_rbac(clean_steps, int(sess.tier))
     if not allowed_steps:
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": rbac_msg}, status_code=403)
 
-    try:
-        scene = upsert_custom_command(
-            phrase=phrase,
-            steps=steps,
-            owner_user_id=sess.user_id,
-            owner_tier=int(sess.tier),
-            owner_name=sess.display_name,
-        )
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "scene_created", f"Lưu ngữ cảnh '{scene['phrase']}'", user_name=sess.display_name, tier=int(sess.tier))
-    await _REST_ENGINE.emit({"type": "custom_command_created", "command": scene})
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "scene": scene, "command": scene, "scenes": snap.get("scenes", []), "snapshot": snap})
+    step_summary = ", ".join(format_device_action_vi(s["device_id"], s["action"]).lower() for s in clean_steps)
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="create_custom_command",
+        payload={"phrase": phrase, "steps": clean_steps},
+        prompt_summary=f"Tạo lệnh '{phrase}' gồm: {step_summary}",
+        source=f"REST ({sess.display_name})",
+    )
 
 
 @router.put("/api/scenes/{command_id}")
@@ -567,38 +931,37 @@ async def api_update_scene(request: Request, command_id: str, payload: dict[str,
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền sửa ngữ cảnh của chính mình."}, status_code=403)
 
     phrase = str(body.get("phrase") or existing["phrase"]).strip()
+    if not normalize_phrase(phrase):
+        return JSONResponse({"ok": False, "error": "Tên câu lệnh không được để trống."}, status_code=400)
     steps = body.get("steps")
     if not isinstance(steps, list) or not steps:
         steps_text = str(body.get("steps_text") or "").strip()
         steps = parse_multi_steps_from_text(steps_text) if steps_text else existing["steps"]
+    clean_steps = _normalize_steps(steps if isinstance(steps, list) else [])
+    if not clean_steps:
+        return JSONResponse({"ok": False, "error": "Chưa có bước thực hiện hợp lệ nào."}, status_code=400)
     enabled = bool(body.get("enabled")) if "enabled" in body else existing["enabled"]
 
-    allowed_steps, rbac_msg = check_steps_rbac(steps, int(sess.tier))
+    allowed_steps, rbac_msg = check_steps_rbac(clean_steps, int(sess.tier))
     if not allowed_steps:
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": rbac_msg}, status_code=403)
 
-    try:
-        scene = upsert_custom_command(
-            phrase=phrase,
-            steps=steps,
-            owner_user_id=existing["owner_user_id"],
-            owner_tier=int(existing["owner_tier"]),
-            enabled=enabled,
-            command_id=command_id,
-        )
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "scene_updated", f"Cập nhật ngữ cảnh '{scene['phrase']}'", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "scene": scene, "command": scene, "scenes": snap.get("scenes", []), "snapshot": snap})
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="update_custom_command",
+        payload={"command_id": command_id, "phrase": phrase, "steps": clean_steps, "enabled": enabled},
+        prompt_summary=f"Cập nhật ngữ cảnh '{phrase}'",
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"command_id": command_id},
+    )
 
 
 @router.delete("/api/scenes/{command_id}")
 async def api_delete_scene(request: Request, command_id: str) -> JSONResponse:
-    sess, err = _require_auth(request)
+    body = await _optional_json_body(request)
+    sess, err = _require_auth(request, body)
     if err is not None:
         return err
     if not _can_manage_rules(sess):
@@ -611,12 +974,16 @@ async def api_delete_scene(request: Request, command_id: str) -> JSONResponse:
         append_audit_log("SECURITY", "scene_delete_blocked", f"RBAC Chặn {sess.display_name} xóa lệnh custom của {existing['owner_user_id']}", user_name=sess.display_name, tier=int(sess.tier))
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền xóa ngữ cảnh của chính mình."}, status_code=403)
 
-    delete_custom_command(command_id)
-    _REST_ENGINE.sync_automation_pools_from_sqlite(emit_snapshot=False)
-    append_audit_log("AUTOMATION", "scene_deleted", f"Xóa ngữ cảnh '{existing['phrase']}'", user_name=sess.display_name, tier=int(sess.tier))
-    await broadcast_rest_state_to_bridges()
-    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "deleted": True, "command_id": command_id, "snapshot": snap})
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="delete_custom_command",
+        payload={"command_id": command_id},
+        prompt_summary=f"Xóa ngữ cảnh '{existing['phrase']}'",
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"command_id": command_id},
+    )
 
 
 @router.post("/api/scenes/{command_id}/run")
@@ -659,16 +1026,22 @@ async def api_set_member_link_permission(
         return JSONResponse({"ok": False, "error": "Không tìm thấy thành viên."}, status_code=404)
     allowed = bool(body.get("allowed", body.get("can_create_links", False)))
     target_m = members[user_id]
-    res = set_user_can_create_links(user_id, allowed, owner_tier=int(target_m["tier"]), display_name=str(target_m["full_name"]))
-    append_audit_log(
-        "SECURITY",
-        "member_link_permission_updated",
-        f"Chủ nhà cập nhật quyền tạo liên kết cho {target_m['full_name']} ({user_id}): {allowed}",
-        user_name=sess.display_name,
-        tier=1,
+    verb = "Cấp quyền tạo liên kết cho" if allowed else "Thu hồi quyền tạo liên kết của"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="set_member_link_permission",
+        payload={
+            "target_user_id": user_id,
+            "target_name": str(target_m["full_name"]),
+            "target_tier": int(target_m["tier"]),
+            "allowed": allowed,
+        },
+        prompt_summary=f"{verb} {target_m['full_name']}",
+        source=f"REST ({sess.display_name})",
+        expected_payload_match={"target_user_id": user_id},
     )
-    await broadcast_rest_state_to_bridges()
-    return JSONResponse({"ok": True, **res})
 
 
 async def run_scheduler_tick_once(now_override: Any = None) -> int:

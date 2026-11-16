@@ -269,7 +269,7 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
     assert r_text_sched.json().get("rbac_blocked") is True
     assert len(eng.active_timers) == timers_before
 
-    # Chủ nhà Cấp 1 tạo lịch bình thường
+    # Chủ nhà Cấp 1 tạo lịch theo luồng xác nhận 4 bước
     eng.set_active_user("tuan_anh")
     r_owner_sched = client.post(
         "/api/mobile/schedule",
@@ -277,7 +277,18 @@ def test_fix5_tier3_guest_blocked_from_creating_mobile_schedule(client: TestClie
         headers=_OWNER_HDR,
     )
     assert r_owner_sched.status_code == 200
-    assert r_owner_sched.json().get("ok") is True
+    d_stage = r_owner_sched.json()
+    assert d_stage.get("ok") is True
+    assert d_stage.get("requires_confirmation") is True
+    assert len(eng.active_timers) == timers_before
+
+    r_confirm = client.post(
+        "/api/automation/confirm",
+        json={"pending_id": d_stage["pending_id"], "confirmed": True},
+        headers=_OWNER_HDR,
+    )
+    assert r_confirm.status_code == 200
+    assert r_confirm.json().get("ok") is True
     assert len(eng.active_timers) == timers_before + 1
 
 

@@ -510,33 +510,27 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
             status_code=409,
         )
 
-    prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
-    prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
-    try:
-        _REST_ENGINE._current_user_id = str(session.user_id)
-        _REST_ENGINE._current_role = str(session.role)
-        res = await _REST_ENGINE.schedule_timer_flexible(
-            device_id=dev_id,
-            action=act,
-            seconds=sec,
-        )
-    finally:
-        _REST_ENGINE._current_user_id = prev_uid
-        _REST_ENGINE._current_role = prev_role
-    if not res.get("ok"):
-        err_s = str(res.get("error", ""))
-        code = 409 if "Trùng lịch" in err_s else (403 if res.get("rbac_blocked") else 400)
-        return JSONResponse(res, status_code=code)
-    append_audit_log(
-        category="TIMER_RULE",
-        event_type="mobile_schedule_created",
-        summary=f"[App Android] {user_name} đặt hẹn giờ {int(sec)}s: {dev_id} -> {act}",
-        user_name=user_name,
-        tier=effective_tier,
-        details={"device_id": dev_id, "action": act, "seconds": sec, "result": res},
+    from simulator.api.routes_automation import stage_or_execute_rest_confirmation
+    from simulator.automation_repo import format_device_action_vi
+
+    sec_i = max(1, int(round(sec)))
+    summary = f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}"
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=session,
+        body=body,
+        action_kind="create_timer",
+        payload={
+            "device_id": dev_id,
+            "action": act,
+            "hours": 0.0,
+            "minutes": 0.0,
+            "seconds": sec,
+            "repeat": "once",
+        },
+        prompt_summary=summary,
+        source="App Android",
     )
-    await broadcast_rest_state_to_bridges()
-    return JSONResponse(res)
 
 
 @router.post("/api/ir_learn")
@@ -918,46 +912,63 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         hours = float(m_hr.group(1)) if m_hr else 0.0
         if seconds <= 0 and minutes <= 0 and hours <= 0:
             seconds = 10.0
-        prev_uid = getattr(_REST_ENGINE, "_current_user_id", "tuan_anh")
-        prev_role = getattr(_REST_ENGINE, "_current_role", "ADMIN")
-        try:
-            _REST_ENGINE._current_user_id = str(session.user_id)
-            _REST_ENGINE._current_role = str(session.role)
-            res_timer = await _REST_ENGINE.schedule_timer_flexible(
-                device_id=dev_id,
-                action=act,
-                seconds=seconds,
-                minutes=minutes,
-                hours=hours,
+        from simulator.automation_nlu import prepare_pending_mutation
+        from simulator.automation_repo import check_tier1_schedule_conflict, format_device_action_vi
+
+        total_sec = hours * 3600.0 + minutes * 60.0 + seconds
+        conflict_msg = check_tier1_schedule_conflict(
+            actor_tier=effective_tier,
+            fire_epoch=time.time() + total_sec,
+            engine=_REST_ENGINE,
+        )
+        if conflict_msg:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "rbac_blocked": True,
+                    "conflict_tier1": True,
+                    "error": conflict_msg,
+                    "reply": conflict_msg,
+                    "exact_spoken_reply": conflict_msg,
+                },
+                status_code=409,
             )
-        finally:
-            _REST_ENGINE._current_user_id = prev_uid
-            _REST_ENGINE._current_role = prev_role
+        sec_i = max(1, int(round(total_sec)))
+        staged = await prepare_pending_mutation(
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            action_kind="create_timer",
+            payload={
+                "device_id": dev_id,
+                "action": act,
+                "hours": hours,
+                "minutes": minutes,
+                "seconds": seconds,
+                "repeat": "once",
+            },
+            prompt_summary=f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}",
+        )
         await broadcast_rest_state_to_bridges()
-        spoken_timer = res_timer.get("exact_spoken_reply") or res_timer.get("message") or res_timer.get("error") or f"Đã đặt hẹn giờ cho {dev_id}."
-        code_t = 409 if "Trùng lịch" in str(res_timer.get("error", "")) else (403 if res_timer.get("rbac_blocked") else (200 if res_timer.get("ok", True) else 400))
-        return JSONResponse({
-            "ok": bool(res_timer.get("ok", True)),
-            "rbac_blocked": bool(res_timer.get("rbac_blocked", False)),
-            "reply": spoken_timer,
-            "exact_spoken_reply": spoken_timer,
-            "timer": res_timer,
-        }, status_code=code_t)
+        return JSONResponse(staged["payload"], status_code=int(staged.get("status_code") or 200))
 
     tn_cmd = strip_vietnamese_diacritics(t_low)
     if any(k in tn_cmd for k in ("reset he thong", "khoi phuc cai dat goc", "factory reset")):
         error = _owner_error(request, body)
         if error is not None:
             return error
-        res_rst = await _REST_ENGINE.manual_factory_reset()
+        from simulator.automation_nlu import prepare_pending_mutation
+
+        staged_rst = await prepare_pending_mutation(
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            action_kind="factory_reset",
+            payload={"confirmed_via": "text_command"},
+            prompt_summary="Khôi phục cài đặt gốc toàn hệ thống",
+        )
         await broadcast_rest_state_to_bridges()
-        spoken_rst = res_rst.get("exact_spoken_reply") or "Đã khôi phục cài đặt gốc toàn hệ thống."
-        return JSONResponse({
-            "ok": True,
-            "reply": spoken_rst,
-            "exact_spoken_reply": spoken_rst,
-            "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
-        })
+        return JSONResponse(staged_rst["payload"], status_code=int(staged_rst.get("status_code") or 200))
 
     # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (kể cả word_mappings)
     targets = _parse_text_device_targets(t_low)
