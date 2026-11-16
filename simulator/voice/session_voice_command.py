@@ -14,7 +14,10 @@ from simulator.live.tts_rejection_vi import (
     build_aoede_http_audio_fields,
     synthesize_aoede_phrase_audio,
 )
-from simulator.voice.enrollment_quality import parse_vietnamese_voice_command_intents
+from simulator.voice.enrollment_quality import (
+    parse_vietnamese_voice_command_intents,
+    strip_vietnamese_diacritics,
+)
 
 LOG = logging.getLogger("simulator.voice.session_command")
 
@@ -187,13 +190,15 @@ def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
             return ""
         matched_sig, _score = match_signature_from_catalog(pcm16, decoded_raw)
         if matched_sig is not None:
-            text = str(
-                matched_sig.get("recognized_text")
-                or matched_sig.get("canonical_command")
-                or ""
-            ).strip()
-            if text:
-                return text
+            rec = str(matched_sig.get("recognized_text") or "").strip()
+            canon = str(matched_sig.get("canonical_command") or "").strip()
+            is_greeting = "xin chao" in strip_vietnamese_diacritics(rec.lower())
+            if rec and (is_greeting or parse_vietnamese_voice_command_intents(rec)):
+                return rec
+            if canon:
+                return canon
+            if rec:
+                return rec
     except Exception as exc:
         LOG.debug("offline wav transcript lookup skipped: %s", exc)
     return ""

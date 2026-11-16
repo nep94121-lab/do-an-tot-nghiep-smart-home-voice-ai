@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import glob
+import hashlib
 import io
 import json
 import pathlib
@@ -19,33 +20,21 @@ from typing import Any
 
 import numpy as np
 
-from simulator.voice.dsp_features import (
-    cosine_sim,
-    denoise_and_isolate_human_voice,
-    extract_stage2_deep_features,
-    extract_voice_features,
-)
 from simulator.voice.enrollment_quality import (
     parse_vietnamese_voice_command_intents,
     strip_vietnamese_diacritics,
-    validate_voice_enrollment_quality,
 )
 from simulator.voice.wespeaker_onnx import (
     _is_encoded_container_bytes,
-    compute_wespeaker_cosine,
     evaluate_audio_quality_gate,
-    evaluate_cohort_margin,
     extract_wespeaker_embedding,
+    is_pure_synthetic_tone,
     pcm_bytes_to_float32_16k,
 )
 from simulator.voice_config import (
     OWNER_ID,
     ROLE_MAP,
-    THRESHOLD_WESPEAKER_TIER1,
-    THRESHOLD_WESPEAKER_TIER2,
-    THRESHOLD_WESPEAKER_TIER3,
     USER_ROLE_MAP,
-    get_tier_wespeaker_threshold,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -56,6 +45,51 @@ FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện l
 FIXED_SAFE_DENY_REPEAT_PHRASE_VI = "Âm thanh chưa rõ, vui lòng nói lại."
 
 _CACHED_SIGNATURES_DATA: dict[str, Any] | None = None
+_CACHED_CATALOG_PCM: list[tuple[dict[str, Any], np.ndarray]] | None = None
+
+
+def _resolve_catalog_wav_path(filename: str) -> pathlib.Path | None:
+    fname = str(filename or "").strip()
+    if not fname:
+        return None
+    for sub in ("role_commands", "cac_cau_lenh_cua_sep", "lich_su_thu_am", "."):
+        cand = ROOT / "test_audio" / sub / fname if sub != "." else ROOT / "test_audio" / fname
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _get_catalog_pcm_entries() -> list[tuple[dict[str, Any], np.ndarray]]:
+    global _CACHED_CATALOG_PCM
+    if _CACHED_CATALOG_PCM is not None:
+        return _CACHED_CATALOG_PCM
+    catalog = load_real_voices_signatures().get("signatures", [])
+    entries: list[tuple[dict[str, Any], np.ndarray]] = []
+    for sig in catalog:
+        wav_path = _resolve_catalog_wav_path(str(sig.get("filename") or ""))
+        if wav_path is None:
+            continue
+        try:
+            pcm_ref, _ = decode_audio_bytes_to_pcm16k(wav_path.read_bytes())
+        except Exception:
+            continue
+        if pcm_ref.size >= 1600:
+            entries.append((sig, pcm_ref.astype(np.float32)))
+    _CACHED_CATALOG_PCM = entries
+    return entries
+
+
+def _normalized_waveform_corr(pcm_a: np.ndarray, pcm_b: np.ndarray) -> float:
+    n = min(pcm_a.size, pcm_b.size)
+    if n < 1600:
+        return 0.0
+    a = pcm_a[:n]
+    b = pcm_b[:n]
+    na = float(np.linalg.norm(a))
+    nb = float(np.linalg.norm(b))
+    if na < 1e-3 or nb < 1e-3:
+        return 0.0
+    return float(np.dot(a, b) / (na * nb))
 
 
 def load_real_voices_signatures() -> dict[str, Any]:
@@ -131,85 +165,36 @@ def match_signature_from_catalog(
     cur_wespk: np.ndarray | None = None,
     verified_tier: int | None = None,
 ) -> tuple[dict[str, Any] | None, float]:
-    """Tra cuu mau khau lenh STT offline trong real_voices_signatures.json bang WeSpeaker ResNet34 ONNX."""
+    """Speaker-independent catalog matcher using cryptographic hashes and waveform correlation (zero WeSpeaker)."""
+    del cur_wespk, verified_tier
     catalog = load_real_voices_signatures().get("signatures", [])
     if not catalog or pcm16.size == 0:
         return None, 0.0
 
-    emb = (
-        cur_wespk
-        if cur_wespk is not None
-        else extract_wespeaker_embedding(pcm16, sr=16000, apply_vad=True)
-    )
+    # Reject pure synthetic sine tones immediately without biometric checks
+    if is_pure_synthetic_tone(pcm16.astype(np.float32) / 32768.0, sr=16000):
+        return None, 0.0
 
-    # 1. Phat hien luong mic lap chu ky (Chromium fake-audio-capture loop period L)
-    if pcm16.size >= 18000:
-        best_loop_corr = -1.0
-        best_loop_sig: dict[str, Any] | None = None
-        for sig in catalog:
-            if verified_tier is not None and int(sig.get("tier", 0)) != int(verified_tier):
-                continue
-            L = int(round(float(sig.get("duration_sec") or 0.0) * 16000))
-            if L < 8000 or pcm16.size < L + 3200:
-                continue
-            m = min(pcm16.size - L - 24, L)
-            if m <= 1600:
-                continue
-            a = pcm16[:m].astype(np.float32)
-            na = float(np.linalg.norm(a))
-            if na < 1e-3:
-                continue
-            sig_best_corr = -1.0
-            for dL in range(-16, 17, 1):
-                L2 = L + dL
-                if L2 <= 0 or L2 + m > pcm16.size:
-                    continue
-                b = pcm16[L2 : L2 + m].astype(np.float32)
-                nb = float(np.linalg.norm(b))
-                if nb < 1e-3:
-                    continue
-                corr = float(np.dot(a, b) / (na * nb))
-                if corr > sig_best_corr:
-                    sig_best_corr = corr
-
-            sig_wespk = sig.get("wespeaker_embedding") or sig.get("embedding_256d")
-            w_cos = compute_wespeaker_cosine(emb, sig_wespk) if sig_wespk else 0.0
-            t_thresh = get_tier_wespeaker_threshold(int(sig.get("tier", 1)))
-            if sig_best_corr >= 0.88 and w_cos >= t_thresh:
-                score = 0.5 * sig_best_corr + 0.5 * w_cos
-                if score > best_loop_corr:
-                    best_loop_corr = score
-                    best_loop_sig = sig
-        if best_loop_sig is not None:
-            return best_loop_sig, round(float(best_loop_corr), 4)
-
-    # 2. Doi sanh WeSpeaker ResNet34 ONNX cosine + thoi luong de xac dinh cau lenh STT offline
-    dur_in = pcm16.size / 16000.0
-    best_sig: dict[str, Any] | None = None
-    best_cos = -1.0
-    best_combined = -1.0
-
+    raw_sha = hashlib.sha256(raw_bytes).hexdigest() if raw_bytes else ""
+    pcm_sha = hashlib.sha256(pcm16.tobytes()).hexdigest()
     for sig in catalog:
-        if verified_tier is not None and int(sig.get("tier", 0)) != int(verified_tier):
-            continue
-        sig_wespk = sig.get("wespeaker_embedding") or sig.get("embedding_256d")
-        if not sig_wespk or len(sig_wespk) != 256:
-            continue
-        w_cos = compute_wespeaker_cosine(emb, sig_wespk)
-        t_thresh = get_tier_wespeaker_threshold(int(sig.get("tier", 1)))
-        if w_cos < t_thresh:
-            continue
-        dur_ref = float(sig.get("duration_sec") or 0.0)
-        dur_pen = min(0.15, abs(dur_in - dur_ref) * 0.05) if dur_ref > 0 else 0.0
-        comb = w_cos - dur_pen
-        if comb > best_combined:
-            best_combined = comb
-            best_cos = w_cos
-            best_sig = sig
+        wav_sha = str(sig.get("wav_sha256") or "")
+        sig_pcm_sha = str(sig.get("pcm_sha256") or "")
+        if (raw_sha and wav_sha == raw_sha) or (sig_pcm_sha and sig_pcm_sha == pcm_sha):
+            return sig, 1.0
 
+    # Waveform cross-correlation fallback for looped/re-encoded captures (no speaker/tier filtering)
+    pcm_f = pcm16.astype(np.float32)
+    best_sig: dict[str, Any] | None = None
+    best_corr = 0.0
+    for sig, ref_f in _get_catalog_pcm_entries():
+        corr = _normalized_waveform_corr(pcm_f, ref_f)
+        if corr >= 0.90 and corr > best_corr:
+            best_corr = corr
+            best_sig = sig
     if best_sig is not None:
-        return best_sig, round(float(best_cos), 4)
-    return None, round(float(max(0.0, best_cos)), 4)
+        return best_sig, round(float(best_corr), 4)
+    return None, 0.0
 
 
 def format_intent_label(intents: list[dict[str, str]]) -> str:
@@ -320,7 +305,7 @@ async def process_voice_command_pipeline(
             "f0_hz": round(float(q_gate.get("f0_hz", 0.0)), 1),
             "similarity": 0.0,
             "wespeaker_cosine": 0.0,
-            "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
+            "threshold_wespeaker": 0.0,
             "latency_ms": latency_ms,
             "snapshot": (
                 engine.get_public_device_snapshot()
@@ -329,124 +314,35 @@ async def process_voice_command_pipeline(
             ),
         }
 
-    # 2. QUYẾT ĐỊNH DANH TÍNH BẰNG WESPEAKER RESNET34 ONNX (5-Sample Mean Centroids)
-    cur_wespk = extract_wespeaker_embedding(pcm16, sr=16000, apply_vad=True)
+    # 2. Quyen kiem soat lay 100% tu session tier (bo hoan toan WeSpeaker/speaker verification)
+    del voice_auth
     f0_hz = float(q_gate.get("f0_hz") or 135.0)
+    authorized = session_tier in (1, 2, 3)
+    tier = int(session_tier) if authorized and session_tier is not None else 99
+    level = tier if authorized else 0
+    speaker_id = f"session_tier_{tier}" if authorized else "unauthenticated"
+    user_id = str(session_user or USER_ROLE_MAP.get(tier, "UNKNOWN")) if authorized else "UNKNOWN"
+    role = str(session_role or ROLE_MAP.get(tier, "UNKNOWN")) if authorized else "UNKNOWN"
+    speaker_name = user_id if authorized else "Người lạ (Không được phép)"
+    best_thresh = 0.0
 
-    # Tap hop cac ho so 5-sample centroid cua Level 1, Level 2, Level 3
-    sig_data = load_real_voices_signatures()
-    precomputed_centroids = sig_data.get("tier_5sample_centroids") or {}
-
-    candidate_profiles: list[dict[str, Any]] = []
-    if hasattr(voice_auth, "profiles") and isinstance(voice_auth.profiles, dict):
-        for p in voice_auth.profiles.values():
-            if p.get("authorized"):
-                candidate_profiles.append(p)
-    if hasattr(voice_auth, "default_subtier_profiles") and isinstance(
-        voice_auth.default_subtier_profiles, dict
-    ):
-        existing_tiers = {int(p.get("tier", 0)) for p in candidate_profiles}
-        for dp in voice_auth.default_subtier_profiles.values():
-            if int(dp.get("tier", 0)) not in existing_tiers:
-                candidate_profiles.append(dp)
-
-    # Bo sung centroid tu real_voices_signatures.json neu chua co trong candidate_profiles
-    present_tiers = {int(p.get("tier", 0)) for p in candidate_profiles}
-    for t_int, t_sid, t_uid, t_name, t_role in (
-        (1, "owner_voice_1", OWNER_ID, "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)", ROLE_MAP.get(1, "ADMIN")),
-        (2, "user_voice_thanh_vien_a", USER_ROLE_MAP.get(2, "thanh_vien_a"), "Thành viên A (Cấp 2)", ROLE_MAP.get(2, "MEMBER")),
-        (3, "user_voice_khach_c", USER_ROLE_MAP.get(3, "khach_c"), "Khách C (Cấp 3)", ROLE_MAP.get(3, "CHILD_GUEST")),
-    ):
-        if t_int not in present_tiers and precomputed_centroids.get(str(t_int)):
-            candidate_profiles.append(
-                {
-                    "id": t_sid,
-                    "user_id": t_uid,
-                    "name": t_name,
-                    "role": t_role,
-                    "tier": t_int,
-                    "authorized": True,
-                    "threshold_wespeaker": get_tier_wespeaker_threshold(t_int),
-                    "wespeaker_embedding": precomputed_centroids[str(t_int)],
-                }
-            )
-
-    best_prof: dict[str, Any] | None = None
-    best_cos: float = -1.0
-    best_thresh: float = THRESHOLD_WESPEAKER_TIER1
-    highest_raw_cos: float = 0.0
-
-    for prof in candidate_profiles:
-        p_tier = int(prof.get("tier", 1))
-        p_thresh = float(
-            prof.get("threshold_wespeaker") or get_tier_wespeaker_threshold(p_tier)
-        )
-        p_emb = prof.get("wespeaker_embedding") or prof.get("embedding_256d")
-        if not p_emb or len(p_emb) != 256:
-            continue
-        cos_val = compute_wespeaker_cosine(cur_wespk, p_emb)
-        if prof.get("baseline_wespeaker_embedding"):
-            cos_val = max(
-                cos_val,
-                compute_wespeaker_cosine(
-                    cur_wespk, prof["baseline_wespeaker_embedding"]
-                ),
-            )
-        if prof.get("single_clip_wespeaker_embedding"):
-            cos_val = max(
-                cos_val,
-                compute_wespeaker_cosine(
-                    cur_wespk, prof["single_clip_wespeaker_embedding"]
-                ),
-            )
-        if cos_val > highest_raw_cos:
-            highest_raw_cos = cos_val
-        if cos_val >= p_thresh and cos_val > best_cos:
-            if p_tier == 1:
-                _, _, cohort_pass = evaluate_cohort_margin(cur_wespk, p_emb)
-                if not cohort_pass:
-                    continue
-            best_cos = cos_val
-            best_prof = prof
-            best_thresh = p_thresh
-
-    authorized = best_prof is not None
-    level = 0
-    tier = 99
-    speaker_id = "intruder_voice_2"
-    user_id = "UNKNOWN"
-    speaker_name = "Người lạ (Không được phép)"
-    role = "UNKNOWN"
-    similarity = round(float(best_cos if authorized else highest_raw_cos), 4)
-
-    if authorized and best_prof is not None:
-        tier = int(best_prof.get("tier", 1))
-        level = tier
-        speaker_id = str(best_prof.get("id", "owner_voice_1"))
-        user_id = str(best_prof.get("user_id", USER_ROLE_MAP.get(tier, OWNER_ID)))
-        speaker_name = str(
-            best_prof.get("name", "Chủ nhà Nguyễn Tuấn Anh (Cấp 1)")
-        )
-        role = str(best_prof.get("role", ROLE_MAP.get(tier, "ADMIN")))
-        if hasattr(voice_auth, "reset_strikes"):
-            voice_auth.reset_strikes()
-
-    # 3. Giai quyet STT (Speech-to-Text) cho mau WAV offline neu khong co explicit_transcript
-    matched_sig, _ = match_signature_from_catalog(
-        pcm16,
-        decoded_raw,
-        cur_wespk=cur_wespk,
-        verified_tier=(tier if authorized else None),
-    )
+    # 3. Giai quyet STT (Speech-to-Text) doc lap nguoi noi cho mau WAV offline
+    matched_sig, match_score = match_signature_from_catalog(pcm16, decoded_raw)
+    similarity = round(float(match_score), 4)
     recognized_text = explicit_transcript
     canonical_command = ""
     if matched_sig is not None:
         canonical_command = str(matched_sig.get("canonical_command") or "")
         if not recognized_text:
-            recognized_text = str(
-                matched_sig.get("recognized_text") or canonical_command
-            )
-    if not recognized_text:
+            rec_cand = str(matched_sig.get("recognized_text") or "").strip()
+            is_greet = "xin chao" in strip_vietnamese_diacritics(rec_cand.lower())
+            if rec_cand and (is_greet or parse_vietnamese_voice_command_intents(rec_cand)):
+                recognized_text = rec_cand
+            elif canonical_command:
+                recognized_text = canonical_command
+            else:
+                recognized_text = rec_cand
+    if not recognized_text and authorized and not is_pure_synthetic_tone(pcm16.astype(np.float32) / 32768.0, sr=16000):
         recognized_text = infer_command_from_acoustic_envelope(pcm16)
     if not canonical_command:
         canonical_command = recognized_text
@@ -498,7 +394,7 @@ async def process_voice_command_pipeline(
             "f0_hz": round(f0_hz, 1),
             "similarity": round(similarity, 4),
             "wespeaker_cosine": round(similarity, 4),
-            "threshold_wespeaker": THRESHOLD_WESPEAKER_TIER1,
+            "threshold_wespeaker": 0.0,
             "latency_ms": latency_ms,
             "snapshot": (
                 engine.get_public_device_snapshot()

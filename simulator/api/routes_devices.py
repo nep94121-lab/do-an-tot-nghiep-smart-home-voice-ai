@@ -39,7 +39,6 @@ from simulator.auth.session_store import get_session_store, resolve_request_sess
 from simulator.live.tts_rejection_vi import get_rejection_speech_text
 from simulator.rule_engine import append_audit_log
 from simulator.voice.enrollment_quality import strip_vietnamese_diacritics
-from simulator.voice.stt_pipeline import process_voice_command_pipeline
 from simulator.voice_config import (
     OWNER_EMAIL,
     OWNER_ID,

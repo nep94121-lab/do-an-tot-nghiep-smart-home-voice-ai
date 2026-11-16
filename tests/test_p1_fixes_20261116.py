@@ -743,4 +743,63 @@ class TestF05LosslessMigrationAndFailLoudly:
             conn_dup.close()
 
 
+class TestF06HttpAudioNoWeSpeaker:
+    """F06: HTTP audio endpoints never call WeSpeaker/speaker verification and derive auth strictly from session tier."""
+
+    def test_http_voice_command_zero_wespeaker_and_session_tier_rbac(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import array
+        import base64
+        import math
+        from simulator.voice import stt_pipeline as stt
+
+        called = {"n": 0}
+
+        def _forbid_wespeaker(*args: Any, **kwargs: Any) -> Any:
+            called["n"] += 1
+            raise AssertionError("extract_wespeaker_embedding must not be called on HTTP audio paths")
+
+        monkeypatch.setattr(stt, "extract_wespeaker_embedding", _forbid_wespeaker)
+
+        root_dir = pathlib.Path(__file__).resolve().parent.parent
+        cau2 = (root_dir / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav").read_bytes()
+        cau3 = (root_dir / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_3_dong_cua_chinh.wav").read_bytes()
+        cau4 = (root_dir / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav").read_bytes()
+
+        # Pure catalog matching with mismatching verified_tier=3 must ignore tier filtering & WeSpeaker
+        pcm_c4, raw_c4 = stt.decode_audio_bytes_to_pcm16k(cau4)
+        matched_sig, score = stt.match_signature_from_catalog(pcm_c4, raw_c4, verified_tier=3)
+        assert matched_sig is not None and score == 1.0
+        assert called["n"] == 0
+
+        with TestClient(app) as client:
+            # 1. Synthetic tone PCM16k -> 200 silent empty_transcript, zero WeSpeaker calls
+            pcm_sine = array.array("h", (int(5000 * math.sin(2 * math.pi * 175 * i / 16000)) for i in range(32000))).tobytes()
+            r_sine = client.post("/api/voice_command", headers=H_TIER1, json={"pcm16k_b64": base64.b64encode(pcm_sine).decode()})
+            assert r_sine.status_code == 200
+            d_sine = r_sine.json()
+            assert d_sine.get("silent") is True and d_sine.get("reason") == "empty_transcript"
+            assert called["n"] == 0
+
+            # 2. Owner's WAV ("bật đèn phòng khách") sent with Tier 3 guest session -> allowed for living_room_light
+            r_g_light = client.post("/api/voice_command", headers=H_TIER3, json={"wav_b64": base64.b64encode(cau4).decode()})
+            assert r_g_light.status_code == 200
+            assert r_g_light.json().get("authorized") is True and r_g_light.json().get("permission") == "ALLOWED"
+            assert _REST_ENGINE.devices["living_room_light"]["state"] == "ON"
+
+            # 3. Owner's WAV ("mở cửa chính") sent with Tier 3 guest session -> denied 403 by session RBAC
+            r_g_door = client.post("/api/voice_command", headers=H_TIER3, json={"wav_b64": base64.b64encode(cau2).decode()})
+            assert r_g_door.status_code == 403
+            assert r_g_door.json().get("rbac_blocked") is True
+            assert _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
+
+            # 4. Owner's WAV ("mở cửa chính" / "đóng cửa chính") sent with Tier 1 owner session -> allowed 200
+            r_o_open = client.post("/api/voice_command", headers=H_TIER1, json={"wav_b64": base64.b64encode(cau2).decode()})
+            assert r_o_open.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "OPEN"
+            r_o_close = client.post("/api/voice_command", headers=H_TIER1, json={"wav_b64": base64.b64encode(cau3).decode()})
+            assert r_o_close.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
+            client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_off"})
+            assert called["n"] == 0
+
+
+
 
