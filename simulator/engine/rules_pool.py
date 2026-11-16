@@ -524,11 +524,12 @@ class EngineRulesMixin:
             self.pending_rule = {
                 "rule_type": "word_mapping",
                 "user_id": self._current_user_id,
+                "owner_user_id": self._current_user_id,
                 "word": w,
                 "meaning": m,
                 "summary_vi": f"Đổi từ '{w}' -> {m}",
             }
-            await self.emit({"type": "rule_confirmation_requested", "message": ask_msg, "pending_rule": self.pending_rule})
+            await self.emit({"type": "rule_confirmation_requested", "owner_user_id": self._current_user_id, "message": ask_msg, "pending_rule": self.pending_rule})
             await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
             return {
                 "ok": True,
@@ -542,7 +543,7 @@ class EngineRulesMixin:
         pool = self._get_user_pool(self._current_user_id)
         pool["word_mappings"][w] = m
         self._save_overlay()
-        await self.emit({"type": "rule_created", "rule_type": "word_mapping", "user_id": self._current_user_id, "word": w, "meaning": m})
+        await self.emit({"type": "rule_created", "rule_type": "word_mapping", "owner_user_id": self._current_user_id, "user_id": self._current_user_id, "word": w, "meaning": m})
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
@@ -593,11 +594,12 @@ class EngineRulesMixin:
             self.pending_rule = {
                 "rule_type": "alias",
                 "user_id": self._current_user_id,
+                "owner_user_id": self._current_user_id,
                 "phrase": phrase_clean,
                 "steps": steps,
                 "summary_vi": f"Đổi lệnh '{phrase_clean}' -> {step_vi}",
             }
-            await self.emit({"type": "rule_confirmation_requested", "message": ask_msg, "pending_rule": self.pending_rule})
+            await self.emit({"type": "rule_confirmation_requested", "owner_user_id": self._current_user_id, "message": ask_msg, "pending_rule": self.pending_rule})
             await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
             return {
                 "ok": True,
@@ -614,6 +616,7 @@ class EngineRulesMixin:
         await self.emit({
             "type": "rule_created",
             "rule_type": "alias",
+            "owner_user_id": self._current_user_id,
             "user_id": self._current_user_id,
             "phrase": phrase_clean,
             "steps": steps,
@@ -1024,11 +1027,12 @@ class EngineRulesMixin:
             self.pending_rule = {
                 "rule_type": "if_else",
                 "user_id": self._current_user_id,
+                "owner_user_id": self._current_user_id,
                 "rule": new_rule,
                 "candidate_list": candidate,
                 "summary_vi": f"Nếu {when_verb} {when_n} -> {then_verb} {then_n}{else_vi}",
             }
-            await self.emit({"type": "rule_confirmation_requested", "message": ask_msg, "pending_rule": self.pending_rule})
+            await self.emit({"type": "rule_confirmation_requested", "owner_user_id": self._current_user_id, "message": ask_msg, "pending_rule": self.pending_rule})
             await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
             return {
                 "ok": True,
@@ -1042,7 +1046,7 @@ class EngineRulesMixin:
         pool = self._get_user_pool(self._current_user_id)
         pool["if_else_rules"] = candidate
         self._save_overlay()
-        await self.emit({"type": "rule_created", "rule_type": "if_else", "user_id": self._current_user_id, "rule": new_rule})
+        await self.emit({"type": "rule_created", "rule_type": "if_else", "owner_user_id": self._current_user_id, "user_id": self._current_user_id, "rule": new_rule})
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
 
         else_desc = (
@@ -1084,15 +1088,15 @@ class EngineRulesMixin:
             if rtype == "word_mapping":
                 pool["word_mappings"][pr["word"]] = pr["meaning"]
                 self._save_overlay()
-                await self.emit({"type": "rule_created", "rule_type": "word_mapping", "user_id": target_uid, "word": pr["word"], "meaning": pr["meaning"]})
+                await self.emit({"type": "rule_created", "rule_type": "word_mapping", "owner_user_id": target_uid, "user_id": target_uid, "word": pr["word"], "meaning": pr["meaning"]})
             elif rtype == "alias":
                 pool["aliases"][pr["phrase"]] = pr["steps"]
                 self._save_overlay()
-                await self.emit({"type": "rule_created", "rule_type": "alias", "user_id": target_uid, "phrase": pr["phrase"], "steps": pr["steps"]})
+                await self.emit({"type": "rule_created", "rule_type": "alias", "owner_user_id": target_uid, "user_id": target_uid, "phrase": pr["phrase"], "steps": pr["steps"]})
             elif rtype == "if_else":
                 pool["if_else_rules"] = pr["candidate_list"]
                 self._save_overlay()
-                await self.emit({"type": "rule_created", "rule_type": "if_else", "user_id": target_uid, "rule": pr["rule"]})
+                await self.emit({"type": "rule_created", "rule_type": "if_else", "owner_user_id": target_uid, "user_id": target_uid, "rule": pr["rule"]})
 
             await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
             return {
@@ -1150,6 +1154,7 @@ class EngineRulesMixin:
         await self.emit({
             "type": "reset_confirmation_requested",
             "scope": norm_scope,
+            "owner_user_id": self._current_user_id,
             "user_id": self._current_user_id,
             "tier": self.current_tier,
             "message": f"Đang chờ xác nhận Reset ({norm_scope}): {ask_q}",
@@ -1240,6 +1245,7 @@ class EngineRulesMixin:
             await self.emit({
                 "type": "factory_reset_completed",
                 "scope": norm_scope,
+                "owner_user_id": uid,
                 "user_id": uid,
                 "tier": 2,
                 "message": detail_t2,
@@ -1363,6 +1369,7 @@ class EngineRulesMixin:
         await self.emit({
             "type": "factory_reset_completed",
             "scope": norm_scope,
+            "owner_user_id": "tuan_anh",
             "user_id": "tuan_anh",
             "tier": 1,
             "message": detail,
@@ -1482,11 +1489,17 @@ class EngineRulesMixin:
             user_name=eff_uname,
             tier=eff_tier,
         )
+        scene_owner_id = str(target_cmd.get("owner_user_id") or "").strip()
+        scene_owner_tier = int(target_cmd.get("owner_tier") or 1)
         await self.emit({
             "type": "scene_executed",
             "command_id": target_cmd["command_id"],
             "phrase": phrase,
             "steps": steps,
+            "owner_user_id": scene_owner_id,
+            "owner_tier": scene_owner_tier,
+            "actor_user_id": eff_uid,
+            "executed_by_user_id": eff_uid,
             "user_id": eff_uid,
             "message": spoken,
         })

@@ -157,20 +157,31 @@ class RealtimePushHub:
         except RuntimeError:
             running_loop = None
 
-        cached_frames: dict[tuple[int, str], str] = {}
+        _PUBLIC_SSE_REASONS = frozenset({
+            "initial",
+            "rest_broadcast",
+            "mutation",
+            "device_updated",
+            "device_already_in_state",
+            "server_mode_changed",
+        })
+        cached_frames: dict[tuple[int, str, str], str] = {}
         pushed = 0
         for sub in subs:
             eff_sess = sub.session if (sub.session is not None and session_is_current(sub.session)) else None
             if eff_sess is not None:
-                cache_key = (int(eff_sess.tier), str(eff_sess.user_id))
+                eff_tier = int(eff_sess.tier)
+                safe_reason = reason if (eff_tier == 1 or reason in _PUBLIC_SSE_REASONS) else "state_sync"
+                cache_key = (eff_tier, str(eff_sess.user_id), safe_reason)
             else:
-                cache_key = (99, "")
+                safe_reason = reason if reason in _PUBLIC_SSE_REASONS else "state_sync"
+                cache_key = (99, "", safe_reason)
             frame = cached_frames.get(cache_key)
             if frame is None:
                 snap = build_snapshot_for_session(engine, eff_sess, sync=False)
                 envelope = {
                     "type": "state_snapshot",
-                    "reason": reason,
+                    "reason": safe_reason,
                     "ts_ms": int(time.time() * 1000),
                     "snapshot": snap,
                 }

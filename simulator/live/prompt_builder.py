@@ -801,7 +801,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         if cur_tier >= 3:
             db_scheds, db_rules, db_scenes = [], [], []
         else:
-            owner_q = None if cur_tier == 1 else (cur_uid or None)
+            owner_q = None if cur_tier == 1 else (cur_uid or "__NO_OWNER__")
             db_scheds = list_schedules(include_disabled=False, owner_user_id=owner_q)
             db_rules = list_automation_rules(include_disabled=False, owner_user_id=owner_q)
             db_scenes = list_custom_commands(include_disabled=False, owner_user_id=owner_q)

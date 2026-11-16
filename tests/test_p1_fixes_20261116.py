@@ -361,6 +361,150 @@ class TestF02WsAndSsePoolIsolation:
         assert snap_valid.get("current_tier") == 1 and snap_valid.get("public_only") is False
         assert snap_revoked.get("public_only") is True and "custom_commands" not in snap_revoked
 
+    def test_scene_executed_owner_scope_executor_separation_and_deny_by_default(self) -> None:
+        import json as _json
+        from simulator import automation_repo as repo
+        from simulator.api import deps
+        from simulator.auth.session_store import get_session_store
+        from simulator.auth.tier_permissions import filter_ws_event_for_session
+        from simulator.live.gemini_bridge import LiveBridgeSession
+        from simulator.realtime_hub import RealtimePushHub
+
+        class _Sink:
+            def __init__(self) -> None:
+                self.frames: list[dict[str, Any]] = []
+
+            async def send_text(self, raw: str) -> None:
+                self.frames.append(_json.loads(raw))
+
+        def _make_bridge(sess: Any) -> tuple[LiveBridgeSession, _Sink]:
+            sink = _Sink()
+            br = LiveBridgeSession.__new__(LiveBridgeSession)
+            br.ws = sink
+            br._closed = False
+            br._cached_ws_actor = sess
+            br._is_cached_actor_fresh = lambda *a: True
+            br.engine = _REST_ENGINE
+            return br, sink
+
+        store = get_session_store()
+        s1 = store.create_session(user_id="tuan_anh", tier=1, role="ADMIN", display_name="Owner")
+        s2a = store.create_session(user_id="thanh_vien_a", tier=2, role="MEMBER", display_name="Member A")
+        s2b = store.create_session(user_id="thanh_vien_b", tier=2, role="MEMBER", display_name="Member B")
+        s3 = store.create_session(user_id="khach_c", tier=3, role="CHILD_GUEST", display_name="Guest C")
+
+        br1, sink1 = _make_bridge(s1)
+        br2a, sink2a = _make_bridge(s2a)
+        br2b, sink2b = _make_bridge(s2b)
+        br3, sink3 = _make_bridge(s3)
+        br_none, sink_none = _make_bridge(None)
+
+        owner_scene = repo.upsert_custom_command(
+            phrase="bí mật chủ nhà f02",
+            steps=[{"device_id": "fan", "action": "turn_on"}],
+            owner_user_id="tuan_anh",
+            owner_tier=1,
+        )
+        member_a_scene = repo.upsert_custom_command(
+            phrase="ngữ cảnh riêng của A",
+            steps=[{"device_id": "fan", "action": "turn_off"}],
+            owner_user_id="thanh_vien_a",
+            owner_tier=2,
+        )
+
+        deps._ACTIVE_BRIDGES.extend([br1, br2a, br2b, br3, br_none])
+        try:
+            with TestClient(app) as client:
+                client.post("/api/device", headers=H_TIER1, json={"device_id": "fan", "action": "turn_off"})
+                for sk in (sink1, sink2a, sink2b, sink3, sink_none):
+                    sk.frames.clear()
+
+                # 1. Owner executes Owner's private scene -> Tier 2A/2B/3 and unauth never receive scene_executed or phrase in device_updated.source
+                r_own = client.post(
+                    f"/api/scenes/{owner_scene['command_id']}/run",
+                    headers={"X-Session-Token": s1.session_id},
+                )
+                assert r_own.status_code == 200 and r_own.json().get("ok") is True
+
+                assert any(f.get("type") == "scene_executed" and f.get("phrase") == "bí mật chủ nhà f02" for f in sink1.frames)
+                for sk in (sink2a, sink2b, sink3, sink_none):
+                    assert all(f.get("type") != "scene_executed" for f in sk.frames)
+                    assert all("bí mật chủ nhà f02" not in _json.dumps(f, ensure_ascii=False) for f in sk.frames)
+
+                for sk in (sink1, sink2a, sink2b, sink3, sink_none):
+                    sk.frames.clear()
+
+                # 2. Owner executes Member A's scene -> Tier 1 and owner Member A receive scene_executed, Member B / Tier 3 / unauth do not
+                r_m = client.post(
+                    f"/api/scenes/{member_a_scene['command_id']}/run",
+                    headers={"X-Session-Token": s1.session_id},
+                )
+                assert r_m.status_code == 200 and r_m.json().get("ok") is True
+
+                assert any(f.get("type") == "scene_executed" and f.get("command_id") == member_a_scene["command_id"] for f in sink1.frames)
+                m_a_events = [f for f in sink2a.frames if f.get("type") == "scene_executed"]
+                assert len(m_a_events) == 1
+                assert m_a_events[0].get("owner_user_id") == "thanh_vien_a"
+                assert m_a_events[0].get("actor_user_id") == "tuan_anh"
+                for sk in (sink2b, sink3, sink_none):
+                    assert all(f.get("type") != "scene_executed" for f in sk.frames)
+                    assert all("ngữ cảnh riêng của A" not in _json.dumps(f, ensure_ascii=False) for f in sk.frames)
+        finally:
+            for b in (br1, br2a, br2b, br3, br_none):
+                if b in deps._ACTIVE_BRIDGES:
+                    deps._ACTIVE_BRIDGES.remove(b)
+
+        # 3. Direct filter_ws_event_for_session checks: schedule_fired, missing owner on scene_executed, forbidden step device, and deny-by-default
+        sc_t1 = {"type": "schedule_fired", "schedule": {"schedule_id": "sc1", "owner_user_id": "tuan_anh", "device_id": "fan", "action": "turn_on"}}
+        sc_t2a = {"type": "schedule_fired", "schedule": {"schedule_id": "sc2", "owner_user_id": "thanh_vien_a", "device_id": "fan", "action": "turn_on"}}
+        assert filter_ws_event_for_session(sc_t1, s1, broadcast=True) is not None
+        assert filter_ws_event_for_session(sc_t1, s2a, broadcast=True) is None
+        assert filter_ws_event_for_session(sc_t1, s3, broadcast=True) is None
+        assert filter_ws_event_for_session(sc_t2a, s2a, broadcast=True) is not None
+        assert filter_ws_event_for_session(sc_t2a, s2b, broadcast=True) is None
+        assert filter_ws_event_for_session(sc_t2a, s3, broadcast=True) is None
+
+        # scene_executed without owner_user_id (only executor user_id) must never leak to Tier 2A
+        no_owner_scene_ev = {"type": "scene_executed", "phrase": "x", "steps": [{"device_id": "fan", "action": "turn_on"}], "user_id": "thanh_vien_a"}
+        assert filter_ws_event_for_session(no_owner_scene_ev, s2a, broadcast=True) is None
+
+        # scene_executed owned by Tier 2A but referencing main_door must be blocked for Tier 2A
+        door_scene_ev = {"type": "scene_executed", "owner_user_id": "thanh_vien_a", "phrase": "cửa", "steps": [{"device_id": "main_door", "action": "open"}]}
+        assert filter_ws_event_for_session(door_scene_ev, s2a, broadcast=True) is None
+
+        # Unclassified event containing pool payload is denied by default for Tier 2, Tier 3, and unauth
+        unclassified = {"type": "unclassified_pool_leak", "phrase": "bí mật", "steps": [{"device_id": "fan", "action": "turn_on"}]}
+        for sess_chk in (s2a, s3, None):
+            assert filter_ws_event_for_session(unclassified, sess_chk, broadcast=True) is None
+            assert filter_ws_event_for_session(unclassified, sess_chk, broadcast=False) is None
+
+        # Direct-session-only event must never pass broadcast=True
+        assert filter_ws_event_for_session({"type": "rbac_blocked", "action": "x"}, s1, broadcast=True) is None
+
+        # SSE hub must not leak private reason string to Tier 2/3/unauth
+        import asyncio as _asyncio
+
+        hub = RealtimePushHub()
+
+        async def _check_sse_reasons() -> dict[int, str]:
+            sub1 = hub.register(s1)
+            sub2 = hub.register(s2a)
+            sub3 = hub.register(s3)
+            sub_none = hub.register(None)
+            hub.publish_snapshot(_REST_ENGINE, reason="scene_executed")
+            out_reasons = {}
+            for tier_k, sub_obj in ((1, sub1), (2, sub2), (3, sub3), (99, sub_none)):
+                raw = await sub_obj.queue.get()
+                out_reasons[tier_k] = _json.loads(raw.split("data: ", 1)[1].strip())["reason"]
+                hub.unregister(sub_obj.sub_id)
+            return out_reasons
+
+        reasons = _asyncio.run(_check_sse_reasons())
+        assert reasons[1] == "scene_executed"
+        assert reasons[2] == "state_sync"
+        assert reasons[3] == "state_sync"
+        assert reasons[99] == "state_sync"
+
 
 class TestF03AtomicQrAndOtpMultiprocess:
     """F03: Single-use QR invite and OTP consume remain strictly single-winner across processes."""

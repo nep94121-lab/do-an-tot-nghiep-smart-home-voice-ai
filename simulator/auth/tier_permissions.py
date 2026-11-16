@@ -212,6 +212,31 @@ def restrict_guest_snapshot(
     snap["role"] = getattr(session, "role", ROLE_FOR_TIER.get(tier, "CHILD_GUEST"))
     snap["current_user_id"] = uid
     snap["current_user_name"] = str(getattr(session, "display_name", "") or uid)
+    snap["role_name"] = f"Tầng {tier} — {snap['current_user_name']} ({snap['role']})"
+    sess_email = str(getattr(session, "email", "") or "")
+    if sess_email:
+        snap["current_user_email"] = sess_email
+    else:
+        snap.pop("current_user_email", None)
+    if isinstance(snap.get("mqtt"), dict):
+        pub_mqtt = snap["mqtt"]
+        snap["mqtt"] = {
+            k: pub_mqtt[k]
+            for k in (
+                "connected",
+                "esp8266",
+                "dht11",
+                "soil_moisture",
+                "esp8266_status",
+                "dht11_telemetry",
+                "soil_moisture_telemetry",
+                "queue_size",
+                "max_queue_size",
+                "dropped_backpressure_count",
+                "retained_topics_count",
+            )
+            if k in pub_mqtt
+        }
     if tier >= 3:
         for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
             snap[priv_key] = []
@@ -255,20 +280,31 @@ _OWNER_SCOPED_WS_EVENTS = frozenset({
     "custom_command_updated",
     "custom_command_deleted",
     "automation_rule_created",
+    "automation_rule_updated",
     "automation_rule_deleted",
+    "automation_rule_fired",
     "schedule_created",
     "schedule_updated",
     "schedule_deleted",
+    "schedule_fired",
     "timer_created",
     "timer_updated",
     "timer_deleted",
     "timer_scheduled",
     "timer_fired",
+    "timer_cancelled",
     "pending_confirmation_created",
     "pending_confirmation_cancelled",
+    "pending_confirmation_expired",
     "rule_created",
+    "rule_updated",
     "rule_deleted",
+    "rule_executed",
+    "rule_fired",
+    "rule_triggered",
     "rule_confirmation_requested",
+    "scene_executed",
+    "alias_executed",
     "pool_reset_completed",
 })
 
@@ -283,25 +319,133 @@ _TIER1_ONLY_WS_EVENTS = frozenset({
     "mqtt_packet",
     "voice_enrollment_started",
     "voice_enrollment_staged",
+    "voice_enrollment_countdown",
+    "voice_enrollment_analyzed",
+    "start_voice_capture",
+    "voice_enrollment_captured",
+    "voice_enrollment_rejected_quality",
+    "voice_enrollment_rejected_duplicate",
     "voice_enrolled",
+})
+
+_DIRECT_SESSION_ONLY_WS_EVENTS = frozenset({
+    "rbac_blocked",
+    "gemini_status",
+    "system_prompt_updated",
+    "aoede_voice_request",
+    "audio_chunk",
+    "interrupted",
+    "first_audio_metrics",
+    "input_transcription",
+    "output_transcription",
+    "turn_complete",
+    "tool_call_executed",
+    "manual_toggle_ack",
+    "error",
+    "wav_stream_started",
+    "speech_ended_marker",
+})
+
+_PUBLIC_AUTHENTICATED_WS_EVENTS = frozenset({
+    "server_mode_changed",
+})
+
+_POOL_DATA_KEYS = frozenset({
+    "phrase",
+    "steps",
+    "command",
+    "scene",
+    "rule",
+    "rules",
+    "schedule",
+    "schedules",
+    "timer",
+    "timers",
+    "pending",
+    "pending_rule",
+    "word_mappings",
+    "aliases",
+    "if_else_rules",
+    "custom_commands",
+    "automation_rules",
 })
 
 
 def _extract_event_owner_id(event: dict[str, Any]) -> str:
-    for key in ("owner_user_id", "owner_id", "target_owner_id", "user_id"):
+    ev_type = str(event.get("type") or "").strip()
+    for key in ("owner_user_id", "owner_id", "target_owner_id"):
         val = str(event.get(key) or "").strip()
         if val:
             return val
     for nested_key in ("command", "scene", "rule", "schedule", "timer", "pending", "pending_rule"):
         nested = event.get(nested_key)
         if isinstance(nested, dict):
-            val = str(nested.get("owner_user_id") or nested.get("owner_id") or nested.get("user_id") or "").strip()
+            val = str(nested.get("owner_user_id") or nested.get("owner_id") or "").strip()
+            if not val and nested_key in ("rule", "pending_rule"):
+                val = str(nested.get("user_id") or "").strip()
             if val:
                 return val
     schedules_list = event.get("schedules")
-    if isinstance(schedules_list, list) and schedules_list and isinstance(schedules_list[0], dict):
-        return str(schedules_list[0].get("owner_user_id") or schedules_list[0].get("owner_id") or "").strip()
+    if isinstance(schedules_list, list) and schedules_list:
+        owners: set[str] = set()
+        for item in schedules_list:
+            if not isinstance(item, dict):
+                return ""
+            o_id = str(item.get("owner_user_id") or item.get("owner_id") or "").strip()
+            if not o_id:
+                return ""
+            owners.add(o_id)
+        if len(owners) == 1:
+            return next(iter(owners))
+        return ""
+    if (
+        ev_type != "scene_executed"
+        and not event.get("actor_user_id")
+        and not event.get("executed_by_user_id")
+    ):
+        val = str(event.get("user_id") or "").strip()
+        if val:
+            return val
     return ""
+
+
+def _device_allowed_for_tier(tier: int, device_id: Any) -> bool:
+    dev = str(device_id or "").strip()
+    if not dev:
+        return True
+    if dev == "all_lights":
+        return tier <= 3
+    if dev == "all_devices":
+        return tier == 1
+    return can_control_device(tier, dev)
+
+
+def _owner_event_devices_allowed_for_tier(event: dict[str, Any], tier: int) -> bool:
+    if not _device_allowed_for_tier(tier, event.get("device_id")):
+        return False
+    for steps_holder in (event, event.get("command"), event.get("scene")):
+        if isinstance(steps_holder, dict):
+            steps = steps_holder.get("steps")
+            if isinstance(steps, list):
+                for st in steps:
+                    if isinstance(st, dict) and not _device_allowed_for_tier(tier, st.get("device_id")):
+                        return False
+    for nested_key in ("schedule", "timer"):
+        nested = event.get(nested_key)
+        if isinstance(nested, dict) and not _device_allowed_for_tier(tier, nested.get("device_id")):
+            return False
+    schedules_list = event.get("schedules")
+    if isinstance(schedules_list, list):
+        for sc in schedules_list:
+            if isinstance(sc, dict) and not _device_allowed_for_tier(tier, sc.get("device_id")):
+                return False
+    for rule_key in ("rule", "pending_rule"):
+        rl = event.get(rule_key)
+        if isinstance(rl, dict):
+            for dk in ("when_device_id", "then_device_id", "else_device_id", "device_id"):
+                if not _device_allowed_for_tier(tier, rl.get(dk)):
+                    return False
+    return True
 
 
 def filter_ws_event_for_session(
@@ -324,30 +468,69 @@ def filter_ws_event_for_session(
     ev_type = str(out.get("type") or "").strip()
     if ev_type == "state_snapshot":
         return out
-    if tier == 1:
+    if is_valid and tier == 1:
+        if broadcast and ev_type in _DIRECT_SESSION_ONLY_WS_EVENTS:
+            return None
         return out
+    if ev_type == "voice_enrolled":
+        if (
+            not broadcast
+            and isinstance(out.get("result"), dict)
+            and out["result"].get("rbac_blocked") is True
+            and not any(k in out for k in _POOL_DATA_KEYS)
+        ):
+            return out
+        return None
     if ev_type in _TIER1_ONLY_WS_EVENTS:
         return None
-    if ev_type == "rbac_blocked" and broadcast:
-        return None
     if ev_type in _OWNER_SCOPED_WS_EVENTS:
-        if tier >= 3:
+        if not is_valid or tier != 2 or not uid:
             return None
         if ev_type == "pool_reset_completed" and bool(out.get("clear_all", False)):
             return None
         owner_id = _extract_event_owner_id(out)
         if not owner_id or owner_id != uid:
             return None
+        if not _owner_event_devices_allowed_for_tier(out, tier):
+            return None
         return out
     if ev_type in ("device_updated", "device_already_in_state"):
-        if not is_valid:
+        if not is_valid or any(k in out for k in _POOL_DATA_KEYS):
             return None
         dev_id = str(out.get("device_id") or "").strip()
-        if dev_id and not can_control_device(tier, dev_id):
+        if not dev_id or not can_control_device(tier, dev_id):
             return None
-        if tier >= 3 and "source" in out:
+        if tier >= 2 and "source" in out and str(out.get("source") or "") != "button_ui":
             out["source"] = "system"
         return out
-    if not is_valid and broadcast:
-        return None
-    return out
+    if ev_type in _PUBLIC_AUTHENTICATED_WS_EVENTS:
+        if not is_valid or any(k in out for k in _POOL_DATA_KEYS):
+            return None
+        if tier >= 2:
+            out.pop("auto_closed_door", None)
+            if "message" in out:
+                out["message"] = (
+                    "Đã kết nối Server Laptop."
+                    if out.get("server_connected")
+                    else "Đang ở chế độ Mạch Độc Lập (Offline)."
+                )
+        return out
+    if not broadcast and ev_type in _DIRECT_SESSION_ONLY_WS_EVENTS:
+        if any(k in out for k in _POOL_DATA_KEYS):
+            return None
+        if ev_type == "system_prompt_updated" and not is_valid:
+            out["system_prompt"] = (
+                "Bạn là trợ lý Nhà Thông Minh Bách Khoa. Phiên hiện tại chưa đăng nhập hợp lệ nên không có quyền truy cập dữ liệu riêng tư hay điều khiển thiết bị."
+            )
+        if ev_type == "tool_call_executed":
+            if not is_valid:
+                return None
+            if isinstance(out.get("result"), dict):
+                res_copy = dict(out["result"])
+                if isinstance(res_copy.get("snapshot"), dict):
+                    res_copy["snapshot"] = restrict_guest_snapshot(
+                        res_copy["snapshot"], session, treat_none_as_unauthenticated=True
+                    )
+                out["result"] = res_copy
+        return out
+    return None

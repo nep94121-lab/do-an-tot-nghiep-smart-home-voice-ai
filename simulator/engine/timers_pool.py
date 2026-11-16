@@ -230,6 +230,7 @@ class EngineTimersMixin:
             "target_vn_time": target_vn_time,
             "repeat": repeat_mode,
             "reason": reason,
+            "owner_user_id": self._current_user_id,
             "owner_id": self._current_user_id,
             "owner_tier": self.current_tier,
         })
