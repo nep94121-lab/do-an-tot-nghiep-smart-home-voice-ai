@@ -29,11 +29,24 @@ _ACTIVE_BRIDGES: list[Any] = []
 _BOOT_VOICE_AUTH = VoiceAuthManager(AUDIO_DIR)
 
 
-async def _send_ws_safe(br: Any, payload: dict[str, Any]) -> None:
+async def _send_ws_safe(br: Any, payload: dict[str, Any], *, broadcast: bool = True) -> None:
     if getattr(br, "_closed", False):
         return
     try:
-        await asyncio.wait_for(br.send_ws_json(payload), timeout=0.25)
+        await asyncio.wait_for(br.send_ws_json(payload, broadcast=broadcast), timeout=0.25)
+    except TypeError:
+        try:
+            from simulator.auth.tier_permissions import filter_ws_event_for_session
+
+            ws_sess = getattr(br, "_cached_ws_actor", None)
+            if ws_sess is None and hasattr(br, "_resolve_ws_session"):
+                ws_sess = br._resolve_ws_session()
+            filtered = filter_ws_event_for_session(payload, ws_sess, broadcast=broadcast)
+            if filtered is None:
+                return
+            await asyncio.wait_for(br.send_ws_json(filtered), timeout=0.25)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -52,7 +65,7 @@ async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
     if bridges:
         try:
             await asyncio.wait_for(
-                asyncio.gather(*(_send_ws_safe(br, event) for br in bridges), return_exceptions=True),
+                asyncio.gather(*(_send_ws_safe(br, event, broadcast=True) for br in bridges), return_exceptions=True),
                 timeout=0.35,
             )
         except Exception:
@@ -97,7 +110,6 @@ async def broadcast_rest_state_to_bridges(
             _REST_ENGINE.sync_from_shared_store(force=True)
         except Exception:
             pass
-    pub_snap = _REST_ENGINE.get_public_device_snapshot(sync=False)
     try:
         from simulator.realtime_hub import get_realtime_hub
 
@@ -107,7 +119,7 @@ async def broadcast_rest_state_to_bridges(
     bridges = [br for br in list(_ACTIVE_BRIDGES) if not getattr(br, "_closed", False)]
     if not bridges:
         return
-    owner_snap: dict[str, Any] | None = None
+    full_snap = _REST_ENGINE.get_snapshot(sync=False)
     tasks: list[Any] = []
     for br in bridges:
         try:
@@ -124,13 +136,7 @@ async def broadcast_rest_state_to_bridges(
                 br.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
             if exclude_bridge is not None and br is exclude_bridge:
                 continue
-            if getattr(br.engine, "current_tier", 99) == 1:
-                if owner_snap is None:
-                    owner_snap = _REST_ENGINE.get_snapshot(sync=False)
-                snap_for_br = owner_snap
-            else:
-                snap_for_br = pub_snap
-            tasks.append(_send_ws_safe(br, {"type": "state_snapshot", "snapshot": snap_for_br}))
+            tasks.append(_send_ws_safe(br, {"type": "state_snapshot", "snapshot": full_snap}, broadcast=True))
         except Exception:
             pass
     if tasks:

@@ -160,10 +160,14 @@ class RealtimePushHub:
         cached_frames: dict[tuple[int, str], str] = {}
         pushed = 0
         for sub in subs:
-            cache_key = (sub.tier, sub.user_id)
+            eff_sess = sub.session if (sub.session is not None and session_is_current(sub.session)) else None
+            if eff_sess is not None:
+                cache_key = (int(eff_sess.tier), str(eff_sess.user_id))
+            else:
+                cache_key = (99, "")
             frame = cached_frames.get(cache_key)
             if frame is None:
-                snap = build_snapshot_for_session(engine, sub.session, sync=False)
+                snap = build_snapshot_for_session(engine, eff_sess, sync=False)
                 envelope = {
                     "type": "state_snapshot",
                     "reason": reason,

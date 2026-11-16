@@ -342,6 +342,11 @@ class EngineRulesMixin:
                 "rejected_unknown",
             ):
                 return self.get_public_device_snapshot(sync=sync)
+            if hasattr(session, "is_expired") and hasattr(session, "source") and hasattr(session, "email"):
+                from simulator.auth.session_store import session_is_current
+
+                if not session_is_current(session):
+                    return self.get_public_device_snapshot(sync=sync)
 
         if sync and getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
             self.sync_from_shared_store()
@@ -384,7 +389,8 @@ class EngineRulesMixin:
                 "target_vn_time": tinfo.get("target_vn_time", ""),
                 "reason": tinfo.get("reason", "Hẹn giờ"),
                 "label": tinfo.get("label", tinfo.get("reason", "Hẹn giờ")),
-                "owner_id": tinfo.get("owner_id", "tuan_anh"),
+                "owner_id": tinfo.get("owner_user_id", tinfo.get("owner_id", "tuan_anh")),
+                "owner_user_id": tinfo.get("owner_user_id", tinfo.get("owner_id", "tuan_anh")),
                 "owner_name": tinfo.get("owner_name", "Nguyễn Tuấn Anh"),
                 "owner_tier": tinfo.get("owner_tier", 1),
             })
@@ -489,7 +495,9 @@ class EngineRulesMixin:
             snap["permission_table"] = permission_table_payload()
             snap["allowed_device_ids"] = [d["id"] for d in snap["devices"] if isinstance(d, dict) and d.get("id")]
         from simulator.auth.tier_permissions import restrict_guest_snapshot
-        return sanitize_api_payload(restrict_guest_snapshot(snap, session))
+        return sanitize_api_payload(
+            restrict_guest_snapshot(snap, session, treat_none_as_unauthenticated=False)
+        )
 
     async def set_word_mapping(
         self, custom_word: str, target_meaning: str, require_confirmation: bool = False

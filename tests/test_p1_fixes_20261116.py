@@ -237,3 +237,127 @@ class TestF01RestFourStepConfirmation:
             assert list_custom_commands(include_disabled=True)[0]["phrase"] == "ban đêm f01"
             su2 = client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": su1.json()["pending_id"], "confirmed": True})
             assert su2.status_code == 200 and list_custom_commands(include_disabled=True)[0]["phrase"] == "ban đêm mới"
+
+
+class TestF02WsAndSsePoolIsolation:
+    """F02: Private WS events and WS/SSE snapshots are isolated by session validity, tier, and owner."""
+
+    def test_ws_emit_and_broadcast_isolation_and_revocation(self) -> None:
+        import asyncio
+        import json as _json
+        from simulator.api import deps
+        from simulator.auth.session_store import UserSession
+        from simulator.auth.tier_permissions import restrict_guest_snapshot
+        from simulator.live.gemini_bridge import LiveBridgeSession
+        from simulator.realtime_hub import RealtimePushHub
+
+        class _Sink:
+            def __init__(self) -> None:
+                self.frames: list[dict[str, Any]] = []
+
+            async def send_text(self, raw: str) -> None:
+                self.frames.append(_json.loads(raw))
+
+        def _make_bridge(sess: UserSession | None) -> tuple[LiveBridgeSession, _Sink]:
+            sink = _Sink()
+            br = LiveBridgeSession.__new__(LiveBridgeSession)
+            br.ws = sink
+            br._closed = False
+            br._cached_ws_actor = sess
+            br._is_cached_actor_fresh = lambda *a: True
+            br.engine = _REST_ENGINE
+            return br, sink
+
+        now_ts = time.time()
+        s1 = UserSession(session_id="f02_t1", user_id="tuan_anh", email="", tier=1, role="ADMIN", display_name="Owner", created_at=now_ts, expires_at=now_ts + 600, source="seed")
+        s2a = UserSession(session_id="f02_t2a", user_id="thanh_vien_a", email="", tier=2, role="MEMBER", display_name="Member A", created_at=now_ts, expires_at=now_ts + 600, source="seed")
+        s2b = UserSession(session_id="f02_t2b", user_id="thanh_vien_b", email="", tier=2, role="MEMBER", display_name="Member B", created_at=now_ts, expires_at=now_ts + 600, source="seed")
+        s3 = UserSession(session_id="f02_t3", user_id="khach_c", email="", tier=3, role="CHILD_GUEST", display_name="Guest C", created_at=now_ts, expires_at=now_ts + 600, source="seed")
+
+        br1, sink1 = _make_bridge(s1)
+        br2a, sink2a = _make_bridge(s2a)
+        br2b, sink2b = _make_bridge(s2b)
+        br3, sink3 = _make_bridge(s3)
+        br_none, sink_none = _make_bridge(None)
+
+        full_snap = _REST_ENGINE.get_snapshot(sync=False)
+        restricted_none = restrict_guest_snapshot(full_snap, None)
+        assert restricted_none.get("public_only") is True
+        assert restricted_none.get("current_tier") == 99
+        assert "custom_commands" not in restricted_none and "users" not in restricted_none
+
+        deps._ACTIVE_BRIDGES.extend([br1, br2a, br2b, br3, br_none])
+        try:
+            async def _exercise() -> None:
+                await deps._emit_to_all_active_bridges({
+                    "type": "custom_command_created",
+                    "command": {"owner_user_id": "tuan_anh", "phrase": "bí mật C1", "steps": [{"device_id": "main_door", "action": "open"}]},
+                })
+                await deps._emit_to_all_active_bridges({
+                    "type": "custom_command_created",
+                    "command": {"owner_user_id": "thanh_vien_a", "phrase": "lệnh riêng A", "steps": [{"device_id": "fan", "action": "turn_on"}]},
+                })
+                await deps._emit_to_all_active_bridges({
+                    "type": "member_permission_updated",
+                    "member": {"user_id": "thanh_vien_a", "can_create_links": True},
+                })
+                await deps._emit_to_all_active_bridges({
+                    "type": "device_updated",
+                    "device_id": "main_door",
+                    "new_state": "OPEN",
+                    "source": "Owner Voice",
+                })
+                await deps.broadcast_rest_state_to_bridges()
+
+                # Revoke s2a via expiry and emit another private event for s2a: revoked bridge must drop it
+                s2a.expires_at = time.time() - 10.0
+                await deps._emit_to_all_active_bridges({
+                    "type": "schedule_created",
+                    "schedules": [{"schedule_id": "sc_revoked", "owner_user_id": "thanh_vien_a", "device_id": "fan", "action": "turn_on", "time_hhmm": "20:00"}],
+                })
+
+            asyncio.run(_exercise())
+        finally:
+            for b in (br1, br2a, br2b, br3, br_none):
+                if b in deps._ACTIVE_BRIDGES:
+                    deps._ACTIVE_BRIDGES.remove(b)
+
+        t1_types = [f.get("type") for f in sink1.frames]
+        assert "custom_command_created" in t1_types and "member_permission_updated" in t1_types
+
+        t2a_cmds = [f["command"]["phrase"] for f in sink2a.frames if f.get("type") == "custom_command_created"]
+        assert t2a_cmds == ["lệnh riêng A"]
+        assert all(f.get("type") != "member_permission_updated" for f in sink2a.frames)
+        assert all(f.get("device_id") != "main_door" for f in sink2a.frames if f.get("type") == "device_updated")
+        # Revoked s2a did not receive subsequent schedule_created
+        assert all(f.get("type") != "schedule_created" for f in sink2a.frames)
+
+        # Tier 2B saw neither T1 nor T2A private events
+        assert all(f.get("type") == "state_snapshot" for f in sink2b.frames)
+        # Tier 3 saw zero private automation/door events
+        assert all(f.get("type") == "state_snapshot" for f in sink3.frames)
+        t3_snap = sink3.frames[-1]["snapshot"]
+        assert t3_snap["custom_commands"] == [] and t3_snap["schedules"] == [] and t3_snap["timers"] == []
+        assert all(f.get("type") == "state_snapshot" for f in sink_none.frames)
+        assert sink_none.frames[-1]["snapshot"].get("public_only") is True
+
+        # SSE hub re-checks session_is_current on every publish_snapshot
+        hub = RealtimePushHub()
+        s_sse = UserSession(session_id="f02_sse", user_id="tuan_anh", email="", tier=1, role="ADMIN", display_name="Owner", created_at=now_ts, expires_at=now_ts + 600, source="seed")
+
+        async def _sse_check() -> tuple[dict[str, Any], dict[str, Any]]:
+            sub = hub.register(s_sse)
+            hub.publish_snapshot(_REST_ENGINE, reason="valid")
+            raw1 = await sub.queue.get()
+            s_sse.expires_at = time.time() - 5.0
+            hub.publish_snapshot(_REST_ENGINE, reason="revoked")
+            raw2 = await sub.queue.get()
+            hub.unregister(sub.sub_id)
+            ev1 = _json.loads(raw1.split("data: ", 1)[1].strip())["snapshot"]
+            ev2 = _json.loads(raw2.split("data: ", 1)[1].strip())["snapshot"]
+            return ev1, ev2
+
+        snap_valid, snap_revoked = asyncio.run(_sse_check())
+        assert snap_valid.get("current_tier") == 1 and snap_valid.get("public_only") is False
+        assert snap_revoked.get("public_only") is True and "custom_commands" not in snap_revoked
+

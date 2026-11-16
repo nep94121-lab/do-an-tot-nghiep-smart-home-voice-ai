@@ -392,21 +392,23 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         return self._apply_actor_to_engine(actor)
 
 
-    async def send_ws_json(self, payload: dict[str, Any]) -> None:
+    async def send_ws_json(self, payload: dict[str, Any], *, broadcast: bool = False) -> None:
         if self._closed:
             if self in _ACTIVE_BRIDGES:
                 _ACTIVE_BRIDGES.remove(self)
             return
+        from simulator.auth.tier_permissions import filter_ws_event_for_session
+
+        ws_sess = (
+            self._cached_ws_actor
+            if self._is_cached_actor_fresh()
+            else await asyncio.to_thread(self._resolve_ws_session)
+        )
+        filtered = filter_ws_event_for_session(payload, ws_sess, broadcast=broadcast)
+        if filtered is None:
+            return
+        payload = filtered
         ptype = str(payload.get("type", ""))
-        if isinstance(payload.get("snapshot"), dict):
-            from simulator.auth.tier_permissions import restrict_guest_snapshot
-            payload = dict(payload)
-            ws_sess = (
-                self._cached_ws_actor
-                if self._is_cached_actor_fresh()
-                else await asyncio.to_thread(self._resolve_ws_session)
-            )
-            payload["snapshot"] = restrict_guest_snapshot(payload["snapshot"], ws_sess)
         audit_kwargs: dict[str, Any] | None = None
         if ptype == "turn_complete":
             heard = str(payload.get("heard", "")).strip()

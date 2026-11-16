@@ -110,29 +110,113 @@ def enforce_fixed_policy(pol: dict[str, Any] | None) -> dict[str, Any]:
     return data
 
 
-def restrict_guest_snapshot(snapshot: dict[str, Any], session: Any) -> dict[str, Any]:
-    if session is None or int(getattr(session, "tier", 99)) == 1:
+def _resolve_effective_session_tier(
+    session: Any,
+    *,
+    treat_none_as_unauthenticated: bool = True,
+) -> tuple[bool, int, str]:
+    """Resolve live authenticated tier/user_id; revoked/expired/invalid sessions drop to tier 99."""
+    if session is None:
+        return (False, 99, "") if treat_none_as_unauthenticated else (True, 1, "")
+    if not getattr(session, "is_authenticated", False):
+        return False, 99, ""
+    if getattr(session, "source", "") in ("unauthenticated", "invalid_token", "rejected_unknown"):
+        return False, 99, ""
+    if hasattr(session, "is_expired") and hasattr(session, "source") and hasattr(session, "email"):
+        from simulator.auth.session_store import session_is_current
+
+        if not session_is_current(session):
+            return False, 99, ""
+    elif getattr(session, "revoked", False):
+        return False, 99, ""
+    tier_raw = getattr(session, "tier", 99)
+    try:
+        tier = int(tier_raw)
+    except (TypeError, ValueError):
+        return False, 99, ""
+    if tier not in (1, 2, 3):
+        return False, 99, ""
+    uid = str(getattr(session, "user_id", "") or "")
+    return True, tier, uid
+
+
+def _public_snapshot_only(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Strip all private automation, user, policy, and confirmation state for unauthenticated callers."""
+    public_devices = []
+    for d in (snapshot.get("devices") or []):
+        if isinstance(d, dict):
+            public_devices.append({
+                k: d[k]
+                for k in ("id", "name", "type", "state", "gpio", "version", "updated_at")
+                if k in d
+            })
+    pub_mqtt = snapshot.get("mqtt") if isinstance(snapshot.get("mqtt"), dict) else {}
+    return {
+        "ok": True,
+        "authenticated": False,
+        "public_only": True,
+        "current_tier": 99,
+        "role": "UNKNOWN",
+        "current_user_id": "",
+        "current_user_name": "",
+        "revision_seq": snapshot.get("revision_seq", 0),
+        "state_revision": snapshot.get("state_revision", snapshot.get("revision_seq", 0)),
+        "revision_ts_ns": snapshot.get("revision_ts_ns", 0),
+        "vn_time_now": snapshot.get("vn_time_now", ""),
+        "server_connected": bool(snapshot.get("server_connected", False)),
+        "offline_locked_devices": list(snapshot.get("offline_locked_devices") or ["main_door", "alarm_siren"]),
+        "devices": public_devices,
+        "mqtt": {
+            k: pub_mqtt[k]
+            for k in ("connected", "esp8266", "dht11", "soil_moisture")
+            if k in pub_mqtt
+        },
+    }
+
+
+def restrict_guest_snapshot(
+    snapshot: dict[str, Any],
+    session: Any,
+    *,
+    treat_none_as_unauthenticated: bool = True,
+) -> dict[str, Any]:
+    if session is None and not treat_none_as_unauthenticated:
         return snapshot
+    is_valid, tier, uid = _resolve_effective_session_tier(
+        session, treat_none_as_unauthenticated=treat_none_as_unauthenticated
+    )
+    if not is_valid:
+        return _public_snapshot_only(snapshot)
+    if tier == 1:
+        return snapshot
+
     snap = dict(snapshot)
-    tier = int(getattr(session, "tier", 99)) if getattr(session, "is_authenticated", False) else 99
     snap["devices"] = filter_device_list(list(snap.get("devices") or []), tier)
-    snap["allowed_device_ids"] = [device["id"] for device in snap["devices"]]
+    snap["allowed_device_ids"] = [device["id"] for device in snap["devices"] if isinstance(device, dict) and device.get("id")]
     allowed_set = set(snap["allowed_device_ids"])
-    for key in ("users", "system_policies", "pending_reset_confirmation", "pending_rule", "pending_voice_enrollment", "word_mappings", "factory_aliases", "custom_aliases", "if_else_rules", "t1_global_if_else_rules", "chains"):
+    for key in (
+        "users",
+        "system_policies",
+        "pending_reset_confirmation",
+        "pending_rule",
+        "pending_voice_enrollment",
+        "word_mappings",
+        "factory_aliases",
+        "custom_aliases",
+        "if_else_rules",
+        "t1_global_if_else_rules",
+        "chains",
+    ):
         snap.pop(key, None)
     snap["current_tier"] = tier
-    snap["role"] = getattr(session, "role", "UNKNOWN")
-    snap["current_user_id"] = session.user_id
-    snap["current_user_name"] = session.display_name
+    snap["role"] = getattr(session, "role", ROLE_FOR_TIER.get(tier, "CHILD_GUEST"))
+    snap["current_user_id"] = uid
+    snap["current_user_name"] = str(getattr(session, "display_name", "") or uid)
     if tier >= 3:
         for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
-            snap[priv_key] = [] if tier == 3 else []
-        if tier > 3:
-            for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
-                snap.pop(priv_key, None)
+            snap[priv_key] = []
         return snap
 
-    uid = str(getattr(session, "user_id", "") or "")
     snap["timers"] = [
         timer for timer in (snap.get("timers") or [])
         if isinstance(timer, dict)
@@ -164,3 +248,106 @@ def restrict_guest_snapshot(snapshot: dict[str, Any], session: Any) -> dict[str,
     snap["custom_commands"] = visible_scenes
     snap["scenes"] = visible_scenes
     return snap
+
+
+_OWNER_SCOPED_WS_EVENTS = frozenset({
+    "custom_command_created",
+    "custom_command_updated",
+    "custom_command_deleted",
+    "automation_rule_created",
+    "automation_rule_deleted",
+    "schedule_created",
+    "schedule_updated",
+    "schedule_deleted",
+    "timer_created",
+    "timer_updated",
+    "timer_deleted",
+    "timer_scheduled",
+    "timer_fired",
+    "pending_confirmation_created",
+    "pending_confirmation_cancelled",
+    "rule_created",
+    "rule_deleted",
+    "rule_confirmation_requested",
+    "pool_reset_completed",
+})
+
+_TIER1_ONLY_WS_EVENTS = frozenset({
+    "member_permission_updated",
+    "permission_granted",
+    "permission_revoked",
+    "query_policy_updated",
+    "system_policy_updated",
+    "reset_confirmation_requested",
+    "factory_reset_completed",
+    "mqtt_packet",
+    "voice_enrollment_started",
+    "voice_enrollment_staged",
+    "voice_enrolled",
+})
+
+
+def _extract_event_owner_id(event: dict[str, Any]) -> str:
+    for key in ("owner_user_id", "owner_id", "target_owner_id", "user_id"):
+        val = str(event.get(key) or "").strip()
+        if val:
+            return val
+    for nested_key in ("command", "scene", "rule", "schedule", "timer", "pending", "pending_rule"):
+        nested = event.get(nested_key)
+        if isinstance(nested, dict):
+            val = str(nested.get("owner_user_id") or nested.get("owner_id") or nested.get("user_id") or "").strip()
+            if val:
+                return val
+    schedules_list = event.get("schedules")
+    if isinstance(schedules_list, list) and schedules_list and isinstance(schedules_list[0], dict):
+        return str(schedules_list[0].get("owner_user_id") or schedules_list[0].get("owner_id") or "").strip()
+    return ""
+
+
+def filter_ws_event_for_session(
+    event: dict[str, Any],
+    session: Any,
+    *,
+    broadcast: bool = False,
+) -> dict[str, Any] | None:
+    """Filter outbound WS event/snapshot by authenticated session tier and ownership."""
+    if not isinstance(event, dict):
+        return None
+    is_valid, tier, uid = _resolve_effective_session_tier(
+        session, treat_none_as_unauthenticated=True
+    )
+    out = dict(event)
+    if isinstance(out.get("snapshot"), dict):
+        out["snapshot"] = restrict_guest_snapshot(
+            out["snapshot"], session, treat_none_as_unauthenticated=True
+        )
+    ev_type = str(out.get("type") or "").strip()
+    if ev_type == "state_snapshot":
+        return out
+    if tier == 1:
+        return out
+    if ev_type in _TIER1_ONLY_WS_EVENTS:
+        return None
+    if ev_type == "rbac_blocked" and broadcast:
+        return None
+    if ev_type in _OWNER_SCOPED_WS_EVENTS:
+        if tier >= 3:
+            return None
+        if ev_type == "pool_reset_completed" and bool(out.get("clear_all", False)):
+            return None
+        owner_id = _extract_event_owner_id(out)
+        if not owner_id or owner_id != uid:
+            return None
+        return out
+    if ev_type in ("device_updated", "device_already_in_state"):
+        if not is_valid:
+            return None
+        dev_id = str(out.get("device_id") or "").strip()
+        if dev_id and not can_control_device(tier, dev_id):
+            return None
+        if tier >= 3 and "source" in out:
+            out["source"] = "system"
+        return out
+    if not is_valid and broadcast:
+        return None
+    return out
