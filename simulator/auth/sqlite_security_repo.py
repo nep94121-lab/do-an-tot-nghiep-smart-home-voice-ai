@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import pathlib
@@ -516,3 +517,432 @@ def revoke_trusted_device_sqlite(token: str, data_dir: pathlib.Path | None = Non
         )
     finally:
         conn.close()
+
+
+def claim_invite_sqlite(
+    *,
+    jti: str,
+    exp: float,
+    now: float,
+    data_dir: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Atomically claim a single-use guest invite inside SQLite BEGIN IMMEDIATE."""
+    conn = _conn_for_data_dir(data_dir)
+    out: dict[str, Any] = {}
+    try:
+        def _tx(c: sqlite3.Connection) -> None:
+            nonlocal out
+            row = c.execute(
+                """
+                SELECT jti, token_hash, owner_user_id, role_code, tier, label,
+                       created_at, expires_at, revoked, revoked_at, redeem_count, last_redeem_at, extra_json
+                FROM invites WHERE jti = ?
+                """,
+                (jti,),
+            ).fetchone()
+            if row is None:
+                out = {"ok": False, "valid": False, "reason": "unknown", "error": "Mã mời không tồn tại hoặc đã hết hạn."}
+                return
+            if bool(row["revoked"]):
+                out = {"ok": False, "valid": False, "reason": "revoked", "invite_id": jti, "error": "Mã mời đã bị thu hồi."}
+                return
+            expires_at = float(row["expires_at"] or exp)
+            if expires_at <= now or exp <= now:
+                out = {
+                    "ok": False,
+                    "valid": False,
+                    "reason": "expired",
+                    "invite_id": jti,
+                    "expires_at": expires_at,
+                    "error": "Mã mời đã hết hạn.",
+                }
+                return
+            if int(row["redeem_count"] or 0) >= 1:
+                out = {
+                    "ok": False,
+                    "valid": False,
+                    "reason": "used",
+                    "invite_id": jti,
+                    "expires_at": expires_at,
+                    "error": "Mã QR đã được sử dụng.",
+                }
+                return
+            cur = c.execute(
+                """
+                UPDATE invites
+                SET redeem_count = redeem_count + 1, last_redeem_at = ?
+                WHERE jti = ? AND revoked = 0 AND redeem_count = 0 AND expires_at > ?
+                """,
+                (now, jti, now),
+            )
+            if cur.rowcount != 1:
+                out = {
+                    "ok": False,
+                    "valid": False,
+                    "reason": "used",
+                    "invite_id": jti,
+                    "expires_at": expires_at,
+                    "error": "Mã QR đã được sử dụng.",
+                }
+                return
+            try:
+                extra = json.loads(str(row["extra_json"] or "{}"))
+            except Exception:
+                extra = {}
+            extra_d = extra if isinstance(extra, dict) else {}
+            out = {
+                "ok": True,
+                "valid": True,
+                "reason": "ok",
+                "invite_id": jti,
+                "tier": int(row["tier"] or 3),
+                "role": str(row["role_code"] or "CHILD_GUEST"),
+                "created_at": float(row["created_at"] or now),
+                "expires_at": expires_at,
+                "duration_code": str(extra_d.get("duration_code") or "").strip(),
+                "duration_label": str(extra_d.get("duration_label") or "").strip(),
+                "duration_seconds": int(extra_d.get("duration_seconds") or extra_d.get("ttl_sec") or 0),
+                "guest_name": str(extra_d.get("guest_name") or "").strip(),
+            }
+
+        run_write_transaction(conn, _tx)
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+    return out
+
+
+def rollback_invite_claim_sqlite(*, jti: str, data_dir: pathlib.Path | None = None) -> None:
+    if not jti:
+        return
+    conn = _conn_for_data_dir(data_dir)
+    try:
+        run_write_transaction(
+            conn,
+            lambda c: c.execute(
+                """
+                UPDATE invites
+                SET redeem_count = MAX(0, redeem_count - 1),
+                    last_redeem_at = CASE WHEN redeem_count <= 1 THEN 0.0 ELSE last_redeem_at END
+                WHERE jti = ? AND revoked = 0
+                """,
+                (jti,),
+            ),
+        )
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+
+
+def revoke_invite_sqlite(*, jti: str, revoked_at: float, data_dir: pathlib.Path | None = None) -> dict[str, Any]:
+    if not jti:
+        return {"ok": False, "error": "missing_invite_id"}
+    conn = _conn_for_data_dir(data_dir)
+    found = False
+    try:
+        def _tx(c: sqlite3.Connection) -> None:
+            nonlocal found
+            cur = c.execute(
+                "UPDATE invites SET revoked = 1, revoked_at = ? WHERE jti = ?",
+                (float(revoked_at), jti),
+            )
+            found = cur.rowcount > 0
+
+        run_write_transaction(conn, _tx)
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+    if not found:
+        return {"ok": False, "error": "not_found"}
+    return {"ok": True, "invite_id": jti, "revoked": True}
+
+
+def verify_and_consume_otp_sqlite(
+    *,
+    clean_email: str,
+    canon_target: str,
+    otp_input: str,
+    expected_purpose: str | None,
+    consume_on_success: bool | None,
+    now: float,
+    canonical_email_fn: Any,
+    hash_otp_fn: Any,
+    data_dir: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Atomically verify rate limit, expiry, purpose, digest, and consume OTP inside SQLite BEGIN IMMEDIATE."""
+    conn = _conn_for_data_dir(data_dir)
+    result: dict[str, Any] = {}
+    try:
+        def _tx(c: sqlite3.Connection) -> None:
+            nonlocal result
+            rows = c.execute(
+                """
+                SELECT user_id, email, tier, account_meta_json
+                FROM users
+                WHERE account_meta_json != '{}' AND account_meta_json != ''
+                ORDER BY tier ASC, user_id ASC
+                """
+            ).fetchall()
+            target_uid: str | None = None
+            target_acc: dict[str, Any] | None = None
+            fallback_match: tuple[str, dict[str, Any]] | None = None
+            for r in rows:
+                try:
+                    meta = json.loads(str(r["account_meta_json"] or "{}"))
+                except Exception:
+                    continue
+                if not isinstance(meta, dict):
+                    continue
+                acc_email = str(meta.get("email") or r["email"] or "").strip().lower()
+                if acc_email == clean_email:
+                    target_uid = str(r["user_id"])
+                    target_acc = meta
+                    break
+                if fallback_match is None and canon_target and canonical_email_fn(acc_email) == canon_target:
+                    fallback_match = (str(r["user_id"]), meta)
+            if target_acc is None and fallback_match is not None:
+                target_uid, target_acc = fallback_match
+            if target_acc is None or not target_uid:
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "audit_action": "otp_verify",
+                    "audit_email": clean_email,
+                    "audit_detail": "Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
+                    "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!",
+                }
+                return
+
+            key = str(target_acc.get("email") or clean_email).strip().lower()
+            raw_fails = list(target_acc.get("otp_failed_verify_attempts") or [])
+            recent_fails = [float(t) for t in raw_fails if (now - float(t)) < 300.0]
+            if len(recent_fails) >= 3:
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 429,
+                    "rate_limited": True,
+                    "audit_action": "otp_verify_rate_limited",
+                    "audit_email": key,
+                    "audit_detail": "Đã thử sai mã OTP quá 3 lần trong 5 phút. Tạm thời chặn xác thực.",
+                    "error": "Đã thử sai mã OTP quá 3 lần trong 5 phút. Vui lòng đợi 5 phút trước khi thử lại.",
+                }
+                return
+
+            pending = target_acc.get("pending_otp")
+            if not isinstance(pending, dict) or pending.get("consumed", False):
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "audit_action": "otp_verify",
+                    "audit_email": key,
+                    "audit_detail": "Chưa có yêu cầu mã OTP hoặc phiên đã hết hạn.",
+                    "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!",
+                }
+                return
+
+            chal_id = str(pending.get("challenge_id") or "").strip()
+            if chal_id:
+                ch_row = c.execute(
+                    "SELECT used FROM otp_challenges WHERE challenge_id = ?",
+                    (chal_id,),
+                ).fetchone()
+                if ch_row is not None and int(ch_row["used"] or 0) != 0:
+                    result = {
+                        "ok": False,
+                        "layer": 2,
+                        "status_code": 400,
+                        "audit_action": "otp_verify",
+                        "audit_email": key,
+                        "audit_detail": "Mã OTP đã được sử dụng.",
+                        "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!",
+                    }
+                    return
+
+            if now > float(pending.get("expires_at", 0) or 0):
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "audit_action": "otp_verify",
+                    "audit_email": key,
+                    "audit_detail": "Mã OTP đã hết hạn (> 5 phút).",
+                    "error": "Mã OTP đã hết hạn!",
+                }
+                return
+
+            pending_purpose = str(pending.get("purpose") or "").strip()
+            pending_email = str(pending.get("email") or key)
+            if expected_purpose is not None and pending_purpose and pending_purpose != expected_purpose:
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "audit_action": "otp_verify_wrong_purpose",
+                    "audit_email": pending_email,
+                    "audit_detail": "Mã OTP không đúng mục đích xác thực yêu cầu.",
+                    "error": "Mã OTP này không dành cho thao tác hiện tại. Vui lòng yêu cầu mã OTP mới!",
+                }
+                return
+
+            otp_clean = str(otp_input or "").strip()
+            otp_match = False
+            if pending.get("otp_hash") and pending.get("otp_salt"):
+                _, cand_hash = hash_otp_fn(otp_clean, otp_salt=str(pending["otp_salt"]))
+                otp_match = bool(otp_clean) and hmac.compare_digest(cand_hash, str(pending["otp_hash"]))
+            elif pending.get("otp_code"):
+                otp_match = bool(otp_clean) and hmac.compare_digest(otp_clean, str(pending["otp_code"]))
+
+            if not otp_match:
+                recent_fails.append(now)
+                target_acc["otp_failed_verify_attempts"] = recent_fails
+                c.execute(
+                    "UPDATE users SET account_meta_json = ? WHERE user_id = ?",
+                    (json.dumps(target_acc, ensure_ascii=False), target_uid),
+                )
+                c.execute(
+                    "UPDATE otp_challenges SET failed_attempts = ? WHERE lower(email) = ? AND used = 0",
+                    (len(recent_fails), key),
+                )
+                result = {
+                    "ok": False,
+                    "layer": 2,
+                    "status_code": 400,
+                    "recent_fails": recent_fails,
+                    "audit_action": "otp_verify",
+                    "audit_email": pending_email,
+                    "audit_detail": f"Nhập sai mã OTP: mã xác nhận không chính xác. (Lần {len(recent_fails)}/3)",
+                    "error": f"Mã OTP '{otp_input}' không chính xác!",
+                }
+                return
+
+            verified_purpose = pending_purpose or expected_purpose or "layer2_login"
+            should_consume = consume_on_success if consume_on_success is not None else (verified_purpose == "layer2_login")
+            target_acc["otp_failed_verify_attempts"] = []
+            pending["verified_layer2"] = True
+            if should_consume:
+                if chal_id:
+                    cur = c.execute(
+                        "UPDATE otp_challenges SET used = 1, failed_attempts = 0 WHERE challenge_id = ? AND used = 0",
+                        (chal_id,),
+                    )
+                    if cur.rowcount == 0:
+                        existing_ch = c.execute(
+                            "SELECT used FROM otp_challenges WHERE challenge_id = ?",
+                            (chal_id,),
+                        ).fetchone()
+                        if existing_ch is not None:
+                            result = {
+                                "ok": False,
+                                "layer": 2,
+                                "status_code": 400,
+                                "audit_action": "otp_verify",
+                                "audit_email": pending_email,
+                                "audit_detail": "Mã OTP đã được sử dụng.",
+                                "error": "Chưa có mã OTP cho tài khoản này. Hãy đăng nhập Lớp 1 trước!",
+                            }
+                            return
+                else:
+                    c.execute(
+                        "UPDATE otp_challenges SET used = 1, failed_attempts = 0 WHERE lower(email) = ? AND used = 0",
+                        (pending_email.strip().lower(),),
+                    )
+                pending["consumed"] = True
+                target_acc.pop("pending_otp", None)
+                target_acc.pop("otp_cooldown_started_at", None)
+            else:
+                target_acc["pending_otp"] = pending
+
+            c.execute(
+                "UPDATE users SET account_meta_json = ? WHERE user_id = ?",
+                (json.dumps(target_acc, ensure_ascii=False), target_uid),
+            )
+            pending_display = str(pending.get("display_name") or target_acc.get("display_name") or pending_email)
+            pending_tier = int(pending.get("tier") or target_acc.get("tier") or 1)
+            pending_account_id = str(pending.get("account_id") or target_acc.get("account_id") or "")
+            result = {
+                "ok": True,
+                "layer": 2,
+                "next_layer": 3,
+                "verified_purpose": verified_purpose,
+                "consumed": bool(should_consume),
+                "email": pending_email,
+                "key_email": key,
+                "account_id": pending_account_id,
+                "display_name": pending_display,
+                "tier": pending_tier,
+                "voice_verified": bool(
+                    target_acc.get("voice_verified", not target_acc.get("needs_first_page_voice_enroll", False))
+                ),
+                "needs_first_page_voice_enroll": bool(target_acc.get("needs_first_page_voice_enroll")),
+                "reading_prompt": target_acc.get("reading_prompt", ""),
+                "updated_account": target_acc,
+                "message": "✅ Lớp 2 (Gmail OTP) thành công!",
+            }
+
+        run_write_transaction(conn, _tx)
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+    return result
+
+
+def verify_and_reset_owner_pin_with_otp_sqlite(
+    *,
+    otp: str,
+    pin: str,
+    now: float,
+    max_failures: int,
+    verify_secret_fn: Any,
+    hash_secret_fn: Any,
+    data_dir: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Atomically verify reset OTP and update Owner PIN inside SQLite BEGIN IMMEDIATE."""
+    conn = _conn_for_data_dir(data_dir)
+    out: dict[str, Any] = {}
+    try:
+        def _tx(c: sqlite3.Connection) -> None:
+            nonlocal out
+            row = c.execute("SELECT * FROM owner_pin_security WHERE id = 1").fetchone()
+            if row is None:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
+                return
+            if int(row["otp_used"] or 0) != 0:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
+                return
+            otp_fails = int(row["otp_failed_attempts"] or 0)
+            if otp_fails >= max_failures:
+                out = {"ok": False, "status_code": 423, "error": "Mã xác nhận đã bị khóa. Hãy yêu cầu mã mới."}
+                return
+            if float(row["otp_expires_at"] or 0.0) <= now:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã hết hạn. Hãy gửi lại mã mới."}
+                return
+            if not verify_secret_fn(otp, str(row["otp_salt"] or ""), str(row["otp_hash"] or "")):
+                c.execute(
+                    "UPDATE owner_pin_security SET otp_failed_attempts = otp_failed_attempts + 1, updated_at = ? WHERE id = 1",
+                    (now,),
+                )
+                out = {"ok": False, "status_code": 403, "error": "Mã xác nhận không đúng."}
+                return
+            pin_salt, pin_hash = hash_secret_fn(pin)
+            cur = c.execute(
+                """
+                UPDATE owner_pin_security
+                SET pin_salt = ?, pin_hash = ?, failed_attempts = 0, locked = 0,
+                    otp_used = 1, otp_failed_attempts = 0, updated_at = ?
+                WHERE id = 1 AND otp_used = 0
+                """,
+                (pin_salt, pin_hash, now),
+            )
+            if cur.rowcount != 1:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
+                return
+            out = {"ok": True, "pin_set": True, "locked": False, "message": "Đã đặt lại mã PIN."}
+
+        run_write_transaction(conn, _tx)
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+    return out

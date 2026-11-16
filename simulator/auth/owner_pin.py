@@ -10,7 +10,14 @@ import threading
 import time
 from typing import Any
 
-from simulator.auth.security_state import cloud_required, load_security_state, save_security_state, SecurityStateUnavailable, atomic_security
+from simulator.auth.security_state import (
+    SecurityStateUnavailable,
+    _sqlite_security_enabled,
+    atomic_security,
+    cloud_required,
+    load_security_state,
+    save_security_state,
+)
 
 OWNER_PIN_FILE = "owner_pin.json"
 MAX_FAILURES = 5
@@ -30,7 +37,12 @@ def _data_dir():
 
 def _load() -> dict[str, Any]:
     global _CACHE
-    if _CACHE is not None and not cloud_required():
+    bypass_cache = (
+        cloud_required()
+        or _sqlite_security_enabled()
+        or bool(os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip())
+    )
+    if _CACHE is not None and not bypass_cache:
         return dict(_CACHE)
     data: dict[str, Any] = {}
     try:
@@ -232,6 +244,7 @@ def send_reset_email(otp_code: str) -> dict[str, Any]:
 
 @atomic_security("owner_pin.json")
 def reset_pin_with_otp(otp: str, pin: str, pin_confirm: str) -> dict[str, Any]:
+    global _CACHE
     code = str(otp or "").strip()
     if not (len(code) == OTP_DIGITS and code.isdigit()):
         return {"ok": False, "status_code": 400, "error": "Mã xác nhận không hợp lệ."}
@@ -241,6 +254,21 @@ def reset_pin_with_otp(otp: str, pin: str, pin_confirm: str) -> dict[str, Any]:
         return {"ok": False, "status_code": 400, "error": "Mã PIN mới phải gồm đúng 4 chữ số."}
     if p1 != p2:
         return {"ok": False, "status_code": 400, "error": "Hai lần nhập PIN mới không khớp nhau."}
+    if _sqlite_security_enabled():
+        from simulator.auth.sqlite_security_repo import verify_and_reset_owner_pin_with_otp_sqlite
+
+        with _LOCK:
+            res = verify_and_reset_owner_pin_with_otp_sqlite(
+                otp=code,
+                pin=p1,
+                now=time.time(),
+                max_failures=MAX_FAILURES,
+                verify_secret_fn=_verify_secret,
+                hash_secret_fn=_hash_secret,
+                data_dir=_data_dir(),
+            )
+            _CACHE = None
+            return res
     with _LOCK:
         data = _load()
         if data.get("otp_used"):

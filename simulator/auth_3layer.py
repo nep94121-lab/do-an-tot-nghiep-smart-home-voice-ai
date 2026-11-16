@@ -1906,6 +1906,7 @@ class ThreeLayerAuthManager(
             source=source,
             expected_purpose="forgot_password",
             client_ip=client_ip,
+            consume_on_success=True,
         )
         if not otp_res.get("ok"):
             return otp_res
@@ -2027,10 +2028,72 @@ class ThreeLayerAuthManager(
         source: str = "Web",
         expected_purpose: str | None = None,
         client_ip: str = "unknown",
+        consume_on_success: bool | None = None,
     ) -> dict[str, Any]:
         """Lớp 2: Xác nhận mã OTP 6 số gửi về Gmail có rate limiting tối đa 3 lần sai trong 5 phút."""
         clean_email = str(email or "").strip().lower()
         now = time.time()
+
+        from simulator.auth.security_state import _sqlite_security_enabled
+
+        if _should_use_cas_store() and _sqlite_security_enabled():
+            from simulator.auth.sqlite_security_repo import verify_and_consume_otp_sqlite
+
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    sql_res = verify_and_consume_otp_sqlite(
+                        clean_email=clean_email,
+                        canon_target=canonical_gmail_mailbox(clean_email),
+                        otp_input=otp_input,
+                        expected_purpose=expected_purpose,
+                        consume_on_success=consume_on_success,
+                        now=now,
+                        canonical_email_fn=canonical_gmail_mailbox,
+                        hash_otp_fn=self._hash_otp_code,
+                        data_dir=self._cas_data_dir(),
+                    )
+                    if sql_res.get("ok"):
+                        key_e = str(sql_res.pop("key_email", "") or clean_email)
+                        self.otp_failed_attempts[key_e] = []
+                        upd_acc = sql_res.pop("updated_account", None)
+                        if isinstance(upd_acc, dict):
+                            for idx, existing_a in enumerate(self.accounts):
+                                if str(existing_a.get("account_id") or "") == str(upd_acc.get("account_id") or ""):
+                                    self.accounts[idx] = upd_acc
+                                    break
+                        if sql_res.pop("consumed", True):
+                            dict.pop(self.pending_otps, key_e, None)
+                            dict.pop(self.pending_otps, clean_email, None)
+                    else:
+                        if isinstance(sql_res.get("recent_fails"), list):
+                            self.otp_failed_attempts[str(sql_res.get("audit_email") or clean_email)] = list(sql_res.pop("recent_fails"))
+                        audit_action = str(sql_res.pop("audit_action", "otp_verify") or "otp_verify")
+                        audit_email = str(sql_res.pop("audit_email", email) or email)
+                        audit_detail = str(sql_res.pop("audit_detail", sql_res.get("error", "")) or "")
+                        self._log_event(
+                            layer="Lớp 2 (Gmail OTP)",
+                            action=audit_action,
+                            email=audit_email,
+                            status="FAIL",
+                            detail=audit_detail,
+                            source=source,
+                        )
+            if sql_res.get("ok"):
+                if sql_res.get("verified_purpose") == "layer2_login":
+                    self._clear_login_failures(
+                        str(sql_res.get("email") or clean_email),
+                        client_ip=client_ip,
+                        account_id=str(sql_res.get("account_id") or ""),
+                    )
+                self._log_event(
+                    layer="Lớp 2 (Gmail OTP)",
+                    action="otp_verified",
+                    email=str(sql_res.get("email") or email),
+                    status="PASS",
+                    detail=f"Xác nhận đúng mã Gmail OTP cho {sql_res.get('display_name')} (Tầng {sql_res.get('tier')}).",
+                    source=source,
+                )
+            return sql_res
 
         def _mutate() -> dict[str, Any]:
             with self._otp_lock:
@@ -2156,13 +2219,14 @@ class ThreeLayerAuthManager(
                         "error": f"Mã OTP '{otp_input}' không chính xác!",
                     }
 
-                # Verification succeeds: atomically reset failed attempts & consume login OTPs
+                # Verification succeeds: atomically reset failed attempts & consume requested OTPs
                 verified_purpose = pending_purpose or expected_purpose or "layer2_login"
+                should_consume = consume_on_success if consume_on_success is not None else (verified_purpose == "layer2_login")
                 self.otp_failed_attempts[key] = []
                 if target_acc:
                     target_acc["otp_failed_verify_attempts"] = []
                 pending["verified_layer2"] = True
-                if verified_purpose == "layer2_login":
+                if should_consume:
                     pending["consumed"] = True
                     dict.pop(self.pending_otps, key, None)
                     dict.pop(self.pending_otps, clean_email, None)

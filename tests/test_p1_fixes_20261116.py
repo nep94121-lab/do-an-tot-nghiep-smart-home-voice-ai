@@ -361,3 +361,190 @@ class TestF02WsAndSsePoolIsolation:
         assert snap_valid.get("current_tier") == 1 and snap_valid.get("public_only") is False
         assert snap_revoked.get("public_only") is True and "custom_commands" not in snap_revoked
 
+
+class TestF03AtomicQrAndOtpMultiprocess:
+    """F03: Single-use QR invite and OTP consume remain strictly single-winner across processes."""
+
+    def test_concurrent_child_processes_qr_and_otp_single_winner(self, tmp_path: pathlib.Path) -> None:
+        import concurrent.futures
+        import os
+        import secrets
+        import subprocess
+        import sys
+        from simulator.auth.guest_invites import create_invite
+        from simulator.auth.owner_pin import issue_reset_otp, reset_pin_with_otp
+        from simulator.auth.session_store import get_session_store
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        data_dir = tmp_path / "f03_mp_data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        prev_env = {k: os.environ.get(k) for k in ("SMARTHOME_DATA_DIR", "SMARTHOME_SECURITY_BACKEND", "SMARTHOME_SESSION_SECRET")}
+        env = dict(
+            os.environ,
+            SMARTHOME_DATA_DIR=str(data_dir),
+            SMARTHOME_SECURITY_BACKEND="sqlite",
+            SIMULATOR_OFFLINE_SANDBOX="1",
+            SMARTHOME_SESSION_SECRET="f03_test_secret_" + secrets.token_hex(16),
+            PYTHONPATH=str(repo_root),
+            PYTHONIOENCODING="utf-8",
+        )
+        os.environ["SMARTHOME_DATA_DIR"] = env["SMARTHOME_DATA_DIR"]
+        os.environ["SMARTHOME_SECURITY_BACKEND"] = "sqlite"
+        os.environ["SMARTHOME_SESSION_SECRET"] = env["SMARTHOME_SESSION_SECRET"]
+        store = get_session_store()
+        prev_store_path = store.db_path
+        store.db_path = data_dir / "smarthome.db"
+        try:
+            # 1. Single-use QR invite across 2 child processes
+            invite = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
+            qr_script = (
+                "import os, sys; "
+                "from simulator.auth.guest_invites import redeem_token; "
+                "r = redeem_token(sys.argv[1]); "
+                "print('OK' if r.get('ok') else r.get('reason', 'FAIL'))"
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                qr_outs = list(
+                    pool.map(
+                        lambda _: subprocess.run(
+                            [sys.executable, "-c", qr_script, invite["token"]],
+                            text=True,
+                            capture_output=True,
+                            env=env,
+                            cwd=str(repo_root),
+                            timeout=30,
+                        ).stdout.strip(),
+                        range(2),
+                    )
+                )
+            assert qr_outs.count("OK") == 1
+            assert qr_outs.count("used") == 1
+
+            # 2. Layer-2 OTP verify across 2 child processes
+            mgr = ThreeLayerAuthManager()
+            acc = next(a for a in mgr.accounts if int(a.get("tier", 3)) == 1)
+            email = str(acc["email"])
+            code_l2 = f"{100000 + secrets.randbelow(900000)}"
+            salt_l2, dig_l2 = mgr._hash_otp_code(code_l2)
+            pending_l2 = {
+                "email": email,
+                "display_name": acc["display_name"],
+                "account_id": acc["account_id"],
+                "tier": 1,
+                "purpose": "layer2_login",
+                "otp_salt": salt_l2,
+                "otp_hash": dig_l2,
+                "created_at": time.time(),
+                "expires_at": time.time() + 300,
+                "consumed": False,
+            }
+            acc["pending_otp"] = pending_l2
+            mgr.pending_otps[email] = pending_l2
+            assert mgr._save_accounts() is True
+
+            otp_script = (
+                "import sys; "
+                "from simulator.auth_3layer import ThreeLayerAuthManager; "
+                "r = ThreeLayerAuthManager().layer2_verify_otp(sys.argv[1], sys.argv[2], expected_purpose='layer2_login'); "
+                "print('OK' if r.get('ok') else 'REJECT')"
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                otp_outs = list(
+                    pool.map(
+                        lambda _: subprocess.run(
+                            [sys.executable, "-c", otp_script, email, code_l2],
+                            text=True,
+                            capture_output=True,
+                            env=env,
+                            cwd=str(repo_root),
+                            timeout=30,
+                        ).stdout.strip(),
+                        range(2),
+                    )
+                )
+            assert otp_outs.count("OK") == 1
+            assert otp_outs.count("REJECT") == 1
+
+            # 3. forgot_password_reset consumes OTP atomically across 2 child processes
+            code_fp = f"{100000 + secrets.randbelow(900000)}"
+            salt_fp, dig_fp = mgr._hash_otp_code(code_fp)
+            pending_fp = {
+                "email": email,
+                "display_name": acc["display_name"],
+                "account_id": acc["account_id"],
+                "tier": 1,
+                "purpose": "forgot_password",
+                "otp_salt": salt_fp,
+                "otp_hash": dig_fp,
+                "created_at": time.time(),
+                "expires_at": time.time() + 300,
+                "consumed": False,
+            }
+            acc["pending_otp"] = pending_fp
+            mgr.pending_otps[email] = pending_fp
+            assert mgr._save_accounts() is True
+
+            fp_script = (
+                "import sys; "
+                "from simulator.auth_3layer import ThreeLayerAuthManager; "
+                "r = ThreeLayerAuthManager().reset_password_with_otp(email=sys.argv[1], otp_code=sys.argv[2], new_password='NewStrong#Pass2026', confirm_password='NewStrong#Pass2026'); "
+                "print('OK' if r.get('ok') else 'REJECT')"
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                fp_procs = list(
+                    pool.map(
+                        lambda _: subprocess.run(
+                            [sys.executable, "-c", fp_script, email, code_fp],
+                            text=True,
+                            capture_output=True,
+                            env=env,
+                            cwd=str(repo_root),
+                            timeout=30,
+                        ),
+                        range(2),
+                    )
+                )
+            for p in fp_procs:
+                assert p.returncode == 0, p.stderr
+            fp_outs = [p.stdout.strip() for p in fp_procs]
+            assert fp_outs.count("OK") == 1
+            assert fp_outs.count("REJECT") == 1
+
+            # 4. Owner PIN reset OTP across 2 child processes
+            issued_meta, pin_otp = issue_reset_otp()
+            assert issued_meta.get("ok") is True and len(pin_otp) == 6
+            pin_script = (
+                "import sys; "
+                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
+                "print('OK' if r.get('ok') else 'REJECT')"
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                pin_procs = list(
+                    pool.map(
+                        lambda _: subprocess.run(
+                            [sys.executable, "-c", pin_script, pin_otp],
+                            text=True,
+                            capture_output=True,
+                            env=env,
+                            cwd=str(repo_root),
+                            timeout=30,
+                        ),
+                        range(2),
+                    )
+                )
+            for p in pin_procs:
+                assert p.returncode == 0, p.stderr
+            pin_outs = [p.stdout.strip() for p in pin_procs]
+            assert pin_outs.count("OK") == 1
+            assert pin_outs.count("REJECT") == 1
+        finally:
+            store.db_path = prev_store_path
+            for k, old_v in prev_env.items():
+                if old_v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = old_v
+
+

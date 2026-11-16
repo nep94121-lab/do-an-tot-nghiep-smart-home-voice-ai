@@ -216,6 +216,9 @@ class _Transaction:
 
 
 _TRANSACTION: contextvars.ContextVar[_Transaction | None] = contextvars.ContextVar("security_transaction", default=None)
+_ACTIVE_TX_LOCKS: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
+    "security_tx_file_locks", default=frozenset()
+)
 
 
 def atomic_security(filename: str):
@@ -224,7 +227,24 @@ def atomic_security(filename: str):
         @functools.wraps(operation)
         def run(*args, **kwargs):
             if not cloud_required():
-                return operation(*args, **kwargs)
+                if _sqlite_security_enabled():
+                    return operation(*args, **kwargs)
+                key = Path(filename).name
+                held = _ACTIVE_TX_LOCKS.get()
+                if key in held:
+                    return operation(*args, **kwargs)
+                from simulator.auth.session_store import get_session_store
+                from simulator.engine.state_store import _interprocess_file_lock
+
+                local_cas_dir = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+                base_dir = Path(local_cas_dir) if local_cas_dir else get_session_store().db_path.parent
+                lock_path = base_dir / f".tx_{key}.lock"
+                tok = _ACTIVE_TX_LOCKS.set(held | {key})
+                try:
+                    with _interprocess_file_lock(lock_path):
+                        return operation(*args, **kwargs)
+                finally:
+                    _ACTIVE_TX_LOCKS.reset(tok)
             backend = get_security_backend()
             deadline = time.monotonic() + 30
             for attempt in range(12):

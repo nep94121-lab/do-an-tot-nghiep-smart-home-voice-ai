@@ -102,7 +102,12 @@ def _load() -> dict[str, dict[str, Any]]:
     global _CACHE, _CACHE_DIR
     ddir = _data_dir()
     ddir_key = str(ddir)
-    if _CACHE is not None and _CACHE_DIR == ddir_key and not cloud_required():
+    bypass_mem_cache = (
+        cloud_required()
+        or _sqlite_security_enabled()
+        or bool(os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip())
+    )
+    if _CACHE is not None and _CACHE_DIR == ddir_key and not bypass_mem_cache:
         return {key: dict(value) for key, value in _CACHE.items()}
     data: dict[str, dict[str, Any]] = {}
     try:
@@ -291,13 +296,23 @@ def _mark_invite_revoked(jti: str) -> dict[str, Any]:
     key = str(jti or "").strip()
     if not key:
         return {"ok": False, "error": "missing_invite_id"}
+    now = time.time()
+    if _sqlite_security_enabled():
+        from simulator.auth.sqlite_security_repo import revoke_invite_sqlite
+
+        with _LOCK:
+            res = revoke_invite_sqlite(jti=key, revoked_at=now, data_dir=_data_dir())
+            if _CACHE is not None and key in _CACHE and res.get("ok"):
+                _CACHE[key]["revoked"] = True
+                _CACHE[key]["revoked_at"] = now
+            return res
     with _LOCK:
         data = _load()
         record = data.get(key)
         if record is None:
             return {"ok": False, "error": "not_found"}
         record["revoked"] = True
-        record["revoked_at"] = time.time()
+        record["revoked_at"] = now
         data[key] = record
         _save(data)
     return {"ok": True, "invite_id": key, "revoked": True}
@@ -408,8 +423,44 @@ def _claim_invite_redemption(token: str) -> dict[str, Any]:
     exp = float(payload.get("x") or 0.0)
     if not jti:
         return {"ok": False, "valid": False, "reason": "invalid", "error": "Mã mời không hợp lệ."}
+    now = time.time()
+    if _sqlite_security_enabled():
+        from simulator.auth.sqlite_security_repo import claim_invite_sqlite
+
+        with _LOCK:
+            record = claim_invite_sqlite(jti=jti, exp=exp, now=now, data_dir=_data_dir())
+            if not record.get("ok"):
+                return record
+            if _CACHE is not None and jti in _CACHE:
+                _CACHE[jti]["redeem_count"] = 1
+                _CACHE[jti]["last_redeem_at"] = now
+            expires_at = float(record.get("expires_at") or exp)
+            tier = int(record.get("tier") or payload.get("t") or 3)
+            dur_code = str(record.get("duration_code") or payload.get("d") or "").strip()
+            dur_label = str(record.get("duration_label") or "").strip()
+            dur_sec = int(record.get("duration_seconds") or 0) or max(
+                60, int(expires_at - float(record.get("created_at") or now))
+            )
+            if not dur_code or not dur_label:
+                c2, l2, _ = resolve_invite_duration(duration_code=dur_code or None, ttl_sec=dur_sec)
+                dur_code = dur_code or c2
+                dur_label = dur_label or l2
+            return {
+                "ok": True,
+                "valid": True,
+                "reason": "ok",
+                "invite_id": jti,
+                "tier": tier,
+                "role": str(record.get("role") or _ROLES.get(tier, "CHILD_GUEST")),
+                "duration_code": dur_code,
+                "duration_label": dur_label,
+                "duration_seconds": dur_sec,
+                "guest_name": str(record.get("guest_name") or "").strip(),
+                "expires_at": expires_at,
+                "ttl_remaining_sec": max(0, int(expires_at - now)),
+            }
+
     with _LOCK:
-        now = time.time()
         data = _load()
         record = data.get(jti)
         if record is None:
@@ -469,6 +520,16 @@ def _claim_invite_redemption(token: str) -> dict[str, Any]:
 def _rollback_invite_redemption(jti: str) -> None:
     key = str(jti or "").strip()
     if not key:
+        return
+    if _sqlite_security_enabled():
+        from simulator.auth.sqlite_security_repo import rollback_invite_claim_sqlite
+
+        with _LOCK:
+            rollback_invite_claim_sqlite(jti=key, data_dir=_data_dir())
+            if _CACHE is not None and key in _CACHE:
+                _CACHE[key]["redeem_count"] = max(0, int(_CACHE[key].get("redeem_count") or 0) - 1)
+                if _CACHE[key]["redeem_count"] == 0:
+                    _CACHE[key].pop("last_redeem_at", None)
         return
     with _LOCK:
         data = _load()
