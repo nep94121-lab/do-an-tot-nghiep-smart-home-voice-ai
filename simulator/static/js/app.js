@@ -4377,7 +4377,7 @@
           if (panelEl) panelEl.hidden = true;
           setAutoFormFeedback("");
           if (data.snapshot) applySnapshot(data.snapshot);
-          appendLog(data.reply || data.exact_spoken_reply || "Đã lưu cấu hình tự động.", "AUTOMATION");
+          logEvent(data.reply || data.exact_spoken_reply || "Đã lưu cấu hình tự động.", "ok");
         } catch (err) {
           setAutoFormFeedback(`Lỗi kết nối: ${err}`, true);
         }
@@ -4436,13 +4436,13 @@
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.ok === false) {
-            appendLog(data.error || "Thao tác tự động thất bại.", "SECURITY");
+            logEvent(data.error || "Thao tác tự động thất bại.", "err");
             return;
           }
           if (data.snapshot) applySnapshot(data.snapshot);
-          appendLog(data.reply || data.exact_spoken_reply || `Đã thực hiện ${act}.`, "AUTOMATION");
+          logEvent(data.reply || data.exact_spoken_reply || `Đã thực hiện ${act}.`, "ok");
         } catch (err) {
-          appendLog(`Lỗi tự động hóa: ${err}`, "ERROR");
+          logEvent(`Lỗi tự động hóa: ${err}`, "err");
         }
       });
     }
