@@ -78,13 +78,16 @@ class TestVercelJsonSyntacticIntegrity:
         assert vercel_config.get("version") == 2, "vercel.json must specify version 2"
         assert "redirects" in vercel_config, "vercel.json must contain 'redirects' key"
         assert "routes" not in vercel_config, "vercel.json must not mix legacy 'routes' with Edge 'redirects'"
-        assert isinstance(vercel_config["redirects"], list) and len(vercel_config["redirects"]) == 1
+        assert isinstance(vercel_config["redirects"], list) and len(vercel_config["redirects"]) == 2
 
     def test_all_route_regexes_compile(self, vercel_config: dict[str, Any]):
-        rule = vercel_config["redirects"][0]
-        assert rule.get("source") == "/:path*"
-        assert rule.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
-        assert rule.get("permanent") is True
+        root_rule, catchall_rule = vercel_config["redirects"]
+        assert root_rule.get("source") == "/"
+        assert root_rule.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/"
+        assert root_rule.get("permanent") is True
+        assert catchall_rule.get("source") == "/:path*"
+        assert catchall_rule.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+        assert catchall_rule.get("permanent") is True
 
     def test_destination_files_exist_on_disk(self, vercel_config: dict[str, Any]):
         out_dir = vercel_config.get("outputDirectory") or "public"
@@ -100,23 +103,23 @@ class TestTrailingSlashAndBoundarySoundness:
     """Verify permanent Edge 308 target handles trailing slashes and all subpaths cleanly."""
 
     def test_mobile_exact_and_trailing_slash(self, vercel_config: dict[str, Any]):
-        rule = vercel_config["redirects"][0]
-        assert rule["destination"].startswith("https://laptop-6i654f8c.tail3020d6.ts.net/")
-        assert rule["permanent"] is True
+        for rule in vercel_config["redirects"]:
+            assert rule["destination"].startswith("https://laptop-6i654f8c.tail3020d6.ts.net/")
+            assert rule["permanent"] is True
 
     def test_architecture_exact_and_trailing_slash(self, vercel_config: dict[str, Any]):
         assert (ROOT / "docs" / "kien_truc" / "smart-home-voice-ai.architecture.html").exists()
 
     def test_adversarial_prefix_hijack_prevention(self, vercel_config: dict[str, Any]):
-        rule = vercel_config["redirects"][0]
-        assert "/api/" not in rule["source"]
+        for rule in vercel_config["redirects"]:
+            assert "/api/" not in rule["source"]
 
 
 class TestRoutePrecedenceAndConflictAvoidance:
     """Ensure all static assets remain available on FastAPI LENOVO origin."""
 
     def test_api_routes_precede_catchall(self, vercel_config: dict[str, Any]):
-        assert vercel_config["redirects"][0]["destination"] == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
+        assert vercel_config["redirects"][-1]["destination"] == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
 
     def test_static_routes_precede_catchall(self, vercel_config: dict[str, Any]):
         assert (ROOT / "simulator" / "static" / "css" / "style.css").exists()

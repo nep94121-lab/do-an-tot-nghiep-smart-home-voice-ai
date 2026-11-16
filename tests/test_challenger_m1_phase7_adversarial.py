@@ -221,9 +221,11 @@ class TestVercelRoutingStress:
 
     def test_vercel_precedence_login_register_before_catchall(self, vercel_config: dict[str, Any]):
         redirects = vercel_config.get("redirects", [])
-        assert len(redirects) == 1
-        assert redirects[0]["source"] == "/:path*"
+        assert len(redirects) == 2
+        assert redirects[0]["source"] == "/"
         assert redirects[0]["permanent"] is True
+        assert redirects[1]["source"] == "/:path*"
+        assert redirects[1]["permanent"] is True
 
 
 # =============================================================================

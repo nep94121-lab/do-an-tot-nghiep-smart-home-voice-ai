@@ -5,6 +5,11 @@
   "outputDirectory": "public",
   "redirects": [
     {
+      "source": "/",
+      "destination": "https://laptop-6i654f8c.tail3020d6.ts.net/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "destination": "https://laptop-6i654f8c.tail3020d6.ts.net/:path*",
       "permanent": true
