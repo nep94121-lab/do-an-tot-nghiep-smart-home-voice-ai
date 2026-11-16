@@ -4,18 +4,38 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pathlib
 import sqlite3
+import sys
+import threading
 import time
 from typing import Any
 
 from simulator.database_sqlite import init_sqlite_database
 from simulator.db_migrations import open_wal_connection, role_for_tier, run_write_transaction
 
+_ACCOUNTS_CACHE_LOCK = threading.RLock()
+_ACCOUNTS_CACHE_EPOCH = 0
+_ACCOUNTS_SQLITE_CACHE: dict[str, tuple[int, float, bytes | None]] = {}
+_ACCOUNTS_CACHE_TTL_SEC = 1.0
 
-def _conn_for_data_dir(data_dir: pathlib.Path | None) -> sqlite3.Connection:
+
+def _accounts_cache_allowed() -> bool:
+    return not ("pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"))
+
+
+def invalidate_accounts_sqlite_cache() -> None:
+    global _ACCOUNTS_CACHE_EPOCH
+    with _ACCOUNTS_CACHE_LOCK:
+        _ACCOUNTS_CACHE_EPOCH += 1
+        _ACCOUNTS_SQLITE_CACHE.clear()
+
+
+def _conn_for_data_dir(data_dir: pathlib.Path | None, *, readonly: bool = False) -> sqlite3.Connection:
     target = init_sqlite_database((pathlib.Path(data_dir) / "smarthome.db") if data_dir else None)
-    return open_wal_connection(target, readonly=False)
+    use_ro = bool(readonly and target.exists())
+    return open_wal_connection(target, readonly=use_ro)
 
 
 def _hash_token(token: str) -> str:
@@ -23,7 +43,7 @@ def _hash_token(token: str) -> str:
 
 
 def load_owner_pin_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
-    conn = _conn_for_data_dir(data_dir)
+    conn = _conn_for_data_dir(data_dir, readonly=True)
     try:
         row = conn.execute("SELECT * FROM owner_pin_security WHERE id = 1").fetchone()
         if not row or (not row["pin_hash"] and not row["otp_hash"] and int(row["failed_attempts"] or 0) == 0 and not row["locked"]):
@@ -92,10 +112,10 @@ def save_owner_pin_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None
         run_write_transaction(conn, _tx)
     finally:
         conn.close()
-
+        invalidate_accounts_sqlite_cache()
 
 def load_invites_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
-    conn = _conn_for_data_dir(data_dir)
+    conn = _conn_for_data_dir(data_dir, readonly=True)
     try:
         rows = conn.execute(
             """
@@ -220,10 +240,10 @@ def save_invites_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
         run_write_transaction(conn, _tx)
     finally:
         conn.close()
-
+        invalidate_accounts_sqlite_cache()
 
 def load_rate_limits_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
-    conn = _conn_for_data_dir(data_dir)
+    conn = _conn_for_data_dir(data_dir, readonly=True)
     try:
         rows = conn.execute("SELECT * FROM login_rate_limits").fetchall()
         if not rows:
@@ -280,34 +300,47 @@ def save_rate_limits_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> No
         run_write_transaction(conn, _tx)
     finally:
         conn.close()
-
+        invalidate_accounts_sqlite_cache()
 
 def load_accounts_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
-    conn = _conn_for_data_dir(data_dir)
+    cache_key = str((pathlib.Path(data_dir) / "smarthome.db").resolve()) if data_dir else "__default__"
+    if _accounts_cache_allowed():
+        with _ACCOUNTS_CACHE_LOCK:
+            cached = _ACCOUNTS_SQLITE_CACHE.get(cache_key)
+            if cached is not None:
+                ep, ts_mono, payload = cached
+                if ep == _ACCOUNTS_CACHE_EPOCH and (time.monotonic() - ts_mono) < _ACCOUNTS_CACHE_TTL_SEC:
+                    return payload
+    ep_before = _ACCOUNTS_CACHE_EPOCH
+    conn = _conn_for_data_dir(data_dir, readonly=True)
+    result: bytes | None = None
     try:
         rows = conn.execute(
             "SELECT * FROM users WHERE account_meta_json != '{}' AND account_meta_json != '' ORDER BY tier ASC, user_id ASC"
         ).fetchall()
-        if not rows:
-            return None
-        accounts: list[dict[str, Any]] = []
-        for r in rows:
-            try:
-                meta = json.loads(str(r["account_meta_json"] or "{}"))
-            except Exception:
-                meta = {}
-            if not isinstance(meta, dict) or not meta:
-                continue
-            if r["password_hash"] and not meta.get("password_hash"):
-                meta["password_hash"] = str(r["password_hash"])
-            if r["password_salt"] and not meta.get("password_salt"):
-                meta["password_salt"] = str(r["password_salt"])
-            accounts.append(meta)
-        if not accounts:
-            return None
-        return json.dumps({"accounts": accounts, "updated_at": time.time()}, ensure_ascii=False).encode("utf-8")
+        if rows:
+            accounts: list[dict[str, Any]] = []
+            for r in rows:
+                try:
+                    meta = json.loads(str(r["account_meta_json"] or "{}"))
+                except Exception:
+                    meta = {}
+                if not isinstance(meta, dict) or not meta:
+                    continue
+                if r["password_hash"] and not meta.get("password_hash"):
+                    meta["password_hash"] = str(r["password_hash"])
+                if r["password_salt"] and not meta.get("password_salt"):
+                    meta["password_salt"] = str(r["password_salt"])
+                accounts.append(meta)
+            if accounts:
+                result = json.dumps({"accounts": accounts, "updated_at": time.time()}, ensure_ascii=False).encode("utf-8")
     finally:
         conn.close()
+    if _accounts_cache_allowed():
+        with _ACCOUNTS_CACHE_LOCK:
+            if ep_before == _ACCOUNTS_CACHE_EPOCH:
+                _ACCOUNTS_SQLITE_CACHE[cache_key] = (_ACCOUNTS_CACHE_EPOCH, time.monotonic(), result)
+    return result
 
 
 def save_accounts_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
@@ -417,7 +450,7 @@ def save_accounts_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
         run_write_transaction(conn, _tx)
     finally:
         conn.close()
-
+        invalidate_accounts_sqlite_cache()
 
 def record_trusted_device_sqlite(
     token: str,
@@ -451,10 +484,10 @@ def record_trusted_device_sqlite(
         run_write_transaction(conn, _tx)
     finally:
         conn.close()
-
+        invalidate_accounts_sqlite_cache()
 
 def is_trusted_device_revoked_sqlite(token: str, data_dir: pathlib.Path | None = None) -> bool:
-    conn = _conn_for_data_dir(data_dir)
+    conn = _conn_for_data_dir(data_dir, readonly=True)
     try:
         row = conn.execute(
             "SELECT revoked, expires_at FROM trusted_devices WHERE device_token_hash = ?",

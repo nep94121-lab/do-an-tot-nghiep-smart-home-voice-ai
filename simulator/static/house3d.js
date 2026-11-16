@@ -22,6 +22,7 @@ window.SmartHome3D = (() => {
   let container, labelsContainer;
   let scene, camera, renderer;
   let onDeviceClickCallback = null;
+  let isSoftwareRenderer = false;
 
   // Điều khiển góc nhìn Camera
   let camState = {
@@ -194,8 +195,25 @@ window.SmartHome3D = (() => {
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(w, h);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = true;
+    let isSoftwareGl = Boolean(
+      typeof navigator !== "undefined" &&
+        (Boolean(navigator.webdriver) || /HeadlessChrome/i.test(String(navigator.userAgent || "")))
+    );
+    if (!isSoftwareGl && renderer && typeof renderer.getContext === "function") {
+      try {
+        const gl = renderer.getContext();
+        const dbg = gl && gl.getExtension ? gl.getExtension("WEBGL_debug_renderer_info") : null;
+        if (dbg) {
+          const glRendererStr = String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || "");
+          if (/SwiftShader|llvmpipe|Software/i.test(glRendererStr)) {
+            isSoftwareGl = true;
+          }
+        }
+      } catch (_) {}
+    }
+    isSoftwareRenderer = isSoftwareGl;
+    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if (THREE.ACESFilmicToneMapping !== undefined) {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1762,7 +1780,11 @@ window.SmartHome3D = (() => {
 
   function animate(timeMs) {
     requestAnimationFrame(animate);
-    const isAutomated = typeof navigator !== "undefined" && Boolean(navigator.webdriver);
+    if (typeof document !== "undefined" && document.hidden) return;
+    const isAutomated =
+      isSoftwareRenderer ||
+      (typeof navigator !== "undefined" &&
+        (Boolean(navigator.webdriver) || /HeadlessChrome/i.test(String(navigator.userAgent || ""))));
     if (isAutomated && renderedFramesCount > 3 && ((timeMs || 0) - lastRenderTimeMs) < 400) {
       return;
     }

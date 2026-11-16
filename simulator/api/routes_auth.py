@@ -10,6 +10,7 @@ Chức năng:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import copy
 import os
@@ -151,14 +152,19 @@ def _sync_voiceprints_to_durable_store() -> None:
 @router.get("/api/auth3/overview")
 async def api_auth3_overview(request: Request, email: str = OWNER_EMAIL) -> JSONResponse:
     """Tổng quan trạng thái phân quyền và tài khoản (Chỉ Admin Cấp 1)."""
-    _, err_resp = _require_admin_session(request)
-    if err_resp is not None:
-        return err_resp
-    return JSONResponse(
-        sanitize_overview_and_logs_payload(
+    def _build_overview() -> tuple[JSONResponse | None, dict[str, Any] | None]:
+        _, err_resp = _require_admin_session(request)
+        if err_resp is not None:
+            return err_resp, None
+        data = sanitize_overview_and_logs_payload(
             sanitize_api_payload(get_auth_3layer_manager().get_overview(active_email=email))
         )
-    )
+        return None, data
+
+    err_resp, data = await asyncio.to_thread(_build_overview)
+    if err_resp is not None:
+        return err_resp
+    return JSONResponse(data)
 
 
 @router.get("/api/auth3/invite_links")

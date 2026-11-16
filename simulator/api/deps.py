@@ -44,7 +44,8 @@ async def _emit_to_all_active_bridges(event: dict[str, Any]) -> None:
         from simulator.realtime_hub import get_realtime_hub
 
         ev_type = str(event.get("type") or "engine_event") if isinstance(event, dict) else "engine_event"
-        get_realtime_hub().publish_snapshot(_REST_ENGINE, reason=ev_type)
+        if ev_type != "mqtt_packet":
+            get_realtime_hub().publish_snapshot(_REST_ENGINE, reason=ev_type)
     except Exception:
         pass
     bridges = [br for br in list(_ACTIVE_BRIDGES) if not getattr(br, "_closed", False)]

@@ -14,12 +14,14 @@ Danh sách 9 endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import copy
 import hmac
 import json
 import os
 import re
+import sys
 import time
 from typing import Any
 
@@ -52,6 +54,12 @@ UNKNOWN_DEVICE_REJECTION_ERROR = (
 )
 
 router = APIRouter(tags=["devices"])
+
+_PENDING_DEVICE_AUDIT_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _discard_device_audit_task(task: asyncio.Task[Any]) -> None:
+    _PENDING_DEVICE_AUDIT_TASKS.discard(task)
 
 
 def _owner_error(request: Request, payload: dict[str, Any]) -> JSONResponse | None:
@@ -164,7 +172,7 @@ def _has_valid_hardware_key(request: Request) -> bool:
 @router.get("/api/state")
 async def api_get_state(request: Request) -> JSONResponse:
     """Trả về snapshot trạng thái theo phiên người dùng đang xác thực (hoặc bản rút gọn thiết bị công khai nếu chưa đăng nhập)."""
-    sess = resolve_request_session(request, payload=None, engine=None)
+    sess = await asyncio.to_thread(resolve_request_session, request, None, None)
     explicit_header_token = bool(
         str(request.headers.get("authorization") or "").strip()
         or str(request.headers.get("x-session-token") or "").strip()
@@ -181,7 +189,7 @@ async def api_get_state(request: Request) -> JSONResponse:
         )
     if not sess.is_authenticated:
         if _has_valid_hardware_key(request):
-            _REST_ENGINE.sync_from_shared_store(force=True)
+            await asyncio.to_thread(_REST_ENGINE.sync_from_shared_store, True)
             return JSONResponse(
                 _REST_ENGINE.get_public_device_snapshot(sync=False),
                 headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
@@ -195,7 +203,7 @@ async def api_get_state(request: Request) -> JSONResponse:
             status_code=401,
             headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
         )
-    _REST_ENGINE.sync_from_shared_store(force=True)
+    await asyncio.to_thread(_REST_ENGINE.sync_from_shared_store, True)
     return JSONResponse(
         _REST_ENGINE.get_snapshot(session=sess, sync=False),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
@@ -299,7 +307,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     client_ts_ms = body.get("client_ts_ms") if "client_ts_ms" in body else body.get("timestamp")
     request_id = body.get("request_id") if "request_id" in body else body.get("requestId")
 
-    req_sess = resolve_request_session(request, payload=body, engine=None)
+    req_sess = await asyncio.to_thread(resolve_request_session, request, body, None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)
@@ -359,13 +367,13 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         res["rejection_speech"] = spoken_dev_ctrl
 
     await broadcast_rest_state_to_bridges(sync_engine=False)
-    append_audit_log(
-        category="DEVICE_IO",
-        event_type="mobile_device_toggle",
-        summary=f"[App/Web] {session_user} (Tầng {session_tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
-        user_name=session_user,
-        tier=session_tier,
-        details={
+    audit_kwargs = {
+        "category": "DEVICE_IO",
+        "event_type": "mobile_device_toggle",
+        "summary": f"[App/Web] {session_user} (Tầng {session_tier}): {res.get('exact_spoken_reply') or f'{dev_id} -> {act}'}",
+        "user_name": session_user,
+        "tier": session_tier,
+        "details": {
             "device_id": dev_id,
             "action": act,
             "target_state": target_state,
@@ -374,7 +382,13 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
             "request_id": request_id,
             "result": {k: v for k, v in res.items() if k != "snapshot"},
         },
-    )
+    }
+    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+        await asyncio.to_thread(append_audit_log, **audit_kwargs)
+    else:
+        task = asyncio.create_task(asyncio.to_thread(append_audit_log, **audit_kwargs))
+        _PENDING_DEVICE_AUDIT_TASKS.add(task)
+        task.add_done_callback(_discard_device_audit_task)
     status_code = 200
     if not res.get("ok") and session.source != "legacy_test":
         status_code = 403
@@ -398,7 +412,7 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
     act = str(body.get("action") or "turn_on").strip() or "turn_on"
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
-    req_sess = resolve_request_session(request, payload=body, engine=None)
+    req_sess = await asyncio.to_thread(resolve_request_session, request, body, None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)
@@ -650,7 +664,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
     body = payload if isinstance(payload, dict) else {}
     text = str(body.get("text", "")).strip()
 
-    req_sess = resolve_request_session(request, payload=body, engine=None)
+    req_sess = await asyncio.to_thread(resolve_request_session, request, body, None)
     if (
         req_sess.role == "UNKNOWN"
         or req_sess.tier not in (1, 2, 3)

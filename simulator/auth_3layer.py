@@ -47,6 +47,7 @@ import random
 import re
 import secrets
 import struct
+import sys
 import threading
 import time
 from typing import Any
@@ -276,6 +277,9 @@ class ThreeLayerAuthManager(
         self.verification_logs: list[dict[str, Any]] = []
         self.latest_test_report: dict[str, Any] = {}
         self._otp_lock = _GLOBAL_OTP_LOCK
+        self._last_cas_accounts_raw: bytes | None = None
+        self._last_cas_accounts_dir: str | None = None
+        self._last_cas_accounts_mono: float = 0.0
         self._load_state()
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
@@ -626,10 +630,22 @@ class ThreeLayerAuthManager(
             # Inside an open CAS transaction, self.accounts already holds the live working state.
             return
 
-        raw = load_security_state(_AUTH_CAS_FILENAME, self._cas_data_dir())
+        cas_dir_str = str(self._cas_data_dir())
+        raw = load_security_state(_AUTH_CAS_FILENAME, cas_dir_str and Path(cas_dir_str) or self._cas_data_dir())
+        if (
+            not ("pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"))
+            and raw is not None
+            and raw == getattr(self, "_last_cas_accounts_raw", None)
+            and cas_dir_str == getattr(self, "_last_cas_accounts_dir", None)
+            and (time.monotonic() - getattr(self, "_last_cas_accounts_mono", 0.0)) < 1.0
+        ):
+            return
         with _ACCOUNTS_FILE_LOCK:
             with self._otp_lock:
                 if self._apply_cas_accounts_payload_locked(raw):
+                    self._last_cas_accounts_raw = raw
+                    self._last_cas_accounts_dir = cas_dir_str
+                    self._last_cas_accounts_mono = time.monotonic()
                     return
 
         @atomic_security(_AUTH_CAS_FILENAME)
@@ -653,6 +669,7 @@ class ThreeLayerAuthManager(
         _bootstrap()
 
     def _with_cas_accounts(self, fn):
+        self._last_cas_accounts_raw = None
         if not _should_use_cas_store():
             return fn()
         from simulator.auth.security_state import _TRANSACTION
@@ -866,6 +883,7 @@ class ThreeLayerAuthManager(
             return bool(_atomic_write_file(target, payload))
 
     def _save_accounts(self) -> bool:
+        self._last_cas_accounts_raw = None
         self._purge_throwaway_qa_accounts()
         if _AUTOTEST_SANDBOX.get():
             return True

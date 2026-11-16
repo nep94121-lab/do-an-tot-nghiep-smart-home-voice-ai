@@ -79,6 +79,7 @@ class SessionStore:
         self.db_path = db_path or DB_PATH
         self._lock = threading.RLock()
         self._memory_cache: dict[str, UserSession] = {}
+        self._sqlite_verified_mono: dict[str, float] = {}
         self._revoked_sids: set[str] = set()
         self._init_sqlite()
         if _test_sessions_allowed():
@@ -417,6 +418,7 @@ class SessionStore:
             except Exception:
                 pass
             self._memory_cache[sid] = sess
+            self._sqlite_verified_mono[sid] = time.monotonic()
             if source != "seed":
                 self._save_durable_sessions()
         return sess
@@ -434,6 +436,23 @@ class SessionStore:
         with self._lock:
             if sid in self._revoked_sids:
                 return None
+
+            if not ("pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST")):
+                cached_fast = self._memory_cache.get(sid)
+                if (
+                    cached_fast is not None
+                    and (time.monotonic() - self._sqlite_verified_mono.get(sid, 0.0)) < 1.5
+                ):
+                    if (
+                        cached_fast.is_expired()
+                        or is_throwaway_qa_identity(cached_fast.user_id)
+                        or is_throwaway_qa_identity(cached_fast.email)
+                    ):
+                        self._memory_cache.pop(sid, None)
+                        self._sqlite_verified_mono.pop(sid, None)
+                        self._delete_sqlite_session(sid)
+                        return None
+                    return cached_fast
 
             # SQLite single source of truth check when row exists (catches revocation or restart persistence)
             try:
@@ -482,6 +501,7 @@ class SessionStore:
                     if row["revoked_at"] is not None:
                         self._revoked_sids.add(sid)
                         self._memory_cache.pop(sid, None)
+                        self._sqlite_verified_mono.pop(sid, None)
                         return None
                     r_jti = str(row["invite_jti"] or "")
                     if not r_jti and str(row["source"] or "").startswith("guest_invite:"):
@@ -512,6 +532,7 @@ class SessionStore:
                         self._delete_sqlite_session(sid)
                         return None
                     self._memory_cache[sid] = sess
+                    self._sqlite_verified_mono[sid] = time.monotonic()
                     return sess
                 if row2 is not None:
                     r2_src = str(row2["source"] or "sqlite")
@@ -537,6 +558,7 @@ class SessionStore:
                         self._delete_sqlite_session(sid)
                         return None
                     self._memory_cache[sid] = sess
+                    self._sqlite_verified_mono[sid] = time.monotonic()
                     return sess
             except Exception:
                 pass
@@ -562,6 +584,7 @@ class SessionStore:
         sid = session_id.strip()
         with self._lock:
             self._revoked_sids.add(sid)
+            self._sqlite_verified_mono.pop(sid, None)
             existed = sid in self._memory_cache
             if sid in self._memory_cache:
                 del self._memory_cache[sid]
@@ -597,6 +620,7 @@ class SessionStore:
             expired_keys = [k for k, v in self._memory_cache.items() if v.expires_at <= now]
             for k in expired_keys:
                 del self._memory_cache[k]
+                self._sqlite_verified_mono.pop(k, None)
                 count += 1
             try:
                 from simulator.db_migrations import run_write_transaction

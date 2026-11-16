@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -678,7 +679,7 @@ async def run_scheduler_tick_once(now_override: Any = None) -> int:
     cur_hhmm = now_vn.strftime("%H:%M")
     today_vn = now_vn.strftime("%Y-%m-%d")
     fired = 0
-    for sc in list_schedules(include_disabled=False):
+    for sc in await asyncio.to_thread(list_schedules, include_disabled=False):
         if str(sc.get("time_hhmm") or "") != cur_hhmm:
             continue
         if str(sc.get("last_fired_date_vn") or "") == today_vn:

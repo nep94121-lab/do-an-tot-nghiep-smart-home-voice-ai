@@ -401,7 +401,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if isinstance(payload.get("snapshot"), dict):
             from simulator.auth.tier_permissions import restrict_guest_snapshot
             payload = dict(payload)
-            payload["snapshot"] = restrict_guest_snapshot(payload["snapshot"], self._resolve_ws_session())
+            ws_sess = (
+                self._cached_ws_actor
+                if self._is_cached_actor_fresh()
+                else await asyncio.to_thread(self._resolve_ws_session)
+            )
+            payload["snapshot"] = restrict_guest_snapshot(payload["snapshot"], ws_sess)
         audit_kwargs: dict[str, Any] | None = None
         if ptype == "turn_complete":
             heard = str(payload.get("heard", "")).strip()
@@ -542,7 +547,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             while not self._closed:
                 t0 = time.perf_counter()
                 try:
-                    self._bind_actor_to_engine()
+                    await self._bind_actor_to_engine_async()
                     async with self.client.aio.live.connect(
                         model=MODEL, config=make_live_config(self.engine)
                     ) as session:
