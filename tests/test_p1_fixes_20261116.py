@@ -548,3 +548,82 @@ class TestF03AtomicQrAndOtpMultiprocess:
                     os.environ[k] = old_v
 
 
+class TestF04PatchScheduleAndTimerTier1Conflict:
+    """F04: PATCH/PUT schedule & update_timer enforce Tier 1 +-60s conflict on computed target state."""
+
+    def test_patch_once_schedule_recomputed_date_conflict_returns_409(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import datetime
+        from simulator import automation_repo as repo
+
+        fixed_now = datetime.datetime(2026, 11, 16, 12, 0, tzinfo=repo.SAIGON_TZ)
+        monkeypatch.setattr(repo, "now_saigon", lambda: fixed_now)
+
+        with TestClient(app) as client:
+            # Tier 1 creates 14:00 today (2026-11-16)
+            o1 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "fan", "action": "turn_on", "time_hhmm": "14:00", "schedule_type": "once"})
+            assert o1.status_code == 200
+            oc = client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": o1.json()["pending_id"], "confirmed": True})
+            assert oc.status_code == 200 and oc.json()["schedule"]["run_date_vn"] == "2026-11-16"
+
+            # Tier 2 creates 10:00 (tomorrow 2026-11-17) -> succeeds
+            f1 = client.post("/api/schedules", headers=H_TIER2, json={"device_id": "bedroom_light", "action": "turn_on", "time_hhmm": "10:00", "schedule_type": "once"})
+            fc = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": f1.json()["pending_id"], "confirmed": True})
+            assert fc.status_code == 200 and fc.json()["schedule"]["run_date_vn"] == "2026-11-17"
+            sid = fc.json()["schedule"]["schedule_id"]
+
+            # PATCH time_hhmm -> 14:00 recomputes run_date_vn=2026-11-16 -> MUST reject 409 and preserve 10:00 on 2026-11-17
+            upd = client.patch(f"/api/schedules/{sid}", headers=H_TIER2, json={"time_hhmm": "14:00"})
+            assert upd.status_code == 409
+            assert upd.json().get("conflict_tier1") is True
+
+            # PATCH explicit run_date_vn onto Tier 1's slot + enabled=True transition -> 409
+            o2 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "fan", "action": "turn_off", "time_hhmm": "18:00", "schedule_type": "once"})
+            client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": o2.json()["pending_id"], "confirmed": True})
+            f2 = client.post("/api/schedules", headers=H_TIER2, json={"device_id": "bedroom_light", "action": "turn_off", "time_hhmm": "18:00", "schedule_type": "once", "run_date_vn": "2026-11-18"})
+            f2c = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": f2.json()["pending_id"], "confirmed": True})
+            assert f2c.status_code == 200
+            sid2 = f2c.json()["schedule"]["schedule_id"]
+
+            # Disable first, then try enabling onto 2026-11-16
+            dis1 = client.patch(f"/api/schedules/{sid2}", headers=H_TIER2, json={"enabled": False})
+            client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": dis1.json()["pending_id"], "confirmed": True})
+            en_conf = client.patch(f"/api/schedules/{sid2}", headers=H_TIER2, json={"enabled": True, "run_date_vn": "2026-11-16"})
+            assert en_conf.status_code == 409
+
+            # TOCTOU: if Tier 1 creates 2026-11-17 09:00 AFTER Tier 2 staged a PATCH for 09:00, confirm Step 2 must still return 409!
+            st_p = client.patch(f"/api/schedules/{sid}", headers=H_TIER2, json={"time_hhmm": "09:00", "run_date_vn": "2026-11-17"})
+            assert st_p.status_code == 200 and st_p.json()["requires_confirmation"] is True
+            repo.create_schedule(owner_user_id="tuan_anh", owner_tier=1, device_id="fan", action="turn_on", time_hhmm="09:00", schedule_type="once", run_date_vn="2026-11-17")
+            st_c = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": st_p.json()["pending_id"], "confirmed": True})
+            assert st_c.status_code == 409 and st_c.json().get("conflict_tier1") is True
+
+            # Verify Tier 2's first schedule remained untouched at 10:00 / 2026-11-17
+            saved = next(s for s in list_schedules(include_disabled=True) if s["schedule_id"] == sid)
+            assert saved["time_hhmm"] == "10:00" and saved["run_date_vn"] == "2026-11-17"
+
+    def test_update_or_cancel_timer_conflict_preserves_existing_timer(self) -> None:
+        import asyncio
+        from simulator.automation_repo import ScheduleConflictError
+
+        async def _check() -> None:
+            _REST_ENGINE.set_active_user("tuan_anh")
+            t1 = await _REST_ENGINE.schedule_timer_flexible("fan", "turn_on", seconds=120)
+            assert t1["ok"] is True
+            _REST_ENGINE.set_active_user("thanh_vien_a")
+            t2 = await _REST_ENGINE.schedule_timer_flexible("bedroom_light", "turn_on", seconds=360)
+            assert t2["ok"] is True
+            t2_id = t2["timer_id"]
+
+            mod = await _REST_ENGINE.update_or_cancel_timer(
+                device_id="bedroom_light",
+                operation="modify",
+                seconds=120,
+            )
+            assert mod["ok"] is False and mod.get("conflict_tier1") is True
+            assert t2_id in _REST_ENGINE.active_timers
+            assert any(r["timer_id"] == t2_id for r in list_pending_timers())
+
+        asyncio.run(_check())
+        assert issubclass(ScheduleConflictError, ValueError)
+
+

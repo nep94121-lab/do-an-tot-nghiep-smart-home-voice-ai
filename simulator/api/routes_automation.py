@@ -18,10 +18,12 @@ from simulator.auth.tier_permissions import can_control_device
 from simulator.automation_nlu import parse_multi_steps_from_text, prepare_pending_mutation, execute_confirmed_mutation
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
+    ScheduleConflictError,
     _normalize_steps,
     can_user_create_links,
     check_steps_rbac,
     check_tier1_schedule_conflict,
+    compute_candidate_schedule_state,
     create_automation_rule,
     create_schedule,
     delete_automation_rule,
@@ -682,10 +684,18 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
         new_type = "daily" if new_type == "daily" else "once"
     new_run_date = str(body.get("run_date_vn") or "").strip() if "run_date_vn" in body else None
     new_enabled = bool(body.get("enabled")) if "enabled" in body else bool(existing.get("enabled", True))
-    if new_enabled:
-        cand_hhmm = new_hhmm or existing["time_hhmm"]
-        cand_type = new_type or existing["schedule_type"]
-        cand_date = new_run_date if new_run_date is not None else str(existing.get("run_date_vn") or "")
+    try:
+        cand_hhmm, cand_type, cand_date, cand_enabled = compute_candidate_schedule_state(
+            existing,
+            time_hhmm=new_hhmm,
+            schedule_type=new_type,
+            run_date_vn=new_run_date,
+            enabled=new_enabled,
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    if cand_enabled:
         conflict_msg = check_tier1_schedule_conflict(
             actor_tier=int(sess.tier),
             time_hhmm=cand_hhmm,
@@ -703,8 +713,7 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
 
     cand_dev = new_dev or existing["device_id"]
     cand_act = new_action or existing["action"]
-    cand_time = new_hhmm or existing["time_hhmm"]
-    summary = f"Cập nhật lịch {format_device_action_vi(cand_dev, cand_act).lower()} lúc {cand_time}"
+    summary = f"Cập nhật lịch {format_device_action_vi(cand_dev, cand_act).lower()} lúc {cand_hhmm}"
     update_payload: dict[str, Any] = {
         "schedule_id": schedule_id,
         "time_hhmm": new_hhmm,

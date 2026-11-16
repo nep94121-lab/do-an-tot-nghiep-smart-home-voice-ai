@@ -505,6 +505,48 @@ class EngineTimersMixin:
         target_dev = old_info["raw_target"]
         target_act = new_action if new_action in ACTION_TO_STATE else old_info["action"]
 
+        if operation != "cancel" and self.current_tier > 1 and not self.system_policies.get("tier2_can_override_tier1", False):
+            from simulator.automation_repo import check_tier1_schedule_conflict
+
+            repeat_mode = detect_repeat_mode(f"{vn_time_ampm} {vn_date} sửa hẹn giờ", repeat)
+            cand_slots: list[tuple[float, str]] = []
+            if vn_time_ampm and vn_time_ampm.strip():
+                parsed_c = parse_vn_clock_and_date(vn_time_ampm, vn_date, repeat=repeat_mode)
+                if not parsed_c or not parsed_c.get("slots"):
+                    return {"ok": False, "error": f"Không hiểu định dạng giờ '{vn_time_ampm}'."}
+                r_mode = parsed_c.get("repeat", repeat_mode)
+                for sl in parsed_c["slots"]:
+                    cand_slots.append((time.time() + float(sl["delay_seconds"]), r_mode))
+            else:
+                d_sec = float(hours) * 3600.0 + float(minutes) * 60.0 + float(seconds)
+                if d_sec <= 0:
+                    d_sec = 5.0
+                cand_slots.append((time.time() + d_sec, repeat_mode))
+
+            for cand_epoch, cand_rep in cand_slots:
+                c_msg = check_tier1_schedule_conflict(
+                    actor_tier=self.current_tier,
+                    fire_epoch=cand_epoch,
+                    schedule_type=cand_rep,
+                    exclude_timer_id=matched_tids[-1],
+                    engine=self,
+                )
+                if c_msg:
+                    await self.emit({
+                        "type": "rbac_blocked",
+                        "device_id": target_dev,
+                        "action": "update_or_cancel_timer",
+                        "role": self.current_role,
+                        "reason": c_msg,
+                    })
+                    return {
+                        "ok": False,
+                        "rbac_blocked": True,
+                        "conflict_tier1": True,
+                        "error": c_msg,
+                        "exact_spoken_reply": c_msg,
+                    }
+
         for tid in matched_tids:
             t = self._timer_tasks.pop(tid, None)
             if t:

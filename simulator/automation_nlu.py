@@ -21,9 +21,11 @@ from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
     PENDING_CONFIRM_TTL_SEC,
     TIER1_SCHEDULE_CONFLICT_MSG_VI,
+    ScheduleConflictError,
     can_user_create_links,
     check_steps_rbac,
     check_tier1_schedule_conflict,
+    compute_candidate_schedule_state,
     consume_or_cancel_pending_confirmation,
     create_automation_rule,
     create_pending_confirmation,
@@ -286,6 +288,7 @@ def _rbac_error_payload(
             "ok": False,
             "rbac_blocked": int(status_code) == 403,
             "conflict_blocked": int(status_code) == 409,
+            "conflict_tier1": int(status_code) == 409,
             "http_status": int(status_code),
             "tier": int(tier),
             "error": clean_msg,
@@ -711,6 +714,15 @@ async def execute_confirmed_mutation(
                 )
                 for td in target_devs
             ]
+        except ScheduleConflictError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="tier1_schedule_conflict",
+                msg=str(exc),
+                status_code=409,
+                target="schedules",
+            )
         except ValueError as exc:
             return _deny_mutation_error(
                 session=session,
@@ -774,10 +786,24 @@ async def execute_confirmed_mutation(
                 target=str(new_dev),
             )
         new_enabled = bool(payload["enabled"]) if payload.get("enabled") is not None else bool(existing.get("enabled", True))
-        cand_hhmm = str(payload.get("time_hhmm") or existing["time_hhmm"]).strip()
-        cand_type = str(payload.get("schedule_type") or existing["schedule_type"]).strip()
-        cand_date = str(payload.get("run_date_vn") or existing.get("run_date_vn") or "")
-        if new_enabled:
+        try:
+            cand_hhmm, cand_type, cand_date, cand_enabled = compute_candidate_schedule_state(
+                existing,
+                time_hhmm=payload.get("time_hhmm"),
+                schedule_type=payload.get("schedule_type"),
+                run_date_vn=payload.get("run_date_vn"),
+                enabled=new_enabled,
+            )
+        except ValueError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_schedule_update",
+                msg=str(exc),
+                status_code=400,
+                target=sid,
+            )
+        if cand_enabled:
             conflict_msg = check_tier1_schedule_conflict(
                 actor_tier=tier,
                 time_hhmm=cand_hhmm,
@@ -800,10 +826,22 @@ async def execute_confirmed_mutation(
                 sid,
                 time_hhmm=payload.get("time_hhmm"),
                 schedule_type=payload.get("schedule_type"),
+                run_date_vn=payload.get("run_date_vn"),
                 device_id=new_dev,
                 action=payload.get("action"),
                 enabled=payload.get("enabled"),
                 label=payload.get("label"),
+                actor_tier=tier,
+                engine=engine,
+            )
+        except ScheduleConflictError as exc:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="tier1_schedule_conflict",
+                msg=str(exc),
+                status_code=409,
+                target=sid,
             )
         except ValueError as exc:
             err_s = str(exc)

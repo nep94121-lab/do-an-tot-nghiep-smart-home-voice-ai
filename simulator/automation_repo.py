@@ -46,6 +46,71 @@ GUEST_ONLY_TOGGLE_MSG_VI = "Khách chỉ được bật tắt thiết bị thôi
 PENDING_CONFIRM_TTL_SEC = 20.0
 
 
+class ScheduleConflictError(ValueError):
+    """Raised when a Tier 2 schedule collides within +-60s of an active Tier 1 timer or schedule."""
+
+
+def _parse_hhmm_parts(raw_hhmm: str) -> tuple[int, int, str]:
+    hh, mm = [int(p) for p in str(raw_hhmm).strip().split(":", 1)]
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        raise ValueError("Giờ phải nằm trong 00:00 đến 23:59.")
+    return hh, mm, f"{hh:02d}:{mm:02d}"
+
+
+def compute_candidate_schedule_state(
+    existing: dict[str, Any] | Any,
+    *,
+    time_hhmm: str | None = None,
+    schedule_type: str | None = None,
+    run_date_vn: str | None = None,
+    enabled: bool | None = None,
+    now_vn: datetime.datetime | None = None,
+) -> tuple[str, str, str, bool]:
+    """Compute final normalized (time_hhmm, schedule_type, run_date_vn, enabled) before conflict check and SQLite UPDATE."""
+    if isinstance(existing, dict):
+        ex_hhmm = str(existing.get("time_hhmm") or "07:00")
+        ex_type = str(existing.get("schedule_type") or "once")
+        ex_date = str(existing.get("run_date_vn") or "")
+        ex_enabled = bool(existing.get("enabled", True))
+    else:
+        ex_hhmm = str(existing["time_hhmm"] or "07:00")
+        ex_type = str(existing["schedule_type"] or "once")
+        ex_date = str(existing["run_date_vn"] or "")
+        ex_enabled = bool(existing["enabled"])
+
+    cand_hhmm = ex_hhmm
+    if time_hhmm is not None:
+        hh, mm, cand_hhmm = _parse_hhmm_parts(time_hhmm)
+    else:
+        hh, mm, cand_hhmm = _parse_hhmm_parts(ex_hhmm)
+
+    cand_type = ex_type
+    if schedule_type is not None:
+        cand_type = "daily" if str(schedule_type).strip().lower() == "daily" else "once"
+    else:
+        cand_type = "daily" if ex_type.strip().lower() == "daily" else "once"
+
+    cand_enabled = ex_enabled if enabled is None else bool(enabled)
+
+    if cand_type == "daily":
+        cand_date = ""
+    else:
+        explicit_date = str(run_date_vn).strip() if run_date_vn is not None else ""
+        if explicit_date:
+            datetime.date.fromisoformat(explicit_date)
+            cand_date = explicit_date
+        elif time_hhmm is not None or not ex_date.strip() or ex_type.strip().lower() == "daily":
+            ref_now = now_vn or now_saigon()
+            cand_dt = ref_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if cand_dt <= ref_now:
+                cand_dt = cand_dt + datetime.timedelta(days=1)
+            cand_date = cand_dt.strftime("%Y-%m-%d")
+        else:
+            cand_date = ex_date.strip()
+
+    return cand_hhmm, cand_type, cand_date, cand_enabled
+
+
 def strip_accents(text: str) -> str:
     if not text:
         return ""
@@ -461,6 +526,17 @@ def create_schedule(
         conn = get_connection(target)
         try:
             def _tx(c: sqlite3.Connection) -> None:
+                if bool(enabled) and int(owner_tier if owner_tier in (1, 2, 3) else 1) > 1:
+                    c_msg = _check_tier1_conflict_in_conn(
+                        c,
+                        actor_tier=int(owner_tier if owner_tier in (1, 2, 3) else 1),
+                        time_hhmm=hhmm_norm,
+                        schedule_type=st_type,
+                        run_date_vn=date_vn,
+                        now_vn=now_vn,
+                    )
+                    if c_msg:
+                        raise ScheduleConflictError(c_msg)
                 uid = _ensure_fk_parents(
                     c, owner_user_id=owner_user_id, owner_tier=owner_tier, owner_name=owner_name
                 )
@@ -518,54 +594,71 @@ def update_schedule(
     *,
     time_hhmm: str | None = None,
     schedule_type: str | None = None,
+    run_date_vn: str | None = None,
     device_id: str | None = None,
     action: str | None = None,
     enabled: bool | None = None,
     label: str | None = None,
+    actor_tier: int | None = None,
+    engine: Any = None,
     db_path: pathlib.Path | None = None,
 ) -> dict[str, Any] | None:
     with _DB_LOCK:
         target = _resolve_db(db_path)
         conn = get_connection(target)
         try:
-            row = conn.execute("SELECT * FROM schedules WHERE schedule_id = ?", (str(schedule_id),)).fetchone()
-            if row is None:
-                return None
-            new_dev = str(device_id or row["device_id"])
-            if new_dev not in DEFAULT_DEVICES:
-                raise ValueError(f"Thiết bị '{new_dev}' không hợp lệ.")
-            new_act = str(action or row["action"])
-            if new_act not in ACTION_TO_STATE:
-                raise ValueError(f"Hành động '{new_act}' không hợp lệ.")
-            new_hhmm = str(row["time_hhmm"])
-            if time_hhmm is not None:
-                hh, mm = [int(p) for p in str(time_hhmm).strip().split(":", 1)]
-                if not (0 <= hh <= 23 and 0 <= mm <= 59):
-                    raise ValueError("Giờ phải nằm trong 00:00 đến 23:59.")
-                new_hhmm = f"{hh:02d}:{mm:02d}"
-            new_type = str(row["schedule_type"] or "once")
-            if schedule_type is not None:
-                new_type = "daily" if str(schedule_type).strip().lower() == "daily" else "once"
-            new_enabled = int(row["enabled"] or 0) if enabled is None else (1 if enabled else 0)
-            new_label = str(label) if label is not None else f"{format_device_action_vi(new_dev, new_act)} lúc {new_hhmm}"
-            run_date = str(row["run_date_vn"] or "")
-            if time_hhmm is not None and new_type == "once":
-                now_vn = now_saigon()
-                hh, mm = [int(p) for p in new_hhmm.split(":")]
-                cand = now_vn.replace(hour=hh, minute=mm, second=0, microsecond=0)
-                if cand <= now_vn:
-                    cand += datetime.timedelta(days=1)
-                run_date = cand.strftime("%Y-%m-%d")
-
+            now_vn = now_saigon()
             now_ts = time.time()
+            updated_found = True
 
             def _tx(c: sqlite3.Connection) -> None:
+                nonlocal updated_found
+                row = c.execute("SELECT * FROM schedules WHERE schedule_id = ?", (str(schedule_id),)).fetchone()
+                if row is None:
+                    updated_found = False
+                    return
+                new_dev = str(device_id or row["device_id"])
+                if new_dev not in DEFAULT_DEVICES:
+                    raise ValueError(f"Thiết bị '{new_dev}' không hợp lệ.")
+                new_act = str(action or row["action"])
+                if new_act not in ACTION_TO_STATE:
+                    raise ValueError(f"Hành động '{new_act}' không hợp lệ.")
+
+                new_hhmm, new_type, run_date, new_enabled_bool = compute_candidate_schedule_state(
+                    row,
+                    time_hhmm=time_hhmm,
+                    schedule_type=schedule_type,
+                    run_date_vn=run_date_vn,
+                    enabled=enabled,
+                    now_vn=now_vn,
+                )
+                eff_tier = int(actor_tier if actor_tier is not None else (row["owner_tier"] or 1))
+                if new_enabled_bool and eff_tier > 1:
+                    c_msg = _check_tier1_conflict_in_conn(
+                        c,
+                        actor_tier=eff_tier,
+                        time_hhmm=new_hhmm,
+                        schedule_type=new_type,
+                        run_date_vn=run_date,
+                        exclude_schedule_id=str(schedule_id),
+                        now_vn=now_vn,
+                        engine=engine,
+                    )
+                    if c_msg:
+                        raise ScheduleConflictError(c_msg)
+
+                new_label = str(label) if label is not None else f"{format_device_action_vi(new_dev, new_act)} lúc {new_hhmm}"
+                reset_fired = (
+                    time_hhmm is not None
+                    or run_date != str(row["run_date_vn"] or "")
+                    or new_type != str(row["schedule_type"] or "once")
+                )
                 c.execute(
                     """
                     UPDATE schedules
                     SET device_id = ?, action = ?, time_hhmm = ?, schedule_type = ?,
                         run_date_vn = ?, enabled = ?, label = ?, updated_at = ?,
-                        last_fired_date_vn = CASE WHEN ? IS NOT NULL THEN '' ELSE last_fired_date_vn END
+                        last_fired_date_vn = ?
                     WHERE schedule_id = ?
                     """,
                     (
@@ -574,15 +667,17 @@ def update_schedule(
                         new_hhmm,
                         new_type,
                         run_date,
-                        new_enabled,
+                        1 if new_enabled_bool else 0,
                         new_label,
                         now_ts,
-                        time_hhmm,
+                        "" if reset_fired else str(row["last_fired_date_vn"] or ""),
                         str(schedule_id),
                     ),
                 )
 
             run_write_transaction(conn, _tx)
+            if not updated_found:
+                return None
         finally:
             conn.close()
     invalidate_automation_cache(db_path)
@@ -1414,6 +1509,130 @@ def _schedule_epoch_and_tod(
     return target_dt.timestamp(), tod
 
 
+def _check_tier1_conflict_sources(
+    *,
+    actor_tier: int,
+    t1_timers: dict[str, dict[str, Any]],
+    t1_schedules: list[dict[str, Any]],
+    fire_epoch: float | None = None,
+    time_hhmm: str | None = None,
+    schedule_type: str = "once",
+    run_date_vn: str = "",
+    exclude_timer_id: str | None = None,
+    exclude_schedule_id: str | None = None,
+    now_vn: datetime.datetime | None = None,
+    engine: Any = None,
+) -> str | None:
+    if int(actor_tier or 3) <= 1:
+        return None
+    if engine is not None and (getattr(engine, "system_policies", {}) or {}).get("tier2_can_override_tier1", False):
+        return None
+
+    ref_now_vn = now_vn or now_saigon()
+    now_ts = time.time()
+    cand_epoch: float | None = None
+    cand_tod: float | None = None
+    cand_is_daily = str(schedule_type or "once").strip().lower() == "daily"
+
+    if fire_epoch is not None:
+        cand_epoch = float(fire_epoch)
+        cand_dt = datetime.datetime.fromtimestamp(cand_epoch, tz=SAIGON_TZ)
+        cand_tod = float(cand_dt.hour * 3600 + cand_dt.minute * 60 + cand_dt.second)
+    elif time_hhmm:
+        cand_epoch, cand_tod = _schedule_epoch_and_tod(
+            time_hhmm=time_hhmm,
+            run_date_vn=run_date_vn,
+            now_vn=ref_now_vn,
+        )
+    if cand_tod is None and cand_epoch is None:
+        return None
+
+    for tid, tinfo in t1_timers.items():
+        if exclude_timer_id and tid == str(exclude_timer_id):
+            continue
+        if int(tinfo.get("owner_tier") or 1) != 1:
+            continue
+        t1_epoch = float(tinfo.get("fire_at") or tinfo.get("fire_at_epoch") or 0.0)
+        if t1_epoch <= now_ts - 2.0:
+            continue
+        t1_dt = datetime.datetime.fromtimestamp(t1_epoch, tz=SAIGON_TZ)
+        t1_tod = float(t1_dt.hour * 3600 + t1_dt.minute * 60 + t1_dt.second)
+        if cand_is_daily and cand_tod is not None:
+            if _tod_diff_sec(cand_tod, t1_tod) <= 60.0:
+                return TIER1_SCHEDULE_CONFLICT_MSG_VI
+        elif cand_epoch is not None and abs(cand_epoch - t1_epoch) <= 60.0:
+            return TIER1_SCHEDULE_CONFLICT_MSG_VI
+
+    for sc in t1_schedules:
+        sid = str(sc.get("schedule_id") or sc.get("id") or "")
+        if exclude_schedule_id and sid == str(exclude_schedule_id):
+            continue
+        if int(sc.get("owner_tier") or 1) != 1 or not sc.get("enabled", True):
+            continue
+        sc_hhmm = str(sc.get("time_hhmm") or "").strip()
+        if ":" not in sc_hhmm:
+            continue
+        sc_epoch, sc_tod = _schedule_epoch_and_tod(
+            time_hhmm=sc_hhmm,
+            run_date_vn=str(sc.get("run_date_vn") or ""),
+            now_vn=ref_now_vn,
+        )
+        sc_is_daily = str(sc.get("schedule_type") or "once").strip().lower() == "daily"
+        if cand_is_daily or sc_is_daily:
+            if cand_tod is not None and _tod_diff_sec(cand_tod, sc_tod) <= 60.0:
+                return TIER1_SCHEDULE_CONFLICT_MSG_VI
+        elif cand_epoch is not None and abs(cand_epoch - sc_epoch) <= 60.0:
+            return TIER1_SCHEDULE_CONFLICT_MSG_VI
+
+    return None
+
+
+def _check_tier1_conflict_in_conn(
+    conn: sqlite3.Connection,
+    *,
+    actor_tier: int,
+    fire_epoch: float | None = None,
+    time_hhmm: str | None = None,
+    schedule_type: str = "once",
+    run_date_vn: str = "",
+    exclude_timer_id: str | None = None,
+    exclude_schedule_id: str | None = None,
+    now_vn: datetime.datetime | None = None,
+    engine: Any = None,
+) -> str | None:
+    if int(actor_tier or 3) <= 1:
+        return None
+    t1_timers: dict[str, dict[str, Any]] = {}
+    timer_rows = conn.execute(
+        "SELECT timer_id, owner_tier, fire_at_epoch FROM timers_pool WHERE status = 'pending' AND owner_tier = 1"
+    ).fetchall()
+    for r in timer_rows:
+        tid = str(r["timer_id"])
+        t1_timers[tid] = {"timer_id": tid, "owner_tier": int(r["owner_tier"] or 1), "fire_at": float(r["fire_at_epoch"] or 0.0)}
+    if engine is not None:
+        for tid, info in (getattr(engine, "active_timers", {}) or {}).items():
+            t1_timers.setdefault(str(tid), info)
+    sched_rows = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT schedule_id, owner_tier, time_hhmm, schedule_type, run_date_vn, enabled FROM schedules WHERE enabled = 1 AND owner_tier = 1"
+        ).fetchall()
+    ]
+    return _check_tier1_conflict_sources(
+        actor_tier=actor_tier,
+        t1_timers=t1_timers,
+        t1_schedules=sched_rows,
+        fire_epoch=fire_epoch,
+        time_hhmm=time_hhmm,
+        schedule_type=schedule_type,
+        run_date_vn=run_date_vn,
+        exclude_timer_id=exclude_timer_id,
+        exclude_schedule_id=exclude_schedule_id,
+        now_vn=now_vn,
+        engine=engine,
+    )
+
+
 def check_tier1_schedule_conflict(
     *,
     actor_tier: int,
@@ -1432,26 +1651,6 @@ def check_tier1_schedule_conflict(
     if engine is not None and (getattr(engine, "system_policies", {}) or {}).get("tier2_can_override_tier1", False):
         return None
 
-    now_vn = now_saigon()
-    now_ts = time.time()
-    cand_epoch: float | None = None
-    cand_tod: float | None = None
-    cand_is_daily = str(schedule_type or "once").strip().lower() == "daily"
-
-    if fire_epoch is not None:
-        cand_epoch = float(fire_epoch)
-        cand_dt = datetime.datetime.fromtimestamp(cand_epoch, tz=SAIGON_TZ)
-        cand_tod = float(cand_dt.hour * 3600 + cand_dt.minute * 60 + cand_dt.second)
-    elif time_hhmm:
-        cand_epoch, cand_tod = _schedule_epoch_and_tod(
-            time_hhmm=time_hhmm,
-            run_date_vn=run_date_vn,
-            now_vn=now_vn,
-        )
-    if cand_tod is None and cand_epoch is None:
-        return None
-
-    # 1. Check all pending Tier 1 timers (SQLite + active in-memory engine timers across ALL devices)
     t1_timers: dict[str, dict[str, Any]] = {}
     for row in list_pending_timers(db_path=db_path):
         tid = str(row.get("timer_id") or row.get("id") or "")
@@ -1461,45 +1660,20 @@ def check_tier1_schedule_conflict(
         for tid, info in (getattr(engine, "active_timers", {}) or {}).items():
             t1_timers.setdefault(str(tid), info)
 
-    for tid, tinfo in t1_timers.items():
-        if exclude_timer_id and tid == str(exclude_timer_id):
-            continue
-        if int(tinfo.get("owner_tier") or 1) != 1:
-            continue
-        t1_epoch = float(tinfo.get("fire_at") or 0.0)
-        if t1_epoch <= now_ts - 2.0:
-            continue
-        t1_dt = datetime.datetime.fromtimestamp(t1_epoch, tz=SAIGON_TZ)
-        t1_tod = float(t1_dt.hour * 3600 + t1_dt.minute * 60 + t1_dt.second)
-        if cand_is_daily and cand_tod is not None:
-            if _tod_diff_sec(cand_tod, t1_tod) <= 60.0:
-                return TIER1_SCHEDULE_CONFLICT_MSG_VI
-        elif cand_epoch is not None and abs(cand_epoch - t1_epoch) <= 60.0:
-            return TIER1_SCHEDULE_CONFLICT_MSG_VI
-
-    # 2. Check all enabled Tier 1 schedules (SQLite `schedules`, once & daily across ALL devices)
-    for sc in list_schedules(include_disabled=False, db_path=db_path):
-        sid = str(sc.get("schedule_id") or sc.get("id") or "")
-        if exclude_schedule_id and sid == str(exclude_schedule_id):
-            continue
-        if int(sc.get("owner_tier") or 1) != 1 or not sc.get("enabled", True):
-            continue
-        sc_hhmm = str(sc.get("time_hhmm") or "").strip()
-        if ":" not in sc_hhmm:
-            continue
-        sc_epoch, sc_tod = _schedule_epoch_and_tod(
-            time_hhmm=sc_hhmm,
-            run_date_vn=str(sc.get("run_date_vn") or ""),
-            now_vn=now_vn,
-        )
-        sc_is_daily = str(sc.get("schedule_type") or "once").strip().lower() == "daily"
-        if cand_is_daily or sc_is_daily:
-            if cand_tod is not None and _tod_diff_sec(cand_tod, sc_tod) <= 60.0:
-                return TIER1_SCHEDULE_CONFLICT_MSG_VI
-        elif cand_epoch is not None and abs(cand_epoch - sc_epoch) <= 60.0:
-            return TIER1_SCHEDULE_CONFLICT_MSG_VI
-
-    return None
+    t1_schedules = list_schedules(include_disabled=False, db_path=db_path)
+    return _check_tier1_conflict_sources(
+        actor_tier=actor_tier,
+        t1_timers=t1_timers,
+        t1_schedules=t1_schedules,
+        fire_epoch=fire_epoch,
+        time_hhmm=time_hhmm,
+        schedule_type=schedule_type,
+        run_date_vn=run_date_vn,
+        exclude_timer_id=exclude_timer_id,
+        exclude_schedule_id=exclude_schedule_id,
+        now_vn=now_saigon(),
+        engine=engine,
+    )
 
 
 def reset_custom_commands_scoped(
