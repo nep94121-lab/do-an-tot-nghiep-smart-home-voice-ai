@@ -215,7 +215,22 @@ class _Transaction:
     staged: bytes | None = None
 
 
+@dataclass
+class _SqliteTransaction:
+    filename: str
+    data_dir: Path | None = None
+    payload: bytes | None = None
+    revision: int | None = None
+    loaded: bool = False
+    staged: bytes | None = None
+    working_payload: bytes | None = None
+    staged_data_dir: Path | None = None
+
+
 _TRANSACTION: contextvars.ContextVar[_Transaction | None] = contextvars.ContextVar("security_transaction", default=None)
+_SQLITE_TRANSACTION: contextvars.ContextVar[_SqliteTransaction | None] = contextvars.ContextVar(
+    "security_sqlite_transaction", default=None
+)
 _ACTIVE_TX_LOCKS: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "security_tx_file_locks", default=frozenset()
 )
@@ -228,7 +243,47 @@ def atomic_security(filename: str):
         def run(*args, **kwargs):
             if not cloud_required():
                 if _sqlite_security_enabled():
-                    return operation(*args, **kwargs)
+                    key = Path(filename).name
+                    active_sq_tx = _SQLITE_TRANSACTION.get()
+                    if active_sq_tx is not None and active_sq_tx.filename == key:
+                        return operation(*args, **kwargs)
+                    from simulator.async_cloud_backup import schedule_github_backup
+                    from simulator.auth import sqlite_security_repo as _sq
+
+                    deadline = time.monotonic() + 30
+                    for attempt in range(12):
+                        sq_tx = _SqliteTransaction(filename=key)
+                        context_token = _SQLITE_TRANSACTION.set(sq_tx)
+                        try:
+                            result = operation(*args, **kwargs)
+                        finally:
+                            _SQLITE_TRANSACTION.reset(context_token)
+                        if sq_tx.staged is None:
+                            return result
+                        eff_dir = sq_tx.staged_data_dir or sq_tx.data_dir
+                        try:
+                            _sq.cas_save_security_state_sqlite(
+                                key,
+                                sq_tx.staged,
+                                expected_revision=sq_tx.revision if sq_tx.loaded else None,
+                                data_dir=eff_dir,
+                            )
+                            backup_doc = json.loads(sq_tx.staged.decode("utf-8"))
+                            if key == "auth3_accounts_state.json" and isinstance(backup_doc, dict) and backup_doc.get("partial"):
+                                full_raw = _sq.load_accounts_sqlite(eff_dir) or sq_tx.working_payload
+                                if full_raw:
+                                    backup_doc = json.loads(full_raw.decode("utf-8"))
+                            schedule_github_backup(key, backup_doc)
+                            return result
+                        except StateConflict:
+                            if time.monotonic() >= deadline:
+                                break
+                            time.sleep(secrets.randbelow(20) / 1000 + 0.01 * attempt)
+                        except SecurityStateUnavailable:
+                            raise
+                        except Exception as exc:
+                            raise SecurityStateUnavailable("Security state could not be saved") from exc
+                    raise SecurityStateUnavailable("Security state changed too often; retry later")
                 key = Path(filename).name
                 held = _ACTIVE_TX_LOCKS.get()
                 if key in held:
@@ -273,6 +328,22 @@ def load_security_state(filename: str, data_dir: Path) -> bytes | None:
     transaction = _TRANSACTION.get()
     if transaction is not None and transaction.filename == filename:
         return transaction.staged if transaction.staged is not None else transaction.payload
+    sq_tx = _SQLITE_TRANSACTION.get()
+    fname = Path(filename).name
+    if sq_tx is not None and sq_tx.filename == fname:
+        if sq_tx.working_payload is not None:
+            return sq_tx.working_payload
+        if sq_tx.staged is not None:
+            return sq_tx.staged
+        if not sq_tx.loaded:
+            from simulator.auth import sqlite_security_repo as _sq
+
+            payload, rev = _sq.read_security_state_with_revision_sqlite(fname, data_dir)
+            sq_tx.payload = payload
+            sq_tx.revision = rev
+            sq_tx.data_dir = data_dir
+            sq_tx.loaded = True
+        return sq_tx.payload
     if cloud_required():
         return get_security_backend().read(filename)[0]
     local_cas_dir = os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
@@ -303,6 +374,33 @@ def save_security_state(filename: str, payload: bytes, data_dir: Path) -> None:
     transaction = _TRANSACTION.get()
     if transaction is not None and transaction.filename == filename:
         transaction.staged = payload
+        return
+    sq_tx = _SQLITE_TRANSACTION.get()
+    fname = Path(filename).name
+    if sq_tx is not None and sq_tx.filename == fname:
+        if fname == "auth3_accounts_state.json" and sq_tx.staged is not None:
+            previous = json.loads(sq_tx.staged)
+            incoming = json.loads(payload)
+            if previous.get("partial") and incoming.get("partial"):
+                def account_id(account):
+                    return str(account.get("account_id") or account.get("user_id") or account.get("id") or "")
+
+                accounts = {account_id(account): account for account in previous["accounts"]}
+                accounts.update({account_id(account): account for account in incoming["accounts"]})
+                deleted = set(previous.get("deleted_account_ids", []))
+                deleted.difference_update(account_id(account) for account in incoming["accounts"])
+                deleted.update(incoming.get("deleted_account_ids", []))
+                incoming["accounts"] = [account for uid, account in accounts.items() if uid not in deleted]
+                incoming["deleted_account_ids"] = sorted(deleted)
+                incoming["cleared_otp_emails"] = sorted(
+                    set(previous.get("cleared_otp_emails", [])) | set(incoming.get("cleared_otp_emails", []))
+                )
+                incoming["clear_all_otps"] = bool(previous.get("clear_all_otps") or incoming.get("clear_all_otps"))
+                payload = json.dumps(incoming, ensure_ascii=False).encode("utf-8")
+        sq_tx.staged = payload
+        sq_tx.staged_data_dir = data_dir
+        if fname != "auth3_accounts_state.json":
+            sq_tx.working_payload = payload
         return
     if cloud_required():
         raise SecurityStateUnavailable("Security writes require an atomic transition")
@@ -342,7 +440,12 @@ def save_security_state(filename: str, payload: bytes, data_dir: Path) -> None:
                 return
             if fname == "auth3_accounts_state.json":
                 _sq.save_accounts_sqlite(payload, data_dir)
-                schedule_github_backup(fname, json.loads(payload.decode("utf-8")))
+                doc = json.loads(payload.decode("utf-8"))
+                if isinstance(doc, dict) and doc.get("partial"):
+                    full_raw = _sq.load_accounts_sqlite(data_dir)
+                    if full_raw:
+                        doc = json.loads(full_raw.decode("utf-8"))
+                schedule_github_backup(fname, doc)
                 return
             if fname == "login_rate_limit.json":
                 _sq.save_rate_limits_sqlite(payload, data_dir)

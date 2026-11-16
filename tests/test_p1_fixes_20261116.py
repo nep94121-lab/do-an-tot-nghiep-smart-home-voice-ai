@@ -61,6 +61,7 @@ def _isolate_p1_state(monkeypatch: pytest.MonkeyPatch) -> Any:
     monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
     _BOOT_VOICE_AUTH.reset_strikes()
     _reset_automation_db()
+    _REST_ENGINE.server_connected = True
     yield
     _reset_automation_db()
 
@@ -690,6 +691,476 @@ class TestF03AtomicQrAndOtpMultiprocess:
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = old_v
+
+    def test_interleaved_stale_snapshot_writer_cannot_resurrect_qr_or_otp(self, tmp_path: pathlib.Path) -> None:
+        import json
+        import os
+        import secrets
+        import subprocess
+        import sys
+        import time
+        from unittest.mock import patch
+        from simulator.auth.guest_invites import _claim_invite_redemption, create_invite
+        from simulator.auth.session_store import get_session_store
+        from simulator.auth.sqlite_security_repo import (
+            load_accounts_sqlite,
+            load_invites_sqlite,
+            save_accounts_sqlite,
+            save_invites_sqlite,
+        )
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        data_dir = tmp_path / "f03_stale_data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        prev_env = {
+            k: os.environ.get(k)
+            for k in ("SMARTHOME_DATA_DIR", "SMARTHOME_SECURITY_BACKEND", "SMARTHOME_SESSION_SECRET")
+        }
+        env = dict(
+            os.environ,
+            SMARTHOME_DATA_DIR=str(data_dir),
+            SMARTHOME_SECURITY_BACKEND="sqlite",
+            SIMULATOR_OFFLINE_SANDBOX="1",
+            SMARTHOME_SESSION_SECRET="f03_stale_secret_" + secrets.token_hex(16),
+            PYTHONPATH=str(repo_root),
+            PYTHONIOENCODING="utf-8",
+        )
+        os.environ["SMARTHOME_DATA_DIR"] = env["SMARTHOME_DATA_DIR"]
+        os.environ["SMARTHOME_SECURITY_BACKEND"] = "sqlite"
+        os.environ["SMARTHOME_SESSION_SECRET"] = env["SMARTHOME_SESSION_SECRET"]
+        store = get_session_store()
+        prev_store_path = store.db_path
+        store.db_path = data_dir / "smarthome.db"
+
+        child_code = (
+            "import pathlib, sys, time; "
+            "from unittest.mock import patch; "
+            "kind, barrier_s = sys.argv[1], sys.argv[2]; "
+            "barrier = pathlib.Path(barrier_s)\n"
+            "def gate():\n"
+            "    (barrier / 'ready').write_text('ready', encoding='utf-8')\n"
+            "    end = time.monotonic() + 30\n"
+            "    while not (barrier / 'release').exists():\n"
+            "        if time.monotonic() > end:\n"
+            "            raise TimeoutError('barrier timeout')\n"
+            "        time.sleep(0.01)\n"
+            "if kind == 'qr':\n"
+            "    from simulator.auth import guest_invites as g\n"
+            "    orig = g._save\n"
+            "    def wrapped(d):\n"
+            "        gate()\n"
+            "        return orig(d)\n"
+            "    with patch.object(g, '_save', side_effect=wrapped):\n"
+            "        res = g.create_invite(owner_user_id='tuan_anh', tier=3, duration_code='1d')\n"
+            "else:\n"
+            "    from simulator.auth_3layer import ThreeLayerAuthManager\n"
+            "    mgr = ThreeLayerAuthManager()\n"
+            "    t2 = next(a for a in mgr.accounts if int(a.get('tier', 3)) == 2)\n"
+            "    orig = mgr._save_accounts\n"
+            "    def wrapped():\n"
+            "        gate()\n"
+            "        return orig()\n"
+            "    with patch.object(mgr, '_save_accounts', side_effect=wrapped), patch.object(mgr, '_log_event'):\n"
+            "        res = mgr.request_password_reset_otp(t2['email'], send_gmail=False)\n"
+            "print('WRITE_OK' if res.get('ok') else 'WRITE_FAIL')\n"
+        )
+
+        children: list[subprocess.Popen[str]] = []
+
+        def _spawn_at_barrier(kind: str) -> tuple[pathlib.Path, subprocess.Popen[str]]:
+            barrier = tmp_path / f"barrier_{kind}"
+            barrier.mkdir(parents=True, exist_ok=True)
+            for item in barrier.iterdir():
+                item.unlink()
+            proc = subprocess.Popen(
+                [sys.executable, "-c", child_code, kind, str(barrier)],
+                cwd=str(repo_root),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+            )
+            children.append(proc)
+            end = time.monotonic() + 30
+            while not (barrier / "ready").exists():
+                if proc.poll() is not None or time.monotonic() > end:
+                    out_s, err_s = proc.communicate(timeout=5) if proc.poll() is not None else ("", "")
+                    raise RuntimeError(f"writer {kind} failed before barrier: rc={proc.returncode} {out_s} {err_s}")
+                time.sleep(0.01)
+            return barrier, proc
+
+        try:
+            # (a) Interleaved QR stale writer vs claim
+            invite = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
+            qr_barrier, qr_proc = _spawn_at_barrier("qr")
+            first_qr = _claim_invite_redemption(invite["token"])
+            assert first_qr.get("ok") is True
+            (qr_barrier / "release").write_text("release", encoding="utf-8")
+            qr_out, qr_err = qr_proc.communicate(timeout=30)
+            assert qr_proc.returncode == 0, qr_err
+            assert qr_out.strip().endswith("WRITE_OK"), qr_out
+            second_qr = _claim_invite_redemption(invite["token"])
+            assert second_qr.get("ok") is False
+            assert second_qr.get("reason") == "used"
+
+            # (b) Interleaved OTP stale writer on Tier 2 vs Tier 1 OTP consume
+            mgr = ThreeLayerAuthManager()
+            acc = next(a for a in mgr.accounts if int(a.get("tier", 3)) == 1)
+            email = str(acc["email"])
+            code = f"{100000 + secrets.randbelow(900000)}"
+            salt, dig = mgr._hash_otp_code(code)
+            pending = {
+                "challenge_id": "otp_" + secrets.token_hex(12),
+                "email": email,
+                "display_name": acc["display_name"],
+                "account_id": acc["account_id"],
+                "tier": 1,
+                "purpose": "layer2_login",
+                "otp_salt": salt,
+                "otp_hash": dig,
+                "created_at": time.time(),
+                "expires_at": time.time() + 300,
+                "consumed": False,
+            }
+            acc["pending_otp"] = pending
+            mgr.pending_otps[email] = pending
+            assert mgr._save_accounts() is True
+
+            otp_barrier, otp_proc = _spawn_at_barrier("otp")
+            with patch.object(mgr, "_log_event"), patch.object(mgr, "_clear_login_failures"):
+                first_otp = mgr.layer2_verify_otp(email, code, expected_purpose="layer2_login")
+                assert first_otp.get("ok") is True
+                (otp_barrier / "release").write_text("release", encoding="utf-8")
+                otp_out, otp_err = otp_proc.communicate(timeout=30)
+                assert otp_proc.returncode == 0, otp_err
+                assert otp_out.strip().endswith("WRITE_OK"), otp_out
+                second_otp = mgr.layer2_verify_otp(email, code, expected_purpose="layer2_login")
+                assert second_otp.get("ok") is False
+
+            # (c) Direct SQLite repository stale full-snapshot overwrites cannot resurrect consumed QR or OTP
+            invite2 = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
+            stale_invites_bytes = load_invites_sqlite(data_dir)
+            assert stale_invites_bytes is not None
+            assert _claim_invite_redemption(invite2["token"]).get("ok") is True
+            save_invites_sqlite(stale_invites_bytes, data_dir)
+            reclaim = _claim_invite_redemption(invite2["token"])
+            assert reclaim.get("ok") is False
+            assert reclaim.get("reason") == "used"
+
+            code2 = f"{100000 + secrets.randbelow(900000)}"
+            salt2, dig2 = mgr._hash_otp_code(code2)
+            pending2 = {
+                "challenge_id": "otp_" + secrets.token_hex(12),
+                "email": email,
+                "display_name": acc["display_name"],
+                "account_id": acc["account_id"],
+                "tier": 1,
+                "purpose": "layer2_login",
+                "otp_salt": salt2,
+                "otp_hash": dig2,
+                "created_at": time.time(),
+                "expires_at": time.time() + 300,
+                "consumed": False,
+            }
+            mgr._sync_accounts_from_cas_if_enabled()
+            acc_cur = next(a for a in mgr.accounts if int(a.get("tier", 3)) == 1)
+            acc_cur["pending_otp"] = pending2
+            mgr.pending_otps[email] = pending2
+            assert mgr._save_accounts() is True
+            stale_accounts_bytes = load_accounts_sqlite(data_dir)
+            assert stale_accounts_bytes is not None
+            with patch.object(mgr, "_log_event"), patch.object(mgr, "_clear_login_failures"):
+                assert mgr.layer2_verify_otp(email, code2, expected_purpose="layer2_login").get("ok") is True
+                save_accounts_sqlite(stale_accounts_bytes, data_dir)
+                mgr_check = ThreeLayerAuthManager()
+                mgr_check._sync_accounts_from_cas_if_enabled()
+                replay = mgr_check.layer2_verify_otp(email, code2, expected_purpose="layer2_login")
+                assert replay.get("ok") is False
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                child.communicate(timeout=5)
+            store.db_path = prev_store_path
+            for k, old_v in prev_env.items():
+                if old_v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = old_v
+
+    @pytest.fixture
+    def sqlite_auth_manager(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+        import secrets
+        from simulator.auth.session_store import get_session_store
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        data_dir = tmp_path / "f03_transition_data"
+        data_dir.mkdir()
+        monkeypatch.setenv("SMARTHOME_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("SMARTHOME_SECURITY_BACKEND", "sqlite")
+        monkeypatch.setenv("SMARTHOME_SESSION_SECRET", secrets.token_hex(32))
+        monkeypatch.delenv("SIMULATOR_SECURITY_STATE_DIR", raising=False)
+        store = get_session_store()
+        previous_path = store.db_path
+        store.db_path = data_dir / "smarthome.db"
+        try:
+            manager = ThreeLayerAuthManager()
+            manager.reset_to_factory_defaults()
+            yield manager, data_dir
+        finally:
+            store.db_path = previous_path
+
+    def test_multiple_account_saves_in_one_transition_preserve_both_updates(self, sqlite_auth_manager) -> None:
+        import json
+        from simulator.auth.sqlite_security_repo import load_accounts_sqlite
+
+        manager, data_dir = sqlite_auth_manager
+        ids = [account["account_id"] for account in manager.accounts[:2]]
+
+        def update_two_accounts() -> None:
+            first = next(account for account in manager.accounts if account["account_id"] == ids[0])
+            first["display_name"] = "First persisted update"
+            assert manager._save_accounts() is True
+            second = next(account for account in manager.accounts if account["account_id"] == ids[1])
+            second["display_name"] = "Second persisted update"
+            assert manager._save_accounts() is True
+
+        manager._with_cas_accounts(update_two_accounts)
+        persisted = {account["account_id"]: account for account in json.loads(load_accounts_sqlite(data_dir))["accounts"]}
+        assert persisted[ids[0]]["display_name"] == "First persisted update"
+        assert persisted[ids[1]]["display_name"] == "Second persisted update"
+
+    def test_owner_pin_stale_snapshot_cannot_restore_old_otp_after_new_issue(self, sqlite_auth_manager) -> None:
+        import time
+        from unittest.mock import patch
+        from simulator.auth import owner_pin
+        from simulator.auth.security_state import StateConflict
+        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+
+        _, data_dir = sqlite_auth_manager
+        issued, previous_code = owner_pin.issue_reset_otp()
+        assert issued.get("ok") is True
+        stale_payload = load_owner_pin_sqlite(data_dir)
+        assert stale_payload is not None
+        assert owner_pin.reset_pin_with_otp(previous_code, "4829", "4829").get("ok") is True
+        later = time.time() + 61
+        with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
+            "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
+        ):
+            issued_again, next_code = owner_pin.issue_reset_otp()
+            assert issued_again.get("ok") is True
+            with pytest.raises(StateConflict):
+                save_owner_pin_sqlite(stale_payload, data_dir)
+            assert owner_pin.reset_pin_with_otp(previous_code, "4829", "4829").get("ok") is False
+            assert owner_pin.reset_pin_with_otp(next_code, "4829", "4829").get("ok") is True
+
+    def test_different_purpose_issue_and_consume_prevents_stale_login_otp_revival(self, sqlite_auth_manager) -> None:
+        import secrets
+        import time
+        from unittest.mock import patch
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        manager, _ = sqlite_auth_manager
+        account = next(account for account in manager.accounts if int(account.get("tier", 3)) == 1)
+        email = account["email"]
+        previous_code = str(100000 + secrets.randbelow(900000))
+        next_code = str((int(previous_code) - 100000 + 1) % 900000 + 100000)
+        salt, digest = manager._hash_otp_code(previous_code)
+        pending = {
+            "challenge_id": "otp_" + secrets.token_hex(12),
+            "email": email,
+            "display_name": account["display_name"],
+            "account_id": account["account_id"],
+            "tier": 1,
+            "purpose": "layer2_login",
+            "otp_salt": salt,
+            "otp_hash": digest,
+            "created_at": time.time() - 120,
+            "expires_at": time.time() + 300,
+            "consumed": False,
+        }
+        account["pending_otp"] = pending
+        manager.pending_otps[email] = pending
+        assert manager._save_accounts() is True
+        stale_writer = ThreeLayerAuthManager()
+
+        with patch("simulator.auth_3layer.random.randint", return_value=int(next_code)), patch.object(manager, "_log_event"):
+            assert manager.request_password_reset_otp(email, send_gmail=False).get("ok") is True
+            assert manager.layer2_verify_otp(
+                email, next_code, expected_purpose="forgot_password", consume_on_success=True
+            ).get("ok") is True
+
+        stale_account = next(account for account in stale_writer.accounts if account["email"] == email)
+        stale_account["display_name"] = "Metadata saved after another purpose was consumed"
+        assert stale_writer._save_accounts() is True
+        reader = ThreeLayerAuthManager()
+        with patch.object(reader, "_log_event"), patch.object(reader, "_clear_login_failures"):
+            assert reader.layer2_verify_otp(email, previous_code, expected_purpose="layer2_login").get("ok") is False
+
+    @pytest.mark.parametrize("legacy_used", [0, 1])
+    def test_legacy_consumed_login_row_blocks_stale_snapshot_without_challenge_id(self, sqlite_auth_manager, legacy_used: int) -> None:
+        import json
+        import secrets
+        import sqlite3
+        import time
+        from unittest.mock import patch
+        from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        manager, data_dir = sqlite_auth_manager
+        stale_payload = json.loads(load_accounts_sqlite(data_dir))
+        account = next(account for account in stale_payload["accounts"] if int(account.get("tier", 3)) == 1)
+        email = account["email"]
+        code = str(100000 + secrets.randbelow(900000))
+        salt, digest = manager._hash_otp_code(code)
+        now = time.time()
+        pending = {
+            "email": email,
+            "display_name": account["display_name"],
+            "account_id": account["account_id"],
+            "tier": 1,
+            "purpose": "layer2_login",
+            "otp_salt": salt,
+            "otp_hash": digest,
+            "created_at": now,
+            "expires_at": now + 300,
+            "consumed": False,
+        }
+        account["pending_otp"] = pending
+        with sqlite3.connect(data_dir / "smarthome.db", timeout=10) as connection:
+            connection.execute(
+                """
+                INSERT INTO otp_challenges (
+                    challenge_id, email, purpose, otp_salt, otp_hash,
+                    issued_at, expires_at, used, failed_attempts, meta_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """,
+                (
+                    "login_" + email, email, "layer2_login", salt, digest,
+                    now, now + 300, legacy_used, json.dumps({"account_id": account["account_id"]}),
+                ),
+            )
+        save_accounts_sqlite(json.dumps(stale_payload).encode("utf-8"), data_dir)
+        reader = ThreeLayerAuthManager()
+        persisted_account = next(account for account in reader.accounts if account["email"] == email)
+        assert bool(persisted_account.get("pending_otp")) is (not bool(legacy_used))
+        with patch.object(reader, "_log_event"), patch.object(reader, "_clear_login_failures"):
+            if not legacy_used:
+                assert reader.layer2_verify_otp(email, code, expected_purpose="layer2_login").get("ok") is True
+            assert reader.layer2_verify_otp(email, code, expected_purpose="layer2_login").get("ok") is False
+
+    def test_resend_supersedes_previous_otp_despite_stale_metadata_save(self, sqlite_auth_manager) -> None:
+        import secrets
+        import time
+        from unittest.mock import patch
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        manager, _ = sqlite_auth_manager
+        account = next(account for account in manager.accounts if int(account.get("tier", 3)) == 1)
+        email = account["email"]
+        previous_code = str(100000 + secrets.randbelow(900000))
+        next_code = str((int(previous_code) - 100000 + 1) % 900000 + 100000)
+        salt, digest = manager._hash_otp_code(previous_code)
+        pending = {
+            "challenge_id": "otp_" + secrets.token_hex(12),
+            "email": email,
+            "display_name": account["display_name"],
+            "account_id": account["account_id"],
+            "tier": 1,
+            "purpose": "layer2_login",
+            "otp_salt": salt,
+            "otp_hash": digest,
+            "created_at": time.time() - 120,
+            "expires_at": time.time() + 300,
+            "consumed": False,
+        }
+        account["pending_otp"] = pending
+        manager.pending_otps[email] = pending
+        assert manager._save_accounts() is True
+        stale_writer = ThreeLayerAuthManager()
+
+        with patch("simulator.auth_3layer.random.randint", return_value=int(next_code)), patch.object(
+            manager, "send_real_gmail_otp", return_value={"sent_real_gmail": True}
+        ):
+            assert manager.send_layer2_login_otp(email).get("ok") is True
+
+        stale_account = next(account for account in stale_writer.accounts if account["email"] == email)
+        stale_account["display_name"] = "Metadata saved by old process"
+        assert stale_writer._save_accounts() is True
+        reader = ThreeLayerAuthManager()
+        with patch.object(reader, "_log_event"), patch.object(reader, "_clear_login_failures"):
+            assert reader.layer2_verify_otp(email, previous_code, expected_purpose="layer2_login").get("ok") is False
+            assert reader.layer2_verify_otp(email, next_code, expected_purpose="layer2_login").get("ok") is True
+
+    def test_legacy_used_1_missing_challenge_id_verify_fails(self, sqlite_auth_manager) -> None:
+        import json
+        import secrets
+        import sqlite3
+        import time
+        from unittest.mock import patch
+        from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+        from simulator.auth_3layer import ThreeLayerAuthManager
+
+        manager, data_dir = sqlite_auth_manager
+        stale_payload = json.loads(load_accounts_sqlite(data_dir))
+        account = next(account for account in stale_payload["accounts"] if int(account.get("tier", 3)) == 1)
+        email = account["email"]
+        code = str(100000 + secrets.randbelow(900000))
+        salt, digest = manager._hash_otp_code(code)
+        now = time.time()
+        pending = {
+            "email": email,
+            "display_name": account["display_name"],
+            "account_id": account["account_id"],
+            "tier": 1,
+            "purpose": "layer2_login",
+            "otp_salt": salt,
+            "otp_hash": digest,
+            "created_at": now,
+            "expires_at": now + 300,
+            "consumed": False,
+        }
+        account["pending_otp"] = pending
+        with sqlite3.connect(data_dir / "smarthome.db", timeout=10) as connection:
+            connection.execute(
+                """
+                INSERT INTO otp_challenges (
+                    challenge_id, email, purpose, otp_salt, otp_hash,
+                    issued_at, expires_at, used, failed_attempts, meta_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
+                """,
+                (
+                    "login_" + email, email, "layer2_login", salt, digest,
+                    now, now + 300, json.dumps({"account_id": account["account_id"]}),
+                ),
+            )
+        save_accounts_sqlite(json.dumps(stale_payload).encode("utf-8"), data_dir)
+        reader = ThreeLayerAuthManager()
+        persisted_account = next(account for account in reader.accounts if account["email"] == email)
+        assert persisted_account.get("pending_otp") is None
+        with patch.object(reader, "_log_event"), patch.object(reader, "_clear_login_failures"):
+            verify_res = reader.layer2_verify_otp(email, code, expected_purpose="layer2_login")
+            assert verify_res.get("ok") is False
+
+    def test_qr_already_redeemed_stale_snapshot_lower_redeem_count_rejected(self, sqlite_auth_manager) -> None:
+        from simulator.auth.guest_invites import create_invite, redeem_token
+        from simulator.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
+
+        _, data_dir = sqlite_auth_manager
+        invite = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
+        token = invite["token"]
+        stale_invites_raw = load_invites_sqlite(data_dir)
+        assert stale_invites_raw is not None
+
+        redeem_res_1 = redeem_token(token)
+        assert redeem_res_1.get("ok") is True
+
+        # Stale snapshot with lower redeem_count (0) cannot reset redeem_count or allow second redemption
+        save_invites_sqlite(stale_invites_raw, data_dir)
+        redeem_res_2 = redeem_token(token)
+        assert redeem_res_2.get("ok") is False
 
 
 class TestF04PatchScheduleAndTimerTier1Conflict:

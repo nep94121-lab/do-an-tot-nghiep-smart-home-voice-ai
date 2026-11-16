@@ -255,6 +255,7 @@ class PendingOtpsStore(dict):
                     self._auth_mgr.otp_failed_attempts.clear()
                 if hasattr(self._auth_mgr, "_login_rate_limits"):
                     self._auth_mgr._login_rate_limits.clear()
+                self._auth_mgr._force_clear_all_otps = True
                 self._auth_mgr._save_accounts()
 
 
@@ -280,7 +281,13 @@ class ThreeLayerAuthManager(
         self._last_cas_accounts_raw: bytes | None = None
         self._last_cas_accounts_dir: str | None = None
         self._last_cas_accounts_mono: float = 0.0
+        self._cas_loaded_snapshots: dict[str, str] = {}
+        self._cas_loaded_otp_emails: set[str] = set()
+        self._cas_loaded_at: float = 0.0
+        self._force_clear_all_otps: bool = False
+        self._force_factory_reset_accounts: bool = False
         self._load_state()
+        self._sync_accounts_from_cas_if_enabled()
 
     def _normalize_account_fields(self, acc: dict[str, Any]) -> dict[str, Any]:
         acc.pop("password_plain_hint", None)
@@ -307,6 +314,12 @@ class ThreeLayerAuthManager(
         if str(acc.get("email", "")).strip().lower() != OWNER_EMAIL.lower():
             acc["role"] = "MEMBER" if tier == 2 else "CHILD_GUEST"
         acc.setdefault("saved_tier", tier)
+        acc.setdefault(
+            "role_label",
+            "Chủ nhà (Tầng 1 - Toàn quyền)"
+            if tier == 1
+            else ("Người nhà (Tầng 2 - Thiết bị sinh hoạt)" if tier == 2 else "Khách được cấp quyền (Tầng 3)"),
+        )
         acc.setdefault("id", acc.get("account_id", ""))
         acc.setdefault("user_id", acc.get("account_id", ""))
         acc.setdefault("name", acc.get("display_name", acc.get("account_id", "")))
@@ -381,6 +394,8 @@ class ThreeLayerAuthManager(
         """Khôi phục danh sách 4 tài khoản gốc chuẩn của nhà thông minh và bảo toàn quyền Cấp 1 của Nguyễn Tuấn Anh."""
         with _ACCOUNTS_FILE_LOCK:
             self.accounts = [self._normalize_account_fields(a) for a in json.loads(json.dumps(DEFAULT_ACCOUNTS))]
+            self._force_factory_reset_accounts = True
+            self._force_clear_all_otps = True
             self._save_accounts()
             self.family_email_allowlist = {}
             self._save_family_allowlist()
@@ -553,7 +568,8 @@ class ThreeLayerAuthManager(
                         and not merged_otp.get("otp_code")
                     ):
                         merged_otp["otp_code"] = prev["otp_code"]
-                    new_otps[email_key] = merged_otp
+                    if p_otp.get("purpose") != "forgot_password" or (prev and prev.get("otp_code")):
+                        new_otps[email_key] = merged_otp
                 else:
                     acc.pop("pending_otp", None)
             failed = acc.get("otp_failed_verify_attempts")
@@ -568,6 +584,24 @@ class ThreeLayerAuthManager(
         dict.update(self.pending_otps, new_otps)
         self.otp_failed_attempts.clear()
         self.otp_failed_attempts.update(new_fails)
+
+    def _record_cas_snapshot_locked(self, accounts_list: list[dict[str, Any]]) -> None:
+        snapshots: dict[str, str] = {}
+        otp_emails: set[str] = set()
+        for acc in accounts_list:
+            if not isinstance(acc, dict):
+                continue
+            san = self._sanitize_account_for_cas(acc)
+            uid = str(san.get("account_id") or san.get("user_id") or san.get("id") or "").strip()
+            if not uid:
+                continue
+            snapshots[uid] = json.dumps(san, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+            em = str(san.get("email") or "").strip().lower()
+            if em and isinstance(san.get("pending_otp"), dict):
+                otp_emails.add(em)
+        self._cas_loaded_snapshots = snapshots
+        self._cas_loaded_otp_emails = otp_emails
+        self._cas_loaded_at = time.time()
 
     def _apply_cas_accounts_payload_locked(self, raw: bytes | None) -> bool:
         if not raw:
@@ -589,6 +623,7 @@ class ThreeLayerAuthManager(
                 loaded.append(self._normalize_account_fields(def_acc))
         self.accounts = loaded
         self._refresh_otp_maps_from_accounts_locked()
+        self._record_cas_snapshot_locked(self.accounts)
         return True
 
     def _bootstrap_seed_accounts_into_memory_locked(self) -> None:
@@ -623,11 +658,18 @@ class ThreeLayerAuthManager(
     def _sync_accounts_from_cas_if_enabled(self) -> None:
         if not _should_use_cas_store():
             return
-        from simulator.auth.security_state import _TRANSACTION
+        from simulator.auth.security_state import _SQLITE_TRANSACTION, _TRANSACTION
 
         cur_tx = _TRANSACTION.get()
         if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
             # Inside an open CAS transaction, self.accounts already holds the live working state.
+            return
+        cur_sq_tx = _SQLITE_TRANSACTION.get()
+        if (
+            cur_sq_tx is not None
+            and cur_sq_tx.filename == _AUTH_CAS_FILENAME
+            and (cur_sq_tx.loaded or cur_sq_tx.staged is not None or cur_sq_tx.working_payload is not None)
+        ):
             return
 
         cas_dir_str = str(self._cas_data_dir())
@@ -672,11 +714,31 @@ class ThreeLayerAuthManager(
         self._last_cas_accounts_raw = None
         if not _should_use_cas_store():
             return fn()
-        from simulator.auth.security_state import _TRANSACTION
+        from simulator.auth.security_state import _SQLITE_TRANSACTION, _TRANSACTION
 
         cur_tx = _TRANSACTION.get()
         if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
             raw_tx = cur_tx.staged if cur_tx.staged is not None else cur_tx.payload
+            with _ACCOUNTS_FILE_LOCK:
+                with self._otp_lock:
+                    if not self._apply_cas_accounts_payload_locked(raw_tx):
+                        self._bootstrap_seed_accounts_into_memory_locked()
+            return fn()
+        cur_sq_tx = _SQLITE_TRANSACTION.get()
+        if cur_sq_tx is not None and cur_sq_tx.filename == _AUTH_CAS_FILENAME:
+            raw_tx = (
+                cur_sq_tx.working_payload
+                if cur_sq_tx.working_payload is not None
+                else (
+                    cur_sq_tx.staged
+                    if cur_sq_tx.staged is not None
+                    else (
+                        cur_sq_tx.payload
+                        if cur_sq_tx.loaded
+                        else load_security_state(_AUTH_CAS_FILENAME, self._cas_data_dir())
+                    )
+                )
+            )
             with _ACCOUNTS_FILE_LOCK:
                 with self._otp_lock:
                     if not self._apply_cas_accounts_payload_locked(raw_tx):
@@ -874,11 +936,11 @@ class ThreeLayerAuthManager(
         self._purge_throwaway_qa_accounts()
         sanitized_accounts = [self._sanitize_account_for_cas(a) for a in self.accounts]
         payload = (json.dumps(sanitized_accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        target = (
-            self._cas_data_dir() / ACCOUNTS_FILE.name
-            if os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
-            else ACCOUNTS_FILE
+        use_cas_dir = bool(
+            os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+            or (os.environ.get("SMARTHOME_DATA_DIR", "").strip() and not os.environ.get("VERCEL"))
         )
+        target = self._cas_data_dir() / ACCOUNTS_FILE.name if use_cas_dir else ACCOUNTS_FILE
         with _ACCOUNTS_FILE_LOCK:
             return bool(_atomic_write_file(target, payload))
 
@@ -888,28 +950,110 @@ class ThreeLayerAuthManager(
         if _AUTOTEST_SANDBOX.get():
             return True
         if not _should_use_cas_store():
-            return self._save_local_accounts_only()
-        from simulator.auth.security_state import _TRANSACTION
+            ok = self._save_local_accounts_only()
+            if ok:
+                self._force_clear_all_otps = False
+                self._force_factory_reset_accounts = False
+            return ok
+        from simulator.auth.security_state import (
+            _SQLITE_TRANSACTION,
+            _TRANSACTION,
+            _sqlite_security_enabled,
+        )
 
-        payload_obj = {
-            "accounts": [self._sanitize_account_for_cas(a) for a in self.accounts],
-            "updated_at": time.time(),
-        }
-        encoded = json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        sanitized_all = [self._sanitize_account_for_cas(a) for a in self.accounts]
+        now_ts = time.time()
+        clear_all_otps = bool(getattr(self, "_force_clear_all_otps", False))
+        factory_reset = bool(getattr(self, "_force_factory_reset_accounts", False))
+        full_encoded = json.dumps(
+            {"accounts": sanitized_all, "updated_at": now_ts},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+        if _sqlite_security_enabled():
+            prev_snaps = getattr(self, "_cas_loaded_snapshots", {}) or {}
+            prev_otp_emails = getattr(self, "_cas_loaded_otp_emails", set()) or set()
+            if prev_snaps and not factory_reset:
+                dirty_accounts: list[dict[str, Any]] = []
+                current_ids: set[str] = set()
+                current_otp_emails: set[str] = set()
+                for san in sanitized_all:
+                    uid = str(san.get("account_id") or san.get("user_id") or san.get("id") or "").strip()
+                    if uid:
+                        current_ids.add(uid)
+                        canon_json = json.dumps(san, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+                        if clear_all_otps or prev_snaps.get(uid) != canon_json:
+                            dirty_accounts.append(san)
+                    else:
+                        dirty_accounts.append(san)
+                    em = str(san.get("email") or "").strip().lower()
+                    if em and isinstance(san.get("pending_otp"), dict):
+                        current_otp_emails.add(em)
+                deleted_account_ids = [uid for uid in prev_snaps.keys() if uid not in current_ids]
+                cleared_otp_emails = sorted(em for em in prev_otp_emails if em not in current_otp_emails)
+                target_encoded = json.dumps(
+                    {
+                        "accounts": dirty_accounts,
+                        "partial": True,
+                        "deleted_account_ids": deleted_account_ids,
+                        "cleared_otp_emails": cleared_otp_emails,
+                        "clear_all_otps": clear_all_otps,
+                        "snapshot_loaded_at": float(getattr(self, "_cas_loaded_at", 0.0) or 0.0),
+                        "updated_at": now_ts,
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            else:
+                target_encoded = json.dumps(
+                    {
+                        "accounts": sanitized_all,
+                        "factory_reset": factory_reset,
+                        "clear_all_otps": clear_all_otps,
+                        "updated_at": now_ts,
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+        else:
+            target_encoded = full_encoded
+
         cur_tx = _TRANSACTION.get()
         if cur_tx is not None and cur_tx.filename == _AUTH_CAS_FILENAME:
-            save_security_state(_AUTH_CAS_FILENAME, encoded, self._cas_data_dir())
+            save_security_state(_AUTH_CAS_FILENAME, full_encoded, self._cas_data_dir())
             self._save_local_accounts_only()
+            self._record_cas_snapshot_locked(self.accounts)
+            self._force_clear_all_otps = False
+            self._force_factory_reset_accounts = False
+            return True
+
+        cur_sq_tx = _SQLITE_TRANSACTION.get()
+        if cur_sq_tx is not None and cur_sq_tx.filename == _AUTH_CAS_FILENAME:
+            save_security_state(_AUTH_CAS_FILENAME, target_encoded, self._cas_data_dir())
+            cur_sq_tx.working_payload = full_encoded
+            self._save_local_accounts_only()
+            self._record_cas_snapshot_locked(self.accounts)
+            self._force_clear_all_otps = False
+            self._force_factory_reset_accounts = False
             return True
 
         @atomic_security(_AUTH_CAS_FILENAME)
         def _direct_commit() -> bool:
-            save_security_state(_AUTH_CAS_FILENAME, encoded, self._cas_data_dir())
-            self._save_local_accounts_only()
+            save_security_state(_AUTH_CAS_FILENAME, target_encoded, self._cas_data_dir())
+            active_sq_tx = _SQLITE_TRANSACTION.get()
+            if active_sq_tx is not None and active_sq_tx.filename == _AUTH_CAS_FILENAME:
+                active_sq_tx.working_payload = full_encoded
             return True
 
         try:
-            return bool(_direct_commit())
+            if not _direct_commit():
+                return False
+            self._save_local_accounts_only()
+            self._record_cas_snapshot_locked(self.accounts)
+            self._force_clear_all_otps = False
+            self._force_factory_reset_accounts = False
+            return True
         except SecurityStateUnavailable:
             return False
 
@@ -1232,6 +1376,7 @@ class ThreeLayerAuthManager(
                         acc,
                     )
                     otp_record = {
+                        "challenge_id": "otp_" + secrets.token_hex(12),
                         "email": target_acc["email"],
                         "account_id": target_acc["account_id"],
                         "display_name": target_acc["display_name"],
@@ -1413,11 +1558,15 @@ class ThreeLayerAuthManager(
                 otp_code = f"{random.randint(100000, 999999)}"
                 otp_salt, otp_hash = self._hash_otp_code(otp_code)
                 pending = dict(pending)
+                pending["challenge_id"] = "otp_" + secrets.token_hex(12)
+                pending["created_at"] = now
+                pending["consumed"] = False
+                pending.pop("used", None)
                 pending["otp_code"] = otp_code
                 pending["otp_salt"] = otp_salt
                 pending["otp_hash"] = otp_hash
                 pending["last_email_sent_at"] = now
-                pending["expires_at"] = max(float(pending.get("expires_at", 0) or 0), now + 300)
+                pending["expires_at"] = now + 300
                 pending["gmail_delivery"] = {"sent_real_gmail": False, "pending": True}
                 self.pending_otps[acc_email_key] = pending
                 if target_acc is not None:
@@ -1544,6 +1693,7 @@ class ThreeLayerAuthManager(
                     if not is_owner and safe_tier not in (2, 3):
                         safe_tier = 3
                     acc["password_hash"] = hash_password(pw1)
+                    acc["password_updated_at"] = time.time()
                     if display_name.strip() and not is_owner:
                         acc["display_name"] = display_name.strip()
                         acc["name"] = display_name.strip()
@@ -1572,6 +1722,7 @@ class ThreeLayerAuthManager(
                             else "⏳ CHỜ PHÊ DUYỆT (Cần Chủ nhà cấp quyền)"
                         ),
                         "password_hash": hash_password(pw1),
+                        "password_updated_at": time.time(),
                         "google_linked": False,
                         "needs_first_page_voice_enroll": False,
                         "voice_verified": False,
@@ -1758,6 +1909,7 @@ class ThreeLayerAuthManager(
                 otp_code = f"{random.randint(100000, 999999)}"
                 otp_salt, otp_hash = self._hash_otp_code(otp_code)
                 otp_record = {
+                    "challenge_id": "otp_" + secrets.token_hex(12),
                     "email": target_acc["email"],
                     "account_id": target_acc["account_id"],
                     "display_name": target_acc.get("display_name", acct_key),

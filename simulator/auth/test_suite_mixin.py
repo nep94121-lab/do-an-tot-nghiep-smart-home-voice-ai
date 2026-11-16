@@ -354,7 +354,11 @@ class AuthTestSuiteMixin:
                         "tier": acc["tier"],
                         "saved_tier": acc.get("saved_tier", acc["tier"]),
                         "role": acc["role"],
-                        "role_label": acc["role_label"],
+                        "role_label": acc.get("role_label") or {
+                            1: "Chủ nhà (Tầng 1 - Toàn quyền)",
+                            2: "Người nhà (Tầng 2 - Thiết bị sinh hoạt)",
+                            3: "Khách được cấp quyền (Tầng 3)",
+                        }.get(acc["tier"], "Khách được cấp quyền (Tầng 3)"),
                         "permission_active": acc.get("permission_active", True),
                         "active": acc.get("permission_active", True),
                         "permission_status": acc.get("permission_status", "ACTIVE"),

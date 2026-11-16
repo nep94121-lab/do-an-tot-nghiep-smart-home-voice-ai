@@ -1378,6 +1378,20 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 effective_user = request_user_name or self.get_current_user_name()
                 effective_role = request_role or ROLE_MAP.get(effective_tier, self.current_role)
 
+                if not bypass_rbac:
+                    allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
+                    if not allowed:
+                        await self.emit({
+                            "type": "rbac_blocked",
+                            "device_id": dev_id,
+                            "device_name": dev["name"],
+                            "action": act,
+                            "role": effective_role,
+                            "reason": reason,
+                        })
+                        results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
+                        continue
+
                 if not self.server_connected:
                     if dev_id == "main_door" and act in ("open", "turn_on"):
                         lock_reason = (
@@ -1408,20 +1422,6 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             "reason": lock_reason,
                         })
                         results.append({"ok": False, "device_id": dev_id, "error": lock_reason})
-                        continue
-
-                if not bypass_rbac:
-                    allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
-                    if not allowed:
-                        await self.emit({
-                            "type": "rbac_blocked",
-                            "device_id": dev_id,
-                            "device_name": dev["name"],
-                            "action": act,
-                            "role": effective_role,
-                            "reason": reason,
-                        })
-                        results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
                         continue
 
                 if dev["type"] == "door":
