@@ -3106,6 +3106,9 @@
         }
       }
       ensureHome3dInitialized();
+      if (typeof bindDesktopAutomationEvents === "function") {
+        bindDesktopAutomationEvents();
+      }
       if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof Event === "function") {
         window.dispatchEvent(new Event("resize"));
       }
@@ -4262,12 +4265,26 @@
 
 
 
+  function findInHomeOrDoc(selector) {
+    return (
+      document.querySelector(selector) ||
+      (homeAppShellEl && typeof homeAppShellEl.querySelector === "function"
+        ? homeAppShellEl.querySelector(selector)
+        : null)
+    );
+  }
+
+  function byIdInHomeOrDoc(id) {
+    return byId(id) || findInHomeOrDoc(`#${id}`);
+  }
+
   function syncAutoFormKindVisibility() {
-    const kind = (byId("autoKindSelect") && byId("autoKindSelect").value) || "timer";
-    const gTimer = byId("autoFormTimerGroup");
-    const gClock = byId("autoFormClockGroup");
-    const gRule = byId("autoFormRuleGroup");
-    const gScene = byId("autoFormSceneGroup");
+    const kindSel = byIdInHomeOrDoc("autoKindSelect");
+    const kind = (kindSel && kindSel.value) || "timer";
+    const gTimer = byIdInHomeOrDoc("autoFormTimerGroup");
+    const gClock = byIdInHomeOrDoc("autoFormClockGroup");
+    const gRule = byIdInHomeOrDoc("autoFormRuleGroup");
+    const gScene = byIdInHomeOrDoc("autoFormSceneGroup");
     if (gTimer) gTimer.hidden = kind !== "timer";
     if (gClock) gClock.hidden = kind !== "clock";
     if (gRule) gRule.hidden = kind !== "rule";
@@ -4276,30 +4293,34 @@
   }
 
   function bindDesktopAutomationEvents() {
-    const toggleBtn = byId("btnToggleAutoForm");
-    const panelEl = byId("desktopAutoFormPanel");
-    const cancelBtn = byId("btnAutoCancel");
-    const kindSel = byId("autoKindSelect");
-    const submitBtn = byId("btnAutoSubmit");
+    const toggleBtn = byIdInHomeOrDoc("btnToggleAutoForm");
+    const panelEl = byIdInHomeOrDoc("desktopAutoFormPanel");
+    const cancelBtn = byIdInHomeOrDoc("btnAutoCancel");
+    const kindSel = byIdInHomeOrDoc("autoKindSelect");
+    const submitBtn = byIdInHomeOrDoc("btnAutoSubmit");
 
-    if (toggleBtn && panelEl) {
+    if (toggleBtn && panelEl && !(toggleBtn.dataset && toggleBtn.dataset.autoBound === "1")) {
+      if (toggleBtn.dataset) toggleBtn.dataset.autoBound = "1";
       toggleBtn.addEventListener("click", () => {
         panelEl.hidden = !panelEl.hidden;
         if (!panelEl.hidden) syncAutoFormKindVisibility();
       });
     }
-    if (cancelBtn && panelEl) {
+    if (cancelBtn && panelEl && !(cancelBtn.dataset && cancelBtn.dataset.autoBound === "1")) {
+      if (cancelBtn.dataset) cancelBtn.dataset.autoBound = "1";
       cancelBtn.addEventListener("click", () => {
-        const editEl = byId("autoSceneEditId");
+        const editEl = byIdInHomeOrDoc("autoSceneEditId");
         if (editEl) editEl.value = "";
         panelEl.hidden = true;
         setAutoFormFeedback("");
       });
     }
-    if (kindSel) {
+    if (kindSel && !(kindSel.dataset && kindSel.dataset.autoBound === "1")) {
+      if (kindSel.dataset) kindSel.dataset.autoBound = "1";
       kindSel.addEventListener("change", syncAutoFormKindVisibility);
     }
-    if (submitBtn) {
+    if (submitBtn && !(submitBtn.dataset && submitBtn.dataset.autoBound === "1")) {
+      if (submitBtn.dataset) submitBtn.dataset.autoBound = "1";
       submitBtn.addEventListener("click", async () => {
         const kind = (kindSel && kindSel.value) || "timer";
         let url = "/api/timers";
@@ -4363,8 +4384,9 @@
       });
     }
 
-    const schedSection = document.querySelector("section.panel.schedule");
-    if (schedSection) {
+    const schedSection = findInHomeOrDoc("section.panel.schedule");
+    if (schedSection && !(schedSection.dataset && schedSection.dataset.autoBound === "1")) {
+      if (schedSection.dataset) schedSection.dataset.autoBound = "1";
       schedSection.addEventListener("click", async (ev) => {
         const btn = ev.target && ev.target.closest ? ev.target.closest("[data-auto-act]") : null;
         if (!btn) return;
