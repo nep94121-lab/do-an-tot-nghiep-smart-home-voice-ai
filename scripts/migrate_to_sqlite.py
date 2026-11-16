@@ -46,6 +46,10 @@ def build_default_devices() -> dict[str, dict[str, Any]]:
     return copy.deepcopy(DEFAULT_DEVICES)
 
 
+class MigrationDataLossError(RuntimeError):
+    """Raised when migration detects dropped rows, truncated automation fields, or corrupt inputs."""
+
+
 DEFAULT_ENV_PROD = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\.env.production")
 DEFAULT_TARGET_DB = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\data\smarthome.db")
 DEFAULT_SOURCE_DIR = ROOT / "simulator" / "data"
@@ -177,7 +181,7 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     row_d = dict(r)
                     uid = str(row_d.get("user_id") or "").strip()
                     if not uid:
-                        continue
+                        raise MigrationDataLossError("Legacy users table contains row with empty user_id")
                     tier = int(row_d.get("tier") or 3)
                     if tier not in (1, 2, 3):
                         tier = 3
@@ -187,14 +191,23 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     email = str(row_d.get("email") or "").strip().lower()
                     if email:
                         c.execute("UPDATE users SET email = '' WHERE lower(email) = ? AND user_id != ?", (email, uid))
+                    can_links = int(row_d.get("can_create_links") or 0)
                     c.execute(
                         """
                         INSERT INTO users (
                             user_id, full_name, role, tier, offline_allowed, created_by, updated_at,
                             email, role_code, password_salt, password_hash, password_updated_at,
-                            permission_active, permission_status, is_allowlisted, is_active, created_at, account_meta_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(user_id) DO NOTHING
+                            permission_active, permission_status, is_allowlisted, is_active, created_at,
+                            account_meta_json, can_create_links
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(user_id) DO UPDATE SET
+                            full_name = CASE WHEN excluded.full_name != '' THEN excluded.full_name ELSE users.full_name END,
+                            can_create_links = MAX(users.can_create_links, excluded.can_create_links),
+                            account_meta_json = CASE
+                                WHEN users.account_meta_json IN ('', '{}') AND excluded.account_meta_json NOT IN ('', '{}')
+                                THEN excluded.account_meta_json
+                                ELSE users.account_meta_json
+                            END
                         """,
                         (
                             uid,
@@ -215,14 +228,13 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                             int(row_d.get("is_active", 1)),
                             str(row_d.get("created_at") or row_d.get("updated_at") or ""),
                             str(row_d.get("account_meta_json") or "{}"),
+                            can_links,
                         ),
                     )
                     cnt += 1
                 stats["copied_users"] = cnt
 
-            valid_users = {str(r[0]) for r in c.execute("SELECT user_id FROM users").fetchall()}
-
-            # 2. devices + device_state
+            # 2. devices + device_state + device_state_meta
             if "devices" in src_tables:
                 d_rows = src_conn.execute("SELECT * FROM devices").fetchall()
                 cnt = 0
@@ -230,7 +242,7 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     rd = dict(r)
                     did = str(rd.get("device_id") or "")
                     if not did:
-                        continue
+                        raise MigrationDataLossError("Legacy devices table contains row with empty device_id")
                     tier = int(rd.get("min_tier_required") or 3)
                     c.execute(
                         """
@@ -265,7 +277,58 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     cnt += 1
                 stats["copied_devices"] = cnt
 
+            if "device_state" in src_tables:
+                cnt_ds = 0
+                for r in src_conn.execute("SELECT * FROM device_state").fetchall():
+                    rd = dict(r)
+                    did = str(rd.get("device_id") or "")
+                    if not did:
+                        continue
+                    c.execute(
+                        """
+                        INSERT INTO device_state (
+                            device_id, state, version, last_client_seq, last_client_id, last_client_ts_ms, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(device_id) DO UPDATE SET
+                            state = CASE WHEN excluded.updated_at >= device_state.updated_at THEN excluded.state ELSE device_state.state END,
+                            version = MAX(device_state.version, excluded.version),
+                            last_client_seq = MAX(device_state.last_client_seq, excluded.last_client_seq),
+                            last_client_id = CASE WHEN excluded.last_client_id != '' THEN excluded.last_client_id ELSE device_state.last_client_id END,
+                            last_client_ts_ms = MAX(device_state.last_client_ts_ms, excluded.last_client_ts_ms),
+                            updated_at = MAX(device_state.updated_at, excluded.updated_at)
+                        """,
+                        (
+                            did,
+                            str(rd.get("state") or "OFF"),
+                            int(rd.get("version") or 1),
+                            int(rd.get("last_client_seq") or 0),
+                            str(rd.get("last_client_id") or ""),
+                            int(rd.get("last_client_ts_ms") or 0),
+                            float(rd.get("updated_at") or now_ts),
+                        ),
+                    )
+                    cnt_ds += 1
+                stats["copied_device_state"] = cnt_ds
+
+            from simulator.db_migrations import _ensure_preserve_user_for_fk
+
+            valid_users = {str(r[0]) for r in c.execute("SELECT user_id FROM users").fetchall()}
             valid_devices = {str(r[0]) for r in c.execute("SELECT device_id FROM devices").fetchall()}
+
+            def _ensure_owner(uid_raw: str, tier_hint: int) -> str:
+                uid_clean = str(uid_raw or "").strip() or "tuan_anh"
+                if uid_clean not in valid_users:
+                    safe_tier = tier_hint if tier_hint in (1, 2, 3) else 2
+                    _ensure_preserve_user_for_fk(
+                        c,
+                        uid_clean,
+                        tier=safe_tier,
+                        role_code=role_for_tier(safe_tier),
+                        display_name=uid_clean,
+                        active=False,
+                    )
+                    valid_users.add(uid_clean)
+                return uid_clean
 
             # 3. voiceprints
             if "voiceprints" in src_tables:
@@ -324,34 +387,279 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     cnt += 1
                 stats["copied_knowledge_rag"] = cnt
 
-            # 5. timers_pool & rules_pool & ir_remote_codes
+            # 5. timers_pool (all 15 v4 columns) + schedules + automation_rules + custom_commands + pending_confirmations
             if "timers_pool" in src_tables:
                 cnt = 0
                 for r in src_conn.execute("SELECT * FROM timers_pool").fetchall():
                     rd = dict(r)
-                    if str(rd.get("owner_user_id") or "") not in valid_users or str(rd.get("device_id") or "") not in valid_devices:
-                        continue
+                    dev_id = str(rd.get("device_id") or "")
+                    if dev_id not in valid_devices:
+                        raise MigrationDataLossError(f"Unknown device_id '{dev_id}' in legacy timers_pool row {rd.get('timer_id')}")
+                    o_tier = int(rd.get("owner_tier") or 1)
+                    if o_tier not in (1, 2, 3):
+                        o_tier = 1
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), o_tier)
                     c.execute(
                         """
-                        INSERT OR IGNORE INTO timers_pool (
+                        INSERT INTO timers_pool (
                             timer_id, owner_user_id, device_id, action, schedule_mode,
-                            target_time_vn, repeat_rule, label_summary, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            target_time_vn, repeat_rule, label_summary, updated_at,
+                            fire_at_epoch, delay_seconds, status, owner_tier, label, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(timer_id) DO UPDATE SET
+                            owner_user_id = excluded.owner_user_id,
+                            device_id = excluded.device_id,
+                            action = excluded.action,
+                            schedule_mode = excluded.schedule_mode,
+                            target_time_vn = excluded.target_time_vn,
+                            repeat_rule = excluded.repeat_rule,
+                            label_summary = excluded.label_summary,
+                            updated_at = excluded.updated_at,
+                            fire_at_epoch = excluded.fire_at_epoch,
+                            delay_seconds = excluded.delay_seconds,
+                            status = excluded.status,
+                            owner_tier = excluded.owner_tier,
+                            label = excluded.label,
+                            created_at = excluded.created_at
                         """,
                         (
                             str(rd["timer_id"]),
-                            str(rd["owner_user_id"]),
-                            str(rd["device_id"]),
+                            uid,
+                            dev_id,
                             str(rd.get("action") or ""),
                             str(rd.get("schedule_mode") or "once"),
                             str(rd.get("target_time_vn") or ""),
                             str(rd.get("repeat_rule") or "once"),
                             str(rd.get("label_summary") or ""),
                             str(rd.get("updated_at") or ""),
+                            float(rd.get("fire_at_epoch") or 0.0),
+                            float(rd.get("delay_seconds") or 0.0),
+                            str(rd.get("status") or "pending"),
+                            o_tier,
+                            str(rd.get("label") or rd.get("label_summary") or ""),
+                            float(rd.get("created_at") or 0.0),
                         ),
                     )
                     cnt += 1
                 stats["copied_timers_pool"] = cnt
+
+            if "schedules" in src_tables:
+                cnt_s = 0
+                for r in src_conn.execute("SELECT * FROM schedules").fetchall():
+                    rd = dict(r)
+                    dev_id = str(rd.get("device_id") or "")
+                    if dev_id not in valid_devices:
+                        raise MigrationDataLossError(f"Unknown device_id '{dev_id}' in legacy schedules row {rd.get('schedule_id')}")
+                    o_tier = int(rd.get("owner_tier") or 1)
+                    if o_tier not in (1, 2, 3):
+                        o_tier = 1
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), o_tier)
+                    st_type = "daily" if str(rd.get("schedule_type") or "once").strip().lower() == "daily" else "once"
+                    c.execute(
+                        """
+                        INSERT INTO schedules (
+                            schedule_id, owner_user_id, owner_tier, device_id, action,
+                            time_hhmm, schedule_type, run_date_vn, timezone, enabled,
+                            last_fired_date_vn, label, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(schedule_id) DO UPDATE SET
+                            owner_user_id = excluded.owner_user_id,
+                            owner_tier = excluded.owner_tier,
+                            device_id = excluded.device_id,
+                            action = excluded.action,
+                            time_hhmm = excluded.time_hhmm,
+                            schedule_type = excluded.schedule_type,
+                            run_date_vn = excluded.run_date_vn,
+                            timezone = excluded.timezone,
+                            enabled = excluded.enabled,
+                            last_fired_date_vn = excluded.last_fired_date_vn,
+                            label = excluded.label,
+                            created_at = excluded.created_at,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            str(rd["schedule_id"]),
+                            uid,
+                            o_tier,
+                            dev_id,
+                            str(rd.get("action") or "turn_on"),
+                            str(rd.get("time_hhmm") or "07:00"),
+                            st_type,
+                            str(rd.get("run_date_vn") or ""),
+                            str(rd.get("timezone") or "Asia/Saigon"),
+                            int(rd.get("enabled", 1)),
+                            str(rd.get("last_fired_date_vn") or ""),
+                            str(rd.get("label") or ""),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("updated_at") or 0.0),
+                        ),
+                    )
+                    cnt_s += 1
+                stats["copied_schedules"] = cnt_s
+
+            if "automation_rules" in src_tables:
+                cnt_r = 0
+                for r in src_conn.execute("SELECT * FROM automation_rules").fetchall():
+                    rd = dict(r)
+                    wdev = str(rd.get("when_device_id") or "")
+                    tdev = str(rd.get("then_device_id") or "")
+                    if wdev not in valid_devices or tdev not in valid_devices:
+                        raise MigrationDataLossError(f"Invalid rule device refs ({wdev} -> {tdev}) in {rd.get('rule_id')}")
+                    edev = rd.get("else_device_id")
+                    if edev and str(edev) not in valid_devices:
+                        raise MigrationDataLossError(f"Invalid else_device_id '{edev}' in {rd.get('rule_id')}")
+                    o_tier = int(rd.get("owner_tier") or 1)
+                    if o_tier not in (1, 2, 3):
+                        o_tier = 1
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), o_tier)
+                    c.execute(
+                        """
+                        INSERT INTO automation_rules (
+                            rule_id, owner_user_id, owner_tier, when_device_id, when_state,
+                            then_device_id, then_action, else_device_id, else_action,
+                            delay_seconds, enabled, label, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(rule_id) DO UPDATE SET
+                            owner_user_id = excluded.owner_user_id,
+                            owner_tier = excluded.owner_tier,
+                            when_device_id = excluded.when_device_id,
+                            when_state = excluded.when_state,
+                            then_device_id = excluded.then_device_id,
+                            then_action = excluded.then_action,
+                            else_device_id = excluded.else_device_id,
+                            else_action = excluded.else_action,
+                            delay_seconds = excluded.delay_seconds,
+                            enabled = excluded.enabled,
+                            label = excluded.label,
+                            created_at = excluded.created_at,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            str(rd["rule_id"]),
+                            uid,
+                            o_tier,
+                            wdev,
+                            str(rd.get("when_state") or "ON"),
+                            tdev,
+                            str(rd.get("then_action") or "turn_on"),
+                            str(edev) if edev else None,
+                            str(rd.get("else_action") or ""),
+                            float(rd.get("delay_seconds") or 0.0),
+                            int(rd.get("enabled", 1)),
+                            str(rd.get("label") or ""),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("updated_at") or 0.0),
+                        ),
+                    )
+                    cnt_r += 1
+                stats["copied_automation_rules"] = cnt_r
+
+            if "custom_commands" in src_tables:
+                cnt_cc = 0
+                for r in src_conn.execute("SELECT * FROM custom_commands").fetchall():
+                    rd = dict(r)
+                    o_tier = int(rd.get("owner_tier") or 1)
+                    if o_tier not in (1, 2, 3):
+                        o_tier = 1
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), o_tier)
+                    c.execute(
+                        """
+                        INSERT INTO custom_commands (
+                            command_id, phrase, phrase_norm, owner_user_id,
+                            owner_tier, steps_json, enabled, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(command_id) DO UPDATE SET
+                            phrase = excluded.phrase,
+                            phrase_norm = excluded.phrase_norm,
+                            owner_user_id = excluded.owner_user_id,
+                            owner_tier = excluded.owner_tier,
+                            steps_json = excluded.steps_json,
+                            enabled = excluded.enabled,
+                            created_at = excluded.created_at,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            str(rd["command_id"]),
+                            str(rd.get("phrase") or ""),
+                            str(rd.get("phrase_norm") or ""),
+                            uid,
+                            o_tier,
+                            str(rd.get("steps_json") or "[]"),
+                            int(rd.get("enabled", 1)),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("updated_at") or 0.0),
+                        ),
+                    )
+                    cnt_cc += 1
+                stats["copied_custom_commands"] = cnt_cc
+
+            if "pending_confirmations" in src_tables:
+                cnt_pc = 0
+                for r in src_conn.execute("SELECT * FROM pending_confirmations").fetchall():
+                    rd = dict(r)
+                    o_tier = int(rd.get("owner_tier") or 1)
+                    if o_tier not in (1, 2, 3):
+                        o_tier = 1
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), o_tier)
+                    c.execute(
+                        """
+                        INSERT INTO pending_confirmations (
+                            pending_id, session_key, owner_user_id, owner_tier,
+                            action_kind, payload_json, prompt_question,
+                            created_at, expires_at, status
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(pending_id) DO UPDATE SET
+                            status = excluded.status,
+                            expires_at = excluded.expires_at,
+                            payload_json = excluded.payload_json
+                        """,
+                        (
+                            str(rd["pending_id"]),
+                            str(rd.get("session_key") or ""),
+                            uid,
+                            o_tier,
+                            str(rd.get("action_kind") or ""),
+                            str(rd.get("payload_json") or "{}"),
+                            str(rd.get("prompt_question") or ""),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("expires_at") or 0.0),
+                            str(rd.get("status") or "pending"),
+                        ),
+                    )
+                    cnt_pc += 1
+                stats["copied_pending_confirmations"] = cnt_pc
+
+            if "invites" in src_tables:
+                cnt_inv = 0
+                for r in src_conn.execute("SELECT * FROM invites").fetchall():
+                    rd = dict(r)
+                    o_tier = int(rd.get("tier") or 3)
+                    uid = _ensure_owner(str(rd.get("owner_user_id") or "tuan_anh"), 1)
+                    c.execute(
+                        """
+                        INSERT OR IGNORE INTO invites (
+                            jti, token_hash, owner_user_id, role_code, tier, label,
+                            created_at, expires_at, revoked, revoked_at, redeem_count, last_redeem_at, extra_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(rd["jti"]),
+                            str(rd.get("token_hash") or ""),
+                            uid,
+                            str(rd.get("role_code") or role_for_tier(o_tier)),
+                            o_tier if o_tier in (1, 2, 3) else 3,
+                            str(rd.get("label") or ""),
+                            float(rd.get("created_at") or 0.0),
+                            float(rd.get("expires_at") or 0.0),
+                            int(rd.get("revoked") or 0),
+                            float(rd.get("revoked_at") or 0.0),
+                            int(rd.get("redeem_count") or 0),
+                            float(rd.get("last_redeem_at") or 0.0),
+                            str(rd.get("extra_json") or "{}"),
+                        ),
+                    )
+                    cnt_inv += 1
+                stats["copied_invites"] = cnt_inv
 
             if "rules_pool" in src_tables:
                 cnt = 0
@@ -536,16 +844,16 @@ def _import_local_json_and_jsonl(source_dir: pathlib.Path, target_conn: sqlite3.
             }
             valid_users = {str(r[0]) for r in c.execute("SELECT user_id FROM users").fetchall()}
             added = 0
-            for raw_line in jsonl_file.read_text(encoding="utf-8", errors="replace").splitlines():
+            for lineno, raw_line in enumerate(jsonl_file.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 line = raw_line.strip()
                 if not line:
                     continue
                 try:
                     item = json.loads(line)
-                except Exception:
-                    continue
+                except Exception as exc:
+                    raise MigrationDataLossError(f"Corrupt JSONL line {lineno} in {jsonl_file}: {exc}") from exc
                 if not isinstance(item, dict):
-                    continue
+                    raise MigrationDataLossError(f"Expected JSON object at line {lineno} in {jsonl_file}")
                 ts_iso = str(item.get("ts_iso") or "")
                 ev = str(item.get("event_type") or item.get("category") or "event")
                 uname = str(item.get("user") or item.get("user_name") or "Hệ thống")
@@ -668,9 +976,12 @@ def _import_local_json_and_jsonl(source_dir: pathlib.Path, target_conn: sqlite3.
         for fn in meta_files:
             p = source_dir / fn
             if p.exists():
-                with contextlib.suppress(Exception):
-                    dump_meta_json(c, f"migrated_{fn}", json.loads(p.read_text(encoding="utf-8")))
-                    cnt += 1
+                try:
+                    parsed_meta = json.loads(p.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    raise MigrationDataLossError(f"Corrupt metadata JSON in {p}: {exc}") from exc
+                dump_meta_json(c, f"migrated_{fn}", parsed_meta)
+                cnt += 1
         return cnt
 
     stats["meta_docs_archived"] = run_write_transaction(target_conn, _tx_meta)
@@ -888,6 +1199,114 @@ def _apply_github_device_state(conn: sqlite3.Connection, shared_doc: dict[str, A
     return run_write_transaction(conn, _tx)
 
 
+def _verify_lossless_migration(source_db: pathlib.Path, target_conn: sqlite3.Connection) -> dict[str, int]:
+    """Verify source SQLite PKs and critical automation/execution columns match target losslessly."""
+    if not source_db.exists():
+        return {}
+    tgt_path = pathlib.Path(target_conn.execute("PRAGMA database_list").fetchone()[2]).resolve()
+    if source_db.resolve() == tgt_path:
+        return {}
+
+    src_conn = open_wal_connection(source_db, readonly=True)
+    verified: dict[str, int] = {}
+    try:
+        src_tables = {
+            str(r[0])
+            for r in src_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        }
+        pk_tables = (
+            ("users", "user_id"),
+            ("devices", "device_id"),
+            ("timers_pool", "timer_id"),
+            ("schedules", "schedule_id"),
+            ("automation_rules", "rule_id"),
+            ("custom_commands", "command_id"),
+            ("pending_confirmations", "pending_id"),
+            ("rules_pool", "rule_id"),
+            ("ir_remote_codes", "ir_code_id"),
+            ("audit_logs", "log_id"),
+            ("invites", "jti"),
+            ("voiceprints", "voiceprint_id"),
+            ("knowledge_rag", "doc_id"),
+        )
+        for tbl, pk_col in pk_tables:
+            if tbl not in src_tables:
+                continue
+            src_keys = {r[0] for r in src_conn.execute(f"SELECT {pk_col} FROM {tbl}").fetchall()}
+            tgt_keys = {r[0] for r in target_conn.execute(f"SELECT {pk_col} FROM {tbl}").fetchall()}
+            missing = src_keys - tgt_keys
+            if missing:
+                raise MigrationDataLossError(
+                    f"Migration dropped {len(missing)} row(s) in '{tbl}': {sorted(str(x) for x in missing)[:5]}"
+                )
+            verified[tbl] = len(src_keys)
+
+        if "timers_pool" in src_tables:
+            t_src = {
+                str(r["timer_id"]): r
+                for r in src_conn.execute("SELECT * FROM timers_pool").fetchall()
+            }
+            t_tgt = {
+                str(r["timer_id"]): r
+                for r in target_conn.execute("SELECT * FROM timers_pool").fetchall()
+            }
+            for tid, sr in t_src.items():
+                tr = t_tgt.get(tid)
+                if tr is None:
+                    raise MigrationDataLossError(f"Missing migrated timer_id={tid}")
+                src_sd = dict(sr)
+                tgt_sd = dict(tr)
+                if (
+                    str(tgt_sd.get("owner_user_id") or "") != str(src_sd.get("owner_user_id") or "")
+                    or int(tgt_sd.get("owner_tier") or 1) != int(src_sd.get("owner_tier") or 1)
+                    or str(tgt_sd.get("device_id") or "") != str(src_sd.get("device_id") or "")
+                    or str(tgt_sd.get("action") or "") != str(src_sd.get("action") or "")
+                    or str(tgt_sd.get("repeat_rule") or "once") != str(src_sd.get("repeat_rule") or "once")
+                    or str(tgt_sd.get("status") or "pending") != str(src_sd.get("status") or "pending")
+                    or round(float(tgt_sd.get("fire_at_epoch") or 0.0), 3) != round(float(src_sd.get("fire_at_epoch") or 0.0), 3)
+                    or round(float(tgt_sd.get("delay_seconds") or 0.0), 3) != round(float(src_sd.get("delay_seconds") or 0.0), 3)
+                ):
+                    raise MigrationDataLossError(f"Mismatched fields in migrated timers_pool row {tid}")
+
+        if "schedules" in src_tables:
+            s_src = {str(r["schedule_id"]): dict(r) for r in src_conn.execute("SELECT * FROM schedules").fetchall()}
+            s_tgt = {str(r["schedule_id"]): dict(r) for r in target_conn.execute("SELECT * FROM schedules").fetchall()}
+            for sid, sr in s_src.items():
+                tr = s_tgt.get(sid)
+                if tr is None:
+                    raise MigrationDataLossError(f"Missing migrated schedule_id={sid}")
+                if (
+                    str(tr["owner_user_id"]) != str(sr["owner_user_id"])
+                    or int(tr["owner_tier"]) != int(sr["owner_tier"])
+                    or str(tr["device_id"]) != str(sr["device_id"])
+                    or str(tr["action"]) != str(sr["action"])
+                    or str(tr["time_hhmm"]) != str(sr["time_hhmm"])
+                    or str(tr["schedule_type"]) != str(sr["schedule_type"])
+                    or str(tr["run_date_vn"]) != str(sr["run_date_vn"])
+                    or int(tr["enabled"]) != int(sr["enabled"])
+                ):
+                    raise MigrationDataLossError(f"Mismatched fields in migrated schedules row {sid}")
+
+        if "custom_commands" in src_tables:
+            c_src = {str(r["command_id"]): dict(r) for r in src_conn.execute("SELECT * FROM custom_commands").fetchall()}
+            c_tgt = {str(r["command_id"]): dict(r) for r in target_conn.execute("SELECT * FROM custom_commands").fetchall()}
+            for cid, sr in c_src.items():
+                tr = c_tgt.get(cid)
+                if tr is None:
+                    raise MigrationDataLossError(f"Missing migrated command_id={cid}")
+                if (
+                    str(tr["owner_user_id"]) != str(sr["owner_user_id"])
+                    or int(tr["owner_tier"]) != int(sr["owner_tier"])
+                    or str(tr["phrase_norm"]) != str(sr["phrase_norm"])
+                    or str(tr["steps_json"]) != str(sr["steps_json"])
+                    or int(tr["enabled"]) != int(sr["enabled"])
+                ):
+                    raise MigrationDataLossError(f"Mismatched fields in migrated custom_commands row {cid}")
+    finally:
+        src_conn.close()
+    return verified
+
+
 def migrate_all(
     target_db: pathlib.Path,
     source_dir: pathlib.Path,
@@ -985,6 +1404,7 @@ def migrate_all(
         integrity = str(vconn.execute("PRAGMA integrity_check;").fetchone()[0])
         fk_errors = [dict(r) for r in vconn.execute("PRAGMA foreign_key_check;").fetchall()]
         journal_mode = str(vconn.execute("PRAGMA journal_mode;").fetchone()[0]).upper()
+        lossless_verified = _verify_lossless_migration(source_db, vconn)
         after_target_counts = table_row_counts(vconn)
     finally:
         vconn.close()
@@ -996,6 +1416,7 @@ def migrate_all(
         "journal_mode": journal_mode,
         "integrity_check": integrity,
         "foreign_key_errors": fk_errors,
+        "lossless_verified": lossless_verified,
         "copied_static_assets": copied_assets,
         "before_source_counts": before_source_counts,
         "before_target_counts": before_target_counts,

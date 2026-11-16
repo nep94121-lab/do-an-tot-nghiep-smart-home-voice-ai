@@ -941,6 +941,7 @@ def _migrate_custom_commands_per_owner(conn: sqlite3.Connection) -> None:
                 )
                 """
             )
+            before_cnt = int(c.execute("SELECT COUNT(*) FROM custom_commands").fetchone()[0])
             c.execute(
                 """
                 INSERT OR IGNORE INTO custom_commands_v4 (
@@ -953,6 +954,9 @@ def _migrate_custom_commands_per_owner(conn: sqlite3.Connection) -> None:
                 FROM custom_commands
                 """
             )
+            after_cnt = int(c.execute("SELECT COUNT(*) FROM custom_commands_v4").fetchone()[0])
+            if after_cnt < before_cnt:
+                raise RuntimeError(f"Refusing lossy custom_commands migration: {after_cnt} < {before_cnt}")
             c.execute("DROP TABLE custom_commands")
             c.execute("ALTER TABLE custom_commands_v4 RENAME TO custom_commands")
 
@@ -1024,7 +1028,11 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
         )
 
         # Ensure any active non-orphan rows from user_sessions exist in sessions (v3 columns)
-        with contextlib.suppress(sqlite3.DatabaseError):
+        has_user_sessions = (
+            c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_sessions'").fetchone()
+            is not None
+        )
+        if has_user_sessions:
             c.execute(
                 """
                 INSERT OR IGNORE INTO sessions (

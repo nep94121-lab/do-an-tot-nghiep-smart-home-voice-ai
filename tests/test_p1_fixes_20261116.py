@@ -627,3 +627,120 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
         assert issubclass(ScheduleConflictError, ValueError)
 
 
+class TestF05LosslessMigrationAndFailLoudly:
+    """F05: SQLite migration copies automation tables and timer execution columns losslessly and fails loudly on data loss."""
+
+    def test_lossless_automation_migration_idempotent_and_corrupt_source_raises(self, tmp_path: pathlib.Path) -> None:
+        import sqlite3
+        from scripts.migrate_to_sqlite import MigrationDataLossError, migrate_all
+        from simulator.automation_repo import create_automation_rule, create_schedule, set_user_can_create_links, upsert_custom_command, upsert_timer_row
+        from simulator.database_sqlite import init_sqlite_database
+        from simulator.db_migrations import _migrate_custom_commands_per_owner, apply_schema_migrations, open_wal_connection
+
+        src_dir = tmp_path / "src"
+        tgt_dir = tmp_path / "tgt"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        src_db = src_dir / "smarthome.db"
+        init_sqlite_database(src_db)
+
+        future_epoch = time.time() + 900.0
+        set_user_can_create_links("thanh_vien_a", True, owner_tier=2, display_name="Thành viên A", db_path=src_db)
+        upsert_timer_row(
+            timer_id="t_f05",
+            owner_user_id="thanh_vien_a",
+            owner_tier=2,
+            device_id="fan",
+            action="turn_on",
+            fire_at_epoch=future_epoch,
+            delay_seconds=900.0,
+            repeat_rule="daily",
+            label="F05 timer",
+            db_path=src_db,
+        )
+        create_schedule(
+            owner_user_id="thanh_vien_a",
+            owner_tier=2,
+            device_id="fan",
+            action="turn_off",
+            time_hhmm="22:15",
+            schedule_id="sc_f05",
+            db_path=src_db,
+        )
+        create_automation_rule(
+            owner_user_id="thanh_vien_a",
+            owner_tier=2,
+            when_device_id="living_room_light",
+            when_state="ON",
+            then_device_id="fan",
+            then_action="turn_on",
+            rule_id="rl_f05",
+            db_path=src_db,
+        )
+        upsert_custom_command(
+            phrase="ngủ trưa f05",
+            steps=[{"device_id": "fan", "action": "turn_on"}],
+            owner_user_id="thanh_vien_a",
+            owner_tier=2,
+            command_id="cc_f05",
+            db_path=src_db,
+        )
+
+        tgt_db = tgt_dir / "smarthome.db"
+        r1 = migrate_all(tgt_db, src_dir, fetch_github=False, seed_assets=False, upgrade_repo_db=False)
+        r2 = migrate_all(tgt_db, src_dir, fetch_github=False, seed_assets=False, upgrade_repo_db=False)
+        assert r1["ok"] is True and r2["ok"] is True
+        assert r1["after_target_counts"] == r2["after_target_counts"]
+        assert r1["after_target_counts"]["schedules"] == 1
+        assert r1["after_target_counts"]["automation_rules"] == 1
+        assert r1["after_target_counts"]["custom_commands"] == 1
+
+        c_tgt = open_wal_connection(tgt_db, readonly=True)
+        try:
+            t_row = dict(c_tgt.execute("SELECT * FROM timers_pool WHERE timer_id = 't_f05'").fetchone())
+            assert t_row["owner_tier"] == 2
+            assert round(float(t_row["delay_seconds"]), 1) == 900.0
+            assert round(float(t_row["fire_at_epoch"]), 1) == round(future_epoch, 1)
+            u_row = dict(c_tgt.execute("SELECT can_create_links FROM users WHERE user_id = 'thanh_vien_a'").fetchone())
+            assert u_row["can_create_links"] == 1
+            assert c_tgt.execute("PRAGMA foreign_key_check").fetchall() == []
+        finally:
+            c_tgt.close()
+
+        # Corrupt JSONL source must fail loudly rather than silently drop log entries
+        corrupt_dir = tmp_path / "corrupt_src"
+        corrupt_dir.mkdir(parents=True, exist_ok=True)
+        (corrupt_dir / "system_audit_logs.jsonl").write_text("{not-valid-json\n", encoding="utf-8")
+        with pytest.raises(MigrationDataLossError):
+            migrate_all(tmp_path / "corrupt_tgt" / "smarthome.db", corrupt_dir, fetch_github=False, seed_assets=False, upgrade_repo_db=False)
+
+        # Lossy duplicate (owner_user_id, phrase_norm) rebuild in _migrate_custom_commands_per_owner must raise RuntimeError
+        dup_db = tmp_path / "dup_cc.db"
+        conn_dup = open_wal_connection(dup_db, readonly=False)
+        try:
+            apply_schema_migrations(conn_dup)
+            conn_dup.execute("DROP TABLE custom_commands")
+            conn_dup.execute(
+                """
+                CREATE TABLE custom_commands (
+                    command_id TEXT PRIMARY KEY,
+                    phrase TEXT NOT NULL,
+                    phrase_norm TEXT NOT NULL,
+                    owner_user_id TEXT NOT NULL,
+                    owner_tier INTEGER NOT NULL DEFAULT 1,
+                    steps_json TEXT NOT NULL DEFAULT '[]',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at REAL NOT NULL DEFAULT 0,
+                    updated_at REAL NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn_dup.execute("INSERT INTO custom_commands VALUES ('c1', 'a', 'a', 'tuan_anh', 1, '[]', 1, 0, 0)")
+            conn_dup.execute("INSERT INTO custom_commands VALUES ('c2', 'a', 'a', 'tuan_anh', 1, '[]', 1, 0, 0)")
+            conn_dup.commit()
+            with pytest.raises(RuntimeError):
+                _migrate_custom_commands_per_owner(conn_dup)
+        finally:
+            conn_dup.close()
+
+
+
