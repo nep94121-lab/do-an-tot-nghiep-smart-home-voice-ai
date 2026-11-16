@@ -1162,6 +1162,180 @@ class TestF03AtomicQrAndOtpMultiprocess:
         redeem_res_2 = redeem_token(token)
         assert redeem_res_2.get("ok") is False
 
+    def test_owner_pin_legacy_snapshot_missing_revision_cannot_resurrect_consumed_otp_or_supersede_new_otp(
+        self, sqlite_auth_manager
+    ) -> None:
+        import json
+        import time
+        from unittest.mock import patch
+        from simulator.auth import owner_pin
+        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+
+        _, data_dir = sqlite_auth_manager
+        issued, previous_code = owner_pin.issue_reset_otp()
+        assert issued.get("ok") is True
+
+        legacy_payload = json.loads(load_owner_pin_sqlite(data_dir))
+        assert "revision" in legacy_payload
+        legacy_payload.pop("revision", None)
+
+        first_consume = owner_pin.reset_pin_with_otp(previous_code, "4829", "4829")
+        assert first_consume.get("ok") is True
+
+        later = time.time() + 61
+        with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
+            "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
+        ):
+            issued_again, next_code = owner_pin.issue_reset_otp()
+            assert issued_again.get("ok") is True
+
+            # Legacy snapshot without revision must NOT resurrect previous_code or supersede next_code
+            save_owner_pin_sqlite(json.dumps(legacy_payload).encode("utf-8"), data_dir)
+
+            legitimate = owner_pin.reset_pin_with_otp(next_code, "4829", "4829")
+            replay = owner_pin.reset_pin_with_otp(previous_code, "4829", "4829")
+
+            assert legitimate.get("ok") is True, f"Next OTP was superseded/invalidated: {legitimate}"
+            assert replay.get("ok") is False, f"Consumed legacy OTP was resurrected: {replay}"
+
+    def test_owner_pin_legacy_snapshot_missing_revision_unused_otp_accepted_exactly_once(
+        self, sqlite_auth_manager
+    ) -> None:
+        import json
+        from simulator.auth import owner_pin
+        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+
+        _, data_dir = sqlite_auth_manager
+        issued, code = owner_pin.issue_reset_otp()
+        assert issued.get("ok") is True
+
+        legacy_payload = json.loads(load_owner_pin_sqlite(data_dir))
+        legacy_payload.pop("revision", None)
+
+        # Legacy snapshot without revision containing valid unused OTP is saved
+        save_owner_pin_sqlite(json.dumps(legacy_payload).encode("utf-8"), data_dir)
+
+        # Must be usable exactly once
+        consume1 = owner_pin.reset_pin_with_otp(code, "4829", "4829")
+        assert consume1.get("ok") is True, f"Valid unused OTP rejected: {consume1}"
+
+        consume2 = owner_pin.reset_pin_with_otp(code, "4829", "4829")
+        assert consume2.get("ok") is False, f"OTP consumed twice: {consume2}"
+
+    def test_owner_pin_multiprocess_interleaved_legacy_writer_and_race_two_consumers(
+        self, tmp_path: pathlib.Path
+    ) -> None:
+        import concurrent.futures
+        import json
+        import os
+        import secrets
+        import subprocess
+        import sys
+        import time
+        from unittest.mock import patch
+        from simulator.auth import owner_pin
+        from simulator.auth.session_store import get_session_store
+        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        data_dir = tmp_path / "f03_pin_race_data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        prev_env = {k: os.environ.get(k) for k in ("SMARTHOME_DATA_DIR", "SMARTHOME_SECURITY_BACKEND", "SMARTHOME_SESSION_SECRET")}
+        env = dict(
+            os.environ,
+            SMARTHOME_DATA_DIR=str(data_dir),
+            SMARTHOME_SECURITY_BACKEND="sqlite",
+            SIMULATOR_OFFLINE_SANDBOX="1",
+            SMARTHOME_SESSION_SECRET="f03_test_secret_" + secrets.token_hex(16),
+            PYTHONPATH=str(repo_root),
+            PYTHONIOENCODING="utf-8",
+        )
+        os.environ["SMARTHOME_DATA_DIR"] = env["SMARTHOME_DATA_DIR"]
+        os.environ["SMARTHOME_SECURITY_BACKEND"] = "sqlite"
+        os.environ["SMARTHOME_SESSION_SECRET"] = env["SMARTHOME_SESSION_SECRET"]
+        store = get_session_store()
+        prev_store_path = store.db_path
+        store.db_path = data_dir / "smarthome.db"
+        try:
+            # 1. Issue OTP A
+            issued1, code_a = owner_pin.issue_reset_otp()
+            assert issued1.get("ok") is True
+
+            # 2. Capture legacy snapshot without revision
+            legacy_doc = json.loads(load_owner_pin_sqlite(data_dir))
+            legacy_doc.pop("revision", None)
+            legacy_bytes = json.dumps(legacy_doc).encode("utf-8")
+
+            # 3. Consume OTP A
+            res_a = owner_pin.reset_pin_with_otp(code_a, "4829", "4829")
+            assert res_a.get("ok") is True
+
+            # 4. 61s later, issue OTP B
+            later = time.time() + 61
+            with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
+                "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(code_a) + 1) % 1_000_000
+            ):
+                issued2, code_b = owner_pin.issue_reset_otp()
+                assert issued2.get("ok") is True
+
+            # 5. Multiprocess: Process 1 tries to write legacy snapshot, while Process 2 and 3 race to consume OTP B
+            writer_script = (
+                "import sys; "
+                "from simulator.auth.sqlite_security_repo import save_owner_pin_sqlite; "
+                "save_owner_pin_sqlite(sys.argv[1].encode('utf-8'), None); "
+                "print('WROTE')"
+            )
+            consumer_script = (
+                "import sys; "
+                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
+                "print('OK' if r.get('ok') else 'REJECT')"
+            )
+            replay_script = (
+                "import sys; "
+                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
+                "print('REPLAY_OK' if r.get('ok') else 'REPLAY_REJECT')"
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                p_writer = pool.submit(
+                    subprocess.run,
+                    [sys.executable, "-c", writer_script, legacy_bytes.decode("utf-8")],
+                    text=True, capture_output=True, env=env, cwd=str(repo_root), timeout=30,
+                )
+                p_consumer1 = pool.submit(
+                    subprocess.run,
+                    [sys.executable, "-c", consumer_script, code_b],
+                    text=True, capture_output=True, env=env, cwd=str(repo_root), timeout=30,
+                )
+                p_consumer2 = pool.submit(
+                    subprocess.run,
+                    [sys.executable, "-c", consumer_script, code_b],
+                    text=True, capture_output=True, env=env, cwd=str(repo_root), timeout=30,
+                )
+                writer_res = p_writer.result()
+                c1_res = p_consumer1.result()
+                c2_res = p_consumer2.result()
+
+            assert writer_res.returncode == 0, writer_res.stderr
+            c_outs = [c1_res.stdout.strip(), c2_res.stdout.strip()]
+            assert c_outs.count("OK") == 1
+            assert c_outs.count("REJECT") == 1
+
+            # 6. Replay of OTP A MUST still be rejected!
+            replay_proc = subprocess.run(
+                [sys.executable, "-c", replay_script, code_a],
+                text=True, capture_output=True, env=env, cwd=str(repo_root), timeout=30,
+            )
+            assert replay_proc.stdout.strip() == "REPLAY_REJECT"
+        finally:
+            store.db_path = prev_store_path
+            for k, old_v in prev_env.items():
+                if old_v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = old_v
+
 
 class TestF04PatchScheduleAndTimerTier1Conflict:
     """F04: PATCH/PUT schedule & update_timer enforce Tier 1 +-60s conflict on computed target state."""

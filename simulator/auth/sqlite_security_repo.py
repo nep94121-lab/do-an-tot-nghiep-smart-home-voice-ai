@@ -140,15 +140,24 @@ def _read_owner_pin_from_conn(conn: sqlite3.Connection) -> bytes | None:
         and not row["locked"]
     ):
         return None
+    otp_h = str(row["otp_hash"] or "").strip()
+    otp_used_val = bool(row["otp_used"])
+    if not otp_used_val and otp_h:
+        ch = conn.execute(
+            "SELECT used FROM otp_challenges WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+            (otp_h,),
+        ).fetchone()
+        if ch and int(ch["used"] or 0) != 0:
+            otp_used_val = True
     doc = {
         "pin_salt": str(row["pin_salt"] or ""),
         "pin_hash": str(row["pin_hash"] or ""),
         "failed_attempts": int(row["failed_attempts"] or 0),
         "locked": bool(row["locked"]),
         "otp_salt": str(row["otp_salt"] or ""),
-        "otp_hash": str(row["otp_hash"] or ""),
+        "otp_hash": otp_h,
         "otp_expires_at": float(row["otp_expires_at"] or 0.0),
-        "otp_used": bool(row["otp_used"]),
+        "otp_used": otp_used_val,
         "otp_failed_attempts": int(row["otp_failed_attempts"] or 0),
         "otp_issued_at": float(row["otp_issued_at"] or 0.0),
         "updated_at": float(row["updated_at"] or 0.0),
@@ -161,12 +170,17 @@ def _save_owner_pin_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
     doc = json.loads(payload.decode("utf-8")) if payload else {}
     if not isinstance(doc, dict):
         doc = {}
-    if "revision" in doc:
-        existing_revision = c.execute("SELECT revision FROM owner_pin_security WHERE id = 1").fetchone()
-        if existing_revision is not None and int(existing_revision["revision"]) != int(doc["revision"]):
+
+    existing = c.execute("SELECT * FROM owner_pin_security WHERE id = 1").fetchone()
+    ex_rev = int(existing["revision"] or 0) if existing is not None else 0
+
+    has_revision = "revision" in doc and doc["revision"] is not None
+    if has_revision:
+        if existing is not None and ex_rev != int(doc["revision"]):
             from simulator.auth.security_state import StateConflict
 
             raise StateConflict("Owner PIN state changed; reload before saving")
+
     if not doc:
         c.execute(
             """
@@ -191,15 +205,161 @@ def _save_owner_pin_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
             """,
             (time.time(),),
         )
+        c.execute("UPDATE otp_challenges SET used = 1 WHERE purpose = 'owner_pin_reset' AND used = 0")
         _bump_sec_revision_in_tx(c, "owner_pin.json")
         return
-    in_otp_hash = str(doc.get("otp_hash") or "")
+
+    in_pin_salt = str(doc.get("pin_salt") or "")
+    in_pin_hash = str(doc.get("pin_hash") or "")
+    in_failed_attempts = int(doc.get("failed_attempts") or 0)
+    in_locked = 1 if doc.get("locked") else 0
+    in_otp_salt = str(doc.get("otp_salt") or "")
+    in_otp_hash = str(doc.get("otp_hash") or "").strip()
+    in_otp_expires_at = float(doc.get("otp_expires_at") or 0.0)
     in_otp_used = 1 if doc.get("otp_used") else 0
-    existing = c.execute("SELECT otp_hash, otp_used FROM owner_pin_security WHERE id = 1").fetchone()
-    if existing is not None and in_otp_hash and str(existing["otp_hash"] or "") == in_otp_hash:
-        if int(existing["otp_used"] or 0) != 0:
+    in_otp_fails = int(doc.get("otp_failed_attempts") or 0)
+    in_otp_issued_at = float(doc.get("otp_issued_at") or 0.0)
+    in_updated_at = float(doc.get("updated_at") or 0.0)
+    now_ts = in_updated_at if in_updated_at > 0 else time.time()
+
+    ex_pin_salt = str(existing["pin_salt"] or "") if existing is not None else ""
+    ex_pin_hash = str(existing["pin_hash"] or "") if existing is not None else ""
+    ex_failed_attempts = int(existing["failed_attempts"] or 0) if existing is not None else 0
+    ex_locked = int(existing["locked"] or 0) if existing is not None else 0
+    ex_otp_salt = str(existing["otp_salt"] or "") if existing is not None else ""
+    ex_otp_hash = str(existing["otp_hash"] or "").strip() if existing is not None else ""
+    ex_otp_expires_at = float(existing["otp_expires_at"] or 0.0) if existing is not None else 0.0
+    ex_otp_used = int(existing["otp_used"] or 0) if existing is not None else 0
+    ex_otp_fails = int(existing["otp_failed_attempts"] or 0) if existing is not None else 0
+    ex_otp_issued_at = float(existing["otp_issued_at"] or 0.0) if existing is not None else 0.0
+    ex_updated_at = float(existing["updated_at"] or 0.0) if existing is not None else 0.0
+
+    # 1. Tra cứu challenge trong otp_challenges
+    ch_row = None
+    if in_otp_hash:
+        ch_row = c.execute(
+            """
+            SELECT used, failed_attempts, issued_at, expires_at FROM otp_challenges
+            WHERE purpose = 'owner_pin_reset' AND otp_hash = ?
+            """,
+            (in_otp_hash,),
+        ).fetchone()
+        if ch_row is not None:
+            if int(ch_row["used"] or 0) != 0:
+                in_otp_used = 1
+            in_otp_fails = max(in_otp_fails, int(ch_row["failed_attempts"] or 0))
+
+    if existing is not None and in_otp_hash and ex_otp_hash == in_otp_hash:
+        if ex_otp_used != 0:
             in_otp_used = 1
-    now_ts = float(doc.get("updated_at") or time.time())
+        in_otp_fails = max(in_otp_fails, ex_otp_fails)
+
+    # 2. Xác định OTP nào được lưu vào DB (bảo vệ OTP mới hơn và không để snapshot cũ/legacy ghi đè)
+    if existing is not None and ex_otp_hash:
+        if in_otp_hash == ex_otp_hash:
+            target_otp_salt = in_otp_salt or ex_otp_salt
+            target_otp_hash = in_otp_hash
+            target_otp_expires_at = in_otp_expires_at or ex_otp_expires_at
+            target_otp_used = in_otp_used
+            target_otp_fails = in_otp_fails
+            target_otp_issued_at = in_otp_issued_at or ex_otp_issued_at
+        else:
+            # Hai OTP khác nhau: ưu tiên giữ bản ghi DB nếu DB mới hơn hoặc snapshot cũ/consumed
+            db_has_newer = False
+            if ex_otp_issued_at > in_otp_issued_at:
+                db_has_newer = True
+            elif in_otp_used == 1 and ex_otp_used == 0 and ex_otp_expires_at > time.time():
+                db_has_newer = True
+            elif not has_revision and ex_otp_used == 0 and ex_otp_expires_at > time.time() and ex_otp_issued_at >= in_otp_issued_at:
+                db_has_newer = True
+
+            if db_has_newer:
+                target_otp_salt = ex_otp_salt
+                target_otp_hash = ex_otp_hash
+                target_otp_expires_at = ex_otp_expires_at
+                target_otp_used = ex_otp_used
+                target_otp_fails = ex_otp_fails
+                target_otp_issued_at = ex_otp_issued_at
+            else:
+                target_otp_salt = in_otp_salt
+                target_otp_hash = in_otp_hash
+                target_otp_expires_at = in_otp_expires_at
+                target_otp_used = in_otp_used
+                target_otp_fails = in_otp_fails
+                target_otp_issued_at = in_otp_issued_at
+    else:
+        target_otp_salt = in_otp_salt
+        target_otp_hash = in_otp_hash
+        target_otp_expires_at = in_otp_expires_at
+        target_otp_used = in_otp_used
+        target_otp_fails = in_otp_fails
+        target_otp_issued_at = in_otp_issued_at
+
+    # 3. Đồng bộ vào bảng otp_challenges
+    if target_otp_hash:
+        chal_id = f"pin_reset_{target_otp_hash}"
+        c.execute(
+            """
+            INSERT INTO otp_challenges (
+                challenge_id, email, purpose, otp_salt, otp_hash,
+                issued_at, expires_at, used, failed_attempts, meta_json
+            ) VALUES (?, 'nep94121@gmail.com', 'owner_pin_reset', ?, ?, ?, ?, ?, ?, '{}')
+            ON CONFLICT(challenge_id) DO UPDATE SET
+                otp_salt = excluded.otp_salt,
+                otp_hash = excluded.otp_hash,
+                issued_at = excluded.issued_at,
+                expires_at = excluded.expires_at,
+                used = MAX(otp_challenges.used, excluded.used),
+                failed_attempts = MAX(otp_challenges.failed_attempts, excluded.failed_attempts)
+            """,
+            (
+                chal_id,
+                target_otp_salt,
+                target_otp_hash,
+                target_otp_issued_at,
+                target_otp_expires_at,
+                target_otp_used,
+                target_otp_fails,
+            ),
+        )
+        if ch_row is None and target_otp_used == 0:
+            c.execute(
+                """
+                UPDATE otp_challenges
+                SET used = 1
+                WHERE purpose = 'owner_pin_reset' AND challenge_id != ? AND issued_at <= ? AND used = 0
+                """,
+                (chal_id, target_otp_issued_at),
+            )
+
+    if in_otp_hash and in_otp_hash != target_otp_hash and in_otp_used == 1:
+        c.execute(
+            "UPDATE otp_challenges SET used = 1 WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+            (in_otp_hash,),
+        )
+
+    # 4. Bảo toàn PIN nếu DB có bản ghi mới hơn
+    if existing is not None and ex_pin_hash:
+        if not has_revision and ex_updated_at > in_updated_at > 0.0:
+            target_pin_salt = ex_pin_salt
+            target_pin_hash = ex_pin_hash
+            target_failed_attempts = max(ex_failed_attempts, in_failed_attempts)
+            target_locked = max(ex_locked, in_locked)
+            target_updated_at = ex_updated_at
+        else:
+            target_pin_salt = in_pin_salt or ex_pin_salt
+            target_pin_hash = in_pin_hash or ex_pin_hash
+            target_failed_attempts = in_failed_attempts
+            target_locked = in_locked
+            target_updated_at = now_ts
+    else:
+        target_pin_salt = in_pin_salt
+        target_pin_hash = in_pin_hash
+        target_failed_attempts = in_failed_attempts
+        target_locked = in_locked
+        target_updated_at = now_ts
+
+    # 5. Lưu vào owner_pin_security
     c.execute(
         """
         INSERT INTO owner_pin_security (
@@ -222,20 +382,20 @@ def _save_owner_pin_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
             updated_at = excluded.updated_at
         """,
         (
-            str(doc.get("pin_salt") or ""),
-            str(doc.get("pin_hash") or ""),
-            int(doc.get("failed_attempts") or 0),
-            1 if doc.get("locked") else 0,
-            str(doc.get("otp_salt") or ""),
-            in_otp_hash,
-            float(doc.get("otp_expires_at") or 0.0),
-            in_otp_used,
-            int(doc.get("otp_failed_attempts") or 0),
-            float(doc.get("otp_issued_at") or 0.0),
-            now_ts,
+            target_pin_salt,
+            target_pin_hash,
+            target_failed_attempts,
+            target_locked,
+            target_otp_salt,
+            target_otp_hash,
+            target_otp_expires_at,
+            target_otp_used,
+            target_otp_fails,
+            target_otp_issued_at,
+            target_updated_at,
         ),
     )
-    _bump_sec_revision_in_tx(c, "owner_pin.json", now_ts)
+    _bump_sec_revision_in_tx(c, "owner_pin.json", target_updated_at)
 
 
 def load_owner_pin_sqlite(data_dir: pathlib.Path | None) -> bytes | None:
@@ -1335,17 +1495,32 @@ def verify_and_reset_owner_pin_with_otp_sqlite(
             if int(row["otp_used"] or 0) != 0:
                 out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
                 return
-            otp_fails = int(row["otp_failed_attempts"] or 0)
+            otp_hash_val = str(row["otp_hash"] or "").strip()
+            if not otp_hash_val:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
+                return
+            ch_row = c.execute(
+                "SELECT used, failed_attempts FROM otp_challenges WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+                (otp_hash_val,),
+            ).fetchone()
+            if ch_row is not None and int(ch_row["used"] or 0) != 0:
+                out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
+                return
+            otp_fails = max(int(row["otp_failed_attempts"] or 0), int(ch_row["failed_attempts"] or 0) if ch_row else 0)
             if otp_fails >= max_failures:
                 out = {"ok": False, "status_code": 423, "error": "Mã xác nhận đã bị khóa. Hãy yêu cầu mã mới."}
                 return
             if float(row["otp_expires_at"] or 0.0) <= now:
                 out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã hết hạn. Hãy gửi lại mã mới."}
                 return
-            if not verify_secret_fn(otp, str(row["otp_salt"] or ""), str(row["otp_hash"] or "")):
+            if not verify_secret_fn(otp, str(row["otp_salt"] or ""), otp_hash_val):
                 c.execute(
                     "UPDATE owner_pin_security SET otp_failed_attempts = otp_failed_attempts + 1, revision = revision + 1, updated_at = ? WHERE id = 1",
                     (now,),
+                )
+                c.execute(
+                    "UPDATE otp_challenges SET failed_attempts = failed_attempts + 1 WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+                    (otp_hash_val,),
                 )
                 _bump_sec_revision_in_tx(c, "owner_pin.json", now)
                 out = {"ok": False, "status_code": 403, "error": "Mã xác nhận không đúng."}
@@ -1363,6 +1538,10 @@ def verify_and_reset_owner_pin_with_otp_sqlite(
             if cur.rowcount != 1:
                 out = {"ok": False, "status_code": 400, "error": "Mã xác nhận đã được dùng."}
                 return
+            c.execute(
+                "UPDATE otp_challenges SET used = 1 WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+                (otp_hash_val,),
+            )
             _bump_sec_revision_in_tx(c, "owner_pin.json", now)
             out = {"ok": True, "pin_set": True, "locked": False, "message": "Đã đặt lại mã PIN."}
 
