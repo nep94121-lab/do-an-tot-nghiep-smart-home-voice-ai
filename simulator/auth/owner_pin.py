@@ -211,12 +211,15 @@ def clear_undelivered_reset_otp(otp_code: str) -> bool:
         data = _load()
         if data.get("otp_used"):
             return False
-        if not _verify_secret(code, str(data.get("otp_salt") or ""), str(data.get("otp_hash") or "")):
+        cur_hash = str(data.get("otp_hash") or "")
+        cur_salt = str(data.get("otp_salt") or "")
+        if not _verify_secret(code, cur_salt, cur_hash):
             return False
         for field in ("otp_salt", "otp_hash", "otp_expires_at", "otp_issued_at"):
             data.pop(field, None)
         data["otp_used"] = False
         data["otp_failed_attempts"] = 0
+        data["cleared_otp_hash"] = cur_hash
         _save(data)
     return True
 

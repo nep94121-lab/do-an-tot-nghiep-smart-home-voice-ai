@@ -255,7 +255,23 @@ def _save_owner_pin_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
         in_otp_fails = max(in_otp_fails, ex_otp_fails)
 
     # 2. Xác định OTP nào được lưu vào DB (bảo vệ OTP mới hơn và không để snapshot cũ/legacy ghi đè)
-    if existing is not None and ex_otp_hash:
+    cleared_hash = str(doc.get("cleared_otp_hash") or doc.get("cleared_otp_challenge") or "").strip()
+    if cleared_hash.startswith("pin_reset_"):
+        cleared_hash = cleared_hash[len("pin_reset_"):]
+
+    if cleared_hash and existing is not None and ex_otp_hash and cleared_hash == ex_otp_hash:
+        # Xóa có chủ đích OTP chưa chuyển phát được
+        c.execute(
+            "UPDATE otp_challenges SET used = 1 WHERE purpose = 'owner_pin_reset' AND otp_hash = ?",
+            (cleared_hash,),
+        )
+        target_otp_salt = ""
+        target_otp_hash = ""
+        target_otp_expires_at = 0.0
+        target_otp_used = 0
+        target_otp_fails = 0
+        target_otp_issued_at = 0.0
+    elif existing is not None and ex_otp_hash:
         if in_otp_hash == ex_otp_hash:
             target_otp_salt = in_otp_salt or ex_otp_salt
             target_otp_hash = in_otp_hash
@@ -472,9 +488,14 @@ def _save_invites_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
         "last_redeem_at",
         "label",
     }
-    if isinstance(raw_items, list) and len(raw_items) == 0:
+    clear_all = bool(parsed.get("clear_all_invites") or parsed.get("factory_reset") or parsed.get("clear_all")) if isinstance(parsed, dict) else False
+    if clear_all:
         c.execute("DELETE FROM invites")
         _bump_sec_revision_in_tx(c, "guest_invites.json")
+        return
+
+    if isinstance(raw_items, list) and len(raw_items) == 0:
+        # Snapshot rỗng KHÔNG được xóa dữ liệu hay tombstone của invites
         return
 
     for item in items:
@@ -547,6 +568,20 @@ def save_invites_sqlite(payload: bytes, data_dir: pathlib.Path | None) -> None:
         conn.close()
         invalidate_accounts_sqlite_cache()
 
+
+def reset_invites_sqlite(data_dir: pathlib.Path | None = None) -> None:
+    """Reset có chủ đích toàn bộ bảng invites (chỉ dùng cho tests / factory reset)."""
+    conn = _conn_for_data_dir(data_dir)
+    try:
+        def _tx(c: sqlite3.Connection) -> None:
+            c.execute("DELETE FROM invites")
+            _bump_sec_revision_in_tx(c, "guest_invites.json")
+
+        run_write_transaction(conn, _tx)
+    finally:
+        conn.close()
+        invalidate_accounts_sqlite_cache()
+
 def _read_rate_limits_from_conn(conn: sqlite3.Connection) -> bytes | None:
     rows = conn.execute("SELECT * FROM login_rate_limits").fetchall()
     if not rows:
@@ -576,6 +611,12 @@ def _save_rate_limits_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
     if not isinstance(buckets, dict):
         buckets = {}
     now = time.time()
+    clear_all = bool(parsed.get("clear_all") or parsed.get("factory_reset")) if isinstance(parsed, dict) else False
+    if clear_all:
+        c.execute("DELETE FROM login_rate_limits")
+        _bump_sec_revision_in_tx(c, "login_rate_limit.json", now)
+        return
+
     keys = [str(k) for k in buckets.keys()]
     for k, val in buckets.items():
         locked_until = float(val.get("locked_until") or 0.0) if isinstance(val, dict) else 0.0
@@ -592,9 +633,7 @@ def _save_rate_limits_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
         )
     if keys:
         placeholders = ",".join("?" for _ in keys)
-        c.execute(f"DELETE FROM login_rate_limits WHERE scope_key NOT IN ({placeholders})", keys)
-    else:
-        c.execute("DELETE FROM login_rate_limits")
+        c.execute(f"DELETE FROM login_rate_limits WHERE scope_key NOT IN ({placeholders}) AND locked_until <= ?", (*keys, now))
     _bump_sec_revision_in_tx(c, "login_rate_limit.json", now)
 
 
@@ -828,11 +867,60 @@ def _save_accounts_in_tx(c: sqlite3.Connection, payload: bytes) -> None:
                         (email, chal_id, issued_ts),
                     )
         elif email:
-            if clear_all_otps or (email in cleared_otp_emails):
+            if clear_all_otps:
                 c.execute(
                     "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND used = 0",
                     (email,),
                 )
+            elif email in cleared_otp_emails:
+                cleared_chal_ids = {
+                    str(c_item.get("challenge_id") or c_item.get("id") or "").strip()
+                    for c_item in (parsed.get("cleared_otp_challenges") or [])
+                    if isinstance(c_item, dict)
+                    and str(c_item.get("email") or "").strip().lower() == email
+                    and str(c_item.get("challenge_id") or c_item.get("id") or "").strip()
+                }
+                snap_loaded_at = float(parsed.get("snapshot_loaded_at") or 0.0)
+
+                db_otp_is_newer = False
+                if db_otp_active is not None:
+                    db_created = float(db_otp_active.get("created_at") or db_otp_active.get("issued_at") or 0.0)
+                    db_cid = str(db_otp_active.get("challenge_id") or "")
+                    if cleared_chal_ids and db_cid and db_cid not in cleared_chal_ids:
+                        db_otp_is_newer = True
+                    elif snap_loaded_at > 0.0 and db_created > snap_loaded_at:
+                        db_otp_is_newer = True
+
+                if db_otp_is_newer and db_otp_active is not None:
+                    acc_copy["pending_otp"] = db_otp_active
+                    if cleared_chal_ids:
+                        for cid in cleared_chal_ids:
+                            c.execute(
+                                "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND challenge_id = ? AND used = 0",
+                                (email, cid),
+                            )
+                    elif snap_loaded_at > 0.0:
+                        c.execute(
+                            "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND issued_at <= ? AND used = 0",
+                            (email, snap_loaded_at),
+                        )
+                else:
+                    if cleared_chal_ids:
+                        for cid in cleared_chal_ids:
+                            c.execute(
+                                "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND challenge_id = ? AND used = 0",
+                                (email, cid),
+                            )
+                    elif snap_loaded_at > 0.0:
+                        c.execute(
+                            "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND issued_at <= ? AND used = 0",
+                            (email, snap_loaded_at),
+                        )
+                    else:
+                        c.execute(
+                            "UPDATE otp_challenges SET used = 1 WHERE lower(email) = ? AND used = 0",
+                            (email,),
+                        )
             elif db_otp_active is not None:
                 acc_copy["pending_otp"] = db_otp_active
 

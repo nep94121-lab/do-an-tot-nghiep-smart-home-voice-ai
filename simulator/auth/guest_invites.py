@@ -580,4 +580,10 @@ def reset_invite_store_for_tests() -> None:
     with _LOCK:
         _CACHE = {}
         _CACHE_DIR = str(_data_dir())
+        try:
+            from simulator.auth.sqlite_security_repo import reset_invites_sqlite
+
+            reset_invites_sqlite(_data_dir())
+        except Exception:
+            pass
         _save({})

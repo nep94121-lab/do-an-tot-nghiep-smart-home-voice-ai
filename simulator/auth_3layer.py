@@ -588,6 +588,7 @@ class ThreeLayerAuthManager(
     def _record_cas_snapshot_locked(self, accounts_list: list[dict[str, Any]]) -> None:
         snapshots: dict[str, str] = {}
         otp_emails: set[str] = set()
+        loaded_otps: dict[str, dict[str, Any]] = {}
         for acc in accounts_list:
             if not isinstance(acc, dict):
                 continue
@@ -599,8 +600,16 @@ class ThreeLayerAuthManager(
             em = str(san.get("email") or "").strip().lower()
             if em and isinstance(san.get("pending_otp"), dict):
                 otp_emails.add(em)
+                p_otp = san["pending_otp"]
+                loaded_otps[em] = {
+                    "email": em,
+                    "challenge_id": str(p_otp.get("challenge_id") or ""),
+                    "created_at": float(p_otp.get("created_at") or 0.0),
+                    "otp_hash": str(p_otp.get("otp_hash") or ""),
+                }
         self._cas_loaded_snapshots = snapshots
         self._cas_loaded_otp_emails = otp_emails
+        self._cas_loaded_otps = loaded_otps
         self._cas_loaded_at = time.time()
 
     def _apply_cas_accounts_payload_locked(self, raw: bytes | None) -> bool:
@@ -992,12 +1001,17 @@ class ThreeLayerAuthManager(
                         current_otp_emails.add(em)
                 deleted_account_ids = [uid for uid in prev_snaps.keys() if uid not in current_ids]
                 cleared_otp_emails = sorted(em for em in prev_otp_emails if em not in current_otp_emails)
+                prev_otps = getattr(self, "_cas_loaded_otps", {}) or {}
+                cleared_otp_challenges = [
+                    prev_otps[em] for em in cleared_otp_emails if em in prev_otps
+                ]
                 target_encoded = json.dumps(
                     {
                         "accounts": dirty_accounts,
                         "partial": True,
                         "deleted_account_ids": deleted_account_ids,
                         "cleared_otp_emails": cleared_otp_emails,
+                        "cleared_otp_challenges": cleared_otp_challenges,
                         "clear_all_otps": clear_all_otps,
                         "snapshot_loaded_at": float(getattr(self, "_cas_loaded_at", 0.0) or 0.0),
                         "updated_at": now_ts,
