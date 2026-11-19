@@ -4,7 +4,7 @@
      --accent:      #087d85
      --accent-soft: #e6f3f2
      --ink:         #172b31
-     --muted:       #687a80
+     --muted:       #55676d
      --line:        #e5ebec
      --page:        #f5f7f7
      --card:        #ffffff
@@ -19,7 +19,7 @@
   --btn-primary-border: #087d85;
   --btn-primary-ink: #ffffff;
   --ink: #172b31;
-  --muted: #687a80;
+  --muted: #55676d;
   --line: #e5ebec;
   --page: #f5f7f7;
   --card: #ffffff;
@@ -1108,14 +1108,90 @@ h2,
   }
   #btnLogoutHome {
     font-size: 12px;
-    padding: 6px 12px;
+    padding: 8px 14px;
     min-height: 44px;
+    min-width: 44px;
+    white-space: nowrap;
     flex: 0 0 auto;
   }
   .pin-3d {
     font-size: 10px;
-    padding: 2.5px 7px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 6px 10px;
     gap: 3px;
+  }
+  .btn-cam {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .text-link,
+  .auth-link {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 4px;
+  }
+  .menu-panel select,
+  .menu-panel button,
+  #selActiveSpeaker,
+  #btnReset {
+    min-height: 44px;
+  }
+  .btn-mini {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #chkSpeakReply {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    flex: none;
+  }
+  #chkSpeakReply::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 1.5px solid var(--muted);
+    background: var(--surface-elevated);
+    box-sizing: border-box;
+  }
+  #chkSpeakReply:checked::before {
+    background: var(--btn-primary-bg);
+    border-color: var(--btn-primary-border);
+  }
+  #chkSpeakReply:checked::after {
+    content: "";
+    position: absolute;
+    left: 19px;
+    top: 15px;
+    width: 6px;
+    height: 11px;
+    border: solid #ffffff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    box-sizing: border-box;
   }
   .pin-3d .pin-icon {
     font-size: 11px;
@@ -1140,8 +1216,13 @@ h2,
   }
   .menu summary,
   .more-menu summary {
-    font-size: 11px;
-    padding: 7px 8px;
+    font-size: 12px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .menu-panel,
   .more-menu-panel {
@@ -1333,7 +1414,7 @@ h2,
 }
 .auth-header p {
   font-size: 13px;
-  color: var(--muted, #687a80);
+  color: var(--muted, #55676d);
 }
 .auth-form {
   display: flex;
@@ -1348,7 +1429,7 @@ h2,
 .form-group label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted, #687a80);
+  color: var(--muted, #55676d);
 }
 .form-group input {
   min-height: 44px;
@@ -2090,6 +2171,7 @@ h2,
   gap: 8px;
 }
 .btn-mini {
+  min-height: 36px;
   padding: 5px 10px;
   font-size: 11px;
   font-weight: 500;
@@ -2098,6 +2180,16 @@ h2,
   background: var(--surface-elevated);
   color: var(--ink);
   cursor: pointer;
+}
+@media (max-width: 700px) {
+  .btn-mini {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 .btn-mini.accent {
   background: var(--accent-soft);

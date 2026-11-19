@@ -6,7 +6,7 @@
       --btn-primary-border: #087d85;
       --btn-primary-ink: #ffffff;
       --ink: #172b31;
-      --muted: #687a80;
+      --muted: #55676d;
       --line: #e5ebec;
       --page: #f5f7f7;
       --card: #ffffff;
@@ -212,6 +212,8 @@
       cursor: pointer;
       font-weight: 500;
       font-size: 14px;
+      min-height: 44px;
+      padding: 6px 0;
       list-style: none;
       display: flex;
       align-items: center;
@@ -276,6 +278,7 @@
     .step-panel summary {
       font-weight: 500;
       font-size: 14px;
+      min-height: 44px;
       cursor: pointer;
       list-style: none;
       display: flex;
@@ -365,7 +368,7 @@
     }
     .btn-link-sub:hover { color: var(--accent); }
     .btn-danger { background: var(--red-soft); color: var(--red); border-color: var(--red-border); }
-    .btn-sm { min-height: 36px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+    .btn-sm { min-height: 44px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
 
     .status-box {
       margin-top: 10px;
