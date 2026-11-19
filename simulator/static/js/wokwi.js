@@ -806,12 +806,22 @@
           if (typeof window._stopWokwiHttpPolling === 'function') {
             window._stopWokwiHttpPolling();
           }
+          const wsEl = document.querySelector('.workspace');
+          const techEl = document.getElementById('techSpecsPanel');
+          if (wsEl) { wsEl.hidden = true; wsEl.style.display = 'none'; }
+          if (techEl) { techEl.hidden = true; techEl.style.display = 'none'; }
+          showWokwiAuthError('Vui lòng đăng nhập để xem và điều khiển mạch phần cứng.');
           if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
             window.SmartHomeNavGuard.applyNavAuthState({ authenticated: false });
           }
           return;
         }
         if (!r.ok) return;
+        const wsElOk = document.querySelector('.workspace');
+        const techElOk = document.getElementById('techSpecsPanel');
+        if (wsElOk && wsElOk.hidden) { wsElOk.hidden = false; wsElOk.style.display = ''; }
+        if (techElOk && techElOk.hidden) { techElOk.hidden = false; techElOk.style.display = ''; }
+        hideWokwiAuthError();
         const snap = await r.json();
         if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
           window.SmartHomeNavGuard.applyNavAuthState({

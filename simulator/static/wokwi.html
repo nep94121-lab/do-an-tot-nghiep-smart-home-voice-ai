@@ -53,7 +53,7 @@
         </div>
         <div class="header-actions">
           <button id="btnReconnectWokwi" class="btn primary" type="button" onclick="toggleWokwiServerMode()" style="display:none;">Kết nối lại</button>
-          <a href="/logs" class="btn tertiary" style="font-weight:500;">Xem nhật ký</a>
+          <a href="/logs" id="wokwiLogsShortcut" class="btn tertiary" style="font-weight:500;" data-auth-required="true" data-owner-only="true" hidden aria-hidden="true" tabindex="-1">Xem nhật ký</a>
         </div>
       </header>
 

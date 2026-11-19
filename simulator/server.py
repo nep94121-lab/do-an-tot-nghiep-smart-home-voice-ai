@@ -28,6 +28,7 @@ import os
 import pathlib
 import subprocess
 from typing import Any
+from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
@@ -50,7 +51,7 @@ from simulator.api import (
     logs_router,
     qr_router,
 )
-from simulator.auth.session_store import resolve_strict_ws_session
+from simulator.auth.session_store import resolve_request_session, resolve_strict_ws_session
 from simulator.api.routes_guest import router as guest_invite_router
 from simulator.api.enrollment_gone import EnrollmentGoneMiddleware
 from simulator.live import (
@@ -167,11 +168,55 @@ def _serve_cached_html(request: Request | None, file_path: pathlib.Path) -> Resp
     return FileResponse(file_path, media_type="text/html", stat_result=stat_result, headers=headers)
 
 
+def _require_authenticated_page(
+    request: Request,
+    *,
+    max_tier: int = 2,
+    next_path: str = "/",
+) -> Response | None:
+    """Enforce session authentication on protected HTML routes before rendering."""
+    sess = resolve_request_session(request)
+    if not sess.is_authenticated or sess.is_expired():
+        target = f"/login?next={quote(next_path, safe='/')}"
+        return RedirectResponse(
+            url=target,
+            status_code=302,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+    if sess.tier > max_tier:
+        file_403 = STATIC_DIR / "403.html"
+        if file_403.exists():
+            return FileResponse(
+                file_403,
+                status_code=403,
+                media_type="text/html",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
+        return HTMLResponse(
+            "<h1>403 Forbidden</h1><p>Bạn không có quyền truy cập trang này.</p>",
+            status_code=403,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+    return None
+
+
 @app.middleware("http")
 async def configure_http_cache_headers(request: Request, call_next: Any) -> Response:
-    """Bật cache ETag/304 cho /static/* và HTML; giữ no-store tuyệt đối cho /api/* và invite."""
-    response = await call_next(request)
+    """Bật cache ETag/304 cho /static/* và HTML; chặn trực tiếp HTML bảo vệ và giữ no-store cho /api/*."""
     path = request.url.path or "/"
+    low_path = path.lower()
+    if low_path in ("/static/wokwi.html", "/static/logs.html", "/static/guest_enroll.html"):
+        max_tier = 1 if ("logs" in low_path or "guest_enroll" in low_path) else 2
+        next_target = "/logs" if "logs" in low_path else ("/wokwi" if "wokwi" in low_path else "/")
+        denied = _require_authenticated_page(request, max_tier=max_tier, next_path=next_target)
+        if denied is not None:
+            return denied
+    response = await call_next(request)
+    if low_path in ("/wokwi", "/logs", "/static/wokwi.html", "/static/logs.html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     if (path.startswith("/static/") or path.startswith("/test_audio/")) and response.status_code in (200, 304):
         response.headers["Cache-Control"] = "public, max-age=3600"
         return response
@@ -278,11 +323,17 @@ async def mobile_redirect() -> RedirectResponse:
 
 @app.get("/wokwi")
 async def wokwi_page(request: Request) -> Response:
+    denied = _require_authenticated_page(request, max_tier=2, next_path="/wokwi")
+    if denied is not None:
+        return denied
     return _serve_cached_html(request, STATIC_DIR / "wokwi.html")
 
 
 @app.get("/logs")
 async def logs_page(request: Request) -> Response:
+    denied = _require_authenticated_page(request, max_tier=1, next_path="/logs")
+    if denied is not None:
+        return denied
     return _serve_cached_html(request, STATIC_DIR / "logs.html")
 
 
@@ -301,6 +352,9 @@ async def guest_guide_page(request: Request) -> Response:
 @app.get("/guest_enroll_legacy_removed")
 @app.get("/guest-qr_legacy_removed")
 async def guest_enroll_page(request: Request) -> Response:
+    denied = _require_authenticated_page(request, max_tier=1, next_path="/")
+    if denied is not None:
+        return denied
     return _serve_cached_html(request, STATIC_DIR / "guest_enroll.html")
 
 
