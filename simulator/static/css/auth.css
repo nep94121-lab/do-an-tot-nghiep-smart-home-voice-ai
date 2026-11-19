@@ -2,11 +2,15 @@
       --accent: #087d85;
       --accent-hover: #096f76;
       --accent-soft: #e6f3f2;
+      --btn-primary-bg: #087d85;
+      --btn-primary-border: #087d85;
+      --btn-primary-ink: #ffffff;
       --ink: #172b31;
       --muted: #687a80;
       --line: #e5ebec;
       --page: #f5f7f7;
       --card: #ffffff;
+      --surface-elevated: #ffffff;
       --shadow: 0 6px 24px rgba(31, 58, 62, 0.045);
       --amber: #9d6825;
       --amber-soft: #f6efe4;
@@ -267,7 +271,7 @@
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 14px 16px;
-      background: #ffffff;
+      background: var(--card);
     }
     .step-panel summary {
       font-weight: 500;
@@ -323,8 +327,8 @@
     input[type="text"], input[type="password"], input[type="email"], select {
       flex: 1 1 160px;
       min-width: 0;
-      min-height: 38px;
-      background: var(--card);
+      min-height: 44px;
+      background: var(--surface-elevated);
       border: 1px solid var(--line);
       color: var(--ink);
       padding: 0 12px;
@@ -333,11 +337,11 @@
     }
 
     .btn {
-      min-height: 38px;
+      min-height: 44px;
       padding: 0 14px;
       border-radius: 10px;
       border: 1px solid var(--line);
-      background: #ffffff;
+      background: var(--surface-elevated);
       color: var(--ink);
       font-weight: 500;
       font-size: 13px;
@@ -348,9 +352,9 @@
       white-space: nowrap;
     }
     .btn:hover { filter: brightness(0.97); }
-    .btn-compact { min-height: 36px; padding: 0 14px; font-size: 12.5px; }
-    .btn-primary { background: var(--accent); color: #ffffff; border-color: var(--accent); }
-    .btn-secondary { background: #ffffff; color: var(--ink); border: 1px solid var(--line); }
+    .btn-compact { min-height: 44px; padding: 0 14px; font-size: 12.5px; }
+    .btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-ink); border-color: var(--btn-primary-border); }
+    .btn-secondary { background: var(--surface-elevated); color: var(--ink); border: 1px solid var(--line); }
     .btn-link-sub {
       background: transparent;
       border: 0;
@@ -444,7 +448,7 @@
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(0, 1fr);
-        background: #ffffff;
+        background: var(--card);
         border-top: 1px solid var(--line);
         padding: 6px 4px max(8px, env(safe-area-inset-bottom));
         box-shadow: 0 -3px 16px rgba(31, 58, 62, 0.04);
@@ -488,4 +492,49 @@
       opacity: 0.85;
       pointer-events: none;
       cursor: not-allowed;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --accent: #22b8c3;
+        --accent-hover: #1ea4ae;
+        --accent-soft: rgba(34, 184, 195, 0.16);
+        --btn-primary-bg: #0b737b;
+        --btn-primary-border: #179ba5;
+        --btn-primary-ink: #ffffff;
+        --ink: #ecf3f5;
+        --muted: #98aeb5;
+        --line: #27393f;
+        --page: #0f171a;
+        --card: #162226;
+        --surface-elevated: #1d2d32;
+        --amber: #fbbf24;
+        --amber-soft: rgba(251, 191, 36, 0.16);
+        --amber-border: rgba(251, 191, 36, 0.35);
+        --red: #f87171;
+        --red-soft: rgba(248, 113, 113, 0.16);
+        --red-border: rgba(248, 113, 113, 0.35);
+      }
+      .badge-tier1, .badge-pass { border-color: rgba(34, 184, 195, 0.35); }
+      .badge-tier2 { background: rgba(34, 184, 195, 0.14); color: #7dd3fc; border-color: rgba(125, 211, 252, 0.3); }
+      .session-banner { border-color: rgba(34, 184, 195, 0.35); }
+    }
+    [data-theme="dark"] {
+      --accent: #22b8c3;
+      --accent-hover: #1ea4ae;
+      --accent-soft: rgba(34, 184, 195, 0.16);
+      --btn-primary-bg: #0b737b;
+      --btn-primary-border: #179ba5;
+      --btn-primary-ink: #ffffff;
+      --ink: #ecf3f5;
+      --muted: #98aeb5;
+      --line: #27393f;
+      --page: #0f171a;
+      --card: #162226;
+      --surface-elevated: #1d2d32;
+      --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, 0.16);
+      --amber-border: rgba(251, 191, 36, 0.35);
+      --red: #f87171;
+      --red-soft: rgba(248, 113, 113, 0.16);
+      --red-border: rgba(248, 113, 113, 0.35);
     }
