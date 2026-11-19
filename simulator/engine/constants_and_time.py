@@ -140,6 +140,44 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     },
 }
 
+DEVICE_CAPABILITIES: dict[str, dict[str, Any]] = {
+    "main_door": {
+        "actions": ("open", "close"),
+        "params": {},
+    },
+    "living_room_light": {
+        "actions": ("turn_on", "turn_off"),
+        "params": {"brightness_pct": (0, 100)},
+    },
+    "bedroom_light": {
+        "actions": ("turn_on", "turn_off"),
+        "params": {"brightness_pct": (0, 100)},
+    },
+    "fan": {
+        "actions": ("turn_on", "turn_off"),
+        "params": {"fan_speed": (1, 5)},
+    },
+    "ac": {
+        "actions": ("turn_on", "turn_off", "open", "close"),
+        "params": {"temperature_c": (16, 30)},
+    },
+    "alarm_siren": {
+        "actions": ("turn_on", "turn_off"),
+        "params": {},
+    },
+    "garden_pump": {
+        "actions": ("turn_on", "turn_off"),
+        "params": {},
+    },
+}
+
+DEVICE_DEFAULT_SETTINGS: dict[str, dict[str, Any]] = {
+    "living_room_light": {"brightness_pct": 100},
+    "bedroom_light": {"brightness_pct": 100},
+    "fan": {"fan_speed": 3},
+    "ac": {"temperature_c": 24},
+}
+
 ROLE_LEVELS: dict[str, int] = {
     "UNKNOWN": 0,
     "CHILD_GUEST": 1,

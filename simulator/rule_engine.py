@@ -81,7 +81,11 @@ from simulator.engine import (
     read_audit_logs,
     set_default_state_backend,
 )
-from simulator.engine.constants_and_time import DEVICE_ID_ALIASES
+from simulator.engine.constants_and_time import (
+    DEVICE_CAPABILITIES,
+    DEVICE_DEFAULT_SETTINGS,
+    DEVICE_ID_ALIASES,
+)
 from simulator.engine.voice_rbac_mixin import (
     PermissionCheckResult,
     UNKNOWN_REJECTION_REASON,
@@ -249,6 +253,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     "last_request_id": str(v.get("last_request_id", "")),
                     "last_requested_state": str(v.get("last_requested_state", v.get("state", "OFF"))),
                     "client_seqs": dict(v.get("client_seqs", {})) if isinstance(v.get("client_seqs"), dict) else {},
+                    "settings": dict(v.get("settings", {})) if isinstance(v.get("settings"), dict) else {},
                 }
                 for k, v in self.devices.items()
             },
@@ -331,6 +336,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         self.devices[dev_id]["updated_at"] = float(dev_data["updated_at"])
                     if "min_role" in dev_data:
                         self.devices[dev_id]["min_role"] = str(dev_data["min_role"])
+                    if isinstance(dev_data.get("settings"), dict):
+                        self.devices[dev_id]["settings"] = dict(dev_data["settings"])
                     if "version" in dev_data:
                         if authoritative:
                             self.devices[dev_id]["version"] = int(dev_data["version"])
@@ -1264,6 +1271,285 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             request_id=request_id,
             **kwargs,
         )
+
+    def resolve_canonical_device_id(self, device_id: str) -> str:
+        raw = str(device_id or "").strip().lower()
+        return DEVICE_ID_ALIASES.get(raw, raw)
+
+    def get_device_state_record(self, device_id: str, *, actor_tier: int | None = None) -> dict[str, Any]:
+        """Đọc trạng thái và thông số của một thiết bị, tôn trọng RBAC/pool theo tier."""
+        cid = self.resolve_canonical_device_id(device_id)
+        if cid not in self.devices:
+            return {"ok": False, "error": f"Không tìm thấy thiết bị '{device_id}'.", "status_code": 404}
+        tier = int(self.current_tier if actor_tier is None else actor_tier)
+        allowed, reason = self.check_device_permission(cid, actor_tier=tier)
+        if not allowed:
+            return {
+                "ok": False,
+                "rbac_blocked": True,
+                "status_code": 403,
+                "device_id": cid,
+                "error": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+                "exact_spoken_reply": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+            }
+        dev = self.devices[cid]
+        settings = dict(DEVICE_DEFAULT_SETTINGS.get(cid, {}))
+        if isinstance(dev.get("settings"), dict):
+            settings.update(dev["settings"])
+        caps = DEVICE_CAPABILITIES.get(cid, {"actions": ("turn_on", "turn_off"), "params": {}})
+        state_str = str(dev.get("state") or "OFF").upper()
+        state_vi = {
+            "ON": "đang bật",
+            "OFF": "đang tắt",
+            "OPEN": "đang mở",
+            "CLOSED": "đang đóng",
+        }.get(state_str, state_str.lower())
+        return {
+            "ok": True,
+            "device_id": cid,
+            "name": str(dev.get("name") or cid),
+            "type": str(dev.get("type") or ""),
+            "state": state_str,
+            "state_vi": state_vi,
+            "settings": settings,
+            "capabilities": {
+                "actions": list(caps.get("actions", ())),
+                "params": {k: list(v) for k, v in (caps.get("params") or {}).items()},
+            },
+        }
+
+    def list_accessible_devices(self, *, actor_tier: int | None = None) -> list[dict[str, Any]]:
+        """Liệt kê tất cả thiết bị thuộc pool quyền của người dùng hiện tại."""
+        tier = int(self.current_tier if actor_tier is None else actor_tier)
+        items: list[dict[str, Any]] = []
+        for cid in self.devices:
+            allowed, _ = self.check_device_permission(cid, actor_tier=tier)
+            if not allowed:
+                continue
+            rec = self.get_device_state_record(cid, actor_tier=tier)
+            if rec.get("ok"):
+                items.append(rec)
+        return items
+
+    def read_all_sensors(self) -> dict[str, Any]:
+        """Đọc toàn bộ thông số cảm biến hiện có (DHT11 nhiệt độ/độ ẩm + YL-69 độ ẩm đất)."""
+        dht = dict(getattr(self.mqtt_bridge, "dht11_telemetry", None) or {})
+        soil = dict(getattr(self.mqtt_bridge, "soil_moisture_telemetry", None) or {})
+        temp_c = round(float(dht.get("temp_c", 28.5)), 1)
+        hum_pct = round(float(dht.get("humidity_pct", 65.0)), 1)
+        heat_idx = round(float(dht.get("heat_index_c", temp_c)), 1)
+        soil_pct = round(float(soil.get("soil_moisture_pct", 62.0)), 1)
+        soil_status = str(soil.get("status_label") or ("Đất khô" if soil_pct < 40.0 else "Đủ ẩm"))
+        return {
+            "ok": True,
+            "temperature_c": temp_c,
+            "humidity_pct": hum_pct,
+            "heat_index_c": heat_idx,
+            "soil_moisture_pct": soil_pct,
+            "soil_status": soil_status,
+            "dht11": dht,
+            "soil": soil,
+        }
+
+    def validate_device_set_request(
+        self,
+        device_id: str,
+        *,
+        action: str | None = None,
+        brightness_pct: Any = None,
+        temperature_c: Any = None,
+        fan_speed: Any = None,
+        actor_tier: int | None = None,
+    ) -> tuple[bool, dict[str, Any]]:
+        """Kiểm tra chặt thiết bị, quyền RBAC và tham số cho set_device trước khi lưu nháp/thực thi."""
+        cid = self.resolve_canonical_device_id(device_id)
+        if cid not in self.devices:
+            return False, {
+                "ok": False,
+                "status_code": 404,
+                "error": f"Không tìm thấy thiết bị '{device_id}'.",
+                "exact_spoken_reply": "Thiết bị bạn yêu cầu không có trong nhà thông minh.",
+            }
+        tier = int(self.current_tier if actor_tier is None else actor_tier)
+        allowed, _reason = self.check_device_permission(cid, actor_tier=tier)
+        if not allowed:
+            return False, {
+                "ok": False,
+                "rbac_blocked": True,
+                "status_code": 403,
+                "device_id": cid,
+                "error": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+                "exact_spoken_reply": "Xin lỗi, bạn không có quyền thực hiện lệnh này.",
+            }
+
+        caps = DEVICE_CAPABILITIES.get(cid, {"actions": ("turn_on", "turn_off"), "params": {}})
+        allowed_params = caps.get("params") or {}
+        norm_action = str(action or "").strip().lower()
+        if norm_action == "on":
+            norm_action = "open" if cid == "main_door" else "turn_on"
+        elif norm_action == "off":
+            norm_action = "close" if cid == "main_door" else "turn_off"
+        elif norm_action in ("", "set", "set_value"):
+            norm_action = ""
+
+        valid_actions = {"open", "close", "turn_on", "turn_off"}
+        if norm_action and norm_action not in valid_actions:
+            return False, {
+                "ok": False,
+                "status_code": 400,
+                "error": f"Hành động '{action}' không hợp lệ.",
+                "exact_spoken_reply": "Yêu cầu điều khiển chưa đúng, bạn nói lại giúp mình nhé.",
+            }
+        if cid == "main_door" and norm_action in ("turn_on", "turn_off"):
+            norm_action = "open" if norm_action == "turn_on" else "close"
+
+        validated_params: dict[str, Any] = {}
+        raw_params = {
+            "brightness_pct": brightness_pct,
+            "temperature_c": temperature_c,
+            "fan_speed": fan_speed,
+        }
+        param_labels = {
+            "brightness_pct": "độ sáng",
+            "temperature_c": "nhiệt độ điều hòa",
+            "fan_speed": "tốc độ quạt",
+        }
+        for pkey, pval in raw_params.items():
+            if pval is None or pval == "":
+                continue
+            if pkey not in allowed_params:
+                dev_name = str(self.devices[cid].get("name") or cid)
+                return False, {
+                    "ok": False,
+                    "status_code": 400,
+                    "error": f"{dev_name} không hỗ trợ chỉnh {param_labels[pkey]}.",
+                    "exact_spoken_reply": f"{dev_name} không hỗ trợ chỉnh {param_labels[pkey]} ạ.",
+                }
+            lo, hi = allowed_params[pkey]
+            try:
+                num = int(round(float(pval)))
+            except (TypeError, ValueError):
+                return False, {
+                    "ok": False,
+                    "status_code": 400,
+                    "error": f"Giá trị {param_labels[pkey]} không hợp lệ.",
+                    "exact_spoken_reply": f"Giá trị {param_labels[pkey]} không hợp lệ ạ.",
+                }
+            if num < lo or num > hi:
+                return False, {
+                    "ok": False,
+                    "status_code": 400,
+                    "error": f"{param_labels[pkey].capitalize()} phải nằm trong khoảng từ {lo} đến {hi}.",
+                    "exact_spoken_reply": f"{param_labels[pkey].capitalize()} chỉ chỉnh được từ {lo} đến {hi} ạ.",
+                }
+            validated_params[pkey] = num
+
+        if not norm_action and not validated_params:
+            return False, {
+                "ok": False,
+                "status_code": 400,
+                "error": "Cần chọn hành động bật/tắt hoặc giá trị cần đặt cho thiết bị.",
+                "exact_spoken_reply": "Bạn muốn bật, tắt hay đặt mức nào cho thiết bị này ạ?",
+            }
+
+        if not norm_action and validated_params:
+            if "brightness_pct" in validated_params and validated_params["brightness_pct"] == 0:
+                norm_action = "turn_off"
+            else:
+                norm_action = "open" if cid == "main_door" else "turn_on"
+
+        return True, {
+            "device_id": cid,
+            "device_name": str(self.devices[cid].get("name") or cid),
+            "action": norm_action,
+            "params": validated_params,
+        }
+
+    async def set_device_parameters(
+        self,
+        device_id: str,
+        *,
+        action: str | None = None,
+        brightness_pct: Any = None,
+        temperature_c: Any = None,
+        fan_speed: Any = None,
+        source: str = "gemini_live",
+        request_tier: int | None = None,
+        request_role: str | None = None,
+        request_user_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Thực thi bật/tắt/mở/đóng và cập nhật tham số thiết bị (độ sáng, nhiệt độ điều hòa, tốc độ quạt)."""
+        ok_val, info = self.validate_device_set_request(
+            device_id,
+            action=action,
+            brightness_pct=brightness_pct,
+            temperature_c=temperature_c,
+            fan_speed=fan_speed,
+            actor_tier=request_tier,
+        )
+        if not ok_val:
+            return info
+
+        cid = info["device_id"]
+        norm_action = info["action"]
+        params = info["params"]
+        dev_name = info["device_name"]
+
+        act_res = await self.execute_device_action(
+            device_id=cid,
+            action=norm_action,
+            source=source,
+            bypass_rbac=False,
+            request_tier=request_tier,
+            request_role=request_role,
+            request_user_name=request_user_name,
+            trigger_chains=True,
+        )
+        if isinstance(act_res, dict) and (not act_res.get("ok", True) or act_res.get("rbac_blocked")):
+            return act_res
+
+        with self.state_transaction():
+            dev = self.devices[cid]
+            cur_settings = dict(DEVICE_DEFAULT_SETTINGS.get(cid, {}))
+            if isinstance(dev.get("settings"), dict):
+                cur_settings.update(dev["settings"])
+            cur_settings.update(params)
+            dev["settings"] = cur_settings
+            if cid == "ac" and "temperature_c" in params:
+                ac_ir = self.mqtt_bridge.ir_devices.get("ac")
+                if isinstance(ac_ir, dict) and isinstance(ac_ir.get("commands"), dict):
+                    for cmd_k in ("turn_on", "open"):
+                        if isinstance(ac_ir["commands"].get(cmd_k), dict):
+                            ac_ir["commands"][cmd_k]["temp_c"] = params["temperature_c"]
+                    self.mqtt_bridge._save_ir_db_write_through()
+
+        detail_parts: list[str] = []
+        if "brightness_pct" in params:
+            detail_parts.append(f"độ sáng {params['brightness_pct']}%")
+        if "temperature_c" in params:
+            detail_parts.append(f"nhiệt độ {params['temperature_c']} độ C")
+        if "fan_speed" in params:
+            detail_parts.append(f"tốc độ số {params['fan_speed']}")
+        verb_vi = {
+            "open": "đã mở",
+            "close": "đã đóng",
+            "turn_on": "đã bật",
+            "turn_off": "đã tắt",
+        }.get(norm_action, "đã cập nhật")
+        if detail_parts:
+            spoken = f"Mình {verb_vi} {dev_name.lower()} với {', '.join(detail_parts)} rồi ạ."
+        else:
+            spoken = f"Mình {verb_vi} {dev_name.lower()} rồi ạ."
+        return {
+            "ok": True,
+            "device_id": cid,
+            "device_name": dev_name,
+            "state": self.devices[cid]["state"],
+            "settings": dict(self.devices[cid].get("settings") or {}),
+            "exact_spoken_reply": spoken,
+            "reply": spoken,
+            "snapshot": self.get_snapshot(sync=False),
+        }
 
     async def _execute_device_action_once(
         self,

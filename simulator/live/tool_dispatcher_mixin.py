@@ -310,6 +310,495 @@ class LiveToolDispatcherMixin:
             msg_ret = "Tính năng nhận diện giọng nói đã được gỡ bỏ; phân quyền dùng tài khoản và lời mời."
             return {"ok": False, "status": "RETIRED_ENDPOINT", "error": msg_ret, "exact_spoken_reply": msg_ret}
 
+        if name == "list_devices":
+            devices = self.engine.list_accessible_devices(actor_tier=actor_tier)
+            summary = ", ".join(f"{d['name']} {d['state_vi']}" for d in devices)
+            return {
+                "ok": True,
+                "count": len(devices),
+                "devices": devices,
+                "summary_vi": summary,
+            }
+
+        if name == "get_device_state":
+            dev_id = str(args.get("device_id") or "").strip()
+            rec = self.engine.get_device_state_record(dev_id, actor_tier=actor_tier)
+            if not rec.get("ok"):
+                if rec.get("rbac_blocked"):
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_get_device_state",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=dev_id or "device",
+                        )
+                    )
+                return rec
+            return {
+                "ok": True,
+                "device": rec,
+            }
+
+        if name == "read_sensors":
+            if hasattr(self.engine, "sync_from_shared_store"):
+                try:
+                    self.engine.sync_from_shared_store(force=False)
+                except Exception:
+                    pass
+            sensors = self.engine.read_all_sensors()
+            return {
+                "ok": True,
+                "sensors": {
+                    "temperature_c": sensors["temperature_c"],
+                    "humidity_pct": sensors["humidity_pct"],
+                    "heat_index_c": sensors["heat_index_c"],
+                    "soil_moisture_pct": sensors["soil_moisture_pct"],
+                    "soil_status": sensors["soil_status"],
+                },
+            }
+
+        if name == "set_device":
+            dev_id = str(args.get("device_id") or "").strip()
+            act = args.get("action")
+            b_pct = args.get("brightness_pct")
+            t_c = args.get("temperature_c")
+            f_spd = args.get("fan_speed")
+            ok_v, v_info = self.engine.validate_device_set_request(
+                dev_id,
+                action=act,
+                brightness_pct=b_pct,
+                temperature_c=t_c,
+                fan_speed=f_spd,
+                actor_tier=actor_tier,
+            )
+            if not ok_v:
+                if v_info.get("rbac_blocked"):
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_set_device",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=dev_id or "device",
+                        )
+                    )
+                return v_info
+            cid = v_info["device_id"]
+            norm_act = v_info["action"]
+            params = v_info["params"]
+            dev_name = v_info["device_name"]
+            act_phrase = format_device_action_vi(cid, norm_act).lower()
+            extra_parts: list[str] = []
+            if "brightness_pct" in params:
+                extra_parts.append(f"độ sáng {params['brightness_pct']}%")
+            if "temperature_c" in params:
+                extra_parts.append(f"nhiệt độ {params['temperature_c']} độ C")
+            if "fan_speed" in params:
+                extra_parts.append(f"tốc độ số {params['fan_speed']}")
+            extra_txt = f" với {', '.join(extra_parts)}" if extra_parts else ""
+            prompt_q = f"Mình sẽ {act_phrase}{extra_txt}, bạn đồng ý không?"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="set_device",
+                payload={
+                    "device_id": cid,
+                    "action": norm_act,
+                    "brightness_pct": params.get("brightness_pct"),
+                    "temperature_c": params.get("temperature_c"),
+                    "fan_speed": params.get("fan_speed"),
+                },
+                prompt_summary=prompt_q,
+            )
+            wrapped = self._wrap_nlu_tool_result(nlu_res)
+            wrapped["device_id"] = cid
+            wrapped["device_name"] = dev_name
+            wrapped["pending_params"] = params
+            return wrapped
+
+        if name == "list_timers":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_list_timers",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="timers",
+                    )
+                )
+            from simulator.automation_repo import list_pending_timers
+
+            owner_q = None if actor_tier == 1 else actor_uid
+            db_timers = list_pending_timers(owner_user_id=owner_q)
+            seen_ids: set[str] = set()
+            items: list[dict[str, Any]] = []
+            now_ep = time.time()
+            for t in db_timers:
+                tid = str(t.get("timer_id") or "")
+                seen_ids.add(tid)
+                fire_ep = float(t.get("fire_at") or t.get("fire_at_epoch") or 0.0)
+                rem = max(0, int(round(fire_ep - now_ep)))
+                items.append({
+                    "timer_id": tid,
+                    "device_id": t.get("device_id"),
+                    "action": t.get("action"),
+                    "label": t.get("label") or format_device_action_vi(str(t.get("device_id") or ""), str(t.get("action") or "")),
+                    "remaining_seconds": rem,
+                    "repeat": t.get("repeat") or t.get("repeat_rule") or "once",
+                    "owner_user_id": t.get("owner_user_id"),
+                })
+            for tid, tinfo in list(getattr(self.engine, "active_timers", {}).items()):
+                if tid in seen_ids:
+                    continue
+                t_owner = str(tinfo.get("owner_id") or tinfo.get("owner_user_id") or "")
+                if actor_tier > 1 and t_owner != actor_uid:
+                    continue
+                rem = max(0, int(round(float(tinfo.get("fire_at") or 0.0) - now_ep)))
+                items.append({
+                    "timer_id": tid,
+                    "device_id": tinfo.get("raw_target") or tinfo.get("device_id"),
+                    "action": tinfo.get("action"),
+                    "label": tinfo.get("label") or "",
+                    "remaining_seconds": rem,
+                    "repeat": tinfo.get("repeat") or "once",
+                    "owner_user_id": t_owner,
+                })
+            return {"ok": True, "count": len(items), "timers": items}
+
+        if name == "create_timer":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_timer",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="timers",
+                    )
+                )
+            dev_id = self.engine.resolve_canonical_device_id(str(args.get("device_id") or ""))
+            act = str(args.get("action") or "").strip().lower()
+            if dev_id not in self.engine.devices and dev_id not in ("all_lights", "all_devices"):
+                return {"ok": False, "status_code": 404, "error": "Thiết bị không tồn tại trong hệ thống."}
+            if act not in ("open", "close", "turn_on", "turn_off"):
+                return {"ok": False, "status_code": 400, "error": "Hành động hẹn giờ không hợp lệ."}
+            if dev_id == "main_door" and act in ("turn_on", "turn_off"):
+                act = "open" if act == "turn_on" else "close"
+            try:
+                hrs = float(args.get("hours") or 0)
+                mins = float(args.get("minutes") or 0)
+                secs = float(args.get("seconds") or 0)
+            except (TypeError, ValueError):
+                return {"ok": False, "status_code": 400, "error": "Thời gian hẹn giờ không hợp lệ."}
+            total_sec = hrs * 3600.0 + mins * 60.0 + secs
+            if total_sec <= 0 or total_sec > 365.0 * 86400.0:
+                return {"ok": False, "status_code": 400, "error": "Thời gian hẹn giờ phải lớn hơn 0 giây."}
+            repeat = str(args.get("repeat") or "once").strip().lower()
+            if repeat not in ("once", "daily", "weekly", "hourly", "monthly"):
+                return {"ok": False, "status_code": 400, "error": "Chế độ lặp lại không hợp lệ."}
+            expand_devs = (
+                ["living_room_light", "bedroom_light"]
+                if dev_id == "all_lights"
+                else (list(self.engine.devices.keys()) if dev_id == "all_devices" else [dev_id])
+            )
+            for td in expand_devs:
+                allowed_td, _ = self.engine.check_device_permission(td, actor_tier=actor_tier)
+                if not allowed_td:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_create_timer_device",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=td,
+                        )
+                    )
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=actor_tier,
+                fire_epoch=time.time() + total_sec,
+                schedule_type=repeat,
+                engine=self.engine,
+            )
+            if conflict_msg:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="tier1_timer_conflict",
+                        msg=conflict_msg,
+                        status_code=409,
+                        target="timers",
+                    )
+                )
+            dur_vi = self.engine.format_duration_vi(total_sec)
+            act_vi = format_device_action_vi(dev_id, act).lower()
+            prompt_q = f"Mình sẽ {act_vi} sau {dur_vi}, bạn đồng ý không?"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_timer",
+                payload={
+                    "device_id": dev_id,
+                    "action": act,
+                    "hours": hrs,
+                    "minutes": mins,
+                    "seconds": secs,
+                    "repeat": repeat,
+                },
+                prompt_summary=prompt_q,
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
+
+        if name == "delete_timer":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_delete_timer",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="timers",
+                    )
+                )
+            from simulator.automation_repo import list_pending_timers
+
+            tid = str(args.get("timer_id") or "").strip()
+            dev_id = str(args.get("device_id") or "").strip()
+            if not tid and not dev_id:
+                return {"ok": False, "status_code": 400, "error": "Cần chọn mã hẹn giờ hoặc thiết bị cần hủy."}
+            if tid:
+                existing_t = self.engine.active_timers.get(tid) or next(
+                    (r for r in list_pending_timers() if str(r.get("timer_id") or "") == tid),
+                    None,
+                )
+                if existing_t is None:
+                    return {"ok": False, "status_code": 404, "error": "Không tìm thấy hẹn giờ cần xóa."}
+                t_owner = str(existing_t.get("owner_user_id") or existing_t.get("owner_id") or "")
+                t_owner_tier = int(existing_t.get("owner_tier") or 1)
+                if actor_tier > 1 and (t_owner_tier == 1 or t_owner != actor_uid):
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_delete_timer_cross_owner",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=tid,
+                        )
+                    )
+                label_vi = str(existing_t.get("label") or "hẹn giờ đã chọn")
+                prompt_q = f"Mình sẽ hủy hẹn giờ {label_vi}, bạn đồng ý không?"
+            else:
+                dev_id = self.engine.resolve_canonical_device_id(dev_id)
+                if dev_id not in self.engine.devices and dev_id not in ("all_lights", "all_devices"):
+                    return {"ok": False, "status_code": 404, "error": "Thiết bị không tồn tại."}
+                if dev_id in self.engine.devices:
+                    allowed_td, _ = self.engine.check_device_permission(dev_id, actor_tier=actor_tier)
+                    if not allowed_td:
+                        return self._wrap_nlu_tool_result(
+                            _deny_mutation_error(
+                                session=actor_sess,
+                                source="gemini_live",
+                                category="rbac_deny_delete_timer_device",
+                                msg=FIXED_REJECTION_PHRASE_VI,
+                                status_code=403,
+                                target=dev_id,
+                            )
+                        )
+                d_label = str(self.engine.devices.get(dev_id, {}).get("name") or "các thiết bị").lower()
+                prompt_q = f"Mình sẽ hủy hẹn giờ của {d_label}, bạn đồng ý không?"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="delete_timer",
+                payload={"timer_id": tid, "device_id": dev_id},
+                prompt_summary=prompt_q,
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
+
+        if name == "list_schedules":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_list_schedules",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="schedules",
+                    )
+                )
+            from simulator.automation_repo import list_schedules as _list_schedules
+
+            owner_q = None if actor_tier == 1 else actor_uid
+            scheds = _list_schedules(include_disabled=False, owner_user_id=owner_q)
+            return {
+                "ok": True,
+                "count": len(scheds),
+                "schedules": [
+                    {
+                        "schedule_id": s.get("schedule_id"),
+                        "device_id": s.get("device_id"),
+                        "action": s.get("action"),
+                        "time_hhmm": s.get("time_hhmm"),
+                        "schedule_type": s.get("schedule_type"),
+                        "label": s.get("label"),
+                        "owner_user_id": s.get("owner_user_id"),
+                    }
+                    for s in scheds
+                ],
+            }
+
+        if name == "create_schedule":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_schedule",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="schedules",
+                    )
+                )
+            dev_id = self.engine.resolve_canonical_device_id(str(args.get("device_id") or ""))
+            act = str(args.get("action") or "").strip().lower()
+            hhmm = str(args.get("time_hhmm") or "").strip()
+            sc_type = str(args.get("schedule_type") or "once").strip().lower()
+            if dev_id not in self.engine.devices:
+                return {"ok": False, "status_code": 404, "error": "Thiết bị không tồn tại."}
+            if act not in ("open", "close", "turn_on", "turn_off"):
+                return {"ok": False, "status_code": 400, "error": "Hành động đặt lịch không hợp lệ."}
+            if dev_id == "main_door" and act in ("turn_on", "turn_off"):
+                act = "open" if act == "turn_on" else "close"
+            if sc_type not in ("once", "daily"):
+                return {"ok": False, "status_code": 400, "error": "Loại lịch chỉ hỗ trợ một lần hoặc hằng ngày."}
+            try:
+                from simulator.automation_repo import _parse_hhmm_parts
+
+                _, _, hhmm_norm = _parse_hhmm_parts(hhmm)
+            except Exception:
+                return {"ok": False, "status_code": 400, "error": "Định dạng giờ không hợp lệ, hãy dùng dạng HH:MM."}
+            allowed_td, _ = self.engine.check_device_permission(dev_id, actor_tier=actor_tier)
+            if not allowed_td:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_create_schedule_device",
+                        msg=FIXED_REJECTION_PHRASE_VI,
+                        status_code=403,
+                        target=dev_id,
+                    )
+                )
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=actor_tier,
+                time_hhmm=hhmm_norm,
+                schedule_type=sc_type,
+                engine=self.engine,
+            )
+            if conflict_msg:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="tier1_schedule_conflict",
+                        msg=conflict_msg,
+                        status_code=409,
+                        target="schedules",
+                    )
+                )
+            rep_vi = "hằng ngày " if sc_type == "daily" else ""
+            act_vi = format_device_action_vi(dev_id, act).lower()
+            prompt_q = f"Mình sẽ đặt lịch lúc {hhmm_norm} {rep_vi}{act_vi}, bạn đồng ý không?"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="create_schedule",
+                payload={
+                    "target_devs": [dev_id],
+                    "action": act,
+                    "time_hhmm": hhmm_norm,
+                    "schedule_type": sc_type,
+                },
+                prompt_summary=prompt_q,
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
+
+        if name == "delete_schedule":
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_delete_schedule",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="schedules",
+                    )
+                )
+            from simulator.automation_repo import list_schedules as _list_schedules
+
+            sid = str(args.get("schedule_id") or "").strip()
+            hhmm = str(args.get("time_hhmm") or "").strip()
+            if not sid and not hhmm:
+                return {"ok": False, "status_code": 400, "error": "Cần chọn mã lịch hoặc giờ HH:MM cần xóa."}
+            all_scheds = _list_schedules(include_disabled=True)
+            target_s = None
+            if sid:
+                target_s = next((s for s in all_scheds if s.get("schedule_id") == sid), None)
+            elif hhmm:
+                cand = [s for s in all_scheds if s.get("time_hhmm") == hhmm]
+                if actor_tier > 1:
+                    own_cand = [s for s in cand if s.get("owner_user_id") == actor_uid]
+                    target_s = own_cand[0] if own_cand else (cand[0] if cand else None)
+                else:
+                    target_s = cand[0] if cand else None
+            if target_s is None:
+                return {"ok": False, "status_code": 404, "error": "Không tìm thấy lịch cần xóa."}
+            if actor_tier > 1 and str(target_s.get("owner_user_id") or "") != actor_uid:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_delete_schedule_cross_owner",
+                        msg=FIXED_REJECTION_PHRASE_VI,
+                        status_code=403,
+                        target=str(target_s.get("schedule_id") or sid or hhmm),
+                    )
+                )
+            lbl = str(target_s.get("label") or f"lịch lúc {target_s.get('time_hhmm')}")
+            prompt_q = f"Mình sẽ xóa {lbl}, bạn đồng ý không?"
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="delete_schedule",
+                payload={
+                    "schedule_id": target_s.get("schedule_id"),
+                    "time_hhmm": target_s.get("time_hhmm"),
+                },
+                prompt_summary=prompt_q,
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
+
         if name == "control_device":
             res_ctrl = await self.engine.execute_device_action(
                 device_id=str(args.get("device_id", "")),
@@ -327,17 +816,6 @@ class LiveToolDispatcherMixin:
 
         if name in ("confirm_or_cancel_pending_action", "confirm_pending_action", "confirm_factory_reset"):
             confirmed = bool(args.get("confirmed", True))
-            if actor_tier >= 3:
-                return self._wrap_nlu_tool_result(
-                    _deny_mutation_error(
-                        session=actor_sess,
-                        source="gemini_live",
-                        category=f"rbac_deny_{name}",
-                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
-                        status_code=403,
-                        target="pending_confirmation",
-                    )
-                )
             conf_res = await handle_confirmation_reply(
                 raw_text=("xác nhận" if confirmed else "hủy"),
                 engine=self.engine,
@@ -354,6 +832,17 @@ class LiveToolDispatcherMixin:
                     except Exception:
                         pass
                 return out
+            if actor_tier >= 3:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category=f"rbac_deny_{name}",
+                        msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                        status_code=403,
+                        target="pending_confirmation",
+                    )
+                )
             if getattr(self.engine, "pending_reset_confirmation", False) or getattr(self.engine, "pending_action_confirmation", None):
                 res_legacy = await self.engine.confirm_pending_action(confirmed=confirmed)
                 if res_legacy.get("ok"):

@@ -71,7 +71,7 @@ class TrackedDeviceDict(dict):
                     prev_ts = float(self.get("updated_at") or 0.0)
                     super().__setitem__("updated_at", max(time.time(), prev_ts + 1e-6))
                     super().__setitem__("version", int(self.get("version") or 1) + 1)
-            if key in ("state", "min_role", "name", "gpio", "type", "version", "last_client_seq", "last_client_ts_ms"):
+            if key in ("state", "min_role", "name", "gpio", "type", "version", "last_client_seq", "last_client_ts_ms", "settings"):
                 eng._on_direct_device_mutation(str(self.get("id") or ""))
 
     def __deepcopy__(self, memo: dict[int, Any]) -> dict[str, Any]:

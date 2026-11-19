@@ -363,7 +363,10 @@ def _classify_confirmation_utterance(raw_text: str) -> str | None:
 
 
 def _ensure_confirmation_question(summary_text: str) -> str:
-    txt = str(summary_text or "").strip().rstrip("?!.,;:")
+    raw = str(summary_text or "").strip()
+    if raw.endswith("?"):
+        return raw
+    txt = raw.rstrip("?!.,;:")
     if not txt:
         txt = "Thực hiện thay đổi này"
     if not txt.lower().endswith("đúng không ạ"):
@@ -384,9 +387,9 @@ async def prepare_pending_mutation(
     session_key: str = "",
     ttl_sec: float = PENDING_CONFIRM_TTL_SEC,
 ) -> dict[str, Any]:
-    """Store 20s server-side pending draft and return Step-1 question ('... đúng không ạ?')."""
+    """Store 20s server-side pending draft and return Step-1 confirmation question."""
     user_id, tier, user_name, _ = _session_actor(session)
-    if tier >= 3:
+    if tier >= 3 and action_kind != "set_device":
         return _deny_mutation_error(
             session=session,
             source=source,
@@ -448,7 +451,7 @@ async def execute_confirmed_mutation(
 ) -> dict[str, Any]:
     """Execute Step-2 validated mutation against SQLite + engine pools."""
     user_id, tier, user_name, role = _session_actor(session)
-    if tier >= 3:
+    if tier >= 3 and action_kind != "set_device":
         return _deny_mutation_error(
             session=session,
             source=source,
@@ -457,6 +460,47 @@ async def execute_confirmed_mutation(
             status_code=403,
             target=action_kind,
         )
+
+    if action_kind == "set_device":
+        dev_id = str(payload.get("device_id") or "").strip()
+        act = payload.get("action")
+        res_set = await engine.set_device_parameters(
+            device_id=dev_id,
+            action=act,
+            brightness_pct=payload.get("brightness_pct"),
+            temperature_c=payload.get("temperature_c"),
+            fan_speed=payload.get("fan_speed"),
+            source=source,
+            request_tier=tier,
+            request_role=role,
+            request_user_name=user_name,
+        )
+        if not res_set.get("ok"):
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_set_device" if res_set.get("rbac_blocked") else "invalid_set_device",
+                msg=str(res_set.get("exact_spoken_reply") or res_set.get("error") or "Không thực hiện được lệnh."),
+                status_code=int(res_set.get("status_code") or (403 if res_set.get("rbac_blocked") else 400)),
+                target=dev_id or "device",
+            )
+        spoken = str(res_set.get("exact_spoken_reply") or "Đã thực hiện xong rồi ạ.")
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "kind": "device_set",
+                "device_id": res_set.get("device_id"),
+                "device_name": res_set.get("device_name"),
+                "state": res_set.get("state"),
+                "settings": res_set.get("settings", {}),
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": res_set.get("snapshot") or engine.get_snapshot(session=session, sync=False),
+            },
+        }
 
     if action_kind == "create_custom_command":
         phrase = str(payload.get("phrase") or "").strip()
@@ -1494,18 +1538,18 @@ async def handle_confirmation_reply(
         return None
 
     user_id, tier, _, _ = _session_actor(session)
-    if tier >= 3:
-        return _deny_mutation_error(
-            session=session,
-            source=source,
-            category="rbac_deny_confirmation",
-            msg=GUEST_ONLY_TOGGLE_MSG_VI,
-            status_code=403,
-            target="pending_confirmation",
-        )
-
     skey = session_key or _resolve_session_key(session, source)
     pending, was_expired = get_pending_confirmation(owner_user_id=user_id, session_key=skey)
+    if tier >= 3:
+        if pending is None or pending.get("action_kind") != "set_device":
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_confirmation",
+                msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="pending_confirmation",
+            )
     if was_expired or pending is None:
         if was_expired:
             spoken = "Đã hủy."
