@@ -806,10 +806,23 @@
           if (typeof window._stopWokwiHttpPolling === 'function') {
             window._stopWokwiHttpPolling();
           }
+          if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+            window.SmartHomeNavGuard.applyNavAuthState({ authenticated: false });
+          }
           return;
         }
         if (!r.ok) return;
         const snap = await r.json();
+        if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+          window.SmartHomeNavGuard.applyNavAuthState({
+            authenticated: snap.authenticated !== false,
+            tier: snap.current_tier || 3,
+            role: snap.role || '',
+          });
+        }
+        if (snap.authenticated !== false && !RAW_ESP8266_INO) {
+          loadRealInoCode();
+        }
         syncWokwiComponents(snap);
       } catch (e) {
       } finally {
@@ -1129,7 +1142,14 @@
 
     async function loadRealInoCode() {
       try {
-        const res = await fetch('/api/wokwi_files');
+        const res = await fetch('/api/wokwi_files', { credentials: 'same-origin' });
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            const pre = document.getElementById('inoCodePre');
+            if (pre) pre.textContent = 'Vui lòng đăng nhập để xem mã nguồn ESP8266.';
+          }
+          return;
+        }
         const data = await res.json();
         RAW_ESP8266_INO = data.esp8266_ino || data.sketch_ino || '';
         refreshInoCodePreview();
@@ -1167,7 +1187,13 @@
     }
 
     async function copyWokwiFile(kind) {
-      const res = await fetch('/api/wokwi_files');
+      const res = await fetch('/api/wokwi_files', { credentials: 'same-origin' });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          showWokwiAuthError('Vui lòng đăng nhập để sao chép sơ đồ và mã nguồn phần cứng.');
+        }
+        return;
+      }
       const data = await res.json();
       const txt = kind === 'diagram' ? data.diagram_json : (getConfiguredInoText() || data.esp8266_ino || data.sketch_ino);
       await navigator.clipboard.writeText(txt);
@@ -1189,7 +1215,6 @@
       drawWires();
       setTimeout(drawWires, 250);
       fetchState();
-      loadRealInoCode();
 
       const pot = document.getElementById('w_soil_pot');
       if (pot) {

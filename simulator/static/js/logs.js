@@ -317,6 +317,13 @@
       const data = await readSafeJson(res);
       if (!res.ok || (data && data.ok === false)) {
         setLogsAdminUiState(false);
+        if (window.SmartHomeNavGuard) {
+          if (res.status === 403 && typeof window.SmartHomeNavGuard.syncFromServer === 'function') {
+            window.SmartHomeNavGuard.syncFromServer();
+          } else if (typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+            window.SmartHomeNavGuard.applyNavAuthState({ authenticated: false });
+          }
+        }
         lastLoadedLogs = [];
         const errMsg = maskSensitiveLogText((data && data.error) || `Yêu cầu đăng nhập quyền Chủ nhà (HTTP ${res.status})`);
         const gateMsg = document.getElementById('logsAccessDeniedMsg');
@@ -333,6 +340,9 @@
         return false;
       }
       setLogsAdminUiState(true);
+      if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+        window.SmartHomeNavGuard.applyNavAuthState({ authenticated: true, tier: 1, role: 'owner' });
+      }
 
       document.getElementById('kpiServerClock').textContent = `${data.server_time_vn || '--:--:--'}`;
       document.getElementById('kpiServerState').textContent = data.hardware_database?.server_connected ? 'Đã kết nối' : 'Mất kết nối';

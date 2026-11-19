@@ -29,13 +29,13 @@
     <aside class="nav-sidebar" aria-label="Điều hướng chính">
       <a class="brand" href="/">Nhà thông minh</a>
       <nav class="nav">
-        <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
-        <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
-        <a class="active" href="/wokwi" aria-current="page"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-        <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+        <a href="/" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+        <a href="/auth" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+        <a class="active" href="/wokwi" aria-current="page" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+        <a href="/logs" data-auth-required="true" data-owner-only="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
       </nav>
       <div class="sidebar-foot">
-        <a href="/app">Ứng dụng</a>
+        <a href="/app" data-auth-required="true" hidden aria-hidden="true" tabindex="-1">Ứng dụng</a>
         <a href="/guest_guide">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
@@ -606,14 +606,15 @@
     </main>
   </div>
 
-  <nav class="mobile-nav" aria-label="Điều hướng di động">
+  <nav class="mobile-nav" data-auth-nav="true" aria-label="Điều hướng di động" hidden aria-hidden="true">
     <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
     <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
     <a class="active" href="/wokwi" aria-current="page"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+    <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
     <a href="/guest_guide"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
   </nav>
 
+  <script src="/static/js/nav_auth_guard.js"></script>
   <script src="/static/js/wokwi.js"></script>
   <script src="/static/js/spa_nav.js" defer></script>
 </body>

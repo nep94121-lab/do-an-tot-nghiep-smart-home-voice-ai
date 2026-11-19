@@ -402,6 +402,9 @@ function showUnauthenticatedAuthView() {
     badge.className = 'badge';
     badge.textContent = 'Chưa đăng nhập';
   }
+  if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+    window.SmartHomeNavGuard.applyNavAuthState({ authenticated: false });
+  }
 }
 
 async function initAuthPageSessionGate() {
@@ -417,6 +420,9 @@ async function initAuthPageSessionGate() {
       return;
     }
     currentSessionUser = data;
+    if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === 'function') {
+      window.SmartHomeNavGuard.applyNavAuthState(data);
+    }
 
     const gate = document.getElementById('authUnauthGate');
     const authShell = document.getElementById('authAuthenticatedPanels');

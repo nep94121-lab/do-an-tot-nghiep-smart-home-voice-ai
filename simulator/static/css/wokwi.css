@@ -26,6 +26,7 @@
       --red: #b42318;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
     body {
       font-family: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
       font-weight: 400;
@@ -492,6 +493,7 @@
     .serial-line.ir { color: #1d5c63; }
 
     .mobile-nav { display: none; }
+    .mobile-nav[hidden] { display: none !important; pointer-events: none !important; visibility: hidden !important; }
 
     @media (max-width: 900px) {
       .app { grid-template-columns: 1fr; }
@@ -509,7 +511,8 @@
         right: 0;
         z-index: 450;
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
         background: #ffffff;
         border-top: 1px solid var(--line);
         padding: 6px 4px max(8px, env(safe-area-inset-bottom));

@@ -1613,8 +1613,21 @@ async def api_auth3_run_tests(request: Request, payload: dict[str, Any] | None =
 
 
 @router.get("/api/voice_samples")
-async def api_list_voice_samples() -> JSONResponse:
-    """Danh sách các file âm thanh wav mẫu trong test_audio/."""
+async def api_list_voice_samples(request: Request) -> JSONResponse:
+    """Danh sách các file âm thanh wav mẫu trong test_audio/ (yêu cầu đăng nhập)."""
+    sess = resolve_request_session(request, payload=None, engine=None)
+    if not sess.is_authenticated:
+        return JSONResponse(
+            sanitize_api_payload(
+                {
+                    "ok": False,
+                    "authenticated": False,
+                    "error": "Vui lòng đăng nhập để xem danh sách giọng mẫu.",
+                }
+            ),
+            status_code=401,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
     samples = []
     for key, label in VOICE_SAMPLES_META.items():
         wav_path = AUDIO_DIR / f"{key}.wav"

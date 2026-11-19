@@ -3369,6 +3369,8 @@
 
   let inMemoryUserSession = null;
   let serverSessionConfirmed = false;
+  let authSessionGeneration = 0;
+  let logoutGuardActive = false;
 
   function setSessionCookies(token) {
     const tok = String(token || "").trim();
@@ -3392,7 +3394,99 @@
 
   const homeAppShellEl = byId("homeAppShell");
   let homeAppShellAnchor = null;
+  const homeMobileNavEl =
+    byId("homeMobileNav") ||
+    (typeof document !== "undefined" && typeof document.querySelector === "function"
+      ? document.querySelector(".mobile-nav")
+      : null);
+  let homeMobileNavAnchor = null;
   let home3dInitialized = false;
+
+  function syncHomeNavRoleVisibility(userObj) {
+    try {
+      const isAuthed = Boolean(serverSessionConfirmed && userObj);
+      const isOwner = isAuthed && Number(userObj.tier || 0) === 1;
+      const roots = [homeAppShellEl, homeMobileNavEl].filter(Boolean);
+      roots.forEach((root) => {
+        if (typeof root.querySelectorAll !== "function") return;
+        root.querySelectorAll('[data-owner-only="true"]').forEach((el) => {
+          if (typeof el.setAttribute === "function" && typeof el.removeAttribute === "function") {
+            if (!isOwner) {
+              el.setAttribute("aria-hidden", "true");
+              el.setAttribute("inert", "");
+              el.setAttribute("tabindex", "-1");
+            } else {
+              el.removeAttribute("aria-hidden");
+              el.removeAttribute("inert");
+              if (el.getAttribute("tabindex") === "-1") el.removeAttribute("tabindex");
+            }
+          }
+          el.hidden = !isOwner;
+        });
+      });
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+        window.dispatchEvent(
+          new CustomEvent("smarthome:auth-changed", {
+            detail: {
+              authenticated: isAuthed,
+              tier: isAuthed ? Number(userObj.tier || 0) : null,
+              role: isAuthed ? String(userObj.role || "") : "",
+            },
+          })
+        );
+      }
+    } catch (_) {}
+  }
+
+  function guardUnauthDeepLinkHash() {
+    if (hasValidLoginSession()) return;
+    try {
+      if (window.location && window.location.hash && window.location.hash.length > 1) {
+        if (window.history && typeof window.history.replaceState === "function") {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }
+    } catch (_) {}
+  }
+
+  function detachNavElement(el, getAnchor, setAnchor, anchorLabel) {
+    if (!el) return;
+    if (typeof el.setAttribute === "function") {
+      el.setAttribute("aria-hidden", "true");
+      el.setAttribute("inert", "");
+    }
+    el.hidden = true;
+    if (el.parentNode && typeof el.parentNode.removeChild === "function") {
+      if (
+        !getAnchor() &&
+        typeof document !== "undefined" &&
+        typeof document.createComment === "function" &&
+        typeof el.parentNode.insertBefore === "function"
+      ) {
+        const anchor = document.createComment(anchorLabel);
+        setAnchor(anchor);
+        el.parentNode.insertBefore(anchor, el);
+      }
+      el.parentNode.removeChild(el);
+    }
+  }
+
+  function attachNavElement(el, anchor) {
+    if (!el) return;
+    if (
+      !el.parentNode &&
+      anchor &&
+      anchor.parentNode &&
+      typeof anchor.parentNode.insertBefore === "function"
+    ) {
+      anchor.parentNode.insertBefore(el, anchor);
+    }
+    if (typeof el.removeAttribute === "function") {
+      el.removeAttribute("aria-hidden");
+      el.removeAttribute("inert");
+    }
+    el.hidden = false;
+  }
 
   function ensureHome3dInitialized() {
     if (home3dInitialized) return;
@@ -3413,6 +3507,12 @@
       if (sEl) sEl.textContent = "--%";
       if (devicesGrid && devicesGrid !== noopEl) devicesGrid.innerHTML = "";
       latestDevicesMap = {};
+      detachNavElement(
+        homeMobileNavEl,
+        () => homeMobileNavAnchor,
+        (a) => { homeMobileNavAnchor = a; },
+        "homeMobileNav-anchor"
+      );
       if (!homeAppShellEl) return;
       homeAppShellEl.hidden = true;
       if (typeof homeAppShellEl.setAttribute === "function") {
@@ -3449,6 +3549,7 @@
           homeAppShellEl.removeAttribute("hidden");
         }
       }
+      attachNavElement(homeMobileNavEl, homeMobileNavAnchor);
       ensureHome3dInitialized();
       if (typeof bindDesktopAutomationEvents === "function") {
         bindDesktopAutomationEvents();
@@ -3470,6 +3571,9 @@
   function syncAuthFromSnapshot(snap) {
     if (!snap || typeof snap !== "object") return;
     if (snap.authenticated === true) {
+      if (logoutGuardActive) {
+        return;
+      }
       serverSessionConfirmed = true;
       mountOwnerDashboardDom();
       const userObj = {
@@ -3528,9 +3632,12 @@
       }
     }
     syncOwnerGuestQrStateForSession(userObj);
+    syncHomeNavRoleVisibility(userObj);
   }
 
   function clearAuthState() {
+    authSessionGeneration += 1;
+    logoutGuardActive = true;
     inMemoryUserSession = null;
     serverSessionConfirmed = false;
     try {
@@ -3575,6 +3682,8 @@
       durationBadge.textContent = "";
     }
     syncOwnerGuestQrStateForSession(null);
+    syncHomeNavRoleVisibility(null);
+    guardUnauthDeepLinkHash();
     const emailEl = byId("gateLoginEmail");
     const pwEl = byId("gateLoginPassword");
     if (emailEl) emailEl.value = "";
@@ -3711,6 +3820,8 @@
   }
 
   async function completeGateLoginSession(email, data) {
+    authSessionGeneration += 1;
+    logoutGuardActive = false;
     const userSession = {
       email: (data && data.email) || email,
       display_name: (data && data.display_name) || (data && data.account && data.account.display_name) || email,
@@ -4229,9 +4340,16 @@
 
   // Kiểm tra trạng thái đăng nhập khi mở Trang chủ (fail-closed theo /api/session/role phía máy chủ)
   async function confirmServerSessionFromApi(keepGateOpen = false) {
+    const reqGen = authSessionGeneration;
     try {
       const roleRes = await fetch("/api/session/role", { credentials: "include" });
+      if (reqGen !== authSessionGeneration || logoutGuardActive) {
+        return false;
+      }
       const roleData = await roleRes.json().catch(() => ({}));
+      if (reqGen !== authSessionGeneration || logoutGuardActive) {
+        return false;
+      }
       if (!roleRes.ok || !roleData || roleData.authenticated !== true) {
         inMemoryUserSession = null;
         serverSessionConfirmed = false;
@@ -4251,6 +4369,8 @@
           durationBadge.textContent = "";
         }
         syncOwnerGuestQrStateForSession(null);
+        syncHomeNavRoleVisibility(null);
+        guardUnauthDeepLinkHash();
         openLoginGateModal();
         return false;
       }
@@ -4287,6 +4407,17 @@
     serverSessionConfirmed = false;
     setDeviceAreaLockdown(true);
     unmountOwnerDashboardDom();
+    syncHomeNavRoleVisibility(null);
+    guardUnauthDeepLinkHash();
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("hashchange", () => {
+        if (!hasValidLoginSession()) {
+          guardUnauthDeepLinkHash();
+          unmountOwnerDashboardDom();
+          openLoginGateModal();
+        }
+      });
+    }
     if (btnCloseLoginGateModal) btnCloseLoginGateModal.hidden = true;
     if (!hasClientAuthHint() || forceLoginModal) {
       openLoginGateModal();
