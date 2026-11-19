@@ -515,7 +515,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 if aoede_bundle.get("pcm24k_b64"):
                     pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
                     if pcm_bytes_out:
-                        self.echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
+                        self.echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000, pcm_bytes=pcm_bytes_out)
                     self.echo_guard.record_ai_utterance(clean_spoken)
                     await self.send_ws_json({
                         "type": "audio_chunk",
@@ -688,7 +688,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             if part.inline_data and part.inline_data.data:
                                                 if self._current_turn_echo_suppressed:
                                                     continue
-                                                self.echo_guard.note_ai_audio_chunk(len(part.inline_data.data), sample_rate=24000)
+                                                self.echo_guard.note_ai_audio_chunk(len(part.inline_data.data), sample_rate=24000, pcm_bytes=part.inline_data.data)
                                                 if self.turn_first_audio_ts is None:
                                                     self.turn_first_audio_ts = now
                                                     t_anchor = self.speech_end_ts or now
@@ -970,11 +970,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if actor is None:
             actor = self._bind_actor_to_engine()
 
-        if is_barge_in:
-            self.echo_guard.clear_ai_playback()
-            self._current_turn_echo_suppressed = False
-        elif self.echo_guard.is_playback_or_tail_active():
+        allow_send, server_barge_triggered, _gate_reason = self.echo_guard.evaluate_mic_audio_chunk(
+            pcm_bytes,
+            is_barge_in_hint=is_barge_in,
+        )
+        if not allow_send:
             return
+        if is_barge_in or server_barge_triggered:
+            self._current_turn_echo_suppressed = False
 
         self.mic_recent_pcm.extend(pcm_bytes)
         if len(self.mic_recent_pcm) > 160000:

@@ -283,7 +283,7 @@ async function startGuestMicRecording() {
         sampleRate: 16000,
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true,
+        autoGainControl: false,
       },
     });
     guestAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });

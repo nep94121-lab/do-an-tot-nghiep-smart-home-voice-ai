@@ -382,10 +382,15 @@
       if (nextPlayTime < now) {
         nextPlayTime = now + 0.02;
       }
-      source.start(nextPlayTime);
+      const scheduledStartSec = nextPlayTime;
+      source.start(scheduledStartSec);
       nextPlayTime += audioBuffer.duration;
       if (desktopEchoGuard) {
-        desktopEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0);
+        desktopEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0, undefined, {
+          samples: float32Arr,
+          sampleRate: 24000,
+          startOffsetMs: Math.max(0, (scheduledStartSec - now) * 1000.0),
+        });
         desktopEchoGuard.syncAudioContextPlayback(audioCtxOut.currentTime, nextPlayTime);
       }
       pauseMicForTts();
@@ -2356,7 +2361,7 @@
               channelCount: 1,
               echoCancellation: true,
               noiseSuppression: true,
-              autoGainControl: true,
+              autoGainControl: false,
             },
           };
       micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
@@ -2403,6 +2408,8 @@
           const gate = desktopEchoGuard.evaluateMicFrame({
             rms: rms,
             frameDurationMs: frameDurationMs,
+            samples: input,
+            sampleRate: 16000,
           });
           if (!gate.allowSend) {
             wasSpeaking = false;

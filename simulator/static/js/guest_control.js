@@ -173,10 +173,15 @@
       }
       var nowSec = _guestAudioCtx.currentTime;
       if (_guestNextPlayTime < nowSec) _guestNextPlayTime = nowSec + 0.02;
-      src.start(_guestNextPlayTime);
+      var scheduledGuestStartSec = _guestNextPlayTime;
+      src.start(scheduledGuestStartSec);
       _guestNextPlayTime += buf.duration;
       if (_guestEchoGuard) {
-        _guestEchoGuard.notePlaybackQueued(buf.duration * 1000.0);
+        _guestEchoGuard.notePlaybackQueued(buf.duration * 1000.0, undefined, {
+          samples: ch,
+          sampleRate: 24000,
+          startOffsetMs: Math.max(0, (scheduledGuestStartSec - nowSec) * 1000.0),
+        });
         _guestEchoGuard.syncAudioContextPlayback(_guestAudioCtx.currentTime, _guestNextPlayTime);
       }
       if (recognizing && recognition) {

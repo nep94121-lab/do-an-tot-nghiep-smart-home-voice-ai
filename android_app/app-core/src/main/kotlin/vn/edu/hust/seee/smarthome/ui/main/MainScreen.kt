@@ -170,7 +170,7 @@ private fun captureMicPcmAndPitch(durationMs: Int = 1100): CapturedVoiceSample {
         ns = NoiseSuppressor.create(sessionId)?.apply { enabled = true }
       }
       if (AutomaticGainControl.isAvailable()) {
-        agc = AutomaticGainControl.create(sessionId)?.apply { enabled = true }
+        agc = AutomaticGainControl.create(sessionId)?.apply { enabled = false }
       }
     } catch (_: Exception) {}
     val totalSamples = (sampleRate * durationMs) / 1000

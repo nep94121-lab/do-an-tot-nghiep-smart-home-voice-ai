@@ -1525,7 +1525,7 @@
                   channelCount: 1,
                   echoCancellation: true,
                   noiseSuppression: true,
-                  autoGainControl: true,
+                  autoGainControl: false,
                 },
               };
           voiceSheetStream = await navigator.mediaDevices.getUserMedia(sheetConstraints);
@@ -1587,6 +1587,8 @@
               const gate = mobileEchoGuard.evaluateMicFrame({
                 rms: rms,
                 frameDurationMs: (input.length / 16000.0) * 1000.0,
+                samples: input,
+                sampleRate: 16000,
               });
               if (!gate.allowSend) return;
             }
@@ -2584,10 +2586,15 @@
             if (mobileNextPlayTime < now) {
               mobileNextPlayTime = now + 0.02;
             }
-            source.start(mobileNextPlayTime);
+            const scheduledMobileStartSec = mobileNextPlayTime;
+            source.start(scheduledMobileStartSec);
             mobileNextPlayTime += audioBuffer.duration;
             if (mobileEchoGuard) {
-              mobileEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0);
+              mobileEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0, undefined, {
+                samples: float32Arr,
+                sampleRate: 24000,
+                startOffsetMs: Math.max(0, (scheduledMobileStartSec - now) * 1000.0),
+              });
               mobileEchoGuard.syncAudioContextPlayback(mobileOutAudioCtx.currentTime, mobileNextPlayTime);
             }
             stopMobileSpeechRecognitionVi();
@@ -2777,13 +2784,13 @@
                 sampleRate: 16000,
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true,
+                autoGainControl: false,
               },
             };
         mobileMediaStream = await navigator.mediaDevices.getUserMedia(mobileMicConstraints);
         mobileAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         const source = mobileAudioContext.createMediaStreamSource(mobileMediaStream);
-        mobileAudioProcessor = mobileAudioContext.createScriptProcessor(4096, 1, 1);
+        mobileAudioProcessor = mobileAudioContext.createScriptProcessor(1024, 1, 1);
         mobileAudioProcessor.onaudioprocess = (e) => {
           if (!isMobileListening) return;
           const rawInput = e.inputBuffer.getChannelData(0);
@@ -2805,6 +2812,8 @@
             const gate = mobileEchoGuard.evaluateMicFrame({
               rms: rms,
               frameDurationMs: (input.length / 16000.0) * 1000.0,
+              samples: input,
+              sampleRate: 16000,
             });
             if (!gate.allowSend) {
               return;

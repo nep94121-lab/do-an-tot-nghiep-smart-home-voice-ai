@@ -12,7 +12,9 @@ from __future__ import annotations
 import collections
 import difflib
 import logging
+import math
 import re
+import struct
 import time
 import unicodedata
 from typing import Deque
@@ -24,6 +26,17 @@ ECHO_SIMILARITY_THRESHOLD = 0.80
 ECHO_MIN_SUBSTRING_CHARS = 12
 ECHO_MIN_SUBSTRING_WORDS = 3
 SERVER_PLAYBACK_TAIL_SEC = 0.40
+SERVER_BARGE_IN_HOLD_SEC = 0.25
+SERVER_BARGE_IN_MIN_RMS = 0.045
+SERVER_BARGE_IN_ECHO_RATIO = 1.85
+SERVER_BARGE_IN_GAP_TOL_SEC = 0.10
+SERVER_ECHO_WARMUP_SEC = 0.34
+SERVER_ECHO_WARMUP_NEAR_RMS = 0.095
+SERVER_ECHO_CORR_SUPPRESS_RHO = 0.78
+SERVER_ECHO_CORR_LOCK_RHO = 0.76
+SERVER_REF_TARGET_SR = 2000
+SERVER_MAX_REF_SAMPLES_2K = 24000
+SERVER_MAX_SEARCH_LAG_SEC = 0.22
 
 _DEVICE_ID_VI_MAP: dict[str, str] = {
     "main_door": "cửa chính",
@@ -177,8 +190,51 @@ def compute_echo_similarity(user_norm: str, ai_norm: str) -> tuple[float, str]:
     return seq_ratio, ""
 
 
+def _pcm16_bytes_to_floats(pcm_bytes: bytes) -> list[float]:
+    n = len(pcm_bytes) // 2
+    if n <= 0:
+        return []
+    raw = struct.unpack(f"<{n}h", pcm_bytes[: n * 2])
+    inv = 1.0 / 32768.0
+    return [s * inv for s in raw]
+
+
+def _downsample_floats_to_2k(samples: list[float], sample_rate: int) -> list[float]:
+    if not samples or sample_rate <= 0:
+        return []
+    ratio = float(sample_rate) / float(SERVER_REF_TARGET_SR)
+    out_len = int(len(samples) / ratio)
+    if out_len <= 0:
+        return []
+    out: list[float] = []
+    n_in = len(samples)
+    for i in range(out_len):
+        st = int(i * ratio)
+        en = min(n_in, max(st + 1, int((i + 1) * ratio)))
+        out.append(sum(samples[st:en]) / float(en - st))
+    return out
+
+
+def _rms_floats(samples: list[float]) -> float:
+    if not samples:
+        return 0.0
+    return math.sqrt(sum(s * s for s in samples) / float(len(samples)))
+
+
+def _zcr_floats(samples: list[float]) -> float:
+    if len(samples) < 2:
+        return 0.1
+    crossings = 0
+    prev = samples[0]
+    for cur in samples[1:]:
+        if (prev >= 0.0 and cur < 0.0) or (prev < 0.0 and cur >= 0.0):
+            crossings += 1
+        prev = cur
+    return float(crossings) / float(len(samples) - 1)
+
+
 class ServerEchoGuard:
-    """Tracks recent AI spoken utterances and playback window to reject echo loops."""
+    """Tracks recent AI spoken utterances, TTS playback reference, and barge-in gate."""
 
     def __init__(
         self,
@@ -191,7 +247,14 @@ class ServerEchoGuard:
         self.similarity_threshold = float(similarity_threshold)
         self.playback_tail_sec = float(playback_tail_sec)
         self._recent_ai_utterances: Deque[tuple[float, str]] = collections.deque(maxlen=24)
+        self._ai_playback_start_ts: float = 0.0
         self._ai_playback_end_ts: float = 0.0
+        self._ref_2k: list[float] = []
+        self._ref_origin_ts: float = 0.0
+        self._locked_lag_2k: int | None = None
+        self._estimated_echo_rms: float = 0.004
+        self._barge_in_accum_sec: float = 0.0
+        self._barge_in_miss_sec: float = 0.0
 
     def _prune(self, now: float) -> None:
         cutoff = now - self.window_sec
@@ -211,25 +274,172 @@ class ServerEchoGuard:
 
     def note_ai_audio_chunk(
         self,
-        pcm_bytes_len: int,
+        pcm_bytes_len: int | bytes,
         *,
         sample_rate: int = 24000,
         bytes_per_sample: int = 2,
+        pcm_bytes: bytes | None = None,
         now: float | None = None,
     ) -> None:
-        if pcm_bytes_len <= 0 or sample_rate <= 0:
+        if isinstance(pcm_bytes_len, (bytes, bytearray)):
+            pcm_bytes = bytes(pcm_bytes_len)
+            n_bytes = len(pcm_bytes)
+        else:
+            n_bytes = int(pcm_bytes_len)
+        if n_bytes <= 0 or sample_rate <= 0:
             return
         ts = time.monotonic() if now is None else float(now)
-        duration_sec = float(pcm_bytes_len) / float(sample_rate * bytes_per_sample)
-        base = self._ai_playback_end_ts if self._ai_playback_end_ts > ts else ts
+        duration_sec = float(n_bytes) / float(sample_rate * bytes_per_sample)
+        was_playing = self._ai_playback_end_ts > ts
+        base = self._ai_playback_end_ts if was_playing else ts
+        if not was_playing:
+            self._ai_playback_start_ts = base
+            self._ref_2k = []
+            self._ref_origin_ts = base
+            self._locked_lag_2k = None
+            self._barge_in_accum_sec = 0.0
+            self._barge_in_miss_sec = 0.0
         self._ai_playback_end_ts = base + duration_sec
+        if pcm_bytes:
+            ds = _downsample_floats_to_2k(_pcm16_bytes_to_floats(pcm_bytes), sample_rate)
+            if ds:
+                if not self._ref_2k:
+                    self._ref_origin_ts = base
+                self._ref_2k.extend(ds)
+                if len(self._ref_2k) > SERVER_MAX_REF_SAMPLES_2K:
+                    drop = len(self._ref_2k) - SERVER_MAX_REF_SAMPLES_2K
+                    self._ref_2k = self._ref_2k[drop:]
+                    self._ref_origin_ts += float(drop) / float(SERVER_REF_TARGET_SR)
 
     def clear_ai_playback(self) -> None:
+        self._ai_playback_start_ts = 0.0
         self._ai_playback_end_ts = 0.0
+        self._ref_2k = []
+        self._ref_origin_ts = 0.0
+        self._locked_lag_2k = None
+        self._barge_in_accum_sec = 0.0
+        self._barge_in_miss_sec = 0.0
 
     def is_playback_or_tail_active(self, now: float | None = None) -> bool:
         ts = time.monotonic() if now is None else float(now)
         return self._ai_playback_end_ts > 0.0 and ts < (self._ai_playback_end_ts + self.playback_tail_sec)
+
+    def _compute_waveform_corr(self, mic_2k: list[float], now_ts: float) -> float | None:
+        if len(self._ref_2k) < 16 or len(mic_2k) < 8:
+            return None
+        n = len(mic_2k)
+        mic_e = sum(x * x for x in mic_2k)
+        if mic_e < 1e-9:
+            return 0.0
+        cur_idx = int(round((now_ts - self._ref_origin_ts) * float(SERVER_REF_TARGET_SR)))
+        max_lag = int(round(SERVER_MAX_SEARCH_LAG_SEC * float(SERVER_REF_TARGET_SR)))
+        best_rho = 0.0
+        best_lag = 0
+        evaluated = False
+
+        def score(lag: int) -> None:
+            nonlocal best_rho, best_lag, evaluated
+            st = cur_idx - lag
+            if st < 0 or st + n > len(self._ref_2k):
+                return
+            evaluated = True
+            ref_sl = self._ref_2k[st : st + n]
+            ref_e = sum(r * r for r in ref_sl)
+            if ref_e < 1e-9:
+                return
+            dot = sum(mic_2k[j] * ref_sl[j] for j in range(n))
+            rho = abs(dot) / math.sqrt(mic_e * ref_e)
+            if rho > best_rho:
+                best_rho = rho
+                best_lag = lag
+
+        if self._locked_lag_2k is not None:
+            lo = max(0, self._locked_lag_2k - 10)
+            hi = min(max_lag, self._locked_lag_2k + 10)
+            for lag in range(lo, hi + 1):
+                score(lag)
+        if self._locked_lag_2k is None or best_rho < 0.55:
+            for lag in range(0, max_lag + 1, 2):
+                score(lag)
+            if best_rho > 0.25:
+                score(max(0, best_lag - 1))
+                score(min(max_lag, best_lag + 1))
+
+        if not evaluated:
+            return None
+        if best_rho >= SERVER_ECHO_CORR_LOCK_RHO:
+            self._locked_lag_2k = best_lag
+        return min(1.0, best_rho)
+
+    def evaluate_mic_audio_chunk(
+        self,
+        pcm16k_bytes: bytes,
+        *,
+        is_barge_in_hint: bool = False,
+        sample_rate: int = 16000,
+        now: float | None = None,
+    ) -> tuple[bool, bool, str]:
+        """Server-side audio echo/barge-in gate synced with client VoiceEchoGuard.
+
+        Returns (allow_send, barge_in_triggered, reason).
+        """
+        ts = time.monotonic() if now is None else float(now)
+        if is_barge_in_hint:
+            self.clear_ai_playback()
+            return True, True, "client_barge_in"
+        if not self.is_playback_or_tail_active(now=ts):
+            self._barge_in_accum_sec = 0.0
+            self._barge_in_miss_sec = 0.0
+            return True, False, "idle"
+
+        samples = _pcm16_bytes_to_floats(pcm16k_bytes)
+        if not samples:
+            return False, False, "empty_during_playback"
+
+        sub_len = max(1, int(round(sample_rate * 0.02)))
+        total_dur = float(len(samples)) / float(max(1, sample_rate))
+        num_subs = max(1, len(samples) // sub_len)
+        is_playing = ts < self._ai_playback_end_ts
+
+        for k in range(num_subs):
+            st = k * sub_len
+            en = len(samples) if k == num_subs - 1 else (k + 1) * sub_len
+            sub = samples[st:en]
+            sub_dur = float(len(sub)) / float(max(1, sample_rate))
+            sub_ts = ts - total_dur + float(en) / float(max(1, sample_rate))
+            rms = _rms_floats(sub)
+            zcr = _zcr_floats(sub)
+            speech_like = 0.006 <= zcr <= 0.48
+
+            rho = self._compute_waveform_corr(_downsample_floats_to_2k(sub, sample_rate), sub_ts)
+            if rho is not None:
+                near_rms = rms * math.sqrt(max(0.0, 1.0 - rho * rho))
+                in_warmup = self._ai_playback_start_ts > 0.0 and (sub_ts - self._ai_playback_start_ts) < SERVER_ECHO_WARMUP_SEC
+                if in_warmup:
+                    is_near = speech_like and rho < 0.65 and near_rms >= max(SERVER_BARGE_IN_MIN_RMS * 2.0, SERVER_ECHO_WARMUP_NEAR_RMS)
+                else:
+                    is_near = speech_like and rho < SERVER_ECHO_CORR_SUPPRESS_RHO and near_rms >= SERVER_BARGE_IN_MIN_RMS and rms >= SERVER_BARGE_IN_MIN_RMS
+            else:
+                thr = max(SERVER_BARGE_IN_MIN_RMS, self._estimated_echo_rms * SERVER_BARGE_IN_ECHO_RATIO)
+                is_near = speech_like and rms >= thr
+                if not is_near and is_playing and self._barge_in_accum_sec <= 0.0 and rms < thr * 0.85:
+                    alpha = 0.12 if rms > self._estimated_echo_rms else 0.20
+                    self._estimated_echo_rms = min(0.075, max(0.004, self._estimated_echo_rms * (1.0 - alpha) + rms * alpha))
+
+            if is_near:
+                self._barge_in_accum_sec += sub_dur
+                self._barge_in_miss_sec = 0.0
+                if self._barge_in_accum_sec >= SERVER_BARGE_IN_HOLD_SEC:
+                    self.clear_ai_playback()
+                    return True, True, "server_barge_in_triggered"
+            else:
+                if self._barge_in_accum_sec > 0.0:
+                    self._barge_in_miss_sec += sub_dur
+                    if self._barge_in_miss_sec > SERVER_BARGE_IN_GAP_TOL_SEC:
+                        self._barge_in_accum_sec = 0.0
+                        self._barge_in_miss_sec = 0.0
+
+        return False, False, "echo_suppressed_during_playback"
 
     def check_echo_transcript(
         self,
