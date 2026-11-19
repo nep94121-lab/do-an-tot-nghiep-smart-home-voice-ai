@@ -19,14 +19,15 @@
 
   const ECHO_TAIL_HOLD_MS = 400;
   const BARGE_IN_HOLD_MS = 250;
-  const BARGE_IN_MIN_RMS = 0.045;
+  const BARGE_IN_MIN_RMS = 0.038;
   const BARGE_IN_ECHO_RATIO = 1.85;
   const BARGE_IN_FLOOR_RATIO = 3.0;
-  const BARGE_IN_GAP_TOLERANCE_MS = 100;
+  const BARGE_IN_GAP_TOLERANCE_MS = 140;
   const ECHO_WARMUP_MS = 340;
   const ECHO_WARMUP_NEAR_RMS = 0.095;
-  const ECHO_CORR_SUPPRESS_RHO = 0.78;
-  const ECHO_CORR_LOCK_RHO = 0.76;
+  const ECHO_CORR_SUPPRESS_RHO = 0.76;
+  const ECHO_CORR_LOCK_RHO = 0.72;
+  const ECHO_ENV_HISTORY_LEN = 12;
   const ECHO_LEVEL_DECAY = 0.80;
   const ECHO_LEVEL_ATTACK = 0.12;
   const AMBIENT_FLOOR_ALPHA = 0.08;
@@ -35,7 +36,7 @@
   const ECHO_LEVEL_MAX = 0.075;
   const REF_TARGET_SR = 2000;
   const MAX_REF_SAMPLES_2K = 24000; // 12 seconds @ 2kHz
-  const MAX_SEARCH_LAG_MS = 220;
+  const MAX_SEARCH_LAG_MS = 300;
   const SUBFRAME_MS = 20;
 
   const STANDARD_MIC_AUDIO_CONSTRAINTS = Object.freeze({
@@ -108,6 +109,43 @@
     return out;
   }
 
+  function computeSpectralMagnitudeCorrelation(mic2k, ref2k, refStart, n) {
+    if (!mic2k || !ref2k || n < 16 || refStart < 0 || refStart + n > ref2k.length) {
+      return 0;
+    }
+    const maxBin = Math.min(17, Math.floor(n / 2));
+    if (maxBin <= 2) return 0;
+    const twoPiOverN = (2.0 * Math.PI) / n;
+    let mEnergy = 0;
+    let rEnergy = 0;
+    let dot = 0;
+    for (let k = 2; k < maxBin; k++) {
+      let mRe = 0;
+      let mIm = 0;
+      let rRe = 0;
+      let rIm = 0;
+      for (let i = 0; i < n; i++) {
+        const w = 0.5 * (1.0 - Math.cos(twoPiOverN * i));
+        const ang = twoPiOverN * k * i;
+        const ca = Math.cos(ang);
+        const sa = Math.sin(ang);
+        const mv = mic2k[i] * w;
+        const rv = ref2k[refStart + i] * w;
+        mRe += mv * ca;
+        mIm -= mv * sa;
+        rRe += rv * ca;
+        rIm -= rv * sa;
+      }
+      const mMag = Math.sqrt(mRe * mRe + mIm * mIm);
+      const rMag = Math.sqrt(rRe * rRe + rIm * rIm);
+      mEnergy += mMag * mMag;
+      rEnergy += rMag * rMag;
+      dot += mMag * rMag;
+    }
+    if (mEnergy < 1e-12 || rEnergy < 1e-12) return 0;
+    return Math.min(1.0, dot / Math.sqrt(mEnergy * rEnergy));
+  }
+
   function createVoiceEchoGuard(options) {
     const opts = options || {};
     const tailHoldMs = Number.isFinite(opts.tailHoldMs) ? Number(opts.tailHoldMs) : ECHO_TAIL_HOLD_MS;
@@ -132,7 +170,14 @@
     let ref2kSamples = [];
     let ref2kOriginMs = 0;
     let lockedLag2k = null;
+    let lockHits = 0;
+    let echoGainEst = 0;
+    let envHistMic = [];
+    let envHistRef = [];
     let lastRho = 0;
+    let lastAbsRho = 0;
+    let lastSpecRho = 0;
+    let lastEnvRho = 0;
 
     function resolveNow(nowMs) {
       if (Number.isFinite(nowMs)) return Number(nowMs);
@@ -146,7 +191,14 @@
       ref2kSamples = [];
       ref2kOriginMs = originMs;
       lockedLag2k = null;
+      lockHits = 0;
+      echoGainEst = 0;
+      envHistMic = [];
+      envHistRef = [];
       lastRho = 0;
+      lastAbsRho = 0;
+      lastSpecRho = 0;
+      lastEnvRho = 0;
     }
 
     function appendReferenceAudio(refAudio, scheduledStartMs) {
@@ -309,13 +361,15 @@
         micE += mic2k[j] * mic2k[j];
       }
       if (micE < 1e-9) {
-        return { rho: 0, refRms: 0 };
+        return { rho: 0, absRho: 0, specRho: 0, envRho: 0, refRms: 0 };
       }
 
       const curIdx = Math.round(((now - ref2kOriginMs) * REF_TARGET_SR) / 1000.0);
       const maxLagSamples = Math.round((MAX_SEARCH_LAG_MS * REF_TARGET_SR) / 1000.0);
       let bestRho = 0;
+      let bestAbsRho = 0;
       let bestLag = 0;
+      let bestSt = -1;
       let bestRefRms = 0;
       let evaluatedAny = false;
 
@@ -325,23 +379,29 @@
         evaluatedAny = true;
         let refE = 0;
         let dot = 0;
+        let absDot = 0;
         for (let j = 0; j < n; j++) {
           const r = ref2kSamples[st + j];
+          const m = mic2k[j];
           refE += r * r;
-          dot += mic2k[j] * r;
+          dot += m * r;
+          absDot += Math.abs(m) * Math.abs(r);
         }
         if (refE < 1e-9) return;
-        const rho = Math.abs(dot) / Math.sqrt(micE * refE);
+        const denom = Math.sqrt(micE * refE);
+        const rho = Math.abs(dot) / denom;
         if (rho > bestRho) {
           bestRho = rho;
+          bestAbsRho = absDot / denom;
           bestLag = lag;
+          bestSt = st;
           bestRefRms = Math.sqrt(refE / n);
         }
       }
 
       if (lockedLag2k !== null) {
-        const lo = Math.max(0, lockedLag2k - 10);
-        const hi = Math.min(maxLagSamples, lockedLag2k + 10);
+        const lo = Math.max(0, lockedLag2k - 14);
+        const hi = Math.min(maxLagSamples, lockedLag2k + 14);
         for (let lag = lo; lag <= hi; lag++) {
           scoreLag(lag);
         }
@@ -359,10 +419,80 @@
       if (!evaluatedAny) {
         return null;
       }
+
+      let specRho = bestSt >= 0
+        ? computeSpectralMagnitudeCorrelation(mic2k, ref2kSamples, bestSt, n)
+        : 0;
+
       if (bestRho >= ECHO_CORR_LOCK_RHO) {
-        lockedLag2k = bestLag;
+        lockedLag2k = lockedLag2k === null
+          ? bestLag
+          : Math.round(lockedLag2k * 0.6 + bestLag * 0.4);
+        lockHits = Math.min(20, lockHits + 1);
       }
-      return { rho: Math.min(1.0, bestRho), refRms: bestRefRms };
+
+      const mic2kRms = Math.sqrt(micE / n);
+      let refEnvRms = bestRefRms;
+      if (lockedLag2k !== null) {
+        const lst = curIdx - lockedLag2k;
+        if (lst >= 0 && lst + n <= ref2kSamples.length) {
+          let lRefE = 0;
+          let lAbsDot = 0;
+          for (let j = 0; j < n; j++) {
+            const r = ref2kSamples[lst + j];
+            lRefE += r * r;
+            lAbsDot += Math.abs(mic2k[j]) * Math.abs(r);
+          }
+          refEnvRms = Math.sqrt(lRefE / n);
+          if (lRefE >= 1e-9) {
+            const lAbsRho = lAbsDot / Math.sqrt(micE * lRefE);
+            if (lAbsRho > bestAbsRho) bestAbsRho = lAbsRho;
+          }
+          const lSpecRho = computeSpectralMagnitudeCorrelation(mic2k, ref2kSamples, lst, n);
+          if (lSpecRho > specRho) specRho = lSpecRho;
+        }
+      }
+
+      envHistMic.push(mic2kRms);
+      envHistRef.push(refEnvRms);
+      if (envHistMic.length > ECHO_ENV_HISTORY_LEN) {
+        envHistMic.shift();
+        envHistRef.shift();
+      }
+
+      let envRho = 0;
+      if (envHistMic.length >= 6) {
+        const len = envHistMic.length;
+        let meanM = 0;
+        let meanR = 0;
+        for (let i = 0; i < len; i++) {
+          meanM += envHistMic[i];
+          meanR += envHistRef[i];
+        }
+        meanM /= len;
+        meanR /= len;
+        let varM = 0;
+        let varR = 0;
+        let cov = 0;
+        for (let i = 0; i < len; i++) {
+          const dm = envHistMic[i] - meanM;
+          const dr = envHistRef[i] - meanR;
+          varM += dm * dm;
+          varR += dr * dr;
+          cov += dm * dr;
+        }
+        if (varM > 1e-9 && varR > 1e-9) {
+          envRho = Math.max(0, cov / Math.sqrt(varM * varR));
+        }
+      }
+
+      return {
+        rho: Math.min(1.0, bestRho),
+        absRho: Math.min(1.0, bestAbsRho),
+        specRho: Math.min(1.0, specRho),
+        envRho: Math.min(1.0, envRho),
+        refRms: refEnvRms,
+      };
     }
 
     function evaluateSingleSubframe(rms, frameDurationMs, now, subSamples, sampleRate, isInt16) {
@@ -388,27 +518,67 @@
           if (corrRes !== null) {
             usedRefCorr = true;
             rho = corrRes.rho;
+            const absRho = corrRes.absRho;
+            const specRho = corrRes.specRho;
+            const envRho = corrRes.envRho;
+            const refRms = corrRes.refRms;
             lastRho = rho;
-            // Orthogonal projection residual: invariant to browser AGC gain scaling
-            nearRms = rms * Math.sqrt(Math.max(0, 1.0 - rho * rho));
+            lastAbsRho = absRho;
+            lastSpecRho = specRho;
+            lastEnvRho = envRho;
+
+            if (rho >= ECHO_CORR_LOCK_RHO && refRms > 0.02 && rms > 0.01) {
+              const g = rms / refRms;
+              echoGainEst = echoGainEst <= 0
+                ? Math.min(3.5, g)
+                : Math.min(3.5, echoGainEst * 0.85 + g * 0.15);
+            }
+
+            const expectedEcho = (lockedLag2k !== null && lockHits >= 2 && echoGainEst > 0 && refRms > 0.015)
+              ? echoGainEst * refRms
+              : 0;
+            const withinExpectedEcho = expectedEcho > 0 && rms <= expectedEcho * 1.65;
+
+            const echoMatched =
+              rho >= ECHO_CORR_SUPPRESS_RHO ||
+              (rho >= 0.54 && specRho >= 0.91) ||
+              (rho >= 0.62 && absRho >= 0.83 && specRho >= 0.84) ||
+              (withinExpectedEcho && rho >= 0.54 && absRho >= 0.78) ||
+              (withinExpectedEcho && rho >= 0.54 && specRho >= 0.80 && envRho >= 0.25) ||
+              (withinExpectedEcho && absRho >= 0.82 && specRho >= 0.84 && envRho >= 0.65 && rho >= 0.42) ||
+              (lockedLag2k !== null && lockHits >= 2 && specRho >= 0.90 && envRho >= 0.75 && absRho >= 0.82 && rho >= 0.45);
+
+            const effRho = Math.max(
+              rho,
+              (withinExpectedEcho && rho >= 0.50 && absRho >= 0.78) ? absRho * 0.86 : 0
+            );
+            nearRms = rms * Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, effRho) * Math.min(1.0, effRho)));
             const inWarmup = playbackStartMs > 0 && (now - playbackStartMs) < warmupMs;
-            if (inWarmup) {
-              isNearEnd = speechLikeVad && rho < 0.65 && nearRms >= Math.max(bargeInMinRms * 2.0, ECHO_WARMUP_NEAR_RMS);
+            if (playbackStartMs > 0 && now < playbackStartMs) {
+              isNearEnd = false;
+            } else if (inWarmup) {
+              isNearEnd = speechLikeVad && !echoMatched && rho < 0.62 && nearRms >= Math.max(bargeInMinRms * 2.0, ECHO_WARMUP_NEAR_RMS);
             } else {
+              const adaptiveNearMin = Math.max(bargeInMinRms, Math.min(0.085, expectedEcho * 0.35));
               const floorThr = Math.max(bargeInMinRms, ambientNoiseFloorRms * bargeInFloorRatio);
-              isNearEnd = speechLikeVad && rho < ECHO_CORR_SUPPRESS_RHO && nearRms >= bargeInMinRms && rms >= floorThr;
+              isNearEnd = speechLikeVad && !echoMatched && nearRms >= adaptiveNearMin && rms >= floorThr;
             }
           }
         }
 
         if (!usedRefCorr) {
-          isNearEnd = speechLikeVad && rms >= threshold;
-          if (!isNearEnd && pbState.isPlaying && bargeInAccumMs === 0 && rms < threshold * 0.85) {
-            const alpha = rms > estimatedEchoRms ? ECHO_LEVEL_ATTACK : (1.0 - ECHO_LEVEL_DECAY);
-            estimatedEchoRms = Math.min(
-              ECHO_LEVEL_MAX,
-              Math.max(ECHO_LEVEL_MIN, estimatedEchoRms * (1.0 - alpha) + rms * alpha)
-            );
+          const inWarmupNoCorr = playbackStartMs > 0 && (now - playbackStartMs) < warmupMs;
+          if (ref2kSamples.length >= 16 && (now < playbackStartMs || inWarmupNoCorr)) {
+            isNearEnd = false;
+          } else {
+            isNearEnd = speechLikeVad && rms >= threshold;
+            if (!isNearEnd && pbState.isPlaying && bargeInAccumMs === 0 && rms < threshold * 0.85) {
+              const alpha = rms > estimatedEchoRms ? ECHO_LEVEL_ATTACK : (1.0 - ECHO_LEVEL_DECAY);
+              estimatedEchoRms = Math.min(
+                ECHO_LEVEL_MAX,
+                Math.max(ECHO_LEVEL_MIN, estimatedEchoRms * (1.0 - alpha) + rms * alpha)
+              );
+            }
           }
         }
 
@@ -545,7 +715,12 @@
         bargeInActive: bargeInActive,
         bargeInThreshold: computeBargeInThreshold(),
         lockedLag2k: lockedLag2k,
+        lockHits: lockHits,
+        echoGainEst: echoGainEst,
         lastRho: lastRho,
+        lastAbsRho: lastAbsRho,
+        lastSpecRho: lastSpecRho,
+        lastEnvRho: lastEnvRho,
       };
     }
 

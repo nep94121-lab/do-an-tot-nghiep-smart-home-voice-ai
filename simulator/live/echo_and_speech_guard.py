@@ -27,16 +27,17 @@ ECHO_MIN_SUBSTRING_CHARS = 12
 ECHO_MIN_SUBSTRING_WORDS = 3
 SERVER_PLAYBACK_TAIL_SEC = 0.40
 SERVER_BARGE_IN_HOLD_SEC = 0.25
-SERVER_BARGE_IN_MIN_RMS = 0.045
+SERVER_BARGE_IN_MIN_RMS = 0.038
 SERVER_BARGE_IN_ECHO_RATIO = 1.85
-SERVER_BARGE_IN_GAP_TOL_SEC = 0.10
+SERVER_BARGE_IN_GAP_TOL_SEC = 0.14
 SERVER_ECHO_WARMUP_SEC = 0.34
 SERVER_ECHO_WARMUP_NEAR_RMS = 0.095
-SERVER_ECHO_CORR_SUPPRESS_RHO = 0.78
-SERVER_ECHO_CORR_LOCK_RHO = 0.76
+SERVER_ECHO_CORR_SUPPRESS_RHO = 0.76
+SERVER_ECHO_CORR_LOCK_RHO = 0.72
+SERVER_ECHO_ENV_HISTORY_LEN = 12
 SERVER_REF_TARGET_SR = 2000
 SERVER_MAX_REF_SAMPLES_2K = 24000
-SERVER_MAX_SEARCH_LAG_SEC = 0.22
+SERVER_MAX_SEARCH_LAG_SEC = 0.30
 
 _DEVICE_ID_VI_MAP: dict[str, str] = {
     "main_door": "cửa chính",
@@ -233,6 +234,44 @@ def _zcr_floats(samples: list[float]) -> float:
     return float(crossings) / float(len(samples) - 1)
 
 
+def _spectral_mag_corr(mic_2k: list[float], ref_sl: list[float]) -> float:
+    """Phase-invariant Hann-windowed DFT magnitude cosine similarity (100-800 Hz @ 2 kHz)."""
+    n = min(len(mic_2k), len(ref_sl))
+    if n < 16:
+        return 0.0
+    max_bin = min(17, n // 2)
+    if max_bin <= 2:
+        return 0.0
+    two_pi_n = (2.0 * math.pi) / float(n)
+    m_energy = 0.0
+    r_energy = 0.0
+    dot = 0.0
+    for k in range(2, max_bin):
+        m_re = 0.0
+        m_im = 0.0
+        r_re = 0.0
+        r_im = 0.0
+        for i in range(n):
+            w = 0.5 * (1.0 - math.cos(two_pi_n * i))
+            ang = two_pi_n * k * i
+            ca = math.cos(ang)
+            sa = math.sin(ang)
+            mv = mic_2k[i] * w
+            rv = ref_sl[i] * w
+            m_re += mv * ca
+            m_im -= mv * sa
+            r_re += rv * ca
+            r_im -= rv * sa
+        m_mag = math.sqrt(m_re * m_re + m_im * m_im)
+        r_mag = math.sqrt(r_re * r_re + r_im * r_im)
+        m_energy += m_mag * m_mag
+        r_energy += r_mag * r_mag
+        dot += m_mag * r_mag
+    if m_energy < 1e-12 or r_energy < 1e-12:
+        return 0.0
+    return min(1.0, dot / math.sqrt(m_energy * r_energy))
+
+
 class ServerEchoGuard:
     """Tracks recent AI spoken utterances, TTS playback reference, and barge-in gate."""
 
@@ -252,6 +291,10 @@ class ServerEchoGuard:
         self._ref_2k: list[float] = []
         self._ref_origin_ts: float = 0.0
         self._locked_lag_2k: int | None = None
+        self._lock_hits: int = 0
+        self._echo_gain_est: float = 0.0
+        self._env_hist_mic: list[float] = []
+        self._env_hist_ref: list[float] = []
         self._estimated_echo_rms: float = 0.004
         self._barge_in_accum_sec: float = 0.0
         self._barge_in_miss_sec: float = 0.0
@@ -297,6 +340,10 @@ class ServerEchoGuard:
             self._ref_2k = []
             self._ref_origin_ts = base
             self._locked_lag_2k = None
+            self._lock_hits = 0
+            self._echo_gain_est = 0.0
+            self._env_hist_mic = []
+            self._env_hist_ref = []
             self._barge_in_accum_sec = 0.0
             self._barge_in_miss_sec = 0.0
         self._ai_playback_end_ts = base + duration_sec
@@ -317,6 +364,10 @@ class ServerEchoGuard:
         self._ref_2k = []
         self._ref_origin_ts = 0.0
         self._locked_lag_2k = None
+        self._lock_hits = 0
+        self._echo_gain_est = 0.0
+        self._env_hist_mic = []
+        self._env_hist_ref = []
         self._barge_in_accum_sec = 0.0
         self._barge_in_miss_sec = 0.0
 
@@ -324,21 +375,24 @@ class ServerEchoGuard:
         ts = time.monotonic() if now is None else float(now)
         return self._ai_playback_end_ts > 0.0 and ts < (self._ai_playback_end_ts + self.playback_tail_sec)
 
-    def _compute_waveform_corr(self, mic_2k: list[float], now_ts: float) -> float | None:
+    def _compute_waveform_corr(self, mic_2k: list[float], now_ts: float) -> dict[str, float] | None:
         if len(self._ref_2k) < 16 or len(mic_2k) < 8:
             return None
         n = len(mic_2k)
         mic_e = sum(x * x for x in mic_2k)
         if mic_e < 1e-9:
-            return 0.0
+            return {"rho": 0.0, "abs_rho": 0.0, "spec_rho": 0.0, "env_rho": 0.0, "ref_rms": 0.0}
         cur_idx = int(round((now_ts - self._ref_origin_ts) * float(SERVER_REF_TARGET_SR)))
         max_lag = int(round(SERVER_MAX_SEARCH_LAG_SEC * float(SERVER_REF_TARGET_SR)))
         best_rho = 0.0
+        best_abs_rho = 0.0
         best_lag = 0
+        best_st = -1
+        best_ref_rms = 0.0
         evaluated = False
 
         def score(lag: int) -> None:
-            nonlocal best_rho, best_lag, evaluated
+            nonlocal best_rho, best_abs_rho, best_lag, best_st, best_ref_rms, evaluated
             st = cur_idx - lag
             if st < 0 or st + n > len(self._ref_2k):
                 return
@@ -348,14 +402,18 @@ class ServerEchoGuard:
             if ref_e < 1e-9:
                 return
             dot = sum(mic_2k[j] * ref_sl[j] for j in range(n))
-            rho = abs(dot) / math.sqrt(mic_e * ref_e)
+            denom = math.sqrt(mic_e * ref_e)
+            rho = abs(dot) / denom
             if rho > best_rho:
                 best_rho = rho
+                best_abs_rho = sum(abs(mic_2k[j]) * abs(ref_sl[j]) for j in range(n)) / denom
                 best_lag = lag
+                best_st = st
+                best_ref_rms = math.sqrt(ref_e / float(n))
 
         if self._locked_lag_2k is not None:
-            lo = max(0, self._locked_lag_2k - 10)
-            hi = min(max_lag, self._locked_lag_2k + 10)
+            lo = max(0, self._locked_lag_2k - 14)
+            hi = min(max_lag, self._locked_lag_2k + 14)
             for lag in range(lo, hi + 1):
                 score(lag)
         if self._locked_lag_2k is None or best_rho < 0.55:
@@ -367,9 +425,61 @@ class ServerEchoGuard:
 
         if not evaluated:
             return None
+
+        spec_rho = (
+            _spectral_mag_corr(mic_2k, self._ref_2k[best_st : best_st + n])
+            if best_st >= 0 and best_st + n <= len(self._ref_2k)
+            else 0.0
+        )
+
         if best_rho >= SERVER_ECHO_CORR_LOCK_RHO:
-            self._locked_lag_2k = best_lag
-        return min(1.0, best_rho)
+            if self._locked_lag_2k is None:
+                self._locked_lag_2k = best_lag
+            else:
+                self._locked_lag_2k = int(round(self._locked_lag_2k * 0.6 + best_lag * 0.4))
+            self._lock_hits = min(20, self._lock_hits + 1)
+
+        mic_2k_rms = math.sqrt(mic_e / float(n))
+        ref_env_rms = best_ref_rms
+        if self._locked_lag_2k is not None:
+            lst = cur_idx - self._locked_lag_2k
+            if 0 <= lst and lst + n <= len(self._ref_2k):
+                lref = self._ref_2k[lst : lst + n]
+                lref_e = sum(r * r for r in lref)
+                ref_env_rms = math.sqrt(lref_e / float(n))
+                if lref_e >= 1e-9:
+                    labs = sum(abs(mic_2k[j]) * abs(lref[j]) for j in range(n)) / math.sqrt(mic_e * lref_e)
+                    if labs > best_abs_rho:
+                        best_abs_rho = labs
+                lspec = _spectral_mag_corr(mic_2k, lref)
+                if lspec > spec_rho:
+                    spec_rho = lspec
+
+        self._env_hist_mic.append(mic_2k_rms)
+        self._env_hist_ref.append(ref_env_rms)
+        if len(self._env_hist_mic) > SERVER_ECHO_ENV_HISTORY_LEN:
+            self._env_hist_mic.pop(0)
+            self._env_hist_ref.pop(0)
+
+        env_rho = 0.0
+        if len(self._env_hist_mic) >= 6:
+            hm = self._env_hist_mic
+            hr = self._env_hist_ref
+            mean_m = sum(hm) / float(len(hm))
+            mean_r = sum(hr) / float(len(hr))
+            var_m = sum((x - mean_m) ** 2 for x in hm)
+            var_r = sum((x - mean_r) ** 2 for x in hr)
+            if var_m > 1e-9 and var_r > 1e-9:
+                cov = sum((hm[i] - mean_m) * (hr[i] - mean_r) for i in range(len(hm)))
+                env_rho = max(0.0, cov / math.sqrt(var_m * var_r))
+
+        return {
+            "rho": min(1.0, best_rho),
+            "abs_rho": min(1.0, best_abs_rho),
+            "spec_rho": min(1.0, spec_rho),
+            "env_rho": min(1.0, env_rho),
+            "ref_rms": ref_env_rms,
+        }
 
     def evaluate_mic_audio_chunk(
         self,
@@ -411,20 +521,58 @@ class ServerEchoGuard:
             zcr = _zcr_floats(sub)
             speech_like = 0.006 <= zcr <= 0.48
 
-            rho = self._compute_waveform_corr(_downsample_floats_to_2k(sub, sample_rate), sub_ts)
-            if rho is not None:
-                near_rms = rms * math.sqrt(max(0.0, 1.0 - rho * rho))
+            corr = self._compute_waveform_corr(_downsample_floats_to_2k(sub, sample_rate), sub_ts)
+            if corr is not None:
+                rho = corr["rho"]
+                abs_rho = corr["abs_rho"]
+                spec_rho = corr["spec_rho"]
+                env_rho = corr["env_rho"]
+                ref_rms = corr["ref_rms"]
+
+                if rho >= SERVER_ECHO_CORR_LOCK_RHO and ref_rms > 0.02 and rms > 0.01:
+                    g = rms / ref_rms
+                    if self._echo_gain_est <= 0.0:
+                        self._echo_gain_est = min(3.5, g)
+                    else:
+                        self._echo_gain_est = min(3.5, self._echo_gain_est * 0.85 + g * 0.15)
+
+                expected_echo = (
+                    self._echo_gain_est * ref_rms
+                    if (self._locked_lag_2k is not None and self._lock_hits >= 2 and self._echo_gain_est > 0.0 and ref_rms > 0.015)
+                    else 0.0
+                )
+                within_expected_echo = expected_echo > 0.0 and rms <= expected_echo * 1.65
+
+                echo_matched = (
+                    rho >= SERVER_ECHO_CORR_SUPPRESS_RHO
+                    or (rho >= 0.54 and spec_rho >= 0.91)
+                    or (rho >= 0.62 and abs_rho >= 0.83 and spec_rho >= 0.84)
+                    or (within_expected_echo and rho >= 0.54 and abs_rho >= 0.78)
+                    or (within_expected_echo and rho >= 0.54 and spec_rho >= 0.80 and env_rho >= 0.25)
+                    or (within_expected_echo and abs_rho >= 0.82 and spec_rho >= 0.84 and env_rho >= 0.65 and rho >= 0.42)
+                    or (self._locked_lag_2k is not None and self._lock_hits >= 2 and spec_rho >= 0.90 and env_rho >= 0.75 and abs_rho >= 0.82 and rho >= 0.45)
+                )
+
+                eff_rho = max(rho, abs_rho * 0.86 if (within_expected_echo and rho >= 0.50 and abs_rho >= 0.78) else 0.0)
+                near_rms = rms * math.sqrt(max(0.0, 1.0 - min(1.0, eff_rho) ** 2))
                 in_warmup = self._ai_playback_start_ts > 0.0 and (sub_ts - self._ai_playback_start_ts) < SERVER_ECHO_WARMUP_SEC
-                if in_warmup:
-                    is_near = speech_like and rho < 0.65 and near_rms >= max(SERVER_BARGE_IN_MIN_RMS * 2.0, SERVER_ECHO_WARMUP_NEAR_RMS)
+                if self._ai_playback_start_ts > 0.0 and sub_ts < self._ai_playback_start_ts:
+                    is_near = False
+                elif in_warmup:
+                    is_near = speech_like and (not echo_matched) and rho < 0.62 and near_rms >= max(SERVER_BARGE_IN_MIN_RMS * 2.0, SERVER_ECHO_WARMUP_NEAR_RMS)
                 else:
-                    is_near = speech_like and rho < SERVER_ECHO_CORR_SUPPRESS_RHO and near_rms >= SERVER_BARGE_IN_MIN_RMS and rms >= SERVER_BARGE_IN_MIN_RMS
+                    adaptive_near_min = max(SERVER_BARGE_IN_MIN_RMS, min(0.085, expected_echo * 0.35))
+                    is_near = speech_like and (not echo_matched) and near_rms >= adaptive_near_min and rms >= SERVER_BARGE_IN_MIN_RMS
             else:
-                thr = max(SERVER_BARGE_IN_MIN_RMS, self._estimated_echo_rms * SERVER_BARGE_IN_ECHO_RATIO)
-                is_near = speech_like and rms >= thr
-                if not is_near and is_playing and self._barge_in_accum_sec <= 0.0 and rms < thr * 0.85:
-                    alpha = 0.12 if rms > self._estimated_echo_rms else 0.20
-                    self._estimated_echo_rms = min(0.075, max(0.004, self._estimated_echo_rms * (1.0 - alpha) + rms * alpha))
+                in_warmup_nc = self._ai_playback_start_ts > 0.0 and (sub_ts - self._ai_playback_start_ts) < SERVER_ECHO_WARMUP_SEC
+                if len(self._ref_2k) >= 16 and (sub_ts < self._ai_playback_start_ts or in_warmup_nc):
+                    is_near = False
+                else:
+                    thr = max(SERVER_BARGE_IN_MIN_RMS, self._estimated_echo_rms * SERVER_BARGE_IN_ECHO_RATIO)
+                    is_near = speech_like and rms >= thr
+                    if not is_near and is_playing and self._barge_in_accum_sec <= 0.0 and rms < thr * 0.85:
+                        alpha = 0.12 if rms > self._estimated_echo_rms else 0.20
+                        self._estimated_echo_rms = min(0.075, max(0.004, self._estimated_echo_rms * (1.0 - alpha) + rms * alpha))
 
             if is_near:
                 self._barge_in_accum_sec += sub_dur
