@@ -510,10 +510,10 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
         )
 
     from simulator.api.routes_automation import stage_or_execute_rest_confirmation
-    from simulator.automation_repo import format_device_action_vi
+    from simulator.automation_repo import format_device_action_vi, format_duration_vi
 
     sec_i = max(1, int(round(sec)))
-    summary = f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}"
+    summary = f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(dev_id, act).lower()}"
     return await stage_or_execute_rest_confirmation(
         request=request,
         sess=session,
@@ -912,7 +912,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         if seconds <= 0 and minutes <= 0 and hours <= 0:
             seconds = 10.0
         from simulator.automation_nlu import prepare_pending_mutation
-        from simulator.automation_repo import check_tier1_schedule_conflict, format_device_action_vi
+        from simulator.automation_repo import check_tier1_schedule_conflict, format_device_action_vi, format_duration_vi
 
         total_sec = hours * 3600.0 + minutes * 60.0 + seconds
         conflict_msg = check_tier1_schedule_conflict(
@@ -946,7 +946,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 "seconds": seconds,
                 "repeat": "once",
             },
-            prompt_summary=f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}",
+            prompt_summary=f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(dev_id, act).lower()}",
         )
         await broadcast_rest_state_to_bridges()
         return JSONResponse(staged["payload"], status_code=int(staged.get("status_code") or 200))

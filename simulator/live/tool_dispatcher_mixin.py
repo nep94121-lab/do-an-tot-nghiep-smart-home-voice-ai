@@ -29,6 +29,7 @@ from simulator.automation_repo import (
     check_tier1_schedule_conflict,
     find_custom_command_by_text,
     format_device_action_vi,
+    format_duration_vi,
     resolve_target_user_by_query,
 )
 from simulator.live.prompt_builder import FIXED_REJECTION_PHRASE_VI
@@ -815,7 +816,8 @@ class LiveToolDispatcherMixin:
             return res_ctrl
 
         if name in ("confirm_or_cancel_pending_action", "confirm_pending_action", "confirm_factory_reset"):
-            confirmed = bool(args.get("confirmed", True))
+            raw_confirmed = args.get("confirmed") if isinstance(args, dict) and "confirmed" in args else None
+            confirmed = raw_confirmed is True
             conf_res = await handle_confirmation_reply(
                 raw_text=("xác nhận" if confirmed else "hủy"),
                 engine=self.engine,
@@ -1103,7 +1105,7 @@ class LiveToolDispatcherMixin:
                 session_key=live_session_key,
                 action_kind="create_timer",
                 payload={"device_id": dev_id, "action": act, "seconds": total_sec},
-                prompt_summary=f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(dev_id, act).lower()}",
+                prompt_summary=f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(dev_id, act).lower()}",
             )
             return self._wrap_nlu_tool_result(nlu_res)
 

@@ -130,6 +130,25 @@ def normalize_phrase(phrase: str) -> str:
     return " ".join("".join(out).split())
 
 
+def format_duration_vi(total_sec: float) -> str:
+    """Humanize a duration in seconds to natural Vietnamese (e.g., 600 -> '10 phút', 90 -> '1 phút 30 giây')."""
+    try:
+        s = int(round(max(0.0, float(total_sec))))
+    except (TypeError, ValueError):
+        s = 0
+    h = s // 3600
+    m = (s % 3600) // 60
+    sec = s % 60
+    parts: list[str] = []
+    if h > 0:
+        parts.append(f"{h} giờ")
+    if m > 0:
+        parts.append(f"{m} phút")
+    if sec > 0 or not parts:
+        parts.append(f"{sec} giây")
+    return " ".join(parts)
+
+
 def format_device_action_vi(device_id: str, action: str) -> str:
     dname = DEVICE_LABELS_VI.get(device_id) or DEFAULT_DEVICES.get(device_id, {}).get("name") or device_id
     act = str(action or "").strip().lower()

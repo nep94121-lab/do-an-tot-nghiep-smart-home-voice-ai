@@ -35,6 +35,7 @@ from simulator.automation_repo import (
     delete_schedule,
     find_custom_command_by_text,
     format_device_action_vi,
+    format_duration_vi,
     get_pending_confirmation,
     list_automation_rules,
     list_custom_commands,
@@ -1713,10 +1714,11 @@ def format_pool_items_summary(
             schedules = [s for s in schedules if str(s.get("owner_user_id") or "") == user_id]
         items: list[str] = []
         for t in timers:
-            rem = max(1, int(round(float(t.get("fire_epoch") or 0.0) - time.time())))
+            fire_ts = float(t.get("fire_at") or t.get("fire_at_epoch") or t.get("fire_epoch") or 0.0)
+            rem = max(1, int(round(fire_ts - time.time())))
             act_txt = format_device_action_vi(t["device_id"], t["action"])
             own = str(t.get("owner_name") or t.get("owner_user_id") or "")
-            items.append(f"{act_txt} còn {rem} giây" + (f" của {own}" if tier == 1 else ""))
+            items.append(f"{act_txt} còn {format_duration_vi(rem)}" + (f" của {own}" if tier == 1 else ""))
         for sc in schedules:
             act_txt = format_device_action_vi(sc["device_id"], sc["action"])
             rep = " hằng ngày" if sc.get("schedule_type") == "daily" else ""
@@ -2449,7 +2451,7 @@ async def process_automation_nlu_command(
             session_key=skey,
             action_kind="create_timer",
             payload={"device_id": dev, "action": act, "seconds": total_sec},
-            prompt_summary=f"Đặt hẹn giờ sau {sec_i} giây sẽ {act_label.lower()}",
+            prompt_summary=f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {act_label.lower()}",
         )
 
     # ------------------------------------------------------------------

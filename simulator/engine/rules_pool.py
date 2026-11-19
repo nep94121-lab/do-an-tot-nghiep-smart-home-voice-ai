@@ -67,18 +67,9 @@ class EngineRulesMixin:
         return self.get_if_else_rules()
 
     def format_duration_vi(self, total_sec: float) -> str:
-        s = int(round(max(0.0, total_sec)))
-        h = s // 3600
-        m = (s % 3600) // 60
-        sec = s % 60
-        parts = []
-        if h > 0:
-            parts.append(f"{h} giờ")
-        if m > 0:
-            parts.append(f"{m} phút")
-        if sec > 0 or not parts:
-            parts.append(f"{sec} giây")
-        return " ".join(parts)
+        from simulator.automation_repo import format_duration_vi as _fmt_dur_vi
+
+        return _fmt_dur_vi(total_sec)
 
     def _action_device_phrase_vi(self, device_id: str, action: str) -> str:
         if device_id == "all_lights":
@@ -1065,7 +1056,8 @@ class EngineRulesMixin:
             ),
         }
 
-    async def confirm_pending_action(self, confirmed: bool = True) -> dict[str, Any]:
+    async def confirm_pending_action(self, confirmed: bool = False) -> dict[str, Any]:
+        confirmed = confirmed is True
         if self.current_tier >= 3 and not self.system_policies.get("tier3_can_custom_rules", False):
             msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền xác nhận cài đặt."
             await self.emit({"type": "rbac_blocked", "action": "confirm_pending_action", "role": self.current_role, "reason": msg})
@@ -1169,7 +1161,8 @@ class EngineRulesMixin:
             "message": ask_q,
         }
 
-    async def confirm_factory_reset(self, confirmed: bool = True) -> dict[str, Any]:
+    async def confirm_factory_reset(self, confirmed: bool = False) -> dict[str, Any]:
+        confirmed = confirmed is True
         if self.pending_rule is not None and not self.pending_reset_confirmation:
             return await self.confirm_pending_action(confirmed=confirmed)
 

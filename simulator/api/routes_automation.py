@@ -30,6 +30,7 @@ from simulator.automation_repo import (
     delete_custom_command,
     delete_schedule,
     format_device_action_vi,
+    format_duration_vi,
     inspect_and_consume_pending_confirmation,
     list_automation_rules,
     list_custom_commands,
@@ -390,7 +391,7 @@ async def api_create_timer(request: Request, payload: dict[str, Any] = Body(defa
         )
 
     sec_i = max(1, int(round(total_sec)))
-    summary = f"Đặt hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(device_id, action).lower()}"
+    summary = f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(device_id, action).lower()}"
     return await stage_or_execute_rest_confirmation(
         request=request,
         sess=sess,
@@ -490,7 +491,7 @@ async def api_update_timer(
         )
 
     sec_i = max(1, int(round(total_sec)))
-    summary = f"Cập nhật hẹn giờ sau {sec_i} giây sẽ {format_device_action_vi(target_dev, new_action).lower()}"
+    summary = f"Cập nhật hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(target_dev, new_action).lower()}"
     return await stage_or_execute_rest_confirmation(
         request=request,
         sess=sess,
