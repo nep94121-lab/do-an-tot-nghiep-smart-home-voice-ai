@@ -9,29 +9,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
-<body>
+<body data-nav-guard-auto="true">
   <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
     <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
     <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
     <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
     <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4M14 21h3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></symbol>
   </svg>
 
   <div class="app">
     <aside class="sidebar">
       <a class="brand" href="/">Nhà thông minh</a>
       <nav aria-label="Điều hướng chính">
-        <p class="nav-label">Điều khiển</p>
+        <p class="nav-label" data-auth-required="true" hidden aria-hidden="true">Điều khiển</p>
         <div class="nav-list">
-          <a href="/"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
-          <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
-          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+          <a href="/" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+          <a href="/auth" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+          <a href="/wokwi" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/logs" data-auth-required="true" data-owner-only="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
         </div>
       </nav>
       <div class="sidebar-links">
-        <a href="/app">Ứng dụng</a>
+        <a href="/app" data-auth-required="true" hidden aria-hidden="true" tabindex="-1">Ứng dụng</a>
         <a class="active" href="/guest_guide" aria-current="page">Khách</a>
         <a href="/login">Đăng nhập</a>
         <a href="/register">Đăng ký</a>
@@ -72,11 +74,15 @@
   </div>
 
   <nav class="mobile-nav" aria-label="Điều hướng di động">
-    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
-    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
-    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+    <a href="/" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a href="/auth" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi" data-auth-required="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs" data-auth-required="true" data-owner-only="true" hidden aria-hidden="true" tabindex="-1"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+    <a href="/login" data-guest-only="true"><svg class="icon"><use href="#i-lock"/></svg>Đăng nhập</a>
+    <a href="/register" data-guest-only="true"><svg class="icon"><use href="#i-user-plus"/></svg>Đăng ký</a>
     <a class="active" href="/guest_guide" aria-current="page"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
   </nav>
+
+  <script src="/static/js/nav_auth_guard.js"></script>
 </body>
 </html>

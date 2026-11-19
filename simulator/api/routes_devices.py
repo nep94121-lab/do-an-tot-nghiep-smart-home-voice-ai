@@ -1137,8 +1137,19 @@ async def api_voice_aoede_phrase(request: Request, payload: dict[str, Any] = Bod
 
 
 @router.get("/api/wokwi_files")
-async def api_get_wokwi_files() -> JSONResponse:
-    """Trả về sơ đồ Wokwi diagram.json và code Arduino esp8266_smarthome.ino."""
+async def api_get_wokwi_files(request: Request) -> JSONResponse:
+    """Trả về sơ đồ Wokwi diagram.json và code Arduino esp8266_smarthome.ino (yêu cầu đăng nhập)."""
+    sess = await asyncio.to_thread(resolve_request_session, request, None, None)
+    if not sess.is_authenticated:
+        return JSONResponse(
+            {
+                "ok": False,
+                "authenticated": False,
+                "error": "Vui lòng đăng nhập để xem sơ đồ và mã nguồn phần cứng.",
+            },
+            status_code=401,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
     wokwi_dir = ROOT / "firmware_esp8266" / "wokwi"
     real_ino_path = ROOT / "firmware_esp8266" / "esp8266_smarthome" / "esp8266_smarthome.ino"
     diag = (wokwi_dir / "diagram.json").read_text(encoding="utf-8") if (wokwi_dir / "diagram.json").exists() else "{}"

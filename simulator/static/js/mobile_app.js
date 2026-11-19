@@ -229,13 +229,40 @@
       });
     }
 
-    function openMobileLoginGate(focusInput = true) {
-      const gate = document.getElementById('mobileLoginGate');
+    function guardMobileUnauthHash() {
+      if (mobileLoggedIn) return;
+      try {
+        if (window.location && window.location.hash && window.location.hash.length > 1) {
+          if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }
+      } catch (_) {}
+    }
+
+    function setMobileProtectedShellHidden(isHidden) {
       const main = document.getElementById('mobileMainContent');
       const nav = document.getElementById('mobileBottomNav');
+      [main, nav].forEach((el) => {
+        if (!el) return;
+        if (typeof el.setAttribute === 'function' && typeof el.removeAttribute === 'function') {
+          if (isHidden) {
+            el.setAttribute('aria-hidden', 'true');
+            el.setAttribute('inert', '');
+          } else {
+            el.removeAttribute('aria-hidden');
+            el.removeAttribute('inert');
+          }
+        }
+        el.hidden = !!isHidden;
+      });
+    }
+
+    function openMobileLoginGate(focusInput = true) {
+      const gate = document.getElementById('mobileLoginGate');
       if (gate) gate.hidden = false;
-      if (main) main.hidden = true;
-      if (nav) nav.hidden = true;
+      setMobileProtectedShellHidden(true);
+      guardMobileUnauthHash();
       cancelMobileOtpPanel(true);
       if (focusInput) {
         const emailEl = document.getElementById('mobileLoginEmail');
@@ -524,6 +551,10 @@
 
       clearMobileAuthState();
       updateMobileAuthUiState(false);
+      setMobileProtectedShellHidden(true);
+      guardMobileUnauthHash();
+      const gate = document.getElementById('mobileLoginGate');
+      if (gate) gate.hidden = false;
       return false;
     }
 
@@ -890,11 +921,8 @@
 
     function showMobileMainContent() {
       const gate = document.getElementById('mobileLoginGate');
-      const main = document.getElementById('mobileMainContent');
-      const nav = document.getElementById('mobileBottomNav');
       if (gate) gate.hidden = true;
-      if (main) main.hidden = false;
-      if (nav) nav.hidden = false;
+      setMobileProtectedShellHidden(false);
       switchMobileTab('home');
       const roleLabel = mobileLoggedIn ? getMobileTierLabel(mobileTier, mobileRole) : 'Chưa đăng nhập';
       const durLabel = !mobileLoggedIn ? '—' : (Number(mobileTier) === 1 ? 'Không giới hạn' : (Number(mobileTier) === 3 ? 'Tạm thời' : 'Theo quyền tài khoản'));
@@ -905,11 +933,23 @@
 
     function checkMobileSession() {
       // Fail-closed: derive authentication, role, tier exclusively from server /api/session/role
+      setMobileProtectedShellHidden(true);
+      guardMobileUnauthHash();
       updateMobileAuthUiState(false);
       return fetchServerSessionRole();
     }
 
+    function isMobileLoginGateActive() {
+      const gate = document.getElementById('mobileLoginGate');
+      const main = document.getElementById('mobileMainContent');
+      return Boolean((gate && !gate.hidden) || (main && main.hidden));
+    }
+
     function switchMobileTab(tabKey, tabBtn = null) {
+      if (!mobileLoggedIn && isMobileLoginGateActive()) {
+        openMobileLoginGate(false);
+        return;
+      }
       const tabs = ['home', 'devices', 'voice', 'account'];
       tabs.forEach(t => {
         const view = document.getElementById(`tabView${t.charAt(0).toUpperCase() + t.slice(1)}`);
@@ -925,6 +965,10 @@
     }
 
     function scrollToSection(id, startMic = false, tabEl = null) {
+      if (!mobileLoggedIn && isMobileLoginGateActive()) {
+        openMobileLoginGate(false);
+        return;
+      }
       if (id === 'secHome') {
         switchMobileTab('home', tabEl);
       } else if (id === 'secDevices' || id === 'secSchedule') {
@@ -1033,11 +1077,9 @@
       showMobileActionError('');
       updateMobileAuthUiState(false);
 
-      const main = document.getElementById('mobileMainContent');
-      const nav = document.getElementById('mobileBottomNav');
       const gate = document.getElementById('mobileLoginGate');
-      if (main) main.hidden = true;
-      if (nav) nav.hidden = true;
+      setMobileProtectedShellHidden(true);
+      guardMobileUnauthHash();
       if (gate) gate.hidden = false;
     }
 
@@ -3714,6 +3756,14 @@
     }
 
     /* Kiểm tra session khi load trang */
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('hashchange', () => {
+        if (!mobileLoggedIn) {
+          guardMobileUnauthHash();
+          openMobileLoginGate(false);
+        }
+      });
+    }
     checkMobileSession();
 
 

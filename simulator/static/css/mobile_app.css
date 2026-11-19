@@ -382,6 +382,11 @@
       justify-content: center;
       padding: 24px;
     }
+    .bottom-nav[hidden] {
+      display: none !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
     .login-gate[hidden] { display: none !important; }
     .login-card {
       width: 100%;

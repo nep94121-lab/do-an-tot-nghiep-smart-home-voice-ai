@@ -44,7 +44,7 @@
           <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
           <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
           <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-          <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+          <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
         </div>
       </nav>
       <div class="sidebar-links">
@@ -424,11 +424,11 @@
     </div>
   </div>
 
-  <nav class="mobile-nav" aria-label="Điều hướng di động">
+  <nav class="mobile-nav" id="homeMobileNav" data-auth-nav="true" aria-label="Điều hướng di động" hidden aria-hidden="true">
     <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
     <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
     <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
-    <a href="/logs"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+    <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
     <a href="/guest_guide"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
   </nav>
 

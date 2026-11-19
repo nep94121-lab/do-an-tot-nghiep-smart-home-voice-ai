@@ -120,8 +120,24 @@
     return p;
   }
 
+  function isBlockedByAuthGate() {
+    try {
+      if (document.body && document.body.classList) {
+        if (document.body.classList.contains("dashboard-logged-out") || document.body.classList.contains("login-gate-open")) {
+          return true;
+        }
+      }
+      const gate = document.getElementById("homeLoginGateModal");
+      if (gate && !gate.classList.contains("hidden")) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function scheduleIdlePrefetch() {
     const run = () => {
+      if (isBlockedByAuthGate()) return;
       SPA_ROUTES.forEach((r) => {
         if (r !== currentRoute) {
           prefetchHtml(r);
@@ -257,6 +273,9 @@
       window.location.href = targetUrl.href;
       return;
     }
+    if (isBlockedByAuthGate()) {
+      return;
+    }
     const nextHref = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
     const prevRoute = currentRoute;
     if (targetRoute === prevRoute && !options.force) {
@@ -367,6 +386,10 @@
     if (parsedUrl.origin !== window.location.origin) return;
     const targetRoute = normalizeRoute(parsedUrl.pathname);
     if (!targetRoute) return;
+    if (isBlockedByAuthGate()) {
+      ev.preventDefault();
+      return;
+    }
     ev.preventDefault();
     navigateSpa(parsedUrl.href, { pushHistory: true });
   });

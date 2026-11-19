@@ -87,12 +87,22 @@ body.dashboard-logged-out .pin-3d {
 }
 
 #homeLoginGateModal {
-  z-index: 400;
+  z-index: 500;
   background: var(--page, #f5f7f7);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   align-items: flex-start;
-  padding: 16px 12px calc(84px + env(safe-area-inset-bottom, 0px));
+  padding: 16px 12px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-nav[hidden],
+body.dashboard-logged-out .mobile-nav,
+body.login-gate-open .mobile-nav,
+body.dashboard-logged-out .sidebar,
+body.login-gate-open .sidebar {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 #homeLoginGateModal .modal-content {
@@ -1168,7 +1178,8 @@ h2,
     right: 0;
     z-index: 450;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     background: #ffffff;
     border-top: 1px solid var(--line);
     padding: 6px 4px max(8px, env(safe-area-inset-bottom));
