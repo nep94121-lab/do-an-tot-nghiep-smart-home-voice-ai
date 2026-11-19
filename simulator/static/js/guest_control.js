@@ -137,6 +137,11 @@
     }
   }
   var _guestAudioCtx = null;
+  var _guestNextPlayTime = 0;
+  var _guestEchoGuard = (typeof window !== "undefined" && window.SmartHomeEchoGuard)
+    ? window.SmartHomeEchoGuard.createVoiceEchoGuard({ tailHoldMs: 400 })
+    : null;
+
   function playGuestPcm24k(base64Data) {
     if (!base64Data) return;
     try {
@@ -144,6 +149,7 @@
       if (!AudioCtx) return;
       if (!_guestAudioCtx || _guestAudioCtx.state === "closed") {
         _guestAudioCtx = new AudioCtx({ sampleRate: 24000 });
+        _guestNextPlayTime = 0;
       }
       if (_guestAudioCtx.state === "suspended" && typeof _guestAudioCtx.resume === "function") {
         _guestAudioCtx.resume().catch(function () {});
@@ -162,8 +168,32 @@
       var src = _guestAudioCtx.createBufferSource();
       src.buffer = buf;
       src.connect(_guestAudioCtx.destination);
-      src.start();
+      if (_guestEchoGuard) {
+        src.onended = function () { _guestEchoGuard.noteSourceEnded(); };
+      }
+      var nowSec = _guestAudioCtx.currentTime;
+      if (_guestNextPlayTime < nowSec) _guestNextPlayTime = nowSec + 0.02;
+      src.start(_guestNextPlayTime);
+      _guestNextPlayTime += buf.duration;
+      if (_guestEchoGuard) {
+        _guestEchoGuard.notePlaybackQueued(buf.duration * 1000.0);
+        _guestEchoGuard.syncAudioContextPlayback(_guestAudioCtx.currentTime, _guestNextPlayTime);
+      }
+      if (recognizing && recognition) {
+        try { recognition.stop(); } catch (_) {}
+        recognizing = false;
+      }
     } catch (_) {}
+  }
+
+  function isGuestAiPlaybackActive() {
+    if (_guestEchoGuard) {
+      if (_guestAudioCtx) {
+        _guestEchoGuard.syncAudioContextPlayback(_guestAudioCtx.currentTime, _guestNextPlayTime);
+      }
+      return _guestEchoGuard.isPlaybackOrTailActive();
+    }
+    return Boolean(_guestAudioCtx && _guestNextPlayTime > 0 && _guestAudioCtx.currentTime < _guestNextPlayTime + 0.4);
   }
 
   async function sendVoiceCommand(transcript) {
@@ -214,6 +244,7 @@
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.onresult = function (ev) {
+      if (isGuestAiPlaybackActive()) return;
       var text = "";
       if (ev.results && ev.results[0] && ev.results[0][0]) text = ev.results[0][0].transcript || "";
       sendVoiceCommand(text);

@@ -12,6 +12,9 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -130,8 +133,16 @@ private fun pushPhoneNotification(
   } catch (_: Exception) {}
 }
 
+private const val ANDROID_ECHO_TAIL_HOLD_MS = 400L
+@Volatile
+private var androidAiPlaybackUntilMs: Long = 0L
+
 private fun captureMicPcmAndPitch(durationMs: Int = 1100): CapturedVoiceSample {
   return try {
+    val nowMs = System.currentTimeMillis()
+    if (nowMs < androidAiPlaybackUntilMs + ANDROID_ECHO_TAIL_HOLD_MS) {
+      return CapturedVoiceSample(126.0, "")
+    }
     val sampleRate = 16000
     val minBuf = AudioRecord.getMinBufferSize(
       sampleRate,
@@ -140,13 +151,28 @@ private fun captureMicPcmAndPitch(durationMs: Int = 1100): CapturedVoiceSample {
     )
     if (minBuf <= 0) return CapturedVoiceSample(126.0, "")
     val recorder = AudioRecord(
-      MediaRecorder.AudioSource.MIC,
+      MediaRecorder.AudioSource.VOICE_COMMUNICATION,
       sampleRate,
       AudioFormat.CHANNEL_IN_MONO,
       AudioFormat.ENCODING_PCM_16BIT,
       minBuf * 2,
     )
     if (recorder.state != AudioRecord.STATE_INITIALIZED) return CapturedVoiceSample(126.0, "")
+    var aec: AcousticEchoCanceler? = null
+    var ns: NoiseSuppressor? = null
+    var agc: AutomaticGainControl? = null
+    try {
+      val sessionId = recorder.audioSessionId
+      if (AcousticEchoCanceler.isAvailable()) {
+        aec = AcousticEchoCanceler.create(sessionId)?.apply { enabled = true }
+      }
+      if (NoiseSuppressor.isAvailable()) {
+        ns = NoiseSuppressor.create(sessionId)?.apply { enabled = true }
+      }
+      if (AutomaticGainControl.isAvailable()) {
+        agc = AutomaticGainControl.create(sessionId)?.apply { enabled = true }
+      }
+    } catch (_: Exception) {}
     val totalSamples = (sampleRate * durationMs) / 1000
     val buffer = ShortArray(totalSamples)
     recorder.startRecording()
@@ -157,6 +183,9 @@ private fun captureMicPcmAndPitch(durationMs: Int = 1100): CapturedVoiceSample {
       readTotal += r
     }
     recorder.stop()
+    try { aec?.release() } catch (_: Exception) {}
+    try { ns?.release() } catch (_: Exception) {}
+    try { agc?.release() } catch (_: Exception) {}
     recorder.release()
     if (readTotal < 1600) return CapturedVoiceSample(126.0, "")
     var zeroCrossings = 0
@@ -391,9 +420,10 @@ fun MainScreen(
           .setTransferMode(AudioTrack.MODE_STATIC)
           .build()
         track.write(pcmBytes, 0, pcmBytes.size)
+        val durationMs = (pcmBytes.size.toLong() * 1000L / 48000L).coerceIn(300L, 12000L)
+        androidAiPlaybackUntilMs = maxOf(androidAiPlaybackUntilMs, System.currentTimeMillis() + durationMs)
         track.play()
         Log.i("SmartHomeTTS", "AudioTrack played pcm24k_b64 (${pcmBytes.size} bytes): $text")
-        val durationMs = (pcmBytes.size.toLong() * 1000L / 48000L).coerceIn(300L, 12000L)
         delay(durationMs + 250L)
         try {
           track.stop()

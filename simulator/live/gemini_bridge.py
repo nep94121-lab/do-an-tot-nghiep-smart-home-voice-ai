@@ -67,6 +67,10 @@ from simulator.api.deps import (
 )
 from simulator.auth.session_store import UserSession, resolve_strict_ws_session, session_is_current, get_session_store
 from simulator.knowledge_rag import SmartHomeKnowledgeRAG
+from simulator.live.echo_and_speech_guard import (
+    ServerEchoGuard,
+    sanitize_spoken_vietnamese_text,
+)
 from simulator.live.prompt_builder import (
     ALL_TOOLS,
     FIXED_REJECTION_PHRASE_VI,
@@ -253,6 +257,9 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.turn_in_tx: list[str] = []
         self.turn_out_tx: list[str] = []
         self.turn_tools_called: list[str] = []
+        self.echo_guard = ServerEchoGuard()
+        self._current_turn_echo_suppressed: bool = False
+        self.ai_turns_completed: int = 0
         self._wav_streaming_task: asyncio.Task | None = None
         self._mic_silence_task: asyncio.Task | None = None
         self._closed = False
@@ -456,6 +463,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         self.turn_in_tx.clear()
         self.turn_out_tx.clear()
         self.turn_tools_called.clear()
+        self._current_turn_echo_suppressed = False
 
     async def _sync_rules_context_to_gemini(self, event_note: str, send_to_model: bool = False) -> None:
         prompt_now = build_system_instruction(self.engine)
@@ -502,8 +510,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         })
         if self.gemini_session is None:
             try:
-                aoede_bundle = await synthesize_aoede_phrase_audio(spoken_phrase)
+                clean_spoken = sanitize_spoken_vietnamese_text(spoken_phrase) or spoken_phrase
+                aoede_bundle = await synthesize_aoede_phrase_audio(clean_spoken)
                 if aoede_bundle.get("pcm24k_b64"):
+                    pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
+                    if pcm_bytes_out:
+                        self.echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
+                    self.echo_guard.record_ai_utterance(clean_spoken)
                     await self.send_ws_json({
                         "type": "audio_chunk",
                         "voice": "Aoede",
@@ -512,7 +525,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         "pcm_b64": aoede_bundle["pcm_b64"],
                         "audio_b64": aoede_bundle["audio_b64"],
                         "audio_wav_b64": aoede_bundle["audio_wav_b64"],
-                        "text": spoken_phrase,
+                        "text": clean_spoken,
                     })
             except Exception:
                 pass
@@ -581,6 +594,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                     fn_responses = []
                                     pending_tool_ws_events: list[dict[str, Any]] = []
                                     for fc in msg.tool_call.function_calls:
+                                        if self._current_turn_echo_suppressed:
+                                            fn_responses.append(
+                                                types.FunctionResponse(
+                                                    id=fc.id,
+                                                    name=fc.name,
+                                                    response={"result": {"ok": False, "echo_suppressed": True, "silent": True}},
+                                                )
+                                            )
+                                            continue
                                         if self.turn_first_tool_ts is None:
                                             self.turn_first_tool_ts = now
                                         t_anchor = self.speech_end_ts or now
@@ -637,24 +659,36 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                     if sc.input_transcription and sc.input_transcription.text:
                                         txt = sc.input_transcription.text
                                         self.turn_in_tx.append(txt)
-                                        await self.send_ws_json({
-                                            "type": "input_transcription",
-                                            "text": txt,
-                                            "full_text": "".join(self.turn_in_tx).strip(),
-                                        })
+                                        full_in_txt = "".join(self.turn_in_tx).strip()
+                                        is_echo, _echo_score, _echo_reason = self.echo_guard.check_echo_transcript(full_in_txt)
+                                        if is_echo:
+                                            self._current_turn_echo_suppressed = True
+                                        elif not self._current_turn_echo_suppressed:
+                                            await self.send_ws_json({
+                                                "type": "input_transcription",
+                                                "text": txt,
+                                                "full_text": full_in_txt,
+                                            })
 
                                     if sc.output_transcription and sc.output_transcription.text:
-                                        txt = sc.output_transcription.text
-                                        self.turn_out_tx.append(txt)
-                                        await self.send_ws_json({
-                                            "type": "output_transcription",
-                                            "text": txt,
-                                            "full_text": "".join(self.turn_out_tx).strip(),
-                                        })
+                                        if not self._current_turn_echo_suppressed:
+                                            txt = sc.output_transcription.text
+                                            self.turn_out_tx.append(txt)
+                                            full_out_clean = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                            if full_out_clean:
+                                                self.echo_guard.record_ai_utterance(full_out_clean)
+                                                await self.send_ws_json({
+                                                    "type": "output_transcription",
+                                                    "text": sanitize_spoken_vietnamese_text(txt) or txt,
+                                                    "full_text": full_out_clean,
+                                                })
 
                                     if sc.model_turn and sc.model_turn.parts:
                                         for part in sc.model_turn.parts:
                                             if part.inline_data and part.inline_data.data:
+                                                if self._current_turn_echo_suppressed:
+                                                    continue
+                                                self.echo_guard.note_ai_audio_chunk(len(part.inline_data.data), sample_rate=24000)
                                                 if self.turn_first_audio_ts is None:
                                                     self.turn_first_audio_ts = now
                                                     t_anchor = self.speech_end_ts or now
@@ -682,6 +716,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                                 })
 
                                     if sc.interrupted:
+                                        self.echo_guard.clear_ai_playback()
+                                        self._current_turn_echo_suppressed = False
                                         await self.send_ws_json({"type": "interrupted"})
 
                                     if sc.turn_complete and (
@@ -690,6 +726,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                         self.mic_utterance_active = False
                                         self._awaiting_model_turn_after_speech = False
                                         self._turn_completed_flag = True
+                                        if self._current_turn_echo_suppressed:
+                                            self._current_turn_echo_suppressed = False
+                                            self.turn_in_tx.clear()
+                                            self.turn_out_tx.clear()
+                                            self.turn_tools_called.clear()
+                                            continue
+                                        self.ai_turns_completed += 1
                                         t_anchor = self.speech_end_ts or now
                                         tool_ms = (
                                             max(1, round((self.turn_first_tool_ts - t_anchor) * 1000))
@@ -706,10 +749,13 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             if (self.turn_first_tool_ts and self.turn_first_audio_ts)
                                             else None
                                         )
+                                        clean_said = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                        if clean_said:
+                                            self.echo_guard.record_ai_utterance(clean_said)
                                         await self.send_ws_json({
                                             "type": "turn_complete",
                                             "heard": "".join(self.turn_in_tx).strip(),
-                                            "said": "".join(self.turn_out_tx).strip(),
+                                            "said": clean_said,
                                             "tools": list(self.turn_tools_called),
                                             "tool_ms": tool_ms,
                                             "audio_ms": audio_ms,
@@ -910,14 +956,26 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             pass
 
     async def handle_mic_chunk(
-        self, pcm_bytes: bytes, is_sp: bool = True, actor: UserSession | None = None
+        self,
+        pcm_bytes: bytes,
+        is_sp: bool = True,
+        actor: UserSession | None = None,
+        *,
+        is_barge_in: bool = False,
     ) -> None:
-        """Truyền thẳng PCM 16kHz 640B sang Gemini Live ngay khi nhận chunk (không xác thực giọng nói)."""
+        """Truyền thẳng PCM 16kHz 640B sang Gemini Live ngay khi nhận chunk (có cổng chống tiếng vọng)."""
         if not pcm_bytes:
             return
 
         if actor is None:
             actor = self._bind_actor_to_engine()
+
+        if is_barge_in:
+            self.echo_guard.clear_ai_playback()
+            self._current_turn_echo_suppressed = False
+        elif self.echo_guard.is_playback_or_tail_active():
+            return
+
         self.mic_recent_pcm.extend(pcm_bytes)
         if len(self.mic_recent_pcm) > 160000:
             del self.mic_recent_pcm[:-160000]
@@ -1126,15 +1184,21 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     msg = json.loads(raw)
                     mtype = msg.get("type")
                     actor = await self._bind_actor_to_engine_async(msg)
-                    guest_messages = {"manual_toggle", "send_text", "mic_chunk", "mic_speech_ended"}
+                    guest_messages = {"manual_toggle", "send_text", "mic_chunk", "mic_speech_ended", "barge_in"}
                     if not actor.is_authenticated or (actor.tier > 1 and mtype not in guest_messages):
                         await self.send_ws_json({"type": "rbac_blocked", "ok": False, "action": mtype, "reason": FIXED_REJECTION_PHRASE_VI})
                         continue
 
-                    if mtype == "mic_chunk":
+                    if mtype == "barge_in":
+                        self.echo_guard.clear_ai_playback()
+                        self._current_turn_echo_suppressed = False
+                        await self.send_ws_json({"type": "interrupted"})
+
+                    elif mtype == "mic_chunk":
                         pcm_bytes = base64.b64decode(msg["pcm16k_b64"])
                         is_sp = bool(msg.get("is_speech", True))
-                        await self.handle_mic_chunk(pcm_bytes, is_sp, actor=actor)
+                        is_barge = bool(msg.get("barge_in", False))
+                        await self.handle_mic_chunk(pcm_bytes, is_sp, actor=actor, is_barge_in=is_barge)
 
                     elif mtype == "mic_speech_ended":
                         await self.mic_speech_ended(stream_end=bool(msg.get("stream_end", False)), actor=actor)
@@ -1150,6 +1214,9 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     elif mtype == "send_text":
                         text = str(msg.get("text", "")).strip()
                         if text:
+                            is_echo, _echo_score, _echo_reason = self.echo_guard.check_echo_transcript(text)
+                            if is_echo:
+                                continue
                             self.last_mic_turn_blocked = (
                                 self.engine.current_role == "UNKNOWN" or self.engine.current_tier >= 4
                             )
@@ -1166,7 +1233,12 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                     text, source="offline_default"
                                 )
                                 tool_ms = max(1, int((time.perf_counter() - t0_off) * 1000))
-                                reply_txt = str(res_off.get("exact_spoken_reply") or res_off.get("reply") or "")
+                                reply_txt = sanitize_spoken_vietnamese_text(
+                                    str(res_off.get("exact_spoken_reply") or res_off.get("reply") or "")
+                                )
+                                if reply_txt:
+                                    self.echo_guard.record_ai_utterance(reply_txt)
+                                self.ai_turns_completed += 1
                                 await self.send_ws_json({
                                     "type": "tool_call_executed",
                                     "name": "offline_default_mcu",

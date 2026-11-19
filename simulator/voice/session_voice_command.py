@@ -10,6 +10,10 @@ from typing import Any
 import numpy as np
 
 from simulator.auth.session_store import UserSession
+from simulator.live.echo_and_speech_guard import (
+    ServerEchoGuard,
+    sanitize_spoken_vietnamese_text,
+)
 from simulator.live.tts_rejection_vi import (
     build_aoede_http_audio_fields,
     synthesize_aoede_phrase_audio,
@@ -20,6 +24,25 @@ from simulator.voice.enrollment_quality import (
 )
 
 LOG = logging.getLogger("simulator.voice.session_command")
+
+_SESSION_ECHO_GUARDS: dict[str, ServerEchoGuard] = {}
+
+
+def get_session_echo_guard(session: UserSession | None) -> ServerEchoGuard:
+    key = str(
+        getattr(session, "session_id", "") or getattr(session, "user_id", "") or "global"
+    ).strip() or "global"
+    guard = _SESSION_ECHO_GUARDS.get(key)
+    if guard is None:
+        if len(_SESSION_ECHO_GUARDS) >= 256:
+            _SESSION_ECHO_GUARDS.pop(next(iter(_SESSION_ECHO_GUARDS)))
+        guard = ServerEchoGuard()
+        _SESSION_ECHO_GUARDS[key] = guard
+    return guard
+
+
+def reset_session_echo_guards() -> None:
+    _SESSION_ECHO_GUARDS.clear()
 
 # Các câu từ chối kiểu nhận dạng người nói / yêu cầu nói lại — không còn được phát trên đường lệnh.
 _LEGACY_REPEAT_MARKERS = (
@@ -228,6 +251,15 @@ def _strip_legacy_repeat_speech(result: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def silent_echo_suppressed_response(*, session: UserSession | None = None) -> dict[str, Any]:
+    """Transcript trùng câu AI vừa nói (acoustic echo): bỏ qua hoàn toàn, không chạy lệnh, không tạo lượt mới."""
+    payload = silent_no_transcript_response(session=session)
+    payload["reason"] = "echo_suppressed"
+    payload["error"] = "echo_suppressed"
+    payload["echo_suppressed"] = True
+    return payload
+
+
 async def execute_session_voice_intents(
     *,
     engine: Any,
@@ -237,6 +269,11 @@ async def execute_session_voice_intents(
 ) -> dict[str, Any]:
     from simulator.automation_nlu import process_automation_nlu_command
 
+    echo_guard = get_session_echo_guard(session)
+    is_echo, _score, _reason = echo_guard.check_echo_transcript(transcript)
+    if is_echo:
+        return silent_echo_suppressed_response(session=session)
+
     nlu_res = await process_automation_nlu_command(
         text=transcript,
         engine=engine,
@@ -245,17 +282,23 @@ async def execute_session_voice_intents(
     )
     if nlu_res is not None:
         nlu_payload = dict(nlu_res.get("payload") or {})
-        spoken_nlu = str(
+        raw_spoken_nlu = str(
             nlu_payload.get("exact_spoken_reply")
             or nlu_payload.get("reply")
             or nlu_payload.get("error")
             or ""
         ).strip()
+        spoken_nlu = sanitize_spoken_vietnamese_text(raw_spoken_nlu) or raw_spoken_nlu
+        if spoken_nlu:
+            echo_guard.record_ai_utterance(spoken_nlu)
         aoede_fields_nlu: dict[str, Any] = {}
         if spoken_nlu and not any(marker in spoken_nlu.lower() for marker in _LEGACY_REPEAT_MARKERS):
             try:
                 aoede_bundle = await synthesize_aoede_phrase_audio(spoken_nlu, interactive_budget_sec=1.8)
                 aoede_fields_nlu = build_aoede_http_audio_fields(aoede_bundle)
+                pcm_nlu_bytes = aoede_bundle.get("pcm24k_bytes") or b""
+                if pcm_nlu_bytes:
+                    echo_guard.note_ai_audio_chunk(len(pcm_nlu_bytes), sample_rate=24000)
             except Exception as exc:
                 LOG.debug("aoede voice synthesis fallback skipped (nlu): %s", exc)
         is_ok_nlu = bool(nlu_payload.get("ok"))
@@ -283,6 +326,55 @@ async def execute_session_voice_intents(
             "rejection_speech": spoken_nlu if is_blocked_nlu else "",
             "reply_text": spoken_nlu,
             **aoede_fields_nlu,
+        })
+
+    norm_transcript = strip_vietnamese_diacritics(transcript.lower())
+    if any(k in norm_transcript for k in ("nhiet do", "do am", "cam bien")) and not any(
+        w in norm_transcript for w in ("set ", "chinh ", "dat ", "len ", "xuong ", "dieu hoa", "may lanh")
+    ):
+        sensors = (
+            engine.read_all_sensors()
+            if hasattr(engine, "read_all_sensors")
+            else {"temperature_c": 28.5, "humidity_pct": 65.0, "soil_moisture_pct": 62.0}
+        )
+        spoken_sensor = (
+            f"Nhiệt độ phòng hiện tại là {sensors['temperature_c']:.1f} độ C, "
+            f"độ ẩm không khí {sensors['humidity_pct']:.0f} phần trăm, "
+            f"độ ẩm đất {sensors['soil_moisture_pct']:.0f} phần trăm."
+        )
+        echo_guard.record_ai_utterance(spoken_sensor)
+        aoede_fields_s: dict[str, Any] = {}
+        try:
+            aoede_bundle = await synthesize_aoede_phrase_audio(spoken_sensor, interactive_budget_sec=1.8)
+            aoede_fields_s = build_aoede_http_audio_fields(aoede_bundle)
+            pcm_s = aoede_bundle.get("pcm24k_bytes") or b""
+            if pcm_s:
+                echo_guard.note_ai_audio_chunk(len(pcm_s), sample_rate=24000)
+        except Exception as exc:
+            LOG.debug("aoede voice synthesis fallback skipped (sensor): %s", exc)
+        return _strip_legacy_repeat_speech({
+            "ok": True,
+            "http_status": 200,
+            "executed": True,
+            "authorized": True,
+            "permission": "ALLOWED",
+            "silent": False,
+            "should_reply": True,
+            "ask_repeat": False,
+            "play_audio": bool(aoede_fields_s.get("pcm24k_b64")),
+            "no_reprompt": True,
+            "recognized_text": transcript,
+            "transcript": transcript,
+            "sensors": sensors,
+            "tier": int(session.tier),
+            "role": session.role,
+            "user_name": session.display_name,
+            "reply": spoken_sensor,
+            "exact_spoken_reply": spoken_sensor,
+            "rejection_speech": "",
+            "reply_text": spoken_sensor,
+            **aoede_fields_s,
+            "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
         })
 
     raw_intents = parse_vietnamese_voice_command_intents(transcript)
@@ -342,12 +434,18 @@ async def execute_session_voice_intents(
                 any_blocked = True
         results.append(last)
 
-    spoken = _first_spoken(last)
+    raw_spoken = _first_spoken(last)
+    spoken = sanitize_spoken_vietnamese_text(raw_spoken) or raw_spoken
+    if spoken:
+        echo_guard.record_ai_utterance(spoken)
     aoede_fields: dict[str, Any] = {}
     if spoken and not any(marker in spoken.lower() for marker in _LEGACY_REPEAT_MARKERS):
         try:
             aoede_bundle = await synthesize_aoede_phrase_audio(spoken)
             aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
+            pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
+            if pcm_bytes_out:
+                echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
         except Exception as exc:
             LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
 

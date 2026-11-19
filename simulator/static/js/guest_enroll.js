@@ -277,7 +277,15 @@ async function startGuestMicRecording() {
   }
 
   try {
-    guestMediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
+    guestMediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     guestAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     if (guestAudioContext.state === 'suspended') {
       await guestAudioContext.resume();
@@ -313,7 +321,14 @@ async function startGuestMicRecording() {
       guestRecordedPcmChunks.push(pcm16);
     };
     source.connect(guestAudioProcessor);
-    guestAudioProcessor.connect(guestAudioContext.destination);
+    if (typeof guestAudioContext.createGain === 'function') {
+      const guestZeroGain = guestAudioContext.createGain();
+      guestZeroGain.gain.value = 0;
+      guestAudioProcessor.connect(guestZeroGain);
+      guestZeroGain.connect(guestAudioContext.destination);
+    } else {
+      guestAudioProcessor.connect(guestAudioContext.destination);
+    }
 
     isGuestRecording = true;
     if (btnText) btnText.textContent = 'Dừng & Kiểm tra giọng nói (Đang thu...)';
