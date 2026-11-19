@@ -330,19 +330,21 @@
           </section>
 
           <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
-            <div class="panel-head">
-              <h2 id="guest-qr-title">Mã QR mời</h2>
-              <span class="badge" id="ownerGuestQrStatusBadge">Dùng một lần</span>
+            <div class="panel-head qr-panel-head">
+              <div class="qr-head-copy">
+                <h2 id="guest-qr-title">Mời khách bằng mã QR</h2>
+                <p class="subtle qr-subtitle">Tạo mã QR dùng một lần để chia sẻ quyền điều khiển nhanh cho Gia đình (Cấp 2) hoặc Khách (Cấp 3).</p>
+              </div>
+              <span class="badge qr-status-badge qr-badge-idle" id="ownerGuestQrStatusBadge" data-status="idle">Dùng một lần</span>
             </div>
             <div class="guest-qr-card" id="ownerDashboardQrBox">
-              <p class="subtle qr-subtitle">Tạo mã QR dùng một lần cho Gia đình (Cấp 2) hoặc Khách (Cấp 3).</p>
               <div class="qr-invite-form">
                 <div class="qr-invite-grid">
                   <div class="qr-field">
                     <label for="ownerGuestInviteTier">Đối tượng mời</label>
                     <select id="ownerGuestInviteTier" class="input-text">
-                      <option value="3" selected>Khách (Cấp 3)</option>
-                      <option value="2">Gia đình (Cấp 2)</option>
+                      <option value="3" selected>Khách (Cấp 3 · Đèn &amp; Quạt)</option>
+                      <option value="2">Gia đình (Cấp 2 · Đa thiết bị)</option>
                     </select>
                   </div>
                   <div class="qr-field">
@@ -358,16 +360,16 @@
                   </div>
                   <div class="qr-field qr-field-full">
                     <label for="ownerGuestQrPin">Mã PIN Chủ nhà (4 số)</label>
-                    <input type="password" id="ownerGuestQrPin" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" />
+                    <input type="password" id="ownerGuestQrPin" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Nhập PIN 4 chữ số" />
                   </div>
                   <div class="qr-field qr-field-full" id="ownerGuestQrPinConfirmWrap" hidden>
                     <label for="ownerGuestQrPinConfirm">Xác nhận PIN mới</label>
-                    <input type="password" id="ownerGuestQrPinConfirm" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" />
+                    <input type="password" id="ownerGuestQrPinConfirm" class="input-text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Nhập lại PIN 4 chữ số" />
                   </div>
                 </div>
                 <div class="qr-invite-actions">
                   <button type="button" id="ownerGuestQrGenerateBtn" class="btn btn-primary">Tạo mã QR</button>
-                  <button type="button" id="ownerGuestQrRevokeBtn" class="btn btn-secondary" disabled>Thu hồi</button>
+                  <button type="button" id="ownerGuestQrRevokeBtn" class="btn btn-secondary qr-btn-danger" disabled>Hủy mã</button>
                   <button type="button" id="ownerGuestQrForgotPinBtn" class="text-link qr-forgot-btn">Quên PIN?</button>
                 </div>
                 <div id="ownerGuestPinForgotBox" class="qr-forgot-box" hidden>
@@ -389,10 +391,17 @@
                 </div>
               </div>
               <div class="qr-display-area">
-                <div id="ownerGuestQrSvg" class="qr-box qr-frame">
-                  <div class="qr-empty-state">
-                    <span class="qr-empty-title">Chưa tạo mã QR</span>
-                    <span class="qr-empty-sub">Đăng nhập Chủ nhà để tạo mã.</span>
+                <div class="qr-stage-card">
+                  <div id="ownerGuestQrSvg" class="qr-box qr-frame">
+                    <div class="qr-empty-state">
+                      <span class="qr-empty-icon" aria-hidden="true">QR</span>
+                      <span class="qr-empty-title">Chưa tạo mã QR</span>
+                      <span class="qr-empty-sub">Đăng nhập Chủ nhà để tạo mã.</span>
+                    </div>
+                  </div>
+                  <div id="ownerGuestCountdownRow" class="qr-countdown-pill" hidden>
+                    <span class="qr-countdown-dot" aria-hidden="true"></span>
+                    <span id="ownerGuestCountdownText">Còn hiệu lực</span>
                   </div>
                 </div>
                 <div id="ownerGuestInviteDetails" class="qr-invite-details" hidden>
@@ -402,7 +411,7 @@
                   </div>
                   <div class="qr-detail-row">
                     <span class="qr-detail-label">Trạng thái</span>
-                    <span>Dùng một lần</span>
+                    <span id="ownerGuestStatePill" class="qr-inline-pill qr-pill-active">Còn hiệu lực · Dùng một lần</span>
                   </div>
                   <div class="qr-detail-row">
                     <span class="qr-detail-label">Thời hạn</span>
@@ -412,10 +421,17 @@
                     <span class="qr-detail-label">Liên kết mời</span>
                     <div id="ownerGuestLinkText" class="guest-qr-url-box"></div>
                   </div>
-                  <a id="ownerGuestOpenLink" class="text-link" href="/guest_guide" target="_blank" rel="noopener">Hướng dẫn trang khách</a>
+                  <div class="qr-share-actions">
+                    <button type="button" id="ownerGuestQrCopyBtn" class="btn btn-secondary qr-action-btn">Sao chép</button>
+                    <button type="button" id="ownerGuestQrShareBtn" class="btn btn-secondary qr-action-btn">Chia sẻ</button>
+                    <button type="button" id="ownerGuestQrRefreshBtn" class="btn btn-secondary qr-action-btn">Làm mới</button>
+                  </div>
+                  <div class="qr-detail-footer">
+                    <a id="ownerGuestOpenLink" class="text-link" href="/guest_guide" target="_blank" rel="noopener">Hướng dẫn trang khách</a>
+                  </div>
                 </div>
               </div>
-              <p id="ownerGuestQrMeta" class="muted qr-meta-note">Hãy đăng nhập tài khoản Chủ nhà (Cấp 1) để tạo mã QR mời.</p>
+              <p id="ownerGuestQrMeta" class="muted qr-meta-note" role="status" aria-live="polite">Hãy đăng nhập tài khoản Chủ nhà (Cấp 1) để tạo mã QR mời.</p>
             </div>
           </section>
 
@@ -669,6 +685,7 @@
   <script src="/static/vendor/three.min.js"></script>
   <script src="/static/vendor/GLTFLoader.js"></script>
   <script src="/static/house3d.js"></script>
+  <script src="/static/js/voice_echo_guard.js"></script>
   <script src="/static/js/app.js"></script>
   <script src="/static/js/spa_nav.js" defer></script>
 </body>

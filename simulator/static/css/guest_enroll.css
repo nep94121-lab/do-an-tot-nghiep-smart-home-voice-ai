@@ -518,3 +518,25 @@ select {
   font-size: 11px;
   color: var(--muted);
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0f171a;
+    --card: #162226;
+    --ink: #ecf3f5;
+    --muted: #98aeb5;
+    --line: #27393f;
+    --accent: #22b8c3;
+    --accent-hover: #2ccad5;
+    --accent-soft: rgba(34, 184, 195, 0.16);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.16);
+    --amber-border: rgba(251, 191, 36, 0.35);
+    --red: #f87171;
+    --red-soft: rgba(248, 113, 113, 0.16);
+    --red-border: rgba(248, 113, 113, 0.35);
+  }
+  .guest-row {
+    background: var(--card);
+  }
+}

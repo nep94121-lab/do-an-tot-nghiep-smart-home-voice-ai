@@ -517,20 +517,21 @@
       <!-- MỤC 2: KHÁCH & THÀNH VIÊN QR (CHỈ CHỦ NHÀ CẤP 1) -->
       <details class="account-item" id="mobileDynamicQrCard" data-owner-only="true" hidden>
         <summary>
-          <span>Mời khách / Thành viên</span>
-          <span id="mobileQrCountdown" class="muted">Chưa tạo mã</span>
+          <span>Mời khách bằng mã QR</span>
+          <span id="mobileQrCountdown" class="mobile-qr-badge mobile-qr-badge-idle">Chưa tạo mã</span>
         </summary>
-        <div class="account-body">
-          <div style="margin-bottom:8px;">
-            <label class="muted" for="mobileQrInviteTierSelect" style="display:block;margin-bottom:4px;">Loại lời mời</label>
-            <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
-              <option value="3">Khách (Cấp 3)</option>
-              <option value="2">Thành viên Gia đình (Cấp 2)</option>
-            </select>
+        <div class="account-body mobile-qr-panel">
+          <div class="mobile-qr-header">
+            <div class="mobile-qr-title-block">
+              <strong class="mobile-qr-title">Tạo mã QR dùng một lần</strong>
+              <p class="muted mobile-qr-desc">Mời Gia đình (Cấp 2) hoặc Khách (Cấp 3) truy cập nhanh mà không cần chia sẻ mật khẩu.</p>
+            </div>
+            <span id="mobileQrStatusBadge" class="mobile-qr-badge mobile-qr-badge-idle">Dùng một lần</span>
           </div>
-          <div style="display:flex; gap:12px; align-items:center;">
-            <div id="mobileQrSvgContainer" style="width:104px; height:104px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-              <svg id="mobileDynamicQrSvg" viewBox="0 0 100 100" width="104" height="104" style="background:#fff; padding:4px; border-radius:10px; border:1px solid var(--line); flex-shrink:0;">
+
+          <div class="mobile-qr-stage">
+            <div id="mobileQrSvgContainer" class="mobile-qr-frame">
+              <svg id="mobileDynamicQrSvg" viewBox="0 0 100 100" width="184" height="184" aria-label="Mã QR mời khách">
                 <rect x="4" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
                 <rect x="10" y="10" width="12" height="12" fill="#087d85"/>
                 <rect x="72" y="4" width="24" height="24" fill="none" stroke="#172b31" stroke-width="5"/>
@@ -545,28 +546,48 @@
                 </g>
               </svg>
             </div>
-            <div style="flex:1;">
-              <label class="muted" for="mobileGuestDurSelect" style="display:block; margin-bottom:4px;">Thời hạn truy cập</label>
+            <div id="mobileQrCountdownPill" class="mobile-qr-countdown-pill" hidden>
+              <span class="mobile-qr-dot" aria-hidden="true"></span>
+              <span id="mobileQrCountdownText">Còn hiệu lực</span>
+            </div>
+          </div>
+
+          <div class="mobile-qr-fields">
+            <div>
+              <label class="muted mobile-qr-label" for="mobileQrInviteTierSelect">Đối tượng mời</label>
+              <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
+                <option value="3">Khách (Cấp 3 · Đèn &amp; Quạt)</option>
+                <option value="2">Gia đình (Cấp 2 · Đa thiết bị)</option>
+              </select>
+            </div>
+            <div>
+              <label class="muted mobile-qr-label" for="mobileGuestDurSelect">Thời hạn truy cập</label>
               <select id="mobileGuestDurSelect">
-                <option value="1d">1 ngày</option>
-                <option value="2d">2 ngày</option>
-                <option value="1w">1 tuần</option>
-                <option value="1m">1 tháng</option>
-                <option value="1y">1 năm</option>
+                <option value="1d">1 ngày (24 giờ)</option>
+                <option value="2d">2 ngày (48 giờ)</option>
+                <option value="1w">1 tuần (7 ngày)</option>
+                <option value="1m">1 tháng (30 ngày)</option>
+                <option value="1y">1 năm (365 ngày)</option>
+                <option value="10m">10 phút (Nhanh)</option>
               </select>
               <span id="mobileQrTokenText" hidden></span>
               <span id="mobileQrUrlText" hidden></span>
             </div>
-          </div>
-          <div style="display:grid; gap:8px; margin-top:10px;">
             <input type="password" id="mobileQrPinInput" inputmode="numeric" maxlength="6" placeholder="Nhập mã PIN Chủ nhà (4–6 chữ số)" />
             <input type="password" id="mobileQrPinConfirmInput" inputmode="numeric" maxlength="6" placeholder="Xác nhận PIN (chỉ cần khi đặt PIN mới)" />
-            <div id="mobileQrInviteStatus" class="muted" role="status" aria-live="polite" style="font-size:12px; min-height:16px;"></div>
           </div>
-          <div class="btn-row" style="margin-top:8px;">
-            <button type="button" id="mobileBtnCreateGuestQr" class="btn primary" onclick="createMobileGuestInvite()">Tạo lời mời QR</button>
-            <a id="mobileQrOpenLink" href="/guest" class="btn secondary" target="_blank" rel="noopener" style="display:none;">Mở trang Khách</a>
-            <button type="button" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
+
+          <div id="mobileQrInviteStatus" class="mobile-qr-status muted" role="status" aria-live="polite">Chọn đối tượng, nhập PIN rồi bấm Tạo lời mời QR.</div>
+
+          <div class="mobile-qr-actions">
+            <button type="button" id="mobileBtnCreateGuestQr" class="btn primary wide" onclick="createMobileGuestInvite()">Tạo lời mời QR</button>
+            <div class="mobile-qr-action-grid">
+              <button type="button" id="mobileBtnCopyGuestQr" class="btn secondary" onclick="copyMobileGuestLink()">Sao chép liên kết</button>
+              <button type="button" id="mobileBtnShareGuestQr" class="btn secondary" onclick="shareMobileGuestLink()">Chia sẻ</button>
+              <button type="button" id="mobileBtnRefreshGuestQr" class="btn secondary" onclick="createMobileGuestInvite()">Làm mới</button>
+              <button type="button" id="mobileBtnRevokeGuestQr" class="btn secondary mobile-qr-btn-danger" onclick="revokeMobileGuestInvite()" disabled>Hủy mã</button>
+            </div>
+            <a id="mobileQrOpenLink" href="/guest" class="btn secondary wide" target="_blank" rel="noopener" style="display:none;">Mở trang Khách</a>
           </div>
         </div>
       </details>
@@ -776,6 +797,7 @@
     </div>
   </div>
 
+  <script src="/static/js/voice_echo_guard.js"></script>
   <script src="/static/js/mobile_app.js"></script>
 </body>
 </html>

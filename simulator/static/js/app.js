@@ -301,10 +301,26 @@
     return output;
   }
 
-  const TTS_HOLDOFF_SEC = 0.9;
+  const ECHO_TAIL_HOLD_MS = 400;
+  const TTS_HOLDOFF_SEC = ECHO_TAIL_HOLD_MS / 1000.0;
+  const desktopEchoGuard = (typeof window !== "undefined" && window.SmartHomeEchoGuard)
+    ? window.SmartHomeEchoGuard.createVoiceEchoGuard({
+        tailHoldMs: ECHO_TAIL_HOLD_MS,
+        onBargeIn: () => {
+          clearAudioQueue();
+          sendWs({ type: "barge_in" });
+        },
+      })
+    : null;
 
   function isTtsPlaybackActive() {
-    return Boolean(audioCtxOut && nextPlayTime > audioCtxOut.currentTime + 0.05);
+    if (desktopEchoGuard) {
+      if (audioCtxOut) {
+        desktopEchoGuard.syncAudioContextPlayback(audioCtxOut.currentTime, nextPlayTime);
+      }
+      return desktopEchoGuard.isPlaybackOrTailActive();
+    }
+    return Boolean(audioCtxOut && nextPlayTime > 0 && audioCtxOut.currentTime < nextPlayTime + TTS_HOLDOFF_SEC);
   }
 
   function pauseMicForTts() {
@@ -356,6 +372,11 @@
       const source = audioCtxOut.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtxOut.destination);
+      if (desktopEchoGuard) {
+        source.onended = () => {
+          desktopEchoGuard.noteSourceEnded();
+        };
+      }
 
       const now = audioCtxOut.currentTime;
       if (nextPlayTime < now) {
@@ -363,6 +384,10 @@
       }
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;
+      if (desktopEchoGuard) {
+        desktopEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0);
+        desktopEchoGuard.syncAudioContextPlayback(audioCtxOut.currentTime, nextPlayTime);
+      }
       pauseMicForTts();
     } catch (err) {
       console.error("Audio playback error:", err);
@@ -370,6 +395,9 @@
   }
 
   function clearAudioQueue() {
+    if (desktopEchoGuard) {
+      desktopEchoGuard.clearPlayback();
+    }
     if (audioCtxOut) {
       try {
         audioCtxOut.close();
@@ -2321,14 +2349,17 @@
       return;
     }
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      const micConstraints = (typeof window !== "undefined" && window.SmartHomeEchoGuard)
+        ? window.SmartHomeEchoGuard.getStandardMicConstraints({ channelCount: 1 })
+        : {
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          };
+      micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
       micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (micAudioCtx.state === "suspended") {
         await micAudioCtx.resume();
@@ -2363,13 +2394,31 @@
         const pct = Math.min(100, Math.round(rms * 550));
         micMeterBar.style.width = `${pct}%`;
 
-        const aiBusy = Boolean(
-          audioCtxOut && nextPlayTime > audioCtxOut.currentTime + TTS_HOLDOFF_SEC
-        );
-        if (aiBusy) {
-          wasSpeaking = false;
-          silenceStartMs = 0;
-          return;
+        const frameDurationMs = (input.length / 16000.0) * 1000.0;
+        let bargeInTriggered = false;
+        if (desktopEchoGuard) {
+          if (audioCtxOut) {
+            desktopEchoGuard.syncAudioContextPlayback(audioCtxOut.currentTime, nextPlayTime);
+          }
+          const gate = desktopEchoGuard.evaluateMicFrame({
+            rms: rms,
+            frameDurationMs: frameDurationMs,
+          });
+          if (!gate.allowSend) {
+            wasSpeaking = false;
+            silenceStartMs = 0;
+            return;
+          }
+          bargeInTriggered = Boolean(gate.bargeInTriggered);
+        } else {
+          const aiBusy = Boolean(
+            audioCtxOut && nextPlayTime > 0 && audioCtxOut.currentTime < nextPlayTime + TTS_HOLDOFF_SEC
+          );
+          if (aiBusy) {
+            wasSpeaking = false;
+            silenceStartMs = 0;
+            return;
+          }
         }
 
         const speechThreshold = Math.min(0.04, Math.max(0.0045, noiseFloorRms * 2.2));
@@ -2444,7 +2493,8 @@
         sendWs({
           type: "mic_chunk",
           pcm16k_b64: btoa(binary),
-          is_speech: isSpeech,
+          is_speech: isSpeech || bargeInTriggered,
+          barge_in: bargeInTriggered,
         });
       };
 
@@ -2493,46 +2543,207 @@
 
 
   let ownerGuestCurrentInviteId = "";
+  let ownerGuestCurrentUrl = "";
+  let ownerGuestExpiresAtMs = 0;
+  let ownerGuestCountdownTimer = null;
+  let ownerGuestStatusPollTimer = null;
   const GUEST_QR_LOGIN_PROMPT = "Hãy đăng nhập tài khoản Chủ nhà (Cấp 1) để tạo mã QR mời.";
   const GUEST_QR_READY_PROMPT = "Chọn đối tượng, nhập PIN 4 số rồi bấm Tạo mã QR.";
   const GUEST_QR_NON_OWNER_PROMPT = "Chỉ Chủ nhà (Cấp 1) mới có quyền tạo mã QR mời.";
+
+  function setOwnerGuestQrFeedback(message, tone = "info") {
+    const meta = document.getElementById("ownerGuestQrMeta");
+    if (!meta) return;
+    meta.textContent = message || "";
+    if (meta.classList && typeof meta.classList.remove === "function") {
+      meta.classList.remove("is-success", "is-error", "is-warning");
+      if (tone === "success" && typeof meta.classList.add === "function") meta.classList.add("is-success");
+      else if (tone === "error" && typeof meta.classList.add === "function") meta.classList.add("is-error");
+      else if (tone === "warning" && typeof meta.classList.add === "function") meta.classList.add("is-warning");
+    }
+  }
+
+  function setOwnerGuestQrBadgeStatus(statusKey, badgeText, pillText) {
+    const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
+    const pillEl = document.getElementById("ownerGuestStatePill");
+    const classMap = {
+      idle: "qr-badge-idle",
+      active: "qr-badge-active",
+      warning: "qr-badge-warning",
+      expired: "qr-badge-expired",
+      revoked: "qr-badge-revoked",
+      used: "qr-badge-used",
+    };
+    const pillMap = {
+      idle: "qr-pill-used",
+      active: "qr-pill-active",
+      warning: "qr-pill-warning",
+      expired: "qr-pill-expired",
+      revoked: "qr-pill-expired",
+      used: "qr-pill-used",
+    };
+    if (badgeEl) {
+      if (badgeEl.classList && typeof badgeEl.classList.remove === "function") {
+        badgeEl.classList.remove("qr-badge-idle", "qr-badge-active", "qr-badge-warning", "qr-badge-expired", "qr-badge-revoked", "qr-badge-used");
+        if (typeof badgeEl.classList.add === "function") {
+          badgeEl.classList.add(classMap[statusKey] || "qr-badge-idle");
+        }
+      }
+      if (badgeEl.dataset) badgeEl.dataset.status = statusKey;
+      if (badgeText) badgeEl.textContent = badgeText;
+    }
+    if (pillEl && pillText) {
+      if (pillEl.classList && typeof pillEl.classList.remove === "function") {
+        pillEl.classList.remove("qr-pill-active", "qr-pill-warning", "qr-pill-expired", "qr-pill-used");
+        if (typeof pillEl.classList.add === "function") {
+          pillEl.classList.add(pillMap[statusKey] || "qr-pill-active");
+        }
+      }
+      pillEl.textContent = pillText;
+    }
+  }
+
+  function formatQrCountdown(secRemaining) {
+    const s = Math.max(0, Math.floor(secRemaining));
+    const days = Math.floor(s / 86400);
+    const hrs = Math.floor((s % 86400) / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    const pad2 = (n) => String(n).padStart(2, "0");
+    if (days > 0) return `${days} ngày ${pad2(hrs)}:${pad2(mins)}:${pad2(secs)}`;
+    if (hrs > 0) return `${pad2(hrs)}:${pad2(mins)}:${pad2(secs)}`;
+    return `${pad2(mins)}:${pad2(secs)}`;
+  }
+
+  function stopOwnerGuestQrTimers() {
+    if (ownerGuestCountdownTimer) {
+      clearInterval(ownerGuestCountdownTimer);
+      ownerGuestCountdownTimer = null;
+    }
+    if (ownerGuestStatusPollTimer) {
+      clearInterval(ownerGuestStatusPollTimer);
+      ownerGuestStatusPollTimer = null;
+    }
+  }
+
+  function startOwnerGuestQrCountdown(expiresAtSec, inviteId) {
+    stopOwnerGuestQrTimers();
+    const row = document.getElementById("ownerGuestCountdownRow");
+    const txt = document.getElementById("ownerGuestCountdownText");
+    if (!expiresAtSec || !Number.isFinite(Number(expiresAtSec))) {
+      if (row) row.hidden = true;
+      return;
+    }
+    ownerGuestExpiresAtMs = Number(expiresAtSec) * 1000;
+    const tick = () => {
+      const remSec = Math.floor((ownerGuestExpiresAtMs - Date.now()) / 1000);
+      if (row) row.hidden = false;
+      if (remSec <= 0) {
+        stopOwnerGuestQrTimers();
+        if (row) {
+          row.classList.remove("is-warning");
+          row.classList.add("is-expired");
+        }
+        if (txt) txt.textContent = "Mã QR đã hết hạn";
+        setOwnerGuestQrBadgeStatus("expired", "Hết hạn", "Đã hết hạn");
+        setOwnerGuestQrFeedback("Mã QR mời đã hết hạn. Bấm Làm mới để tạo mã mới.", "warning");
+        const frame = document.getElementById("ownerGuestQrSvg");
+        if (frame) frame.classList.remove("qr-frame-active");
+        return;
+      }
+      const isWarn = remSec <= 120;
+      if (row) {
+        row.classList.toggle("is-warning", isWarn);
+        row.classList.remove("is-expired");
+      }
+      const formatted = formatQrCountdown(remSec);
+      if (txt) txt.textContent = `Còn hiệu lực · ${formatted}`;
+      setOwnerGuestQrBadgeStatus(
+        isWarn ? "warning" : "active",
+        isWarn ? `Sắp hết hạn · Dùng một lần` : "Còn hiệu lực · Dùng một lần",
+        isWarn ? `Sắp hết hạn (${formatted})` : "Còn hiệu lực · Dùng một lần"
+      );
+    };
+    tick();
+    ownerGuestCountdownTimer = setInterval(tick, 1000);
+    if (inviteId) {
+      ownerGuestStatusPollTimer = setInterval(async () => {
+        if (!ownerGuestCurrentInviteId || ownerGuestCurrentInviteId !== inviteId) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+        try {
+          const r = await fetch("/api/auth3/guest_invites", { credentials: "include" });
+          if (!r.ok) return;
+          const d = await r.json().catch(() => ({}));
+          const found = Array.isArray(d.invites) ? d.invites.find((x) => x.invite_id === inviteId) : null;
+          if (!found) return;
+          if (Number(found.redeem_count || 0) > 0) {
+            stopOwnerGuestQrTimers();
+            if (row) row.hidden = false;
+            if (txt) txt.textContent = "Mã QR đã được sử dụng";
+            setOwnerGuestQrBadgeStatus("used", "Đã dùng", "Đã được sử dụng");
+            setOwnerGuestQrFeedback("Mã QR mời đã được quét và kích hoạt phiên thành công.", "success");
+            const frame = document.getElementById("ownerGuestQrSvg");
+            if (frame) frame.classList.remove("qr-frame-active");
+          } else if (found.revoked) {
+            stopOwnerGuestQrTimers();
+            setOwnerGuestQrBadgeStatus("revoked", "Đã hủy", "Đã hủy");
+          }
+        } catch (_) {}
+      }, 15000);
+    }
+  }
 
   function renderOwnerGuestQrSvg(svgText, emptySubtitle = "") {
     const box = document.getElementById("ownerGuestQrSvg") || document.getElementById("ownerDashboardQrSvg");
     if (!box) return;
     const svg = String(svgText || "").trim();
     if (!svg || svg.indexOf("<svg") < 0) {
+      if (box.classList && typeof box.classList.remove === "function") {
+        box.classList.remove("qr-frame-active");
+      }
       const isOwnerReady = (typeof hasValidLoginSession === "function" && hasValidLoginSession() && inMemoryUserSession && Number(inMemoryUserSession.tier) === 1);
       const sub = emptySubtitle || (isOwnerReady ? GUEST_QR_READY_PROMPT : "Đăng nhập Chủ nhà để tạo mã.");
-      box.innerHTML = `<div class="qr-empty-state"><span class="qr-empty-title">Chưa tạo mã QR</span><span class="qr-empty-sub">${escapeHtml(sub)}</span></div>`;
+      box.innerHTML = `<div class="qr-empty-state"><span class="qr-empty-icon" aria-hidden="true">QR</span><span class="qr-empty-title">Chưa tạo mã QR</span><span class="qr-empty-sub">${escapeHtml(sub)}</span></div>`;
       return;
+    }
+    if (box.classList && typeof box.classList.add === "function") {
+      box.classList.add("qr-frame-active");
     }
     box.innerHTML = svg;
     const el = box.querySelector("svg");
     if (el) {
-      el.style.width = "180px";
-      el.style.height = "180px";
+      el.style.width = "204px";
+      el.style.height = "204px";
       el.style.maxWidth = "100%";
       el.setAttribute("aria-label", "Mã QR mời khách");
     }
   }
 
-  function resetOwnerGuestInviteDisplay(badgeText = "Dùng một lần", emptySubtitle = "") {
+  function resetOwnerGuestInviteDisplay(badgeText = "Dùng một lần", emptySubtitle = "", statusKey = "idle") {
+    stopOwnerGuestQrTimers();
     ownerGuestCurrentInviteId = "";
+    ownerGuestCurrentUrl = "";
+    ownerGuestExpiresAtMs = 0;
     renderOwnerGuestQrSvg("", emptySubtitle);
     const details = document.getElementById("ownerGuestInviteDetails");
     const linkText = document.getElementById("ownerGuestLinkText");
     const openLink = document.getElementById("ownerGuestOpenLink");
     const revBtn = document.getElementById("ownerGuestQrRevokeBtn");
-    const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
+    const cdRow = document.getElementById("ownerGuestCountdownRow");
     if (details) details.hidden = true;
+    if (cdRow) {
+      cdRow.hidden = true;
+      if (cdRow.classList && typeof cdRow.classList.remove === "function") {
+        cdRow.classList.remove("is-warning", "is-expired");
+      }
+    }
     if (linkText) linkText.textContent = "";
     if (openLink) {
       openLink.href = "/guest_guide";
       openLink.textContent = "Hướng dẫn trang khách";
     }
     if (revBtn) revBtn.disabled = true;
-    if (badgeEl) badgeEl.textContent = badgeText;
+    setOwnerGuestQrBadgeStatus(statusKey, badgeText, badgeText);
   }
 
   function setOwnerGuestQrInputsDisabled(disabled) {
@@ -2669,7 +2880,6 @@
       const expiryLabelEl = document.getElementById("ownerGuestExpiryLabel");
       const linkTextEl = document.getElementById("ownerGuestLinkText");
       const openLinkEl = document.getElementById("ownerGuestOpenLink");
-      const badgeEl = document.getElementById("ownerGuestQrStatusBadge");
       const resolvedTier = Number(data.tier || tier || 3);
       const tierText = resolvedTier === 2 ? "Gia đình (Cấp 2)" : "Khách (Cấp 3)";
       const durText = String(data.duration_label || data.duration_code || "").trim();
@@ -2679,6 +2889,7 @@
         ? (expLabel ? (durText + " · Hết hạn " + expLabel) : ("Hiệu lực " + durText))
         : (expLabel ? ("Hết hạn lúc " + expLabel) : "Hiệu lực 10 phút");
       const inviteUrl = data.url || (data.path ? (window.location.origin + data.path) : "");
+      ownerGuestCurrentUrl = inviteUrl;
       if (revBtn) revBtn.disabled = false;
       if (tierLabelEl) tierLabelEl.textContent = tierText;
       if (expiryLabelEl) expiryLabelEl.textContent = expDisplay;
@@ -2688,24 +2899,72 @@
         openLinkEl.textContent = inviteUrl ? "Mở trang khách" : "Hướng dẫn trang khách";
       }
       if (details) details.hidden = false;
-      if (badgeEl) badgeEl.textContent = "Đang hiệu lực · Dùng một lần";
-      if (meta) {
-        meta.textContent = "Đã tạo mã QR dùng một lần cho " + tierText + " · " + expDisplay + ".";
-      }
+      const copyBtn = document.getElementById("ownerGuestQrCopyBtn");
+      if (copyBtn) copyBtn.textContent = "Sao chép liên kết";
+      setOwnerGuestQrBadgeStatus("active", "Còn hiệu lực · Dùng một lần", "Còn hiệu lực · Dùng một lần");
+      startOwnerGuestQrCountdown(data.expires_at, ownerGuestCurrentInviteId);
+      setOwnerGuestQrFeedback("Đã tạo mã QR dùng một lần cho " + tierText + " · " + expDisplay + ".", "success");
     } catch (err) {
-      resetOwnerGuestInviteDisplay("Dùng một lần");
+      resetOwnerGuestInviteDisplay("Dùng một lần", "", "idle");
       if (typeof hasValidLoginSession === "function" && !hasValidLoginSession()) {
         showGuestQrLoginPrompt();
         return;
       }
-      if (meta) meta.textContent = "Không tạo được mã QR khách.";
+      setOwnerGuestQrFeedback("Không tạo được mã QR khách.", "error");
     }
   }
 
+  async function copyOwnerGuestQrLink() {
+    const url = ownerGuestCurrentUrl || (document.getElementById("ownerGuestLinkText") || {}).textContent || "";
+    if (!url) {
+      setOwnerGuestQrFeedback("Chưa có liên kết mời để sao chép.", "warning");
+      return;
+    }
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setOwnerGuestQrFeedback("Đã sao chép liên kết mời vào bộ nhớ tạm.", "success");
+    } catch (_) {
+      setOwnerGuestQrFeedback("Không sao chép tự động được, hãy chọn liên kết ở trên.", "warning");
+    }
+  }
+
+  async function shareOwnerGuestQrLink() {
+    const url = ownerGuestCurrentUrl || (document.getElementById("ownerGuestLinkText") || {}).textContent || "";
+    if (!url) {
+      setOwnerGuestQrFeedback("Chưa có liên kết mời để chia sẻ.", "warning");
+      return;
+    }
+    const tierLabel = (document.getElementById("ownerGuestInviteTierLabel") || {}).textContent || "Khách";
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "Lời mời Nhà thông minh",
+          text: `Liên kết mời ${tierLabel} truy cập Nhà thông minh (dùng một lần):`,
+          url: url,
+        });
+        setOwnerGuestQrFeedback("Đã chia sẻ liên kết mời thành công.", "success");
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+      }
+    }
+    await copyOwnerGuestQrLink();
+  }
+
   async function revokeOwnerGuestQr() {
-    const meta = document.getElementById("ownerGuestQrMeta");
     if (!ownerGuestCurrentInviteId) {
-      if (meta) meta.textContent = "Chưa có mã để thu hồi.";
+      setOwnerGuestQrFeedback("Chưa có mã để hủy.", "warning");
       return;
     }
     try {
@@ -2717,13 +2976,13 @@
       });
       const data = await res.json().catch(() => ({}));
       if (data.ok) {
-        resetOwnerGuestInviteDisplay("Đã thu hồi");
-        if (meta) meta.textContent = "Đã thu hồi mã mời hiện tại.";
+        resetOwnerGuestInviteDisplay("Đã hủy", "Mã mời đã bị hủy. Bấm Tạo mã QR để tạo mã mới.", "revoked");
+        setOwnerGuestQrFeedback("Đã hủy mã mời hiện tại.", "warning");
       } else {
-        if (meta) meta.textContent = data.error || "Không thu hồi được mã.";
+        setOwnerGuestQrFeedback(data.error || "Không hủy được mã.", "error");
       }
     } catch (err) {
-      if (meta) meta.textContent = "Không thu hồi được mã.";
+      setOwnerGuestQrFeedback("Không hủy được mã.", "error");
     }
   }
 
@@ -2751,8 +3010,14 @@
   (function bindOwnerGuestQrUi() {
     const gen = document.getElementById("ownerGuestQrGenerateBtn");
     const rev = document.getElementById("ownerGuestQrRevokeBtn");
+    const copyBtn = document.getElementById("ownerGuestQrCopyBtn");
+    const shareBtn = document.getElementById("ownerGuestQrShareBtn");
+    const refreshBtn = document.getElementById("ownerGuestQrRefreshBtn");
     if (gen) gen.addEventListener("click", () => { loadOwnerDashboardGuestQr(); });
     if (rev) rev.addEventListener("click", () => { revokeOwnerGuestQr(); });
+    if (copyBtn) copyBtn.addEventListener("click", () => { copyOwnerGuestQrLink(); });
+    if (shareBtn) shareBtn.addEventListener("click", () => { shareOwnerGuestQrLink(); });
+    if (refreshBtn) refreshBtn.addEventListener("click", () => { loadOwnerDashboardGuestQr(); });
     const forgotBtn = document.getElementById("ownerGuestQrForgotPinBtn");
     const resetBtn = document.getElementById("ownerGuestPinResetBtn");
     const forgotBox = document.getElementById("ownerGuestPinForgotBox");

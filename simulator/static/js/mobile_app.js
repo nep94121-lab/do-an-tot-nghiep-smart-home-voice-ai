@@ -1476,7 +1476,17 @@
       let streamObtained = false;
       try {
         if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          voiceSheetStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const sheetConstraints = (typeof window !== 'undefined' && window.SmartHomeEchoGuard)
+            ? window.SmartHomeEchoGuard.getStandardMicConstraints({ channelCount: 1 })
+            : {
+                audio: {
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                },
+              };
+          voiceSheetStream = await navigator.mediaDevices.getUserMedia(sheetConstraints);
           streamObtained = !!voiceSheetStream;
         } else {
           throw new Error('getUserMedia not supported');
@@ -1520,15 +1530,35 @@
                 input[i] = rawIn[Math.min(rawIn.length - 1, Math.floor(i * ratio))];
               }
             }
+            let sumSq = 0;
             const pcm16 = new Int16Array(input.length);
             for (let i = 0; i < input.length; i++) {
               const s = Math.max(-1, Math.min(1, input[i]));
+              sumSq += s * s;
               pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            const rms = input.length ? Math.sqrt(sumSq / input.length) : 0;
+            if (mobileEchoGuard) {
+              if (mobileOutAudioCtx) {
+                mobileEchoGuard.syncAudioContextPlayback(mobileOutAudioCtx.currentTime, mobileNextPlayTime);
+              }
+              const gate = mobileEchoGuard.evaluateMicFrame({
+                rms: rms,
+                frameDurationMs: (input.length / 16000.0) * 1000.0,
+              });
+              if (!gate.allowSend) return;
             }
             voiceSheetPcmChunks.push(new Uint8Array(pcm16.buffer.slice(0)));
           };
           src.connect(voiceSheetProcessor);
-          voiceSheetProcessor.connect(voiceSheetAudioCtx.destination);
+          if (typeof voiceSheetAudioCtx.createGain === 'function') {
+            const sheetZeroGain = voiceSheetAudioCtx.createGain();
+            sheetZeroGain.gain.value = 0;
+            voiceSheetProcessor.connect(sheetZeroGain);
+            sheetZeroGain.connect(voiceSheetAudioCtx.destination);
+          } else {
+            voiceSheetProcessor.connect(voiceSheetAudioCtx.destination);
+          }
         }
       } catch (_) {}
 
@@ -2449,6 +2479,30 @@
       return output;
     }
 
+    const MOBILE_ECHO_TAIL_HOLD_MS = 400;
+    const mobileEchoGuard = (typeof window !== 'undefined' && window.SmartHomeEchoGuard)
+      ? window.SmartHomeEchoGuard.createVoiceEchoGuard({
+          tailHoldMs: MOBILE_ECHO_TAIL_HOLD_MS,
+          onBargeIn: () => {
+            clearMobileAudioQueue();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'barge_in' })); } catch (_) {}
+            }
+          },
+        })
+      : null;
+
+    function clearMobileAudioQueue() {
+      if (mobileEchoGuard) {
+        mobileEchoGuard.clearPlayback();
+      }
+      if (mobileOutAudioCtx) {
+        try { mobileOutAudioCtx.close(); } catch (_) {}
+        mobileOutAudioCtx = null;
+        mobileNextPlayTime = 0;
+      }
+    }
+
     function playMobilePcm24kOrSpeakVi(pcm24kB64, fallbackText) {
       const ttsToggle = document.getElementById('ttsSpeakToggle');
       if (ttsToggle && ttsToggle.checked === false) return;
@@ -2479,12 +2533,22 @@
             const source = mobileOutAudioCtx.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(mobileOutAudioCtx.destination);
+            if (mobileEchoGuard) {
+              source.onended = () => {
+                mobileEchoGuard.noteSourceEnded();
+              };
+            }
             const now = mobileOutAudioCtx.currentTime;
             if (mobileNextPlayTime < now) {
               mobileNextPlayTime = now + 0.02;
             }
             source.start(mobileNextPlayTime);
             mobileNextPlayTime += audioBuffer.duration;
+            if (mobileEchoGuard) {
+              mobileEchoGuard.notePlaybackQueued(audioBuffer.duration * 1000.0);
+              mobileEchoGuard.syncAudioContextPlayback(mobileOutAudioCtx.currentTime, mobileNextPlayTime);
+            }
+            stopMobileSpeechRecognitionVi();
             if (typeof window !== 'undefined') {
               window.__aoedePlayedChunksCount = Number(window.__aoedePlayedChunksCount || 0) + 1;
               window.__lastPlayedAoedeAudio = {
@@ -2663,9 +2727,18 @@
           return;
         }
 
-        mobileMediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, sampleRate: 16000 }
-        });
+        const mobileMicConstraints = (typeof window !== 'undefined' && window.SmartHomeEchoGuard)
+          ? window.SmartHomeEchoGuard.getStandardMicConstraints({ channelCount: 1, sampleRate: 16000 })
+          : {
+              audio: {
+                channelCount: 1,
+                sampleRate: 16000,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            };
+        mobileMediaStream = await navigator.mediaDevices.getUserMedia(mobileMicConstraints);
         mobileAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         const source = mobileAudioContext.createMediaStreamSource(mobileMediaStream);
         mobileAudioProcessor = mobileAudioContext.createScriptProcessor(4096, 1, 1);
@@ -2674,10 +2747,33 @@
           const rawInput = e.inputBuffer.getChannelData(0);
           const actualSr = mobileAudioContext ? mobileAudioContext.sampleRate : 16000;
           const input = resampleMobileFloat32AntiAliased(rawInput, actualSr, 16000);
+          let sumSq = 0;
           const pcm16 = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) {
             const s = Math.max(-1, Math.min(1, input[i]));
+            sumSq += s * s;
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          }
+          const rms = input.length ? Math.sqrt(sumSq / input.length) : 0;
+          let bargeInTriggered = false;
+          if (mobileEchoGuard) {
+            if (mobileOutAudioCtx) {
+              mobileEchoGuard.syncAudioContextPlayback(mobileOutAudioCtx.currentTime, mobileNextPlayTime);
+            }
+            const gate = mobileEchoGuard.evaluateMicFrame({
+              rms: rms,
+              frameDurationMs: (input.length / 16000.0) * 1000.0,
+            });
+            if (!gate.allowSend) {
+              return;
+            }
+            bargeInTriggered = Boolean(gate.bargeInTriggered);
+          } else if (
+            mobileOutAudioCtx &&
+            mobileNextPlayTime > 0 &&
+            mobileOutAudioCtx.currentTime < mobileNextPlayTime + (MOBILE_ECHO_TAIL_HOLD_MS / 1000.0)
+          ) {
+            return;
           }
           const bytes = new Uint8Array(pcm16.buffer.slice(0));
           mobileMicPcmChunks.push(bytes);
@@ -2693,11 +2789,19 @@
               type: 'mic_chunk',
               pcm16k_b64: window.btoa(binary),
               is_speech: true,
+              barge_in: bargeInTriggered,
             }));
           }
         };
         source.connect(mobileAudioProcessor);
-        mobileAudioProcessor.connect(mobileAudioContext.destination);
+        if (typeof mobileAudioContext.createGain === 'function') {
+          const mobileZeroGain = mobileAudioContext.createGain();
+          mobileZeroGain.gain.value = 0;
+          mobileAudioProcessor.connect(mobileZeroGain);
+          mobileZeroGain.connect(mobileAudioContext.destination);
+        } else {
+          mobileAudioProcessor.connect(mobileAudioContext.destination);
+        }
       } catch (err) {
         isMobileListening = false;
         stopMobileSpeechRecognitionVi();
@@ -3522,14 +3626,169 @@
       return;
     }
 
-    async function createMobileGuestInvite() {
+    let mobileCurrentInviteId = '';
+    let mobileQrCountdownTimer = null;
+
+    function setMobileQrStatusTone(statusText, tone = 'info') {
       const statusEl = document.getElementById('mobileQrInviteStatus');
+      if (!statusEl) return;
+      statusEl.textContent = statusText || '';
+      statusEl.classList.remove('is-success', 'is-error', 'is-warning');
+      if (tone === 'success') statusEl.classList.add('is-success');
+      else if (tone === 'error') statusEl.classList.add('is-error');
+      else if (tone === 'warning') statusEl.classList.add('is-warning');
+    }
+
+    function setMobileQrBadge(statusKey, summaryText, badgeText) {
+      const clsMap = {
+        idle: 'mobile-qr-badge-idle',
+        active: 'mobile-qr-badge-active',
+        warning: 'mobile-qr-badge-warning',
+        expired: 'mobile-qr-badge-expired',
+        revoked: 'mobile-qr-badge-revoked',
+        used: 'mobile-qr-badge-used',
+      };
+      const cls = clsMap[statusKey] || 'mobile-qr-badge-idle';
+      ['mobileQrCountdown', 'mobileQrStatusBadge'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove(
+          'mobile-qr-badge-idle',
+          'mobile-qr-badge-active',
+          'mobile-qr-badge-warning',
+          'mobile-qr-badge-expired',
+          'mobile-qr-badge-revoked',
+          'mobile-qr-badge-used'
+        );
+        el.classList.add('mobile-qr-badge', cls);
+      });
+      const cdEl = document.getElementById('mobileQrCountdown');
+      const stEl = document.getElementById('mobileQrStatusBadge');
+      if (cdEl && summaryText) cdEl.textContent = summaryText;
+      if (stEl && badgeText) stEl.textContent = badgeText;
+    }
+
+    function formatMobileQrCountdown(secRem) {
+      const s = Math.max(0, Math.floor(secRem));
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = s % 60;
+      const p = (n) => String(n).padStart(2, '0');
+      if (d > 0) return `${d} ngày ${p(h)}:${p(m)}:${p(r)}`;
+      if (h > 0) return `${p(h)}:${p(m)}:${p(r)}`;
+      return `${p(m)}:${p(r)}`;
+    }
+
+    function startMobileQrCountdown(expiresAtSec) {
+      if (mobileQrCountdownTimer) {
+        clearInterval(mobileQrCountdownTimer);
+        mobileQrCountdownTimer = null;
+      }
+      const pill = document.getElementById('mobileQrCountdownPill');
+      const pillTxt = document.getElementById('mobileQrCountdownText');
+      if (!expiresAtSec || !Number.isFinite(Number(expiresAtSec))) {
+        if (pill) pill.hidden = true;
+        return;
+      }
+      const expMs = Number(expiresAtSec) * 1000;
+      const tick = () => {
+        const remSec = Math.floor((expMs - Date.now()) / 1000);
+        if (pill) pill.hidden = false;
+        if (remSec <= 0) {
+          clearInterval(mobileQrCountdownTimer);
+          mobileQrCountdownTimer = null;
+          if (pill) {
+            pill.classList.remove('is-warning');
+            pill.classList.add('is-expired');
+          }
+          if (pillTxt) pillTxt.textContent = 'Mã QR đã hết hạn';
+          setMobileQrBadge('expired', 'Hết hạn', 'Hết hạn');
+          setMobileQrStatusTone('Mã QR đã hết hạn. Bấm Làm mới để tạo mã mới.', 'warning');
+          const frame = document.getElementById('mobileQrSvgContainer');
+          if (frame) frame.classList.remove('is-active');
+          return;
+        }
+        const warn = remSec <= 120;
+        const fmt = formatMobileQrCountdown(remSec);
+        if (pill) {
+          pill.classList.toggle('is-warning', warn);
+          pill.classList.remove('is-expired');
+        }
+        if (pillTxt) pillTxt.textContent = `Còn hiệu lực · ${fmt}`;
+        setMobileQrBadge(warn ? 'warning' : 'active', fmt, warn ? 'Sắp hết hạn' : 'Còn hiệu lực');
+      };
+      tick();
+      mobileQrCountdownTimer = setInterval(tick, 1000);
+    }
+
+    async function shareMobileGuestLink() {
+      const urlEl = document.getElementById('mobileQrUrlText');
+      const url = urlEl ? String(urlEl.textContent || '').trim() : '';
+      if (!url) {
+        setMobileQrStatusTone('Chưa có liên kết mời để chia sẻ. Hãy tạo mã QR trước.', 'warning');
+        return;
+      }
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: 'Lời mời Nhà thông minh',
+            text: 'Mở liên kết này để điều khiển thiết bị trong nhà (dùng một lần):',
+            url: url,
+          });
+          setMobileQrStatusTone('Đã chia sẻ liên kết mời thành công.', 'success');
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+        }
+      }
+      copyMobileGuestLink();
+      setMobileQrStatusTone('Đã sao chép liên kết mời để bạn dán và chia sẻ.', 'success');
+    }
+
+    async function revokeMobileGuestInvite() {
+      if (!mobileCurrentInviteId) {
+        setMobileQrStatusTone('Chưa có mã QR đang hoạt động để hủy.', 'warning');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/auth3/guest_invites/${encodeURIComponent(mobileCurrentInviteId)}/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: '{}',
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d.ok) {
+          mobileCurrentInviteId = '';
+          if (mobileQrCountdownTimer) {
+            clearInterval(mobileQrCountdownTimer);
+            mobileQrCountdownTimer = null;
+          }
+          const revBtn = document.getElementById('mobileBtnRevokeGuestQr');
+          if (revBtn) revBtn.disabled = true;
+          const linkEl = document.getElementById('mobileQrOpenLink');
+          if (linkEl) linkEl.style.display = 'none';
+          const urlEl = document.getElementById('mobileQrUrlText');
+          if (urlEl) urlEl.textContent = '';
+          const pill = document.getElementById('mobileQrCountdownPill');
+          if (pill) pill.hidden = true;
+          const frame = document.getElementById('mobileQrSvgContainer');
+          if (frame) frame.classList.remove('is-active');
+          setMobileQrBadge('revoked', 'Đã hủy', 'Đã hủy');
+          setMobileQrStatusTone('Đã hủy mã mời hiện tại.', 'warning');
+        } else {
+          setMobileQrStatusTone(d.error || 'Không thể hủy mã mời.', 'error');
+        }
+      } catch (_) {
+        setMobileQrStatusTone('Lỗi kết nối khi hủy mã mời.', 'error');
+      }
+    }
+
+    async function createMobileGuestInvite() {
       const btn = document.getElementById('mobileBtnCreateGuestQr');
       if (!mobileLoggedIn || Number(mobileTier) !== 1) {
-        if (statusEl) {
-          statusEl.style.color = 'var(--danger)';
-          statusEl.textContent = 'Chỉ Chủ nhà (Cấp 1) mới có quyền tạo lời mời QR.';
-        }
+        setMobileQrStatusTone('Chỉ Chủ nhà (Cấp 1) mới có quyền tạo lời mời QR.', 'error');
         return;
       }
       const durSel = document.getElementById('mobileGuestDurSelect');
@@ -3537,17 +3796,14 @@
       const pinEl = document.getElementById('mobileQrPinInput');
       const pinConfEl = document.getElementById('mobileQrPinConfirmInput');
       const dur = durSel ? durSel.value : '1d';
-      const ttlMap = { '1d': 86400, '2d': 172800, '1w': 604800, '1m': 2592000, '1y': 31536000 };
+      const ttlMap = { '10m': 600, '1h': 3600, '1d': 86400, '2d': 172800, '1w': 604800, '1m': 2592000, '1y': 31536000 };
       const ttlSec = ttlMap[dur] || 86400;
       const inviteTier = parseInt((tierSel ? tierSel.value : '3') || '3', 10);
       const pin = (pinEl ? pinEl.value : '').trim();
       const pinConfirm = (pinConfEl ? pinConfEl.value : '').trim();
 
       if (!/^\d{4,6}$/.test(pin)) {
-        if (statusEl) {
-          statusEl.style.color = 'var(--danger)';
-          statusEl.textContent = 'Vui lòng nhập mã PIN Chủ nhà gồm 4–6 chữ số.';
-        }
+        setMobileQrStatusTone('Vui lòng nhập mã PIN Chủ nhà gồm 4–6 chữ số.', 'error');
         return;
       }
       if (btn) { btn.disabled = true; btn.textContent = 'Đang tạo mã...'; }
@@ -3566,16 +3822,14 @@
         });
         const d = await res.json().catch(() => ({}));
         if (!isHttpOk(res) || !d.ok) {
-          if (statusEl) {
-            statusEl.style.color = 'var(--danger)';
-            statusEl.textContent = d.error || 'Không thể tạo lời mời QR.';
-          }
+          setMobileQrStatusTone(d.error || 'Không thể tạo lời mời QR.', 'error');
         } else {
+          mobileCurrentInviteId = d.invite_id || '';
           const inviteUrl = d.public_guest_url || d.full_url || d.qr_url || d.url || (`/guest?token=${encodeURIComponent(d.token || '')}`);
           const tokEl = document.getElementById('mobileQrTokenText');
           const urlEl = document.getElementById('mobileQrUrlText');
           const linkEl = document.getElementById('mobileQrOpenLink');
-          const cdEl = document.getElementById('mobileQrCountdown');
+          const revBtn = document.getElementById('mobileBtnRevokeGuestQr');
           const expStr = d.expires_at ? new Date(Number(d.expires_at) * 1000).toLocaleString('vi-VN', { hour12: false }) : '';
           const durStr = String(d.duration_label || d.duration_code || dur || '').trim();
           if (tokEl) tokEl.textContent = `${d.token || ''}`;
@@ -3584,36 +3838,31 @@
             linkEl.href = inviteUrl;
             linkEl.style.display = 'inline-flex';
           }
-          if (cdEl) cdEl.textContent = durStr ? (`Hạn ${durStr}${expStr ? ' · Hết hạn ' + expStr : ''}`) : 'Đã tạo mã mời';
+          if (revBtn) revBtn.disabled = !mobileCurrentInviteId;
           const qrContainer = document.getElementById('mobileQrSvgContainer');
           if (d.qr_svg && qrContainer) {
             qrContainer.innerHTML = d.qr_svg;
+            qrContainer.classList.add('is-active');
             const svgEl = qrContainer.querySelector('svg');
             if (svgEl) {
               svgEl.id = 'mobileDynamicQrSvg';
-              svgEl.setAttribute('width', '104');
-              svgEl.setAttribute('height', '104');
-              svgEl.style.width = '104px';
-              svgEl.style.height = '104px';
+              svgEl.setAttribute('width', '184');
+              svgEl.setAttribute('height', '184');
+              svgEl.style.width = '184px';
+              svgEl.style.height = '184px';
               svgEl.style.display = 'block';
-              svgEl.style.background = '#fff';
-              svgEl.style.padding = '4px';
-              svgEl.style.borderRadius = '10px';
-              svgEl.style.border = '1px solid var(--line)';
             }
           }
-          if (statusEl) {
-            statusEl.style.color = 'var(--accent)';
-            statusEl.textContent = durStr
-              ? (`Đã tạo lời mời QR (${durStr}${expStr ? ', hết hạn ' + expStr : ''}).`)
-              : 'Đã tạo lời mời QR thành công.';
-          }
+          startMobileQrCountdown(d.expires_at);
+          setMobileQrStatusTone(
+            durStr
+              ? (`Đã tạo lời mời QR dùng một lần (${durStr}${expStr ? ', hết hạn ' + expStr : ''}).`)
+              : 'Đã tạo lời mời QR dùng một lần thành công.',
+            'success'
+          );
         }
       } catch (_) {
-        if (statusEl) {
-          statusEl.style.color = 'var(--danger)';
-          statusEl.textContent = 'Lỗi kết nối khi tạo lời mời QR.';
-        }
+        setMobileQrStatusTone('Lỗi kết nối khi tạo lời mời QR.', 'error');
       }
       if (btn) { btn.disabled = false; btn.textContent = 'Tạo lời mời QR'; }
     }
@@ -3734,6 +3983,8 @@ window.onMobileActorChange = onMobileActorChange;
 window.submitMobileAddEmail = submitMobileAddEmail;
 window.submitMobileVoiceSample = submitMobileVoiceSample;
 window.copyMobileGuestLink = copyMobileGuestLink;
+window.shareMobileGuestLink = shareMobileGuestLink;
+window.revokeMobileGuestInvite = revokeMobileGuestInvite;
 window.refreshMobileQr10s = refreshMobileQr10s;
 window.createMobileGuestInvite = createMobileGuestInvite;
 window.pollMobileSecurityAndTimers = pollMobileSecurityAndTimers;
