@@ -141,22 +141,31 @@ def test_fix2_text_command_executes_real_device_actions_and_respects_rbac(client
     assert eng.devices["living_room_light"]["state"] == "OFF"
     assert eng.devices["fan"]["state"] == "OFF"
 
-    # Bật đèn phòng khách bằng lệnh văn bản
+    # Bật đèn phòng khách bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
     r1 = client.post("/api/text_command", json={"text": "Bật đèn phòng khách"}, headers=_OWNER_HDR)
     assert r1.status_code == 200
-    assert r1.json().get("ok") is True
+    assert r1.json().get("ok") is True and r1.json().get("requires_confirmation") is True
+    assert eng.devices["living_room_light"]["state"] == "OFF"
+    r1_ok = client.post("/api/text_command", json={"text": "ok"}, headers=_OWNER_HDR)
+    assert r1_ok.status_code == 200 and r1_ok.json().get("ok") is True
     assert eng.devices["living_room_light"]["state"] == "ON"
 
-    # Bật quạt trần bằng lệnh văn bản
+    # Bật quạt trần bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
     r2 = client.post("/api/text_command", json={"text": "Bật quạt trần"}, headers=_OWNER_HDR)
     assert r2.status_code == 200
-    assert r2.json().get("ok") is True
+    assert r2.json().get("ok") is True and r2.json().get("requires_confirmation") is True
+    assert eng.devices["fan"]["state"] == "OFF"
+    r2_ok = client.post("/api/text_command", json={"text": "ok"}, headers=_OWNER_HDR)
+    assert r2_ok.status_code == 200 and r2_ok.json().get("ok") is True
     assert eng.devices["fan"]["state"] == "ON"
 
-    # Tắt đèn phòng khách bằng lệnh văn bản
+    # Tắt đèn phòng khách bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
     r3 = client.post("/api/text_command", json={"text": "Tắt đèn phòng khách"}, headers=_OWNER_HDR)
     assert r3.status_code == 200
-    assert r3.json().get("ok") is True
+    assert r3.json().get("ok") is True and r3.json().get("requires_confirmation") is True
+    assert eng.devices["living_room_light"]["state"] == "ON"
+    r3_ok = client.post("/api/text_command", json={"text": "ok"}, headers=_OWNER_HDR)
+    assert r3_ok.status_code == 200 and r3_ok.json().get("ok") is True
     assert eng.devices["living_room_light"]["state"] == "OFF"
 
     # Khi ở vai trò Khách Cấp 3, lệnh văn bản "Mở cửa chính" phải bị chặn

@@ -314,11 +314,20 @@ class TestAddendumPoolsConfirmAndQueries:
         assert len(all_cmds) == 2
 
     def test_immediate_toggle_skips_confirmation(self, client: TestClient) -> None:
+        # Direct UI toggle (/api/device) stays immediate; /api/text_command prompts then executes after "ok".
+        r_ui = client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_on"})
+        assert r_ui.status_code == 200 and r_ui.json().get("ok") is True
+        assert _REST_ENGINE.devices["living_room_light"]["state"] == "ON"
+        client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_off"})
+
         r = client.post("/api/text_command", headers=H_TIER1, json={"text": "bật đèn phòng khách"})
         assert r.status_code == 200
         data = r.json()
         assert data.get("ok") is True
-        assert not data.get("requires_confirmation")
+        assert data.get("requires_confirmation") is True
+        assert _REST_ENGINE.devices["living_room_light"]["state"] == "OFF"
+        r_ok = client.post("/api/text_command", headers=H_TIER1, json={"text": "ok"})
+        assert r_ok.status_code == 200 and r_ok.json().get("ok") is True
         assert _REST_ENGINE.devices["living_room_light"]["state"] == "ON"
 
     @pytest.mark.parametrize("confirm_word", ["xác nhận", "đúng", "ừ", "ok"])

@@ -289,7 +289,9 @@ console.log(JSON.stringify({
         asyncio.run(bridge.handle_mic_chunk(wav_pcm, is_sp=True, actor=owner_sess, is_barge_in=True))
         assert bridge._mic_in_flight_queue.qsize() > 0
 
-        # HTTP voice loopback: after AI replies to a command, feeding AI's reply back as transcript does nothing
+        # HTTP voice loopback: device command prompts for confirmation first, executes on "ok",
+        # and feeding AI's reply back as transcript is suppressed.
+        asyncio.run(engine.execute_device_action("living_room_light", "turn_off", bypass_rbac=True))
         resp1, status1 = asyncio.run(
             process_session_voice_command(
                 engine=engine,
@@ -298,8 +300,21 @@ console.log(JSON.stringify({
             )
         )
         assert status1 == 200 and resp1["ok"] is True
+        assert resp1.get("requires_confirmation") is True
+        assert resp1.get("executed") is False
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+
+        resp_ok, status_ok = asyncio.run(
+            process_session_voice_command(
+                engine=engine,
+                session=owner_sess,
+                payload={"transcript": "ok"},
+            )
+        )
+        assert status_ok == 200 and resp_ok["ok"] is True
+        assert resp_ok.get("executed") is True
         assert engine.devices["living_room_light"]["state"] == "ON"
-        ai_reply = resp1["exact_spoken_reply"]
+        ai_reply = resp_ok["exact_spoken_reply"]
         assert ai_reply
 
         # Now feed AI's own spoken reply back into mic path -> suppressed, no execution, silent

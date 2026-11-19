@@ -1569,23 +1569,38 @@ class TestF06HttpAudioNoWeSpeaker:
             assert d_sine.get("silent") is True and d_sine.get("reason") == "empty_transcript"
             assert called["n"] == 0
 
-            # 2. Owner's WAV ("bật đèn phòng khách") sent with Tier 3 guest session -> allowed for living_room_light
+            # Reset baseline states before testing confirmation + session RBAC flow
+            client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_off"})
+            client.post("/api/device", headers=H_TIER1, json={"device_id": "main_door", "action": "close"})
+
+            # 2. Owner's WAV ("bật đèn phòng khách") sent with Tier 3 guest session -> prompts then executes after "ok"
             r_g_light = client.post("/api/voice_command", headers=H_TIER3, json={"wav_b64": base64.b64encode(cau4).decode()})
             assert r_g_light.status_code == 200
             assert r_g_light.json().get("authorized") is True and r_g_light.json().get("permission") == "ALLOWED"
+            assert r_g_light.json().get("requires_confirmation") is True
+            assert _REST_ENGINE.devices["living_room_light"]["state"] == "OFF"
+            r_g_light_ok = client.post("/api/voice_command", headers=H_TIER3, json={"transcript": "ok"})
+            assert r_g_light_ok.status_code == 200 and r_g_light_ok.json().get("ok") is True
             assert _REST_ENGINE.devices["living_room_light"]["state"] == "ON"
 
-            # 3. Owner's WAV ("mở cửa chính") sent with Tier 3 guest session -> denied 403 by session RBAC
+            # 3. Owner's WAV ("mở cửa chính") sent with Tier 3 guest session -> denied 403 immediately by session RBAC
             r_g_door = client.post("/api/voice_command", headers=H_TIER3, json={"wav_b64": base64.b64encode(cau2).decode()})
             assert r_g_door.status_code == 403
             assert r_g_door.json().get("rbac_blocked") is True
             assert _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
 
-            # 4. Owner's WAV ("mở cửa chính" / "đóng cửa chính") sent with Tier 1 owner session -> allowed 200
+            # 4. Owner's WAV ("mở cửa chính" / "đóng cửa chính") sent with Tier 1 owner session -> prompts then executes on "ok"
             r_o_open = client.post("/api/voice_command", headers=H_TIER1, json={"wav_b64": base64.b64encode(cau2).decode()})
-            assert r_o_open.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "OPEN"
+            assert r_o_open.status_code == 200 and r_o_open.json().get("requires_confirmation") is True
+            assert _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
+            r_o_open_ok = client.post("/api/voice_command", headers=H_TIER1, json={"transcript": "ok"})
+            assert r_o_open_ok.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "OPEN"
+
             r_o_close = client.post("/api/voice_command", headers=H_TIER1, json={"wav_b64": base64.b64encode(cau3).decode()})
-            assert r_o_close.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
+            assert r_o_close.status_code == 200 and r_o_close.json().get("requires_confirmation") is True
+            assert _REST_ENGINE.devices["main_door"]["state"] == "OPEN"
+            r_o_close_ok = client.post("/api/voice_command", headers=H_TIER1, json={"transcript": "ok"})
+            assert r_o_close_ok.status_code == 200 and _REST_ENGINE.devices["main_door"]["state"] == "CLOSED"
             client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_off"})
             assert called["n"] == 0
 

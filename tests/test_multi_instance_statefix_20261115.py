@@ -718,8 +718,15 @@ def test_s1c_voice_and_text_open_door_cross_instance_truth(
         payload={"text": "mở cửa"},
         token=token,
     )
-    assert code_txt == 200 and body_txt.get("ok") is True, body_txt
-    reply_txt = str(body_txt.get("exact_spoken_reply") or body_txt.get("reply") or "")
+    assert code_txt == 200 and body_txt.get("ok") is True and body_txt.get("requires_confirmation") is True, body_txt
+    code_txt_ok, body_txt_ok = _http_json(
+        f"{inst_b}/api/text_command",
+        method="POST",
+        payload={"text": "ok"},
+        token=token,
+    )
+    assert code_txt_ok == 200 and body_txt_ok.get("ok") is True, body_txt_ok
+    reply_txt = str(body_txt_ok.get("exact_spoken_reply") or body_txt_ok.get("reply") or "")
     assert "mở sẵn rồi" not in reply_txt.lower(), f"Stale false reply from Instance B: {reply_txt}"
 
     _, snap_a = _http_json(f"{inst_a}/api/state", token=token)
@@ -738,8 +745,15 @@ def test_s1c_voice_and_text_open_door_cross_instance_truth(
         payload={"transcript": "mở cửa", "source": "s1c_voice"},
         token=token,
     )
-    assert code_vc == 200 and body_vc.get("ok") is True, body_vc
-    reply_vc = str(body_vc.get("exact_spoken_reply") or body_vc.get("reply") or "")
+    assert code_vc == 200 and body_vc.get("ok") is True and body_vc.get("requires_confirmation") is True, body_vc
+    code_vc_ok, body_vc_ok = _http_json(
+        f"{inst_a}/api/voice_command",
+        method="POST",
+        payload={"transcript": "ok", "source": "s1c_voice"},
+        token=token,
+    )
+    assert code_vc_ok == 200 and body_vc_ok.get("ok") is True, body_vc_ok
+    reply_vc = str(body_vc_ok.get("exact_spoken_reply") or body_vc_ok.get("reply") or "")
     assert "mở sẵn rồi" not in reply_vc.lower(), f"Stale false reply on voice_command: {reply_vc}"
 
     _, snap_b = _http_json(f"{inst_b}/api/state", token=token)

@@ -393,14 +393,21 @@ class TestF2All7DevicesVoiceThenToggle:
                         {"device_id": dev_id, "target_state": expected_off, "client_id": "f2_prep", "client_seq": 1},
                         token=token,
                     )
-                    # 2) Send real voice command transcript to turn ON/OPEN on server
+                    # 2) Send real voice command transcript -> confirm "ok" to turn ON/OPEN on server
                     st_code, vc_body = _http_post_json(
                         base_url,
                         "/api/voice_command",
                         {"transcript": phrase, "source": "f2_voice_e2e"},
                         token=token,
                     )
-                    assert st_code == 200 and vc_body.get("ok") is True, f"{dev_id} voice failed: {vc_body}"
+                    assert st_code == 200 and vc_body.get("ok") is True and vc_body.get("requires_confirmation") is True, f"{dev_id} voice prompt failed: {vc_body}"
+                    st_ok, vc_ok = _http_post_json(
+                        base_url,
+                        "/api/voice_command",
+                        {"transcript": "ok", "source": "f2_voice_e2e"},
+                        token=token,
+                    )
+                    assert st_ok == 200 and vc_ok.get("ok") is True, f"{dev_id} voice confirm failed: {vc_ok}"
 
                     # Confirm server truth == ON/OPEN
                     code_s, snap = _http_get_json(base_url, "/api/state", token=token)
@@ -507,14 +514,21 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 await page_app.click('#devGrid [data-device-id="fan"]')
                 await page_web.wait_for_selector('#dev-card-fan[data-state="on"]', timeout=5000)
 
-                # 3) Voice API -> Both Web & /app
+                # 3) Voice API -> Both Web & /app (requires confirmation then "ok")
                 st_code, vc = _http_post_json(
                     base_url,
                     "/api/voice_command",
                     {"transcript": "Mở cửa chính", "source": "f3_voice"},
                     token=token,
                 )
-                assert st_code == 200 and vc.get("ok") is True
+                assert st_code == 200 and vc.get("ok") is True and vc.get("requires_confirmation") is True
+                st_ok, vc_ok = _http_post_json(
+                    base_url,
+                    "/api/voice_command",
+                    {"transcript": "ok", "source": "f3_voice"},
+                    token=token,
+                )
+                assert st_ok == 200 and vc_ok.get("ok") is True
                 await page_web.wait_for_selector('#dev-card-main_door[data-state="on"]', timeout=5000)
                 await page_app.wait_for_selector('#devGrid [data-device-id="main_door"][data-state="on"]', timeout=5000)
 
