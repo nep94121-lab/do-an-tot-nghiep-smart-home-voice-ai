@@ -538,10 +538,25 @@ class TestGroup4DeviceActuationAndTelemetry:
         assert "Camera" in h3d_file.read_text(encoding="utf-8")
 
     def test_flow_25_wokwi_circuit_and_esp8266_sync(self, test_client: TestClient) -> None:
-        """Luồng 25: Đồng bộ Mạch điện tử NodeMCU ESP8266 & Breadboard (/wokwi)."""
-        resp = test_client.get("/wokwi")
-        assert resp.status_code == 200
-        assert "ESP8266" in resp.text or "wokwi" in resp.text.lower()
+        """Luồng 25: Đồng bộ Mạch điện tử NodeMCU ESP8266 & Breadboard (/wokwi) có bảo vệ phiên."""
+        unauth = test_client.get("/wokwi", follow_redirects=False)
+        assert unauth.status_code in (302, 303, 307, 401, 403)
+        from simulator.auth.session_store import get_session_store
+
+        sess = get_session_store().create_session(
+            user_id="flow25_owner",
+            email="flow25_owner@example.com",
+            display_name="Flow 25 Owner",
+            tier=1,
+            role="ADMIN",
+            source="test_flow_25",
+        )
+        try:
+            resp = test_client.get("/wokwi", headers={"X-Session-Token": sess.session_id})
+            assert resp.status_code == 200
+            assert "ESP8266" in resp.text or "wokwi" in resp.text.lower()
+        finally:
+            get_session_store().revoke_session(sess.session_id)
 
 
 # ==============================================================================

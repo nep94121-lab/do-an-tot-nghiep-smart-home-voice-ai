@@ -308,12 +308,14 @@ class TestRequirement4WebDashboardWorksForLoggedInAdmin:
     """Requirement 4: Web dashboard / log pages still work for a logged-in admin."""
 
     def test_logs_page_and_api_work_with_admin_cookie_and_header(self, client: TestClient) -> None:
-        page_resp = client.get("/logs")
-        assert page_resp.status_code == 200
-        assert "auditLogsTbody" in page_resp.text
+        unauth_resp = client.get("/logs", follow_redirects=False)
+        assert unauth_resp.status_code in (302, 303, 307, 401, 403)
 
         client.cookies.set("sh_session_token", ADMIN_SESSION_ID)
         try:
+            page_resp = client.get("/logs")
+            assert page_resp.status_code == 200
+            assert "auditLogsTbody" in page_resp.text
             dash_resp = client.get("/api/logs/dashboard")
             assert dash_resp.status_code == 200
             dash_data = dash_resp.json()

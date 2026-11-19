@@ -98,8 +98,8 @@ const wavPath = process.argv[2];
 const constraints = guardMod.getStandardMicConstraints({ channelCount: 1 });
 if (constraints.audio.echoCancellation !== true ||
     constraints.audio.noiseSuppression !== true ||
-    constraints.audio.autoGainControl !== true) {
-  throw new Error("Standard mic constraints must enable AEC/NS/AGC");
+    constraints.audio.autoGainControl !== false) {
+  throw new Error("Standard mic constraints must enable AEC/NS and disable AGC");
 }
 if (guardMod.ECHO_TAIL_HOLD_MS !== 400) {
   throw new Error("Expected ECHO_TAIL_HOLD_MS === 400, got " + guardMod.ECHO_TAIL_HOLD_MS);
@@ -228,7 +228,8 @@ console.log(JSON.stringify({
         assert "nextPlayTime > audioCtxOut.currentTime + TTS_HOLDOFF_SEC" not in app_js
         assert "echoCancellation: true" in mobile_js
         assert "noiseSuppression: true" in mobile_js
-        assert "autoGainControl: true" in mobile_js
+        assert "autoGainControl: false" in mobile_js
+        assert "autoGainControl: true" not in mobile_js
         assert "echoCancellation: true" in guest_enroll_js
         assert "VOICE_COMMUNICATION" in android_kt
         assert "AcousticEchoCanceler" in android_kt
