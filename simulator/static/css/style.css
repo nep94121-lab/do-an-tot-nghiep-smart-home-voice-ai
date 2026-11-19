@@ -948,7 +948,8 @@ h2,
 }
 
 .modal-content {
-  background: #ffffff;
+  background: var(--card);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -969,10 +970,14 @@ h2,
   font-size: 16px;
   font-weight: 500;
   margin: 0;
+  color: var(--ink);
 }
 
 .btn-close {
-  width: 36px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
   height: 36px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -1490,7 +1495,7 @@ h2,
 }
 .qr-invite-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 10px;
   min-width: 0;
 }
@@ -1510,7 +1515,12 @@ h2,
 .qr-field .input-text {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
+  line-height: 1.4;
+}
+.qr-field select.input-text {
+  padding: 8px 32px 8px 12px;
+  text-overflow: ellipsis;
 }
 .qr-invite-actions {
   display: flex;
@@ -1537,7 +1547,11 @@ h2,
 .qr-forgot-btn {
   background: none;
   border: 0;
-  padding: 6px 4px;
+  padding: 8px 6px;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
   margin-left: auto;
   font-size: 12px;
   cursor: pointer;
@@ -1804,6 +1818,37 @@ h2,
   }
 }
 
+.btn-toggle-pw {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  right: 0 !important;
+  color: var(--muted);
+  border-radius: 8px;
+}
+.btn-toggle-pw:hover,
+.btn-toggle-pw:focus-visible {
+  color: var(--ink);
+}
+#homeLoginGateModal input[type="password"],
+#securityLockdownModal input[type="password"] {
+  padding-right: 48px !important;
+}
+#homeLoginGateModal #gatePanelLogin a,
+.auth-links .auth-link,
+#btnCancelLoginOtp {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 6px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --page: #0f171a;
@@ -1819,6 +1864,51 @@ h2,
     --amber-soft: rgba(251, 191, 36, 0.16);
     --red: #f87171;
     --red-soft: rgba(248, 113, 113, 0.16);
+  }
+  .modal-content,
+  .auth-card,
+  .sidebar,
+  .mobile-nav,
+  .btn-close,
+  .btn-secondary,
+  .btn-mini,
+  .schedule-row-item {
+    background: var(--card);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn:not(.btn-primary):not(.primary):not(.btn-danger):not(.danger) {
+    background: #1d2d32;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn-danger,
+  .btn.danger {
+    background: var(--red-soft);
+    color: var(--red);
+    border-color: rgba(248, 113, 113, 0.35);
+  }
+  .input-text,
+  .auto-input,
+  .auto-select,
+  .auth-form input,
+  .modal-content input,
+  .modal-content select,
+  .modal-content textarea {
+    background: #1d2d32 !important;
+    color: var(--ink) !important;
+    border-color: var(--line) !important;
+  }
+  .input-text::placeholder,
+  .auth-form input::placeholder,
+  .modal-content input::placeholder {
+    color: var(--muted);
+  }
+  .btn-toggle-pw {
+    color: var(--muted);
+  }
+  .btn-toggle-pw:hover {
+    color: var(--ink);
   }
   .qr-frame {
     background: #ffffff;
@@ -1855,6 +1945,28 @@ h2,
   --amber-soft: rgba(251, 191, 36, 0.16);
   --red: #f87171;
   --red-soft: rgba(248, 113, 113, 0.16);
+}
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .auth-card,
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .mobile-nav,
+[data-theme="dark"] .btn-close,
+[data-theme="dark"] .btn-secondary,
+[data-theme="dark"] .btn-mini,
+[data-theme="dark"] .schedule-row-item {
+  background: var(--card);
+  color: var(--ink);
+  border-color: var(--line);
+}
+[data-theme="dark"] .input-text,
+[data-theme="dark"] .auto-input,
+[data-theme="dark"] .auto-select,
+[data-theme="dark"] .auth-form input,
+[data-theme="dark"] .modal-content input,
+[data-theme="dark"] .modal-content select {
+  background: #1d2d32 !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
 }
 [data-theme="dark"] .qr-frame {
   background: #ffffff;

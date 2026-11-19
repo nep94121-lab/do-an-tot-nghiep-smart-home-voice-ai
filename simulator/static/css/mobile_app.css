@@ -293,7 +293,8 @@
     .account-item {
       border: 1px solid var(--line);
       border-radius: 12px;
-      background: #ffffff;
+      background: var(--card);
+      color: var(--text);
       margin-bottom: 10px;
       overflow: hidden;
     }
@@ -303,6 +304,8 @@
       padding: 14px;
       font-weight: 500;
       font-size: 14px;
+      color: var(--text);
+      background: var(--card);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1025,6 +1028,38 @@
   cursor: not-allowed;
 }
 
+.btn-toggle-pw {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  right: 0 !important;
+  color: var(--muted);
+  border-radius: 8px;
+}
+.btn-toggle-pw:hover,
+.btn-toggle-pw:focus-visible {
+  color: var(--text);
+}
+.login-form input[type="password"],
+.account-body input[type="password"] {
+  padding-right: 48px !important;
+}
+.login-form .text-link,
+#btnMobileForgotPassword,
+#mobileGateGuestGuideLink {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f171a;
@@ -1036,6 +1071,53 @@
     --accent-soft: rgba(34, 184, 195, 0.16);
     --danger: #f87171;
     --danger-soft: rgba(248, 113, 113, 0.16);
+  }
+  .account-item,
+  .account-item > summary,
+  .login-card,
+  .dev-row,
+  .sensor,
+  .sheet,
+  .log-line,
+  .scanner .top,
+  .bottom-nav,
+  .mobile-mini-btn {
+    background: var(--card);
+    color: var(--text);
+    border-color: var(--line);
+  }
+  .btn.secondary {
+    background: #1d2d32;
+    color: var(--text);
+    border-color: var(--line);
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea,
+  .login-form input,
+  .login-form input[type="password"] {
+    background: #1d2d32;
+    color: var(--text);
+    border-color: var(--line);
+  }
+  input::placeholder {
+    color: var(--muted);
+  }
+  .overview-box.preview-16-9 {
+    background: #122024;
+    border-color: var(--line);
+  }
+  .dev-row.off .dev-icon {
+    background: #1f3036;
+    color: var(--muted);
+  }
+  .btn-toggle-pw {
+    color: var(--muted);
+  }
+  .btn-toggle-pw:hover {
+    color: var(--text);
   }
   .mobile-qr-frame {
     background: #ffffff;
