@@ -2662,6 +2662,16 @@
         if (!res) throw lastFetchErr || new Error('fetch_failed');
         const data = await res.json().catch(() => ({}));
         const saidText = data.recognized_text || (payload && payload.transcript) || 'Khẩu lệnh giọng nói';
+        if (data.cancelled === true) {
+          const cancelReply = data.exact_spoken_reply || data.reply || 'Đã hủy.';
+          showPwaVoiceResults(saidText, cancelReply);
+          if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+            playMobilePcm24kOrSpeakVi(data.pcm24k_b64, cancelReply);
+          }
+          if (badge) badge.textContent = 'Đã hủy';
+          addLog(saidText, 'voice', 'Đã hủy');
+          return data;
+        }
         if (!isHttpOk(res) || data.ok === false || data.authorized === false || data.rbac_blocked) {
           const errReply = data.error || data.rejection_speech || data.exact_spoken_reply ||
             (res.status === 401

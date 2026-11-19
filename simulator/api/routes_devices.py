@@ -749,24 +749,19 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 },
                 status_code=401,
             )
-        res = await _REST_ENGINE.execute_device_action(
-            "garden_pump",
-            "turn_on",
+        from simulator.automation_nlu import stage_device_intents_for_confirmation
+
+        staged_pump = await stage_device_intents_for_confirmation(
+            engine=_REST_ENGINE,
+            session=session,
             source="text_command",
-            bypass_rbac=False,
-            request_tier=effective_tier,
-            request_user_name=effective_user,
-            request_role=effective_role,
+            intents=[{"device_id": "garden_pump", "action": "turn_on"}],
         )
         await broadcast_rest_state_to_bridges()
-        status_code = 200 if (res.get("ok") or session.source == "legacy_test") else 403
-        return JSONResponse({
-            "ok": bool(res.get("ok")),
-            "rbac_blocked": not bool(res.get("ok")),
-            "reply": res["exact_spoken_reply"],
-            "exact_spoken_reply": res["exact_spoken_reply"],
-            "results": res.get("results", []),
-        }, status_code=status_code)
+        p_status = int(staged_pump.get("status_code") or 200)
+        if p_status == 403 and session.source == "legacy_test":
+            p_status = 200
+        return JSONResponse(staged_pump["payload"], status_code=p_status)
 
     if "tắt máy bơm" in t_low:
         if not session.is_authenticated:
@@ -780,24 +775,19 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 },
                 status_code=401,
             )
-        res = await _REST_ENGINE.execute_device_action(
-            "garden_pump",
-            "turn_off",
+        from simulator.automation_nlu import stage_device_intents_for_confirmation
+
+        staged_pump_off = await stage_device_intents_for_confirmation(
+            engine=_REST_ENGINE,
+            session=session,
             source="text_command",
-            bypass_rbac=False,
-            request_tier=effective_tier,
-            request_user_name=effective_user,
-            request_role=effective_role,
+            intents=[{"device_id": "garden_pump", "action": "turn_off"}],
         )
         await broadcast_rest_state_to_bridges()
-        status_code = 200 if (res.get("ok") or session.source == "legacy_test") else 403
-        return JSONResponse({
-            "ok": bool(res.get("ok")),
-            "rbac_blocked": not bool(res.get("ok")),
-            "reply": res["exact_spoken_reply"],
-            "exact_spoken_reply": res["exact_spoken_reply"],
-            "results": res.get("results", []),
-        }, status_code=status_code)
+        p_status = int(staged_pump_off.get("status_code") or 200)
+        if p_status == 403 and session.source == "legacy_test":
+            p_status = 200
+        return JSONResponse(staged_pump_off["payload"], status_code=p_status)
 
     if "nhiệt độ" in t_low or "độ ẩm" in t_low:
         if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
@@ -969,7 +959,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         await broadcast_rest_state_to_bridges()
         return JSONResponse(staged_rst["payload"], status_code=int(staged_rst.get("status_code") or 200))
 
-    # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (kể cả word_mappings)
+    # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (nhắc lại lời tự nhiên -> chờ "ok" xác nhận)
     targets = _parse_text_device_targets(t_low)
     act = _parse_text_action(t_low)
     if targets and act:
@@ -984,30 +974,22 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 },
                 status_code=401,
             )
-        dev_arg = ",".join(targets)
-        res_dev = await _REST_ENGINE.execute_device_action(
-            device_id=dev_arg,
-            action=act,
+        from simulator.automation_nlu import stage_device_intents_for_confirmation
+
+        staged_dev = await stage_device_intents_for_confirmation(
+            engine=_REST_ENGINE,
+            session=session,
             source="text_command",
-            bypass_rbac=False,
-            request_tier=effective_tier,
-            request_user_name=effective_user,
-            request_role=effective_role,
+            intents=[{"device_id": t, "action": act} for t in targets],
         )
         await broadcast_rest_state_to_bridges()
-        spoken_dev = res_dev.get("exact_spoken_reply") or f"Đã xử lý lệnh: {text}"
-        status_code = 200 if (res_dev.get("ok") or session.source == "legacy_test") else 403
-        return JSONResponse({
-            "ok": bool(res_dev.get("ok")),
-            "rbac_blocked": not bool(res_dev.get("ok")),
-            "tier": effective_tier,
-            "reply": spoken_dev,
-            "exact_spoken_reply": spoken_dev,
-            "rejection_speech": spoken_dev if not res_dev.get("ok") else "",
-            "play_audio": False,
-            "results": res_dev.get("results", []),
-            "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
-        }, status_code=status_code)
+        st_payload = dict(staged_dev.get("payload") or {})
+        st_payload.setdefault("tier", effective_tier)
+        st_payload.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
+        status_code = int(staged_dev.get("status_code") or 200)
+        if status_code == 403 and session.source == "legacy_test":
+            status_code = 200
+        return JSONResponse(st_payload, status_code=status_code)
 
     default_reply = f"Đã nhận lệnh: {text}"
     return JSONResponse({

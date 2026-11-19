@@ -36,7 +36,8 @@
   const ECHO_LEVEL_MAX = 0.075;
   const REF_TARGET_SR = 2000;
   const MAX_REF_SAMPLES_2K = 24000; // 12 seconds @ 2kHz
-  const MAX_SEARCH_LAG_MS = 300;
+  const MIN_NEG_LAG_MS = 140;
+  const MAX_SEARCH_LAG_MS = 380;
   const SUBFRAME_MS = 20;
 
   const STANDARD_MIC_AUDIO_CONSTRAINTS = Object.freeze({
@@ -365,6 +366,7 @@
       }
 
       const curIdx = Math.round(((now - ref2kOriginMs) * REF_TARGET_SR) / 1000.0);
+      const minLagSamples = -Math.round((MIN_NEG_LAG_MS * REF_TARGET_SR) / 1000.0);
       const maxLagSamples = Math.round((MAX_SEARCH_LAG_MS * REF_TARGET_SR) / 1000.0);
       let bestRho = 0;
       let bestAbsRho = 0;
@@ -373,7 +375,7 @@
       let bestRefRms = 0;
       let evaluatedAny = false;
 
-      function scoreLag(lag) {
+      function scoreLag(lag, minAcceptRho) {
         const st = curIdx - lag;
         if (st < 0 || st + n > ref2kSamples.length) return;
         evaluatedAny = true;
@@ -390,7 +392,7 @@
         if (refE < 1e-9) return;
         const denom = Math.sqrt(micE * refE);
         const rho = Math.abs(dot) / denom;
-        if (rho > bestRho) {
+        if (rho > bestRho && rho >= minAcceptRho) {
           bestRho = rho;
           bestAbsRho = absDot / denom;
           bestLag = lag;
@@ -400,19 +402,31 @@
       }
 
       if (lockedLag2k !== null) {
-        const lo = Math.max(0, lockedLag2k - 14);
-        const hi = Math.min(maxLagSamples, lockedLag2k + 14);
+        const lo = Math.max(minLagSamples, lockedLag2k - 18);
+        const hi = Math.min(maxLagSamples, lockedLag2k + 18);
         for (let lag = lo; lag <= hi; lag++) {
-          scoreLag(lag);
+          scoreLag(lag, 0);
         }
       }
-      if (lockedLag2k === null || bestRho < 0.55) {
-        for (let lag = 0; lag <= maxLagSamples; lag += 2) {
-          scoreLag(lag);
+      if (lockedLag2k === null) {
+        for (let lag = minLagSamples; lag <= maxLagSamples; lag += 2) {
+          scoreLag(lag, 0);
         }
         if (bestRho > 0.25) {
-          scoreLag(Math.max(0, bestLag - 1));
-          scoreLag(Math.min(maxLagSamples, bestLag + 1));
+          scoreLag(Math.max(minLagSamples, bestLag - 1), 0);
+          scoreLag(Math.min(maxLagSamples, bestLag + 1), 0);
+        }
+      } else if (bestRho < 0.55) {
+        // When lag is already locked, only accept a far-away lag jump if it is a strong echo match (e.g. WebAudio burst),
+        // preventing spurious ~0.55 correlations against unrelated human speech across a wide lag window.
+        const farMinRho = lockHits >= 3 ? 0.70 : 0.0;
+        for (let lag = minLagSamples; lag <= maxLagSamples; lag += 2) {
+          if (Math.abs(lag - lockedLag2k) <= 18) continue;
+          scoreLag(lag, farMinRho);
+        }
+        if (bestRho > 0.25 && Math.abs(bestLag - lockedLag2k) > 18) {
+          scoreLag(Math.max(minLagSamples, bestLag - 1), farMinRho);
+          scoreLag(Math.min(maxLagSamples, bestLag + 1), farMinRho);
         }
       }
 
@@ -529,9 +543,13 @@
 
             if (rho >= ECHO_CORR_LOCK_RHO && refRms > 0.02 && rms > 0.01) {
               const g = rms / refRms;
-              echoGainEst = echoGainEst <= 0
-                ? Math.min(3.5, g)
-                : Math.min(3.5, echoGainEst * 0.85 + g * 0.15);
+              if (echoGainEst <= 0) {
+                echoGainEst = Math.min(4.0, g);
+              } else if (g > echoGainEst) {
+                echoGainEst = Math.min(4.0, echoGainEst * 0.70 + g * 0.30);
+              } else {
+                echoGainEst = Math.min(4.0, echoGainEst * 0.85 + g * 0.15);
+              }
             }
 
             const expectedEcho = (lockedLag2k !== null && lockHits >= 2 && echoGainEst > 0 && refRms > 0.015)
@@ -546,7 +564,8 @@
               (withinExpectedEcho && rho >= 0.54 && absRho >= 0.78) ||
               (withinExpectedEcho && rho >= 0.54 && specRho >= 0.80 && envRho >= 0.25) ||
               (withinExpectedEcho && absRho >= 0.82 && specRho >= 0.84 && envRho >= 0.65 && rho >= 0.42) ||
-              (lockedLag2k !== null && lockHits >= 2 && specRho >= 0.90 && envRho >= 0.75 && absRho >= 0.82 && rho >= 0.45);
+              (lockedLag2k !== null && lockHits >= 2 && specRho >= 0.90 && envRho >= 0.75 && absRho >= 0.82 && rho >= 0.45) ||
+              (lockedLag2k !== null && lockHits >= 3 && specRho >= 0.88 && absRho >= 0.75 && rho >= 0.56);
 
             const effRho = Math.max(
               rho,
@@ -623,6 +642,9 @@
 
         if (bargeInAccumMs > 0) {
           bargeInMissMs += frameDurationMs;
+          if (usedRefCorr && rho >= 0.88 && lastAbsRho >= 0.90 && bargeInMissMs >= 40) {
+            bargeInAccumMs = Math.max(0, bargeInAccumMs - frameDurationMs);
+          }
           if (bargeInMissMs > gapToleranceMs) {
             bargeInAccumMs = 0;
             bargeInMissMs = 0;

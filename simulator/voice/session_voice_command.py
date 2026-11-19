@@ -267,12 +267,23 @@ async def execute_session_voice_intents(
     transcript: str,
     source: str = "web_voice",
 ) -> dict[str, Any]:
-    from simulator.automation_nlu import process_automation_nlu_command
+    from simulator.automation_nlu import (
+        _classify_confirmation_utterance,
+        _resolve_session_key,
+        process_automation_nlu_command,
+        stage_device_intents_for_confirmation,
+    )
+    from simulator.automation_repo import PENDING_CONFIRM_TTL_SEC
 
     echo_guard = get_session_echo_guard(session)
-    is_echo, _score, _reason = echo_guard.check_echo_transcript(transcript)
-    if is_echo:
-        return silent_echo_suppressed_response(session=session)
+    skey = _resolve_session_key(session, source)
+
+    # Never echo-suppress an explicit short confirm/cancel reply ("ok", "đồng ý", "hủy", "không"...).
+    conf_decision = _classify_confirmation_utterance(transcript)
+    if conf_decision is None:
+        is_echo, _score, _reason = echo_guard.check_echo_transcript(transcript)
+        if is_echo:
+            return silent_echo_suppressed_response(session=session)
 
     nlu_res = await process_automation_nlu_command(
         text=transcript,
@@ -302,13 +313,15 @@ async def execute_session_voice_intents(
             except Exception as exc:
                 LOG.debug("aoede voice synthesis fallback skipped (nlu): %s", exc)
         is_ok_nlu = bool(nlu_payload.get("ok"))
+        is_pending_nlu = bool(nlu_payload.get("requires_confirmation"))
+        is_executed_nlu = is_ok_nlu and not is_pending_nlu
         is_blocked_nlu = bool(nlu_payload.get("rbac_blocked"))
         http_status_nlu = int(nlu_res.get("status_code") or (403 if is_blocked_nlu else 200))
         return _strip_legacy_repeat_speech({
             **nlu_payload,
             "ok": is_ok_nlu,
             "http_status": http_status_nlu,
-            "executed": is_ok_nlu,
+            "executed": is_executed_nlu,
             "authorized": not is_blocked_nlu,
             "permission": "DENIED" if is_blocked_nlu else "ALLOWED",
             "silent": False,
@@ -408,40 +421,31 @@ async def execute_session_voice_intents(
             }
         )
 
-    results: list[dict[str, Any]] = []
-    all_ok = True
-    any_blocked = False
-    last: dict[str, Any] = {}
-    for intent in intents:
-        device_id = str(intent.get("device_id") or "").strip()
-        action = str(intent.get("action") or intent.get("target_state") or "toggle").strip() or "toggle"
-        last = await engine.execute_device_action(
-            device_id,
-            action,
-            source=source,
-            bypass_rbac=False,
-            request_tier=int(session.tier),
-            request_user_name=session.display_name,
-            request_role=session.role,
-            target_state=intent.get("target_state", intent.get("state")),
-        )
-        last = last if isinstance(last, dict) else {"ok": False, "error": "engine_error"}
-        last["device_id"] = device_id
-        last["action"] = action
-        if not last.get("ok"):
-            all_ok = False
-            if last.get("rbac_blocked") or "quyền" in str(last.get("error") or "").lower():
-                any_blocked = True
-        results.append(last)
-
-    raw_spoken = _first_spoken(last)
+    staged = await stage_device_intents_for_confirmation(
+        engine=engine,
+        session=session,
+        source=source,
+        intents=intents,
+        session_key=skey,
+        ttl_sec=PENDING_CONFIRM_TTL_SEC,
+    )
+    staged_payload = dict(staged.get("payload") or {})
+    is_ok_staged = bool(staged_payload.get("ok"))
+    is_blocked_staged = bool(staged_payload.get("rbac_blocked"))
+    http_status_staged = int(staged.get("status_code") or (403 if is_blocked_staged else 200))
+    raw_spoken = str(
+        staged_payload.get("exact_spoken_reply")
+        or staged_payload.get("reply")
+        or staged_payload.get("error")
+        or ""
+    ).strip()
     spoken = sanitize_spoken_vietnamese_text(raw_spoken) or raw_spoken
     if spoken:
         echo_guard.record_ai_utterance(spoken)
     aoede_fields: dict[str, Any] = {}
     if spoken and not any(marker in spoken.lower() for marker in _LEGACY_REPEAT_MARKERS):
         try:
-            aoede_bundle = await synthesize_aoede_phrase_audio(spoken)
+            aoede_bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=1.8)
             aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
             pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
             if pcm_bytes_out:
@@ -449,13 +453,15 @@ async def execute_session_voice_intents(
         except Exception as exc:
             LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
 
-    authorized_flag = not (any_blocked and not all_ok)
-    permission_label = "ALLOWED" if authorized_flag else "DENIED"
     payload = {
-        "ok": all_ok,
-        "executed": all_ok,
-        "authorized": authorized_flag,
-        "permission": permission_label,
+        **staged_payload,
+        "ok": is_ok_staged,
+        "http_status": http_status_staged,
+        "executed": False,
+        "confirmed": False,
+        "requires_confirmation": bool(staged_payload.get("requires_confirmation")) and is_ok_staged,
+        "authorized": not is_blocked_staged,
+        "permission": "DENIED" if is_blocked_staged else "ALLOWED",
         "silent": False,
         "should_reply": bool(spoken),
         "ask_repeat": False,
@@ -463,19 +469,17 @@ async def execute_session_voice_intents(
         "no_reprompt": True,
         "recognized_text": transcript,
         "transcript": transcript,
-        "intents": intents,
-        "results": results,
+        "intents": staged_payload.get("intents") or intents,
+        "results": staged_payload.get("results") or [],
         "tier": int(session.tier),
         "role": session.role,
         "user_name": session.display_name,
-        "rbac_blocked": any_blocked and not all_ok,
-        "error": "" if all_ok else (last.get("error") or "command_failed"),
+        "rbac_blocked": is_blocked_staged,
+        "error": "" if is_ok_staged else str(staged_payload.get("error") or "command_failed"),
         "reply": spoken,
         "exact_spoken_reply": spoken,
-        "rejection_speech": spoken if any_blocked else "",
+        "rejection_speech": spoken if is_blocked_staged else "",
         "reply_text": spoken,
-        "pcm24k_b64": "",
-        "audio_b64": "",
         **aoede_fields,
         "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
     }

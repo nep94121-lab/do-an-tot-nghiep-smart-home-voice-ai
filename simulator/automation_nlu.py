@@ -338,24 +338,27 @@ def _classify_confirmation_utterance(raw_text: str) -> str | None:
     norm = re.sub(r"\s+", " ", normalize_phrase(raw_low)).strip()
 
     # Check accented cancel words first so 'đừng' / 'dừng' never collide with 'đúng' ('dung')
-    if re.search(r"^(?:đừng|dừng|không|hủy|huỷ|thôi|bỏ)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$", raw_low):
+    if re.search(
+        r"^(?:đừng|dừng|không|hủy|huỷ|hủy bỏ|huỷ bỏ|thôi|bỏ|không làm|đừng làm|thôi bỏ|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
+        raw_low,
+    ):
         return "cancel"
 
     if re.search(
-        r"^(?:khong|k|huy|huy bo|thoi|bo|no|cancel)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
+        r"^(?:khong|k|huy|huy bo|thoi|bo|no|cancel|khong lam|dung lam|thoi bo|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
         norm,
     ):
         return "cancel"
 
     if re.search(
-        r"^(?:đúng|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ|ờ|ok|okay|được|được rồi|yes)(?:\s+(?:ạ|nhé|nha|đi|luôn|em|bạn))*\s*$",
+        r"^(?:đúng|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ|ờ|ok|okay|oke|okie|được|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng|dạ|dạ vâng|dạ được|dạ đúng|có|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
         raw_low,
     ):
         return "confirm"
 
     # Unaccented fallback (safe because accented 'đừng'/'dừng' already returned 'cancel' above)
     if re.search(
-        r"^(?:xac nhan|dong y|chac chan|ok|okay|yes|confirm|u|uh|um|duoc|duoc roi|dung|dung roi|dung vay)(?:\s+(?:a|nhe|nha|di|luon|em|ban))*\s*$",
+        r"^(?:xac nhan|dong y|chac chan|ok|okay|oke|okie|yes|confirm|u|uh|um|duoc|duoc roi|dung|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang|da|da vang|da duoc|da dung|co|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
         norm,
     ):
         return "confirm"
@@ -375,6 +378,127 @@ def _ensure_confirmation_question(summary_text: str) -> str:
     else:
         txt = f"{txt}?"
     return txt
+
+
+async def stage_device_intents_for_confirmation(
+    *,
+    engine: Any,
+    session: Any,
+    source: str,
+    intents: list[dict[str, Any]],
+    session_key: str = "",
+    ttl_sec: float = PENDING_CONFIRM_TTL_SEC,
+) -> dict[str, Any]:
+    """Validate RBAC upfront, normalize toggle intents, and stage a pending set_device confirmation.
+
+    Shared across /api/voice_command and /api/text_command so direct device commands always
+    repeat back in natural Vietnamese and wait for explicit user confirmation ("ok"/"được"/"làm đi").
+    """
+    from simulator.live.echo_and_speech_guard import sanitize_spoken_vietnamese_text
+
+    _user_id, tier, _user_name, _role = _session_actor(session)
+    skey = session_key or _resolve_session_key(session, source)
+
+    validated_intents: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for intent in intents:
+        raw_dev = str(intent.get("device_id") or "").strip()
+        raw_act = str(intent.get("action") or intent.get("target_state") or "toggle").strip().lower() or "toggle"
+        if not raw_dev:
+            continue
+        for td in _expand_targets(raw_dev):
+            cid = engine.resolve_canonical_device_id(td) if hasattr(engine, "resolve_canonical_device_id") else td
+            act = raw_act
+            if act == "toggle":
+                cur_state = str((getattr(engine, "devices", {}).get(cid) or {}).get("state") or "").upper()
+                if cid == "main_door":
+                    act = "close" if cur_state == "OPEN" else "open"
+                else:
+                    act = "turn_off" if cur_state == "ON" else "turn_on"
+            elif act in ("on", "open"):
+                act = "open" if cid == "main_door" else "turn_on"
+            elif act in ("off", "close"):
+                act = "close" if cid == "main_door" else "turn_off"
+            elif cid == "main_door" and act in ("turn_on", "turn_off"):
+                act = "open" if act == "turn_on" else "close"
+
+            ok_v, v_info = engine.validate_device_set_request(
+                cid,
+                action=act,
+                brightness_pct=intent.get("brightness_pct"),
+                temperature_c=intent.get("temperature_c"),
+                fan_speed=intent.get("fan_speed"),
+                actor_tier=tier,
+            )
+            if not ok_v:
+                is_rbac = bool(v_info.get("rbac_blocked")) or int(v_info.get("status_code") or 0) == 403
+                err_msg = str(
+                    v_info.get("exact_spoken_reply")
+                    or v_info.get("error")
+                    or "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+                )
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category=f"rbac_deny_{source}" if is_rbac else f"invalid_{source}",
+                    msg=err_msg,
+                    status_code=int(v_info.get("status_code") or (403 if is_rbac else 400)),
+                    target=cid or raw_dev or "device",
+                    extra={"results": [v_info], "intents": intents},
+                )
+
+            norm_cid = str(v_info["device_id"])
+            norm_act = str(v_info["action"])
+            norm_params = dict(v_info.get("params") or {})
+            pair_key = (norm_cid, norm_act)
+            if pair_key not in seen_pairs:
+                seen_pairs.add(pair_key)
+                validated_intents.append({
+                    "device_id": norm_cid,
+                    "action": norm_act,
+                    "brightness_pct": norm_params.get("brightness_pct"),
+                    "temperature_c": norm_params.get("temperature_c"),
+                    "fan_speed": norm_params.get("fan_speed"),
+                })
+
+    if not validated_intents:
+        return _deny_mutation_error(
+            session=session,
+            source=source,
+            category=f"invalid_{source}",
+            msg="Không xác định được thiết bị cần điều khiển ạ.",
+            status_code=400,
+            target="device",
+        )
+
+    action_phrases = [
+        format_device_action_vi(it["device_id"], it["action"]).lower()
+        for it in validated_intents
+    ]
+    raw_prompt = f"Mình sẽ {' và '.join(action_phrases)}, bạn đồng ý không?"
+    prompt_q = sanitize_spoken_vietnamese_text(raw_prompt) or raw_prompt
+    pending_payload: dict[str, Any] = {
+        "device_id": validated_intents[0]["device_id"],
+        "action": validated_intents[0]["action"],
+        "brightness_pct": validated_intents[0].get("brightness_pct"),
+        "temperature_c": validated_intents[0].get("temperature_c"),
+        "fan_speed": validated_intents[0].get("fan_speed"),
+        "intents": validated_intents,
+    }
+    staged = await prepare_pending_mutation(
+        engine=engine,
+        session=session,
+        source=source,
+        session_key=skey,
+        action_kind="set_device",
+        payload=pending_payload,
+        prompt_summary=prompt_q,
+        ttl_sec=ttl_sec,
+    )
+    staged["payload"]["executed"] = False
+    staged["payload"]["intents"] = validated_intents
+    staged["payload"]["results"] = []
+    return staged
 
 
 async def prepare_pending_mutation(
@@ -463,6 +587,78 @@ async def execute_confirmed_mutation(
         )
 
     if action_kind == "set_device":
+        raw_intents = payload.get("intents")
+        if isinstance(raw_intents, list) and raw_intents:
+            exec_results: list[dict[str, Any]] = []
+            spoken_parts: list[str] = []
+            for item in raw_intents:
+                if not isinstance(item, dict):
+                    continue
+                item_dev = str(item.get("device_id") or "").strip()
+                item_act = str(item.get("action") or "").strip()
+                if not item_dev:
+                    continue
+                res_item = await engine.set_device_parameters(
+                    device_id=item_dev,
+                    action=item_act,
+                    brightness_pct=item.get("brightness_pct"),
+                    temperature_c=item.get("temperature_c"),
+                    fan_speed=item.get("fan_speed"),
+                    source=source,
+                    request_tier=tier,
+                    request_role=role,
+                    request_user_name=user_name,
+                )
+                if not res_item.get("ok"):
+                    return _deny_mutation_error(
+                        session=session,
+                        source=source,
+                        category="rbac_deny_set_device" if res_item.get("rbac_blocked") else "invalid_set_device",
+                        msg=str(res_item.get("exact_spoken_reply") or res_item.get("error") or "Không thực hiện được lệnh."),
+                        status_code=int(res_item.get("status_code") or (403 if res_item.get("rbac_blocked") else 400)),
+                        target=item_dev or "device",
+                    )
+                exec_results.append(res_item)
+                act_phrase = format_device_action_vi(
+                    str(res_item.get("device_id") or item_dev),
+                    item_act,
+                ).lower()
+                if act_phrase:
+                    spoken_parts.append(act_phrase)
+            if not exec_results:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="invalid_set_device",
+                    msg="Không tìm thấy thiết bị để thực hiện lệnh.",
+                    status_code=400,
+                    target="device",
+                )
+            if len(exec_results) == 1:
+                spoken = str(exec_results[0].get("exact_spoken_reply") or "Đã thực hiện xong rồi ạ.")
+            else:
+                spoken = f"Mình đã {' và '.join(spoken_parts)} rồi ạ."
+            last_res = exec_results[-1]
+            return {
+                "handled": True,
+                "status_code": 200,
+                "payload": {
+                    "ok": True,
+                    "confirmed": True,
+                    "executed": True,
+                    "kind": "device_set",
+                    "device_id": last_res.get("device_id"),
+                    "device_name": last_res.get("device_name"),
+                    "state": last_res.get("state"),
+                    "settings": last_res.get("settings", {}),
+                    "intents": raw_intents,
+                    "results": exec_results,
+                    "reply": spoken,
+                    "exact_spoken_reply": spoken,
+                    "snapshot": engine.get_snapshot(session=session, sync=False),
+                },
+            }
+
         dev_id = str(payload.get("device_id") or "").strip()
         act = payload.get("action")
         res_set = await engine.set_device_parameters(
@@ -492,6 +688,7 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": True,
                 "confirmed": True,
+                "executed": True,
                 "kind": "device_set",
                 "device_id": res_set.get("device_id"),
                 "device_name": res_set.get("device_name"),

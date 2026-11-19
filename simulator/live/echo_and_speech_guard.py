@@ -37,7 +37,8 @@ SERVER_ECHO_CORR_LOCK_RHO = 0.72
 SERVER_ECHO_ENV_HISTORY_LEN = 12
 SERVER_REF_TARGET_SR = 2000
 SERVER_MAX_REF_SAMPLES_2K = 24000
-SERVER_MAX_SEARCH_LAG_SEC = 0.30
+SERVER_MIN_NEG_LAG_SEC = 0.14
+SERVER_MAX_SEARCH_LAG_SEC = 0.38
 
 _DEVICE_ID_VI_MAP: dict[str, str] = {
     "main_door": "cửa chính",
@@ -144,12 +145,25 @@ _IMPERATIVE_CMD_PREFIXES = (
 
 
 def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> bool:
-    """Avoid suppressing a fresh bare imperative user command ('mo cua chinh') because AI earlier replied 'da mo cua chinh'."""
+    """Avoid suppressing a fresh bare imperative user command ('mo cua chinh', 'dong cua chinh')
+    because AI earlier spoke a framed confirmation question ('minh se ..., ban dong y khong')
+    or completion reply ('minh da ... roi a')."""
     if not any(user_norm.startswith(p) for p in _IMPERATIVE_CMD_PREFIXES):
         return False
-    if any(tok in user_norm.split() for tok in ("da", "roi", "minh", "em", "toi", "xin", "loi")):
+    tokens = user_norm.split()
+    if len(tokens) > 7:
         return False
-    return ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a")
+    non_verb_forbidden = ("da", "se", "roi", "minh", "em", "toi", "xin", "loi", "ban", "khong")
+    if any(tok in tokens for tok in non_verb_forbidden) or "dong y" in user_norm:
+        return False
+    if ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a"):
+        return True
+    if (
+        ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se "))
+        or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a"))
+    ):
+        return True
+    return False
 
 
 def compute_echo_similarity(user_norm: str, ai_norm: str) -> tuple[float, str]:
@@ -383,6 +397,7 @@ class ServerEchoGuard:
         if mic_e < 1e-9:
             return {"rho": 0.0, "abs_rho": 0.0, "spec_rho": 0.0, "env_rho": 0.0, "ref_rms": 0.0}
         cur_idx = int(round((now_ts - self._ref_origin_ts) * float(SERVER_REF_TARGET_SR)))
+        min_lag = -int(round(SERVER_MIN_NEG_LAG_SEC * float(SERVER_REF_TARGET_SR)))
         max_lag = int(round(SERVER_MAX_SEARCH_LAG_SEC * float(SERVER_REF_TARGET_SR)))
         best_rho = 0.0
         best_abs_rho = 0.0
@@ -391,7 +406,7 @@ class ServerEchoGuard:
         best_ref_rms = 0.0
         evaluated = False
 
-        def score(lag: int) -> None:
+        def score(lag: int, min_accept_rho: float = 0.0) -> None:
             nonlocal best_rho, best_abs_rho, best_lag, best_st, best_ref_rms, evaluated
             st = cur_idx - lag
             if st < 0 or st + n > len(self._ref_2k):
@@ -404,7 +419,7 @@ class ServerEchoGuard:
             dot = sum(mic_2k[j] * ref_sl[j] for j in range(n))
             denom = math.sqrt(mic_e * ref_e)
             rho = abs(dot) / denom
-            if rho > best_rho:
+            if rho > best_rho and rho >= min_accept_rho:
                 best_rho = rho
                 best_abs_rho = sum(abs(mic_2k[j]) * abs(ref_sl[j]) for j in range(n)) / denom
                 best_lag = lag
@@ -412,16 +427,25 @@ class ServerEchoGuard:
                 best_ref_rms = math.sqrt(ref_e / float(n))
 
         if self._locked_lag_2k is not None:
-            lo = max(0, self._locked_lag_2k - 14)
-            hi = min(max_lag, self._locked_lag_2k + 14)
+            lo = max(min_lag, self._locked_lag_2k - 18)
+            hi = min(max_lag, self._locked_lag_2k + 18)
             for lag in range(lo, hi + 1):
-                score(lag)
-        if self._locked_lag_2k is None or best_rho < 0.55:
-            for lag in range(0, max_lag + 1, 2):
-                score(lag)
+                score(lag, 0.0)
+        if self._locked_lag_2k is None:
+            for lag in range(min_lag, max_lag + 1, 2):
+                score(lag, 0.0)
             if best_rho > 0.25:
-                score(max(0, best_lag - 1))
-                score(min(max_lag, best_lag + 1))
+                score(max(min_lag, best_lag - 1), 0.0)
+                score(min(max_lag, best_lag + 1), 0.0)
+        elif best_rho < 0.55:
+            far_min_rho = 0.70 if self._lock_hits >= 3 else 0.0
+            for lag in range(min_lag, max_lag + 1, 2):
+                if abs(lag - self._locked_lag_2k) <= 18:
+                    continue
+                score(lag, far_min_rho)
+            if best_rho > 0.25 and abs(best_lag - self._locked_lag_2k) > 18:
+                score(max(min_lag, best_lag - 1), far_min_rho)
+                score(min(max_lag, best_lag + 1), far_min_rho)
 
         if not evaluated:
             return None
@@ -522,19 +546,23 @@ class ServerEchoGuard:
             speech_like = 0.006 <= zcr <= 0.48
 
             corr = self._compute_waveform_corr(_downsample_floats_to_2k(sub, sample_rate), sub_ts)
+            strong_pure_echo = False
             if corr is not None:
                 rho = corr["rho"]
                 abs_rho = corr["abs_rho"]
                 spec_rho = corr["spec_rho"]
                 env_rho = corr["env_rho"]
                 ref_rms = corr["ref_rms"]
+                strong_pure_echo = rho >= 0.88 and abs_rho >= 0.90
 
                 if rho >= SERVER_ECHO_CORR_LOCK_RHO and ref_rms > 0.02 and rms > 0.01:
                     g = rms / ref_rms
                     if self._echo_gain_est <= 0.0:
-                        self._echo_gain_est = min(3.5, g)
+                        self._echo_gain_est = min(4.0, g)
+                    elif g > self._echo_gain_est:
+                        self._echo_gain_est = min(4.0, self._echo_gain_est * 0.70 + g * 0.30)
                     else:
-                        self._echo_gain_est = min(3.5, self._echo_gain_est * 0.85 + g * 0.15)
+                        self._echo_gain_est = min(4.0, self._echo_gain_est * 0.85 + g * 0.15)
 
                 expected_echo = (
                     self._echo_gain_est * ref_rms
@@ -551,6 +579,7 @@ class ServerEchoGuard:
                     or (within_expected_echo and rho >= 0.54 and spec_rho >= 0.80 and env_rho >= 0.25)
                     or (within_expected_echo and abs_rho >= 0.82 and spec_rho >= 0.84 and env_rho >= 0.65 and rho >= 0.42)
                     or (self._locked_lag_2k is not None and self._lock_hits >= 2 and spec_rho >= 0.90 and env_rho >= 0.75 and abs_rho >= 0.82 and rho >= 0.45)
+                    or (self._locked_lag_2k is not None and self._lock_hits >= 3 and spec_rho >= 0.88 and abs_rho >= 0.75 and rho >= 0.56)
                 )
 
                 eff_rho = max(rho, abs_rho * 0.86 if (within_expected_echo and rho >= 0.50 and abs_rho >= 0.78) else 0.0)
@@ -583,6 +612,8 @@ class ServerEchoGuard:
             else:
                 if self._barge_in_accum_sec > 0.0:
                     self._barge_in_miss_sec += sub_dur
+                    if strong_pure_echo and self._barge_in_miss_sec >= 0.04:
+                        self._barge_in_accum_sec = max(0.0, self._barge_in_accum_sec - sub_dur)
                     if self._barge_in_miss_sec > SERVER_BARGE_IN_GAP_TOL_SEC:
                         self._barge_in_accum_sec = 0.0
                         self._barge_in_miss_sec = 0.0

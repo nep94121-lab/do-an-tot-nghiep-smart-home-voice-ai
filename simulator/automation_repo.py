@@ -43,7 +43,7 @@ def now_saigon_iso() -> str:
 
 TIER1_SCHEDULE_CONFLICT_MSG_VI = "Trùng lịch của chủ nhà, em không đặt được ạ."
 GUEST_ONLY_TOGGLE_MSG_VI = "Khách chỉ được bật tắt thiết bị thôi ạ."
-PENDING_CONFIRM_TTL_SEC = 20.0
+PENDING_CONFIRM_TTL_SEC = 60.0
 
 
 class ScheduleConflictError(ValueError):
@@ -1961,17 +1961,16 @@ def get_pending_confirmation(
         conn = get_connection(target)
         try:
             def _tx(c: sqlite3.Connection) -> tuple[dict[str, Any] | None, bool]:
-                cur_exp = c.execute(
-                    """
-                    UPDATE pending_confirmations
-                    SET status = 'expired'
-                    WHERE owner_user_id = ? AND status = 'pending' AND expires_at <= ?
-                    """,
-                    (uid, now_ts),
-                )
-                was_exp = int(cur_exp.rowcount or 0) > 0
-                row = None
                 if skey:
+                    cur_exp = c.execute(
+                        """
+                        UPDATE pending_confirmations
+                        SET status = 'expired'
+                        WHERE owner_user_id = ? AND session_key = ? AND status = 'pending' AND expires_at <= ?
+                        """,
+                        (uid, skey, now_ts),
+                    )
+                    was_exp = int(cur_exp.rowcount or 0) > 0
                     row = c.execute(
                         """
                         SELECT * FROM pending_confirmations
@@ -1980,7 +1979,16 @@ def get_pending_confirmation(
                         """,
                         (uid, skey, now_ts),
                     ).fetchone()
-                if row is None:
+                else:
+                    cur_exp = c.execute(
+                        """
+                        UPDATE pending_confirmations
+                        SET status = 'expired'
+                        WHERE owner_user_id = ? AND status = 'pending' AND expires_at <= ?
+                        """,
+                        (uid, now_ts),
+                    )
+                    was_exp = int(cur_exp.rowcount or 0) > 0
                     row = c.execute(
                         """
                         SELECT * FROM pending_confirmations
