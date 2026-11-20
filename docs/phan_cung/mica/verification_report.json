@@ -1,0 +1,156 @@
+{
+  "verification": {
+    "checks": {
+      "dxf_closed_contours": {
+        "passed": true,
+        "panel_count": 15,
+        "errors": []
+      },
+      "min_web_and_non_overlap": {
+        "passed": true,
+        "min_general_web_mm": 2.5,
+        "sg90_datasheet_flange_web_notes": [
+          "P07_SERVO_SHELF:SG90_M2_Front to SG90_Cutout = 1.40 mm (mandated by SG90 27.8mm M2 tab datasheet; use M2 washer)",
+          "P07_SERVO_SHELF:SG90_M2_Rear to SG90_Cutout = 1.40 mm (mandated by SG90 27.8mm M2 tab datasheet; use M2 washer)"
+        ],
+        "violations": []
+      },
+      "tab_slot_matching": {
+        "passed": true,
+        "total_tab_slot_joints": 55,
+        "base_slots": 33,
+        "tested_thicknesses_mm": [
+          2.0,
+          3.0,
+          5.0
+        ],
+        "errors": []
+      },
+      "kicad_pcb_hole_match": {
+        "passed": true,
+        "kicad_H1_H4_pitch_mm": [
+          71.0,
+          56.0
+        ],
+        "base_panel_pitch_mm": [
+          71.0,
+          56.0
+        ],
+        "kicad_drill_mm": [
+          3.2
+        ],
+        "base_drill_mm": [
+          3.2
+        ],
+        "max_error_mm": 0.0
+      },
+      "freecad_recompute_T_2_3_5": {
+        "passed": true,
+        "freecad_version": "1.1.4.20260928 (Git shallow)",
+        "panels_verified": 15,
+        "log_file": "hardware\\freecad\\mica\\freecad_recompute_check.log"
+      },
+      "modules_fit_rooms_and_zero_removed": {
+        "passed": true,
+        "modules_checked": 16,
+        "room_errors": [],
+        "forbidden_device_hits": []
+      },
+      "a3_nesting_complete": {
+        "passed": true,
+        "sheets_a3": 3,
+        "panels_nested": 15
+      }
+    },
+    "all_passed": true
+  },
+  "nesting_A3": {
+    "sheet_type": "A3",
+    "sheet_size_mm": [
+      420.0,
+      297.0
+    ],
+    "sheet_count": 3,
+    "sheets": [
+      {
+        "sheet_no": 1,
+        "panels": [
+          "P01_BASE",
+          "P14_SOIL_BRIDGE"
+        ],
+        "utilization_pct": 87.2
+      },
+      {
+        "sheet_no": 2,
+        "panels": [
+          "P02_WALL_BACK",
+          "P05_WALL_FRONT",
+          "P15_TECH_FASCIA",
+          "P07_SERVO_SHELF"
+        ],
+        "utilization_pct": 48.4
+      },
+      {
+        "sheet_no": 3,
+        "panels": [
+          "P03_WALL_LEFT",
+          "P04_WALL_RIGHT",
+          "P06_WALL_MID",
+          "P12_GARDEN_FRONT",
+          "P13_GARDEN_BACK",
+          "P08_DOOR_LEAF",
+          "P09_GARDEN_LEFT",
+          "P10_WATER_DIVIDER",
+          "P11_GARDEN_RIGHT"
+        ],
+        "utilization_pct": 61.0
+      }
+    ],
+    "oversized_panels": []
+  },
+  "nesting_A4": {
+    "sheet_type": "A4",
+    "sheet_size_mm": [
+      297.0,
+      210.0
+    ],
+    "sheet_count": 3,
+    "sheets": [
+      {
+        "sheet_no": 1,
+        "panels": [
+          "P03_WALL_LEFT",
+          "P15_TECH_FASCIA",
+          "P12_GARDEN_FRONT",
+          "P13_GARDEN_BACK",
+          "P07_SERVO_SHELF"
+        ],
+        "utilization_pct": 54.6
+      },
+      {
+        "sheet_no": 2,
+        "panels": [
+          "P04_WALL_RIGHT",
+          "P08_DOOR_LEAF",
+          "P09_GARDEN_LEFT",
+          "P10_WATER_DIVIDER",
+          "P11_GARDEN_RIGHT",
+          "P14_SOIL_BRIDGE"
+        ],
+        "utilization_pct": 50.0
+      },
+      {
+        "sheet_no": 3,
+        "panels": [
+          "P06_WALL_MID"
+        ],
+        "utilization_pct": 29.4
+      }
+    ],
+    "oversized_panels": [
+      "P01_BASE",
+      "P02_WALL_BACK",
+      "P05_WALL_FRONT"
+    ]
+  }
+}

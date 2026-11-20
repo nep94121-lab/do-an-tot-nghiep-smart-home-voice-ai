@@ -1,0 +1,62 @@
+FreeCAD Version: 1.1.4.20260928 (Git shallow)
+Document: smarthome_mica_house.FCStd
+Panel Count: 15
+====================================================================================
+
+[RECOMPUTE T = 2.0 mm | kerf = 0.15 mm | slot_w = 2.15 mm | 6.14s]
+  Document errors: []
+  PASS P01_BASE           | dims=380.00x286.00x2.00 (exp 380.00x286.00x2.00) | vol= 215149.1 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=356.00x134.00x2.00 (exp 356.00x134.00x2.00) | vol=  79113.8 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  34530.9 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  33024.0 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=356.00x134.00x2.00 (exp 356.00x134.00x2.00) | vol=  29918.4 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  36982.9 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 28.00x 42.00x2.00 (exp  28.00x 42.00x2.00) | vol=   1713.0 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x2.00 (exp  51.00x 93.00x2.00) | vol=   8123.2 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims= 74.00x 46.00x2.00 (exp  74.00x 46.00x2.00) | vol=   6256.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims= 74.00x 46.00x2.00 (exp  74.00x 46.00x2.00) | vol=   6226.2 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims= 74.00x 42.00x2.00 (exp  74.00x 42.00x2.00) | vol=   5808.0 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=134.00x 46.00x2.00 (exp 134.00x 46.00x2.00) | vol=  11009.3 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=134.00x 46.00x2.00 (exp 134.00x 46.00x2.00) | vol=  11025.4 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x2.00 (exp  24.00x 74.00x2.00) | vol=   3315.2 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=210.00x 44.00x2.00 (exp 210.00x 44.00x2.00) | vol=   9897.2 (err 0.0000%) | solids=1
+
+[RECOMPUTE T = 3.0 mm | kerf = 0.15 mm | slot_w = 3.15 mm | 5.84s]
+  Document errors: []
+  PASS P01_BASE           | dims=380.00x286.00x3.00 (exp 380.00x286.00x3.00) | vol= 321331.8 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=356.00x135.00x3.00 (exp 356.00x135.00x3.00) | vol= 118531.6 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  51616.4 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  49356.0 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=356.00x135.00x3.00 (exp 356.00x135.00x3.00) | vol=  44863.4 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  54997.4 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 28.00x 43.00x3.00 (exp  28.00x 43.00x3.00) | vol=   2611.6 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x3.00 (exp  51.00x 93.00x3.00) | vol=  12184.7 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims= 74.00x 47.00x3.00 (exp  74.00x 47.00x3.00) | vol=   9276.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims= 74.00x 47.00x3.00 (exp  74.00x 47.00x3.00) | vol=   9231.4 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims= 74.00x 43.00x3.00 (exp  74.00x 43.00x3.00) | vol=   8628.0 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=134.00x 47.00x3.00 (exp 134.00x 47.00x3.00) | vol=  16458.1 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=134.00x 47.00x3.00 (exp 134.00x 47.00x3.00) | vol=  16482.2 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x3.00 (exp  24.00x 74.00x3.00) | vol=   4900.8 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=210.00x 45.00x3.00 (exp 210.00x 45.00x3.00) | vol=  14980.8 (err 0.0000%) | solids=1
+
+[RECOMPUTE T = 5.0 mm | kerf = 0.15 mm | slot_w = 5.15 mm | 6.13s]
+  Document errors: []
+  PASS P01_BASE           | dims=380.00x286.00x5.00 (exp 380.00x286.00x5.00) | vol= 530913.5 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=356.00x137.00x5.00 (exp 356.00x137.00x5.00) | vol= 197089.2 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  85427.3 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  81660.0 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=356.00x137.00x5.00 (exp 356.00x137.00x5.00) | vol=  74724.9 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  90072.3 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 28.00x 45.00x5.00 (exp  28.00x 45.00x5.00) | vol=   4492.6 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x5.00 (exp  51.00x 93.00x5.00) | vol=  20307.9 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims= 74.00x 49.00x5.00 (exp  74.00x 49.00x5.00) | vol=  15100.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims= 74.00x 49.00x5.00 (exp  74.00x 49.00x5.00) | vol=  15025.6 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims= 74.00x 45.00x5.00 (exp  74.00x 45.00x5.00) | vol=  14100.0 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=134.00x 49.00x5.00 (exp 134.00x 49.00x5.00) | vol=  27244.2 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=134.00x 49.00x5.00 (exp 134.00x 49.00x5.00) | vol=  27284.4 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x5.00 (exp  24.00x 74.00x5.00) | vol=   7928.0 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=210.00x 47.00x5.00 (exp 210.00x 47.00x5.00) | vol=  25418.0 (err 0.0000%) | solids=1
+
+====================================================================================
+OVERALL PARAMETRIC RECOMPUTE (T=2, 3, 5 mm): ALL_PASS
+Restored committed default: T_mm = 3.0 mm
