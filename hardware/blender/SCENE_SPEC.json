@@ -1,0 +1,358 @@
+{
+  "schema_version": "2.0",
+  "model_file": "simulator/static/models/smarthome_villa.glb",
+  "blend_file": "hardware/blender/smarthome_open_house.blend",
+  "kicad_pcb_source": "hardware/kicad/smarthome_hub/3d/smarthome_hub.glb",
+  "units": "glTF meters (uniformly scaled 25x from 1:1 physical tabletop millimeters to fit house3d.js camera bounds)",
+  "scale_mm_to_gltf": 0.025,
+  "physical_scale_ratio": 25.0,
+  "physical_dimensions_mm": {
+    "tabletop_plinth": [
+      404.0,
+      9.0,
+      324.0
+    ],
+    "open_cutaway_house": [
+      356.0,
+      135.0,
+      178.0
+    ],
+    "kicad_pcb_hub": [
+      80.0,
+      17.3,
+      65.0
+    ],
+    "nodemcu_esp8266": [
+      25.4,
+      10.0,
+      48.2
+    ]
+  },
+  "bounding_box_gltf": {
+    "min": [
+      -5.05,
+      -0.225,
+      -3.85
+    ],
+    "max": [
+      5.05,
+      3.375,
+      4.25
+    ],
+    "extents": [
+      10.1,
+      3.6,
+      8.1
+    ]
+  },
+  "camera_presets": {
+    "overview": {
+      "theta": 0.4139,
+      "phi": 1.0422,
+      "radius": 14.325,
+      "targetX": -0.1,
+      "targetY": 0.9,
+      "targetZ": 0.3,
+      "eye_gltf": [
+        4.875,
+        8.125,
+        11.625
+      ],
+      "target_gltf": [
+        -0.1,
+        0.9,
+        0.3
+      ]
+    },
+    "living": {
+      "theta": 0.3077,
+      "phi": 1.0315,
+      "radius": 7.8872,
+      "targetX": -2.3,
+      "targetY": 1.2,
+      "targetZ": -1.2,
+      "eye_gltf": [
+        -0.25,
+        5.25,
+        5.25
+      ],
+      "target_gltf": [
+        -2.3,
+        1.2,
+        -1.2
+      ]
+    },
+    "bedroom": {
+      "theta": 0.2643,
+      "phi": 1.0313,
+      "radius": 8.0298,
+      "targetX": 2.2,
+      "targetY": 1.125,
+      "targetZ": -1.4,
+      "eye_gltf": [
+        4.0,
+        5.25,
+        5.25
+      ],
+      "target_gltf": [
+        2.2,
+        1.125,
+        -1.4
+      ]
+    },
+    "door": {
+      "theta": 0.1698,
+      "phi": 1.2298,
+      "radius": 4.71,
+      "targetX": -2.25,
+      "targetY": 1.3,
+      "targetZ": 1.0,
+      "eye_gltf": [
+        -1.5,
+        2.875,
+        5.375
+      ],
+      "target_gltf": [
+        -2.25,
+        1.3,
+        1.0
+      ]
+    },
+    "garden": {
+      "theta": 0.3295,
+      "phi": 1.0227,
+      "radius": 4.798,
+      "targetX": 2.55,
+      "targetY": 0.75,
+      "targetZ": 2.5,
+      "eye_gltf": [
+        3.875,
+        3.25,
+        6.375
+      ],
+      "target_gltf": [
+        2.55,
+        0.75,
+        2.5
+      ]
+    },
+    "board": {
+      "theta": -0.1164,
+      "phi": 0.9041,
+      "radius": 4.9323,
+      "targetX": -1.85,
+      "targetY": 0.4,
+      "targetZ": 2.45,
+      "eye_gltf": [
+        -2.3,
+        3.45,
+        6.3
+      ],
+      "target_gltf": [
+        -1.85,
+        0.4,
+        2.45
+      ]
+    }
+  },
+  "contract_nodes": {
+    "door_pivot": {
+      "gltf_xyz": [
+        -2.85,
+        0.0,
+        1.0
+      ],
+      "physical_mm": [
+        -114.0,
+        0.0,
+        40.0
+      ]
+    },
+    "main_door_leaf": {
+      "gltf_xyz": [
+        -2.175,
+        1.25,
+        1.0
+      ],
+      "physical_mm": [
+        -87.0,
+        50.0,
+        40.0
+      ]
+    },
+    "led_living_room": {
+      "gltf_xyz": [
+        -2.375,
+        2.8,
+        -3.1
+      ],
+      "physical_mm": [
+        -95.0,
+        112.0,
+        -124.0
+      ]
+    },
+    "led_bedroom": {
+      "gltf_xyz": [
+        2.2,
+        2.9,
+        -3.1
+      ],
+      "physical_mm": [
+        88.0,
+        116.0,
+        -124.0
+      ]
+    },
+    "pump_unit": {
+      "gltf_xyz": [
+        1.5,
+        0.65,
+        2.4
+      ],
+      "physical_mm": [
+        60.0,
+        26.0,
+        96.0
+      ]
+    },
+    "water_tube": {
+      "gltf_xyz": [
+        0.0,
+        0.0,
+        -0.0
+      ],
+      "physical_mm": [
+        0.0,
+        0.0,
+        -0.0
+      ]
+    },
+    "relay1_pump": {
+      "gltf_xyz": [
+        -1.1,
+        0.17,
+        1.9
+      ],
+      "physical_mm": [
+        -44.0,
+        6.8,
+        76.0
+      ]
+    },
+    "relay2_speaker": {
+      "gltf_xyz": [
+        -1.1,
+        0.17,
+        3.05
+      ],
+      "physical_mm": [
+        -44.0,
+        6.8,
+        122.0
+      ]
+    },
+    "buzzer_alarm": {
+      "gltf_xyz": [
+        -0.125,
+        2.9,
+        1.05
+      ],
+      "physical_mm": [
+        -5.0,
+        116.0,
+        42.0
+      ]
+    },
+    "speaker_mini": {
+      "gltf_xyz": [
+        0.05,
+        0.175,
+        1.95
+      ],
+      "physical_mm": [
+        2.0,
+        7.0,
+        78.0
+      ]
+    },
+    "pam8403_module": {
+      "gltf_xyz": [
+        0.05,
+        0.175,
+        3.05
+      ],
+      "physical_mm": [
+        2.0,
+        7.0,
+        122.0
+      ]
+    },
+    "sensor_dht11": {
+      "gltf_xyz": [
+        -1.05,
+        2.2,
+        -3.15
+      ],
+      "physical_mm": [
+        -42.0,
+        88.0,
+        -126.0
+      ]
+    },
+    "sensor_soil": {
+      "gltf_xyz": [
+        3.55,
+        0.825,
+        2.4
+      ],
+      "physical_mm": [
+        142.0,
+        33.0,
+        96.0
+      ]
+    },
+    "sensor_mic_ky037": {
+      "gltf_xyz": [
+        -0.8,
+        0.725,
+        0.95
+      ],
+      "physical_mm": [
+        -32.0,
+        29.0,
+        38.0
+      ]
+    },
+    "kicad_pcb_hub": {
+      "gltf_xyz": [
+        -2.95,
+        0.3,
+        2.475
+      ],
+      "physical_mm": [
+        -118.0,
+        12.0,
+        99.0
+      ]
+    },
+    "nodemcu_esp8266": {
+      "gltf_xyz": [
+        -2.95,
+        0.5525,
+        2.475
+      ],
+      "physical_mm": [
+        -118.0,
+        22.1,
+        99.0
+      ]
+    }
+  },
+  "removed_devices": [
+    "fan",
+    "ac",
+    "ir_vs1838b",
+    "ir_led_940nm"
+  ]
+}

@@ -1,41 +1,69 @@
-"""Script Blender 5.2 (bpy) tạo mô hình 3D Biệt thự Thông minh (Smart Home Villa)
-Xuất ra định dạng chuẩn glTF 2.0 (.glb): simulator/static/models/smarthome_villa.glb
-Tọa độ khớp 1:1 với hệ trục của Three.js trong simulator/static/house3d.js.
-Lưu ý: Blender dùng hệ trục Z-up, khi export glTF (+Y up) Blender tự động chuyển:
-  Blender (X, Y, Z) -> Three.js (X, Z_blender, -Y_blender)
-Để tránh nhầm lẫn hệ trục, ta đặt hàm tiện ích `to_blender_pos(tx, ty, tz)` chuyển từ
-tọa độ Three.js `(tx, ty, tz)` sang tọa độ Blender `(tx, -tz, ty)`!
+"""Blender 5.2 (bpy) Open-Cutaway Smart Home 3D Tabletop Model Builder.
+
+Builds a coherent 1:1 physical tabletop cutaway house (~360x270x140 mm on a 400x320 mm base)
+matching the locked 6-device / 3-sensor ESP8266 NodeMCU v2 Amica hardware contract,
+directly importing the actual KiCad 10.0.6 3D PCB (`hardware/kicad/smarthome_hub/3d/smarthome_hub.glb`).
+
+Outputs:
+  - hardware/blender/smarthome_open_house.blend
+  - hardware/blender/SCENE_SPEC.json
+  - simulator/static/models/smarthome_villa.glb  (<10 MB optimized PBR GLB)
+  - Optional studio renders when invoked with `-- --render-dir <dir>`:
+      05_blender_house_overview.png
+      06_blender_pcb_closeup.png
 """
 
+from __future__ import annotations
+
+import json
 import math
 import pathlib
+import sys
 import bpy
 import bmesh
+from mathutils import Euler, Vector
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+KICAD_PCB_GLB = REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "3d" / "smarthome_hub.glb"
+OUT_BLEND = REPO_ROOT / "hardware" / "blender" / "smarthome_open_house.blend"
+OUT_SPEC = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
+OUT_GLB = REPO_ROOT / "simulator" / "static" / "models" / "smarthome_villa.glb"
+
+# Uniform display scale: 1 physical mm = 0.025 glTF units (25x tabletop scale).
+# Preserves 100% exact 1:1 relative proportions between the 360x270mm open-cutaway house,
+# 80x65mm KiCad PCB, NodeMCU, SG90, DHT11, 2 relays, PAM8403, speaker, buzzer, pump, soil & KY-037,
+# while fitting cleanly inside house3d.js camera bounds (~10 x 4 x 8 units, near=0.1).
+SCENE_SCALE = 25.0
+MM = 0.001 * SCENE_SCALE  # 0.025 units per mm
 
 
-def to_bpos(tx: float, ty: float, tz: float) -> tuple[float, float, float]:
-    """Chuyển tọa độ Three.js (X, Y_up, Z_front) sang Blender (X, Y_depth, Z_up)."""
-    return (float(tx), float(-tz), float(ty))
+def to_bpos_mm(tx_mm: float, ty_mm: float, tz_mm: float) -> Vector:
+    """Convert Three.js coords in mm (X right, Y up, Z front) to Blender world units (X, -Z, Y)."""
+    return Vector((tx_mm * MM, -tz_mm * MM, ty_mm * MM))
 
 
-def to_bscale(sx: float, sy: float, sz: float) -> tuple[float, float, float]:
-    """Chuyển kích thước Three.js (W_x, H_y, D_z) sang kích thước hộp chuẩn trong Blender."""
-    return (float(sx), float(sz), float(sy))
+def to_bsize_mm(sx_mm: float, sy_mm: float, sz_mm: float) -> tuple[float, float, float]:
+    """Convert Three.js dimensions in mm (W_x, H_y, D_z) to Blender (X, Y_depth, Z_up)."""
+    return (sx_mm * MM, sz_mm * MM, sy_mm * MM)
 
 
 def clear_scene() -> None:
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    if bpy.context.scene.world is None:
+        bpy.context.scene.world = bpy.data.worlds.new("StudioWorld")
 
 
-def make_pbr_mat(
+def make_mat(
     name: str,
     rgba: tuple[float, float, float, float],
-    roughness: float = 0.5,
+    roughness: float = 0.48,
     metallic: float = 0.0,
-    emission_rgb: tuple[float, float, float] | None = None,
+    emission: tuple[float, float, float] | None = None,
     emission_strength: float = 0.0,
     alpha: float = 1.0,
 ) -> bpy.types.Material:
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
@@ -47,278 +75,968 @@ def make_pbr_mat(
             bsdf.inputs["Alpha"].default_value = alpha
             if hasattr(mat, "blend_method"):
                 mat.blend_method = "BLEND"
-        if emission_rgb and emission_strength > 0:
+        if emission and emission_strength > 0.0:
             if "Emission Color" in bsdf.inputs:
-                bsdf.inputs["Emission Color"].default_value = (*emission_rgb, 1.0)
-            elif "Emission" in bsdf.inputs:
-                bsdf.inputs["Emission"].default_value = (*emission_rgb, 1.0)
+                bsdf.inputs["Emission Color"].default_value = (*emission, 1.0)
             if "Emission Strength" in bsdf.inputs:
                 bsdf.inputs["Emission Strength"].default_value = emission_strength
     return mat
 
 
-def add_beveled_box(
-    name: str,
-    tx: float,
-    ty: float,
-    tz: float,
-    sx: float,
-    sy: float,
-    sz: float,
-    mat: bpy.types.Material,
-    bevel_width: float = 0.02,
-    bevel_segments: int = 2,
-) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=to_bpos(tx, ty, tz))
-    obj = bpy.context.active_object
-    obj.name = name
-    bx, by, bz = to_bscale(sx, sy, sz)
-    obj.scale = (bx, by, bz)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-    if bevel_width > 0:
-        bev = obj.modifiers.new(name="Bevel", type="BEVEL")
-        bev.width = bevel_width
-        bev.segments = bevel_segments
-        bev.limit_method = "ANGLE"
-        bpy.ops.object.modifier_apply(modifier=bev.name)
-
-    bpy.ops.object.shade_smooth()
-    if obj.data.materials:
-        obj.data.materials[0] = mat
+def make_group(name: str, tx_mm: float, ty_mm: float, tz_mm: float, parent=None) -> bpy.types.Object:
+    empty = bpy.data.objects.new(name, None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 6.0 * MM
+    bpy.context.collection.objects.link(empty)
+    if parent is not None:
+        empty.parent = parent
+        empty.location = Vector((tx_mm * MM, -tz_mm * MM, ty_mm * MM))
     else:
-        obj.data.materials.append(mat)
-    return obj
+        empty.location = to_bpos_mm(tx_mm, ty_mm, tz_mm)
+    return empty
 
 
-def add_cylinder_3d(
+def add_box(
     name: str,
-    tx: float,
-    ty: float,
-    tz: float,
-    radius: float,
-    height: float,
+    tx_mm: float,
+    ty_mm: float,
+    tz_mm: float,
+    sx_mm: float,
+    sy_mm: float,
+    sz_mm: float,
     mat: bpy.types.Material,
-    vertices: int = 24,
+    parent=None,
+    bevel_mm: float = 0.0,
+    rot_three_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=vertices,
-        radius=radius,
-        depth=height,
-        location=to_bpos(tx, ty, tz),
-    )
-    obj = bpy.context.active_object
-    obj.name = name
-    bpy.ops.object.shade_smooth()
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bx, by, bz = to_bsize_mm(sx_mm, sy_mm, sz_mm)
+    bmesh.ops.scale(bm, vec=(bx, by, bz), verts=bm.verts)
+    if bevel_mm > 0.0:
+        bmesh.ops.bevel(
+            bm,
+            geom=list(bm.edges),
+            offset=bevel_mm * MM,
+            segments=2,
+            affect="EDGES",
+            clamp_overlap=True,
+        )
+    bm.to_mesh(mesh)
+    bm.free()
     obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+        obj.location = Vector((tx_mm * MM, -tz_mm * MM, ty_mm * MM))
+    else:
+        obj.location = to_bpos_mm(tx_mm, ty_mm, tz_mm)
+    if any(abs(a) > 1e-6 for a in rot_three_deg):
+        rx, ry, rz = [math.radians(a) for a in rot_three_deg]
+        obj.rotation_euler = Euler((rx, -rz, ry), "XYZ")
     return obj
 
 
-def add_uv_sphere(
+def add_cyl(
     name: str,
-    tx: float,
-    ty: float,
-    tz: float,
-    radius: float,
+    tx_mm: float,
+    ty_mm: float,
+    tz_mm: float,
+    radius_mm: float,
+    height_mm: float,
     mat: bpy.types.Material,
+    parent=None,
+    axis: str = "Y",
+    segs: int = 20,
+) -> bpy.types.Object:
+    """Create a cylinder oriented along Three.js axis ('X', 'Y'=vertical, 'Z'=front-back)."""
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(
+        bm,
+        cap_ends=True,
+        cap_tris=False,
+        segments=segs,
+        radius1=radius_mm * MM,
+        radius2=radius_mm * MM,
+        depth=height_mm * MM,
+    )
+    bm.to_mesh(mesh)
+    bm.free()
+    obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+        obj.location = Vector((tx_mm * MM, -tz_mm * MM, ty_mm * MM))
+    else:
+        obj.location = to_bpos_mm(tx_mm, ty_mm, tz_mm)
+    if axis == "X":
+        obj.rotation_euler = Euler((0.0, math.pi / 2.0, 0.0), "XYZ")
+    elif axis == "Z":
+        obj.rotation_euler = Euler((math.pi / 2.0, 0.0, 0.0), "XYZ")
+    return obj
+
+
+def add_sphere(
+    name: str,
+    tx_mm: float,
+    ty_mm: float,
+    tz_mm: float,
+    radius_mm: float,
+    mat: bpy.types.Material,
+    parent=None,
     scale_xyz: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    segs: int = 16,
 ) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        segments=24,
-        ring_count=16,
-        radius=radius,
-        location=to_bpos(tx, ty, tz),
-    )
-    obj = bpy.context.active_object
-    obj.name = name
-    bx, by, bz = to_bscale(*scale_xyz)
-    obj.scale = (bx, by, bz)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    bpy.ops.object.shade_smooth()
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=segs, v_segments=12, radius=radius_mm * MM)
+    if scale_xyz != (1.0, 1.0, 1.0):
+        bmesh.ops.scale(bm, vec=(scale_xyz[0], scale_xyz[2], scale_xyz[1]), verts=bm.verts)
+    bm.to_mesh(mesh)
+    bm.free()
     obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+        obj.location = Vector((tx_mm * MM, -tz_mm * MM, ty_mm * MM))
+    else:
+        obj.location = to_bpos_mm(tx_mm, ty_mm, tz_mm)
     return obj
 
 
-def build_villa() -> None:
+def add_tube(
+    name: str,
+    pts_three_mm: list[tuple[float, float, float]],
+    radius_mm: float,
+    mat: bpy.types.Material,
+    parent=None,
+    res: int = 8,
+    bevel_res: int = 4,
+) -> bpy.types.Object:
+    """Create a smooth 3D tubular cable or silicone water tube through Three.js mm waypoints."""
+    curve_data = bpy.data.curves.new(name + "_curve", type="CURVE")
+    curve_data.dimensions = "3D"
+    curve_data.resolution_u = res
+    curve_data.bevel_depth = radius_mm * MM
+    curve_data.bevel_resolution = bevel_res
+    curve_data.fill_mode = "FULL"
+    curve_data.use_fill_caps = True
+
+    spline = curve_data.splines.new("POLY")
+    spline.points.add(len(pts_three_mm) - 1)
+    for idx, (x, y, z) in enumerate(pts_three_mm):
+        bv = to_bpos_mm(x, y, z)
+        spline.points[idx].co = (bv.x, bv.y, bv.z, 1.0)
+
+    obj = bpy.data.objects.new(name, curve_data)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+    return obj
+
+
+def convert_curves_to_meshes() -> None:
+    """Convert all CURVE wire/tube objects to clean low-poly MESH before GLB export."""
+    bpy.ops.object.select_all(action="DESELECT")
+    curves = [o for o in bpy.data.objects if o.type == "CURVE"]
+    for obj in curves:
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.convert(target="MESH")
+        obj.select_set(False)
+
+
+# ==============================================================================
+# MATERIALS PALETTE (MATCHING REAL REFERENCE PHOTOS 1 & 2)
+# ==============================================================================
+def build_materials() -> dict[str, bpy.types.Material]:
+    return {
+        # Architectural open-cutaway house materials
+        "plinth":      make_mat("TabletopPlinth",   (0.11, 0.14, 0.20, 1.0), roughness=0.45, metallic=0.15),
+        "plinth_trim": make_mat("PlinthEdgeTrim",   (0.20, 0.26, 0.35, 1.0), roughness=0.35, metallic=0.35),
+        "tech_deck":   make_mat("TechBayDeck",      (0.15, 0.18, 0.24, 1.0), roughness=0.42, metallic=0.12),
+        "oak_floor":   make_mat("OakFloorLiving",   (0.56, 0.39, 0.23, 1.0), roughness=0.40),
+        "walnut_flr":  make_mat("WalnutFloorBed",   (0.38, 0.25, 0.16, 1.0), roughness=0.42),
+        "wall_cream":  make_mat("WallOffWhite",     (0.92, 0.91, 0.88, 1.0), roughness=0.65),
+        "wall_trim":   make_mat("WallCharcoalCap",  (0.16, 0.20, 0.27, 1.0), roughness=0.40, metallic=0.20),
+        "wood_warm":   make_mat("WarmTeakWood",     (0.52, 0.31, 0.16, 1.0), roughness=0.45),
+        "door_wood":   make_mat("MainDoorOak",      (0.45, 0.26, 0.13, 1.0), roughness=0.38),
+        "glass":       make_mat("ClearGlass",       (0.68, 0.88, 0.98, 0.30), roughness=0.06, metallic=0.08, alpha=0.30),
+        "water_tank":  make_mat("WaterReservoir",   (0.30, 0.72, 0.95, 0.45), roughness=0.05, alpha=0.45),
+        "water_tube":  make_mat("SiliconeTube",     (0.76, 0.92, 0.98, 0.62), roughness=0.18, alpha=0.62),
+        "sofa_blue":   make_mat("SofaNordicBlue",   (0.22, 0.42, 0.68, 1.0), roughness=0.65),
+        "cushion":     make_mat("CushionWarm",      (0.92, 0.72, 0.35, 1.0), roughness=0.65),
+        "bed_white":   make_mat("BedLinenWhite",    (0.95, 0.95, 0.97, 1.0), roughness=0.65),
+        "bed_indigo":  make_mat("BedDuvetIndigo",   (0.26, 0.34, 0.64, 1.0), roughness=0.68),
+        "terracotta":  make_mat("PlanterClay",      (0.56, 0.27, 0.15, 1.0), roughness=0.72),
+        "soil_dark":   make_mat("GardenSoil",       (0.16, 0.10, 0.06, 1.0), roughness=0.92),
+        "leaf_dark":   make_mat("PlantLeafDark",    (0.11, 0.46, 0.20, 1.0), roughness=0.52),
+        "leaf_bright": make_mat("PlantLeafBright",  (0.19, 0.64, 0.28, 1.0), roughness=0.48),
+
+        # Real electronic component materials (matched to reference photos 1 & 2)
+        "pcb_black":   make_mat("PCB_NodeMCU_Blk",  (0.06, 0.07, 0.09, 1.0), roughness=0.36, metallic=0.08),
+        "pcb_blue":    make_mat("PCB_Module_Blue",  (0.05, 0.24, 0.68, 1.0), roughness=0.35, metallic=0.05),
+        "pcb_red":     make_mat("PCB_Module_Red",   (0.72, 0.08, 0.09, 1.0), roughness=0.35, metallic=0.05),
+        "pcb_green":   make_mat("PCB_PAM8403_Grn",  (0.06, 0.44, 0.18, 1.0), roughness=0.35, metallic=0.05),
+        "relay_cube":  make_mat("SongleRelayBlue",  (0.08, 0.45, 0.85, 1.0), roughness=0.32),
+        "term_blue":   make_mat("ScrewTermBlue",    (0.09, 0.36, 0.72, 1.0), roughness=0.38),
+        "sg90_blue":   make_mat("ServoSG90Blue",    (0.10, 0.42, 0.88, 0.88), roughness=0.25, alpha=0.88),
+        "sg90_label":  make_mat("ServoSG90Sticker", (0.92, 0.76, 0.12, 1.0), roughness=0.40),
+        "dht_blue":    make_mat("DHT11HousingBlue", (0.12, 0.56, 0.90, 1.0), roughness=0.36),
+        "pump_white":  make_mat("PumpWhitePlastic", (0.94, 0.95, 0.96, 1.0), roughness=0.34),
+        "plastic_blk": make_mat("PlasticBlack",     (0.05, 0.05, 0.06, 1.0), roughness=0.42),
+        "plastic_wht": make_mat("PlasticWhite",     (0.92, 0.93, 0.94, 1.0), roughness=0.35),
+        "silver_mtl":  make_mat("BrushedSilver",    (0.80, 0.82, 0.85, 1.0), roughness=0.22, metallic=0.92),
+        "brass":       make_mat("MachinedBrass",    (0.85, 0.67, 0.24, 1.0), roughness=0.24, metallic=0.90),
+        "copper":      make_mat("GoldPinHeader",    (0.90, 0.72, 0.22, 1.0), roughness=0.20, metallic=0.95),
+        "ic_black":    make_mat("IC_EpoxyBlack",    (0.07, 0.07, 0.08, 1.0), roughness=0.32),
+        "pot_blue":    make_mat("TrimmerPotBlue",   (0.10, 0.38, 0.82, 1.0), roughness=0.38),
+        "mic_felt":    make_mat("ElectretFelt",     (0.06, 0.06, 0.07, 1.0), roughness=0.92),
+        "led_lr":      make_mat("LED_LivingWarm",   (1.00, 0.90, 0.65, 1.0), roughness=0.14, emission=(1.0, 0.85, 0.45), emission_strength=1.2),
+        "led_br":      make_mat("LED_BedroomWarm",  (1.00, 0.82, 0.50, 1.0), roughness=0.14, emission=(1.0, 0.74, 0.32), emission_strength=1.1),
+        "led_red":     make_mat("LED_StatusRed",    (0.95, 0.14, 0.12, 1.0), roughness=0.18, emission=(0.95, 0.12, 0.10), emission_strength=0.9),
+        "led_grn":     make_mat("LED_StatusGreen",  (0.12, 0.88, 0.28, 1.0), roughness=0.18, emission=(0.12, 0.88, 0.28), emission_strength=0.9),
+
+        # Color-coded Dupont wire insulation
+        "w_red":       make_mat("WireRed_5V",       (0.86, 0.12, 0.12, 1.0), roughness=0.38),
+        "w_black":     make_mat("WireBlack_GND",    (0.08, 0.08, 0.10, 1.0), roughness=0.40),
+        "w_orange":    make_mat("WireOrange_Sig",   (0.95, 0.46, 0.08, 1.0), roughness=0.38),
+        "w_yellow":    make_mat("WireYellow_Sig",   (0.94, 0.80, 0.12, 1.0), roughness=0.38),
+        "w_green":     make_mat("WireGreen_Sig",    (0.14, 0.68, 0.24, 1.0), roughness=0.38),
+        "w_blue":      make_mat("WireBlue_Sig",     (0.12, 0.45, 0.90, 1.0), roughness=0.38),
+        "w_purple":    make_mat("WirePurple_Sig",   (0.56, 0.22, 0.82, 1.0), roughness=0.38),
+        "w_white":     make_mat("WireWhite_Sig",    (0.92, 0.93, 0.95, 1.0), roughness=0.38),
+        "w_cyan":      make_mat("WireCyan_Sig",     (0.08, 0.74, 0.82, 1.0), roughness=0.38),
+    }
+
+
+# ==============================================================================
+# 1. OPEN-CUTAWAY ARCHITECTURAL HOUSE (360 x 270 x 138 mm on 400 x 320 mm PLINTH)
+# ==============================================================================
+def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
+    arch = make_group("OpenCutawayHouse", 0.0, 0.0, 0.0)
+
+    # Tabletop display plinth: 400 x 320 x 8 mm (top surface at Y = 0.0 mm)
+    add_box("TabletopPlinth", 0.0, -4.5, 8.0, 404.0, 9.0, 324.0, mats["plinth"], parent=arch, bevel_mm=1.2)
+    add_box("PlinthTrim",     0.0, -0.4, 8.0, 396.0, 1.2, 316.0, mats["plinth_trim"], parent=arch, bevel_mm=0.3)
+
+    # Room floors (Y = 0..2 mm)
+    # Living Room: X = -175..-5 (W=170), Z = -132..+40 (D=172)
+    add_box("LivingRoomFloor", -90.0, 1.0, -46.0, 170.0, 2.0, 172.0, mats["oak_floor"], parent=arch)
+    # Bedroom: X = -5..+175 (W=180), Z = -132..+40 (D=172)
+    add_box("BedroomFloor",    +85.0, 1.0, -46.0, 180.0, 2.0, 172.0, mats["walnut_flr"], parent=arch)
+
+    # Front-Left Technical Electronics Bay deck (X = -175..+25, Z = +46..+152 -> 200 x 106 mm)
+    add_box("TechBayDeck", -75.0, 3.0, 99.0, 200.0, 6.0, 106.0, mats["tech_deck"], parent=arch, bevel_mm=0.8)
+    add_box("TechBayTrim", -75.0, 6.2, 99.0, 196.0, 0.6, 102.0, mats["plinth_trim"], parent=arch)
+
+    # WALLS (Open Roof = ZERO roof slab! Cutaway Front Walls = crisp unobstructed interior view!)
+    WALL_H = 132.0
+    WALL_T = 6.0
+    CUT_H = 26.0
+
+    # Rear Wall (Z = -132 mm, X = -178..+178) with panoramic Bedroom glass window
+    add_box("BackWallLiving", -90.0, WALL_H / 2, -132.0, 176.0, WALL_H, WALL_T, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("BackWallBedBot",  88.0, 22.0,       -132.0, 180.0, 44.0,   WALL_T, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("BackWallBedTop",  88.0, 118.0,      -132.0, 180.0, 28.0,   WALL_T, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("BackWallBedPillarL",  14.0, 74.0,   -132.0, 32.0,  60.0,   WALL_T, mats["wall_cream"], parent=arch)
+    add_box("BackWallBedPillarR", 162.0, 74.0,   -132.0, 32.0,  60.0,   WALL_T, mats["wall_cream"], parent=arch)
+    add_box("BedWindowGlass",      88.0, 74.0,   -132.0, 116.0, 60.0,   1.8,    mats["glass"],      parent=arch)
+    add_box("BedWindowFrameTop",   88.0, 104.5,  -132.0, 120.0, 2.5,    7.0,    mats["wall_trim"],  parent=arch)
+    add_box("BedWindowFrameBot",   88.0, 43.5,   -132.0, 120.0, 2.5,    7.0,    mats["wall_trim"],  parent=arch)
+    add_box("BackWallCap",          0.0, WALL_H + 1.5, -132.0, 358.0, 3.0, 8.0, mats["wall_trim"],  parent=arch)
+
+    # Left Wall (X = -175 mm): Full height at back, architectural diagonal/step cutaway in front
+    add_box("LeftWallBack", -175.0, WALL_H / 2, -72.0, WALL_T, WALL_H, 120.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("LeftWallFrontLow", -175.0, CUT_H / 2, 14.0, WALL_T, CUT_H, 56.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("LeftWallCapBack", -175.0, WALL_H + 1.5, -72.0, 8.0, 3.0, 122.0, mats["wall_trim"], parent=arch)
+    add_box("LeftWallCapFront", -175.0, CUT_H + 1.0, 14.0, 8.0, 2.0, 58.0, mats["wall_trim"], parent=arch)
+    # Decorative vertical teak wood slats on Living Room left wall
+    for i in range(6):
+        add_box(f"LivingWoodSlat_{i}", -171.0, 66.0, -112.0 + i * 14.0, 2.0, 116.0, 5.0, mats["wood_warm"], parent=arch)
+
+    # Right Wall (X = +175 mm): Full back half + low cutaway front half for clear bedroom visibility
+    add_box("RightWallBack", 175.0, WALL_H / 2, -76.0, WALL_T, WALL_H, 112.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("RightWallFrontLow", 175.0, CUT_H / 2, 10.0, WALL_T, CUT_H, 64.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("RightWallCapBack", 175.0, WALL_H + 1.5, -76.0, 8.0, 3.0, 114.0, mats["wall_trim"], parent=arch)
+    add_box("RightWallCapFront", 175.0, CUT_H + 1.0, 10.0, 8.0, 2.0, 66.0, mats["wall_trim"], parent=arch)
+
+    # Center Dividing Wall (X = -5 mm) with clean doorway passage between Living Room & Bedroom
+    add_box("MidWallBack", -5.0, WALL_H / 2, -78.0, WALL_T, WALL_H, 106.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("MidWallBackCap", -5.0, WALL_H + 1.5, -78.0, 8.0, 3.0, 108.0, mats["wall_trim"], parent=arch)
+    add_box("MidWallFrontPillar", -5.0, WALL_H / 2, 32.0, 10.0, WALL_H, 16.0, mats["wall_cream"], parent=arch, bevel_mm=0.4)
+    add_box("MidWallFrontCap", -5.0, WALL_H + 1.5, 32.0, 12.0, 3.0, 18.0, mats["wall_trim"], parent=arch)
+
+    # Cutaway Front Facade around Main Door (Z = +40 mm)
+    # Main Door opening: X = -114 .. -60 mm (54 mm wide, 96 mm tall)
+    add_box("FrontDoorFrameLeft",  -118.0, 52.0, 40.0, 8.0,  104.0, 8.0, mats["wall_trim"], parent=arch)
+    add_box("FrontDoorFrameRight",  -56.0, 52.0, 40.0, 8.0,  104.0, 8.0, mats["wall_trim"], parent=arch)
+    add_box("FrontDoorHeader",      -87.0, 106.0, 40.0, 72.0, 8.0,  9.0, mats["wall_trim"], parent=arch)
+    # Low cutaway front waist walls left & right of door so interior & bay stay 100% open
+    add_box("FrontCutawayLeft",  -146.0, CUT_H / 2, 40.0, 52.0, CUT_H, WALL_T, mats["wall_cream"], parent=arch)
+    add_box("FrontCutawayMid",    -30.0, CUT_H / 2, 40.0, 44.0, CUT_H, WALL_T, mats["wall_cream"], parent=arch)
+    add_box("FrontCutawayBed",     85.0, CUT_H / 2, 40.0, 174.0, CUT_H, WALL_T, mats["wall_cream"], parent=arch)
+    add_box("FrontCutawayBedCap",  85.0, CUT_H + 1.0, 40.0, 176.0, 2.0, 8.0, mats["wall_trim"], parent=arch)
+
+    # Minimalist Modern Furniture (scaled 1:1 to tabletop house, low-profile so modules stay visible)
+    # Living room sofa against back wall
+    add_box("LivingSofaBase", -95.0, 9.0, -104.0, 88.0, 14.0, 34.0, mats["sofa_blue"], parent=arch, bevel_mm=2.0)
+    add_box("LivingSofaBack", -95.0, 24.0, -118.0, 88.0, 26.0, 10.0, mats["sofa_blue"], parent=arch, bevel_mm=2.0)
+    add_box("LivingSofaArmL", -136.0, 18.0, -104.0, 8.0, 18.0, 34.0, mats["sofa_blue"], parent=arch, bevel_mm=1.5)
+    add_box("LivingSofaArmR",  -54.0, 18.0, -104.0, 8.0, 18.0, 34.0, mats["sofa_blue"], parent=arch, bevel_mm=1.5)
+    add_box("LivingPillow1",  -118.0, 22.0, -110.0, 16.0, 14.0, 6.0, mats["cushion"], parent=arch, bevel_mm=1.5)
+    add_box("LivingPillow2",   -72.0, 22.0, -110.0, 16.0, 14.0, 6.0, mats["cushion"], parent=arch, bevel_mm=1.5)
+    # Coffee table
+    add_box("CoffeeTableTop",  -95.0, 15.0, -58.0, 52.0, 3.0, 28.0, mats["wood_warm"], parent=arch, bevel_mm=0.6)
+    add_box("CoffeeTableBase", -95.0,  7.5, -58.0, 40.0, 12.0, 18.0, mats["wall_trim"], parent=arch)
+
+    # Bedroom bed + nightstand
+    add_box("BedFrame",       96.0, 8.0,  -78.0, 82.0, 12.0, 94.0, mats["wood_warm"], parent=arch, bevel_mm=1.0)
+    add_box("BedHeadboard",   96.0, 26.0, -123.0, 86.0, 36.0, 5.0, mats["wood_warm"], parent=arch, bevel_mm=0.8)
+    add_box("BedMattress",    96.0, 18.0, -78.0, 76.0, 10.0, 88.0, mats["bed_white"], parent=arch, bevel_mm=2.0)
+    add_box("BedDuvet",       96.0, 19.5, -60.0, 78.0, 10.5, 56.0, mats["bed_indigo"], parent=arch, bevel_mm=2.0)
+    add_box("BedPillowL",     76.0, 25.0, -108.0, 28.0, 6.0, 16.0, mats["bed_white"], parent=arch, bevel_mm=1.5)
+    add_box("BedPillowR",    116.0, 25.0, -108.0, 28.0, 6.0, 16.0, mats["bed_white"], parent=arch, bevel_mm=1.5)
+    add_box("Nightstand",     36.0, 14.0, -108.0, 24.0, 24.0, 22.0, mats["wood_warm"], parent=arch, bevel_mm=0.8)
+
+    # Front-Right Garden Planter Box (X = +38..+176, Z = +52..+148 -> 138 x 96 mm)
+    # Left chamber (X = +40..+82): clear water reservoir for submersible pump
+    # Right chamber (X = +86..+174): terracotta soil planter with plants & soil sensor
+    add_box("GardenPlanterWalls", 130.0, 16.0, 100.0, 92.0, 32.0, 92.0, mats["terracotta"], parent=arch, bevel_mm=1.0)
+    add_box("GardenSoilBed",      130.0, 26.5, 100.0, 82.0, 14.0, 82.0, mats["soil_dark"], parent=arch)
+    # 2 clean tabletop plants inside soil bed
+    for idx, (px, pz, h) in enumerate([(106.0, 78.0, 34.0), (150.0, 120.0, 28.0)]):
+        add_cyl(f"GardenStem_{idx}", px, 33.0 + h * 0.3, pz, 2.2, h * 0.6, mats["wood_warm"], parent=arch)
+        add_sphere(f"GardenFoliageA_{idx}", px, 33.0 + h * 0.72, pz, 13.0, mats["leaf_dark"], parent=arch, scale_xyz=(1.1, 0.85, 1.1))
+        add_sphere(f"GardenFoliageB_{idx}", px + 4.0, 33.0 + h * 0.96, pz - 2.0, 9.0, mats["leaf_bright"], parent=arch)
+
+    # Clear Water Reservoir Tank beside planter (X = +60, Z = +100, 44 x 36 x 66 mm)
+    add_box("WaterTankBase",  60.0, 2.0,  100.0, 46.0, 4.0,  72.0, mats["plinth_trim"], parent=arch)
+    add_box("WaterTankGlass", 60.0, 22.0, 100.0, 44.0, 38.0, 70.0, mats["glass"], parent=arch)
+    add_box("WaterLevel",     60.0, 14.0, 100.0, 40.0, 22.0, 66.0, mats["water_tank"], parent=arch)
+
+    return arch
+
+
+# ==============================================================================
+# 2. DIRECT IMPORT OF ACTUAL KICAD 3D PCB (`kicad_pcb_hub`) + NODEMCU (`nodemcu_esp8266`)
+# ==============================================================================
+# Technical bay PCB center in Three.js mm:
+PCB_CX_MM = -118.0
+PCB_CZ_MM = 99.0
+PCB_BOT_Y_MM = 12.0   # PCB bottom sits on 6mm brass M3 standoffs above 6mm TechBayDeck!
+
+
+def pcb_pin_world_mm(x_rel_mm: float, y_rel_mm: float, z_top_offset_mm: float = 8.5) -> tuple[float, float, float]:
+    """Convert KiCad PCB local mm (origin top-left 0..80, 0..65) to Three.js world mm."""
+    tx = PCB_CX_MM + (x_rel_mm - 40.0)
+    tz = PCB_CZ_MM + (y_rel_mm - 32.5)
+    ty = PCB_BOT_Y_MM + 1.6 + z_top_offset_mm
+    return (tx, ty, tz)
+
+
+def import_kicad_pcb_and_nodemcu(mats: dict[str, bpy.types.Material]) -> tuple[bpy.types.Object, bpy.types.Object]:
+    if not KICAD_PCB_GLB.exists():
+        raise FileNotFoundError(f"KiCad 3D PCB GLB missing: {KICAD_PCB_GLB}")
+
+    pcb_hub = make_group("kicad_pcb_hub", PCB_CX_MM, PCB_BOT_Y_MM, PCB_CZ_MM)
+
+    # 4 Brass M3 standoffs under the 4 corner M3 mounting holes (inset 4.5mm from 80x65 edges)
+    for idx, (hx, hy) in enumerate([(4.5, 4.5), (75.5, 4.5), (4.5, 60.5), (75.5, 60.5)]):
+        add_cyl(
+            f"PCB_Standoff_M3_{idx + 1}",
+            hx - 40.0, -3.0, hy - 32.5,
+            radius_mm=2.4, height_mm=6.0,
+            mat=mats["brass"], parent=pcb_hub,
+        )
+
+    # Import the actual KiCad-exported 3D PCB GLB directly!
+    before_objs = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=str(KICAD_PCB_GLB))
+    imported = [o for o in bpy.data.objects if o not in before_objs]
+    imported_roots = [o for o in imported if o.parent is None]
+
+    # Measure imported PCB world bounding box in Blender (Z-up)
+    bpy.context.view_layer.update()
+    xs, ys, zs = [], [], []
+    for o in imported:
+        if o.type == "MESH":
+            for corner in o.bound_box:
+                wc = o.matrix_world @ Vector(corner)
+                xs.append(wc.x)
+                ys.append(wc.y)
+                zs.append(wc.z)
+    if not xs:
+        raise RuntimeError("Imported KiCad PCB GLB contained zero mesh geometry!")
+
+    cx_m = 0.5 * (min(xs) + max(xs))
+    cy_m = 0.5 * (min(ys) + max(ys))
+    zmin_m = min(zs)
+    print(
+        f"[KICAD IMPORT] Imported {len(imported)} objects "
+        f"extents_mm=({(max(xs)-min(xs))*1000:.2f}, {(max(ys)-min(ys))*1000:.2f}, {(max(zs)-min(zs))*1000:.2f})"
+    )
+
+    # Reparent imported KiCad PCB root(s) into kicad_pcb_hub at exact coherent SCENE_SCALE
+    for r in imported_roots:
+        r.parent = pcb_hub
+        # Offset in meters before applying SCENE_SCALE so PCB center is at (0,0) and bottom is at Z=0
+        r.scale = (r.scale.x * SCENE_SCALE, r.scale.y * SCENE_SCALE, r.scale.z * SCENE_SCALE)
+        r.location = Vector((
+            (r.location.x - cx_m) * SCENE_SCALE,
+            (r.location.y - cy_m) * SCENE_SCALE,
+            (r.location.z - zmin_m) * SCENE_SCALE,
+        ))
+
+    # Build authentic ESP8266 NodeMCU v2 Amica plugged directly onto U1/U2 2x15 female sockets!
+    # Real NodeMCU v2 Amica dimensions: 25.4mm wide (X) x 48.2mm long (Z) x 1.6mm thick black PCB,
+    # seated cleanly at top of 8.5mm female sockets (PCB_BOT_Y_MM + 1.6 + 8.5 = 22.1 mm)
+    nodemcu = make_group("nodemcu_esp8266", PCB_CX_MM, PCB_BOT_Y_MM + 10.1, PCB_CZ_MM)
+    add_box("NodeMCU_PCB", 0.0, 0.8, 0.0, 25.4, 1.6, 48.2, mats["pcb_black"], parent=nodemcu, bevel_mm=0.2)
+    # Silver ESP-12E/F RF metal shield can (16 x 12 x 2.8 mm) toward -Z (antenna top end)
+    add_box("NodeMCU_ESP12_Shield", 0.0, 3.0, -7.0, 15.0, 2.8, 12.0, mats["silver_mtl"], parent=nodemcu, bevel_mm=0.2)
+    # PCB Wi-Fi meander antenna zone at top (-Z end)
+    add_box("NodeMCU_WiFi_AntennaArea", 0.0, 1.75, -18.5, 16.0, 0.3, 7.0, mats["pcb_black"], parent=nodemcu)
+    for k in range(5):
+        add_box(f"NodeMCU_AntTrace_{k}", -6.0 + k * 3.0, 1.95, -18.5, 0.7, 0.15, 5.8, mats["copper"], parent=nodemcu)
+    # CP2102 USB-UART IC + AMS1117 regulator
+    add_box("NodeMCU_CP2102", 0.0, 2.2, 9.5, 5.0, 1.0, 5.0, mats["ic_black"], parent=nodemcu)
+    add_box("NodeMCU_AMS1117", -6.5, 2.4, 15.0, 6.5, 1.5, 3.5, mats["ic_black"], parent=nodemcu)
+    # Micro-USB metallic connector at bottom (+Z end)
+    add_box("NodeMCU_MicroUSB", 0.0, 3.0, 22.5, 7.8, 2.8, 5.6, mats["silver_mtl"], parent=nodemcu, bevel_mm=0.2)
+    # RST & FLASH tactile buttons
+    add_box("NodeMCU_Btn_RST", -6.2, 2.4, 20.5, 3.2, 1.5, 2.4, mats["silver_mtl"], parent=nodemcu)
+    add_box("NodeMCU_Btn_FLASH", 6.2, 2.4, 20.5, 3.2, 1.5, 2.4, mats["silver_mtl"], parent=nodemcu)
+    # Onboard blue status LED near ESP-12E
+    add_box("NodeMCU_StatusLED", 6.2, 2.1, -12.5, 1.6, 0.8, 0.8, mats["dht_blue"], parent=nodemcu)
+    # 2x15 gold header solder nubs along left & right edges (exact 22.86mm pitch = +/-11.43mm)
+    for side, sx in [("L", -11.43), ("R", 11.43)]:
+        add_box(f"NodeMCU_HeaderBar_{side}", sx, 2.1, 0.0, 1.4, 1.0, 37.5, mats["copper"], parent=nodemcu)
+
+    return pcb_hub, nodemcu
+
+
+# ==============================================================================
+# 3. ALL 6 REAL DEVICES + 3 REAL SENSORS (LOCKED GLB NODE NAMES, ZERO FAN/AC/IR)
+# ==============================================================================
+def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> dict[str, tuple[float, float, float]]:
+    """Build every contract device and sensor at exact 1:1 physical mm scale.
+
+    Returns dict of wire anchor points (in Three.js mm) for clean Dupont cable routing.
+    """
+    anchors: dict[str, tuple[float, float, float]] = {}
+
+    # ------------------------------------------------------------------
+    # DEVICE 1: main_door (`door_pivot` / `main_door_leaf`) + Servo SG90 (D1)
+    # Hinge at X = -114 mm, Z = +40 mm -> rotates around Y (0 deg closed, 90 deg open)
+    # ------------------------------------------------------------------
+    door_pivot = make_group("door_pivot", -114.0, 0.0, 40.0)
+    # Door leaf: 54mm wide x 98mm tall x 5mm thick, offset +27mm from hinge pivot
+    add_box("main_door_leaf", 27.0, 50.0, 0.0, 52.0, 96.0, 5.0, mats["door_wood"], parent=door_pivot, bevel_mm=0.6)
+    add_box("MainDoorWindow", 27.0, 72.0, 0.0, 26.0, 30.0, 5.6, mats["glass"], parent=door_pivot)
+    add_box("MainDoorHandle", 46.0, 46.0, 3.8, 4.0, 10.0, 3.0, mats["brass"], parent=door_pivot, bevel_mm=0.4)
+
+    # SG90 Micro Servo (blue translucent 22.5 x 12.2 x 28.5 mm, yellow sticker, white horn)
+    sg90 = make_group("SG90_DoorServo", -124.0, 16.0, 47.0)
+    add_box("SG90_Body", 0.0, 0.0, 0.0, 12.2, 22.5, 22.5, mats["sg90_blue"], parent=sg90, bevel_mm=0.5)
+    add_box("SG90_Flange", 0.0, 5.0, 0.0, 12.2, 2.5, 32.0, mats["sg90_blue"], parent=sg90)
+    add_box("SG90_Sticker", 0.0, -1.0, 11.4, 10.0, 11.0, 0.4, mats["sg90_label"], parent=sg90)
+    add_cyl("SG90_GearHub", 0.0, 13.5, -5.0, 5.5, 4.5, mats["sg90_blue"], parent=sg90)
+    add_box("SG90_WhiteHorn", 4.5, 16.8, -5.0, 14.0, 2.2, 4.2, mats["plastic_wht"], parent=sg90, bevel_mm=0.4)
+    anchors["servo"] = (-124.0, 8.0, 58.0)
+
+    # ------------------------------------------------------------------
+    # DEVICE 2: led_living_room (5mm LED on D0, mounted on Living Room rear upper wall)
+    # ------------------------------------------------------------------
+    led_lr = make_group("led_living_room", -95.0, 112.0, -124.0)
+    add_cyl("LED_LR_Bezel", 0.0, 0.0, -2.0, 6.0, 5.0, mats["silver_mtl"], parent=led_lr, axis="Z")
+    add_cyl("LED_LR_Body",  0.0, 0.0,  2.5, 2.5, 5.5, mats["led_lr"], parent=led_lr, axis="Z")
+    add_sphere("LED_LR_Dome", 0.0, 0.0, 5.2, 2.5, mats["led_lr"], parent=led_lr)
+    anchors["led_lr"] = (-95.0, 112.0, -127.0)
+
+    # ------------------------------------------------------------------
+    # DEVICE 3: led_bedroom (5mm LED on D4 safe-boot, mounted on Bedroom rear upper wall)
+    # ------------------------------------------------------------------
+    led_br = make_group("led_bedroom", 88.0, 116.0, -124.0)
+    add_cyl("LED_BR_Bezel", 0.0, 0.0, -2.0, 6.0, 5.0, mats["silver_mtl"], parent=led_br, axis="Z")
+    add_cyl("LED_BR_Body",  0.0, 0.0,  2.5, 2.5, 5.5, mats["led_br"], parent=led_br, axis="Z")
+    add_sphere("LED_BR_Dome", 0.0, 0.0, 5.2, 2.5, mats["led_br"], parent=led_br)
+    anchors["led_br"] = (88.0, 116.0, -127.0)
+
+    # ------------------------------------------------------------------
+    # DEVICE 4: garden_pump (`pump_unit`, `water_tube`, `relay1_pump`)
+    # ------------------------------------------------------------------
+    # White mini submersible water pump (Ø24 x 45 mm) standing in clear water reservoir
+    pump = make_group("pump_unit", 60.0, 26.0, 96.0)
+    add_cyl("Pump_WhiteBody", 0.0, 0.0, 0.0, 12.0, 42.0, mats["pump_white"], parent=pump, axis="Y", segs=24)
+    add_cyl("Pump_BottomCap", 0.0, -21.5, 0.0, 12.5, 3.0, mats["pump_white"], parent=pump, axis="Y", segs=24)
+    add_cyl("Pump_OutletNozzle", 0.0, 24.5, 0.0, 3.6, 8.0, mats["pump_white"], parent=pump, axis="Y", segs=16)
+    add_cyl("Pump_SideIntake", -12.0, -13.0, 0.0, 4.0, 6.0, mats["pump_white"], parent=pump, axis="X", segs=16)
+    anchors["pump"] = (54.0, 42.0, 96.0)
+
+    # Translucent silicone water tube arching from pump nozzle over into garden planter soil
+    add_tube(
+        "water_tube",
+        [
+            (60.0, 52.0, 96.0),
+            (60.0, 68.0, 96.0),
+            (78.0, 72.0, 96.0),
+            (96.0, 54.0, 96.0),
+            (114.0, 40.0, 96.0),
+            (126.0, 36.0, 96.0),
+        ],
+        radius_mm=3.0,
+        mat=mats["water_tube"],
+        res=12,
+        bevel_res=6,
+    )
+
+    # Relay 1 (BLUE 5V 1-ch relay module, 50 x 26 x 18.5 mm, photo 1) in technical bay
+    rly1 = make_group("relay1_pump", -44.0, 6.8, 76.0)
+    add_box("Rly1_BluePCB", 0.0, 0.8, 0.0, 48.0, 1.6, 26.0, mats["pcb_blue"], parent=rly1, bevel_mm=0.2)
+    add_box("Rly1_SongleCube", -3.0, 9.6, 0.0, 19.0, 16.0, 15.5, mats["relay_cube"], parent=rly1, bevel_mm=0.4)
+    add_box("Rly1_ScrewTerm", 16.5, 6.6, 0.0, 8.5, 10.0, 15.5, mats["term_blue"], parent=rly1, bevel_mm=0.3)
+    for k in range(3):
+        add_cyl(f"Rly1_Screw_{k}", 16.5, 11.7, -5.0 + k * 5.0, 1.8, 0.6, mats["silver_mtl"], parent=rly1)
+    add_box("Rly1_PinHeader", -20.5, 4.5, 0.0, 2.5, 7.0, 8.0, mats["plastic_blk"], parent=rly1)
+    add_box("Rly1_LED_Pwr", -14.0, 2.1, -6.5, 2.2, 1.0, 1.4, mats["led_red"], parent=rly1)
+    add_box("Rly1_LED_Trig", -14.0, 2.1,  6.5, 2.2, 1.0, 1.4, mats["led_grn"], parent=rly1)
+    anchors["rly1_in"] = (-65.0, 11.5, 76.0)
+    anchors["rly1_sw"] = (-27.0, 12.0, 76.0)
+
+    # ------------------------------------------------------------------
+    # DEVICE 5: alarm_siren (`buzzer_alarm`, 5V black 12mm cylindrical buzzer on D8)
+    # Mounted high on the center-front pillar facing forward
+    # ------------------------------------------------------------------
+    buzzer = make_group("buzzer_alarm", -5.0, 116.0, 42.0)
+    add_box("Buzzer_MountPlate", 0.0, 0.0, -1.5, 16.0, 16.0, 2.0, mats["pcb_black"], parent=buzzer, bevel_mm=0.4)
+    add_cyl("Buzzer_CylBody", 0.0, 0.0, 4.5, 6.0, 9.5, mats["plastic_blk"], parent=buzzer, axis="Z", segs=24)
+    add_cyl("Buzzer_SoundHole", 0.0, 0.0, 9.4, 1.6, 0.6, mats["silver_mtl"], parent=buzzer, axis="Z", segs=16)
+    add_cyl("Buzzer_AlertRing", 0.0, 0.0, 1.5, 7.2, 1.5, mats["led_red"], parent=buzzer, axis="Z", segs=24)
+    anchors["buzzer"] = (-5.0, 108.0, 41.0)
+
+    # ------------------------------------------------------------------
+    # DEVICE 6: speaker_amp (`relay2_speaker` RED opto, `pam8403_module` GREEN, `speaker_mini` SILVER)
+    # ------------------------------------------------------------------
+    # Relay 2 (RED opto 5V 1-ch relay module, 50 x 26 x 18.5 mm, photo 1)
+    rly2 = make_group("relay2_speaker", -44.0, 6.8, 122.0)
+    add_box("Rly2_RedPCB", 0.0, 0.8, 0.0, 50.0, 1.6, 26.0, mats["pcb_red"], parent=rly2, bevel_mm=0.2)
+    add_box("Rly2_SongleCube", -2.0, 9.6, 0.0, 19.0, 16.0, 15.5, mats["relay_cube"], parent=rly2, bevel_mm=0.4)
+    add_box("Rly2_ScrewTerm", 17.0, 6.6, 0.0, 8.5, 10.0, 15.5, mats["term_blue"], parent=rly2, bevel_mm=0.3)
+    for k in range(3):
+        add_cyl(f"Rly2_Screw_{k}", 17.0, 11.7, -5.0 + k * 5.0, 1.8, 0.6, mats["silver_mtl"], parent=rly2)
+    add_box("Rly2_Optocoupler", -14.5, 3.0, 0.0, 4.5, 3.2, 6.0, mats["ic_black"], parent=rly2)
+    add_box("Rly2_PinHeader", -21.5, 4.5, 0.0, 2.5, 7.0, 8.0, mats["plastic_blk"], parent=rly2)
+    add_box("Rly2_LED_Pwr", -15.0, 2.1, -7.5, 2.2, 1.0, 1.4, mats["led_grn"], parent=rly2)
+    add_box("Rly2_LED_Trig", -15.0, 2.1,  7.5, 2.2, 1.0, 1.4, mats["led_red"], parent=rly2)
+    anchors["rly2_in"] = (-66.0, 11.5, 122.0)
+    anchors["rly2_sw"] = (-26.0, 12.0, 122.0)
+
+    # PAM8403 Audio Amplifier (GREEN square 21 x 18 mm PCB matching photo 2 closeup!)
+    pam = make_group("pam8403_module", 2.0, 7.0, 122.0)
+    add_box("PAM8403_GreenPCB", 0.0, 0.8, 0.0, 21.0, 1.6, 18.0, mats["pcb_green"], parent=pam, bevel_mm=0.15)
+    add_box("PAM8403_SOIC16", 0.0, 2.3, 0.0, 5.2, 1.5, 10.0, mats["ic_black"], parent=pam)
+    for sx in (-3.2, 3.2):
+        for k in range(8):
+            add_box(f"PAM_Pin_{sx}_{k}", sx, 1.75, -4.2 + k * 1.2, 1.1, 0.3, 0.5, mats["silver_mtl"], parent=pam)
+    # Gold solder pads at edges (5V, Audio IN, L/R OUT)
+    for px, pz in [(-7.5, -7.2), (-4.5, -7.2), (4.5, -7.2), (7.5, -7.2), (-7.0, 7.2), (-4.0, 7.2), (4.5, 7.2), (7.5, 7.2)]:
+        add_cyl(f"PAM_Pad_{px}_{pz}", px, 1.65, pz, 0.9, 0.2, mats["copper"], parent=pam, segs=12)
+    anchors["pam_pwr"] = (2.0, 9.5, 130.0)
+    anchors["pam_aud"] = (-4.0, 9.5, 130.0)
+    anchors["pam_out"] = (2.0, 9.5, 114.0)
+
+    # Mini Round Silver Speaker (Ø30 x 5.5 mm matching photo 1!)
+    spk = make_group("speaker_mini", 2.0, 7.0, 78.0)
+    add_cyl("Speaker_SilverRim", 0.0, 2.8, 0.0, 15.0, 5.6, mats["silver_mtl"], parent=spk, axis="Y", segs=28)
+    add_cyl("Speaker_InnerCone", 0.0, 5.7, 0.0, 12.2, 0.8, mats["plastic_blk"], parent=spk, axis="Y", segs=24)
+    add_cyl("Speaker_CenterCap", 0.0, 6.2, 0.0, 5.8, 0.8, mats["silver_mtl"], parent=spk, axis="Y", segs=20)
+    anchors["speaker"] = (2.0, 10.0, 92.0)
+
+    # ------------------------------------------------------------------
+    # SENSOR 1: sensor_dht11 (Blue gridded DHT11 on D2, mounted on Living Room rear wall facing +Z)
+    # ------------------------------------------------------------------
+    dht = make_group("sensor_dht11", -42.0, 88.0, -126.0)
+    add_box("DHT11_BreakoutPCB", 0.0, 0.0, 0.0, 14.0, 28.0, 1.6, mats["pcb_blue"], parent=dht)
+    add_box("DHT11_BlueGridBox", 0.0, 3.0, 3.6, 12.5, 16.0, 5.6, mats["dht_blue"], parent=dht, bevel_mm=0.3)
+    for row in range(3):
+        for col in range(3):
+            add_box(f"DHT11_Vent_{row}_{col}", -3.5 + col * 3.5, -1.0 + row * 4.0, 6.4, 2.0, 2.0, 0.5, mats["plastic_blk"], parent=dht)
+    add_box("DHT11_Pins", 0.0, -11.0, 2.0, 7.6, 5.0, 3.0, mats["silver_mtl"], parent=dht)
+    anchors["dht11"] = (-42.0, 72.0, -126.0)
+
+    # ------------------------------------------------------------------
+    # SENSOR 2: sensor_soil (2-prong probe in garden soil + blue LM393 PCB on planter rim, A0@3.3V)
+    # ------------------------------------------------------------------
+    soil = make_group("sensor_soil", 142.0, 33.0, 96.0)
+    # 2-prong soil fork probe inserted vertically into dark soil
+    add_box("SoilProbe_Head", 0.0, 14.0, 0.0, 18.0, 12.0, 2.2, mats["pcb_black"], parent=soil)
+    add_box("SoilProbe_ProngL", -4.8, -6.0, 0.0, 4.2, 32.0, 1.8, mats["silver_mtl"], parent=soil)
+    add_box("SoilProbe_ProngR",  4.8, -6.0, 0.0, 4.2, 32.0, 1.8, mats["silver_mtl"], parent=soil)
+    # Blue LM393 comparator breakout PCB on front edge of planter (local offset to X=112, Y=35, Z=140)
+    lm_off = (-30.0, 2.0, 44.0)
+    add_box("Soil_LM393_PCB", lm_off[0], lm_off[1], lm_off[2], 32.0, 1.6, 14.0, mats["pcb_blue"], parent=soil, bevel_mm=0.2)
+    add_box("Soil_LM393_Pot", lm_off[0] + 2.0, lm_off[1] + 4.8, lm_off[2], 9.5, 8.0, 4.5, mats["pot_blue"], parent=soil)
+    add_cyl("Soil_LM393_Screw", lm_off[0] + 4.5, lm_off[1] + 9.0, lm_off[2], 1.2, 0.6, mats["brass"], parent=soil)
+    add_box("Soil_LM393_IC",  lm_off[0] - 6.0, lm_off[1] + 1.8, lm_off[2], 5.0, 1.6, 4.0, mats["ic_black"], parent=soil)
+    add_box("Soil_LM393_Hdr", lm_off[0] - 14.0, lm_off[1] + 2.5, lm_off[2], 3.0, 3.0, 10.0, mats["silver_mtl"], parent=soil)
+    # Probe-to-LM393 jumper pair
+    add_tube(
+        "SoilProbeCable",
+        [(142.0, 52.0, 96.0), (142.0, 56.0, 118.0), (128.0, 38.0, 140.0)],
+        radius_mm=1.1,
+        mat=mats["w_yellow"],
+    )
+    anchors["soil"] = (96.0, 36.0, 140.0)
+
+    # ------------------------------------------------------------------
+    # SENSOR 3: sensor_mic_ky037 (RED PCB, electret mic, blue trimmer pot — photo 2 closeup!, D5)
+    # Mounted cleanly on Living Room front cutaway ledge facing inside the living room
+    # ------------------------------------------------------------------
+    ky = make_group("sensor_mic_ky037", -32.0, 29.0, 38.0)
+    add_box("KY037_RedPCB", 0.0, 0.8, 0.0, 35.0, 1.6, 15.0, mats["pcb_red"], parent=ky, bevel_mm=0.2)
+    # Silver cylindrical electret mic capsule with black felt front
+    add_cyl("KY037_MicCan", -11.5, 4.8, 0.0, 4.8, 6.8, mats["silver_mtl"], parent=ky, axis="Y", segs=22)
+    add_cyl("KY037_MicFelt", -11.5, 8.3, 0.0, 4.2, 0.4, mats["mic_felt"], parent=ky, axis="Y", segs=22)
+    # Blue multi-turn trimmer pot (VR1) with brass adjustment screw
+    add_box("KY037_TrimPot", 2.0, 5.6, -3.5, 9.5, 9.0, 4.5, mats["pot_blue"], parent=ky)
+    add_cyl("KY037_PotScrew", 5.0, 10.2, -3.5, 1.2, 0.6, mats["brass"], parent=ky)
+    # LM393 comparator IC + 4-pin male header
+    add_box("KY037_LM393", 1.5, 2.2, 3.8, 5.0, 1.4, 4.0, mats["ic_black"], parent=ky)
+    add_cyl("KY037_MountHole", 10.5, 1.6, 0.0, 1.6, 1.8, mats["silver_mtl"], parent=ky)
+    add_box("KY037_PinHeader", 15.5, 2.5, 0.0, 3.5, 2.6, 10.2, mats["plastic_blk"], parent=ky)
+    anchors["ky037"] = (-15.0, 31.0, 38.0)
+
+    return anchors
+
+
+# ==============================================================================
+# 4. COLOR-CODED 3D DUPONT WIRES FROM LABELED KICAD PCB HEADERS TO COMPONENTS
+# ==============================================================================
+def build_dupont_wires(mats: dict[str, bpy.types.Material], anchors: dict[str, tuple[float, float, float]]) -> bpy.types.Object:
+    wires = make_group("DupontWiringHarness", 0.0, 0.0, 0.0)
+    WR = 0.85  # 1.7 mm outer diameter Dupont wire (crisp & visible at tabletop scale!)
+
+    def route_bundle(name: str, pcb_xy: tuple[float, float], target_xyz: tuple[float, float, float],
+                     mid_pts: list[tuple[float, float, float]], colors: list[str]) -> None:
+        px, py, pz = pcb_pin_world_mm(pcb_xy[0], pcb_xy[1], z_top_offset_mm=7.5)
+        # Black Dupont connector housing seated on KiCad PCB header
+        add_box(f"DupontPlug_{name}", px, py - 1.5, pz, 2.6, 7.5, max(2.6, 2.4 * len(colors)), mats["plastic_blk"], parent=wires)
+        for idx, col_key in enumerate(colors):
+            off = (idx - (len(colors) - 1) * 0.5) * 2.2
+            pts = [(px, py + 2.5, pz + off * 0.6), (px, py + 8.0, pz + off * 0.6)]
+            for mx, my, mz in mid_pts:
+                pts.append((mx + off * 0.5, my, mz + off * 0.5))
+            pts.append((target_xyz[0] + off * 0.5, target_xyz[1], target_xyz[2]))
+            add_tube(f"Wire_{name}_{idx}", pts, radius_mm=WR, mat=mats[col_key], parent=wires)
+
+    # Exact KiCad PCB header coordinates (matching hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb!):
+    # J3  (74.5, 16.0): SERVO D1 -> SG90 main door servo
+    route_bundle("J3_SERVO_D1", (74.5, 16.0), anchors["servo"],
+                 [(-76.0, 14.0, 62.0), (-124.0, 14.0, 62.0)], ["w_orange", "w_red", "w_black"])
+
+    # J4  (45.8, 4.5): LR LED D0 -> led_living_room
+    route_bundle("J4_LR_LED_D0", (45.8, 4.5), anchors["led_lr"],
+                 [(-112.0, 18.0, 56.0), (-168.0, 18.0, 44.0), (-168.0, 18.0, -126.0), (-168.0, 112.0, -126.0)],
+                 ["w_yellow", "w_black"])
+
+    # J5  (59.3, 4.5): BR LED D4 -> led_bedroom (routed cleanly along wall edges, bypassing window glass)
+    route_bundle("J5_BR_LED_D4", (59.3, 4.5), anchors["led_br"],
+                 [(-96.0, 18.0, 54.0), (4.0, 18.0, 48.0), (4.0, 18.0, -126.0), (4.0, 116.0, -126.0)],
+                 ["w_purple", "w_white"])
+
+    # J13 (31.5, 4.5): DHT11 D2 -> sensor_dht11
+    route_bundle("J13_DHT11_D2", (31.5, 4.5), anchors["dht11"],
+                 [(-126.0, 18.0, 52.0), (-14.0, 18.0, 46.0), (-14.0, 18.0, -126.0), (-42.0, 18.0, -126.0)],
+                 ["w_red", "w_blue", "w_black"])
+
+    # J15 (74.5, 28.0): KY037 D5 -> sensor_mic_ky037
+    route_bundle("J15_KY037_D5", (74.5, 28.0), anchors["ky037"],
+                 [(-72.0, 18.0, 58.0), (-15.0, 18.0, 52.0)],
+                 ["w_red", "w_black", "w_yellow"])
+
+    # J6  (74.5, 50.8): BUZZ D8 -> buzzer_alarm
+    route_bundle("J6_BUZZ_D8", (74.5, 50.8), anchors["buzzer"],
+                 [(-74.0, 16.0, 50.0), (-5.0, 16.0, 46.0)],
+                 ["w_orange", "w_black"])
+
+    # J7  (74.5, 40.0): RLY1 D6 -> relay1_pump control header
+    route_bundle("J7_RLY1_D6", (74.5, 40.0), anchors["rly1_in"],
+                 [(-74.0, 14.0, 86.0)],
+                 ["w_red", "w_black", "w_green"])
+
+    # J8  (16.5, 17.8): RLY1 SW -> relay1_pump screw terminal COM/NO
+    route_bundle("J8_RLY1_SW", (16.5, 17.8), anchors["rly1_sw"],
+                 [(-142.0, 15.0, 62.0), (-26.0, 15.0, 62.0)],
+                 ["w_red", "w_yellow"])
+
+    # J2  (6.5, 19.0): PUMP OUT -> pump_unit (through water tank rim)
+    route_bundle("J2_PUMP_OUT", (6.5, 19.0), anchors["pump"],
+                 [(-162.0, 14.0, 82.0), (-162.0, 14.0, 144.0), (26.0, 14.0, 144.0), (34.0, 44.0, 96.0)],
+                 ["w_red", "w_black"])
+
+    # J9  (18.5, 60.5): RLY2 D7 -> relay2_speaker control header
+    route_bundle("J9_RLY2_D7", (18.5, 60.5), anchors["rly2_in"],
+                 [(-136.0, 14.0, 138.0), (-74.0, 14.0, 138.0)],
+                 ["w_red", "w_black", "w_cyan"])
+
+    # J10 (32.3, 60.5): RLY2 SW -> relay2_speaker screw terminal COM/NO
+    route_bundle("J10_RLY2_SW", (32.3, 60.5), anchors["rly2_sw"],
+                 [(-122.0, 14.0, 140.0), (-24.0, 14.0, 140.0)],
+                 ["w_red", "w_orange"])
+
+    # J11 (44.8, 60.5): AMP PWR -> pam8403_module 5V power pads
+    route_bundle("J11_AMP_PWR", (44.8, 60.5), anchors["pam_pwr"],
+                 [(-108.0, 14.0, 142.0), (2.0, 14.0, 142.0)],
+                 ["w_red", "w_black"])
+
+    # J12 (57.8, 60.5): AUDIO D3 -> pam8403_module audio input
+    route_bundle("J12_AUDIO_D3", (57.8, 60.5), anchors["pam_aud"],
+                 [(-96.0, 15.0, 136.0), (-4.0, 15.0, 136.0)],
+                 ["w_white", "w_black"])
+
+    # PAM8403 output -> mini round silver speaker
+    add_tube("Wire_PAM_Spk_Pos", [anchors["pam_out"], (0.0, 12.0, 102.0), (0.0, 10.0, 92.0)], WR, mats["w_yellow"], parent=wires)
+    add_tube("Wire_PAM_Spk_Neg", [(anchors["pam_out"][0] + 2.5, anchors["pam_out"][1], anchors["pam_out"][2]),
+                                  (3.5, 12.0, 102.0), (3.5, 10.0, 92.0)], WR, mats["w_black"], parent=wires)
+
+    # J14 (17.0, 4.5): SOIL A0 -> sensor_soil LM393 header
+    route_bundle("J14_SOIL_A0", (17.0, 4.5), anchors["soil"],
+                 [(-140.0, 16.0, 56.0), (24.0, 16.0, 56.0), (24.0, 16.0, 140.0)],
+                 ["w_red", "w_black", "w_green"])
+
+    return wires
+
+
+# ==============================================================================
+# 5. STUDIO LIGHTING, CAMERAS, SCENE_SPEC.json & HIGH-RES PNG RENDERS
+# ==============================================================================
+def setup_studio_lighting() -> None:
+    scene = bpy.context.scene
+    world = scene.world
+    world.use_nodes = True
+    bg = world.node_tree.nodes.get("Background")
+    if bg:
+        bg.inputs["Color"].default_value = (0.10, 0.14, 0.22, 1.0)
+        bg.inputs["Strength"].default_value = 0.28
+
+    def add_light(name: str, ltype: str, pos_mm: tuple[float, float, float], target_mm: tuple[float, float, float],
+                  energy: float, color=(1.0, 1.0, 1.0), size_mm: float = 160.0) -> None:
+        ldata = bpy.data.lights.new(name=name, type=ltype)
+        ldata.energy = energy
+        ldata.color = color
+        if ltype == "AREA":
+            ldata.size = size_mm * MM
+        lobj = bpy.data.objects.new(name=name, object_data=ldata)
+        bpy.context.collection.objects.link(lobj)
+        lobj.location = to_bpos_mm(*pos_mm)
+        direction = to_bpos_mm(*target_mm) - lobj.location
+        lobj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+    # Balanced 3-point studio lighting (rich contrast, deep PCB emerald, crisp soft shadows)
+    add_light("KeyLight",  "AREA", (260.0, 360.0, 280.0),  (0.0, 40.0, 10.0),   1400.0, (1.00, 0.96, 0.90), 220.0)
+    add_light("FillLight", "AREA", (-320.0, 240.0, 220.0), (-40.0, 30.0, 40.0),  580.0, (0.82, 0.90, 1.00), 260.0)
+    add_light("RimLight",  "AREA", (40.0, 260.0, -320.0),  (0.0, 40.0, 0.0),     520.0, (0.88, 0.94, 1.00), 240.0)
+    add_light("TechSpot",  "AREA", (-75.0, 175.0, 195.0),  (-75.0, 15.0, 99.0),  280.0, (1.00, 0.98, 0.94), 120.0)
+
+
+def create_camera(name: str, eye_mm: tuple[float, float, float], target_mm: tuple[float, float, float], lens_mm: float = 40.0) -> bpy.types.Object:
+    cdata = bpy.data.cameras.new(name)
+    cdata.lens = lens_mm
+    cdata.clip_start = 0.05
+    cdata.clip_end = 200.0
+    cam = bpy.data.objects.new(name, cdata)
+    bpy.context.collection.objects.link(cam)
+    cam.location = to_bpos_mm(*eye_mm)
+    direction = to_bpos_mm(*target_mm) - cam.location
+    cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    return cam
+
+
+def spherical_from_eye_target(eye_mm: tuple[float, float, float], tgt_mm: tuple[float, float, float]) -> dict[str, float]:
+    """Compute house3d.js spherical camera preset (theta, phi, radius, targetX/Y/Z) in glTF units."""
+    ex, ey, ez = [v * MM for v in eye_mm]
+    tx, ty, tz = [v * MM for v in tgt_mm]
+    dx, dy, dz = ex - tx, ey - ty, ez - tz
+    radius = math.sqrt(dx * dx + dy * dy + dz * dz)
+    phi = math.acos(max(-1.0, min(1.0, dy / radius)))
+    theta = math.atan2(dx, dz)
+    return {
+        "theta": round(theta, 4),
+        "phi": round(phi, 4),
+        "radius": round(radius, 4),
+        "targetX": round(tx, 4),
+        "targetY": round(ty, 4),
+        "targetZ": round(tz, 4),
+        "eye_gltf": [round(ex, 4), round(ey, 4), round(ez, 4)],
+        "target_gltf": [round(tx, 4), round(ty, 4), round(tz, 4)],
+    }
+
+
+def collect_contract_nodes() -> list[str]:
+    return [
+        "door_pivot",
+        "main_door_leaf",
+        "led_living_room",
+        "led_bedroom",
+        "pump_unit",
+        "water_tube",
+        "relay1_pump",
+        "relay2_speaker",
+        "buzzer_alarm",
+        "speaker_mini",
+        "pam8403_module",
+        "sensor_dht11",
+        "sensor_soil",
+        "sensor_mic_ky037",
+        "kicad_pcb_hub",
+        "nodemcu_esp8266",
+    ]
+
+
+def write_scene_spec() -> None:
+    bpy.context.view_layer.update()
+    # Compute global glTF bounding box (+Y up: glTF X = B.x, Y = B.z, Z = -B.y)
+    gmin = [1e9, 1e9, 1e9]
+    gmax = [-1e9, -1e9, -1e9]
+    for obj in bpy.data.objects:
+        if obj.type == "MESH":
+            for c in obj.bound_box:
+                w = obj.matrix_world @ Vector(c)
+                gx, gy, gz = w.x, w.z, -w.y
+                gmin[0] = min(gmin[0], gx)
+                gmin[1] = min(gmin[1], gy)
+                gmin[2] = min(gmin[2], gz)
+                gmax[0] = max(gmax[0], gx)
+                gmax[1] = max(gmax[1], gy)
+                gmax[2] = max(gmax[2], gz)
+
+    node_positions = {}
+    for nname in collect_contract_nodes():
+        obj = bpy.data.objects.get(nname)
+        if obj is not None:
+            w = obj.matrix_world.translation
+            node_positions[nname] = {
+                "gltf_xyz": [round(w.x, 4), round(w.z, 4), round(-w.y, 4)],
+                "physical_mm": [round(w.x / MM, 2), round(w.z / MM, 2), round(-w.y / MM, 2)],
+            }
+
+    spec = {
+        "schema_version": "2.0",
+        "model_file": "simulator/static/models/smarthome_villa.glb",
+        "blend_file": "hardware/blender/smarthome_open_house.blend",
+        "kicad_pcb_source": "hardware/kicad/smarthome_hub/3d/smarthome_hub.glb",
+        "units": "glTF meters (uniformly scaled 25x from 1:1 physical tabletop millimeters to fit house3d.js camera bounds)",
+        "scale_mm_to_gltf": MM,
+        "physical_scale_ratio": SCENE_SCALE,
+        "physical_dimensions_mm": {
+            "tabletop_plinth": [404.0, 9.0, 324.0],
+            "open_cutaway_house": [356.0, 135.0, 178.0],
+            "kicad_pcb_hub": [80.0, 17.3, 65.0],
+            "nodemcu_esp8266": [25.4, 10.0, 48.2],
+        },
+        "bounding_box_gltf": {
+            "min": [round(v, 4) for v in gmin],
+            "max": [round(v, 4) for v in gmax],
+            "extents": [round(gmax[i] - gmin[i], 4) for i in range(3)],
+        },
+        "camera_presets": {
+            "overview": spherical_from_eye_target((195.0, 325.0, 465.0), (-4.0, 36.0, 12.0)),
+            "living":   spherical_from_eye_target((-10.0, 210.0, 210.0), (-92.0, 48.0, -48.0)),
+            "bedroom":  spherical_from_eye_target((160.0, 210.0, 210.0), (88.0, 45.0, -56.0)),
+            "door":     spherical_from_eye_target((-60.0, 115.0, 215.0), (-90.0, 52.0, 40.0)),
+            "garden":   spherical_from_eye_target((155.0, 130.0, 255.0), (102.0, 30.0, 100.0)),
+            "board":    spherical_from_eye_target((-92.0, 138.0, 252.0), (-74.0, 16.0, 98.0)),
+        },
+        "contract_nodes": node_positions,
+        "removed_devices": ["fan", "ac", "ir_vs1838b", "ir_led_940nm"],
+    }
+    OUT_SPEC.parent.mkdir(parents=True, exist_ok=True)
+    OUT_SPEC.write_text(json.dumps(spec, indent=2), encoding="utf-8")
+    print(f"[SPEC] Wrote {OUT_SPEC}")
+
+
+def render_presentation_views(render_dir: pathlib.Path) -> None:
+    render_dir.mkdir(parents=True, exist_ok=True)
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.resolution_x = 1600
+    scene.render.resolution_y = 1066
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    scene.view_settings.view_transform = "AgX" if "AgX" in [i.identifier for i in scene.view_settings.bl_rna.properties["view_transform"].enum_items] else "Filmic"
+    scene.view_settings.exposure = -0.35
+
+    cam_overview = create_camera("Cam_Overview", (195.0, 325.0, 465.0), (-4.0, 36.0, 12.0), lens_mm=40.0)
+    cam_pcb = create_camera("Cam_PCB_Closeup", (-92.0, 138.0, 252.0), (-74.0, 16.0, 98.0), lens_mm=36.0)
+
+    for cam, fname in [
+        (cam_overview, "05_blender_house_overview.png"),
+        (cam_pcb, "06_blender_pcb_closeup.png"),
+    ]:
+        scene.camera = cam
+        out_png = render_dir / fname
+        scene.render.filepath = str(out_png)
+        bpy.ops.render.render(write_still=True)
+        print(f"[RENDER] Saved {out_png} ({out_png.stat().st_size} bytes)")
+
+
+def main() -> None:
+    render_dir = None
+    if "--" in sys.argv:
+        args = sys.argv[sys.argv.index("--") + 1:]
+        if "--render-dir" in args:
+            idx = args.index("--render-dir")
+            if idx + 1 < len(args):
+                render_dir = pathlib.Path(args[idx + 1])
+
     clear_scene()
+    mats = build_materials()
+    build_open_cutaway_house(mats)
+    import_kicad_pcb_and_nodemcu(mats)
+    anchors = build_hardware_devices_and_sensors(mats)
+    build_dupont_wires(mats, anchors)
+    convert_curves_to_meshes()
+    setup_studio_lighting()
 
-    # Bảng vật liệu PBR cao cấp
-    mat_foundation = make_pbr_mat("GraniteFoundation", (0.16, 0.20, 0.27, 1.0), roughness=0.55, metallic=0.1)
-    mat_deck_trim = make_pbr_mat("DeckTrim", (0.09, 0.13, 0.20, 1.0), roughness=0.4, metallic=0.3)
-    mat_oak_floor = make_pbr_mat("OakFloorLiving", (0.42, 0.28, 0.17, 1.0), roughness=0.38, metallic=0.02)
-    mat_walnut_floor = make_pbr_mat("WalnutFloorBed", (0.30, 0.20, 0.14, 1.0), roughness=0.42, metallic=0.02)
-    mat_porch_stone = make_pbr_mat("PorchStone", (0.34, 0.39, 0.46, 1.0), roughness=0.5)
-    mat_wall_ext = make_pbr_mat("WallCream", (0.88, 0.91, 0.95, 1.0), roughness=0.62)
-    mat_wall_dark = make_pbr_mat("WallCharcoalTrim", (0.12, 0.16, 0.23, 1.0), roughness=0.38, metallic=0.25)
-    mat_wood_slat = make_pbr_mat("WarmTeakWood", (0.52, 0.30, 0.14, 1.0), roughness=0.45)
-    mat_glass = make_pbr_mat("ArchitecturalGlass", (0.55, 0.82, 0.98, 0.32), roughness=0.08, metallic=0.1, alpha=0.32)
+    # Save native Blender source file (with default overview camera)
+    cam_default = create_camera("Camera", (195.0, 295.0, 405.0), (0.0, 42.0, 14.0), lens_mm=42.0)
+    bpy.context.scene.camera = cam_default
 
-    mat_rug = make_pbr_mat("NordicRug", (0.14, 0.24, 0.38, 1.0), roughness=0.88)
-    mat_sofa = make_pbr_mat("DesignerSofaBlue", (0.18, 0.42, 0.78, 1.0), roughness=0.52)
-    mat_pillow_accent = make_pbr_mat("PillowAmber", (0.95, 0.65, 0.18, 1.0), roughness=0.58)
-    mat_pillow_white = make_pbr_mat("PillowCream", (0.94, 0.96, 0.98, 1.0), roughness=0.55)
-    mat_marble = make_pbr_mat("CarraraMarble", (0.93, 0.95, 0.97, 1.0), roughness=0.18, metallic=0.05)
-    mat_gold_brass = make_pbr_mat("BrushedBrass", (0.85, 0.68, 0.28, 1.0), roughness=0.25, metallic=0.88)
-    mat_tv_screen = make_pbr_mat(
-        "SmartTvScreen",
-        (0.03, 0.06, 0.12, 1.0),
-        roughness=0.12,
-        metallic=0.4,
-        emission_rgb=(0.08, 0.28, 0.55),
-        emission_strength=0.45,
-    )
-    mat_bed_linen = make_pbr_mat("BedLinenWhite", (0.96, 0.97, 0.99, 1.0), roughness=0.58)
-    mat_duvet_indigo = make_pbr_mat("DuvetIndigo", (0.32, 0.36, 0.82, 1.0), roughness=0.62)
-    mat_planter_brick = make_pbr_mat("PlanterTerracotta", (0.48, 0.24, 0.12, 1.0), roughness=0.72)
-    mat_leaf_dark = make_pbr_mat("FoliageDark", (0.09, 0.52, 0.22, 1.0), roughness=0.5)
-    mat_leaf_bright = make_pbr_mat("FoliageBright", (0.16, 0.72, 0.32, 1.0), roughness=0.45)
-    mat_led_strip = make_pbr_mat(
-        "WarmLedStrip",
-        (1.0, 0.88, 0.62, 1.0),
-        roughness=0.2,
-        emission_rgb=(1.0, 0.82, 0.45),
-        emission_strength=1.8,
-    )
+    OUT_BLEND.parent.mkdir(parents=True, exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=str(OUT_BLEND))
+    print(f"[BLEND] Saved {OUT_BLEND} ({OUT_BLEND.stat().st_size} bytes)")
 
-    # 1. NỀN MÓNG BIỆT THỰ & SÀN GỖ 2 PHÒNG
-    add_beveled_box("VillaBase", 0.0, -0.05, 0.7, 11.6, 0.18, 9.2, mat_foundation, 0.04, 3)
-    add_beveled_box("VillaBaseTrim", 0.0, 0.03, 0.7, 11.3, 0.04, 8.9, mat_deck_trim, 0.01, 2)
-    add_beveled_box("LivingRoomFloor", -2.6, 0.05, 0.0, 5.75, 0.04, 7.15, mat_oak_floor, 0.01, 2)
-    add_beveled_box("BedroomFloor", 2.9, 0.05, 0.0, 5.15, 0.04, 7.15, mat_walnut_floor, 0.01, 2)
+    write_scene_spec()
 
-    # Bậc tam cấp trước cửa chính + Đèn LED hắt bậc thềm
-    add_beveled_box("PorchStep1", -1.85, 0.02, 4.25, 2.8, 0.10, 1.35, mat_porch_stone, 0.02, 2)
-    add_beveled_box("PorchStep2", -1.85, -0.02, 4.85, 2.4, 0.08, 0.65, mat_porch_stone, 0.02, 2)
-    add_beveled_box("PorchLedStrip", -1.85, 0.06, 4.92, 2.3, 0.02, 0.03, mat_led_strip, 0.005, 1)
+    # Export optimized PBR GLB (exclude lights & cameras so Three.js loads clean geometry + hierarchy)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in bpy.data.objects:
+        if obj.type not in ("CAMERA", "LIGHT"):
+            obj.select_set(True)
 
-    # Lối đi đá bước dạo (Stepping stones) ra vườn cây
-    for idx, sx in enumerate([-0.1, 0.75, 1.6]):
-        add_beveled_box(f"GardenStepStone_{idx}", sx, 0.045, 4.35, 0.58, 0.03, 0.46, mat_porch_stone, 0.015, 2)
-
-    # 2. HỆ TƯỜNG KIẾN TRÚC, KHUNG CỬA SỔ KÍNH & PHÀO CHỈ
-    # Tường hậu (có ô cửa sổ kính phòng ngủ)
-    add_beveled_box("BackWallLeft", -2.5, 1.72, -3.6, 6.2, 3.4, 0.22, mat_wall_ext, 0.02, 2)
-    add_beveled_box("BackWallRightBottom", 3.1, 0.65, -3.6, 5.0, 1.25, 0.22, mat_wall_ext, 0.02, 2)
-    add_beveled_box("BackWallRightTop", 3.1, 2.95, -3.6, 5.0, 0.95, 0.22, mat_wall_ext, 0.02, 2)
-    add_beveled_box("BackWallRightPillarL", 1.1, 1.9, -3.6, 1.0, 1.3, 0.22, mat_wall_ext, 0.02, 2)
-    add_beveled_box("BackWallRightPillarR", 4.9, 1.9, -3.6, 1.4, 1.3, 0.22, mat_wall_ext, 0.02, 2)
-    # Kính cửa sổ lớn phòng ngủ
-    add_beveled_box("BedroomWindowGlass", 2.9, 1.9, -3.6, 2.6, 1.25, 0.05, mat_glass, 0.005, 1)
-    add_beveled_box("BedroomWindowFrameTop", 2.9, 2.5, -3.6, 2.68, 0.06, 0.25, mat_wall_dark, 0.01, 1)
-    add_beveled_box("BedroomWindowFrameBot", 2.9, 1.28, -3.6, 2.68, 0.06, 0.25, mat_wall_dark, 0.01, 1)
-
-    # Tường trái (Phòng khách) + Lam gỗ trang trí nội thất
-    add_beveled_box("LeftWall", -5.5, 1.72, 0.0, 0.22, 3.4, 7.4, mat_wall_ext, 0.02, 2)
-    for i in range(7):
-        z_pos = -2.6 + i * 0.35
-        add_beveled_box(f"LeftWallWoodSlat_{i}", -5.36, 1.72, z_pos, 0.05, 3.1, 0.12, mat_wood_slat, 0.01, 1)
-
-    # Tường phải (Phòng ngủ) — Cắt thấp phía trước để nhìn rõ nội thất 3D
-    add_beveled_box("RightWallBack", 5.5, 1.72, -1.6, 0.22, 3.4, 4.2, mat_wall_ext, 0.02, 2)
-    add_beveled_box("RightWallFrontLow", 5.5, 0.58, 2.1, 0.22, 1.1, 3.2, mat_wall_ext, 0.02, 2)
-    add_beveled_box("RightWallFrontCap", 5.5, 1.15, 2.1, 0.26, 0.06, 3.24, mat_wall_dark, 0.01, 2)
-
-    # Vách ngăn giữa Phòng Khách & Phòng Ngủ (có lối thông phòng)
-    add_beveled_box("MidWallBack", 0.3, 1.72, -2.0, 0.20, 3.4, 3.2, mat_wall_ext, 0.02, 2)
-    add_beveled_box("MidWallFront", 0.3, 0.68, 2.45, 0.20, 1.3, 2.3, mat_wall_ext, 0.02, 2)
-    add_beveled_box("MidWallCap", 0.3, 1.35, 2.45, 0.24, 0.06, 2.34, mat_wall_dark, 0.01, 2)
-
-    # Tường mặt tiền quanh Cửa Chính + Khung cửa gỗ & Lam mặt tiền
-    add_beveled_box("FrontLeftWall", -4.2, 1.4, 3.6, 2.6, 2.75, 0.24, mat_wall_ext, 0.02, 2)
-    add_beveled_box("FrontRightPillar", -0.3, 1.4, 3.6, 1.4, 2.75, 0.24, mat_wall_ext, 0.02, 2)
-    add_beveled_box("FrontHeader", -2.2, 2.98, 3.6, 4.9, 0.48, 0.28, mat_wall_dark, 0.02, 2)
-    # Ô kính mặt tiền bên trái cửa chính
-    add_beveled_box("FrontWindowGlass", -4.2, 1.55, 3.6, 1.4, 1.35, 0.28, mat_glass, 0.005, 1)
-
-    # Dầm trần hiện đại (Ceiling Beams)
-    add_beveled_box("CeilingBeamLiving1", -2.6, 3.36, -0.2, 5.8, 0.12, 0.22, mat_wall_dark, 0.015, 2)
-    add_beveled_box("CeilingBeamLiving2", -2.6, 3.36, -1.8, 5.8, 0.12, 0.22, mat_wall_dark, 0.015, 2)
-    add_beveled_box("CeilingBeamBed", 2.9, 3.36, -0.3, 5.2, 0.12, 0.22, mat_wall_dark, 0.015, 2)
-
-    # 3. NỘI THẤT PHÒNG KHÁCH CAO CẤP (SOFA BO TRÒN, GỐI TỰA, BÀN TRÀ MARBLE, KỆ TV 65")
-    add_beveled_box("LivingRug", -2.6, 0.075, -0.85, 3.35, 0.025, 2.45, mat_rug, 0.01, 2)
-
-    # Sofa hiện đại vát cạnh mềm
-    add_beveled_box("SofaBase", -2.6, 0.20, -2.2, 2.72, 0.16, 0.98, mat_wood_slat, 0.02, 2)
-    add_beveled_box("SofaCushionL", -3.22, 0.36, -2.18, 1.18, 0.22, 0.88, mat_sofa, 0.05, 3)
-    add_beveled_box("SofaCushionR", -1.98, 0.36, -2.18, 1.18, 0.22, 0.88, mat_sofa, 0.05, 3)
-    add_beveled_box("SofaBackrest", -2.6, 0.68, -2.56, 2.68, 0.56, 0.24, mat_sofa, 0.05, 3)
-    add_beveled_box("SofaArmLeft", -3.9, 0.48, -2.18, 0.24, 0.46, 0.96, mat_sofa, 0.04, 3)
-    add_beveled_box("SofaArmRight", -1.3, 0.48, -2.18, 0.24, 0.46, 0.96, mat_sofa, 0.04, 3)
-    # Gối tựa trang trí trên Sofa
-    add_beveled_box("SofaPillow1", -3.55, 0.58, -2.35, 0.38, 0.34, 0.16, mat_pillow_accent, 0.04, 3)
-    add_beveled_box("SofaPillow2", -2.60, 0.58, -2.36, 0.42, 0.34, 0.16, mat_pillow_white, 0.04, 3)
-    add_beveled_box("SofaPillow3", -1.65, 0.58, -2.35, 0.38, 0.34, 0.16, mat_pillow_accent, 0.04, 3)
-
-    # Bàn trà mặt đá Marble + Khung chân vàng đồng
-    add_beveled_box("CoffeeTableMarbleTop", -2.6, 0.46, -0.75, 1.56, 0.06, 0.84, mat_marble, 0.02, 3)
-    add_beveled_box("CoffeeTableBrassFrame", -2.6, 0.25, -0.75, 1.32, 0.36, 0.62, mat_gold_brass, 0.015, 2)
-
-    # Kệ Tivi & Màn hình Smart TV 65 inch gắn tường trái Phòng khách
-    add_beveled_box("TvConsoleCabinet", -5.05, 0.32, -0.8, 0.52, 0.46, 2.35, mat_wood_slat, 0.025, 2)
-    add_beveled_box("TvConsoleTop", -5.05, 0.56, -0.8, 0.54, 0.04, 2.4, mat_marble, 0.01, 2)
-    add_beveled_box("SmartTvPanel", -5.32, 1.48, -0.8, 0.06, 1.05, 1.85, mat_tv_screen, 0.01, 2)
-    add_beveled_box("Soundbar", -5.02, 0.62, -0.8, 0.12, 0.08, 1.1, mat_wall_dark, 0.015, 2)
-
-    # 4. NỘI THẤT PHÒNG NGỦ CAO CẤP (GIƯỜNG KING-SIZE, ĐẦU GIƯỜNG BỌC NỆM, TỦ QUẦN ÁO)
-    add_beveled_box("BedWoodPlatform", 3.0, 0.21, -1.7, 2.56, 0.28, 2.95, mat_wood_slat, 0.03, 3)
-    add_beveled_box("BedHeadboardWood", 3.0, 0.78, -3.12, 2.64, 1.38, 0.16, mat_wood_slat, 0.025, 2)
-    add_beveled_box("BedHeadboardCushion", 3.0, 0.78, -3.02, 2.36, 1.02, 0.08, mat_pillow_white, 0.03, 2)
-    add_beveled_box("BedMattress", 3.0, 0.45, -1.65, 2.34, 0.28, 2.68, mat_bed_linen, 0.05, 3)
-    add_beveled_box("BedDuvet", 3.0, 0.47, -1.20, 2.38, 0.30, 1.78, mat_duvet_indigo, 0.05, 3)
-    add_beveled_box("BedPillowL", 2.42, 0.65, -2.62, 0.86, 0.16, 0.48, mat_bed_linen, 0.04, 3)
-    add_beveled_box("BedPillowR", 3.58, 0.65, -2.62, 0.86, 0.16, 0.48, mat_bed_linen, 0.04, 3)
-
-    # Tủ đầu giường (Nightstand) & Tủ quần áo (Wardrobe)
-    add_beveled_box("NightstandBody", 1.25, 0.34, -2.8, 0.66, 0.56, 0.58, mat_wood_slat, 0.02, 2)
-    add_beveled_box("NightstandTop", 1.25, 0.63, -2.8, 0.68, 0.04, 0.60, mat_marble, 0.01, 2)
-    add_beveled_box("BedroomWardrobe", 4.92, 1.35, -0.35, 0.72, 2.55, 1.85, mat_wood_slat, 0.025, 2)
-    add_beveled_box("WardrobeHandle", 4.54, 1.35, -0.35, 0.03, 0.85, 0.04, mat_gold_brass, 0.005, 1)
-
-    # 5. BỒN CÂY SÂN VƯỜN & TIỂU CẢNH TRƯỚC NHÀ (KHỚP VỊ TRÍ MÁY BƠM D3 & YL-69 A0)
-    # Tọa độ bồn cây trong Three.js: (2.25, 0.27, 4.35)
-    add_beveled_box("GardenPlanterBox", 2.25, 0.26, 4.35, 2.84, 0.46, 1.28, mat_planter_brick, 0.03, 2)
-    add_beveled_box("GardenPlanterRim", 2.25, 0.49, 4.35, 2.92, 0.05, 1.34, mat_porch_stone, 0.015, 2)
-
-    # 3 Cụm cây xanh đa tầng trong bồn cây sân vườn
-    for idx, px in enumerate([1.50, 2.20, 2.90]):
-        add_cylinder_3d(f"TreeTrunk_{idx}", px, 0.62, 4.35, 0.05, 0.42, mat_wood_slat, 16)
-        add_uv_sphere(
-            f"TreeCrownMain_{idx}",
-            px,
-            0.88,
-            4.35,
-            0.30 + (0.05 if idx == 1 else 0.0),
-            mat_leaf_dark if idx % 2 == 0 else mat_leaf_bright,
-            (1.1, 0.92, 1.1),
-        )
-        add_uv_sphere(
-            f"TreeCrownTop_{idx}",
-            px + 0.10,
-            1.08,
-            4.42,
-            0.21,
-            mat_leaf_bright,
-            (1.0, 0.9, 1.0),
-        )
-
-    # Chậu cây cảnh đặt cạnh bậc thềm cửa chính
-    add_cylinder_3d("PorchPot", -3.35, 0.28, 4.15, 0.24, 0.42, mat_planter_brick, 20)
-    add_uv_sphere("PorchPlantFoliage", -3.35, 0.64, 4.15, 0.30, mat_leaf_bright, (1.0, 1.15, 1.0))
-
-    # Xuất ra file glTF Binary (.glb)
-    out_dir = pathlib.Path(__file__).resolve().parent.parent / "simulator" / "static" / "models"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / "smarthome_villa.glb"
+    OUT_GLB.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(
-        filepath=str(out_file),
+        filepath=str(OUT_GLB),
         export_format="GLB",
+        use_selection=True,
         export_yup=True,
-        export_apply=True,
+        export_apply=False,
         export_materials="EXPORT",
+        export_cameras=False,
+        export_lights=False,
     )
-    print(f"[BLENDER 5.2 EXPORT SUCCESS] Saved {out_file} ({out_file.stat().st_size} bytes)")
+    print(f"[GLB] Exported {OUT_GLB} ({OUT_GLB.stat().st_size} bytes)")
+
+    if render_dir is not None:
+        render_presentation_views(render_dir)
 
 
 if __name__ == "__main__":
-    build_villa()
+    main()
