@@ -393,31 +393,41 @@ class LiveToolDispatcherMixin:
             cid = v_info["device_id"]
             norm_act = v_info["action"]
             params = v_info["params"]
-            dev_name = v_info["device_name"]
-            act_phrase = format_device_action_vi(cid, norm_act).lower()
-            extra_parts: list[str] = []
-            if "brightness_pct" in params:
-                extra_parts.append(f"độ sáng {params['brightness_pct']}%")
-            extra_txt = f" với {', '.join(extra_parts)}" if extra_parts else ""
-            prompt_q = f"Mình sẽ {act_phrase}{extra_txt}, bạn đồng ý không?"
-            nlu_res = await prepare_pending_mutation(
-                engine=self.engine,
-                session=actor_sess,
+            res_set = await self.engine.set_device_parameters(
+                device_id=cid,
+                action=norm_act,
+                brightness_pct=params.get("brightness_pct"),
                 source="gemini_live",
-                session_key=live_session_key,
-                action_kind="set_device",
-                payload={
-                    "device_id": cid,
-                    "action": norm_act,
-                    "brightness_pct": params.get("brightness_pct"),
-                },
-                prompt_summary=prompt_q,
+                request_tier=actor_tier,
+                request_role=str(getattr(actor_sess, "role", self.engine.current_role)),
+                request_user_name=str(getattr(actor_sess, "display_name", self.engine.get_current_user_name())),
             )
-            wrapped = self._wrap_nlu_tool_result(nlu_res)
-            wrapped["device_id"] = cid
-            wrapped["device_name"] = dev_name
-            wrapped["pending_params"] = params
-            return wrapped
+            if not res_set.get("ok"):
+                if res_set.get("rbac_blocked"):
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_set_device",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=cid,
+                        )
+                    )
+                return res_set
+            from simulator.voice.vietnamese_policy import ensure_vietnamese_reply
+
+            spoken_set = ensure_vietnamese_reply(str(res_set.get("exact_spoken_reply") or "Đã thực hiện."))
+            return {
+                **res_set,
+                "ok": True,
+                "executed": True,
+                "confirmed": True,
+                "requires_confirmation": False,
+                "reply": spoken_set,
+                "exact_spoken_reply": spoken_set,
+                "instruction_for_ai": f"BẮT BUỘC nói ngắn gọn, đúng nguyên văn câu sau: '{spoken_set}'",
+            }
 
         if name == "list_timers":
             if actor_tier >= 3:
@@ -798,24 +808,92 @@ class LiveToolDispatcherMixin:
             return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "control_device":
+            from simulator.automation_nlu import _expand_targets
+            from simulator.voice.vietnamese_policy import (
+                ensure_vietnamese_reply,
+                format_short_action_reply_vi,
+            )
+
             raw_dev = str(args.get("device_id") or "").strip()
             raw_act = str(args.get("action") or "").strip()
-            staged_ctrl = await stage_device_intents_for_confirmation(
-                engine=self.engine,
-                session=actor_sess,
-                source="gemini_live",
-                intents=[{"device_id": raw_dev, "action": raw_act}],
-                session_key=live_session_key,
+            cid_ctrl = (
+                self.engine.resolve_canonical_device_id(raw_dev)
+                if hasattr(self.engine, "resolve_canonical_device_id")
+                else raw_dev
             )
-            wrapped_ctrl = self._wrap_nlu_tool_result(staged_ctrl)
-            if raw_dev:
-                cid_ctrl = (
-                    self.engine.resolve_canonical_device_id(raw_dev)
-                    if hasattr(self.engine, "resolve_canonical_device_id")
-                    else raw_dev
+            if cid_ctrl not in self.engine.devices and cid_ctrl not in ("all_lights", "all_devices"):
+                return {"ok": False, "status_code": 404, "error": "Thiết bị này chưa được hỗ trợ trong hệ thống."}
+
+            targets = _expand_targets(cid_ctrl)
+            for td in targets:
+                allowed_td, _ = self.engine.check_device_permission(td, actor_tier=actor_tier)
+                if not allowed_td:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_control_device",
+                            msg=FIXED_REJECTION_PHRASE_VI,
+                            status_code=403,
+                            target=td,
+                        )
+                    )
+
+            exec_items: list[dict[str, Any]] = []
+            exec_results: list[dict[str, Any]] = []
+            for td in targets:
+                act_td = raw_act
+                if td == "main_door" and act_td in ("turn_on", "turn_off"):
+                    act_td = "open" if act_td == "turn_on" else "close"
+                elif td != "main_door" and act_td in ("open", "close"):
+                    act_td = "turn_on" if act_td == "open" else "turn_off"
+                prev_st = str((self.engine.devices.get(td) or {}).get("state") or "")
+                r_dev = await self.engine.execute_device_action(
+                    td,
+                    act_td,
+                    source="gemini_live",
+                    bypass_rbac=False,
+                    request_tier=actor_tier,
+                    request_role=str(getattr(actor_sess, "role", self.engine.current_role)),
+                    request_user_name=str(getattr(actor_sess, "display_name", self.engine.get_current_user_name())),
                 )
-                wrapped_ctrl.setdefault("device_id", cid_ctrl)
-            return wrapped_ctrl
+                if not r_dev.get("ok"):
+                    if r_dev.get("rbac_blocked"):
+                        return self._wrap_nlu_tool_result(
+                            _deny_mutation_error(
+                                session=actor_sess,
+                                source="gemini_live",
+                                category="rbac_deny_control_device",
+                                msg=FIXED_REJECTION_PHRASE_VI,
+                                status_code=403,
+                                target=td,
+                            )
+                        )
+                    return r_dev
+                exec_results.append(r_dev)
+                new_st = str((self.engine.devices.get(td) or {}).get("state") or "")
+                exec_items.append({
+                    "device_id": td,
+                    "action": act_td,
+                    "previous_state": prev_st,
+                    "state": new_st,
+                    "already_in_state": bool(prev_st and new_st and prev_st == new_st),
+                })
+
+            spoken_ctrl = ensure_vietnamese_reply(format_short_action_reply_vi(exec_items, self.engine.devices))
+            last_it = exec_items[-1] if exec_items else {"device_id": cid_ctrl, "state": ""}
+            return {
+                "ok": True,
+                "executed": True,
+                "confirmed": True,
+                "requires_confirmation": False,
+                "device_id": last_it["device_id"],
+                "state": last_it["state"],
+                "results": exec_results,
+                "reply": spoken_ctrl,
+                "exact_spoken_reply": spoken_ctrl,
+                "instruction_for_ai": f"BẮT BUỘC nói ngắn gọn, đúng nguyên văn câu sau: '{spoken_ctrl}'",
+            }
 
         if name in ("confirm_or_cancel_pending_action", "confirm_pending_action", "confirm_factory_reset"):
             raw_confirmed = args.get("confirmed") if isinstance(args, dict) and "confirmed" in args else None
@@ -1268,12 +1346,28 @@ class LiveToolDispatcherMixin:
             phrase_q = str(args.get("phrase", "")).strip()
             cmd_hit = find_custom_command_by_text(phrase_q, owner_user_id=actor_uid)
             if cmd_hit is not None:
-                res_sc = await self.engine.execute_custom_scene(cmd_hit["command_id"], source="gemini_live")
-                try:
-                    await _broadcast_rest_state_to_bridges()
-                except Exception:
-                    pass
-                return res_sc
+                ok_steps, err_steps = check_steps_rbac(cmd_hit.get("steps") or [], actor_tier)
+                if not ok_steps:
+                    return self._wrap_nlu_tool_result(
+                        _deny_mutation_error(
+                            session=actor_sess,
+                            source="gemini_live",
+                            category="rbac_deny_run_alias_step",
+                            msg=err_steps,
+                            status_code=403,
+                            target="custom_commands",
+                        )
+                    )
+                nlu_res = await prepare_pending_mutation(
+                    engine=self.engine,
+                    session=actor_sess,
+                    source="gemini_live",
+                    session_key=live_session_key,
+                    action_kind="run_custom_command",
+                    payload={"command_id": cmd_hit["command_id"], "phrase": cmd_hit["phrase"]},
+                    prompt_summary=f"Chạy lệnh '{cmd_hit['phrase']}' ({cmd_hit['steps_summary']})",
+                )
+                return self._wrap_nlu_tool_result(nlu_res)
             return await self.engine.execute_alias_rule(phrase=phrase_q)
 
         if name in ("set_if_else_rule", "create_chain_rule"):
@@ -1299,6 +1393,8 @@ class LiveToolDispatcherMixin:
                         target="automation_rules",
                     )
                 )
+            from simulator.automation_repo import SENSOR_TRIGGER_DEVICES, format_sensor_trigger_vi
+
             wdev = str(args.get("when_device_id", "")).strip()
             wstate = str(args.get("when_state", "ON") or "ON").strip()
             tdev = str(args.get("then_device_id", "")).strip()
@@ -1341,9 +1437,13 @@ class LiveToolDispatcherMixin:
                         target=wdev,
                     )
                 )
-            prompt_desc = f"Tạo liên kết khi {wdev}={wstate} thì {format_device_action_vi(tdev, tact)}"
+            if wdev in SENSOR_TRIGGER_DEVICES:
+                w_desc = format_sensor_trigger_vi(wdev, wstate)
+            else:
+                w_desc = f"{wdev}={wstate}"
+            prompt_desc = f"Tạo liên kết khi {w_desc} thì {format_device_action_vi(tdev, tact).lower()}"
             if edev:
-                prompt_desc += f", ngược lại {format_device_action_vi(edev, eact)}"
+                prompt_desc += f", ngược lại {format_device_action_vi(edev, eact).lower()}"
             nlu_res = await prepare_pending_mutation(
                 engine=self.engine,
                 session=actor_sess,
@@ -1480,13 +1580,30 @@ class LiveToolDispatcherMixin:
                 )
             phrase_or_id = str(args.get("phrase_or_id", "")).strip()
             cmd_hit = find_custom_command_by_text(phrase_or_id, owner_user_id=actor_uid)
-            target_id = cmd_hit["command_id"] if cmd_hit is not None else phrase_or_id
-            res_sc = await self.engine.execute_custom_scene(target_id, source="gemini_live")
-            try:
-                await _broadcast_rest_state_to_bridges()
-            except Exception:
-                pass
-            return res_sc
+            if cmd_hit is None:
+                return {"ok": False, "status_code": 404, "error": f"Không tìm thấy lệnh '{phrase_or_id}'."}
+            ok_steps, err_steps = check_steps_rbac(cmd_hit.get("steps") or [], actor_tier)
+            if not ok_steps:
+                return self._wrap_nlu_tool_result(
+                    _deny_mutation_error(
+                        session=actor_sess,
+                        source="gemini_live",
+                        category="rbac_deny_run_custom_command_step",
+                        msg=err_steps,
+                        status_code=403,
+                        target="custom_commands",
+                    )
+                )
+            nlu_res = await prepare_pending_mutation(
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+                action_kind="run_custom_command",
+                payload={"command_id": cmd_hit["command_id"], "phrase": cmd_hit["phrase"]},
+                prompt_summary=f"Chạy lệnh '{cmd_hit['phrase']}' ({cmd_hit['steps_summary']})",
+            )
+            return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "delete_automation_item":
             if actor_tier >= 3:

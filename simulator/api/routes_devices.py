@@ -748,40 +748,78 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             "permission_update": perm_voice_res,
         })
 
-    t_low = text.lower()
-    is_sensor_query = any(
-        k in t_low
-        for k in (
-            "nhiệt độ",
-            "nhiet do",
-            "độ ẩm đất",
-            "cảm biến đất",
-            "âm thanh",
-            "am thanh",
-            "ky037",
-            "ky-037",
-            "ky 037",
-            "tiếng động",
-            "tieng dong",
-            "vỗ tay",
-            "vo tay",
-            "trạng thái",
-            "trang thai",
-        )
+    from simulator.automation_nlu import (
+        _classify_confirmation_utterance,
+        _resolve_session_key,
+        handle_confirmation_reply,
+        handle_pending_interruption_if_any,
+        process_automation_nlu_command,
     )
-    if not is_sensor_query:
-        from simulator.automation_nlu import process_automation_nlu_command
+    from simulator.automation_repo import find_custom_command_by_text
+    from simulator.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
+    from simulator.voice.vietnamese_policy import (
+        classify_ambiguous_or_unsupported_vi,
+        classify_small_talk_vi,
+        ensure_vietnamese_reply,
+        format_short_action_reply_vi,
+        handle_sensor_or_status_query_vi,
+        parse_direct_device_intents_vi,
+    )
 
-        nlu_res = await process_automation_nlu_command(
-            text=text,
+    skey_txt = _resolve_session_key(session, "text_command")
+
+    # 0. Active pending confirmation reply FIRST
+    if _classify_confirmation_utterance(text) is not None:
+        conf_res = await handle_confirmation_reply(
+            raw_text=text,
             engine=_REST_ENGINE,
             session=session,
             source="text_command",
+            session_key=skey_txt,
         )
-        if nlu_res is not None:
+        if conf_res is not None:
             await broadcast_rest_state_to_bridges()
-            return JSONResponse(nlu_res["payload"], status_code=int(nlu_res.get("status_code") or 200))
+            c_payload = dict(conf_res.get("payload") or {})
+            if c_payload.get("exact_spoken_reply"):
+                sp_c = ensure_vietnamese_reply(str(c_payload["exact_spoken_reply"]))
+                c_payload["exact_spoken_reply"] = sp_c
+                c_payload["reply"] = sp_c
+            return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
 
+    # 1. Small talk BEFORE any automation/permission rejections (unless saved custom command)
+    saved_custom_txt = (
+        find_custom_command_by_text(text, owner_user_id=str(session.user_id))
+        if effective_tier < 3
+        else None
+    )
+    if saved_custom_txt is None:
+        small_talk = classify_small_talk_vi(text, user_name=str(effective_user or ""))
+        if small_talk is not None:
+            await handle_pending_interruption_if_any(
+                raw_text=text,
+                engine=_REST_ENGINE,
+                session=session,
+                source="text_command",
+                session_key=skey_txt,
+                is_new_valid_intent=True,
+            )
+            spoken_st = ensure_vietnamese_reply(str(small_talk.get("reply") or ""))
+            return JSONResponse({
+                "ok": True,
+                "kind": "small_talk",
+                "subkind": small_talk.get("subkind", "greeting"),
+                "executed": False,
+                "requires_confirmation": False,
+                "rbac_blocked": False,
+                "tier": effective_tier,
+                "reply": spoken_st,
+                "exact_spoken_reply": spoken_st,
+                "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
+            })
+
+    t_low = text.lower()
+
+    # 2a. Explicit owner-only sensor simulation SET commands
     if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
         m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
         if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
@@ -790,66 +828,11 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 return error
             res_soil = await _REST_ENGINE.update_soil_moisture_telemetry(float(m_soil.group(1)))
             await broadcast_rest_state_to_bridges()
-            return JSONResponse({"ok": True, "reply": res_soil["exact_spoken_reply"], "exact_spoken_reply": res_soil["exact_spoken_reply"]})
-        _REST_ENGINE.sync_from_shared_store(force=True)
-        soil = _REST_ENGINE.mqtt_bridge.soil_moisture_telemetry
-        spoken = f"Độ ẩm đất hiện tại là {soil['soil_moisture_pct']}% ({soil['status_label']})."
-        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
+            sp_s = ensure_vietnamese_reply(str(res_soil.get("exact_spoken_reply") or ""))
+            return JSONResponse({"ok": True, "executed": True, "reply": sp_s, "exact_spoken_reply": sp_s})
 
-    if "tưới cây" in t_low or "bật máy bơm" in t_low:
-        if not session.is_authenticated:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
-                    "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "status_code": 401,
-                },
-                status_code=401,
-            )
-        from simulator.automation_nlu import stage_device_intents_for_confirmation
-
-        staged_pump = await stage_device_intents_for_confirmation(
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            intents=[{"device_id": "garden_pump", "action": "turn_on"}],
-        )
-        await broadcast_rest_state_to_bridges()
-        p_status = int(staged_pump.get("status_code") or 200)
-        if p_status == 403 and session.source == "legacy_test":
-            p_status = 200
-        return JSONResponse(staged_pump["payload"], status_code=p_status)
-
-    if "tắt máy bơm" in t_low:
-        if not session.is_authenticated:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
-                    "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "status_code": 401,
-                },
-                status_code=401,
-            )
-        from simulator.automation_nlu import stage_device_intents_for_confirmation
-
-        staged_pump_off = await stage_device_intents_for_confirmation(
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            intents=[{"device_id": "garden_pump", "action": "turn_off"}],
-        )
-        await broadcast_rest_state_to_bridges()
-        p_status = int(staged_pump_off.get("status_code") or 200)
-        if p_status == 403 and session.source == "legacy_test":
-            p_status = 200
-        return JSONResponse(staged_pump_off["payload"], status_code=p_status)
-
-    if "nhiệt độ" in t_low or "độ ẩm" in t_low:
-        if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+    if ("nhiệt độ" in t_low or "độ ẩm" in t_low) and "độ ẩm đất" not in t_low:
+        if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")) and re.search(r"\d", t_low):
             error = _owner_error(request, body)
             if error is not None:
                 return error
@@ -860,29 +843,58 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             h_val = float(m_h.group(1)) if m_h else float(cur_dht.get("humidity_pct", 65.0))
             res_dht = await _REST_ENGINE.update_sensor_telemetry(t_val, h_val)
             await broadcast_rest_state_to_bridges()
-            return JSONResponse({"ok": True, "reply": res_dht["exact_spoken_reply"], "exact_spoken_reply": res_dht["exact_spoken_reply"]})
-        _REST_ENGINE.sync_from_shared_store(force=True)
-        dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
-        spoken = f"Nhiệt độ phòng là {dht['temp_c']}°C, độ ẩm {dht['humidity_pct']}%."
-        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
+            sp_d = ensure_vietnamese_reply(str(res_dht.get("exact_spoken_reply") or ""))
+            return JSONResponse({"ok": True, "executed": True, "reply": sp_d, "exact_spoken_reply": sp_d})
 
-    if any(k in t_low for k in ("âm thanh", "am thanh", "ky037", "ky-037", "ky 037", "tiếng động", "tieng dong", "vỗ tay", "vo tay")):
-        _REST_ENGINE.sync_from_shared_store(force=True)
-        sensors = _REST_ENGINE.read_all_sensors()
-        snd = sensors.get("sound") if isinstance(sensors.get("sound"), dict) else {}
-        is_loud = bool(sensors.get("sound_detected", False))
-        cnt = int(sensors.get("sound_event_count", 0) or 0)
-        spoken = (
-            f"Cảm biến âm thanh KY-037 (chân D5) đang ghi nhận tiếng động lớn/vỗ tay (tổng {cnt} sự kiện)."
-            if is_loud
-            else f"Cảm biến âm thanh KY-037 (chân D5) hiện đang yên tĩnh (đã ghi nhận {cnt} sự kiện)."
+    # 2b. Sensor & device status queries (immediate, no confirmation)
+    q_info = handle_sensor_or_status_query_vi(text, _REST_ENGINE, session)
+    if q_info is not None:
+        await handle_pending_interruption_if_any(
+            raw_text=text,
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            session_key=skey_txt,
+            is_new_valid_intent=True,
         )
-        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken, "sound": snd})
+        is_q_blk = bool(q_info.get("rbac_blocked"))
+        q_code = int(q_info.get("status_code") or (403 if is_q_blk else 200))
+        sp_q = ensure_vietnamese_reply(str(q_info.get("exact_spoken_reply") or q_info.get("reply") or ""))
+        return JSONResponse(
+            {
+                **q_info,
+                "ok": bool(q_info.get("ok", not is_q_blk)),
+                "executed": not is_q_blk,
+                "requires_confirmation": False,
+                "rbac_blocked": is_q_blk,
+                "tier": effective_tier,
+                "reply": sp_q,
+                "exact_spoken_reply": sp_q,
+                "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
+            },
+            status_code=q_code,
+        )
 
+    # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
+    nlu_res = await process_automation_nlu_command(
+        text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+    )
+    if nlu_res is not None:
+        await broadcast_rest_state_to_bridges()
+        nlu_pl = dict(nlu_res.get("payload") or {})
+        if nlu_pl.get("exact_spoken_reply"):
+            sp_n = ensure_vietnamese_reply(str(nlu_pl["exact_spoken_reply"]))
+            nlu_pl["exact_spoken_reply"] = sp_n
+            nlu_pl["reply"] = sp_n
+        return JSONResponse(nlu_pl, status_code=int(nlu_res.get("status_code") or 200))
+
+    # Fallback overlay aliases not in SQLite custom_commands
     for phrase in _REST_ENGINE.get_merged_aliases(user_id=session.user_id):
         if phrase in t_low:
-            if not session.is_authenticated:
-                return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
             if effective_tier >= 3:
                 from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
 
@@ -907,176 +919,144 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 _REST_ENGINE._current_user_id = prev_uid
                 _REST_ENGINE._current_role = prev_role
             await broadcast_rest_state_to_bridges()
+            sp_al = ensure_vietnamese_reply(str(res.get("exact_spoken_reply") or "Đã thực hiện."))
             return JSONResponse({
                 "ok": bool(res.get("ok", True)),
-                "reply": res["exact_spoken_reply"],
-                "exact_spoken_reply": res["exact_spoken_reply"],
+                "executed": bool(res.get("ok", True)),
+                "reply": sp_al,
+                "exact_spoken_reply": sp_al,
                 "results": res.get("results", []),
             })
 
-    # Xử lý lệnh hẹn giờ / đặt lịch qua văn bản (fallback nếu chưa đi qua automation_nlu)
-    if "hẹn" in t_low or "đặt lịch" in t_low:
-        if not session.is_authenticated:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
-                    "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "status_code": 401,
-                },
-                status_code=401,
-            )
-        if effective_tier >= 3:
-            from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
-
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "tier": effective_tier,
-                    "error": GUEST_ONLY_TOGGLE_MSG_VI,
-                    "reply": GUEST_ONLY_TOGGLE_MSG_VI,
-                    "exact_spoken_reply": GUEST_ONLY_TOGGLE_MSG_VI,
-                },
-                status_code=403,
-            )
-        from simulator.automation_nlu import has_removed_device_mention, prepare_pending_mutation
-
-        targets = _parse_text_device_targets(t_low)
-        act = _parse_text_action(t_low) or "turn_on"
-        if not targets and has_removed_device_mention(text):
-            msg_removed = (
-                "Thiết bị hoặc tính năng bạn yêu cầu (quạt, điều hòa, học lệnh hồng ngoại IR) "
-                "không còn được hỗ trợ trên hệ thống 6 thiết bị mới."
-            )
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "rbac_blocked": False,
-                    "error": msg_removed,
-                    "reply": msg_removed,
-                    "exact_spoken_reply": msg_removed,
-                },
-                status_code=400,
-            )
-        dev_id = targets[0] if targets else "living_room_light"
-        if effective_tier >= 2:
-            allowed, reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
+    # 4. Direct simple device commands -> RBAC check -> EXECUTE IMMEDIATELY -> concise Vietnamese reply
+    direct_intents = parse_direct_device_intents_vi(text, word_mappings=_REST_ENGINE.get_word_mappings())
+    if direct_intents:
+        await handle_pending_interruption_if_any(
+            raw_text=text,
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            session_key=skey_txt,
+            is_new_valid_intent=True,
+        )
+        for item in direct_intents:
+            dev_id = item["device_id"]
+            allowed, _reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
             if not allowed:
+                deny_msg = ensure_vietnamese_reply(FIXED_REJECTION_PHRASE_VI)
+                deny_code = 200 if session.source == "legacy_test" else 403
                 return JSONResponse(
                     {
                         "ok": False,
+                        "executed": False,
+                        "requires_confirmation": False,
                         "rbac_blocked": True,
                         "tier": effective_tier,
-                        "error": reason,
-                        "reply": reason,
-                        "exact_spoken_reply": reason,
+                        "error": deny_msg,
+                        "reply": deny_msg,
+                        "exact_spoken_reply": deny_msg,
+                        "rejection_speech": deny_msg,
+                        "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
                     },
-                    status_code=403,
+                    status_code=deny_code,
                 )
-        m_sec = re.search(r"(\d+(?:\.\d+)?)\s*(?:giây|s\b)", t_low)
-        m_min = re.search(r"(\d+(?:\.\d+)?)\s*(?:phút|p\b|m\b)", t_low)
-        m_hr = re.search(r"(\d+(?:\.\d+)?)\s*(?:giờ|tiếng|h\b)", t_low)
-        seconds = float(m_sec.group(1)) if m_sec else 0.0
-        minutes = float(m_min.group(1)) if m_min else 0.0
-        hours = float(m_hr.group(1)) if m_hr else 0.0
-        if seconds <= 0 and minutes <= 0 and hours <= 0:
-            seconds = 10.0
-        from simulator.automation_repo import check_tier1_schedule_conflict, format_device_action_vi, format_duration_vi
 
-        total_sec = hours * 3600.0 + minutes * 60.0 + seconds
-        conflict_msg = check_tier1_schedule_conflict(
-            actor_tier=effective_tier,
-            fire_epoch=time.time() + total_sec,
-            engine=_REST_ENGINE,
-        )
-        if conflict_msg:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "rbac_blocked": True,
-                    "conflict_tier1": True,
-                    "error": conflict_msg,
-                    "reply": conflict_msg,
-                    "exact_spoken_reply": conflict_msg,
-                },
-                status_code=409,
+        exec_results: list[dict[str, Any]] = []
+        exec_summary_items: list[dict[str, Any]] = []
+        for item in direct_intents:
+            dev_id = item["device_id"]
+            act = item["action"]
+            prev_st = str((_REST_ENGINE.devices.get(dev_id) or {}).get("state") or "")
+            res = await _REST_ENGINE.execute_device_action(
+                dev_id,
+                act,
+                source="text_command",
+                bypass_rbac=False,
+                request_tier=effective_tier,
+                request_user_name=effective_user,
+                request_role=effective_role,
             )
-        sec_i = max(1, int(round(total_sec)))
-        staged = await prepare_pending_mutation(
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            action_kind="create_timer",
-            payload={
+            if not res.get("ok"):
+                is_blk = bool(res.get("rbac_blocked"))
+                err_txt = ensure_vietnamese_reply(
+                    FIXED_REJECTION_PHRASE_VI if is_blk else str(res.get("exact_spoken_reply") or res.get("error") or "Không thực hiện được lệnh.")
+                )
+                st_code = 200 if (is_blk and session.source == "legacy_test") else (403 if is_blk else 400)
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "executed": False,
+                        "requires_confirmation": False,
+                        "rbac_blocked": is_blk,
+                        "tier": effective_tier,
+                        "error": err_txt,
+                        "reply": err_txt,
+                        "exact_spoken_reply": err_txt,
+                        "rejection_speech": err_txt if is_blk else "",
+                        "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
+                    },
+                    status_code=st_code,
+                )
+            exec_results.append(res)
+            new_st = str((_REST_ENGINE.devices.get(dev_id) or {}).get("state") or "")
+            exec_summary_items.append({
                 "device_id": dev_id,
                 "action": act,
-                "hours": hours,
-                "minutes": minutes,
-                "seconds": seconds,
-                "repeat": "once",
+                "previous_state": prev_st,
+                "state": new_st,
+                "already_in_state": bool(prev_st and new_st and prev_st == new_st),
+            })
+
+        await broadcast_rest_state_to_bridges()
+        spoken_ok = ensure_vietnamese_reply(format_short_action_reply_vi(exec_summary_items, _REST_ENGINE.devices))
+        last_item = exec_summary_items[-1]
+        return JSONResponse(
+            {
+                "ok": True,
+                "executed": True,
+                "confirmed": True,
+                "requires_confirmation": False,
+                "rbac_blocked": False,
+                "tier": effective_tier,
+                "device_id": last_item["device_id"],
+                "state": last_item["state"],
+                "intents": direct_intents,
+                "results": exec_results,
+                "reply": spoken_ok,
+                "exact_spoken_reply": spoken_ok,
+                "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
             },
-            prompt_summary=f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {format_device_action_vi(dev_id, act).lower()}",
+            status_code=200,
         )
-        await broadcast_rest_state_to_bridges()
-        return JSONResponse(staged["payload"], status_code=int(staged.get("status_code") or 200))
 
-    tn_cmd = strip_vietnamese_diacritics(t_low)
-    if any(k in tn_cmd for k in ("reset he thong", "khoi phuc cai dat goc", "factory reset")):
-        error = _owner_error(request, body)
-        if error is not None:
-            return error
-        from simulator.automation_nlu import prepare_pending_mutation
+    # 5. Interruption reminder if a pending confirmation exists, else short Vietnamese clarification (ZERO actions)
+    reminder = await handle_pending_interruption_if_any(
+        raw_text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+        is_new_valid_intent=False,
+    )
+    if reminder is not None:
+        rem_pl = dict(reminder.get("payload") or {})
+        sp_rem = ensure_vietnamese_reply(str(rem_pl.get("exact_spoken_reply") or rem_pl.get("reply") or ""))
+        rem_pl["exact_spoken_reply"] = sp_rem
+        rem_pl["reply"] = sp_rem
+        return JSONResponse(rem_pl, status_code=200)
 
-        staged_rst = await prepare_pending_mutation(
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            action_kind="factory_reset",
-            payload={"confirmed_via": "text_command"},
-            prompt_summary="Khôi phục cài đặt gốc toàn hệ thống",
-        )
-        await broadcast_rest_state_to_bridges()
-        return JSONResponse(staged_rst["payload"], status_code=int(staged_rst.get("status_code") or 200))
-
-    # Xử lý khẩu lệnh bật/tắt/mở/đóng thiết bị trực tiếp (nhắc lại lời tự nhiên -> chờ "ok" xác nhận)
-    targets = _parse_text_device_targets(t_low)
-    act = _parse_text_action(t_low)
-    if targets and act:
-        if not session.is_authenticated:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Yêu cầu đăng nhập (HTTP 401 Unauthorized).",
-                    "rejection_speech": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "exact_spoken_reply": get_rejection_speech_text("STRANGER_BLOCKED"),
-                    "status_code": 401,
-                },
-                status_code=401,
-            )
-        from simulator.automation_nlu import stage_device_intents_for_confirmation
-
-        staged_dev = await stage_device_intents_for_confirmation(
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            intents=[{"device_id": t, "action": act} for t in targets],
-        )
-        await broadcast_rest_state_to_bridges()
-        st_payload = dict(staged_dev.get("payload") or {})
-        st_payload.setdefault("tier", effective_tier)
-        st_payload.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
-        status_code = int(staged_dev.get("status_code") or 200)
-        if status_code == 403 and session.source == "legacy_test":
-            status_code = 200
-        return JSONResponse(st_payload, status_code=status_code)
-
-    default_reply = f"Đã nhận lệnh: {text}"
+    clarification = ensure_vietnamese_reply(
+        classify_ambiguous_or_unsupported_vi(text) or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé."
+    )
     return JSONResponse({
         "ok": True,
-        "reply": default_reply,
-        "exact_spoken_reply": default_reply,
+        "executed": False,
+        "requires_confirmation": False,
+        "needs_clarification": True,
+        "rbac_blocked": False,
+        "tier": effective_tier,
+        "reply": clarification,
+        "exact_spoken_reply": clarification,
         "play_audio": False,
         "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
     })

@@ -786,11 +786,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self._explicit_test_user_set = True
         return super().set_active_user(user_or_role)
 
-    async def factory_reset(self, scope: str = "all") -> dict[str, Any]:
+    async def factory_reset(self, scope: str = "all", *, bypass_rbac: bool = False) -> dict[str, Any]:
         """Khôi phục cài đặt gốc, dọn dẹp cờ override của test."""
         self._explicit_test_user_set = False
         self.server_connected = True
-        return await super().factory_reset(scope)
+        return await super().factory_reset(scope, bypass_rbac=bypass_rbac)
 
     def _check_custom_directive_device_lock_parameterized(self, dev_id: str, tier: int) -> tuple[bool, str]:
         """Kiểm tra chỉ thị riêng của Admin theo tier được chỉ định cụ thể."""
@@ -1529,15 +1529,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         if "brightness_pct" in params:
             detail_parts.append(f"độ sáng {params['brightness_pct']}%")
         verb_vi = {
-            "open": "đã mở",
-            "close": "đã đóng",
-            "turn_on": "đã bật",
-            "turn_off": "đã tắt",
-        }.get(norm_action, "đã cập nhật")
+            "open": "Đã mở",
+            "close": "Đã đóng",
+            "turn_on": "Đã bật",
+            "turn_off": "Đã tắt",
+        }.get(norm_action, "Đã cập nhật")
         if detail_parts:
-            spoken = f"Mình {verb_vi} {dev_name.lower()} với {', '.join(detail_parts)} rồi ạ."
+            spoken = f"{verb_vi} {dev_name.lower()} ({', '.join(detail_parts)})."
         else:
-            spoken = f"Mình {verb_vi} {dev_name.lower()} rồi ạ."
+            spoken = f"{verb_vi} {dev_name.lower()}."
         return {
             "ok": True,
             "device_id": cid,
@@ -2057,6 +2057,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
             else:
                 spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
+            soil_rule_state = "DRY" if pct < float(auto_pump_below_pct) else "WET"
+            soil_rule_hits = await self._evaluate_reactive_if_else("soil_sensor", soil_rule_state)
+            if soil_rule_hits:
+                triggered.extend(soil_rule_hits)
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
@@ -2104,8 +2108,12 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             )
             self._state_dirty_in_tx = True
             snd = dict(self.mqtt_bridge.sound_telemetry)
+            is_loud = bool(snd.get("sound_detected", False))
+            triggered_rules = await self._evaluate_reactive_if_else(
+                "sound_sensor",
+                "LOUD" if is_loud else "QUIET",
+            )
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
-        is_loud = bool(snd.get("sound_detected", False))
         spoken = (
             f"Cảm biến âm thanh KY-037 trên chân D5 phát hiện tiếng động lớn (tổng {snd.get('event_count', 0)} lần)."
             if is_loud
@@ -2115,13 +2123,21 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "ok": True,
             "telemetry": snd,
             "mqtt_packet": pkt,
+            "triggered_actions": triggered_rules,
             "exact_spoken_reply": spoken,
         }
 
     async def _evaluate_reactive_if_else(self, changed_dev_id: str, new_state: str) -> list[dict[str, Any]]:
         """Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`."""
+        from simulator.automation_repo import SENSOR_STATE_OPPOSITE, SENSOR_TRIGGER_DEVICES
+
         triggered_results: list[dict[str, Any]] = []
         t1_locked_targets: set[str] = set()
+        source_name = (
+            str(self.devices[changed_dev_id]["name"])
+            if changed_dev_id in self.devices
+            else str(SENSOR_TRIGGER_DEVICES.get(changed_dev_id, {}).get("name") or changed_dev_id)
+        )
 
         t1_rules = list(self._get_user_pool(OWNER_ID).get("if_else_rules", []))
         rule_batches: list[tuple[int, list[dict[str, Any]]]] = [(1, t1_rules)]
@@ -2134,7 +2150,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 if rule.get("when_device_id") != changed_dev_id:
                     continue
 
-                if_state = rule.get("when_state", "OPEN")
+                if_state = str(rule.get("when_state", "OPEN")).upper()
+                opp_state = STATE_TO_OPPOSITE.get(if_state) or SENSOR_STATE_OPPOSITE.get(if_state)
                 delay_sec = float(rule.get("delay_seconds", 0.0))
 
                 if new_state == if_state:
@@ -2145,7 +2162,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             continue
                         if batch_tier == 1:
                             t1_locked_targets.add(then_dev)
-                        reason_lbl = f"IF {self.devices[changed_dev_id]['name']}={new_state}"
+                        reason_lbl = f"IF {source_name}={new_state}"
                         if delay_sec <= 0.2:
                             res = await self.execute_device_action(
                                 device_id=then_dev,
@@ -2165,7 +2182,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                                 trigger_chains=False,
                             )
 
-                elif new_state == STATE_TO_OPPOSITE.get(if_state):
+                elif opp_state and new_state == opp_state:
                     else_dev = rule.get("else_device_id", "")
                     else_act = rule.get("else_action", "")
                     if else_dev and else_act:
@@ -2173,7 +2190,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                             continue
                         if batch_tier == 1:
                             t1_locked_targets.add(else_dev)
-                        reason_lbl = f"ELSE {self.devices[changed_dev_id]['name']}={new_state}"
+                        reason_lbl = f"ELSE {source_name}={new_state}"
                         if delay_sec <= 0.2:
                             res = await self.execute_device_action(
                                 device_id=else_dev,
@@ -2193,7 +2210,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                                 trigger_chains=False,
                             )
 
-        # Luật liên kết lưu trong SQLite (`automation_rules`) với giới hạn độ sâu chống vòng lặp
+        # Luật liên kết lưu trong SQLite (`automation_rules` + `rules_pool` sensor_link)
         try:
             from simulator.auth.tier_permissions import can_control_device
             from simulator.automation_repo import get_automation_snapshot_bundle
@@ -2213,6 +2230,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             if rule_tier >= 3:
                 continue
             if_state = str(rule.get("when_state") or "OPEN").upper()
+            opp_state = STATE_TO_OPPOSITE.get(if_state) or SENSOR_STATE_OPPOSITE.get(if_state)
             delay_sec = float(rule.get("delay_seconds") or 0.0)
             target_dev = ""
             target_act = ""
@@ -2221,7 +2239,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             if new_state == if_state:
                 target_dev = str(rule.get("then_device_id") or "")
                 target_act = str(rule.get("then_action") or "")
-            elif new_state == STATE_TO_OPPOSITE.get(if_state):
+            elif opp_state and new_state == opp_state:
                 target_dev = str(rule.get("else_device_id") or "")
                 target_act = str(rule.get("else_action") or "")
                 prefix_lbl = "ELSE"
@@ -2235,7 +2253,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             if rule_tier == 1:
                 t1_locked_targets.add(target_dev)
 
-            reason_lbl = f"{prefix_lbl} {self.devices[changed_dev_id]['name']}={new_state}"
+            reason_lbl = f"{prefix_lbl} {source_name}={new_state}"
             if delay_sec <= 0.2:
                 res = await self.execute_device_action(
                     device_id=target_dev,

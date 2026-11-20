@@ -476,8 +476,8 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                             ),
                         )
 
-                # 4. Bảng `rules_pool` (Bể 2 - Luật IF-ELSE, Khẩu lệnh & Từ vựng)
-                c.execute("DELETE FROM rules_pool")
+                # 4. Bảng `rules_pool` (Bể 2 - Luật IF-ELSE, Khẩu lệnh & Từ vựng; giữ nguyên sensor_link)
+                c.execute("DELETE FROM rules_pool WHERE rule_category != 'sensor_link'")
                 overlay_rules = getattr(engine, "overlay_rules", {}) or {}
                 user_pools = overlay_rules.get("user_pools", {}) or {}
                 rule_idx = 1

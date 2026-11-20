@@ -1184,14 +1184,15 @@ class EngineRulesMixin:
         target_scope = self.pending_reset_scope or "all"
         return await self.factory_reset(scope=target_scope)
 
-    async def factory_reset(self, scope: str = "all") -> dict[str, Any]:
-        if self.current_tier >= 3:
+    async def factory_reset(self, scope: str = "all", *, bypass_rbac: bool = False) -> dict[str, Any]:
+        effective_tier = 1 if bypass_rbac else self.current_tier
+        if effective_tier >= 3:
             msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền thực hiện reset."
             await self.emit({"type": "rbac_blocked", "action": "factory_reset", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
 
         norm_scope = normalize_reset_scope(scope)
-        if self.current_tier == 2 and norm_scope == "voice":
+        if effective_tier == 2 and norm_scope == "voice":
             msg = "Chỉ Tầng 1 Nguyễn Tuấn Anh mới có quyền reset giọng nói toàn hệ thống."
             await self.emit({"type": "rbac_blocked", "action": "factory_reset", "role": self.current_role, "reason": msg})
             return {"ok": False, "error": msg, "exact_spoken_reply": msg}
@@ -1199,7 +1200,7 @@ class EngineRulesMixin:
         self.pending_reset_confirmation = False
         self.pending_reset_scope = "all"
 
-        if self.current_tier == 2:
+        if effective_tier == 2:
             uid = self._current_user_id
             uname = self.get_current_user_name()
             if norm_scope in ("timers", "all"):

@@ -373,6 +373,9 @@ class ServerEchoGuard:
                     self._ref_2k = self._ref_2k[drop:]
                     self._ref_origin_ts += float(drop) / float(SERVER_REF_TARGET_SR)
 
+    def clear_recent_utterances(self) -> None:
+        self._recent_ai_utterances.clear()
+
     def clear_ai_playback(self) -> None:
         self._ai_playback_start_ts = 0.0
         self._ai_playback_end_ts = 0.0
