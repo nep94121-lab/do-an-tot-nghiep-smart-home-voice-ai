@@ -915,7 +915,7 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
         page = await ctx.new_page()
         sockets: list[Any] = []
         await page.add_init_script(info["ws_auth_script"])
-        await page.route_web_socket("**/ws", lambda ws: sockets.append(ws))
+        await page.route_web_socket("**/ws*", lambda ws: sockets.append(ws))
 
         async def route_handler(route: Any, request: Any) -> None:
             if not request.url.startswith(base_url):
@@ -1033,7 +1033,7 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
         page = await ctx.new_page()
         await page.add_init_script(info["ws_auth_script"])
         sockets: list[Any] = []
-        await page.route_web_socket("**/ws", lambda ws: sockets.append(ws))
+        await page.route_web_socket("**/ws*", lambda ws: sockets.append(ws))
 
         force_stale_reject = False
         replies: list[dict[str, Any]] = []
@@ -1188,7 +1188,7 @@ async def _run_e2e_f5_root_ws(info: dict[str, str]) -> None:
             root_sockets.append(ws)
             ws.on_message(lambda raw: ws_messages.append(json.loads(raw)))
 
-        await page.route_web_socket("**/ws", on_ws)
+        await page.route_web_socket("**/ws*", on_ws)
 
         async def route_handler(route: Any, request: Any) -> None:
             if not request.url.startswith(base_url):
@@ -1588,7 +1588,7 @@ async def _run_e2e_f7_stale_ws_ack(info: dict[str, str]) -> None:
             sockets.append(ws)
             ws.on_message(lambda raw: sent_ws.append(json.loads(raw)))
 
-        await page.route_web_socket("**/ws", on_ws)
+        await page.route_web_socket("**/ws*", on_ws)
 
         async def route_local(route: Any, request: Any) -> None:
             if not request.url.startswith(base_url):
@@ -1755,7 +1755,7 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
             page = await ctx.new_page()
             await page.add_init_script(info["auth_init_script"])
             if path == "/wokwi":
-                await page.route_web_socket("**/ws", lambda ws: None)
+                await page.route_web_socket("**/ws*", lambda ws: None)
 
             intercept_mode = ""
             fulfilled_evt = asyncio.Event()
