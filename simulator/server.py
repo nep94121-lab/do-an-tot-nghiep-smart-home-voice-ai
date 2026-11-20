@@ -399,6 +399,30 @@ async def archify_erd_page(request: Request) -> Response:
     return _serve_cached_html(request, DOCS_ARCH_DIR / "smarthome-database.erd.html")
 
 
+@app.get("/docs/phan_cung/mica/MICA_PANELS.md")
+async def hardware_mica_panels_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "mica" / "MICA_PANELS.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "MICA_PANELS.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/docs/phan_cung/DIMENSIONS_AUDIT.md")
+async def hardware_dimensions_audit_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "DIMENSIONS_AUDIT.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "DIMENSIONS_AUDIT.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/hardware/kicad/smarthome_hub/bom.csv")
+async def hardware_kicad_bom() -> Response:
+    bom_path = ROOT / "hardware" / "kicad" / "smarthome_hub" / "bom.csv"
+    if not bom_path.exists() or not bom_path.is_file():
+        return JSONResponse({"ok": False, "error": "bom.csv not found"}, status_code=404)
+    return FileResponse(bom_path, media_type="text/csv; charset=utf-8")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)

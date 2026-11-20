@@ -544,3 +544,80 @@ def test_http_ir_learn_410_and_scene_spec_route() -> None:
             assert isinstance(r_spec.json(), dict)
         else:
             assert r_spec.status_code == 404
+
+
+def test_archify_and_erd_locked_contract_and_hardware_doc_routes() -> None:
+    """P1-1: /archify and /archify/erd match the locked 10-pin contract with 0 legacy IR/fan/MAX9814 claims."""
+    from simulator.server import app
+
+    with TestClient(app) as client:
+        r_arch = client.get("/archify")
+        assert r_arch.status_code == 200
+        arch_html = r_arch.text
+
+        for forbidden in ("VS1838B", "IR 38kHz", "MAX9814", "Quạt Trần", "Khử Ồn Quạt", "ir_remote_codes"):
+            assert forbidden not in arch_html, f"/archify still contains forbidden legacy token: {forbidden}"
+
+        for expected_pin in (
+            "D0 (GPIO16): Đèn phòng khách",
+            "D1 (GPIO5): Cửa chính (Servo SG90)",
+            "D2 (GPIO4): Cảm biến nhiệt/ẩm DHT11",
+            "D3 (GPIO0): Audio PWM ra PAM8403",
+            "D4 (GPIO2): Đèn phòng ngủ",
+            "D5 (GPIO14): Âm thanh KY-037 DO",
+            "D6 (GPIO12): Máy bơm tưới cây (Relay 1 + 1N4007",
+            "D7 (GPIO13): Nguồn mạch loa PAM8403 (Relay 2",
+            "D8 (GPIO15): Còi báo động (Buzzer 5V)",
+            "A0 (ADC0): Độ ẩm đất YL-69/LM393",
+        ):
+            assert expected_pin in arch_html, f"/archify missing locked pin mapping: {expected_pin}"
+
+        # Hardware doc links from /archify must resolve HTTP 200
+        for hw_route in (
+            "/hardware/blender/SCENE_SPEC.json",
+            "/hardware/kicad/smarthome_hub/bom.csv",
+            "/docs/phan_cung/mica/MICA_PANELS.md",
+            "/docs/phan_cung/DIMENSIONS_AUDIT.md",
+        ):
+            assert hw_route in arch_html, f"/archify missing link to {hw_route}"
+            r_doc = client.get(hw_route)
+            assert r_doc.status_code == 200, f"Hardware doc route {hw_route} returned {r_doc.status_code}"
+
+        r_erd = client.get("/archify/erd")
+        assert r_erd.status_code == 200
+        erd_html = r_erd.text
+
+        for forbidden in ("VS1838B", "IR 38kHz", "mã IR 38kHz", "MAX9814", "Quạt Trần", "Hardware &amp; IR"):
+            assert forbidden not in erd_html, f"/archify/erd still contains forbidden legacy token: {forbidden}"
+
+        # ir_remote_codes may only appear with explicit legacy/removed label (preserving production DB compatibility)
+        assert "ir_remote_codes (legacy" in erd_html
+        assert "TEXT (D0..D8)" in erd_html
+        for expected_pin in (
+            "main_door (D1)",
+            "living_room_light (D0)",
+            "bedroom_light (D4)",
+            "garden_pump (D6)",
+            "alarm_siren (D8)",
+            "speaker_amp (D7/D3)",
+            "DHT11 (D2)",
+            "(A0)",
+            "KY-037 DO (D5)",
+        ):
+            assert expected_pin in erd_html, f"/archify/erd missing locked contract note: {expected_pin}"
+
+
+def test_house3d_labels_toggle_and_preserve_drawing_buffer_and_wokwi_scale() -> None:
+    """P2-1, P2-2, P2-3 static/runtime invariants for 3D labels toggle, WebGL preserveDrawingBuffer, and /wokwi fit."""
+    house3d_js = HOUSE3D_PATH.read_text(encoding="utf-8")
+    assert "preserveDrawingBuffer: true" in house3d_js
+    assert "toggleLabelsVisible" in house3d_js
+    assert 'currentCameraPreset === "board"' in house3d_js
+
+    index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'id="btnToggle3dLabels"' in index_html
+
+    wokwi_html = (ROOT / "simulator" / "static" / "wokwi.html").read_text(encoding="utf-8")
+    wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
+    assert 'id="circuitStageWrap"' in wokwi_html
+    assert "fitCircuitStageToWorkbench" in wokwi_js

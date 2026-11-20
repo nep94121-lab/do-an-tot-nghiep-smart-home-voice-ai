@@ -2,8 +2,8 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v4)",
-    "subtitle": "25 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys ON) — Bể Riêng Theo Chủ Sở Hữu & Xác Nhận 4 Bước",
+    "title": "Sơ Đồ Thực Thể Kết Hợp (ERD) — CSDL SQLite 3 Smart Home Voice AI (25 Bảng, v5)",
+    "subtitle": "25 Bảng SQL Chuẩn 3NF (ACID + WAL Mode + Foreign Keys ON) — Hợp Đồng Phần Cứng 6 Thiết Bị (D0..D8, A0) & Xác Nhận Lệnh 60s",
     "output": "docs/kien_truc/smarthome-database.erd.html",
     "quality_profile": "standard",
     "visual_preset": "blueprint",
@@ -16,15 +16,15 @@
       },
       {
         "id": "isolated_pools_addendum",
-        "label": "2. Bể Riêng Theo Người & Xác Nhận 4 Bước",
+        "label": "2. Bể Riêng Theo Người & Xác Nhận Lệnh 60s",
         "focus": ["users", "devices", "timers_pool", "schedules", "automation_rules", "custom_commands", "pending_confirmations", "rules_pool"],
-        "note": "Mỗi người dùng có 3 bể riêng theo owner_user_id cùng pending_confirmations TTL 20s"
+        "note": "Mỗi người dùng có 3 bể riêng theo owner_user_id cùng pending_confirmations TTL 60s"
       },
       {
         "id": "hardware_logs_meta",
-        "label": "3. Thiết Bị, IR, RAG, Cache & Audit 0-Emoji",
+        "label": "3. 6 Thiết Bị, RAG, Cache & Audit 0-Emoji",
         "focus": ["devices", "device_state", "ir_remote_codes", "knowledge_rag", "audit_logs", "aoede_audio_cache", "system_state_meta", "system_kv_meta", "schema_migrations"],
-        "note": "Đồng bộ monotonic revision_seq, mã IR 38kHz, Aoede PCM cache và nhật ký 0 emoji"
+        "note": "Đồng bộ monotonic revision_seq, 6 thiết bị khóa cứng (D0..D8, A0), ir_remote_codes giữ trống dạng legacy đã gỡ bỏ ở v5"
       }
     ]
   },
@@ -255,7 +255,7 @@
         { "name": "owner_user_id", "type": "TEXT", "key": "fk", "references": "users.user_id" },
         { "name": "session_key", "type": "TEXT NOT NULL" },
         { "name": "action_kind", "type": "TEXT NOT NULL" },
-        { "name": "expires_at", "type": "REAL (TTL 20s)" },
+        { "name": "expires_at", "type": "REAL (TTL 60s)" },
         { "name": "status", "type": "TEXT DEFAULT 'pending'" }
       ]
     },
@@ -330,14 +330,14 @@
     {
       "id": "devices",
       "label": "devices",
-      "tag": "Hardware & IR",
+      "tag": "Hardware (6 Thiết Bị)",
       "row": 0,
       "col": 4,
       "width": 295,
       "attributes": [
         { "name": "device_id", "type": "TEXT", "key": "pk" },
         { "name": "device_name", "type": "TEXT NOT NULL" },
-        { "name": "gpio_pin", "type": "TEXT (D1..D8)" },
+        { "name": "gpio_pin", "type": "TEXT (D0..D8)" },
         { "name": "state", "type": "TEXT (ON/OFF/OPEN)" },
         { "name": "min_role", "type": "TEXT", "key": "fk", "references": "roles.role_code" }
       ]
@@ -345,7 +345,7 @@
     {
       "id": "device_state",
       "label": "device_state",
-      "tag": "Hardware & IR",
+      "tag": "Hardware (6 Thiết Bị)",
       "row": 1,
       "col": 4,
       "width": 295,
@@ -358,8 +358,8 @@
     },
     {
       "id": "ir_remote_codes",
-      "label": "ir_remote_codes",
-      "tag": "Hardware & IR",
+      "label": "ir_remote_codes (legacy — đã gỡ bỏ)",
+      "tag": "Legacy (Removed)",
       "row": 2,
       "col": 4,
       "width": 295,
@@ -417,28 +417,28 @@
     { "id": "ar_when", "from": "automation_rules", "to": "devices", "label": "nguồn kích", "fromCardinality": "many", "toCardinality": "one" },
     { "id": "ar_then", "from": "automation_rules", "to": "devices", "label": "đích tác động", "fromCardinality": "many", "toCardinality": "one" },
     { "id": "cc_user", "from": "custom_commands", "to": "users", "label": "lệnh riêng của", "fromCardinality": "many", "toCardinality": "one" },
-    { "id": "pc_user", "from": "pending_confirmations", "to": "users", "label": "chờ xác nhận 20s", "fromCardinality": "many", "toCardinality": "one" },
+    { "id": "pc_user", "from": "pending_confirmations", "to": "users", "label": "chờ xác nhận 60s", "fromCardinality": "many", "toCardinality": "one" },
     { "id": "rp_user", "from": "rules_pool", "to": "users", "label": "sở hữu bởi", "fromCardinality": "many", "toCardinality": "one" },
     { "id": "rp_dev", "from": "rules_pool", "to": "devices", "label": "tác động", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
-    { "id": "ir_dev", "from": "ir_remote_codes", "to": "devices", "label": "mã IR 38kHz", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
+    { "id": "ir_dev", "from": "ir_remote_codes", "to": "devices", "label": "legacy (đã gỡ bỏ)", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
     { "id": "kb_user", "from": "knowledge_rag", "to": "users", "label": "cập nhật bởi", "fromCardinality": "many", "toCardinality": "one", "identifying": false },
     { "id": "log_user", "from": "audit_logs", "to": "users", "label": "ghi nhận của", "fromCardinality": "many", "toCardinality": "one", "identifying": false }
   ],
   "cards": [
     {
       "dot": "emerald",
-      "title": "25 Bảng 3NF + WAL Mode + Foreign Keys ON",
+      "title": "25 Bảng 3NF (v5) + Hợp Đồng Phần Cứng 6 Thiết Bị",
       "items": [
-        "Lưu tại smarthome.db với PRAGMA journal_mode = WAL và foreign_keys = ON (CASCADE DELETE)",
-        "sessions, user_sessions và invites gắn đầy đủ khóa ngoại tới users; invites chỉ lưu token_hash SHA-256"
+        "Lưu tại smarthome.db (WAL + foreign_keys ON); bảng devices khóa cứng 6 thiết bị: main_door (D1), living_room_light (D0), bedroom_light (D4), garden_pump (D6), alarm_siren (D8), speaker_amp (D7/D3)",
+        "Cảm biến: DHT11 (D2), độ ẩm đất YL-69/LM393 (A0), âm thanh KY-037 DO (D5); bảng ir_remote_codes chỉ giữ cấu trúc trống (legacy — đã gỡ bỏ ở v5, không drop dữ liệu cũ)"
       ]
     },
     {
       "dot": "amber",
-      "title": "3 Bể Tự Động Hóa Riêng Theo Người + Xác Nhận 4 Bước",
+      "title": "3 Bể Tự Động Hóa Riêng Theo Người + Xác Nhận Lệnh 60s",
       "items": [
         "timers_pool + schedules, automation_rules, custom_commands cách ly theo owner_user_id",
-        "pending_confirmations lưu server-side theo (owner_user_id, session_key), tự hết hạn sau 20 giây"
+        "pending_confirmations lưu server-side theo (owner_user_id, session_key), tự hết hạn sau 60 giây"
       ]
     },
     {
