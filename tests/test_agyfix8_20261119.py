@@ -523,32 +523,44 @@ class TestP1ConfirmToolSafeDefault:
         ],
     )
     def test_missing_or_invalid_confirmed_never_executes_pending_door_open(self, bad_args: dict) -> None:
+        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
+
+        reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()
-        engine.devices["main_door"]["state"] = "CLOSED"
         owner = _make_session("fix8_conf_owner", "Owner Conf", 1, "ADMIN")
         bridge = _make_bridge(engine, owner)
 
-        step1 = asyncio.run(bridge.handle_tool_call(_fc("set_device", {"device_id": "main_door", "action": "open"})))
+        step1 = asyncio.run(
+            bridge.handle_tool_call(
+                _fc("create_schedule", {"device_id": "main_door", "action": "open", "time_hhmm": "07:30", "schedule_type": "once"})
+            )
+        )
         assert step1.get("requires_confirmation") is True
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
         step2 = asyncio.run(bridge.handle_tool_call(_fc("confirm_or_cancel_pending_action", bad_args)))
-        assert engine.devices["main_door"]["state"] == "CLOSED", (
-            f"Pending main_door open executed with unsafe args={bad_args}: {step2}"
+        assert len(list_schedules(include_disabled=False)) == 0, (
+            f"Pending main_door schedule executed with unsafe args={bad_args}: {step2}"
         )
 
     def test_explicit_boolean_true_executes_pending_action(self) -> None:
+        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
+
+        reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()
-        engine.devices["main_door"]["state"] = "CLOSED"
         owner = _make_session("fix8_conf_ok", "Owner Ok", 1, "ADMIN")
         bridge = _make_bridge(engine, owner)
 
-        step1 = asyncio.run(bridge.handle_tool_call(_fc("set_device", {"device_id": "main_door", "action": "open"})))
+        step1 = asyncio.run(
+            bridge.handle_tool_call(
+                _fc("create_schedule", {"device_id": "main_door", "action": "open", "time_hhmm": "07:45", "schedule_type": "once"})
+            )
+        )
         assert step1.get("requires_confirmation") is True
         step2 = asyncio.run(bridge.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": True})))
         assert step2.get("ok") is True
-        assert engine.devices["main_door"]["state"] == "OPEN"
-        engine.devices["main_door"]["state"] = "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 1
+        reset_timers_and_schedules_scoped(clear_all=True)
 
     def test_engine_confirm_pending_action_default_is_false(self) -> None:
         engine = SmartHomeEngine()

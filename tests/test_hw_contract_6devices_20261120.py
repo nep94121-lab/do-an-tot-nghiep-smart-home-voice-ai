@@ -430,34 +430,36 @@ def test_voice_ok_confirmation_gate_for_both_set_device_and_control_device(
     dispatcher = _Harness(engine)
 
     async def _verify_both_tools() -> None:
-        # 1. set_device MUST require confirmation before mutating state
+        # 1. set_device executes IMMEDIATELY (act-first policy for direct simple device commands)
         assert engine.devices["speaker_amp"]["state"] == "OFF"
         res_set = await dispatcher.handle_tool_call(
             SimpleNamespace(name="set_device", args={"device_id": "speaker_amp", "action": "turn_on"})
         )
-        assert res_set.get("requires_confirmation") is True
-        assert engine.devices["speaker_amp"]["state"] == "OFF"
-
-        conf_set = await dispatcher.handle_tool_call(
-            SimpleNamespace(name="confirm_or_cancel_pending_action", args={"confirmed": True})
-        )
-        assert conf_set.get("ok") is True
+        assert res_set.get("ok") is True
+        assert res_set.get("executed") is True
+        assert not res_set.get("requires_confirmation")
         assert engine.devices["speaker_amp"]["state"] == "ON"
 
-        # 2. control_device MUST also require confirmation before mutating state
+        # 2. control_device executes IMMEDIATELY (act-first policy for direct simple device commands)
         assert engine.devices["main_door"]["state"] == "CLOSED"
         res_ctrl = await dispatcher.handle_tool_call(
             SimpleNamespace(name="control_device", args={"device_id": "main_door", "action": "open"})
         )
-        assert res_ctrl.get("requires_confirmation") is True
-        assert res_ctrl.get("executed") is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert res_ctrl.get("ok") is True
+        assert res_ctrl.get("executed") is True
+        assert not res_ctrl.get("requires_confirmation")
+        assert engine.devices["main_door"]["state"] == "OPEN"
 
-        conf_ctrl = await dispatcher.handle_tool_call(
+        # 3. Automation mutations (e.g. create_timer) still require confirmation before committing
+        res_tm = await dispatcher.handle_tool_call(
+            SimpleNamespace(name="create_timer", args={"device_id": "living_room_light", "action": "turn_off", "minutes": 5})
+        )
+        assert res_tm.get("ok") is True
+        assert res_tm.get("requires_confirmation") is True
+        conf_tm = await dispatcher.handle_tool_call(
             SimpleNamespace(name="confirm_or_cancel_pending_action", args={"confirmed": True})
         )
-        assert conf_ctrl.get("ok") is True
-        assert engine.devices["main_door"]["state"] == "OPEN"
+        assert conf_tm.get("ok") is True
 
     asyncio.run(_verify_both_tools())
 

@@ -45,6 +45,33 @@ TIER1_SCHEDULE_CONFLICT_MSG_VI = "Trùng lịch của chủ nhà, em không đ�
 GUEST_ONLY_TOGGLE_MSG_VI = "Khách chỉ được bật tắt thiết bị thôi ạ."
 PENDING_CONFIRM_TTL_SEC = 60.0
 
+SENSOR_TRIGGER_DEVICES: dict[str, dict[str, Any]] = {
+    "soil_sensor": {
+        "name": "Cảm biến độ ẩm đất",
+        "states": ("DRY", "WET"),
+    },
+    "sound_sensor": {
+        "name": "Cảm biến âm thanh KY-037",
+        "states": ("LOUD", "QUIET"),
+    },
+}
+
+SENSOR_STATE_OPPOSITE: dict[str, str] = {
+    "DRY": "WET",
+    "WET": "DRY",
+    "LOUD": "QUIET",
+    "QUIET": "LOUD",
+}
+
+
+def format_sensor_trigger_vi(when_device_id: str, when_state: str) -> str:
+    st = str(when_state or "").upper()
+    if when_device_id == "soil_sensor":
+        return "đất khô" if st == "DRY" else "đất ẩm"
+    if when_device_id == "sound_sensor":
+        return "có tiếng động lớn" if st == "LOUD" else "yên tĩnh"
+    return f"{when_device_id}={st}"
+
 
 class ScheduleConflictError(ValueError):
     """Raised when a Tier 2 schedule collides within +-60s of an active Tier 1 timer or schedule."""
@@ -821,6 +848,74 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
             "created_at": float(r["created_at"] or 0.0),
             "updated_at": float(r["updated_at"] or 0.0),
         })
+
+    # Merge sensor-trigger cross-connected rules stored in rules_pool (preserves 6-device FK contract)
+    sensor_rows = conn.execute(
+        """
+        SELECT rp.rule_id, rp.owner_user_id, COALESCE(u.full_name, rp.owner_user_id) AS owner_name,
+               rp.trigger_expr, rp.target_device_id, rp.target_action, rp.else_action, rp.updated_at
+        FROM rules_pool rp
+        LEFT JOIN users u ON u.user_id = rp.owner_user_id
+        WHERE rp.rule_category = 'sensor_link'
+        """
+    ).fetchall()
+    for sr in sensor_rows:
+        trig = str(sr["trigger_expr"] or "")
+        if ":" not in trig:
+            continue
+        wdev, wstate = trig.split(":", 1)
+        wdev = wdev.strip()
+        wstate = wstate.strip().upper()
+        if wdev not in SENSOR_TRIGGER_DEVICES:
+            continue
+        tdev = str(sr["target_device_id"] or "").strip()
+        tact = str(sr["target_action"] or "").strip()
+        if not tdev or not tact:
+            continue
+        meta: dict[str, Any] = {}
+        try:
+            parsed_meta = json.loads(str(sr["else_action"] or "{}"))
+            if isinstance(parsed_meta, dict):
+                meta = parsed_meta
+        except Exception:
+            meta = {}
+        enabled_flag = bool(meta.get("enabled", True))
+        if not include_disabled and not enabled_flag:
+            continue
+        edev = str(meta.get("else_device_id") or "").strip()
+        eact = str(meta.get("else_action") or "").strip()
+        wname = str(SENSOR_TRIGGER_DEVICES[wdev]["name"])
+        tname = DEVICE_LABELS_VI.get(tdev) or DEFAULT_DEVICES.get(tdev, {}).get("name") or tdev
+        ename = DEVICE_LABELS_VI.get(edev) or DEFAULT_DEVICES.get(edev, {}).get("name") or edev if edev else ""
+        created_ts = float(meta.get("created_at") or 0.0)
+        lbl = str(
+            meta.get("label")
+            or f"Khi {format_sensor_trigger_vi(wdev, wstate)} thì {format_device_action_vi(tdev, tact).lower()}"
+        )
+        out.append({
+            "id": str(sr["rule_id"]),
+            "rule_id": str(sr["rule_id"]),
+            "owner_id": str(sr["owner_user_id"]),
+            "owner_user_id": str(sr["owner_user_id"]),
+            "owner_name": str(sr["owner_name"]),
+            "owner_tier": int(meta.get("owner_tier") or 1),
+            "when_device_id": wdev,
+            "when_device_name": wname,
+            "when_state": wstate,
+            "then_device_id": tdev,
+            "then_device_name": tname,
+            "then_action": tact,
+            "else_device_id": edev,
+            "else_device_name": ename,
+            "else_action": eact,
+            "delay_seconds": float(meta.get("delay_seconds") or 0.0),
+            "enabled": enabled_flag,
+            "label": lbl,
+            "created_at": created_ts,
+            "updated_at": float(meta.get("updated_at") or created_ts),
+        })
+
+    out.sort(key=lambda item: float(item.get("created_at") or 0.0), reverse=True)
     return out
 
 
@@ -859,14 +954,21 @@ def validate_automation_rule_input(
     else_action: str = "",
     db_path: pathlib.Path | None = None,
 ) -> tuple[str, str, str, str, str, str]:
-    """Validate linked rule endpoints, actions, and acyclicity before staging or saving."""
-    if when_device_id not in DEFAULT_DEVICES or then_device_id not in DEFAULT_DEVICES:
+    """Validate linked rule endpoints (6 devices or sensor triggers), actions, and acyclicity before staging or saving."""
+    is_sensor_trigger = when_device_id in SENSOR_TRIGGER_DEVICES
+    if (not is_sensor_trigger and when_device_id not in DEFAULT_DEVICES) or then_device_id not in DEFAULT_DEVICES:
         raise ValueError("Thiết bị điều kiện hoặc thiết bị đích không tồn tại.")
     if when_device_id == then_device_id:
         raise ValueError("Không thể liên kết thiết bị với chính nó (tránh vòng lặp).")
-    norm_when_state = ACTION_TO_STATE.get(str(when_state).lower(), str(when_state).upper())
-    if norm_when_state not in ("ON", "OFF", "OPEN", "CLOSED"):
-        raise ValueError(f"Trạng thái điều kiện '{when_state}' không hợp lệ.")
+    if is_sensor_trigger:
+        norm_when_state = str(when_state or "").strip().upper()
+        allowed_sensor_states = SENSOR_TRIGGER_DEVICES[when_device_id]["states"]
+        if norm_when_state not in allowed_sensor_states:
+            raise ValueError(f"Trạng thái cảm biến '{when_state}' không hợp lệ.")
+    else:
+        norm_when_state = ACTION_TO_STATE.get(str(when_state).lower(), str(when_state).upper())
+        if norm_when_state not in ("ON", "OFF", "OPEN", "CLOSED"):
+            raise ValueError(f"Trạng thái điều kiện '{when_state}' không hợp lệ.")
     if then_action not in ACTION_TO_STATE:
         raise ValueError(f"Hành động đích '{then_action}' không hợp lệ.")
     valid_else_dev = else_device_id if else_device_id in DEFAULT_DEVICES else ""
@@ -928,6 +1030,86 @@ def create_automation_rule(
 
     rid = rule_id or f"rule_{int(time.time() * 1000)}_{uuid.uuid4().hex[:6]}"
     now_ts = time.time()
+    is_sensor_trigger = when_device_id in SENSOR_TRIGGER_DEVICES
+    safe_tier = int(owner_tier if owner_tier in (1, 2, 3) else 1)
+    safe_delay = max(0.0, float(delay_seconds or 0.0))
+
+    if is_sensor_trigger:
+        when_display_name = str(SENSOR_TRIGGER_DEVICES[when_device_id]["name"])
+        clean_label = str(
+            label or f"Khi {format_sensor_trigger_vi(when_device_id, norm_when_state)} thì {format_device_action_vi(then_device_id, then_action).lower()}"
+        ).strip()
+        trig_expr = f"{when_device_id}:{norm_when_state}"
+        meta_json = json.dumps(
+            {
+                "label": clean_label,
+                "owner_tier": safe_tier,
+                "else_device_id": valid_else_dev or "",
+                "else_action": valid_else_act,
+                "delay_seconds": safe_delay,
+                "enabled": True,
+                "created_at": now_ts,
+                "updated_at": now_ts,
+            },
+            ensure_ascii=False,
+        )
+        now_iso = now_saigon_iso()
+        with _DB_LOCK:
+            target = _resolve_db(db_path)
+            conn = get_connection(target)
+            try:
+                def _tx_sensor(c: sqlite3.Connection) -> None:
+                    uid = _ensure_fk_parents(
+                        c, owner_user_id=owner_user_id, owner_tier=safe_tier, owner_name=owner_name
+                    )
+                    c.execute(
+                        """
+                        DELETE FROM rules_pool
+                        WHERE rule_category = 'sensor_link' AND trigger_expr = ? AND target_device_id = ?
+                        """,
+                        (trig_expr, then_device_id),
+                    )
+                    c.execute(
+                        """
+                        INSERT INTO rules_pool (
+                            rule_id, owner_user_id, rule_category, trigger_expr,
+                            target_device_id, target_action, bidirectional, else_action, updated_at
+                        ) VALUES (?, ?, 'sensor_link', ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            rid,
+                            uid,
+                            trig_expr,
+                            then_device_id,
+                            then_action,
+                            1 if valid_else_dev else 0,
+                            meta_json,
+                            now_iso,
+                        ),
+                    )
+
+                run_write_transaction(conn, _tx_sensor)
+            finally:
+                conn.close()
+        invalidate_automation_cache(db_path)
+        return {
+            "id": rid,
+            "rule_id": rid,
+            "owner_user_id": owner_user_id,
+            "owner_tier": safe_tier,
+            "when_device_id": when_device_id,
+            "when_device_name": when_display_name,
+            "when_state": norm_when_state,
+            "then_device_id": then_device_id,
+            "then_device_name": DEVICE_LABELS_VI.get(then_device_id, then_device_id),
+            "then_action": then_action,
+            "else_device_id": valid_else_dev or "",
+            "else_action": valid_else_act,
+            "delay_seconds": safe_delay,
+            "enabled": True,
+            "label": clean_label,
+        }
+
     when_name = DEVICE_LABELS_VI.get(when_device_id, when_device_id).lower()
     when_verb = "mở" if norm_when_state in ("OPEN", "ON") else ("đóng" if norm_when_state == "CLOSED" else "tắt")
     clean_label = str(
@@ -940,7 +1122,7 @@ def create_automation_rule(
         try:
             def _tx(c: sqlite3.Connection) -> None:
                 uid = _ensure_fk_parents(
-                    c, owner_user_id=owner_user_id, owner_tier=owner_tier, owner_name=owner_name
+                    c, owner_user_id=owner_user_id, owner_tier=safe_tier, owner_name=owner_name
                 )
                 c.execute(
                     """
@@ -960,14 +1142,14 @@ def create_automation_rule(
                     (
                         rid,
                         uid,
-                        int(owner_tier if owner_tier in (1, 2, 3) else 1),
+                        safe_tier,
                         when_device_id,
                         norm_when_state,
                         then_device_id,
                         then_action,
                         valid_else_dev,
                         valid_else_act,
-                        max(0.0, float(delay_seconds or 0.0)),
+                        safe_delay,
                         clean_label,
                         now_ts,
                         now_ts,
@@ -983,7 +1165,7 @@ def create_automation_rule(
         "id": rid,
         "rule_id": rid,
         "owner_user_id": owner_user_id,
-        "owner_tier": int(owner_tier if owner_tier in (1, 2, 3) else 1),
+        "owner_tier": safe_tier,
         "when_device_id": when_device_id,
         "when_device_name": DEVICE_LABELS_VI.get(when_device_id, when_device_id),
         "when_state": norm_when_state,
@@ -992,7 +1174,7 @@ def create_automation_rule(
         "then_action": then_action,
         "else_device_id": valid_else_dev or "",
         "else_action": valid_else_act,
-        "delay_seconds": max(0.0, float(delay_seconds or 0.0)),
+        "delay_seconds": safe_delay,
         "enabled": True,
         "label": clean_label,
     }
@@ -1004,8 +1186,12 @@ def delete_automation_rule(rule_id: str, *, db_path: pathlib.Path | None = None)
         conn = get_connection(target)
         try:
             def _tx(c: sqlite3.Connection) -> int:
-                cur = c.execute("DELETE FROM automation_rules WHERE rule_id = ?", (str(rule_id),))
-                return int(cur.rowcount or 0)
+                cur1 = c.execute("DELETE FROM automation_rules WHERE rule_id = ?", (str(rule_id),))
+                cur2 = c.execute(
+                    "DELETE FROM rules_pool WHERE rule_id = ? AND rule_category = 'sensor_link'",
+                    (str(rule_id),),
+                )
+                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
 
             deleted = run_write_transaction(conn, _tx) > 0
         finally:
@@ -1326,6 +1512,7 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
                 c.execute("DELETE FROM schedules")
                 c.execute("DELETE FROM automation_rules")
                 c.execute("DELETE FROM custom_commands")
+                c.execute("DELETE FROM rules_pool WHERE rule_category = 'sensor_link'")
 
             run_write_transaction(conn, _tx)
         finally:
@@ -1760,14 +1947,14 @@ def reset_links_scoped(
             def _tx(c: sqlite3.Connection) -> int:
                 if clear_all:
                     cur1 = c.execute("DELETE FROM automation_rules")
-                    c.execute("DELETE FROM rules_pool WHERE rule_category IN ('if_else', 'link')")
-                    return int(cur1.rowcount or 0)
+                    cur2 = c.execute("DELETE FROM rules_pool WHERE rule_category IN ('if_else', 'link', 'sensor_link')")
+                    return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
                 cur1 = c.execute("DELETE FROM automation_rules WHERE owner_user_id = ?", (uid,))
-                c.execute(
-                    "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('if_else', 'link')",
+                cur2 = c.execute(
+                    "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('if_else', 'link', 'sensor_link')",
                     (uid,),
                 )
-                return int(cur1.rowcount or 0)
+                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
 
             removed = run_write_transaction(conn, _tx)
         finally:

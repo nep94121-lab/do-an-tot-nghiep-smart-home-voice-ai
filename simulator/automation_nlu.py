@@ -20,6 +20,7 @@ from simulator.auth.tier_permissions import can_control_device
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
     PENDING_CONFIRM_TTL_SEC,
+    SENSOR_TRIGGER_DEVICES,
     TIER1_SCHEDULE_CONFLICT_MSG_VI,
     ScheduleConflictError,
     can_user_create_links,
@@ -36,6 +37,7 @@ from simulator.automation_repo import (
     find_custom_command_by_text,
     format_device_action_vi,
     format_duration_vi,
+    format_sensor_trigger_vi,
     get_pending_confirmation,
     list_automation_rules,
     list_custom_commands,
@@ -127,16 +129,30 @@ def parse_single_device_and_action(
         elif " loa " in norm:
             dev = "speaker_amp"
 
+    action_norm = norm
+    for _non_verb in (
+        "bao dong",
+        "tu dong",
+        "tat ca",
+        "tieng dong",
+        "chuyen dong",
+        "hoat dong",
+        "dong ho",
+        "cong tac",
+    ):
+        action_norm = action_norm.replace(f" {_non_verb} ", " ")
+    action_norm = f" {' '.join(action_norm.split())} "
+
     off_words = ("tat", "dong", "khoa", "ngat", "dung")
     on_words = ("bat", "mo", "khoi dong", "chay", "tuoi")
     act: str | None = None
     for w in off_words:
-        if f" {w} " in norm:
+        if f" {w} " in action_norm:
             act = "close" if (dev == "main_door" or w in ("dong", "khoa")) else "turn_off"
             break
     if act is None:
         for w in on_words:
-            if f" {w} " in norm:
+            if f" {w} " in action_norm:
                 act = "open" if (dev == "main_door" or w == "mo") else "turn_on"
                 break
     if act is None:
@@ -376,6 +392,20 @@ def _classify_confirmation_utterance(raw_text: str) -> str | None:
     return None
 
 
+def _parse_sensor_trigger(clause: str) -> tuple[str, str] | None:
+    """Parse sensor trigger phrases ('đất khô', 'có tiếng động lớn', etc.) into (sensor_id, state)."""
+    norm = f" {normalize_phrase(clause)} "
+    if any(k in norm for k in (" dat kho ", " do am dat thap ", " do am dat kho ", " dat bi kho ", " dat qua kho ")):
+        return "soil_sensor", "DRY"
+    if any(k in norm for k in (" dat am ", " dat uot ", " do am dat cao ", " dat du am ")):
+        return "soil_sensor", "WET"
+    if any(k in norm for k in (" tieng dong lon ", " co tieng dong ", " am thanh lon ", " phat hien am thanh ", " vo tay ", " ky037 ", " ky 037 ")):
+        return "sound_sensor", "LOUD"
+    if any(k in norm for k in (" yen tinh ", " het tieng dong ", " khong co tieng dong ")):
+        return "sound_sensor", "QUIET"
+    return None
+
+
 def _ensure_confirmation_question(summary_text: str) -> str:
     raw = str(summary_text or "").strip()
     if raw.endswith("?"):
@@ -383,11 +413,10 @@ def _ensure_confirmation_question(summary_text: str) -> str:
     txt = raw.rstrip("?!.,;:")
     if not txt:
         txt = "Thực hiện thay đổi này"
-    if not txt.lower().endswith("đúng không ạ"):
-        txt = f"{txt}, đúng không ạ?"
-    else:
-        txt = f"{txt}?"
-    return txt
+    low = txt.lower()
+    if low.endswith("đúng không ạ") or low.endswith("đồng ý không") or low.endswith("đúng không"):
+        return f"{txt}?"
+    return f"{txt}, đúng không ạ?"
 
 
 async def stage_device_intents_for_confirmation(
@@ -1694,6 +1723,130 @@ async def execute_confirmed_mutation(
             },
         }
 
+    if action_kind == "run_custom_command":
+        cid = str(payload.get("command_id") or "").strip()
+        phrase_q = str(payload.get("phrase") or "").strip()
+        matched_cmd = None
+        if cid:
+            matched_cmd = next(
+                (c for c in list_custom_commands(include_disabled=False, owner_user_id=user_id) if c["command_id"] == cid),
+                None,
+            )
+        if matched_cmd is None and phrase_q:
+            matched_cmd = find_custom_command_by_text(phrase_q, owner_user_id=user_id)
+        if matched_cmd is None:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="scene_not_found",
+                msg="Không tìm thấy lệnh tùy chỉnh cần chạy.",
+                status_code=404,
+                target=cid or phrase_q or "custom_command",
+            )
+        steps = list(matched_cmd.get("steps") or [])
+        results: list[dict[str, Any]] = []
+        exec_items: list[dict[str, Any]] = []
+        prev_uid = getattr(engine, "_current_user_id", user_id)
+        prev_role = getattr(engine, "_current_role", role)
+        try:
+            engine._current_user_id = user_id
+            engine._current_role = role
+            for st in steps:
+                dev_id = str(st.get("device_id") or "")
+                action = str(st.get("action") or "")
+                for td in _expand_targets(dev_id):
+                    prev_st = str((engine.devices.get(td) or {}).get("state") or "")
+                    res = await engine.execute_device_action(
+                        td,
+                        action,
+                        request_tier=tier,
+                        request_user_name=user_name,
+                        request_role=role,
+                        source=source,
+                    )
+                    results.append(res)
+                    if not res.get("ok") and res.get("rbac_blocked"):
+                        err_msg = str(res.get("exact_spoken_reply") or res.get("error") or "Xin lỗi, bạn không có quyền thực hiện lệnh này.")
+                        return _deny_mutation_error(
+                            session=session,
+                            source=source,
+                            category="rbac_deny_custom_command_step",
+                            msg=err_msg,
+                            status_code=403,
+                            target=td,
+                            extra={"results": results},
+                        )
+                    new_st = str((engine.devices.get(td) or {}).get("state") or "")
+                    exec_items.append({
+                        "device_id": td,
+                        "action": action,
+                        "previous_state": prev_st,
+                        "state": new_st,
+                    })
+        finally:
+            engine._current_user_id = prev_uid
+            engine._current_role = prev_role
+        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        from simulator.voice.vietnamese_policy import format_short_action_reply_vi
+
+        spoken_exec = format_short_action_reply_vi(exec_items, engine.devices) if exec_items else f"Đã chạy lệnh '{matched_cmd['phrase']}'."
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "executed": True,
+                "kind": "custom_command_executed",
+                "command": matched_cmd,
+                "results": results,
+                "reply": spoken_exec,
+                "exact_spoken_reply": spoken_exec,
+                "snapshot": engine.get_snapshot(session=session, sync=False),
+            },
+        }
+
+    if action_kind == "reset_devices":
+        device_reset_plan = [
+            ("living_room_light", "turn_off"),
+            ("bedroom_light", "turn_off"),
+            ("garden_pump", "turn_off"),
+            ("alarm_siren", "turn_off"),
+            ("speaker_amp", "turn_off"),
+            ("main_door", "close"),
+        ]
+        reset_results: list[dict[str, Any]] = []
+        for did, act in device_reset_plan:
+            if not can_control_device(tier, did):
+                continue
+            r_dev = await engine.execute_device_action(
+                did,
+                act,
+                source=source,
+                request_tier=tier,
+                request_user_name=user_name,
+                request_role=role,
+                trigger_chains=False,
+            )
+            reset_results.append(r_dev)
+        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+        snap = engine.get_snapshot(session=session, sync=False)
+        spoken = "Đã đặt lại trạng thái các thiết bị về mặc định."
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "confirmed": True,
+                "executed": True,
+                "kind": "devices_reset",
+                "results": reset_results,
+                "reply": spoken,
+                "exact_spoken_reply": spoken,
+                "snapshot": snap,
+            },
+        }
+
     if action_kind == "factory_reset":
         if tier != 1:
             return _deny_mutation_error(
@@ -1704,7 +1857,10 @@ async def execute_confirmed_mutation(
                 status_code=403,
                 target="factory_reset",
             )
-        res_rst = await engine.manual_factory_reset()
+        if hasattr(engine, "factory_reset"):
+            res_rst = await engine.factory_reset(scope="all", bypass_rbac=True)
+        else:
+            res_rst = await engine.confirm_factory_reset(confirmed=True)
         snap = engine.get_snapshot(session=session, sync=False)
         spoken = str(res_rst.get("exact_spoken_reply") or "Đã xác nhận. Đã khôi phục cài đặt gốc toàn hệ thống.")
         return {
@@ -1713,6 +1869,7 @@ async def execute_confirmed_mutation(
             "payload": {
                 "ok": True,
                 "confirmed": True,
+                "executed": True,
                 "kind": "factory_reset",
                 "reply": spoken,
                 "exact_spoken_reply": spoken,
@@ -1748,16 +1905,15 @@ async def handle_confirmation_reply(
     user_id, tier, _, _ = _session_actor(session)
     skey = session_key or _resolve_session_key(session, source)
     pending, was_expired = get_pending_confirmation(owner_user_id=user_id, session_key=skey)
-    if tier >= 3:
-        if pending is None or pending.get("action_kind") != "set_device":
-            return _deny_mutation_error(
-                session=session,
-                source=source,
-                category="rbac_deny_confirmation",
-                msg=GUEST_ONLY_TOGGLE_MSG_VI,
-                status_code=403,
-                target="pending_confirmation",
-            )
+    if pending is not None and tier >= 3 and pending.get("action_kind") != "set_device":
+        return _deny_mutation_error(
+            session=session,
+            source=source,
+            category="rbac_deny_confirmation",
+            msg=GUEST_ONLY_TOGGLE_MSG_VI,
+            status_code=403,
+            target="pending_confirmation",
+        )
     if was_expired or pending is None:
         if was_expired:
             spoken = "Đã hủy."
@@ -1833,6 +1989,51 @@ async def handle_confirmation_reply(
         action_kind=consumed["action_kind"],
         payload=consumed["payload"],
     )
+
+
+async def handle_pending_interruption_if_any(
+    *,
+    raw_text: str,
+    engine: Any,
+    session: Any,
+    source: str,
+    session_key: str = "",
+    is_new_valid_intent: bool = False,
+) -> dict[str, Any] | None:
+    """Handle unrelated utterances while a pending confirmation exists.
+
+    - If the new utterance is a valid command/query, cancel the stale pending confirmation and return None so the new command runs.
+    - If it is unrelated chatter/nonsense, keep the pending confirmation and return a brief reminder without executing it.
+    """
+    user_id, _, _, _ = _session_actor(session)
+    skey = session_key or _resolve_session_key(session, source)
+    pending, _ = get_pending_confirmation(owner_user_id=user_id, session_key=skey)
+    if pending is None:
+        return None
+    if is_new_valid_intent:
+        consume_or_cancel_pending_confirmation(
+            pending["pending_id"],
+            owner_user_id=user_id,
+            new_status="cancelled",
+        )
+        return None
+    q = str(pending.get("prompt_question") or "Xác nhận thao tác đang chờ?").strip()
+    spoken = f"Đang chờ xác nhận: {q} Bạn nói đồng ý hoặc hủy nhé."
+    return {
+        "handled": True,
+        "status_code": 200,
+        "payload": {
+            "ok": True,
+            "executed": False,
+            "confirmed": False,
+            "requires_confirmation": True,
+            "pending_id": pending["pending_id"],
+            "kind": "confirmation_reminder",
+            "reply": spoken,
+            "exact_spoken_reply": spoken,
+            "snapshot": engine.get_snapshot(session=session, sync=False) if engine is not None else {},
+        },
+    }
 
 
 def _extract_target_member_scope(raw_text: str) -> tuple[bool, str | None]:
@@ -2002,8 +2203,12 @@ def answer_pool_or_member_query(
     if not has_question_cue:
         return None
 
+    # Never hijack AI identity questions ("bạn là ai", "bạn tên gì") as household member queries
+    if any(k in norm for k in (" ban la ai ", " em la ai ", " ban ten gi ", " ban ten la gi ", " ten cua ban ", " ai tao ra ban ")):
+        return None
+
     pool_kind: str | None = None
-    if any(k in norm for k in (" thanh vien", " gia dinh", " cap may", " ten gi", " trong nha co ai", " co nhung ai")):
+    if any(k in norm for k in (" thanh vien", " gia dinh", " toi cap may", " cap may", " trong nha co ai", " co nhung ai", " nha co may nguoi")):
         pool_kind = "members"
     elif any(k in norm for k in (" lenh custom", " lenh tuy chinh", " khau lenh", " nhung lenh", " cac lenh", " scene", " kich ban")):
         pool_kind = "custom_commands"
@@ -2199,8 +2404,66 @@ async def process_automation_nlu_command(
         )
 
     # ------------------------------------------------------------------
-    # STEP 3. ADDENDUM B SCOPED RESET ("reset lệnh custom", "reset liên kết", "xóa hẹn giờ")
+    # STEP 3. RESETS: reset_devices, factory_reset, and scoped reset_pool
     # ------------------------------------------------------------------
+    if re.search(r"\b(?:reset\s+trang\s+thai\s+thiet\s+bi|dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|reset\s+(?:cac\s+)?thiet\s+bi)\b", norm):
+        if tier >= 3:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_reset_devices",
+                msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="reset_devices",
+            )
+        return await prepare_pending_mutation(
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+            action_kind="reset_devices",
+            payload={"scope": "devices"},
+            prompt_summary="Đặt lại trạng thái các thiết bị về mặc định",
+        )
+
+    if any(
+        k in norm
+        for k in (
+            "reset cai dat",
+            "reset he thong",
+            "khoi phuc cai dat goc",
+            "factory reset",
+            "dat lai cai dat goc",
+        )
+    ):
+        if tier >= 3:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_factory_reset",
+                msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="factory_reset",
+            )
+        if tier != 1:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_factory_reset",
+                msg="Chỉ chủ nhà cấp 1 mới được khôi phục cài đặt gốc ạ.",
+                status_code=403,
+                target="factory_reset",
+            )
+        return await prepare_pending_mutation(
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+            action_kind="factory_reset",
+            payload={"confirmed_via": source},
+            prompt_summary="Khôi phục cài đặt gốc toàn hệ thống",
+        )
+
     reset_intent = _detect_scoped_reset_intent(raw)
     if reset_intent is not None:
         pool_kind, clear_all, target_q = reset_intent
@@ -2345,11 +2608,147 @@ async def process_automation_nlu_command(
         )
 
     # ------------------------------------------------------------------
-    # STEP 5. CREATE LINKED AUTOMATION RULE
+    # STEP 4b. MODIFY EXISTING TIMER OR CLOCK SCHEDULE
     # Examples:
-    # - "khi bật quạt thì bật luôn đèn"
-    # - "tạo liên kết mới khi bật quạt thì bật đèn"
-    # - "từ giờ mở quạt thì mở cả đèn"
+    # - "đổi hẹn giờ đèn phòng khách thành 5 giây"
+    # - "sửa lịch 07:00 thành 08:00"
+    # ------------------------------------------------------------------
+    m_mod_sched = re.match(
+        r"^(?:đổi|sửa|cập\s+nhật|doi|sua|cap\s+nhat)\s+(?:lịch\s+hẹn|lịch|lich\s+hen|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if m_mod_sched:
+        if tier >= 3:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_update_schedule",
+                msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="schedules",
+            )
+        old_part = m_mod_sched.group(1).strip()
+        new_part = m_mod_sched.group(2).strip()
+        old_hhmm, _, _ = _parse_clock_hhmm_vi(f"lúc {old_part}")
+        new_hhmm, new_daily, _ = _parse_clock_hhmm_vi(f"lúc {new_part}")
+        old_dev, _ = parse_single_device_and_action(old_part)
+        if new_hhmm:
+            owner_scope = None if tier == 1 else user_id
+            candidates = list_schedules(include_disabled=False, owner_user_id=owner_scope)
+            target_sc = None
+            for sc in candidates:
+                if old_hhmm and sc.get("time_hhmm") != old_hhmm:
+                    continue
+                if old_dev and sc.get("device_id") != old_dev:
+                    continue
+                target_sc = sc
+                break
+            if target_sc is None:
+                return {
+                    "handled": True,
+                    "status_code": 404,
+                    "payload": {
+                        "ok": False,
+                        "error": "Không tìm thấy lịch hẹn cần sửa.",
+                        "reply": "Không tìm thấy lịch hẹn cần sửa.",
+                        "exact_spoken_reply": "Không tìm thấy lịch hẹn cần sửa.",
+                    },
+                }
+            sc_type = "daily" if new_daily else str(target_sc.get("schedule_type") or "once")
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=tier,
+                time_hhmm=new_hhmm,
+                schedule_type=sc_type,
+                exclude_schedule_id=str(target_sc["schedule_id"]),
+                engine=engine,
+            )
+            if conflict_msg:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="tier1_schedule_conflict",
+                    msg=conflict_msg,
+                    status_code=409,
+                    target="schedules",
+                )
+            return await prepare_pending_mutation(
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                action_kind="update_schedule",
+                payload={
+                    "schedule_id": target_sc["schedule_id"],
+                    "time_hhmm": new_hhmm,
+                    "schedule_type": sc_type,
+                },
+                prompt_summary=f"Đổi lịch {target_sc['time_hhmm']} thành {new_hhmm}",
+            )
+
+    m_mod_timer = re.match(
+        r"^(?:đổi|sửa|cập\s+nhật|doi|sua|cap\s+nhat)\s+(?:hẹn\s+giờ|hen\s+gio)\s*(.*?)\s+(?:thành|sang|thanh)\s+(.+)$",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if m_mod_timer:
+        if tier >= 3:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_modify_timer",
+                msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="timers",
+            )
+        old_part = m_mod_timer.group(1).strip()
+        new_part = m_mod_timer.group(2).strip()
+        dev_mod, act_mod = parse_single_device_and_action(old_part)
+        total_sec, _ = _parse_countdown_seconds(new_part)
+        if total_sec > 0:
+            owner_scope = None if tier == 1 else user_id
+            timers_list = list_pending_timers(owner_user_id=owner_scope)
+            target_tm = None
+            for tm in timers_list:
+                if dev_mod and tm.get("device_id") != dev_mod:
+                    continue
+                target_tm = tm
+                break
+            conflict_msg = check_tier1_schedule_conflict(
+                actor_tier=tier,
+                fire_epoch=time.time() + total_sec,
+                exclude_timer_id=str(target_tm["timer_id"]) if target_tm else None,
+                engine=engine,
+            )
+            if conflict_msg:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="tier1_timer_conflict",
+                    msg=conflict_msg,
+                    status_code=409,
+                    target="timers",
+                )
+            sec_i = max(1, int(round(total_sec)))
+            dev_target = dev_mod or (str(target_tm.get("device_id") or "all_devices") if target_tm else "all_devices")
+            dev_name = DEFAULT_DEVICES.get(dev_target, {}).get("name", "thiết bị").lower()
+            return await prepare_pending_mutation(
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                action_kind="modify_timer",
+                payload={
+                    "timer_id": str(target_tm["timer_id"]) if target_tm else "",
+                    "device_id": dev_target,
+                    "new_action": act_mod or "",
+                    "seconds": total_sec,
+                },
+                prompt_summary=f"Đổi hẹn giờ {dev_name} thành {format_duration_vi(sec_i)}",
+            )
+
+    # ------------------------------------------------------------------
+    # STEP 5. CREATE LINKED AUTOMATION RULE (device-trigger AND sensor-trigger)
     # ------------------------------------------------------------------
     m_rule = re.search(
         r"(?:^|\b)(?:(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
@@ -2359,30 +2758,12 @@ async def process_automation_nlu_command(
     )
     if not m_rule:
         m_rule = re.search(
-            r"^(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?(?:\s+là|\s+la|\s*:)?\s+"
+            r"^(?:(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?(?:\s+là|\s+la|\s*:)?\s+)?"
             r"(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
             raw,
             flags=re.IGNORECASE,
         )
-    if m_rule and any(k in norm for k in ("khi ", "neu ", "he ", "tu gio", "tao luat", "lien ket")):
-        if tier >= 3:
-            return _deny_mutation_error(
-                session=session,
-                source=source,
-                category="rbac_deny_create_link",
-                msg=GUEST_ONLY_TOGGLE_MSG_VI,
-                status_code=403,
-                target="automation_rules",
-            )
-        if not can_user_create_links(user_id, tier, engine=engine):
-            return _deny_mutation_error(
-                session=session,
-                source=source,
-                category="rbac_deny_create_link_permission",
-                msg="Bạn chưa được chủ nhà cấp quyền tạo liên kết thiết bị.",
-                status_code=403,
-                target="automation_rules",
-            )
+    if m_rule and (" thi " in f" {norm} " or any(k in norm for k in ("khi ", "neu ", "he ", "tu gio", "tao luat", "lien ket"))):
         when_part = m_rule.group(1).strip()
         then_part_full = m_rule.group(2).strip()
         else_part = ""
@@ -2391,77 +2772,111 @@ async def process_automation_nlu_command(
         if len(m_else) > 1:
             else_part = m_else[1].strip()
 
-        w_dev, w_act = parse_single_device_and_action(when_part)
+        sensor_trig = _parse_sensor_trigger(when_part)
+        w_dev: str | None = None
+        w_act: str | None = None
+        w_state: str = "ON"
+        is_sensor_when = False
+
+        if sensor_trig is not None:
+            w_dev, w_state = sensor_trig
+            is_sensor_when = True
+        else:
+            w_dev, w_act = parse_single_device_and_action(when_part)
+            if w_dev and w_act:
+                w_state = ACTION_TO_STATE.get(w_act, "ON")
+                if w_dev == "main_door" and w_state in ("ON", "OFF"):
+                    w_state = "OPEN" if w_state == "ON" else "CLOSED"
+            else:
+                w_dev = None
+
         t_dev, t_act = parse_single_device_and_action(then_part, default_action=w_act)
         if t_dev == "all_lights":
             t_dev = "living_room_light"
-        if not w_dev or w_dev in ("all_lights", "all_devices"):
-            return None
-        if not t_dev or t_dev not in DEFAULT_DEVICES:
-            return None
-        w_state = ACTION_TO_STATE.get(w_act or "turn_on", "ON")
-        if w_dev == "main_door" and w_state in ("ON", "OFF"):
-            w_state = "OPEN" if w_state == "ON" else "CLOSED"
 
-        allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier)
-        if not allowed_then:
-            return _deny_mutation_error(
+        if w_dev and (is_sensor_when or w_dev in DEFAULT_DEVICES) and t_dev and t_dev in DEFAULT_DEVICES and t_act:
+            if tier >= 3:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_create_link",
+                    msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                    status_code=403,
+                    target="automation_rules",
+                )
+            if not can_user_create_links(user_id, tier, engine=engine):
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_create_link_permission",
+                    msg="Bạn chưa được chủ nhà cấp quyền tạo liên kết thiết bị.",
+                    status_code=403,
+                    target="automation_rules",
+                )
+
+            allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier)
+            if not allowed_then:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_link_then_device",
+                    msg=reason_then,
+                    status_code=403,
+                    target=t_dev,
+                )
+
+            e_dev, e_act = ("", "")
+            if else_part:
+                ed, ea = parse_single_device_and_action(else_part)
+                if ed in DEFAULT_DEVICES and ea in ACTION_TO_STATE:
+                    allowed_else, reason_else = engine.check_device_permission(ed, actor_tier=tier)
+                    if not allowed_else:
+                        return _deny_mutation_error(
+                            session=session,
+                            source=source,
+                            category="rbac_deny_link_else_device",
+                            msg=reason_else,
+                            status_code=403,
+                            target=ed,
+                        )
+                    e_dev, e_act = ed, ea
+
+            if w_dev == t_dev:
+                msg_cycle = "Không thể tạo liên kết tự kích hoạt chính thiết bị nguồn."
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="invalid_automation_rule_cycle",
+                    msg=msg_cycle,
+                    status_code=400,
+                    target=w_dev,
+                )
+
+            w_label = (
+                format_sensor_trigger_vi(w_dev, w_state)
+                if is_sensor_when
+                else format_device_action_vi(w_dev, w_act or "turn_on").lower()
+            )
+            t_label = format_device_action_vi(t_dev, t_act).lower()
+            prompt_desc = f"Tạo liên kết khi {w_label} thì {t_label}"
+            if e_dev:
+                prompt_desc += f", ngược lại {format_device_action_vi(e_dev, e_act).lower()}"
+            return await prepare_pending_mutation(
+                engine=engine,
                 session=session,
                 source=source,
-                category="rbac_deny_link_then_device",
-                msg=reason_then,
-                status_code=403,
-                target=t_dev,
+                session_key=skey,
+                action_kind="create_automation_rule",
+                payload={
+                    "when_device_id": w_dev,
+                    "when_state": w_state,
+                    "then_device_id": t_dev,
+                    "then_action": t_act,
+                    "else_device_id": e_dev,
+                    "else_action": e_act,
+                },
+                prompt_summary=prompt_desc,
             )
-
-        e_dev, e_act = ("", "")
-        if else_part:
-            ed, ea = parse_single_device_and_action(else_part)
-            if ed in DEFAULT_DEVICES and ea in ACTION_TO_STATE:
-                allowed_else, reason_else = engine.check_device_permission(ed, actor_tier=tier)
-                if not allowed_else:
-                    return _deny_mutation_error(
-                        session=session,
-                        source=source,
-                        category="rbac_deny_link_else_device",
-                        msg=reason_else,
-                        status_code=403,
-                        target=ed,
-                    )
-                e_dev, e_act = ed, ea
-
-        if w_dev == t_dev:
-            msg_cycle = "Không thể tạo liên kết tự kích hoạt chính thiết bị nguồn."
-            return _deny_mutation_error(
-                session=session,
-                source=source,
-                category="invalid_automation_rule_cycle",
-                msg=msg_cycle,
-                status_code=400,
-                target=w_dev,
-            )
-
-        w_label = format_device_action_vi(w_dev, w_act or "turn_on")
-        t_label = format_device_action_vi(t_dev, t_act or "turn_on")
-        prompt_desc = f"Tạo liên kết khi {w_label} thì {t_label}"
-        if e_dev:
-            prompt_desc += f", ngược lại {format_device_action_vi(e_dev, e_act)}"
-        return await prepare_pending_mutation(
-            engine=engine,
-            session=session,
-            source=source,
-            session_key=skey,
-            action_kind="create_automation_rule",
-            payload={
-                "when_device_id": w_dev,
-                "when_state": w_state,
-                "then_device_id": t_dev,
-                "then_action": t_act or "turn_on",
-                "else_device_id": e_dev,
-                "else_action": e_act,
-            },
-            prompt_summary=prompt_desc,
-        )
 
     # ------------------------------------------------------------------
     # STEP 6. CANCEL / DELETE SINGLE TIMER, SCHEDULE, RULE, CUSTOM COMMAND
@@ -2674,7 +3089,7 @@ async def process_automation_nlu_command(
         )
 
     # ------------------------------------------------------------------
-    # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (isolated by owner_user_id)
+    # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (stages short confirmation)
     # ------------------------------------------------------------------
     matched_cmd = find_custom_command_by_text(raw, owner_user_id=user_id)
     if matched_cmd:
@@ -2688,53 +3103,31 @@ async def process_automation_nlu_command(
                 target=str(matched_cmd.get("phrase") or "custom_command"),
             )
         steps = matched_cmd.get("steps") or []
-        results = []
-        spoken_parts = []
-        prev_uid = getattr(engine, "_current_user_id", user_id)
-        try:
-            engine._current_user_id = user_id
-            for st in steps:
-                dev_id = str(st.get("device_id") or "")
-                action = str(st.get("action") or "")
-                targets = _expand_targets(dev_id)
-                for td in targets:
-                    res = await engine.execute_device_action(
-                        td,
-                        action,
-                        actor_tier=tier,
-                        actor_name=user_name,
-                        source=source,
-                    )
-                    results.append(res)
-                    if not res.get("ok") and res.get("rbac_blocked"):
-                        err_msg = str(res.get("exact_spoken_reply") or res.get("error") or "Từ chối theo phân quyền.")
-                        return _deny_mutation_error(
-                            session=session,
-                            source=source,
-                            category="rbac_deny_custom_command_step",
-                            msg=err_msg,
-                            status_code=403,
-                            target=td,
-                            extra={"results": results},
-                        )
-                    if res.get("exact_spoken_reply"):
-                        spoken_parts.append(str(res["exact_spoken_reply"]))
-        finally:
-            engine._current_user_id = prev_uid
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
-        spoken_exec = " ".join(spoken_parts).strip() or f"Đã thực hiện lệnh '{matched_cmd['phrase']}'."
-        return {
-            "handled": True,
-            "status_code": 200,
-            "payload": {
-                "ok": True,
-                "kind": "custom_command_executed",
-                "command": matched_cmd,
-                "results": results,
-                "reply": spoken_exec,
-                "exact_spoken_reply": spoken_exec,
-                "snapshot": engine.get_snapshot(session=session, sync=False),
+        ok_steps, err_steps = check_steps_rbac(steps, tier)
+        if not ok_steps:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_custom_command_step",
+                msg=err_steps,
+                status_code=403,
+                target=str(matched_cmd.get("phrase") or "custom_command"),
+            )
+        steps_summary = str(
+            matched_cmd.get("steps_summary")
+            or ", ".join(format_device_action_vi(s.get("device_id", ""), s.get("action", "")) for s in steps)
+        )
+        return await prepare_pending_mutation(
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+            action_kind="run_custom_command",
+            payload={
+                "command_id": matched_cmd["command_id"],
+                "phrase": matched_cmd["phrase"],
             },
-        }
+            prompt_summary=f"Chạy lệnh '{matched_cmd['phrase']}' ({steps_summary})",
+        )
 
     return None

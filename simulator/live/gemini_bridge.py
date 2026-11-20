@@ -564,13 +564,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         """Zero-Drop Reconnect Loop: Duy trì kết nối liên tục tới Gemini 3.8 Live."""
         if os.environ.get("SIMULATOR_OFFLINE_SANDBOX") == "1":
             return
+        strict_lang_fields = True
         try:
             while not self._closed:
                 t0 = time.perf_counter()
                 try:
                     await self._bind_actor_to_engine_async()
                     async with self.client.aio.live.connect(
-                        model=MODEL, config=make_live_config(self.engine)
+                        model=MODEL,
+                        config=make_live_config(self.engine, strict_lang_fields=strict_lang_fields),
                     ) as session:
                         self.gemini_session = session
                         conn_ms = round((time.perf_counter() - t0) * 1000)
@@ -682,14 +684,18 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
 
                                     if sc.output_transcription and sc.output_transcription.text:
                                         if not self._current_turn_echo_suppressed:
+                                            from simulator.voice.vietnamese_policy import ensure_vietnamese_reply
+
                                             txt = sc.output_transcription.text
                                             self.turn_out_tx.append(txt)
-                                            full_out_clean = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                            raw_full_out = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                            full_out_clean = ensure_vietnamese_reply(raw_full_out) if raw_full_out else ""
                                             if full_out_clean:
                                                 self.echo_guard.record_ai_utterance(full_out_clean)
+                                                seg_clean = sanitize_spoken_vietnamese_text(txt) or txt
                                                 await self.send_ws_json({
                                                     "type": "output_transcription",
-                                                    "text": sanitize_spoken_vietnamese_text(txt) or txt,
+                                                    "text": ensure_vietnamese_reply(seg_clean),
                                                     "full_text": full_out_clean,
                                                 })
 
@@ -759,7 +765,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                             if (self.turn_first_tool_ts and self.turn_first_audio_ts)
                                             else None
                                         )
-                                        clean_said = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                        from simulator.voice.vietnamese_policy import ensure_vietnamese_reply
+
+                                        raw_said = sanitize_spoken_vietnamese_text("".join(self.turn_out_tx).strip())
+                                        clean_said = ensure_vietnamese_reply(raw_said) if raw_said else ""
                                         if clean_said:
                                             self.echo_guard.record_ai_utterance(clean_said)
                                         await self.send_ws_json({
@@ -774,6 +783,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 except asyncio.CancelledError:
                     raise
                 except Exception:
+                    if strict_lang_fields and self.gemini_session is None:
+                        strict_lang_fields = False
                     self.gemini_session = None
                     if not self._closed:
                         await asyncio.sleep(0.4)
@@ -1145,7 +1156,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 res["instruction_for_ai"] = (
                     f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu này: '{rej_msg}'"
                 )
-                if not res.get("silent_cancel") and not res.get("cancelled"):
+                if res.get("rbac_blocked") and not res.get("silent_cancel") and not res.get("cancelled"):
                     await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role}, inside_tool_call=True)
         return res
 

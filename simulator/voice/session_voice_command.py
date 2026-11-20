@@ -182,7 +182,7 @@ def _first_spoken(result: dict[str, Any]) -> str:
 
 
 def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
-    """Trích xuất khẩu lệnh từ audio WAV/PCM16 catalog offline (chỉ lấy transcript, KHÔNG bỏ qua RBAC)."""
+    """Trích xuất khẩu lệnh từ audio WAV/PCM16 (catalog hash trước, sau đó local Whisper tiếng Việt)."""
     body = payload if isinstance(payload, dict) else {}
     b64_val = str(
         body.get("wav_b64") or body.get("audio_b64") or body.get("pcm16k_b64") or ""
@@ -209,7 +209,7 @@ def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
         if pcm16.size < 1600:
             return ""
         rms = float(np.sqrt(np.mean(pcm16.astype(np.float64) ** 2)))
-        if not np.isfinite(rms) or rms < 40.0:
+        if not np.isfinite(rms) or rms < 25.0:
             return ""
         matched_sig, _score = match_signature_from_catalog(pcm16, decoded_raw)
         if matched_sig is not None:
@@ -222,6 +222,14 @@ def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
                 return canon
             if rec:
                 return rec
+
+        # Fallback to local offline Vietnamese Whisper STT for any real WAV/PCM audio
+        from simulator.voice.vietnamese_stt import transcribe_vietnamese_pcm16k
+
+        stt_res = transcribe_vietnamese_pcm16k(pcm16, sr=16000)
+        if stt_res.get("is_noise") and not stt_res.get("text"):
+            return ""
+        return str(stt_res.get("text") or "").strip()
     except Exception as exc:
         LOG.debug("offline wav transcript lookup skipped: %s", exc)
     return ""
@@ -260,6 +268,25 @@ def silent_echo_suppressed_response(*, session: UserSession | None = None) -> di
     return payload
 
 
+async def _synthesize_voice_reply_fields(
+    spoken: str,
+    echo_guard: ServerEchoGuard,
+) -> dict[str, Any]:
+    if not spoken or any(marker in spoken.lower() for marker in _LEGACY_REPEAT_MARKERS):
+        return {}
+    echo_guard.record_ai_utterance(spoken)
+    try:
+        aoede_bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=1.8)
+        aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
+        pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
+        if pcm_bytes_out:
+            echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
+        return aoede_fields
+    except Exception as exc:
+        LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
+        return {}
+
+
 async def execute_session_voice_intents(
     *,
     engine: Any,
@@ -270,13 +297,25 @@ async def execute_session_voice_intents(
     from simulator.automation_nlu import (
         _classify_confirmation_utterance,
         _resolve_session_key,
+        handle_confirmation_reply,
+        handle_pending_interruption_if_any,
         process_automation_nlu_command,
-        stage_device_intents_for_confirmation,
     )
-    from simulator.automation_repo import PENDING_CONFIRM_TTL_SEC
+    from simulator.automation_repo import find_custom_command_by_text
+    from simulator.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
+    from simulator.voice.vietnamese_policy import (
+        classify_ambiguous_or_unsupported_vi,
+        classify_small_talk_vi,
+        ensure_vietnamese_reply,
+        format_short_action_reply_vi,
+        handle_sensor_or_status_query_vi,
+        parse_direct_device_intents_vi,
+    )
 
     echo_guard = get_session_echo_guard(session)
     skey = _resolve_session_key(session, source)
+    user_id = str(getattr(session, "user_id", "") or "guest").strip()
+    actor_tier = int(session.tier)
 
     # Never echo-suppress an explicit short confirm/cancel reply ("ok", "đồng ý", "hủy", "không"...).
     conf_decision = _classify_confirmation_utterance(transcript)
@@ -284,12 +323,149 @@ async def execute_session_voice_intents(
         is_echo, _score, _reason = echo_guard.check_echo_transcript(transcript)
         if is_echo:
             return silent_echo_suppressed_response(session=session)
+        # Confirmed non-echo user turn: clear stale prior-turn AI utterances so earlier prompts cannot suppress later commands.
+        echo_guard.clear_recent_utterances()
 
+    # 0. Active pending confirmation reply FIRST
+    if conf_decision is not None:
+        conf_res = await handle_confirmation_reply(
+            raw_text=transcript,
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+        )
+        if conf_res is not None:
+            echo_guard.clear_recent_utterances()
+            conf_payload = dict(conf_res.get("payload") or {})
+            raw_spoken_c = str(
+                conf_payload.get("exact_spoken_reply")
+                or conf_payload.get("reply")
+                or conf_payload.get("error")
+                or ""
+            ).strip()
+            spoken_c = ensure_vietnamese_reply(sanitize_spoken_vietnamese_text(raw_spoken_c) or raw_spoken_c)
+            aoede_c = await _synthesize_voice_reply_fields(spoken_c, echo_guard)
+            is_ok_c = bool(conf_payload.get("ok"))
+            is_blocked_c = bool(conf_payload.get("rbac_blocked"))
+            http_status_c = int(conf_res.get("status_code") or (403 if is_blocked_c else 200))
+            return _strip_legacy_repeat_speech({
+                **conf_payload,
+                "ok": is_ok_c,
+                "http_status": http_status_c,
+                "executed": bool(conf_payload.get("executed", is_ok_c and not conf_payload.get("requires_confirmation"))),
+                "authorized": not is_blocked_c,
+                "permission": "DENIED" if is_blocked_c else "ALLOWED",
+                "silent": False,
+                "should_reply": bool(spoken_c),
+                "ask_repeat": False,
+                "play_audio": bool(spoken_c and aoede_c.get("pcm24k_b64")),
+                "no_reprompt": True,
+                "recognized_text": transcript,
+                "transcript": transcript,
+                "tier": actor_tier,
+                "role": session.role,
+                "user_name": session.display_name,
+                "reply": spoken_c,
+                "exact_spoken_reply": spoken_c,
+                "rejection_speech": spoken_c if is_blocked_c else "",
+                "reply_text": spoken_c,
+                **aoede_c,
+            })
+
+    # 1. Friendly Vietnamese small talk BEFORE any automation/permission checks (unless saved custom command)
+    saved_custom = find_custom_command_by_text(transcript, owner_user_id=user_id) if actor_tier < 3 else None
+    if saved_custom is None:
+        small_talk = classify_small_talk_vi(transcript, user_name=str(session.display_name or ""))
+        if small_talk is not None:
+            await handle_pending_interruption_if_any(
+                raw_text=transcript,
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                is_new_valid_intent=True,
+            )
+            spoken_st = ensure_vietnamese_reply(str(small_talk.get("reply") or ""))
+            aoede_st = await _synthesize_voice_reply_fields(spoken_st, echo_guard)
+            return _strip_legacy_repeat_speech({
+                "ok": True,
+                "http_status": 200,
+                "kind": "small_talk",
+                "subkind": small_talk.get("subkind", "greeting"),
+                "executed": False,
+                "requires_confirmation": False,
+                "rbac_blocked": False,
+                "authorized": True,
+                "permission": "ALLOWED",
+                "silent": False,
+                "should_reply": True,
+                "ask_repeat": False,
+                "play_audio": bool(aoede_st.get("pcm24k_b64")),
+                "no_reprompt": True,
+                "recognized_text": transcript,
+                "transcript": transcript,
+                "intents": [],
+                "tier": actor_tier,
+                "role": session.role,
+                "user_name": session.display_name,
+                "reply": spoken_st,
+                "exact_spoken_reply": spoken_st,
+                "rejection_speech": "",
+                "reply_text": spoken_st,
+                **aoede_st,
+                "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
+            })
+
+    # 2. Sensor & device status queries execute immediately with real values
+    query_info = handle_sensor_or_status_query_vi(transcript, engine, session)
+    if query_info is not None:
+        await handle_pending_interruption_if_any(
+            raw_text=transcript,
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+            is_new_valid_intent=True,
+        )
+        is_q_blocked = bool(query_info.get("rbac_blocked"))
+        q_status = int(query_info.get("status_code") or (403 if is_q_blocked else 200))
+        spoken_q = ensure_vietnamese_reply(str(query_info.get("exact_spoken_reply") or query_info.get("reply") or ""))
+        aoede_q = await _synthesize_voice_reply_fields(spoken_q, echo_guard)
+        return _strip_legacy_repeat_speech({
+            **query_info,
+            "ok": bool(query_info.get("ok", not is_q_blocked)),
+            "http_status": q_status,
+            "executed": not is_q_blocked,
+            "requires_confirmation": False,
+            "rbac_blocked": is_q_blocked,
+            "authorized": not is_q_blocked,
+            "permission": "DENIED" if is_q_blocked else "ALLOWED",
+            "silent": False,
+            "should_reply": True,
+            "ask_repeat": False,
+            "play_audio": bool(aoede_q.get("pcm24k_b64")),
+            "no_reprompt": True,
+            "recognized_text": transcript,
+            "transcript": transcript,
+            "tier": actor_tier,
+            "role": session.role,
+            "user_name": session.display_name,
+            "reply": spoken_q,
+            "exact_spoken_reply": spoken_q,
+            "rejection_speech": spoken_q if is_q_blocked else "",
+            "reply_text": spoken_q,
+            **aoede_q,
+            "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
+        })
+
+    # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
     nlu_res = await process_automation_nlu_command(
         text=transcript,
         engine=engine,
         session=session,
         source=source,
+        session_key=skey,
     )
     if nlu_res is not None:
         nlu_payload = dict(nlu_res.get("payload") or {})
@@ -299,19 +475,8 @@ async def execute_session_voice_intents(
             or nlu_payload.get("error")
             or ""
         ).strip()
-        spoken_nlu = sanitize_spoken_vietnamese_text(raw_spoken_nlu) or raw_spoken_nlu
-        if spoken_nlu:
-            echo_guard.record_ai_utterance(spoken_nlu)
-        aoede_fields_nlu: dict[str, Any] = {}
-        if spoken_nlu and not any(marker in spoken_nlu.lower() for marker in _LEGACY_REPEAT_MARKERS):
-            try:
-                aoede_bundle = await synthesize_aoede_phrase_audio(spoken_nlu, interactive_budget_sec=1.8)
-                aoede_fields_nlu = build_aoede_http_audio_fields(aoede_bundle)
-                pcm_nlu_bytes = aoede_bundle.get("pcm24k_bytes") or b""
-                if pcm_nlu_bytes:
-                    echo_guard.note_ai_audio_chunk(len(pcm_nlu_bytes), sample_rate=24000)
-            except Exception as exc:
-                LOG.debug("aoede voice synthesis fallback skipped (nlu): %s", exc)
+        spoken_nlu = ensure_vietnamese_reply(sanitize_spoken_vietnamese_text(raw_spoken_nlu) or raw_spoken_nlu)
+        aoede_fields_nlu = await _synthesize_voice_reply_fields(spoken_nlu, echo_guard)
         is_ok_nlu = bool(nlu_payload.get("ok"))
         is_pending_nlu = bool(nlu_payload.get("requires_confirmation"))
         is_executed_nlu = is_ok_nlu and not is_pending_nlu
@@ -331,7 +496,7 @@ async def execute_session_voice_intents(
             "no_reprompt": True,
             "recognized_text": transcript,
             "transcript": transcript,
-            "tier": int(session.tier),
+            "tier": actor_tier,
             "role": session.role,
             "user_name": session.display_name,
             "reply": spoken_nlu,
@@ -341,160 +506,219 @@ async def execute_session_voice_intents(
             **aoede_fields_nlu,
         })
 
-    norm_transcript = strip_vietnamese_diacritics(transcript.lower())
-    if any(
-        k in norm_transcript
-        for k in ("nhiet do", "do am", "cam bien", "am thanh", "ky037", "ky 037", "tieng dong", "vo tay")
-    ) and not any(
-        w in norm_transcript for w in ("set ", "chinh ", "dat ", "len ", "xuong ")
-    ):
-        sensors = (
-            engine.read_all_sensors()
-            if hasattr(engine, "read_all_sensors")
-            else {
-                "temperature_c": 28.5,
-                "humidity_pct": 65.0,
-                "soil_moisture_pct": 62.0,
-                "sound_detected": False,
-                "sound_status": "Yên tĩnh",
-            }
+    # 4. Direct simple device commands -> RBAC check -> EXECUTE IMMEDIATELY -> short Vietnamese confirmation
+    word_map = engine.get_word_mappings() if hasattr(engine, "get_word_mappings") else None
+    intents = parse_direct_device_intents_vi(transcript, word_mappings=word_map)
+    if intents:
+        await handle_pending_interruption_if_any(
+            raw_text=transcript,
+            engine=engine,
+            session=session,
+            source=source,
+            session_key=skey,
+            is_new_valid_intent=True,
         )
-        sound_lbl = "phát hiện tiếng động lớn" if sensors.get("sound_detected") else "yên tĩnh"
-        spoken_sensor = (
-            f"Nhiệt độ phòng hiện tại là {sensors['temperature_c']:.1f} độ C, "
-            f"độ ẩm không khí {sensors['humidity_pct']:.0f} phần trăm, "
-            f"độ ẩm đất {sensors['soil_moisture_pct']:.0f} phần trăm, "
-            f"cảm biến âm thanh KY-037 đang {sound_lbl}."
-        )
-        echo_guard.record_ai_utterance(spoken_sensor)
-        aoede_fields_s: dict[str, Any] = {}
-        try:
-            aoede_bundle = await synthesize_aoede_phrase_audio(spoken_sensor, interactive_budget_sec=1.8)
-            aoede_fields_s = build_aoede_http_audio_fields(aoede_bundle)
-            pcm_s = aoede_bundle.get("pcm24k_bytes") or b""
-            if pcm_s:
-                echo_guard.note_ai_audio_chunk(len(pcm_s), sample_rate=24000)
-        except Exception as exc:
-            LOG.debug("aoede voice synthesis fallback skipped (sensor): %s", exc)
+        # Pre-check RBAC across all target devices before mutating any device
+        for item in intents:
+            dev_id = item["device_id"]
+            allowed, _reason = engine.check_device_permission(dev_id, actor_tier=actor_tier)
+            if not allowed:
+                spoken_deny = ensure_vietnamese_reply(FIXED_REJECTION_PHRASE_VI)
+                aoede_deny = await _synthesize_voice_reply_fields(spoken_deny, echo_guard)
+                return _strip_legacy_repeat_speech({
+                    "ok": False,
+                    "http_status": 403,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "rbac_blocked": True,
+                    "authorized": False,
+                    "permission": "DENIED",
+                    "silent": False,
+                    "should_reply": True,
+                    "ask_repeat": False,
+                    "play_audio": bool(aoede_deny.get("pcm24k_b64")),
+                    "no_reprompt": True,
+                    "recognized_text": transcript,
+                    "transcript": transcript,
+                    "intents": intents,
+                    "results": [],
+                    "tier": actor_tier,
+                    "role": session.role,
+                    "user_name": session.display_name,
+                    "error": spoken_deny,
+                    "reply": spoken_deny,
+                    "exact_spoken_reply": spoken_deny,
+                    "rejection_speech": spoken_deny,
+                    "reply_text": spoken_deny,
+                    **aoede_deny,
+                    "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
+                })
+
+        exec_results: list[dict[str, Any]] = []
+        exec_summary_items: list[dict[str, Any]] = []
+        for item in intents:
+            dev_id = item["device_id"]
+            act = item["action"]
+            prev_st = str((engine.devices.get(dev_id) or {}).get("state") or "")
+            res = await engine.execute_device_action(
+                dev_id,
+                act,
+                source=source,
+                bypass_rbac=False,
+                request_tier=actor_tier,
+                request_user_name=session.display_name,
+                request_role=session.role,
+            )
+            if not res.get("ok"):
+                is_blk = bool(res.get("rbac_blocked"))
+                err_txt = ensure_vietnamese_reply(
+                    FIXED_REJECTION_PHRASE_VI if is_blk else str(res.get("exact_spoken_reply") or res.get("error") or "Không thực hiện được lệnh.")
+                )
+                aoede_err = await _synthesize_voice_reply_fields(err_txt, echo_guard)
+                return _strip_legacy_repeat_speech({
+                    "ok": False,
+                    "http_status": 403 if is_blk else 400,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "rbac_blocked": is_blk,
+                    "authorized": not is_blk,
+                    "permission": "DENIED" if is_blk else "ALLOWED",
+                    "silent": False,
+                    "should_reply": True,
+                    "ask_repeat": False,
+                    "play_audio": bool(aoede_err.get("pcm24k_b64")),
+                    "no_reprompt": True,
+                    "recognized_text": transcript,
+                    "transcript": transcript,
+                    "intents": intents,
+                    "results": exec_results,
+                    "tier": actor_tier,
+                    "role": session.role,
+                    "user_name": session.display_name,
+                    "error": err_txt,
+                    "reply": err_txt,
+                    "exact_spoken_reply": err_txt,
+                    "rejection_speech": err_txt if is_blk else "",
+                    "reply_text": err_txt,
+                    **aoede_err,
+                    "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
+                })
+            exec_results.append(res)
+            new_st = str((engine.devices.get(dev_id) or {}).get("state") or "")
+            exec_summary_items.append({
+                "device_id": dev_id,
+                "action": act,
+                "previous_state": prev_st,
+                "state": new_st,
+                "already_in_state": bool(prev_st and new_st and prev_st == new_st),
+            })
+
+        spoken_ok = ensure_vietnamese_reply(format_short_action_reply_vi(exec_summary_items, engine.devices))
+        aoede_ok = await _synthesize_voice_reply_fields(spoken_ok, echo_guard)
+        last_item = exec_summary_items[-1]
         return _strip_legacy_repeat_speech({
             "ok": True,
             "http_status": 200,
             "executed": True,
+            "confirmed": True,
+            "requires_confirmation": False,
+            "rbac_blocked": False,
             "authorized": True,
             "permission": "ALLOWED",
             "silent": False,
             "should_reply": True,
             "ask_repeat": False,
-            "play_audio": bool(aoede_fields_s.get("pcm24k_b64")),
+            "play_audio": bool(aoede_ok.get("pcm24k_b64")),
             "no_reprompt": True,
             "recognized_text": transcript,
             "transcript": transcript,
-            "sensors": sensors,
-            "tier": int(session.tier),
+            "device_id": last_item["device_id"],
+            "state": last_item["state"],
+            "intents": intents,
+            "results": exec_results,
+            "tier": actor_tier,
             "role": session.role,
             "user_name": session.display_name,
-            "reply": spoken_sensor,
-            "exact_spoken_reply": spoken_sensor,
+            "error": "",
+            "reply": spoken_ok,
+            "exact_spoken_reply": spoken_ok,
             "rejection_speech": "",
-            "reply_text": spoken_sensor,
-            **aoede_fields_s,
+            "reply_text": spoken_ok,
+            **aoede_ok,
             "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
         })
 
-    raw_intents = parse_vietnamese_voice_command_intents(transcript)
-    intents = _normalize_intents(raw_intents, transcript)
-    if not intents:
-        return _strip_legacy_repeat_speech(
-            {
-                "ok": False,
-                "executed": False,
-                "authorized": True,
-                "permission": "ALLOWED",
-                "silent": True,
-                "should_reply": False,
-                "ask_repeat": False,
-                "play_audio": False,
-                "no_reprompt": True,
-                "reason": "no_intent",
-                "error": "no_intent",
-                "recognized_text": transcript,
-                "transcript": transcript,
-                "intents": [],
-                "reply": "",
-                "exact_spoken_reply": "",
-                "rejection_speech": "",
-                "reply_text": "",
-                "pcm24k_b64": "",
-                "audio_b64": "",
-                "tier": int(session.tier),
-                "role": session.role,
-                "user_name": session.display_name,
-            }
-        )
-
-    staged = await stage_device_intents_for_confirmation(
+    # 5. Unrelated/ambiguous/unsupported/foreign/nonsense: check pending reminder first, else short Vietnamese clarification
+    reminder = await handle_pending_interruption_if_any(
+        raw_text=transcript,
         engine=engine,
         session=session,
         source=source,
-        intents=intents,
         session_key=skey,
-        ttl_sec=PENDING_CONFIRM_TTL_SEC,
+        is_new_valid_intent=False,
     )
-    staged_payload = dict(staged.get("payload") or {})
-    is_ok_staged = bool(staged_payload.get("ok"))
-    is_blocked_staged = bool(staged_payload.get("rbac_blocked"))
-    http_status_staged = int(staged.get("status_code") or (403 if is_blocked_staged else 200))
-    raw_spoken = str(
-        staged_payload.get("exact_spoken_reply")
-        or staged_payload.get("reply")
-        or staged_payload.get("error")
-        or ""
-    ).strip()
-    spoken = sanitize_spoken_vietnamese_text(raw_spoken) or raw_spoken
-    if spoken:
-        echo_guard.record_ai_utterance(spoken)
-    aoede_fields: dict[str, Any] = {}
-    if spoken and not any(marker in spoken.lower() for marker in _LEGACY_REPEAT_MARKERS):
-        try:
-            aoede_bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=1.8)
-            aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
-            pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
-            if pcm_bytes_out:
-                echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
-        except Exception as exc:
-            LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
+    if reminder is not None:
+        rem_payload = dict(reminder.get("payload") or {})
+        spoken_rem = ensure_vietnamese_reply(str(rem_payload.get("exact_spoken_reply") or rem_payload.get("reply") or ""))
+        aoede_rem = await _synthesize_voice_reply_fields(spoken_rem, echo_guard)
+        return _strip_legacy_repeat_speech({
+            **rem_payload,
+            "ok": True,
+            "http_status": 200,
+            "executed": False,
+            "rbac_blocked": False,
+            "authorized": True,
+            "permission": "ALLOWED",
+            "silent": False,
+            "should_reply": True,
+            "ask_repeat": False,
+            "play_audio": bool(aoede_rem.get("pcm24k_b64")),
+            "no_reprompt": True,
+            "recognized_text": transcript,
+            "transcript": transcript,
+            "tier": actor_tier,
+            "role": session.role,
+            "user_name": session.display_name,
+            "reply": spoken_rem,
+            "exact_spoken_reply": spoken_rem,
+            "rejection_speech": "",
+            "reply_text": spoken_rem,
+            **aoede_rem,
+        })
 
-    payload = {
-        **staged_payload,
-        "ok": is_ok_staged,
-        "http_status": http_status_staged,
+    clarification = ensure_vietnamese_reply(
+        classify_ambiguous_or_unsupported_vi(transcript) or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé."
+    )
+    aoede_cl = await _synthesize_voice_reply_fields(clarification, echo_guard)
+    return _strip_legacy_repeat_speech({
+        "ok": True,
+        "http_status": 200,
         "executed": False,
-        "confirmed": False,
-        "requires_confirmation": bool(staged_payload.get("requires_confirmation")) and is_ok_staged,
-        "authorized": not is_blocked_staged,
-        "permission": "DENIED" if is_blocked_staged else "ALLOWED",
+        "requires_confirmation": False,
+        "needs_clarification": True,
+        "rbac_blocked": False,
+        "authorized": True,
+        "permission": "ALLOWED",
         "silent": False,
-        "should_reply": bool(spoken),
+        "should_reply": True,
         "ask_repeat": False,
-        "play_audio": bool(spoken and aoede_fields.get("pcm24k_b64")),
+        "play_audio": bool(aoede_cl.get("pcm24k_b64")),
         "no_reprompt": True,
+        "reason": "needs_clarification",
         "recognized_text": transcript,
         "transcript": transcript,
-        "intents": staged_payload.get("intents") or intents,
-        "results": staged_payload.get("results") or [],
-        "tier": int(session.tier),
+        "intents": [],
+        "results": [],
+        "tier": actor_tier,
         "role": session.role,
         "user_name": session.display_name,
-        "rbac_blocked": is_blocked_staged,
-        "error": "" if is_ok_staged else str(staged_payload.get("error") or "command_failed"),
-        "reply": spoken,
-        "exact_spoken_reply": spoken,
-        "rejection_speech": spoken if is_blocked_staged else "",
-        "reply_text": spoken,
-        **aoede_fields,
+        "reply": clarification,
+        "exact_spoken_reply": clarification,
+        "rejection_speech": "",
+        "reply_text": clarification,
+        **aoede_cl,
         "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
-    }
-    return _strip_legacy_repeat_speech(payload)
+    })
 
 
 async def process_session_voice_command(

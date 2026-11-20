@@ -36,6 +36,15 @@ KB_VERSION = "4.0-CONCISE-QA-6-DEVICES-3-SENSORS"
 
 DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
     {
+        "id": "greeting_small_talk",
+        "min_tier": "3",
+        "topic": "Chào hỏi và giao tiếp cơ bản",
+        "keywords": "chào bạn, xin chào, chào, chào buổi sáng, chào buổi trưa, chào buổi chiều, chào buổi tối, cảm ơn, cám ơn, tạm biệt, trợ giúp, giúp tôi, hướng dẫn, alo trợ lý, ê trợ lý",
+        "content": (
+            "Xin chào! Tôi là trợ lý nhà thông minh, tôi có thể giúp gì cho bạn?"
+        ),
+    },
+    {
         "id": "identity_and_creator",
         "min_tier": "3",
         "topic": "Bạn là ai / Ai tạo ra bạn",
@@ -114,7 +123,9 @@ def ensure_kb_file() -> list[dict[str, str]]:
         try:
             raw = json.loads(KB_FILE.read_text(encoding="utf-8"))
             if isinstance(raw, dict) and raw.get("version") == KB_VERSION and isinstance(raw.get("items"), list):
-                return raw["items"]
+                existing_ids = {str(it.get("id") or "") for it in raw["items"] if isinstance(it, dict)}
+                if "greeting_small_talk" in existing_ids:
+                    return raw["items"]
         except Exception:
             pass
     payload = {"version": KB_VERSION, "items": DEFAULT_KNOWLEDGE_ITEMS}

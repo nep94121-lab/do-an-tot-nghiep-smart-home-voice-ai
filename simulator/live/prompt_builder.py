@@ -30,10 +30,8 @@ ACTION_ENUM = ["open", "close", "turn_on", "turn_off"]
 fn_control_device = types.FunctionDeclaration(
     name="control_device",
     description=(
-        "Yêu cầu bật/tắt hoặc mở/đóng thiết bị trong nhà. "
-        "Hệ thống sẽ kiểm tra quyền phía server và tạo bản nháp chờ người dùng xác nhận tự nhiên ('ok', 'được', 'đúng rồi', 'đồng ý') trước khi thực thi. "
-        "Lưu ý: Nếu người dùng dùng từ đã đổi (word_mapping) hoặc khẩu lệnh đã đổi (alias), "
-        "hãy dịch sang device_id và action chuẩn rồi gọi hàm này (hoặc gọi execute_alias_rule)."
+        "Bật/tắt hoặc mở/đóng thiết bị trong nhà NGAY LẬP TỨC sau khi kiểm tra phân quyền phía server. "
+        "KHÔNG hỏi xác nhận trước với lệnh bật/tắt/mở/đóng trực tiếp; sau khi thực thi chỉ báo ngắn gọn bằng tiếng Việt (VD: 'Đã mở cửa chính.', 'Đã bật đèn phòng khách.')."
     ),
     parameters={
         "type": "OBJECT",
@@ -204,18 +202,21 @@ fn_execute_alias_rule = types.FunctionDeclaration(
 fn_set_if_else_rule = types.FunctionDeclaration(
     name="set_if_else_rule",
     description=(
-        "Thiết lập LIÊN KẾT / LUẬT TỰ ĐỘNG IF-THEN giữa các thiết bị (VD: 'từ giờ mở cửa chính thì mở cả đèn', 'khi bật máy bơm thì bật đèn'). "
+        "Thiết lập LIÊN KẾT / LUẬT TỰ ĐỘNG IF-THEN giữa các thiết bị hoặc cảm biến (VD: 'khi mở cửa chính thì bật đèn phòng khách', 'khi đất khô thì bật bơm', 'khi có tiếng động lớn thì bật còi'). "
         "Chỉ điền `else_device_id` khi người dùng nói rõ vế ngược lại. "
-        "Khi gọi tool, server kiểm tra phân quyền (Cấp 2 cần được Cấp 1 cấp quyền liên kết) rồi lưu nháp chờ xác nhận (20s) và trả `exact_spoken_reply` — BẮT BUỘC đọc nguyên văn để hỏi xác nhận."
+        "Khi gọi tool, server kiểm tra phân quyền (Cấp 2 cần được Cấp 1 cấp quyền liên kết) rồi lưu nháp chờ xác nhận và trả `exact_spoken_reply` — BẮT BUỘC đọc nguyên văn để hỏi xác nhận."
     ),
     parameters={
         "type": "OBJECT",
         "properties": {
-            "when_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
+            "when_device_id": {
+                "type": "STRING",
+                "enum": DEVICE_ENUM[:6] + ["soil_sensor", "sound_sensor"],
+            },
             "when_state": {
                 "type": "STRING",
-                "enum": ["ON", "OFF", "OPEN", "CLOSED"],
-                "description": "Trạng thái điều kiện IF của thiết bị nguồn (ON, OFF, OPEN, CLOSED).",
+                "enum": ["ON", "OFF", "OPEN", "CLOSED", "DRY", "WET", "LOUD", "QUIET"],
+                "description": "Trạng thái điều kiện IF của thiết bị hoặc cảm biến nguồn (ON, OFF, OPEN, CLOSED, DRY, WET, LOUD, QUIET).",
             },
             "then_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
             "then_action": {"type": "STRING", "enum": ACTION_ENUM},
@@ -767,8 +768,8 @@ fn_read_sensors = types.FunctionDeclaration(
 fn_set_device = types.FunctionDeclaration(
     name="set_device",
     description=(
-        "Yêu cầu bật/tắt/mở/đóng hoặc đặt giá trị cho thiết bị (độ sáng đèn 0-100%). "
-        "Hệ thống sẽ kiểm tra quyền phía server và tạo bản nháp chờ người dùng xác nhận bằng lời ('ok', 'đồng ý', 'được', 'đúng rồi') trước khi thực thi."
+        "Bật/tắt/mở/đóng hoặc đặt thông số (độ sáng đèn 0-100%) cho thiết bị NGAY LẬP TỨC sau khi kiểm tra quyền phía server. "
+        "KHÔNG hỏi xác nhận trước với lệnh điều khiển trực tiếp; sau khi thực thi chỉ báo ngắn gọn (VD: 'Đã bật đèn phòng khách.')."
     ),
     parameters={
         "type": "OBJECT",
@@ -1062,25 +1063,38 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         f"- Ngữ cảnh tùy chỉnh: {scenes_txt}.\n"
         f"- Luật liên kết của {cur_user}: {ifelse_txt}; Luật đã lưu: {db_rules_txt}.\n"
         "\n"
-        "4. QUY TẮC DÙNG CÔNG CỤ & XÁC NHẬN:\n"
-        "- Khi hỏi trạng thái thiết bị, nhiệt độ, độ ẩm, âm thanh, hẹn giờ hay lịch, luôn gọi công cụ đọc tương ứng rồi đọc lại số liệu bằng lời thường.\n"
-        "- Mọi yêu cầu bật/tắt/mở/đóng hoặc thay đổi thông số thiết bị, đặt hoặc xóa hẹn giờ, đặt hoặc xóa lịch, tạo luật hay reset: luôn gọi công cụ tạo bản nháp trước, nhắc lại bằng lời thường như 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?' rồi chờ người dùng trả lời 'ok', 'đồng ý', 'được' hoặc 'đúng rồi' mới gọi công cụ xác nhận và báo ngắn gọn.\n"
-        "- Nếu người dùng nói 'không' hoặc 'hủy', gọi công cụ hủy và báo ngắn gọn 'Đã hủy.'.\n"
-        "- Nếu công cụ trả câu thông báo bắt buộc hoặc câu từ chối quyền, hãy đọc đúng nội dung đó bằng tiếng Việt tự nhiên.\n"
-        f'- Nếu chưa đăng nhập hoặc không đủ quyền, chỉ nói: "{FIXED_REJECTION_PHRASE_VI}".\n'
-        f'- Khi âm thanh chưa rõ, chỉ nói: "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".'
+        "4. QUY TẮC HÀNH ĐỘNG & XÁC NHẬN (6 CHÍNH SÁCH BẮT BUỘC):\n"
+        "- CHÍNH SÁCH 1 (HÀNH ĐỘNG NGAY với lệnh thiết bị đơn giản): Mọi lệnh bật/tắt/mở/đóng trực tiếp cho 6 thiết bị (VD: 'mở cửa', 'đóng cửa', 'bật đèn phòng khách', 'tắt tất cả đèn', 'bật máy bơm', 'tắt còi', 'bật loa') -> gọi ngay công cụ điều khiển thiết bị để thực thi NGAY LẬP TỨC (KHÔNG hỏi xác nhận trước) và chỉ báo lại CỰC NGẮN GỌN SAU KHI LÀM XONG (VD: 'Đã mở cửa chính.', 'Đã bật đèn phòng khách.').\n"
+        "- CHÍNH SÁCH 2 (CHỈ XÁC NHẬN với cấu hình phức tạp/tự động hóa): CHỈ hỏi xác nhận ngắn bằng tiếng Việt (VD: 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?') trước khi thực thi đối với: (1) tạo/sửa/xóa/chạy lệnh tùy chỉnh (custom command), (2) đặt/sửa/hủy hẹn giờ & lịch, (3) tạo/xóa luật liên kết giữa thiết bị hoặc cảm biến, (4) reset thiết bị / reset bể lệnh / khôi phục cài đặt gốc. Khi người dùng trả lời 'ok'/'đồng ý'/'được'/'đúng rồi'/'ừ'/'có' mới xác nhận; nói 'không'/'hủy'/'thôi' thì hủy và báo 'Đã hủy.'.\n"
+        "- CHÍNH SÁCH 3 (HỎI CẢM BIẾN & TRẠNG THÁI): Khi hỏi nhiệt độ, độ ẩm, độ ẩm đất, âm thanh KY-037, trạng thái thiết bị hoặc chế độ bơm tự động -> gọi công cụ đọc tương ứng và trả lời ngay số liệu thực tế bằng tiếng Việt ngắn gọn.\n"
+        "- CHÍNH SÁCH 4 (CHÀO HỎI & GIAO TIẾP TỰ NHIÊN): Các câu chào hỏi ('chào bạn', 'xin chào', 'bạn là ai', 'cảm ơn', 'tạm biệt', 'giúp tôi') luôn được trả lời thân thiện, ngắn gọn bằng tiếng Việt cho MỌI TẦNG QUYỀN (Cấp 1, 2, 3), TUYỆT ĐỐI KHÔNG báo lỗi không có quyền cho câu chào hỏi.\n"
+        "- CHÍNH SÁCH 5 (KHÓA CỨNG 100% TIẾNG VIỆT): Luôn nghe hiểu và trả lời 100% bằng tiếng Việt. Nếu nghe ngoại ngữ, chỉ đáp bằng tiếng Việt: 'Tôi chỉ hỗ trợ tiếng Việt, bạn vui lòng nói lệnh bằng tiếng Việt nhé.' và KHÔNG thực hiện bất kỳ thao tác thiết bị nào.\n"
+        "- CHÍNH SÁCH 6 (KHÔNG ĐOÁN BỪA KHI MƠ HỒ): Nếu thiếu hành động, thiếu thiết bị, thiết bị không hỗ trợ (quạt, điều hòa, tivi...) hoặc âm thanh nhiễu -> KHÔNG tác động thiết bị, chỉ hỏi lại ngắn gọn bằng tiếng Việt.\n"
+        f'- Chỉ khi người dùng cố thực hiện lệnh thiết bị/tự động hóa vượt quá cấp quyền mới nói: "{FIXED_REJECTION_PHRASE_VI}".'
     )
 
 
-def make_live_config(engine: SmartHomeEngine) -> types.LiveConnectConfig:
+def make_live_config(engine: SmartHomeEngine, *, strict_lang_fields: bool = True) -> types.LiveConnectConfig:
+    voice_cfg = types.VoiceConfig(
+        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
+    )
+    if strict_lang_fields:
+        try:
+            speech_cfg = types.SpeechConfig(voice_config=voice_cfg, language_code="vi-VN")
+        except TypeError:
+            speech_cfg = types.SpeechConfig(voice_config=voice_cfg)
+        try:
+            in_tx_cfg = types.AudioTranscriptionConfig(language_codes=["vi-VN"])
+        except TypeError:
+            in_tx_cfg = types.AudioTranscriptionConfig()
+    else:
+        speech_cfg = types.SpeechConfig(voice_config=voice_cfg)
+        in_tx_cfg = types.AudioTranscriptionConfig()
+
     return types.LiveConnectConfig(
         response_modalities=[types.Modality.AUDIO],
-        speech_config=types.SpeechConfig(
-            voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
-            ),
-        ),
-        input_audio_transcription=types.AudioTranscriptionConfig(),
+        speech_config=speech_cfg,
+        input_audio_transcription=in_tx_cfg,
         output_audio_transcription=types.AudioTranscriptionConfig(),
         realtime_input_config=types.RealtimeInputConfig(
             automatic_activity_detection=types.AutomaticActivityDetection(

@@ -74,7 +74,14 @@ class EngineVoiceRbacMixin:
                 res = await orig_exec(self, *a, **kw)
                 if isinstance(res, dict) and not res.get("ok", True):
                     err_txt = str(res.get("exact_spoken_reply") or res.get("error") or "")
-                    if "không tồn tại" not in err_txt and not err_txt.startswith("🔒"):
+                    err_low = err_txt.lower()
+                    is_rbac_err = (
+                        bool(res.get("rbac_blocked"))
+                        or err_txt.startswith("🔒")
+                        or "từ chối" in err_low
+                        or "quyền" in err_low
+                    )
+                    if is_rbac_err and "không tồn tại" not in err_low and not err_txt.startswith("🔒"):
                         res["rbac_blocked"] = True
                         res["exact_spoken_reply"] = FIXED_REJECTION_PHRASE_VI
                         res["rejection_speech"] = FIXED_REJECTION_PHRASE_VI
@@ -83,6 +90,7 @@ class EngineVoiceRbacMixin:
                             f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{FIXED_REJECTION_PHRASE_VI}'"
                         )
                     elif err_txt.startswith("🔒"):
+                        res["rbac_blocked"] = True
                         res.setdefault("rejection_speech", FIXED_REJECTION_PHRASE_VI)
                 return res
 

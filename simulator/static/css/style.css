@@ -942,6 +942,22 @@ h2,
   margin-bottom: 3px;
 }
 
+.voice-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.voice-confirm-actions[hidden] {
+  display: none;
+}
+
+.voice-confirm-actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+  flex: 1;
+}
+
 .command {
   display: flex;
   gap: 8px;
