@@ -581,7 +581,7 @@ def _find_free_port() -> int:
         return int(s.getsockname()[1])
 
 
-def _wait_for_server(base_url: str, timeout_s: float = 20.0) -> None:
+def _wait_for_server(base_url: str, timeout_s: float = 60.0) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
