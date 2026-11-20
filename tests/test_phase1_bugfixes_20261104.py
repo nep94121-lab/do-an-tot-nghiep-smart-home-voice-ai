@@ -51,7 +51,7 @@ def reset_rest_engine_session():
     eng.server_connected = True
     asyncio.run(eng.factory_reset())
     eng.set_active_user("tuan_anh")
-    for d in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+    for d in ("living_room_light", "bedroom_light", "speaker_amp", "garden_pump"):
         if d in eng.devices:
             eng.devices[d]["state"] = "OFF"
     if "main_door" in eng.devices:
@@ -66,7 +66,7 @@ def reset_rest_engine_session():
     eng.server_connected = True
     asyncio.run(eng.factory_reset())
     eng.set_active_user("tuan_anh")
-    for d in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+    for d in ("living_room_light", "bedroom_light", "speaker_amp", "garden_pump"):
         if d in eng.devices:
             eng.devices[d]["state"] = "OFF"
     if "main_door" in eng.devices:
@@ -139,7 +139,7 @@ def test_fix2_text_command_executes_real_device_actions_and_respects_rbac(client
     eng = _eng()
     eng.set_active_user("tuan_anh")
     assert eng.devices["living_room_light"]["state"] == "OFF"
-    assert eng.devices["fan"]["state"] == "OFF"
+    assert eng.devices["bedroom_light"]["state"] == "OFF"
 
     # Bật đèn phòng khách bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
     r1 = client.post("/api/text_command", json={"text": "Bật đèn phòng khách"}, headers=_OWNER_HDR)
@@ -150,14 +150,14 @@ def test_fix2_text_command_executes_real_device_actions_and_respects_rbac(client
     assert r1_ok.status_code == 200 and r1_ok.json().get("ok") is True
     assert eng.devices["living_room_light"]["state"] == "ON"
 
-    # Bật quạt trần bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
-    r2 = client.post("/api/text_command", json={"text": "Bật quạt trần"}, headers=_OWNER_HDR)
+    # Bật đèn phòng ngủ bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
+    r2 = client.post("/api/text_command", json={"text": "Bật đèn phòng ngủ"}, headers=_OWNER_HDR)
     assert r2.status_code == 200
     assert r2.json().get("ok") is True and r2.json().get("requires_confirmation") is True
-    assert eng.devices["fan"]["state"] == "OFF"
+    assert eng.devices["bedroom_light"]["state"] == "OFF"
     r2_ok = client.post("/api/text_command", json={"text": "ok"}, headers=_OWNER_HDR)
     assert r2_ok.status_code == 200 and r2_ok.json().get("ok") is True
-    assert eng.devices["fan"]["state"] == "ON"
+    assert eng.devices["bedroom_light"]["state"] == "ON"
 
     # Tắt đèn phòng khách bằng lệnh văn bản -> nhắc lại -> xác nhận "ok"
     r3 = client.post("/api/text_command", json={"text": "Tắt đèn phòng khách"}, headers=_OWNER_HDR)

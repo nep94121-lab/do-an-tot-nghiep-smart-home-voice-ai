@@ -84,7 +84,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
         },
         "permissions": [
             "Mở/Khóa Cửa chính (D1) & Còi báo động (D8)",
-            "Điều khiển toàn bộ Đèn/Quạt/Bơm/Điều hòa",
+            "Điều khiển toàn bộ Đèn/Bơm/Nguồn mạch loa PAM8403",
             "Gửi 2 đường link mời (Cấp 2 & Cấp 3)",
             "Xóa cấp quyền / Bật lại quyền bằng giọng nói trên thiết bị",
         ],
@@ -116,7 +116,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
             "updated_at": "02/11/2026",
         },
         "permissions": [
-            "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
+            "Bật/Tắt Đèn khách (D0), Đèn ngủ (D4), Máy bơm (D6), Nguồn loa PAM8403 (D7)",
             "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
@@ -148,7 +148,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
             "updated_at": "02/11/2026",
         },
         "permissions": [
-            "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
+            "Bật/Tắt Đèn khách (D0), Đèn ngủ (D4), Máy bơm (D6), Nguồn loa PAM8403 (D7)",
             "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
@@ -180,7 +180,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
             "updated_at": "02/11/2026",
         },
         "permissions": [
-            "Chỉ bật/tắt đèn & quạt cơ bản",
+            "Chỉ bật/tắt đèn phòng khách & đèn phòng ngủ",
             "Không có phần gửi link mời cấp dưới",
             "Bị chặn Cửa chính (D1), Còi (D8) và cài đặt luật",
         ],
@@ -212,7 +212,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
             "updated_at": "05/11/2026",
         },
         "permissions": [
-            "Bật/Tắt Đèn khách (D2), Đèn ngủ (D7), Máy bơm (D3), Điều hòa (IR D2), Quạt (D6)",
+            "Bật/Tắt Đèn khách (D0), Đèn ngủ (D4), Máy bơm (D6), Nguồn loa PAM8403 (D7)",
             "Không có quyền cấp quyền hay gửi link mời cấp dưới",
             "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
         ],
@@ -244,7 +244,7 @@ DEFAULT_ACCOUNTS: list[dict[str, Any]] = [
             "updated_at": "05/11/2026",
         },
         "permissions": [
-            "Chỉ bật/tắt đèn & quạt cơ bản",
+            "Chỉ bật/tắt đèn phòng khách & đèn phòng ngủ",
             "Không có phần gửi link mời cấp dưới",
             "Bị chặn Cửa chính (D1), Còi (D8) và cài đặt luật",
         ],

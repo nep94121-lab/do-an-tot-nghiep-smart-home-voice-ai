@@ -2,7 +2,7 @@
 
 Issue R4: 3D Chip Overlay Initial Label State
 Objective:
-Prevent the 3D chip overlay from showing 'Đèn khách (D2):' with an empty value
+Prevent the 3D chip overlay from showing 'Đèn khách (D0):' with an empty value
 during the initial update cycle; hide the label when no value is present.
 
 TDD Validation Cycle:
@@ -300,7 +300,7 @@ class TestBugR4NodeVmHeadlessExecution:
     """Kiểm thử thực nghiệm hành vi nhãn living_room_light trên Node.js Headless VM."""
 
     def test_initial_state_living_room_light_hidden(self, node_vm_runner):
-        """Khi vừa khởi tạo buildFloatingPins, nhãn 'Đèn khách (D2):' phải ẩn và không hiển thị OFF giả tạo."""
+        """Khi vừa khởi tạo buildFloatingPins, nhãn 'Đèn khách (D0):' phải ẩn và không hiển thị OFF giả tạo."""
         scenario = """
         const stSpan = livingPin.querySelector('.pin-state');
         result.initialDisplay = livingPin.style.display || 'visible';

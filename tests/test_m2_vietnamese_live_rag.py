@@ -1,8 +1,8 @@
 """Unit & Integration Test Suite cho Cột mốc M2:
 1. Gemini Live Vietnamese Speech Config (`vi-VN`, Aoede) & VAD 1000ms LOW.
-2. System Instruction: Vietnamese Prompt Guard, Filler Sound Guard, Domain Guard 7 thiết bị.
+2. System Instruction: Vietnamese Prompt Guard, Filler Sound Guard, Domain Guard 6 thiết bị.
 3. Cơ chế đệm âm thanh & hoãn strike khi âm thanh quá ngắn (< 0.5s) hoặc chứa vocal fry.
-4. RAG Tri thức 7 thiết bị phần cứng & kiểm soát phân quyền 3 tầng.
+4. RAG Tri thức 6 thiết bị phần cứng & kiểm soát phân quyền 3 tầng.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.assertEqual(aad.prefix_padding_ms, 100)
 
     def test_02_build_system_instruction_guards(self) -> None:
-        """Kiểm tra System Instruction có đủ Vietnamese Prompt Guard, Filler Sound Guard và Domain Guard 7 thiết bị."""
+        """Kiểm tra System Instruction có đủ Vietnamese Prompt Guard, Filler Sound Guard và Domain Guard 6 thiết bị."""
         prompt = build_system_instruction(self.engine)
 
         # 1. Vietnamese Prompt Guard
@@ -68,31 +68,30 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.assertIn("ờ", prompt)
         self.assertIn("Tôi có thể giúp gì cho bạn?", prompt)
 
-        # 3. Domain Guard 7 thiết bị
+        # 3. Domain Guard 6 thiết bị
         self.assertIn("Smart Home Domain Guard", prompt)
-        self.assertIn("7 thiết bị nhà thông minh", prompt)
-        self.assertIn("Máy bơm tưới cây (D3)", prompt)
+        self.assertIn("6 thiết bị", prompt)
         self.assertIn("Cửa chính (D1)", prompt)
-        self.assertIn("Đèn phòng khách (D2)", prompt)
-        self.assertIn("Đèn phòng ngủ (D7)", prompt)
-        self.assertIn("Quạt trần (D6)", prompt)
-        self.assertIn("Điều hòa Casper (D2 IR)", prompt)
+        self.assertIn("Đèn phòng khách (D0)", prompt)
+        self.assertIn("Đèn phòng ngủ (D4)", prompt)
+        self.assertIn("Máy bơm tưới cây (D6)", prompt)
         self.assertIn("Còi báo động (D8)", prompt)
+        self.assertIn("Nguồn mạch loa PAM8403 (D7, âm thanh PWM ra D3)", prompt)
 
-    def test_03_rag_7_devices_synchronization(self) -> None:
-        """Kiểm tra RAG trả lời chính xác 7 thiết bị và bao gồm Máy bơm tưới cây."""
+    def test_03_rag_6_devices_synchronization(self) -> None:
+        """Kiểm tra RAG trả lời chính xác 6 thiết bị và bao gồm Máy bơm tưới cây."""
         rag = SmartHomeKnowledgeRAG()
 
         # Hỏi số lượng thiết bị
         res_count = rag.retrieve("Nhà có mấy thiết bị?")
         self.assertTrue(res_count["ok"])
-        self.assertIn("7 thiết bị", res_count["exact_spoken_reply"])
-        self.assertIn("Máy bơm tưới cây (D3)", res_count["exact_spoken_reply"])
+        self.assertIn("6 thiết bị", res_count["exact_spoken_reply"])
+        self.assertIn("Máy bơm tưới cây Relay 1 (D6/GPIO12)", res_count["exact_spoken_reply"])
 
         # Hỏi chức năng làm được gì
         res_cap = rag.retrieve("Bạn có thể làm những gì?")
         self.assertTrue(res_cap["ok"])
-        self.assertIn("7 thiết bị", res_cap["exact_spoken_reply"])
+        self.assertIn("6 thiết bị", res_cap["exact_spoken_reply"])
         self.assertIn("Máy bơm tưới cây", res_cap["exact_spoken_reply"])
 
         # Hỏi về máy bơm tưới cây

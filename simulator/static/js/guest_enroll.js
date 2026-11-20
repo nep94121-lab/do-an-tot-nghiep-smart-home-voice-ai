@@ -21,9 +21,9 @@ function getGuestEnrollmentPrompts5(speakerName, roleDesc) {
   const role = roleDesc || 'Khách đến chơi nhà (Cấp 3)';
   return [
     `Mẫu 1/5 (3–5s): Xin chào ngôi nhà, tôi là ${name} đăng ký quyền ${role} để điều khiển thiết bị bằng giọng nói.`,
-    `Mẫu 2/5 (3–5s): Hệ thống nhà thông minh Bách Khoa hãy bật đèn phòng khách và quạt bàn cho khách.`,
+    `Mẫu 2/5 (3–5s): Hệ thống nhà thông minh Bách Khoa hãy bật đèn phòng khách cho khách.`,
     `Mẫu 3/5 (3–5s): Kiểm tra trạng thái đèn chiếu sáng và nhiệt độ phòng khách hôm nay.`,
-    `Mẫu 4/5 (3–5s): Tắt đèn bàn làm việc và điều chỉnh tốc độ quạt phòng khách vừa phải.`,
+    `Mẫu 4/5 (3–5s): Tắt đèn phòng ngủ và kiểm tra trạng thái đèn phòng khách.`,
     `Mẫu 5/5 (3–5s): Tôi là ${name} xác nhận hoàn tất năm mẫu giọng nói riêng biệt trên hệ thống.`
   ];
 }

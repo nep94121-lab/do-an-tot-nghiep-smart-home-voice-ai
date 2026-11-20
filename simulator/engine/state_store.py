@@ -866,9 +866,34 @@ class SqliteStateBackend:
         tkey = str(target)
         conn = open_wal_connection(target, readonly=False)
         if self._bootstrapped_key != tkey:
-            row = conn.execute("SELECT COUNT(*) FROM device_state").fetchone()
+            from simulator.auth.tier_permissions import min_tier_for_device
+            from simulator.db_migrations import role_for_tier
+
+            canonical_ids = set(DEFAULT_DEVICES.keys())
+            short_pins = {
+                "main_door": "D1",
+                "living_room_light": "D0",
+                "bedroom_light": "D4",
+                "garden_pump": "D6",
+                "alarm_siren": "D8",
+                "speaker_amp": "D7",
+            }
+            dev_rows = conn.execute("SELECT device_id, gpio_pin, min_tier_required, min_role FROM devices").fetchall()
+            ds_ids = {str(r[0]) for r in conn.execute("SELECT device_id FROM device_state").fetchall()}
             meta_row = conn.execute("SELECT COUNT(*) FROM system_state_meta WHERE id = 1").fetchone()
-            if int(row[0]) < len(DEFAULT_DEVICES) or int(meta_row[0]) == 0:
+            dev_ids = {str(r[0]) for r in dev_rows}
+            drift = (
+                dev_ids != canonical_ids
+                or ds_ids != canonical_ids
+                or int(meta_row[0]) == 0
+                or any(
+                    str(r[1] or "").split()[0].split("/")[0].strip() != short_pins.get(str(r[0]), "")
+                    or int(r[2] or 0) != min_tier_for_device(str(r[0]))
+                    or str(r[3] or "") != role_for_tier(min_tier_for_device(str(r[0])))
+                    for r in dev_rows
+                )
+            )
+            if drift:
                 conn.execute("BEGIN IMMEDIATE;")
                 try:
                     bootstrap_device_state_from_devices(conn, DEFAULT_DEVICES)
@@ -883,7 +908,7 @@ class SqliteStateBackend:
         meta = conn.execute(
             """
             SELECT revision_seq, revision_ts_ns, server_connected, pump_manual_override_off,
-                   dht11_json, soil_moisture_json, updated_at
+                   dht11_json, soil_moisture_json, sound_json, updated_at
             FROM system_state_meta WHERE id = 1
             """
         ).fetchone()
@@ -902,7 +927,9 @@ class SqliteStateBackend:
         devices_map: dict[str, Any] = {}
         for r in dev_rows:
             did = str(r["device_id"])
-            base = dict(DEFAULT_DEVICES.get(did, {"id": did}))
+            if did not in DEFAULT_DEVICES:
+                continue
+            base = dict(DEFAULT_DEVICES[did])
             try:
                 client_seqs = json.loads(str(r["client_seqs_json"] or "{}"))
             except Exception:
@@ -950,6 +977,12 @@ class SqliteStateBackend:
                 out["soil_moisture_telemetry"] = soil
         except Exception:
             pass
+        try:
+            snd = json.loads(str(meta["sound_json"] or "{}"))
+            if isinstance(snd, dict) and snd:
+                out["sound_telemetry"] = snd
+        except Exception:
+            pass
         return out
 
     def _write_snapshot_in_tx(self, conn: Any, snap: dict[str, Any]) -> None:
@@ -960,12 +993,13 @@ class SqliteStateBackend:
         now_iso = _dt.datetime.now(tz).isoformat()
         dht_obj = snap.get("dht11_telemetry") or {}
         soil_obj = snap.get("soil_moisture_telemetry") or {}
+        sound_obj = snap.get("sound_telemetry") or {}
         conn.execute(
             """
             INSERT INTO system_state_meta (
                 id, revision_seq, revision_ts_ns, server_connected, pump_manual_override_off,
-                dht_temp_c, dht_hum_pct, soil_moisture_pct, dht11_json, soil_moisture_json, updated_at
-            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                dht_temp_c, dht_hum_pct, soil_moisture_pct, dht11_json, soil_moisture_json, sound_json, updated_at
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 revision_seq = excluded.revision_seq,
                 revision_ts_ns = excluded.revision_ts_ns,
@@ -976,6 +1010,7 @@ class SqliteStateBackend:
                 soil_moisture_pct = excluded.soil_moisture_pct,
                 dht11_json = excluded.dht11_json,
                 soil_moisture_json = excluded.soil_moisture_json,
+                sound_json = excluded.sound_json,
                 updated_at = excluded.updated_at
             """,
             (
@@ -988,6 +1023,7 @@ class SqliteStateBackend:
                 soil_obj.get("soil_moisture_pct") if isinstance(soil_obj, dict) else None,
                 json.dumps(dht_obj, ensure_ascii=False) if isinstance(dht_obj, dict) else "{}",
                 json.dumps(soil_obj, ensure_ascii=False) if isinstance(soil_obj, dict) else "{}",
+                json.dumps(sound_obj, ensure_ascii=False) if isinstance(sound_obj, dict) else "{}",
                 now,
             ),
         )
@@ -1010,8 +1046,11 @@ class SqliteStateBackend:
         }
         devices_dict = snap.get("devices") or {}
         if isinstance(devices_dict, dict):
+            if "fan" not in devices_dict and "ac" not in devices_dict:
+                conn.execute("DELETE FROM device_state WHERE device_id IN ('fan', 'ac')")
+                conn.execute("DELETE FROM devices WHERE device_id IN ('fan', 'ac')")
             for did, dinfo in devices_dict.items():
-                if not isinstance(dinfo, dict):
+                if not isinstance(dinfo, dict) or did not in DEFAULT_DEVICES:
                     continue
                 extra = {k: v for k, v in dinfo.items() if k not in known_cols}
                 min_role = str(dinfo.get("min_role") or DEFAULT_DEVICES.get(did, {}).get("min_role") or "CHILD_GUEST")
@@ -1026,7 +1065,13 @@ class SqliteStateBackend:
                         offline_controllable, updated_at, min_role, room, device_type
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(device_id) DO UPDATE SET
+                        device_name = excluded.device_name,
+                        gpio_pin = excluded.gpio_pin,
                         state = excluded.state,
+                        min_tier_required = excluded.min_tier_required,
+                        offline_controllable = excluded.offline_controllable,
+                        min_role = excluded.min_role,
+                        device_type = excluded.device_type,
                         updated_at = excluded.updated_at
                     """,
                     (
@@ -1253,7 +1298,7 @@ def set_default_state_backend(backend: StateBackend | None) -> None:
 
 
 def build_default_shared_state_payload() -> dict[str, Any]:
-    """Tạo payload trạng thái mặc định chuẩn cho 7 thiết bị phần cứng."""
+    """Tạo payload trạng thái mặc định chuẩn cho 6 thiết bị phần cứng."""
     now = time.time()
     return {
         "revision_seq": 0,

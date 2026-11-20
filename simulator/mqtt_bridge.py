@@ -6,8 +6,8 @@
    - Hỗ trợ kết nối tới MQTT Broker chuẩn (TCP cổng 1883) HOẶC tự vận hành Embedded MQTT Message Bus nội bộ (Zero-Config).
 2. CAP Theorem & Active-Passive Edge Failover:
    - Tự động đồng bộ bản sao (Replica) của Bể 1 (Hẹn giờ) và Bể 2 (Luật IF-ELSE) qua Topic `smarthome/sync/pools` (`Retain=True`) xuống bộ nhớ Flash (`LittleFS`) của NodeMCU ESP8266.
-3. Write-Through Cache cho Thiết bị Hồng ngoại (IR 38kHz) & Telemetry Cảm biến (`DHT11`):
-   - Lưu trữ tức thời các mã sóng Remote đã chiếm quyền vào RAM và ghi xuyên suốt (`Write-Through`) xuống `simulator/data/ir_devices_db.json`.
+3. Telemetry Cảm biến (`DHT11`, `YL-69/LM393`, `KY-037/038`) & Đồng bộ Edge:
+   - Lưu trữ và phân phối thông số thời gian thực của 3 cảm biến (`D2`, `A0`, `D5`) qua các Topic MQTT chuẩn.
 """
 
 from __future__ import annotations
@@ -23,62 +23,30 @@ from typing import Any, Callable, Awaitable
 from simulator.engine.constants_and_time import resolve_data_dir
 
 DATA_DIR = resolve_data_dir()
-IR_DB_FILE = DATA_DIR / "ir_devices_db.json"
 EDGE_REPLICA_FILE = DATA_DIR / "esp8266_flash_replica.json"
 
-# Bảng ánh xạ thiết bị sang chân vật lý của NodeMCU ESP8266 (ESP-12E)
+# Bảng ánh xạ 6 thiết bị chấp hành sang chân vật lý của NodeMCU ESP8266 (ESP-12E)
 ESP8266_PIN_MAP: dict[str, dict[str, Any]] = {
     "main_door": {"pin": "D1", "gpio": 5, "mode": "PWM_SERVO"},
-    "living_room_light": {"pin": "D2", "gpio": 4, "mode": "DIGITAL_OUT"},
-    "bedroom_light": {"pin": "D7", "gpio": 13, "mode": "DIGITAL_OUT"},
-    "fan": {"pin": "D6", "gpio": 12, "mode": "DIGITAL_OUT"},
-    "ac": {"pin": "D2", "gpio": 4, "mode": "IR_BLAST_38KHZ"},
-    "alarm_siren": {"pin": "D8", "gpio": 15, "mode": "DIGITAL_OUT"},
-    "garden_pump": {"pin": "D3", "gpio": 0, "mode": "RELAY_PUMP_5V_DIODE_1N4007"},
-    "speaker_out": {"pin": "D4", "gpio": 2, "mode": "AUDIO_PWM_PAM8403_8OHM_3W"},
-    "voice_mic_rx": {"pin": "RX", "gpio": 3, "mode": "UART_MIC_VC02_MAX9814"},
+    "living_room_light": {"pin": "D0", "gpio": 16, "mode": "DIGITAL_OUT"},
+    "bedroom_light": {"pin": "D4", "gpio": 2, "mode": "DIGITAL_OUT_SAFE_BOOT"},
+    "garden_pump": {"pin": "D6", "gpio": 12, "mode": "RELAY_PUMP_5V_DIODE_1N4007"},
+    "alarm_siren": {"pin": "D8", "gpio": 15, "mode": "DIGITAL_OUT_ACTIVE_HIGH"},
+    "speaker_amp": {"pin": "D7", "gpio": 13, "mode": "RELAY_PAM8403_POWER_PWM_D3"},
 }
 
-DEFAULT_IR_DEVICES: dict[str, Any] = {
-    "ac": {
-        "device_id": "ac",
-        "device_name": "Điều hòa",
-        "brand": "Casper / Daikin IR 38kHz",
-        "carrier_khz": 38,
-        "commands": {
-            "open": {
-                "protocol": "COOLIX",
-                "hex_code": "0xB2BF40",
-                "raw_timings_us": [4420, 4400, 560, 1640, 560, 540, 560, 1640],
-                "temp_c": 24,
-            },
-            "turn_on": {
-                "protocol": "COOLIX",
-                "hex_code": "0xB2BF40",
-                "raw_timings_us": [4420, 4400, 560, 1640, 560, 540, 560, 1640],
-                "temp_c": 24,
-            },
-            "close": {
-                "protocol": "COOLIX",
-                "hex_code": "0xB27BE0",
-                "raw_timings_us": [4420, 4400, 560, 540, 560, 1640, 560, 540],
-                "temp_c": 0,
-            },
-            "turn_off": {
-                "protocol": "COOLIX",
-                "hex_code": "0xB27BE0",
-                "raw_timings_us": [4420, 4400, 560, 540, 560, 1640, 560, 540],
-                "temp_c": 0,
-            },
-        },
-    }
+ESP8266_SENSOR_PIN_MAP: dict[str, dict[str, Any]] = {
+    "dht11": {"pin": "D2", "gpio": 4, "mode": "ONE_WIRE_DHT11"},
+    "soil_moisture": {"pin": "A0", "gpio": 0, "mode": "ADC0_SOIL_LM393"},
+    "sound": {"pin": "D5", "gpio": 14, "mode": "DIGITAL_IN_KY037_DO"},
+    "speaker_audio_pwm": {"pin": "D3", "gpio": 0, "mode": "AUDIO_PWM_OUT_RC"},
 }
 
 
 class SmartHomeMQTTBridge:
     """Bộ điều phối bản tin MQTT chuẩn System Design Primer:
-    - Quản lý 9 Topic MQTT chuẩn giữa Server <-> NodeMCU ESP8266 <-> Web/Mobile App.
-    - Áp dụng Back Pressure (`max_queue_size=256`), Retained Messages, Last Will (LWT) và Write-Through Cache.
+    - Quản lý Topic MQTT chuẩn giữa Server <-> NodeMCU ESP8266 <-> Web/Mobile App.
+    - Áp dụng Back Pressure (`max_queue_size=256`), Retained Messages, Last Will (LWT) và Edge Sync.
     """
 
     MAX_QUEUE_SIZE = 256
@@ -93,7 +61,7 @@ class SmartHomeMQTTBridge:
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=60)
         self.dropped_backpressure_count: int = 0
 
-        # Trạng thái kết nối của NodeMCU ESP8266 & Cảm biến DHT11 (In-Memory Cache)
+        # Trạng thái kết nối của NodeMCU ESP8266 & 3 Cảm biến (In-Memory Cache)
         self.esp8266_status: dict[str, Any] = {
             "node_id": "esp8266_node_01",
             "chip": "NodeMCU ESP8266 (ESP-12E)",
@@ -116,44 +84,30 @@ class SmartHomeMQTTBridge:
             "temp_c": 28.5,
             "humidity_pct": 65.0,
             "heat_index_c": 29.8,
-            "sensor_pin": "D6 (GPIO 12)",
+            "sensor_pin": "D2 (GPIO 4)",
             "updated_at": time.time(),
         }
         self.soil_moisture_telemetry: dict[str, Any] = {
             "soil_moisture_pct": 62.0,
             "adc_raw": 420,
             "status_label": "Đủ ẩm",
-            "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+            "sensor_pin": "A0 (ADC0 - Cảm biến đất + LM393)",
             "auto_pump_below_pct": 40.0,
+            "auto_stop_above_pct": 70.0,
             "updated_at": time.time(),
         }
-        self.pending_ir_learning: dict[str, Any] | None = None
-        self.ir_devices: dict[str, Any] = self._load_ir_db()
-
-    def _load_ir_db(self) -> dict[str, Any]:
-        if IR_DB_FILE.exists():
-            try:
-                data = json.loads(IR_DB_FILE.read_text(encoding="utf-8"))
-                if isinstance(data, dict) and data:
-                    return data
-            except Exception:
-                pass
-        default_db = json.loads(json.dumps(DEFAULT_IR_DEVICES))
-        try:
-            IR_DB_FILE.write_bytes((json.dumps(default_db, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-        except OSError:
-            pass
-        return default_db
-
-    def _save_ir_db_write_through(self) -> None:
-        """Write-Through Cache: Cập nhật RAM đồng thời ghi xuyên suốt xuống đĩa."""
-        payload = json.dumps(self.ir_devices, ensure_ascii=False, indent=2) + "\n"
-        for _ in range(3):
-            try:
-                IR_DB_FILE.write_bytes(payload.encode("utf-8"))
-                return
-            except OSError:
-                time.sleep(0.01)
+        self.sound_telemetry: dict[str, Any] = {
+            "sound_detected": False,
+            "detected": False,
+            "loud_sound": False,
+            "do_state": 0,
+            "event_count": 0,
+            "last_event_at": 0.0,
+            "status_label": "Yên tĩnh",
+            "sensor_pin": "D5 (GPIO 14)",
+            "voice_ai_mic_note": "Gemini Voice AI dùng mic/loa web-device; KY-037 DO trên D5 phát hiện vỗ tay/tiếng động lớn.",
+            "updated_at": time.time(),
+        }
 
     async def publish(
         self,
@@ -201,10 +155,8 @@ class SmartHomeMQTTBridge:
         user_name: str,
         tier: int,
     ) -> dict[str, Any]:
-        """Xuất bản tin MQTT điều khiển phần cứng ESP8266 (`smarthome/cmd/actuate`)
-        và phát sóng hồng ngoại 38kHz (`smarthome/ir/blast`) nếu là thiết bị IR.
-        """
-        pin_info = ESP8266_PIN_MAP.get(device_id, {"pin": "D2", "gpio": 4, "mode": "DIGITAL_OUT"})
+        """Xuất bản tin MQTT điều khiển phần cứng ESP8266 (`smarthome/cmd/actuate`)."""
+        pin_info = ESP8266_PIN_MAP.get(device_id, {"pin": "D0", "gpio": 16, "mode": "DIGITAL_OUT"})
         target_entry: dict[str, Any] = {
             "device_id": device_id,
             "pin": pin_info["pin"],
@@ -229,30 +181,6 @@ class SmartHomeMQTTBridge:
             direction="SERVER -> ESP8266",
         )
 
-        # Nếu thiết bị có mã sóng hồng ngoại 38kHz (VD: Điều hòa hoặc thiết bị mới học từ Remote)
-        if device_id in self.ir_devices:
-            ir_dev = self.ir_devices[device_id]
-            cmd_info = ir_dev.get("commands", {}).get(action) or ir_dev.get("commands", {}).get(
-                "open" if state in ("ON", "OPEN") else "close"
-            )
-            if cmd_info:
-                await self.publish(
-                    topic="smarthome/ir/blast",
-                    payload={
-                        "device_id": device_id,
-                        "device_name": ir_dev.get("device_name", device_id),
-                        "action": action,
-                        "pin": "D2",
-                        "carrier_khz": ir_dev.get("carrier_khz", 38),
-                        "protocol": cmd_info.get("protocol", "RAW_38KHZ"),
-                        "hex_code": cmd_info.get("hex_code", "0xB2BF40"),
-                        "raw_timings_us": cmd_info.get("raw_timings_us", []),
-                    },
-                    qos=1,
-                    retain=False,
-                    direction="SERVER -> ESP8266 (IR 38kHz)",
-                )
-
         # Mô phỏng phản hồi xác nhận tức thì từ ESP8266 (`smarthome/state/report`)
         await self.publish(
             topic="smarthome/state/report",
@@ -271,7 +199,7 @@ class SmartHomeMQTTBridge:
 
     async def publish_enrollment_blink(self, device_id: str, pulse_ms: int = 350) -> dict[str, Any]:
         """Xuất bản tin MQTT `smarthome/cmd/enroll_blink` để ESP8266 nháy đèn báo hiệu bắt đầu thu âm 3-2-1."""
-        pin_info = ESP8266_PIN_MAP.get(device_id, {"pin": "D2", "gpio": 4})
+        pin_info = ESP8266_PIN_MAP.get(device_id, {"pin": "D0", "gpio": 16})
         return await self.publish(
             topic="smarthome/cmd/enroll_blink",
             payload={
@@ -355,7 +283,7 @@ class SmartHomeMQTTBridge:
         return round(max(min_val, min(max_val, f)), 1)
 
     async def update_dht11_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
-        """Nhận bản tin cảm biến `smarthome/telemetry/dht11` từ chân D6 của ESP8266."""
+        """Nhận bản tin cảm biến `smarthome/telemetry/dht11` từ chân D2 của ESP8266."""
         prev_t = self.dht11_telemetry.get("temp_c", 28.5)
         prev_h = self.dht11_telemetry.get("humidity_pct", 65.0)
         if not isinstance(prev_t, (int, float)) or not math.isfinite(float(prev_t)) or float(prev_t) >= 60.0:
@@ -375,7 +303,7 @@ class SmartHomeMQTTBridge:
             "humidity_pct": h,
             "heat_index_c": hi,
             "wifi_rssi_dbm": rssi_int,
-            "sensor_pin": "D6 (GPIO 12)",
+            "sensor_pin": "D2 (GPIO 4)",
             "updated_at": time.time(),
         }
         self.esp8266_status["wifi_rssi_dbm"] = rssi_int
@@ -396,19 +324,20 @@ class SmartHomeMQTTBridge:
         )
 
     async def update_soil_moisture_telemetry(self, soil_moisture_pct: Any, adc_raw: int | None = None) -> dict[str, Any]:
-        """Nhận bản tin cảm biến Độ ẩm Đất `smarthome/telemetry/soil_moisture` từ chân A0 (YL-69 + LM393)."""
+        """Nhận bản tin cảm biến Độ ẩm Đất `smarthome/telemetry/soil_moisture` từ chân A0 (Đầu dò + LM393)."""
         prev_pct = self.soil_moisture_telemetry.get("soil_moisture_pct", 62.0)
         if not isinstance(prev_pct, (int, float)) or not math.isfinite(float(prev_pct)) or float(prev_pct) >= 100.0:
             prev_pct = 62.0
         pct = self._clamp_sensor_float(soil_moisture_pct, 0.0, 100.0, float(prev_pct))
         raw = adc_raw if adc_raw is not None else int(1024 - (pct / 100.0) * 700)
-        status_lbl = "Khô - Cần tưới" if pct < 40.0 else ("Đủ ẩm" if pct < 75.0 else "Ẩm ướt")
+        status_lbl = "Khô - Cần tưới" if pct < 40.0 else ("Đủ ẩm" if pct < 70.0 else "Ẩm ướt")
         self.soil_moisture_telemetry = {
             "soil_moisture_pct": pct,
             "adc_raw": raw,
             "status_label": status_lbl,
-            "sensor_pin": "A0 (ADC0 - Cảm biến đất YL-69 + LM393)",
+            "sensor_pin": "A0 (ADC0 - Cảm biến đất + LM393)",
             "auto_pump_below_pct": 40.0,
+            "auto_stop_above_pct": 70.0,
             "updated_at": time.time(),
         }
         self.esp8266_status["last_seen"] = time.time()
@@ -424,109 +353,69 @@ class SmartHomeMQTTBridge:
             },
             qos=0,
             retain=False,
-            direction="ESP8266 (YL-69 A0) -> SERVER",
+            direction="ESP8266 (Soil A0) -> SERVER",
         )
 
-    async def start_ir_learning(self, device_name: str, command_action: str = "open") -> dict[str, Any]:
-        """Bật chế độ Học lệnh chiếm quyền Remote (`smarthome/ir/learn_start`) trên chân D5 (`VS1838B`)."""
-        slug = "".join(c if c.isalnum() else "_" for c in device_name.strip().lower()).strip("_") or "ir_device"
-        self.pending_ir_learning = {
-            "device_id": slug,
-            "device_name": device_name.strip() or "Thiết bị Hồng ngoại",
-            "command_action": command_action,
-            "started_at": time.time(),
-            "receiver_pin": "D5 (GPIO 14 - VS1838B 38kHz)",
-        }
-        await self.publish(
-            topic="smarthome/ir/learn_start",
-            payload=self.pending_ir_learning,
-            qos=1,
-            retain=False,
-            direction="SERVER -> ESP8266 (VS1838B D5)",
-        )
-        spoken = f"Mạch ESP8266 đang chờ thu sóng hồng ngoại ở chân D5. Hãy bấm nút trên điều khiển {device_name} chĩa vào mạch."
-        return {
-            "ok": True,
-            "status": "WAITING_FOR_IR_SIGNAL",
-            "pending_ir_learning": self.pending_ir_learning,
-            "exact_spoken_reply": spoken,
-            "message": spoken,
-        }
-
-    async def complete_ir_learning(
+    async def update_sound_telemetry(
         self,
-        protocol: str = "NEC_38KHZ",
-        hex_code: str = "0x20DF10EF",
-        raw_timings_us: list[int] | None = None,
+        sound_detected: Any = False,
+        do_state: Any = None,
+        note: str = "",
     ) -> dict[str, Any]:
-        """Nhận kết quả giải mã xung hồng ngoại từ ESP8266 (`smarthome/ir/learned_result`) và lưu Write-Through."""
-        pending = self.pending_ir_learning or {
-            "device_id": "ac",
-            "device_name": "Điều hòa",
-            "command_action": "open",
-        }
-        self.pending_ir_learning = None
-        dev_id = pending["device_id"]
-        dev_name = pending["device_name"]
-        act = pending["command_action"]
-        timings = raw_timings_us or [9000, 4500, 560, 1690, 560, 560, 560, 1690]
+        """Nhận bản tin cảm biến Âm thanh KY-037/038 `smarthome/telemetry/sound` từ chân D5 (GPIO14 DO)."""
+        if do_state is not None and not isinstance(do_state, bool):
+            try:
+                is_loud = int(float(do_state)) != 0
+            except (TypeError, ValueError):
+                is_loud = bool(sound_detected)
+        elif isinstance(sound_detected, str):
+            is_loud = sound_detected.strip().lower() in ("1", "true", "yes", "on", "high", "detected", "loud")
+        else:
+            is_loud = bool(sound_detected)
 
-        dev_record = self.ir_devices.setdefault(
-            dev_id,
-            {
-                "device_id": dev_id,
-                "device_name": dev_name,
-                "brand": f"Cloned Remote ({protocol})",
-                "carrier_khz": 38,
-                "commands": {},
-            },
-        )
-        dev_record["commands"][act] = {
-            "protocol": protocol,
-            "hex_code": hex_code,
-            "raw_timings_us": timings,
-            "learned_at": round(time.time(), 1),
+        now = time.time()
+        prev_count = int(self.sound_telemetry.get("event_count", 0) or 0)
+        prev_last_evt = float(self.sound_telemetry.get("last_event_at", 0.0) or 0.0)
+        new_count = prev_count + (1 if is_loud else 0)
+        new_last_evt = now if is_loud else prev_last_evt
+        status_lbl = "Phát hiện tiếng động lớn / vỗ tay" if is_loud else "Yên tĩnh"
+        self.sound_telemetry = {
+            "sound_detected": is_loud,
+            "detected": is_loud,
+            "loud_sound": is_loud,
+            "do_state": 1 if is_loud else 0,
+            "event_count": new_count,
+            "last_event_at": new_last_evt,
+            "status_label": status_lbl,
+            "sensor_pin": "D5 (GPIO 14)",
+            "voice_ai_mic_note": "Gemini Voice AI dùng mic/loa web-device; KY-037 DO trên D5 phát hiện vỗ tay/tiếng động lớn.",
+            "note": str(note or ""),
+            "updated_at": now,
         }
-        if act == "open":
-            dev_record["commands"]["turn_on"] = dict(dev_record["commands"][act])
-        elif act == "close":
-            dev_record["commands"]["turn_off"] = dict(dev_record["commands"][act])
-
-        self._save_ir_db_write_through()
-        await self.publish(
-            topic="smarthome/ir/learned_result",
+        self.esp8266_status["last_seen"] = now
+        self.esp8266_status["online"] = True
+        return await self.publish(
+            topic="smarthome/telemetry/sound",
             payload={
-                "device_id": dev_id,
-                "device_name": dev_name,
-                "command_action": act,
-                "protocol": protocol,
-                "freq_khz": 38,
-                "hex_code": hex_code,
-                "raw_timings_us": timings,
+                "node_id": self.esp8266_status["node_id"],
+                "sound_detected": is_loud,
+                "do_state": 1 if is_loud else 0,
+                "event_count": new_count,
+                "status_label": status_lbl,
+                "sensor_pin": "D5",
             },
-            qos=1,
+            qos=0,
             retain=False,
-            direction="ESP8266 -> SERVER",
+            direction="ESP8266 (KY-037 D5) -> SERVER",
         )
-        spoken = f"Đã thu và lưu mã hồng ngoại {protocol} ({hex_code}) cho {dev_name}."
-        return {
-            "ok": True,
-            "device_id": dev_id,
-            "device_name": dev_name,
-            "protocol": protocol,
-            "hex_code": hex_code,
-            "exact_spoken_reply": spoken,
-            "message": spoken,
-        }
 
     def get_summary(self) -> dict[str, Any]:
         return {
             "esp8266_status": self.esp8266_status,
             "dht11_telemetry": self.dht11_telemetry,
             "soil_moisture_telemetry": self.soil_moisture_telemetry,
-            "pending_ir_learning": self.pending_ir_learning,
-            "ir_devices_count": len(self.ir_devices),
-            "ir_devices": list(self.ir_devices.values()),
+            "sound_telemetry": self.sound_telemetry,
+            "ky037_telemetry": self.sound_telemetry,
             "queue_size": self.queue.qsize(),
             "max_queue_size": self.MAX_QUEUE_SIZE,
             "dropped_backpressure_count": self.dropped_backpressure_count,

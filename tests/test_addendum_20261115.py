@@ -386,8 +386,8 @@ class TestAddendumPoolsConfirmAndQueries:
                 session=t1_sess,
                 source="text_command",
                 action_kind="create_timer",
-                payload={"device_id": "fan", "action": "turn_on", "seconds": 15.0},
-                prompt_summary="Đặt hẹn giờ sau 15 giây sẽ bật quạt trần",
+                payload={"device_id": "living_room_light", "action": "turn_on", "seconds": 15.0},
+                prompt_summary="Đặt hẹn giờ sau 15 giây sẽ bật đèn phòng khách",
                 ttl_sec=1.0,
             )
             pid = staged["payload"]["pending_id"]
@@ -499,10 +499,10 @@ class TestAddendumRBACAndConflicts:
         # Denied automation REST endpoints with exact spoken refusal
         for method, path, body in (
             ("get", "/api/automation", None),
-            ("post", "/api/timers", {"device_id": "fan", "action": "turn_off", "seconds": 15}),
-            ("post", "/api/schedules", {"device_id": "fan", "action": "turn_off", "time_hhmm": "09:00"}),
+            ("post", "/api/timers", {"device_id": "living_room_light", "action": "turn_off", "seconds": 15}),
+            ("post", "/api/schedules", {"device_id": "living_room_light", "action": "turn_off", "time_hhmm": "09:00"}),
             ("post", "/api/rules", {"when_device_id": "main_door", "when_state": "OPEN", "then_device_id": "living_room_light", "then_action": "turn_on"}),
-            ("post", "/api/scenes", {"phrase": "khách thử", "steps": [{"device_id": "fan", "action": "turn_on"}]}),
+            ("post", "/api/scenes", {"phrase": "khách thử", "steps": [{"device_id": "living_room_light", "action": "turn_on"}]}),
         ):
             r = getattr(client, method)(path, headers=H_TIER3, **({"json": body} if body else {}))
             assert r.status_code == 403
@@ -511,11 +511,11 @@ class TestAddendumRBACAndConflicts:
             assert d.get("exact_spoken_reply") == GUEST_ONLY_TOGGLE_MSG_VI
 
         # Denied via text & voice NLU
-        r_txt = client.post("/api/text_command", headers=H_TIER3, json={"text": "5 phút nữa tắt quạt"})
+        r_txt = client.post("/api/text_command", headers=H_TIER3, json={"text": "5 phút nữa tắt đèn phòng khách"})
         assert r_txt.status_code == 403
         assert r_txt.json().get("exact_spoken_reply") == GUEST_ONLY_TOGGLE_MSG_VI
 
-        r_voc = client.post("/api/voice_command", headers=H_TIER3, json={"transcript": "5 phút nữa tắt quạt"})
+        r_voc = client.post("/api/voice_command", headers=H_TIER3, json={"transcript": "5 phút nữa tắt đèn phòng khách"})
         assert r_voc.status_code == 403
         assert r_voc.json().get("exact_spoken_reply") == GUEST_ONLY_TOGGLE_MSG_VI
 
@@ -536,7 +536,7 @@ class TestAddendumRBACAndConflicts:
             br = LiveBridgeSession(engine=_REST_ENGINE, ws_session=t3_sess)
             br.send_ws_json = lambda payload: asyncio.sleep(0)  # type: ignore[method-assign]
             res = await br.handle_tool_call(
-                SimpleNamespace(name="schedule_action", args={"device_id": "fan", "action": "turn_off", "seconds": 30})
+                SimpleNamespace(name="schedule_action", args={"device_id": "living_room_light", "action": "turn_off", "seconds": 30})
             )
             assert res.get("ok") is False
             assert res.get("rbac_blocked") is True
@@ -549,7 +549,7 @@ class TestAddendumRBACAndConflicts:
         rule_body = {
             "when_device_id": "living_room_light",
             "when_state": "ON",
-            "then_device_id": "fan",
+            "then_device_id": "speaker_amp",
             "then_action": "turn_on",
         }
         r_denied = client.post("/api/rules", headers=H_TIER2, json=rule_body)
@@ -608,7 +608,7 @@ class TestAddendumRBACAndConflicts:
             json={
                 "when_device_id": "bedroom_light",
                 "when_state": "ON",
-                "then_device_id": "air_conditioner",
+                "then_device_id": "garden_pump",
                 "then_action": "turn_on",
             },
         )
@@ -692,7 +692,7 @@ class TestLogsZeroEmojiAndRestartSurvival:
     """Verify /logs entries have 0 emojis and persisted timers survive restart."""
 
     def test_addendum_audit_logs_contain_zero_emojis(self, client: TestClient) -> None:
-        client.post("/api/text_command", headers=H_TIER3, json={"text": "5 phút nữa tắt quạt"})
+        client.post("/api/text_command", headers=H_TIER3, json={"text": "5 phút nữa tắt đèn phòng khách"})
         client.post("/api/text_command", headers=H_TIER1, json={"text": "5 giây nữa bật đèn phòng khách"})
         client.post("/api/text_command", headers=H_TIER1, json={"text": "xác nhận"})
         client.post("/api/device", headers=H_TIER1, json={"device_id": "living_room_light", "action": "turn_on"})

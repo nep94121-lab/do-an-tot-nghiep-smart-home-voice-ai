@@ -21,6 +21,7 @@ from simulator.automation_nlu import (
     handle_confirmation_reply,
     parse_multi_steps_from_text,
     prepare_pending_mutation,
+    stage_device_intents_for_confirmation,
 )
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
@@ -357,6 +358,12 @@ class LiveToolDispatcherMixin:
                     "heat_index_c": sensors["heat_index_c"],
                     "soil_moisture_pct": sensors["soil_moisture_pct"],
                     "soil_status": sensors["soil_status"],
+                    "sound_detected": bool(sensors.get("sound_detected", False)),
+                    "sound_status": str(sensors.get("sound_status", "Yên tĩnh")),
+                    "sound_event_count": int(sensors.get("sound_event_count", 0) or 0),
+                    "sound_last_event_at": float(sensors.get("sound_last_event_at", 0.0) or 0.0),
+                    "sound_pin": str(sensors.get("sound_pin", "D5 (GPIO 14)")),
+                    "sound": dict(sensors.get("sound") or {}),
                 },
             }
 
@@ -364,14 +371,10 @@ class LiveToolDispatcherMixin:
             dev_id = str(args.get("device_id") or "").strip()
             act = args.get("action")
             b_pct = args.get("brightness_pct")
-            t_c = args.get("temperature_c")
-            f_spd = args.get("fan_speed")
             ok_v, v_info = self.engine.validate_device_set_request(
                 dev_id,
                 action=act,
                 brightness_pct=b_pct,
-                temperature_c=t_c,
-                fan_speed=f_spd,
                 actor_tier=actor_tier,
             )
             if not ok_v:
@@ -395,10 +398,6 @@ class LiveToolDispatcherMixin:
             extra_parts: list[str] = []
             if "brightness_pct" in params:
                 extra_parts.append(f"độ sáng {params['brightness_pct']}%")
-            if "temperature_c" in params:
-                extra_parts.append(f"nhiệt độ {params['temperature_c']} độ C")
-            if "fan_speed" in params:
-                extra_parts.append(f"tốc độ số {params['fan_speed']}")
             extra_txt = f" với {', '.join(extra_parts)}" if extra_parts else ""
             prompt_q = f"Mình sẽ {act_phrase}{extra_txt}, bạn đồng ý không?"
             nlu_res = await prepare_pending_mutation(
@@ -411,8 +410,6 @@ class LiveToolDispatcherMixin:
                     "device_id": cid,
                     "action": norm_act,
                     "brightness_pct": params.get("brightness_pct"),
-                    "temperature_c": params.get("temperature_c"),
-                    "fan_speed": params.get("fan_speed"),
                 },
                 prompt_summary=prompt_q,
             )
@@ -801,19 +798,24 @@ class LiveToolDispatcherMixin:
             return self._wrap_nlu_tool_result(nlu_res)
 
         if name == "control_device":
-            res_ctrl = await self.engine.execute_device_action(
-                device_id=str(args.get("device_id", "")),
-                action=str(args.get("action", "")),
+            raw_dev = str(args.get("device_id") or "").strip()
+            raw_act = str(args.get("action") or "").strip()
+            staged_ctrl = await stage_device_intents_for_confirmation(
+                engine=self.engine,
+                session=actor_sess,
                 source="gemini_live",
-                trigger_chains=True,
-                actor_tier=actor_tier,
-                actor_name=str(getattr(actor_sess, "display_name", "") or actor_uid),
+                intents=[{"device_id": raw_dev, "action": raw_act}],
+                session_key=live_session_key,
             )
-            try:
-                await _broadcast_rest_state_to_bridges()
-            except Exception:
-                pass
-            return res_ctrl
+            wrapped_ctrl = self._wrap_nlu_tool_result(staged_ctrl)
+            if raw_dev:
+                cid_ctrl = (
+                    self.engine.resolve_canonical_device_id(raw_dev)
+                    if hasattr(self.engine, "resolve_canonical_device_id")
+                    else raw_dev
+                )
+                wrapped_ctrl.setdefault("device_id", cid_ctrl)
+            return wrapped_ctrl
 
         if name in ("confirm_or_cancel_pending_action", "confirm_pending_action", "confirm_factory_reset"):
             raw_confirmed = args.get("confirmed") if isinstance(args, dict) and "confirmed" in args else None
@@ -1730,15 +1732,19 @@ class LiveToolDispatcherMixin:
                 }
             cur_dht = self.engine.mqtt_bridge.dht11_telemetry
             cur_soil = self.engine.mqtt_bridge.soil_moisture_telemetry
+            cur_sound = dict(getattr(self.engine.mqtt_bridge, "sound_telemetry", None) or {})
+            sound_lbl = "phát hiện tiếng động lớn" if cur_sound.get("sound_detected") else "yên tĩnh"
             spoken = (
                 f"Nhiệt độ phòng đang là {float(cur_dht.get('temp_c', 28.5)):.1f} độ C, "
                 f"độ ẩm không khí {float(cur_dht.get('humidity_pct', 65.0)):.0f}%, "
-                f"độ ẩm đất {float(cur_soil.get('soil_moisture_pct', 55.0)):.0f}%."
+                f"độ ẩm đất {float(cur_soil.get('soil_moisture_pct', 55.0)):.0f}%, "
+                f"cảm biến âm thanh KY-037 đang {sound_lbl}."
             )
             return {
                 "ok": True,
                 "dht11": cur_dht,
                 "soil": cur_soil,
+                "sound": cur_sound,
                 "exact_spoken_reply": spoken,
                 "instruction_for_ai": f"BẮT BUỘC trả lời ngắn gọn đúng câu: '{spoken}'",
                 "message": spoken,

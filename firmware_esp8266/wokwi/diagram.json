@@ -22,14 +22,14 @@
       "id": "servo_door",
       "top": -110,
       "left": 260,
-      "attrs": { "horn": "single", "label": "Cua chinh SG90 (D1/GPIO5)" }
+      "attrs": { "horn": "single" }
     },
     {
       "type": "wokwi-led",
       "id": "led_living",
       "top": -90,
       "left": 450,
-      "attrs": { "color": "red", "label": "Den Khach LED Do (D2/GPIO4)" }
+      "attrs": { "color": "red" }
     },
     {
       "type": "wokwi-resistor",
@@ -40,127 +40,162 @@
       "attrs": { "value": "220" }
     },
     {
-      "type": "wokwi-led",
-      "id": "led_ir_tx",
-      "top": -90,
-      "left": 530,
-      "attrs": { "color": "purple", "label": "IR LED 940nm 38kHz (D2 + Transistor)" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_ir_base_1k",
-      "top": 10,
-      "left": 525,
-      "rotate": 90,
-      "attrs": { "value": "1000" }
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "relay_pump",
-      "top": 310,
-      "left": 220,
-      "attrs": { "label": "Relay 1 - May Bom Nuoc 5V (D3/GPIO0)" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "motor_pump_indicator",
-      "top": 430,
-      "left": 250,
-      "attrs": { "color": "cyan", "label": "May Bom Mini 5V + Diode 1N4007" }
-    },
-    {
-      "type": "wokwi-potentiometer",
-      "id": "soil_yl69",
-      "top": 310,
-      "left": 410,
-      "attrs": { "value": "350", "label": "Cam bien Do am Dat YL-69 + LM393 (A0)" }
-    },
-    {
-      "type": "wokwi-ir-receiver",
-      "id": "ir_rx_vs1838b",
-      "top": 310,
-      "left": 560,
-      "attrs": { "label": "Mat thu VS1838B 38kHz (D5/GPIO14)" }
-    },
-    {
-      "type": "wokwi-ir-remote",
-      "id": "ir_remote",
-      "top": 430,
-      "left": 550,
-      "attrs": {}
-    },
-    {
       "type": "wokwi-dht22",
       "id": "dht11_sensor",
       "top": -110,
-      "left": 630,
-      "attrs": { "temperature": "28.5", "humidity": "65", "label": "DHT11 Nhiet do & Do am (D6/GPIO12)" }
+      "left": 580,
+      "attrs": { "temperature": "28.5", "humidity": "65" }
     },
     {
       "type": "wokwi-led",
       "id": "led_bedroom",
       "top": -90,
-      "left": 760,
-      "attrs": { "color": "yellow", "label": "Den Ngu LED Vang (D7/GPIO13)" }
+      "left": 740,
+      "attrs": { "color": "yellow" }
     },
     {
       "type": "wokwi-resistor",
       "id": "r_bedroom_220",
       "top": 10,
-      "left": 755,
+      "left": 735,
       "rotate": 90,
       "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_pump",
+      "top": 310,
+      "left": 210,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pump_220",
+      "top": 410,
+      "left": 225,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "motor_pump_indicator",
+      "top": 450,
+      "left": 230,
+      "attrs": { "color": "cyan" }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_speaker",
+      "top": 310,
+      "left": 350,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_spk_220",
+      "top": 410,
+      "left": 365,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "speaker_amp_indicator",
+      "top": 450,
+      "left": 370,
+      "attrs": { "color": "purple" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "pam8403_speaker",
+      "top": 430,
+      "left": 455,
+      "attrs": { "volume": "0.5" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "soil_yl69",
+      "top": 310,
+      "left": 510,
+      "attrs": { "value": "350" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "ky037_sound",
+      "top": 310,
+      "left": 635,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_ky037_10k",
+      "top": 375,
+      "left": 640,
+      "rotate": 90,
+      "attrs": { "value": "10000" }
     },
     {
       "type": "wokwi-buzzer",
       "id": "buzzer_alarm",
       "top": 310,
-      "left": 720,
-      "attrs": { "volume": "0.5", "label": "Coi Bao Dong Buzzer 5V (D8/GPIO15)" }
+      "left": 780,
+      "attrs": { "volume": "0.8" }
     }
   ],
   "connections": [
+    [ "mcu:TX", "$serialMonitor:RX", "", [] ],
+    [ "mcu:RX", "$serialMonitor:TX", "", [] ],
     [ "mcu:3V3", "bb1:tp.1", "red", [ "h40", "v-20" ] ],
     [ "mcu:GND.1", "bb1:tn.1", "black", [ "h50", "v-10" ] ],
     [ "mcu:5V", "bb1:bp.1", "orange", [ "h40", "v180" ] ],
     [ "bb1:tn.25", "bb1:bn.25", "black", [ "v0" ] ],
 
+    [ "mcu:16", "r_living_220:1", "green", [ "h150", "v-90" ] ],
+    [ "r_living_220:2", "led_living:A", "green", [ "v-20" ] ],
+    [ "led_living:C", "bb1:tn.10", "black", [ "v80" ] ],
+
     [ "mcu:5", "servo_door:PWM", "gold", [ "h120", "v-180" ] ],
     [ "bb1:bp.5", "servo_door:V+", "red", [ "v-320" ] ],
     [ "bb1:bn.5", "servo_door:GND", "black", [ "v-330" ] ],
 
-    [ "mcu:4", "r_living_220:1", "green", [ "h160", "v-90" ] ],
-    [ "r_living_220:2", "led_living:A", "green", [ "v-20" ] ],
-    [ "led_living:C", "bb1:tn.10", "black", [ "v80" ] ],
-
-    [ "mcu:4", "r_ir_base_1k:1", "purple", [ "h180", "v-90" ] ],
-    [ "r_ir_base_1k:2", "led_ir_tx:A", "purple", [ "v-20" ] ],
-    [ "led_ir_tx:C", "bb1:tn.14", "black", [ "v80" ] ],
-
-    [ "mcu:0", "relay_pump:IN", "blue", [ "h100", "v190" ] ],
-    [ "bb1:bp.8", "relay_pump:VCC", "red", [ "v70" ] ],
-    [ "bb1:bn.8", "relay_pump:GND", "black", [ "v70" ] ],
-    [ "relay_pump:NO", "motor_pump_indicator:A", "cyan", [ "v30" ] ],
-    [ "motor_pump_indicator:C", "bb1:bn.10", "black", [ "v-180" ] ],
-
-    [ "soil_yl69:SIG", "mcu:34", "yellow", [ "v-40", "h-280" ] ],
-    [ "bb1:tp.16", "soil_yl69:VCC", "red", [ "v240" ] ],
-    [ "bb1:tn.16", "soil_yl69:GND", "black", [ "v240" ] ],
-
-    [ "ir_rx_vs1838b:DAT", "mcu:14", "violet", [ "v-50", "h-380" ] ],
-    [ "bb1:tp.20", "ir_rx_vs1838b:VCC", "red", [ "v240" ] ],
-    [ "bb1:tn.20", "ir_rx_vs1838b:GND", "black", [ "v240" ] ],
-
-    [ "dht11_sensor:SDA", "mcu:12", "cyan", [ "v90", "h-440" ] ],
+    [ "dht11_sensor:SDA", "mcu:4", "cyan", [ "v90", "h-400" ] ],
     [ "bb1:tp.22", "dht11_sensor:VCC", "red", [ "v-80" ] ],
     [ "bb1:tn.22", "dht11_sensor:GND", "black", [ "v-80" ] ],
 
-    [ "mcu:13", "r_bedroom_220:1", "orange", [ "h200", "v-90" ] ],
+    [ "mcu:0", "pam8403_speaker:2", "purple", [ "h90", "v250" ] ],
+    [ "pam8403_speaker:1", "bb1:bn.16", "black", [ "v-70" ] ],
+
+    [ "mcu:2", "r_bedroom_220:1", "orange", [ "h200", "v-90" ] ],
     [ "r_bedroom_220:2", "led_bedroom:A", "orange", [ "v-20" ] ],
     [ "led_bedroom:C", "bb1:tn.24", "black", [ "v80" ] ],
 
+    [ "bb1:tp.20", "ky037_sound:1.l", "red", [ "v240" ] ],
+    [ "ky037_sound:2.l", "mcu:14", "violet", [ "v-45", "h-440" ] ],
+    [ "ky037_sound:2.l", "r_ky037_10k:1", "violet", [ "v10" ] ],
+    [ "r_ky037_10k:2", "bb1:tn.20", "black", [ "v-100" ] ],
+
+    [ "mcu:12", "relay_pump:IN", "blue", [ "h100", "v190" ] ],
+    [ "bb1:bp.8", "relay_pump:VCC", "red", [ "v70" ] ],
+    [ "bb1:bn.8", "relay_pump:GND", "black", [ "v70" ] ],
+    [ "bb1:bp.10", "relay_pump:COM", "red", [ "v70" ] ],
+    [ "relay_pump:NO", "r_pump_220:1", "cyan", [ "v20" ] ],
+    [ "r_pump_220:2", "motor_pump_indicator:A", "cyan", [ "v10" ] ],
+    [ "motor_pump_indicator:C", "bb1:bn.10", "black", [ "v-180" ] ],
+
+    [ "mcu:13", "relay_speaker:IN", "purple", [ "h115", "v190" ] ],
+    [ "bb1:bp.13", "relay_speaker:VCC", "red", [ "v70" ] ],
+    [ "bb1:bn.13", "relay_speaker:GND", "black", [ "v70" ] ],
+    [ "bb1:bp.15", "relay_speaker:COM", "red", [ "v70" ] ],
+    [ "relay_speaker:NO", "r_spk_220:1", "purple", [ "v20" ] ],
+    [ "r_spk_220:2", "speaker_amp_indicator:A", "purple", [ "v10" ] ],
+    [ "speaker_amp_indicator:C", "bb1:bn.15", "black", [ "v-180" ] ],
+
     [ "mcu:15", "buzzer_alarm:2", "magenta", [ "h140", "v210" ] ],
-    [ "buzzer_alarm:1", "bb1:bn.24", "black", [ "v-70" ] ]
+    [ "buzzer_alarm:1", "bb1:bn.24", "black", [ "v-70" ] ],
+
+    [ "soil_yl69:SIG", "mcu:34", "yellow", [ "v-40", "h-340" ] ],
+    [ "bb1:tp.16", "soil_yl69:VCC", "red", [ "v240" ] ],
+    [ "bb1:tn.16", "soil_yl69:GND", "black", [ "v240" ] ]
   ],
   "dependencies": {}
 }

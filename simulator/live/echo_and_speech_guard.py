@@ -44,8 +44,9 @@ _DEVICE_ID_VI_MAP: dict[str, str] = {
     "main_door": "cửa chính",
     "living_room_light": "đèn phòng khách",
     "bedroom_light": "đèn phòng ngủ",
-    "alarm_siren": "còi báo động",
     "garden_pump": "máy bơm tưới cây",
+    "alarm_siren": "còi báo động",
+    "speaker_amp": "nguồn mạch loa",
     "all_lights": "tất cả đèn",
     "all_devices": "tất cả thiết bị",
 }
@@ -102,12 +103,12 @@ _RE_BARE_TOOL_NAME = re.compile(
 )
 _RE_CMD_SYNTAX_PAIR = re.compile(
     r"\b(?:open|close|turn_on|turn_off|set_device|exec|cmd|command)\s+"
-    r"(?:main_door|living_room_light|bedroom_light|alarm_siren|garden_pump|all_lights|all_devices|fan|ac)\b",
+    r"(?:main_door|living_room_light|bedroom_light|garden_pump|alarm_siren|speaker_amp|all_lights|all_devices)\b",
     re.IGNORECASE,
 )
 _RE_KV_SYNTAX = re.compile(
     r"\b(?:device_id|action|target_state|when_device_id|when_state|then_device_id|then_action|"
-    r"time_hhmm|schedule_type|delay_seconds|brightness_pct|temperature_c|fan_speed|timer_id|schedule_id)\s*[:=]\s*['\"]?[\w.:-]+['\"]?",
+    r"time_hhmm|schedule_type|delay_seconds|brightness_pct|timer_id|schedule_id)\s*[:=]\s*['\"]?[\w.:-]+['\"]?",
     re.IGNORECASE,
 )
 _RE_TECH_KEYS = re.compile(

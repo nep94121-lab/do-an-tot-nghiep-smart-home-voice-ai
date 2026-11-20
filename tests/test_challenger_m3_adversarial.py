@@ -55,20 +55,19 @@ class TestChallengerBug6ThreeJsCanvas:
 
 
 # =============================================================================
-# CHALLENGE 2: BUG 7 - ALL 7 DEVICES ON MOBILE DEVICES TAB
+# CHALLENGE 2: BUG 7 - ALL 6 DEVICES ON MOBILE DEVICES TAB
 # =============================================================================
 
-class TestChallengerBug7All7Devices:
-    """Kiểm thử đối kháng Bug 7: Hiển thị đầy đủ 7 thiết bị trên tab Thiết bị."""
+class TestChallengerBug7All6Devices:
+    """Kiểm thử đối kháng Bug 7: Hiển thị đầy đủ 6 thiết bị trên tab Thiết bị."""
 
     EXPECTED_DEVICES = [
         "main_door",
         "living_room_light",
         "bedroom_light",
-        "fan",
-        "ac",
-        "alarm_siren",
         "garden_pump",
+        "alarm_siren",
+        "speaker_amp",
     ]
 
     def test_show_all_devices_default_and_toggle(self):
@@ -87,7 +86,7 @@ class TestChallengerBug7All7Devices:
         assert btn.get_text().strip() == "Thu gọn", "Nút #btnToggleShowAllDevices phải có nhãn 'Thu gọn' ban đầu"
 
     def test_runtime_device_rendering_with_node(self):
-        """Thực nghiệm chạy logic renderState trong Node.js để kiểm chứng hiển thị cả 7 thiết bị."""
+        """Thực nghiệm chạy logic renderState trong Node.js để kiểm chứng hiển thị cả 6 thiết bị."""
         node_script = """
         const { JSDOM } = require('util');
         // Giả lập môi trường DOM tối thiểu
@@ -95,8 +94,7 @@ class TestChallengerBug7All7Devices:
           { id: 'main_door', name: 'Cửa chính', type: 'door', state: 'CLOSED', room: 'Lối vào' },
           { id: 'living_room_light', name: 'Đèn phòng khách', type: 'light', state: 'ON', room: 'Phòng khách' },
           { id: 'bedroom_light', name: 'Đèn phòng ngủ', type: 'light', state: 'OFF', room: 'Phòng ngủ' },
-          { id: 'fan', name: 'Quạt trần', type: 'fan', state: 'ON', room: 'Phòng khách' },
-          { id: 'ac', name: 'Điều hòa', type: 'ac', state: 'OFF', room: 'Phòng ngủ' },
+          { id: 'speaker_amp', name: 'Nguồn mạch loa PAM8403', type: 'speaker', state: 'OFF', room: 'Phòng khách' },
           { id: 'alarm_siren', name: 'Còi báo động', type: 'siren', state: 'OFF', room: 'Lối vào' },
           { id: 'garden_pump', name: 'Máy bơm tưới cây', type: 'pump', state: 'OFF', room: 'Sân vườn' }
         ];
@@ -111,7 +109,7 @@ class TestChallengerBug7All7Devices:
 
         // Test 1: Mặc định showAll = true, filter = 'all'
         const devAll = renderDevices(showAllDevices, selectedRoomFilter);
-        if (devAll.length !== 7) {
+        if (devAll.length !== 6) {
           console.error('FAIL: devAll length is', devAll.length);
           process.exit(1);
         }
@@ -126,7 +124,7 @@ class TestChallengerBug7All7Devices:
         // Test 3: Lọc từng phòng
         const rooms = {
           'Phòng khách': 2,
-          'Phòng ngủ': 2,
+          'Phòng ngủ': 1,
           'Lối vào': 2,
           'Sân vườn': 1
         };
@@ -138,11 +136,11 @@ class TestChallengerBug7All7Devices:
           }
         }
 
-        console.log('PASS: All 7 devices rendering verified!');
+        console.log('PASS: All 6 devices rendering verified!');
         """
         res = subprocess.run(["node", "-e", node_script], capture_output=True, text=True)
         assert res.returncode == 0, f"Node.js device test failed: {res.stderr}"
-        assert "PASS: All 7 devices rendering verified!" in res.stdout
+        assert "PASS: All 6 devices rendering verified!" in res.stdout
 
 
 # =============================================================================

@@ -63,13 +63,14 @@ def uifix_live_server() -> Iterator[str]:
             os.environ.pop("SIMULATOR_OFFLINE_SANDBOX", None)
         else:
             os.environ["SIMULATOR_OFFLINE_SANDBOX"] = old_sandbox
-        subprocess.run(["git", "checkout", "--", "simulator/data/"], cwd=str(ROOT), check=False)
-        extra_sess = ROOT / "simulator" / "data" / "user_sessions.json"
-        if extra_sess.exists():
-            try:
-                extra_sess.unlink()
-            except OSError:
-                pass
+        if not os.environ.get("SMARTHOME_DATA_DIR"):
+            subprocess.run(["git", "checkout", "--", "simulator/data/"], cwd=str(ROOT), check=False)
+            extra_sess = ROOT / "simulator" / "data" / "user_sessions.json"
+            if extra_sess.exists():
+                try:
+                    extra_sess.unlink()
+                except OSError:
+                    pass
 
 
 def test_u4_zero_decorative_emojis_and_pure_invariants() -> None:
@@ -311,8 +312,8 @@ def test_u1_u2_u3_u4_playwright_layout_and_flows(
         assert opage.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
         opage.click("#mobileNavTabDevices")
-        opage.wait_for_selector("#devGrid [data-device-id='fan']", timeout=10000)
-        assert len(opage.query_selector_all("#devGrid .dev-row")) == 7
+        opage.wait_for_selector("#devGrid [data-device-id='speaker_amp']", timeout=10000)
+        assert len(opage.query_selector_all("#devGrid .dev-row")) == 6
         assert opage.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
         opage.click("#mobileNavTabVoice")

@@ -1,7 +1,7 @@
 """Regression tests for device toggle oscillation fix (togglefix-20261110, Round 4).
 
 Covers:
-1. Idempotent set-state API across all 7 default devices and all 4 REST aliases (/api/device, /api/device_control, /api/devices/{id}/control, /api/device/{id}).
+1. Idempotent set-state API across all 6 default devices and all 4 REST aliases (/api/device, /api/device_control, /api/devices/{id}/control, /api/device/{id}).
 2. Per-device sequencing, multi-client/epoch switching, late out-of-order request rejection, and equal-seq conflict rejection (F3).
 3. Sequence-based per-client guard rejecting lower-seq and >24h (>48h, >30d) stale requests without any clock-reset bypass (F8).
 4. Single listener binding verified via EventTarget.prototype.addEventListener instrumentation + direct native checkbox click & Spacebar activation parity (F6).
@@ -132,13 +132,12 @@ def test_idempotent_set_state_and_device_versioning() -> None:
     assert r3.status_code == 200
     assert r3.json()["state"] == "OFF"
 
-    # Verify idempotent set-state + monotonic version stability across all 5 Tier-2 REST devices via HTTP
+    # Verify idempotent set-state + monotonic version stability across all 4 Tier-2 REST devices via HTTP
     tier2_devices = [
         ("living_room_light", "ON", "OFF"),
         ("bedroom_light", "ON", "OFF"),
-        ("fan", "ON", "OFF"),
-        ("ac", "ON", "OFF"),
         ("garden_pump", "ON", "OFF"),
+        ("speaker_amp", "ON", "OFF"),
     ]
     for dev_id, active_st, inactive_st in tier2_devices:
         seq_counter += 1
@@ -188,19 +187,18 @@ def test_idempotent_set_state_and_device_versioning() -> None:
         assert rc["ok"] is True and rc["state"] == inactive_st
         assert rc["device_version"] == ra["device_version"] + 1
 
-    # Also verify all 7 default devices (including Tier-1 main_door OPEN/CLOSED & alarm_siren) on SmartHomeEngine
-    async def _verify_all_7_engine() -> None:
+    # Also verify all 6 default devices (including Tier-1 main_door OPEN/CLOSED & alarm_siren) on SmartHomeEngine
+    async def _verify_all_6_engine() -> None:
         with tempfile.TemporaryDirectory() as td:
-            eng = SmartHomeEngine(state_backend=FileStateBackend(Path(td) / "idemp7.json"))
+            eng = SmartHomeEngine(state_backend=FileStateBackend(Path(td) / "idemp6.json"))
             eng.server_connected = True
             for dev_id, active_st, inactive_st in [
                 ("main_door", "OPEN", "CLOSED"),
                 ("living_room_light", "ON", "OFF"),
                 ("bedroom_light", "ON", "OFF"),
-                ("fan", "ON", "OFF"),
-                ("ac", "ON", "OFF"),
-                ("alarm_siren", "ON", "OFF"),
                 ("garden_pump", "ON", "OFF"),
+                ("alarm_siren", "ON", "OFF"),
+                ("speaker_amp", "ON", "OFF"),
             ]:
                 ea = await eng.execute_device_action(
                     dev_id, target_state=active_st, bypass_rbac=True, trigger_chains=False
@@ -215,7 +213,7 @@ def test_idempotent_set_state_and_device_versioning() -> None:
                 assert eb["device_version"] == ea["device_version"]
                 assert ec["device_version"] == ea["device_version"] + 1
 
-    asyncio.run(_verify_all_7_engine())
+    asyncio.run(_verify_all_6_engine())
 
 
 def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
@@ -227,7 +225,7 @@ def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
     r_new = client.post(
         "/api/device",
         json={
-            "device_id": "fan",
+            "device_id": "speaker_amp",
             "action": "turn_off",
             "target_state": "OFF",
             "client_id": cid,
@@ -245,7 +243,7 @@ def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
     r_old = client.post(
         "/api/device",
         json={
-            "device_id": "fan",
+            "device_id": "speaker_amp",
             "action": "turn_on",
             "target_state": "ON",
             "client_id": cid,
@@ -263,7 +261,7 @@ def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
     r_old_ts = client.post(
         "/api/device",
         json={
-            "device_id": "fan",
+            "device_id": "speaker_amp",
             "action": "turn_on",
             "target_state": "ON",
             "client_ts_ms": base_ts + 50,
@@ -276,8 +274,8 @@ def test_out_of_order_stale_sequence_and_timestamp_ignored_by_server() -> None:
     assert d_old_ts["state"] == "OFF"
 
     snap = client.get("/api/state", headers=headers).json()
-    fan_dev = next(d for d in snap["devices"] if d["id"] == "fan")
-    assert fan_dev["state"] == "OFF"
+    spk_dev = next(d for d in snap["devices"] if d["id"] == "speaker_amp")
+    assert spk_dev["state"] == "OFF"
 
 
 def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
@@ -302,7 +300,7 @@ def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
 
             # 1. Explicit client_id switch within 50ms
             r_a = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 action="turn_off",
                 target_state="OFF",
                 client_id="web_client_A",
@@ -316,7 +314,7 @@ def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
 
             # Second engine syncs from shared store and receives fresh Wokwi client_id with seq=1 at t+50ms
             r_b = await e2.execute_device_action(
-                "fan",
+                "speaker_amp",
                 action="turn_on",
                 target_state="ON",
                 client_id="wokwi_client_B",
@@ -330,7 +328,7 @@ def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
 
             # Late packet from client A (seq=501, but older timestamp t+10 < t+50) must not overwrite client B
             r_a_late = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 action="turn_off",
                 target_state="OFF",
                 client_id="web_client_A",
@@ -348,43 +346,43 @@ def test_f3_client_switch_epoch_reset_and_conflict_ordering() -> None:
             t2 = t + 100_000
 
             a = await e3.execute_device_action(
-                "fan", action="turn_off", target_state="OFF", client_seq=100, client_ts_ms=t2, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_off", target_state="OFF", client_seq=100, client_ts_ms=t2, bypass_rbac=True, trigger_chains=False
             )
             assert a["state"] == "OFF" and a["stale_ignored"] is False
 
             # Fresh client without client_id sends seq=1 at t2+100 -> MUST be accepted
             b = await e3.execute_device_action(
-                "fan", action="turn_on", target_state="ON", client_seq=1, client_ts_ms=t2 + 100, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_on", target_state="ON", client_seq=1, client_ts_ms=t2 + 100, bypass_rbac=True, trigger_chains=False
             )
             assert b["stale_ignored"] is False
             assert b["state"] == "ON"
 
             # Equal (seq=101, ts=t2+200) with conflicting target_state -> second conflicting one MUST be ignored
             c = await e3.execute_device_action(
-                "fan", action="turn_on", target_state="ON", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_on", target_state="ON", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
             )
             assert c["stale_ignored"] is False and c["state"] == "ON"
 
             d_conflict = await e3.execute_device_action(
-                "fan", action="turn_off", target_state="OFF", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_off", target_state="OFF", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
             )
             assert d_conflict["stale_ignored"] is True
             assert d_conflict["state"] == "ON"
 
             # Idempotent repeat of SAME state at (seq=101, ts=t2+200) remains valid/idempotent
             d_repeat = await e3.execute_device_action(
-                "fan", action="turn_on", target_state="ON", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_on", target_state="ON", client_seq=101, client_ts_ms=t2 + 200, bypass_rbac=True, trigger_chains=False
             )
             assert d_repeat["state"] == "ON"
 
             # Epoch reset seq=1 OFF at t2+4000, followed by late older request seq=99 ON from t2+250
             f = await e3.execute_device_action(
-                "fan", action="turn_off", target_state="OFF", client_seq=1, client_ts_ms=t2 + 4000, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_off", target_state="OFF", client_seq=1, client_ts_ms=t2 + 4000, bypass_rbac=True, trigger_chains=False
             )
             assert f["stale_ignored"] is False and f["state"] == "OFF"
 
             g = await e3.execute_device_action(
-                "fan", action="turn_on", target_state="ON", client_seq=99, client_ts_ms=t2 + 250, bypass_rbac=True, trigger_chains=False
+                "speaker_amp", action="turn_on", target_state="ON", client_seq=99, client_ts_ms=t2 + 250, bypass_rbac=True, trigger_chains=False
             )
             assert g["stale_ignored"] is True
             assert g["state"] == "OFF"
@@ -415,7 +413,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
             t = int(time.time() * 1000)
 
             r_latest = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="OFF",
                 client_id="same-tab",
                 client_seq=10,
@@ -435,7 +433,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
                 (2, t + 3 * 86_400_000),
             ]:
                 r_stale = await e1.execute_device_action(
-                    "fan",
+                    "speaker_amp",
                     target_state="ON",
                     client_id="same-tab",
                     client_seq=bad_seq,
@@ -445,11 +443,11 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
                 )
                 assert r_stale["stale_ignored"] is True, f"Accepted stale seq={bad_seq}, ts_delta={bad_ts - t}"
                 assert r_stale["state"] == "OFF"
-                assert int(e1.devices["fan"].get("last_client_ts_ms", 0)) >= t
+                assert int(e1.devices["speaker_amp"].get("last_client_ts_ms", 0)) >= t
 
             # 3: Same active client advancing seq=11 with backward clock skew succeeds, and shared sync preserves seq=11
             r_seq11 = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="ON",
                 client_id="same-tab",
                 client_seq=11,
@@ -461,7 +459,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
             assert r_seq11["state"] == "ON"
 
             r_seq10_on_e2 = await e2.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="OFF",
                 client_id="same-tab",
                 client_seq=10,
@@ -474,7 +472,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
 
             # 4: Newer client sets OFF at t+1000; >24h old cross-client and anonymous requests MUST be rejected
             r_other_new = await e2.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="OFF",
                 client_id="second-tab",
                 client_seq=1,
@@ -485,7 +483,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
             assert r_other_new["stale_ignored"] is False and r_other_new["state"] == "OFF"
 
             r_cross_old_25h = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="ON",
                 client_id="ancient-tab",
                 client_seq=1,
@@ -497,7 +495,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
             assert r_cross_old_25h["state"] == "OFF"
 
             r_anon_old_48h = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="ON",
                 client_seq=1,
                 client_ts_ms=t - 2 * 86_400_000,
@@ -509,7 +507,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
 
             # Same named client_id ("same-tab") omitting / zeroing client_seq after c_prev_seq=11 must also be rejected
             r_zero_seq_same_cid = await e1.execute_device_action(
-                "fan",
+                "speaker_amp",
                 target_state="ON",
                 client_id="same-tab",
                 client_seq=0,
@@ -529,7 +527,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
     cid = f"http_f8_{now_ms}"
     ok_res = client.post(
         "/api/device",
-        json={"device_id": "fan", "target_state": "OFF", "client_id": cid, "client_seq": 10, "client_ts_ms": now_ms},
+        json={"device_id": "speaker_amp", "target_state": "OFF", "client_id": cid, "client_seq": 10, "client_ts_ms": now_ms},
         headers=headers,
     ).json()
     assert ok_res["state"] == "OFF" and ok_res["stale_ignored"] is False
@@ -537,7 +535,7 @@ def test_f8_sequence_based_guard_rejects_requests_older_than_24h_and_clock_skew(
     old_2d = client.post(
         "/api/device",
         json={
-            "device_id": "fan",
+            "device_id": "speaker_amp",
             "target_state": "ON",
             "client_id": cid,
             "client_seq": 1,
@@ -927,7 +925,7 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/app", wait_until="domcontentloaded")
-        await _wait_for_authenticated_home(page, "#devGrid [data-device-id='fan']", 15000)
+        await _wait_for_authenticated_home(page, "#devGrid [data-device-id='speaker_amp']", 15000)
         await page.click("#mobileNavTabDevices")
         await asyncio.sleep(0.4)
         assert len(sockets) >= 1
@@ -938,26 +936,26 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
                 await fetch('/api/device', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ device_id: 'fan', target_state: 'ON', client_id: 'f1_srv', client_seq: 1, client_ts_ms: Date.now() })
+                    body: JSON.stringify({ device_id: 'speaker_amp', target_state: 'ON', client_id: 'f1_srv', client_seq: 1, client_ts_ms: Date.now() })
                 });
             }"""
         )
         snap = await page.evaluate("async () => await (await fetch('/api/state')).json()")
         snap["revision_seq"] = 999999
         for d in snap["devices"]:
-            if d["id"] == "fan":
+            if d["id"] == "speaker_amp":
                 d.update(state="ON", version=500, last_client_seq=500)
 
         sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": snap}))
         await asyncio.sleep(0.1)
-        assert await page.get_attribute("#devGrid [data-device-id='fan']", "data-state") == "on"
+        assert await page.get_attribute("#devGrid [data-device-id='speaker_amp']", "data-state") == "on"
 
         # Inject stale raw device_updated (version=499 < 500)
         sockets[-1].send(
             json.dumps(
                 {
                     "type": "device_updated",
-                    "device_id": "fan",
+                    "device_id": "speaker_amp",
                     "new_state": "OFF",
                     "version": 499,
                     "last_client_seq": 499,
@@ -973,14 +971,14 @@ async def _run_e2e_f1_mobile_ws(info: dict[str, str]) -> None:
                     json.dumps(
                         {
                             "type": "device_updated",
-                            "device_id": "fan",
+                            "device_id": "speaker_amp",
                             "new_state": "OFF",
                             "version": 499,
                             "last_client_seq": 499,
                         }
                     )
                 )
-            st = await page.get_attribute("#devGrid [data-device-id='fan']", "data-state")
+            st = await page.get_attribute("#devGrid [data-device-id='speaker_amp']", "data-state")
             samples.append(str(st))
             await asyncio.sleep(0.1)
 
@@ -1008,12 +1006,12 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
     base_url = info["base_url"]
     token = info["session_token"]
 
-    # Another client sets fan OFF with high seq=500 right before Wokwi opens
+    # Another client sets speaker_amp OFF with high seq=500 right before Wokwi opens
     req = urllib.request.Request(
         f"{base_url}/api/device",
         data=json.dumps(
             {
-                "device_id": "fan",
+                "device_id": "speaker_amp",
                 "target_state": "OFF",
                 "client_id": "prior_desktop_client",
                 "client_seq": 500,
@@ -1061,7 +1059,7 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
                         body=json.dumps(
                             {
                                 "ok": True,
-                                "device_id": "fan",
+                                "device_id": "speaker_amp",
                                 "state": "ON",
                                 "stale_ignored": True,
                                 "device_version": 900,
@@ -1080,11 +1078,11 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
 
         await page.route("**/*", route_handler)
         await page.goto(f"{base_url}/wokwi", wait_until="domcontentloaded")
-        await _wait_for_authenticated_home(page, "#btn_fan", 15000)
+        await _wait_for_authenticated_home(page, "#btn_speaker_amp", 15000)
         await page.evaluate("async () => syncWokwiComponents(await (await fetch('/api/state')).json())")
 
-        # 1. Fresh Wokwi client clicks #btn_fan -> must turn ON on BOTH server and button (F2)
-        await page.click("#btn_fan")
+        # 1. Fresh Wokwi client clicks #btn_speaker_amp -> must turn ON on BOTH server and button (F2)
+        await page.click("#btn_speaker_amp")
         for _ in range(30):
             if len(replies) >= 1:
                 break
@@ -1093,31 +1091,31 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
         assert replies[0]["stale_ignored"] is False
         assert replies[0]["state"] == "ON"
         for _ in range(15):
-            if await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')") is True:
+            if await page.locator("#btn_speaker_amp").evaluate("(e) => e.classList.contains('on')") is True:
                 break
             await asyncio.sleep(0.05)
-        assert await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')") is True
+        assert await page.locator("#btn_speaker_amp").evaluate("(e) => e.classList.contains('on')") is True
 
         # 2. If server returns stale_ignored=True (authoritative state still ON while user clicked OFF),
         # Wokwi must reconcile back to authoritative ON instead of sticking at rejected OFF (F2)
         force_stale_reject = True
-        await page.click("#btn_fan")
+        await page.click("#btn_speaker_amp")
         await asyncio.sleep(0.25)
-        assert await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')") is True
+        assert await page.locator("#btn_speaker_amp").evaluate("(e) => e.classList.contains('on')") is True
         force_stale_reject = False
 
-        # 3. Stale snapshot revision/version must NOT revert #btn_fan to OFF over 10s (F4)
+        # 3. Stale snapshot revision/version must NOT revert #btn_speaker_amp to OFF over 10s (F4)
         fresh_snap = await page.evaluate("async () => await (await fetch('/api/state')).json()")
         fresh_snap["revision_seq"] = 10000
         for d in fresh_snap["devices"]:
-            if d["id"] == "fan":
+            if d["id"] == "speaker_amp":
                 d.update(state="ON", version=500, last_client_seq=500)
         await page.evaluate("(s) => syncWokwiComponents(s)", fresh_snap)
 
         stale_snap = json.loads(json.dumps(fresh_snap))
         stale_snap["revision_seq"] = 1
         for d in stale_snap["devices"]:
-            if d["id"] == "fan":
+            if d["id"] == "speaker_amp":
                 d.update(state="OFF", version=1)
 
         await page.evaluate("(s) => syncWokwiComponents(s)", stale_snap)
@@ -1128,7 +1126,7 @@ async def _run_e2e_f2_f4_wokwi(info: dict[str, str]) -> None:
         for idx in range(102):
             if idx == 30 and sockets:
                 sockets[-1].send(json.dumps({"type": "state_snapshot", "snapshot": stale_snap}))
-            is_on = await page.locator("#btn_fan").evaluate("(e) => e.classList.contains('on')")
+            is_on = await page.locator("#btn_speaker_amp").evaluate("(e) => e.classList.contains('on')")
             samples.append(bool(is_on))
             await asyncio.sleep(0.1)
 
@@ -1337,16 +1335,16 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         await page_b.route("**/*", route_b)
         await page_a.goto(f"{base_url}/", wait_until="domcontentloaded")
         await page_b.goto(f"{base_url}/app", wait_until="domcontentloaded")
-        await _wait_for_authenticated_home(page_a, "#dev-card-fan", 15000)
-        await _wait_for_authenticated_home(page_b, "#devGrid [data-device-id='fan']", 15000)
+        await _wait_for_authenticated_home(page_a, "#dev-card-speaker_amp", 15000)
+        await _wait_for_authenticated_home(page_b, "#devGrid [data-device-id='speaker_amp']", 15000)
         await page_b.click("#mobileNavTabDevices")
 
-        # Ensure fan starts OFF on both UIs and server
+        # Ensure speaker_amp starts OFF on both UIs and server
         init_req = urllib.request.Request(
             f"{base_url}/api/device",
             data=json.dumps(
                 {
-                    "device_id": "fan",
+                    "device_id": "speaker_amp",
                     "target_state": "OFF",
                     "client_id": f"f3_init_{int(time.time() * 1000)}",
                     "client_seq": 1,
@@ -1361,31 +1359,31 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         await page_a.evaluate(
             """(s) => {
                 window.applySnapshot(s);
-                window.__deviceControlState['fan'] = Object.assign(
-                    window.__deviceControlState['fan'] || {},
+                window.__deviceControlState['speaker_amp'] = Object.assign(
+                    window.__deviceControlState['speaker_amp'] || {},
                     { seq: 49, lastConfirmedSeq: 49 }
                 );
             }""",
             snap0,
         )
         await page_b.evaluate("(s) => window.renderState(s)", snap0)
-        assert await page_a.get_attribute("#dev-card-fan", "data-state") == "off"
-        assert await page_b.get_attribute("#devGrid [data-device-id='fan']", "data-state") == "off"
+        assert await page_a.get_attribute("#dev-card-speaker_amp", "data-state") == "off"
+        assert await page_b.get_attribute("#devGrid [data-device-id='speaker_amp']", "data-state") == "off"
 
         delay_tab_a = True
-        # Tab A clicks fan OFF -> ON (seq=50, timestamp T0, delayed 1.2s in transit)
-        await page_a.click("#dev-card-fan")
+        # Tab A clicks speaker_amp OFF -> ON (seq=50, timestamp T0, delayed 1.2s in transit)
+        await page_a.click("#dev-card-speaker_amp")
         await asyncio.sleep(0.12)
         # Meanwhile Tab B (fresh client_id) clicks OFF -> ON (seq=1) then ON -> OFF (seq=2), both completing immediately!
-        await page_b.click("#devGrid [data-device-id='fan']")
+        await page_b.click("#devGrid [data-device-id='speaker_amp']")
         await asyncio.sleep(0.12)
-        await page_b.click("#devGrid [data-device-id='fan']")
+        await page_b.click("#devGrid [data-device-id='speaker_amp']")
 
         samples_b: list[str] = []
         for idx in range(102):
             if idx in (15, 30, 60):
                 await page_b.evaluate("async () => window.renderState(await (await fetch('/api/state')).json())")
-            st_b = await page_b.get_attribute("#devGrid [data-device-id='fan']", "data-state")
+            st_b = await page_b.get_attribute("#devGrid [data-device-id='speaker_amp']", "data-state")
             samples_b.append(str(st_b))
             await asyncio.sleep(0.1)
 
@@ -1397,11 +1395,11 @@ async def _run_e2e_f3_multi_client(info: dict[str, str]) -> None:
         assert tab_a_replies[-1]["stale_ignored"] is True
         assert tab_a_replies[-1]["state"] == "OFF"
         # Tab A reconciled its rejected ON back to authoritative OFF!
-        assert await page_a.get_attribute("#dev-card-fan", "data-state") == "off"
+        assert await page_a.get_attribute("#dev-card-speaker_amp", "data-state") == "off"
         assert all(s == "off" for s in samples_b), f"F3 Tab B oscillated: {samples_b}"
 
         srv_f3 = await page_b.evaluate(
-            "async () => (await (await fetch('/api/state')).json()).devices.find(d => d.id === 'fan').state"
+            "async () => (await (await fetch('/api/state')).json()).devices.find(d => d.id === 'speaker_amp').state"
         )
         assert srv_f3 == "OFF"
 
@@ -1520,7 +1518,7 @@ async def _run_e2e_rapid_clicks_10s(info: dict[str, str]) -> None:
 
         await asyncio.gather(
             _exercise_surface("/", "#dev-card-living_room_light", "living_room_light", "applySnapshot"),
-            _exercise_surface("/app", "#devGrid [data-device-id='fan']", "fan", "renderState"),
+            _exercise_surface("/app", "#devGrid [data-device-id='speaker_amp']", "speaker_amp", "renderState"),
         )
         await browser.close()
 
@@ -1706,7 +1704,7 @@ async def _run_e2e_f7_stale_ws_ack(info: dict[str, str]) -> None:
 def test_e2e_f7_stale_http_response_after_newer_snapshot_across_all_uis(
     live_server_info: dict[str, str],
 ) -> None:
-    """Verifies across all 3 UIs (`/` bedroom_light, `/app` fan, `/wokwi` living_room_light) that when
+    """Verifies across all 3 UIs (`/` bedroom_light, `/app` speaker_amp, `/wokwi` living_room_light) that when
     an HTTP `POST /api/device` executes at version vA, a newer server state vB > vA arrives via snapshot
     before the HTTP response resolves in the browser, the late HTTP response (vA < vB) never overwrites vB,
     and `/` `bedroom_light` holds `OFF` across 102 samples @ 100ms (>10s) with 0 oscillation.
@@ -1923,7 +1921,7 @@ async def _run_e2e_f7_stale_http_all_uis(info: dict[str, str]) -> None:
 
         await asyncio.gather(
             _check_ui("/", "#dev-card-bedroom_light", "bedroom_light", "OFF", "applySnapshot", True),
-            _check_ui("/app", "#devGrid [data-device-id='fan']", "fan", "OFF", "renderState", True),
+            _check_ui("/app", "#devGrid [data-device-id='speaker_amp']", "speaker_amp", "OFF", "renderState", True),
             _check_ui("/wokwi", "#btn_garden_pump", "garden_pump", "OFF", "syncWokwiComponents", True),
         )
         await browser.close()

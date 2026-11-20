@@ -54,14 +54,14 @@ def clean_devices_and_state():
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"
-    eng.devices["ac"]["state"] = "OFF"
+    eng.devices["bedroom_light"]["state"] = "OFF"
     eng.pump_manual_override_off = False
     yield
     eng._explicit_test_user_set = False
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"
-    eng.devices["ac"]["state"] = "OFF"
+    eng.devices["bedroom_light"]["state"] = "OFF"
 
 
 # =============================================================================

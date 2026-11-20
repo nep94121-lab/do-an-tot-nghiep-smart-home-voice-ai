@@ -250,7 +250,7 @@ def test_two_processes_pin_transition_same_record(isolated, kind):
                 child.communicate()
 
 
-@pytest.mark.parametrize('tier,device,action,allowed', [(1,'main_door','open',False),(1,'alarm_siren','turn_on',False),(2,'main_door','open',False),(3,'garden_pump','turn_on',False),(2,'fan','turn_on',True),(3,'fan','turn_on',True)])
+@pytest.mark.parametrize('tier,device,action,allowed', [(1,'main_door','open',False),(1,'alarm_siren','turn_on',False),(2,'main_door','open',False),(3,'garden_pump','turn_on',False),(2,'speaker_amp','turn_on',True),(3,'speaker_amp','turn_on',False),(2,'living_room_light','turn_on',True),(3,'living_room_light','turn_on',True)])
 def test_rbac_and_offline_behavior(isolated, tier, device, action, allowed):
     import asyncio
     from simulator.rule_engine import SmartHomeEngine

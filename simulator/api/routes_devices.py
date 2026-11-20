@@ -1,15 +1,16 @@
 """Router Điều Khiển Thiết Bị, Giả Lập Cảm Biến, SQLite WAL & Wokwi Firmware (Feature 14).
 
-Danh sách 9 endpoints:
-1. GET /api/state: Snapshot trạng thái toàn bộ thiết bị.
+Danh sách các endpoints:
+1. GET /api/state: Snapshot trạng thái toàn bộ 6 thiết bị & 3 cảm biến.
 2. POST /api/device: Bật/tắt hoặc mở/đóng thiết bị (Actuate-First).
 3. POST /api/mobile/schedule: Đặt hẹn giờ linh hoạt từ Mobile App.
-4. POST /api/ir_learn: Học lệnh điều khiển từ xa hồng ngoại 38kHz.
-5. POST /api/dht11: Cập nhật thông số cảm biến nhiệt độ & độ ẩm DHT11 (chân D6).
-6. POST /api/soil_moisture: Cập nhật cảm biến độ ẩm đất YL-69 (A0) & tự kích hoạt máy bơm.
-7. POST /api/server_mode: Chuyển đổi Online Gemini Live <-> Offline Mạch độc lập.
-8. POST /api/text_command: Xử lý mệnh lệnh văn bản, cảm biến, alias và phân quyền giọng nói.
-9. GET /api/wokwi_files: Trả về sơ đồ Wokwi diagram.json và mã nguồn Arduino esp8266_smarthome.ino.
+4. POST /api/ir_learn: Đã gỡ bỏ (HTTP 410 Gone sau khi kiểm tra xác thực/quyền).
+5. POST /api/dht11: Cập nhật thông số cảm biến nhiệt độ & độ ẩm DHT11 (chân D2).
+6. POST /api/soil_moisture: Cập nhật cảm biến độ ẩm đất (A0) & tự kích hoạt máy bơm (D6).
+7. POST /api/sound_sensor & /api/ky037: Cập nhật cảm biến âm thanh KY-037/038 DO (chân D5).
+8. POST /api/server_mode: Chuyển đổi Online Gemini Live <-> Offline Mạch độc lập.
+9. POST /api/text_command: Xử lý mệnh lệnh văn bản, cảm biến, alias và phân quyền giọng nói.
+10. GET /api/wokwi_files: Trả về sơ đồ Wokwi diagram.json và mã nguồn Arduino esp8266_smarthome.ino.
 """
 
 from __future__ import annotations
@@ -105,14 +106,6 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
         k in tn for k in ("den phong ngu", "den ngu")
     ):
         targets.append("bedroom_light")
-    if any(k in mapped_text for k in ("quạt trần", "quạt điện", "quạt", "fan")) or any(
-        k in tn for k in ("quat tran", "quat dien", "tat quat", "bat quat")
-    ) or re.search(r"\bquat\b", tn):
-        targets.append("fan")
-    if any(k in mapped_text for k in ("điều hòa", "máy lạnh")) or any(
-        k in tn for k in ("dieu hoa", "may lanh")
-    ) or re.search(r"\bac\b", tn):
-        targets.append("ac")
     if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or any(
         k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom")
     ) or re.search(r"\bcòi\b", mapped_text):
@@ -121,6 +114,12 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
         k in tn for k in ("may bom", "bom nuoc", "bom vuon", "tuoi cay", "tuoi vuon")
     ):
         targets.append("garden_pump")
+    if (
+        any(k in mapped_text for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "pam8403", "speaker_amp"))
+        or any(k in tn for k in ("nguon mach loa", "mach loa", "nguon loa", "pam8403", "speaker amp"))
+        or re.search(r"\bloa\b", tn)
+    ):
+        targets.append("speaker_amp")
 
     if not targets and ("đèn" in mapped_text or re.search(r"\bden\b", tn)):
         targets.append("living_room_light")
@@ -172,10 +171,17 @@ def _has_valid_hardware_key(request: Request) -> bool:
 async def api_get_state(request: Request) -> JSONResponse:
     """Trả về snapshot trạng thái theo phiên người dùng đang xác thực (hoặc bản rút gọn thiết bị công khai nếu chưa đăng nhập)."""
     sess = await asyncio.to_thread(resolve_request_session, request, None, None)
+    is_hw = _has_valid_hardware_key(request)
     explicit_header_token = bool(
         str(request.headers.get("authorization") or "").strip()
         or str(request.headers.get("x-session-token") or "").strip()
     )
+    if not sess.is_authenticated and is_hw:
+        await asyncio.to_thread(_REST_ENGINE.sync_from_shared_store, True)
+        return JSONResponse(
+            _REST_ENGINE.get_public_device_snapshot(sync=False),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
     if sess.source == "invalid_token" and explicit_header_token:
         return JSONResponse(
             {
@@ -187,12 +193,6 @@ async def api_get_state(request: Request) -> JSONResponse:
             headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
         )
     if not sess.is_authenticated:
-        if _has_valid_hardware_key(request):
-            await asyncio.to_thread(_REST_ENGINE.sync_from_shared_store, True)
-            return JSONResponse(
-                _REST_ENGINE.get_public_device_snapshot(sync=False),
-                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
-            )
         return JSONResponse(
             {
                 "ok": False,
@@ -357,7 +357,8 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
     )
     res["tier"] = session_tier
     res["user_name"] = session_user
-    res["rbac_blocked"] = not bool(res.get("ok"))
+    rbac_blocked = bool(res.get("rbac_blocked", False))
+    res["rbac_blocked"] = rbac_blocked
     res["snapshot"] = res.get("snapshot") or _REST_ENGINE.get_snapshot(session=session, sync=False)
     if not res.get("ok") and not res.get("error"):
         res["error"] = res.get("exact_spoken_reply") or "Bị chặn bởi phân quyền RBAC."
@@ -390,7 +391,18 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         task.add_done_callback(_discard_device_audit_task)
     status_code = 200
     if not res.get("ok") and session.source != "legacy_test":
-        status_code = 403
+        results_list = res.get("results") if isinstance(res.get("results"), list) else []
+        first_err = str(
+            (results_list[0].get("error") if results_list and isinstance(results_list[0], dict) else "")
+            or res.get("error")
+            or ""
+        )
+        if rbac_blocked or first_err.startswith("🔒"):
+            status_code = 403
+        elif "không tồn tại" in first_err or "Không tìm thấy thiết bị" in first_err:
+            status_code = 404
+        else:
+            status_code = 400
     return JSONResponse(res, status_code=status_code)
 
 
@@ -534,7 +546,7 @@ async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(d
 
 @router.post("/api/ir_learn")
 async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
-    """Học lệnh điều khiển hồng ngoại IR từ xa."""
+    """Endpoint học lệnh hồng ngoại IR đã được gỡ bỏ (410 Gone sau khi kiểm tra xác thực/quyền)."""
     body = payload if isinstance(payload, dict) else {}
     session = resolve_request_session(request, payload=body, engine=None)
     if not session.is_authenticated:
@@ -549,20 +561,24 @@ async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default=
     error = _owner_error(request, body)
     if error is not None:
         return error
-    dev_name = str(body.get("device_name") or "Điều hòa Casper")
-    act = str(body.get("command_action") or "open")
-    res = await _REST_ENGINE.learn_ir_remote_command(device_name=dev_name, command_action=act)
-    await broadcast_rest_state_to_bridges()
-    return JSONResponse(res)
+    return JSONResponse(
+        {
+            "ok": False,
+            "gone": True,
+            "error": "Tính năng học lệnh hồng ngoại IR đã được gỡ bỏ theo hợp đồng phần cứng 6 thiết bị mới.",
+        },
+        status_code=410,
+    )
 
 
 @router.post("/api/dht11")
 async def api_update_dht11(request: Request, payload: dict[str, Any]) -> JSONResponse:
-    """Cập nhật thông số cảm biến nhiệt độ & độ ẩm không khí DHT11 (chân D6)."""
+    """Cập nhật thông số cảm biến nhiệt độ & độ ẩm không khí DHT11 (chân D2)."""
     body = payload if isinstance(payload, dict) else {}
-    error = _owner_error(request, body)
-    if error is not None:
-        return error
+    if not _has_valid_hardware_key(request):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
     temp_c = body.get("temp_c", 28.5)
     hum_pct = body.get("humidity_pct", 65.0)
     rssi = body.get("wifi_rssi_dbm", -52)
@@ -573,13 +589,39 @@ async def api_update_dht11(request: Request, payload: dict[str, Any]) -> JSONRes
 
 @router.post("/api/soil_moisture")
 async def api_update_soil_moisture(request: Request, payload: dict[str, Any]) -> JSONResponse:
-    """Cập nhật cảm biến độ ẩm đất YL-69 (A0) và tự động bật/tắt bơm vườn."""
+    """Cập nhật cảm biến độ ẩm đất (A0) và tự động bật/tắt bơm vườn (D6)."""
     body = payload if isinstance(payload, dict) else {}
-    error = _owner_error(request, body)
-    if error is not None:
-        return error
+    if not _has_valid_hardware_key(request):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
     pct = body.get("soil_moisture_pct", 62.0)
     res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
+    await broadcast_rest_state_to_bridges()
+    return JSONResponse(res)
+
+
+@router.post("/api/sound_sensor")
+@router.post("/api/ky037")
+async def api_update_sound_sensor(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Cập nhật trạng thái cảm biến âm thanh KY-037/038 DO (chân D5 / GPIO14)."""
+    body = payload if isinstance(payload, dict) else {}
+    if not _has_valid_hardware_key(request):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
+    sound_detected = body.get("sound_detected")
+    if sound_detected is None:
+        sound_detected = body.get("detected")
+    if sound_detected is None:
+        sound_detected = body.get("loud_sound", False)
+    do_state = body.get("do_state")
+    note = str(body.get("note") or "")
+    res = await _REST_ENGINE.update_sound_telemetry(
+        sound_detected=sound_detected,
+        do_state=do_state,
+        note=note,
+    )
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
@@ -708,7 +750,24 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
 
     t_low = text.lower()
     is_sensor_query = any(
-        k in t_low for k in ("nhiệt độ", "nhiet do", "độ ẩm đất", "cảm biến đất", "trạng thái", "trang thai")
+        k in t_low
+        for k in (
+            "nhiệt độ",
+            "nhiet do",
+            "độ ẩm đất",
+            "cảm biến đất",
+            "âm thanh",
+            "am thanh",
+            "ky037",
+            "ky-037",
+            "ky 037",
+            "tiếng động",
+            "tieng dong",
+            "vỗ tay",
+            "vo tay",
+            "trạng thái",
+            "trang thai",
+        )
     )
     if not is_sensor_query:
         from simulator.automation_nlu import process_automation_nlu_command
@@ -807,12 +866,18 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         spoken = f"Nhiệt độ phòng là {dht['temp_c']}°C, độ ẩm {dht['humidity_pct']}%."
         return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken})
 
-    if "học lệnh" in t_low or "remote" in t_low:
-        error = _owner_error(request, body)
-        if error is not None:
-            return error
-        res = await _REST_ENGINE.learn_ir_remote_command("Điều hòa", "open")
-        return JSONResponse({"ok": True, "reply": res["exact_spoken_reply"], "exact_spoken_reply": res["exact_spoken_reply"]})
+    if any(k in t_low for k in ("âm thanh", "am thanh", "ky037", "ky-037", "ky 037", "tiếng động", "tieng dong", "vỗ tay", "vo tay")):
+        _REST_ENGINE.sync_from_shared_store(force=True)
+        sensors = _REST_ENGINE.read_all_sensors()
+        snd = sensors.get("sound") if isinstance(sensors.get("sound"), dict) else {}
+        is_loud = bool(sensors.get("sound_detected", False))
+        cnt = int(sensors.get("sound_event_count", 0) or 0)
+        spoken = (
+            f"Cảm biến âm thanh KY-037 (chân D5) đang ghi nhận tiếng động lớn/vỗ tay (tổng {cnt} sự kiện)."
+            if is_loud
+            else f"Cảm biến âm thanh KY-037 (chân D5) hiện đang yên tĩnh (đã ghi nhận {cnt} sự kiện)."
+        )
+        return JSONResponse({"ok": True, "reply": spoken, "exact_spoken_reply": spoken, "sound": snd})
 
     for phrase in _REST_ENGINE.get_merged_aliases(user_id=session.user_id):
         if phrase in t_low:
@@ -876,8 +941,25 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 },
                 status_code=403,
             )
+        from simulator.automation_nlu import has_removed_device_mention, prepare_pending_mutation
+
         targets = _parse_text_device_targets(t_low)
         act = _parse_text_action(t_low) or "turn_on"
+        if not targets and has_removed_device_mention(text):
+            msg_removed = (
+                "Thiết bị hoặc tính năng bạn yêu cầu (quạt, điều hòa, học lệnh hồng ngoại IR) "
+                "không còn được hỗ trợ trên hệ thống 6 thiết bị mới."
+            )
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "rbac_blocked": False,
+                    "error": msg_removed,
+                    "reply": msg_removed,
+                    "exact_spoken_reply": msg_removed,
+                },
+                status_code=400,
+            )
         dev_id = targets[0] if targets else "living_room_light"
         if effective_tier >= 2:
             allowed, reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
@@ -901,7 +983,6 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         hours = float(m_hr.group(1)) if m_hr else 0.0
         if seconds <= 0 and minutes <= 0 and hours <= 0:
             seconds = 10.0
-        from simulator.automation_nlu import prepare_pending_mutation
         from simulator.automation_repo import check_tier1_schedule_conflict, format_device_action_vi, format_duration_vi
 
         total_sec = hours * 3600.0 + minutes * 60.0 + seconds

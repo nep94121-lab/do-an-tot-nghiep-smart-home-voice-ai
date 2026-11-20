@@ -22,7 +22,7 @@ _T = TypeVar("_T")
 DEFAULT_ROLES: tuple[tuple[str, int, str, str], ...] = (
     ("ADMIN", 1, "Chủ nhà (Tầng 1)", "Toàn quyền điều khiển, quản trị người dùng, mời khách, PIN và nhật ký"),
     ("MEMBER", 2, "Gia đình (Tầng 2)", "Điều khiển thiết bị sinh hoạt trừ cửa chính và còi báo động"),
-    ("CHILD_GUEST", 3, "Khách (Tầng 3)", "Chỉ điều khiển đèn và quạt cơ bản"),
+    ("CHILD_GUEST", 3, "Khách (Tầng 3)", "Chỉ điều khiển đèn cơ bản"),
     ("UNKNOWN", 4, "Chưa định danh", "Không có quyền điều khiển thiết bị"),
 )
 
@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS system_state_meta (
     soil_moisture_pct REAL,
     dht11_json TEXT NOT NULL DEFAULT '{}',
     soil_moisture_json TEXT NOT NULL DEFAULT '{}',
+    sound_json TEXT NOT NULL DEFAULT '{}',
     updated_at REAL NOT NULL DEFAULT 0
 );
 
@@ -987,6 +988,7 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     _ensure_column(conn, "devices", "min_role", "TEXT REFERENCES roles(role_code)")
     _ensure_column(conn, "devices", "room", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "devices", "device_type", "TEXT NOT NULL DEFAULT 'switch'")
+    _ensure_column(conn, "system_state_meta", "sound_json", "TEXT NOT NULL DEFAULT '{}'")
 
     _migrate_schema_v3(conn)
     _migrate_custom_commands_per_owner(conn)
@@ -1055,11 +1057,20 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
             )
 
         now_iso = _now_iso()
+        has_v5 = (
+            c.execute("SELECT 1 FROM schema_migrations WHERE version = 5").fetchone() is not None
+        )
+        if not has_v5:
+            from simulator.engine.constants_and_time import DEFAULT_DEVICES as _CANONICAL_DEVICES
+
+            bootstrap_device_state_from_devices(c, _CANONICAL_DEVICES)
+
         migrations = (
             (1, "initial_8_table_schema"),
             (2, "normalized_3nf_wal_sessions_invites_otp_trusted_pin_ratelimit_state"),
             (3, "schema_v3_fk_hash_only_and_p1_automation"),
             (4, "schema_v4_per_owner_pools_and_confirmations"),
+            (5, "hardware_contract_6_devices_20261120"),
         )
         for ver, mname in migrations:
             c.execute(
@@ -1081,40 +1092,57 @@ def bootstrap_device_state_from_devices(conn: sqlite3.Connection, default_device
     """Ensure every canonical device has rows in both devices and device_state and system_state_meta exists."""
     now_iso = _now_iso()
     import time as _time
+    from simulator.auth.tier_permissions import DEVICE_MIN_TIER
 
     now_ts = _time.time()
     pin_map = {
         "main_door": "D1",
-        "living_room_light": "D2",
-        "ac": "D2",
-        "garden_pump": "D3",
-        "fan": "D6",
-        "bedroom_light": "D7",
+        "living_room_light": "D0",
+        "bedroom_light": "D4",
+        "garden_pump": "D6",
         "alarm_siren": "D8",
+        "speaker_amp": "D7",
     }
-    tier_map = {
-        "main_door": 1,
-        "alarm_siren": 1,
-        "ac": 2,
-        "garden_pump": 2,
-        "living_room_light": 3,
-        "bedroom_light": 3,
-        "fan": 3,
-    }
+    tier_map = dict(DEVICE_MIN_TIER)
+    canonical_ids = list(default_devices.keys())
+    existing_states: dict[str, str] = {}
+    if canonical_ids:
+        placeholders = ",".join("?" for _ in canonical_ids)
+        conn.execute(f"DELETE FROM device_state WHERE device_id NOT IN ({placeholders})", tuple(canonical_ids))
+        conn.execute(f"DELETE FROM devices WHERE device_id NOT IN ({placeholders})", tuple(canonical_ids))
+        for row in conn.execute(
+            f"SELECT device_id, state FROM devices WHERE device_id IN ({placeholders})",
+            tuple(canonical_ids),
+        ).fetchall():
+            did_val = str(row[0] or "")
+            st_val = str(row[1] or "").strip()
+            if did_val and st_val:
+                existing_states[did_val] = st_val
+
     for did, dinfo in default_devices.items():
-        min_tier = tier_map.get(did, 3)
+        min_tier = int(tier_map.get(did, 3))
+        seed_state = existing_states.get(did) or str(dinfo.get("state") or "OFF")
         conn.execute(
             """
-            INSERT OR IGNORE INTO devices (
+            INSERT INTO devices (
                 device_id, device_name, gpio_pin, state, min_tier_required,
                 offline_controllable, updated_at, min_role, room, device_type
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id) DO UPDATE SET
+                device_name = excluded.device_name,
+                gpio_pin = excluded.gpio_pin,
+                min_tier_required = excluded.min_tier_required,
+                offline_controllable = excluded.offline_controllable,
+                updated_at = excluded.updated_at,
+                min_role = excluded.min_role,
+                room = excluded.room,
+                device_type = excluded.device_type
             """,
             (
                 did,
                 str(dinfo.get("name") or did),
-                pin_map.get(did, "GPIO"),
-                str(dinfo.get("state") or "OFF"),
+                pin_map.get(did, str(dinfo.get("gpio") or "GPIO").split()[0]),
+                seed_state,
                 min_tier,
                 0 if did in ("main_door", "alarm_siren") else 1,
                 now_iso,
@@ -1129,7 +1157,7 @@ def bootstrap_device_state_from_devices(conn: sqlite3.Connection, default_device
                 device_id, state, version, updated_at
             ) VALUES (?, ?, 1, ?)
             """,
-            (did, str(dinfo.get("state") or "OFF"), now_ts),
+            (did, seed_state, now_ts),
         )
     conn.execute(
         """

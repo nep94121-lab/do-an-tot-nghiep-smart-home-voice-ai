@@ -169,7 +169,6 @@ PURPOSE_MAP: dict[str, str] = {
     "accounts_3layer.json": "Cơ sở dữ liệu tài khoản xác thực 3 tầng & mã băm bảo mật",
     "voiceprints.json": "Kho vector đặc trưng giọng nói Neural Biometrics 256 chiều",
     "knowledge_base.json": "Kho dữ liệu tri thức hỗ trợ RAG & hỏi đáp nhà thông minh",
-    "ir_devices_db.json": "Cơ sở dữ liệu mã lệnh hồng ngoại 38kHz cho thiết bị",
     "esp8266_flash_replica.json": "Bản sao luật và trạng thái nén cho Flash LittleFS ESP8266",
 }
 
@@ -316,13 +315,21 @@ async def api_logs_dashboard(
         }
         standardized_logs.append(item)
 
-    dht = snap.get("dht11", {}) if isinstance(snap, dict) else {}
-    soil = snap.get("soil_moisture", {}) if isinstance(snap, dict) else {}
+    sensors_map = snap.get("sensors", {}) if isinstance(snap, dict) and isinstance(snap.get("sensors"), dict) else {}
+    mqtt_map = snap.get("mqtt", {}) if isinstance(snap, dict) and isinstance(snap.get("mqtt"), dict) else {}
+    dht = sensors_map.get("dht11") or mqtt_map.get("dht11_telemetry") or snap.get("dht11", {}) or {}
+    soil = sensors_map.get("soil") or mqtt_map.get("soil_moisture_telemetry") or snap.get("soil_moisture", {}) or {}
+    snd = sensors_map.get("sound") or mqtt_map.get("sound_telemetry") or {}
     hardware_database = {
         "server_connected": active_eng.server_connected,
         "devices": snap.get("devices", {}) if isinstance(snap, dict) else {},
         "dht11": {"temp_c": dht.get("temp_c", 28.5), "humidity_pct": dht.get("humidity_pct", 65.0)},
         "soil_moisture": {"pct": soil.get("soil_moisture_pct", 62.0)},
+        "sound": {
+            "sound_detected": bool(snd.get("sound_detected", False)),
+            "event_count": int(snd.get("event_count", 0) or 0),
+            "status_label": str(snd.get("status_label") or "Yên tĩnh"),
+        },
     }
 
     user_pools = active_eng.overlay_rules.get("user_pools", {}) or {}
@@ -369,7 +376,6 @@ async def api_logs_dashboard(
                             if is_admin
                             else []
                         ),
-                        "ir_devices_db": _safe_json("ir_devices_db.json"),
                         "esp8266_flash_replica": _safe_json("esp8266_flash_replica.json"),
                     }
                 )

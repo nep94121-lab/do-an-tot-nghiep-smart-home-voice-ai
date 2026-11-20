@@ -75,7 +75,7 @@ class TestF01RestFourStepConfirmation:
             (
                 "POST",
                 "/api/timers",
-                {"device_id": "fan", "action": "turn_on", "seconds": 30, "confirmed": True},
+                {"device_id": "speaker_amp", "action": "turn_on", "seconds": 30, "confirmed": True},
                 H_TIER1,
                 "create_timer",
                 lambda: len(list_pending_timers()),
@@ -91,7 +91,7 @@ class TestF01RestFourStepConfirmation:
             (
                 "POST",
                 "/api/schedules",
-                {"device_id": "fan", "action": "turn_on", "time_hhmm": "21:15", "schedule_type": "daily", "confirmed": True},
+                {"device_id": "speaker_amp", "action": "turn_on", "time_hhmm": "21:15", "schedule_type": "daily", "confirmed": True},
                 H_TIER1,
                 "create_schedule",
                 lambda: len(list_schedules(include_disabled=True)),
@@ -99,7 +99,7 @@ class TestF01RestFourStepConfirmation:
             (
                 "POST",
                 "/api/scenes",
-                {"phrase": "nghỉ trưa f01", "steps": [{"device_id": "fan", "action": "turn_on"}], "confirmed": True},
+                {"phrase": "nghỉ trưa f01", "steps": [{"device_id": "speaker_amp", "action": "turn_on"}], "confirmed": True},
                 H_TIER2,
                 "create_custom_command",
                 lambda: len(list_custom_commands(include_disabled=True)),
@@ -159,7 +159,7 @@ class TestF01RestFourStepConfirmation:
             r1 = client.post(
                 "/api/rules",
                 headers=H_TIER2,
-                json={"when_device_id": "living_room_light", "when_state": "ON", "then_device_id": "fan", "then_action": "turn_on"},
+                json={"when_device_id": "living_room_light", "when_state": "ON", "then_device_id": "speaker_amp", "then_action": "turn_on"},
             )
             assert r1.status_code == 200 and r1.json()["requires_confirmation"] is True
             assert len(list_automation_rules(owner_user_id="thanh_vien_a")) == 0
@@ -168,7 +168,7 @@ class TestF01RestFourStepConfirmation:
             mismatch = client.post(
                 "/api/scenes",
                 headers=H_TIER2,
-                json={"phrase": "hack", "steps": [{"device_id": "fan", "action": "turn_on"}], "confirm_token": r1.json()["pending_id"]},
+                json={"phrase": "hack", "steps": [{"device_id": "speaker_amp", "action": "turn_on"}], "confirm_token": r1.json()["pending_id"]},
             )
             assert mismatch.status_code == 400
 
@@ -190,7 +190,7 @@ class TestF01RestFourStepConfirmation:
             assert dr2_c.status_code == 200 and len(list_automation_rules(owner_user_id="thanh_vien_a")) == 0
 
             # 3. Timer create -> PATCH -> DELETE with 4-step confirmation + expiry 409 check
-            t1 = client.post("/api/timers", headers=H_TIER2, json={"device_id": "fan", "action": "turn_on", "seconds": 40})
+            t1 = client.post("/api/timers", headers=H_TIER2, json={"device_id": "speaker_amp", "action": "turn_on", "seconds": 40})
             t1_pid = t1.json()["pending_id"]
             assert len(list_pending_timers()) == 0
             t2 = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": t1_pid, "confirmed": True})
@@ -233,7 +233,7 @@ class TestF01RestFourStepConfirmation:
             assert s2.status_code == 200 and s2.json().get("confirmed") is True
             cid = s2.json()["command"]["command_id"]
 
-            su1 = client.put(f"/api/scenes/{cid}", headers=H_TIER1, json={"phrase": "ban đêm mới", "steps_text": "bật quạt trần"})
+            su1 = client.put(f"/api/scenes/{cid}", headers=H_TIER1, json={"phrase": "ban đêm mới", "steps_text": "bật đèn phòng ngủ"})
             assert su1.status_code == 200 and su1.json()["requires_confirmation"] is True
             assert list_custom_commands(include_disabled=True)[0]["phrase"] == "ban đêm f01"
             su2 = client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": su1.json()["pending_id"], "confirmed": True})
@@ -296,7 +296,7 @@ class TestF02WsAndSsePoolIsolation:
                 })
                 await deps._emit_to_all_active_bridges({
                     "type": "custom_command_created",
-                    "command": {"owner_user_id": "thanh_vien_a", "phrase": "lệnh riêng A", "steps": [{"device_id": "fan", "action": "turn_on"}]},
+                    "command": {"owner_user_id": "thanh_vien_a", "phrase": "lệnh riêng A", "steps": [{"device_id": "speaker_amp", "action": "turn_on"}]},
                 })
                 await deps._emit_to_all_active_bridges({
                     "type": "member_permission_updated",
@@ -314,7 +314,7 @@ class TestF02WsAndSsePoolIsolation:
                 s2a.expires_at = time.time() - 10.0
                 await deps._emit_to_all_active_bridges({
                     "type": "schedule_created",
-                    "schedules": [{"schedule_id": "sc_revoked", "owner_user_id": "thanh_vien_a", "device_id": "fan", "action": "turn_on", "time_hhmm": "20:00"}],
+                    "schedules": [{"schedule_id": "sc_revoked", "owner_user_id": "thanh_vien_a", "device_id": "speaker_amp", "action": "turn_on", "time_hhmm": "20:00"}],
                 })
 
             asyncio.run(_exercise())
@@ -402,13 +402,13 @@ class TestF02WsAndSsePoolIsolation:
 
         owner_scene = repo.upsert_custom_command(
             phrase="bí mật chủ nhà f02",
-            steps=[{"device_id": "fan", "action": "turn_on"}],
+            steps=[{"device_id": "speaker_amp", "action": "turn_on"}],
             owner_user_id="tuan_anh",
             owner_tier=1,
         )
         member_a_scene = repo.upsert_custom_command(
             phrase="ngữ cảnh riêng của A",
-            steps=[{"device_id": "fan", "action": "turn_off"}],
+            steps=[{"device_id": "speaker_amp", "action": "turn_off"}],
             owner_user_id="thanh_vien_a",
             owner_tier=2,
         )
@@ -416,7 +416,7 @@ class TestF02WsAndSsePoolIsolation:
         deps._ACTIVE_BRIDGES.extend([br1, br2a, br2b, br3, br_none])
         try:
             with TestClient(app) as client:
-                client.post("/api/device", headers=H_TIER1, json={"device_id": "fan", "action": "turn_off"})
+                client.post("/api/device", headers=H_TIER1, json={"device_id": "speaker_amp", "action": "turn_off"})
                 for sk in (sink1, sink2a, sink2b, sink3, sink_none):
                     sk.frames.clear()
 
@@ -456,8 +456,8 @@ class TestF02WsAndSsePoolIsolation:
                     deps._ACTIVE_BRIDGES.remove(b)
 
         # 3. Direct filter_ws_event_for_session checks: schedule_fired, missing owner on scene_executed, forbidden step device, and deny-by-default
-        sc_t1 = {"type": "schedule_fired", "schedule": {"schedule_id": "sc1", "owner_user_id": "tuan_anh", "device_id": "fan", "action": "turn_on"}}
-        sc_t2a = {"type": "schedule_fired", "schedule": {"schedule_id": "sc2", "owner_user_id": "thanh_vien_a", "device_id": "fan", "action": "turn_on"}}
+        sc_t1 = {"type": "schedule_fired", "schedule": {"schedule_id": "sc1", "owner_user_id": "tuan_anh", "device_id": "speaker_amp", "action": "turn_on"}}
+        sc_t2a = {"type": "schedule_fired", "schedule": {"schedule_id": "sc2", "owner_user_id": "thanh_vien_a", "device_id": "speaker_amp", "action": "turn_on"}}
         assert filter_ws_event_for_session(sc_t1, s1, broadcast=True) is not None
         assert filter_ws_event_for_session(sc_t1, s2a, broadcast=True) is None
         assert filter_ws_event_for_session(sc_t1, s3, broadcast=True) is None
@@ -466,7 +466,7 @@ class TestF02WsAndSsePoolIsolation:
         assert filter_ws_event_for_session(sc_t2a, s3, broadcast=True) is None
 
         # scene_executed without owner_user_id (only executor user_id) must never leak to Tier 2A
-        no_owner_scene_ev = {"type": "scene_executed", "phrase": "x", "steps": [{"device_id": "fan", "action": "turn_on"}], "user_id": "thanh_vien_a"}
+        no_owner_scene_ev = {"type": "scene_executed", "phrase": "x", "steps": [{"device_id": "speaker_amp", "action": "turn_on"}], "user_id": "thanh_vien_a"}
         assert filter_ws_event_for_session(no_owner_scene_ev, s2a, broadcast=True) is None
 
         # scene_executed owned by Tier 2A but referencing main_door must be blocked for Tier 2A
@@ -474,7 +474,7 @@ class TestF02WsAndSsePoolIsolation:
         assert filter_ws_event_for_session(door_scene_ev, s2a, broadcast=True) is None
 
         # Unclassified event containing pool payload is denied by default for Tier 2, Tier 3, and unauth
-        unclassified = {"type": "unclassified_pool_leak", "phrase": "bí mật", "steps": [{"device_id": "fan", "action": "turn_on"}]}
+        unclassified = {"type": "unclassified_pool_leak", "phrase": "bí mật", "steps": [{"device_id": "speaker_amp", "action": "turn_on"}]}
         for sess_chk in (s2a, s3, None):
             assert filter_ws_event_for_session(unclassified, sess_chk, broadcast=True) is None
             assert filter_ws_event_for_session(unclassified, sess_chk, broadcast=False) is None
@@ -1349,7 +1349,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
 
         with TestClient(app) as client:
             # Tier 1 creates 14:00 today (2026-11-16)
-            o1 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "fan", "action": "turn_on", "time_hhmm": "14:00", "schedule_type": "once"})
+            o1 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "speaker_amp", "action": "turn_on", "time_hhmm": "14:00", "schedule_type": "once"})
             assert o1.status_code == 200
             oc = client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": o1.json()["pending_id"], "confirmed": True})
             assert oc.status_code == 200 and oc.json()["schedule"]["run_date_vn"] == "2026-11-16"
@@ -1366,7 +1366,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
             assert upd.json().get("conflict_tier1") is True
 
             # PATCH explicit run_date_vn onto Tier 1's slot + enabled=True transition -> 409
-            o2 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "fan", "action": "turn_off", "time_hhmm": "18:00", "schedule_type": "once"})
+            o2 = client.post("/api/schedules", headers=H_TIER1, json={"device_id": "speaker_amp", "action": "turn_off", "time_hhmm": "18:00", "schedule_type": "once"})
             client.post("/api/automation/confirm", headers=H_TIER1, json={"pending_id": o2.json()["pending_id"], "confirmed": True})
             f2 = client.post("/api/schedules", headers=H_TIER2, json={"device_id": "bedroom_light", "action": "turn_off", "time_hhmm": "18:00", "schedule_type": "once", "run_date_vn": "2026-11-18"})
             f2c = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": f2.json()["pending_id"], "confirmed": True})
@@ -1382,7 +1382,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
             # TOCTOU: if Tier 1 creates 2026-11-17 09:00 AFTER Tier 2 staged a PATCH for 09:00, confirm Step 2 must still return 409!
             st_p = client.patch(f"/api/schedules/{sid}", headers=H_TIER2, json={"time_hhmm": "09:00", "run_date_vn": "2026-11-17"})
             assert st_p.status_code == 200 and st_p.json()["requires_confirmation"] is True
-            repo.create_schedule(owner_user_id="tuan_anh", owner_tier=1, device_id="fan", action="turn_on", time_hhmm="09:00", schedule_type="once", run_date_vn="2026-11-17")
+            repo.create_schedule(owner_user_id="tuan_anh", owner_tier=1, device_id="speaker_amp", action="turn_on", time_hhmm="09:00", schedule_type="once", run_date_vn="2026-11-17")
             st_c = client.post("/api/automation/confirm", headers=H_TIER2, json={"pending_id": st_p.json()["pending_id"], "confirmed": True})
             assert st_c.status_code == 409 and st_c.json().get("conflict_tier1") is True
 
@@ -1396,7 +1396,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
 
         async def _check() -> None:
             _REST_ENGINE.set_active_user("tuan_anh")
-            t1 = await _REST_ENGINE.schedule_timer_flexible("fan", "turn_on", seconds=120)
+            t1 = await _REST_ENGINE.schedule_timer_flexible("speaker_amp", "turn_on", seconds=120)
             assert t1["ok"] is True
             _REST_ENGINE.set_active_user("thanh_vien_a")
             t2 = await _REST_ENGINE.schedule_timer_flexible("bedroom_light", "turn_on", seconds=360)
@@ -1438,7 +1438,7 @@ class TestF05LosslessMigrationAndFailLoudly:
             timer_id="t_f05",
             owner_user_id="thanh_vien_a",
             owner_tier=2,
-            device_id="fan",
+            device_id="speaker_amp",
             action="turn_on",
             fire_at_epoch=future_epoch,
             delay_seconds=900.0,
@@ -1449,7 +1449,7 @@ class TestF05LosslessMigrationAndFailLoudly:
         create_schedule(
             owner_user_id="thanh_vien_a",
             owner_tier=2,
-            device_id="fan",
+            device_id="speaker_amp",
             action="turn_off",
             time_hhmm="22:15",
             schedule_id="sc_f05",
@@ -1460,14 +1460,14 @@ class TestF05LosslessMigrationAndFailLoudly:
             owner_tier=2,
             when_device_id="living_room_light",
             when_state="ON",
-            then_device_id="fan",
+            then_device_id="speaker_amp",
             then_action="turn_on",
             rule_id="rl_f05",
             db_path=src_db,
         )
         upsert_custom_command(
             phrase="ngủ trưa f05",
-            steps=[{"device_id": "fan", "action": "turn_on"}],
+            steps=[{"device_id": "speaker_amp", "action": "turn_on"}],
             owner_user_id="thanh_vien_a",
             owner_tier=2,
             command_id="cc_f05",

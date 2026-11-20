@@ -592,7 +592,7 @@ class TestSqliteDatabaseStateConsistencyUnderConcurrency:
         """5 thiết bị mục tiêu được bật/tắt liên tục 5 chu kỳ, CSDL SQLite đồng bộ chính xác 100%."""
         import asyncio
         engine = SmartHomeEngine()
-        devices = ["main_door", "living_room_light", "bedroom_light", "fan", "ac"]
+        devices = ["main_door", "living_room_light", "bedroom_light", "garden_pump", "speaker_amp"]
 
         for cycle in range(5):
             for dev in devices:
@@ -624,7 +624,7 @@ class TestSqliteDatabaseStateConsistencyUnderConcurrency:
         """Mô phỏng 5 luồng worker đồng thời gửi 50 lệnh điều khiển, đảm bảo 0 lỗi database is locked."""
         import asyncio
         engine = SmartHomeEngine()
-        devices = ["main_door", "living_room_light", "bedroom_light", "fan", "ac"]
+        devices = ["main_door", "living_room_light", "bedroom_light", "garden_pump", "speaker_amp"]
         errors: list[Exception] = []
 
         def worker_task(tid: int) -> None:

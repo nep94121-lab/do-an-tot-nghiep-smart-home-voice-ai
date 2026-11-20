@@ -252,7 +252,7 @@ console.log(JSON.stringify({
         assert is_echo3 is True and reason3
 
         # Unrelated user command -> NOT suppressed
-        is_echo4, _, _ = guard.check_echo_transcript("Tắt quạt trần giúp mình", now=t0 + 2.0)
+        is_echo4, _, _ = guard.check_echo_transcript("Tắt đèn ngủ giúp mình", now=t0 + 2.0)
         assert is_echo4 is False
 
         # After 8s window expires -> NOT suppressed
@@ -450,19 +450,19 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         assert "58" in sens_http["exact_spoken_reply"]
 
         # Flow C: Cancel ("không" / "hủy") does nothing
-        asyncio.run(engine.execute_device_action("ac", "turn_off", bypass_rbac=True))
-        assert engine.devices["ac"]["state"] == "OFF"
-        stage_ac = asyncio.run(
-            bridge.handle_tool_call(_fc("set_device", {"device_id": "ac", "action": "turn_on", "temperature_c": 22}))
+        asyncio.run(engine.execute_device_action("speaker_amp", "turn_off", bypass_rbac=True))
+        assert engine.devices["speaker_amp"]["state"] == "OFF"
+        stage_spk = asyncio.run(
+            bridge.handle_tool_call(_fc("set_device", {"device_id": "speaker_amp", "action": "turn_on"}))
         )
-        assert stage_ac["ok"] is True and stage_ac["requires_confirmation"] is True
-        assert engine.devices["ac"]["state"] == "OFF"
+        assert stage_spk["ok"] is True and stage_spk["requires_confirmation"] is True
+        assert engine.devices["speaker_amp"]["state"] == "OFF"
 
-        cancel_ac = asyncio.run(
+        cancel_spk = asyncio.run(
             bridge.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": False}))
         )
-        assert cancel_ac["cancelled"] is True
-        assert engine.devices["ac"]["state"] == "OFF"
+        assert cancel_spk["cancelled"] is True
+        assert engine.devices["speaker_amp"]["state"] == "OFF"
 
     def test_set_device_values_and_invalid_params_and_rbac(self) -> None:
         engine = SmartHomeEngine()
@@ -478,12 +478,12 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         devs_t1 = asyncio.run(b_owner.handle_tool_call(_fc("list_devices")))
         devs_t2 = asyncio.run(b_member.handle_tool_call(_fc("list_devices")))
         devs_t3 = asyncio.run(b_guest.handle_tool_call(_fc("list_devices")))
-        assert devs_t1["count"] == 7
+        assert devs_t1["count"] == 6
         assert {d["device_id"] for d in devs_t2["devices"]} == {
-            "living_room_light", "bedroom_light", "fan", "ac", "garden_pump"
+            "living_room_light", "bedroom_light", "garden_pump", "speaker_amp"
         }
         assert {d["device_id"] for d in devs_t3["devices"]} == {
-            "living_room_light", "bedroom_light", "fan"
+            "living_room_light", "bedroom_light"
         }
 
         # get_device_state: guest allowed on light, denied on main_door with fixed rejection phrase
@@ -493,11 +493,10 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         assert g_deny["ok"] is False and g_deny.get("rbac_blocked") is True
         assert g_deny["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
 
-        # set_device: Owner sets brightness / AC temp / fan speed (confirmed)
+        # set_device: Owner sets brightness on lights and toggles speaker_amp (confirmed)
         for args, expected_key, expected_val in [
             ({"device_id": "living_room_light", "action": "turn_on", "brightness_pct": 65}, "brightness_pct", 65),
-            ({"device_id": "ac", "action": "turn_on", "temperature_c": 23}, "temperature_c", 23),
-            ({"device_id": "fan", "action": "turn_on", "fan_speed": 4}, "fan_speed", 4),
+            ({"device_id": "bedroom_light", "action": "turn_on", "brightness_pct": 80}, "brightness_pct", 80),
         ]:
             st1 = asyncio.run(b_owner.handle_tool_call(_fc("set_device", args)))
             assert st1["ok"] is True and st1["requires_confirmation"] is True
@@ -508,8 +507,8 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
             assert st_read["device"]["settings"][expected_key] == expected_val
 
         # Invalid parameters rejected cleanly
-        bad_temp = asyncio.run(b_owner.handle_tool_call(_fc("set_device", {"device_id": "ac", "temperature_c": 45})))
-        assert bad_temp["ok"] is False
+        bad_bright = asyncio.run(b_owner.handle_tool_call(_fc("set_device", {"device_id": "living_room_light", "brightness_pct": 150})))
+        assert bad_bright["ok"] is False
         bad_param_dev = asyncio.run(
             b_owner.handle_tool_call(_fc("set_device", {"device_id": "living_room_light", "temperature_c": 22}))
         )
@@ -517,14 +516,14 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         bad_dev = asyncio.run(b_owner.handle_tool_call(_fc("set_device", {"device_id": "unknown_xyz", "action": "turn_on"})))
         assert bad_dev["ok"] is False
 
-        # Out-of-pool RBAC denials (Member -> main_door; Guest -> ac)
+        # Out-of-pool RBAC denials (Member -> main_door; Guest -> speaker_amp)
         m_deny = asyncio.run(b_member.handle_tool_call(_fc("set_device", {"device_id": "main_door", "action": "open"})))
         assert m_deny["ok"] is False and m_deny.get("rbac_blocked") is True
         assert m_deny["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
 
-        g_deny_ac = asyncio.run(b_guest.handle_tool_call(_fc("set_device", {"device_id": "ac", "action": "turn_on"})))
-        assert g_deny_ac["ok"] is False and g_deny_ac.get("rbac_blocked") is True
-        assert g_deny_ac["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
+        g_deny_spk = asyncio.run(b_guest.handle_tool_call(_fc("set_device", {"device_id": "speaker_amp", "action": "turn_on"})))
+        assert g_deny_spk["ok"] is False and g_deny_spk.get("rbac_blocked") is True
+        assert g_deny_spk["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
 
         # Guest CAN set_device on allowed light (with confirmation)
         g_stage = asyncio.run(b_guest.handle_tool_call(_fc("set_device", {"device_id": "bedroom_light", "action": "turn_on"})))
@@ -554,7 +553,7 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         owner_sched_id = sc1_ok["schedule"]["schedule_id"]
 
         tm1 = asyncio.run(
-            b_owner.handle_tool_call(_fc("create_timer", {"device_id": "fan", "action": "turn_off", "minutes": 5}))
+            b_owner.handle_tool_call(_fc("create_timer", {"device_id": "speaker_amp", "action": "turn_off", "minutes": 5}))
         )
         assert tm1["ok"] is True and tm1["requires_confirmation"] is True
         tm1_ok = asyncio.run(b_owner.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": True})))
@@ -579,16 +578,16 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         )
         assert m_bad_dev["ok"] is False and m_bad_dev.get("rbac_blocked") is True
         m_bad_time = asyncio.run(
-            b_member.handle_tool_call(_fc("create_schedule", {"device_id": "fan", "action": "turn_on", "time_hhmm": "25:99"}))
+            b_member.handle_tool_call(_fc("create_schedule", {"device_id": "speaker_amp", "action": "turn_on", "time_hhmm": "25:99"}))
         )
         assert m_bad_time["ok"] is False
 
         # Guest denied timers & schedules
         for tool_call in (
-            _fc("create_timer", {"device_id": "fan", "action": "turn_off", "minutes": 5}),
+            _fc("create_timer", {"device_id": "living_room_light", "action": "turn_off", "minutes": 5}),
             _fc("list_timers"),
             _fc("delete_timer", {"timer_id": owner_timer_id}),
-            _fc("create_schedule", {"device_id": "fan", "action": "turn_off", "time_hhmm": "21:00"}),
+            _fc("create_schedule", {"device_id": "living_room_light", "action": "turn_off", "time_hhmm": "21:00"}),
             _fc("list_schedules"),
             _fc("delete_schedule", {"schedule_id": owner_sched_id}),
         ):

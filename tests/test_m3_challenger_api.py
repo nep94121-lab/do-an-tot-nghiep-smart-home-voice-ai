@@ -79,7 +79,8 @@ def test_zero_404_on_all_post_endpoints_and_aliases(client: TestClient) -> None:
     post_routes = [
         "/api/device",
         "/api/mobile/schedule",
-        "/api/ir_learn",
+        "/api/sound_sensor",
+        "/api/ky037",
         "/api/dht11",
         "/api/soil_moisture",
         "/api/server_mode",
@@ -380,7 +381,8 @@ def test_empty_payload_on_device_routes(client: TestClient) -> None:
     device_routes = (
         "/api/device",
         "/api/mobile/schedule",
-        "/api/ir_learn",
+        "/api/sound_sensor",
+        "/api/ky037",
         "/api/dht11",
         "/api/soil_moisture",
         "/api/server_mode",
@@ -392,6 +394,12 @@ def test_empty_payload_on_device_routes(client: TestClient) -> None:
 
         r_auth = client.post(route, json={}, headers=admin_headers)
         assert r_auth.status_code == 200, f"Expected 200 with Owner session on {route}, got {r_auth.status_code}: {r_auth.text}"
+
+    # Retired /api/ir_learn returns 401 unauthenticated and 410 Gone for Owner
+    assert client.post("/api/ir_learn", json={}).status_code == 401
+    r_ir_gone = client.post("/api/ir_learn", json={}, headers=admin_headers)
+    assert r_ir_gone.status_code == 410
+    assert r_ir_gone.json().get("gone") is True
 
 
 def test_empty_payload_on_auth_and_qr_routes(client: TestClient) -> None:

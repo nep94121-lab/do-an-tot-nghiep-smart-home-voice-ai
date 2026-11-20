@@ -9,7 +9,7 @@ Kiến trúc Lưu trữ Lai 2 Tầng (Hybrid Storage Architecture):
      (3) `devices`         : Thiết bị Phần cứng, Trạng thái & Sơ đồ chân GPIO NodeMCU ESP8266
      (4) `timers_pool`     : Bể 1 — Lịch Hẹn Giờ Đa Tầng (Đếm ngược & Giờ Việt Nam AM/PM)
      (5) `rules_pool`      : Bể 2 — Luật Tự Động IF-THEN-ELSE, Đổi Từ & Khẩu Lệnh Tùy Chỉnh
-     (6) `ir_remote_codes` : Kho Mã Hồng Ngoại 38kHz (Thu từ VS1838B D5 -> Phát qua LED IR D2)
+     (6) `ir_remote_codes` : Bảng di sản (đã ngừng sử dụng theo hợp đồng 6 thiết bị mới, giữ trống)
      (7) `knowledge_rag`   : Kho Tri Thức Gia Đình & Vector Embeddings RAG
      (8) `audit_logs`      : Nhật Ký Sự Kiện, Câu Lệnh Giọng Nói & Truy Vết An Ninh
 2. Dưới Mạch Vi Điều Khiển (`simulator/data/esp8266_flash_replica.json` -> LittleFS `/rules_replica.json`):
@@ -362,19 +362,32 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                 # 2. Bảng `devices` + `device_state`
                 PIN_MAP = {
                     "main_door": "D1",
-                    "living_room_light": "D2",
-                    "ac": "D2",
-                    "garden_pump": "D3",
-                    "fan": "D6",
-                    "bedroom_light": "D7",
+                    "living_room_light": "D0",
+                    "bedroom_light": "D4",
+                    "garden_pump": "D6",
                     "alarm_siren": "D8",
+                    "speaker_amp": "D7",
                 }
+                from simulator.auth.tier_permissions import DEVICE_MIN_TIER, min_tier_for_device
+
                 devs_dict = getattr(engine, "devices", {}) or {}
-                dev_min_tiers = getattr(engine, "device_min_tiers", {}) or {}
+                sys_pol = getattr(engine, "system_policies", None)
+                pol_tiers = sys_pol.get("device_min_tiers") if isinstance(sys_pol, dict) else {}
+                dev_min_tiers = (
+                    getattr(engine, "device_min_tiers", None)
+                    or (pol_tiers if isinstance(pol_tiers, dict) and pol_tiers else None)
+                    or dict(DEVICE_MIN_TIER)
+                )
                 bootstrap_device_state_from_devices(c, devs_dict)
+                c.execute("DELETE FROM device_state WHERE device_id IN ('fan', 'ac')")
+                c.execute("DELETE FROM devices WHERE device_id IN ('fan', 'ac')")
                 for did, dinfo in devs_dict.items():
                     offline_ok = 0 if did in ("main_door", "alarm_siren") else 1
-                    min_t = int(dev_min_tiers.get(did, 3))
+                    min_t = (
+                        min_tier_for_device(str(did))
+                        if str(did) in DEVICE_MIN_TIER
+                        else int(dev_min_tiers.get(did, 3))
+                    )
                     c.execute(
                         """
                         INSERT INTO devices (
@@ -602,35 +615,8 @@ def sync_engine_state_to_sqlite(engine: Any) -> dict[str, int]:
                     except Exception:
                         pass
 
-                # 6. Bảng `ir_remote_codes`
-                ir_file = _active_db_path().parent / "ir_devices_db.json"
-                if not ir_file.exists():
-                    ir_file = DATA_DIR / "ir_devices_db.json"
-                if ir_file.exists():
-                    try:
-                        ir_mtime = ir_file.stat().st_mtime
-                        cur_ir = c.execute("SELECT COUNT(*) FROM ir_remote_codes").fetchone()[0]
-                        if cur_ir == 0 or ir_mtime != _LAST_IR_MTIME:
-                            ir_data = json.loads(ir_file.read_text(encoding="utf-8"))
-                            appliances = ir_data.get("appliances", {}) if isinstance(ir_data, dict) else {}
-                            for app_key, app_info in appliances.items():
-                                app_name = str(app_info.get("name") or app_key)
-                                proto = str(app_info.get("protocol") or "NEC_38KHZ")
-                                dev_ref = "ac" if "ac" in app_key or "dieu_hoa" in app_key else ("fan" if "fan" in app_key or "quat" in app_key else None)
-                                for cmd_act, hex_val in (app_info.get("commands", {}) or {}).items():
-                                    ir_id = f"{app_key}_{cmd_act}"
-                                    c.execute(
-                                        """
-                                        INSERT OR REPLACE INTO ir_remote_codes (
-                                            ir_code_id, device_id, appliance_name, command_action,
-                                            protocol, hex_code, freq_khz, learned_at
-                                        ) VALUES (?, ?, ?, ?, ?, ?, 38, ?)
-                                        """,
-                                        (ir_id, dev_ref, app_name, str(cmd_act), proto, str(hex_val), now_str),
-                                    )
-                            _LAST_IR_MTIME = ir_mtime
-                    except Exception:
-                        pass
+                # 6. Bảng `ir_remote_codes` (đã ngừng tính năng IR theo hợp đồng 6 thiết bị - giữ bảng trống)
+                c.execute("DELETE FROM ir_remote_codes")
 
                 # 7. Bảng `knowledge_rag`
                 global _LAST_KB_MTIME

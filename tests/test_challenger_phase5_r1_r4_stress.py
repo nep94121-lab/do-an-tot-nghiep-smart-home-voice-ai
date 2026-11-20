@@ -6,7 +6,7 @@ Challenger 1 (Critic & Specialist):
   - #connText and #homeServerStatusBadge correctly show 'Đã kết nối (WebSocket)' vs 'Đã kết nối (HTTP Polling)' vs 'Mất kết nối'.
   - Repeated rapid reconnect attempts do not trigger runaway timers or console spam.
 - R4: 3D house3d overlay pins under rapid initial state updates, empty states, null values, and transitions to ON/OFF.
-  - Assert that 'Đèn khách (D2):' is NEVER rendered with an empty value.
+  - Assert that 'Đèn khách (D0):' is NEVER rendered with an empty value.
   - Adversarial fuzzing with empty strings, whitespace, null, undefined, false, 0.
   - 100-cycle rapid alternating transition stress harness.
   - All 7 device pins verified against the empty-label invariant.
@@ -477,15 +477,15 @@ class TestChallengerR1VercelWebSocketFallback:
 
 
 # ==============================================================================
-# PART 2: R4 EMPIRICAL STRESS TESTS (3D Chip Overlay Pin State & Living Room D2)
+# PART 2: R4 EMPIRICAL STRESS TESTS (3D Chip Overlay Pin State & Living Room D0)
 # ==============================================================================
 
 
 class TestChallengerR4House3DChipOverlayPinState:
     """Adversarial stress testing of 3D house3d pin overlays."""
 
-    def test_initial_state_d2_pin_is_hidden_and_empty(self):
-        """Immediately after SmartHome3D.init(), the living room light pin (D2) MUST be hidden
+    def test_initial_state_d0_pin_is_hidden_and_empty(self):
+        """Immediately after SmartHome3D.init(), the living room light pin (D0) MUST be hidden
 
         (display: 'none', hasValue: 'false') and .pin-state MUST be empty.
         """
@@ -627,7 +627,7 @@ class TestChallengerR4House3DChipOverlayPinState:
     def test_chaotic_payload_fuzzing_never_renders_d2_empty(self):
         """Adversarial Fuzzing: Feed 10 malformed/empty payloads into updateDevices.
 
-        Under NO circumstances must the D2 pin become visible (display !== 'none') with an empty value.
+        Under NO circumstances must the D0 pin become visible (display !== 'none') with an empty value.
         """
         runner = """
         const fs = require('fs');
@@ -797,7 +797,7 @@ class TestChallengerR4House3DChipOverlayPinState:
     def test_rapid_alternating_state_transitions_100_cycles(self):
         """100-cycle stress test rapidly toggling between 'ON', '', 'OFF', null, 'ON', undefined.
 
-        Every single frame is checked to guarantee that D2 is never rendered with an empty value.
+        Every single frame is checked to guarantee that D0 is never rendered with an empty value.
         """
         runner = """
         const fs = require('fs');
@@ -947,10 +947,10 @@ class TestChallengerR4House3DChipOverlayPinState:
         res = run_node_stress_harness(runner)
         assert res["violationsCount"] == 0, f"Found violations during 100 cycles: {res['violations'][:5]}"
 
-    def test_all_seven_device_pins_adhere_to_empty_hide_contract(self):
-        """All 7 devices in house3d (main_door, living_room_light, fan, ac, bedroom_light,
+    def test_all_six_device_pins_adhere_to_empty_hide_contract(self):
+        """All 6 devices in house3d (main_door, living_room_light, bedroom_light, alarm_siren,
 
-        alarm_siren, garden_pump) must hide their pins when state is empty, and display them
+        garden_pump, speaker_amp) must hide their pins when state is empty, and display them
         when state is valid.
         """
         runner = """
@@ -1066,16 +1066,16 @@ class TestChallengerR4House3DChipOverlayPinState:
 
         ctx.window.SmartHome3D.init('house3dViewport', 'house3dLabels');
 
-        const deviceIds = ['main_door', 'living_room_light', 'fan', 'ac', 'bedroom_light', 'alarm_siren', 'garden_pump'];
+        const deviceIds = ['main_door', 'living_room_light', 'bedroom_light', 'alarm_siren', 'garden_pump', 'speaker_amp'];
         const results = {};
 
-        // 1. Initial State: all 7 pins should be hidden
+        // 1. Initial State: all 6 pins should be hidden
         results.allInitialHidden = deviceIds.every(id => {
             const pin = labels.children.find(c => c.getAttribute('data-id') === id);
             return pin && pin.style.display === 'none' && (pin.dataset.hasValue === 'false' || pin.getAttribute('data-has-value') === 'false');
         });
 
-        // 2. Supply valid state to all 7
+        // 2. Supply valid state to all 6
         const validDevices = deviceIds.map(id => ({
             id,
             state: id === 'main_door' ? 'CLOSED' : 'OFF'

@@ -19,10 +19,9 @@ DEVICE_ENUM = [
     "main_door",
     "living_room_light",
     "bedroom_light",
-    "fan",
-    "ac",
-    "alarm_siren",
     "garden_pump",
+    "alarm_siren",
+    "speaker_amp",
     "all_lights",
     "all_devices",
 ]
@@ -31,10 +30,10 @@ ACTION_ENUM = ["open", "close", "turn_on", "turn_off"]
 fn_control_device = types.FunctionDeclaration(
     name="control_device",
     description=(
-        "Bật/tắt hoặc mở/đóng thiết bị trong nhà ngay lập tức. "
+        "Yêu cầu bật/tắt hoặc mở/đóng thiết bị trong nhà. "
+        "Hệ thống sẽ kiểm tra quyền phía server và tạo bản nháp chờ người dùng xác nhận tự nhiên ('ok', 'được', 'đúng rồi', 'đồng ý') trước khi thực thi. "
         "Lưu ý: Nếu người dùng dùng từ đã đổi (word_mapping) hoặc khẩu lệnh đã đổi (alias), "
-        "hãy dịch sang device_id và action chuẩn rồi gọi hàm này (hoặc gọi execute_alias_rule). "
-        "Hệ thống sẽ tự động kích hoạt các luật IF-ELSE gắn với trạng thái mới của thiết bị."
+        "hãy dịch sang device_id và action chuẩn rồi gọi hàm này (hoặc gọi execute_alias_rule)."
     ),
     parameters={
         "type": "OBJECT",
@@ -44,8 +43,8 @@ fn_control_device = types.FunctionDeclaration(
                 "enum": DEVICE_ENUM,
                 "description": (
                     "Mã thiết bị: main_door (cửa chính), living_room_light (đèn phòng khách), "
-                    "bedroom_light (đèn phòng ngủ), fan (quạt trần), ac (điều hòa), "
-                    "alarm_siren (còi báo động), garden_pump (máy bơm tưới cây), "
+                    "bedroom_light (đèn phòng ngủ), garden_pump (máy bơm tưới cây), "
+                    "alarm_siren (còi báo động), speaker_amp (nguồn mạch loa PAM8403), "
                     "all_lights (tất cả đèn), all_devices (tất cả thiết bị)."
                 ),
             },
@@ -103,7 +102,7 @@ fn_update_timer = types.FunctionDeclaration(
     name="update_timer",
     description=(
         "Sửa đổi thời gian/hành động của một bộ hẹn giờ đang chạy hoặc hủy hẹn giờ "
-        "(VD: 'Sửa lại hẹn giờ tắt đèn thành 15 giây nữa', 'Đổi hẹn giờ điều hòa sang 8:00 PM', 'Hủy hẹn giờ quạt')."
+        "(VD: 'Sửa lại hẹn giờ tắt đèn thành 15 giây nữa', 'Đổi hẹn giờ máy bơm sang 8:00 PM', 'Hủy hẹn giờ nguồn mạch loa')."
     ),
     parameters={
         "type": "OBJECT",
@@ -140,18 +139,18 @@ fn_set_word_mapping = types.FunctionDeclaration(
     name="set_word_mapping",
     description=(
         "ĐỔI TỪ (Word / Vocabulary Mapping): Khi người dùng muốn đổi tên gọi của một thiết bị hoặc một từ hành động "
-        "(VD: 'Từ giờ gọi điều hòa là máy lạnh', 'Gọi cửa chính là cổng rồng', 'Từ khởi động nghĩa là bật')."
+        "(VD: 'Từ giờ gọi nguồn mạch loa là loa chính', 'Gọi cửa chính là cổng rồng', 'Từ khởi động nghĩa là bật')."
     ),
     parameters={
         "type": "OBJECT",
         "properties": {
             "custom_word": {
                 "type": "STRING",
-                "description": "Từ hoặc tên gọi mới do người dùng đặt (VD: 'máy lạnh', 'cổng rồng', 'khởi động').",
+                "description": "Từ hoặc tên gọi mới do người dùng đặt (VD: 'loa chính', 'cổng rồng', 'khởi động').",
             },
             "target_meaning": {
                 "type": "STRING",
-                "description": "Thiết bị hoặc hành động gốc tương ứng (VD: 'ac (Điều hòa)', 'main_door (Cửa chính)', 'turn_on (Bật)').",
+                "description": "Thiết bị hoặc hành động gốc tương ứng (VD: 'speaker_amp (Nguồn mạch loa PAM8403)', 'main_door (Cửa chính)', 'turn_on (Bật)').",
             },
         },
         "required": ["custom_word", "target_meaning"],
@@ -205,20 +204,20 @@ fn_execute_alias_rule = types.FunctionDeclaration(
 fn_set_if_else_rule = types.FunctionDeclaration(
     name="set_if_else_rule",
     description=(
-        "Thiết lập LIÊN KẾT / LUẬT TỰ ĐỘNG IF-THEN giữa các thiết bị (VD: 'từ giờ mở cửa chính thì mở cả đèn', 'khi bật quạt thì bật đèn'). "
+        "Thiết lập LIÊN KẾT / LUẬT TỰ ĐỘNG IF-THEN giữa các thiết bị (VD: 'từ giờ mở cửa chính thì mở cả đèn', 'khi bật máy bơm thì bật đèn'). "
         "Chỉ điền `else_device_id` khi người dùng nói rõ vế ngược lại. "
         "Khi gọi tool, server kiểm tra phân quyền (Cấp 2 cần được Cấp 1 cấp quyền liên kết) rồi lưu nháp chờ xác nhận (20s) và trả `exact_spoken_reply` — BẮT BUỘC đọc nguyên văn để hỏi xác nhận."
     ),
     parameters={
         "type": "OBJECT",
         "properties": {
-            "when_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
+            "when_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
             "when_state": {
                 "type": "STRING",
                 "enum": ["ON", "OFF", "OPEN", "CLOSED"],
                 "description": "Trạng thái điều kiện IF của thiết bị nguồn (ON, OFF, OPEN, CLOSED).",
             },
-            "then_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
+            "then_device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
             "then_action": {"type": "STRING", "enum": ACTION_ENUM},
             "delay_seconds": {
                 "type": "NUMBER",
@@ -539,10 +538,10 @@ fn_admin_upsert_knowledge_rag = types.FunctionDeclaration(
 fn_set_or_query_sensors = types.FunctionDeclaration(
     name="set_or_query_sensors",
     description=(
-        "ĐỌC HOẶC TỰ SET (GIẢ LẬP) NHIỆT ĐỘ PHÒNG, ĐỘ ẨM KHÔNG KHÍ (CẢM BIẾN DHT11 - CHÂN D6) VÀ ĐỘ ẨM ĐẤT (CẢM BIẾN YL-69 - CHÂN A0) BẰNG GIỌNG NÓI:\n"
-        "- Khi người dùng hỏi nhiệt độ, độ ẩm phòng, hoặc độ ẩm đất hiện tại (VD: 'Nhiệt độ phòng bao nhiêu?', 'Độ ẩm đất thế nào?') -> gọi với `operation='query'`.\n"
+        "ĐỌC HOẶC TỰ SET (GIẢ LẬP) NHIỆT ĐỘ PHÒNG, ĐỘ ẨM KHÔNG KHÍ (DHT11 - CHÂN D2), ĐỘ ẨM ĐẤT (CHÂN A0) VÀ CẢM BIẾN ÂM THANH KY-037/038 (DO - CHÂN D5) BẰNG GIỌNG NÓI:\n"
+        "- Khi người dùng hỏi nhiệt độ, độ ẩm phòng, độ ẩm đất hoặc cảm biến âm thanh KY-037 hiện tại -> gọi với `operation='query'` (Gemini Voice AI thu âm qua micro/loa web hoặc thiết bị, còn KY-037 DO trên D5 phát hiện vỗ tay/tiếng động lớn).\n"
         "- Khi người dùng ra lệnh chỉnh/set nhiệt độ hoặc độ ẩm không khí DHT11 (VD: 'Chỉnh nhiệt độ lên 32 độ', 'Set nhiệt độ 26 độ, độ ẩm 60%') -> gọi với `operation='set'`, truyền `temp_c` và/hoặc `humidity_pct`.\n"
-        "- Khi người dùng ra lệnh chỉnh/set độ ẩm đất YL-69 (VD: 'Set độ ẩm đất xuống 25%', 'Chỉnh độ ẩm đất 80%') -> gọi với `operation='set'`, truyền `soil_moisture_pct`. Nếu đất khô < 40% máy bơm (D3) sẽ tự bật, đủ ẩm >= 70% máy bơm tự tắt!"
+        "- Khi người dùng ra lệnh chỉnh/set độ ẩm đất (VD: 'Set độ ẩm đất xuống 25%', 'Chỉnh độ ẩm đất 80%') -> gọi với `operation='set'`, truyền `soil_moisture_pct`. Nếu đất khô < 40% máy bơm (D6) sẽ tự bật, đủ ẩm >= 70% máy bơm tự tắt!"
     ),
     parameters={
         "type": "OBJECT",
@@ -554,15 +553,15 @@ fn_set_or_query_sensors = types.FunctionDeclaration(
             },
             "temp_c": {
                 "type": "NUMBER",
-                "description": "Nhiệt độ phòng (°C) muốn set cho cảm biến DHT11 (chân D6), ví dụ 32.0.",
+                "description": "Nhiệt độ phòng (°C) muốn set cho cảm biến DHT11 (chân D2), ví dụ 32.0.",
             },
             "humidity_pct": {
                 "type": "NUMBER",
-                "description": "Độ ẩm không khí (%) muốn set cho cảm biến DHT11 (chân D6), ví dụ 65.0.",
+                "description": "Độ ẩm không khí (%) muốn set cho cảm biến DHT11 (chân D2), ví dụ 65.0.",
             },
             "soil_moisture_pct": {
                 "type": "NUMBER",
-                "description": "Độ ẩm đất (%) muốn set cho cảm biến YL-69 (chân A0), ví dụ 25.0 (khô < 40% tự bật bơm, >= 70% tự tắt bơm).",
+                "description": "Độ ẩm đất (%) muốn set cho cảm biến độ ẩm đất (chân A0), ví dụ 25.0 (khô < 40% tự bật bơm, >= 70% tự tắt bơm).",
             },
         },
         "required": ["operation"],
@@ -578,7 +577,7 @@ fn_create_schedule_clock = types.FunctionDeclaration(
     parameters={
         "type": "OBJECT",
         "properties": {
-            "device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7]},
+            "device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6]},
             "action": {"type": "STRING", "enum": ACTION_ENUM},
             "time_hhmm": {"type": "STRING", "description": "Giờ định dạng HH:MM 24h theo Asia/Saigon (VD: '14:35', '22:30')."},
             "schedule_type": {"type": "STRING", "enum": ["once", "daily"], "description": "'once' (1 lần) hoặc 'daily' (hằng ngày)."},
@@ -726,7 +725,7 @@ fn_list_devices = types.FunctionDeclaration(
     name="list_devices",
     description=(
         "Liệt kê danh sách các thiết bị trong nhà thuộc quyền sử dụng của người đang nói "
-        "kèm trạng thái bật/tắt/đóng/mở và các thông số hiện tại (độ sáng, nhiệt độ điều hòa, tốc độ quạt)."
+        "kèm trạng thái bật/tắt/đóng/mở và các thông số hiện tại (độ sáng đèn)."
     ),
     parameters={
         "type": "OBJECT",
@@ -738,14 +737,14 @@ fn_get_device_state = types.FunctionDeclaration(
     name="get_device_state",
     description=(
         "Đọc trạng thái hiện tại và thông số chi tiết của một thiết bị cụ thể "
-        "(đèn phòng khách, đèn phòng ngủ, quạt trần, điều hòa, cửa chính, còi báo động, máy bơm tưới cây)."
+        "(cửa chính, đèn phòng khách, đèn phòng ngủ, máy bơm tưới cây, còi báo động, nguồn mạch loa PAM8403)."
     ),
     parameters={
         "type": "OBJECT",
         "properties": {
             "device_id": {
                 "type": "STRING",
-                "enum": DEVICE_ENUM[:7],
+                "enum": DEVICE_ENUM[:6],
                 "description": "Thiết bị cần kiểm tra trạng thái.",
             },
         },
@@ -756,8 +755,8 @@ fn_get_device_state = types.FunctionDeclaration(
 fn_read_sensors = types.FunctionDeclaration(
     name="read_sensors",
     description=(
-        "Đọc toàn bộ thông số cảm biến hiện tại trong nhà và sân vườn gồm nhiệt độ phòng (°C), "
-        "độ ẩm không khí (%) và độ ẩm đất (%)."
+        "Đọc toàn bộ thông số 3 cảm biến hiện tại trong nhà và sân vườn gồm nhiệt độ phòng (°C), "
+        "độ ẩm không khí (%), độ ẩm đất (%) và trạng thái cảm biến âm thanh KY-037 (chân D5)."
     ),
     parameters={
         "type": "OBJECT",
@@ -768,15 +767,15 @@ fn_read_sensors = types.FunctionDeclaration(
 fn_set_device = types.FunctionDeclaration(
     name="set_device",
     description=(
-        "Yêu cầu bật/tắt/mở/đóng hoặc đặt giá trị cho thiết bị (độ sáng đèn 0-100%, nhiệt độ điều hòa 16-30 độ C, tốc độ quạt 1-5). "
-        "Hệ thống sẽ kiểm tra quyền phía server và tạo bản nháp chờ người dùng xác nhận bằng lời ('ok', 'đồng ý', 'được') trước khi thực thi."
+        "Yêu cầu bật/tắt/mở/đóng hoặc đặt giá trị cho thiết bị (độ sáng đèn 0-100%). "
+        "Hệ thống sẽ kiểm tra quyền phía server và tạo bản nháp chờ người dùng xác nhận bằng lời ('ok', 'đồng ý', 'được', 'đúng rồi') trước khi thực thi."
     ),
     parameters={
         "type": "OBJECT",
         "properties": {
             "device_id": {
                 "type": "STRING",
-                "enum": DEVICE_ENUM[:7],
+                "enum": DEVICE_ENUM[:6],
                 "description": "Thiết bị cần điều khiển hoặc đặt thông số.",
             },
             "action": {
@@ -787,14 +786,6 @@ fn_set_device = types.FunctionDeclaration(
             "brightness_pct": {
                 "type": "INTEGER",
                 "description": "Độ sáng đèn theo phần trăm từ 0 đến 100 (chỉ dùng cho đèn phòng khách hoặc đèn phòng ngủ).",
-            },
-            "temperature_c": {
-                "type": "INTEGER",
-                "description": "Nhiệt độ điều hòa theo độ C từ 16 đến 30 (chỉ dùng cho điều hòa).",
-            },
-            "fan_speed": {
-                "type": "INTEGER",
-                "description": "Tốc độ quạt từ mức 1 đến mức 5 (chỉ dùng cho quạt trần).",
             },
         },
         "required": ["device_id"],
@@ -866,7 +857,7 @@ fn_create_schedule = types.FunctionDeclaration(
     parameters={
         "type": "OBJECT",
         "properties": {
-            "device_id": {"type": "STRING", "enum": DEVICE_ENUM[:7], "description": "Thiết bị cần đặt lịch."},
+            "device_id": {"type": "STRING", "enum": DEVICE_ENUM[:6], "description": "Thiết bị cần đặt lịch."},
             "action": {"type": "STRING", "enum": ACTION_ENUM, "description": "Hành động sẽ thực hiện."},
             "time_hhmm": {"type": "STRING", "description": "Giờ thực hiện dạng 24 giờ HH:MM (ví dụ 22:30)."},
             "schedule_type": {
@@ -966,6 +957,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
     cur_role = engine.current_role
     dht = getattr(getattr(engine, "mqtt_bridge", None), "dht11_telemetry", {}) or {}
     soil = getattr(getattr(engine, "mqtt_bridge", None), "soil_moisture_telemetry", {}) or {}
+    sound = getattr(getattr(engine, "mqtt_bridge", None), "sound_telemetry", {}) or {}
 
     state_vi_map = {"ON": "đang bật", "OFF": "đang tắt", "OPEN": "đang mở", "CLOSED": "đang đóng"}
     act_vi_map = {"open": "mở", "close": "đóng", "turn_on": "bật", "turn_off": "tắt"}
@@ -1046,22 +1038,23 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         "1. DANH TÍNH & PHÂN QUYỀN HIỆN TẠI (ĐÃ XÁC THỰC PHÍA MÁY CHỦ):\n"
         f"- Người đang nói: {cur_user} (Cấp {cur_tier}, vai trò {cur_role}).\n"
         "- Cấp 1 (Chủ nhà): toàn quyền thiết bị, xem/sửa/xóa hẹn giờ, lịch và ngữ cảnh của mọi người.\n"
-        "- Cấp 2 (Gia đình): điều khiển đèn, quạt, điều hòa, máy bơm; chỉ xem và quản lý hẹn giờ, lịch, ngữ cảnh của chính mình; không được mở cửa chính, bật còi báo động hay đặt lịch trùng trong 60 giây với Chủ nhà.\n"
-        "- Cấp 3 (Khách): chỉ được bật tắt đèn và quạt. Mọi yêu cầu khác chỉ đáp: 'Khách chỉ được bật tắt thiết bị thôi ạ.'.\n"
+        "- Cấp 2 (Gia đình): điều khiển đèn phòng khách, đèn phòng ngủ, máy bơm tưới cây và nguồn mạch loa PAM8403; chỉ xem và quản lý hẹn giờ, lịch, ngữ cảnh của chính mình; không được mở cửa chính, bật còi báo động hay đặt lịch trùng trong 60 giây với Chủ nhà.\n"
+        "- Cấp 3 (Khách): chỉ được bật tắt đèn phòng khách và đèn phòng ngủ. Mọi yêu cầu khác chỉ đáp: 'Khách chỉ được bật tắt thiết bị thôi ạ.'.\n"
         "\n"
         "2. QUY TẮC NÓI TỰ NHIÊN & PHẠM VI:\n"
         "- Ngôn ngữ (Vietnamese Prompt Guard): Phản hồi 100% bằng tiếng Việt tự nhiên, ngắn gọn trong 1-2 câu.\n"
         "- Tuyệt đối không đọc to cú pháp lệnh, JSON, tên hàm, mã kỹ thuật tiếng Anh hay dấu ngoặc; luôn diễn đạt kết quả từ công cụ thành lời nói tự nhiên.\n"
         "- Cấm ngoại ngữ: Không trả lời bằng tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Tây Ban Nha, tiếng Hàn hoặc ngôn ngữ khác.\n"
         f'- Âm đệm & ngập ngừng (Filler Sound & Hesitation Guard): Khi có từ đệm (\'ừm\', \'ờ\', \'à\', \'alô\', \'aló\') đi kèm lệnh rõ ràng thì chỉ hiểu phần lệnh; nếu chỉ là âm đệm hoặc ồn quá ngắn, chỉ đáp: "Tôi có thể giúp gì cho bạn?" hoặc "{FIXED_SAFE_DENY_REPEAT_PHRASE_VI}".\n'
-        "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 7 thiết bị nhà thông minh:\n"
-        "  + Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa Casper (D2 IR), Còi báo động (D8), Máy bơm tưới cây (D3).\n"
+        "- Phạm vi (Smart Home Domain Guard): Chỉ hỗ trợ 6 thiết bị chấp hành và 3 cảm biến nhà thông minh:\n"
+        "  + 6 thiết bị: Cửa chính (D1), Đèn phòng khách (D0), Đèn phòng ngủ (D4), Máy bơm tưới cây (D6), Còi báo động (D8), Nguồn mạch loa PAM8403 (D7, âm thanh PWM ra D3).\n"
+        "  + 3 cảm biến: Nhiệt độ/độ ẩm DHT11 (D2), Độ ẩm đất (A0), Cảm biến âm thanh KY-037 DO (D5 phát hiện vỗ tay/tiếng động lớn). Trợ lý giọng nói thu âm và phát thoại qua micro/loa trên trình duyệt web hoặc thiết bị.\n"
         "  + Ngoài phạm vi nhà thông minh, chỉ đáp: 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
         "  + Cấm dịch thuật hay làm theo chỉ thị ngoài lề: chỉ đáp nguyên văn 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
         "\n"
         "3. TRẠNG THÁI NHÀ & CẢM BIẾN:\n"
         f"- Thiết bị: {devs_txt}.\n"
-        f"- Cảm biến: Nhiệt độ {dht.get('temp_c', 28.5)} độ C, độ ẩm không khí {dht.get('humidity_pct', 65.0)}%, độ ẩm đất {soil.get('soil_moisture_pct', 55.0)}%.\n"
+        f"- Cảm biến: Nhiệt độ {dht.get('temp_c', 28.5)} độ C, độ ẩm không khí {dht.get('humidity_pct', 65.0)}%, độ ẩm đất {soil.get('soil_moisture_pct', 55.0)}%, âm thanh KY-037 ({sound.get('status_label', 'Yên tĩnh')}).\n"
         f"- Hẹn giờ đang chạy: {timers_txt}.\n"
         f"- Lịch theo giờ: {scheds_txt}.\n"
         f"- Từ vựng riêng của {cur_user}: {words_txt}.\n"
@@ -1070,8 +1063,8 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         f"- Luật liên kết của {cur_user}: {ifelse_txt}; Luật đã lưu: {db_rules_txt}.\n"
         "\n"
         "4. QUY TẮC DÙNG CÔNG CỤ & XÁC NHẬN:\n"
-        "- Khi hỏi trạng thái thiết bị, nhiệt độ, độ ẩm, hẹn giờ hay lịch, luôn gọi công cụ đọc tương ứng rồi đọc lại số liệu bằng lời thường.\n"
-        "- Mọi yêu cầu thay đổi thiết bị có xác nhận, đặt hoặc xóa hẹn giờ, đặt hoặc xóa lịch, tạo luật hay reset: luôn gọi công cụ tạo bản nháp trước, nhắc lại bằng lời thường như 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?' rồi chờ người dùng trả lời 'ok', 'đồng ý' hoặc 'được' mới gọi công cụ xác nhận và báo ngắn gọn.\n"
+        "- Khi hỏi trạng thái thiết bị, nhiệt độ, độ ẩm, âm thanh, hẹn giờ hay lịch, luôn gọi công cụ đọc tương ứng rồi đọc lại số liệu bằng lời thường.\n"
+        "- Mọi yêu cầu bật/tắt/mở/đóng hoặc thay đổi thông số thiết bị, đặt hoặc xóa hẹn giờ, đặt hoặc xóa lịch, tạo luật hay reset: luôn gọi công cụ tạo bản nháp trước, nhắc lại bằng lời thường như 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?' rồi chờ người dùng trả lời 'ok', 'đồng ý', 'được' hoặc 'đúng rồi' mới gọi công cụ xác nhận và báo ngắn gọn.\n"
         "- Nếu người dùng nói 'không' hoặc 'hủy', gọi công cụ hủy và báo ngắn gọn 'Đã hủy.'.\n"
         "- Nếu công cụ trả câu thông báo bắt buộc hoặc câu từ chối quyền, hãy đọc đúng nội dung đó bằng tiếng Việt tự nhiên.\n"
         f'- Nếu chưa đăng nhập hoặc không đủ quyền, chỉ nói: "{FIXED_REJECTION_PHRASE_VI}".\n'

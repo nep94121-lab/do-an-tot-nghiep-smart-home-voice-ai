@@ -3,9 +3,9 @@ Tác giả: teamwork_test_writer (E2E Test Architecture Track)
 Đặc tả: ORIGINAL_REQUEST.md (Chỉ thị Sếp Nguyễn Tuấn Anh về toàn bộ 36 Luồng Dự Án), PROJECT.md
 Phân nhóm 6 nhóm nghiệp vụ:
 - Nhóm I: Luồng 1 -> 8 (DSP, Khử ồn, 2 người nói cùng lúc, 3-strike, Topbar enroll, Voice enroll countdown, Cổng chống trùng giọng bảo vệ C1, Kiểm định âm học)
-- Nhóm II: Luồng 9 -> 14 (QR động 10s, giới hạn thời hạn, thu âm khách, email 2 lần + DNS MX + OTP, phân quyền C3 đèn/quạt vs chặn cửa/bơm, hết hạn expires_at & thu hồi)
+- Nhóm II: Luồng 9 -> 14 (QR động 10s, giới hạn thời hạn, thu âm khách, email 2 lần + DNS MX + OTP, phân quyền C3 đèn khách/ngủ vs chặn cửa/bơm/còi/nguồn loa, hết hạn expires_at & thu hồi)
 - Nhóm III: Luồng 15 -> 18 (Email gia đình C1/C2/C3, login nhận cấp & modal thu âm, quyền C2 điều khiển/bể lệnh riêng/chặn cửa, xác thực 3 lớp /auth)
-- Nhóm IV: Luồng 19 -> 25 (7 thiết bị phần cứng + gom nhóm, nhắc trạng thái mở sẵn, giả lập độ ẩm đất A0 tự bật bơm, DHT11 D6, IR 38kHz, nhà 3D, Wokwi)
+- Nhóm IV: Luồng 19 -> 25 (6 thiết bị phần cứng + gom nhóm, nhắc trạng thái mở sẵn, giả lập độ ẩm đất A0 tự bật bơm, DHT11 D2, cảm biến âm thanh KY-037 D5 & nguồn mạch loa PAM8403 D7/D3, nhà 3D, Wokwi)
 - Nhóm V: Luồng 26 -> 31 (Hẹn giờ đếm ngược, hẹn giờ GMT+7 AM/PM, đổi từ, đổi khẩu lệnh, luật IF-THEN kéo theo dây chuyền, 4 loại reset bảo vệ giọng C1)
 - Nhóm VI: Luồng 32 -> 36 (Admin sửa luật & chính sách, truy vấn 2 bể & tri thức RAG, Online Live <-> Offline Tiny-DSP khóa cửa, CSDL 8 bảng SQLite WAL, Mobile App & Android Galaxy S9)
 """
@@ -324,27 +324,31 @@ class TestGroup2GuestQrAndDuration:
         assert r4.get("verified") is True
 
     def test_flow_13_guest_hardware_rbac_permissions(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 13: Phân quyền Khách Cấp 3: bật đèn/quạt (Được), cửa/còi/bơm/luật (Chặn)."""
+        """Luồng 13: Phân quyền Khách Cấp 3: bật đèn phòng khách/ngủ (Được), cửa/còi/bơm/nguồn loa/luật (Chặn)."""
         async def _run() -> None:
             engine = clean_engine
             engine.set_active_user("khach_c")
             assert engine.current_tier == 3
 
-            # Bật đèn phòng khách -> Cho phép
+            # Bật đèn phòng khách & phòng ngủ -> Cho phép
             r_light = await engine.execute_device_action("living_room_light", "turn_on")
             assert r_light.get("ok") is True
 
-            # Bật quạt trần -> Cho phép
-            r_fan = await engine.execute_device_action("fan", "turn_on")
-            assert r_fan.get("ok") is True
+            r_bed = await engine.execute_device_action("bedroom_light", "turn_on")
+            assert r_bed.get("ok") is True
 
-            # Mở cửa chính -> Chặn
+            # Mở cửa chính, bật còi, bật bơm, bật nguồn loa -> Chặn
             r_door = await engine.execute_device_action("main_door", "open")
             assert r_door.get("ok") is False
 
-            # Bật còi báo động -> Chặn
             r_siren = await engine.execute_device_action("alarm_siren", "turn_on")
             assert r_siren.get("ok") is False
+
+            r_pump = await engine.execute_device_action("garden_pump", "turn_on")
+            assert r_pump.get("ok") is False
+
+            r_spk = await engine.execute_device_action("speaker_amp", "turn_on")
+            assert r_spk.get("ok") is False
 
         asyncio.run(_run())
 
@@ -412,16 +416,16 @@ class TestGroup3FamilyAuthAndAllowlist:
         assert "reading_prompt" in acc
 
     def test_flow_17_tier2_operations_and_private_pool(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 17: Thành viên Gia đình C2 điều khiển Đèn, Quạt, Điều hòa, Bơm; sở hữu Bể lệnh riêng."""
+        """Luồng 17: Thành viên Gia đình C2 điều khiển Đèn, Máy bơm, Nguồn mạch loa PAM8403; sở hữu Bể lệnh riêng."""
         async def _run() -> None:
             engine = clean_engine
             engine.set_active_user("thanh_vien_a")
             assert engine.current_tier == 2
 
-            # C2 bật đèn, quạt, điều hòa, bơm -> Cho phép
+            # C2 bật đèn khách, đèn ngủ, nguồn mạch loa, bơm -> Cho phép
             assert (await engine.execute_device_action("living_room_light", "turn_on")).get("ok") is True
-            assert (await engine.execute_device_action("fan", "turn_on")).get("ok") is True
-            assert (await engine.execute_device_action("ac", "turn_on")).get("ok") is True
+            assert (await engine.execute_device_action("bedroom_light", "turn_on")).get("ok") is True
+            assert (await engine.execute_device_action("speaker_amp", "turn_on")).get("ok") is True
             assert (await engine.execute_device_action("garden_pump", "turn_on")).get("ok") is True
 
             # C2 cố mở cửa chính -> Bị chặn
@@ -455,13 +459,13 @@ class TestGroup4DeviceActuationAndTelemetry:
     """Kiểm thử Nhóm IV: Luồng 19 đến Luồng 25."""
 
     def test_flow_19_seven_hardware_actuators_and_groups(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 19: Điều khiển đơn lẻ và đồng thời 7 thiết bị phần cứng + gom nhóm."""
+        """Luồng 19: Điều khiển đơn lẻ và đồng thời 6 thiết bị phần cứng + gom nhóm."""
         async def _run() -> None:
             engine = clean_engine
             engine.set_active_user("tuan_anh")
 
-            # 7 thiết bị đơn lẻ
-            devices = ["main_door", "living_room_light", "bedroom_light", "fan", "ac", "alarm_siren", "garden_pump"]
+            # 6 thiết bị đơn lẻ
+            devices = ["main_door", "living_room_light", "bedroom_light", "garden_pump", "alarm_siren", "speaker_amp"]
             for dev in devices:
                 act = "open" if dev == "main_door" else "turn_on"
                 res = await engine.execute_device_action(dev, act)
@@ -490,7 +494,7 @@ class TestGroup4DeviceActuationAndTelemetry:
         asyncio.run(_run())
 
     def test_flow_21_soil_moisture_sensor_auto_pump(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 21: Giả lập Cảm biến Độ ẩm đất A0: < 40% tự bật bơm D3, > 75% tự tắt."""
+        """Luồng 21: Giả lập Cảm biến Độ ẩm đất A0: < 40% tự bật bơm D6, >= 70% tự tắt."""
         async def _run() -> None:
             engine = clean_engine
             # Đất khô 25% -> Tự bật bơm
@@ -506,7 +510,7 @@ class TestGroup4DeviceActuationAndTelemetry:
         asyncio.run(_run())
 
     def test_flow_22_dht11_temperature_humidity_telemetry(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 22: Giả lập Cảm biến DHT11 (Chân D6) cập nhật nhiệt độ & độ ẩm."""
+        """Luồng 22: Giả lập Cảm biến DHT11 (Chân D2) cập nhật nhiệt độ & độ ẩm."""
         async def _run() -> None:
             engine = clean_engine
             res = await engine.update_sensor_telemetry(28.5, 65.0)
@@ -516,13 +520,18 @@ class TestGroup4DeviceActuationAndTelemetry:
 
         asyncio.run(_run())
 
-    def test_flow_23_ir_remote_learning_and_emitting(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 23: Học lệnh & Phát sóng Hồng ngoại IR Remote 38kHz (VS1838B D5 -> S8050 -> IR LED D2)."""
+    def test_flow_23_ky037_sound_and_pam8403_speaker_contract(self, clean_engine: SmartHomeEngine) -> None:
+        """Luồng 23: Cảm biến âm thanh KY-037 (D5) & Nguồn mạch loa PAM8403 (D7/D3); gỡ bỏ IR."""
         async def _run() -> None:
             engine = clean_engine
-            res = await engine.learn_ir_remote_command(device_name="ac", command_action="open", protocol="NEC_38KHZ", hex_code="0x20DF10EF")
-            assert res.get("ok") is True
-            assert "0x20DF10EF" in str(engine.mqtt_bridge.ir_devices)
+            engine.set_active_user("tuan_anh")
+            res_snd = await engine.update_sound_telemetry(sound_detected=True)
+            assert res_snd.get("ok") is True
+            assert engine.mqtt_bridge.sound_telemetry["sound_detected"] is True
+            assert engine.mqtt_bridge.sound_telemetry["sensor_pin"] == "D5 (GPIO 14)"
+            res_spk = await engine.execute_device_action("speaker_amp", "turn_on")
+            assert res_spk.get("ok") is True
+            assert engine.devices["speaker_amp"]["state"] == "ON"
 
         asyncio.run(_run())
 
@@ -581,11 +590,11 @@ class TestGroup5TimersRulesAndResets:
         async def _run() -> None:
             engine = clean_engine
             # Hẹn 8:00 (không nói rõ) -> Đặt cả 8:00 AM và 8:00 PM
-            res = await engine.schedule_timer_flexible("fan", "turn_on", vn_time_ampm="8:00", repeat="daily")
+            res = await engine.schedule_timer_flexible("speaker_amp", "turn_on", vn_time_ampm="8:00", repeat="daily")
             assert res.get("ok") is True
 
             # Hủy hẹn giờ
-            res_cancel = await engine.update_or_cancel_timer("fan", operation="cancel")
+            res_cancel = await engine.update_or_cancel_timer("speaker_amp", operation="cancel")
             assert res_cancel.get("ok") is True
 
         asyncio.run(_run())
@@ -616,11 +625,11 @@ class TestGroup5TimersRulesAndResets:
         async def _run() -> None:
             engine = clean_engine
             # Đặt luật hợp lệ
-            res_if = await engine.set_if_else_rule("main_door", "OPEN", "ac", "turn_on", require_confirmation=False)
+            res_if = await engine.set_if_else_rule("main_door", "OPEN", "speaker_amp", "turn_on", require_confirmation=False)
             assert res_if.get("ok") is True
 
             # Đặt luật đối ứng gây vòng lặp đệ quy -> Bị từ chối
-            res_cycle = await engine.set_if_else_rule("ac", "ON", "main_door", "open", require_confirmation=False)
+            res_cycle = await engine.set_if_else_rule("speaker_amp", "ON", "main_door", "open", require_confirmation=False)
             assert res_cycle.get("ok") is False
             assert "vòng lặp" in res_cycle.get("error", "").lower()
 
@@ -676,7 +685,7 @@ class TestGroup6AdminRagOfflineAndPlatforms:
         asyncio.run(_run())
 
     def test_flow_33_dual_pools_and_rag_knowledge_query(self, clean_engine: SmartHomeEngine) -> None:
-        """Luồng 33: Truy vấn 2 Bể (query_pools) & Kho Tri thức RAG 7 thiết bị."""
+        """Luồng 33: Truy vấn 2 Bể (query_pools) & Kho Tri thức RAG 6 thiết bị."""
         engine = clean_engine
         pools = engine.get_pools_summary()
         assert pools.get("ok") is True
@@ -686,7 +695,7 @@ class TestGroup6AdminRagOfflineAndPlatforms:
         rag = SmartHomeKnowledgeRAG()
         res_rag = rag.retrieve("Nhà có mấy thiết bị?", current_tier=1)
         assert res_rag.get("ok") is True
-        assert "7 thiết bị" in res_rag.get("exact_spoken_reply", "")
+        assert "6 thiết bị" in res_rag.get("exact_spoken_reply", "")
 
     def test_flow_34_online_offline_tiny_dsp_mode_transition(self, clean_engine: SmartHomeEngine) -> None:
         """Luồng 34: Chuyển đổi Online <-> Offline Mạch độc lập (khóa cứng Cửa chính khi Offline)."""

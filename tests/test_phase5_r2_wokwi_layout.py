@@ -1,10 +1,10 @@
 """TDD Automated Reproduction and Verification Test Suite for Milestone M17 (Bug R2).
 
-Bug R2: /wokwi Breadboard and VS1838B Label Layout Fixes.
+Bug R2: /wokwi Breadboard and KY-037 / PAM8403 Label Layout Fixes.
 Verifies:
-1. VS1838B label does not overlap DHT11 label at top: 360px (ensuring 'D5)' is 100% visible).
+1. KY-037 (D5) label does not overlap DHT11 label at top: 360px (ensuring 'D5)' is 100% visible).
 2. Breadboard tag does not overlap NodeMCU tag or Servo tag, wraps cleanly, and fits inside 1280px desktop initial viewport (~618px).
-3. Bottom row Micro/Speaker tag does not collide with Remote tag at top: 412px.
+3. Bottom row Relay 2 PAM8403 + Speaker tag does not collide with KY-037 Panel tag at top: 418px.
 4. Comprehensive 2D pairwise bounding box non-overlap check across all 11 .comp-tag elements in static DOM geometry.
 5. Real Chrome browser rendering across 3 viewports:
    - 1280x800 Desktop
@@ -54,38 +54,47 @@ def estimate_text_width(text: str, font_size_px: float = 11.0) -> float:
 class TestBugR2WokwiLabelLayoutStatic:
     """Static DOM and Geometric Analysis for Bug R2."""
 
-    def test_r2_vs1838b_tag_does_not_overlap_dht11(self):
-        """VS1838B label must not overlap DHT11 label at top: 360px."""
+    def test_r2_ky037_tag_does_not_overlap_dht11(self):
+        """KY-037 (D5) label must not overlap DHT11 label at top: 360px."""
         assert WOKWI_HTML_PATH.exists(), f"File {WOKWI_HTML_PATH} does not exist!"
         soup = BeautifulSoup(WOKWI_HTML_PATH.read_text(encoding="utf-8"), "html.parser")
         tags = soup.find_all("div", class_="comp-tag")
 
-        vs_tag = next((t for t in tags if "VS1838B" in t.text), None)
+        ky_tag = next(
+            (
+                t
+                for t in tags
+                if "KY-037" in t.text
+                and "D5" in t.text
+                and parse_px(parse_tag_style(t.get("style", "")).get("top", "0px")) == 360.0
+            ),
+            None,
+        )
         dht_tag = next((t for t in tags if "DHT11" in t.text), None)
-        assert vs_tag is not None, "Thẻ nhãn VS1838B không tìm thấy!"
+        assert ky_tag is not None, "Thẻ nhãn KY-037 (D5) ở hàng top:360px không tìm thấy!"
         assert dht_tag is not None, "Thẻ nhãn DHT11 không tìm thấy!"
 
-        vs_style = parse_tag_style(vs_tag.get("style", ""))
+        ky_style = parse_tag_style(ky_tag.get("style", ""))
         dht_style = parse_tag_style(dht_tag.get("style", ""))
 
-        vs_left = parse_px(vs_style.get("left", "0px"))
-        vs_top = parse_px(vs_style.get("top", "0px"))
-        vs_font = parse_px(vs_style.get("font-size", "11px"), 11.0)
+        ky_left = parse_px(ky_style.get("left", "0px"))
+        ky_top = parse_px(ky_style.get("top", "0px"))
+        ky_font = parse_px(ky_style.get("font-size", "11px"), 11.0)
 
         dht_left = parse_px(dht_style.get("left", "0px"))
         dht_top = parse_px(dht_style.get("top", "0px"))
 
-        # Calculate estimated right edge of VS1838B tag
-        vs_width = estimate_text_width(vs_tag.text, vs_font)
-        vs_right = vs_left + vs_width
+        # Calculate estimated right edge of KY-037 tag
+        ky_width = estimate_text_width(ky_tag.text, ky_font)
+        ky_right = ky_left + ky_width
 
         # They must not collide:
-        # Either vertical separation >= 20px, OR horizontal gap (dht_left - vs_right) >= 10px
-        top_diff = abs(dht_top - vs_top)
-        horiz_gap = dht_left - vs_right
+        # Either vertical separation >= 20px, OR horizontal gap (dht_left - ky_right) >= 10px
+        top_diff = abs(dht_top - ky_top)
+        horiz_gap = dht_left - ky_right
 
         assert top_diff >= 20 or horiz_gap >= 10, (
-            f"LỖI R2: Nhãn VS1838B (left={vs_left}px, width~{vs_width:.1f}px, right~{vs_right:.1f}px, top={vs_top}px) "
+            f"LỖI R2: Nhãn KY-037 (left={ky_left}px, width~{ky_width:.1f}px, right~{ky_right:.1f}px, top={ky_top}px) "
             f"bị nhãn DHT11 (left={dht_left}px, top={dht_top}px) đè lấn lên chữ 'D5)'! "
             f"(Khoảng cách horiz_gap = {horiz_gap:.1f}px < 10px VÀ top_diff = {top_diff:.1f}px < 20px)"
         )
@@ -147,33 +156,33 @@ class TestBugR2WokwiLabelLayoutStatic:
             f"dẫn đến bị cắt cụt (truncation) tại '(tr…'!"
         )
 
-    def test_r2_bottom_row_mic_does_not_overlap_remote(self):
-        """Micro/Speaker tag must not overlap Remote control tag."""
+    def test_r2_bottom_row_speaker_amp_does_not_overlap_ky037(self):
+        """Relay 2 PAM8403 + Speaker tag must not overlap KY-037 sound panel tag."""
         soup = BeautifulSoup(WOKWI_HTML_PATH.read_text(encoding="utf-8"), "html.parser")
         tags = soup.find_all("div", class_="comp-tag")
 
-        mic_tag = next((t for t in tags if "Micro" in t.text or "Loa" in t.text), None)
-        remote_tag = next((t for t in tags if "Remote" in t.text or "Điều khiển" in t.text), None)
+        spk_tag = next((t for t in tags if "PAM8403" in t.text or "Loa" in t.text), None)
+        ky_panel_tag = next((t for t in tags if "Cảm biến Âm thanh KY-037" in t.text), None)
 
-        assert mic_tag is not None, "Thẻ nhãn Micro không tìm thấy!"
-        assert remote_tag is not None, "Thẻ nhãn Remote không tìm thấy!"
+        assert spk_tag is not None, "Thẻ nhãn PAM8403/Loa không tìm thấy!"
+        assert ky_panel_tag is not None, "Thẻ nhãn Cảm biến Âm thanh KY-037 không tìm thấy!"
 
-        mic_style = parse_tag_style(mic_tag.get("style", ""))
-        remote_style = parse_tag_style(remote_tag.get("style", ""))
+        spk_style = parse_tag_style(spk_tag.get("style", ""))
+        ky_style = parse_tag_style(ky_panel_tag.get("style", ""))
 
-        mic_left = parse_px(mic_style.get("left", "0px"))
-        mic_top = parse_px(mic_style.get("top", "0px"))
-        mic_width = estimate_text_width(mic_tag.text, parse_px(mic_style.get("font-size", "11px"), 11.0))
-        mic_right = mic_left + mic_width
+        spk_left = parse_px(spk_style.get("left", "0px"))
+        spk_top = parse_px(spk_style.get("top", "0px"))
+        spk_width = estimate_text_width(spk_tag.text, parse_px(spk_style.get("font-size", "11px"), 11.0))
+        spk_right = spk_left + spk_width
 
-        remote_left = parse_px(remote_style.get("left", "0px"))
-        remote_top = parse_px(remote_style.get("top", "0px"))
+        ky_left = parse_px(ky_style.get("left", "0px"))
+        ky_top = parse_px(ky_style.get("top", "0px"))
 
-        top_diff = abs(remote_top - mic_top)
-        gap = remote_left - mic_right
+        top_diff = abs(ky_top - spk_top)
+        gap = ky_left - spk_right
 
         assert top_diff >= 20 or gap >= 10, (
-            f"LỖI R2: Nhãn Micro/Loa (right~{mic_right:.1f}px) đè lấn lên Nhãn Remote (left={remote_left}px)! "
+            f"LỖI R2: Nhãn PAM8403/Loa (right~{spk_right:.1f}px) đè lấn lên Nhãn KY-037 (left={ky_left}px)! "
             f"(gap = {gap:.1f}px < 10px)"
         )
 
@@ -315,12 +324,12 @@ class TestBugR2WokwiPlaywrightRendering:
             )
 
             # Specific Bug R2 Checks:
-            # 1. VS1838B vs DHT11 gap
-            vs = next((t for t in tags_data if "VS1838B" in t["text"]), None)
+            # 1. KY-037 (D5) vs DHT11 gap
+            ky = next((t for t in tags_data if "KY-037" in t["text"] and "Chân D5" in t["text"]), None)
             dht = next((t for t in tags_data if "DHT11" in t["text"]), None)
-            assert vs and dht, "Missing VS1838B or DHT11 tag in DOM"
-            vs_dht_gap = dht["rect"]["left"] - vs["rect"]["right"]
-            assert vs_dht_gap > 0, f"VS1838B and DHT11 collision: gap = {vs_dht_gap} <= 0"
+            assert ky and dht, "Missing KY-037 or DHT11 tag in DOM"
+            ky_dht_gap = dht["rect"]["left"] - ky["rect"]["right"]
+            assert ky_dht_gap > 0, f"KY-037 and DHT11 collision: gap = {ky_dht_gap} <= 0"
 
             # 2. NodeMCU vs Breadboard gap
             mcu = next((t for t in tags_data if "NodeMCU" in t["text"]), None)

@@ -44,14 +44,14 @@ def clean_sessions_and_reset_devices():
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"
-    eng.devices["ac"]["state"] = "OFF"
+    eng.devices["speaker_amp"]["state"] = "OFF"
     eng.pump_manual_override_off = False
     yield
     eng._explicit_test_user_set = False
     eng.devices["main_door"]["state"] = "CLOSED"
     eng.devices["alarm_siren"]["state"] = "OFF"
     eng.devices["living_room_light"]["state"] = "OFF"
-    eng.devices["ac"]["state"] = "OFF"
+    eng.devices["speaker_amp"]["state"] = "OFF"
 
 
 # =============================================================================
@@ -113,10 +113,10 @@ def test_session_resolution_via_bearer_header(client: TestClient):
 
 def test_session_resolution_via_custom_header(client: TestClient):
     """Xác nhận phiên được trích xuất qua Header tùy biến X-Session-Token: <token>."""
-    # Thành viên T2 gửi X-Session-Token bật điều hòa -> 200 OK (Cấp 2 được phép bật điều hòa)
+    # Thành viên T2 gửi X-Session-Token bật nguồn mạch loa -> 200 OK (Cấp 2 được phép bật nguồn mạch loa)
     resp = client.post(
         "/api/device",
-        json={"device_id": "ac", "action": "turn_on"},
+        json={"device_id": "speaker_amp", "action": "turn_on"},
         headers={"X-Session-Token": "sess_family_t2_member_a"},
     )
     assert resp.status_code == 200
@@ -193,7 +193,7 @@ def test_concurrent_120_interleaved_requests_zero_permission_leakage(client: Tes
 
     Kiểm định độ an toàn tuyệt đối (Zero Tolerance):
     - 40 requests từ Chủ nhà T1: 100% mở/đóng cửa và bật/tắt còi thành công (200 OK).
-    - 40 requests từ Thành viên T2: 100% lệnh mở cửa chính bị chặn 403; 100% lệnh bật điều hòa/đèn thành công.
+    - 40 requests từ Thành viên T2: 100% lệnh mở cửa chính bị chặn 403; 100% lệnh bật nguồn mạch loa/đèn thành công.
     - 40 requests từ Khách T3: 100% lệnh mở cửa chính và tạo lịch bị chặn 403; 100% lệnh bật đèn thành công.
     - Không có bất kỳ hiện tượng lẫn quyền, rò rỉ quyền hay sập trạng thái nào.
     """
@@ -237,10 +237,10 @@ def test_concurrent_120_interleaved_requests_zero_permission_leakage(client: Tes
         })
     for i in range(10):
         tasks.append({
-            "id": f"member_ac_allowed_{i}",
+            "id": f"member_speaker_allowed_{i}",
             "role": "MEMBER",
             "endpoint": "/api/device",
-            "payload": {"device_id": "ac", "action": "turn_on" if i % 2 == 0 else "turn_off"},
+            "payload": {"device_id": "speaker_amp", "action": "turn_on" if i % 2 == 0 else "turn_off"},
             "headers": {"X-Session-Token": "sess_family_t2_member_a"},
             "expected_status": 200,
             "expected_ok": True,

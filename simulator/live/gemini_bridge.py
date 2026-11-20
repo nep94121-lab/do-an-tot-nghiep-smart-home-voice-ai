@@ -40,14 +40,13 @@ from google.genai import types
 VOICE_SAMPLES_META: dict[str, str] = {
     "giong_1_chu_nha_mo_cua": "[OK] Giọng Cấp 1 (Chủ nhà Nguyễn Tuấn Anh - Toàn quyền): Mở cửa chính",
     "giong_cap2_thanh_vien_a": "Giọng Cấp 2 (Thành viên A - Chặn Cửa D1 & Còi D8): Mở cửa chính",
-    "giong_cap3_khach_c": "Giọng Cấp 3 (Khách C - Chỉ bật Đèn/Quạt, Chặn Cửa/Còi/ĐH/Bơm): Mở cửa chính",
-    "giong_1_kem_tieng_on_quat": "Giọng Cấp 1 + Ồn Quạt (-24dB -> Lọc Tầng 2): Mở cửa chính",
+    "giong_cap3_khach_c": "Giọng Cấp 3 (Khách C - Chỉ bật Đèn, Chặn Cửa/Còi/Bơm/Loa): Mở cửa chính",
+    "giong_1_kem_tieng_on_quat": "Giọng Cấp 1 + Ồn Nền (-24dB -> Lọc Tầng 2): Mở cửa chính",
     "hai_nguoi_cung_noi_cap1_va_nguoi_la": "2 Người Cùng Nói (Chủ nhà C1 + Người lạ -> Ưu tiên C1): Mở cửa chính",
     "giong_2_nguoi_la_mo_cua": "[DENY] Giọng Người lạ (Không phép - Chặn 2 lần -> Im lặng): Mở cửa chính",
     "mo_cua_chinh": "Mở cửa chính",
     "bat_den_phong_khach": "Bật đèn phòng khách",
-    "tat_quat": "Tắt quạt",
-    "bat_quat_va_dieu_hoa": "Bật quạt trần và bật điều hòa giúp tôi",
+    "tat_het_den": "Tắt hết đèn",
     "hen_gio_5s_tat_den": "Năm giây nữa tắt đèn phòng khách nhé",
     "day_lenh_di_ngu": "Từ giờ khi tôi nói chế độ đi ngủ thì tắt đèn phòng khách và đóng cửa chính nhé",
     "kich_hoat_di_ngu": "Chế độ đi ngủ",
@@ -187,8 +186,14 @@ def _sanitize_vietnamese_input_transcript(raw_text: str, tools_called: list[str]
             return "Đóng cửa chính."
         if "living_room_light" in first_tc:
             return "Điều khiển đèn phòng khách."
-        if "fan" in first_tc:
-            return "Điều khiển quạt trần."
+        if "bedroom_light" in first_tc:
+            return "Điều khiển đèn phòng ngủ."
+        if "garden_pump" in first_tc:
+            return "Điều khiển máy bơm tưới cây."
+        if "alarm_siren" in first_tc:
+            return "Điều khiển còi báo động."
+        if "speaker_amp" in first_tc:
+            return "Điều khiển nguồn mạch loa."
     return cleaned
 
 
@@ -231,7 +236,8 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             self.engine.mqtt_bridge.esp8266_status = copy.deepcopy(_REST_ENGINE.mqtt_bridge.esp8266_status)
             self.engine.mqtt_bridge.dht11_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.dht11_telemetry)
             self.engine.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.soil_moisture_telemetry)
-            self.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
+            if hasattr(_REST_ENGINE.mqtt_bridge, "sound_telemetry") and hasattr(self.engine.mqtt_bridge, "sound_telemetry"):
+                self.engine.mqtt_bridge.sound_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.sound_telemetry)
 
         self.knowledge_rag = knowledge_rag or get_knowledge_rag()
         self.mic_utterance_pcm = bytearray()
@@ -635,6 +641,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                                 "ok": True,
                                                 "device_id": exec_result.get("device_id"),
                                                 "state": exec_result.get("state"),
+                                                "requires_confirmation": bool(exec_result.get("requires_confirmation", False)),
+                                                "confirmed": bool(exec_result.get("confirmed", False)),
+                                                "executed": bool(exec_result.get("executed", False)),
+                                                "pending_id": exec_result.get("pending_id"),
                                                 "exact_spoken_reply": exec_result.get("exact_spoken_reply"),
                                                 "instruction_for_ai": exec_result.get("instruction_for_ai"),
                                             }
@@ -775,8 +785,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             "giong_1_chu_nha_mo_cua": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav",
             "mo_cua_chinh": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_2_mo_cua_chinh.wav",
             "bat_den_phong_khach": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav",
-            "tat_quat": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_6_tat_het_den.wav",
-            "bat_quat_va_dieu_hoa": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
+            "tat_het_den": AUDIO_DIR / "cac_cau_lenh_cua_sep" / "cau_6_tat_het_den.wav",
         }
         mapped_path = verified_owner_sample_map.get(sample_id)
         wav_path = mapped_path if (mapped_path and mapped_path.exists()) else (AUDIO_DIR / f"{sample_id}.wav")
@@ -1082,27 +1091,6 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                 "rejection_speech": FIXED_REJECTION_PHRASE_VI,
                 "exact_spoken_reply": FIXED_REJECTION_PHRASE_VI,
             }
-        if name == "control_device":
-            args = dict(fc.args or {})
-            tool_res = await self.engine.execute_device_action(
-                device_id=str(args.get("device_id") or ""), action=str(args.get("action") or ""),
-                source="session_voice", request_tier=actor.tier,
-                request_role=actor.role, request_user_name=actor.display_name,
-            )
-            asyncio.create_task(_broadcast_rest_state_to_bridges(exclude_bridge=self, sync_engine=True))
-            if isinstance(tool_res, dict) and (not tool_res.get("ok", True) or tool_res.get("rbac_blocked")):
-                rej_msg = str(tool_res.get("exact_spoken_reply") or tool_res.get("error") or FIXED_REJECTION_PHRASE_VI)
-                await self.send_ws_json({
-                    "type": "rbac_blocked",
-                    "action": name,
-                    "role": actor.role,
-                    "reason": rej_msg,
-                })
-                await self._trigger_aoede_fixed_denial(rej_msg, auth_res={"role": actor.role}, inside_tool_call=True)
-                tool_res = dict(tool_res)
-                tool_res["instruction_for_ai"] = f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu này: '{rej_msg}'"
-            return tool_res
-
         _admin_only_tools = (
             "grant_user_permission",
             "revoke_user_permission",

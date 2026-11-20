@@ -411,7 +411,7 @@ class TestCollisionScenario4ModeSwitchAndStrangerRecovery:
     Lần 3 im lặng tuyệt đối) -> Ngay sau Lần 3 im lặng, Chủ nhà Cấp 1 nói vào Mic
     phải được nhận diện và phản hồi ngay (không bị kẹt ở chế độ im lặng của người lạ!) ->
     Chuyển sang chế độ Offline (Ngắt Server): Cấp 1 bật đèn được nhưng mở cửa chính bị khóa
-    cứng an toàn, Cấp 3 bị chặn -> Bật lại chế độ Online: trạng thái 7 thiết bị phải
+    cứng an toàn, Cấp 3 bị chặn -> Bật lại chế độ Online: trạng thái 6 thiết bị phải
     đồng bộ nguyên vẹn giữa Web 3D, SQLite và App Android.
     """
 
@@ -475,7 +475,7 @@ class TestCollisionScenario4ModeSwitchAndStrangerRecovery:
             assert off_c3.get("ok") is False
             assert "Tầng 3" in off_c3.get("error", "") or "Cấp 3" in off_c3.get("error", "") or "không được phép" in off_c3.get("error", "")
 
-            # 4. Bật lại chế độ Online -> Đồng bộ trạng thái 7 thiết bị
+            # 4. Bật lại chế độ Online -> Đồng bộ trạng thái 6 thiết bị
             engine.set_active_user("tuan_anh")
             await engine.set_server_connection_mode(True)
             assert engine.server_connected is True
@@ -485,7 +485,9 @@ class TestCollisionScenario4ModeSwitchAndStrangerRecovery:
             assert "main_door" in dev_ids
             assert "living_room_light" in dev_ids
             assert "garden_pump" in dev_ids
-            assert len(dev_ids) == 7, "Phải đồng bộ đủ 7 thiết bị phần cứng"
+            assert "speaker_amp" in dev_ids
+            assert "fan" not in dev_ids and "ac" not in dev_ids
+            assert len(dev_ids) == 6, "Phải đồng bộ đủ 6 thiết bị phần cứng"
 
         asyncio.run(_run())
 
@@ -496,7 +498,7 @@ class TestCollisionScenario4ModeSwitchAndStrangerRecovery:
 
 class TestCollisionScenario5TimersAliasesRulesAndResets:
     """KỊCH BẢN 5: Đặt đổi từ + khẩu lệnh ('Vừng ơi mở ra') + luật IF ('Nếu cửa mở
-    thì bật điều hòa') + hẹn giờ -> Kích hoạt khẩu lệnh kiểm tra chuỗi kéo theo ->
+    thì bật nguồn mạch loa') + hẹn giờ -> Kích hoạt khẩu lệnh kiểm tra chuỗi kéo theo ->
     Thực hiện từng loại Reset (reset giọng, reset hẹn giờ, reset luật, reset toàn bộ)
     và kiểm tra không làm hỏng hồ sơ giọng gốc Cấp 1 của Nguyễn Tuấn Anh!
     """
@@ -519,11 +521,11 @@ class TestCollisionScenario5TimersAliasesRulesAndResets:
             res_alias = await engine.create_alias_rule("Vừng ơi mở ra", "main_door", "open", require_confirmation=False)
             assert res_alias.get("ok") is True
 
-            # 3. Đặt luật Tự động hóa IF-THEN kéo theo: Nếu cửa chính OPEN -> Bật điều hòa (ac ON)
+            # 3. Đặt luật Tự động hóa IF-THEN kéo theo: Nếu cửa chính OPEN -> Bật nguồn mạch loa (speaker_amp ON)
             res_if = await engine.set_if_else_rule(
                 when_device_id="main_door",
                 when_state="OPEN",
-                then_device_id="ac",
+                then_device_id="speaker_amp",
                 then_action="turn_on",
                 require_confirmation=False,
                 evaluate_now=False,
@@ -542,16 +544,17 @@ class TestCollisionScenario5TimersAliasesRulesAndResets:
 
             # 5. KÍCH HOẠT KHẨU LỆNH "Vừng ơi mở ra" VÀ KIỂM TRA DÂY CHUYỀN KÉO THEO:
             assert engine.devices["main_door"]["state"] == "CLOSED"
-            assert engine.devices["ac"]["state"] == "OFF"
+            await engine.execute_device_action("speaker_amp", "turn_off")
+            assert engine.devices["speaker_amp"]["state"] == "OFF"
 
             alias_exec = await engine.execute_alias_rule("Vừng ơi mở ra")
             assert alias_exec.get("ok") is True
             assert engine.devices["main_door"]["state"] == "OPEN", "Cửa chính phải mở sau khẩu lệnh"
-            assert engine.devices["ac"]["state"] == "ON", "Luật IF-THEN phải tự động kéo theo bật điều hòa!"
+            assert engine.devices["speaker_amp"]["state"] == "ON", "Luật IF-THEN phải tự động kéo theo bật nguồn mạch loa!"
 
             # 6. Kiểm tra chống vòng lặp đệ quy (Cycle Detection DFS)
             res_cycle = await engine.set_if_else_rule(
-                when_device_id="ac",
+                when_device_id="speaker_amp",
                 when_state="ON",
                 then_device_id="main_door",
                 then_action="open",

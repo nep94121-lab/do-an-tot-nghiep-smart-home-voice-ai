@@ -209,7 +209,7 @@ def test_unauthenticated_requests_return_401(client: TestClient) -> None:
     """Gửi request không có session tới các API thiết bị và /api/guest/invites phải trả 401."""
     assert client.post("/api/device", json={"device_id": "living_room_light", "action": "turn_on"}).status_code == 401
     assert client.post("/api/device_control", json={"device_id": "bedroom_light", "action": "turn_on"}).status_code == 401
-    assert client.post("/api/devices/fan/control", json={"action": "turn_on"}).status_code == 401
+    assert client.post("/api/devices/speaker_amp/control", json={"action": "turn_on"}).status_code == 401
     assert client.post("/api/mobile/schedule", json={"device_id": "living_room_light", "seconds": 30, "action": "turn_on"}).status_code == 401
     assert client.post("/api/ir_learn", json={"device_name": "Điều hòa", "command_action": "open"}).status_code == 401
     assert client.post("/api/text_command", json={"text": "bật đèn phòng khách"}).status_code == 401
@@ -217,17 +217,20 @@ def test_unauthenticated_requests_return_401(client: TestClient) -> None:
 
 
 def test_authenticated_requests_return_200(client: TestClient) -> None:
-    """Với X-Session-Token của Chủ nhà Cấp 1, các API thiết bị và tạo mã mời khách trả 200 OK."""
+    """Với X-Session-Token của Chủ nhà Cấp 1, các API thiết bị và tạo mã mời khách trả 200 OK (và /api/ir_learn trả 410 Gone)."""
     headers = _owner_headers()
     assert client.post("/api/device", json={"device_id": "living_room_light", "action": "turn_on"}, headers=headers).status_code == 200
     assert client.post("/api/device_control", json={"device_id": "living_room_light", "action": "turn_off"}, headers=headers).status_code == 200
-    assert client.post("/api/devices/fan/control", json={"action": "turn_on"}, headers=headers).status_code == 200
-    assert client.post("/api/devices/fan/control", json={"action": "turn_off"}, headers=headers).status_code == 200
+    assert client.post("/api/devices/speaker_amp/control", json={"action": "turn_on"}, headers=headers).status_code == 200
+    assert client.post("/api/devices/speaker_amp/control", json={"action": "turn_off"}, headers=headers).status_code == 200
     assert client.post("/api/mobile/schedule", json={"device_id": "bedroom_light", "seconds": 30, "action": "turn_on"}, headers=headers).status_code == 200
-    assert client.post("/api/ir_learn", json={"device_name": "Điều hòa Casper", "command_action": "open"}, headers=headers).status_code == 200
-    r_txt = client.post("/api/text_command", json={"text": "bật quạt trần"}, headers=headers)
+    assert client.post("/api/ir_learn", json={"device_name": "Điều hòa Casper", "command_action": "open"}, headers=headers).status_code == 410
+    r_txt = client.post("/api/text_command", json={"text": "bật đèn phòng ngủ"}, headers=headers)
     assert r_txt.status_code == 200 and r_txt.json().get("ok") is True
-    client.post("/api/device", json={"device_id": "fan", "action": "turn_off"}, headers=headers)
+    if r_txt.json().get("requires_confirmation"):
+        r_ok = client.post("/api/text_command", json={"text": "ok"}, headers=headers)
+        assert r_ok.status_code == 200 and r_ok.json().get("ok") is True
+    client.post("/api/device", json={"device_id": "bedroom_light", "action": "turn_off"}, headers=headers)
 
     inv = _create_owner_invite(client, duration_code="1d")
     assert inv.get("ok") is True and "<svg" in inv.get("qr_svg", "")

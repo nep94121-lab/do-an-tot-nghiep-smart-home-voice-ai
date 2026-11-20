@@ -178,9 +178,9 @@ class TestRequirement1ServerReachable:
         data = json.loads(body.decode("utf-8"))
         assert "devices" in data
         assert isinstance(data["devices"], list)
-        assert len(data["devices"]) >= 7
+        assert len(data["devices"]) == 6
         dev_ids = [d["id"] for d in data["devices"]]
-        for req_id in ("main_door", "living_room_light", "bedroom_light", "fan", "ac", "alarm_siren", "garden_pump"):
+        for req_id in ("main_door", "living_room_light", "bedroom_light", "garden_pump", "alarm_siren", "speaker_amp"):
             assert req_id in dev_ids
         assert "mqtt" in data
         assert "dht11_telemetry" in data["mqtt"]
@@ -233,7 +233,7 @@ class TestRequirement2ThreeUserRoles:
         assert code == 200 and alarm_res.get("ok") is True and alarm_res.get("tier") == 1 and alarm_res.get("rbac_blocked") is False
         _http_post("/api/device", {"device_id": "alarm_siren", "action": "turn_off", "source": "QA_Test_Live"}, headers=t1_headers)
 
-        for dev in ("living_room_light", "bedroom_light", "fan", "garden_pump"):
+        for dev in ("living_room_light", "bedroom_light", "garden_pump", "speaker_amp"):
             code, dev_res, _ = _http_post("/api/device", {"device_id": dev, "action": "turn_on", "source": "QA_Test_Live"}, headers=t1_headers)
             assert code == 200 and dev_res.get("ok") is True
             _http_post("/api/device", {"device_id": dev, "action": "turn_off", "source": "QA_Test_Live"}, headers=t1_headers)

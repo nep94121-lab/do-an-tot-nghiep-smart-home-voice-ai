@@ -96,16 +96,16 @@ def test_tier3_session_denied_main_door_allowed_light(client):
     assert allowed_body.get("ok") is True
 
 
-def test_tier2_session_can_control_ac_not_door(client):
-    ac = client.post(
+def test_tier2_session_can_control_speaker_amp_not_door(client):
+    spk = client.post(
         "/api/device",
-        json={"device_id": "ac", "action": "on", "source": "test"},
+        json={"device_id": "speaker_amp", "action": "on", "source": "test"},
         headers=_auth(FAMILY_SESSION),
         cookies=_cookies(FAMILY_SESSION),
     )
-    ac_body = ac.json()
-    assert ac.status_code == 200, ac_body
-    assert ac_body.get("ok") is True
+    spk_body = spk.json()
+    assert spk.status_code == 200, spk_body
+    assert spk_body.get("ok") is True
 
     door = client.post(
         "/api/device",
@@ -119,13 +119,13 @@ def test_tier2_session_can_control_ac_not_door(client):
 
 
 def test_unauthenticated_device_and_voice_rejected_silently(client):
-    device = client.post("/api/device", json={"device_id": "fan", "action": "on"})
+    device = client.post("/api/device", json={"device_id": "bedroom_light", "action": "on"})
     assert device.status_code in (401, 403)
     body = device.json()
     blob = " ".join(str(body.get(k) or "") for k in body).lower()
     assert not any(marker in blob for marker in REPEAT_MARKERS)
 
-    voice = client.post("/api/voice_command", json={"transcript": "bật quạt"})
+    voice = client.post("/api/voice_command", json={"transcript": "bật đèn phòng ngủ"})
     assert voice.status_code in (401, 403)
     vbody = voice.json()
     assert vbody.get("ask_repeat") is not True
@@ -267,7 +267,7 @@ def test_invite_token_validate_redeem_expiry_and_revocation(client):
     session_id = body["session_token"]
     light = client.post(
         "/api/device",
-        json={"device_id": "fan", "action": "on", "source": "test"},
+        json={"device_id": "living_room_light", "action": "on", "source": "test"},
         headers=_auth(session_id),
         cookies=_cookies(session_id),
     )
@@ -291,7 +291,7 @@ def test_invite_token_validate_redeem_expiry_and_revocation(client):
     # Phiên gắn với mã đã thu hồi cũng không còn điều khiển được.
     after_voice = client.post(
         "/api/voice_command",
-        json={"transcript": "bật quạt"},
+        json={"transcript": "bật đèn phòng khách"},
         headers=_auth(session_id),
         cookies=_cookies(session_id),
     )
@@ -405,7 +405,7 @@ def test_speaker_id_cannot_veto_valid_session(client):
     """Metadata speaker_id không được phủ quyết phiên chủ nhà hợp lệ."""
     res = client.post(
         "/api/voice_command",
-        json={"transcript": "bat quat", "speaker_id": "stranger", "source": "test"},
+        json={"transcript": "bat den phong khach", "speaker_id": "stranger", "source": "test"},
         headers=_auth(OWNER_SESSION),
         cookies=_cookies(OWNER_SESSION),
     )

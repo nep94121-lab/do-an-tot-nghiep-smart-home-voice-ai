@@ -5,7 +5,7 @@ Scope of Independent Verification:
 2. CSS Rule Integrity: 0 occurrences of `.pin-3d .pin-icon { display: none !important; }` in `style.css`.
 3. Camera Toolbar: 7 camera preset buttons (`overview`, `living`, `bedroom`, `door`, `garden`, `board`, `rotate`) and `#lblCurrentCameraView` in `index.html`.
 4. Controller Wiring: `initCameraToolbar()` and `SmartHome3D.setCameraView` in `app.js`.
-5. Raycaster Actuation: Registration of 7 devices, drag-vs-click distance threshold (Math.hypot <= 6px for mouse, <= 10px for touch), NDC normalization, bubble-up hierarchy traversal.
+5. Raycaster Actuation: Registration of 6 devices, drag-vs-click distance threshold (Math.hypot <= 6px for mouse, <= 10px for touch), NDC normalization, bubble-up hierarchy traversal.
 6. Node.js Headless VM Execution: Multi-pass re-init DOM leak test, camera view switcher test, raycaster actuation test.
 7. File Hygiene: 0 CRLF and UTF-8 without BOM across all 4 files.
 """
@@ -27,14 +27,13 @@ PATH_INDEX_HTML = ROOT / "simulator" / "static" / "index.html"
 PATH_APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
 
 ALL_M3_FILES = [PATH_HOUSE3D, PATH_STYLE_CSS, PATH_INDEX_HTML, PATH_APP_JS]
-EXPECTED_7_DEVICES = {
+EXPECTED_6_DEVICES = {
     "main_door",
     "living_room_light",
-    "fan",
-    "ac",
     "bedroom_light",
     "alarm_siren",
     "garden_pump",
+    "speaker_amp",
 }
 EXPECTED_7_PRESETS = [
     "overview",
@@ -106,12 +105,12 @@ class TestHouse3dDomAndRaycasterAdversarial:
         )
         assert pattern.search(self.code), "Thiếu logic an toàn dọn dẹp existingCanvas trước khi chèn canvas mới!"
 
-    def test_register_clickable_covers_all_7_devices(self):
-        """Xác minh registerClickable bao phủ đầy đủ 7 thiết bị thực tế."""
+    def test_register_clickable_covers_all_6_devices(self):
+        """Xác minh registerClickable bao phủ đầy đủ 6 thiết bị thực tế."""
         registered_devices = set(re.findall(r'registerClickable\([^,]+,\s*["\']([a-zA-Z0-9_]+)["\']\)', self.code))
-        missing = EXPECTED_7_DEVICES - registered_devices
+        missing = EXPECTED_6_DEVICES - registered_devices
         assert not missing, f"Thiếu đăng ký thiết bị vào Raycaster: {missing}. Đã đăng ký: {registered_devices}"
-        assert registered_devices == EXPECTED_7_DEVICES, f"Danh sách thiết bị không khớp kỳ vọng: {registered_devices}"
+        assert registered_devices == EXPECTED_6_DEVICES, f"Danh sách thiết bị không khớp kỳ vọng: {registered_devices}"
 
     def test_raycaster_drag_vs_click_threshold(self):
         """Xác minh cơ chế phân biệt Kéo xoay camera vs Click thật bằng Math.hypot."""
@@ -136,7 +135,7 @@ class TestHouse3dDomAndRaycasterAdversarial:
         assert "mouseVec.x = ((clientX - rect.left) / rect.width) * 2 - 1" in self.code
         assert "mouseVec.y = -((clientY - rect.top) / rect.height) * 2 + 1" in self.code
         assert "raycaster.setFromCamera(mouseVec, camera)" in self.code
-        assert "raycaster.intersectObjects(clickableMeshes, true)" in self.code
+        assert re.search(r"raycaster\s*\.intersectObjects\(clickableMeshes,\s*true\)", self.code)
 
         # Kiểm tra duyệt ngược cha con
         bubble_pattern = re.compile(

@@ -550,10 +550,10 @@ def _dev_states(dev: dict[str, Any]) -> tuple[str, str]:
     return "ON", "OFF"
 
 
-def test_s1a_multi_instance_all_7_devices_toggle_and_monotonic_revision(
+def test_s1a_multi_instance_all_6_devices_toggle_and_monotonic_revision(
     multi_instance_cluster: dict[str, Any],
 ) -> None:
-    """Write on Instance A -> read immediately on Instance B (and reverse) across all 7 devices."""
+    """Write on Instance A -> read immediately on Instance B (and reverse) across all 6 devices."""
     inst_a = multi_instance_cluster["inst_a"]
     inst_b = multi_instance_cluster["inst_b"]
     token = multi_instance_cluster["owner_token"]
@@ -561,7 +561,7 @@ def test_s1a_multi_instance_all_7_devices_toggle_and_monotonic_revision(
     st, snap0 = _http_json(f"{inst_a}/api/state", token=token)
     assert st == 200
     devices = snap0["devices"]
-    assert len(devices) == 7
+    assert len(devices) == 6
 
     prev_rev = int(snap0.get("state_revision") or snap0.get("revision_seq") or 0)
     for idx, dev in enumerate(devices):
@@ -903,7 +903,7 @@ def test_s2_gemini_live_aoede_audio_config_and_http_branches(
 def test_s3_playwright_web_mobile_bidirectional_sync_under_3s(
     multi_instance_cluster: dict[str, Any],
 ) -> None:
-    """S3: 14/14 toggles across 7 devices between Web / (1366) & Mobile /app (390) behind LB in <= 3s."""
+    """S3: 12/12 toggles across 6 devices between Web / (1366) & Mobile /app (390) behind LB in <= 3s."""
     from playwright.sync_api import sync_playwright
 
     lb_url = multi_instance_cluster["lb_url"]
@@ -913,7 +913,7 @@ def test_s3_playwright_web_mobile_bidirectional_sync_under_3s(
     st, snap0 = _http_json(f"{lb_url}/api/state", token=token)
     assert st == 200
     devices = snap0["devices"]
-    assert len(devices) == 7
+    assert len(devices) == 6
 
     for dev in devices:
         _, off_state = _dev_states(dev)

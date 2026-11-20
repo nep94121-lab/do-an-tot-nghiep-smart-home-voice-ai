@@ -5,7 +5,7 @@ Nhiệm vụ:
 1. Thực nghiệm đối kháng TOTP 10s: token hợp lệ vs token quá hạn >20s (chặn 100%), Replay attack (chặn 100%).
 2. Khai thác & kiểm chứng lỗ hổng Target Window Forgery / Token Bypass.
 3. Thực nghiệm đối kháng Duplicate Voice Attack: khách mạo danh Chủ nhà / Thành viên gia đình (chặn 100% DUPLICATE_VOICE_REJECTED), bảo toàn 100% quyền Cấp 1 ADMIN cho Chủ nhà ngay sau tấn công.
-4. Thực nghiệm phân quyền Cấp 3 (Tier 3 Boundary): Khách Cấp 3 chỉ điều khiển Đèn, Quạt; bị chặn 100% khi đòi Mở cửa chính hay Còi báo động.
+4. Thực nghiệm phân quyền Cấp 3 (Tier 3 Boundary): Khách Cấp 3 chỉ điều khiển Đèn khách/ngủ; bị chặn 100% khi đòi Mở cửa chính, Còi báo động, Máy bơm hay Nguồn mạch loa.
 """
 
 from __future__ import annotations
@@ -255,12 +255,12 @@ class TestDuplicateVoiceAdversarial:
 # =============================================================================
 
 class TestTier3PrivilegeBoundary:
-    """Kiểm thử ranh giới phân quyền Cấp 3 đối với 7 thiết bị phần cứng & các lệnh quản trị."""
+    """Kiểm thử ranh giới phân quyền Cấp 3 đối với 6 thiết bị phần cứng & các lệnh quản trị."""
 
     def test_guest_tier3_hardware_permissions_matrix(self) -> None:
         """Khách Cấp 3:
-        - Bật/tắt Đèn khách (D2), Đèn ngủ (D7), Quạt trần (D6) -> CHO PHÉP (ok=True).
-        - Mở/đóng Cửa chính (D1), Còi báo động (D8), Điều hòa Casper, Máy bơm -> TỪ CHỐI 100% (ok=False).
+        - Bật/tắt Đèn khách (D0), Đèn ngủ (D4) -> CHO PHÉP (ok=True).
+        - Mở/đóng Cửa chính (D1), Còi báo động (D8), Máy bơm (D6), Nguồn mạch loa PAM8403 (D7) -> TỪ CHỐI 100% (ok=False).
         """
         async def _run() -> None:
             engine = SmartHomeEngine()
@@ -274,8 +274,6 @@ class TestTier3PrivilegeBoundary:
                 ("living_room_light", "turn_off"),
                 ("bedroom_light", "turn_on"),
                 ("bedroom_light", "turn_off"),
-                ("fan", "turn_on"),
-                ("fan", "turn_off"),
             ]
             for dev_id, act in allowed_actions:
                 res = await engine.execute_device_action(dev_id, act)
@@ -287,8 +285,8 @@ class TestTier3PrivilegeBoundary:
                 ("main_door", "close"),
                 ("alarm_siren", "turn_on"),
                 ("alarm_siren", "turn_off"),
-                ("ac", "turn_on"),
-                ("ac", "turn_off"),
+                ("speaker_amp", "turn_on"),
+                ("speaker_amp", "turn_off"),
                 ("garden_pump", "turn_on"),
                 ("garden_pump", "turn_off"),
             ]
