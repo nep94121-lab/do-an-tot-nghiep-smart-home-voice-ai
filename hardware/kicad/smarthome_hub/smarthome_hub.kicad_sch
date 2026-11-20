@@ -5705,6 +5705,33 @@
 		(effects (font (size 1.10 1.10)) (justify left))
 		(uuid "9a990027-5835-59b5-91c4-1be919bfe712")
 	)
+	(sheet
+		(at 241.30 256.54)
+		(size 53.34 17.78)
+		(exclude_from_sim yes)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke (width 0.25) (type solid) (color 22 101 52 1))
+		(fill (color 232 248 238 0.9))
+		(uuid "79a343f2-b013-502e-8387-5a6e54a55b9f")
+		(property "Sheetname" "System Plug-In Wiring Harness"
+			(at 241.30 255.60 0)
+			(effects (font (size 1.27 1.27) (bold yes)) (justify left bottom))
+		)
+		(property "Sheetfile" "system_wiring.kicad_sch"
+			(at 241.30 275.20 0)
+			(effects (font (size 1.15 1.15)) (justify left top))
+		)
+		(instances
+			(project "smarthome_hub"
+				(path "/20f08b23-d419-582e-a433-7afe7edbad64"
+					(page "2")
+				)
+			)
+		)
+	)
 	(sheet_instances
 		(path "/"
 			(page "1")
