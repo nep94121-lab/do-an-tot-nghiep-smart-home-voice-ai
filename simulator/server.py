@@ -423,6 +423,46 @@ async def hardware_kicad_bom() -> Response:
     return FileResponse(bom_path, media_type="text/csv; charset=utf-8")
 
 
+@app.get("/docs/phan_cung/WIRING_TABLE.md")
+async def hardware_wiring_table_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "WIRING_TABLE.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "WIRING_TABLE.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/docs/phan_cung/wiring_diagram_2d.svg")
+async def hardware_wiring_diagram_svg() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "wiring_diagram_2d.svg"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "wiring_diagram_2d.svg not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="image/svg+xml; charset=utf-8")
+
+
+@app.get("/docs/phan_cung/wiring_diagram_2d.png")
+async def hardware_wiring_diagram_png() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "wiring_diagram_2d.png"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "wiring_diagram_2d.png not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="image/png")
+
+
+@app.get("/docs/phan_cung/wiring_diagram_2d.pdf")
+async def hardware_wiring_diagram_pdf() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "wiring_diagram_2d.pdf"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "wiring_diagram_2d.pdf not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="application/pdf")
+
+
+@app.get("/hardware/blender/system_wired_assembly.glb")
+async def hardware_wired_assembly_glb() -> Response:
+    glb_path = ROOT / "hardware" / "blender" / "system_wired_assembly.glb"
+    if not glb_path.exists() or not glb_path.is_file():
+        return JSONResponse({"ok": False, "error": "system_wired_assembly.glb not found"}, status_code=404)
+    return FileResponse(glb_path, media_type="model/gltf-binary")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)

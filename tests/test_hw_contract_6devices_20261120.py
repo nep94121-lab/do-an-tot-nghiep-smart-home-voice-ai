@@ -586,6 +586,16 @@ def test_archify_and_erd_locked_contract_and_hardware_doc_routes() -> None:
             r_doc = client.get(hw_route)
             assert r_doc.status_code == 200, f"Hardware doc route {hw_route} returned {r_doc.status_code}"
 
+        for wire_route in (
+            "/docs/phan_cung/WIRING_TABLE.md",
+            "/docs/phan_cung/wiring_diagram_2d.svg",
+            "/docs/phan_cung/wiring_diagram_2d.png",
+            "/docs/phan_cung/wiring_diagram_2d.pdf",
+            "/hardware/blender/system_wired_assembly.glb",
+        ):
+            r_wire = client.get(wire_route)
+            assert r_wire.status_code == 200, f"Wiring route {wire_route} returned {r_wire.status_code}"
+
         r_erd = client.get("/archify/erd")
         assert r_erd.status_code == 200
         erd_html = r_erd.text
