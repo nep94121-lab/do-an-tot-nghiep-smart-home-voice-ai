@@ -83,8 +83,6 @@ class EngineRulesMixin:
         dtype = dev.get("type", "light")
         if dtype == "door":
             verb = "mở" if action in ("open", "turn_on") else "đóng"
-        elif dtype == "ac":
-            verb = "mở" if action in ("open", "turn_on") else "tắt"
         else:
             verb = "bật" if action in ("open", "turn_on") else "tắt"
         return f"{verb} {dname}"
@@ -97,8 +95,6 @@ class EngineRulesMixin:
         dtype = dev["type"]
         if dtype == "door":
             default_cmd = f"'mở {dname}' và 'đóng {dname}'"
-        elif dtype == "ac":
-            default_cmd = f"'mở {dname}' và 'tắt {dname}'"
         else:
             default_cmd = f"'bật {dname}' và 'tắt {dname}'"
 
@@ -293,12 +289,15 @@ class EngineRulesMixin:
         if sync and getattr(self, "_mutation_depth", 0) == 0 and hasattr(self, "sync_from_shared_store"):
             self.sync_from_shared_store()
         mqtt_raw = self.mqtt_bridge.get_summary() if hasattr(self, "mqtt_bridge") and self.mqtt_bridge else {}
+        sound_raw = dict(mqtt_raw.get("sound_telemetry", {})) if isinstance(mqtt_raw.get("sound_telemetry"), dict) else {}
         public_mqtt = {
             "esp8266_status": dict(mqtt_raw.get("esp8266_status", {})) if isinstance(mqtt_raw.get("esp8266_status"), dict) else {},
             "dht11_telemetry": dict(mqtt_raw.get("dht11_telemetry", {})) if isinstance(mqtt_raw.get("dht11_telemetry"), dict) else {},
             "soil_moisture_telemetry": dict(mqtt_raw.get("soil_moisture_telemetry", {})) if isinstance(mqtt_raw.get("soil_moisture_telemetry"), dict) else {},
-            "ir_devices_count": int(mqtt_raw.get("ir_devices_count", 0) or 0),
+            "sound_telemetry": sound_raw,
+            "ky037_telemetry": sound_raw,
         }
+        sensors_data = self.read_all_sensors() if hasattr(self, "read_all_sensors") else {}
         rev_seq = int(getattr(self, "_last_synced_seq", 0))
         return sanitize_api_payload({
             "ok": True,
@@ -311,6 +310,7 @@ class EngineRulesMixin:
             "server_connected": self.server_connected,
             "offline_locked_devices": ["main_door", "alarm_siren"],
             "devices": list(self.devices.values()),
+            "sensors": sensors_data,
             "mqtt": public_mqtt,
         })
 
@@ -450,6 +450,7 @@ class EngineRulesMixin:
             "automation_rules": db_rules,
             "custom_commands": db_scenes,
             "scenes": db_scenes,
+            "sensors": self.read_all_sensors() if hasattr(self, "read_all_sensors") else {},
             "mqtt": self.mqtt_bridge.get_summary(),
         }
         if should_include_users:
@@ -728,7 +729,7 @@ class EngineRulesMixin:
             if phrase and phrase in t_low:
                 warn_msg = (
                     f"⚠️ [CHẾ ĐỘ OFFLINE - VỀ MẶC ĐỊNH]: Mạch đang không kết nối Server nên khẩu lệnh tùy chỉnh "
-                    f"'{phrase}' đã bị vô hiệu hóa! Chỉ nhận lệnh mặc định cơ bản cho Đèn, Điều hòa, Quạt, Máy bơm (Cửa chính bị khóa)."
+                    f"'{phrase}' đã bị vô hiệu hóa! Chỉ nhận lệnh mặc định cơ bản cho Đèn, Máy bơm, Nguồn mạch loa PAM8403 (Cửa chính bị khóa)."
                 )
                 await self.emit({
                     "type": "rbac_blocked",
@@ -779,7 +780,7 @@ class EngineRulesMixin:
         if not is_on and not is_off:
             msg = (
                 "⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Chỉ nhận các câu lệnh mặc định rõ ràng như: "
-                "'Bật đèn phòng khách', 'Tắt đèn phòng ngủ', 'Bật điều hòa', 'Bật quạt', 'Bật máy bơm' (Cửa chính bị khóa)."
+                "'Bật đèn phòng khách', 'Tắt đèn phòng ngủ', 'Bật máy bơm', 'Bật nguồn mạch loa' (Cửa chính bị khóa)."
             )
             return {"ok": False, "error": msg, "exact_spoken_reply": msg, "reply": msg}
 
@@ -797,17 +798,15 @@ class EngineRulesMixin:
             if "đèn" in t_low and not matched_devs:
                 matched_devs.append(("living_room_light", act_std))
 
-        if "điều hòa" in t_low:
-            matched_devs.append(("ac", "close" if is_off else "open"))
-        if "quạt" in t_low:
-            matched_devs.append(("fan", act_std))
+        if any(k in t_low for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "pam8403", "loa")):
+            matched_devs.append(("speaker_amp", act_std))
         if any(k in t_low for k in ("máy bơm", "bơm nước", "tưới cây")):
             matched_devs.append(("garden_pump", act_std))
 
         if not matched_devs:
             msg = (
                 "⚠️ [CHẾ ĐỘ OFFLINE - MẶC ĐỊNH]: Không nhận diện được tên thiết bị mặc định (hoặc bạn đang dùng từ đã đổi). "
-                "Khi mất Server, chỉ nhận tên gốc: Đèn phòng khách, Đèn phòng ngủ, Điều hòa, Quạt, Máy bơm."
+                "Khi mất Server, chỉ nhận tên gốc: Đèn phòng khách, Đèn phòng ngủ, Máy bơm, Nguồn mạch loa PAM8403."
             )
             return {"ok": False, "error": msg, "exact_spoken_reply": msg, "reply": msg}
 
@@ -1005,7 +1004,7 @@ class EngineRulesMixin:
             }
 
         when_verb = "mở" if norm_state in ("OPEN", "ON") else ("đóng" if norm_state == "CLOSED" else "tắt")
-        then_verb = "mở" if then_action in ("open", "turn_on") and then_device_id in ("main_door", "ac") else ACTION_VI_LABEL.get(then_action, then_action).lower()
+        then_verb = "mở" if then_action in ("open", "turn_on") and then_device_id == "main_door" else ACTION_VI_LABEL.get(then_action, then_action).lower()
         when_n = new_rule["when_device_name"].lower()
         then_n = new_rule["then_device_name"].lower()
         else_vi = ""

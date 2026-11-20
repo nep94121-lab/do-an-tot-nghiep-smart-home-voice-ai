@@ -70,15 +70,16 @@ def format_vn_time_ampm(dt: datetime.datetime | None = None) -> str:
 
 
 HARDWARE_AUDIO_PINS: dict[str, str] = {
-    "voice_mic_rx": "RX / GPIO3 (VC-02 / MAX9814 Micro Thu Âm)",
-    "speaker_out": "D4 / GPIO2 (PAM8403 Loa Phát 8Ω 3W)",
+    "speaker_amp_relay": "D7 / GPIO13 (Relay 2 5V Nguồn mạch loa PAM8403)",
+    "speaker_pwm_audio": "D3 / GPIO0 (Audio PWM Out -> PAM8403 -> Loa mini, boot-safe RC)",
+    "sound_sensor_do": "D5 / GPIO14 (KY-037/038 Cảm biến âm thanh DO; Voice AI dùng mic/loa web-device)",
 }
 
 DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "main_door": {
         "id": "main_door",
         "name": "Cửa chính",
-        "gpio": "D1 / GPIO5 (Servo PWM)",
+        "gpio": "D1 / GPIO5 (Servo SG90)",
         "type": "door",
         "state": "CLOSED",
         "min_role": "ADMIN",
@@ -87,7 +88,7 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "living_room_light": {
         "id": "living_room_light",
         "name": "Đèn phòng khách",
-        "gpio": "D2 / GPIO4 (Relay 1)",
+        "gpio": "D0 / GPIO16 (LED 5mm)",
         "type": "light",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
@@ -96,26 +97,17 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "bedroom_light": {
         "id": "bedroom_light",
         "name": "Đèn phòng ngủ",
-        "gpio": "D7 / GPIO13 (Relay 2)",
+        "gpio": "D4 / GPIO2 (LED 5mm - Safe Boot)",
         "type": "light",
         "state": "OFF",
         "min_role": "CHILD_GUEST",
         "updated_at": 0.0,
     },
-    "fan": {
-        "id": "fan",
-        "name": "Quạt trần",
-        "gpio": "D6 / GPIO12 (Relay 3)",
-        "type": "fan",
-        "state": "OFF",
-        "min_role": "CHILD_GUEST",
-        "updated_at": 0.0,
-    },
-    "ac": {
-        "id": "ac",
-        "name": "Điều hòa",
-        "gpio": "D2 / GPIO4 (IR 38kHz)",
-        "type": "ac",
+    "garden_pump": {
+        "id": "garden_pump",
+        "name": "Máy bơm tưới cây",
+        "gpio": "D6 / GPIO12 (Relay 1 5V + Diode 1N4007)",
+        "type": "pump",
         "state": "OFF",
         "min_role": "MEMBER",
         "updated_at": 0.0,
@@ -123,17 +115,17 @@ DEFAULT_DEVICES: dict[str, dict[str, Any]] = {
     "alarm_siren": {
         "id": "alarm_siren",
         "name": "Còi báo động",
-        "gpio": "D8 / GPIO15 (Buzzer 5V)",
+        "gpio": "D8 / GPIO15 (Buzzer 5V Active-HIGH)",
         "type": "siren",
         "state": "OFF",
         "min_role": "ADMIN",
         "updated_at": 0.0,
     },
-    "garden_pump": {
-        "id": "garden_pump",
-        "name": "Máy bơm tưới cây",
-        "gpio": "D3 / GPIO0 (Relay 5V + Diode 1N4007)",
-        "type": "pump",
+    "speaker_amp": {
+        "id": "speaker_amp",
+        "name": "Nguồn mạch loa PAM8403",
+        "gpio": "D7 / GPIO13 (Relay 2 5V PAM8403 + PWM D3/GPIO0)",
+        "type": "speaker",
         "state": "OFF",
         "min_role": "MEMBER",
         "updated_at": 0.0,
@@ -153,19 +145,15 @@ DEVICE_CAPABILITIES: dict[str, dict[str, Any]] = {
         "actions": ("turn_on", "turn_off"),
         "params": {"brightness_pct": (0, 100)},
     },
-    "fan": {
+    "garden_pump": {
         "actions": ("turn_on", "turn_off"),
-        "params": {"fan_speed": (1, 5)},
-    },
-    "ac": {
-        "actions": ("turn_on", "turn_off", "open", "close"),
-        "params": {"temperature_c": (16, 30)},
+        "params": {},
     },
     "alarm_siren": {
         "actions": ("turn_on", "turn_off"),
         "params": {},
     },
-    "garden_pump": {
+    "speaker_amp": {
         "actions": ("turn_on", "turn_off"),
         "params": {},
     },
@@ -174,8 +162,6 @@ DEVICE_CAPABILITIES: dict[str, dict[str, Any]] = {
 DEVICE_DEFAULT_SETTINGS: dict[str, dict[str, Any]] = {
     "living_room_light": {"brightness_pct": 100},
     "bedroom_light": {"brightness_pct": 100},
-    "fan": {"fan_speed": 3},
-    "ac": {"temperature_c": 24},
 }
 
 ROLE_LEVELS: dict[str, int] = {
@@ -250,9 +236,6 @@ DEVICE_ID_ALIASES: dict[str, str] = {
     "light_living": "living_room_light",
     "living_light": "living_room_light",
     "light_bedroom": "bedroom_light",
-    "fan_bedroom": "fan",
-    "fan_living": "fan",
-    "ceiling_fan": "fan",
     "alarm_buzzer": "alarm_siren",
     "buzzer": "alarm_siren",
     "siren": "alarm_siren",
@@ -260,11 +243,12 @@ DEVICE_ID_ALIASES: dict[str, str] = {
     "door": "main_door",
     "front_door": "main_door",
     "door_main": "main_door",
-    "air_conditioner": "ac",
-    "ac_living": "ac",
-    "ac_bedroom": "ac",
     "pump": "garden_pump",
     "water_pump": "garden_pump",
+    "speaker_relay": "speaker_amp",
+    "pam8403": "speaker_amp",
+    "speaker_power": "speaker_amp",
+    "audio_amp": "speaker_amp",
 }
 
 ACTION_TO_STATE: dict[str, str] = {

@@ -39,11 +39,11 @@ def owner_login(client, monkeypatch):
     return vdata["session_token"]
 
 
-@pytest.mark.parametrize("path", ["/api/device", "/api/device_control", "/api/device/fan", "/api/devices/fan/control", "/api/session/role", "/api/text_command"])
+@pytest.mark.parametrize("path", ["/api/device", "/api/device_control", "/api/device/living_room_light", "/api/devices/living_room_light/control", "/api/session/role", "/api/text_command"])
 def test_cookieless_always_401(client, path):
     from simulator.api.deps import _REST_ENGINE
     _REST_ENGINE.set_active_user("tuan_anh")
-    response = client.post(path, json={"device_id": "fan", "action": "on", "text": "bật quạt", "role": "MEMBER", "user_id": "tuan_anh"})
+    response = client.post(path, json={"device_id": "living_room_light", "action": "on", "text": "bật đèn", "role": "MEMBER", "user_id": "tuan_anh"})
     assert response.status_code == 401
     assert "set-cookie" not in response.headers
 
@@ -52,7 +52,7 @@ def test_cookieless_always_401(client, path):
 def test_predictable_fixture_tokens_never_work_on_vercel(client, monkeypatch, token):
     monkeypatch.setenv("VERCEL", "1")
     assert get_session_store().get_session(token) is None
-    response = client.post("/api/device", headers={"X-Session-Token": token}, json={"device_id": "fan", "action": "on"})
+    response = client.post("/api/device", headers={"X-Session-Token": token}, json={"device_id": "living_room_light", "action": "on"})
     assert response.status_code == 401
 
 
@@ -142,7 +142,7 @@ def test_invited_registration_and_relogin_bound_to_invite(client):
     session = get_session_store().get_session(token)
     assert session.expires_at <= invite["expires_at"]
     guest_invites.revoke_invite(invite["invite_id"])
-    assert client.post("/api/device", json={"device_id": "fan", "action": "on"}, headers={"X-Session-Token": token}).status_code == 401
+    assert client.post("/api/device", json={"device_id": "living_room_light", "action": "on"}, headers={"X-Session-Token": token}).status_code == 401
     assert client.post("/api/auth3/layer1_login", json={"email": "short.invite@gmail.com", "password": "a-password", "send_gmail": False}).status_code == 403
 
 
@@ -191,31 +191,31 @@ def test_guest_ui_reads_snapshot_and_can_toggle_both_directions():
     harness = r'''
 const assert = require('node:assert/strict');
 const nodes = {};
-const node = () => ({hidden: true, children: [], className: '', textContent: '', appendChild(x) {this.children.push(x)}, setAttribute(k,v) {this[k]=v}, addEventListener(k,fn) {this[k]=fn}, set innerHTML(v) { assert.equal(v, ''); this.children=[]; }});
+const node = () => ({hidden: true, children: [], className: '', textContent: '', style: {}, appendChild(x) {this.children.push(x)}, setAttribute(k,v) {this[k]=v}, addEventListener(k,fn) {this[k]=fn}, set innerHTML(v) { assert.equal(v, ''); this.children=[]; }});
 global.document = {getElementById(id) {return nodes[id] ||= node()}, createElement: node};
 global.window = {location: {search:'?token=test-invite'}};
 let state = 'OFF';
 const actions = [];
 global.fetch = async (url, options) => {
  let data;
- if (url.includes('permissions')) data={device_min_tiers:{main_door:1,alarm_siren:1,ac:2,garden_pump:2,living_room_light:3,bedroom_light:3,fan:3}};
+ if (url.includes('permissions')) data={device_min_tiers:{main_door:1,alarm_siren:1,garden_pump:2,speaker_amp:2,living_room_light:3,bedroom_light:3}};
  else if(url.includes('redeem')) data={ok:true,tier:3,session_token:'session'};
- else if(url==='/api/state') data={devices:[{id:'fan',state}]};
- else { const body=JSON.parse(options.body); actions.push(body.action); state=body.action==='on'?'ON':'OFF'; data={ok:true,snapshot:{devices:[{id:'fan',state}]}}; }
+ else if(url==='/api/state') data={devices:[{id:'living_room_light',state}]};
+ else { const body=JSON.parse(options.body); actions.push(body.action); state=body.action==='on'?'ON':'OFF'; data={ok:true,snapshot:{devices:[{id:'living_room_light',state}]}}; }
  return {ok:true,json:async()=>data};
 };
 '''
     assertions = r'''
 setTimeout(async () => {
  const cards = () => nodes.guestDeviceGrid.children;
- assert.equal(cards().length,3);
+ assert.equal(cards().length,2);
  assert(!cards().some(x => x['data-device-id']==='main_door'));
- const fan = () => cards().find(x => x['data-device-id']==='fan');
- assert.equal(fan().children[1].textContent,'Trạng thái: OFF');
- await fan().children[2].click();
+ const light = () => cards().find(x => x['data-device-id']==='living_room_light');
+ assert.equal(light().children[1].textContent,'Trạng thái: OFF');
+ await light().children[2].click();
  await new Promise(resolve => setImmediate(resolve));
- assert.equal(fan().children[1].textContent,'Trạng thái: ON');
- await fan().children[2].click();
+ assert.equal(light().children[1].textContent,'Trạng thái: ON');
+ await light().children[2].click();
  await new Promise(resolve => setImmediate(resolve));
  assert.deepEqual(actions,['on','off']);
 },0);
@@ -272,7 +272,7 @@ def test_security_cloud_load_failure_is_not_first_pin_setup(monkeypatch, tmp_pat
 @pytest.mark.parametrize("tier", [2, 3])
 def test_guest_text_cannot_reset_or_write_sensor(client, tier):
     token = guest_invites.redeem_token(guest_invites.create_invite(owner_user_id="tuan_anh", tier=tier)["token"])["session"].session_id
-    for text in ("reset hệ thống", "chỉnh độ ẩm đất thành 10%", "đặt nhiệt độ 100", "học lệnh remote"):
+    for text in ("reset hệ thống", "chỉnh độ ẩm đất thành 10%", "đặt nhiệt độ 100", "mở cửa chính"):
         response = client.post("/api/text_command", json={"text": text}, headers={"X-Session-Token": token})
         assert response.status_code == 403
 
@@ -549,7 +549,7 @@ def test_logout_endpoint_revokes_session_and_clears_httponly_cookie(monkeypatch,
         replay = client.post(
             "/api/device",
             headers={"Cookie": f"sh_session_token={sess.session_id}"},
-            json={"device_id": "fan", "action": "off"},
+            json={"device_id": "living_room_light", "action": "off"},
         )
         assert replay.status_code == 401
 

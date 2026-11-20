@@ -286,7 +286,7 @@ def test_owner_cannot_skip_voice_verification_or_duplicate_check(client: TestCli
 
 def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(client: TestClient) -> None:
     """Unknown or unrecognised speaker/role must NOT default to tuan_anh and must
-    be rejected with zero device control (not even Tier 3 light/fan)."""
+    be rejected with zero device control (not even Tier 3 lights)."""
     # 1. /api/session/role with missing, empty, or unknown role must be rejected (HTTP 403 / ok=False)
     for bad_payload in [
         {},
@@ -309,7 +309,7 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
     assert eng.current_role == "UNKNOWN"
     assert eng.current_user_id != "tuan_anh"
 
-    for dev_id in ("main_door", "alarm_buzzer", "light_living", "fan_bedroom"):
+    for dev_id in ("main_door", "alarm_siren", "living_room_light", "bedroom_light"):
         perm = eng.check_device_permission(dev_id, "on")
         assert perm.get("allowed") is False, f"UNKNOWN role was allowed to control {dev_id}!"
         act = asyncio.run(eng.execute_device_action(dev_id, "on", reason="Unknown speaker test"))
@@ -318,11 +318,11 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
 
     # 3. /api/device and /api/text_command with unknown/unauthenticated role/speaker must be rejected (401/403)
     for ep, payload in [
-        ("/api/device", {"device_id": "light_living", "action": "on", "role": "UNKNOWN"}),
-        ("/api/device", {"device_id": "light_living", "action": "on", "role": "stranger_voice"}),
-        ("/api/device", {"device_id": "fan_bedroom", "action": "on", "user_id": "unrecognised_speaker"}),
+        ("/api/device", {"device_id": "living_room_light", "action": "on", "role": "UNKNOWN"}),
+        ("/api/device", {"device_id": "living_room_light", "action": "on", "role": "stranger_voice"}),
+        ("/api/device", {"device_id": "bedroom_light", "action": "on", "user_id": "unrecognised_speaker"}),
         ("/api/text_command", {"text": "Bật đèn phòng khách", "role": "UNKNOWN"}),
-        ("/api/text_command", {"text": "Bật quạt phòng ngủ", "role": "stranger"}),
+        ("/api/text_command", {"text": "Bật đèn phòng ngủ", "role": "stranger"}),
     ]:
         resp = client.post(ep, json=payload)
         data = resp.json()

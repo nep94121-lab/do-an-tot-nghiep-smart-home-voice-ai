@@ -342,18 +342,29 @@ async def execute_session_voice_intents(
         })
 
     norm_transcript = strip_vietnamese_diacritics(transcript.lower())
-    if any(k in norm_transcript for k in ("nhiet do", "do am", "cam bien")) and not any(
-        w in norm_transcript for w in ("set ", "chinh ", "dat ", "len ", "xuong ", "dieu hoa", "may lanh")
+    if any(
+        k in norm_transcript
+        for k in ("nhiet do", "do am", "cam bien", "am thanh", "ky037", "ky 037", "tieng dong", "vo tay")
+    ) and not any(
+        w in norm_transcript for w in ("set ", "chinh ", "dat ", "len ", "xuong ")
     ):
         sensors = (
             engine.read_all_sensors()
             if hasattr(engine, "read_all_sensors")
-            else {"temperature_c": 28.5, "humidity_pct": 65.0, "soil_moisture_pct": 62.0}
+            else {
+                "temperature_c": 28.5,
+                "humidity_pct": 65.0,
+                "soil_moisture_pct": 62.0,
+                "sound_detected": False,
+                "sound_status": "Yên tĩnh",
+            }
         )
+        sound_lbl = "phát hiện tiếng động lớn" if sensors.get("sound_detected") else "yên tĩnh"
         spoken_sensor = (
             f"Nhiệt độ phòng hiện tại là {sensors['temperature_c']:.1f} độ C, "
             f"độ ẩm không khí {sensors['humidity_pct']:.0f} phần trăm, "
-            f"độ ẩm đất {sensors['soil_moisture_pct']:.0f} phần trăm."
+            f"độ ẩm đất {sensors['soil_moisture_pct']:.0f} phần trăm, "
+            f"cảm biến âm thanh KY-037 đang {sound_lbl}."
         )
         echo_guard.record_ai_utterance(spoken_sensor)
         aoede_fields_s: dict[str, Any] = {}

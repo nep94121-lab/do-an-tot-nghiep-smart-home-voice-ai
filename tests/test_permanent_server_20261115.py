@@ -376,7 +376,7 @@ def test_s0c_vercel_proxy_app_preserves_cookies_and_streams_sse(
                 # 2. Proxied /api/device mutation
                 d = await client.post(
                     "/api/device",
-                    json={"device_id": "fan", "action": "on"},
+                    json={"device_id": "speaker_amp", "action": "on"},
                     headers={**fwd_headers, "X-Session-Token": owner_token},
                 )
                 assert d.status_code == 200
@@ -528,7 +528,7 @@ def test_p1c_text_command_under_3s_and_aoede_sqlite_cache(
 
 
 def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_path: pathlib.Path) -> None:
-    """P1-A: Playwright real Chrome proof of <=300ms optimistic UI & 14/14 bidirectional <=1.0s sync + voice door."""
+    """P1-A: Playwright real Chrome proof of <=300ms optimistic UI & 12/12 bidirectional <=1.0s sync + voice door."""
     from playwright.async_api import async_playwright
     from scripts.migrate_to_sqlite import migrate_all
 
@@ -632,11 +632,10 @@ def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_
                     dev_ids = [
                         "living_room_light",
                         "bedroom_light",
-                        "fan",
-                        "ac",
                         "garden_pump",
                         "main_door",
                         "alarm_siren",
+                        "speaker_amp",
                     ]
 
                     async def _wait_state(page: Any, sel: str, expected: str, timeout_s: float = 1.0) -> float:
@@ -650,7 +649,7 @@ def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_
                         actual = await page.get_attribute(sel, "data-state")
                         raise AssertionError(f"Timeout {timeout_s}s waiting {sel} -> {expected}, got {actual}")
 
-                    # 7 toggles Desktop -> Mobile
+                    # 6 toggles Desktop -> Mobile
                     for idx, did in enumerate(dev_ids):
                         d_sel = f"#dev-card-{did}"
                         m_sel = f"#devGrid [data-device-id='{did}']"
@@ -665,7 +664,7 @@ def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_
                         sync_dt = time.perf_counter() - t_click
                         assert sync_dt <= 1.0, f"Desktop -> Mobile sync >1.0s for {did}: {sync_dt:.3f}s"
 
-                    # 7 toggles Mobile -> Desktop
+                    # 6 toggles Mobile -> Desktop
                     for idx, did in enumerate(dev_ids):
                         d_sel = f"#dev-card-{did}"
                         m_sel = f"#devGrid [data-device-id='{did}']"

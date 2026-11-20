@@ -130,7 +130,7 @@ def test_adv_unauthenticated_request_matrix(client: TestClient) -> None:
     endpoints_to_test = [
         ("POST", "/api/device", {"device_id": "living_room_light", "action": "turn_on"}),
         ("POST", "/api/device_control", {"device_id": "bedroom_light", "action": "turn_on"}),
-        ("POST", "/api/devices/fan/control", {"action": "turn_on"}),
+        ("POST", "/api/devices/speaker_amp/control", {"action": "turn_on"}),
         ("POST", "/api/devices/living_room_light/control", {"action": "turn_off"}),
         ("POST", "/api/mobile/schedule", {"device_id": "living_room_light", "seconds": 30, "action": "turn_on"}),
         ("POST", "/api/ir_learn", {"device_name": "Điều hòa", "command_action": "open"}),
@@ -164,7 +164,7 @@ def test_adv_unauthenticated_request_matrix(client: TestClient) -> None:
 def test_adv_cookie_query_payload_forged_tokens_return_401(client: TestClient) -> None:
     """Xác minh token giả truyền qua Cookie, Query Param hoặc Body Payload đều bị 401."""
     # 1. Giả mạo qua Cookie
-    r_cookie = client.post("/api/device", json={"device_id": "fan", "action": "turn_on"}, cookies={"sh_session_token": "fake_cookie_token"})
+    r_cookie = client.post("/api/device", json={"device_id": "bedroom_light", "action": "turn_on"}, cookies={"sh_session_token": "fake_cookie_token"})
     assert r_cookie.status_code == 401
 
     r_cookie_qr = client.post("/api/auth3/guest_qr_current", json={}, cookies={"session_token": "fake_cookie_token"})
@@ -176,7 +176,7 @@ def test_adv_cookie_query_payload_forged_tokens_return_401(client: TestClient) -
     assert client.get("/api/auth3/guest_qr_current?token=fake_query_token&duration=1d").status_code == 405
 
     # 3. Giả mạo qua Body Payload session_token
-    r_body = client.post("/api/device", json={"device_id": "fan", "action": "turn_on", "session_token": "fake_body_token"})
+    r_body = client.post("/api/device", json={"device_id": "bedroom_light", "action": "turn_on", "session_token": "fake_body_token"})
     assert r_body.status_code == 401
 
 
@@ -189,7 +189,7 @@ def test_adv_device_state_inviolability_under_brute_force(client: TestClient) ->
     # Ghi nhận trạng thái gốc ban đầu của toàn bộ thiết bị trong nhà
     initial_devices = {d["id"]: d["state"] for d in _REST_ENGINE.get_snapshot()["devices"]}
 
-    # Phát các đợt tấn công giả mạo liên tục vào tất cả 7 thiết bị thực tế trong nhà
+    # Phát các đợt tấn công giả mạo liên tục vào tất cả 6 thiết bị thực tế trong nhà
     real_targets = [
         ("main_door", "open", "mở cửa chính"),
         ("main_door", "close", "đóng cửa chính"),
@@ -197,14 +197,12 @@ def test_adv_device_state_inviolability_under_brute_force(client: TestClient) ->
         ("living_room_light", "turn_off", "tắt đèn phòng khách"),
         ("bedroom_light", "turn_on", "bật đèn phòng ngủ"),
         ("bedroom_light", "turn_off", "tắt đèn phòng ngủ"),
-        ("fan", "turn_on", "bật quạt"),
-        ("fan", "turn_off", "tắt quạt"),
-        ("ac", "turn_on", "bật điều hòa"),
-        ("ac", "turn_off", "tắt điều hòa"),
         ("alarm_siren", "turn_on", "bật còi báo động"),
         ("alarm_siren", "turn_off", "tắt còi báo động"),
         ("garden_pump", "turn_on", "bật máy bơm"),
         ("garden_pump", "turn_off", "tắt máy bơm"),
+        ("speaker_amp", "turn_on", "bật nguồn mạch loa"),
+        ("speaker_amp", "turn_off", "tắt nguồn mạch loa"),
         ("all_devices", "turn_on", "bật tất cả thiết bị"),
         ("all_lights", "turn_off", "tắt tất cả đèn"),
     ]

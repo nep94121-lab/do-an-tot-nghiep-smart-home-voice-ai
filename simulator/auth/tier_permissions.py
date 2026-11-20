@@ -11,21 +11,19 @@ from typing import Any
 DEVICE_MIN_TIER: dict[str, int] = {
     "main_door": 1,
     "alarm_siren": 1,
-    "ac": 2,
     "garden_pump": 2,
+    "speaker_amp": 2,
     "living_room_light": 3,
     "bedroom_light": 3,
-    "fan": 3,
 }
 
 DEVICE_LABELS_VI: dict[str, str] = {
     "main_door": "Cửa chính",
     "alarm_siren": "Còi báo động",
-    "ac": "Điều hòa",
     "garden_pump": "Máy bơm tưới cây",
+    "speaker_amp": "Nguồn mạch loa PAM8403",
     "living_room_light": "Đèn phòng khách",
     "bedroom_light": "Đèn phòng ngủ",
-    "fan": "Quạt trần",
 }
 
 TIER_LABELS_VI: dict[int, str] = {
@@ -95,8 +93,8 @@ def permission_table_payload() -> dict[str, Any]:
         "devices": rows,
         "notes": {
             1: "Chủ nhà: toàn quyền mọi thiết bị, tạo/thu hồi mã mời, quản lý PIN.",
-            2: "Thành viên gia đình: đèn, quạt, điều hòa, máy bơm. Không cửa chính, không còi báo động, không tạo mã mời.",
-            3: "Khách: chỉ đèn phòng khách, đèn phòng ngủ và quạt trần.",
+            2: "Thành viên gia đình: đèn, máy bơm, nguồn mạch loa PAM8403. Không cửa chính, không còi báo động, không tạo mã mời.",
+            3: "Khách: chỉ đèn phòng khách và đèn phòng ngủ.",
         },
     }
 
@@ -168,9 +166,22 @@ def _public_snapshot_only(snapshot: dict[str, Any]) -> dict[str, Any]:
         "devices": public_devices,
         "mqtt": {
             k: pub_mqtt[k]
-            for k in ("connected", "esp8266", "dht11", "soil_moisture")
+            for k in (
+                "connected",
+                "esp8266",
+                "dht11",
+                "soil_moisture",
+                "esp8266_status",
+                "dht11_telemetry",
+                "soil_moisture_telemetry",
+                "sound",
+                "ky037",
+                "sound_telemetry",
+                "ky037_telemetry",
+            )
             if k in pub_mqtt
         },
+        **({"sensors": snapshot["sensors"]} if isinstance(snapshot.get("sensors"), dict) else {}),
     }
 
 
@@ -230,6 +241,10 @@ def restrict_guest_snapshot(
                 "esp8266_status",
                 "dht11_telemetry",
                 "soil_moisture_telemetry",
+                "sound",
+                "ky037",
+                "sound_telemetry",
+                "ky037_telemetry",
                 "queue_size",
                 "max_queue_size",
                 "dropped_backpressure_count",

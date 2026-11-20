@@ -23,8 +23,7 @@
     <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
     <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
     <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
-    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a2 2 0 0 1 4 0l-2 6M14 12h6a2 2 0 0 1 0 4l-6-2M12 14v6a2 2 0 0 1-4 0l2-6M10 12H4a2 2 0 0 1 0-4l6 2"/></symbol>
-    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1 19.1 4.9"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
     <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
     <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
@@ -150,23 +149,29 @@
             <div class="panel-head">
               <h2 id="sensors-title">Cảm biến</h2>
             </div>
-            <div class="sensor-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 12px 0;">
-              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
-                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Nhiệt độ</div>
-                <div class="sensor-meter-val" id="sensorTempVal" style="font-size: 20px; font-weight: 700; color: var(--text);">--°C</div>
-                <small class="muted" style="font-size: 11px;">Trong nhà</small>
+            <div class="sensor-list">
+              <div class="sensor-meter">
+                <div class="sensor-meter-title">Nhiệt độ · DHT11</div>
+                <div class="sensor-meter-val" id="sensorTempVal">--°C</div>
+                <small class="sensor-meter-sub" id="sensorTempSub">Chân D2 (GPIO 4)</small>
               </div>
-              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
-                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Độ ẩm</div>
-                <div class="sensor-meter-val" id="sensorHumVal" style="font-size: 20px; font-weight: 700; color: var(--text);">--%</div>
-                <small class="muted" style="font-size: 11px;">Không khí</small>
+              <div class="sensor-meter">
+                <div class="sensor-meter-title">Độ ẩm · DHT11</div>
+                <div class="sensor-meter-val" id="sensorHumVal">--%</div>
+                <small class="sensor-meter-sub" id="sensorHumSub">Không khí · D2</small>
               </div>
-              <div class="sensor-meter" style="border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center;">
-                <div class="sensor-meter-title" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Độ ẩm đất</div>
-                <div class="sensor-meter-val" id="sensorSoilVal" style="font-size: 20px; font-weight: 700; color: var(--text);">--%</div>
-                <small class="muted" style="font-size: 11px;">Sân vườn</small>
+              <div class="sensor-meter">
+                <div class="sensor-meter-title">Độ ẩm đất · A0</div>
+                <div class="sensor-meter-val" id="sensorSoilVal">--%</div>
+                <small class="sensor-meter-sub" id="sensorSoilSub">Bơm tự bật &lt;40% · tắt ≥70%</small>
+              </div>
+              <div class="sensor-meter" id="sensorSoundCard">
+                <div class="sensor-meter-title">Âm thanh · KY-037</div>
+                <div class="sensor-meter-val" id="sensorSoundVal">Yên tĩnh</div>
+                <small class="sensor-meter-sub" id="sensorSoundSub">DO D5 (GPIO 14) · 0 sự kiện</small>
               </div>
             </div>
+            <p class="sensor-note" id="sensorMicNote">Gemini Voice AI sử dụng micro &amp; loa thiết bị/web; cảm biến KY-037 (DO chân D5) phát hiện vỗ tay hoặc tiếng động lớn.</p>
           </section>
         </div>
 
@@ -221,9 +226,8 @@
                   <select id="autoTimerDevice" class="auto-select" aria-label="Thiết bị hẹn giờ">
                     <option value="living_room_light">Đèn phòng khách</option>
                     <option value="bedroom_light">Đèn phòng ngủ</option>
-                    <option value="fan">Quạt trần</option>
-                    <option value="ac">Điều hòa</option>
                     <option value="garden_pump">Máy bơm tưới cây</option>
+                    <option value="speaker_amp">Nguồn mạch loa PAM8403</option>
                     <option value="main_door">Cửa chính</option>
                     <option value="alarm_siren">Còi báo động</option>
                   </select>
@@ -248,9 +252,8 @@
                   <select id="autoClockDevice" class="auto-select" aria-label="Thiết bị đặt lịch">
                     <option value="living_room_light">Đèn phòng khách</option>
                     <option value="bedroom_light">Đèn phòng ngủ</option>
-                    <option value="fan">Quạt trần</option>
-                    <option value="ac">Điều hòa</option>
                     <option value="garden_pump">Máy bơm tưới cây</option>
+                    <option value="speaker_amp">Nguồn mạch loa PAM8403</option>
                     <option value="main_door">Cửa chính</option>
                     <option value="alarm_siren">Còi báo động</option>
                   </select>
@@ -275,9 +278,8 @@
                     <option value="main_door">Khi Cửa chính</option>
                     <option value="living_room_light">Khi Đèn phòng khách</option>
                     <option value="bedroom_light">Khi Đèn phòng ngủ</option>
-                    <option value="fan">Khi Quạt trần</option>
-                    <option value="ac">Khi Điều hòa</option>
                     <option value="garden_pump">Khi Máy bơm tưới cây</option>
+                    <option value="speaker_amp">Khi Nguồn mạch loa PAM8403</option>
                     <option value="alarm_siren">Khi Còi báo động</option>
                   </select>
                   <select id="autoRuleWhenState" class="auto-select" aria-label="Trạng thái kích hoạt">
@@ -291,9 +293,8 @@
                   <select id="autoRuleThenDev" class="auto-select" aria-label="Thì tác động thiết bị">
                     <option value="living_room_light">Thì Đèn phòng khách</option>
                     <option value="bedroom_light">Thì Đèn phòng ngủ</option>
-                    <option value="fan">Thì Quạt trần</option>
-                    <option value="ac">Thì Điều hòa</option>
                     <option value="garden_pump">Thì Máy bơm tưới cây</option>
+                    <option value="speaker_amp">Thì Nguồn mạch loa PAM8403</option>
                     <option value="main_door">Thì Cửa chính</option>
                     <option value="alarm_siren">Thì Còi báo động</option>
                   </select>
@@ -308,7 +309,7 @@
               <div id="autoFormSceneGroup" hidden>
                 <input type="hidden" id="autoSceneEditId" value="">
                 <input type="text" id="autoScenePhrase" class="auto-input" placeholder="Tên câu lệnh (vd: đi ngủ)" aria-label="Tên ngữ cảnh">
-                <input type="text" id="autoSceneSteps" class="auto-input" placeholder="Các bước (vd: tắt hết đèn rồi bật quạt trần)" aria-label="Các bước thực hiện">
+                <input type="text" id="autoSceneSteps" class="auto-input" placeholder="Các bước (vd: tắt hết đèn rồi bật máy bơm)" aria-label="Các bước thực hiện">
               </div>
               <p class="schedule-row-sub" id="autoFormFeedback" hidden></p>
               <div class="auto-form-row">
@@ -343,7 +344,7 @@
                   <div class="qr-field">
                     <label for="ownerGuestInviteTier">Đối tượng mời</label>
                     <select id="ownerGuestInviteTier" class="input-text">
-                      <option value="3" selected>Khách (Cấp 3 · Đèn &amp; Quạt)</option>
+                      <option value="3" selected>Khách (Cấp 3 · Đèn khách &amp; Đèn ngủ)</option>
                       <option value="2">Gia đình (Cấp 2 · Đa thiết bị)</option>
                     </select>
                   </div>
@@ -664,7 +665,7 @@
       <p id="micPermissionDesc" class="muted" style="margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.5;">
         Bạn đã chặn quyền micro. Mở cài đặt trang trong trình duyệt, chọn Micro → Cho phép, rồi thử lại.
       </p>
-      <div id="micPermissionHttpNote" class="note" style="background:#fafcfc; border:1px solid var(--line); border-radius:12px; padding:14px; margin:16px 0; font-size:13px;">
+      <div id="micPermissionHttpNote" class="note" style="background:var(--page); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:14px; margin:16px 0; font-size:13px;">
         <strong>Nếu đang dùng địa chỉ HTTP</strong>
         <p style="margin:6px 0 0; color:var(--muted);">Trình duyệt cần kết nối an toàn để dùng micro. Mở ứng dụng qua HTTPS.</p>
       </div>

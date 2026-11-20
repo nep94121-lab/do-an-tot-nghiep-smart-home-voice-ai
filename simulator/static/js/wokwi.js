@@ -174,7 +174,7 @@
 
       // Thứ tự 15 chân bên TRÁI từ trên xuống dưới (nhìn mặt trên NodeMCU cổng USB hướng lên):
       const leftPins = [
-        { key: 'A0',    label: 'A0',  active: '#facc15', desc: 'Chân số 1 Trái: A0 (ADC0) — Cảm biến Độ ẩm Đất YL-69' },
+        { key: 'A0',    label: 'A0',  active: '#facc15', desc: 'Chân số 1 Trái: A0 (ADC0) — Cảm biến Độ ẩm Đất (LM393 nguồn 3.3V)' },
         { key: 'RSV1',  label: 'RSV', active: null,      desc: 'Chân số 2 Trái: RSV (Không dùng)' },
         { key: 'RSV2',  label: 'RSV', active: null,      desc: 'Chân số 3 Trái: RSV (Không dùng)' },
         { key: 'SD3',   label: 'SD3', active: null,      desc: 'Chân số 4 Trái: SD3' },
@@ -193,18 +193,18 @@
 
       // Thứ tự 15 chân bên PHẢI từ trên xuống dưới (D0 -> D8, RX, TX, GND, 3V3):
       const rightPins = [
-        { key: 'D0',    label: 'D0',  active: null,      desc: 'Chân số 1 Phải: D0 (GPIO16)' },
-        { key: 'D1',    label: 'D1',  active: '#facc15', desc: 'Chân số 2 Phải: D1 (GPIO5) — Cửa chính Servo SG90' },
-        { key: 'D2',    label: 'D2',  active: '#22c55e', desc: 'Chân số 3 Phải: D2 (GPIO4) — Đèn Khách LED Đỏ + Phát IR 38kHz' },
-        { key: 'D3',    label: 'D3',  active: '#38bdf8', desc: 'Chân số 4 Phải: D3 (GPIO0) — Relay Đỏ + Máy Bơm Nước Mini' },
-        { key: 'D4',    label: 'D4',  active: '#38bdf8', desc: 'Chân số 5 Phải: D4 (GPIO2) — Phát âm thanh ra Loa 8Ω 3W (PAM8403)' },
+        { key: 'D0',    label: 'D0',  active: '#22c55e', desc: 'Chân số 1 Phải: D0 (GPIO16) — Đèn phòng khách LED Đỏ & nháy enroll_blink' },
+        { key: 'D1',    label: 'D1',  active: '#facc15', desc: 'Chân số 2 Phải: D1 (GPIO5) — Cửa chính Servo SG90 (0°/90°)' },
+        { key: 'D2',    label: 'D2',  active: '#06b6d4', desc: 'Chân số 3 Phải: D2 (GPIO4) — Cảm biến Nhiệt độ & Độ ẩm DHT11' },
+        { key: 'D3',    label: 'D3',  active: '#a855f7', desc: 'Chân số 4 Phải: D3 (GPIO0) — Ngõ ra PWM tới PAM8403 qua tụ 100nF–1µF + cầu RC (IDLE=INPUT)' },
+        { key: 'D4',    label: 'D4',  active: '#fde047', desc: 'Chân số 5 Phải: D4 (GPIO2) — Đèn phòng ngủ Active-LOW từ 3.3V (an toàn boot)' },
         { key: 'V33',   label: '3V3', active: '#fb923c', desc: 'Chân số 6 Phải: 3V3 — Cấp nguồn +3.3V sang Rãnh Trên Breadboard' },
         { key: 'GND_R', label: 'GND', active: '#94a3b8', desc: 'Chân số 7 Phải: GND — Cấp Mass chung sang Breadboard' },
-        { key: 'D5',    label: 'D5',  active: '#c084fc', desc: 'Chân số 8 Phải: D5 (GPIO14) — Mắt thu hồng ngoại VS1838B' },
-        { key: 'D6',    label: 'D6',  active: '#06b6d4', desc: 'Chân số 9 Phải: D6 (GPIO12) — Cảm biến Nhiệt độ & Độ ẩm DHT11' },
-        { key: 'D7',    label: 'D7',  active: '#fde047', desc: 'Chân số 10 Phải: D7 (GPIO13) — Đèn Phòng Ngủ LED Vàng' },
-        { key: 'D8',    label: 'D8',  active: '#f43f5e', desc: 'Chân số 11 Phải: D8 (GPIO15) — Còi báo động Buzzer 5V' },
-        { key: 'RX',    label: 'RX',  active: '#34d399', desc: 'Chân số 12 Phải: RX (GPIO3) — Nhận lệnh từ Module Micro Thu Âm Giọng Nói (VC-02 / MAX9814)' },
+        { key: 'D5',    label: 'D5',  active: '#f87171', desc: 'Chân số 8 Phải: D5 (GPIO14) — Cảm biến Âm thanh KY-037 DO (vỗ tay/tiếng động)' },
+        { key: 'D6',    label: 'D6',  active: '#38bdf8', desc: 'Chân số 9 Phải: D6 (GPIO12) — Relay 1 Xanh Máy bơm tưới cây + 1N4007 + 470µF' },
+        { key: 'D7',    label: 'D7',  active: '#c084fc', desc: 'Chân số 10 Phải: D7 (GPIO13) — Relay 2 Đỏ Opto (Jumper H) Nguồn 5V PAM8403' },
+        { key: 'D8',    label: 'D8',  active: '#f43f5e', desc: 'Chân số 11 Phải: D8 (GPIO15) — Còi báo động Buzzer 5V (Active-HIGH)' },
+        { key: 'RX',    label: 'RX',  active: null,      desc: 'Chân số 12 Phải: RX (GPIO3) — Serial Debug 115200 baud (Voice AI Gemini dùng mic/loa web)' },
         { key: 'TX',    label: 'TX',  active: null,      desc: 'Chân số 13 Phải: TX' },
         { key: 'GND_R2',label: 'GND', active: null,      desc: 'Chân số 14 Phải: GND' },
         { key: 'V33_R2',label: '3V3', active: null,      desc: 'Chân số 15 Phải: 3V3' }
@@ -285,80 +285,71 @@
       const groups = {
         // BƯỚC 0: CẤP NGUỒN 3.3V (Rãnh trên), 5V (Rãnh dưới) & GND CHUNG
         power: [
-          // Chân 3V3 (Chân số 6 bên phải NodeMCU) -> lỗ tp1 (Rãnh Dương Trên +3.3V)
           wirePath([P('V33'), { x: 246, y: P('V33').y }, { x: 246, y: H('tp1').y }, H('tp1')], '#fb923c'),
-          // Chân VIN (Chân số 15 cuối bên trái NodeMCU) -> lỗ bp1 (Rãnh Dương Dưới +5V)
           wirePath([P('VIN'), { x: 18, y: P('VIN').y }, { x: 18, y: 390 }, { x: H('bp1').x, y: 390 }, H('bp1')], '#ef4444'),
-          // Chân GND (Chân số 7 bên phải NodeMCU) -> lỗ tn1 (Rãnh Âm Trên GND) & nối thông xuống bn25
           wirePath([P('GND_R'), { x: 254, y: P('GND_R').y }, { x: 254, y: H('tn1').y }, H('tn1')], '#64748b'),
           wirePath([H('tn25'), { x: 775, y: H('tn25').y }, { x: 775, y: H('bn25').y }, H('bn25')], '#64748b')
         ],
 
-        // BƯỚC 1: CỬA CHÍNH SERVO SG90 (Chân D1 — Chân số 2 bên phải NodeMCU)
+        // BƯỚC 1: ĐÈN PHÒNG KHÁCH LED ĐỎ (Chân D0 / GPIO16)
+        d0_living: [
+          wirePath([P('D0'), { x: 258, y: P('D0').y }, { x: 258, y: H('c4').y }, H('c4')], '#22c55e'),
+          wirePath([H('a9'), H('tn6')], '#64748b')
+        ],
+
+        // BƯỚC 2: CỬA CHÍNH SERVO SG90 (Chân D1 / GPIO5)
         d1_servo: [
           wirePath([P('D1'), { x: 238, y: P('D1').y }, { x: 238, y: 34 }, { x: 845, y: 34 }, { x: 845, y: SERVO_PINS.PWM.y }, SERVO_PINS.PWM], '#facc15'),
           wirePath([H('bp24'), { x: H('bp24').x, y: 348 }, { x: 798, y: 348 }, { x: 798, y: SERVO_PINS.VCC.y }, SERVO_PINS.VCC], '#ef4444'),
           wirePath([H('bn24'), { x: H('bn24').x, y: 356 }, { x: 808, y: 356 }, { x: 808, y: SERVO_PINS.GND.y }, SERVO_PINS.GND], '#78350f')
         ],
 
-        // BƯỚC 2: ĐÈN PHÒNG KHÁCH LED ĐỎ + PHÁT IR 940NM (Chân D2 — Chân số 3 bên phải NodeMCU)
-        d2_light_ir: [
-          wirePath([P('D2'), { x: 262, y: P('D2').y }, { x: 262, y: H('c4').y }, H('c4')], '#22c55e'),
-          wirePath([H('b4'), { x: H('b4').x, y: H('b12').y }, H('c12')], '#a855f7'),
-          wirePath([H('a9'), H('tn6')], '#64748b'),
-          wirePath([H('a16'), H('tn11')], '#64748b')
-        ],
-
-        // BƯỚC 3: MODULE RELAY ĐỎ + MÁY BƠM NƯỚC MINI + DIODE 1N4007 (Chân D3 — Chân số 4 bên phải NodeMCU)
-        d3_pump: [
-          wirePath([P('D3'), { x: 270, y: P('D3').y }, { x: 270, y: 382 }, { x: 815, y: 382 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8'),
-          wirePath([H('bp22'), { x: H('bp22').x, y: 392 }, { x: 825, y: 392 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444'),
-          wirePath([H('bn22'), { x: H('bn22').x, y: 402 }, { x: 832, y: 402 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b')
-        ],
-
-        // BƯỚC 4: CẢM BIẾN ĐỘ ẨM ĐẤT YL-69 + MẠCH LM393 (Chân A0 — Chân số 1 trên cùng bên trái NodeMCU)
-        a0_soil: [
-          wirePath([P('A0'), { x: 10, y: P('A0').y }, { x: 10, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308'),
-          wirePath([H('tp24'), { x: 785, y: H('tp24').y }, { x: 785, y: 595 }, { x: 922, y: 595 }, { x: 922, y: 575 }], '#fb923c'),
-          wirePath([H('bn20'), { x: H('bn20').x, y: 645 }, { x: 906, y: 645 }, { x: 906, y: 575 }], '#64748b')
-        ],
-
-        // BƯỚC 5: MẮT THU HỒNG NGOẠI VS1838B 38KHZ (Chân D5 — Chân số 8 bên phải NodeMCU)
-        d5_ir_rx: [
-          wirePath([P('D5'), { x: 260, y: P('D5').y }, { x: 260, y: H('j6').y }, H('j6')], '#c084fc'),
-          wirePath([H('j7'), H('bn5')], '#64748b'),
-          wirePath([H('f8'), H('tp6')], '#fb923c')
-        ],
-
-        // BƯỚC 6: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (Chân D6 — Chân số 9 bên phải NodeMCU)
-        d6_dht11: [
-          wirePath([P('D6'), { x: 268, y: P('D6').y }, { x: 268, y: H('j15').y }, H('j15')], '#06b6d4'),
+        // BƯỚC 3: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (Chân D2 / GPIO4)
+        d2_dht11: [
+          wirePath([P('D2'), { x: 264, y: P('D2').y }, { x: 264, y: H('j15').y }, H('j15')], '#06b6d4'),
           wirePath([H('f14'), H('tp12')], '#fb923c'),
           wirePath([H('j17'), H('bn12')], '#64748b')
         ],
 
-        // BƯỚC 7: ĐÈN PHÒNG NGỦ LED VÀNG + TRỞ 220Ω (Chân D7 — Chân số 10 bên phải NodeMCU)
-        d7_bed: [
-          wirePath([P('D7'), { x: 276, y: P('D7').y }, { x: 276, y: H('c22').y }, H('c22')], '#facc15'),
-          wirePath([H('a26'), H('tn20')], '#64748b')
+        // BƯỚC 4: RELAY 2 ĐỎ OPTO (D7) + PAM8403 + LOA TRÒN BẠC (D3 PWM)
+        d3_d7_speaker: [
+          wirePath([P('D3'), { x: 232, y: P('D3').y }, { x: 232, y: 404 }, { x: 180, y: 404 }, { x: 180, y: 486 }], '#a855f7'),
+          wirePath([P('D7'), { x: 224, y: P('D7').y }, { x: 224, y: 396 }, { x: 46, y: 396 }, { x: 46, y: 486 }], '#c084fc'),
+          wirePath([H('bp4'), { x: H('bp4').x, y: 372 }, { x: 78, y: 372 }, { x: 78, y: 486 }], '#ef4444'),
+          wirePath([H('bn4'), { x: H('bn4').x, y: 380 }, { x: 102, y: 380 }, { x: 102, y: 486 }], '#64748b')
         ],
 
-        // BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V (Chân D8 — Chân số 11 bên phải NodeMCU)
+        // BƯỚC 5: ĐÈN PHÒNG NGỦ LED VÀNG ACTIVE-LOW TỪ 3.3V (Chân D4 / GPIO2, an toàn boot)
+        d4_bedroom: [
+          wirePath([H('tp20'), { x: H('tp20').x, y: H('a22').y }, H('a22')], '#fb923c'),
+          wirePath([P('D4'), { x: 274, y: P('D4').y }, { x: 274, y: H('c26').y }, H('c26')], '#fde047')
+        ],
+
+        // BƯỚC 6: CẢM BIẾN ÂM THANH KY-037 DO (Chân D5 / GPIO14)
+        d5_ky037: [
+          wirePath([P('D5'), { x: 260, y: P('D5').y }, { x: 260, y: H('j6').y }, H('j6')], '#f87171'),
+          wirePath([H('j7'), H('bn5')], '#64748b'),
+          wirePath([H('f8'), H('tp6')], '#fb923c')
+        ],
+
+        // BƯỚC 7: RELAY 1 XANH + DIODE 1N4007 + TỤ 470µF + MÁY BƠM MINI (Chân D6 / GPIO12)
+        d6_pump: [
+          wirePath([P('D6'), { x: 270, y: P('D6').y }, { x: 270, y: 384 }, { x: 815, y: 384 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8'),
+          wirePath([H('bp22'), { x: H('bp22').x, y: 392 }, { x: 825, y: 392 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444'),
+          wirePath([H('bn22'), { x: H('bn22').x, y: 402 }, { x: 832, y: 402 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b')
+        ],
+
+        // BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V ACTIVE-HIGH (Chân D8 / GPIO15)
         d8_buzzer: [
           wirePath([P('D8'), { x: 284, y: P('D8').y }, { x: 284, y: H('j25').y }, H('j25')], '#f43f5e'),
           wirePath([H('j24'), H('bn19')], '#64748b')
         ],
 
-        // BƯỚC 9: CỤM MICRO THU ÂM GIỌNG NÓI (Chân RX) & LOA PHÁT 8Ω 3W (Chân D4)
-        rx_d4_mic_spk: [
-          // Dây Xanh ngọc từ chân RX (GPIO3) -> chân MIC_OUT của Module Micro
-          wirePath([P('RX'), { x: 224, y: P('RX').y }, { x: 224, y: 398 }, { x: 84, y: 398 }, { x: 84, y: 580 }], '#34d399'),
-          // Dây Xanh lam từ chân D4 (GPIO2) -> chân SPK_IN của Mạch khuếch đại Loa PAM8403
-          wirePath([P('D4'), { x: 232, y: P('D4').y }, { x: 232, y: 404 }, { x: 128, y: 404 }, { x: 128, y: 580 }], '#38bdf8'),
-          // Nguồn +3.3V (TP4), +5V (BP4) & Mass GND (BN4) nuôi Cụm Mic & Loa
-          wirePath([H('tp4'), { x: H('tp4').x, y: 372 }, { x: 172, y: 372 }, { x: 172, y: 580 }], '#fb923c'),
-          wirePath([H('bp4'), { x: H('bp4').x, y: 368 }, { x: 216, y: 368 }, { x: 216, y: 580 }], '#ef4444'),
-          wirePath([H('bn4'), { x: H('bn4').x, y: 376 }, { x: 260, y: 376 }, { x: 260, y: 580 }], '#64748b')
+        // BƯỚC 9: CẢM BIẾN ĐỘ ẨM ĐẤT + MẠCH LM393 NGUỒN 3.3V (Chân A0 / ADC0)
+        a0_soil: [
+          wirePath([P('A0'), { x: 10, y: P('A0').y }, { x: 10, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308'),
+          wirePath([H('tp24'), { x: 785, y: H('tp24').y }, { x: 785, y: 595 }, { x: 922, y: 595 }, { x: 922, y: 575 }], '#fb923c'),
+          wirePath([H('bn20'), { x: H('bn20').x, y: 645 }, { x: 906, y: 645 }, { x: 906, y: 575 }], '#64748b')
         ]
       };
 
@@ -368,55 +359,53 @@
     }
 
     // =========================================================================
-    // 3. BỘ LỌC HƯỚNG DẪN TỪNG BƯỚC CẮM DÂY VẬT LÝ
+    // 3. BỘ LỌC HƯỚNG DẪN TỪNG BƯỚC CẮM DÂY VẬT LÝ (10 CHÂN KHÓA CỨNG)
     // =========================================================================
     const GUIDES = {
       all: [
-        "<strong>Bước 0 (Cấp nguồn trước tiên):</strong> Cắm dây Cam từ chân <span class='hole-badge'>3V3</span> vào lỗ <span class='hole-badge'>TP1 (Rãnh + Trên)</span>; dây Đỏ từ chân <span class='hole-badge'>VIN (5V)</span> vào lỗ <span class='hole-badge'>BP1 (Rãnh + Dưới)</span>; dây Đen từ <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN1 &amp; TN25</span>.",
-        "<strong>Cắm linh kiện lên đúng cột Breadboard:</strong> Đèn Khách + Trở 220Ω ở <span class='hole-badge'>Cột 4 → 9</span>; Mạch phát IR + Transistor ở <span class='hole-badge'>Cột 12 → 18</span>; Đèn Ngủ ở <span class='hole-badge'>Cột 22 → 26</span>; VS1838B ở <span class='hole-badge'>Cột 6–8</span>; DHT11 ở <span class='hole-badge'>Cột 14–17</span>; Buzzer ở <span class='hole-badge'>Cột 24–26</span>."
+        "<strong>Bước 0 (Cấp nguồn trước tiên):</strong> Cắm dây Cam từ chân <span class='hole-badge'>3V3</span> vào lỗ <span class='hole-badge'>TP1 (Rãnh + Trên)</span>; dây Đỏ từ <span class='hole-badge'>VIN (5V)</span> vào <span class='hole-badge'>BP1 (Rãnh + Dưới)</span>; dây Đen từ <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN1 &amp; TN25</span>.",
+        "<strong>Cắm linh kiện đúng 10 chân khóa cứng:</strong> Đèn Khách (<span class='hole-badge'>D0</span>) cột 4–9; Đèn Ngủ Active-LOW (<span class='hole-badge'>D4</span>) cột 22–26; KY-037 (<span class='hole-badge'>D5</span>) cột 6–9; DHT11 (<span class='hole-badge'>D2</span>) cột 14–17; Buzzer (<span class='hole-badge'>D8</span>) cột 24–26."
       ],
       power: [
-        "<strong>Dây Cam (+3.3V nuôi Cảm biến):</strong> Từ chân <span class='hole-badge'>3V3</span> của ESP8266 cắm vào lỗ <span class='hole-badge'>TP1</span> (Rãnh Dương ngang phía TRÊN Breadboard).",
-        "<strong>Dây Đỏ (+5V nuôi Servo, Relay &amp; Máy bơm):</strong> Từ chân <span class='hole-badge'>VIN</span> của ESP8266 cắm vào lỗ <span class='hole-badge'>BP1</span> (Rãnh Dương ngang phía DƯỚI Breadboard).",
-        "<strong>2 Dây Đen (Mass chung GND):</strong> Từ chân <span class='hole-badge'>GND</span> cắm vào lỗ <span class='hole-badge'>BN1</span>, và lấy 1 sợi dây Đen nối từ <span class='hole-badge'>BN25</span> lên <span class='hole-badge'>TN25</span>."
+        "<strong>Dây Cam (+3.3V nuôi Cảm biến &amp; LED ngủ):</strong> Từ chân <span class='hole-badge'>3V3</span> cắm vào lỗ <span class='hole-badge'>TP1</span> (nuôi DHT11, KY-037, LM393 đất &amp; cực dương LED D4).",
+        "<strong>Dây Đỏ (+5V nuôi Servo, Relay 1 &amp; Relay 2):</strong> Từ chân <span class='hole-badge'>VIN</span> cắm vào lỗ <span class='hole-badge'>BP1</span> (kèm tụ 470µF 16V lọc nguồn 5V).",
+        "<strong>2 Dây Đen (Mass chung GND):</strong> Nối từ <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN1</span> và nối thông <span class='hole-badge'>BN25</span> lên <span class='hole-badge'>TN25</span>."
+      ],
+      d0_living: [
+        "<strong>Đèn Phòng Khách (Chân D0 / GPIO16):</strong> Từ chân <span class='hole-badge'>D0</span> cắm dây Xanh lá vào lỗ <span class='hole-badge'>C4</span> → qua trở <span class='hole-badge'>220Ω</span> sang LED Đỏ (+) tại <span class='hole-badge'>C8</span>, chân (-) ở <span class='hole-badge'>C9</span>.",
+        "<strong>Nối Mass &amp; enroll_blink:</strong> Nối <span class='hole-badge'>A9</span> lên rãnh âm <span class='hole-badge'>TN6</span>. Chân D0 cũng dùng để nháy báo hiệu 3-2-1 khi thu âm cấp quyền."
       ],
       d1_servo: [
-        "<strong>Dây Vàng/Cam của Servo SG90 (PWM):</strong> Cắm thẳng vào chân <span class='hole-badge'>D1 (GPIO5)</span> của ESP8266.",
-        "<strong>Dây Đỏ của Servo (+5V):</strong> Cắm vào lỗ <span class='hole-badge'>BP24</span> (Rãnh +5V phía dưới Breadboard).",
-        "<strong>Dây Nâu của Servo (GND):</strong> Cắm vào lỗ <span class='hole-badge'>BN24</span> (Rãnh -GND phía dưới Breadboard)."
+        "<strong>Dây Vàng/Cam của Servo SG90 (PWM):</strong> Cắm thẳng vào chân <span class='hole-badge'>D1 (GPIO5)</span> của ESP8266 (0° đóng / 90° mở).",
+        "<strong>Dây Đỏ (+5V) &amp; Nâu (GND):</strong> Cắm lần lượt vào <span class='hole-badge'>BP24</span> (kèm tụ lọc 470µF 16V) và <span class='hole-badge'>BN24</span>."
       ],
-      d2_light_ir: [
-        "<strong>Dây tín hiệu D2:</strong> Từ chân <span class='hole-badge'>D2 (GPIO4)</span> cắm vào lỗ <span class='hole-badge'>E4</span>. Cắm 1 con <strong>Điện trở 220Ω</strong> từ lỗ <span class='hole-badge'>D4</span> sang lỗ <span class='hole-badge'>D8</span>.",
-        "<strong>Bóng LED Đỏ Phòng Khách:</strong> Chân dài (+) cắm vào lỗ <span class='hole-badge'>C8</span>, chân ngắn (-) cắm vào lỗ <span class='hole-badge'>C9</span>, rồi nối dây Đen từ <span class='hole-badge'>A9</span> lên rãnh âm <span class='hole-badge'>TN6</span>.",
-        "<strong>Nhánh phát Hồng ngoại (IR 940nm + Transistor đen):</strong> Nối dây từ <span class='hole-badge'>D4</span> sang <span class='hole-badge'>E12</span> → qua <strong>Trở 1kΩ</strong> vào chân giữa Transistor ở <span class='hole-badge'>D15</span>."
-      ],
-      d3_pump: [
-        "<strong>Dây kích Relay (Xanh dương):</strong> Từ chân <span class='hole-badge'>D3 (GPIO0)</span> cắm vào chân <span class='hole-badge'>IN</span> của Module Relay Đỏ; chân <span class='hole-badge'>DC+</span> cắm vào lỗ <span class='hole-badge'>BP22 (+5V)</span>; chân <span class='hole-badge'>DC-</span> cắm vào lỗ <span class='hole-badge'>BN22 (GND)</span>.",
-        "<strong>Đấu Máy bơm nước mini trắng &amp; Diode 1N4007:</strong> Dây Đỏ (+) của Máy bơm vặn vào cổng <span class='hole-badge'>NO</span> của Relay; cổng <span class='hole-badge'>COM</span> nối vào +5V; kẹp song song con <strong>Diode 1N4007 (vạch trắng quay về phía dây Đỏ của Bơm)</strong>."
-      ],
-      a0_soil: [
-        "<strong>Dây tín hiệu Analog (Vàng):</strong> Từ chân <span class='hole-badge'>A0</span> (góc trên bên trái ESP8266) cắm vào chân <span class='hole-badge'>AO</span> của mạch xanh <code>LM393</code>.",
-        "<strong>Dây nguồn cảm biến đất:</strong> Chân <span class='hole-badge'>VCC</span> của <code>LM393</code> cắm vào lỗ <span class='hole-badge'>TP24 (+3.3V)</span>; chân <span class='hole-badge'>GND</span> cắm vào lỗ <span class='hole-badge'>BN20 (GND)</span>."
-      ],
-      d5_ir_rx: [
-        "<strong>Cắm 3 chân mắt thu VS1838B vào hàng F (Cột 6, 7, 8):</strong> Chân trái (OUT) ở <span class='hole-badge'>F6</span>, chân giữa (GND) ở <span class='hole-badge'>F7</span>, chân phải (VCC) ở <span class='hole-badge'>F8</span>.",
-        "<strong>Đi dây:</strong> Lỗ <span class='hole-badge'>J6</span> nối về chân <span class='hole-badge'>D5 (GPIO14)</span>; lỗ <span class='hole-badge'>J7</span> nối xuống <span class='hole-badge'>BN5 (GND)</span>; lỗ <span class='hole-badge'>F8</span> nối lên <span class='hole-badge'>TP6 (+3.3V)</span>."
-      ],
-      d6_dht11: [
+      d2_dht11: [
         "<strong>Cắm cảm biến DHT11 vào hàng F (Cột 14 → 17):</strong> Chân VCC ở <span class='hole-badge'>F14</span>, chân DATA ở <span class='hole-badge'>F15</span>, chân GND ở <span class='hole-badge'>F17</span>.",
-        "<strong>Đi dây:</strong> Lỗ <span class='hole-badge'>J15</span> nối về chân <span class='hole-badge'>D6 (GPIO12)</span>; lỗ <span class='hole-badge'>F14</span> nối lên <span class='hole-badge'>TP12 (+3.3V)</span>; lỗ <span class='hole-badge'>J17</span> nối xuống <span class='hole-badge'>BN12 (GND)</span>."
+        "<strong>Đi dây:</strong> Lỗ <span class='hole-badge'>J15</span> nối về chân <span class='hole-badge'>D2 (GPIO4)</span>; lỗ <span class='hole-badge'>F14</span> nối lên <span class='hole-badge'>TP12 (+3.3V)</span>; lỗ <span class='hole-badge'>J17</span> nối xuống <span class='hole-badge'>BN12 (GND)</span>."
       ],
-      d7_bed: [
-        "<strong>Đèn Phòng Ngủ (Chân D7):</strong> Từ chân <span class='hole-badge'>D7 (GPIO13)</span> cắm dây vàng vào lỗ <span class='hole-badge'>E22</span> → qua <strong>Điện trở 220Ω</strong> sang lỗ <span class='hole-badge'>E25</span>.",
-        "<strong>Bóng LED Vàng:</strong> Chân dài (+) cắm vào <span class='hole-badge'>C25</span>, chân ngắn (-) cắm vào <span class='hole-badge'>C26</span>, nối <span class='hole-badge'>A26</span> lên <span class='hole-badge'>TN20 (GND)</span>."
+      d3_d7_speaker: [
+        "<strong>Relay 2 Đỏ Opto (Chân D7 / GPIO13):</strong> Đặt jumper vàng về mức <span class='hole-badge'>H</span>; chân <span class='hole-badge'>IN</span> nối <span class='hole-badge'>D7</span>, <span class='hole-badge'>COM/NO</span> đóng ngắt nguồn 5V cấp cho mạch xanh <span class='hole-badge'>PAM8403</span>.",
+        "<strong>Ngõ ra âm thanh PWM (Chân D3 / GPIO0):</strong> Nối từ <span class='hole-badge'>D3</span> qua tụ chặn DC <span class='hole-badge'>100nF–1µF</span> (KHÔNG dùng 470µF) + cầu phân áp RC (<span class='hole-badge'>2.2kΩ / 1kΩ–2.2kΩ</span>) tới chân <span class='hole-badge'>L</span> của PAM8403; 2 dây loa bạc nối vào <span class='hole-badge'>L OUT + / -</span>."
+      ],
+      d4_bedroom: [
+        "<strong>Đấu Active-LOW an toàn boot trên D4 (GPIO2):</strong> Nối từ <span class='hole-badge'>TP20 (+3.3V)</span> qua trở <span class='hole-badge'>220Ω–1kΩ</span> tại <span class='hole-badge'>A22</span> vào cực dương (+) LED Vàng, cực âm (-) ở <span class='hole-badge'>C26</span> nối về <span class='hole-badge'>D4 (GPIO2)</span>.",
+        "<strong>Nguyên tắc boot:</strong> Cách đấu này đảm bảo chân <span class='hole-badge'>GPIO2</span> luôn ở mức HIGH khi reset (khớp <code>BEDROOM_LED_ACTIVE_LOW = true</code>)."
+      ],
+      d5_ky037: [
+        "<strong>Cảm biến Âm thanh KY-037 (Chân D5 / GPIO14):</strong> Theo thứ tự chân trên PCB đỏ (<span class='hole-badge'>DO | G | + | AO</span>), cắm nguồn <span class='hole-badge'>+</span> vào <span class='hole-badge'>TP6 (+3.3V)</span> và <span class='hole-badge'>G</span> vào <span class='hole-badge'>BN5 (GND)</span>.",
+        "<strong>Tín hiệu số DO:</strong> Nối chân <span class='hole-badge'>DO</span> về <span class='hole-badge'>D5 (GPIO14)</span> để bắt xung vỗ tay (debounce ≥400ms). Voice AI Gemini dùng micro/loa trên Web/App."
+      ],
+      d6_pump: [
+        "<strong>Relay 1 Xanh dương (Chân D6 / GPIO12):</strong> Nối chân <span class='hole-badge'>IN</span> về <span class='hole-badge'>D6</span>; <span class='hole-badge'>VCC</span> vào <span class='hole-badge'>BP22 (+5V)</span>; <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN22</span>.",
+        "<strong>Bảo vệ Máy bơm trắng:</strong> Kẹp song song ngược cực con <strong>Diode 1N4007</strong> (vạch bạc quay về phía dây + bơm) và đặt tụ <strong>470µF 16V</strong> sát đường 5V cấp bơm."
       ],
       d8_buzzer: [
-        "<strong>Còi báo động Buzzer 5V (Chân D8):</strong> Cắm 2 chân Còi vào lỗ <span class='hole-badge'>F24 (-)</span> và <span class='hole-badge'>F26 (+)</span>.",
-        "<strong>Đi dây:</strong> Lỗ <span class='hole-badge'>J26 (+)</span> nối về chân <span class='hole-badge'>D8 (GPIO15)</span>; lỗ <span class='hole-badge'>J24 (-)</span> nối xuống <span class='hole-badge'>BN19 (GND)</span>."
+        "<strong>Còi báo động Buzzer 5V (Chân D8 / GPIO15):</strong> Cắm cực (-) vào <span class='hole-badge'>F24</span> nối xuống <span class='hole-badge'>BN19 (GND)</span> và cực (+) vào <span class='hole-badge'>J25</span> nối về <span class='hole-badge'>D8</span>.",
+        "<strong>An toàn boot:</strong> Đấu Active-HIGH xuống GND giúp Buzzer im lặng tuyệt đối khi khởi động (tuyệt đối không gắn trở kéo lên 3.3V vào D8)."
       ],
-      rx_d4_mic_spk: [
-        "<strong>Micro Thu Âm Giọng Nói (Module VC-02 Offline ASR / MAX9814):</strong> Chân tín hiệu <span class='hole-badge'>TX/OUT</span> của Mic cắm dây Xanh ngọc về chân <span class='hole-badge'>RX (GPIO3)</span> (Chân số 12 bên phải ESP8266); chân <span class='hole-badge'>VCC</span> vào lỗ <span class='hole-badge'>TP4 (+3.3V)</span>; chân <span class='hole-badge'>GND</span> vào lỗ <span class='hole-badge'>BN4</span>.",
-        "<strong>Mạch Khuếch Đại PAM8403 + Loa Phát 8Ω 3W:</strong> Chân tín hiệu âm thanh <span class='hole-badge'>IN+</span> cắm dây Xanh lam về chân <span class='hole-badge'>D4 (GPIO2)</span> (Chân số 5 bên phải ESP8266); nguồn <span class='hole-badge'>+5V</span> cắm vào lỗ <span class='hole-badge'>BP4 (Rãnh +5V Dưới)</span>; chân <span class='hole-badge'>GND</span> vào lỗ <span class='hole-badge'>BN4</span>."
+      a0_soil: [
+        "<strong>Cảm biến Độ ẩm Đất (Chân A0 / ADC0):</strong> Cấp nguồn <span class='hole-badge'>VCC</span> của mạch xanh <code>LM393</code> vào <span class='hole-badge'>TP24 (+3.3V)</span> để bảo vệ ngõ vào A0 (≤3.3V) và nối <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN20</span>.",
+        "<strong>Đọc Analog &amp; Tự tưới:</strong> Nối <span class='hole-badge'>AO</span> về <span class='hole-badge'>A0</span>. Tự động bật Relay 1 bơm (<span class='hole-badge'>D6</span>) khi độ ẩm &lt;40% và tắt khi ≥70%."
       ]
     };
 
@@ -447,10 +436,9 @@
       main_door: 'CLOSED',
       living_room_light: 'OFF',
       bedroom_light: 'OFF',
-      ac: 'OFF',
-      fan: 'OFF',
+      garden_pump: 'OFF',
       alarm_siren: 'OFF',
-      garden_pump: 'OFF'
+      speaker_amp: 'OFF'
     };
     let pumpTimer = null;
     let pumpDeg = 0;
@@ -563,6 +551,17 @@
         } else if (!pumpOn && pumpTimer) {
           clearInterval(pumpTimer);
           pumpTimer = null;
+        }
+      } else if (id === 'speaker_amp') {
+        const ampOn = (st === 'ON');
+        const r2Led = document.getElementById('relay2_act_led');
+        const spkLed = document.getElementById('hw_spk_led');
+        const pwrTxt = document.getElementById('pam8403_pwr_txt');
+        if (r2Led) r2Led.setAttribute('fill', ampOn ? '#ef4444' : '#450a0a');
+        if (spkLed) spkLed.setAttribute('fill', ampOn ? '#22c55e' : '#334155');
+        if (pwrTxt) {
+          pwrTxt.textContent = ampOn ? 'NGUỒN PAM8403: ĐANG BẬT (D7 ON)' : 'NGUỒN PAM8403: ĐANG TẮT (Tự bật khi phát chuông)';
+          pwrTxt.setAttribute('fill', ampOn ? '#4ade80' : '#94a3b8');
         }
       }
     }
@@ -702,11 +701,11 @@
       const servoEl = document.getElementById('w_servo');
       if (servoEl) servoEl.angle = (devState.main_door === 'OPEN') ? 90 : 0;
 
-      // 2. <wokwi-led id="w_led_living"> (Chân D2)
+      // 2. <wokwi-led id="w_led_living"> (Chân D0)
       const ledLiv = document.getElementById('w_led_living');
       if (ledLiv) ledLiv.value = (devState.living_room_light === 'ON');
 
-      // 3. <wokwi-led id="w_led_bedroom"> (Chân D7)
+      // 3. <wokwi-led id="w_led_bedroom"> (Chân D4 Active-LOW)
       const ledBed = document.getElementById('w_led_bedroom');
       if (ledBed) ledBed.value = (devState.bedroom_light === 'ON');
 
@@ -714,7 +713,7 @@
       const buzEl = document.getElementById('w_buzzer');
       if (buzEl) buzEl.hasSignal = (devState.alarm_siren === 'ON');
 
-      // 5. Module Relay Đỏ & Máy Bơm Nước Mini (Chân D3)
+      // 5. Relay 1 Xanh & Máy Bơm Nước Mini (Chân D6)
       const pumpOn = (devState.garden_pump === 'ON');
       const rLed = document.getElementById('relay_act_led');
       const pTxt = document.getElementById('pump_state_txt');
@@ -734,9 +733,22 @@
         pumpTimer = null;
       }
 
-      // 6. Telemetry từ snap.mqtt hoặc snap.mqtt_hardware
+      // 6. Relay 2 Đỏ Opto & Nguồn PAM8403 (Chân D7)
+      const ampOn = (devState.speaker_amp === 'ON');
+      const r2Led = document.getElementById('relay2_act_led');
+      const spkLed = document.getElementById('hw_spk_led');
+      const pwrTxt = document.getElementById('pam8403_pwr_txt');
+      if (r2Led) r2Led.setAttribute('fill', ampOn ? '#ef4444' : '#450a0a');
+      if (spkLed) spkLed.setAttribute('fill', ampOn ? '#22c55e' : '#334155');
+      if (pwrTxt) {
+        pwrTxt.textContent = ampOn ? 'NGUỒN PAM8403: ĐANG BẬT (D7 ON)' : 'NGUỒN PAM8403: ĐANG TẮT (Tự bật khi phát chuông)';
+        pwrTxt.setAttribute('fill', ampOn ? '#4ade80' : '#94a3b8');
+      }
+
+      // 7. Telemetry từ snap.mqtt hoặc snap.mqtt_hardware
       const dht = (snap.mqtt && snap.mqtt.dht11_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
       const soil = (snap.mqtt && snap.mqtt.soil_moisture_telemetry) || (snap.mqtt_hardware && snap.mqtt_hardware.esp8266_status) || null;
+      const sound = (snap.mqtt && (snap.mqtt.sound_telemetry || snap.mqtt.ky037_telemetry)) || (snap.sensors && snap.sensors.sound) || null;
       let curT = 28.5;
       let curH = 65;
       let curS = 62;
@@ -770,6 +782,18 @@
         if (svgLbl) svgLbl.textContent = `Độ ẩm đất: ${sPct.toFixed(0)}% (${sPct < 40 ? 'ĐẤT KHÔ!' : (sPct >= 70 ? 'ĐỦ ẨM' : 'Bình thường')})`;
         const doLed = document.getElementById('lm393_do_led');
         if (doLed) doLed.setAttribute('fill', sPct < 40 ? '#ef4444' : '#450a0a');
+      }
+      if (sound) {
+        const cnt = Number(sound.event_count || 0);
+        const det = Boolean(sound.sound_detected);
+        const lblKy = document.getElementById('lblKy037');
+        const pCnt = document.getElementById('ky037_panel_count');
+        const pLed = document.getElementById('ky037_panel_led');
+        const wKy = document.getElementById('w_ky037');
+        if (lblKy) lblKy.textContent = det ? `Phát hiện tiếng động! (${cnt} lần)` : `Im lặng (${cnt} lần)`;
+        if (pCnt) pCnt.textContent = `${cnt} lần`;
+        if (pLed) pLed.style.background = det ? '#ef4444' : '#450a0a';
+        if (wKy) wKy.led2 = det;
       }
       updateLiveTelemetryHeader(curT, curH, curS);
     }
@@ -860,16 +884,7 @@
       ctrl.desiredState = nextState;
       applyWokwiSingleDeviceUI(devId, nextState);
 
-      if (devId === 'ac' || devId === 'fan') {
-        const irLed = document.getElementById('w_led_ir');
-        if (irLed) {
-          irLed.value = true;
-          setTimeout(() => { irLed.value = false; }, 450);
-        }
-        logSerial(`Phát tín hiệu hồng ngoại (${devId} -> ${nextAct})`, 'ir');
-      } else {
-        logSerial(`Cập nhật thiết bị ${devId} -> ${nextAct}`, 'cmd');
-      }
+      logSerial(`Cập nhật thiết bị ${devId} -> ${nextAct}`, 'cmd');
 
       if (ctrl.debounceTimer !== null) {
         clearTimeout(ctrl.debounceTimer);
@@ -1067,21 +1082,42 @@
       fetchState();
     }
 
-    async function triggerIrLearnDemo(devName = 'Điều hòa Casper', act = 'open') {
-      logSerial(`[VS1838B D5] Đang thu sóng hồng ngoại 38kHz cho "${devName}"...`, 'ir');
-      const r = await fetch('/api/ir_learn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_name: devName, command_action: act })
-      });
-      const data = await r.json().catch(() => ({}));
-      if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
-        showWokwiAuthError((data && data.error) || 'Vui lòng đăng nhập để học lệnh hồng ngoại.');
-        return;
-      }
-      if (data.learned) {
-        logSerial(`[IR LEARNED] Đã lưu mã ${data.learned.protocol} (${data.learned.hex_code})`, 'ir');
-      }
+    async function triggerKy037SoundDemo() {
+      const pLed = document.getElementById('ky037_panel_led');
+      const wKy = document.getElementById('w_ky037');
+      if (pLed) pLed.style.background = '#ef4444';
+      if (wKy) wKy.led2 = true;
+
+      logSerial('[KY-037 D5/GPIO14] Giả lập xung vỗ tay / âm thanh lớn -> POST /api/sound_sensor', 'cmd');
+      try {
+        const r = await fetch('/api/sound_sensor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: 'esp8266_node_01',
+            sound_detected: true,
+            pin: 'D5 (GPIO 14)',
+            gpio: 14,
+            source: 'wokwi_ui'
+          })
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
+          showWokwiAuthError((data && data.error) || 'Vui lòng đăng nhập để gửi sự kiện cảm biến âm thanh.');
+        } else {
+          hideWokwiAuthError();
+          const cnt = Number((data.telemetry && data.telemetry.event_count) || (data.sound_telemetry && data.sound_telemetry.event_count) || data.event_count || 1);
+          const lblKy = document.getElementById('lblKy037');
+          const pCnt = document.getElementById('ky037_panel_count');
+          if (lblKy) lblKy.textContent = `Phát hiện tiếng động! (${cnt} lần)`;
+          if (pCnt) pCnt.textContent = `${cnt} lần`;
+        }
+      } catch (e) {}
+
+      setTimeout(() => {
+        if (pLed) pLed.style.background = '#450a0a';
+        if (wKy) wKy.led2 = false;
+      }, 900);
       fetchState();
     }
 
@@ -1114,38 +1150,31 @@
       } catch (e) {}
     }
 
-    async function speakIntoHardwareMic(cmdText) {
-      const micLed = document.getElementById('hw_mic_led');
+    function testSpeakerChimeDemo() {
+      const r2Led = document.getElementById('relay2_act_led');
       const spkLed = document.getElementById('hw_spk_led');
       const spkCone = document.getElementById('hw_spk_cone');
-      if (micLed) micLed.setAttribute('fill', '#fde047');
-
-      logSerial(`[MIC RX/GPIO3] Thu giọng nói trực tiếp trên mạch: "${cmdText}"`, 'cmd');
-      try {
-        const r = await fetch('/api/text_command', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: cmdText })
-        });
-        const data = await r.json().catch(() => ({}));
-        if (r.status === 401 || r.status === 403 || (data && data.authenticated === false)) {
-          showWokwiAuthError((data && data.error) || 'Bạn cần đăng nhập để ra lệnh qua micro phần cứng.');
+      const pwrTxt = document.getElementById('pam8403_pwr_txt');
+      if (r2Led) r2Led.setAttribute('fill', '#ef4444');
+      if (spkLed) spkLed.setAttribute('fill', '#22c55e');
+      if (spkCone) spkCone.setAttribute('stroke', '#a855f7');
+      if (pwrTxt) {
+        pwrTxt.textContent = 'NGUỒN PAM8403: TỰ BẬT PHÁT CHUÔNG (D7 + D3)';
+        pwrTxt.setAttribute('fill', '#4ade80');
+      }
+      playHardwareSpeakerTone(1);
+      logSerial('[PAM8403 D7+D3] Relay 2 tự bật nguồn 5V -> phát chuông PWM trên D3 -> tự ngắt sau 1.5s.', 'cmd');
+      setTimeout(() => {
+        if (devState.speaker_amp !== 'ON') {
+          if (r2Led) r2Led.setAttribute('fill', '#450a0a');
+          if (spkLed) spkLed.setAttribute('fill', '#334155');
+          if (pwrTxt) {
+            pwrTxt.textContent = 'NGUỒN PAM8403: ĐANG TẮT (Tự bật khi phát chuông)';
+            pwrTxt.setAttribute('fill', '#94a3b8');
+          }
         }
-        const reply = data.exact_spoken_reply || data.reply || data.error || '';
-        const isOk = r.ok && data.ok !== false;
-
-        if (spkLed) spkLed.setAttribute('fill', isOk ? '#34d399' : '#ef4444');
-        if (spkCone) spkCone.setAttribute('stroke', isOk ? '#34d399' : '#ef4444');
-        playHardwareSpeakerTone(isOk ? 1 : 3);
-        logSerial(`[LOA 8Ω 3W - D4/GPIO2] Phát phản hồi: "${reply}"`, isOk ? 'cmd' : 'warn');
-
-        setTimeout(() => {
-          if (micLed) micLed.setAttribute('fill', '#22c55e');
-          if (spkLed) spkLed.setAttribute('fill', '#38bdf8');
-          if (spkCone) spkCone.setAttribute('stroke', '#f59e0b');
-        }, 900);
-        fetchState();
-      } catch (e) {}
+        if (spkCone) spkCone.setAttribute('stroke', '#64748b');
+      }, 1500);
     }
 
     let RAW_ESP8266_INO = '';
@@ -1171,11 +1200,12 @@
       const ssid = (document.getElementById('inpWifiSsid')?.value || 'TEN_WIFI_NHA_BAN').trim();
       const pass = (document.getElementById('inpWifiPass')?.value || 'MAT_KHAU_WIFI').trim();
       const host = (document.getElementById('inpServerIp')?.value || '192.168.1.100').trim();
+      const escCpp = (s) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       return RAW_ESP8266_INO
-        .replace(/const\s+char\*\s+WIFI_SSID\s*=\s*"[^"]*";/, `const char* WIFI_SSID     = "${ssid}";`)
-        .replace(/const\s+char\*\s+WIFI_PASSWORD\s*=\s*"[^"]*";/, `const char* WIFI_PASSWORD = "${pass}";`)
-        .replace(/const\s+char\*\s+SERVER_IP\s*=\s*"[^"]*";/, `const char* SERVER_IP     = "${host}";  // IP máy Laptop đang chạy Server (cổng 8088)`)
-        .replace(/const\s+char\*\s+MQTT_SERVER\s*=\s*"[^"]*";/, `const char* MQTT_SERVER   = "${host}";`);
+        .replace(/const\s+char\*\s+WIFI_SSID\s*=\s*"[^"]*";/, () => `const char* WIFI_SSID     = "${escCpp(ssid)}";`)
+        .replace(/const\s+char\*\s+WIFI_PASSWORD\s*=\s*"[^"]*";/, () => `const char* WIFI_PASSWORD = "${escCpp(pass)}";`)
+        .replace(/const\s+char\*\s+SERVER_IP\s*=\s*"[^"]*";/, () => `const char* SERVER_IP     = "${escCpp(host)}";  // IP máy Laptop đang chạy Server (cổng 8088)`)
+        .replace(/const\s+char\*\s+MQTT_SERVER\s*=\s*"[^"]*";/, () => `const char* MQTT_SERVER   = "${escCpp(host)}";`);
     }
 
     function refreshInoCodePreview() {
@@ -1349,7 +1379,8 @@ window.drawWires = drawWires;
 window.filterStep = filterStep;
 window.logSerial = logSerial;
 window.playHardwareSpeakerTone = playHardwareSpeakerTone;
-window.speakIntoHardwareMic = speakIntoHardwareMic;
+window.testSpeakerChimeDemo = testSpeakerChimeDemo;
+window.triggerKy037SoundDemo = triggerKy037SoundDemo;
 window.syncWokwiComponents = syncWokwiComponents;
 window.formatHumanDeviceState = formatHumanDeviceState;
 window.fetchState = fetchState;
@@ -1361,7 +1392,6 @@ window.onSoilSlide = onSoilSlide;
 window.commitSoilSlide = commitSoilSlide;
 window.onTempSlide = onTempSlide;
 window.commitTempSlide = commitTempSlide;
-window.triggerIrLearnDemo = triggerIrLearnDemo;
 window.loadRealInoCode = loadRealInoCode;
 window.getConfiguredInoText = getConfiguredInoText;
 window.refreshInoCodePreview = refreshInoCodePreview;

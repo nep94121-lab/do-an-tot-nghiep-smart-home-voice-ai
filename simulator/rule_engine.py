@@ -263,6 +263,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 payload["dht11_telemetry"] = dict(self.mqtt_bridge.dht11_telemetry)
             if hasattr(self.mqtt_bridge, "soil_moisture_telemetry"):
                 payload["soil_moisture_telemetry"] = dict(self.mqtt_bridge.soil_moisture_telemetry)
+            if hasattr(self.mqtt_bridge, "sound_telemetry"):
+                payload["sound_telemetry"] = dict(self.mqtt_bridge.sound_telemetry)
         return payload
 
     def persist_to_shared_store(self) -> dict[str, Any]:
@@ -425,6 +427,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     self.mqtt_bridge.dht11_telemetry.update(shared["dht11_telemetry"])
                 if isinstance(shared.get("soil_moisture_telemetry"), dict):
                     self.mqtt_bridge.soil_moisture_telemetry.update(shared["soil_moisture_telemetry"])
+                if isinstance(shared.get("sound_telemetry"), dict):
+                    self.mqtt_bridge.sound_telemetry.update(shared["sound_telemetry"])
 
             if authoritative:
                 self._last_synced_seq = int(shared.get("revision_seq", 0) or 0)
@@ -658,7 +662,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "factory_reset_completed": "RULE_POOL",
                 "sensor_telemetry_updated": "SENSOR_IOT",
                 "soil_moisture_updated": "SENSOR_IOT",
-                "ir_code_learned": "SENSOR_IOT",
+                "sound_sensor_updated": "SENSOR_IOT",
                 "server_mode_changed": "SECURITY_MODE",
                 "offline_command_blocked": "SECURITY_MODE",
                 "offline_default_executed": "SECURITY_MODE",
@@ -724,17 +728,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 return [
                     ("living_room_light", "turn_off"),
                     ("bedroom_light", "turn_off"),
-                    ("fan", "turn_off"),
-                    ("ac", "turn_off"),
-                    ("alarm_siren", "turn_off"),
                     ("garden_pump", "turn_off"),
+                    ("speaker_amp", "turn_off"),
+                    ("alarm_siren", "turn_off"),
                     ("main_door", "close"),
                 ]
             return [
                 ("living_room_light", "turn_on"),
                 ("bedroom_light", "turn_on"),
-                ("fan", "turn_on"),
-                ("ac", "turn_on"),
+                ("speaker_amp", "turn_on"),
             ]
         return [(DEVICE_ID_ALIASES.get(device_id, device_id), action)]
 
@@ -742,8 +744,6 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         suffix = " sẵn rồi" if already else ""
         if dev_type == "door":
             return f"đã {'mở' if state == 'OPEN' else 'đóng'}{suffix}"
-        if dev_type == "ac":
-            return f"đã {'mở' if state == 'ON' else 'tắt'}{suffix}"
         return f"đã {'bật' if state == 'ON' else 'tắt'}{suffix}"
 
     def _build_concise_spoken_reply(self, results: list[dict[str, Any]]) -> str:
@@ -803,10 +803,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "main_door": ("cửa chính", "cửa", "main_door"),
             "living_room_light": ("đèn phòng khách", "đèn khách", "living_room_light"),
             "bedroom_light": ("đèn phòng ngủ", "đèn ngủ", "bedroom_light"),
-            "fan": ("quạt", "fan"),
-            "ac": ("điều hòa", "máy lạnh", "ac"),
-            "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
             "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm nước", "tưới cây", "garden_pump"),
+            "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
+            "speaker_amp": ("nguồn mạch loa", "mạch loa", "pam8403", "loa", "speaker_amp"),
         }.get(dev_id, (dname_low, dev_id))
 
         cur_hour = get_vn_now().hour
@@ -1332,14 +1331,17 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         return items
 
     def read_all_sensors(self) -> dict[str, Any]:
-        """Đọc toàn bộ thông số cảm biến hiện có (DHT11 nhiệt độ/độ ẩm + YL-69 độ ẩm đất)."""
+        """Đọc toàn bộ thông số 3 cảm biến hiện có (DHT11 D2, Độ ẩm đất A0, KY-037 DO D5)."""
         dht = dict(getattr(self.mqtt_bridge, "dht11_telemetry", None) or {})
         soil = dict(getattr(self.mqtt_bridge, "soil_moisture_telemetry", None) or {})
+        sound = dict(getattr(self.mqtt_bridge, "sound_telemetry", None) or {})
         temp_c = round(float(dht.get("temp_c", 28.5)), 1)
         hum_pct = round(float(dht.get("humidity_pct", 65.0)), 1)
         heat_idx = round(float(dht.get("heat_index_c", temp_c)), 1)
         soil_pct = round(float(soil.get("soil_moisture_pct", 62.0)), 1)
         soil_status = str(soil.get("status_label") or ("Đất khô" if soil_pct < 40.0 else "Đủ ẩm"))
+        sound_detected = bool(sound.get("sound_detected", False))
+        sound_status = str(sound.get("status_label") or ("Phát hiện tiếng động lớn / vỗ tay" if sound_detected else "Yên tĩnh"))
         return {
             "ok": True,
             "temperature_c": temp_c,
@@ -1347,8 +1349,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "heat_index_c": heat_idx,
             "soil_moisture_pct": soil_pct,
             "soil_status": soil_status,
+            "sound_detected": sound_detected,
+            "sound_status": sound_status,
+            "sound_event_count": int(sound.get("event_count", 0) or 0),
+            "sound_last_event_at": float(sound.get("last_event_at", 0.0) or 0.0),
+            "sound_pin": str(sound.get("sensor_pin") or "D5 (GPIO 14)"),
             "dht11": dht,
             "soil": soil,
+            "sound": sound,
+            "ky037": sound,
         }
 
     def validate_device_set_request(
@@ -1515,21 +1524,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 cur_settings.update(dev["settings"])
             cur_settings.update(params)
             dev["settings"] = cur_settings
-            if cid == "ac" and "temperature_c" in params:
-                ac_ir = self.mqtt_bridge.ir_devices.get("ac")
-                if isinstance(ac_ir, dict) and isinstance(ac_ir.get("commands"), dict):
-                    for cmd_k in ("turn_on", "open"):
-                        if isinstance(ac_ir["commands"].get(cmd_k), dict):
-                            ac_ir["commands"][cmd_k]["temp_c"] = params["temperature_c"]
-                    self.mqtt_bridge._save_ir_db_write_through()
 
         detail_parts: list[str] = []
         if "brightness_pct" in params:
             detail_parts.append(f"độ sáng {params['brightness_pct']}%")
-        if "temperature_c" in params:
-            detail_parts.append(f"nhiệt độ {params['temperature_c']} độ C")
-        if "fan_speed" in params:
-            detail_parts.append(f"tốc độ số {params['fan_speed']}")
         verb_vi = {
             "open": "đã mở",
             "close": "đã đóng",
@@ -1697,7 +1695,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     if dev_id == "alarm_siren":
                         lock_reason = (
                             "🔒 [KHÓA AN NINH OFFLINE]: Mạch không kết nối Server xác thực -> "
-                            "Còi báo động bị khóa bảo vệ, chỉ cho phép điều khiển Đèn, Điều hòa, Quạt, Máy bơm!"
+                            "Còi báo động bị khóa bảo vệ, chỉ cho phép điều khiển Đèn, Máy bơm, Nguồn mạch loa PAM8403!"
                         )
                         await self.emit({
                             "type": "rbac_blocked",
@@ -1986,13 +1984,6 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
             h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
             triggered: list[dict[str, Any]] = []
-            for raw_dir in self.system_policies.get("custom_system_directives", []):
-                d_low = str(raw_dir).lower()
-                m_temp = re.search(r"nhiệt độ\s*(?:trên|>|lớn hơn|vượt)\s*(\d+(?:\.\d+)?)", d_low)
-                if m_temp and t_clamped > float(m_temp.group(1)):
-                    if any(k in d_low for k in ("mở điều hòa", "bật điều hòa", "ac")):
-                        res = await self.execute_device_action("ac", "open", source=f"DHT11 ({t_clamped}°C > {m_temp.group(1)}°C)", bypass_rbac=True)
-                        triggered.extend(res.get("results", []))
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {
@@ -2009,7 +2000,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         auto_pump_below_pct: float = 40.0,
         auto_stop_above_pct: float = 70.0,
     ) -> dict[str, Any]:
-        """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
+        """Cập nhật thông số cảm biến Độ ẩm Đất (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D6)."""
         root = getattr(self, "_root_engine", self)
         if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
             return await self._execute_with_cas_retry(
@@ -2031,7 +2022,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         auto_pump_below_pct: float = 40.0,
         auto_stop_above_pct: float = 70.0,
     ) -> dict[str, Any]:
-        """Cập nhật thông số cảm biến Độ ẩm Đất YL-69 (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D3)."""
+        """Cập nhật thông số cảm biến Độ ẩm Đất (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D6)."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
             self._state_dirty_in_tx = True
@@ -2077,22 +2068,55 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "exact_spoken_reply": spoken,
         }
 
-    async def learn_ir_remote_command(
+    async def update_sound_telemetry(
         self,
-        device_name: str,
-        command_action: str = "open",
-        protocol: str = "COOLIX_38KHZ",
-        hex_code: str = "0xB2BF40",
+        sound_detected: Any = False,
+        do_state: Any = None,
+        note: str = "",
     ) -> dict[str, Any]:
-        """Chiếm quyền / Học lệnh Remote Hồng ngoại 38kHz (VS1838B D5 -> Lưu Write-Through -> Phát IR LED D2)."""
-        if self.current_tier >= 3 and not self.system_policies.get("tier3_can_custom_rules", False):
-            msg = "Từ chối truy cập! Cấp khách (Tầng 3) không có quyền học lệnh điều khiển hồng ngoại mới."
-            await self.emit({"type": "rbac_blocked", "action": "learn_ir_remote_command", "role": self.current_role, "reason": msg})
-            return {"ok": False, "error": msg, "exact_spoken_reply": msg}
-        await self.mqtt_bridge.start_ir_learning(device_name=device_name, command_action=command_action)
-        res = await self.mqtt_bridge.complete_ir_learning(protocol=protocol, hex_code=hex_code)
+        """Cập nhật thông số cảm biến Âm thanh KY-037/038 (Chân D5 / GPIO14 DO)."""
+        root = getattr(self, "_root_engine", self)
+        if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
+            return await self._execute_with_cas_retry(
+                lambda: self._update_sound_telemetry_once(
+                    sound_detected=sound_detected,
+                    do_state=do_state,
+                    note=note,
+                )
+            )
+        return await self._update_sound_telemetry_once(
+            sound_detected=sound_detected,
+            do_state=do_state,
+            note=note,
+        )
+
+    async def _update_sound_telemetry_once(
+        self,
+        sound_detected: Any = False,
+        do_state: Any = None,
+        note: str = "",
+    ) -> dict[str, Any]:
+        with self.state_transaction():
+            pkt = await self.mqtt_bridge.update_sound_telemetry(
+                sound_detected=sound_detected,
+                do_state=do_state,
+                note=note,
+            )
+            self._state_dirty_in_tx = True
+            snd = dict(self.mqtt_bridge.sound_telemetry)
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
-        return res
+        is_loud = bool(snd.get("sound_detected", False))
+        spoken = (
+            f"Cảm biến âm thanh KY-037 trên chân D5 phát hiện tiếng động lớn (tổng {snd.get('event_count', 0)} lần)."
+            if is_loud
+            else "Cảm biến âm thanh KY-037 trên chân D5 hiện đang yên tĩnh."
+        )
+        return {
+            "ok": True,
+            "telemetry": snd,
+            "mqtt_packet": pkt,
+            "exact_spoken_reply": spoken,
+        }
 
     async def _evaluate_reactive_if_else(self, changed_dev_id: str, new_state: str) -> list[dict[str, Any]]:
         """Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`."""

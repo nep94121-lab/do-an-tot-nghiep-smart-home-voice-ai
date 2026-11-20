@@ -103,10 +103,9 @@ class EngineVoiceRbacMixin:
                 "main_door": 1,
                 "living_room_light": 3,
                 "bedroom_light": 3,
-                "fan": 3,
-                "ac": 2,
-                "alarm_siren": 1,
                 "garden_pump": 2,
+                "alarm_siren": 1,
+                "speaker_amp": 2,
             },
             "custom_system_directives": [],
         }
@@ -501,10 +500,9 @@ class EngineVoiceRbacMixin:
             "main_door": ("cửa chính", "cửa", "main_door"),
             "living_room_light": ("đèn phòng khách", "đèn khách", "living_room_light"),
             "bedroom_light": ("đèn phòng ngủ", "đèn ngủ", "bedroom_light"),
-            "fan": ("quạt", "fan"),
-            "ac": ("điều hòa", "máy lạnh", "ac"),
-            "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
             "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm nước", "tưới cây", "garden_pump"),
+            "alarm_siren": ("còi báo động", "còi", "báo động", "alarm_siren"),
+            "speaker_amp": ("nguồn mạch loa", "mạch loa", "pam8403", "loa", "speaker_amp"),
         }.get(dev_id, (dname_low, dev_id))
 
         cur_hour = get_vn_now().hour

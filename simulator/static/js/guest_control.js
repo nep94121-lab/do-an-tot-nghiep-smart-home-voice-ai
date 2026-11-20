@@ -4,23 +4,21 @@
   var DEVICE_LABELS = {
     living_room_light: "Đèn phòng khách",
     bedroom_light: "Đèn phòng ngủ",
-    fan: "Quạt",
-    ac: "Điều hòa",
     garden_pump: "Máy bơm vườn",
+    speaker_amp: "Nguồn mạch loa PAM8403",
     main_door: "Cửa chính",
     alarm_siren: "Còi báo động"
   };
   var DEVICE_MIN_TIERS = {
     main_door: 1,
     alarm_siren: 1,
-    ac: 2,
     garden_pump: 2,
+    speaker_amp: 2,
     living_room_light: 3,
-    bedroom_light: 3,
-    fan: 3
+    bedroom_light: 3
   };
-  var TOGGLE_ON = { main_door: "open", alarm_siren: "on", ac: "on", garden_pump: "on", living_room_light: "on", bedroom_light: "on", fan: "on" };
-  var TOGGLE_OFF = { main_door: "close", alarm_siren: "off", ac: "off", garden_pump: "off", living_room_light: "off", bedroom_light: "off", fan: "off" };
+  var TOGGLE_ON = { main_door: "open", alarm_siren: "on", garden_pump: "on", speaker_amp: "on", living_room_light: "on", bedroom_light: "on" };
+  var TOGGLE_OFF = { main_door: "close", alarm_siren: "off", garden_pump: "off", speaker_amp: "off", living_room_light: "off", bedroom_light: "off" };
 
   var sessionToken = "";
   var sessionTier = 99;
@@ -49,9 +47,13 @@
   }
   fetch("/api/auth3/permissions").then(function (res) { return res.json(); }).then(function (data) {
     if (data && data.device_min_tiers) {
+      var nextTiers = {};
       Object.keys(data.device_min_tiers).forEach(function (id) {
-        DEVICE_MIN_TIERS[id] = Number(data.device_min_tiers[id]);
+        if (Object.prototype.hasOwnProperty.call(DEVICE_LABELS, id)) {
+          nextTiers[id] = Number(data.device_min_tiers[id]);
+        }
       });
+      DEVICE_MIN_TIERS = nextTiers;
       renderDevices();
     }
   }).catch(function () {});
@@ -85,6 +87,8 @@
       card.appendChild(stateText);
       var btn = document.createElement("button");
       btn.type = "button";
+      btn.style.minHeight = "44px";
+      btn.style.minWidth = "44px";
       btn.textContent = "Bật / Tắt";
       btn.addEventListener("click", function () { toggleDevice(id, state); });
       card.appendChild(btn);
@@ -264,6 +268,11 @@
     recognition.start();
   }
   async function boot() {
+    var micBtn = $("guestMicBtn");
+    if (micBtn) {
+      micBtn.style.minHeight = "44px";
+      micBtn.style.minWidth = "44px";
+    }
     var token = tokenFromUrl();
     if (!token) {
       showInvalid();

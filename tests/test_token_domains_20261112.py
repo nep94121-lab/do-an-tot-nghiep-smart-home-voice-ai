@@ -17,7 +17,7 @@ def test_revoked_invite_prefix_swap_does_not_authenticate():
     invite = guest_invites.create_invite(owner_user_id="tuan_anh", tier=2)
     guest_invites.revoke_invite(invite["invite_id"])
     forged = "sess_" + invite["token"][4:]
-    response = TestClient(app).post("/api/device", headers={"X-Session-Token": forged}, json={"device_id": "fan", "action": "off"})
+    response = TestClient(app).post("/api/device", headers={"X-Session-Token": forged}, json={"device_id": "living_room_light", "action": "off"})
     assert response.status_code == 401
 
 

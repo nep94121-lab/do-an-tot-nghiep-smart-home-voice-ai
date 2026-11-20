@@ -4,8 +4,8 @@ Nhiệm vụ:
 - Bug 6: /app 3D collapse render: Trong mobile_app/index.html nạp /static/vendor/three.min.js,
          /static/vendor/GLTFLoader.js, /static/house3d.js. Trong mobile_app.js gọi SmartHome3D.init("mobileOverviewBox", null, ...)
          và cập nhật updateDevices, updateSensors trong renderState. Giữ DOM ID #mobileOverviewBox và class preview-16-9.
-- Bug 7: /app Devices tab show all 7 devices: Trong mobile_app.js khởi tạo showAllDevices = true (hoặc không slice 4 thiết bị),
-         đảm bảo #devGrid hiển thị đủ 7 thiết bị: main_door, living_room_light, bedroom_light, fan, ac, alarm_siren, garden_pump.
+- Bug 7: /app Devices tab show all 6 devices: Trong mobile_app.js khởi tạo showAllDevices = true (hoặc không slice 4 thiết bị),
+         đảm bảo #devGrid hiển thị đủ 6 thiết bị: main_door, living_room_light, bedroom_light, garden_pump, alarm_siren, speaker_amp.
 - Bug 8: /app Profile tab safe-area & countdown: Trong mobile_app/index.html xóa câu thừa "Mỗi tab mở một màn riêng, không cuộn tới mục khác.".
          Trong mobile_app.css thêm safe-area padding cho #tabViewAccount / #mobileBtnLogout không bị che lấp bởi thanh đáy Samsung Internet.
          Trong mobile_app.js định dạng #mobileQrCountdown thành "Đổi mã sau ${rem}s".
@@ -65,11 +65,11 @@ class TestBug6MobileHouse3d:
 
 
 # =============================================================================
-# BUG 7: /app DEVICES TAB SHOW ALL 7 DEVICES
+# BUG 7: /app DEVICES TAB SHOW ALL 6 DEVICES
 # =============================================================================
 
-class TestBug7MobileDevicesTabAll7Devices:
-    """Bug 7: Tab Thiết bị trên /app phải hiển thị đủ cả 7 thiết bị như desktop."""
+class TestBug7MobileDevicesTabAll6Devices:
+    """Bug 7: Tab Thiết bị trên /app phải hiển thị đủ cả 6 thiết bị như desktop."""
 
     def test_bug7_show_all_devices_flag_default_true(self):
         """showAllDevices phải có giá trị mặc định là true trong mobile_app.js."""
@@ -79,7 +79,7 @@ class TestBug7MobileDevicesTabAll7Devices:
         # Kiểm tra biến showAllDevices được gán true mặc định
         match = re.search(r"let\s+showAllDevices\s*=\s*(true|false);", content)
         assert match is not None, "Không tìm thấy khai báo showAllDevices trong mobile_app.js"
-        assert match.group(1) == "true", "showAllDevices phải được khởi tạo bằng true để hiện đủ 7 thiết bị ngay từ đầu"
+        assert match.group(1) == "true", "showAllDevices phải được khởi tạo bằng true để hiện đủ 6 thiết bị ngay từ đầu"
 
     def test_bug7_no_default_4_devices_truncation(self):
         """Hàm renderState không được cắt cụt mảng thiết bị về 4 phần tử khi showAllDevices = true."""

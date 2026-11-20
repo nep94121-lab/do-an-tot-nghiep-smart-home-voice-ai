@@ -15,10 +15,10 @@ GUEST_SEED = "sess_guest_t3_visitor_c"
 OWNER_EMAIL = "nep94121@gmail.com"
 
 # Fixed table (must match simulator.auth.tier_permissions.DEVICE_MIN_TIER).
-FAMILY_ALLOWED = {"living_room_light", "bedroom_light", "fan", "ac", "garden_pump"}
+FAMILY_ALLOWED = {"living_room_light", "bedroom_light", "garden_pump", "speaker_amp"}
 FAMILY_DENIED = {"main_door", "alarm_siren"}
-GUEST_ALLOWED = {"living_room_light", "bedroom_light", "fan"}
-GUEST_DENIED = {"main_door", "alarm_siren", "ac", "garden_pump"}
+GUEST_ALLOWED = {"living_room_light", "bedroom_light"}
+GUEST_DENIED = {"main_door", "alarm_siren", "garden_pump", "speaker_amp"}
 
 
 def _env() -> None:
@@ -104,11 +104,11 @@ def test_permissions_table_is_fixed() -> None:
     table = permission_table_payload()
     assert table["device_min_tiers"]["main_door"] == 1
     assert table["device_min_tiers"]["alarm_siren"] == 1
-    assert table["device_min_tiers"]["ac"] == 2
     assert table["device_min_tiers"]["garden_pump"] == 2
-    assert table["device_min_tiers"]["fan"] == 3
+    assert table["device_min_tiers"]["speaker_amp"] == 2
     assert table["device_min_tiers"]["living_room_light"] == 3
     assert table["device_min_tiers"]["bedroom_light"] == 3
+    assert "fan" not in table["device_min_tiers"] and "ac" not in table["device_min_tiers"]
 
 
 def test_family_and_guest_device_permissions_enforced() -> None:
@@ -208,9 +208,9 @@ def test_register_with_invite_token_gets_guest_tier_session() -> None:
     sess = data.get("session_token") or (data.get("session") or {}).get("session_id")
     assert sess
     assert int((data.get("account") or data.get("session") or {}).get("tier") or data.get("tier") or 0) == 3
-    use = client.post("/api/device", json=_device_payload("fan"), headers=_auth(str(sess)))
+    use = client.post("/api/device", json=_device_payload("living_room_light"), headers=_auth(str(sess)))
     assert use.status_code == 200, use.text
-    denied = client.post("/api/device", json=_device_payload("ac"), headers=_auth(str(sess)))
+    denied = client.post("/api/device", json=_device_payload("speaker_amp"), headers=_auth(str(sess)))
     assert denied.status_code in (401, 403)
 
 

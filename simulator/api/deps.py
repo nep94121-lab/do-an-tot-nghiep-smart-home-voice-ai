@@ -133,7 +133,8 @@ async def broadcast_rest_state_to_bridges(
                 br.engine.mqtt_bridge.esp8266_status = copy.deepcopy(_REST_ENGINE.mqtt_bridge.esp8266_status)
                 br.engine.mqtt_bridge.dht11_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.dht11_telemetry)
                 br.engine.mqtt_bridge.soil_moisture_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.soil_moisture_telemetry)
-                br.engine.mqtt_bridge.ir_devices = copy.deepcopy(_REST_ENGINE.mqtt_bridge.ir_devices)
+                if hasattr(_REST_ENGINE.mqtt_bridge, "sound_telemetry") and hasattr(br.engine.mqtt_bridge, "sound_telemetry"):
+                    br.engine.mqtt_bridge.sound_telemetry = copy.deepcopy(_REST_ENGINE.mqtt_bridge.sound_telemetry)
             if exclude_bridge is not None and br is exclude_bridge:
                 continue
             tasks.append(_send_ws_safe(br, {"type": "state_snapshot", "snapshot": full_snap}, broadcast=True))

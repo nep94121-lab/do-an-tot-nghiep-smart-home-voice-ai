@@ -673,7 +673,7 @@ class TestP2DarkContrastAndMobileTapTargets:
                         });
                     }"""
                 )
-                assert len(devices) >= 7, f"Expected 7 device cards, got {len(devices)}"
+                assert len(devices) == 6, f"Expected 6 device cards, got {len(devices)}"
                 for d in devices:
                     assert d["cardBg"] != "rgb(255, 255, 255)", f"Device card still white in dark mode: {d}"
                     assert d["ratio"] >= 4.5, f"Device card contrast < 4.5:1 in dark mode: {d}"

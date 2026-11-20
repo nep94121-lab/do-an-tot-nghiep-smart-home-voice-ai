@@ -578,7 +578,7 @@ class TestMobileSvgSpriteScope:
         assert i_home is not None, "Không tìm thấy <symbol id='i-home'> trong SVG sprite toàn cục"
 
         # Đảm bảo các symbol thiết yếu khác cũng có mặt
-        for sym_id in ["i-home", "i-grid", "i-mic", "i-user", "i-lamp", "i-fan", "i-snow", "i-door", "i-bell"]:
+        for sym_id in ["i-home", "i-grid", "i-mic", "i-user", "i-lamp", "i-speaker", "i-door", "i-drop", "i-bell"]:
             assert svg_sprite.find("symbol", id=sym_id) is not None, f"Thiếu symbol #{sym_id} trong sprite toàn cục"
 
     def test_symbol_not_trapped_inside_hidden_container(self, mobile_soup: BeautifulSoup):

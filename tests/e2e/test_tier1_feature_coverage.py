@@ -134,10 +134,10 @@ class TestTier1FeatureCoverage:
 
         assert "build_system_instruction" in code
         assert "tiếng Việt" in code or "Vietnamese" in code
-        assert "7 thiết bị" in code or "cửa chính" in code
+        assert "6 thiết bị" in code or "cửa chính" in code
 
-    def test_feat08_rag_7_devices_synchronized(self) -> None:
-        """FEAT-08: RAG tri thức đồng bộ đủ 7 thiết bị nhà thông minh (bao gồm garden_pump)."""
+    def test_feat08_rag_6_devices_synchronized(self) -> None:
+        """FEAT-08: RAG tri thức đồng bộ đủ 6 thiết bị nhà thông minh (bao gồm garden_pump và speaker_amp)."""
         kb_path = ROOT / "simulator" / "data" / "knowledge_base.json"
         if not kb_path.exists():
             from simulator.knowledge_rag import ensure_kb_file
@@ -149,8 +149,10 @@ class TestTier1FeatureCoverage:
 
         assert "máy bơm" in topics_str.lower() or "garden_pump" in topics_str.lower() or "tưới cây" in topics_str.lower()
         assert "cửa chính" in topics_str.lower()
-        assert "quạt" in topics_str.lower()
-        assert "điều hòa" in topics_str.lower()
+        assert "đèn phòng khách" in topics_str.lower()
+        assert "đèn phòng ngủ" in topics_str.lower()
+        assert "pam8403" in topics_str.lower() or "mạch loa" in topics_str.lower()
+        assert "ky-037" in topics_str.lower()
         assert "còi báo động" in topics_str.lower()
 
     def test_feat09_email_allowlist_hierarchy(self) -> None:
@@ -177,19 +179,19 @@ class TestTier1FeatureCoverage:
         r3_3 = add_family_email_helper(mgr, "khach_c", "khach_tu_c3@gmail.com", target_tier=3)
         assert r3_3.get("ok") is False, "Cấp 3 không được phép thêm bất kỳ thành viên nào!"
 
-    def test_feat09_7_devices_actuation(
+    def test_feat09_6_devices_actuation(
         self, smart_home_engine: SmartHomeEngine
     ) -> None:
-        """FEAT-09: Thực thi điều khiển trên toàn bộ 7 thiết bị phần cứng."""
+        """FEAT-09: Thực thi điều khiển trên toàn bộ 6 thiết bị phần cứng."""
         async def _run() -> None:
+            await smart_home_engine.execute_device_action("speaker_amp", "turn_off")
             devices = [
                 ("main_door", "open", "Cửa chính đã mở."),
                 ("living_room_light", "turn_on", "Đèn phòng khách đã bật."),
                 ("bedroom_light", "turn_on", "Đèn phòng ngủ đã bật."),
-                ("fan", "turn_on", "Quạt trần đã bật."),
-                ("ac", "turn_on", "Điều hòa đã mở."),
-                ("alarm_siren", "turn_on", "Còi báo động đã bật."),
                 ("garden_pump", "turn_on", "Máy bơm tưới cây đã bật."),
+                ("alarm_siren", "turn_on", "Còi báo động đã bật."),
+                ("speaker_amp", "turn_on", "Nguồn mạch loa PAM8403 đã bật."),
             ]
 
             for dev_id, action, expected_phrase in devices:

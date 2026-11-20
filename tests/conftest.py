@@ -36,7 +36,6 @@ _TRACKED_DATA_FILES = (
     "custom_rules_overlay.json",
     "family_email_allowlist.json",
     "invite_links_3layer.json",
-    "ir_devices_db.json",
     "knowledge_base.json",
     "smarthome.db",
     "system_audit_logs.jsonl",
@@ -57,9 +56,10 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
     from simulator.auth.session_store import get_session_store
     from simulator.db_migrations import close_wal_anchors
 
-    db_path = DATA_DIR / "smarthome.db"
-    wal_path = DATA_DIR / "smarthome.db-wal"
-    shm_path = DATA_DIR / "smarthome.db-shm"
+    sqlite_env = os.environ.get("SMARTHOME_SQLITE_PATH", "").strip()
+    db_path = pathlib.Path(sqlite_env) if sqlite_env else (DATA_DIR / "smarthome.db")
+    wal_path = pathlib.Path(f"{db_path}-wal")
+    shm_path = pathlib.Path(f"{db_path}-shm")
     store = get_session_store()
 
     with store._lock, db_mod._DB_LOCK:
@@ -83,7 +83,8 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
         db_mod._SCHEMA_INITIALIZED = False
         db_mod._LAST_KB_MTIME = -1.0
         db_mod._LAST_VP_MTIME = -1.0
-        db_mod._LAST_IR_MTIME = -1.0
+        if hasattr(db_mod, "_LAST_IR_MTIME"):
+            db_mod._LAST_IR_MTIME = -1.0
 
         # 1. Try unlinking WAL/SHM first so we never overwrite smarthome.db while WAL exists
         for aux_path in (wal_path, shm_path):

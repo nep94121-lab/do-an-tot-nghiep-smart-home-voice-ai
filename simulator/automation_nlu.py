@@ -77,10 +77,6 @@ _DEVICE_SYNONYMS: tuple[tuple[str, str], ...] = (
     ("cua lon", "main_door"),
     ("cua nha", "main_door"),
     ("cua ra vao", "main_door"),
-    ("quat tran", "fan"),
-    ("quat dien", "fan"),
-    ("dieu hoa", "ac"),
-    ("may lanh", "ac"),
     ("coi bao dong", "alarm_siren"),
     ("bao dong", "alarm_siren"),
     ("coi hu", "alarm_siren"),
@@ -88,7 +84,23 @@ _DEVICE_SYNONYMS: tuple[tuple[str, str], ...] = (
     ("may bom", "garden_pump"),
     ("tuoi cay", "garden_pump"),
     ("bom nuoc", "garden_pump"),
+    ("nguon mach loa", "speaker_amp"),
+    ("mach loa", "speaker_amp"),
+    ("nguon loa", "speaker_amp"),
+    ("pam8403", "speaker_amp"),
+    ("loa mach", "speaker_amp"),
+    ("speaker amp", "speaker_amp"),
 )
+
+
+_REMOVED_DEVICE_MENTION_RE = re.compile(
+    r"(?:^|\s)(?:quat(?:\s+tran)?|dieu\s+hoa|may\s+lanh|hoc\s+lenh|remote|hong\s+ngoai|ir|vs1838b?)(?:\s|$)"
+)
+
+
+def has_removed_device_mention(text: str) -> bool:
+    norm = f" {normalize_phrase(text)} "
+    return bool(_REMOVED_DEVICE_MENTION_RE.search(norm))
 
 
 def parse_single_device_and_action(
@@ -106,16 +118,14 @@ def parse_single_device_and_action(
     if dev is None:
         if " den " in norm:
             dev = "living_room_light"
-        elif " quat " in norm:
-            dev = "fan"
         elif " cua " in norm:
             dev = "main_door"
         elif " coi " in norm:
             dev = "alarm_siren"
-        elif " ac " in norm:
-            dev = "ac"
         elif " bom " in norm:
             dev = "garden_pump"
+        elif " loa " in norm:
+            dev = "speaker_amp"
 
     off_words = ("tat", "dong", "khoa", "ngat", "dung")
     on_words = ("bat", "mo", "khoi dong", "chay", "tuoi")
@@ -127,7 +137,7 @@ def parse_single_device_and_action(
     if act is None:
         for w in on_words:
             if f" {w} " in norm:
-                act = "open" if (dev in ("main_door", "ac") or w == "mo") else "turn_on"
+                act = "open" if (dev == "main_door" or w == "mo") else "turn_on"
                 break
     if act is None:
         act = default_action
@@ -2612,6 +2622,18 @@ async def process_automation_nlu_command(
         dev, act = parse_single_device_and_action(cleaned_cd)
         if not dev:
             dev, act = parse_single_device_and_action(raw)
+        if dev is None and has_removed_device_mention(raw):
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="unsupported_removed_device",
+                msg=(
+                    "Thiết bị hoặc tính năng bạn yêu cầu (quạt, điều hòa, học lệnh hồng ngoại IR) "
+                    "không còn được hỗ trợ trên hệ thống 6 thiết bị mới."
+                ),
+                status_code=400,
+                target="removed_device",
+            )
         dev = dev or "living_room_light"
         act = act or "turn_on"
         for td in _expand_targets(dev):

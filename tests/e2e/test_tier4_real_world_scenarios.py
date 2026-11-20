@@ -121,11 +121,11 @@ class TestTier4RealWorldScenarios:
             smart_home_engine.set_active_user("khach_c")
             assert smart_home_engine.current_tier == 3
 
-            # Khách C3 bật quạt trần -> THÀNH CÔNG
-            res_fan = await smart_home_engine.execute_device_action("fan", "turn_on")
-            assert res_fan["ok"] is True
-            assert res_fan["exact_spoken_reply"] == "Quạt trần đã bật."
-            assert smart_home_engine.devices["fan"]["state"] == "ON"
+            # Khách C3 bật đèn phòng ngủ -> THÀNH CÔNG
+            res_bed = await smart_home_engine.execute_device_action("bedroom_light", "turn_on")
+            assert res_bed["ok"] is True
+            assert res_bed["exact_spoken_reply"] == "Đèn phòng ngủ đã bật."
+            assert smart_home_engine.devices["bedroom_light"]["state"] == "ON"
 
             # Khách C3 cố ra lệnh mở Cửa chính (thiết bị an ninh) -> BỊ TỪ CHỐI
             res_door = await smart_home_engine.execute_device_action("main_door", "open")
@@ -191,10 +191,10 @@ class TestTier4RealWorldScenarios:
         async def _night_routine() -> None:
             smart_home_engine.set_active_user("tuan_anh")
 
-            # Thực thi chuỗi lệnh đi ngủ: Tắt đèn khách, tắt quạt, đóng khóa cửa chính
+            # Thực thi chuỗi lệnh đi ngủ: Tắt đèn khách, tắt đèn ngủ, tắt nguồn mạch loa, đóng khóa cửa chính
             await smart_home_engine.execute_device_action("living_room_light", "turn_off")
             await smart_home_engine.execute_device_action("bedroom_light", "turn_off")
-            await smart_home_engine.execute_device_action("fan", "turn_off")
+            await smart_home_engine.execute_device_action("speaker_amp", "turn_off")
             door_close = await smart_home_engine.execute_device_action("main_door", "close")
             assert door_close["ok"] is True
             assert door_close["exact_spoken_reply"] in ("Cửa chính đã đóng.", "Cửa chính đã đóng sẵn rồi.")
@@ -202,7 +202,7 @@ class TestTier4RealWorldScenarios:
             # Kiểm tra trạng thái an toàn toàn bộ ngôi nhà ban đêm
             assert smart_home_engine.devices["living_room_light"]["state"] == "OFF"
             assert smart_home_engine.devices["bedroom_light"]["state"] == "OFF"
-            assert smart_home_engine.devices["fan"]["state"] == "OFF"
+            assert smart_home_engine.devices["speaker_amp"]["state"] == "OFF"
             assert smart_home_engine.devices["main_door"]["state"] == "CLOSED"
             assert smart_home_engine.devices["alarm_siren"]["state"] == "OFF"
 

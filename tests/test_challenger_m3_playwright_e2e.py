@@ -97,8 +97,8 @@ class TestMilestone3LiveBrowserE2E:
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             browser.close()
 
-    def test_e2e_bug7_mobile_devices_all_7_and_toggle(self):
-        """Bug 7: Tab Thiết bị hiện đủ cả 7 thiết bị, toggle thu gọn về 4 và mở lại 7."""
+    def test_e2e_bug7_mobile_devices_all_6_and_toggle(self):
+        """Bug 7: Tab Thiết bị hiện đủ cả 6 thiết bị, toggle thu gọn về 4 và mở lại 6."""
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
             context = browser.new_context()
@@ -127,7 +127,7 @@ class TestMilestone3LiveBrowserE2E:
             page.wait_for_selector("#devGrid .dev-row", timeout=10000)
 
             dev_rows = page.query_selector_all("#devGrid .dev-row")
-            assert len(dev_rows) == 7, f"Tab thiết bị phải hiển thị đủ 7 thiết bị, thực tế: {len(dev_rows)}"
+            assert len(dev_rows) == 6, f"Tab thiết bị phải hiển thị đủ 6 thiết bị, thực tế: {len(dev_rows)}"
 
             btn_toggle = page.query_selector("#btnToggleShowAllDevices")
             assert btn_toggle is not None
@@ -140,11 +140,11 @@ class TestMilestone3LiveBrowserE2E:
             assert len(dev_rows_col) == 4, f"Khi thu gọn phải còn 4 thiết bị, thực tế: {len(dev_rows_col)}"
             assert btn_toggle.text_content().strip() == "Xem tất cả"
 
-            # Bấm mở lại -> 7 thiết bị
+            # Bấm mở lại -> 6 thiết bị
             btn_toggle.click()
             page.wait_for_timeout(200)
             dev_rows_exp = page.query_selector_all("#devGrid .dev-row")
-            assert len(dev_rows_exp) == 7, f"Khi mở lại phải đủ 7 thiết bị, thực tế: {len(dev_rows_exp)}"
+            assert len(dev_rows_exp) == 6, f"Khi mở lại phải đủ 6 thiết bị, thực tế: {len(dev_rows_exp)}"
             assert btn_toggle.text_content().strip() == "Thu gọn"
 
             browser.close()

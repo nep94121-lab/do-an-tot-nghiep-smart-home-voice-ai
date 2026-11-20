@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import logging
 from email.utils import formatdate
 from logging.handlers import RotatingFileHandler
@@ -319,6 +320,25 @@ async def mobile_app_index(request: Request) -> Response:
 async def mobile_redirect() -> RedirectResponse:
     """Chuyển hướng 307 từ /mobile về ứng dụng /app."""
     return RedirectResponse(url="/app", status_code=307)
+
+
+@app.get("/hardware/blender/SCENE_SPEC.json")
+async def get_blender_scene_spec() -> JSONResponse:
+    """Trả về SCENE_SPEC.json khi đã có trên đĩa hoặc HTTP 404 JSON gọn khi chưa merge nhánh CAD."""
+    spec_path = ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
+    if not spec_path.exists() or not spec_path.is_file():
+        return JSONResponse(
+            {"ok": False, "error": "SCENE_SPEC.json not found"},
+            status_code=404,
+        )
+    try:
+        data = json.loads(spec_path.read_text(encoding="utf-8"))
+        return JSONResponse(data, status_code=200)
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "error": f"Invalid SCENE_SPEC.json: {exc}"},
+            status_code=500,
+        )
 
 
 @app.get("/wokwi")

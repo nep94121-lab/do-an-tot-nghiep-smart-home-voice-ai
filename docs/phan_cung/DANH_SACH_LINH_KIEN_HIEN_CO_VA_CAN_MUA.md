@@ -1,152 +1,92 @@
-# 📋 KIỂM KÊ LINH KIỆN THỰC TẾ TRÊN BÀN & DANH SÁCH CẦN MUA THÊM
+# 📋 KIỂM KÊ LINH KIỆN THỰC TẾ TRÊN BÀN & SƠ ĐỒ ĐẤU NỐI PHẦN CỨNG
 
-> **Đối chiếu trực tiếp từ ảnh chụp thực tế của Nguyễn Tuấn Anh (Ngày 26/10/2026)**
+> **Cập nhật ngày `20/11/2026` — Đối chiếu trực tiếp từ 2 ảnh chụp thực tế của Nguyễn Tuấn Anh (`components_overview.png` & `pam8403_ky037_closeup.png`) và Hợp đồng Phần cứng Khóa cứng (`6 thiết bị chấp hành + 3 cảm biến`).**
 
 ---
 
-## 1. CÁC LINH KIỆN ĐANG CÓ SẴN TRÊN BÀN (8 MÓN — ĐÃ TÍCH HỢP HẾT VÀO CODE & FIRMWARE)
+## 1. TOÀN BỘ LINH KIỆN ĐANG CÓ SẴN TRÊN BÀN (ĐÃ ĐỦ 100% CHO BỘ 6 THIẾT BỊ + 3 CẢM BIẾN)
 
-Nhìn từ trái sang phải trên mặt bàn của bạn, hiện tại bạn đang có **8 nhóm linh kiện vật lý** sau đây:
+Đối chiếu từ `components_overview.png` và `pam8403_ky037_closeup.png`, toàn bộ linh kiện cốt lõi đã **có sẵn trên bàn**:
 
-| STT | Linh kiện đang có trên bàn (Từ trái sang phải) | Số lượng | Đã gán vào Thiết bị & Chân nào trên `NodeMCU ESP8266` |
+| STT | Linh kiện thực tế quan sát trên ảnh | Số lượng | Vai trò & Chân kết nối trên `NodeMCU ESP8266 v2 Amica` |
 | :---: | :--- | :---: | :--- |
-| **1** | **Module Relay 1 kênh 5V** *(1 mạch xanh dương + 1 mạch đỏ kèm 3 dây)* | **02 cái** | - **Relay 1 (`Chân D3 / GPIO0`):** Đóng/ngắt **Máy bơm nước mini tưới cây (`garden_pump`)**.<br>- **Relay 2 (`Chân D6 / GPIO12`):** Đóng/ngắt **Quạt trần (`fan`)**. |
-| **2** | **Mạch vi điều khiển `NodeMCU ESP8266 (ESP-12E, CP2102)`** | **01 mạch** | Bộ não trung tâm thu/phát Wi-Fi 2.4GHz, chạy giao thức MQTT (10 Topics) và lưu bản sao 2 Bể vào Flash `LittleFS`. |
-| **3** | **Bảng cắm mạch `Breadboard 400 lỗ` (màu trắng)** | **01 cái** | Chia nguồn chung `5V (VIN)` / `3.3V` / `GND` và cắm LED, Điện trở, Transistor, Diode. |
-| **4** | **Máy bơm nước mini 3V–5V DC (màu trắng nằm dưới)** *(Linh kiện MỚI thêm)* | **01 cái** | **Thiết bị thứ 7 mới thiết kế thêm:** **Máy bơm tưới cây (`garden_pump` — Chân `D3`)**. Hỗ trợ khẩu lệnh *"Bật máy bơm"*, *"Tưới cây"*, *"Tắt máy bơm"* và tự động bật khi đất khô! |
-| **5** | **Dải Điện trở cắm (`Resistors`) + 3 con `Diode 1N4007` (đen)** | **2 dải + 3 con** | - **Điện trở (220Ω – 1kΩ):** Hạn dòng bảo vệ Đèn LED đỏ và cực Base của Transistor.<br>- **Diode `1N4007`:** Đấu ngược song song 2 cực của Máy bơm nước (**Flyback Diode**) để triệt tiêu xung điện cảm ngược khi tắt bơm, chống treo/reset mạch ESP8266! |
-| **6** | **Bóng `Đèn LED đỏ 5mm` + `Transistor TO-92` (đen 3 chân)** | **1 LED + 1 Tran** | - **LED đỏ 5mm:** Làm **Đèn phòng khách (`living_room_light` — Chân `D2`)** (kiêm đèn nháy tín hiệu đếm 3-2-1 khi thu âm cấp quyền!).<br>- **Transistor:** Khuếch đại dòng kích cho LED hồng ngoại hoặc còi. |
-| **7** | **Động cơ `Servo SG90` (xanh dương, góc quay 0°–180°)** | **01 cái** | Điều khiển đóng/mở cơ khí **Cửa chính (`main_door` — Chân `D1 / GPIO5`)**. |
-| **8** | **Cảm biến Độ ẩm Đất `YL-69 / FC-28` + Mạch so sánh `LM393` (dây vàng bên phải)** *(Linh kiện MỚI thêm)* | **01 bộ** | **Cảm biến mới thiết kế thêm (`Chân A0 / ADC0`):** Đọc độ ẩm đất thực tế (`0% – 100%`), gửi gói tin MQTT `smarthome/telemetry/soil_moisture`.<br>- **Tự động hóa khép kín:** Khi độ ẩm đất `< 40%` (đất khô) $\rightarrow$ Tự động bật **Máy bơm (`D3`)**; khi độ ẩm đất `>= 70%` (đủ ẩm) $\rightarrow$ Tự động tắt **Máy bơm**! |
+| **1** | **Mạch `NodeMCU ESP8266 v2 Amica` (ESP-12E/F, CP2102, hàng chân hẹp 0.9" / 22.86mm `2×15`)** | **01 mạch** | Bộ vi điều khiển trung tâm Wi-Fi 2.4GHz, chạy MQTT + HTTP sync và lưu bản sao 2 Bể vào Flash `LittleFS`. |
+| **2** | **Bảng cắm `Breadboard 400 lỗ` màu trắng** | **01 cái** | Cắm trực tiếp NodeMCU qua rãnh giữa, chia nguồn `3.3V` / `5V` / `GND` và cắm LED, trở, tụ, diode. |
+| **3** | **Module Relay 1 kênh 5V màu xanh dương** *(trên giữa ảnh)* | **01 cái** | **Relay 1 (`D6 / GPIO12` — `garden_pump`):** Đóng/ngắt nguồn `5V` ngoài cho **Máy bơm nước mini trắng**. |
+| **4** | **Module Relay 1 kênh 5V opto cách ly màu đỏ** *(góc dưới phải, có jumper vàng `H/L` và 3 dây cắm)* | **01 cái** | **Relay 2 (`D7 / GPIO13` — `speaker_amp`):** Đặt jumper ở mức **`H`**, đóng/ngắt nguồn `5V` cho mạch khuếch đại loa **PAM8403**. |
+| **5** | **Mạch khuếch đại âm thanh `PAM8403` PCB xanh lá** *(bản không chiết áp, pad hàn `L OUT R`, `L ⊥ R`, `5V + -`)* | **01 mạch** | Khuếch đại tín hiệu âm thanh PWM từ chân **`D3 (GPIO0)`** (qua tụ chặn DC + cầu phân áp RC) phát ra loa tròn bạc. |
+| **6** | **Loa tròn mini màu bạc** *(bọc nilon kèm dây đỏ/đen và bó dây Dupont 4 sợi)* | **01 cái** | Loa phản hồi phần cứng đấu vào 2 pad **`L OUT +`** và **`L OUT -`** của `PAM8403`. |
+| **7** | **Cảm biến Nhiệt độ & Độ ẩm `DHT11` module 3 chân PCB xanh dương** | **01 cái** | Cảm biến **`DHT11`** gắn chân **`D2 (GPIO4)`**, cấp nguồn `3.3V`. |
+| **8** | **Cảm biến Độ ẩm Đất** *(đầu dò 2 nhánh + dây vàng nối mạch so sánh **`LM393` xanh dương**)* | **01 bộ** | Cấp nguồn **`3.3V`** cho `LM393`, nối **`AO`** vào **`A0 (ADC0)`**. Tự động bật bơm `< 40%`, tắt bơm `>= 70%`. |
+| **9** | **Cảm biến Âm thanh `KY-037 / KY-038` PCB đỏ** *(header `DO \| G \| + \| AO`, biến trở xanh `W104`, IC `LM393`, micro tụ điện)* | **01 cái** | Cấp nguồn **`3.3V`**, nối chân **`DO`** vào **`D5 (GPIO14)`** để phát hiện tiếng vỗ tay / tiếng động lớn. |
+| **10** | **Động cơ `Servo SG90 9g` màu xanh dương** *(kèm tay đòn trắng + cáp 3 dây cam/đỏ/nâu)* | **01 cái** | Điều khiển **`main_door` (Cửa chính)** tại chân **`D1 (GPIO5)`**, góc `0°` đóng / `90°` mở. |
+| **11** | **Túi bóng đèn `LED 5mm`** *(cùng 1 LED đỏ rời cạnh bó dây loa)* | **01 túi + 1 lẻ** | Dùng 2 bóng làm **`living_room_light` (`D0 / GPIO16`)** và **`bedroom_light` (`D4 / GPIO2`, đấu Active-LOW)**. |
+| **12** | **Còi `Buzzer 5V` trụ đen nhỏ** *(trong túi zip góc trên trái)* | **01 cái** | Làm **`alarm_siren` (Còi báo động)** tại chân **`D8 (GPIO15)`**, đấu Active-HIGH (im lặng khi boot). |
+| **13** | **Máy bơm nước chìm mini màu trắng `3V–6V DC`** *(góc dưới trái, kèm dây đen tách đầu đỏ/đen)* | **01 cái** | Chạy nguồn `5V` ngoài qua tiếp điểm **`COM–NO`** của Relay 1 (`D6`). |
+| **14** | **Dải `3× Diode 1N4007`** + **Túi tụ `WEIDILY 470µF 16V 8×12`** | **3 diode + 1 túi tụ** | `1N4007` mắc ngược song song cực bơm (Flyback Diode); tụ `470µF 16V` lọc nguồn `5V` cho bơm/servo/relay. |
+| **15** | **Túi điện trở `WEIDILY 1/4W 2.2kΩ 1%`** + **2 dải điện trở cắm 1/4W** + **Dây Dupont** | **Đầy đủ** | Hạn dòng LED (`220Ω–1kΩ` hoặc `2.2kΩ`) và làm cầu phân áp RC bảo vệ ngõ vào `PAM8403` từ `D3`. |
+
+> **Ghi chú linh kiện phụ:** Trên ảnh `components_overview.png` có 1 linh kiện 3 chân vỏ đen kiểu TO-220 nằm ngay dưới mạch `PAM8403` — linh kiện này **không bắt buộc dùng trong mạch chính** của hợp đồng 6 thiết bị + 3 cảm biến. Toàn bộ hệ thống chỉ sử dụng đúng 6 thiết bị chấp hành và 3 cảm biến nêu trên.
 
 ---
 
-## 2. GIẢI ĐÁP VỀ "LOA VÀ MIC" (CÓ CẦN MUA KHÔNG?)
+## 2. KIẾN TRÚC ÂM THANH: PHÂN BIỆT RÕ MICRO VOICE AI & CẢM BIẾN KY-037
 
-Bạn có **2 lựa chọn** rất rõ ràng cho phần Loa & Mic:
+Để tránh nhầm lẫn khi bảo vệ đồ án, hệ thống tách bạch 3 khối âm thanh như sau:
 
-### Phương án 1: Dùng luôn Mic & Loa của Điện thoại (`Mobile App /app`) và Laptop (`Web Dashboard`) — **TỐN 0 ĐỒNG**
-- **Cách hoạt động:** Bạn nói trực tiếp vào **Điện thoại** hoặc **Laptop**, luồng âm thanh 16kHz được gửi tới Server xử lý giọng nói (`F0 + MFCC + Gemini 3.8 Live`), AI trả lời bằng giọng nói qua loa Điện thoại/Laptop đồng thời bắn gói tin **MQTT qua Wi-Fi** xuống mạch `NodeMCU ESP8266` để đóng/mở Cửa Servo, bật Máy bơm, bật Đèn!
-- **Ưu điểm:** Không phải mua thêm mạch âm thanh, thu âm cực nét, không lo ESP8266 bị thiếu chân hay thiếu RAM (vì ESP8266 chỉ có 80KB RAM và 1 chân `A0` đã dùng cho cảm biến độ ẩm đất).
-
-### Phương án 2: Nếu bạn muốn có **Loa & Mic rời đặt trên bàn mô hình** (để nói thẳng vào mô hình nhà)
-Nếu thầy hướng dẫn muốn nhìn thấy 1 cụm Mic + Loa rời trên mô hình phần cứng, bạn mua 1 trong 2 combo sau:
-1. **Cách dễ nhất & thu âm nhạy nhất (~90.000đ):** Mua **1 chiếc Mic kèm Loa hội nghị USB mini (hoặc Mic cài áo không dây cắm USB vào Laptop/Server)** đặt ngay trong ngôi nhà mô hình $\rightarrow$ Cắm phát ăn ngay 100%, không tốn bất kỳ chân GPIO nào của ESP8266!
-2. **Cách nhúng I2S (~80.000đ):**
-   - `01x Module Mic số INMP441 (I2S MEMS)` (~35.000đ)
-   - `01x Mạch khuếch đại âm thanh MAX98357A I2S 3W` + `01x Loa 4Ω 3W` (~45.000đ)
-
----
-
-## 3. DANH SÁCH LINH KIỆN CẦN MUA THÊM ĐỂ ĐỦ 100% BỘ ĐỒ ÁN (TỔNG CHỈ ~115.000Đ – 135.000Đ)
-
-Dưới đây là bảng mua hàng chính xác **9 món đang thiếu** trên bàn của bạn kèm **Từ khóa tìm kiếm chuẩn trên Shopee** (gõ đúng cụm từ trong cột 2 vào thanh tìm kiếm *"Trong Shop"* của 1 trong các Shop bên dưới là gom đủ 100% trong **1 đơn hàng duy nhất**):
-
-| STT | Tên linh kiện cần mua thêm & Từ khóa tìm trên Shopee | Số lượng | Giá tham khảo | Dùng để làm gì & Cắm vào chân nào trên `ESP8266`? |
-| :---: | :--- | :---: | :---: | :--- |
-| **1** | **Bộ dây cắm `Jumper 20cm` (3 loại: Đực-Đực, Đực-Cái, Cái-Cái)**<br>*(Từ khóa Shopee: `dây bus 20cm` hoặc `dây jumper`)* | **3 tép (40 sợi/loại)** | ~24.000đ | **Bắt buộc số 1:** Trên bàn bạn mới có 3 sợi dây ở Relay đỏ, cần đủ 3 loại dây để nối `NodeMCU ESP8266` ra Breadboard, Servo, Cảm biến đất, Máy bơm, Mic, Loa. |
-| **2** | **Cáp `Micro-USB` có truyền dữ liệu (Data Cable) + Củ nguồn 5V-2A**<br>*(Từ khóa Shopee: `cáp micro usb nạp code`)* | **01 sợi** | ~12.000đ | Nạp firmware từ Laptop vào `NodeMCU ESP8266 (CP2102)` và cấp nguồn 5V độc lập (lưu ý: chọn loại có truyền Data, tránh cáp sạc 2 lõi không nhận cổng COM). |
-| **3** | **Cảm biến Nhiệt độ & Độ ẩm không khí `DHT11` (loại module 3 chân có sẵn PCB)**<br>*(Từ khóa Shopee: `module DHT11`)* | **01 cái** | ~16.000đ | Đo nhiệt độ (°C) và độ ẩm không khí (%) trong phòng tại **Chân `D6 (GPIO12)`** (đã có sẵn điện trở kéo lên trên module). |
-| **4** | **Mắt thu hồng ngoại `VS1838B (38kHz)` + Bóng LED phát hồng ngoại `IR LED 5mm 940nm`**<br>*(Từ khóa Shopee: `VS1838B` và `led thu phát hồng ngoại 5mm`)* | **01 thu + 02 phát** | ~6.000đ | Thực hiện tính năng **Học lệnh & Chiếm quyền điều khiển Remote Điều hòa / Quạt / TV** (**Chân `D5 / GPIO14`** thu sóng, **Chân `D2 / GPIO4`** phát sóng). |
-| **5** | **Còi báo động `Buzzer 5V Active` (Loại còi chủ động, cấp 5V là kêu)**<br>*(Từ khóa Shopee: `còi chip 5V chủ động` hoặc `buzzer 5V active`)* | **01 cái** | ~4.000đ | Cho thiết bị **Còi báo động (`alarm_siren` — Chân `D8 / GPIO15`)** hú còi khi có người lạ đột nhập hoặc sai giọng nói. |
-| **6** | **Bóng `Đèn LED 5mm` (Màu Vàng / Trắng / Xanh lá)**<br>*(Từ khóa Shopee: `led 5mm`)* | **5 – 10 bóng** | ~3.000đ | Trên bàn mới có **1 bóng LED đỏ** (Đèn phòng khách `D2`), mua thêm để làm **Đèn phòng ngủ (`bedroom_light` — Chân `D7 / GPIO13`)** và đèn báo trạng thái. |
-| **7** | **Ống nhựa silicon mềm dẫn nước máy bơm (đường kính trong 6mm–8mm, dài 1m)**<br>*(Từ khóa Shopee: `ống nước máy bơm mini`)* | **1 mét** | ~7.000đ | Cắm vào đầu ra của **Máy bơm nước mini trắng** trên bàn để bơm nước thật từ cốc sang chậu cây khi bảo vệ đồ án! |
-| **8** | **Module Micro thu âm khuếch đại tự động `MAX9814` (hoặc module nhận diện giọng nói `VC-02`)**<br>*(Từ khóa Shopee: `MAX9814`)* | **01 mạch** | ~28.000đ | Thu âm giọng nói trực tiếp trên mạch tại **Chân `RX (GPIO3)`** kèm chống ồn tự động AGC (hoạt động cả khi rút cáp khỏi Laptop). |
-| **9** | **Mạch khuếch đại âm thanh `PAM8403` (5V) + `Loa 8Ω 3W` (hoặc `4Ω 3W`)**<br>*(Từ khóa Shopee: `PAM8403` và `loa 3W`)* | **01 mạch + 01 loa** | ~22.000đ | Phát âm thanh phản hồi/báo hiệu trực tiếp từ mạch tại **Chân `D4 (GPIO2)`** khi đóng/mở thiết bị hoặc cảnh báo từ chối người lạ. |
+1. **Micro & Loa cho Trợ lý Giọng nói Gemini Voice AI (`gemini-3.8-live`, giọng `Aoede`):**
+   - Sử dụng trực tiếp **micro và loa của thiết bị Web Dashboard / Mobile App** của người dùng.
+   - ESP8266 **không** truyền luồng giọng nói thô qua chân `RX` hay `A0`. Cổng `RX/TX` chỉ dùng để debug Serial `115200 baud` qua USB CP2102.
+2. **Cảm biến Âm thanh `KY-037/038` (`D5 / GPIO14`):**
+   - Đọc ngõ ra số **`DO`** để phát hiện **tiếng vỗ tay hoặc âm thanh đột ngột** vượt ngưỡng chỉnh trên biến trở xanh `W104`.
+   - Khi có xung kích hợp lệ (debounce `>= 400ms`), ESP8266 gửi telemetry `smarthome/telemetry/sound` (hoặc `POST /api/sound_sensor`) về Dashboard.
+3. **Mạch Loa Phản hồi `PAM8403` + Loa tròn bạc (`D7` + `D3`):**
+   - **Relay 2 (`D7 / GPIO13`)** đóng/ngắt nguồn `5V` cho `PAM8403` để mạch loa hoàn toàn im lặng (không sôi nhiễu) khi nghỉ.
+   - **Chân `D3 (GPIO0)`** phát xung `tone()` qua **tụ chặn DC (`100nF–1µF`) + cầu phân áp RC** tới ngõ vào `L` của `PAM8403` khi phát chuông xác nhận, sau đó tự tắt Relay 2 sau `1.5 giây` nếu không bật giữ tay.
 
 ---
 
-## 3.1. BẢNG GOM ĐƠN 100% TRONG 1 SHOP DUY NHẤT (TÊN SẢN PHẨM CHUẨN TỪNG CHỮ ĐỂ KHÔNG BỊ LẺ TẺ)
+## 3. DANH SÁCH TÙY CHỌN / MUA THÊM SAU (CHỈ PHẦN BỔ SUNG, KHÔNG CẦN MUA LINH KIỆN CỐT LÕI)
 
-Sở dĩ khi tìm trên Shopee bạn thấy bị lẻ tẻ nhiều shop là vì **mỗi shop đặt tên tiếng Việt khác nhau** (ví dụ: dây Jumper thì shop gọi là *"Dây nối 7 màu"*, ống nước máy bơm thì shop gọi là *"Ống Ti Ô 0.8cm"*, còi Buzzer thì gọi là *"Còi chíp 5V"*).
+**0 linh kiện chấp hành hay cảm biến cốt lõi nào phải mua thêm** để chạy đủ 6 thiết bị + 3 cảm biến trên Breadboard. Dưới đây chỉ là các món **tùy chọn / mua bổ sung về sau** (khi lắp sa bàn hoặc chuyển sang hàn PCB):
 
-Dưới đây là **Tên sản phẩm chuẩn từng chữ** đã kiểm tra khớp **10/10 món trong CÙNG 1 SHOP DUY NHẤT** (bạn chỉ cần vào đúng 1 trong 2 Shop này, bấm vào thanh **"Tìm trong Shop"** và copy đúng tên bên dưới là bỏ hết vào **1 giỏ hàng duy nhất**):
-
-### 🛒 LỰA CHỌN A (HÀ NỘI — NGAY BÁCH KHOA): Shop **`Linh Kiện Điện Tử 3M`** (`chotroihn.vn`)
-- **Tìm Shop trên Shopee:** Gõ **`Linh Kiện Điện Tử 3M`** hoặc **`chotroihn`** (Địa chỉ kho: *Số 9 Ngõ 40/2 Tạ Quang Bửu, Bách Khoa, Hai Bà Trưng, Hà Nội* — ngay sát trường, đặt Shopee Hỏa tốc hoặc ra lấy trực tiếp trong 15 phút).
-- **10 Tên sản phẩm chuẩn 100% trong Shop `Linh Kiện Điện Tử 3M`:**
-
-| STT | Copy đúng tên này gõ vào ô "Tìm trong Shop" của `Linh Kiện Điện Tử 3M` | Phân loại chọn mua | Giá tại Shop 3M |
-| :---: | :--- | :--- | :---: |
-| **1** | **`Bộ 40 Sợi Dây Nối 7 Màu`** | Chọn đủ 3 loại: `20cm Đực-Đực`, `20cm Đực-Cái`, `20cm Cái-Cái` | `~24.000đ` (3 tép) |
-| **2** | **`Dây Cáp USB Type-A Xanh Dương 30cm Micro USB`** *(hoặc `Cáp Micro USB`)* | Loại có truyền dữ liệu nạp code | `~12.000đ` |
-| **3** | **`Module Cảm Biến Nhiệt Độ Độ Ẩm DHT11`** | Loại module 3 chân có sẵn mạch PCB | `~16.000đ` |
-| **4** | **`Module Thu Hồng Ngoại IR1838`** + **`LED Phát Hồng Ngoại 5mm`** | `01` Module thu (`VS1838B`) + `02` bóng phát `940nm` | `~16.000đ` |
-| **5** | **`Còi Chíp 5V 9.5x12mm`** *(hoặc **`Module Còi Chíp 5V`**)* | `01` cái (cấp 5V là kêu liên tục) | `3.500đ – 9.900đ` |
-| **6** | **`LED 5mm`** | Gói bóng LED Vàng / Trắng / Xanh lá | `~3.000đ` |
-| **7** | **`Ống Ti Ô 0.8cm dài 1m`** *(Dùng cho máy bơm nước và tản nhiệt sò)* | `01` mét (vừa khít vòi máy bơm mini trắng của bạn) | `7.000đ` |
-| **8** | **`Module Cảm Biến Âm Thanh Tích Hợp AGC MAX9814`** | `01` module thu âm chống ồn tự động | `~35.000đ` |
-| **9** | **`Module Khuếch Đại Audio PAM8403`** + **`Loa 8 Ôm 1W`** *(hoặc `Loa 3W`)* | `01` mạch không chiết áp (`12.000đ`) + `01` Loa (`15.000đ`) | `~27.000đ` |
-| **10** | **`Tụ Hóa 470uF 16V`** | `03 – 05` con (lọc nguồn chống sụt áp cho Servo & Bơm) | `~2.000đ` |
+1. **Tụ gốm / tụ màng mỏng giá trị nhỏ `100nF (104)` hoặc `1µF` (`1–2 con`) + rào cắm `Header 2.54mm`:**
+   - Dùng làm tụ chặn DC nối tiếp trên đường tín hiệu âm thanh `D3 -> PAM8403` (nếu trong túi linh kiện phụ chưa có sẵn tụ nhỏ hơn `470µF`) và hàn chân cắm lên 2 hàng lỗ trống của mạch `PAM8403` (`pam8403_ky037_closeup.png`).
+2. **Ống nhựa silicon mềm đường kính trong `6mm–8mm` (`~1m`):**
+   - Nối đầu xả của máy bơm nước mini trắng vào chậu cây trên sa bàn (nếu chưa cắt sẵn).
+3. **Dây cắm Dupont `20cm` (`M-M`, `M-F`, `F-F`) dự phòng:**
+   - Mua thêm nếu số sợi dây hiện có trên bàn không đủ đi gọn trong vỏ mô hình nhà.
+4. **Củ nguồn ngoài `5V - 2A` + dây cáp `Micro-USB` truyền dữ liệu:**
+   - Rất nên dùng khi demo thực tế để tránh sụt áp cổng USB Laptop khi `Servo SG90`, `Máy bơm` và `PAM8403` chạy đồng thời (nối chung `GND` với NodeMCU).
+5. **Vật tư cho giai đoạn hàn mạch PCB cố định (nếu chuyển từ Breadboard sang PCB):**
+   - Rào cắm cái `Female Header 1x15P` (`2 thanh` cho NodeMCU), `Male Header 1x40P`, Domino `KF301-2P/3P`, giắc nguồn `DC-005`, công tắc nguồn `SS12D00`, nút nhấn `Tactile Switch 6x6mm`, tụ lọc `100nF`, phíp đồng `FR-4` và trụ đồng `M3`.
 
 ---
 
-### 🛒 LỰA CHỌN B (TP.HCM / SHOPEE MALL TOÀN QUỐC): Shop **`Điện tử NShop`** (`shopee.vn/dientunshop`)
-- **Link gian hàng Shopee Mall:** [https://shopee.vn/dientunshop](https://shopee.vn/dientunshop) *(Website đồng bộ: [https://nshopvn.com](https://nshopvn.com))*
-- **10 Tên sản phẩm chuẩn 100% trong Shop `dientunshop`:**
+## 4. BẢNG SƠ ĐỒ 10 CHÂN KHÓA CỨNG & QUY TẮC AN TOÀN BOOT
 
-| STT | Copy đúng tên này gõ vào ô "Tìm trong Shop" của `dientunshop` | Phân loại chọn mua | Giá tại NShop |
-| :---: | :--- | :--- | :---: |
-| **1** | **`Dây bus 40P 20cm`** *(hoặc **`Hộp dây cắm breadboard 140 dây`**)* | Đực-Đực, Đực-Cái, Cái-Cái | `~25.000đ` |
-| **2** | **`Cáp sạc & truyền dữ liệu Micro USB 1m`** | Bản `1A` hoặc `2A` truyền Data | `15.000đ` |
-| **3** | **`Module Cảm Biến Độ Ẩm, Nhiệt Độ DHT11`** | Loại module 3 chân có sẵn trở kéo | `22.000đ` |
-| **4** | **`Module Cảm Biến Thu Hồng Ngoại VS1838B (HX1838B)`** + **`Cặp LED Thu Phát Hồng Ngoại 5mm`** | `01` module thu + `01` cặp bóng thu phát | `9.000đ` |
-| **5** | **`Còi Buzz chủ động 5V`** | `01` cái (Active Buzzer 5V) | `3.000đ` |
-| **6** | **`Led trong 5mm`** *(hoặc **`Led đục 5mm`**)* | Gói 10 bóng (Vàng / Trắng / Xanh lá) | `3.000đ` |
-| **7** | **`Ống nước 6/8`** | `01` mét (ống nhựa mềm dùng cho máy bơm mini) | `~6.000đ` |
-| **8** | **`Cảm Biến Âm Thanh MAX9814 Tích Hợp AGC`** | `01` module thu âm MAX9814 | `47.000đ` |
-| **9** | **`Mạch khuếch đại âm thanh PAM8403 6W hifi 2.0 class D`** + **`Loa 3W 4Ohm 40mm`** | `01` mạch (`8.000đ`) + `01` loa (`22.000đ`) | `30.000đ` |
-| **10** | **`Tụ hóa 470uF`** | `03 – 05` con lọc nguồn 5V | `~2.000đ` |
+Sơ đồ chân dưới đây đồng bộ 100% với Firmware [`esp8266_smarthome.ino`](../../firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino):
 
----
-
-## 4. TRỌN BỘ LINH KIỆN ĐỂ THIẾT KẾ & HÀN MẠCH IN PCB HOÀN CHỈNH (FULL PCB BOM)
-
-Khi chuyển từ cắm thử trên Breadboard sang **hàn thành 1 bo mạch in PCB hoàn chỉnh** (vẽ trên **Altium Designer / EasyEDA / KiCad** để tự ủi mạch hoặc đặt in PCB 2 lớp phủ xanh), bạn cần mua **trọn bộ linh kiện hàn mạch (BOM — Bill of Materials)** dưới đây.
-
-> **Nguyên tắc vàng khi thiết kế PCB cho Đồ án:**
-> - **Không hàn chết `NodeMCU ESP8266` hay cảm biến xuống PCB:** Dùng **Rào cắm cái (`Female Header`)** hàn lên PCB để có thể tháo/cắm `ESP8266`, `DHT11`, `LM393` bất cứ lúc nào.
-> - **Dùng Domino vặn vít (`KF301`) cho tải công suất:** Máy bơm nước, Quạt và Nguồn 5V được bắt vít chặt vào Domino trên mép bo PCB, vừa thẩm mỹ như mạch công nghiệp vừa không bao giờ bị lỏng dây khi mang đi bảo vệ đồ án.
-
-### 4.1. Nhóm Linh Kiện Hàn Trực Tiếp Lên Bo PCB (Đầu nối, Rào cắm, Lọc nguồn & Công suất)
-
-| STT | Tên linh kiện PCB (Chuẩn Footprint khi vẽ mạch) | Thông số / Kiểu chân (Package) | Số lượng cần mua | Giá tham khảo | Công dụng trên bo mạch in PCB |
-| :---: | :--- | :---: | :---: | :---: | :--- |
-| **1** | **Rào cắm cái `Female Header 1x15P`** *(hoặc 1x40P về cắt)* | Pitch `2.54mm` (Xuyên lỗ `THT`) | **02 thanh** | ~6.000đ | Hàn thành 2 hàng song song trên PCB làm **đế cắm rút cho `NodeMCU ESP8266`** (30 chân). |
-| **2** | **Rào cắm đực `Male Pin Header 1x40P`** | Pitch `2.54mm` (`THT`) | **02 thanh** | ~4.000đ | Bẻ thành cụm **3 chân (`1x3P`)** để cắm giắc cái của **`Servo SG90`**, và cụm **4 chân (`1x4P`)** nối ra mạch độ ẩm đất `YL-69`. |
-| **3** | **Rào cắm cái `Female Header 1x4P` & `1x3P`** | Pitch `2.54mm` (`THT`) | **04 cái** | ~4.000đ | Làm đế cắm trực tiếp trên PCB cho **`DHT11` (3P/4P)**, mắt thu **`VS1838B` (3P)** và màn hình I2C dự phòng (4P). |
-| **4** | **Domino vặn vít 2 cực `KF301-2P` (Xanh dương)** | Pitch `5.08mm` (`THT`) | **04 cái** | ~8.000đ | Hàn ở mép PCB để vặn vít dây **Máy bơm nước 5V**, **Quạt trần**, và **Nguồn 5V vào** chắc chắn 100%. |
-| **5** | **Domino vặn vít 3 cực `KF301-3P` (Xanh dương)** | Pitch `5.08mm` (`THT`) | **02 cái** | ~6.000đ | Đưa 3 tiếp điểm `NO - COM - NC` của 2 kênh Relay ra mép bo PCB. |
-| **6** | **Giắc nguồn DC cái hàn mạch `DC-005`** + **Củ nguồn Adapter `5V - 2A`** | Chân tròn `5.5 x 2.1mm` (`THT`) | **01 bộ** | ~35.000đ | Cấp nguồn `5V - 2A` ổn định cho toàn bộ bo PCB (nuôi cả ESP8266, Servo SG90 và Máy bơm chạy cùng lúc không sụt áp). |
-| **7** | **Công tắc gạt nguồn `SS12D00` (hoặc công tắc bập bênh mini)** | 3 chân `THT` | **02 cái** | ~3.000đ | Làm công tắc **Bật/Tắt nguồn tổng (`ON/OFF`)** ngay trên góc bo mạch PCB. |
-| **8** | **Tụ hóa lọc nguồn chống sụt áp `470µF/16V` (hoặc `1000µF/16V`)** | Đường kính `8mm`, pitch `3.5mm` | **03 con** | ~4.000đ | **Cực kỳ quan trọng trên PCB:** Hàn sát đường 5V của `Servo SG90` và `Máy bơm` để chống sụt áp làm khởi động lại ESP8266 khi bơm/cửa hoạt động! |
-| **9** | **Tụ gốm lọc nhiễu cao tần `100nF (mã 104)`** | Pitch `2.54mm` / `5.08mm` (`THT`) | **10 con** | ~3.000đ | Hàn sát chân `VCC - GND` của `ESP8266`, `DHT11`, `VS1838B` để triệt nhiễu cao tần. |
-| **10** | **Rơ-le 5V 5 chân rời `SRD-05VDC-SL-C (10A)`** + **Opto `PC817`** | Relay `5Pin THT` + `DIP-4` | **02 bộ** | ~16.000đ | Hàn trực tiếp 2 kênh Relay (Bơm `D3` + Quạt `D6`) lên mặt bo PCB thay vì phải để 2 module Relay rời lơ lửng bên ngoài. |
-| **11** | **Transistor NPN `S8050` hoặc `2N2222A`** | Kiểu vỏ `TO-92` (3 chân cắm) | **05 con** | ~3.000đ | *(Đã có 1 con trên bàn)* Khuếch đại dòng cho **LED phát hồng ngoại `IR 940nm`**, kích cuộn hút **2 Relay** và **Còi `Buzzer 5V`** trên PCB. |
-| **12** | **Diode chỉnh lưu chống dòng ngược `1N4007`** | Kiểu vỏ `DO-41` (chân cắm) | **05 con** | ~2.000đ | *(Đã có 3 con trên bàn)* Hàn song song ngược cực với 2 cuộn hút Relay và Domino Máy bơm (**Flyback Diode**). |
-| **13** | **Bộ Điện trở cắm `1/4W 1%` (`100Ω`, `220Ω`, `1kΩ`, `4.7kΩ`, `10kΩ`)** | Kiểu `Axial 0207` (`THT`) | **10 con/trị số** | ~10.000đ | - `100Ω`: Hạn dòng LED Hồng ngoại `IR TX`.<br>- `220Ω`: Hạn dòng các bóng LED 5mm.<br>- `1kΩ`: Kích cực Base Transistor.<br>- `4.7kΩ / 10kΩ`: Pull-up chân Data `DHT11` & nút nhấn. |
-| **14** | **Nút nhấn 4 chân `Tactile Switch 6x6x5mm`** | `6x6mm THT` | **03 cái** | ~3.000đ | Làm nút `RESET` mạch và nút nhấn khẩn cấp trên bo PCB. |
-| **15** | **Phíp đồng `FR-4` (10x15cm) + Bột sắt `FeCl3`** *(hoặc đặt in PCB JLCPCB)* + **4 Trụ đồng `M3x10mm`** | Bo mạch `100 x 80 mm` | **01 bộ** | ~25.000đ – 80.000đ | Làm tấm nền PCB hoàn chỉnh và bắt 4 chân đế đồng cố định lên sa bàn ngôi nhà thông minh. |
-
----
-
-### 4.2. Bảng Tổng Hợp Chi Tiết Sơ Đồ Chân (Pinout Map) Để Vẽ Mạch Nguyên Lý (Schematic & PCB Layout)
-
-Khi bạn vẽ sơ đồ nguyên lý (Schematic) trên **EasyEDA / Altium / KiCad**, hãy nối chính xác từng chân của đế cắm **`NodeMCU ESP8266`** trên PCB theo bảng chuẩn đã đồng bộ 100% với Firmware [`esp8266_smarthome.ino`](file:///c:/Users/LENOVO/Desktop/%C4%91%E1%BB%93%20%C3%A1n%20t%E1%BB%91t%20nghi%E1%BB%87p/firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino) dưới đây:
-
-| Chân trên `NodeMCU ESP8266` | GPIO | Kết nối tới linh kiện nào trên bản vẽ PCB (Schematic Net) | Linh kiện đệm trên đường mạch PCB |
+| Chân NodeMCU | GPIO | Thiết bị / Cảm biến | Cách đấu dây chuẩn & Linh kiện đi kèm |
 | :---: | :---: | :--- | :--- |
-| **`A0`** | `ADC0` | Chân **`AO` (Analog Out)** của Header 4P cắm mạch độ ẩm đất **`YL-69 / LM393`** | Nối trực tiếp (kèm tụ lọc `100nF` xuống `GND`). |
-| **`D1`** | `GPIO5` | Chân **`PWM` (Dây Cam/Vàng)** của Header 3P cắm **`Servo SG90` (Cửa chính)** | Đường nguồn `5V` của Header Servo có tụ hóa **`470µF/16V`** sát chân. |
-| **`D2`** | `GPIO4` | **Đèn Phòng Khách (`LED Đỏ 5mm`)** + **Mạch phát Hồng ngoại (`IR LED 940nm`)** | Qua điện trở `220Ω` tới LED Đỏ; qua trở `1kΩ` kích Base Transistor `S8050` kéo `IR LED 940nm` (trở hạn dòng `100Ω` lên `5V`). |
-| **`D3`** | `GPIO0` | Kênh **Relay 1 — Máy bơm nước tưới cây (`garden_pump`)** | Qua trở `1kΩ` *(lưu ý không kéo xuống GND lúc khởi động để ESP8266 boot bình thường)* kích Transistor `S8050` + Diode `1N4007` + Relay 5V $\rightarrow$ Domino `KF301-2P` (Máy bơm). |
-| **`D4`** | `GPIO2` | Chân **`IN+`** của mạch khuếch đại **`PAM8403` + `Loa 8Ω 3W`** | Qua tụ ghép âm thanh `100nF` (hoặc trở `1kΩ`) vào ngõ vào `PAM8403` để phát âm thanh phản hồi/báo hiệu trực tiếp từ mạch. |
-| **`D5`** | `GPIO14` | Chân **`OUT`** của mắt thu hồng ngoại **`VS1838B (38kHz)`** | Điện trở kéo lên `10kΩ` lên `3.3V` + Tụ lọc nguồn `100nF` sát chân `VCC (3.3V)` của mắt thu. |
-| **`D6`** | `GPIO12` | Chân **`DATA`** của cảm biến **`DHT11`** *(hoặc Kênh Relay 2 — Quạt trần)* | Điện trở kéo lên (`Pull-up`) `4.7kΩ` nối lên `3.3V`. |
-| **`D7`** | `GPIO13` | **Đèn Phòng Ngủ (`LED Vàng/Trắng 5mm`)** | Nối tiếp qua điện trở hạn dòng `220Ω` xuống `GND`. |
-| **`D8`** | `GPIO15` | **Còi Báo Động (`Buzzer 5V Active`)** | Qua điện trở `1kΩ` vào cực Base Transistor `S8050` kích Còi `Buzzer 5V` *(tuyệt đối không dùng điện trở Pull-up trên chân D8 vì GPIO15 cần mức LOW khi boot)*. |
-| **`RX`** | `GPIO3` | Chân **`OUT`** của module Micro thu âm **`MAX9814` (hoặc `VC-02`)** | Cấp nguồn `3.3V` cho `MAX9814` kèm tụ lọc `100nF`; ngắt jumper chân `RX` khi nạp code qua cổng USB nếu cần. |
-| **`VIN (5V)`** | `5V Bus` | Đường nguồn công suất **`+5V_PWR`** từ Giắc `DC-005 (5V-2A)` qua Công tắc nguồn | Nuôi `Servo SG90`, cuộn hút `2 Relay 5V`, `Máy bơm nước 5V`, `Còi Buzzer 5V` và cấp ngược vào chân `VIN` của `NodeMCU`. |
-| **`3V3`** | `3.3V Bus` | Đường nguồn logic **`+3V3`** | Nuôi `DHT11`, mắt thu `VS1838B` và mạch so sánh `LM393 (YL-69)`. |
-| **`GND`** | `GND Plane` | **Phủ đồng toàn bộ mặt dưới/mặt trên (`GND Copper Pour`)** | Nối chung Mass (`GND`) của toàn bộ Nguồn 5V, ESP8266, Cảm biến và Chấp hành. |
+| **`D0`** | `GPIO16` | `living_room_light` (Đèn phòng khách) | `D0 -> Trở 220Ω–470Ω -> LED(+) -> LED(-) -> GND` (Active-HIGH, kiêm nháy `enroll_blink`). |
+| **`D1`** | `GPIO5` | `main_door` (Servo SG90 Cửa chính) | Dây tín hiệu (cam/vàng) vào `D1`; dây đỏ vào `+5V` (kèm tụ `470µF 16V` lọc nguồn); dây nâu vào `GND`. |
+| **`D2`** | `GPIO4` | `dht11` (Cảm biến Nhiệt độ & Độ ẩm) | `VCC -> 3V3`, `GND -> GND`, `DATA -> D2` (module xanh đã có sẵn điện trở kéo lên). |
+| **`D3`** | `GPIO0` | Ngõ ra âm thanh PWM tới `PAM8403` | `D3 -> Tụ chặn DC 100nF–1µF -> Trở 2.2kΩ -> [Nút Audio] -> Trở 1kΩ–2.2kΩ -> GND`; nối `[Nút Audio]` vào chân `L` và `GND` vào pad `⊥` của `PAM8403`. |
+| **`D4`** | `GPIO2` | `bedroom_light` (Đèn phòng ngủ) | **Đấu Active-LOW:** `3V3 -> Trở 220Ω–1kΩ -> LED(+) -> LED(-) -> D4` (khớp `BEDROOM_LED_ACTIVE_LOW = true`). |
+| **`D5`** | `GPIO14` | `ky037` (Cảm biến âm thanh `DO`) | Theo thứ tự chân trên PCB đỏ (`DO \| G \| + \| AO`): `+ -> 3V3`, `G -> GND`, `DO -> D5`, bỏ trống `AO`. |
+| **`D6`** | `GPIO12` | `garden_pump` (Relay 1 xanh + Bơm trắng) | `VCC -> 5V`, `GND -> GND`, `IN -> D6`; `COM -> +5V ngoài`, `NO -> Bơm(+)`, `Bơm(-) -> GND`; kẹp **`1N4007`** (vạch bạc về phía `Bơm(+)`) và tụ **`470µF 16V`** trên rail `5V`. |
+| **`D7`** | `GPIO13` | `speaker_amp` (Relay 2 đỏ opto -> `PAM8403`) | Đặt jumper vàng về **`H`**; `DC+ -> 5V`, `DC- -> GND`, `IN -> D7`; `COM -> +5V`, `NO -> chân 5V+ của PAM8403`; pad `5V-` của `PAM8403 -> GND`. |
+| **`D8`** | `GPIO15` | `alarm_siren` (Còi Buzzer 5V) | Đấu **Active-HIGH**: `D8 -> Buzzer(+)`, `Buzzer(-) -> GND` (hoặc qua NPN + trở `1kΩ–2.2kΩ` nếu dùng nguồn `5V` riêng). Tuyệt đối không gắn pull-up lên `3.3V`. |
+| **`A0`** | `ADC0` | `soil_moisture` (Độ ẩm đất + `LM393`) | Cấp nguồn **`LM393 VCC -> 3V3`**, `GND -> GND`, `AO -> A0` (bỏ trống `DO`). |
+| **`VIN / 3V3 / GND`** | `Power` | Nguồn hệ thống | Nguồn công suất `5V` vào `VIN` + Servo + 2 Relay + Bơm; `3V3` nuôi `DHT11`, `KY-037`, `LM393`, `D4 LED`; nối chung `GND` toàn mạch. |
 
+### Checklist An toàn Boot & Bảo vệ Điện tử (Bắt buộc kiểm tra trước khi cấp nguồn)
+
+- [ ] **`D3 (GPIO0)` tuyệt đối KHÔNG dùng tụ `470µF` nối tiếp làm tụ chặn DC:** Hằng số thời gian `(10kΩ + 2.2kΩ) × 470µF ≈ 5.7 giây` sẽ kéo `GPIO0` xuống `LOW` khi reset và làm ESP8266 kẹt ở chế độ nạp UART. Luôn dùng tụ nhỏ **`100nF–1µF`** trước cầu phân áp RC `2.2kΩ / 1kΩ–2.2kΩ`, và giữ `D3` ở trạng thái `INPUT` khi không phát âm.
+- [ ] **`PAM8403` ngõ ra loa là mạch cầu BTL (`L OUT + / -`):** Chỉ nối 2 dây loa tròn bạc vào `L OUT +` và `L OUT -`, **tuyệt đối không nối một đầu loa xuống `GND`** để tránh chập IC `PAM8403`.
+- [ ] **`D4 (GPIO2)` đấu Active-LOW khớp Firmware:** Dây `3.3V -> Trở -> LED(+) -> LED(-) -> D4` giúp `GPIO2` luôn được kéo lên `HIGH` khi boot và đèn ngủ tắt hoàn toàn khi mới bật nguồn (`BEDROOM_LED_ACTIVE_LOW = true`).
+- [ ] **`D8 (GPIO15)` giữ mức `LOW` khi boot:** Chỉ đấu tải xuống `GND` (Active-HIGH), không mắc bất kỳ điện trở kéo lên `3.3V` nào trên chân `D8`.
+- [ ] **`A0` & `D5` chỉ cấp `3.3V` cho `LM393` và `KY-037`:** Không cấp `5V` vào `LM393` hay `KY-037` vì ngõ ra `AO` / `DO` vượt `3.3V` sẽ gây sai số hoặc hỏng chân `A0` / `GPIO14` của ESP8266.
+- [ ] **Bảo vệ tải cảm ứng (Bơm & Servo):** Gắn đúng chiều **Diode `1N4007`** (vạch bạc nối về cực dương `+` của máy bơm) và đặt tụ **`470µF 16V`** sát đường nguồn `5V` cấp cho bơm và servo.
+- [ ] **Kiểm tra cực tính Relay 1 (`D6`) & Relay 2 (`D7`):** Trên Relay 2 đỏ opto, gạt jumper vàng sang **`H`** (kích mức `HIGH`). Với Relay 1 xanh dương (không có jumper lộ ngoài), test nhanh `5V/GND/IN` trước khi lắp tải; nếu module kích mức `LOW`, đổi `#define PUMP_RELAY_ACTIVE_LOW true` trong `esp8266_smarthome.ino`.

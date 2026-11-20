@@ -7,11 +7,11 @@ Kiểm chứng toàn diện:
 2. Multi-instance Serverless Integration Tests: Mô phỏng nhiều serverless instances độc lập (`instance_a`, `instance_b`,
    `instance_c`, và cold-start `_REST_ENGINE`) cùng chia sẻ `StateBackend`:
    - Kiểm chứng các kịch bản lỗi thực tế từ `p7_state.txt`:
-     + Chủ nhà Cấp 1 (`cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav`) -> `fan=ON`, `ac=ON` đọc từ instance khác khớp 100%.
+     + Chủ nhà Cấp 1 (`"bật đèn phòng ngủ và nguồn mạch loa"`) -> `bedroom_light=ON`, `speaker_amp=ON` đọc từ instance khác khớp 100%.
      + Thành viên Cấp 2 (`level2_bat_den_phong_khach.wav`) -> `living_room_light=ON` đọc từ instance khác khớp 100%.
      + Khách Cấp 3 (`level3_bat_den_phong_khach.wav`) -> `living_room_light=ON` đọc từ instance khác khớp 100%.
    - Chuỗi 24 chu kỳ liên tiếp (Command trên Instance X -> Đọc ngay lập tức trên Instance Y / Cold-Start Instance Z)
-     bật/tắt nhiều thiết bị (`main_door`, `living_room_light`, `bedroom_light`, `fan`, `ac`, `garden_pump`) qua cả
+     bật/tắt nhiều thiết bị (`main_door`, `living_room_light`, `bedroom_light`, `speaker_amp`, `garden_pump`) qua cả
      3 tầng phân quyền (L1/L2/L3) và cả 3 kênh (`/api/voice_command`, `/api/device`, `/api/text_command`).
 """
 
@@ -46,7 +46,7 @@ from simulator.engine.state_store import (
 from simulator.auth.session_store import UserSession, get_session_store
 from simulator.rule_engine import SmartHomeEngine
 from simulator.server import app
-from simulator.voice.session_voice_command import process_session_voice_command
+from simulator.voice.session_voice_command import process_session_voice_command, reset_session_echo_guards
 from simulator.voice.stt_pipeline import process_voice_command_pipeline
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -217,12 +217,13 @@ def isolated_shared_state_backend(tmp_path: pathlib.Path):
     eng.set_active_user("tuan_anh")
     eng.server_connected = True
     asyncio.run(eng.factory_reset())
-    for dev_id in ("living_room_light", "bedroom_light", "fan", "ac", "alarm_siren", "garden_pump"):
+    for dev_id in ("living_room_light", "bedroom_light", "alarm_siren", "garden_pump", "speaker_amp"):
         if dev_id in eng.devices:
             eng.devices[dev_id]["state"] = "OFF"
     if "main_door" in eng.devices:
         eng.devices["main_door"]["state"] = "CLOSED"
     eng.persist_to_shared_store()
+    reset_session_echo_guards()
 
     yield temp_backend
 
@@ -235,6 +236,7 @@ def isolated_shared_state_backend(tmp_path: pathlib.Path):
     eng.set_active_user("tuan_anh")
     eng.server_connected = True
     asyncio.run(eng.factory_reset())
+    reset_session_echo_guards()
 
 
 # ==============================================================================
@@ -246,20 +248,20 @@ def test_in_memory_state_backend_monotonic_revisions_and_isolation() -> None:
     assert backend.load_state() is None
 
     p1 = build_default_shared_state_payload()
-    p1["devices"]["fan"]["state"] = "ON"
+    p1["devices"]["living_room_light"]["state"] = "ON"
     s1 = backend.save_state(p1)
     assert s1["revision_seq"] == 1
     assert s1["revision_ts_ns"] > 0
 
     loaded1 = backend.load_state()
     assert loaded1 is not None
-    assert loaded1["devices"]["fan"]["state"] == "ON"
+    assert loaded1["devices"]["living_room_light"]["state"] == "ON"
     # Đảm bảo deep copy cô lập, sửa bản đọc ra không làm hỏng store
-    loaded1["devices"]["fan"]["state"] = "MUTATED_LOCALLY"
-    assert backend.load_state()["devices"]["fan"]["state"] == "ON"
+    loaded1["devices"]["living_room_light"]["state"] = "MUTATED_LOCALLY"
+    assert backend.load_state()["devices"]["living_room_light"]["state"] == "ON"
 
     p2 = copy.deepcopy(s1)
-    p2["devices"]["ac"]["state"] = "ON"
+    p2["devices"]["speaker_amp"]["state"] = "ON"
     s2 = backend.save_state(p2)
     assert s2["revision_seq"] == 2
     assert s2["revision_ts_ns"] > s1["revision_ts_ns"]
@@ -275,13 +277,13 @@ def test_file_state_backend_cross_instance_read_after_write(tmp_path: pathlib.Pa
 
     payload = build_default_shared_state_payload()
     payload["devices"]["living_room_light"]["state"] = "ON"
-    payload["devices"]["fan"]["state"] = "ON"
+    payload["devices"]["speaker_amp"]["state"] = "ON"
     writer.save_state(payload)
 
     loaded = reader.load_state()
     assert loaded is not None
     assert loaded["devices"]["living_room_light"]["state"] == "ON"
-    assert loaded["devices"]["fan"]["state"] == "ON"
+    assert loaded["devices"]["speaker_amp"]["state"] == "ON"
 
     payload["devices"]["living_room_light"]["state"] = "OFF"
     writer.save_state(payload)
@@ -300,11 +302,11 @@ def test_vercel_blob_state_backend_versioned_read_after_write_and_gc(monkeypatch
     instance_2 = VercelBlobStateBackend(token="vercel_blob_rw_mock_token", prefix="test_p7_prefix/")
 
     for i in range(1, 9):
-        expected_fan = "ON" if i % 2 == 1 else "OFF"
-        expected_ac = "ON" if i % 3 == 0 else "OFF"
+        expected_pump = "ON" if i % 2 == 1 else "OFF"
+        expected_spk = "ON" if i % 3 == 0 else "OFF"
         p = build_default_shared_state_payload()
-        p["devices"]["fan"]["state"] = expected_fan
-        p["devices"]["ac"]["state"] = expected_ac
+        p["devices"]["garden_pump"]["state"] = expected_pump
+        p["devices"]["speaker_amp"]["state"] = expected_spk
 
         writer = instance_1 if i % 2 == 1 else instance_2
         reader = instance_2 if i % 2 == 1 else instance_1
@@ -315,8 +317,8 @@ def test_vercel_blob_state_backend_versioned_read_after_write_and_gc(monkeypatch
         loaded = reader.load_state()
         assert loaded is not None
         assert loaded["revision_seq"] == i
-        assert loaded["devices"]["fan"]["state"] == expected_fan
-        assert loaded["devices"]["ac"]["state"] == expected_ac
+        assert loaded["devices"]["garden_pump"]["state"] == expected_pump
+        assert loaded["devices"]["speaker_amp"]["state"] == expected_spk
 
     # Kiểm tra cơ chế dọn rác (GC) tự động giữ số lượng blob nhỏ gọn
     assert fake_blob.delete_count >= 1
@@ -332,16 +334,16 @@ def test_tracked_device_dict_direct_mutation_and_deepcopy() -> None:
     eng_b = SmartHomeEngine(state_backend=backend)
 
     # Sửa trực tiếp trong RAM trên eng_a (như các fixture pytest cũ)
-    eng_a.devices["fan"]["state"] = "ON"
-    assert isinstance(eng_a.devices["fan"], TrackedDeviceDict)
+    eng_a.devices["speaker_amp"]["state"] = "ON"
+    assert isinstance(eng_a.devices["speaker_amp"], TrackedDeviceDict)
 
-    # eng_b đọc snapshot phải thấy ngay fan == ON
+    # eng_b đọc snapshot phải thấy ngay speaker_amp == ON
     snap_b = eng_b.get_snapshot()
-    assert _devices_map_from_snapshot(snap_b)["fan"] == "ON"
+    assert _devices_map_from_snapshot(snap_b)["speaker_amp"] == "ON"
 
     # Kiểm tra copy.deepcopy không gây đệ quy vô hạn
     cloned = copy.deepcopy(eng_a.devices)
-    assert cloned["fan"]["state"] == "ON"
+    assert cloned["speaker_amp"]["state"] == "ON"
 
 
 def test_multi_target_comma_expansion_atomic_persistence() -> None:
@@ -349,12 +351,12 @@ def test_multi_target_comma_expansion_atomic_persistence() -> None:
     eng_a = SmartHomeEngine(state_backend=backend)
     eng_b = SmartHomeEngine(state_backend=backend)
 
-    res = asyncio.run(eng_a.execute_device_action("fan,ac", "turn_on", source="test_comma"))
+    res = asyncio.run(eng_a.execute_device_action("living_room_light,speaker_amp", "turn_on", source="test_comma"))
     assert res["ok"] is True
     snap_b = eng_b.get_snapshot()
     dev_map = _devices_map_from_snapshot(snap_b)
-    assert dev_map["fan"] == "ON"
-    assert dev_map["ac"] == "ON"
+    assert dev_map["living_room_light"] == "ON"
+    assert dev_map["speaker_amp"] == "ON"
 
 
 def test_create_state_backend_from_env_and_telemetry_reset_persistence(
@@ -408,7 +410,7 @@ def test_create_state_backend_from_env_and_telemetry_reset_persistence(
 
 def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     """Kiểm tra chính xác 3 kịch bản lỗi được báo cáo trong p7_state.txt giữa các instance serverless độc lập:
-    1. Chủ nhà Cấp 1: cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav -> fan=ON, ac=ON trên instance đọc mới.
+    1. Chủ nhà Cấp 1: bật đèn phòng ngủ và nguồn mạch loa -> bedroom_light=ON, speaker_amp=ON trên instance đọc mới.
     2. Thành viên Cấp 2: level2_bat_den_phong_khach.wav -> living_room_light=ON trên instance đọc mới.
     3. Khách Cấp 3: level3_bat_den_phong_khach.wav -> living_room_light=ON trên instance đọc mới.
     """
@@ -418,13 +420,13 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     instance_cmd_3 = SmartHomeEngine(state_backend=shared_backend)
     instance_reader = SmartHomeEngine(state_backend=shared_backend)
 
-    # 1. Owner cau_5: Bật quạt trần và điều hòa trên instance_cmd_1 -> xác nhận "ok" -> Đọc trên instance_reader
+    # 1. Owner: Bật đèn phòng ngủ và nguồn mạch loa trên instance_cmd_1 -> xác nhận "ok" -> Đọc trên instance_reader
     sess_l1 = _session_for(level=1)
     res_cau5, status_cau5 = asyncio.run(
         process_session_voice_command(
             engine=instance_cmd_1,
             session=sess_l1,
-            payload={"wav_b64": _wav_b64(SEP_DIR / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav")},
+            payload={"transcript": "bật đèn phòng ngủ và nguồn mạch loa"},
         )
     )
     assert status_cau5 == 200
@@ -440,8 +442,8 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     )
     assert status_cau5_ok == 200 and res_cau5_ok["ok"] is True
     state_after_cau5 = _devices_map_from_snapshot(instance_reader.get_snapshot())
-    assert state_after_cau5["fan"] == "ON"
-    assert state_after_cau5["ac"] == "ON"
+    assert state_after_cau5["bedroom_light"] == "ON"
+    assert state_after_cau5["speaker_amp"] == "ON"
 
     # Reset đèn phòng khách về OFF trên instance_cmd_1
     asyncio.run(instance_cmd_1.execute_device_action("living_room_light", "turn_off"))
@@ -470,9 +472,9 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert status_l2_ok == 200 and res_l2_ok["ok"] is True
     state_after_l2 = _devices_map_from_snapshot(instance_reader.get_snapshot())
     assert state_after_l2["living_room_light"] == "ON"
-    # Và trạng thái fan, ac từ lệnh trước trên instance_cmd_1 vẫn phải được bảo toàn!
-    assert state_after_l2["fan"] == "ON"
-    assert state_after_l2["ac"] == "ON"
+    # Và trạng thái bedroom_light, speaker_amp từ lệnh trước trên instance_cmd_1 vẫn phải được bảo toàn!
+    assert state_after_l2["bedroom_light"] == "ON"
+    assert state_after_l2["speaker_amp"] == "ON"
 
     # Tắt đèn phòng khách từ instance_reader
     asyncio.run(instance_reader.execute_device_action("living_room_light", "turn_off"))
@@ -503,8 +505,8 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     cold_start_instance = SmartHomeEngine(state_backend=shared_backend)
     state_after_l3 = _devices_map_from_snapshot(cold_start_instance.get_snapshot())
     assert state_after_l3["living_room_light"] == "ON"
-    assert state_after_l3["fan"] == "ON"
-    assert state_after_l3["ac"] == "ON"
+    assert state_after_l3["bedroom_light"] == "ON"
+    assert state_after_l3["speaker_amp"] == "ON"
 
 
 def test_24_sequential_command_and_read_cycles_across_serverless_instances(
@@ -533,7 +535,7 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
 
     # Khởi tạo trạng thái ban đầu tất cả OFF / CLOSED
     init_eng = _swap_to_fresh_serverless_instance()
-    for d in ("living_room_light", "bedroom_light", "fan", "ac", "alarm_siren", "garden_pump"):
+    for d in ("living_room_light", "bedroom_light", "alarm_siren", "garden_pump", "speaker_amp"):
         init_eng.devices[d]["state"] = "OFF"
     init_eng.devices["main_door"]["state"] = "CLOSED"
     init_eng.persist_to_shared_store()
@@ -547,12 +549,12 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
         {"type": "voice", "wav": SEP_DIR / "cau_4_bat_den_phong_khach.wav", "level": 1, "expect": {"living_room_light": "ON"}},
         # Cycle 4: L1 Voice tắt hết đèn
         {"type": "voice", "wav": SEP_DIR / "cau_6_tat_het_den.wav", "level": 1, "expect": {"living_room_light": "OFF", "bedroom_light": "OFF"}},
-        # Cycle 5: L1 Voice bật quạt trần và điều hòa (cau_5)
-        {"type": "voice", "wav": SEP_DIR / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav", "level": 1, "expect": {"fan": "ON", "ac": "ON"}},
-        # Cycle 6: L2 Voice tắt quạt
-        {"type": "voice", "wav": ROLE_DIR / "level2_tat_quat.wav", "level": 2, "expect": {"fan": "OFF", "ac": "ON"}},
+        # Cycle 5: L1 Voice bật đèn phòng ngủ và nguồn mạch loa
+        {"type": "voice", "transcript": "bật đèn phòng ngủ và nguồn mạch loa", "level": 1, "expect": {"bedroom_light": "ON", "speaker_amp": "ON"}},
+        # Cycle 6: L2 Voice tắt đèn phòng ngủ
+        {"type": "voice", "transcript": "tắt đèn phòng ngủ", "level": 2, "expect": {"bedroom_light": "OFF", "speaker_amp": "ON"}},
         # Cycle 7: L2 Voice bật đèn phòng khách
-        {"type": "voice", "wav": ROLE_DIR / "level2_bat_den_phong_khach.wav", "level": 2, "expect": {"living_room_light": "ON", "fan": "OFF", "ac": "ON"}},
+        {"type": "voice", "wav": ROLE_DIR / "level2_bat_den_phong_khach.wav", "level": 2, "expect": {"living_room_light": "ON", "bedroom_light": "OFF", "speaker_amp": "ON"}},
         # Cycle 8: L2 Voice cố mở cửa chính -> RBAC DENIED, cửa vẫn CLOSED
         {"type": "voice_denied", "wav": ROLE_DIR / "level2_mo_cua_chinh.wav", "level": 2, "expect": {"main_door": "CLOSED", "living_room_light": "ON"}},
         # Cycle 9: L1 Voice tắt hết đèn
@@ -561,12 +563,12 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
         {"type": "voice", "wav": ROLE_DIR / "level3_bat_den_phong_khach.wav", "level": 3, "expect": {"living_room_light": "ON"}},
         # Cycle 11: L3 Voice cố mở cửa chính -> RBAC DENIED, cửa vẫn CLOSED
         {"type": "voice_denied", "wav": ROLE_DIR / "level3_mo_cua_chinh.wav", "level": 3, "expect": {"main_door": "CLOSED", "living_room_light": "ON"}},
-        # Cycle 12: L1 Voice bật quạt trần và điều hòa
-        {"type": "voice", "wav": SEP_DIR / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav", "level": 1, "expect": {"fan": "ON", "ac": "ON"}},
-        # Cycle 13: L3 Voice tắt quạt
-        {"type": "voice", "wav": ROLE_DIR / "level3_tat_quat.wav", "level": 3, "expect": {"fan": "OFF", "ac": "ON"}},
-        # Cycle 14: REST text_command tắt điều hòa (Owner L1)
-        {"type": "text", "text": "Tắt điều hòa", "role": "tuan_anh", "expect": {"ac": "OFF", "fan": "OFF"}},
+        # Cycle 12: L1 Voice bật đèn phòng ngủ và nguồn mạch loa (giả lập lượt nói mới sau khoảng lặng echo)
+        {"type": "voice", "transcript": "bật đèn phòng ngủ và nguồn mạch loa", "level": 1, "reset_echo": True, "expect": {"bedroom_light": "ON", "speaker_amp": "ON"}},
+        # Cycle 13: L3 Voice tắt đèn phòng ngủ
+        {"type": "voice", "transcript": "tắt đèn phòng ngủ", "level": 3, "expect": {"bedroom_light": "OFF", "speaker_amp": "ON"}},
+        # Cycle 14: REST text_command tắt nguồn mạch loa (Owner L1)
+        {"type": "text", "text": "Tắt nguồn mạch loa", "role": "tuan_anh", "expect": {"speaker_amp": "OFF", "bedroom_light": "OFF"}},
         # Cycle 15: REST text_command bật đèn phòng ngủ (Member L2)
         {"type": "text", "text": "Bật đèn phòng ngủ", "role": "thanh_vien_a", "expect": {"bedroom_light": "ON"}},
         # Cycle 16: REST text_command tắt đèn phòng ngủ (Guest L3)
@@ -589,15 +591,19 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
         {"type": "voice", "wav": ROLE_DIR / "level3_bat_den_phong_khach.wav", "level": 3, "expect": {"living_room_light": "ON"}},
     ]
 
+    reset_session_echo_guards()
     for idx, c in enumerate(cycles, 1):
         # Mỗi lệnh chạy trên 1 serverless instance hoàn toàn mới
         cmd_eng = _swap_to_fresh_serverless_instance()
 
         if c["type"] in ("voice", "voice_denied"):
+            if c.get("reset_echo"):
+                reset_session_echo_guards()
             hdrs_v = _headers_for(level=c["level"])
+            payload_v = {"transcript": c["transcript"]} if "transcript" in c else {"wav_b64": _wav_b64(c["wav"])}
             resp = client.post(
                 "/api/voice_command",
-                json={"wav_b64": _wav_b64(c["wav"])},
+                json=payload_v,
                 headers=hdrs_v,
             )
             body = resp.json()
@@ -682,46 +688,46 @@ def test_vercel_blob_save_state_graceful_degradation_on_403_store_suspended(
 
     p1 = build_default_shared_state_payload()
     p1["devices"]["main_door"]["state"] = "CLOSED"
-    p1["devices"]["fan"]["state"] = "ON"
-    p1["devices"]["ac"]["state"] = "ON"
+    p1["devices"]["speaker_amp"]["state"] = "ON"
+    p1["devices"]["garden_pump"]["state"] = "ON"
 
     # save_state() tuyệt đối không ném ngoại lệ dù server blob bị đình chỉ 403
     saved = backend.save_state(p1)
     assert saved is not None
     assert saved["revision_seq"] == 1
     assert saved["revision_ts_ns"] > 0
-    assert saved["devices"]["fan"]["state"] == "ON"
-    assert saved["devices"]["ac"]["state"] == "ON"
+    assert saved["devices"]["speaker_amp"]["state"] == "ON"
+    assert saved["devices"]["garden_pump"]["state"] == "ON"
 
     # Khẳng định header x-vercel-blob-access: public được gửi đi
     assert fake_blob.last_put_headers.get("x-vercel-blob-access") == "public"
 
     # Khẳng định RAM cache được cập nhật
     assert backend._cached_state is not None
-    assert backend._cached_state["devices"]["fan"]["state"] == "ON"
+    assert backend._cached_state["devices"]["speaker_amp"]["state"] == "ON"
     assert backend._last_seq == 1
 
     # Khẳng định file fallback được ghi đúng đĩa
     assert fallback_file.exists()
     fb_data = backend.fallback_backend.load_state()
     assert fb_data is not None
-    assert fb_data["devices"]["fan"]["state"] == "ON"
-    assert fb_data["devices"]["ac"]["state"] == "ON"
+    assert fb_data["devices"]["speaker_amp"]["state"] == "ON"
+    assert fb_data["devices"]["garden_pump"]["state"] == "ON"
 
     # Khẳng định load_state() trả về đúng trạng thái vừa lưu
     loaded = backend.load_state()
     assert loaded is not None
-    assert loaded["devices"]["fan"]["state"] == "ON"
-    assert loaded["devices"]["ac"]["state"] == "ON"
+    assert loaded["devices"]["speaker_amp"]["state"] == "ON"
+    assert loaded["devices"]["garden_pump"]["state"] == "ON"
     assert loaded["devices"]["main_door"]["state"] == "CLOSED"
 
     # Thao tác lưu lần 2: tăng seq tuần tự
     p2 = copy.deepcopy(saved)
-    p2["devices"]["fan"]["state"] = "OFF"
+    p2["devices"]["speaker_amp"]["state"] = "OFF"
     saved2 = backend.save_state(p2)
     assert saved2["revision_seq"] == 2
     assert backend._last_seq == 2
-    assert backend.load_state()["devices"]["fan"]["state"] == "OFF"
+    assert backend.load_state()["devices"]["speaker_amp"]["state"] == "OFF"
 
 
 def test_rule_engine_state_transaction_resilient_to_backend_crash() -> None:
@@ -751,17 +757,17 @@ def test_rule_engine_state_transaction_resilient_to_backend_crash() -> None:
 
     # Thao tác trong state_transaction: không bị crash
     with engine.state_transaction():
-        engine.devices["fan"]["state"] = "ON"
-        engine.devices["ac"]["state"] = "ON"
+        engine.devices["speaker_amp"]["state"] = "ON"
+        engine.devices["garden_pump"]["state"] = "ON"
 
     # Trạng thái trong RAM vẫn được bảo toàn
-    assert engine.devices["fan"]["state"] == "ON"
-    assert engine.devices["ac"]["state"] == "ON"
+    assert engine.devices["speaker_amp"]["state"] == "ON"
+    assert engine.devices["garden_pump"]["state"] == "ON"
 
     # Gọi trực tiếp persist_to_shared_store cũng không crash, trả về payload
     result = engine.persist_to_shared_store()
     assert isinstance(result, dict)
-    assert result["devices"]["fan"]["state"] == "ON"
+    assert result["devices"]["speaker_amp"]["state"] == "ON"
 
 
 def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
@@ -799,7 +805,7 @@ def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
 
     # Ban đầu mở cửa chính
     test_engine.devices["main_door"]["state"] = "OPEN"
-    test_engine.devices["fan"]["state"] = "OFF"
+    test_engine.devices["speaker_amp"]["state"] = "OFF"
     test_engine.persist_to_shared_store()
 
     client = TestClient(app)

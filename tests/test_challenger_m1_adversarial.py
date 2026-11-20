@@ -22,7 +22,7 @@ Mục tiêu kiểm định đối kháng thực nghiệm:
    - Quét tấn công giả mạo cao độ (Pitch-Shift Spoofing Attack) của Người lạ từ factor 0.70 đến 1.30.
    - Thử nghiệm điểm biên F0 = 190.6Hz (factor 1.25) khai thác điều kiện `owner_pitch_match (neural_sim >= 0.91 & f0_diff <= 30.5Hz)`.
    - Khách Cấp 3 biến thiên âm học nhẹ (factor 0.90 -> 1.10) kiểm tra khả năng nhảy cấp lên C1.
-   - Kiểm tra ma trận phân quyền phần cứng RBAC (Cửa chính, Còi báo động, Điều hòa, Đèn, Quạt).
+   - Kiểm tra ma trận phân quyền phần cứng RBAC (Cửa chính, Còi báo động, Máy bơm, Nguồn loa PAM8403, Đèn).
    - Khách Cấp 3 đã hết hạn (expires_at < now) dù đổi cao độ vẫn bị chặn 100%.
 """
 
@@ -443,14 +443,14 @@ class TestAntiPrivilegeEscalationVerification:
             assert engine.current_tier == 2
             assert (await engine.execute_device_action("main_door", "open")).get("ok") is False
             assert (await engine.execute_device_action("alarm_siren", "turn_on")).get("ok") is False
-            assert (await engine.execute_device_action("fan", "turn_on")).get("ok") is True
+            assert (await engine.execute_device_action("speaker_amp", "turn_on")).get("ok") is True
 
-            # 3. Cấp 3: Bị chặn Cửa chính, Còi báo động, Điều hòa
+            # 3. Cấp 3: Bị chặn Cửa chính, Còi báo động, Nguồn mạch loa
             engine.set_active_user("khach_c")
             assert engine.current_tier == 3
             assert (await engine.execute_device_action("main_door", "open")).get("ok") is False
             assert (await engine.execute_device_action("alarm_siren", "turn_on")).get("ok") is False
-            assert (await engine.execute_device_action("ac", "turn_on")).get("ok") is False
+            assert (await engine.execute_device_action("speaker_amp", "turn_on")).get("ok") is False
             assert (await engine.execute_device_action("living_room_light", "turn_on")).get("ok") is True
 
         asyncio.run(_run())

@@ -125,7 +125,7 @@ def resolve_level1_owner_audio_path(
     sep_dir = ROOT / "test_audio" / "cac_cau_lenh_cua_sep"
     mapping = {
         "bat_den_phong_khach": sep_dir / "cau_4_bat_den_phong_khach.wav",
-        "tat_quat": sep_dir / "cau_5_bat_quat_tran_va_dieu_hoa_phong_ngu.wav",
+        "tat_den_phong_khach": sep_dir / "cau_6_tat_het_den.wav",
         "mo_cua_chinh": sep_dir / "cau_2_mo_cua_chinh.wav",
         "tat_het_den": sep_dir / "cau_6_tat_het_den.wav",
         "dong_het_cua": sep_dir / "cau_7_dong_het_cua.wav",
@@ -218,7 +218,7 @@ def infer_command_from_acoustic_envelope(pcm16: np.ndarray, sr: int = 16000) -> 
         return "mở cửa chính"
     if dur <= 2.55:
         return "bật đèn phòng khách"
-    return "tắt quạt"
+    return "tắt đèn phòng khách"
 
 
 async def process_voice_command_pipeline(

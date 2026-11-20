@@ -200,8 +200,8 @@
         minute: "2-digit",
         hour12: true,
       }).format(plus1Min);
-      btnScheduleVnTime.setAttribute("data-cmd", `Hẹn đúng ${hmAmPm} bật quạt trần nhé`);
-      btnScheduleVnTime.textContent = `Hẹn ${hmAmPm} bật quạt`;
+      btnScheduleVnTime.setAttribute("data-cmd", `Hẹn đúng ${hmAmPm} bật đèn phòng khách nhé`);
+      btnScheduleVnTime.textContent = `Hẹn ${hmAmPm} bật đèn`;
     }
   }
   setInterval(updateVnClock, 1000);
@@ -841,11 +841,10 @@
     if (dev.type === "door") return isOn ? "Đã mở" : "Đã khóa";
     const roomMap = {
       living_room_light: "Phòng khách",
-      fan: "Phòng khách",
-      ac: "Phòng ngủ",
       bedroom_light: "Phòng ngủ",
       garden_pump: "Sân vườn",
       alarm_siren: "Toàn nhà",
+      speaker_amp: "Phòng khách (D7/D3)",
     };
     const room = roomMap[dev.id] || "";
     const st = isOn ? "Đã bật" : "Đã tắt";
@@ -997,8 +996,7 @@
       let iconId = "i-lamp";
       if (dev.type === "door") iconId = "i-door";
       else if (dev.type === "light") iconId = "i-lamp";
-      else if (dev.type === "fan") iconId = "i-fan";
-      else if (dev.type === "ac") iconId = "i-snow";
+      else if (dev.type === "speaker" || dev.id === "speaker_amp") iconId = "i-speaker";
       else if (dev.type === "siren") iconId = "i-bell";
       else if (dev.type === "pump") iconId = "i-drop";
 
@@ -1172,10 +1170,9 @@
     main_door: "Cửa chính",
     living_room_light: "Đèn phòng khách",
     bedroom_light: "Đèn phòng ngủ",
-    fan: "Quạt trần",
-    ac: "Điều hòa",
     garden_pump: "Máy bơm tưới cây",
     alarm_siren: "Còi báo động",
+    speaker_amp: "Nguồn mạch loa PAM8403",
   };
   const AUTO_ACT_LABELS = {
     turn_on: "Bật",
@@ -1194,7 +1191,7 @@
     }
     fb.hidden = false;
     fb.textContent = String(msg);
-    fb.style.color = isErr ? "#c62828" : "#1565c0";
+    fb.style.color = isErr ? "var(--red)" : "var(--accent)";
   }
 
   function clearDesktopAutoConfirmBar() {
@@ -1459,6 +1456,11 @@
       }
       const soil = snap.mqtt.soil_moisture_telemetry || {};
       const dht = snap.mqtt.dht11_telemetry || {};
+      const sound =
+        snap.mqtt.sound_telemetry ||
+        snap.mqtt.ky037_telemetry ||
+        (snap.sensors && snap.sensors.sound) ||
+        {};
 
       const tempLabel = document.getElementById("sensorTempVal") || document.getElementById("sensorTempLabel") || document.getElementById("sensorDhtVal");
       if (tempLabel && dht.temp_c !== undefined) {
@@ -1478,7 +1480,31 @@
       if (soilLabel && soil.soil_moisture_pct !== undefined) {
         const rawS = Number(soil.soil_moisture_pct);
         const safeS = Number.isFinite(rawS) ? Math.max(0, Math.min(100, rawS)) : 62;
-        soilLabel.textContent = Math.round(safeS) + "%";
+        soilLabel.textContent = (Math.round(safeS * 10) / 10) + "%";
+      }
+      const soilSub = document.getElementById("sensorSoilSub");
+      if (soilSub && soil.soil_moisture_pct !== undefined) {
+        const rawS = Number(soil.soil_moisture_pct);
+        const safeS = Number.isFinite(rawS) ? Math.max(0, Math.min(100, rawS)) : 62;
+        const stLabel = soil.status_label || (safeS < 40 ? "Khô - Cần tưới" : (safeS >= 70 ? "Ẩm ướt" : "Đủ ẩm"));
+        soilSub.textContent = `${stLabel} · Bơm <40% · Tắt ≥70%`;
+      }
+
+      const soundVal = document.getElementById("sensorSoundVal");
+      const soundSub = document.getElementById("sensorSoundSub");
+      const soundCard = document.getElementById("sensorSoundCard");
+      const isLoud = Boolean(
+        sound.sound_detected || sound.detected || sound.loud_sound || Number(sound.do_state) === 1
+      );
+      if (soundVal) {
+        soundVal.textContent = isLoud ? "Có tiếng động!" : "Yên tĩnh";
+      }
+      if (soundCard && soundCard.classList) {
+        soundCard.classList.toggle("is-alert", isLoud);
+      }
+      if (soundSub) {
+        const evCount = Number(sound.event_count || 0);
+        soundSub.textContent = `DO D5 (GPIO 14) · ${Number.isFinite(evCount) ? evCount : 0} sự kiện`;
       }
     }
 
@@ -3506,12 +3532,16 @@
 
   function unmountOwnerDashboardDom() {
     try {
-      const tEl = byId("tempVal");
+      const tEl = byId("sensorTempVal") || byId("tempVal");
       if (tEl) tEl.textContent = "--°C";
-      const hEl = byId("humVal");
+      const hEl = byId("sensorHumVal") || byId("humVal");
       if (hEl) hEl.textContent = "--%";
-      const sEl = byId("soilVal");
+      const sEl = byId("sensorSoilVal") || byId("soilVal");
       if (sEl) sEl.textContent = "--%";
+      const sndEl = byId("sensorSoundVal");
+      if (sndEl) sndEl.textContent = "Yên tĩnh";
+      const sndCard = byId("sensorSoundCard");
+      if (sndCard && sndCard.classList) sndCard.classList.remove("is-alert");
       if (devicesGrid && devicesGrid !== noopEl) devicesGrid.innerHTML = "";
       latestDevicesMap = {};
       detachNavElement(

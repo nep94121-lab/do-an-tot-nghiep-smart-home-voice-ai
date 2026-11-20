@@ -156,13 +156,13 @@ class AuthInviteGmailMixin:
             role_str = "MEMBER" if tier_int == 2 else "CHILD_GUEST"
             tier_permissions = (
                 [
-                    "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
+                    "Bật/Tắt Đèn khách (D0), Đèn ngủ (D4), Máy bơm (D6), Nguồn loa PAM8403 (D7)",
                     "Không có quyền thêm thành viên hoặc gửi link mời",
                     "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
                 ]
                 if tier_int == 2
                 else [
-                    "Chỉ bật/tắt đèn & quạt cơ bản",
+                    "Chỉ bật/tắt đèn phòng khách & đèn phòng ngủ",
                     "Không có quyền thêm thành viên",
                 ]
             )
@@ -1293,13 +1293,13 @@ class AuthInviteGmailMixin:
                 },
                 "permissions": (
                     [
-                        "Bật/Tắt Đèn, Quạt, Máy bơm, Điều hòa",
+                        "Bật/Tắt Đèn khách (D0), Đèn ngủ (D4), Máy bơm (D6), Nguồn loa PAM8403 (D7)",
                         "Không có quyền thêm thành viên hoặc gửi link mời",
                         "Bị chặn Mở Cửa chính (D1) & Còi báo động (D8)",
                     ]
                     if target_tier == 2
                     else [
-                        "Chỉ bật/tắt đèn & quạt cơ bản",
+                        "Chỉ bật/tắt đèn phòng khách & đèn phòng ngủ",
                         "Không có phần gửi link mời cấp dưới",
                     ]
                 ),

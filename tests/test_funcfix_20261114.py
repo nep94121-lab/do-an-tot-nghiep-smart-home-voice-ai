@@ -351,22 +351,21 @@ class TestF1GeminiLiveAoedeAudio:
 
 
 # ==============================================================================
-# F2: SINGLE SOURCE OF TRUTH — VOICE COMMAND THEN TOGGLE OFF IMMEDIATELY (ALL 7)
+# F2: SINGLE SOURCE OF TRUTH — VOICE COMMAND THEN TOGGLE OFF IMMEDIATELY (ALL 6)
 # ==============================================================================
 
 
-class TestF2All7DevicesVoiceThenToggle:
+class TestF2All6DevicesVoiceThenToggle:
     ALL_DEVICES = (
         ("main_door", "Mở cửa chính", "OPEN", "CLOSED"),
         ("living_room_light", "Bật đèn phòng khách", "ON", "OFF"),
         ("bedroom_light", "Bật đèn phòng ngủ", "ON", "OFF"),
-        ("fan", "Bật quạt trần", "ON", "OFF"),
-        ("ac", "Bật điều hòa", "ON", "OFF"),
-        ("alarm_siren", "Bật còi báo động", "ON", "OFF"),
         ("garden_pump", "Bật máy bơm tưới cây", "ON", "OFF"),
+        ("alarm_siren", "Bật còi báo động", "ON", "OFF"),
+        ("speaker_amp", "Bật nguồn mạch loa", "ON", "OFF"),
     )
 
-    def test_f2_all_7_devices_voice_on_then_web_toggle_off(
+    def test_f2_all_6_devices_voice_on_then_web_toggle_off(
         self, live_funcfix_server: dict[str, str]
     ) -> None:
         async def _run() -> None:
@@ -451,7 +450,7 @@ class TestF3TwoWaySyncWebAndMobileApp:
 
             base_url = live_funcfix_server["base_url"]
             token = live_funcfix_server["owner_token"]
-            for dev_id, off_st in (("living_room_light", "OFF"), ("fan", "OFF"), ("main_door", "CLOSED")):
+            for dev_id, off_st in (("living_room_light", "OFF"), ("speaker_amp", "OFF"), ("main_door", "CLOSED")):
                 _http_post_json(
                     base_url,
                     "/api/device",
@@ -488,7 +487,7 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 await page_web.wait_for_selector("#dev-card-living_room_light", timeout=15000)
                 await page_app.wait_for_selector("#mobileNavTabDevices", timeout=15000)
                 await page_app.click("#mobileNavTabDevices")
-                await page_app.wait_for_selector('#devGrid [data-device-id="fan"]', timeout=15000)
+                await page_app.wait_for_selector('#devGrid [data-device-id="speaker_amp"]', timeout=15000)
                 await page_app.wait_for_selector('#devGrid [data-device-id="garden_pump"]', state="attached", timeout=15000)
 
                 page_web.on("load", _on_web_load)
@@ -498,7 +497,7 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 mob_html_text = await page_app.evaluate(
                     "() => (document.getElementById('tabViewHome')?.innerText || '') + '\\n' + (document.getElementById('tabViewDevices')?.textContent || '')"
                 )
-                assert "Quạt trần" in mob_html_text
+                assert "Nguồn mạch loa PAM8403" in mob_html_text
                 assert "Máy bơm tưới cây" in mob_html_text
                 assert "Toàn nhà" in mob_html_text
 
@@ -511,8 +510,8 @@ class TestF3TwoWaySyncWebAndMobileApp:
                 )
 
                 # 2) /app -> Web
-                await page_app.click('#devGrid [data-device-id="fan"]')
-                await page_web.wait_for_selector('#dev-card-fan[data-state="on"]', timeout=5000)
+                await page_app.click('#devGrid [data-device-id="speaker_amp"]')
+                await page_web.wait_for_selector('#dev-card-speaker_amp[data-state="on"]', timeout=5000)
 
                 # 3) Voice API -> Both Web & /app (requires confirmation then "ok")
                 st_code, vc = _http_post_json(

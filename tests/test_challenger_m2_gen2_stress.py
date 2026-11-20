@@ -86,15 +86,14 @@ class Test3DOverlayClampingAndRepulsionNarrowScreens:
         const halfH = chipH * 0.5;
         const pad = 6;
 
-        // Kịch bản đối kháng 1: 7 chip cùng chiếu vào tâm màn hình
+        // Kịch bản đối kháng 1: 6 chip cùng chiếu vào tâm màn hình
         const clusteredPins = [
             {{ id: 'main_door', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
             {{ id: 'living_room_light', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
-            {{ id: 'fan', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
-            {{ id: 'ac', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
             {{ id: 'bedroom_light', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
             {{ id: 'alarm_siren', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
             {{ id: 'garden_pump', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
+            {{ id: 'speaker_amp', x: w * 0.5, y: h * 0.5, hw: halfW, hh: halfH }},
         ];
 
         // Áp dụng thuật toán 3 chu kỳ relaxation từ house3d.js

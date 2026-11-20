@@ -2,7 +2,7 @@
 
 Author: teamwork_challenger (Challenger 2)
 Focus:
-- R2: /wokwi Breadboard and VS1838B Label Layout (bounding box measurements across viewports, no truncation, no collisions, >20px separation)
+- R2: /wokwi Breadboard and KY-037 Label Layout (bounding box measurements across viewports, no truncation, no collisions, >20px separation)
 - R3: Password Reset OTP Delivery & Error Handling (HTTP 503/400 on missing secrets, zero leaked OTPs, generic wrong OTP error, UI never fakes delivery)
 """
 from __future__ import annotations
@@ -78,7 +78,7 @@ def _recursively_find_strings(data: Any) -> list[str]:
 
 
 # ==============================================================================
-# SECTION 1: BUG R2 - /wokwi BREADBOARD & VS1838B LABEL LAYOUT EMPIRICAL TESTS
+# SECTION 1: BUG R2 - /wokwi BREADBOARD & KY-037 LABEL LAYOUT EMPIRICAL TESTS
 # ==============================================================================
 
 class TestChallengerR2WokwiEmpirical:
@@ -248,8 +248,8 @@ class TestChallengerR2WokwiEmpirical:
             browser.close()
             pw.stop()
 
-    def test_r2_vs1838b_separation_from_dht11_exceeds_20px(self, live_server_url: str):
-        """3. Verify that Mắt thu VS1838B (Chân D5) does NOT overlap with DHT11 (clear separation > 20px)."""
+    def test_r2_ky037_separation_from_dht11_exceeds_20px(self, live_server_url: str):
+        """3. Verify that Cảm biến âm thanh KY-037 (Chân D5) does NOT overlap with DHT11 (clear separation > 20px)."""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
@@ -269,41 +269,41 @@ class TestChallengerR2WokwiEmpirical:
 
             pair_info = page.evaluate("""() => {
                 const tags = Array.from(document.querySelectorAll('.comp-tag'));
-                const vs = tags.find(el => el.innerText.includes('VS1838B'));
+                const ky = tags.find(el => el.innerText.includes('KY-037') && el.innerText.includes('D5)'));
                 const dht = tags.find(el => el.innerText.includes('DHT11'));
-                if (!vs || !dht) return null;
-                const r_vs = vs.getBoundingClientRect();
+                if (!ky || !dht) return null;
+                const r_ky = ky.getBoundingClientRect();
                 const r_dht = dht.getBoundingClientRect();
                 return {
-                    vsText: vs.innerText,
+                    kyText: ky.innerText,
                     dhtText: dht.innerText,
-                    r_vs: { left: r_vs.left, right: r_vs.right, top: r_vs.top, bottom: r_vs.bottom, width: r_vs.width },
+                    r_ky: { left: r_ky.left, right: r_ky.right, top: r_ky.top, bottom: r_ky.bottom, width: r_ky.width },
                     r_dht: { left: r_dht.left, right: r_dht.right, top: r_dht.top, bottom: r_dht.bottom, width: r_dht.width }
                 };
             }""")
 
-            assert pair_info is not None, "Tags VS1838B or DHT11 missing"
-            r_vs = pair_info["r_vs"]
+            assert pair_info is not None, "Tags KY-037 or DHT11 missing"
+            r_ky = pair_info["r_ky"]
             r_dht = pair_info["r_dht"]
 
-            # Text check: 'D5)' must be present in VS1838B text
-            assert "D5)" in pair_info["vsText"], f"VS1838B tag text missing 'D5)': {pair_info['vsText']}"
+            # Text check: 'D5)' must be present in KY-037 text
+            assert "D5)" in pair_info["kyText"], f"KY-037 tag text missing 'D5)': {pair_info['kyText']}"
 
             # Calculate clear separation
-            horiz_separation = r_dht["left"] - r_vs["right"]
-            vert_separation = abs(r_dht["top"] - r_vs["top"])
+            horiz_separation = r_dht["left"] - r_ky["right"]
+            vert_separation = abs(r_dht["top"] - r_ky["top"])
 
             assert horiz_separation >= 20.0 or vert_separation >= 20.0, (
-                f"LỖI R2: Khoảng cách giữa VS1838B và DHT11 ({horiz_separation:.1f}px) nhỏ hơn 20px! "
-                f"VS1838B: {r_vs}, DHT11: {r_dht}"
+                f"LỖI R2: Khoảng cách giữa KY-037 và DHT11 ({horiz_separation:.1f}px) nhỏ hơn 20px! "
+                f"KY-037: {r_ky}, DHT11: {r_dht}"
             )
             page.close()
         finally:
             browser.close()
             pw.stop()
 
-    def test_r2_remote_and_micro_speaker_tags_zero_overlap(self, live_server_url: str):
-        """4. Verify that Remote and Micro/Speaker tags have ZERO overlap."""
+    def test_r2_speaker_amp_and_ky037_panel_tags_zero_overlap(self, live_server_url: str):
+        """4. Verify that Relay 2 PAM8403 Speaker and KY-037 Sound Panel tags have ZERO overlap."""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
@@ -323,29 +323,29 @@ class TestChallengerR2WokwiEmpirical:
 
             pair_info = page.evaluate("""() => {
                 const tags = Array.from(document.querySelectorAll('.comp-tag'));
-                const mic = tags.find(el => el.innerText.includes('Micro') || el.innerText.includes('Loa'));
-                const remote = tags.find(el => el.innerText.includes('Remote') || el.innerText.includes('Điều khiển'));
-                if (!mic || !remote) return null;
-                const r_mic = mic.getBoundingClientRect();
-                const r_remote = remote.getBoundingClientRect();
+                const spk = tags.find(el => el.innerText.includes('PAM8403') || el.innerText.includes('Loa'));
+                const kyPanel = tags.find(el => el.innerText.includes('Cảm biến Âm thanh KY-037'));
+                if (!spk || !kyPanel) return null;
+                const r_spk = spk.getBoundingClientRect();
+                const r_ky = kyPanel.getBoundingClientRect();
                 return {
-                    micText: mic.innerText,
-                    remoteText: remote.innerText,
-                    r_mic: { left: r_mic.left, right: r_mic.right, top: r_mic.top, bottom: r_mic.bottom },
-                    r_remote: { left: r_remote.left, right: r_remote.right, top: r_remote.top, bottom: r_remote.bottom }
+                    spkText: spk.innerText,
+                    kyPanelText: kyPanel.innerText,
+                    r_spk: { left: r_spk.left, right: r_spk.right, top: r_spk.top, bottom: r_spk.bottom },
+                    r_ky: { left: r_ky.left, right: r_ky.right, top: r_ky.top, bottom: r_ky.bottom }
                 };
             }""")
 
-            assert pair_info is not None, "Tags Micro/Speaker or Remote missing"
-            r_mic = pair_info["r_mic"]
-            r_remote = pair_info["r_remote"]
+            assert pair_info is not None, "Tags PAM8403 Speaker or KY-037 Panel missing"
+            r_spk = pair_info["r_spk"]
+            r_ky = pair_info["r_ky"]
 
-            overlap_x = max(0.0, min(r_mic["right"], r_remote["right"]) - max(r_mic["left"], r_remote["left"]))
-            overlap_y = max(0.0, min(r_mic["bottom"], r_remote["bottom"]) - max(r_mic["top"], r_remote["top"]))
+            overlap_x = max(0.0, min(r_spk["right"], r_ky["right"]) - max(r_spk["left"], r_ky["left"]))
+            overlap_y = max(0.0, min(r_spk["bottom"], r_ky["bottom"]) - max(r_spk["top"], r_ky["top"]))
 
             assert overlap_x == 0.0 or overlap_y == 0.0, (
-                f"LỖI R2: Micro tag và Remote tag va chạm với overlap dx={overlap_x:.1f}px, dy={overlap_y:.1f}px! "
-                f"Mic: {r_mic}, Remote: {r_remote}"
+                f"LỖI R2: PAM8403 Speaker tag và KY-037 Panel tag va chạm với overlap dx={overlap_x:.1f}px, dy={overlap_y:.1f}px! "
+                f"Speaker: {r_spk}, KY-037: {r_ky}"
             )
             page.close()
         finally:

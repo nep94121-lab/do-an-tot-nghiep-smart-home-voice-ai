@@ -130,7 +130,7 @@ class TestTier3CrossFeatureCombinations:
         async def _run() -> None:
             # 1. Trạng thái Online ban đầu
             await smart_home_engine.set_server_connection_mode(True)
-            r_on = await smart_home_engine.execute_device_action("fan", "turn_on")
+            r_on = await smart_home_engine.execute_device_action("living_room_light", "turn_on")
             assert r_on["ok"] is True
 
             # 2. Giả lập rớt mạng (Offline)
@@ -158,13 +158,13 @@ class TestTier3CrossFeatureCombinations:
     ) -> None:
         """Phối hợp 4: Hẹn giờ linh hoạt + Tự động thực thi chuyển trạng thái thiết bị."""
         async def _run() -> None:
-            # Bật quạt trước
-            await smart_home_engine.execute_device_action("fan", "turn_on")
-            assert smart_home_engine.devices["fan"]["state"] == "ON"
+            # Bật nguồn mạch loa trước
+            await smart_home_engine.execute_device_action("speaker_amp", "turn_on")
+            assert smart_home_engine.devices["speaker_amp"]["state"] == "ON"
 
-            # Đặt hẹn giờ đếm ngược 1 giây để tắt quạt
+            # Đặt hẹn giờ đếm ngược 1 giây để tắt nguồn mạch loa
             r_timer = await smart_home_engine.schedule_timer_flexible(
-                device_id="fan",
+                device_id="speaker_amp",
                 action="turn_off",
                 seconds=1.0,
             )
@@ -174,7 +174,7 @@ class TestTier3CrossFeatureCombinations:
             await asyncio.sleep(1.2)
 
             # Kiểm tra trạng thái thiết bị đã tự động chuyển sang OFF
-            assert smart_home_engine.devices["fan"]["state"] == "OFF"
+            assert smart_home_engine.devices["speaker_amp"]["state"] == "OFF"
 
         asyncio.run(_run())
 

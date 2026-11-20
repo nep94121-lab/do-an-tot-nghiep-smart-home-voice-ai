@@ -711,31 +711,26 @@ def parse_vietnamese_voice_command_intents(transcript_text: str) -> list[dict[st
             act_br = "turn_off" if ("tat den" in tn or (has_off and not has_on)) else "turn_on"
             intents.append({"device_id": "bedroom_light", "action": act_br})
 
-    # 3. Quạt trần (fan)
-    if "quat" in tokens or "quat tran" in tn:
-        if "tat quat" in tn or (has_off and not ("bat quat" in tn)):
-            act_fan = "turn_off"
-        else:
-            act_fan = "turn_on"
-        intents.append({"device_id": "fan", "action": act_fan})
-
-    # 4. Điều hòa / Máy lạnh (ac)
-    if "dieu hoa" in tn or "may lanh" in tn:
-        if "tat dieu hoa" in tn or "tat may lanh" in tn or (has_off and not ("bat dieu hoa" in tn or "bat may lanh" in tn)):
-            act_ac = "turn_off"
-        else:
-            act_ac = "turn_on"
-        intents.append({"device_id": "ac", "action": act_ac})
-
-    # 5. Máy bơm tưới cây (garden_pump)
+    # 3. Máy bơm tưới cây (garden_pump)
     if "may bom" in tn or "bom nuoc" in tn or "bom vuon" in tn or "tuoi cay" in tn:
         act_pump = "turn_off" if ("tat may bom" in tn or "tat bom" in tn or (has_off and not has_on)) else "turn_on"
         intents.append({"device_id": "garden_pump", "action": act_pump})
 
-    # 6. Còi báo động (alarm_siren)
+    # 4. Còi báo động (alarm_siren)
     if "coi bao dong" in tn or "bao dong" in tn or "coi hu" in tn:
         act_siren = "turn_off" if ("tat coi" in tn or "tat bao dong" in tn or (has_off and not has_on)) else "turn_on"
         intents.append({"device_id": "alarm_siren", "action": act_siren})
+
+    # 5. Nguồn mạch loa PAM8403 (speaker_amp)
+    if (
+        "nguon mach loa" in tn
+        or "mach loa" in tn
+        or "nguon loa" in tn
+        or "pam8403" in tn
+        or "loa" in tokens
+    ):
+        act_spk = "turn_off" if ("tat loa" in tn or "tat mach loa" in tn or "tat nguon loa" in tn or (has_off and not has_on)) else "turn_on"
+        intents.append({"device_id": "speaker_amp", "action": act_spk})
 
     return intents
 

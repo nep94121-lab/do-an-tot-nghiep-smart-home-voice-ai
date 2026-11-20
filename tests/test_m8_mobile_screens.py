@@ -2,12 +2,12 @@
 
 Người thực hiện: worker_m8 (Role: implementer, qa, specialist)
 Mục tiêu kiểm định:
-1. M1: Trang Chủ (Nhà & Cảm biến): Toàn cảnh 16:9, Cảm biến 2 ô Grid, Trạng thái an toàn, Nút hành động nhanh.
+1. M1: Trang Chủ (Nhà & Cảm biến): Toàn cảnh 16:9, Cảm biến 4 ô Grid (Nhiệt độ D2, Độ ẩm D2, Độ ẩm đất A0, Âm thanh KY-037 D5), Trạng thái an toàn, Nút hành động nhanh.
 2. M2: Chuyển đổi 4 Tab độc lập & Màn Tài khoản: 4 tabs, Hồ sơ phân cấp, Menu quản lý, Đăng xuất, scrollToSection mapping.
 3. M3: Quên mật khẩu & OTP Gmail: Form 3 bước (Email -> OTP numeric 6 số -> Reset 2 ô), tích hợp API backend.
 4. M4: Bottom Sheet Giọng nói: Scrim, handle, wavecircle, 12 thanh volume bar, bộ đếm thời gian, câu mẫu, kết quả.
 5. M5: Camera Quét QR & Handshake: Modal camera, khung 4 góc line, tích hợp /api/auth3/guest_handshake.
-6. Bảo toàn 100% 68 DOM IDs và 25 window.* hooks hiện có.
+6. Bảo toàn 100% 67 DOM IDs kế thừa + 8 M3 sensor DOM IDs (đã gỡ btnLearnIr) và 25 window.* hooks hiện có.
 7. Đảm bảo chính sách Android Scope frozen theo Requirement R3.
 """
 
@@ -26,8 +26,8 @@ MOBILE_HTML_PATH = ROOT / "mobile_app" / "index.html"
 MOBILE_JS_PATH = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
 MOBILE_CSS_PATH = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
 
-REQUIRED_68_DOM_IDS = [
-    "aiReply", "btnLearnIr", "btnMobileMicLabel", "btnMobileTabLogin",
+REQUIRED_DOM_IDS = [
+    "aiReply", "btnMobileMicLabel", "btnMobileTabLogin",
     "btnMobileTabRegister", "btnTestDrySoil", "btnToggleShowAllDevices", "cmdForm",
     "cmdInput", "devGrid", "espBadge", "humVal",
     "mobileActorBadge", "mobileActorSelect", "mobileAddEmailForm", "mobileAllowlistMsg",
@@ -44,6 +44,17 @@ REQUIRED_68_DOM_IDS = [
     "mqttLog", "pwaSchedAction", "pwaSchedDevice", "pwaSchedTime",
     "pwaScheduleForm", "pwaVoiceEmpty", "pwaVoiceResults", "soilVal",
     "tempVal", "upcomingScheduleInline", "userSaidText", "voiceStateBadge"
+]
+
+M3_SENSOR_DOM_IDS = [
+    "mobileDisplayTemp",
+    "mobileDisplayHum",
+    "mobileDisplaySoil",
+    "mobileDisplaySoilHint",
+    "mobileSensorSoundCard",
+    "mobileDisplaySound",
+    "mobileDisplaySoundMeta",
+    "mobileSensorMicNote",
 ]
 
 REQUIRED_25_WINDOW_HOOKS = [
@@ -81,17 +92,18 @@ def client() -> TestClient:
 
 
 # =============================================================================
-# 1. KIỂM THỬ TÍNH TOÀN VẸN 68 DOM IDS & 25 WINDOW HOOKS
+# 1. KIỂM THỬ TÍNH TOÀN VẸN 67 DOM IDS KẾ THỪA, 8 M3 SENSOR IDS & 25 WINDOW HOOKS
 # =============================================================================
 class TestDomAndHookIntegrity:
-    """Kiểm tra sự tồn tại đầy đủ của 68 DOM IDs và 25 window.* hooks bắt buộc."""
+    """Kiểm tra sự tồn tại đầy đủ của 67 DOM IDs kế thừa, 8 M3 sensor DOM IDs, gỡ btnLearnIr, và 25 window.* hooks bắt buộc."""
 
-    def test_all_68_dom_ids_exist(self, html_soup: BeautifulSoup):
+    def test_all_required_dom_ids_exist(self, html_soup: BeautifulSoup):
         missing_ids = []
-        for dom_id in REQUIRED_68_DOM_IDS:
+        for dom_id in REQUIRED_DOM_IDS + M3_SENSOR_DOM_IDS:
             if not html_soup.find(id=dom_id):
                 missing_ids.append(dom_id)
         assert not missing_ids, f"Bị thiếu {len(missing_ids)} DOM IDs trong mobile_app/index.html: {missing_ids}"
+        assert html_soup.find(id="btnLearnIr") is None, "btnLearnIr phải được gỡ theo hợp đồng phần cứng 6 thiết bị"
 
     def test_all_25_window_hooks_exported(self, js_content: str):
         missing_hooks = []
@@ -105,21 +117,31 @@ class TestDomAndHookIntegrity:
 # 2. KIỂM THỬ M1: TRANG CHỦ (NHÀ & CẢM BIẾN)
 # =============================================================================
 class TestM1HomeScreen:
-    """Kiểm thử màn hình M1: Thẻ Toàn cảnh 16:9, Cảm biến 2 ô Grid, Trạng thái an toàn, Nút hành động."""
+    """Kiểm thử màn hình M1: Thẻ Toàn cảnh 16:9, Cảm biến 4 ô Grid (Nhiệt độ D2, Độ ẩm D2, Độ ẩm đất A0, Âm thanh KY-037 D5), Trạng thái an toàn, Nút hành động."""
 
     def test_m1_overview_card_16_9(self, html_soup: BeautifulSoup, css_content: str):
         # U3a: Gỡ thẻ placeholder Toàn cảnh 3D trống khỏi /app
         assert html_soup.find(id="mobileOverviewBox") is None, "U3a phải gỡ #mobileOverviewBox khỏi /app"
 
-    def test_m1_sensor_grid_two_cells_only(self, html_soup: BeautifulSoup):
+    def test_m1_sensor_grid_four_cells(self, html_soup: BeautifulSoup):
         card = html_soup.find(id="home-sensors-title").find_parent("section")
         assert card is not None, "Không tìm thấy thẻ Cảm biến trong M1"
         sensorgrid = card.find(class_="sensorgrid")
         assert sensorgrid is not None, "Thẻ Cảm biến phải có container class 'sensorgrid'"
         sensors = sensorgrid.find_all(class_="sensor")
-        assert len(sensors) == 2, f"Màn Home M1 chỉ được có đúng 2 ô cảm biến (Nhiệt độ & Độ ẩm đất), tìm thấy: {len(sensors)}"
+        assert len(sensors) == 4, (
+            f"Màn Home M1 phải có đúng 4 ô cảm biến (Nhiệt độ DHT11, Độ ẩm DHT11, Độ ẩm đất A0, Âm thanh KY-037 D5), tìm thấy: {len(sensors)}"
+        )
         assert html_soup.find(id="mobileDisplayTemp") is not None, "Thiếu #mobileDisplayTemp trong ô Nhiệt độ"
+        assert html_soup.find(id="mobileDisplayHum") is not None, "Thiếu #mobileDisplayHum trong ô Độ ẩm không khí"
         assert html_soup.find(id="mobileDisplaySoil") is not None, "Thiếu #mobileDisplaySoil trong ô Độ ẩm đất"
+        assert html_soup.find(id="mobileSensorSoundCard") is not None, "Thiếu #mobileSensorSoundCard trong ô Âm thanh KY-037"
+        assert html_soup.find(id="mobileDisplaySound") is not None, "Thiếu #mobileDisplaySound trong ô Âm thanh KY-037"
+        assert html_soup.find(id="mobileDisplaySoundMeta") is not None, "Thiếu #mobileDisplaySoundMeta trong ô Âm thanh KY-037"
+        note = html_soup.find(id="mobileSensorMicNote")
+        assert note is not None and "KY-037" in note.get_text() and "D5" in note.get_text(), (
+            "Thiếu ghi chú KY-037 chân D5 trong #mobileSensorMicNote"
+        )
 
     def test_m1_safety_status_card(self, html_soup: BeautifulSoup):
         door_status = html_soup.find(id="mobileMainDoorStatus")
@@ -168,6 +190,15 @@ class TestM2TabsAndAccount:
         assert "switchMobileTab('devices'" in js_content, "scrollToSection phải ánh xạ secDevices sang tab devices"
         assert "switchMobileTab('voice'" in js_content, "scrollToSection phải ánh xạ secVoice sang tab voice"
         assert "switchMobileTab('account'" in js_content, "scrollToSection phải ánh xạ secAuth sang tab account"
+
+    def test_m2_schedule_device_options_six_real_devices(self, html_soup: BeautifulSoup):
+        select = html_soup.find(id="pwaSchedDevice")
+        assert select is not None, "Thiếu #pwaSchedDevice trong form lịch"
+        options = [opt.get_text(strip=True) for opt in select.find_all("option")]
+        assert len(options) == 6, f"#pwaSchedDevice phải có đúng 6 thiết bị thực tế, tìm thấy: {options}"
+        assert "Nguồn mạch loa PAM8403" in options, "#pwaSchedDevice thiếu 'Nguồn mạch loa PAM8403'"
+        assert "Quạt trần" not in options, "#pwaSchedDevice không được chứa thiết bị đã gỡ 'Quạt trần'"
+        assert "Điều hòa" not in options, "#pwaSchedDevice không được chứa thiết bị đã gỡ 'Điều hòa'"
 
 
 # =============================================================================

@@ -154,8 +154,6 @@ def format_device_action_vi(device_id: str, action: str) -> str:
     act = str(action or "").strip().lower()
     if device_id == "main_door":
         verb = "Mở" if act in ("open", "turn_on") else "Đóng"
-    elif device_id == "ac":
-        verb = "Mở" if act in ("open", "turn_on") else "Tắt"
     else:
         verb = ACTION_VI_LABEL.get(act, "Bật" if act in ("open", "turn_on") else "Tắt")
     return f"{verb} {dname.lower()}"
@@ -169,9 +167,11 @@ def _ensure_fk_parents(
     owner_name: str = "",
 ) -> str:
     """Ensure users and default devices rows exist before FK-constrained writes."""
+    from simulator.auth.tier_permissions import min_tier_for_device
+
     now_iso = now_saigon_iso()
     for did, dinfo in DEFAULT_DEVICES.items():
-        min_t = 1 if did in ("main_door", "alarm_siren") else (2 if did in ("ac", "garden_pump") else 3)
+        min_t = min_tier_for_device(did)
         conn.execute(
             """
             INSERT OR IGNORE INTO devices (
@@ -1037,18 +1037,16 @@ def _normalize_steps(steps: list[dict[str, Any]]) -> list[dict[str, str]]:
                 pairs = [
                     ("living_room_light", "turn_off"),
                     ("bedroom_light", "turn_off"),
-                    ("fan", "turn_off"),
-                    ("ac", "turn_off"),
-                    ("alarm_siren", "turn_off"),
                     ("garden_pump", "turn_off"),
+                    ("speaker_amp", "turn_off"),
+                    ("alarm_siren", "turn_off"),
                     ("main_door", "close"),
                 ]
             else:
                 pairs = [
                     ("living_room_light", "turn_on"),
                     ("bedroom_light", "turn_on"),
-                    ("fan", "turn_on"),
-                    ("ac", "open"),
+                    ("speaker_amp", "turn_on"),
                 ]
         elif did in DEFAULT_DEVICES:
             fixed_act = (
@@ -1345,7 +1343,7 @@ def check_steps_rbac(steps: list[dict[str, Any]], actor_tier: int) -> tuple[bool
             expanded = ["living_room_light", "bedroom_light"]
         elif did == "all_devices":
             expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
-                "living_room_light", "bedroom_light", "fan", "ac"
+                "living_room_light", "bedroom_light", "speaker_amp"
             ]
         else:
             expanded = [did]

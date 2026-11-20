@@ -44,8 +44,7 @@
     const ICONS = {
       door: '<svg class="icon"><use href="#i-door"/></svg>',
       light: '<svg class="icon"><use href="#i-lamp"/></svg>',
-      fan: '<svg class="icon"><use href="#i-fan"/></svg>',
-      ac: '<svg class="icon"><use href="#i-snow"/></svg>',
+      speaker: '<svg class="icon"><use href="#i-speaker"/></svg>',
       siren: '<svg class="icon"><use href="#i-bell"/></svg>',
       pump: '<svg class="icon"><use href="#i-drop"/></svg>',
     };
@@ -54,8 +53,7 @@
       main_door: 'Lối vào',
       living_room_light: 'Phòng khách',
       bedroom_light: 'Phòng ngủ',
-      ac: 'Phòng ngủ',
-      fan: 'Phòng khách',
+      speaker_amp: 'Phòng khách',
       alarm_siren: 'Toàn nhà',
       garden_pump: 'Sân vườn'
     };
@@ -1713,7 +1711,7 @@
             sp2.textContent = replySummary;
             resEl.appendChild(sp2);
           }
-          resEl.style.color = '#15803d';
+          resEl.style.color = '';
           if (btnContinue) btnContinue.style.display = 'block';
         } else {
           resEl.textContent = `${errMessage}`;
@@ -2119,7 +2117,7 @@
       const d = allDevs.find(x => x.id === devId) || {
         id: devId,
         name: devId,
-        type: devId === 'main_door' ? 'door' : 'light',
+        type: devId === 'main_door' ? 'door' : (devId === 'speaker_amp' ? 'speaker' : (devId === 'garden_pump' ? 'pump' : (devId === 'alarm_siren' ? 'siren' : 'light'))),
         state: 'OFF',
       };
       const ctrl = getMobileDeviceControl(devId, d.state);
@@ -2307,6 +2305,8 @@
       visibleDevices.forEach((d) => {
         const isOn = d.state === 'ON' || d.state === 'OPEN';
         const roomLabel = d.room || ROOM_NAMES[d.id] || 'Phòng khách';
+        const pinShort = d.id === 'speaker_amp' ? 'D7/D3' : (d.gpio ? String(d.gpio).split(' ')[0] : '');
+        const subLabel = pinShort ? `${roomLabel} · ${pinShort}` : roomLabel;
         let card = grid.querySelector(`[data-device-id="${d.id}"]`);
 
         if (!card) {
@@ -2315,10 +2315,10 @@
           card.setAttribute('data-state', isOn ? 'on' : 'off');
           card.className = `dev-row ${isOn ? 'on' : 'off'}`;
           card.innerHTML = `
-            <span class="dev-icon">${ICONS[d.type] || '<svg class="icon"><use href="#i-lamp"/></svg>'}</span>
+            <span class="dev-icon">${ICONS[d.type] || (d.id === 'speaker_amp' ? ICONS.speaker : '<svg class="icon"><use href="#i-lamp"/></svg>')}</span>
             <div class="dev-copy">
               <div class="dev-name">${d.name}</div>
-              <div class="dev-room">${roomLabel}</div>
+              <div class="dev-room">${subLabel}</div>
             </div>
             <span class="switch" aria-hidden="true"></span>
           `;
@@ -2339,7 +2339,7 @@
           const nameEl = card.querySelector('.dev-name');
           if (nameEl && nameEl.textContent !== d.name) nameEl.textContent = d.name;
           const roomEl = card.querySelector('.dev-room');
-          if (roomEl && roomEl.textContent !== roomLabel) roomEl.textContent = roomLabel;
+          if (roomEl && roomEl.textContent !== subLabel) roomEl.textContent = subLabel;
         }
       });
 
@@ -2370,6 +2370,7 @@
       if (snap.mqtt) {
         const dht = snap.mqtt.dht11_telemetry || {};
         const soil = snap.mqtt.soil_moisture_telemetry || {};
+        const snd = snap.mqtt.sound_telemetry || snap.mqtt.ky037_telemetry || (snap.sensors && snap.sensors.sound) || {};
         if (dht.temp_c !== undefined) {
           const tVal = Number(dht.temp_c);
           const tSafe = Number.isFinite(tVal) ? Math.max(0, Math.min(60, tVal)) : 28.5;
@@ -2383,6 +2384,8 @@
           const hSafe = Number.isFinite(hVal) ? Math.max(0, Math.min(100, hVal)) : 65;
           const hEl = document.getElementById('humVal');
           if (hEl) hEl.textContent = `${hSafe}%`;
+          const dhEl = document.getElementById('mobileDisplayHum');
+          if (dhEl) dhEl.textContent = `${hSafe}%`;
         }
         if (soil.soil_moisture_pct !== undefined) {
           const sVal = Number(soil.soil_moisture_pct);
@@ -2391,6 +2394,25 @@
           if (sEl) sEl.textContent = `${sSafe}%`;
           const dsEl = document.getElementById('mobileDisplaySoil');
           if (dsEl) dsEl.textContent = `${sSafe}%`;
+          const hintEl = document.getElementById('mobileDisplaySoilHint');
+          if (hintEl) {
+            const stTxt = soil.status_label || (sSafe < 40 ? 'Khô - Cần tưới' : (sSafe >= 70 ? 'Ẩm ướt' : 'Đủ ẩm'));
+            hintEl.textContent = `${stTxt} · Bơm <40% · Tắt ≥70%`;
+          }
+        }
+        const sndEl = document.getElementById('mobileDisplaySound');
+        const sndMeta = document.getElementById('mobileDisplaySoundMeta');
+        const sndCard = document.getElementById('mobileSensorSoundCard');
+        const isLoud = Boolean(snd.sound_detected || snd.detected || snd.loud_sound || Number(snd.do_state) === 1);
+        if (sndEl) {
+          sndEl.textContent = isLoud ? 'Có tiếng động!' : 'Yên tĩnh';
+        }
+        if (sndCard && sndCard.classList) {
+          sndCard.classList.toggle('is-alert', isLoud);
+        }
+        if (sndMeta) {
+          const cnt = Number(snd.event_count || 0);
+          sndMeta.textContent = `DO D5 · ${Number.isFinite(cnt) ? cnt : 0} sự kiện`;
         }
       }
 
@@ -2948,10 +2970,9 @@
       main_door: 'Cửa chính',
       living_room_light: 'Đèn phòng khách',
       bedroom_light: 'Đèn phòng ngủ',
-      fan: 'Quạt trần',
-      ac: 'Điều hòa',
       garden_pump: 'Máy bơm tưới cây',
       alarm_siren: 'Còi báo động',
+      speaker_amp: 'Nguồn mạch loa PAM8403',
     };
     const MOBILE_ACT_LABELS = {
       turn_on: 'Bật',
@@ -3247,11 +3268,11 @@
       const devMap = {
         'Đèn phòng khách': 'living_room_light',
         'Đèn phòng ngủ': 'bedroom_light',
-        'Quạt trần': 'fan',
-        'Điều hòa': 'ac',
         'Máy bơm tưới cây': 'garden_pump',
         'Tưới cây': 'garden_pump',
+        'Nguồn mạch loa PAM8403': 'speaker_amp',
         'Cửa chính': 'main_door',
+        'Còi báo động': 'alarm_siren',
       };
       const actMap = {
         'Bật': 'turn_on',
@@ -3355,29 +3376,19 @@
       else await fetchInitial();
     }
 
-    document.getElementById('btnLearnIr').onclick = async () => {
-      const res = await fetch('/api/ir_learn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_name: 'ac', command_action: 'turn_on_24c' }),
-      });
-      const data = await res.json();
-      if (data.learned) {
-        showPwaVoiceResults('Học lệnh điều hòa', 'Đã lưu tín hiệu điều khiển điều hòa.');
-        addLog('Lưu tín hiệu điều khiển điều hòa', 'device');
-      }
-    };
-
-    document.getElementById('btnTestDrySoil').onclick = async () => {
-      await fetch('/api/soil_moisture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soil_moisture_pct: 32.0 }),
-      });
-      showPwaVoiceResults('Kiểm tra độ ẩm đất', 'Độ ẩm đất thấp, đã tự động bật tưới cây.');
-      addLog('Tự động bật tưới cây', 'device');
-      fetchInitial();
-    };
+    const btnTestDrySoilEl = document.getElementById('btnTestDrySoil');
+    if (btnTestDrySoilEl) {
+      btnTestDrySoilEl.onclick = async () => {
+        await fetch('/api/soil_moisture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ soil_moisture_pct: 32.0 }),
+        });
+        showPwaVoiceResults('Kiểm tra độ ẩm đất', 'Độ ẩm đất thấp, đã tự động bật tưới cây.');
+        addLog('Tự động bật tưới cây', 'device');
+        fetchInitial();
+      };
+    }
 
     function onMobileActorChange() {
       const badge = document.getElementById('mobileActorBadge');
@@ -3678,7 +3689,7 @@
       const cdEl = document.getElementById('mobileQrCountdown');
       if (cdEl) {
         cdEl.textContent = `Đổi mã sau ${rem}s`;
-        cdEl.style.color = rem <= 3 ? '#c83e3b' : 'var(--muted)';
+        cdEl.style.color = rem <= 3 ? 'var(--danger)' : 'var(--muted)';
       }
     }
 

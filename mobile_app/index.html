@@ -18,8 +18,7 @@
     <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></symbol>
     <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
-    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a2 2 0 0 1 4 0l-2 6M14 12h6a2 2 0 0 1 0 4l-6-2M12 14v6a2 2 0 0 1-4 0l2-6M10 12H4a2 2 0 0 1 0-4l6 2"/></symbol>
-    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1 19.1 4.9"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
     <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M3 21h18M15 12h.01"/></symbol>
     <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9M10 21a2 2 0 0 0 4 0"/></symbol>
@@ -121,7 +120,7 @@
       <!-- M3: FORM QUÊN MẬT KHẨU & GMAIL OTP (3 BƯỚC) -->
       <div id="mobileForgotPasswordPanel" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <button type="button" class="tertiary" onclick="closeForgotPassword()" aria-label="Quay lại" style="padding:4px;min-width:32px;">
+          <button type="button" class="tertiary" onclick="closeForgotPassword()" aria-label="Quay lại" style="padding:8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
             <svg class="icon"><use href="#i-arrow-left"/></svg>
           </button>
           <span class="muted" id="mobileForgotStepLabel" style="font-size:12px;">Bước 1/3</span>
@@ -200,23 +199,34 @@
       <div id="mobileActionStatus" class="card" role="alert" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;border-color:#dc2626;background:#fef2f2;color:#991b1b;"></div>
       <div id="mobileHomeVoiceBanner" class="card" hidden style="margin-bottom:10px;padding:10px 12px;font-size:13px;"></div>
 
-      <!-- Thẻ 1: Cảm biến (Grid 2 ô: Nhiệt độ 28.5°C + Độ ẩm đất 62%) -->
+      <!-- Thẻ 1: Cảm biến (Grid 4 ô: Nhiệt độ D2, Độ ẩm D2, Độ ẩm đất A0, Âm thanh KY-037 D5) -->
       <section class="card" aria-labelledby="home-sensors-title">
         <div class="card-head">
           <h2 id="home-sensors-title">Cảm biến</h2>
         </div>
         <div class="sensorgrid">
           <div class="sensor">
-            <span class="muted">Nhiệt độ</span>
+            <span class="muted">Nhiệt độ · DHT11</span>
             <strong id="mobileDisplayTemp">28.5°C</strong>
-            <small class="muted">Trong nhà</small>
+            <small class="muted">Chân D2 (GPIO 4)</small>
           </div>
           <div class="sensor">
-            <span class="muted">Độ ẩm đất</span>
+            <span class="muted">Độ ẩm · DHT11</span>
+            <strong id="mobileDisplayHum">65%</strong>
+            <small class="muted">Không khí · D2</small>
+          </div>
+          <div class="sensor">
+            <span class="muted">Độ ẩm đất · A0</span>
             <strong id="mobileDisplaySoil">62%</strong>
-            <small class="muted">Sân vườn</small>
+            <small class="muted" id="mobileDisplaySoilHint">Bơm tự bật &lt;40% · tắt ≥70%</small>
+          </div>
+          <div class="sensor" id="mobileSensorSoundCard">
+            <span class="muted">Âm thanh · KY-037</span>
+            <strong id="mobileDisplaySound">Yên tĩnh</strong>
+            <small class="muted" id="mobileDisplaySoundMeta">DO D5 · 0 sự kiện</small>
           </div>
         </div>
+        <p class="sensor-note muted" id="mobileSensorMicNote">Gemini Voice AI dùng micro &amp; loa web/thiết bị; cảm biến KY-037 (DO chân D5) phát hiện vỗ tay hoặc tiếng động lớn.</p>
       </section>
 
       <!-- Thẻ 3: Trạng thái an toàn (Cửa chính & Còi báo động) -->
@@ -313,11 +323,11 @@
             </div>
             <select id="pwaSchedDevice">
               <option value="Đèn phòng khách">Đèn phòng khách</option>
-              <option value="Quạt trần">Quạt trần</option>
-              <option value="Điều hòa">Điều hòa</option>
-              <option value="Máy bơm tưới cây">Máy bơm tưới cây</option>
               <option value="Đèn phòng ngủ">Đèn phòng ngủ</option>
+              <option value="Máy bơm tưới cây">Máy bơm tưới cây</option>
+              <option value="Nguồn mạch loa PAM8403">Nguồn mạch loa PAM8403</option>
               <option value="Cửa chính">Cửa chính</option>
+              <option value="Còi báo động">Còi báo động</option>
             </select>
             <select id="pwaSchedAction">
               <option value="Bật">Bật</option>
@@ -331,9 +341,9 @@
               <option value="main_door">Khi Cửa chính</option>
               <option value="living_room_light">Khi Đèn phòng khách</option>
               <option value="bedroom_light">Khi Đèn phòng ngủ</option>
-              <option value="fan">Khi Quạt trần</option>
-              <option value="ac">Khi Điều hòa</option>
               <option value="garden_pump">Khi Máy bơm tưới cây</option>
+              <option value="speaker_amp">Khi Nguồn mạch loa PAM8403</option>
+              <option value="alarm_siren">Khi Còi báo động</option>
             </select>
             <select id="pwaRuleWhenState" aria-label="Trạng thái kích hoạt">
               <option value="OPEN">Mở</option>
@@ -344,10 +354,10 @@
             <select id="pwaRuleThenDev" aria-label="Thì thiết bị">
               <option value="living_room_light">Thì Đèn phòng khách</option>
               <option value="bedroom_light">Thì Đèn phòng ngủ</option>
-              <option value="fan">Thì Quạt trần</option>
-              <option value="ac">Thì Điều hòa</option>
               <option value="garden_pump">Thì Máy bơm tưới cây</option>
+              <option value="speaker_amp">Thì Nguồn mạch loa PAM8403</option>
               <option value="main_door">Thì Cửa chính</option>
+              <option value="alarm_siren">Thì Còi báo động</option>
             </select>
             <select id="pwaRuleThenAction" aria-label="Thao tác">
               <option value="turn_on">Bật</option>
@@ -359,7 +369,7 @@
           <div id="pwaModeSceneGroup" hidden style="display:grid; gap:8px;">
             <input type="hidden" id="pwaSceneEditId" value="" />
             <input type="text" id="pwaScenePhrase" placeholder="Tên câu lệnh (vd: đi ngủ)" />
-            <input type="text" id="pwaSceneSteps" placeholder="Các bước (vd: tắt hết đèn rồi bật quạt trần)" />
+            <input type="text" id="pwaSceneSteps" placeholder="Các bước (vd: tắt hết đèn rồi bật nguồn mạch loa)" />
           </div>
           <div id="pwaAutoFeedback" class="muted" hidden></div>
           <div class="btn-row">
@@ -385,7 +395,7 @@
           <h2 id="voice-title">Trạng thái</h2>
           <span class="muted" id="voiceStateBadge">Chưa đăng nhập</span>
         </div>
-        <p class="muted" style="margin-bottom:12px;">Nói để điều khiển thiết bị trong nhà.</p>
+        <p class="muted" style="margin-bottom:12px;">Nói qua micro thiết bị để điều khiển nhà (Gemini Voice AI dùng micro &amp; loa web/thiết bị).</p>
 
         <div id="pwaVoiceEmpty" class="muted" style="padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-bottom:12px;">Chưa có lệnh</div>
 
@@ -410,9 +420,9 @@
           <button type="submit" class="btn secondary" style="width:auto; min-width:72px;">Gửi</button>
         </form>
 
-        <label style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--muted); cursor:pointer;">
+        <label class="voice-tts-label">
           <span>Đọc phản hồi</span>
-          <input type="checkbox" id="ttsSpeakToggle" checked style="accent-color:var(--accent); width:16px; height:16px;" />
+          <input type="checkbox" id="ttsSpeakToggle" checked />
         </label>
       </section>
     </div>
@@ -556,7 +566,7 @@
             <div>
               <label class="muted mobile-qr-label" for="mobileQrInviteTierSelect">Đối tượng mời</label>
               <select id="mobileQrInviteTierSelect" onchange="onMobileQrInviteTierChange()">
-                <option value="3">Khách (Cấp 3 · Đèn &amp; Quạt)</option>
+                <option value="3">Khách (Cấp 3 · Đèn khách &amp; ngủ)</option>
                 <option value="2">Gia đình (Cấp 2 · Đa thiết bị)</option>
               </select>
             </div>
@@ -631,7 +641,6 @@
             <a href="/logs" data-owner-only="true" class="btn secondary wide" style="justify-content:center;">Mở trang Nhật ký quản trị</a>
           </div>
           <div hidden>
-            <button type="button" id="btnLearnIr">Học lệnh hồng ngoại</button>
             <button type="button" id="btnTestDrySoil">Thử độ ẩm đất</button>
           </div>
         </div>
@@ -703,7 +712,7 @@
     <div class="handle"></div>
     <div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h2 id="mobileVoiceSheetTitle" style="margin:0;font-size:18px;">Đang chờ quyền mic</h2>
-      <button type="button" class="tertiary" id="mobileBtnCloseVoiceSheet" aria-label="Đóng" onclick="closeVoiceBottomSheet()" style="padding:6px;min-width:40px">
+      <button type="button" class="tertiary" id="mobileBtnCloseVoiceSheet" aria-label="Đóng" onclick="closeVoiceBottomSheet()" style="padding:8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
         <svg class="icon"><use href="#i-close"/></svg>
       </button>
     </div>
@@ -743,7 +752,7 @@
       <header class="top">
         <div class="toprow" style="display:flex;justify-content:space-between;align-items:center;">
           <h1 style="font-size:20px;margin:0;">Quét mã QR</h1>
-          <button type="button" class="tertiary" id="mobileBtnCloseScanner" aria-label="Đóng" onclick="closeQrScanner()" style="padding:6px;min-width:40px">
+          <button type="button" class="tertiary" id="mobileBtnCloseScanner" aria-label="Đóng" onclick="closeQrScanner()" style="padding:8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
             <svg class="icon"><use href="#i-close"/></svg>
           </button>
         </div>
@@ -772,19 +781,19 @@
   </div>
   <!-- HỘP THOẠI QUYỀN MICROPHONE MOBILE -->
   <div id="mobileMicPermissionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mobileMictitle" style="position:fixed;inset:0;z-index:9999;background:rgba(15,34,38,0.5);display:none;align-items:center;justify-content:center;padding:16px;">
-    <div class="modal-content mic-perm-content" style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:24px;box-shadow:0 12px 36px rgba(0,0,0,0.25);">
-      <div class="mark" style="width:48px;height:48px;border-radius:50%;background:#fee2e2;color:#ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+    <div class="modal-content mic-perm-content" style="border-radius:20px;max-width:380px;width:100%;padding:24px;box-shadow:0 12px 36px rgba(0,0,0,0.25);">
+      <div class="mark" style="width:48px;height:48px;border-radius:50%;background:#fee2e2;color:#b42318;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:24px;height:24px;">
           <path d="M9 5a3 3 0 0 1 6 0v6 M5 10a7 7 0 0 0 9 6 M12 17v5 M8 22h8 M3 3l18 18"/>
         </svg>
       </div>
-      <h1 id="mobileMictitle" style="font-size:20px;line-height:1.3;font-weight:600;margin:0 0 10px;color:var(--ink);">Chưa thể dùng micro</h1>
-      <p id="mobileMicPermissionDesc" class="muted" style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.5;">
+      <h1 id="mobileMictitle" class="mic-perm-title" style="font-size:20px;line-height:1.3;font-weight:600;margin:0 0 10px;">Chưa thể dùng micro</h1>
+      <p id="mobileMicPermissionDesc" class="muted" style="margin:0 0 12px;font-size:13px;line-height:1.5;">
         Bạn đã chặn quyền micro. Mở cài đặt trang trong trình duyệt, chọn Micro → Cho phép, rồi thử lại.
       </p>
-      <div id="mobileMicPermissionHttpNote" class="note" style="background:#fafcfc;border:1px solid var(--line);border-radius:12px;padding:12px;margin:14px 0;font-size:12px;">
+      <div id="mobileMicPermissionHttpNote" class="note mic-perm-note" style="border-radius:12px;padding:12px;margin:14px 0;font-size:12px;">
         <strong>Nếu đang dùng địa chỉ HTTP</strong>
-        <p style="margin:4px 0 0;color:var(--muted);">Trình duyệt cần kết nối an toàn để dùng micro. Mở ứng dụng qua HTTPS.</p>
+        <p style="margin:4px 0 0;">Trình duyệt cần kết nối an toàn để dùng micro. Mở ứng dụng qua HTTPS.</p>
       </div>
       <div class="actions" style="display:grid;gap:10px;margin-top:16px;">
         <button type="button" id="mobileBtnMicPermissionRetry" onclick="window.retryVoiceRecording ? window.retryVoiceRecording() : window.openVoiceBottomSheet()" class="btn primary wide" style="min-height:44px;justify-content:center;">

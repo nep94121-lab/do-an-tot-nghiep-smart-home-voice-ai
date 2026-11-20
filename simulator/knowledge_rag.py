@@ -32,7 +32,7 @@ DATA_DIR = resolve_data_dir()
 KB_FILE = DATA_DIR / "knowledge_base.json"
 CACHE_FILE = DATA_DIR / "knowledge_embeddings_cache.json"
 EMBED_MODEL = "gemini-embedding-001"
-KB_VERSION = "3.2-CONCISE-QA-AND-7-DEVICES"
+KB_VERSION = "4.0-CONCISE-QA-6-DEVICES-3-SENSORS"
 
 DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
     {
@@ -51,10 +51,10 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "keywords": "làm được gì, có thể làm những gì, được làm những gì, chức năng, khả năng, nhiệm vụ, công dụng",
         "content": (
             "Tôi là trợ lý ảo do Nguyễn Tuấn Anh tạo ra, có thể làm 5 việc chính: "
-            "1) Điều khiển 7 thiết bị gồm Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Quạt trần, Điều hòa, Còi báo động và Máy bơm tưới cây. "
+            "1) Điều khiển 6 thiết bị chấp hành gồm Cửa chính, Đèn phòng khách, Đèn phòng ngủ, Máy bơm tưới cây, Còi báo động và Nguồn mạch loa PAM8403, đồng thời theo dõi 3 cảm biến (DHT11, độ ẩm đất, âm thanh KY-037). "
             "2) Hẹn giờ 1 lần hoặc lặp hàng ngày, hàng tuần theo giây, phút, giờ, AM/PM và ngày tháng. "
             "3) Học đổi từ, đổi lệnh và đặt luật IF-ELSE theo bể riêng của từng thành viên. "
-            "4) Thu âm phân tích giọng nói và quản lý phân quyền 3 tầng. "
+            "4) Thu âm phân tích giọng nói qua mic/loa web hoặc thiết bị và quản lý phân quyền 3 tầng. "
             "5) Truy vấn bể lệnh, bể hẹn giờ và thực hiện 4 chế độ reset theo đúng cấp quyền."
         ),
     },
@@ -71,9 +71,9 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "id": "garden_pump_meaning",
         "min_tier": "3",
         "topic": "Máy bơm tưới cây ở đây nghĩa là gì / dùng để làm gì",
-        "keywords": "máy bơm, máy bơm tưới cây, tưới cây, bơm nước, garden pump, d3, gpio0, dùng làm gì, nghĩa là gì",
+        "keywords": "máy bơm, máy bơm tưới cây, tưới cây, bơm nước, garden pump, d6, gpio12, dùng làm gì, nghĩa là gì",
         "content": (
-            "Máy bơm tưới cây là thiết bị điều khiển hệ thống tưới nước tự động cho cây cảnh trong nhà."
+            "Máy bơm tưới cây trên chân D6 (GPIO12) qua Relay 1 điều khiển hệ thống tưới nước tự động cho cây cảnh (tự bật khi độ ẩm đất dưới 40% và tự tắt khi từ 70% trở lên)."
         ),
     },
     {
@@ -92,18 +92,18 @@ DEFAULT_KNOWLEDGE_ITEMS: list[dict[str, str]] = [
         "keywords": "quy định, phân quyền, 3 tầng, ba tầng, cấp quyền, hủy quyền, tầng 1, tầng 2, tầng 3, cấp 1, cấp 2, cấp 3, admin, thành viên, khách",
         "content": (
             "Hệ thống có 3 tầng quyền hạn: "
-            "Tầng 1 là Admin tối cao Nguyễn Tuấn Anh: toàn quyền điều khiển thiết bị, là người duy nhất được cấp quyền, hủy quyền và đăng ký giọng nói mới, luật IF áp dụng toàn nhà, và không ai được đè hẹn giờ của Tầng 1. "
-            "Tầng 2 là Thành viên gia đình: mỗi người có bể lệnh và hẹn giờ riêng, chỉ được reset bể của chính mình, không được cấp hay hủy quyền của bất kỳ ai. "
-            "Tầng 3 là Khách: chỉ được gọi lệnh đóng mở cố định (đèn, quạt), không được đổi lệnh, không được đặt luật IF, không được hẹn giờ và không được cấp hay hủy quyền của ai."
+            "Tầng 1 là Admin tối cao Nguyễn Tuấn Anh: toàn quyền điều khiển 6 thiết bị, là người duy nhất được cấp quyền, hủy quyền và đăng ký giọng nói mới, luật IF áp dụng toàn nhà, và không ai được đè hẹn giờ của Tầng 1. "
+            "Tầng 2 là Thành viên gia đình: điều khiển đèn, máy bơm và nguồn mạch loa PAM8403, mỗi người có bể lệnh và hẹn giờ riêng, chỉ được reset bể của chính mình, không được cấp hay hủy quyền của bất kỳ ai. "
+            "Tầng 3 là Khách: chỉ được bật tắt đèn phòng khách và đèn phòng ngủ cố định, không được đổi lệnh, không được đặt luật IF, không được hẹn giờ và không được cấp hay hủy quyền của ai."
         ),
     },
     {
         "id": "hardware_devices_gpio",
         "min_tier": "3",
-        "topic": "Danh sách thiết bị và sơ đồ chân phần cứng GPIO ESP32-S3 của hệ thống",
-        "keywords": "sơ đồ chân, phần cứng, esp32, gpio, mấy thiết bị, danh sách thiết bị, bao nhiêu thiết bị, nhà có mấy thiết bị, gồm những thiết bị nào, có những thiết bị nào, có những thiết bị gì, thiết bị gì, những thiết bị gì, 7 thiết bị, các thiết bị",
+        "topic": "Danh sách thiết bị và sơ đồ chân phần cứng GPIO NodeMCU ESP8266 của hệ thống",
+        "keywords": "sơ đồ chân, phần cứng, esp8266, nodemcu, gpio, mấy thiết bị, danh sách thiết bị, bao nhiêu thiết bị, nhà có mấy thiết bị, gồm những thiết bị nào, có những thiết bị nào, có những thiết bị gì, thiết bị gì, những thiết bị gì, 6 thiết bị, 3 cảm biến, các thiết bị",
         "content": (
-            "Nhà gồm 7 thiết bị: Cửa chính (D1), Đèn phòng khách (D2), Đèn phòng ngủ (D7), Quạt trần (D6), Điều hòa (D2 IR), Còi báo động (D8) và Máy bơm tưới cây (D3)."
+            "Hệ thống dùng NodeMCU ESP8266 với 6 thiết bị chấp hành: Cửa chính SG90 (D1/GPIO5), Đèn phòng khách (D0/GPIO16), Đèn phòng ngủ (D4/GPIO2 an toàn boot), Máy bơm tưới cây Relay 1 (D6/GPIO12), Còi báo động (D8/GPIO15) và Nguồn mạch loa PAM8403 Relay 2 (D7/GPIO13, âm thanh PWM ra ở D3/GPIO0); cùng 3 cảm biến: DHT11 (D2/GPIO4), Độ ẩm đất + LM393 (A0/ADC0) và Cảm biến âm thanh KY-037/038 DO (D5/GPIO14 phát hiện vỗ tay/tiếng động lớn). Gemini Voice AI thu âm và phát thoại qua micro/loa trên trình duyệt web hoặc thiết bị."
         ),
     },
 ]
