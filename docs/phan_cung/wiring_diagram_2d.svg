@@ -1,0 +1,790 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200.0" height="825.0" viewBox="0 0 1200.0 825.0">
+<defs>
+  <style>
+    .sans { font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
+    .mono { font-family: "Consolas", "Courier New", monospace; }
+  </style>
+</defs>
+<rect x="0.00" y="0.00" width="1200.00" height="825.00" fill="#FFFFFF" stroke="none" stroke-width="1.0"/>
+<rect x="10.00" y="10.00" width="1180.00" height="805.00" rx="3.0" ry="3.0" fill="#FAFBFC" stroke="#1E293B" stroke-width="1.5"/>
+<rect x="14.00" y="14.00" width="1172.00" height="797.00" rx="2.0" ry="2.0" fill="none" stroke="#CBD5E1" stroke-width="0.6"/>
+<rect x="16.00" y="16.00" width="1168.00" height="36.00" rx="3.0" ry="3.0" fill="#0F172A" stroke="none" stroke-width="1.0"/>
+<rect x="16.00" y="16.00" width="6.00" height="36.00" rx="1.5" ry="1.5" fill="#0EA5E9" stroke="none" stroke-width="1.0"/>
+<text x="30.00" y="31.00" class="sans" font-size="10.30" font-weight="700" fill="#FFFFFF" text-anchor="start">SMART HOME VOICE AI — COMPLETE SYSTEM 2D WIRING DIAGRAM (TYPE 1 CENTRAL HUB PCB + ALL PLUG-IN MODULES)</text>
+<text x="30.00" y="44.83" class="sans" font-size="6.85" font-weight="400" fill="#CBD5E1" text-anchor="start">40 Physical Wires (36 Hub PCB J1–J15 + 4 Inter-Module)  |  10 Locked ESP8266 Pins (D0–D8, A0)  |  14 Off-Board Modules  |  5V/3.3V DC ONLY — NO Fan · NO AC · NO IR</text>
+<rect x="1002.00" y="22.00" width="174.00" height="24.00" rx="3.0" ry="3.0" fill="#1E293B" stroke="#38BDF8" stroke-width="0.8"/>
+<text x="1089.00" y="32.07" class="mono" font-size="6.10" font-weight="700" fill="#38BDF8" text-anchor="middle">SSOT: hardware/wiring_contract.py</text>
+<text x="1089.00" y="41.40" class="sans" font-size="5.60" font-weight="400" fill="#E2E8F0" text-anchor="middle">KiCad 80×65mm  |  NodeMCU v2 Amica</text>
+<rect x="339.00" y="231.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#CBD5E1" stroke="none" stroke-width="1.0"/>
+<rect x="336.00" y="228.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#ECFDF5" stroke="#065F46" stroke-width="2.0"/>
+<rect x="340.00" y="232.00" width="472.00" height="346.00" rx="5.0" ry="5.0" fill="none" stroke="#A7F3D0" stroke-width="0.7"/>
+<circle cx="349.00" cy="241.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
+<circle cx="349.00" cy="241.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
+<text x="349.00" y="253.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H1</text>
+<circle cx="803.00" cy="241.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
+<circle cx="803.00" cy="241.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
+<text x="803.00" y="253.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H2</text>
+<circle cx="349.00" cy="569.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
+<circle cx="349.00" cy="569.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
+<text x="349.00" y="560.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H3</text>
+<circle cx="803.00" cy="569.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
+<circle cx="803.00" cy="569.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
+<text x="803.00" y="560.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H4</text>
+<rect x="440.00" y="277.00" width="272.00" height="16.00" rx="3.0" ry="3.0" fill="#065F46" stroke="none" stroke-width="1.0"/>
+<text x="576.00" y="287.11" class="sans" font-size="6.20" font-weight="700" fill="#ECFDF5" text-anchor="middle">TYPE 1 CENTRAL HUB PCB — 80.0 × 65.0 × 1.6 mm FR4 (40 BOM Parts)</text>
+<rect x="480.00" y="304.00" width="192.00" height="206.00" rx="5.0" ry="5.0" fill="#0F172A" stroke="#334155" stroke-width="1.5"/>
+<rect x="550.00" y="312.00" width="52.00" height="14.00" rx="2.0" ry="2.0" fill="#1E293B" stroke="#F59E0B" stroke-width="0.7"/>
+<text x="576.00" y="320.67" class="mono" font-size="4.90" font-weight="700" fill="#FBBF24" text-anchor="middle">PCB ANT</text>
+<rect x="544.00" y="330.00" width="64.00" height="52.00" rx="3.0" ry="3.0" fill="#CBD5E1" stroke="#64748B" stroke-width="1.0"/>
+<text x="576.00" y="348.21" class="mono" font-size="6.50" font-weight="700" fill="#0F172A" text-anchor="middle">ESP-12E/F</text>
+<text x="576.00" y="359.01" class="sans" font-size="5.90" font-weight="700" fill="#334155" text-anchor="middle">ESP8266</text>
+<text x="576.00" y="369.73" class="sans" font-size="5.10" font-weight="400" fill="#475569" text-anchor="middle">Wi-Fi 2.4GHz</text>
+<rect x="546.00" y="394.00" width="60.00" height="42.00" rx="2.5" ry="2.5" fill="#1E293B" stroke="#475569" stroke-width="0.8"/>
+<text x="576.00" y="408.07" class="sans" font-size="6.10" font-weight="700" fill="#F8FAFC" text-anchor="middle">NodeMCU v2</text>
+<text x="576.00" y="417.73" class="sans" font-size="5.10" font-weight="400" fill="#94A3B8" text-anchor="middle">Amica CP2102</text>
+<text x="576.00" y="427.67" class="mono" font-size="4.90" font-weight="400" fill="#64748B" text-anchor="middle">48.3×25.4mm</text>
+<text x="576.00" y="457.80" class="sans" font-size="5.30" font-weight="700" fill="#38BDF8" text-anchor="middle">10 Active Pins</text>
+<text x="576.00" y="467.77" class="mono" font-size="5.20" font-weight="400" fill="#CBD5E1" text-anchor="middle">D0..D8 + A0</text>
+<text x="576.00" y="478.60" class="sans" font-size="4.70" font-weight="400" fill="#FBBF24" text-anchor="middle">(* = Boot-Strap)</text>
+<rect x="560.00" y="498.00" width="32.00" height="12.00" rx="1.5" ry="1.5" fill="#94A3B8" stroke="#475569" stroke-width="0.9"/>
+<text x="576.00" y="505.73" class="mono" font-size="5.10" font-weight="700" fill="#0F172A" text-anchor="middle">USB</text>
+<text x="486.00" y="317.80" class="mono" font-size="5.30" font-weight="700" fill="#38BDF8" text-anchor="start">U1 (Left)</text>
+<text x="666.00" y="317.80" class="mono" font-size="5.30" font-weight="700" fill="#38BDF8" text-anchor="end">U2 (Right)</text>
+<circle cx="486.00" cy="334.00" r="2.30" fill="#4ADE80" stroke="#E2E8F0" stroke-width="0.6"/>
+<text x="491.50" y="335.77" class="mono" font-size="5.20" font-weight="700" fill="#4ADE80" text-anchor="start">1:A0 (ADC0)</text>
+<circle cx="486.00" cy="358.50" r="2.30" fill="#475569" stroke="#94A3B8" stroke-width="0.6"/>
+<text x="491.50" y="360.27" class="mono" font-size="5.20" font-weight="400" fill="#94A3B8" text-anchor="start">2-9:RSV/SD (NC)</text>
+<circle cx="486.00" cy="383.00" r="2.30" fill="#CBD5E1" stroke="#E2E8F0" stroke-width="0.6"/>
+<text x="491.50" y="384.77" class="mono" font-size="5.20" font-weight="700" fill="#CBD5E1" text-anchor="start">10:GND</text>
+<circle cx="486.00" cy="407.50" r="2.30" fill="#F87171" stroke="#E2E8F0" stroke-width="0.6"/>
+<text x="491.50" y="409.27" class="mono" font-size="5.20" font-weight="700" fill="#F87171" text-anchor="start">11:+3V3</text>
+<circle cx="486.00" cy="432.00" r="2.30" fill="#475569" stroke="#94A3B8" stroke-width="0.6"/>
+<text x="491.50" y="433.77" class="mono" font-size="5.20" font-weight="400" fill="#94A3B8" text-anchor="start">12-13:EN/RST (NC)</text>
+<circle cx="486.00" cy="456.50" r="2.30" fill="#CBD5E1" stroke="#E2E8F0" stroke-width="0.6"/>
+<text x="491.50" y="458.27" class="mono" font-size="5.20" font-weight="700" fill="#CBD5E1" text-anchor="start">14:GND</text>
+<circle cx="486.00" cy="481.00" r="2.30" fill="#EF4444" stroke="#E2E8F0" stroke-width="0.6"/>
+<text x="491.50" y="482.77" class="mono" font-size="5.20" font-weight="700" fill="#EF4444" text-anchor="start">15:VIN (+5V)</text>
+<circle cx="666.00" cy="329.00" r="2.10" fill="#FACC15" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="330.70" class="mono" font-size="5.00" font-weight="700" fill="#FACC15" text-anchor="end">D0·G16:1</text>
+<circle cx="666.00" cy="343.80" r="2.10" fill="#FB923C" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="345.50" class="mono" font-size="5.00" font-weight="700" fill="#FB923C" text-anchor="end">D1·G5:2</text>
+<circle cx="666.00" cy="358.60" r="2.10" fill="#60A5FA" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="360.30" class="mono" font-size="5.00" font-weight="700" fill="#60A5FA" text-anchor="end">D2·G4:3</text>
+<circle cx="666.00" cy="373.40" r="2.10" fill="#E2E8F0" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="375.10" class="mono" font-size="5.00" font-weight="700" fill="#E2E8F0" text-anchor="end">D3·G0*:4</text>
+<circle cx="666.00" cy="388.20" r="2.10" fill="#C084FC" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="389.90" class="mono" font-size="5.00" font-weight="700" fill="#C084FC" text-anchor="end">D4·G2*:5</text>
+<circle cx="666.00" cy="403.00" r="2.10" fill="#F87171" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="404.70" class="mono" font-size="5.00" font-weight="700" fill="#F87171" text-anchor="end">+3V3:6</text>
+<circle cx="666.00" cy="417.80" r="2.10" fill="#94A3B8" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="419.50" class="mono" font-size="5.00" font-weight="700" fill="#94A3B8" text-anchor="end">GND:7</text>
+<circle cx="666.00" cy="432.60" r="2.10" fill="#FACC15" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="434.30" class="mono" font-size="5.00" font-weight="700" fill="#FACC15" text-anchor="end">D5·G14:8</text>
+<circle cx="666.00" cy="447.40" r="2.10" fill="#4ADE80" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="449.10" class="mono" font-size="5.00" font-weight="700" fill="#4ADE80" text-anchor="end">D6·G12:9</text>
+<circle cx="666.00" cy="462.20" r="2.10" fill="#22D3EE" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="463.90" class="mono" font-size="5.00" font-weight="700" fill="#22D3EE" text-anchor="end">D7·G13:10</text>
+<circle cx="666.00" cy="477.00" r="2.10" fill="#FB923C" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="478.70" class="mono" font-size="5.00" font-weight="700" fill="#FB923C" text-anchor="end">D8·G15*:11</text>
+<circle cx="666.00" cy="491.80" r="2.10" fill="#94A3B8" stroke="#E2E8F0" stroke-width="0.5"/>
+<text x="661.50" y="493.50" class="mono" font-size="5.00" font-weight="700" fill="#94A3B8" text-anchor="end">GND/3V3:14-15</text>
+<rect x="415.00" y="366.00" width="60.00" height="30.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#D97706" stroke-width="0.85"/>
+<text x="445.00" y="377.95" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C1/C2 470µF</text>
+<text x="445.00" y="389.22" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">+5V · C3 100n</text>
+<rect x="415.00" y="402.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
+<text x="445.00" y="413.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D1 1N4007</text>
+<text x="445.00" y="423.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">Pump Flyback</text>
+<rect x="415.00" y="436.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#16A34A" stroke-width="0.85"/>
+<text x="445.00" y="447.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D3 + R8 1k</text>
+<text x="445.00" y="457.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">+5V PWR LED</text>
+<rect x="415.00" y="470.00" width="60.00" height="28.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
+<text x="445.00" y="481.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C7 100nF</text>
+<text x="445.00" y="491.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">A0 ADC Filter</text>
+<rect x="678.00" y="308.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#F3E8FF" stroke="#9333EA" stroke-width="0.85"/>
+<text x="711.00" y="319.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">R1/R2 220Ω</text>
+<text x="711.00" y="329.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">LR &amp; BR LED</text>
+<rect x="678.00" y="342.00" width="66.00" height="32.00" rx="3.0" ry="3.0" fill="#E0E7FF" stroke="#4F46E5" stroke-width="0.85"/>
+<text x="711.00" y="354.63" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">R3/R4/R7/R9</text>
+<text x="711.00" y="366.66" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">10k Pull-Up/Dn</text>
+<rect x="678.00" y="380.00" width="66.00" height="38.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#B45309" stroke-width="0.85"/>
+<text x="711.00" y="394.67" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C4 10µ·C5 10n</text>
+<text x="711.00" y="408.98" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">R5/R6 2.2k RC</text>
+<rect x="678.00" y="424.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
+<text x="711.00" y="435.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D2 1N4007</text>
+<text x="711.00" y="445.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">Buzz Flyback</text>
+<rect x="678.00" y="458.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
+<text x="711.00" y="469.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C6 100nF</text>
+<text x="711.00" y="479.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V Decpl</text>
+<rect x="369.00" y="234.00" width="78.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="408.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J14 SOIL_A0</text>
+<circle cx="388.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="388.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="408.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="408.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="428.00" cy="241.50" r="4.00" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="428.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="408.00" y="266.78" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:+3V3 2:GND 3:A0</text>
+<rect x="481.00" y="234.00" width="78.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="520.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J13 DHT11_D2</text>
+<circle cx="500.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="500.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="520.00" cy="241.50" r="4.00" fill="#2563EB" stroke="#0F172A" stroke-width="0.9"/>
+<text x="520.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="540.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="540.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="520.00" y="266.78" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:+3V3 2:D2 3:GND</text>
+<rect x="619.00" y="234.00" width="62.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="650.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J4 LED_LR_D0</text>
+<circle cx="639.00" cy="241.50" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="639.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">1</text>
+<circle cx="661.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="661.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="650.00" y="266.78" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:LR+ 2:GND</text>
+<rect x="717.00" y="234.00" width="62.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="748.00" y="257.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J5 LED_BR_D4</text>
+<circle cx="737.00" cy="241.50" r="4.00" fill="#9333EA" stroke="#0F172A" stroke-width="0.9"/>
+<text x="737.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="759.00" cy="241.50" r="4.00" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="759.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">2</text>
+<text x="748.00" y="266.78" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:BR+ 2:D4</text>
+<rect x="342.00" y="299.00" width="59.00" height="50.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#15803D" stroke-width="1.25"/>
+<text x="371.50" y="307.48" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J2 PUMP_OUT</text>
+<circle cx="349.50" cy="316.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="318.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="356.30" y="318.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="start">PMP5</text>
+<circle cx="349.50" cy="332.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="334.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="356.30" y="334.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="start">GND</text>
+<rect x="411.00" y="302.00" width="63.00" height="48.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
+<text x="442.50" y="310.48" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J8 RLY1_SW</text>
+<circle cx="418.50" cy="319.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="418.50" y="321.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="425.00" y="321.12" class="mono" font-size="4.75" font-weight="700" fill="#1E293B" text-anchor="start">+5V→R1</text>
+<circle cx="418.50" cy="334.50" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="418.50" y="336.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">2</text>
+<text x="425.00" y="336.12" class="mono" font-size="4.75" font-weight="700" fill="#1E293B" text-anchor="start">PMP5→R1</text>
+<rect x="342.00" y="431.00" width="59.00" height="50.00" rx="3.0" ry="3.0" fill="#DCFCE7" stroke="#15803D" stroke-width="1.25"/>
+<text x="371.50" y="439.48" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J1 PWR_5V_IN</text>
+<circle cx="349.50" cy="448.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="450.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="356.30" y="450.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="start">+5V</text>
+<circle cx="349.50" cy="464.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="466.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="356.30" y="466.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="start">GND</text>
+<rect x="751.00" y="286.75" width="59.00" height="58.50" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
+<text x="780.50" y="295.23" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J3 SERVO_D1</text>
+<circle cx="802.50" cy="304.25" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="305.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="795.70" y="305.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D1</text>
+<circle cx="802.50" cy="317.75" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="319.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="795.70" y="319.42" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">+5V</text>
+<circle cx="802.50" cy="331.25" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="332.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="795.70" y="332.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">GND</text>
+<rect x="751.00" y="356.75" width="59.00" height="58.50" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
+<text x="780.50" y="365.23" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J15 KY037_D5</text>
+<circle cx="802.50" cy="374.25" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="375.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="795.70" y="375.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">+3V3</text>
+<circle cx="802.50" cy="387.75" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="389.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="795.70" y="389.42" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">GND</text>
+<circle cx="802.50" cy="401.25" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="802.50" y="402.81" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">3</text>
+<text x="795.70" y="402.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D5</text>
+<rect x="751.00" y="426.75" width="59.00" height="58.50" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
+<text x="780.50" y="435.23" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J7 RLY1_PUMP_D6</text>
+<circle cx="802.50" cy="444.25" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="445.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="795.70" y="445.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">+5V</text>
+<circle cx="802.50" cy="457.75" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="459.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="795.70" y="459.42" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">GND</text>
+<circle cx="802.50" cy="471.25" r="4.00" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="472.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="795.70" y="472.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D6</text>
+<rect x="751.00" y="499.00" width="59.00" height="46.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
+<text x="780.50" y="507.48" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J6 BUZZ_D8</text>
+<circle cx="802.50" cy="516.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="518.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="795.70" y="518.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D8</text>
+<circle cx="802.50" cy="530.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="532.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="795.70" y="532.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">GND</text>
+<rect x="412.50" y="539.00" width="75.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="450.00" y="556.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J9 RLY2_AMP_D7</text>
+<circle cx="431.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="431.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="450.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="450.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="469.00" cy="568.50" r="4.00" fill="#0891B2" stroke="#0F172A" stroke-width="0.9"/>
+<text x="469.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="450.00" y="546.58" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:+5V 2:GND 3:D7</text>
+<rect x="517.00" y="539.00" width="62.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="548.00" y="556.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J10 RLY2_SW</text>
+<circle cx="537.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="537.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="559.00" cy="568.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="559.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="548.00" y="546.58" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:+5V 2:AMP5</text>
+<rect x="619.00" y="539.00" width="62.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="650.00" y="556.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J11 PAM8403_PWR</text>
+<circle cx="639.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="639.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="661.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="661.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="650.00" y="546.58" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:AMP5 2:GND</text>
+<rect x="717.00" y="539.00" width="62.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
+<text x="748.00" y="556.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J12 AUDIO_D3</text>
+<circle cx="737.00" cy="568.50" r="4.00" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="737.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">1</text>
+<circle cx="759.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="759.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="748.00" y="546.58" class="mono" font-size="4.65" font-weight="400" fill="#334155" text-anchor="middle">1:AUD 2:GND</text>
+<rect x="26.00" y="64.20" width="148.00" height="96.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="24.00" y="62.00" width="148.00" height="96.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#0F766E" stroke-width="1.4"/>
+<rect x="24.00" y="62.00" width="148.00" height="24.00" rx="6.0" ry="6.0" fill="#CCFBF1" stroke="#0F766E" stroke-width="1.2"/>
+<rect x="24.70" y="80.00" width="146.60" height="6.00" fill="#CCFBF1" stroke="none" stroke-width="1.0"/>
+<line x1="24.00" y1="86.00" x2="172.00" y2="86.00" stroke="#0F766E" stroke-width="0.9" stroke-linecap="round"/>
+<text x="31.00" y="73.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">YL-69 Soil Fork Probe</text>
+<text x="31.00" y="82.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Resistive 2-Prong  ·  60×20×1.6 mm</text>
+<text x="31.00" y="97.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">2-Wire Pair → LM393</text>
+<rect x="34.00" y="107.00" width="46.00" height="7.50" rx="2.0" ry="2.0" fill="#0D9488" stroke="#115E59" stroke-width="0.7"/>
+<rect x="34.00" y="122.00" width="46.00" height="7.50" rx="2.0" ry="2.0" fill="#0D9488" stroke="#115E59" stroke-width="0.7"/>
+<rect x="76.00" y="105.00" width="13.00" height="27.00" rx="2.0" ry="2.0" fill="#115E59" stroke="none" stroke-width="1.0"/>
+<circle cx="172.00" cy="111.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="166.00" y="112.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="end">Prong A (W36)</text>
+<circle cx="172.00" cy="127.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="166.00" y="128.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="end">Prong B (W37)</text>
+<rect x="208.00" y="64.20" width="228.00" height="102.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="206.00" y="62.00" width="228.00" height="102.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#15803D" stroke-width="1.4"/>
+<rect x="206.00" y="62.00" width="228.00" height="24.00" rx="6.0" ry="6.0" fill="#DCFCE7" stroke="#15803D" stroke-width="1.2"/>
+<rect x="206.70" y="80.00" width="226.60" height="6.00" fill="#DCFCE7" stroke="none" stroke-width="1.0"/>
+<line x1="206.00" y1="86.00" x2="434.00" y2="86.00" stroke="#15803D" stroke-width="0.9" stroke-linecap="round"/>
+<text x="213.00" y="73.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">LM393 Soil Comparator</text>
+<text x="213.00" y="82.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Analog Soil Breakout  ·  32×14×12.1 mm</text>
+<rect x="380.50" y="90.00" width="48.50" height="12.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#B91C1C" stroke-width="0.6"/>
+<text x="404.75" y="97.84" class="sans" font-size="5.40" font-weight="700" fill="#B91C1C" text-anchor="middle">3.3V ONLY!</text>
+<text x="213.00" y="97.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">AO: &lt;40% ON / &gt;=70% OFF</text>
+<circle cx="206.00" cy="111.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="212.00" y="112.75" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="start">P1 (W36)</text>
+<circle cx="206.00" cy="127.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="212.00" y="128.75" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="start">P2 (W37)</text>
+<circle cx="266.00" cy="164.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="264.20" y1="162.20" x2="267.80" y2="165.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="264.20" y1="165.80" x2="267.80" y2="162.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="266.00" y="155.27" class="mono" font-size="5.20" font-weight="400" fill="#94A3B8" text-anchor="middle">DO [NC]</text>
+<circle cx="338.00" cy="164.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="338.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">VCC</text>
+<text x="338.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W33</text>
+<circle cx="376.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="376.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">GND</text>
+<text x="376.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W34</text>
+<circle cx="414.00" cy="164.00" r="3.60" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="414.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">AO</text>
+<text x="414.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W35</text>
+<rect x="448.00" y="64.20" width="152.00" height="102.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="446.00" y="62.00" width="152.00" height="102.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.4"/>
+<rect x="446.00" y="62.00" width="152.00" height="24.00" rx="6.0" ry="6.0" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
+<rect x="446.70" y="80.00" width="150.60" height="6.00" fill="#DBEAFE" stroke="none" stroke-width="1.0"/>
+<line x1="446.00" y1="86.00" x2="598.00" y2="86.00" stroke="#2563EB" stroke-width="0.9" stroke-linecap="round"/>
+<text x="453.00" y="73.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">DHT11 Temp &amp; Humidity</text>
+<text x="453.00" y="82.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">3-Pin Breakout · 3.3V  ·  28×14×7.1 mm</text>
+<text x="453.00" y="97.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">R3 10kΩ Pull-Up on Hub</text>
+<circle cx="482.00" cy="164.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="482.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">VCC(+)</text>
+<text x="482.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W30</text>
+<circle cx="522.00" cy="164.00" r="3.60" fill="#2563EB" stroke="#0F172A" stroke-width="0.9"/>
+<text x="522.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">DATA</text>
+<text x="522.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W31</text>
+<circle cx="562.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="562.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">GND(-)</text>
+<text x="562.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W32</text>
+<rect x="612.00" y="64.20" width="148.00" height="102.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="610.00" y="62.00" width="148.00" height="102.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#CA8A04" stroke-width="1.4"/>
+<rect x="610.00" y="62.00" width="148.00" height="24.00" rx="6.0" ry="6.0" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1.2"/>
+<rect x="610.70" y="80.00" width="146.60" height="6.00" fill="#FEF9C3" stroke="none" stroke-width="1.0"/>
+<line x1="610.00" y1="86.00" x2="758.00" y2="86.00" stroke="#CA8A04" stroke-width="0.9" stroke-linecap="round"/>
+<text x="617.00" y="73.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">5mm LED — Living Room</text>
+<text x="617.00" y="82.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Active-HIGH · R1 220Ω  ·  Ø5.8×8.6 mm</text>
+<text x="617.00" y="97.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">D0 (GPIO16) + enroll_blink</text>
+<circle cx="652.00" cy="164.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="652.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">Anode(+)</text>
+<text x="652.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W06</text>
+<circle cx="714.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="714.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">Cathode(-)</text>
+<text x="714.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W07</text>
+<rect x="772.00" y="64.20" width="174.00" height="102.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="770.00" y="62.00" width="174.00" height="102.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#9333EA" stroke-width="1.4"/>
+<rect x="770.00" y="62.00" width="174.00" height="24.00" rx="6.0" ry="6.0" fill="#F3E8FF" stroke="#9333EA" stroke-width="1.2"/>
+<rect x="770.70" y="80.00" width="172.60" height="6.00" fill="#F3E8FF" stroke="none" stroke-width="1.0"/>
+<line x1="770.00" y1="86.00" x2="944.00" y2="86.00" stroke="#9333EA" stroke-width="0.9" stroke-linecap="round"/>
+<text x="777.00" y="73.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">5mm LED — Bedroom</text>
+<text x="777.00" y="82.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Active-LOW (Boot-Safe)  ·  Ø5.8×8.6 mm</text>
+<rect x="890.50" y="90.00" width="48.50" height="12.00" rx="3.0" ry="3.0" fill="#F3E8FF" stroke="#6B21A8" stroke-width="0.6"/>
+<text x="914.75" y="97.84" class="sans" font-size="5.40" font-weight="700" fill="#6B21A8" text-anchor="middle">ACTIVE-LOW</text>
+<text x="777.00" y="97.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">R2 220Ω + R7 10kΩ Hub</text>
+<circle cx="822.00" cy="164.00" r="3.60" fill="#9333EA" stroke="#0F172A" stroke-width="0.9"/>
+<text x="822.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">Anode(+)</text>
+<text x="822.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W08</text>
+<circle cx="892.00" cy="164.00" r="3.60" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="892.00" y="155.27" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">Cathode(-)</text>
+<text x="892.00" y="147.13" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W09</text>
+<rect x="956.00" y="62.00" width="220.00" height="122.00" rx="6.0" ry="6.0" fill="#FFFBEB" stroke="#D97706" stroke-width="1.4"/>
+<rect x="956.00" y="62.00" width="220.00" height="20.00" rx="6.0" ry="6.0" fill="#FEF3C7" stroke="#D97706" stroke-width="1.1"/>
+<rect x="957.00" y="76.00" width="218.00" height="6.00" fill="#FEF3C7" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="82.00" x2="1176.00" y2="82.00" stroke="#D97706" stroke-width="0.9" stroke-linecap="round"/>
+<text x="1066.00" y="74.24" class="sans" font-size="6.60" font-weight="700" fill="#92400E" text-anchor="middle">BOOT-SAFETY &amp; PROTECTION NOTES</text>
+<text x="963.00" y="93.35" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D3 (GPIO0): C4 10µF + R5/R6 2.2k + C5 10nF;</text>
+<text x="963.00" y="104.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">  R4 10k pull-up; firmware IDLE = INPUT (high-Z)</text>
+<text x="963.00" y="115.75" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D4 (GPIO2): Active-LOW + R7 10k pull-up</text>
+<text x="963.00" y="126.95" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D8 (GPIO15): Active-HIGH + R9 10k pull-down</text>
+<text x="963.00" y="138.15" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• LM393 (J14) &amp; KY-037 (J15): 3.3V ONLY!</text>
+<text x="963.00" y="149.35" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• PAM8403 BTL: NEVER tie L_OUT- to GND!</text>
+<text x="963.00" y="160.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF</text>
+<text x="963.00" y="171.75" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• Scope Lock: NO Fan · NO AC · NO IR</text>
+<rect x="26.00" y="216.20" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="24.00" y="214.00" width="228.00" height="122.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.4"/>
+<rect x="24.00" y="214.00" width="228.00" height="24.00" rx="6.0" ry="6.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.2"/>
+<rect x="24.70" y="232.00" width="226.60" height="6.00" fill="#E0F2FE" stroke="none" stroke-width="1.0"/>
+<line x1="24.00" y1="238.00" x2="252.00" y2="238.00" stroke="#0284C7" stroke-width="0.9" stroke-linecap="round"/>
+<text x="31.00" y="225.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">Mini Submersible Pump (3–6V)</text>
+<text x="31.00" y="234.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Garden Pump · Switched +5V  ·  45×24×33 mm</text>
+<rect x="202.35" y="242.00" width="44.65" height="12.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#B91C1C" stroke-width="0.6"/>
+<text x="224.67" y="249.84" class="sans" font-size="5.40" font-weight="700" fill="#B91C1C" text-anchor="middle">D1 1N4007</text>
+<text x="31.00" y="249.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Switched via Relay 1 (J8→J2)</text>
+<text x="32.00" y="265.82" class="sans" font-size="5.35" font-weight="400" fill="#334155" text-anchor="start">• Nozzle OD 7.5mm · 6/8mm silicone tube</text>
+<text x="32.00" y="277.82" class="sans" font-size="5.35" font-weight="400" fill="#334155" text-anchor="start">• Hub D1 1N4007 flyback + C2 470µF</text>
+<circle cx="252.00" cy="306.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="245.00" y="307.87" class="mono" font-size="5.50" font-weight="700" fill="#0F172A" text-anchor="end">Pump + (W15)</text>
+<circle cx="252.00" cy="324.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="245.00" y="325.87" class="mono" font-size="5.50" font-weight="700" fill="#0F172A" text-anchor="end">Pump - (W16)</text>
+<rect x="26.00" y="376.20" width="228.00" height="114.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="24.00" y="374.00" width="228.00" height="114.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.4"/>
+<rect x="24.00" y="374.00" width="228.00" height="24.00" rx="6.0" ry="6.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.2"/>
+<rect x="24.70" y="392.00" width="226.60" height="6.00" fill="#FEE2E2" stroke="none" stroke-width="1.0"/>
+<line x1="24.00" y1="398.00" x2="252.00" y2="398.00" stroke="#DC2626" stroke-width="0.9" stroke-linecap="round"/>
+<text x="31.00" y="385.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">External 5V 2A Power Supply</text>
+<text x="31.00" y="394.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">DC-005 + Screw Breakout  ·  34×22×16 mm</text>
+<rect x="206.20" y="402.00" width="40.80" height="12.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#991B1B" stroke-width="0.6"/>
+<text x="226.60" y="409.84" class="sans" font-size="5.40" font-weight="700" fill="#991B1B" text-anchor="middle">5V DC 2A</text>
+<text x="31.00" y="409.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Feeds Hub J1 (5.08mm Phoenix)</text>
+<text x="32.00" y="423.82" class="sans" font-size="5.35" font-weight="400" fill="#334155" text-anchor="start">• Main +5V rail: NodeMCU VIN, SG90,</text>
+<text x="32.00" y="435.82" class="sans" font-size="5.35" font-weight="400" fill="#334155" text-anchor="start">  Relays 1 &amp; 2, Pump, PAM8403 Amp</text>
+<circle cx="252.00" cy="452.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="245.00" y="453.89" class="mono" font-size="5.55" font-weight="700" fill="#0F172A" text-anchor="end">+5V (W01)</text>
+<circle cx="252.00" cy="472.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="245.00" y="473.89" class="mono" font-size="5.55" font-weight="700" fill="#0F172A" text-anchor="end">GND (W02)</text>
+<rect x="24.00" y="516.00" width="282.00" height="282.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#334155" stroke-width="1.4"/>
+<rect x="24.00" y="516.00" width="282.00" height="21.00" rx="6.0" ry="6.0" fill="#1E293B" stroke="none" stroke-width="1.0"/>
+<rect x="25.00" y="531.00" width="280.00" height="6.00" fill="#1E293B" stroke="none" stroke-width="1.0"/>
+<text x="165.00" y="528.71" class="sans" font-size="6.50" font-weight="700" fill="#FFFFFF" text-anchor="middle">WIRE COLOR KEY (10 STANDARD COLORS · 40 WIRES)</text>
+<line x1="34.00" y1="551.00" x2="58.00" y2="551.00" stroke="#DC2626" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="553.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Red</text>
+<text x="103.00" y="552.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">Power (+5V / +3V3 / Switched +5V)</text>
+<line x1="34.00" y1="572.00" x2="58.00" y2="572.00" stroke="#18181B" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="574.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Black</text>
+<text x="103.00" y="573.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">Common Ground (GND)</text>
+<line x1="34.00" y1="593.00" x2="58.00" y2="593.00" stroke="#EA580C" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="595.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Orange</text>
+<text x="103.00" y="594.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">SG90 D1 · Buzz D8 · RLY2 NO · Probe B</text>
+<line x1="34.00" y1="614.00" x2="58.00" y2="614.00" stroke="#854D0E" stroke-width="3.8" stroke-linecap="round"/>
+<line x1="34.00" y1="614.00" x2="58.00" y2="614.00" stroke="#EAB308" stroke-width="2.4" stroke-linecap="round"/>
+<text x="64.00" y="616.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Yellow</text>
+<text x="103.00" y="615.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">LED LR · KY037 · RLY1 NO · Spk+ · PrA</text>
+<line x1="34.00" y1="635.00" x2="58.00" y2="635.00" stroke="#16A34A" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="637.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Green</text>
+<text x="103.00" y="636.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">Relay 1 IN (D6) · Soil Analog AO (A0)</text>
+<line x1="34.00" y1="656.00" x2="58.00" y2="656.00" stroke="#2563EB" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="658.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Blue</text>
+<text x="103.00" y="657.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">DHT11 1-Wire DATA (D2)</text>
+<line x1="34.00" y1="677.00" x2="58.00" y2="677.00" stroke="#0891B2" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="679.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Cyan</text>
+<text x="103.00" y="678.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">Relay 2 Opto IN (D7)</text>
+<line x1="34.00" y1="698.00" x2="58.00" y2="698.00" stroke="#9333EA" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="700.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Purple</text>
+<text x="103.00" y="699.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">LED Bedroom Anode (+3.3V via R2 220Ω)</text>
+<line x1="34.00" y1="719.00" x2="58.00" y2="719.00" stroke="#334155" stroke-width="4.4" stroke-linecap="round"/>
+<line x1="34.00" y1="719.00" x2="58.00" y2="719.00" stroke="#F8FAFC" stroke-width="2.4" stroke-linecap="round"/>
+<text x="64.00" y="721.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">White</text>
+<text x="103.00" y="720.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">LED Bedroom D4 (Act-LO) · Audio D3</text>
+<line x1="34.00" y1="740.00" x2="58.00" y2="740.00" stroke="#78350F" stroke-width="3.2" stroke-linecap="round"/>
+<text x="64.00" y="742.02" class="sans" font-size="5.95" font-weight="700" fill="#0F172A" text-anchor="start">Brown</text>
+<text x="103.00" y="741.87" class="sans" font-size="5.50" font-weight="400" fill="#334155" text-anchor="start">PAM8403 BTL L_OUT- → SPK- (NOT GND)</text>
+<line x1="32.00" y1="761.00" x2="298.00" y2="761.00" stroke="#E2E8F0" stroke-width="0.9" stroke-linecap="round"/>
+<circle cx="40.00" cy="773.00" r="3.40" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="38.20" y1="771.20" x2="41.80" y2="774.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="38.20" y1="774.80" x2="41.80" y2="771.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="49.00" y="774.87" class="sans" font-size="5.50" font-weight="700" fill="#64748B" text-anchor="start">[NC] = Intentionally Unconnected Pin</text>
+<rect x="32.00" y="782.00" width="266.00" height="12.00" rx="2.5" ry="2.5" fill="#DCFCE7" stroke="#16A34A" stroke-width="0.7"/>
+<text x="165.00" y="789.78" class="sans" font-size="5.25" font-weight="700" fill="#166534" text-anchor="middle">VERIFIED: 36 Hub + 4 Off-Board = 40 Wires | NO Fan · NO AC · NO IR</text>
+<rect x="958.00" y="198.20" width="220.00" height="98.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="956.00" y="196.00" width="220.00" height="98.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#EA580C" stroke-width="1.4"/>
+<rect x="956.00" y="196.00" width="220.00" height="24.00" rx="6.0" ry="6.0" fill="#FFEDD5" stroke="#EA580C" stroke-width="1.2"/>
+<rect x="956.70" y="214.00" width="218.60" height="6.00" fill="#FFEDD5" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="220.00" x2="1176.00" y2="220.00" stroke="#EA580C" stroke-width="0.9" stroke-linecap="round"/>
+<text x="963.00" y="207.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">SG90 Micro Servo (Main Door)</text>
+<text x="963.00" y="216.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">50Hz PWM · 0° Closed / 90° Open  ·  22.8×12.2×22.5 mm</text>
+<text x="963.00" y="231.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Decoupled by Hub C1 470µF</text>
+<circle cx="956.00" cy="246.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="247.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W03) PWM (Orange)</text>
+<circle cx="956.00" cy="262.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="263.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W04) VCC (Red)</text>
+<circle cx="956.00" cy="278.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="279.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W05) GND (Brown)</text>
+<rect x="958.00" y="308.20" width="220.00" height="114.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="956.00" y="306.00" width="220.00" height="114.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#CA8A04" stroke-width="1.4"/>
+<rect x="956.00" y="306.00" width="220.00" height="24.00" rx="6.0" ry="6.0" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1.2"/>
+<rect x="956.70" y="324.00" width="218.60" height="6.00" fill="#FEF9C3" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="330.00" x2="1176.00" y2="330.00" stroke="#CA8A04" stroke-width="0.9" stroke-linecap="round"/>
+<text x="963.00" y="317.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">KY-037 / KY-038 Sound Sensor</text>
+<text x="963.00" y="326.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">ECM-9767 Mic + LM393  ·  35×15×13.1 mm</text>
+<rect x="1122.50" y="334.00" width="48.50" height="12.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#B91C1C" stroke-width="0.6"/>
+<text x="1146.75" y="341.84" class="sans" font-size="5.40" font-weight="700" fill="#B91C1C" text-anchor="middle">3.3V ONLY!</text>
+<text x="963.00" y="341.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">RISING IRQ &gt;=400ms Debounce</text>
+<circle cx="956.00" cy="356.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="357.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W38) + (VCC 3.3V)</text>
+<circle cx="956.00" cy="372.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="373.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W39) G (GND)</text>
+<circle cx="956.00" cy="388.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="963.00" y="389.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W40) DO (D5 IRQ)</text>
+<circle cx="956.00" cy="404.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="954.20" y1="402.20" x2="957.80" y2="405.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="954.20" y1="405.80" x2="957.80" y2="402.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="963.00" y="405.84" class="mono" font-size="5.40" font-weight="400" fill="#94A3B8" text-anchor="start">AO [NC]</text>
+<rect x="958.00" y="430.20" width="220.00" height="148.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="956.00" y="428.00" width="220.00" height="148.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.4"/>
+<rect x="956.00" y="428.00" width="220.00" height="24.00" rx="6.0" ry="6.0" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
+<rect x="956.70" y="446.00" width="218.60" height="6.00" fill="#DBEAFE" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="452.00" x2="1176.00" y2="452.00" stroke="#2563EB" stroke-width="0.9" stroke-linecap="round"/>
+<text x="963.00" y="439.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">Relay 1 — Blue 5V 1-ch (Pump)</text>
+<text x="963.00" y="448.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Songle SRD-05VDC · Active-HIGH  ·  50×26×18.5 mm</text>
+<rect x="1134.05" y="456.00" width="36.95" height="12.00" rx="3.0" ry="3.0" fill="#DBEAFE" stroke="#1D4ED8" stroke-width="0.6"/>
+<text x="1152.52" y="463.84" class="sans" font-size="5.40" font-weight="700" fill="#1D4ED8" text-anchor="middle">J7 + J8</text>
+<text x="963.00" y="463.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Switches +5V → PUMP_5V</text>
+<text x="1118.00" y="493.77" class="sans" font-size="5.20" font-weight="700" fill="#1D4ED8" text-anchor="middle">Coil (J7)</text>
+<circle cx="956.00" cy="478.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="479.80" class="mono" font-size="5.30" font-weight="700" fill="#0F172A" text-anchor="start">(W10) VCC (+5V)</text>
+<circle cx="956.00" cy="492.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="493.80" class="mono" font-size="5.30" font-weight="700" fill="#0F172A" text-anchor="start">(W11) GND</text>
+<circle cx="956.00" cy="506.00" r="3.60" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="507.80" class="mono" font-size="5.30" font-weight="700" fill="#0F172A" text-anchor="start">(W12) IN (D6)</text>
+<line x1="964.00" y1="518.00" x2="1168.00" y2="518.00" stroke="#CBD5E1" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="3,2"/>
+<text x="1118.00" y="547.77" class="sans" font-size="5.20" font-weight="700" fill="#15803D" text-anchor="middle">Contacts (J8)</text>
+<circle cx="956.00" cy="532.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="533.80" class="mono" font-size="5.30" font-weight="700" fill="#0F172A" text-anchor="start">(W13) COM (+5V)</text>
+<circle cx="956.00" cy="548.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="963.00" y="549.80" class="mono" font-size="5.30" font-weight="700" fill="#0F172A" text-anchor="start">(W14) NO (PUMP_5V)</text>
+<circle cx="956.00" cy="564.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="954.20" y1="562.20" x2="957.80" y2="565.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="954.20" y1="565.80" x2="957.80" y2="562.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="963.00" y="565.80" class="mono" font-size="5.30" font-weight="400" fill="#94A3B8" text-anchor="start">NC [NC]</text>
+<rect x="958.00" y="588.20" width="220.00" height="82.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="956.00" y="586.00" width="220.00" height="82.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.4"/>
+<rect x="956.00" y="586.00" width="220.00" height="24.00" rx="6.0" ry="6.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.2"/>
+<rect x="956.70" y="604.00" width="218.60" height="6.00" fill="#FEE2E2" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="610.00" x2="1176.00" y2="610.00" stroke="#DC2626" stroke-width="0.9" stroke-linecap="round"/>
+<text x="963.00" y="597.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">Active 5V Buzzer (TMB12A05)</text>
+<text x="963.00" y="606.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Alarm Siren · Active-HIGH (D8)  ·  Ø12.0×9.5 mm</text>
+<rect x="1141.75" y="614.00" width="29.25" height="12.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#92400E" stroke-width="0.6"/>
+<text x="1156.38" y="621.84" class="sans" font-size="5.40" font-weight="700" fill="#92400E" text-anchor="middle">R9+D2</text>
+<text x="963.00" y="621.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Silent at boot (R9 10k pull-down)</text>
+<circle cx="956.00" cy="632.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="633.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W17) Buzzer (+)</text>
+<circle cx="956.00" cy="646.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="647.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W18) Buzzer (-)</text>
+<rect x="328.00" y="684.20" width="308.00" height="116.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="326.00" y="682.00" width="308.00" height="116.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.4"/>
+<rect x="326.00" y="772.00" width="308.00" height="26.00" rx="6.0" ry="6.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="1.2"/>
+<rect x="326.70" y="772.00" width="306.60" height="6.00" fill="#FEE2E2" stroke="none" stroke-width="1.0"/>
+<line x1="326.00" y1="772.00" x2="634.00" y2="772.00" stroke="#DC2626" stroke-width="0.9" stroke-linecap="round"/>
+<text x="333.00" y="783.55" class="sans" font-size="7.50" font-weight="700" fill="#0F172A" text-anchor="start">Relay 2 — Red Opto 5V (Speaker Amp)</text>
+<text x="333.00" y="793.10" class="sans" font-size="5.60" font-weight="400" fill="#334155" text-anchor="start">SRD-05VDC + PC817 Opto · Auto-Off 1.5s  ·  50×26×18.5 mm</text>
+<rect x="579.50" y="756.00" width="48.50" height="12.50" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#991B1B" stroke-width="0.7"/>
+<text x="603.75" y="764.04" class="sans" font-size="5.40" font-weight="700" fill="#991B1B" text-anchor="middle">JUMPER = H</text>
+<line x1="486.00" y1="690.00" x2="486.00" y2="766.00" stroke="#CBD5E1" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="3,2"/>
+<text x="406.00" y="739.84" class="sans" font-size="5.40" font-weight="700" fill="#991B1B" text-anchor="middle">Control Header (J9)</text>
+<text x="560.00" y="739.84" class="sans" font-size="5.40" font-weight="700" fill="#15803D" text-anchor="middle">Screw Contacts (J10)</text>
+<text x="335.00" y="757.84" class="sans" font-size="5.40" font-weight="400" fill="#475569" text-anchor="start">Switches +5V → AMP_5V (J10 → J11)</text>
+<circle cx="356.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="356.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">DC+</text>
+<text x="356.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W19</text>
+<circle cx="426.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="426.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">DC-</text>
+<text x="426.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W20</text>
+<circle cx="464.00" cy="682.00" r="3.60" fill="#0891B2" stroke="#0F172A" stroke-width="0.9"/>
+<text x="464.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">IN(D7)</text>
+<text x="464.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W21</text>
+<circle cx="512.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="512.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">COM</text>
+<text x="512.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W22</text>
+<circle cx="556.00" cy="682.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="556.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">NO</text>
+<text x="556.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W23</text>
+<circle cx="604.00" cy="682.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="602.20" y1="680.20" x2="605.80" y2="683.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="602.20" y1="683.80" x2="605.80" y2="680.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="604.00" y="695.77" class="mono" font-size="5.20" font-weight="400" fill="#94A3B8" text-anchor="middle">NC[NC]</text>
+<rect x="652.00" y="684.20" width="260.00" height="116.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="650.00" y="682.00" width="260.00" height="116.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#0F766E" stroke-width="1.4"/>
+<rect x="650.00" y="772.00" width="260.00" height="26.00" rx="6.0" ry="6.0" fill="#CCFBF1" stroke="#0F766E" stroke-width="1.2"/>
+<rect x="650.70" y="772.00" width="258.60" height="6.00" fill="#CCFBF1" stroke="none" stroke-width="1.0"/>
+<line x1="650.00" y1="772.00" x2="910.00" y2="772.00" stroke="#0F766E" stroke-width="0.9" stroke-linecap="round"/>
+<text x="657.00" y="783.55" class="sans" font-size="7.50" font-weight="700" fill="#0F172A" text-anchor="start">PAM8403 Mini Audio Amplifier</text>
+<text x="657.00" y="793.10" class="sans" font-size="5.60" font-weight="400" fill="#334155" text-anchor="start">3W Class-D BTL · Switched 5V  ·  21×18×3.1 mm</text>
+<rect x="851.65" y="756.00" width="52.35" height="12.50" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#92400E" stroke-width="0.7"/>
+<text x="877.82" y="764.04" class="sans" font-size="5.40" font-weight="700" fill="#92400E" text-anchor="middle">CLASS-D BTL</text>
+<line x1="744.00" y1="690.00" x2="744.00" y2="750.00" stroke="#CBD5E1" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="3,2"/>
+<text x="697.00" y="739.80" class="sans" font-size="5.30" font-weight="700" fill="#0F766E" text-anchor="middle">Power (J11)</text>
+<text x="798.00" y="739.80" class="sans" font-size="5.30" font-weight="700" fill="#334155" text-anchor="middle">Audio In (J12)</text>
+<text x="658.00" y="757.82" class="sans" font-size="5.35" font-weight="400" fill="#475569" text-anchor="start">D3 RC-filtered PWM → L In</text>
+<circle cx="676.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="676.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">5V+</text>
+<text x="676.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W24</text>
+<circle cx="718.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="718.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">5V-</text>
+<text x="718.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W25</text>
+<circle cx="766.00" cy="682.00" r="3.60" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="766.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">L In</text>
+<text x="766.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W26</text>
+<circle cx="806.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="806.00" y="695.77" class="mono" font-size="5.20" font-weight="700" fill="#0F172A" text-anchor="middle">A-GND</text>
+<text x="806.00" y="704.63" class="mono" font-size="4.80" font-weight="400" fill="#475569" text-anchor="middle">W27</text>
+<circle cx="842.00" cy="682.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="840.20" y1="680.20" x2="843.80" y2="683.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="840.20" y1="683.80" x2="843.80" y2="680.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="842.00" y="695.77" class="mono" font-size="5.20" font-weight="400" fill="#94A3B8" text-anchor="middle">R[NC]</text>
+<circle cx="910.00" cy="706.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="904.00" y="707.70" class="mono" font-size="5.00" font-weight="700" fill="#0F172A" text-anchor="end">L_OUT+ (W28)</text>
+<circle cx="910.00" cy="724.00" r="3.60" fill="#78350F" stroke="#0F172A" stroke-width="0.9"/>
+<text x="904.00" y="725.70" class="mono" font-size="5.00" font-weight="700" fill="#0F172A" text-anchor="end">L_OUT- (W29)</text>
+<circle cx="910.00" cy="742.00" r="3.60" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.0"/>
+<line x1="908.20" y1="740.20" x2="911.80" y2="743.80" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<line x1="908.20" y1="743.80" x2="911.80" y2="740.20" stroke="#94A3B8" stroke-width="0.8" stroke-linecap="round"/>
+<text x="904.00" y="743.70" class="mono" font-size="5.00" font-weight="400" fill="#94A3B8" text-anchor="end">R_OUT±[NC]</text>
+<rect x="958.00" y="684.20" width="220.00" height="116.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
+<rect x="956.00" y="682.00" width="220.00" height="116.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#78350F" stroke-width="1.4"/>
+<rect x="956.00" y="772.00" width="220.00" height="26.00" rx="6.0" ry="6.0" fill="#FEF3C7" stroke="#78350F" stroke-width="1.2"/>
+<rect x="956.70" y="772.00" width="218.60" height="6.00" fill="#FEF3C7" stroke="none" stroke-width="1.0"/>
+<line x1="956.00" y1="772.00" x2="1176.00" y2="772.00" stroke="#78350F" stroke-width="0.9" stroke-linecap="round"/>
+<text x="963.00" y="783.55" class="sans" font-size="7.50" font-weight="700" fill="#0F172A" text-anchor="start">Mini Speaker (28mm 8Ω 0.5W)</text>
+<text x="963.00" y="793.10" class="sans" font-size="5.60" font-weight="400" fill="#334155" text-anchor="start">PUI Audio AS02808MR-R  ·  Ø28.0×5.2 mm</text>
+<circle cx="1134.00" cy="725.00" r="22.00" fill="#F1F5F9" stroke="#475569" stroke-width="1.2"/>
+<circle cx="1134.00" cy="725.00" r="13.00" fill="#CBD5E1" stroke="#64748B" stroke-width="0.8"/>
+<circle cx="1134.00" cy="725.00" r="5.50" fill="#334155" stroke="none" stroke-width="1.0"/>
+<circle cx="956.00" cy="706.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="963.00" y="707.87" class="mono" font-size="5.50" font-weight="700" fill="#0F172A" text-anchor="start">(W28) SPK +</text>
+<circle cx="956.00" cy="724.00" r="3.60" fill="#78350F" stroke="#0F172A" stroke-width="0.9"/>
+<text x="963.00" y="725.87" class="mono" font-size="5.50" font-weight="700" fill="#0F172A" text-anchor="start">(W29) SPK -</text>
+<rect x="964.00" y="748.00" width="138.00" height="17.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.9"/>
+<text x="1033.00" y="758.32" class="sans" font-size="5.35" font-weight="700" fill="#991B1B" text-anchor="middle">BTL: NEVER TIE SPK- TO GND!</text>
+<path d="M 349.50 448.50 L 301.57 448.50 Q 300.00 448.50 300.00 450.07 L 300.00 450.43 Q 300.00 452.00 298.43 452.00 L 252.00 452.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 448.50 L 301.57 448.50 Q 300.00 448.50 300.00 450.07 L 300.00 450.43 Q 300.00 452.00 298.43 452.00 L 252.00 452.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 464.50 L 293.38 464.50 Q 290.00 464.50 290.00 467.88 L 290.00 468.62 Q 290.00 472.00 286.62 472.00 L 252.00 472.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 464.50 L 293.38 464.50 Q 290.00 464.50 290.00 467.88 L 290.00 468.62 Q 290.00 472.00 286.62 472.00 L 252.00 472.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 316.50 L 304.73 316.50 Q 300.00 316.50 300.00 311.77 L 300.00 310.73 Q 300.00 306.00 295.27 306.00 L 252.00 306.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 316.50 L 304.73 316.50 Q 300.00 316.50 300.00 311.77 L 300.00 310.73 Q 300.00 306.00 295.27 306.00 L 252.00 306.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 332.50 L 293.82 332.50 Q 290.00 332.50 290.00 328.68 L 290.00 327.82 Q 290.00 324.00 286.18 324.00 L 252.00 324.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 349.50 332.50 L 293.82 332.50 Q 290.00 332.50 290.00 328.68 L 290.00 327.82 Q 290.00 324.00 286.18 324.00 L 252.00 324.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 388.00 241.50 L 388.00 196.00 Q 388.00 190.00 382.00 190.00 L 344.00 190.00 Q 338.00 190.00 338.00 184.00 L 338.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 388.00 241.50 L 388.00 196.00 Q 388.00 190.00 382.00 190.00 L 344.00 190.00 Q 338.00 190.00 338.00 184.00 L 338.00 164.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 408.00 241.50 L 408.00 204.00 Q 408.00 198.00 402.00 198.00 L 382.00 198.00 Q 376.00 198.00 376.00 192.00 L 376.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 408.00 241.50 L 408.00 204.00 Q 408.00 198.00 402.00 198.00 L 382.00 198.00 Q 376.00 198.00 376.00 192.00 L 376.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 428.00 241.50 L 428.00 212.00 Q 428.00 206.00 422.00 206.00 L 420.00 206.00 Q 414.00 206.00 414.00 200.00 L 414.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 428.00 241.50 L 428.00 212.00 Q 428.00 206.00 422.00 206.00 L 420.00 206.00 Q 414.00 206.00 414.00 200.00 L 414.00 164.00" fill="none" stroke="#16A34A" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 206.00 111.00 L 172.00 111.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 206.00 127.00 L 172.00 127.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 206.00 127.00 L 172.00 127.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 500.00 241.50 L 500.00 198.00 Q 500.00 192.00 494.00 192.00 L 488.00 192.00 Q 482.00 192.00 482.00 186.00 L 482.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 500.00 241.50 L 500.00 198.00 Q 500.00 192.00 494.00 192.00 L 488.00 192.00 Q 482.00 192.00 482.00 186.00 L 482.00 164.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 520.00 241.50 L 520.00 199.90 Q 520.00 199.00 520.90 199.00 L 521.10 199.00 Q 522.00 199.00 522.00 198.10 L 522.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 520.00 241.50 L 520.00 199.90 Q 520.00 199.00 520.90 199.00 L 521.10 199.00 Q 522.00 199.00 522.00 198.10 L 522.00 164.00" fill="none" stroke="#2563EB" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 540.00 241.50 L 540.00 212.00 Q 540.00 206.00 546.00 206.00 L 556.00 206.00 Q 562.00 206.00 562.00 200.00 L 562.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 540.00 241.50 L 540.00 212.00 Q 540.00 206.00 546.00 206.00 L 556.00 206.00 Q 562.00 206.00 562.00 200.00 L 562.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 639.00 241.50 L 639.00 199.85 Q 639.00 194.00 644.85 194.00 L 646.15 194.00 Q 652.00 194.00 652.00 188.15 L 652.00 164.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 661.00 241.50 L 661.00 210.00 Q 661.00 204.00 667.00 204.00 L 708.00 204.00 Q 714.00 204.00 714.00 198.00 L 714.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 661.00 241.50 L 661.00 210.00 Q 661.00 204.00 667.00 204.00 L 708.00 204.00 Q 714.00 204.00 714.00 198.00 L 714.00 164.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 737.00 241.50 L 737.00 200.00 Q 737.00 194.00 743.00 194.00 L 816.00 194.00 Q 822.00 194.00 822.00 188.00 L 822.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 737.00 241.50 L 737.00 200.00 Q 737.00 194.00 743.00 194.00 L 816.00 194.00 Q 822.00 194.00 822.00 188.00 L 822.00 164.00" fill="none" stroke="#9333EA" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#334155" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 759.00 241.50 L 759.00 210.00 Q 759.00 204.00 765.00 204.00 L 886.00 204.00 Q 892.00 204.00 892.00 198.00 L 892.00 164.00" fill="none" stroke="#F8FAFC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 304.25 L 848.00 304.25 Q 854.00 304.25 854.00 298.25 L 854.00 252.00 Q 854.00 246.00 860.00 246.00 L 956.00 246.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 304.25 L 848.00 304.25 Q 854.00 304.25 854.00 298.25 L 854.00 252.00 Q 854.00 246.00 860.00 246.00 L 956.00 246.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 317.75 L 858.00 317.75 Q 864.00 317.75 864.00 311.75 L 864.00 268.00 Q 864.00 262.00 870.00 262.00 L 956.00 262.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 317.75 L 858.00 317.75 Q 864.00 317.75 864.00 311.75 L 864.00 268.00 Q 864.00 262.00 870.00 262.00 L 956.00 262.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 331.25 L 868.00 331.25 Q 874.00 331.25 874.00 325.25 L 874.00 284.00 Q 874.00 278.00 880.00 278.00 L 956.00 278.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 331.25 L 868.00 331.25 Q 874.00 331.25 874.00 325.25 L 874.00 284.00 Q 874.00 278.00 880.00 278.00 L 956.00 278.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 374.25 L 848.00 374.25 Q 854.00 374.25 854.00 368.25 L 854.00 362.00 Q 854.00 356.00 860.00 356.00 L 956.00 356.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 374.25 L 848.00 374.25 Q 854.00 374.25 854.00 368.25 L 854.00 362.00 Q 854.00 356.00 860.00 356.00 L 956.00 356.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 387.75 L 858.00 387.75 Q 864.00 387.75 864.00 381.75 L 864.00 378.00 Q 864.00 372.00 870.00 372.00 L 956.00 372.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 387.75 L 858.00 387.75 Q 864.00 387.75 864.00 381.75 L 864.00 378.00 Q 864.00 372.00 870.00 372.00 L 956.00 372.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 401.25 L 868.04 401.25 Q 874.00 401.25 874.00 395.29 L 874.00 393.96 Q 874.00 388.00 879.96 388.00 L 956.00 388.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 444.25 L 868.00 444.25 Q 874.00 444.25 874.00 450.25 L 874.00 472.00 Q 874.00 478.00 880.00 478.00 L 956.00 478.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 444.25 L 868.00 444.25 Q 874.00 444.25 874.00 450.25 L 874.00 472.00 Q 874.00 478.00 880.00 478.00 L 956.00 478.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 457.75 L 858.00 457.75 Q 864.00 457.75 864.00 463.75 L 864.00 486.00 Q 864.00 492.00 870.00 492.00 L 956.00 492.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 457.75 L 858.00 457.75 Q 864.00 457.75 864.00 463.75 L 864.00 486.00 Q 864.00 492.00 870.00 492.00 L 956.00 492.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#16A34A" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 469.00 568.50 L 469.00 627.75 Q 469.00 630.00 466.75 630.00 L 466.25 630.00 Q 464.00 630.00 464.00 632.25 L 464.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 469.00 568.50 L 469.00 627.75 Q 469.00 630.00 466.75 630.00 L 466.25 630.00 Q 464.00 630.00 464.00 632.25 L 464.00 682.00" fill="none" stroke="#0891B2" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 537.00 568.50 L 537.00 608.00 Q 537.00 614.00 531.00 614.00 L 518.00 614.00 Q 512.00 614.00 512.00 620.00 L 512.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 537.00 568.50 L 537.00 608.00 Q 537.00 614.00 531.00 614.00 L 518.00 614.00 Q 512.00 614.00 512.00 620.00 L 512.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 559.00 568.50 L 559.00 622.65 Q 559.00 624.00 557.65 624.00 L 557.35 624.00 Q 556.00 624.00 556.00 625.35 L 556.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 559.00 568.50 L 559.00 622.65 Q 559.00 624.00 557.65 624.00 L 557.35 624.00 Q 556.00 624.00 556.00 625.35 L 556.00 682.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 639.00 568.50 L 639.00 608.00 Q 639.00 614.00 645.00 614.00 L 670.00 614.00 Q 676.00 614.00 676.00 620.00 L 676.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 639.00 568.50 L 639.00 608.00 Q 639.00 614.00 645.00 614.00 L 670.00 614.00 Q 676.00 614.00 676.00 620.00 L 676.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 661.00 568.50 L 661.00 618.00 Q 661.00 624.00 667.00 624.00 L 712.00 624.00 Q 718.00 624.00 718.00 630.00 L 718.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 661.00 568.50 L 661.00 618.00 Q 661.00 624.00 667.00 624.00 L 712.00 624.00 Q 718.00 624.00 718.00 630.00 L 718.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#334155" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 737.00 568.50 L 737.00 608.00 Q 737.00 614.00 743.00 614.00 L 760.00 614.00 Q 766.00 614.00 766.00 620.00 L 766.00 682.00" fill="none" stroke="#F8FAFC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 759.00 568.50 L 759.00 618.00 Q 759.00 624.00 765.00 624.00 L 800.00 624.00 Q 806.00 624.00 806.00 630.00 L 806.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 759.00 568.50 L 759.00 618.00 Q 759.00 624.00 765.00 624.00 L 800.00 624.00 Q 806.00 624.00 806.00 630.00 L 806.00 682.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 910.00 706.00 L 956.00 706.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 910.00 724.00 L 956.00 724.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 910.00 724.00 L 956.00 724.00" fill="none" stroke="#78350F" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 418.50 319.50 L 407.00 319.50 Q 401.00 319.50 401.00 325.50 L 401.00 652.00 Q 401.00 658.00 407.00 658.00 L 898.00 658.00 Q 904.00 658.00 904.00 652.00 L 904.00 538.00 Q 904.00 532.00 910.00 532.00 L 956.00 532.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 418.50 319.50 L 407.00 319.50 Q 401.00 319.50 401.00 325.50 L 401.00 652.00 Q 401.00 658.00 407.00 658.00 L 898.00 658.00 Q 904.00 658.00 904.00 652.00 L 904.00 538.00 Q 904.00 532.00 910.00 532.00 L 956.00 532.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#854D0E" stroke-width="2.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 418.50 334.50 L 412.18 334.50 Q 407.00 334.50 407.00 339.68 L 407.00 662.00 Q 407.00 668.00 413.00 668.00 L 910.00 668.00 Q 916.00 668.00 916.00 662.00 L 916.00 554.00 Q 916.00 548.00 922.00 548.00 L 956.00 548.00" fill="none" stroke="#EAB308" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="564.00" y="631.00" width="106.00" height="21.00" rx="3.5" ry="3.5" fill="#FFFFFF" stroke="#15803D" stroke-width="0.9"/>
+<line x1="617.00" y1="652.00" x2="617.00" y2="657.00" stroke="#15803D" stroke-width="0.9" stroke-linecap="round"/>
+<text x="617.00" y="639.68" class="sans" font-size="4.95" font-weight="700" fill="#15803D" text-anchor="middle">J8 → Relay 1 COM / NO</text>
+<text x="617.00" y="648.12" class="mono" font-size="4.75" font-weight="700" fill="#334155" text-anchor="middle">W13 (+5V) · W14 (PUMP)</text>
+<circle cx="388.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="388.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="408.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="408.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="428.00" cy="241.50" r="4.00" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="428.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="500.00" cy="241.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="500.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="520.00" cy="241.50" r="4.00" fill="#2563EB" stroke="#0F172A" stroke-width="0.9"/>
+<text x="520.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="540.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="540.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="639.00" cy="241.50" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="639.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">1</text>
+<circle cx="661.00" cy="241.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="661.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="737.00" cy="241.50" r="4.00" fill="#9333EA" stroke="#0F172A" stroke-width="0.9"/>
+<text x="737.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="759.00" cy="241.50" r="4.00" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="759.00" y="243.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">2</text>
+<circle cx="349.50" cy="316.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="318.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="349.50" cy="332.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="334.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="418.50" cy="319.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="418.50" y="321.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="418.50" cy="334.50" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="418.50" y="336.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">2</text>
+<circle cx="349.50" cy="448.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="450.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="349.50" cy="464.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="349.50" y="466.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="802.50" cy="304.25" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="305.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="802.50" cy="317.75" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="319.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="802.50" cy="331.25" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="332.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="802.50" cy="374.25" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="375.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="802.50" cy="387.75" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="389.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="802.50" cy="401.25" r="4.00" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<text x="802.50" y="402.81" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">3</text>
+<circle cx="802.50" cy="444.25" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="445.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="802.50" cy="457.75" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="459.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="802.50" cy="471.25" r="4.00" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="472.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="802.50" cy="516.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="518.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="802.50" cy="530.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="802.50" y="532.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="431.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="431.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="450.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="450.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="469.00" cy="568.50" r="4.00" fill="#0891B2" stroke="#0F172A" stroke-width="0.9"/>
+<text x="469.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="537.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="537.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="559.00" cy="568.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<text x="559.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="639.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<text x="639.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="661.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="661.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="737.00" cy="568.50" r="4.00" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<text x="737.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#0F172A" text-anchor="middle">1</text>
+<circle cx="759.00" cy="568.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="759.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="172.00" cy="111.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="172.00" cy="127.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="206.00" cy="111.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="206.00" cy="127.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="338.00" cy="164.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="376.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="414.00" cy="164.00" r="3.60" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="482.00" cy="164.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="522.00" cy="164.00" r="3.60" fill="#2563EB" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="562.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="652.00" cy="164.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="714.00" cy="164.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="822.00" cy="164.00" r="3.60" fill="#9333EA" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="892.00" cy="164.00" r="3.60" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<circle cx="252.00" cy="306.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="252.00" cy="324.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="252.00" cy="452.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="252.00" cy="472.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="246.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="262.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="278.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="356.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="372.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="388.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="956.00" cy="478.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="492.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="506.00" r="3.60" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="532.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="548.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="956.00" cy="632.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="646.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="356.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="426.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="464.00" cy="682.00" r="3.60" fill="#0891B2" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="512.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="556.00" cy="682.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="676.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="718.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="766.00" cy="682.00" r="3.60" fill="#F8FAFC" stroke="#334155" stroke-width="0.9"/>
+<circle cx="806.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="910.00" cy="706.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="910.00" cy="724.00" r="3.60" fill="#78350F" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="706.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
+<circle cx="956.00" cy="724.00" r="3.60" fill="#78350F" stroke="#0F172A" stroke-width="0.9"/>
+</svg>
