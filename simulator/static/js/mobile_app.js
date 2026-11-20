@@ -123,6 +123,10 @@
     let mobileHistoryFilter = 'all';
     let isMobileListening = false;
     let ws = null;
+    let mobileGeminiLiveConnected = false;
+    function isMobileGeminiLiveReady() {
+      return Boolean(mobileLoggedIn && ws && ws.readyState === WebSocket.OPEN && mobileGeminiLiveConnected);
+    }
     let mobileMediaStream = null;
     let mobileAudioContext = null;
     let mobileAudioProcessor = null;
@@ -1676,7 +1680,13 @@
           if (cmdData && cmdData.speaker_name) {
             roleName = cmdData.speaker_name;
           }
-          if (cmdData && cmdData.ok === true && cmdData.authorized !== false && !cmdData.rbac_blocked && !cmdData.silent) {
+          if (
+            cmdData &&
+            cmdData.authorized !== false &&
+            !cmdData.rbac_blocked &&
+            !cmdData.silent &&
+            (cmdData.ok === true || cmdData.requires_confirmation === true || cmdData.needs_clarification === true || cmdData.kind === 'small_talk')
+          ) {
             isPass = true;
           } else {
             isPass = false;
@@ -2446,6 +2456,8 @@
       if (reply !== null) {
         const aEl = document.getElementById('aiReply');
         if (aEl) aEl.textContent = reply;
+        const rEl = document.getElementById('voiceReply');
+        if (rEl) rEl.textContent = reply;
       }
       const homeBanner = document.getElementById('mobileHomeVoiceBanner');
       if (homeBanner && (said || reply)) {
@@ -2468,6 +2480,7 @@
       try {
         mobileSpeechRec = new SpeechRec();
         mobileSpeechRec.lang = 'vi-VN';
+        mobileSpeechRec.maxAlternatives = 1;
         mobileSpeechRec.continuous = true;
         mobileSpeechRec.interimResults = true;
         mobileSpeechRec.onresult = (ev) => {
@@ -2687,11 +2700,46 @@
         if (data.cancelled === true) {
           const cancelReply = data.exact_spoken_reply || data.reply || 'Đã hủy.';
           showPwaVoiceResults(saidText, cancelReply);
+          showMobileActionError('');
+          if (data.snapshot) {
+            renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          }
           if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
             playMobilePcm24kOrSpeakVi(data.pcm24k_b64, cancelReply);
           }
           if (badge) badge.textContent = 'Đã hủy';
           addLog(saidText, 'voice', 'Đã hủy');
+          return data;
+        }
+        if (data.requires_confirmation === true && res.status !== 401 && data.authorized !== false && !data.rbac_blocked) {
+          const confirmReply = data.exact_spoken_reply || data.prompt_question || data.reply || 'Bạn xác nhận thực hiện nhé?';
+          showPwaVoiceResults(saidText, confirmReply);
+          if (badge) badge.textContent = 'Chờ xác nhận';
+          showMobileActionError('');
+          if (data.snapshot) {
+            renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          }
+          if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+            playMobilePcm24kOrSpeakVi(data.pcm24k_b64, confirmReply);
+          }
+          addLog(saidText, 'voice', 'Chờ xác nhận');
+          return data;
+        }
+        if ((data.needs_clarification === true || data.kind === 'small_talk') && res.status !== 401 && data.authorized !== false && !data.rbac_blocked) {
+          const infoReply = data.exact_spoken_reply || data.reply || 'Mình nghe đây, bạn cần hỗ trợ gì ạ?';
+          showPwaVoiceResults(saidText, infoReply);
+          if (badge) badge.textContent = 'Sẵn sàng';
+          showMobileActionError('');
+          if (data.snapshot) {
+            renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          }
+          if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+            playMobilePcm24kOrSpeakVi(data.pcm24k_b64, infoReply);
+          }
+          addLog(saidText, 'voice', data.kind === 'small_talk' ? 'Trò chuyện' : 'Cần làm rõ');
           return data;
         }
         if (!isHttpOk(res) || data.ok === false || data.authorized === false || data.rbac_blocked) {
@@ -2716,15 +2764,17 @@
         }
         const replyText = data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(saidText, replyText);
-        if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
-          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
-        }
         if (badge) badge.textContent = 'Sẵn sàng';
-        addLog(saidText, 'voice', 'Thành công');
+        showMobileActionError('');
         if (data.snapshot) {
           renderState(data.snapshot);
           publishMobileRealtimeSync(data.snapshot);
-        } else {
+        }
+        if (data.silent !== true && data.ask_repeat !== true && data.should_reply !== false) {
+          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, replyText);
+        }
+        addLog(saidText, 'voice', 'Thành công');
+        if (!data.snapshot) {
           await fetchInitial();
           publishMobileRealtimeSync(null);
         }
@@ -2770,7 +2820,7 @@
           mobileAudioContext.close();
           mobileAudioContext = null;
         }
-        if (ws && ws.readyState === WebSocket.OPEN) {
+        if (isMobileGeminiLiveReady()) {
           ws.send(JSON.stringify({ type: 'mic_speech_ended' }));
         } else {
           const chunks = mobileMicPcmChunks.slice(0);
@@ -2860,14 +2910,14 @@
           }
           const bytes = new Uint8Array(pcm16.buffer.slice(0));
           mobileMicPcmChunks.push(bytes);
-          if (mobileMicPcmChunks.length > 40) {
+          if (mobileMicPcmChunks.length > 100) {
             mobileMicPcmChunks.shift();
           }
-          let binary = '';
-          for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          if (ws && ws.readyState === WebSocket.OPEN) {
+          if (isMobileGeminiLiveReady()) {
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
             ws.send(JSON.stringify({
               type: 'mic_chunk',
               pcm16k_b64: window.btoa(binary),
@@ -2914,6 +2964,36 @@
           body: JSON.stringify({ text }),
         });
         const data = await res.json().catch(() => ({}));
+        if (data.requires_confirmation === true && res.status !== 401 && data.authorized !== false && !data.rbac_blocked) {
+          const confirmReply = data.exact_spoken_reply || data.prompt_question || data.reply || 'Bạn xác nhận thực hiện nhé?';
+          showPwaVoiceResults(text, confirmReply);
+          if (badge) badge.textContent = 'Chờ xác nhận';
+          showMobileActionError('');
+          if (data.snapshot) {
+            renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          }
+          if (data.silent !== true && data.should_reply !== false) {
+            playMobilePcm24kOrSpeakVi(data.pcm24k_b64, confirmReply);
+          }
+          addLog(text, 'voice', 'Chờ xác nhận');
+          return data;
+        }
+        if ((data.needs_clarification === true || data.kind === 'small_talk') && res.status !== 401 && data.authorized !== false && !data.rbac_blocked) {
+          const infoReply = data.exact_spoken_reply || data.reply || 'Mình nghe đây, bạn cần hỗ trợ gì ạ?';
+          showPwaVoiceResults(text, infoReply);
+          if (badge) badge.textContent = 'Sẵn sàng';
+          showMobileActionError('');
+          if (data.snapshot) {
+            renderState(data.snapshot);
+            publishMobileRealtimeSync(data.snapshot);
+          }
+          if (data.silent !== true && data.should_reply !== false) {
+            playMobilePcm24kOrSpeakVi(data.pcm24k_b64, infoReply);
+          }
+          addLog(text, 'voice', data.kind === 'small_talk' ? 'Trò chuyện' : 'Cần làm rõ');
+          return data;
+        }
         if (!isHttpOk(res) || data.ok === false || data.rbac_blocked) {
           const errReply = data.error || data.rejection_speech || data.exact_spoken_reply ||
             (res.status === 401
@@ -2936,16 +3016,17 @@
         }
         const reply = data.said || data.exact_spoken_reply || data.reply || 'Đã thực hiện lệnh.';
         showPwaVoiceResults(text, reply);
-        if (data.silent !== true && data.should_reply !== false) {
-          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, reply);
-        }
         if (badge) badge.textContent = 'Sẵn sàng';
-        addLog(text, 'voice', 'Thành công');
         showMobileActionError('');
         if (data.snapshot) {
           renderState(data.snapshot);
           publishMobileRealtimeSync(data.snapshot);
-        } else {
+        }
+        if (data.silent !== true && data.should_reply !== false) {
+          playMobilePcm24kOrSpeakVi(data.pcm24k_b64, reply);
+        }
+        addLog(text, 'voice', 'Thành công');
+        if (!data.snapshot) {
           await fetchInitial();
           publishMobileRealtimeSync(null);
         }
@@ -3557,15 +3638,38 @@
       }
     }
 
-    function connectMobileWebSocket() {
+    async function connectMobileWebSocketWithTicket() {
+      if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
+        connectMobileWebSocket();
+        return;
+      }
+      let ticket = '';
+      try {
+        const rT = await fetch('/api/auth/ws_ticket', { method: 'POST', credentials: 'include' });
+        if (rT && rT.ok) {
+          const dT = await rT.json().catch(() => ({}));
+          if (dT && dT.ticket) {
+            ticket = String(dT.ticket);
+          }
+        }
+      } catch (_) {}
+      connectMobileWebSocket(ticket);
+    }
+
+    function connectMobileWebSocket(explicitTicket = '') {
       if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
         /* On Vercel serverless, skip WebSocket and rely on SSE + HTTP fallback */
         fetchInitial().catch(() => {});
         return;
       }
 
+      mobileGeminiLiveConnected = false;
+      const ticketStr = typeof explicitTicket === 'string' ? explicitTicket.trim() : '';
+      const wsUrl = ticketStr
+        ? `${proto}://${location.host}/ws?ticket=${encodeURIComponent(ticketStr)}`
+        : `${proto}://${location.host}/ws`;
       try {
-        ws = new WebSocket(`${proto}://${location.host}/ws`);
+        ws = new WebSocket(wsUrl);
       } catch (_) {
         fetchInitial().catch(() => {});
         return;
@@ -3575,6 +3679,9 @@
       };
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
+        if (msg.type === 'gemini_status') {
+          mobileGeminiLiveConnected = Boolean(msg.connected === true && msg.model);
+        }
         if (msg.type === 'state_snapshot') renderState(msg.snapshot);
         if (msg.type === 'device_updated' && msg.device_id) {
           const devId = msg.device_id;
@@ -3668,6 +3775,7 @@
         }
       };
       ws.onclose = () => {
+        mobileGeminiLiveConnected = false;
         fetch('/api/state')
           .then(r => (r.ok ? r.json() : Promise.reject()))
           .then(d2 => {
@@ -3679,7 +3787,7 @@
           });
         /* Auto-reconnect fast on direct server hosts when logged in */
         if (!isMobileVercel) {
-          setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocket(); }, 250);
+          setTimeout(() => { if (mobileLoggedIn) connectMobileWebSocketWithTicket(); }, 250);
         }
       };
       ws.onerror = () => {};
@@ -4000,7 +4108,11 @@
     function initMobileApp() {
       if (_mobileAppInited) return;
       _mobileAppInited = true;
-      connectMobileWebSocket();
+      if (isMobileVercel || (typeof window !== 'undefined' && window._disableWebSocket)) {
+        connectMobileWebSocket();
+      } else {
+        connectMobileWebSocketWithTicket();
+      }
       connectMobileSse();
       fetchInitial().catch(() => {});
       renderMobileHistory();

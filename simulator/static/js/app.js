@@ -113,11 +113,19 @@
   const liveAiTranscript = byId("liveAiReply") || noopEl;
   const emptyVoice = byId("emptyVoice");
   const voiceResults = byId("voiceResults");
+  const voiceConfirmActions = byId("voiceConfirmActions");
+  const btnVoiceConfirmYes = byId("btnVoiceConfirmYes");
+  const btnVoiceConfirmNo = byId("btnVoiceConfirmNo");
   const voiceLockoutNotice = byId("voiceLockoutNotice");
 
   function showVoiceResults() {
     if (emptyVoice) emptyVoice.hidden = true;
     if (voiceResults && voiceResults.classList) voiceResults.classList.add("visible");
+  }
+  function setVoiceConfirmActionsVisible(visible) {
+    if (voiceConfirmActions) {
+      voiceConfirmActions.hidden = !visible;
+    }
   }
   function setUserTranscriptText(txt) {
     showVoiceResults();
@@ -142,6 +150,7 @@
   const btnClearLog = byId("btnClearLog");
 
   let ws = null;
+  let geminiLiveConnected = false;
   let audioCtxOut = null;
   let nextPlayTime = 0;
   let latestDevicesMap = {};
@@ -1535,6 +1544,10 @@
     return Boolean(ws && ws.readyState === WebSocket.OPEN);
   }
 
+  function isGeminiLiveReady() {
+    return Boolean(serverSessionConfirmed && isWsOpen() && geminiLiveConnected);
+  }
+
   function uint8ChunksToBase64(chunks) {
     let totalLen = 0;
     for (const c of chunks) totalLen += c.byteLength;
@@ -1564,6 +1577,7 @@
     }
     voiceCommandEpoch += 1;
     voiceCommandBusy = true;
+    setVoiceConfirmActionsVisible(false);
     try {
       const reqBody = Object.assign(
         {
@@ -1594,6 +1608,7 @@
       voiceCommandEpoch += 1;
       if (res.status === 401 || data.authenticated === false) {
         serverSessionConfirmed = false;
+        setVoiceConfirmActionsVisible(false);
         if (typeof clearAuthState === "function") clearAuthState();
         if (typeof openLoginGateModal === "function") openLoginGateModal();
         if (gateStatusBox) gateStatusBox.textContent = data.error || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
@@ -1601,14 +1616,28 @@
       }
       if (data.recognized_text) {
         setUserTranscriptText(data.recognized_text);
+      } else if (payload && payload.transcript) {
+        setUserTranscriptText(payload.transcript);
       }
-      const spokenReply = data.exact_spoken_reply || data.reply || data.rejection_speech || "";
+      const isNonErrorPrompt = Boolean(
+        data.requires_confirmation === true ||
+        data.needs_clarification === true ||
+        data.kind === "small_talk"
+      );
+      const spokenReply = data.exact_spoken_reply || data.reply || data.prompt_question || data.rejection_speech || (!isNonErrorPrompt && data.error ? data.error : "") || "";
       const isRepeatPhrase = /vui lòng nói lại|âm thanh chưa rõ/i.test(String(spokenReply || ""));
       const allowSpeak = Boolean(spokenReply) && data.silent !== true && data.ask_repeat !== true && data.should_reply !== false && !isRepeatPhrase;
       if (allowSpeak) {
         setAiReplyText(spokenReply);
       } else if (data.silent) {
         /* Im lặng: không phát TTS, không vòng nhắc nói lại. */
+      } else if (spokenReply && isNonErrorPrompt) {
+        setAiReplyText(spokenReply);
+      }
+      setVoiceConfirmActionsVisible(data.requires_confirmation === true);
+      if (data.snapshot) {
+        applySnapshot(data.snapshot);
+        publishRealtimeSync(data.snapshot);
       }
       if (!chkPlayAiVoice || chkPlayAiVoice.checked !== false) {
         if (data.pcm24k_b64 && allowSpeak) {
@@ -1617,19 +1646,17 @@
           requestAoedeSpokenPhrase(spokenReply);
         }
       }
-      if (data.snapshot) {
-        applySnapshot(data.snapshot);
-        publishRealtimeSync(data.snapshot);
-      } else {
+      if (!data.snapshot) {
         await pollRestStateFallback(true);
         publishRealtimeSync(null);
       }
       logEvent(
         `[Voice L${data.level || 1}] ${data.recognized_text || ""} -> ${data.intent || ""} (${data.permission || "ALLOWED"}, ${data.latency_ms || 0}ms)`,
-        data.ok === false ? "error" : "tool"
+        (data.ok === false && !isNonErrorPrompt) ? "error" : "tool"
       );
       return data;
     } catch (err) {
+      setVoiceConfirmActionsVisible(false);
       setAiReplyText("Lỗi kết nối API giọng nói.");
       return { ok: false, error: String(err) };
     } finally {
@@ -1756,7 +1783,7 @@
     if (subtext) {
       subtext.textContent = "Đang thử kết nối lại ngay...";
     }
-    connectWebSocket();
+    connectWebSocketWithTicket();
     setTimeout(() => {
       if (btn) {
         btn.disabled = false;
@@ -1828,8 +1855,29 @@
     }
   }
 
+  async function connectWebSocketWithTicket() {
+    if (!serverSessionConfirmed) return;
+    if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
+      connectWebSocket();
+      return;
+    }
+    let ticket = "";
+    try {
+      const rT = await fetch("/api/auth/ws_ticket", { method: "POST", credentials: "include" });
+      if (rT && rT.ok) {
+        const dT = await rT.json().catch(() => ({}));
+        if (dT && dT.ticket) {
+          ticket = String(dT.ticket);
+        }
+      }
+    } catch (_) {}
+    if (!serverSessionConfirmed) return;
+    connectWebSocket(ticket);
+  }
+
   function connectWebSocket() {
     if (!serverSessionConfirmed) return;
+    const explicitTicket = (arguments.length > 0 && typeof arguments[0] === "string") ? arguments[0].trim() : "";
     if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
       window._activeTransport = "HTTP Polling";
       updateConnectionUI(true, "HTTP Polling");
@@ -1837,9 +1885,18 @@
       return;
     }
 
+    geminiLiveConnected = false;
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      if (!explicitTicket) return;
+      try { ws.close(); } catch (_) {}
+    }
+
     const proto = location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = explicitTicket
+      ? `${proto}://${location.host}/ws?ticket=${encodeURIComponent(explicitTicket)}`
+      : `${proto}://${location.host}/ws`;
     try {
-      ws = new WebSocket(`${proto}://${location.host}/ws`);
+      ws = new WebSocket(wsUrl);
     } catch (_) {
       window._activeTransport = "HTTP Polling";
       pollRestStateFallback();
@@ -1869,6 +1926,7 @@
       const msg = JSON.parse(ev.data);
       switch (msg.type) {
         case "gemini_status":
+          geminiLiveConnected = Boolean(msg.connected === true && msg.model);
           if (msg.connected !== false) {
             updateConnectionUI(true);
           }
@@ -2099,6 +2157,7 @@
 
         case "rule_confirmation_requested":
           setAiReplyText(msg.message);
+          setVoiceConfirmActionsVisible(true);
           break;
 
         case "voice_auth_result": {
@@ -2146,9 +2205,11 @@
 
         case "reset_confirmation_requested":
           setAiReplyText(msg.message || "Bạn muốn đặt lại toàn bộ cài đặt?");
+          setVoiceConfirmActionsVisible(true);
           break;
 
         case "factory_reset_completed":
+          setVoiceConfirmActionsVisible(false);
           setAiReplyText(msg.message || "Đã đặt lại mô phỏng.");
           break;
 
@@ -2172,6 +2233,7 @@
     };
 
     ws.onclose = () => {
+      geminiLiveConnected = false;
       window._activeTransport = "HTTP Polling";
       Object.keys(deviceControlState).forEach((devId) => {
         const ctrl = deviceControlState[devId];
@@ -2212,7 +2274,10 @@
 
       if (!isVercelServerless && wsRetryCount < WS_MAX_RETRIES && wsRetryCount > 0) {
         if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-        wsReconnectTimer = setTimeout(connectWebSocket, 250);
+        wsReconnectTimer = setTimeout(() => {
+          wsReconnectTimer = null;
+          connectWebSocketWithTicket();
+        }, 250);
       }
     };
   }
@@ -2270,6 +2335,10 @@
   }
 
   function sendWs(payload) {
+    if (!payload) return;
+    if (!serverSessionConfirmed && (payload.type === "mic_chunk" || payload.type === "mic_speech_ended")) {
+      return;
+    }
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(payload));
     }
@@ -2314,6 +2383,7 @@
     try {
       liveSpeechRec = new SpeechRec();
       liveSpeechRec.lang = "vi-VN";
+      liveSpeechRec.maxAlternatives = 1;
       liveSpeechRec.continuous = true;
       liveSpeechRec.interimResults = true;
       liveSpeechRec.onresult = (ev) => {
@@ -2351,14 +2421,13 @@
     const transcriptHint = (liveSpeechTranscript || "").trim();
     liveSpeechTranscript = "";
     if (chunks.length === 0 && !transcriptHint) return;
-    if (!transcriptHint) return;
 
     serverlessVoiceInFlight = true;
     try {
-      const pcm16k_b64 = uint8ChunksToBase64(chunks);
+      const pcm16k_b64 = chunks.length > 0 ? uint8ChunksToBase64(chunks) : undefined;
       await executeVoiceCommandHttp({
         pcm16k_b64,
-        transcript: transcriptHint,
+        transcript: transcriptHint || undefined,
         is_live_mic: true,
       });
     } finally {
@@ -2403,7 +2472,7 @@
       awaitingTurnAfterSpeech = false;
       activeMicPcmChunks = [];
       let preRollMicChunks = [];
-      if (!isWsOpen()) {
+      if (!isGeminiLiveReady()) {
         startBrowserSpeechRecognitionVi();
       }
       let noiseFloorRms = 0.002;
@@ -2490,7 +2559,7 @@
             silenceStartMs = 0;
             awaitingTurnAfterSpeech = true;
             micStateLabel.textContent = "Đang xử lý";
-            if (isWsOpen()) {
+            if (isGeminiLiveReady()) {
               sendWs({ type: "mic_speech_ended" });
             } else {
               flushServerlessMicVoiceCommand();
@@ -2510,7 +2579,7 @@
             silenceStartMs = 0;
             awaitingTurnAfterSpeech = true;
             micStateLabel.textContent = "Đang xử lý";
-            if (isWsOpen()) {
+            if (isGeminiLiveReady()) {
               sendWs({ type: "mic_speech_ended" });
             } else {
               flushServerlessMicVoiceCommand();
@@ -2518,17 +2587,19 @@
           }
         }
 
-        const bytes = new Uint8Array(pcm16.buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
+        if (isGeminiLiveReady()) {
+          const bytes = new Uint8Array(pcm16.buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          sendWs({
+            type: "mic_chunk",
+            pcm16k_b64: btoa(binary),
+            is_speech: isSpeech || bargeInTriggered,
+            barge_in: bargeInTriggered,
+          });
         }
-        sendWs({
-          type: "mic_chunk",
-          pcm16k_b64: btoa(binary),
-          is_speech: isSpeech || bargeInTriggered,
-          barge_in: bargeInTriggered,
-        });
       };
 
       source.connect(micProcessor);
@@ -2564,7 +2635,7 @@
       micStream = null;
     }
     if (hadActiveMic) {
-      if (isWsOpen()) {
+      if (isGeminiLiveReady()) {
         sendWs({ type: "mic_speech_ended", stream_end: true });
       } else {
         flushServerlessMicVoiceCommand();
@@ -3111,11 +3182,24 @@
   });
 
   btnManualEndTurn.addEventListener("click", () => {
-    if (isWsOpen()) {
+    if (isGeminiLiveReady()) {
       sendWs({ type: "mic_speech_ended" });
     }
     stopMic();
   });
+
+  if (btnVoiceConfirmYes) {
+    btnVoiceConfirmYes.addEventListener("click", () => {
+      setVoiceConfirmActionsVisible(false);
+      submitTextCommand("đồng ý");
+    });
+  }
+  if (btnVoiceConfirmNo) {
+    btnVoiceConfirmNo.addEventListener("click", () => {
+      setVoiceConfirmActionsVisible(false);
+      submitTextCommand("hủy");
+    });
+  }
 
   async function submitTextCommand(cmd) {
     if (!cmd) return;
@@ -3124,6 +3208,7 @@
       if (gateStatusBox) gateStatusBox.textContent = "Vui lòng đăng nhập trước khi gửi lệnh điều khiển.";
       return;
     }
+    setVoiceConfirmActionsVisible(false);
     setUserTranscriptText(cmd);
     setAiReplyText("Đang xử lý...");
     if (typeof window !== "undefined" && window._USE_WS_SEND_TEXT && isWsOpen()) {
@@ -3142,30 +3227,40 @@
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 || data.authenticated === false) {
         serverSessionConfirmed = false;
+        setVoiceConfirmActionsVisible(false);
         if (typeof clearAuthState === "function") clearAuthState();
         if (typeof openLoginGateModal === "function") openLoginGateModal();
         setAiReplyText(data.error || "Vui lòng đăng nhập để điều khiển thiết bị.");
         return;
       }
-      const spokenReply = data.exact_spoken_reply || data.reply || data.error || "Đã xử lý lệnh.";
+      const isNonErrorPrompt = Boolean(
+        data.requires_confirmation === true ||
+        data.needs_clarification === true ||
+        data.kind === "small_talk"
+      );
+      const spokenReply = data.exact_spoken_reply || data.reply || data.prompt_question || data.rejection_speech || data.error || "Đã xử lý lệnh.";
       setAiReplyText(spokenReply);
+      setVoiceConfirmActionsVisible(data.requires_confirmation === true);
+      if (data.snapshot) {
+        applySnapshot(data.snapshot);
+        publishRealtimeSync(data.snapshot);
+      }
       const isRepeatPhrase = /vui lòng nói lại|âm thanh chưa rõ/i.test(String(spokenReply || ""));
-      if ((!chkPlayAiVoice || chkPlayAiVoice.checked !== false) && spokenReply && !isRepeatPhrase) {
+      const allowSpeak = Boolean(spokenReply) && data.silent !== true && data.ask_repeat !== true && data.should_reply !== false && !isRepeatPhrase;
+      if ((!chkPlayAiVoice || chkPlayAiVoice.checked !== false) && allowSpeak) {
         if (data.pcm24k_b64) {
           playPcm24kChunk(data.pcm24k_b64);
         } else {
           requestAoedeSpokenPhrase(spokenReply);
         }
       }
-      if (data.snapshot) {
-        applySnapshot(data.snapshot);
-        publishRealtimeSync(data.snapshot);
-      } else {
+      if (!data.snapshot) {
         await pollRestStateFallback(true);
         publishRealtimeSync(null);
       }
-      logEvent(`${spokenReply || cmd}`, data.ok === false ? "error" : "tool");
+      logEvent(`${spokenReply || cmd}`, (data.ok === false && !isNonErrorPrompt) ? "error" : "tool");
     } catch (_) {
+      setVoiceConfirmActionsVisible(false);
       setAiReplyText("Không thể gửi lệnh tới máy chủ.");
     }
   }
@@ -3601,7 +3696,11 @@
     mountOwnerDashboardDom();
     loadVoiceSamples();
     pollRestStateFallback(true);
-    connectWebSocket();
+    if (isVercelServerless || (typeof window !== "undefined" && window._disableWebSocket)) {
+      connectWebSocket();
+    } else {
+      connectWebSocketWithTicket();
+    }
     connectRealtimeSse();
   }
 
