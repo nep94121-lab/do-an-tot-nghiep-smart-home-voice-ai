@@ -6,6 +6,7 @@ import json
 import pathlib
 import re
 import sqlite3
+import subprocess
 from types import SimpleNamespace
 from typing import Any
 
@@ -621,3 +622,367 @@ def test_house3d_labels_toggle_and_preserve_drawing_buffer_and_wokwi_scale() -> 
     wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
     assert 'id="circuitStageWrap"' in wokwi_html
     assert "fitCircuitStageToWorkbench" in wokwi_js
+
+
+def test_house3d_board_preset_frames_pcb_box3_desktop_and_mobile() -> None:
+    """P2-4: 'board' preset dynamically frames kicad_pcb_hub + nodemcu_esp8266 Box3 on desktop & mobile."""
+    runner_script = r"""
+    const fs = require('fs');
+    const vm = require('vm');
+
+    class MockElement {
+      constructor(tag, id = '') {
+        this.tagName = (tag || 'DIV').toUpperCase();
+        this.id = id;
+        this.className = '';
+        this.children = [];
+        this.parentNode = null;
+        this.style = {};
+        this.dataset = {};
+        this.attributes = {};
+        this.listeners = {};
+        this.clientWidth = 613;
+        this.clientHeight = 300;
+        this.classList = { toggle: () => {}, add: () => {}, remove: () => {} };
+      }
+      get firstChild() { return this.children[0] || null; }
+      setAttribute(k, v) { this.attributes[k] = String(v); }
+      getAttribute(k) { return this.attributes[k] || null; }
+      appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
+      insertBefore(n, ref) {
+        n.parentNode = this;
+        const i = this.children.indexOf(ref);
+        if (i === -1) this.children.push(n);
+        else this.children.splice(i, 0, n);
+        return n;
+      }
+      remove() {
+        if (!this.parentNode) return;
+        const i = this.parentNode.children.indexOf(this);
+        if (i !== -1) this.parentNode.children.splice(i, 1);
+      }
+      querySelector(sel) {
+        if (sel === 'canvas') return this.children.find((c) => c.tagName === 'CANVAS') || null;
+        return null;
+      }
+      querySelectorAll() { return []; }
+      addEventListener(e, fn) { (this.listeners[e] = this.listeners[e] || []).push(fn); }
+    }
+
+    const viewport = new MockElement('div', 'house3dViewport');
+    const labels = new MockElement('div', 'house3dLabels');
+    viewport.appendChild(labels);
+
+    const nodeBoundsMap = {
+      kicad_pcb_hub: { min: [-3.95, 0.15, 1.6625], max: [-1.95, 0.6849, 3.2875] },
+      nodemcu_esp8266: { min: [-3.2675, 0.5525, 1.8717], max: [-2.6325, 0.7310, 3.1075] },
+    };
+
+    const makeMockGlbNode = (name) => ({
+      name,
+      isMesh: true,
+      visible: true,
+      userData: {},
+      scale: { x: 1, y: 1, z: 1, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+      _bounds: nodeBoundsMap[name] || null,
+      traverse(fn) { fn(this); },
+    });
+
+    const mockVillaNodes = {
+      kicad_pcb_hub: makeMockGlbNode('kicad_pcb_hub'),
+      nodemcu_esp8266: makeMockGlbNode('nodemcu_esp8266'),
+    };
+    const mockVillaRoot = {
+      scale: { x: 1, y: 1, z: 1, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+      updateMatrixWorld() {},
+      traverse(fn) {
+        Object.values(mockVillaNodes).forEach((n) => fn(n));
+      },
+      getObjectByName(name) {
+        return mockVillaNodes[name] || null;
+      },
+    };
+
+    const makeStub = () => new Proxy(function () {}, {
+      get(target, prop) {
+        if (prop === Symbol.toPrimitive || prop === 'valueOf') return () => 0;
+        if (prop === 'children') return [];
+        if (prop === 'position' || prop === 'rotation' || prop === 'scale') {
+          return { x: 0, y: 0, z: 0, set() {}, copy() {} };
+        }
+        if (prop === 'color' || prop === 'emissive') return { setHex() {} };
+        if (prop === 'shadowMap') return { enabled: false };
+        if (prop === 'shadow') return { mapSize: {}, camera: {} };
+        return makeStub();
+      },
+      construct() { return makeStub(); },
+      apply() { return makeStub(); },
+    });
+
+    class MockVector3 {
+      constructor(x = 0, y = 0, z = 0) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+      }
+      clone() { return new MockVector3(this.x, this.y, this.z); }
+      project(cam) {
+        const tx = cam._target.x;
+        const ty = cam._target.y;
+        const tz = cam._target.z;
+        const ex = cam.position.x;
+        const ey = cam.position.y;
+        const ez = cam.position.z;
+
+        let fx = tx - ex;
+        let fy = ty - ey;
+        let fz = tz - ez;
+        const flen = Math.hypot(fx, fy, fz) || 1;
+        fx /= flen; fy /= flen; fz /= flen;
+
+        // right = normalize(forward x (0, 1, 0))
+        let rx = -fz;
+        let ry = 0;
+        let rz = fx;
+        const rlen = Math.hypot(rx, ry, rz) || 1;
+        rx /= rlen; ry /= rlen; rz /= rlen;
+
+        // up = right x forward
+        const ux = ry * fz - rz * fy;
+        const uy = rz * fx - rx * fz;
+        const uz = rx * fy - ry * fx;
+
+        const px = this.x - ex;
+        const py = this.y - ey;
+        const pz = this.z - ez;
+
+        const camX = px * rx + py * ry + pz * rz;
+        const camY = px * ux + py * uy + pz * uz;
+        const depth = px * fx + py * fy + pz * fz;
+
+        const tanHalfY = Math.tan((cam.fov * Math.PI) / 360);
+        const tanHalfX = tanHalfY * cam.aspect;
+        this.x = camX / (depth * tanHalfX);
+        this.y = camY / (depth * tanHalfY);
+        this.z = depth > 0 ? 0.5 : 2.0;
+        return this;
+      }
+    }
+
+    class MockBox3 {
+      constructor() {
+        this.min = new MockVector3(Infinity, Infinity, Infinity);
+        this.max = new MockVector3(-Infinity, -Infinity, -Infinity);
+      }
+      isEmpty() {
+        return this.max.x < this.min.x || this.max.y < this.min.y || this.max.z < this.min.z;
+      }
+      setFromObject(obj) {
+        if (obj && obj._bounds) {
+          this.min = new MockVector3(...obj._bounds.min);
+          this.max = new MockVector3(...obj._bounds.max);
+        }
+        return this;
+      }
+      copy(other) {
+        this.min = other.min.clone();
+        this.max = other.max.clone();
+        return this;
+      }
+      union(other) {
+        this.min.x = Math.min(this.min.x, other.min.x);
+        this.min.y = Math.min(this.min.y, other.min.y);
+        this.min.z = Math.min(this.min.z, other.min.z);
+        this.max.x = Math.max(this.max.x, other.max.x);
+        this.max.y = Math.max(this.max.y, other.max.y);
+        this.max.z = Math.max(this.max.z, other.max.z);
+        return this;
+      }
+      getCenter(target) {
+        target.x = (this.min.x + this.max.x) * 0.5;
+        target.y = (this.min.y + this.max.y) * 0.5;
+        target.z = (this.min.z + this.max.z) * 0.5;
+        return target;
+      }
+    }
+
+    class MockPerspectiveCamera {
+      constructor(fov, aspect, near, far) {
+        this.fov = fov;
+        this.aspect = aspect;
+        this.near = near;
+        this.far = far;
+        this.position = new MockVector3(0, 0, 10);
+        this._target = new MockVector3(0, 0, 0);
+      }
+      lookAt(x, y, z) {
+        this._target = new MockVector3(x, y, z);
+      }
+      updateProjectionMatrix() {}
+      updateMatrixWorld() {}
+    }
+
+    const baseThree = {
+      PCFSoftShadowMap: 1,
+      ACESFilmicToneMapping: 1,
+      sRGBEncoding: 3001,
+      Vector3: MockVector3,
+      Box3: MockBox3,
+      PerspectiveCamera: MockPerspectiveCamera,
+      WebGLRenderer: class {
+        constructor() {
+          this.domElement = new MockElement('canvas');
+          this.shadowMap = {};
+        }
+        setSize() {}
+        setPixelRatio() {}
+        render() {}
+      },
+      GLTFLoader: class {
+        load(url, onLoad) {
+          onLoad({ scene: mockVillaRoot });
+        }
+      },
+    };
+
+    const mockThree = new Proxy(baseThree, {
+      get(target, prop) { return prop in target ? target[prop] : makeStub(); },
+    });
+
+    let rafCb = null;
+    const mockWindow = {
+      THREE: mockThree,
+      devicePixelRatio: 1,
+      navigator: { webdriver: true, userAgent: 'HeadlessChrome/120.0' },
+      requestAnimationFrame: (cb) => { rafCb = cb; },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      fetch: () => Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          ok: true,
+          camera_presets: {
+            board: { theta: -0.45, phi: 0.98, radius: 4.9323, targetX: -1.85, targetY: 0.4, targetZ: 2.45 },
+            overview: { theta: 0.44, phi: 0.94, radius: 14.8, targetX: 0.1, targetY: 1.0, targetZ: 0.6 },
+          },
+        }),
+      }),
+      document: {
+        hidden: false,
+        getElementById: (id) => {
+          if (id === 'house3dViewport') return viewport;
+          if (id === 'house3dLabels') return labels;
+          return null;
+        },
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        createElement: (tag) => new MockElement(tag),
+      },
+    };
+    mockWindow.window = mockWindow;
+    mockWindow.globalThis = mockWindow;
+
+    const ctx = vm.createContext(mockWindow);
+    const code = fs.readFileSync(process.argv[1], 'utf8');
+    vm.runInContext(code, ctx);
+
+    (async () => {
+      ctx.window.SmartHome3D.init('house3dViewport', 'house3dLabels');
+      await ctx.window.SmartHome3D.loadSceneSpec();
+
+      let t = 100;
+      const stepThrottledFrames = (count) => {
+        for (let i = 0; i < count; i++) {
+          t += 420;
+          if (typeof rafCb === 'function') rafCb(t);
+        }
+      };
+
+      // Warm up past initial 3 frames so automated throttling (400ms) is active
+      stepThrottledFrames(4);
+
+      // Desktop 613x300
+      ctx.window.SmartHome3D.setCameraView('board');
+      stepThrottledFrames(4);
+      const desktop = ctx.window.SmartHome3D.getBoardFrameMetrics();
+      const desktopLabelsVisible = ctx.window.SmartHome3D.areLabelsVisible();
+
+      // Mobile 322x218 via onResize
+      viewport.clientWidth = 322;
+      viewport.clientHeight = 218;
+      ctx.window.SmartHome3D.onResize();
+      stepThrottledFrames(4);
+      const mobile = ctx.window.SmartHome3D.getBoardFrameMetrics();
+      const mobileLabelsVisible = ctx.window.SmartHome3D.areLabelsVisible();
+
+      // Switch back to desktop & test other presets
+      viewport.clientWidth = 613;
+      viewport.clientHeight = 300;
+      ctx.window.SmartHome3D.onResize();
+      const presetGoals = {};
+      for (const p of ['overview', 'living', 'bedroom', 'door', 'garden', 'rotate']) {
+        ctx.window.SmartHome3D.setCameraView(p);
+        presetGoals[p] = ctx.window.SmartHome3D.getBoardFrameMetrics().camGoal;
+      }
+      ctx.window.SmartHome3D.setCameraView('overview');
+      const overviewLabelsVisible = ctx.window.SmartHome3D.areLabelsVisible();
+
+      process.stdout.write(JSON.stringify({
+        desktop,
+        desktopLabelsVisible,
+        mobile,
+        mobileLabelsVisible,
+        presetGoals,
+        overviewLabelsVisible,
+      }));
+    })().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+    """
+
+    proc = subprocess.run(
+        ["node", "-e", runner_script, str(HOUSE3D_PATH)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert proc.returncode == 0, f"Node VM runner failed:\nSTDOUT={proc.stdout}\nSTDERR={proc.stderr}"
+    out = json.loads(proc.stdout)
+
+    for label in ("desktop", "mobile"):
+        m = out[label]
+        goal = m["camGoal"]
+        state = m["camState"]
+        proj = m["projected"]
+        assert proj is not None, f"{label}: missing projected PCB metrics"
+
+        # Targets real combined PCB Box3 center [-2.95, 0.4405, 2.475], NOT old SCENE_SPEC -1.85 / r=4.9323
+        assert abs(goal["targetX"] - (-2.95)) < 0.01, f"{label}: unexpected targetX={goal['targetX']}"
+        assert abs(goal["targetY"] - 0.4405) < 0.02, f"{label}: unexpected targetY={goal['targetY']}"
+        assert abs(goal["targetZ"] - 2.475) < 0.01, f"{label}: unexpected targetZ={goal['targetZ']}"
+        assert goal["radius"] < 4.2, f"{label}: radius too wide ({goal['radius']}), likely fell back to SCENE_SPEC"
+
+        # Camera converges cleanly even under throttled headless 400ms frames
+        assert abs(state["radius"] - goal["radius"]) < 0.05, f"{label}: camera did not converge ({state['radius']} vs {goal['radius']})"
+        assert abs(state["targetX"] - goal["targetX"]) < 0.05, f"{label}: targetX did not converge"
+
+        # Projected PCB fills 55-80% canvas width and <=90% height with zero clipping
+        assert 0.55 <= proj["widthRatio"] <= 0.80, f"{label}: widthRatio={proj['widthRatio']} out of [0.55, 0.80]"
+        assert proj["heightRatio"] <= 0.90, f"{label}: heightRatio={proj['heightRatio']} > 0.90"
+        assert proj["minX"] >= -1.0 and proj["maxX"] <= 1.0, f"{label}: horizontal clipping {proj}"
+        assert proj["minY"] >= -1.0 and proj["maxY"] <= 1.0, f"{label}: vertical clipping {proj}"
+
+    assert out["desktopLabelsVisible"] is False
+    assert out["mobileLabelsVisible"] is False
+    assert out["overviewLabelsVisible"] is True
+
+    # Verify other presets still update camGoal properly
+    assert abs(out["presetGoals"]["overview"]["radius"] - 14.8) < 0.01
+    assert abs(out["presetGoals"]["living"]["targetX"] - (-2.3)) < 0.01
+    assert abs(out["presetGoals"]["bedroom"]["targetX"] - 2.8) < 0.01
+    assert abs(out["presetGoals"]["door"]["targetZ"] - 3.4) < 0.01
+    assert abs(out["presetGoals"]["garden"]["targetZ"] - 4.35) < 0.01
+    assert out["presetGoals"]["rotate"]["autoRotate"] is True
+

@@ -268,6 +268,8 @@ window.SmartHome3D = (() => {
 
     currentCameraPreset = "overview";
     labelsUserOverride = null;
+    lastRenderTimeMs = 0;
+    renderedFramesCount = 0;
     buildLighting();
     buildGroundAndLoadBlenderVilla();
     buildSmartDevices();
@@ -325,6 +327,268 @@ window.SmartHome3D = (() => {
       collect(obj);
     }
     return mats;
+  }
+
+  function isFiniteVec3(v) {
+    return Boolean(
+      v &&
+        typeof v.x === "number" &&
+        Number.isFinite(v.x) &&
+        typeof v.y === "number" &&
+        Number.isFinite(v.y) &&
+        typeof v.z === "number" &&
+        Number.isFinite(v.z)
+    );
+  }
+
+  function isValidBox3(b) {
+    if (!b || !isFiniteVec3(b.min) || !isFiniteVec3(b.max)) return false;
+    if (typeof b.isEmpty === "function" && b.isEmpty() === true) return false;
+    return (
+      b.max.x >= b.min.x &&
+      b.max.y >= b.min.y &&
+      b.max.z >= b.min.z &&
+      (b.max.x > b.min.x || b.max.y > b.min.y || b.max.z > b.min.z)
+    );
+  }
+
+  function getPcbHubBounds() {
+    if (!activeVillaRoot || typeof activeVillaRoot.getObjectByName !== "function") return null;
+    if (typeof THREE.Box3 !== "function") return null;
+    try {
+      if (typeof activeVillaRoot.updateMatrixWorld === "function") {
+        activeVillaRoot.updateMatrixWorld(true);
+      }
+      const kicadHub = activeVillaRoot.getObjectByName("kicad_pcb_hub") || null;
+      const nodemcu = activeVillaRoot.getObjectByName("nodemcu_esp8266") || null;
+      const targets = [];
+      const nodeNames = [];
+      if (kicadHub) {
+        targets.push(kicadHub);
+        nodeNames.push("kicad_pcb_hub");
+      }
+      if (nodemcu) {
+        targets.push(nodemcu);
+        nodeNames.push("nodemcu_esp8266");
+      }
+      if (!targets.length) return null;
+
+      const box = new THREE.Box3();
+      let hasAny = false;
+      targets.forEach((node) => {
+        const nodeBox = new THREE.Box3();
+        if (typeof nodeBox.setFromObject !== "function") return;
+        nodeBox.setFromObject(node);
+        if (!isValidBox3(nodeBox)) return;
+        if (!hasAny) {
+          if (typeof box.copy === "function") {
+            box.copy(nodeBox);
+          } else {
+            box.min = { x: nodeBox.min.x, y: nodeBox.min.y, z: nodeBox.min.z };
+            box.max = { x: nodeBox.max.x, y: nodeBox.max.y, z: nodeBox.max.z };
+          }
+          hasAny = true;
+        } else if (typeof box.union === "function") {
+          box.union(nodeBox);
+        } else {
+          box.min.x = Math.min(box.min.x, nodeBox.min.x);
+          box.min.y = Math.min(box.min.y, nodeBox.min.y);
+          box.min.z = Math.min(box.min.z, nodeBox.min.z);
+          box.max.x = Math.max(box.max.x, nodeBox.max.x);
+          box.max.y = Math.max(box.max.y, nodeBox.max.y);
+          box.max.z = Math.max(box.max.z, nodeBox.max.z);
+        }
+      });
+      if (!hasAny || !isValidBox3(box)) return null;
+
+      const center = {
+        x: (box.min.x + box.max.x) * 0.5,
+        y: (box.min.y + box.max.y) * 0.5,
+        z: (box.min.z + box.max.z) * 0.5,
+      };
+      const size = {
+        x: box.max.x - box.min.x,
+        y: box.max.y - box.min.y,
+        z: box.max.z - box.min.z,
+      };
+      if (!isFiniteVec3(center) || !isFiniteVec3(size)) return null;
+      return { box, center, size, nodeNames };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function computeBoardPresetFromBounds() {
+    const bounds = getPcbHubBounds();
+    if (!bounds) return null;
+
+    const w = container && Number(container.clientWidth) > 0 ? Number(container.clientWidth) : 0;
+    const h = container && Number(container.clientHeight) > 0 ? Number(container.clientHeight) : 0;
+    const aspect =
+      w > 0 && h > 0
+        ? w / h
+        : camera && typeof camera.aspect === "number" && Number.isFinite(camera.aspect) && camera.aspect > 0
+          ? camera.aspect
+          : 800 / 520;
+    const fovDeg =
+      camera && typeof camera.fov === "number" && Number.isFinite(camera.fov) && camera.fov > 1 && camera.fov < 175
+        ? camera.fov
+        : 40;
+
+    const theta = -0.10;
+    const phi = 0.78;
+    const targetWidthFill = 0.72;
+    const maxHeightFill = 0.91;
+
+    const sinPhi = Math.sin(phi);
+    const cosPhi = Math.cos(phi);
+    const sinTheta = Math.sin(theta);
+    const cosTheta = Math.cos(theta);
+
+    const toEyeX = sinPhi * sinTheta;
+    const toEyeY = cosPhi;
+    const toEyeZ = sinPhi * cosTheta;
+
+    const fwdX = -toEyeX;
+    const fwdY = -toEyeY;
+    const fwdZ = -toEyeZ;
+
+    // right = normalize(forward x (0, 1, 0))
+    const rawRx = -fwdZ;
+    const rawRz = fwdX;
+    const rLen = Math.hypot(rawRx, rawRz) || 1;
+    const rightX = rawRx / rLen;
+    const rightY = 0;
+    const rightZ = rawRz / rLen;
+
+    // up = right x forward
+    const upX = rightY * fwdZ - rightZ * fwdY;
+    const upY = rightZ * fwdX - rightX * fwdZ;
+    const upZ = rightX * fwdY - rightY * fwdX;
+
+    const tanHalfY = Math.tan((fovDeg * Math.PI) / 360);
+    const tanHalfX = tanHalfY * aspect;
+    if (!Number.isFinite(tanHalfY) || tanHalfY <= 0 || !Number.isFinite(tanHalfX) || tanHalfX <= 0) {
+      return null;
+    }
+
+    const { min, max } = bounds.box;
+    const { center } = bounds;
+    let maxRW = 0;
+    let maxRH = 0;
+    for (const cx of [min.x, max.x]) {
+      for (const cy of [min.y, max.y]) {
+        for (const cz of [min.z, max.z]) {
+          const dx = cx - center.x;
+          const dy = cy - center.y;
+          const dz = cz - center.z;
+          const px = Math.abs(dx * rightX + dy * rightY + dz * rightZ);
+          const py = Math.abs(dx * upX + dy * upY + dz * upZ);
+          const pz = dx * toEyeX + dy * toEyeY + dz * toEyeZ;
+          const rW = pz + px / (targetWidthFill * tanHalfX);
+          const rH = pz + py / (maxHeightFill * tanHalfY);
+          if (rW > maxRW) maxRW = rW;
+          if (rH > maxRH) maxRH = rH;
+        }
+      }
+    }
+
+    const rawRadius = Math.max(maxRW, maxRH);
+    if (!Number.isFinite(rawRadius) || rawRadius <= 0) return null;
+    const radius = Math.max(1.5, Math.min(10.0, rawRadius));
+
+    return {
+      theta,
+      phi,
+      radius,
+      targetX: center.x,
+      targetY: center.y,
+      targetZ: center.z,
+    };
+  }
+
+  function refreshBoardCameraIfActive() {
+    if (currentCameraPreset !== "board") return;
+    const dynamicBoardCam = computeBoardPresetFromBounds();
+    if (dynamicBoardCam) {
+      Object.assign(camGoal, dynamicBoardCam);
+    }
+  }
+
+  function getBoardFrameMetrics() {
+    const bounds = getPcbHubBounds();
+    const w = container && Number(container.clientWidth) > 0 ? Number(container.clientWidth) : 0;
+    const h = container && Number(container.clientHeight) > 0 ? Number(container.clientHeight) : 0;
+    const aspect =
+      w > 0 && h > 0
+        ? w / h
+        : camera && typeof camera.aspect === "number" && Number.isFinite(camera.aspect)
+          ? camera.aspect
+          : null;
+
+    let projected = null;
+    if (bounds && camera && typeof THREE.Vector3 === "function") {
+      try {
+        if (typeof camera.updateMatrixWorld === "function") {
+          camera.updateMatrixWorld(true);
+        }
+        const { min, max } = bounds.box;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        let valid = true;
+        for (const cx of [min.x, max.x]) {
+          for (const cy of [min.y, max.y]) {
+            for (const cz of [min.z, max.z]) {
+              const v = new THREE.Vector3(cx, cy, cz);
+              if (typeof v.project !== "function") {
+                valid = false;
+                break;
+              }
+              v.project(camera);
+              if (!isFiniteVec3(v)) {
+                valid = false;
+                break;
+              }
+              if (v.x < minX) minX = v.x;
+              if (v.x > maxX) maxX = v.x;
+              if (v.y < minY) minY = v.y;
+              if (v.y > maxY) maxY = v.y;
+            }
+            if (!valid) break;
+          }
+          if (!valid) break;
+        }
+        if (valid && Number.isFinite(minX) && Number.isFinite(maxX) && Number.isFinite(minY) && Number.isFinite(maxY)) {
+          projected = {
+            widthRatio: (maxX - minX) * 0.5,
+            heightRatio: (maxY - minY) * 0.5,
+            minX,
+            maxX,
+            minY,
+            maxY,
+          };
+        }
+      } catch (_) {}
+    }
+
+    return {
+      preset: currentCameraPreset,
+      camState: { ...camState },
+      camGoal: { ...camGoal },
+      aspect,
+      pcbBox: bounds
+        ? {
+            min: [bounds.box.min.x, bounds.box.min.y, bounds.box.min.z],
+            max: [bounds.box.max.x, bounds.box.max.y, bounds.box.max.z],
+            center: [bounds.center.x, bounds.center.y, bounds.center.z],
+            size: [bounds.size.x, bounds.size.y, bounds.size.z],
+            nodeNames: bounds.nodeNames.slice(),
+          }
+        : null,
+      projected,
+    };
   }
 
   function getNodeWorldCenter(obj) {
@@ -471,6 +735,7 @@ window.SmartHome3D = (() => {
         activeVillaRoot.updateMatrixWorld(true);
       }
       recomputeBoundPinAnchors();
+      refreshBoardCameraIfActive();
     }
   }
 
@@ -644,6 +909,8 @@ window.SmartHome3D = (() => {
         bindPinAnchor("board_esp8266", glbNodEmcu, 0.35);
       }
     }
+
+    refreshBoardCameraIfActive();
 
     return boundCount;
   }
@@ -2001,7 +2268,7 @@ window.SmartHome3D = (() => {
       "wheel",
       (e) => {
         e.preventDefault();
-        camGoal.radius = Math.max(2.8, Math.min(22.0, camGoal.radius + e.deltaY * 0.008));
+        camGoal.radius = Math.max(1.5, Math.min(22.0, camGoal.radius + e.deltaY * 0.008));
       },
       { passive: false }
     );
@@ -2009,7 +2276,7 @@ window.SmartHome3D = (() => {
 
   function setCameraView(preset) {
     camGoal.autoRotate = false;
-    const specCam = sceneSpecPresets[preset];
+    const specCam = preset === "board" ? null : sceneSpecPresets[preset];
     if (specCam) {
       Object.assign(camGoal, specCam);
     } else if (preset === "overview") {
@@ -2023,7 +2290,14 @@ window.SmartHome3D = (() => {
     } else if (preset === "garden") {
       Object.assign(camGoal, { theta: -0.28, phi: 1.05, radius: 6.2, targetX: 2.4, targetY: 0.65, targetZ: 4.35 });
     } else if (preset === "board") {
-      Object.assign(camGoal, { theta: -0.45, phi: 0.98, radius: 4.6, targetX: -0.25, targetY: 1.38, targetZ: 2.45 });
+      const dynamicBoardCam = computeBoardPresetFromBounds();
+      if (dynamicBoardCam) {
+        Object.assign(camGoal, dynamicBoardCam);
+      } else if (sceneSpecPresets.board) {
+        Object.assign(camGoal, sceneSpecPresets.board);
+      } else {
+        Object.assign(camGoal, { theta: -0.45, phi: 0.98, radius: 4.6, targetX: -0.25, targetY: 1.38, targetZ: 2.45 });
+      }
     } else if (preset === "wires") {
       toggleWiringConduits();
     } else if (preset === "rotate") {
@@ -2343,8 +2617,14 @@ window.SmartHome3D = (() => {
     if (isAutomated && renderedFramesCount > 3 && ((timeMs || 0) - lastRenderTimeMs) < 400) {
       return;
     }
+    const prevRenderTimeMs = lastRenderTimeMs;
     lastRenderTimeMs = timeMs || 0;
     renderedFramesCount++;
+    let camLerpAlpha = 0.12;
+    if (renderedFramesCount > 1 && prevRenderTimeMs > 0 && Number.isFinite(timeMs) && timeMs > prevRenderTimeMs) {
+      const dtSec = Math.max(0.016, Math.min(0.5, (timeMs - prevRenderTimeMs) / 1000));
+      camLerpAlpha = 1 - Math.exp(-7.67 * dtSec);
+    }
 
     // 1. Nội suy góc xoay Cửa Chính & Tay đòn Servo SG90 (Chân D1)
     const targetDoorAngle = deviceStates.main_door ? -1.62 : 0.0;
@@ -2441,12 +2721,12 @@ window.SmartHome3D = (() => {
     if (camGoal.autoRotate) {
       camGoal.theta += 0.0035;
     }
-    camState.theta += (camGoal.theta - camState.theta) * 0.12;
-    camState.phi += (camGoal.phi - camState.phi) * 0.12;
-    camState.radius += (camGoal.radius - camState.radius) * 0.12;
-    camState.targetX += (camGoal.targetX - camState.targetX) * 0.12;
-    camState.targetY += (camGoal.targetY - camState.targetY) * 0.12;
-    camState.targetZ += (camGoal.targetZ - camState.targetZ) * 0.12;
+    camState.theta += (camGoal.theta - camState.theta) * camLerpAlpha;
+    camState.phi += (camGoal.phi - camState.phi) * camLerpAlpha;
+    camState.radius += (camGoal.radius - camState.radius) * camLerpAlpha;
+    camState.targetX += (camGoal.targetX - camState.targetX) * camLerpAlpha;
+    camState.targetY += (camGoal.targetY - camState.targetY) * camLerpAlpha;
+    camState.targetZ += (camGoal.targetZ - camState.targetZ) * camLerpAlpha;
 
     camera.position.x =
       camState.targetX + camState.radius * Math.sin(camState.phi) * Math.sin(camState.theta);
@@ -2465,6 +2745,7 @@ window.SmartHome3D = (() => {
     const h = container.clientHeight || 520;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    refreshBoardCameraIfActive();
     renderer.setSize(w, h);
     syncLabelsVisibilityUi();
     if (scene && typeof renderer.render === "function") {
@@ -2483,6 +2764,7 @@ window.SmartHome3D = (() => {
     setLabelsVisible,
     toggleLabelsVisible,
     areLabelsVisible,
+    getBoardFrameMetrics,
     onResize,
     loadSceneSpec,
   };
