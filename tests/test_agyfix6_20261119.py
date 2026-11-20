@@ -289,7 +289,7 @@ console.log(JSON.stringify({
         asyncio.run(bridge.handle_mic_chunk(wav_pcm, is_sp=True, actor=owner_sess, is_barge_in=True))
         assert bridge._mic_in_flight_queue.qsize() > 0
 
-        # HTTP voice loopback: device command prompts for confirmation first, executes on "ok",
+        # HTTP voice loopback: simple device command executes immediately,
         # and feeding AI's reply back as transcript is suppressed.
         asyncio.run(engine.execute_device_action("living_room_light", "turn_off", bypass_rbac=True))
         resp1, status1 = asyncio.run(
@@ -300,21 +300,10 @@ console.log(JSON.stringify({
             )
         )
         assert status1 == 200 and resp1["ok"] is True
-        assert resp1.get("requires_confirmation") is True
-        assert resp1.get("executed") is False
-        assert engine.devices["living_room_light"]["state"] == "OFF"
-
-        resp_ok, status_ok = asyncio.run(
-            process_session_voice_command(
-                engine=engine,
-                session=owner_sess,
-                payload={"transcript": "ok"},
-            )
-        )
-        assert status_ok == 200 and resp_ok["ok"] is True
-        assert resp_ok.get("executed") is True
+        assert resp1.get("requires_confirmation") is False
+        assert resp1.get("executed") is True
         assert engine.devices["living_room_light"]["state"] == "ON"
-        ai_reply = resp_ok["exact_spoken_reply"]
+        ai_reply = resp1["exact_spoken_reply"]
         assert ai_reply
 
         # Now feed AI's own spoken reply back into mic path -> suppressed, no execution, silent
@@ -449,20 +438,20 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         assert "24.6" in sens_http["exact_spoken_reply"]
         assert "58" in sens_http["exact_spoken_reply"]
 
-        # Flow C: Cancel ("không" / "hủy") does nothing
-        asyncio.run(engine.execute_device_action("speaker_amp", "turn_off", bypass_rbac=True))
-        assert engine.devices["speaker_amp"]["state"] == "OFF"
-        stage_spk = asyncio.run(
-            bridge.handle_tool_call(_fc("set_device", {"device_id": "speaker_amp", "action": "turn_on"}))
+        # Flow C: Cancel ("không" / "hủy") on pending schedule does nothing
+        stage_sched = asyncio.run(
+            bridge.handle_tool_call(
+                _fc("create_schedule", {"device_id": "speaker_amp", "action": "turn_on", "time_hhmm": "21:15", "schedule_type": "once"})
+            )
         )
-        assert stage_spk["ok"] is True and stage_spk["requires_confirmation"] is True
-        assert engine.devices["speaker_amp"]["state"] == "OFF"
+        assert stage_sched["ok"] is True and stage_sched["requires_confirmation"] is True
 
-        cancel_spk = asyncio.run(
+        cancel_sched = asyncio.run(
             bridge.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": False}))
         )
-        assert cancel_spk["cancelled"] is True
-        assert engine.devices["speaker_amp"]["state"] == "OFF"
+        assert cancel_sched["cancelled"] is True
+        scheds_after_cancel = asyncio.run(bridge.handle_tool_call(_fc("list_schedules")))
+        assert not any(s.get("time_hhmm") == "21:15" for s in scheds_after_cancel.get("schedules", []))
 
     def test_set_device_values_and_invalid_params_and_rbac(self) -> None:
         engine = SmartHomeEngine()
@@ -493,15 +482,13 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         assert g_deny["ok"] is False and g_deny.get("rbac_blocked") is True
         assert g_deny["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
 
-        # set_device: Owner sets brightness on lights and toggles speaker_amp (confirmed)
+        # set_device: Owner sets brightness on lights immediately (act-first)
         for args, expected_key, expected_val in [
             ({"device_id": "living_room_light", "action": "turn_on", "brightness_pct": 65}, "brightness_pct", 65),
             ({"device_id": "bedroom_light", "action": "turn_on", "brightness_pct": 80}, "brightness_pct", 80),
         ]:
             st1 = asyncio.run(b_owner.handle_tool_call(_fc("set_device", args)))
-            assert st1["ok"] is True and st1["requires_confirmation"] is True
-            st2 = asyncio.run(b_owner.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": True})))
-            assert st2["ok"] is True and st2["confirmed"] is True
+            assert st1["ok"] is True and st1.get("executed") is True and not st1.get("requires_confirmation")
             st_read = asyncio.run(b_owner.handle_tool_call(_fc("get_device_state", {"device_id": args["device_id"]})))
             assert st_read["device"]["state"] == "ON"
             assert st_read["device"]["settings"][expected_key] == expected_val
@@ -525,11 +512,9 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
         assert g_deny_spk["ok"] is False and g_deny_spk.get("rbac_blocked") is True
         assert g_deny_spk["exact_spoken_reply"] == FIXED_REJECTION_PHRASE_VI
 
-        # Guest CAN set_device on allowed light (with confirmation)
-        g_stage = asyncio.run(b_guest.handle_tool_call(_fc("set_device", {"device_id": "bedroom_light", "action": "turn_on"})))
-        assert g_stage["ok"] is True and g_stage["requires_confirmation"] is True
-        g_conf = asyncio.run(b_guest.handle_tool_call(_fc("confirm_or_cancel_pending_action", {"confirmed": True})))
-        assert g_conf["ok"] is True and engine.devices["bedroom_light"]["state"] == "ON"
+        # Guest CAN set_device on allowed light immediately
+        g_exec = asyncio.run(b_guest.handle_tool_call(_fc("set_device", {"device_id": "bedroom_light", "action": "turn_on"})))
+        assert g_exec["ok"] is True and g_exec.get("executed") is True and engine.devices["bedroom_light"]["state"] == "ON"
 
     def test_timers_and_schedules_pool_isolation_and_rbac(self) -> None:
         engine = SmartHomeEngine()

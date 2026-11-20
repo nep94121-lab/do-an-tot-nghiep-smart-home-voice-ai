@@ -203,9 +203,10 @@ class TestP1VoiceCommandConfirmationFlow:
         )
 
     @pytest.mark.parametrize("confirm_phrase", ["ok", "được", "đúng rồi", "làm đi", "đồng ý"])
-    def test_main_door_requires_natural_confirm_cancels_cleanly_and_executes_on_affirmative(
+    def test_main_door_acts_immediately_and_automation_requires_natural_confirm(
         self, confirm_phrase: str
     ) -> None:
+        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
         from simulator.rule_engine import SmartHomeEngine
         from simulator.voice.session_voice_command import (
             process_session_voice_command,
@@ -213,27 +214,40 @@ class TestP1VoiceCommandConfirmationFlow:
         )
 
         reset_session_echo_guards()
+        reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()
         asyncio.run(engine.execute_device_action("main_door", "close", bypass_rbac=True))
         assert engine.devices["main_door"]["state"] == "CLOSED"
 
         owner = self._make_session(f"sess_owner_{confirm_phrase}", "tuan_anh", "Nguyễn Tuấn Anh", 1, "ADMIN")
 
-        # 1. Request "mở cửa chính" -> MUST prompt naturally, MUST NOT open yet
-        r1, s1 = asyncio.run(
+        # 1. Direct simple device command "mở cửa chính" -> MUST act IMMEDIATELY without confirmation
+        r_direct, s_direct = asyncio.run(
             process_session_voice_command(engine=engine, session=owner, payload={"transcript": "mở cửa chính"})
+        )
+        assert s_direct == 200 and r_direct["ok"] is True
+        assert r_direct.get("requires_confirmation") is False
+        assert r_direct.get("executed") is True
+        assert engine.devices["main_door"]["state"] == "OPEN"
+        reply_direct = str(r_direct.get("exact_spoken_reply") or "")
+        assert "đã mở cửa chính" in reply_direct.lower()
+        assert "main_door" not in reply_direct.lower()
+        assert "{" not in reply_direct and "}" not in reply_direct
+
+        # 2. Automation command (schedule) -> MUST prompt naturally, MUST NOT create schedule yet
+        r1, s1 = asyncio.run(
+            process_session_voice_command(engine=engine, session=owner, payload={"transcript": "đặt lịch 07:00 mở cửa chính"})
         )
         assert s1 == 200 and r1["ok"] is True
         assert r1["requires_confirmation"] is True
         assert r1["executed"] is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
         reply1 = str(r1.get("exact_spoken_reply") or "")
+        assert "07:00" in reply1
         assert "cửa chính" in reply1.lower()
         assert "main_door" not in reply1.lower()
-        assert "set_device" not in reply1.lower()
-        assert "{" not in reply1 and "}" not in reply1
 
-        # 2. Cancel ("hủy" / "thôi" / "không") -> MUST NOT open
+        # 3. Cancel ("hủy" / "thôi" / "không") -> MUST NOT create schedule
         cancel_word = {"ok": "hủy", "được": "thôi", "đúng rồi": "không"}.get(confirm_phrase, "hủy")
         rc, sc = asyncio.run(
             process_session_voice_command(engine=engine, session=owner, payload={"transcript": cancel_word})
@@ -241,25 +255,23 @@ class TestP1VoiceCommandConfirmationFlow:
         assert sc == 200
         assert rc.get("cancelled") is True
         assert rc.get("executed") is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
-        # 3. Repeat "mở cửa chính" immediately (within 8s echo window) -> NOT suppressed, prompts again
+        # 4. Repeat schedule command -> prompts again, then confirm with natural affirmative variant
         r2, s2 = asyncio.run(
-            process_session_voice_command(engine=engine, session=owner, payload={"transcript": "mở cửa chính"})
+            process_session_voice_command(engine=engine, session=owner, payload={"transcript": "đặt lịch 07:00 mở cửa chính"})
         )
         assert s2 == 200 and r2["ok"] is True
         assert r2.get("echo_suppressed") is not True
         assert r2["requires_confirmation"] is True
-        assert engine.devices["main_door"]["state"] == "CLOSED"
 
-        # 4. Confirm with natural affirmative variant -> executes CLOSED -> OPEN
         rok, sok = asyncio.run(
             process_session_voice_command(engine=engine, session=owner, payload={"transcript": confirm_phrase})
         )
         assert sok == 200 and rok["ok"] is True
         assert rok.get("confirmed") is True
         assert rok.get("executed") is True
-        assert engine.devices["main_door"]["state"] == "OPEN"
+        assert len(list_schedules(include_disabled=False)) == 1
 
         # 5. Repeating "ok" a second time must be idempotent (no pending left)
         rdup, sdup = asyncio.run(
@@ -267,9 +279,14 @@ class TestP1VoiceCommandConfirmationFlow:
         )
         assert sdup == 200
         assert rdup.get("executed") is False
+        reset_timers_and_schedules_scoped(clear_all=True)
 
     def test_pending_ttl_60s_expiry_and_strict_user_session_isolation(self) -> None:
-        from simulator.automation_repo import PENDING_CONFIRM_TTL_SEC
+        from simulator.automation_repo import (
+            PENDING_CONFIRM_TTL_SEC,
+            list_schedules,
+            reset_timers_and_schedules_scoped,
+        )
         from simulator.database_sqlite import open_wal_connection, resolve_sqlite_db_path
         from simulator.rule_engine import SmartHomeEngine
         from simulator.voice.session_voice_command import (
@@ -279,35 +296,35 @@ class TestP1VoiceCommandConfirmationFlow:
 
         assert PENDING_CONFIRM_TTL_SEC >= 60.0
         reset_session_echo_guards()
+        reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()
-        asyncio.run(engine.execute_device_action("main_door", "close", bypass_rbac=True))
 
         owner_sess_a = self._make_session("sess_owner_iso_A", "tuan_anh", "Nguyễn Tuấn Anh", 1, "ADMIN")
         owner_sess_b = self._make_session("sess_owner_iso_B", "tuan_anh", "Nguyễn Tuấn Anh", 1, "ADMIN")
         member_sess = self._make_session("sess_member_iso", "thanh_vien_a", "Thành viên A", 2, "MEMBER")
 
-        # Owner session A stages "mở cửa chính"
+        # Owner session A stages a schedule (requires confirmation)
         r1, s1 = asyncio.run(
-            process_session_voice_command(engine=engine, session=owner_sess_a, payload={"transcript": "mở cửa chính"})
+            process_session_voice_command(engine=engine, session=owner_sess_a, payload={"transcript": "đặt lịch 08:15 mở cửa chính"})
         )
         assert s1 == 200 and r1["requires_confirmation"] is True
         pid = r1["pending_id"]
         assert float(r1["expires_at"]) - time.time() >= 45.0
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
         # Another user (Tier 2) saying "ok" MUST NOT confirm Owner's pending action
         rm, _ = asyncio.run(
             process_session_voice_command(engine=engine, session=member_sess, payload={"transcript": "ok"})
         )
         assert rm.get("executed") is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
         # Same user on a DIFFERENT session (session B) saying "ok" MUST NOT confirm session A's pending action
         rb, _ = asyncio.run(
             process_session_voice_command(engine=engine, session=owner_sess_b, payload={"transcript": "ok"})
         )
         assert rb.get("executed") is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
         # Expire pending row -> session A saying "ok" MUST NOT execute
         conn = open_wal_connection(resolve_sqlite_db_path(), readonly=False)
@@ -323,18 +340,19 @@ class TestP1VoiceCommandConfirmationFlow:
         assert sexp == 200
         assert rexp.get("expired") is True
         assert rexp.get("executed") is False
-        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert len(list_schedules(include_disabled=False)) == 0
 
     def test_tier3_rbac_blocked_on_door_sensors_and_direct_ui_toggle_unchanged(self) -> None:
         from simulator.api import deps as api_deps
         from simulator.api import routes_devices
         from simulator.auth.session_store import get_session_store
         from simulator.automation_nlu import _resolve_session_key
-        from simulator.automation_repo import create_pending_confirmation
+        from simulator.automation_repo import create_pending_confirmation, reset_timers_and_schedules_scoped
         from simulator.server import app
         from simulator.voice.session_voice_command import reset_session_echo_guards
 
         reset_session_echo_guards()
+        reset_timers_and_schedules_scoped(clear_all=True)
         engine = routes_devices._REST_ENGINE
         asyncio.run(engine.execute_device_action("main_door", "close", bypass_rbac=True))
         asyncio.run(engine.execute_device_action("living_room_light", "turn_off", bypass_rbac=True))
@@ -355,6 +373,14 @@ class TestP1VoiceCommandConfirmationFlow:
             assert r_t3.json().get("rbac_blocked") is True
             assert engine.devices["main_door"]["state"] == "CLOSED"
 
+            # Greeting "chào bạn" MUST succeed with HTTP 200 and NO RBAC block for ALL tiers
+            for hdr in (h1, h3):
+                r_hi = client.post("/api/voice_command", headers=hdr, json={"transcript": "chào bạn"})
+                assert r_hi.status_code == 200
+                d_hi = r_hi.json()
+                assert d_hi["ok"] is True and d_hi.get("rbac_blocked") is False
+                assert "không có quyền" not in str(d_hi.get("exact_spoken_reply") or "").lower()
+
             # Even if a pending set_device(main_door, open) exists for Tier 3, saying "ok" STILL blocks with 403
             create_pending_confirmation(
                 owner_user_id="khach_fix10",
@@ -362,7 +388,7 @@ class TestP1VoiceCommandConfirmationFlow:
                 session_key=_resolve_session_key(t3_sess, "web_voice"),
                 action_kind="set_device",
                 payload={"device_id": "main_door", "action": "open", "intents": [{"device_id": "main_door", "action": "open"}]},
-                prompt_question="Mình sẽ mở cửa chính, bạn đồng ý không?",
+                prompt_question="Mở cửa chính, đúng không ạ?",
             )
             r_t3_ok = client.post("/api/voice_command", headers=h3, json={"transcript": "ok"})
             assert r_t3_ok.status_code == 403
@@ -383,19 +409,17 @@ class TestP1VoiceCommandConfirmationFlow:
             assert engine.devices["living_room_light"]["state"] == "ON"
             client.post("/api/device", headers=h1, json={"device_id": "living_room_light", "action": "turn_off"})
 
-            # /api/text_command (used by #txtCommand/#btnSendText on /, /app, and Android) shares the exact same confirmation flow
+            # /api/text_command simple device command executes IMMEDIATELY; automation requires confirmation
             r_tx1 = client.post("/api/text_command", headers=h1, json={"text": "mở cửa chính"})
-            assert r_tx1.status_code == 200 and r_tx1.json().get("requires_confirmation") is True
-            assert engine.devices["main_door"]["state"] == "CLOSED"
-            r_tx_cancel = client.post("/api/text_command", headers=h1, json={"text": "hủy"})
-            assert r_tx_cancel.status_code == 200 and r_tx_cancel.json().get("cancelled") is True
-            assert engine.devices["main_door"]["state"] == "CLOSED"
-            r_tx2 = client.post("/api/text_command", headers=h1, json={"text": "mở cửa chính"})
-            assert r_tx2.status_code == 200 and r_tx2.json().get("requires_confirmation") is True
-            r_tx_ok = client.post("/api/text_command", headers=h1, json={"text": "làm đi"})
-            assert r_tx_ok.status_code == 200 and r_tx_ok.json().get("confirmed") is True
+            assert r_tx1.status_code == 200 and r_tx1.json().get("ok") is True
+            assert not r_tx1.json().get("requires_confirmation")
             assert engine.devices["main_door"]["state"] == "OPEN"
             client.post("/api/device", headers=h1, json={"device_id": "main_door", "action": "close"})
+
+            r_tx_sch = client.post("/api/text_command", headers=h1, json={"text": "đặt lịch 09:00 mở cửa chính"})
+            assert r_tx_sch.status_code == 200 and r_tx_sch.json().get("requires_confirmation") is True
+            r_tx_cancel = client.post("/api/text_command", headers=h1, json={"text": "hủy"})
+            assert r_tx_cancel.status_code == 200 and r_tx_cancel.json().get("cancelled") is True
 
             r_tx_t3 = client.post("/api/text_command", headers=h3, json={"text": "mở cửa chính"})
             assert r_tx_t3.status_code == 403 and r_tx_t3.json().get("rbac_blocked") is True

@@ -420,7 +420,7 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     instance_cmd_3 = SmartHomeEngine(state_backend=shared_backend)
     instance_reader = SmartHomeEngine(state_backend=shared_backend)
 
-    # 1. Owner: Bật đèn phòng ngủ và nguồn mạch loa trên instance_cmd_1 -> xác nhận "ok" -> Đọc trên instance_reader
+    # 1. Owner: Bật đèn phòng ngủ và nguồn mạch loa trên instance_cmd_1 -> Đọc trên instance_reader
     sess_l1 = _session_for(level=1)
     res_cau5, status_cau5 = asyncio.run(
         process_session_voice_command(
@@ -432,15 +432,7 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert status_cau5 == 200
     assert res_cau5["authorized"] is True
     assert res_cau5["permission"] == "ALLOWED"
-    assert res_cau5.get("requires_confirmation") is True
-    res_cau5_ok, status_cau5_ok = asyncio.run(
-        process_session_voice_command(
-            engine=instance_cmd_1,
-            session=sess_l1,
-            payload={"transcript": "ok"},
-        )
-    )
-    assert status_cau5_ok == 200 and res_cau5_ok["ok"] is True
+    assert res_cau5.get("executed") is True
     state_after_cau5 = _devices_map_from_snapshot(instance_reader.get_snapshot())
     assert state_after_cau5["bedroom_light"] == "ON"
     assert state_after_cau5["speaker_amp"] == "ON"
@@ -449,7 +441,7 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     asyncio.run(instance_cmd_1.execute_device_action("living_room_light", "turn_off"))
     assert _devices_map_from_snapshot(instance_reader.get_snapshot())["living_room_light"] == "OFF"
 
-    # 2. Level 2: Bật đèn phòng khách trên instance_cmd_2 -> xác nhận "ok" -> Đọc trên instance_reader
+    # 2. Level 2: Bật đèn phòng khách trên instance_cmd_2 -> Đọc trên instance_reader
     sess_l2 = _session_for(level=2)
     res_l2, status_l2 = asyncio.run(
         process_session_voice_command(
@@ -461,15 +453,6 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert status_l2 == 200
     assert res_l2["authorized"] is True
     assert res_l2["permission"] == "ALLOWED"
-    assert res_l2.get("requires_confirmation") is True
-    res_l2_ok, status_l2_ok = asyncio.run(
-        process_session_voice_command(
-            engine=instance_cmd_2,
-            session=sess_l2,
-            payload={"transcript": "ok"},
-        )
-    )
-    assert status_l2_ok == 200 and res_l2_ok["ok"] is True
     state_after_l2 = _devices_map_from_snapshot(instance_reader.get_snapshot())
     assert state_after_l2["living_room_light"] == "ON"
     # Và trạng thái bedroom_light, speaker_amp từ lệnh trước trên instance_cmd_1 vẫn phải được bảo toàn!
@@ -480,7 +463,7 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     asyncio.run(instance_reader.execute_device_action("living_room_light", "turn_off"))
     assert _devices_map_from_snapshot(instance_cmd_3.get_snapshot())["living_room_light"] == "OFF"
 
-    # 3. Level 3: Bật đèn phòng khách trên instance_cmd_3 -> xác nhận "ok" -> Đọc trên instance newly spawned (cold start)
+    # 3. Level 3: Bật đèn phòng khách trên instance_cmd_3 -> Đọc trên instance newly spawned (cold start)
     sess_l3 = _session_for(level=3)
     res_l3, status_l3 = asyncio.run(
         process_session_voice_command(
@@ -492,15 +475,6 @@ def test_serverless_multi_instance_p7_reported_failures_fixed() -> None:
     assert status_l3 == 200
     assert res_l3["authorized"] is True
     assert res_l3["permission"] == "ALLOWED"
-    assert res_l3.get("requires_confirmation") is True
-    res_l3_ok, status_l3_ok = asyncio.run(
-        process_session_voice_command(
-            engine=instance_cmd_3,
-            session=sess_l3,
-            payload={"transcript": "ok"},
-        )
-    )
-    assert status_l3_ok == 200 and res_l3_ok["ok"] is True
 
     cold_start_instance = SmartHomeEngine(state_backend=shared_backend)
     state_after_l3 = _devices_map_from_snapshot(cold_start_instance.get_snapshot())
@@ -611,14 +585,14 @@ def test_24_sequential_command_and_read_cycles_across_serverless_instances(
                 assert resp.status_code == 200, f"Cycle {idx} voice HTTP status != 200: {resp.text}"
                 assert body["authorized"] is True, f"Cycle {idx} unauthorized: {body}"
                 assert body["permission"] == "ALLOWED", f"Cycle {idx} permission != ALLOWED: {body}"
-                assert body.get("requires_confirmation") is True, f"Cycle {idx} expected confirmation prompt: {body}"
-                resp_ok = client.post(
-                    "/api/voice_command",
-                    json={"transcript": "ok"},
-                    headers=hdrs_v,
-                )
-                assert resp_ok.status_code == 200, f"Cycle {idx} confirm HTTP status != 200: {resp_ok.text}"
-                assert resp_ok.json().get("ok") is True, f"Cycle {idx} confirm failed: {resp_ok.text}"
+                if body.get("requires_confirmation"):
+                    resp_ok = client.post(
+                        "/api/voice_command",
+                        json={"transcript": "ok"},
+                        headers=hdrs_v,
+                    )
+                    assert resp_ok.status_code == 200, f"Cycle {idx} confirm HTTP status != 200: {resp_ok.text}"
+                    assert resp_ok.json().get("ok") is True, f"Cycle {idx} confirm failed: {resp_ok.text}"
             else:
                 assert resp.status_code == 403, f"Cycle {idx} denied HTTP status != 403: {resp.text}"
                 assert body["permission"] == "DENIED", f"Cycle {idx} expected DENIED: {body}"
@@ -810,7 +784,7 @@ def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
 
     client = TestClient(app)
 
-    # 1. Chủ nhà lệnh đóng cửa chính (cau_3) -> hỏi xác nhận -> "ok" -> HTTP 200 OK (KHÔNG bị HTTP 500)
+    # 1. Chủ nhà lệnh đóng cửa chính (cau_3) -> thực thi ngay HTTP 200 OK (KHÔNG bị HTTP 500)
     hdrs_owner = _headers_for(level=1)
     resp_owner = client.post(
         "/api/voice_command",
@@ -821,13 +795,7 @@ def test_voice_command_succeeds_under_403_store_suspended_preserving_auth(
     body_owner = resp_owner.json()
     assert body_owner["authorized"] is True
     assert body_owner["permission"] == "ALLOWED"
-    assert body_owner.get("requires_confirmation") is True
-    resp_owner_ok = client.post(
-        "/api/voice_command",
-        json={"transcript": "ok"},
-        headers=hdrs_owner,
-    )
-    assert resp_owner_ok.status_code == 200 and resp_owner_ok.json().get("ok") is True
+    assert body_owner.get("executed") is True
 
     # Trạng thái cửa đã đóng
     assert test_engine.devices["main_door"]["state"] == "CLOSED"

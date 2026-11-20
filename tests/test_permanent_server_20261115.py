@@ -695,14 +695,12 @@ def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_
                     txt_cmd = "Đóng cửa chính" if cur_door == "on" else "Mở cửa chính"
                     exp_txt = "off" if cur_door == "on" else "on"
                     _post_api("/api/text_command", {"text": txt_cmd})
-                    _post_api("/api/text_command", {"text": "ok"})
                     await _wait_state(d_page, "#dev-card-main_door", exp_txt, timeout_s=1.0)
                     await _wait_state(m_page, "#devGrid [data-device-id='main_door']", exp_txt, timeout_s=1.0)
 
                     voice_cmd = "Đóng cửa chính" if exp_txt == "on" else "Mở cửa chính"
                     exp_voice = "off" if exp_txt == "on" else "on"
                     _post_api("/api/voice_command", {"transcript": voice_cmd})
-                    _post_api("/api/voice_command", {"transcript": "ok"})
                     await _wait_state(d_page, "#dev-card-main_door", exp_voice, timeout_s=1.0)
                     await _wait_state(m_page, "#devGrid [data-device-id='main_door']", exp_voice, timeout_s=1.0)
                 finally:
