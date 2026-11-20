@@ -539,11 +539,16 @@ class TestMilestone2Invariants:
     """Kiểm tra các bất biến bảo mật và cấu trúc mã nguồn."""
 
     def test_zero_crlf_in_all_static_and_mobile_files(self):
-        """0 byte CRLF (\\r\\n) trong toàn bộ simulator/static và mobile_app."""
+        """0 byte CRLF (\\r\\n) trong toàn bộ tệp text của simulator/static và mobile_app."""
+        binary_exts = {
+            ".glb", ".gltf", ".bin", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+            ".ico", ".woff", ".woff2", ".ttf", ".otf", ".wav", ".mp3", ".ogg",
+            ".pdf", ".zip", ".db", ".sqlite",
+        }
         crlf_files = []
         for base in [ROOT / "simulator" / "static", ROOT / "mobile_app"]:
             for p in base.rglob("*"):
-                if p.is_file() and b"\r\n" in p.read_bytes():
+                if p.is_file() and p.suffix.lower() not in binary_exts and b"\r\n" in p.read_bytes():
                     crlf_files.append(str(p.relative_to(ROOT)))
         assert len(crlf_files) == 0, f"Phát hiện CRLF trong các tệp: {crlf_files}"
 
