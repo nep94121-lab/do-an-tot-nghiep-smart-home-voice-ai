@@ -1241,19 +1241,65 @@
       alert(`Đã copy ${kind === 'diagram' ? 'diagram.json' : 'esp8266_smarthome.ino'}! Mở Arduino IDE và dán (Ctrl+V) để nạp vào mạch NodeMCU ESP8266.`);
     }
 
+    const CIRCUIT_STAGE_BASE_W = 1220;
+    const CIRCUIT_STAGE_BASE_H = 710;
+    let _workbenchResizeObserver = null;
+
+    function fitCircuitStageToWorkbench() {
+      const scrollEl = document.getElementById('workbenchScroll') || document.querySelector('.workbench-scroll');
+      const wrapEl = document.getElementById('circuitStageWrap');
+      const stageEl = document.getElementById('circuitStage');
+      if (!scrollEl || !wrapEl || !stageEl) return 1;
+
+      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+      if (isMobile) {
+        stageEl.style.transform = '';
+        wrapEl.style.width = `${CIRCUIT_STAGE_BASE_W}px`;
+        wrapEl.style.height = `${CIRCUIT_STAGE_BASE_H}px`;
+        return 1;
+      }
+
+      const cs = typeof window !== 'undefined' && window.getComputedStyle ? window.getComputedStyle(scrollEl) : null;
+      const padL = cs ? parseFloat(cs.paddingLeft) || 0 : 8;
+      const padR = cs ? parseFloat(cs.paddingRight) || 0 : 8;
+      const availW = Math.max(320, scrollEl.clientWidth - padL - padR);
+      const scale = Math.min(1, availW / CIRCUIT_STAGE_BASE_W);
+
+      stageEl.style.transformOrigin = 'top left';
+      stageEl.style.transform = scale < 0.999 ? `scale(${scale.toFixed(4)})` : '';
+      wrapEl.style.width = `${Math.floor(CIRCUIT_STAGE_BASE_W * scale)}px`;
+      wrapEl.style.height = `${Math.ceil(CIRCUIT_STAGE_BASE_H * scale)}px`;
+      return scale;
+    }
+
     // Lắng nghe sự kiện xoay chiết áp <wokwi-potentiometer id="w_soil_pot">
     let _wokwiPageInitialized = false;
     function initWokwiPageOnce() {
       if (_wokwiPageInitialized) {
         fetchState();
-        requestAnimationFrame(() => drawWires());
+        requestAnimationFrame(() => {
+          drawWires();
+          fitCircuitStageToWorkbench();
+        });
         return;
       }
       _wokwiPageInitialized = true;
       buildNodeMCUPins();
       buildBreadboard400();
       drawWires();
-      setTimeout(drawWires, 250);
+      fitCircuitStageToWorkbench();
+      setTimeout(() => {
+        drawWires();
+        fitCircuitStageToWorkbench();
+      }, 250);
+      if (typeof window !== 'undefined') {
+        window.addEventListener('resize', fitCircuitStageToWorkbench);
+        const scrollEl = document.getElementById('workbenchScroll') || document.querySelector('.workbench-scroll');
+        if (scrollEl && typeof ResizeObserver === 'function' && !_workbenchResizeObserver) {
+          _workbenchResizeObserver = new ResizeObserver(() => fitCircuitStageToWorkbench());
+          _workbenchResizeObserver.observe(scrollEl);
+        }
+      }
       fetchState();
 
       const pot = document.getElementById('w_soil_pot');
@@ -1376,6 +1422,7 @@ window.updateLiveTelemetryHeader = updateLiveTelemetryHeader;
 window.buildNodeMCUPins = buildNodeMCUPins;
 window.getElementPinXY = getElementPinXY;
 window.drawWires = drawWires;
+window.fitCircuitStageToWorkbench = fitCircuitStageToWorkbench;
 window.filterStep = filterStep;
 window.logSerial = logSerial;
 window.playHardwareSpeakerTone = playHardwareSpeakerTone;

@@ -4499,6 +4499,16 @@
         }
       });
     });
+
+    const btnToggleLabels = document.getElementById("btnToggle3dLabels");
+    if (btnToggleLabels && !btnToggleLabels.dataset.boundToggleLabels) {
+      btnToggleLabels.dataset.boundToggleLabels = "1";
+      btnToggleLabels.addEventListener("click", () => {
+        if (window.SmartHome3D && typeof window.SmartHome3D.toggleLabelsVisible === "function") {
+          window.SmartHome3D.toggleLabelsVisible();
+        }
+      });
+    }
   }
   initCameraToolbar();
 

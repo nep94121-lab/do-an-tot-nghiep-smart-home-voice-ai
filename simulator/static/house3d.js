@@ -177,6 +177,9 @@ window.SmartHome3D = (() => {
   // Điểm neo 3D để gắn nhãn nổi HTML (Floating 3D Pins)
   const pinAnchors = {};
   const pinElements = {};
+  let currentCameraPreset = "overview";
+  let labelsUserOverride = null; // null = tự động ẩn trên mobile & góc nhìn Mạch ESP
+  let labelsVisible = true;
 
   // 6 Nhãn Thiết bị (ẩn trước khi có state) + 4 Nhãn Cảm biến & Bảng Mạch
   const PIN_META = [
@@ -223,7 +226,11 @@ window.SmartHome3D = (() => {
     const h = container.clientHeight || 520;
     camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+      preserveDrawingBuffer: true,
+    });
     renderer.setSize(w, h);
     let isSoftwareGl = Boolean(
       typeof navigator !== "undefined" &&
@@ -259,11 +266,14 @@ window.SmartHome3D = (() => {
     }
     container.insertBefore(renderer.domElement, container.firstChild);
 
+    currentCameraPreset = "overview";
+    labelsUserOverride = null;
     buildLighting();
     buildGroundAndLoadBlenderVilla();
     buildSmartDevices();
     buildHardwareKit3D();
     buildFloatingPins();
+    syncLabelsVisibilityUi();
     bindMouseControls();
 
     window.addEventListener("resize", onResize);
@@ -1702,8 +1712,72 @@ window.SmartHome3D = (() => {
     });
   }
 
+  function isCompactLabelsViewport() {
+    const w =
+      (container && container.clientWidth) ||
+      (typeof window !== "undefined" && Number(window.innerWidth)) ||
+      800;
+    return w > 0 && w < 500;
+  }
+
+  function computeEffectiveLabelsVisible() {
+    if (labelsUserOverride !== null) return Boolean(labelsUserOverride);
+    if (currentCameraPreset === "board") return false;
+    if (isCompactLabelsViewport()) return false;
+    return true;
+  }
+
+  function syncLabelsVisibilityUi() {
+    labelsVisible = computeEffectiveLabelsVisible();
+    if (labelsContainer) {
+      if (typeof labelsContainer.setAttribute === "function") {
+        labelsContainer.setAttribute("data-labels-visible", labelsVisible ? "true" : "false");
+      }
+      if (labelsContainer.classList && typeof labelsContainer.classList.toggle === "function") {
+        labelsContainer.classList.toggle("labels-hidden", !labelsVisible);
+      }
+    }
+    if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+      const btn = document.getElementById("btnToggle3dLabels");
+      if (btn) {
+        btn.textContent = labelsVisible ? "Ẩn nhãn" : "Hiện nhãn";
+        if (typeof btn.setAttribute === "function") {
+          btn.setAttribute("aria-pressed", labelsVisible ? "true" : "false");
+        }
+        if (btn.classList && typeof btn.classList.toggle === "function") {
+          btn.classList.toggle("active", labelsVisible);
+        }
+      }
+    }
+  }
+
+  function setLabelsVisible(visible) {
+    labelsUserOverride = visible === null || visible === undefined ? null : Boolean(visible);
+    syncLabelsVisibilityUi();
+    updatePinPositions();
+    return labelsVisible;
+  }
+
+  function toggleLabelsVisible() {
+    labelsUserOverride = !labelsVisible;
+    syncLabelsVisibilityUi();
+    updatePinPositions();
+    return labelsVisible;
+  }
+
+  function areLabelsVisible() {
+    return Boolean(labelsVisible);
+  }
+
   function updatePinPositions() {
     if (!labelsContainer || !renderer) return;
+    if (!labelsVisible) {
+      PIN_META.forEach((m) => {
+        const el = pinElements[m.id];
+        if (el) el.style.display = "none";
+      });
+      return;
+    }
     const w = container.clientWidth;
     const h = container.clientHeight;
     const visiblePins = [];
@@ -1955,6 +2029,13 @@ window.SmartHome3D = (() => {
     } else if (preset === "rotate") {
       camGoal.autoRotate = !camState.autoRotate;
       camState.autoRotate = camGoal.autoRotate;
+    }
+
+    if (preset && preset !== "rotate" && preset !== "wires") {
+      currentCameraPreset = preset;
+      labelsUserOverride = null;
+      syncLabelsVisibilityUi();
+      updatePinPositions();
     }
 
     if (typeof document !== "undefined") {
@@ -2385,6 +2466,11 @@ window.SmartHome3D = (() => {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    syncLabelsVisibilityUi();
+    if (scene && typeof renderer.render === "function") {
+      renderer.render(scene, camera);
+    }
+    updatePinPositions();
   }
 
   return {
@@ -2394,6 +2480,9 @@ window.SmartHome3D = (() => {
     triggerHardwareVoiceWave,
     toggleWiringConduits,
     setCameraView,
+    setLabelsVisible,
+    toggleLabelsVisible,
+    areLabelsVisible,
     onResize,
     loadSceneSpec,
   };

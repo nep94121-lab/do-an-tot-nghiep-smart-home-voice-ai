@@ -114,13 +114,13 @@
     .sidebar-foot a:hover { color: var(--text); }
 
     .content {
-      max-width: 1380px;
+      max-width: 1520px;
       width: 100%;
       margin: 0 auto;
-      padding: 24px;
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       min-width: 0;
     }
     .page-header {
@@ -195,12 +195,24 @@
     /* WORKSPACE */
     .workspace {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) 290px;
+      gap: 14px;
       align-items: start;
     }
-    @media (max-width: 1100px) {
+    @media (max-width: 1679px) {
       .workspace { grid-template-columns: 1fr; }
+      .workspace .sidebar .dev-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+    }
+    @media (max-width: 768px) {
+      .workspace .sidebar .dev-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
     }
 
     /* WOKWI REAL WORKBENCH CANVAS */
@@ -211,8 +223,9 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      padding: 18px;
-      gap: 12px;
+      padding: 14px 16px;
+      gap: 10px;
+      min-width: 0;
     }
     .card-head {
       display: flex;
@@ -233,20 +246,30 @@
 
     .workbench-scroll {
       width: 100%;
-      overflow: auto;
+      overflow-x: auto;
+      overflow-y: hidden;
       background: #1e242b;
       background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0);
       background-size: 18px 18px;
-      padding: 10px;
+      padding: 8px;
       border-radius: 12px;
     }
 
-    /* KHUNG BÀN MẠCH CỐ ĐỊNH TỌA ĐỘ 1220 x 720 ĐỂ CẮM CHÍNH XÁC TỪNG LỖ */
-    .circuit-stage {
+    .circuit-stage-wrap {
       position: relative;
       width: 1220px;
       height: 710px;
       margin: 0 auto;
+      overflow: hidden;
+    }
+
+    /* KHUNG BÀN MẠCH CỐ ĐỊNH TỌA ĐỘ 1220 x 710 ĐỂ CẮM CHÍNH XÁC TỪNG LỖ */
+    .circuit-stage {
+      position: relative;
+      width: 1220px;
+      height: 710px;
+      margin: 0;
+      transform-origin: top left;
       user-select: none;
     }
 

@@ -530,6 +530,10 @@ h2,
   z-index: 4;
 }
 
+.house3d-labels.labels-hidden {
+  display: none;
+}
+
 .pin-3d {
   position: absolute;
   left: 0;
@@ -616,7 +620,8 @@ h2,
   align-items: center;
 }
 
-.btn-cam {
+.btn-cam,
+.btn-cam-toggle {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -633,13 +638,15 @@ h2,
   user-select: none;
 }
 
-.btn-cam:hover {
+.btn-cam:hover,
+.btn-cam-toggle:hover {
   background: var(--page);
   color: var(--ink);
   border-color: var(--accent);
 }
 
-.btn-cam.active {
+.btn-cam.active,
+.btn-cam-toggle.active {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-ink);
   border-color: var(--btn-primary-border);
@@ -1181,7 +1188,8 @@ h2,
     padding: 6px 10px;
     gap: 3px;
   }
-  .btn-cam {
+  .btn-cam,
+  .btn-cam-toggle {
     min-height: 44px;
     min-width: 44px;
     padding: 8px 12px;
@@ -2065,7 +2073,8 @@ h2,
   .btn-primary,
   .btn.primary,
   .auth-btn-submit,
-  .btn-cam.active {
+  .btn-cam.active,
+  .btn-cam-toggle.active {
     background: var(--btn-primary-bg);
     color: var(--btn-primary-ink);
     border-color: var(--btn-primary-border);
@@ -2198,7 +2207,8 @@ h2,
 [data-theme="dark"] .btn-primary,
 [data-theme="dark"] .btn.primary,
 [data-theme="dark"] .auth-btn-submit,
-[data-theme="dark"] .btn-cam.active {
+[data-theme="dark"] .btn-cam.active,
+[data-theme="dark"] .btn-cam-toggle.active {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-ink);
   border-color: var(--btn-primary-border);

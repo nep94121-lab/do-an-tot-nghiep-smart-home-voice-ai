@@ -70,7 +70,8 @@
             <span id="hoverHoleInfo">Nhiệt độ: 28.5°C · Độ ẩm: 65% · Độ ẩm đất: 55%</span>
           </div>
 
-          <div class="workbench-scroll">
+          <div class="workbench-scroll" id="workbenchScroll">
+            <div class="circuit-stage-wrap" id="circuitStageWrap">
             <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
 
           <!-- 1. MẠCH NODEMCU ESP8266 (ESP-12E, CP2102) THỰC TẾ GIỐNG HỆT TRÊN BÀN CỦA BẠN (ĐỦ 30 CHÂN CHUẨN THỨ TỰ) -->
@@ -188,7 +189,7 @@
           <!-- 4. CÁC THIẾT BỊ NGOẠI VI BÊN PHẢI & PHÍA DƯỚI (ĐÚNG NHƯ TRÊN BÀN CỦA BẠN) -->
 
           <!-- 4.1. Động cơ Servo SG90 thật (<wokwi-servo>) — Cửa chính (Chân D1) -->
-          <div class="comp-tag" style="left: 855px; top: 14px; border-color:#facc15; color:#fef08a;">
+          <div class="comp-tag" style="left: 815px; top: 14px; border-color:#facc15; color:#fef08a;">
             Động cơ Servo SG90 — Cửa chính (Chân D1) [Bấm để Đóng/Mở]
           </div>
           <div class="hw-comp" style="left: 880px; top: 42px; cursor:pointer;" onclick="toggleDevice('main_door')">
@@ -374,6 +375,7 @@
           <!-- 5. LỚP VẼ DÂY JUMPER WOKWI TỌA ĐỘ THẬT (TỰ ĐỘNG NỐI TỪ CHÂN VÀNG ESP -> LỖ BREADBOARD -> LINH KIỆN) -->
           <svg id="wireLayer" viewBox="0 0 1220 710"></svg>
 
+            </div>
             </div>
           </div>
         </div>
