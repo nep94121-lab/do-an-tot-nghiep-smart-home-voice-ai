@@ -538,6 +538,7 @@ h2,
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 2;
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
@@ -546,8 +547,8 @@ h2,
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.92);
   color: #e2e8f0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
@@ -576,40 +577,112 @@ h2,
 
 .pin-3d .pin-state,
 .pin-3d strong {
-  font-weight: 600;
-  padding: 1px 4px;
-  border-radius: 4px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  text-shadow: none;
 }
 
 .pin-3d.off {
-  background: rgba(15, 23, 42, 0.88);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #e2e8f0;
+  z-index: 2;
 }
 
 .pin-3d.off .pin-state {
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(148, 163, 184, 0.22);
+  color: #f1f5f9;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
 }
 
 .pin-3d.on {
-  background: rgba(14, 165, 233, 0.28);
-  border-color: #38bdf8;
-  color: #ffffff;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1.5px solid #38bdf8;
+  color: #f8fafc;
+  box-shadow: 0 3px 12px rgba(2, 6, 23, 0.72), 0 0 0 1px rgba(56, 189, 248, 0.45);
+  z-index: 6;
 }
 
 .pin-3d.on .pin-state {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
+  background: #075985;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  text-shadow: none;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.45);
+}
+
+.pin-3d.pin-offline {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1.5px solid #f59e0b;
+  color: #f8fafc;
+  box-shadow: 0 3px 12px rgba(2, 6, 23, 0.72), 0 0 0 1px rgba(245, 158, 11, 0.45);
+  z-index: 6;
+}
+
+.pin-3d.pin-offline .pin-state {
+  background: #92400e;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  text-shadow: none;
 }
 
 .pin-3d.sensor-pin,
 .pin-3d[title*="Bấm để chuyển góc nhìn"] {
   display: inline-flex;
   cursor: pointer;
-  background: rgba(15, 23, 42, 0.92);
-  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1.5px solid #38bdf8;
+  color: #f8fafc;
+  box-shadow: 0 3px 12px rgba(2, 6, 23, 0.72);
+  z-index: 5;
+}
+
+.pin-3d.sensor-pin .pin-state {
+  background: #075985;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  text-shadow: none;
+}
+
+.pin-3d.sensor-pin.pin-tone-ok {
+  border-color: #4ade80;
+}
+
+.pin-3d.sensor-pin.pin-tone-ok .pin-state {
+  background: #166534;
+  color: #ffffff;
+}
+
+.pin-3d.sensor-pin.pin-tone-warn {
+  border-color: #f59e0b;
+}
+
+.pin-3d.sensor-pin.pin-tone-warn .pin-state {
+  background: #92400e;
+  color: #ffffff;
+}
+
+.pin-3d.sensor-pin.pin-tone-danger {
+  border-color: #f87171;
+}
+
+.pin-3d.sensor-pin.pin-tone-danger .pin-state {
+  background: #991b1b;
+  color: #ffffff;
 }
 
 /* ================= 3D CAMERA TOOLBAR ================= */
@@ -1282,7 +1355,7 @@ h2,
   }
   .pin-3d .pin-state,
   .pin-3d strong {
-    padding: 1px 3px;
+    padding: 1px 5px;
   }
   h1,
   .top h1,
