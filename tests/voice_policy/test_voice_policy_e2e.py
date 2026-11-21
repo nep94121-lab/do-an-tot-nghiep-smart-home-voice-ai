@@ -644,3 +644,173 @@ def test_round2_gemini_stt_cooldown_and_mock_pipeline(monkeypatch: pytest.Monkey
     assert res_ok["ok"] is True
     assert res_ok["text"] == "mở cửa chính"
     assert str(res_ok["stt_engine"]).startswith("gemini:")
+
+
+def test_round3_offline_nlu_and_policy_regressions() -> None:
+    """Round 3 regressions: zero false actions on bare/unsupported nouns, echo clarification, ASR NLU slips."""
+    from simulator.live.echo_and_speech_guard import ServerEchoGuard
+    from simulator.server import app
+    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+
+    engine = _reset_engine_clean()
+    h1, _, h2, _ = _seed_sessions()
+
+    # 1. Strict bare-device / bare-verb classifier
+    assert _classify_offline_transcript_kind("tất cả đèn") == ("bare_device", "all_lights")
+    assert _classify_offline_transcript_kind("các còi báo động") == ("unrecognized", None)
+    assert _classify_offline_transcript_kind("bật kết quả") == ("unrecognized", None)
+    assert _classify_offline_transcript_kind("bật lên") == ("bare_verb", None)
+
+    # 2. Clarification follow-up must not be suppressed as TTS echo
+    guard = ServerEchoGuard()
+    guard.record_ai_utterance("Bạn muốn bật hay tắt đèn phòng khách ạ?")
+    is_echo, _sc, _rsn = guard.check_echo_transcript("bật đèn phòng khách")
+    assert is_echo is False
+
+    with TestClient(app) as client:
+        # 3. F75 'đóng rèn cửa' (ASR slip for 'đóng rèm cửa') -> unsupported device, 0 mutations
+        r_ren = client.post("/api/voice_command", headers=h1, json={"transcript": "đóng rèn cửa"})
+        assert r_ren.status_code == 200
+        d_ren = r_ren.json()
+        assert d_ren.get("executed") is False
+        assert engine.devices["main_door"]["state"] == "CLOSED"
+        _assert_vi_reply(d_ren)
+
+        # 4. Bare noun 'tất cả đèn' -> clarification, 0 mutations
+        r_bare = client.post("/api/voice_command", headers=h1, json={"transcript": "tất cả đèn"})
+        assert r_bare.status_code == 200
+        assert r_bare.json().get("executed") is False
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+        assert engine.devices["bedroom_light"]["state"] == "OFF"
+
+        # 5. J01_13 ASR slip 'bạn nguồn mệt loa' -> turns ON speaker_amp immediately
+        r_amp = client.post("/api/voice_command", headers=h1, json={"transcript": "bạn nguồn mệt loa"})
+        assert r_amp.status_code == 200 and r_amp.json().get("executed") is True
+        assert engine.devices["speaker_amp"]["state"] == "ON"
+
+        # 6. J04_14 ASR slip 'khôi phục ngày đàn tốt' -> requires confirmation for Tier 1, denied for Tier 2
+        r_fr_t2 = client.post("/api/voice_command", headers=h2, json={"transcript": "khôi phục ngày đàn tốt"})
+        assert r_fr_t2.status_code == 403
+        r_fr_t1 = client.post("/api/voice_command", headers=h1, json={"transcript": "khôi phục ngày đàn tốt"})
+        assert r_fr_t1.status_code == 200 and r_fr_t1.json().get("requires_confirmation") is True
+        # Cancel with ASR slip 'đồng thời' (for 'không thôi')
+        r_can = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng thời"})
+        assert r_can.status_code == 200 and r_can.json().get("executed") is False
+
+        # 7. Scoped reset ASR slip 'reet lại trạng thái thiết bị' -> requires confirmation
+        r_rs = client.post("/api/voice_command", headers=h1, json={"transcript": "reet lại trạng thái thiết bị"})
+        assert r_rs.status_code == 200 and r_rs.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        # 8. Schedule modify slip 'dự lịch 7 giờ thành 8 giờ' & delete rule slip 'xóa liên thiếp đèn phòng khách'
+        r_mk = client.post("/api/voice_command", headers=h1, json={"transcript": "7 giờ sáng bật đèn phòng khách"})
+        assert r_mk.status_code == 200 and r_mk.json().get("requires_confirmation") is True
+        r_mk_ok = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng ý"})
+        assert r_mk_ok.status_code == 200 and r_mk_ok.json().get("confirmed") is True
+
+        r_mod = client.post("/api/voice_command", headers=h1, json={"transcript": "dự lịch 7 giờ thành 8 giờ"})
+        assert r_mod.status_code == 200 and r_mod.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        r_del_rule = client.post("/api/voice_command", headers=h1, json={"transcript": "xóa liên thiếp đèn phòng khách"})
+        assert r_del_rule.status_code == 200 and r_del_rule.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        # 9. Iteration-3 ASR NLU slips: 're logic trạng thái thiết nghi', 'dự định 7 giờ thành 8 giờ', 'hát đèn' -> 'tắt đèn'
+        r_rl = client.post("/api/voice_command", headers=h1, json={"transcript": "re logic trạng thái thiết nghi"})
+        assert r_rl.status_code == 200 and r_rl.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        r_dd = client.post("/api/voice_command", headers=h1, json={"transcript": "dự định bảy giờ thành tám giờ"})
+        assert r_dd.status_code == 200 and r_dd.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        r_ht = client.post("/api/voice_command", headers=h1, json={"transcript": "sau ba giây hát đèn hò khách"})
+        assert r_ht.status_code == 200 and r_ht.json().get("requires_confirmation") is True
+        assert "tắt đèn phòng khách" in str(r_ht.json().get("reply") or "").lower()
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
+
+        # 10. Multi-clause without comma ('tắt đèn phòng khách tắt đèn ngồi ngủ và tắt nguồn vài loa') -> all 3 devices
+        from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+        m3 = parse_direct_device_intents_vi("tắt đèn phòng khách tắt đèn ngồi ngủ và tắt nguồn vài loa")
+        assert {it["device_id"] for it in m3} == {"living_room_light", "bedroom_light", "speaker_amp"}
+        assert all(it["action"] == "turn_off" for it in m3)
+
+        # 11. Garbled conditional / status transcripts are NOT falsely classified as recognized
+        assert _classify_offline_transcript_kind("mở cửa kín thì khoảng cách") == ("unrecognized", None)
+        assert _classify_offline_transcript_kind("vì thích trạng thái biết gì") == ("unrecognized", None)
+
+
+def test_round3_quota_aware_cascade_local_vs_gemini_escalation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify quota-aware cascade keeps high-confidence local clips off Gemini and escalates uncertain clips."""
+    import numpy as np
+    from simulator.voice import gemini_stt
+
+    t = np.linspace(0.0, 1.2, 19200, endpoint=False, dtype=np.float32)
+    speech_like = 0.35 * np.sin(2.0 * np.pi * 180.0 * t) * (0.5 + 0.5 * np.sin(2.0 * np.pi * 4.0 * t))
+    pcm = np.clip(speech_like * 32767.0, -32767, 32767).astype(np.int16)
+
+    gem_calls = {"n": 0}
+
+    def _fake_gem(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        gem_calls["n"] += 1
+        return {"ok": True, "text": "bật máy bơm", "confidence": 0.94, "is_noise": False, "stt_ms": 500.0, "stt_engine": "gemini:gemini-3.1-flash-lite"}
+
+    monkeypatch.setattr(gemini_stt, "transcribe_vietnamese_gemini_pcm16k", _fake_gem)
+    monkeypatch.setattr(gemini_stt, "load_key", lambda: "AIzaFakeKey12345678901234567890")
+    monkeypatch.setattr(gemini_stt, "_get_candidate_models", lambda: ["gemini-3.1-flash-lite"])
+
+    # Case A: Confident offline result -> accepted locally, 0 Gemini API calls!
+    monkeypatch.setattr(
+        gemini_stt,
+        "transcribe_vietnamese_offline_pcm16k",
+        lambda *_a, **_kw: {"ok": True, "text": "mở cửa chính", "confidence": 0.88, "is_noise": False, "stt_ms": 800.0, "stt_engine": "zipformer_70m"},
+    )
+    res_local = gemini_stt.transcribe_vietnamese_cascade_pcm16k(pcm, sr=16000)
+    assert res_local["ok"] is True
+    assert res_local["text"] == "mở cửa chính"
+    assert res_local["stt_engine"] == "cascade_local:zipformer_70m"
+    assert gem_calls["n"] == 0
+
+    # Case B: Low-confidence offline fallback -> escalated to Gemini!
+    monkeypatch.setattr(
+        gemini_stt,
+        "transcribe_vietnamese_offline_pcm16k",
+        lambda *_a, **_kw: {"ok": True, "text": "mệt hơn", "confidence": 0.82, "is_noise": False, "stt_ms": 1100.0, "stt_engine": "zipformer_70m+chunkformer_ctc_fallback"},
+    )
+    res_esc = gemini_stt.transcribe_vietnamese_cascade_pcm16k(pcm, sr=16000)
+    assert res_esc["ok"] is True
+    assert res_esc["text"] == "bật máy bơm"
+    assert res_esc["stt_engine"].startswith("gemini:")
+    assert gem_calls["n"] == 1
+
+
+def test_round3_adversarial_role3_hardening() -> None:
+    """Verify Role 3 adversarial findings: extra unsupported appliances, negated commands, đúng/đừng collision, bare normalization."""
+    from simulator.automation_nlu import parse_single_device_and_action
+    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+
+    # 1. Unsupported appliances sharing cửa / đèn / loa / bơm tokens -> 0 direct actions AND (None, None) in automation NLU
+    for bad in (
+        "mở cửa sổ", "đóng cửa ban công", "mở cửa phòng ngủ", "đóng cửa gara",
+        "bật đèn bếp", "tắt đèn nhà vệ sinh", "bật đèn cầu thang", "bật đèn bàn học",
+        "bật loa bluetooth", "bật bơm tăng áp", "đóng rèm cửa", "mở cửa cuốn",
+    ):
+        assert parse_direct_device_intents_vi(bad) == [], f"Direct leak on {bad!r}"
+        assert parse_single_device_and_action(bad) == (None, None), f"NLU leak on {bad!r}"
+
+    # 2. Negated commands & đúng/đừng collision -> 0 direct actions; 'dừng tưới vườn' STILL turns OFF garden_pump!
+    for neg in (
+        "không mở cửa chính", "không bật đèn phòng khách", "đừng mở cửa chính",
+        "đừng bật đèn phòng khách", "chưa cần bật máy bơm", "thôi không đóng cửa nữa",
+        "đèn phòng khách đúng rồi", "cửa chính đúng không",
+    ):
+        assert parse_direct_device_intents_vi(neg) == [], f"Negation leak on {neg!r}"
+    assert parse_direct_device_intents_vi("dừng tưới vườn") == [{"device_id": "garden_pump", "action": "turn_off"}]
+
+    # 3. Bare-device normalization & nonsense local-keep (avoid unnecessary Gemini escalations)
+    assert _classify_offline_transcript_kind("nguồn mạch loa") == ("bare_device", "speaker_amp")
+    assert _classify_offline_transcript_kind("tất cả thiết bị") == ("bare_device", "all_devices")
+    assert _classify_offline_transcript_kind("ờ à ừm") == ("nonsense", None)

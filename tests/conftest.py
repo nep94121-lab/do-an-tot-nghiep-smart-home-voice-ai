@@ -179,13 +179,47 @@ def isolate_invites_and_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(owner_pin, "_CACHE", {})
 
 
+def _reset_engine_runtime_timers_and_guards(engine: Any) -> None:
+    """Cancel any lingering background timers and reset echo guards between tests."""
+    try:
+        for tid in list(getattr(engine, "active_timers", {}).keys()):
+            task = getattr(engine, "_timer_tasks", {}).pop(tid, None)
+            if task is not None:
+                try:
+                    task.cancel()
+                except Exception:
+                    pass
+            engine.active_timers.pop(tid, None)
+    except Exception:
+        pass
+    try:
+        from simulator.voice.session_voice_command import reset_session_echo_guards
+
+        reset_session_echo_guards()
+    except Exception:
+        pass
+
+
+def _ensure_initial_data_snapshot() -> None:
+    """Lazily snapshot initial clean data files when SMARTHOME_DATA_DIR starts empty."""
+    for fname in _TRACKED_DATA_FILES:
+        if fname not in _INITIAL_DATA_BYTES:
+            fpath = DATA_DIR / fname
+            if fpath.exists():
+                try:
+                    _INITIAL_DATA_BYTES[fname] = fpath.read_bytes()
+                except Exception:
+                    pass
+
+
 @pytest.fixture(autouse=True)
 def clean_auth_pending_otps() -> None:
-    """Ensure pending_otps and tracked data files do not leak state across tests."""
+    """Ensure pending_otps, timers, and tracked data files do not leak state across tests."""
     global _INITIAL_MGR_ACCOUNTS, _INITIAL_MGR_ALLOWLIST
     from simulator.api.deps import _REST_ENGINE
     from simulator.api.routes_auth import get_auth_3layer_manager
 
+    _ensure_initial_data_snapshot()
     mgr = get_auth_3layer_manager()
     if _INITIAL_MGR_ACCOUNTS is None:
         _INITIAL_MGR_ACCOUNTS = copy.deepcopy(mgr.accounts)
@@ -206,6 +240,7 @@ def clean_auth_pending_otps() -> None:
     _REST_ENGINE._explicit_test_user_set = False
     _REST_ENGINE._current_role = "ADMIN"
     _REST_ENGINE._current_user_id = "tuan_anh"
+    _reset_engine_runtime_timers_and_guards(_REST_ENGINE)
     _restore_tracked_data_files()
     yield
     with lock:
@@ -222,6 +257,7 @@ def clean_auth_pending_otps() -> None:
     _REST_ENGINE._explicit_test_user_set = False
     _REST_ENGINE._current_role = "ADMIN"
     _REST_ENGINE._current_user_id = "tuan_anh"
+    _reset_engine_runtime_timers_and_guards(_REST_ENGINE)
     _restore_tracked_data_files()
 
 

@@ -222,6 +222,8 @@ def _start_temp_server(
             "127.0.0.1",
             "--port",
             str(TEMP_PORT),
+            "--timeout-keep-alive",
+            "30",
             "--log-level",
             "warning",
         ],
@@ -641,11 +643,18 @@ FRESH_VOICE_PROFILES: dict[str, dict[str, Any]] = {
     "namminh_normal": {"voice": "vi-VN-NamMinhNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "clean"},
     "namminh_slow": {"voice": "vi-VN-NamMinhNeural", "rate": "-15%", "pitch": "-10Hz", "degradation": "clean"},
     "namminh_noisy10": {"voice": "vi-VN-NamMinhNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "white_snr10"},
+    # Round-3 additional diverse speaker styles (+40 fresh voices -> 80 total)
+    "elderly_slow_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "-22%", "pitch": "-16Hz", "degradation": "clean"},
+    "kid_fast_high": {"voice": "vi-VN-HoaiMyNeural", "rate": "+22%", "pitch": "+24Hz", "degradation": "clean"},
+    "fast_male_bac": {"voice": "vi-VN-NamMinhNeural", "rate": "+20%", "pitch": "-5Hz", "degradation": "clean"},
+    "regional_nam_style": {"voice": "vi-VN-HoaiMyNeural", "rate": "+5%", "pitch": "+6Hz", "degradation": "clean"},
+    "regional_trung_reverb": {"voice": "vi-VN-NamMinhNeural", "rate": "-8%", "pitch": "-8Hz", "degradation": "reverb_echo"},
+    "noisy_babble10_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "babble_snr10"},
 }
 
 
 def build_fresh_voice_steps() -> list[JourneyStep]:
-    """40 fresh real-user utterances across all 10 categories + adversarial edge cases using edge-tts neural voices."""
+    """80 fresh real-user utterances (40 R2 + 40 R3 elderly/kid/fast/regional/noisy) across all 10 categories."""
     jid = "FRESH_neural_voices"
 
     def _f(
@@ -720,6 +729,59 @@ def build_fresh_voice_steps() -> list[JourneyStep]:
         _f("F39", 9, "fresh_foreign_en", "hoaimy_normal", "turn on the lights", "foreign_no_action", lang="en"),
         # Cat 10: Session end (1)
         _f("F40", 10, "fresh_goodbye", "namminh_slow", "cảm ơn và tạm biệt", "small_talk"),
+        # ------------------------------------------------------------------
+        # Round-3 +40 Fresh Diverse Voices (F41..F80): elderly, kid, fast, Bac/Trung/Nam regional, reverb, babble10
+        # ------------------------------------------------------------------
+        # Cat 1: Greetings / Identity / Help (4)
+        _f("F41", 1, "r3_greet_elderly", "elderly_slow_female", "chào buổi sáng cháu nhé", "small_talk"),
+        _f("F42", 1, "r3_identity_kid", "kid_fast_high", "bạn là ai", "small_talk"),
+        _f("F43", 1, "r3_help_nam", "regional_nam_style", "bạn làm được những gì", "small_talk"),
+        _f("F44", 1, "r3_greet_trung", "regional_trung_reverb", "xin chào trợ lý", "small_talk"),
+        # Cat 2: Direct device commands across all 6 devices + all_lights + multi + regional (12)
+        _f("F45", 2, "r3_door_open_elderly", "elderly_slow_female", "mở cửa chính giúp bà ạ", "immediate_device", pre_setup="reset_devices_off", expected_device_states={"main_door": "OPEN"}),
+        _f("F46", 2, "r3_door_close_kid", "kid_fast_high", "đóng cửa chính", "immediate_device", expected_device_states={"main_door": "CLOSED"}),
+        _f("F47", 2, "r3_living_on_fast", "fast_male_bac", "bật đèn phòng khách", "immediate_device", expected_device_states={"living_room_light": "ON"}),
+        _f("F48", 2, "r3_bedroom_on_nam", "regional_nam_style", "bật đèn phòng ngủ giùm nha", "immediate_device", expected_device_states={"bedroom_light": "ON"}),
+        _f("F49", 2, "r3_all_lights_off_trung", "regional_trung_reverb", "tắt hết đèn", "immediate_device", expected_device_states={"living_room_light": "OFF", "bedroom_light": "OFF"}),
+        _f("F50", 2, "r3_all_lights_on_babble", "noisy_babble10_female", "bật tất cả đèn", "immediate_device", expected_device_states={"living_room_light": "ON", "bedroom_light": "ON"}),
+        _f("F51", 2, "r3_pump_on_elderly", "elderly_slow_female", "bật máy bơm tưới cây ạ", "immediate_device", expected_device_states={"garden_pump": "ON"}),
+        _f("F52", 2, "r3_pump_off_nam", "regional_nam_style", "tắt máy bơm giùm tôi", "immediate_device", expected_device_states={"garden_pump": "OFF"}),
+        _f("F53", 2, "r3_siren_on_fast", "fast_male_bac", "bật còi báo động", "immediate_device", expected_device_states={"alarm_siren": "ON"}),
+        _f("F54", 2, "r3_siren_off_kid", "kid_fast_high", "tắt còi báo động", "immediate_device", expected_device_states={"alarm_siren": "OFF"}),
+        _f("F55", 2, "r3_spk_on_trung", "regional_trung_reverb", "bật nguồn mạch loa", "immediate_device", expected_device_states={"speaker_amp": "ON"}),
+        _f("F56", 2, "r3_multi_fast", "fast_male_bac", "tắt nguồn mạch loa và mở cửa chính", "immediate_device", expected_device_states={"speaker_amp": "OFF", "main_door": "OPEN"}),
+        # Cat 3: Sensor & status readings (4)
+        _f("F57", 3, "r3_temp_elderly", "elderly_slow_female", "nhiệt độ bây giờ là bao nhiêu", "sensor_query", pre_setup="set_sensors_known"),
+        _f("F58", 3, "r3_soil_nam", "regional_nam_style", "độ ẩm đất hiện tại bao nhiêu", "sensor_query"),
+        _f("F59", 3, "r3_door_status_fast", "fast_male_bac", "cửa chính đang mở hay đóng", "status_query"),
+        _f("F60", 3, "r3_autopump_trung", "regional_trung_reverb", "chế độ bơm tự động đang thế nào", "status_query"),
+        # Cat 4: Custom commands (4)
+        _f("F61", 4, "r3_custom_create", "regional_nam_style", "tạo lệnh xem phim là tắt đèn phòng khách và bật nguồn mạch loa", "confirm_prompt"),
+        _f("F62", 4, "r3_custom_ok", "fast_male_bac", "đồng ý", "confirm_yes"),
+        _f("F63", 4, "r3_custom_del", "elderly_slow_female", "xóa lệnh xem phim", "confirm_prompt"),
+        _f("F64", 4, "r3_custom_del_ok", "kid_fast_high", "ok", "confirm_yes"),
+        # Cat 5: Schedules & timers (4)
+        _f("F65", 5, "r3_sched_create", "fast_male_bac", "đặt lịch 8 giờ tối hằng ngày bật đèn phòng khách", "confirm_prompt"),
+        _f("F66", 5, "r3_sched_cancel", "noisy_babble10_female", "hủy", "confirm_no"),
+        _f("F67", 5, "r3_timer_create", "kid_fast_high", "hẹn giờ 10 phút nữa tắt đèn phòng ngủ", "confirm_prompt"),
+        _f("F68", 5, "r3_timer_cancel", "elderly_slow_female", "thôi", "confirm_no"),
+        # Cat 6: Cross-connected rules (2)
+        _f("F69", 6, "r3_rule_soil", "regional_trung_reverb", "khi đất khô thì bật máy bơm tưới cây", "confirm_prompt"),
+        _f("F70", 6, "r3_rule_cancel", "regional_nam_style", "không", "confirm_no"),
+        # Cat 7: Reset (2)
+        _f("F71", 7, "r3_reset_links", "fast_male_bac", "reset liên kết", "confirm_prompt"),
+        _f("F72", 7, "r3_reset_cancel", "kid_fast_high", "hủy", "confirm_no"),
+        # Cat 8: Confirmation edge flow (2)
+        _f("F73", 8, "r3_interrupt_stage", "elderly_slow_female", "15 phút nữa tắt đèn phòng khách", "confirm_prompt"),
+        _f("F74", 8, "r3_interrupt_cmd", "regional_nam_style", "đóng cửa chính", "immediate_device", expected_device_states={"main_door": "CLOSED"}),
+        # Cat 9: Adversarial zero-false-action across diverse styles (5)
+        _f("F75", 9, "r3_unk_curtain_nam", "regional_nam_style", "đóng rèm cửa", "clarify_no_action", pre_setup="clear_pending"),
+        _f("F76", 9, "r3_unk_ac_babble", "noisy_babble10_female", "bật điều hòa", "clarify_no_action"),
+        _f("F77", 9, "r3_ambig_light_elderly", "elderly_slow_female", "đèn phòng khách", "clarify_no_action"),
+        _f("F78", 9, "r3_ambig_verb_kid", "kid_fast_high", "bật lên đi", "clarify_no_action"),
+        _f("F79", 9, "r3_foreign_fr", "fast_male_bac", "bonjour ouvre la porte", "foreign_no_action", lang="fr"),
+        # Cat 10: Session end (1)
+        _f("F80", 10, "r3_goodbye_elderly", "elderly_slow_female", "tạm biệt bạn nhé", "small_talk"),
     ]
 
 
@@ -727,9 +789,10 @@ def _build_fresh_step_pcm16(step: JourneyStep, idx: int, fresh_cache_dir: pathli
     if step.audio_kind == "pure_white_noise":
         return synth_pure_white_noise(duration_sec=1.8, seed=9100 + idx)
     if step.lang != "vi":
+        foreign_voice = "fr-FR-DeniseNeural" if step.lang == "fr" else "en-US-JennyNeural"
         return synthesize_edge_tts_speech(
             step.text,
-            voice="en-US-JennyNeural",
+            voice=foreign_voice,
             rate="+0%",
             pitch="+0Hz",
             cache_dir=fresh_cache_dir,
@@ -950,6 +1013,7 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
         env.pop("GEMINI_API_KEY", None)
     else:
         env.pop("SIMULATOR_OFFLINE_SANDBOX", None)
+        env["SMARTHOME_GEMINI_PACE_RPM"] = os.environ.get("SMARTHOME_GEMINI_PACE_RPM", "12")
         if args.env_file:
             env["SMARTHOME_ENV_FILE"] = str(args.env_file)
 
@@ -1013,6 +1077,8 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
         return {"X-Session-Token": sessions["tier3"]}
 
     min_interval_s = max(0.0, float(args.min_interval_ms or 0) / 1000.0)
+    if min_interval_s >= 2.5:
+        http.headers.update({"Connection": "close"})
     last_voice_ts = 0.0
 
     def _pace_voice() -> None:
@@ -1532,6 +1598,36 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
         "voice_fresh": _engine_counts(frsh_recs),
     }
 
+    def _split_served_stats(recs: list[dict[str, Any]]) -> dict[str, Any]:
+        gem = [r for r in recs if str(r.get("stt_engine") or "").startswith("gemini:")]
+        loc = [r for r in recs if str(r.get("stt_engine") or "").startswith("cascade_local:")]
+        fb = [r for r in recs if "offline_fallback" in str(r.get("stt_engine") or "") or "offline_no_key" in str(r.get("stt_engine") or "")]
+        gate = [r for r in recs if str(r.get("stt_engine") or "") in ("acoustic_gate", "babble_guard") or ":babble_guard" in str(r.get("stt_engine") or "")]
+        other = [r for r in recs if r not in gem and r not in loc and r not in fb and r not in gate]
+        return {
+            "total": len(recs),
+            "cascade_local_served": len(loc),
+            "cascade_local_passed": sum(1 for r in loc if r["passed"]),
+            "cascade_local_acc_pct": _pct(sum(1 for r in loc if r["passed"]), len(loc)),
+            "gemini_served": len(gem),
+            "gemini_passed": sum(1 for r in gem if r["passed"]),
+            "gemini_acc_pct": _pct(sum(1 for r in gem if r["passed"]), len(gem)),
+            "gemini_calls_per_100": round(100.0 * len(gem) / max(1, len(recs)), 2),
+            "fallback_served": len(fb),
+            "fallback_passed": sum(1 for r in fb if r["passed"]),
+            "fallback_acc_pct": _pct(sum(1 for r in fb if r["passed"]), len(fb)),
+            "acoustic_gate_count": len(gate),
+            "other_count": len(other),
+        }
+
+    served_breakdown = {
+        "all_voice": _split_served_stats(voice_recs),
+        "voice_clean": _split_served_stats(cln_recs),
+        "voice_clean_c2": _split_served_stats([r for r in cln_recs if r["category"] == 2]),
+        "voice_degraded": _split_served_stats(deg_recs),
+        "voice_fresh": _split_served_stats(frsh_recs),
+    }
+
     frsh_passed = sum(1 for r in frsh_recs if r["passed"])
     frsh_vi_ok = sum(1 for r in frsh_recs if r["vi_only_ok"])
     frsh_conf_ok = sum(1 for r in frsh_recs if r["confirm_policy_ok"])
@@ -1619,6 +1715,7 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
             "simple_voice_fresh_p95": _percentile(simple_frsh_lats, 95),
         },
         "stt_engine_counts": stt_engine_counts,
+        "served_breakdown": served_breakdown,
         "fresh_voices": fresh_voices_summary,
         "by_category": by_category,
         "by_degradation": by_degradation,
