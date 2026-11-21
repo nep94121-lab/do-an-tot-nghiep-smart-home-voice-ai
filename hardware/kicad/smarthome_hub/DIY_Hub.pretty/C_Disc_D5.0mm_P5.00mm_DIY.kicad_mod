@@ -1,0 +1,118 @@
+(footprint "C_Disc_D5.0mm_P5.00mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Ceramic Disc Cap D5.0mm P5.00mm (B.Cu 2.6mm pads, 0.9mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 270)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "e704961b-d121-4c3d-b2c5-f78fbd765add")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "C_Disc_D5.0mm_P5.00mm_DIY"
+		(at 0 3.5 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a5ad1060-6b99-42e2-b584-20e2e857fb6e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c141aab1-7c89-452d-be77-96c52d32fb07")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "5V High-Frequency Decoupling Capacitor"
+		(at 0 0 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "4ce32232-30a0-40f6-9914-8781274215a8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_rect
+		(start 1.05 -1.4)
+		(end 3.95 1.4)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "4ba721da-bb39-5659-a7ac-7a35ee0f7256")
+	)
+	(fp_rect
+		(start -1.5 -1.6)
+		(end 6.5 1.6)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "3e20f187-4c4e-5832-92d3-c1f5ec594597")
+	)
+	(fp_rect
+		(start 0 -1.25)
+		(end 5 1.25)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "79dbb8d5-287e-58fe-818f-4ff046e64778")
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 2.6 2.6)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "f679f38f-0000-5b2d-941d-f3d4aa29e6a8")
+	)
+	(pad "2" thru_hole circle
+		(at 5 0)
+		(size 2.6 2.6)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "e77e943c-4031-59ac-aa4d-8a3af9b91367")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Capacitor_THT.3dshapes/C_Disc_D5.0mm_W2.5mm_P5.00mm.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

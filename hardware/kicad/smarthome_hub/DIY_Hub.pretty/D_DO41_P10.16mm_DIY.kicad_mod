@@ -1,0 +1,138 @@
+(footprint "D_DO41_P10.16mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "DO-41 Diode P10.16mm (B.Cu 2.6x3.4mm pads, 1.1mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 90)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "61973474-52e5-484e-8eaa-cbdcc453f732")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "D_DO41_P10.16mm_DIY"
+		(at 0 3.5 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "eb5f71d2-a854-4a44-8447-558f549b9b95")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "1b6c754c-54a4-48fa-9baf-83c92621b143")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "Submersible Pump Inductive Flyback Diode"
+		(at 0 0 90)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "06c0a002-9642-49cf-9091-a81a62ef7e06")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start 3.15 -1.5)
+		(end 3.15 1.5)
+		(stroke
+			(width 0.6)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "5f018ba6-4056-52a1-a0cb-6e41f9a88e20")
+	)
+	(fp_line
+		(start 3.65 -1.5)
+		(end 3.65 1.5)
+		(stroke
+			(width 0.45)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "417925a0-7b53-5846-ad71-09a62fc51dfe")
+	)
+	(fp_rect
+		(start 2.35 -1.5)
+		(end 7.81 1.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "4329e9e4-5195-500c-bb51-ec651729e789")
+	)
+	(fp_rect
+		(start -1.5 -1.9)
+		(end 11.66 1.9)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "312486ab-d503-53ab-93a7-cbf8504534bb")
+	)
+	(fp_rect
+		(start 2.48 -1.36)
+		(end 7.68 1.36)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "9dab84a4-acc8-5e66-9487-a3492dec3792")
+	)
+	(pad "1" thru_hole rect
+		(at 0 0)
+		(size 2.6 3.4)
+		(drill 1.1)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "c42688e6-d656-5ab6-b607-d6278bbba1d3")
+	)
+	(pad "2" thru_hole oval
+		(at 10.16 0)
+		(size 2.6 3.4)
+		(drill 1.1)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "48c9f8fc-f26d-5cf0-8f94-54231bad4f6d")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Diode_THT.3dshapes/D_DO-41_SOD81_P10.16mm_Horizontal.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

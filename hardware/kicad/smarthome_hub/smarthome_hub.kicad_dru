@@ -1,0 +1,58 @@
+(version 1)
+
+# =============================================================================
+# DIY Single-Layer Toner-Transfer & Hand-Drilling Design Rules (smarthome_hub)
+# =============================================================================
+
+(rule "DIY_No_Vias"
+  (constraint disallow via)
+)
+
+(rule "DIY_No_Front_Copper_Tracks_Zones_Graphics"
+  (layer "F.Cu")
+  (constraint disallow track zone graphic)
+)
+
+(rule "DIY_No_Front_SMD_Pads"
+  (layer "F.Cu")
+  (condition "A.Type == 'Pad' && A.Pad_Type == 'SMD'")
+  (constraint disallow pad)
+)
+
+(rule "DIY_Min_Copper_Clearance"
+  (constraint clearance (min 0.6mm))
+)
+
+(rule "DIY_Min_Copper_Edge_Clearance"
+  (constraint edge_clearance (min 0.6mm))
+)
+
+(rule "DIY_Min_Signal_Track_Width"
+  (constraint track_width (min 1.0mm))
+)
+
+(rule "DIY_Min_Power_GND_Track_Width"
+  (condition "A.NetName == '+3V3' || A.NetName == '+5V' || A.NetName == '/+3V3_R' || A.NetName == '/+3V3_SOIL' || A.NetName == '/+3V3_TOP' || A.NetName == '/+5V_RLY1' || A.NetName == '/+5V_RLY2' || A.NetName == '/+5V_SERVO' || A.NetName == '/+5V_TOP' || A.NetName == '/AMP_5V' || A.NetName == '/PUMP_5V' || A.NetName == 'GND'")
+  (constraint track_width (min 2.0mm))
+)
+
+# Global minimum annular ring >= 0.6 mm (satisfied on ALL round, diode, cap, terminal, jumper pads)
+(rule "DIY_Min_Annular_Ring_Global"
+  (constraint annular_width (min 0.6mm))
+)
+
+# Euclidean bound on 2.54mm-pitch headers/sockets (U1, U2, J3..J15):
+# Along 2.54mm pitch, drill(1.10mm) + clearance(0.60mm) leaves 0.84mm total (0.42mm max/side).
+# We preserve FULL >= 0.60mm clearance (actual 0.74mm!) and use 3.80 x 1.80 mm oval pads
+# (transverse annular ring = 1.35 mm >> 0.60 mm; longitudinal ring = 0.35 mm).
+(rule "DIY_Header_254mm_Oval_Annular_Ring"
+  (priority 10)
+  (condition "A.Reference == 'U1' || A.Reference == 'U2' || A.Reference == 'J3' || A.Reference == 'J4' || A.Reference == 'J5' || A.Reference == 'J6' || A.Reference == 'J7' || A.Reference == 'J8' || A.Reference == 'J9' || A.Reference == 'J10' || A.Reference == 'J11' || A.Reference == 'J12' || A.Reference == 'J13' || A.Reference == 'J14' || A.Reference == 'J15'")
+  (constraint annular_width (min 0.35mm))
+)
+
+# Strictly enforce at most 4 drill classes total: 0.9mm, 1.1mm, 1.3mm, and 3.2mm (M3 mounting)
+(rule "DIY_Strict_Four_Drill_Classes_Only"
+  (condition "A.Type == 'Pad' && A.Hole_Size_X > 0mm && A.Hole_Size_X != 0.9mm && A.Hole_Size_X != 1.1mm && A.Hole_Size_X != 1.3mm && A.Hole_Size_X != 3.2mm")
+  (constraint disallow pad)
+)

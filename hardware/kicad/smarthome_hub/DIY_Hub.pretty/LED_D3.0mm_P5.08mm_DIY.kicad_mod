@@ -1,0 +1,148 @@
+(footprint "LED_D3.0mm_P5.08mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "3mm LED formed P5.08mm (B.Cu 2.8mm pads, 0.9mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 0)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "c66473b6-3e74-4a64-9720-7bd8b53b54d2")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "LED_D3.0mm_P5.08mm_DIY"
+		(at 0 3.5 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8b22efb9-f9fd-4d9a-9b5c-f0ffda913c64")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "43ee20e6-3e82-40e6-a07c-49130b3df12e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "5V Power Indicator LED (3mm Green)"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "57a756b0-3d9d-4bbb-ac1a-82430cf9b163")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start 1.2 -1.4)
+		(end 1.2 1.4)
+		(stroke
+			(width 0.35)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "c4381871-6d8e-5841-a9bd-63ec6ec03073")
+	)
+	(fp_line
+		(start 4.55 -2.1)
+		(end 5.55 -2.1)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "f7591ca2-0225-542b-add9-27cbc1ff000e")
+	)
+	(fp_line
+		(start 5.05 -2.6)
+		(end 5.05 -1.6)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "945360f3-3147-5c10-95c4-6b8975c2ba3e")
+	)
+	(fp_circle
+		(center 2.54 0)
+		(end 4.49 0)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "fe26a500-be0e-5eda-89dc-30c5c8297d89")
+	)
+	(fp_rect
+		(start -1.6 -2.2)
+		(end 6.68 2.2)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "d16ad804-4c60-5587-a6fa-0e6d7c586a84")
+	)
+	(fp_circle
+		(center 2.54 0)
+		(end 4.04 0)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "0b4e48c7-a6ea-5492-ae04-1c2d651d4032")
+	)
+	(pad "1" thru_hole rect
+		(at 0 0)
+		(size 2.8 2.8)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "b4c94b71-5a54-54b5-924b-4676884da931")
+	)
+	(pad "2" thru_hole circle
+		(at 5.08 0)
+		(size 2.8 2.8)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "74aba18f-9b18-5859-9a98-144990224a82")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/LED_THT.3dshapes/LED_D3.0mm_Green.step"
+		(offset
+			(xyz 1.27 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

@@ -1,0 +1,136 @@
+(footprint "PinHeader_1x03_P2.54mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "1x03 2.54mm Male Pin Header (B.Cu oval pads, 1.1mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 270)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "3988192e-f782-4f68-adc2-1e05c95c5032")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "PinHeader_1x03_P2.54mm_DIY"
+		(at 0 3.5 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "7a01eadc-e434-43cb-a4a3-716bb54c4f32")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "e66f2784-b4c2-426c-9ebb-40d97eccaddf")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "Soil Moisture Sensor (LM393 3.3V, AO->A0)"
+		(at 0 0 270)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "e3d3deb8-1508-49aa-b613-8d78fe210c0d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -1.45 -1.45)
+		(end 1.45 -1.45)
+		(stroke
+			(width 0.45)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "e9e7c360-aa22-584e-ac2f-a49bf1d0f102")
+	)
+	(fp_rect
+		(start -1.45 -1.45)
+		(end 1.45 6.53)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "0f291358-4f83-5735-a65c-f1fdde8827bf")
+	)
+	(fp_rect
+		(start -2 -1.35)
+		(end 2 6.43)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "e238c80a-1d20-54f1-a0a9-ae0a9d46ab0b")
+	)
+	(fp_rect
+		(start -1.27 -1.27)
+		(end 1.27 6.35)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "c6fbb751-f94d-5e8b-ae30-877c84450eb7")
+	)
+	(pad "1" thru_hole rect
+		(at 0 0)
+		(size 3.8 1.8)
+		(drill 1.1)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "0b0e9a0d-2bae-5a7a-8928-7ac44567c8e1")
+	)
+	(pad "2" thru_hole oval
+		(at 0 2.54)
+		(size 3.8 1.8)
+		(drill 1.1)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "11723778-08c2-5069-98be-f8189d93a4a8")
+	)
+	(pad "3" thru_hole oval
+		(at 0 5.08)
+		(size 3.8 1.8)
+		(drill 1.1)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "8944704f-6cb9-5a2c-beb1-77bd0956c3ab")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x03_P2.54mm_Vertical.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
