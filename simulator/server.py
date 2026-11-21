@@ -463,6 +463,46 @@ async def hardware_wired_assembly_glb() -> Response:
     return FileResponse(glb_path, media_type="model/gltf-binary")
 
 
+@app.get("/docs/phan_cung/diy_pcb/DIY_GUIDE.md")
+async def hardware_diy_guide_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "diy_pcb" / "DIY_GUIDE.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "DIY_GUIDE.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/docs/phan_cung/diy_pcb/BOM_DIY_SHOPPING.md")
+async def hardware_diy_bom_shopping_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "diy_pcb" / "BOM_DIY_SHOPPING.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "BOM_DIY_SHOPPING.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/docs/phan_cung/diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf")
+async def hardware_diy_toner_pdf() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "diy_pcb" / "toner_B.Cu_MIRRORED_1to1.pdf"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "toner_B.Cu_MIRRORED_1to1.pdf not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="application/pdf")
+
+
+@app.get("/docs/phan_cung/diy_pcb/drill_map.pdf")
+async def hardware_diy_drill_map_pdf() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "diy_pcb" / "drill_map.pdf"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "drill_map.pdf not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="application/pdf")
+
+
+@app.get("/docs/phan_cung/assembly/ASM_REPORT.md")
+async def hardware_asm_report_doc() -> Response:
+    doc_path = ROOT / "docs" / "phan_cung" / "assembly" / "ASM_REPORT.md"
+    if not doc_path.exists() or not doc_path.is_file():
+        return JSONResponse({"ok": False, "error": "ASM_REPORT.md not found"}, status_code=404)
+    return FileResponse(doc_path, media_type="text/markdown; charset=utf-8")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)

@@ -31,7 +31,7 @@ OUT_GLB = REPO_ROOT / "simulator" / "static" / "models" / "smarthome_villa.glb"
 
 # Uniform display scale: 1 physical mm = 0.025 glTF units (25x tabletop scale).
 # Preserves 100% exact 1:1 relative proportions between the 360x270mm open-cutaway house,
-# 80x65mm KiCad PCB, NodeMCU, SG90, DHT11, 2 relays, PAM8403, speaker, buzzer, pump, soil & KY-037,
+# 100x80mm 1-layer DIY KiCad PCB, NodeMCU, SG90, DHT11, 2 relays, PAM8403, speaker, buzzer, pump, soil & KY-037,
 # while fitting cleanly inside house3d.js camera bounds (~10 x 4 x 8 units, near=0.1).
 SCENE_SCALE = 25.0
 MM = 0.001 * SCENE_SCALE  # 0.025 units per mm
@@ -332,9 +332,10 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
     # Bedroom: X = -5..+175 (W=180), Z = -132..+40 (D=172)
     add_box("BedroomFloor",    +85.0, 1.0, -46.0, 180.0, 2.0, 172.0, mats["walnut_flr"], parent=arch)
 
-    # Front-Left Technical Electronics Bay deck (X = -175..+25, Z = +46..+152 -> 200 x 106 mm)
-    add_box("TechBayDeck", -75.0, 3.0, 99.0, 200.0, 6.0, 106.0, mats["tech_deck"], parent=arch, bevel_mm=0.8)
-    add_box("TechBayTrim", -75.0, 6.2, 99.0, 196.0, 0.6, 102.0, mats["plinth_trim"], parent=arch)
+    # Front-Left Technical Electronics Bay deck (X = -186..+32, Z = +46..+156 -> 218 x 110 mm)
+    # Sized to host the 100x80mm single-layer DIY hub PCB, 2x 50x26mm relays, 28mm speaker, PAM8403, and SG90 with zero collisions
+    add_box("TechBayDeck", -77.0, 3.0, 101.0, 218.0, 6.0, 110.0, mats["tech_deck"], parent=arch, bevel_mm=0.8)
+    add_box("TechBayTrim", -77.0, 6.2, 101.0, 214.0, 0.6, 106.0, mats["plinth_trim"], parent=arch)
 
     # WALLS (Open Roof = ZERO roof slab! Cutaway Front Walls = crisp unobstructed interior view!)
     WALL_H = 132.0
@@ -427,16 +428,35 @@ def build_open_cutaway_house(mats: dict[str, bpy.types.Material]) -> bpy.types.O
 # ==============================================================================
 # 2. DIRECT IMPORT OF ACTUAL KICAD 3D PCB (`kicad_pcb_hub`) + NODEMCU (`nodemcu_esp8266`)
 # ==============================================================================
-# Technical bay PCB center in Three.js mm:
-PCB_CX_MM = -118.0
-PCB_CZ_MM = 99.0
+# Technical bay 100x80mm DIY Hub PCB center in Three.js mm:
+PCB_W_MM = 100.0
+PCB_H_MM = 80.0
+PCB_CX_MM = -128.0
+PCB_CZ_MM = 104.0
 PCB_BOT_Y_MM = 12.0   # PCB bottom sits on 6mm brass M3 standoffs above 6mm TechBayDeck!
+
+# Exact U1/U2 2x15 female socket center offset relative to 100x80mm PCB center (bx=48.43, by=41.22):
+# dx = 48.43 - 50.0 = -1.57 mm; Three.js Z = front = -by => dz = -(41.22 - 40.0) = -1.22 mm
+NODEMCU_DX_MM = -1.57
+NODEMCU_DZ_MM = -1.22
+
+# 7 top-side 22AWG insulated wire jumpers (JP1..JP7) from hardware/kicad/smarthome_hub/build_diy_hub.py
+# Format: (ref, (x1_rel, y1_rel), (x2_rel, y2_rel), mat_key) in top-left PCB local mm (0..100, 0..80)
+DIY_TOP_JUMPERS: tuple[tuple[str, tuple[float, float], tuple[float, float], str], ...] = (
+    ("JP1", (43.00, 33.70), (55.70, 33.70), "w_orange"),  # +3.3V belly -> right bus (12.70 mm)
+    ("JP2", (40.50, 18.00), (22.72, 18.00), "w_orange"),  # +3.3V belly -> J14 SOIL_A0 (17.78 mm)
+    ("JP3", (76.00, 33.30), (76.00, 25.68), "w_orange"),  # +3.3V right -> top pull-ups (7.62 mm)
+    ("JP4", (36.50, 60.00), (72.06, 60.00), "w_red"),     # +5V U1.15 -> right RLY2 bus (35.56 mm)
+    ("JP5", (85.50, 64.28), (85.50, 51.58), "w_red"),     # +5V RLY2 -> RLY1 (12.70 mm)
+    ("JP6", (85.50, 47.00), (85.50, 26.68), "w_red"),     # +5V RLY1 -> top tunnel (20.32 mm)
+    ("JP7", (85.50, 12.70), (60.10, 12.70), "w_red"),     # +5V top -> J3 SERVO_D1 (25.40 mm)
+)
 
 
 def pcb_pin_world_mm(x_rel_mm: float, y_rel_mm: float, z_top_offset_mm: float = 8.5) -> tuple[float, float, float]:
-    """Convert KiCad PCB local mm (origin top-left 0..80, 0..65) to Three.js world mm."""
-    tx = PCB_CX_MM + (x_rel_mm - 40.0)
-    tz = PCB_CZ_MM + (y_rel_mm - 32.5)
+    """Convert KiCad PCB local mm (origin top-left 0..100, 0..80) to Three.js world mm."""
+    tx = PCB_CX_MM + (x_rel_mm - PCB_W_MM * 0.5)
+    tz = PCB_CZ_MM + (y_rel_mm - PCB_H_MM * 0.5)
     ty = PCB_BOT_Y_MM + 1.6 + z_top_offset_mm
     return (tx, ty, tz)
 
@@ -447,11 +467,11 @@ def import_kicad_pcb_and_nodemcu(mats: dict[str, bpy.types.Material]) -> tuple[b
 
     pcb_hub = make_group("kicad_pcb_hub", PCB_CX_MM, PCB_BOT_Y_MM, PCB_CZ_MM)
 
-    # 4 Brass M3 standoffs (OD 5.0mm x 6.0mm) under the 4 corner M3 mounting holes (inset 4.5mm from 80x65 edges)
-    for idx, (hx, hy) in enumerate([(4.5, 4.5), (75.5, 4.5), (4.5, 60.5), (75.5, 60.5)]):
+    # 4 Brass M3 standoffs (OD 5.0mm x 6.0mm) under the 4 corner M3 mounting holes (5.0mm inset -> 90x70mm pitch)
+    for idx, (hx, hy) in enumerate([(5.0, 5.0), (95.0, 5.0), (5.0, 75.0), (95.0, 75.0)]):
         add_cyl(
             f"PCB_Standoff_M3_{idx + 1}",
-            hx - 40.0, -3.0, hy - 32.5,
+            hx - PCB_W_MM * 0.5, -3.0, hy - PCB_H_MM * 0.5,
             radius_mm=2.5, height_mm=6.0,
             mat=mats["brass"], parent=pcb_hub,
         )
@@ -463,7 +483,7 @@ def import_kicad_pcb_and_nodemcu(mats: dict[str, bpy.types.Material]) -> tuple[b
     imported_roots = [o for o in imported if o.parent is None]
 
     # Measure imported PCB world bounding box AND locate the FR4 board substrate bottom
-    # so the PCB sits flush on top of the brass standoffs at PCB_BOT_Y_MM (not on protruding pin tips).
+    # so the PCB sits flush on top of the brass standoffs at PCB_BOT_Y_MM (not on protruding pin tips or flat soldermask).
     bpy.context.view_layer.update()
     xs, ys, zs = [], [], []
     board_zmin_m = None
@@ -481,7 +501,7 @@ def import_kicad_pcb_and_nodemcu(mats: dict[str, bpy.types.Material]) -> tuple[b
             dx_m = max(mxs) - min(mxs)
             dy_m = max(mys) - min(mys)
             dz_m = max(mzs) - min(mzs)
-            if dx_m > 0.078 and dy_m > 0.063 and dz_m < 0.003:
+            if dx_m > 0.098 and dy_m > 0.078 and 0.001 < dz_m < 0.003:
                 board_zmin_m = min(mzs)
     if not xs:
         raise RuntimeError("Imported KiCad PCB GLB contained zero mesh geometry!")
@@ -505,10 +525,34 @@ def import_kicad_pcb_and_nodemcu(mats: dict[str, bpy.types.Material]) -> tuple[b
             (r.location.z - z_align_m) * SCENE_SCALE,
         ))
 
+    # Add the 7 physical top-side 22AWG insulated wire jumpers (JP1..JP7) directly onto the 1-layer DIY PCB
+    # Coordinates are local to kicad_pcb_hub (origin at PCB center, FR4 bottom Y=0, FR4 top Y=1.6mm)
+    for jref, (x1, y1), (x2, y2), mkey in DIY_TOP_JUMPERS:
+        lx1, lz1 = x1 - PCB_W_MM * 0.5, y1 - PCB_H_MM * 0.5
+        lx2, lz2 = x2 - PCB_W_MM * 0.5, y2 - PCB_H_MM * 0.5
+        dx, dz = lx2 - lx1, lz2 - lz1
+        jlen = max(1e-3, math.hypot(dx, dz))
+        ux, uz = dx / jlen, dz / jlen
+        arch_y = 3.6  # sits 2.0mm above FR4 top, well under NodeMCU bottom (10.1mm)
+        jpts = [
+            (lx1, 1.4, lz1),
+            (lx1, arch_y - 0.5, lz1),
+            (lx1 + ux * 0.9, arch_y, lz1 + uz * 0.9),
+            (lx2 - ux * 0.9, arch_y, lz2 - uz * 0.9),
+            (lx2, arch_y - 0.5, lz2),
+            (lx2, 1.4, lz2),
+        ]
+        add_tube(f"DIY_Jumper_{jref}", jpts, radius_mm=0.55, mat=mats[mkey], parent=pcb_hub, res=6, bevel_res=3)
+
     # Build authentic ESP8266 NodeMCU v2 Amica plugged directly onto U1/U2 2x15 female sockets.
     # Official Amica v2 PCB: 25.40mm wide (X) x 48.26mm long (Z) x 1.60mm thick (~49.4mm w/ Micro-USB),
-    # with 2.54mm male header plastic strips seated flush on top of 8.5mm female sockets (Y = 22.10 mm).
-    nodemcu = make_group("nodemcu_esp8266", PCB_CX_MM, PCB_BOT_Y_MM + 10.1, PCB_CZ_MM)
+    # with 2.54mm male header plastic strips seated 0.00mm flush on top of 8.5mm female sockets (Y = 22.10 mm).
+    nodemcu = make_group(
+        "nodemcu_esp8266",
+        PCB_CX_MM + NODEMCU_DX_MM,
+        PCB_BOT_Y_MM + 10.1,
+        PCB_CZ_MM + NODEMCU_DZ_MM,
+    )
     # 2x15 male header plastic insulator strips (2.54 x 2.54 x 38.10 mm) at exact 22.86mm row spacing
     for side, sx in [("L", -11.43), ("R", 11.43)]:
         add_box(f"NodeMCU_MaleHdrStrip_{side}", sx, 1.27, 0.0, 2.54, 2.54, 38.10, mats["plastic_blk"], parent=nodemcu)
@@ -620,8 +664,8 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> d
     )
 
     # Relay 1 (BLUE 5V 1-ch relay module, exact 50.0 x 26.0 x 18.5 mm, Songle SRD-05VDC-SL-C, 5.08mm terminal)
-    rly1 = make_group("relay1_pump", -44.0, 6.5, 76.0)
-    for idx, (fx, fz) in enumerate([(-22.5, -10.5), (22.5, -10.5), (-22.5, 10.5), (22.5, 10.5)]):
+    rly1 = make_group("relay1_pump", -44.0, 6.5, 78.0)
+    for idx, (fx, fz) in enumerate([(-22.25, -10.25), (22.25, -10.25), (-22.25, 10.25), (22.25, 10.25)]):
         add_cyl(f"Rly1_Foot_{idx}", fx, 0.75, fz, 1.5, 1.5, mats["brass"], parent=rly1, segs=12)
     add_box("Rly1_BluePCB", 0.0, 2.3, 0.0, 50.0, 1.6, 26.0, mats["pcb_blue"], parent=rly1, bevel_mm=0.2)
     add_box("Rly1_SongleCube", -2.5, 10.8, 0.0, 19.0, 15.4, 15.5, mats["relay_cube"], parent=rly1, bevel_mm=0.35)
@@ -631,8 +675,8 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> d
     add_box("Rly1_PinHeader", -21.5, 6.0, 0.0, 2.54, 7.0, 7.62, mats["plastic_blk"], parent=rly1)
     add_box("Rly1_LED_Pwr", -14.5, 3.6, -6.5, 2.2, 1.0, 1.4, mats["led_red"], parent=rly1)
     add_box("Rly1_LED_Trig", -14.5, 3.6,  6.5, 2.2, 1.0, 1.4, mats["led_grn"], parent=rly1)
-    anchors["rly1_in"] = (-65.5, 13.0, 76.0)
-    anchors["rly1_sw"] = (-27.0, 13.5, 76.0)
+    anchors["rly1_in"] = (-65.5, 13.0, 78.0)
+    anchors["rly1_sw"] = (-27.0, 13.5, 78.0)
 
     # ------------------------------------------------------------------
     # DEVICE 5: alarm_siren (`buzzer_alarm`, 5V active buzzer TMB12A05: Ø12.0 x 9.5 mm, 7.6 mm pin pitch)
@@ -649,8 +693,8 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> d
     # DEVICE 6: speaker_amp (`relay2_speaker` RED opto, `pam8403_module` GREEN, `speaker_mini` 28mm)
     # ------------------------------------------------------------------
     # Relay 2 (RED opto 5V 1-ch relay module, exact 50.0 x 26.0 x 18.5 mm, Songle SRD-05VDC-SL-C + PC817)
-    rly2 = make_group("relay2_speaker", -44.0, 6.5, 122.0)
-    for idx, (fx, fz) in enumerate([(-22.5, -10.5), (22.5, -10.5), (-22.5, 10.5), (22.5, 10.5)]):
+    rly2 = make_group("relay2_speaker", -44.0, 6.5, 126.0)
+    for idx, (fx, fz) in enumerate([(-22.25, -10.25), (22.25, -10.25), (-22.25, 10.25), (22.25, 10.25)]):
         add_cyl(f"Rly2_Foot_{idx}", fx, 0.75, fz, 1.5, 1.5, mats["brass"], parent=rly2, segs=12)
     add_box("Rly2_RedPCB", 0.0, 2.3, 0.0, 50.0, 1.6, 26.0, mats["pcb_red"], parent=rly2, bevel_mm=0.2)
     add_box("Rly2_SongleCube", -2.0, 10.8, 0.0, 19.0, 15.4, 15.5, mats["relay_cube"], parent=rly2, bevel_mm=0.35)
@@ -661,11 +705,11 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> d
     add_box("Rly2_PinHeader", -21.5, 6.0, 0.0, 2.54, 7.0, 7.62, mats["plastic_blk"], parent=rly2)
     add_box("Rly2_LED_Pwr", -15.0, 3.6, -7.5, 2.2, 1.0, 1.4, mats["led_grn"], parent=rly2)
     add_box("Rly2_LED_Trig", -15.0, 3.6,  7.5, 2.2, 1.0, 1.4, mats["led_red"], parent=rly2)
-    anchors["rly2_in"] = (-65.5, 13.0, 122.0)
-    anchors["rly2_sw"] = (-27.0, 13.5, 122.0)
+    anchors["rly2_in"] = (-65.5, 13.0, 126.0)
+    anchors["rly2_sw"] = (-27.0, 13.5, 126.0)
 
     # PAM8403 Audio Amplifier (GREEN 21.0 x 18.0 x 3.1 mm PCB, SOP-16 IC 9.9 x 3.9 x 1.5 mm)
-    pam = make_group("pam8403_module", 2.0, 6.5, 122.0)
+    pam = make_group("pam8403_module", 4.0, 6.5, 126.0)
     add_box("PAM8403_GreenPCB", 0.0, 0.8, 0.0, 21.0, 1.6, 18.0, mats["pcb_green"], parent=pam, bevel_mm=0.15)
     add_box("PAM8403_SOIC16", 0.0, 2.35, 0.0, 3.9, 1.5, 9.9, mats["ic_black"], parent=pam)
     for sx in (-2.48, 2.48):
@@ -673,17 +717,17 @@ def build_hardware_devices_and_sensors(mats: dict[str, bpy.types.Material]) -> d
             add_box(f"PAM_Pin_{sx}_{k}", sx, 1.75, -4.445 + k * 1.27, 1.05, 0.25, 0.42, mats["silver_mtl"], parent=pam)
     for px, pz in [(-7.5, -7.2), (-4.5, -7.2), (4.5, -7.2), (7.5, -7.2), (-7.0, 7.2), (-4.0, 7.2), (4.5, 7.2), (7.5, 7.2)]:
         add_cyl(f"PAM_Pad_{px}_{pz}", px, 1.65, pz, 0.9, 0.2, mats["copper"], parent=pam, segs=12)
-    anchors["pam_pwr"] = (2.0, 9.0, 130.0)
-    anchors["pam_aud"] = (-4.0, 9.0, 130.0)
-    anchors["pam_out"] = (2.0, 9.0, 114.0)
+    anchors["pam_pwr"] = (4.0, 9.0, 134.0)
+    anchors["pam_aud"] = (-2.0, 9.0, 134.0)
+    anchors["pam_out"] = (4.0, 9.0, 118.0)
 
     # Mini Round Speaker: 28 mm 8 Ohm 0.5 W (PUI Audio AS02808MR-R: exact Ø28.0 x 5.2 mm)
-    # Chosen 28mm over 40mm to fit cleanly in the 44mm technical bay slot beside relay1_pump with >=7mm clearance.
-    spk = make_group("speaker_mini", 2.0, 6.5, 78.0)
+    # Chosen 28mm over 40mm to fit cleanly in the technical bay slot beside relay1_pump with >=9mm clearance.
+    spk = make_group("speaker_mini", 4.0, 6.5, 78.0)
     add_cyl("Speaker_SilverRim", 0.0, 2.3, 0.0, 14.0, 4.6, mats["silver_mtl"], parent=spk, axis="Y", segs=28)
     add_cyl("Speaker_InnerCone", 0.0, 4.6, 0.0, 11.5, 0.6, mats["plastic_blk"], parent=spk, axis="Y", segs=24)
     add_cyl("Speaker_CenterCap", 0.0, 4.9, 0.0,  5.2, 0.6, mats["silver_mtl"], parent=spk, axis="Y", segs=20)
-    anchors["speaker"] = (2.0, 9.5, 91.0)
+    anchors["speaker"] = (4.0, 9.5, 91.0)
 
     # ------------------------------------------------------------------
     # SENSOR 1: sensor_dht11 (3-pin DHT11 breakout: PCB 14.0 x 28.0 x 1.6 mm, blue body 12.0 x 15.5 x 5.5 mm)
@@ -774,65 +818,66 @@ def build_dupont_wires(mats: dict[str, bpy.types.Material], anchors: dict[str, t
             pts.append((target_xyz[0] + off * 0.45, target_xyz[1], target_xyz[2]))
             add_tube(f"Wire_{name}_{idx}", pts, radius_mm=WR, mat=mats[col_key], parent=wires)
 
-    # Exact KiCad PCB header centers (matching hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb)
-    route_bundle("J3_SERVO_D1", (74.50, 16.04), anchors["servo"],
-                 [(-76.0, 14.0, 62.0), (-118.0, 14.0, 62.0)], ["w_orange", "w_red", "w_black"], orient="V")
+    # Exact KiCad 100x80mm 1-layer DIY PCB header centers (matching hardware/wiring_contract.py & smarthome_hub.kicad_pcb)
+    route_bundle("J3_SERVO_D1", (60.54, 9.00), anchors["servo"],
+                 [(-118.0, 16.0, 62.0)], ["w_orange", "w_red", "w_black"], orient="H")
 
-    route_bundle("J4_LR_LED_D0", (45.77, 4.50), anchors["led_lr"],
-                 [(-112.0, 18.0, 56.0), (-168.0, 18.0, 44.0), (-168.0, 18.0, -126.0), (-168.0, 112.0, -126.0)],
+    route_bundle("J4_LR_LED_D0", (41.77, 9.00), anchors["led_lr"],
+                 [(-136.0, 18.0, 60.0), (-168.0, 18.0, 44.0), (-168.0, 18.0, -126.0), (-168.0, 112.0, -126.0)],
                  ["w_yellow", "w_black"], orient="H")
 
-    route_bundle("J5_BR_LED_D4", (59.27, 4.50), anchors["led_br"],
-                 [(-96.0, 18.0, 54.0), (4.0, 18.0, 48.0), (4.0, 18.0, -126.0), (4.0, 116.0, -126.0)],
-                 ["w_purple", "w_white"], orient="H")
+    route_bundle("J5_BR_LED_D4", (91.00, 19.27), anchors["led_br"],
+                 [(-75.0, 18.0, 56.0), (4.0, 18.0, 48.0), (4.0, 18.0, -126.0), (4.0, 116.0, -126.0)],
+                 ["w_purple", "w_white"], orient="V")
 
-    route_bundle("J13_DHT11_D2", (31.54, 4.50), anchors["dht11"],
-                 [(-126.0, 18.0, 52.0), (-14.0, 18.0, 46.0), (-14.0, 18.0, -126.0), (-42.0, 18.0, -126.0)],
-                 ["w_red", "w_blue", "w_black"], orient="H")
+    route_bundle("J13_DHT11_D2", (79.04, 7.50), anchors["dht11"],
+                 [(-98.0, 18.0, 54.0), (-14.0, 18.0, 46.0), (-14.0, 18.0, -126.0), (-42.0, 18.0, -126.0)],
+                 ["w_black", "w_blue", "w_red"], orient="H")
 
-    route_bundle("J15_KY037_D5", (74.50, 28.04), anchors["ky037"],
-                 [(-72.0, 18.0, 58.0), (-15.0, 18.0, 52.0)],
+    route_bundle("J15_KY037_D5", (91.00, 35.54), anchors["ky037"],
+                 [(-74.0, 18.0, 58.0), (-15.0, 18.0, 52.0)],
                  ["w_red", "w_black", "w_yellow"], orient="V")
 
-    route_bundle("J6_BUZZ_D8", (74.50, 50.77), anchors["buzzer"],
-                 [(-74.0, 16.0, 50.0), (-5.0, 16.0, 46.0)],
-                 ["w_orange", "w_black"], orient="V")
+    # J6 (BUZZ_D8): Pin 1 (+5V Red, x=85.00), Pin 2 (BUZZ_K Orange via Q1 S8050, x=82.46)
+    route_bundle("J6_BUZZ_D8", (83.73, 72.00), anchors["buzzer"],
+                 [(-76.0, 16.0, 148.0), (-74.0, 16.0, 50.0), (-5.0, 16.0, 46.0)],
+                 ["w_orange", "w_red"], orient="H")
 
-    route_bundle("J7_RLY1_D6", (74.50, 40.04), anchors["rly1_in"],
-                 [(-74.0, 14.0, 86.0)],
-                 ["w_red", "w_black", "w_green"], orient="V")
+    route_bundle("J7_RLY1_D6", (91.00, 49.04), anchors["rly1_in"],
+                 [(-74.0, 14.0, 88.0)],
+                 ["w_green", "w_black", "w_red"], orient="V")
 
-    route_bundle("J8_RLY1_SW", (16.50, 17.77), anchors["rly1_sw"],
-                 [(-142.0, 15.0, 62.0), (-26.0, 15.0, 62.0)],
-                 ["w_red", "w_yellow"], orient="V")
+    route_bundle("J8_RLY1_SW", (23.50, 23.27), anchors["rly1_sw"],
+                 [(-154.0, 22.0, 62.0), (-27.0, 18.0, 62.0)],
+                 ["w_yellow", "w_red"], orient="V")
 
-    route_bundle("J2_PUMP_OUT", (6.50, 19.04), anchors["pump"],
-                 [(-164.0, 14.0, 84.0), (-164.0, 14.0, 144.0), (26.0, 14.0, 144.0), (36.0, 42.0, 78.0)],
+    route_bundle("J2_PUMP_OUT", (9.00, 24.54), anchors["pump"],
+                 [(-182.0, 14.0, 88.0), (-182.0, 14.0, 150.0), (28.0, 14.0, 150.0), (36.0, 42.0, 78.0)],
                  ["w_red", "w_black"], orient="SCREW")
 
-    route_bundle("J9_RLY2_D7", (18.54, 60.50), anchors["rly2_in"],
-                 [(-136.0, 14.0, 138.0), (-74.0, 14.0, 138.0)],
-                 ["w_red", "w_black", "w_cyan"], orient="H")
+    route_bundle("J9_RLY2_D7", (91.00, 62.04), anchors["rly2_in"],
+                 [(-74.0, 14.0, 126.0)],
+                 ["w_cyan", "w_black", "w_red"], orient="V")
 
-    route_bundle("J10_RLY2_SW", (32.27, 60.50), anchors["rly2_sw"],
-                 [(-122.0, 14.0, 140.0), (-24.0, 14.0, 140.0)],
+    route_bundle("J10_RLY2_SW", (17.77, 71.50), anchors["rly2_sw"],
+                 [(-160.0, 14.0, 148.0), (-26.0, 14.0, 148.0)],
                  ["w_red", "w_orange"], orient="H")
 
-    route_bundle("J11_AMP_PWR", (44.77, 60.50), anchors["pam_pwr"],
-                 [(-108.0, 14.0, 142.0), (2.0, 14.0, 142.0)],
+    route_bundle("J11_AMP_PWR", (30.27, 71.50), anchors["pam_pwr"],
+                 [(-148.0, 14.0, 150.0), (4.0, 14.0, 150.0)],
                  ["w_red", "w_black"], orient="H")
 
-    route_bundle("J12_AUDIO_D3", (57.77, 60.50), anchors["pam_aud"],
-                 [(-96.0, 15.0, 136.0), (-4.0, 15.0, 136.0)],
+    route_bundle("J12_AUDIO_D3", (54.77, 71.50), anchors["pam_aud"],
+                 [(-123.0, 15.0, 146.0), (-2.0, 15.0, 146.0)],
                  ["w_white", "w_black"], orient="H")
 
     # PAM8403 output -> 28mm mini round speaker
-    add_tube("Wire_PAM_Spk_Pos", [anchors["pam_out"], (0.0, 11.5, 102.0), (0.0, 9.5, 91.0)], WR, mats["w_yellow"], parent=wires)
+    add_tube("Wire_PAM_Spk_Pos", [anchors["pam_out"], (2.0, 11.5, 104.0), (2.0, 9.5, 91.0)], WR, mats["w_yellow"], parent=wires)
     add_tube("Wire_PAM_Spk_Neg", [(anchors["pam_out"][0] + 2.5, anchors["pam_out"][1], anchors["pam_out"][2]),
-                                  (3.5, 11.5, 102.0), (3.5, 9.5, 91.0)], WR, mats["w_black"], parent=wires)
+                                  (5.5, 11.5, 104.0), (5.5, 9.5, 91.0)], WR, mats["w_black"], parent=wires)
 
-    route_bundle("J14_SOIL_A0", (17.04, 4.50), anchors["soil"],
-                 [(-140.0, 16.0, 56.0), (24.0, 16.0, 56.0), (24.0, 16.0, 140.0)],
+    route_bundle("J14_SOIL_A0", (19.04, 9.00), anchors["soil"],
+                 [(-158.0, 16.0, 58.0), (26.0, 16.0, 58.0), (26.0, 16.0, 142.0)],
                  ["w_red", "w_black", "w_green"], orient="H")
 
     return wires
@@ -961,8 +1006,9 @@ def write_scene_spec() -> None:
         "physical_scale_ratio": SCENE_SCALE,
         "physical_dimensions_mm": {
             "tabletop_plinth": [404.0, 9.0, 324.0],
+            "tech_bay_deck": [218.0, 6.5, 110.0],
             "open_cutaway_house": [356.0, 135.0, 178.0],
-            "kicad_pcb_hub": [80.0, 17.3, 65.0],
+            "kicad_pcb_hub": [100.0, 17.3, 80.0],
             "nodemcu_esp8266": [25.4, 7.14, 49.4],
             "sg90_servo_body": [22.8, 22.5, 12.2],
             "sg90_servo_envelope": [32.2, 31.0, 12.2],
@@ -989,7 +1035,7 @@ def write_scene_spec() -> None:
             "bedroom":  spherical_from_eye_target((160.0, 210.0, 210.0), (88.0, 45.0, -56.0)),
             "door":     spherical_from_eye_target((-60.0, 115.0, 215.0), (-90.0, 52.0, 40.0)),
             "garden":   spherical_from_eye_target((155.0, 130.0, 255.0), (102.0, 30.0, 100.0)),
-            "board":    spherical_from_eye_target((-92.0, 138.0, 252.0), (-74.0, 16.0, 98.0)),
+            "board":    spherical_from_eye_target((-142.0, 150.0, 268.0), (-128.0, 18.0, 104.0)),
         },
         "contract_nodes": node_positions,
         "removed_devices": ["fan", "ac", "ir_vs1838b", "ir_led_940nm"],
@@ -1011,7 +1057,7 @@ def render_presentation_views(render_dir: pathlib.Path) -> None:
     scene.view_settings.exposure = -0.35
 
     cam_overview = create_camera("Cam_Overview", (195.0, 325.0, 465.0), (-4.0, 36.0, 12.0), lens_mm=40.0)
-    cam_pcb = create_camera("Cam_PCB_Closeup", (-92.0, 138.0, 252.0), (-74.0, 16.0, 98.0), lens_mm=36.0)
+    cam_pcb = create_camera("Cam_PCB_Closeup", (-142.0, 150.0, 268.0), (-128.0, 18.0, 104.0), lens_mm=36.0)
 
     for cam, fname in [
         (cam_overview, "05_blender_house_overview.png"),

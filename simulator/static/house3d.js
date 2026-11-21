@@ -13,7 +13,7 @@
  *  7. DHT11             : Cảm biến Nhiệt độ & Độ ẩm màu xanh (Chân D2 / GPIO4)
  *  8. Soil Moisture     : Cảm biến độ ẩm đất 2 nhánh + mạch so sánh LM393 (Chân A0 / ADC0, <40% bật bơm, >=70% tắt)
  *  9. KY-037 Sound      : Cảm biến âm thanh PCB đỏ (Chân DO -> D5 / GPIO14) phát hiện vỗ tay / tiếng động lớn
- * 10. Trạm Mạch Trung Tâm: NodeMCU ESP8266 v2 Amica (0.9" 2x15) cắm trên Breadboard 400 lỗ,
+ * 10. Trạm Mạch Trung Tâm: NodeMCU ESP8266 v2 Amica (0.9" 2x15) cắm trên Hub PCB 100x80mm 1-lớp DIY (Q1 S8050 + 7 jumper),
  *                         Relay 1 xanh, Relay 2 opto đỏ, PAM8403 xanh, loa tròn bạc, KY-037 đỏ, diode 1N4007 & tụ 470uF.
  */
 window.SmartHome3D = (() => {
@@ -2296,7 +2296,7 @@ window.SmartHome3D = (() => {
       } else if (sceneSpecPresets.board) {
         Object.assign(camGoal, sceneSpecPresets.board);
       } else {
-        Object.assign(camGoal, { theta: -0.45, phi: 0.98, radius: 4.6, targetX: -0.25, targetY: 1.38, targetZ: 2.45 });
+        Object.assign(camGoal, { theta: -0.0852, phi: 0.8949, radius: 5.2747, targetX: -3.2, targetY: 0.45, targetZ: 2.6 });
       }
     } else if (preset === "wires") {
       toggleWiringConduits();

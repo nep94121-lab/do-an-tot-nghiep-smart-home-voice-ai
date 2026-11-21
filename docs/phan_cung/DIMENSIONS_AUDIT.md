@@ -12,9 +12,9 @@
 | Tabletop Plinth (`TabletopPlinth`) | `404.0 × 9.0 × 324.0` | `X: [-202.0, +202.0], Y: [-9.0, 0.0], Z: [-154.0, +170.0]` | Top surface at `Y = 0.0 mm` |
 | Open-Cutaway House (`OpenCutawayHouse`) | `356.0 × 135.0 × 178.0` | `X: [-178.0, +178.0], Y: [0.0, 135.0], Z: [-135.0, +43.0]` | Wall thickness `6.0 mm`; full wall height `132.0 mm` (`+3.0 mm` cap = `135.0 mm`); front cutaway `26.0 mm` |
 | Main Door (`door_pivot` / `main_door_leaf`) | `54.0 × 98.0` opening (`52.0 × 96.0 × 5.0` leaf) | Hinge at `(-114.0, 0.0, 40.0)` | Zero collision with `SG90_DoorServo` (`max X = -115.9, min Z = 45.9`) |
-| Front-Left Technical Bay (`TechBayDeck`) | `200.0 × 6.5 × 106.0` | `X: [-175.0, +25.0], Y: [0.0, 6.5], Z: [+46.0, +152.0]` | Hosts KiCad 1-Layer DIY PCB (`100 × 80 mm`), 2× Relays (`50 × 26 mm`, holes `44.5 × 20.5 mm`), 28 mm Speaker, PAM8403, SG90 |
+| Front-Left Technical Bay (`TechBayDeck`) | `218.0 × 6.5 × 110.0` | `X: [-186.0, +32.0], Y: [0.0, 6.5], Z: [+46.0, +156.0]` | Hosts KiCad 1-Layer DIY PCB (`100 × 80 mm`), 2× Relays (`50 × 26 mm`, holes `44.5 × 20.5 mm`), 28 mm Speaker, PAM8403, SG90 |
 | Front-Right Water Tank & Planter | Tank `44.0 × 38.0 × 70.0`; Planter `92.0 × 32.0 × 92.0` | Tank `X: [38, 82], Z: [65, 135]`; Planter `X: [84, 176], Z: [54, 146]` | Hosts horizontal `45 × 24 × 33 mm` pump & `60 × 20 mm` YL-69 soil probe + LM393 |
-| KiCad 1-Layer DIY Central Hub PCB (`kicad_pcb_hub`) | `100.00 × 80.00 × 1.60` FR4 (`17.30 mm` overall H) | Single-layer `B.Cu` DIY v3.0 (49 footprints, 7 top jumpers) | Mounted on 4× M3 standoffs; M3 `Ø3.20 mm` NPTH holes at `(5.0, 5.0), (95.0, 5.0), (5.0, 75.0), (95.0, 75.0)` (`90.00 × 70.00 mm` pitch) |
+| KiCad 1-Layer DIY Central Hub PCB (`kicad_pcb_hub`) | `100.00 × 80.00 × 1.60` FR4 (`17.30 mm` overall H) | `X: [-178.0, -78.0], Y: [12.0, 27.4], Z: [+64.0, +144.0]` (single-layer `B.Cu` DIY v3.0, 49 footprints, 7 top jumpers) | Mounted on 4× M3 standoffs; M3 `Ø3.20 mm` NPTH holes at `(5.0, 5.0), (95.0, 5.0), (5.0, 75.0), (95.0, 75.0)` (`90.00 × 70.00 mm` pitch) |
 
 ## 2. Component-by-Component Dimensions Audit Table
 
@@ -51,4 +51,4 @@
 - **PASS (already within tolerance):** 7 rows (all KiCad passive/diode/3mm LED footprints)
 - **NOTE (N/A in PCB-hub design):** 2 rows (TO-220 parts, 400-hole breadboard)
 - **ERC / DRC:** `0 errors / 0 warnings` (ERC), `0 violations / 0 unconnected / 0 footprint errors` (DRC)
-- **GLB Verification (`scripts/verify_hardware_dimensions.py`):** `1,872,212 bytes (1.785 MB < 10 MB)`, `16/16` contract nodes present, `0` forbidden nodes, `0` unintended component collisions.
+- **GLB Verification (`scripts/verify_hardware_dimensions.py`):** `4,060,888 bytes (3.873 MB < 10 MB)`, `16/16` contract nodes present, `0` forbidden nodes, `0` unintended component collisions.

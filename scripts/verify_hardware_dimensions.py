@@ -3,7 +3,7 @@
 Verifies:
   1. simulator/static/models/smarthome_villa.glb exists, < 10 MB, contains all 16 required
      contract nodes, and contains zero forbidden nodes (fan, ac, vs1838, ir).
-  2. hardware/kicad/smarthome_hub/3d/smarthome_hub.glb has exact 80.0 x 65.0 x 17.3 mm extents.
+  2. hardware/kicad/smarthome_hub/3d/smarthome_hub.glb has exact 100.0 x 80.0 x 17.3 mm extents.
   3. Optional Blender live measurement (--check-blender) verifies every hardware component
      matches its datasheet dimensions within tolerance and has zero unintended collisions.
 """
@@ -61,8 +61,8 @@ def verify_glbs() -> dict:
 
     k_scene = trimesh.load(str(KICAD_GLB))
     k_ext_mm = [round(float(v) * 1000.0, 2) for v in k_scene.extents]
-    assert abs(k_ext_mm[0] - 80.0) <= 0.3, f"KiCad PCB X extent mismatch: {k_ext_mm}"
-    assert abs(k_ext_mm[2] - 65.0) <= 0.3, f"KiCad PCB Z extent mismatch: {k_ext_mm}"
+    assert abs(k_ext_mm[0] - 100.0) <= 0.3, f"KiCad PCB X extent mismatch: {k_ext_mm}"
+    assert abs(k_ext_mm[2] - 80.0) <= 0.3, f"KiCad PCB Z extent mismatch: {k_ext_mm}"
 
     villa_bytes = VILLA_GLB.stat().st_size
     assert villa_bytes < 10 * 1024 * 1024, f"Villa GLB exceeds 10 MB: {villa_bytes}"
@@ -164,7 +164,7 @@ pcb_obj = bpy.data.objects.get('kicad_pcb_hub')
 if pcb_obj:
     info = out['groups']['kicad_pcb_hub']['sub']
     for mname, mdata in info.items():
-        if mdata['size'][0] > 79.0 and mdata['size'][2] > 64.0 and mdata['size'][1] < 2.5:
+        if mdata['size'][0] > 99.0 and mdata['size'][2] > 79.0 and 1.0 < mdata['size'][1] < 2.5:
             out['sub_parts']['kicad_fr4_slab'] = mdata
         if abs(mdata['size'][2] - 38.1) < 0.3 and abs(mdata['size'][0] - 2.54) < 0.3:
             out['sub_parts']['kicad_u1_u2_socket'] = mdata

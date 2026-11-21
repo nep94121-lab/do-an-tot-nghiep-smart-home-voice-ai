@@ -3,7 +3,7 @@ r"""Deterministic 3D Wired Hardware Assembly Builder & Studio Renderer.
 Reads `hardware/wiring_contract.py` (Single Source of Truth) and imports the actual
 KiCad 3D Central Hub PCB (`hardware/kicad/smarthome_hub/3d/smarthome_hub.glb`) at exact
 1:1 physical millimeters (1 mm = 0.001 m), mounting NodeMCU v2 Amica flush on U1/U2 and
-arranging all 14 off-board modules radially around the 80x65 mm hub PCB with all 40
+arranging all 14 off-board modules radially around the 100x80 mm 1-layer DIY hub PCB with all 40
 color-coded plug-in Dupont / terminal wires (`W01..W40`).
 
 Two execution modes:
@@ -45,12 +45,28 @@ OUT_GLB = REPO_ROOT / "hardware" / "blender" / "system_wired_assembly.glb"
 MM = 0.001
 
 # Hub PCB elevation: FR4 bottom sits flush on 6.0 mm brass M3 standoffs above Z=0 workbench mat
+PCB_W_MM = 100.0
+PCB_H_MM = 80.0
 PCB_Z_BOT = 6.0
 PCB_FR4_THICK = 1.51  # exact measured thickness in smarthome_hub.glb
 U12_SOCKET_TOP_Z = PCB_Z_BOT + 10.10  # 16.10 mm (measured socket top in smarthome_hub.glb)
+NODEMCU_DX_MM = -1.57                 # U1/U2 center bx=48.43 - 50.0 = -1.57 mm
+NODEMCU_DY_MM = +1.22                 # U1/U2 center by=41.22 - 40.0 = +1.22 mm (North/+Y)
 DUPONT_TOP_Z = PCB_Z_BOT + 13.05      # 19.05 mm (wire emerges top of black 2.54mm Dupont plug)
-PHOENIX_MOUTH_X = -38.10              # exact -X face of J1/J2 Phoenix terminal in centered mm
+PHOENIX_MOUTH_X = -45.60              # exact -X face of J1/J2 Phoenix terminal (bx=9.0 -> wx=-41.0, mouth -4.60)
 PHOENIX_MOUTH_Z = PCB_Z_BOT + 6.50    # 12.50 mm horizontal wire entry center
+
+# 7 top-side 22AWG insulated wire jumpers (JP1..JP7) from hardware/kicad/smarthome_hub/build_diy_hub.py
+# Format: (ref, (x1_rel, y1_rel), (x2_rel, y2_rel), wire_color) in top-left PCB local mm (0..100, 0..80)
+DIY_TOP_JUMPERS: tuple[tuple[str, tuple[float, float], tuple[float, float], str], ...] = (
+    ("JP1", (43.00, 33.70), (55.70, 33.70), "Orange"),  # +3.3V belly -> right bus (12.70 mm)
+    ("JP2", (40.50, 18.00), (22.72, 18.00), "Orange"),  # +3.3V belly -> J14 SOIL_A0 (17.78 mm)
+    ("JP3", (76.00, 33.30), (76.00, 25.68), "Orange"),  # +3.3V right -> top pull-ups (7.62 mm)
+    ("JP4", (36.50, 60.00), (72.06, 60.00), "Red"),     # +5V U1.15 -> right RLY2 bus (35.56 mm)
+    ("JP5", (85.50, 64.28), (85.50, 51.58), "Red"),     # +5V RLY2 -> RLY1 (12.70 mm)
+    ("JP6", (85.50, 47.00), (85.50, 26.68), "Red"),     # +5V RLY1 -> top tunnel (20.32 mm)
+    ("JP7", (85.50, 12.70), (60.10, 12.70), "Red"),     # +5V top -> J3 SERVO_D1 (25.40 mm)
+)
 
 RENDER_W = 2200
 RENDER_H = 1500
@@ -60,8 +76,8 @@ RENDER_H = 1500
 # COORDINATE HELPERS (Exact 1:1 mm: +X Right, +Y Top/North, +Z Up)
 # ==============================================================================
 def pcb_rel_to_world_xy(rel_x_mm: float, rel_y_mm: float) -> tuple[float, float]:
-    """Convert KiCad PCB local mm (origin top-left 0..80, 0..65) to centered world (X, Y) mm."""
-    return (rel_x_mm - 40.0, 32.5 - rel_y_mm)
+    """Convert KiCad PCB local mm (origin top-left 0..100, 0..80) to centered world (X, Y) mm."""
+    return (rel_x_mm - PCB_W_MM * 0.5, PCB_H_MM * 0.5 - rel_y_mm)
 
 
 def hub_pin_world_xyz(hub_ref: str, hub_pin: str) -> tuple[float, float, float]:
@@ -336,14 +352,14 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
 
     def build_workbench(mats: dict[str, Any]):
         wb = make_group("WorkbenchMat", 0.0, 0.0, 0.0)
-        # Main architectural cutting mat: 330 x 226 x 4 mm, top flush at Z = 0.0 mm
-        mat_w, mat_h = 330.0, 226.0
-        cy = -3.0
+        # Main architectural cutting mat: 360 x 250 x 4 mm, top flush at Z = 0.0 mm
+        mat_w, mat_h = 360.0, 250.0
+        cy = -4.0
         add_box("Workbench_Bezel",   0.0, cy, -2.6, mat_w + 8.0, mat_h + 8.0, 5.2, mats["mat_bezel"], parent=wb, bevel_mm=1.0)
         add_box("Workbench_Surface", 0.0, cy, -1.5, mat_w,       mat_h,       3.0, mats["mat_surface"], parent=wb, bevel_mm=0.2)
         # Subtle 10mm engineering grid lines (flush at Z = +0.02 mm)
-        x0, x1 = -160.0, 160.0
-        y0, y1 = -110.0, 100.0
+        x0, x1 = -170.0, 170.0
+        y0, y1 = -120.0, 110.0
         for gx in range(int(x0), int(x1) + 1, 10):
             is_maj = (gx % 50 == 0)
             add_box(
@@ -365,9 +381,9 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
             raise FileNotFoundError(f"Missing KiCad 3D PCB GLB: {KICAD_PCB_GLB}")
 
         hub = make_group("hub_pcb", 0.0, 0.0, PCB_Z_BOT)
-        # 4 brass M3 standoffs under M3 mounting holes (inset 4.5 mm from 80x65 edges)
+        # 4 brass M3 standoffs under M3 mounting holes (5.0 mm inset from 100x80 edges -> 90x70 mm pitch)
         standoffs = make_group("HubStandoffs", 0.0, 0.0, 0.0)
-        for idx, (hx, hy) in enumerate([(4.5, 4.5), (75.5, 4.5), (4.5, 60.5), (75.5, 60.5)]):
+        for idx, (hx, hy) in enumerate([(5.0, 5.0), (95.0, 5.0), (5.0, 75.0), (95.0, 75.0)]):
             wx, wy = pcb_rel_to_world_xy(hx, hy)
             add_cyl(f"Hub_Standoff_M3_{idx + 1}", wx, wy, PCB_Z_BOT * 0.5, 2.5, PCB_Z_BOT, mats["brass"], parent=standoffs, segs=20)
             # M3 brass hex nut / screw cap on top of FR4
@@ -389,7 +405,8 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
                     wc = o.matrix_world @ Vector(c)
                     xs.append(wc.x); ys.append(wc.y); zs.append(wc.z)
                     mxs.append(wc.x); mys.append(wc.y); mzs.append(wc.z)
-                if (max(mxs) - min(mxs)) > 0.078 and (max(mys) - min(mys)) > 0.063 and (max(mzs) - min(mzs)) < 0.003:
+                dz_m = max(mzs) - min(mzs)
+                if (max(mxs) - min(mxs)) > 0.098 and (max(mys) - min(mys)) > 0.078 and 0.001 < dz_m < 0.003:
                     fr4_zmin = min(mzs)
         cx_m = 0.5 * (min(xs) + max(xs))
         cy_m = 0.5 * (min(ys) + max(ys))
@@ -399,9 +416,27 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
             r.parent = hub
             r.location = Vector((r.location.x - cx_m, r.location.y - cy_m, r.location.z - z_align_m))
 
-        # Authentic ESP8266 NodeMCU v2 Amica seated flush on U1/U2 socket top (Z = 16.10 mm)
+        # Add the 7 top-side 22AWG insulated wire jumpers (JP1..JP7) directly onto the 1-layer DIY hub PCB
+        for jref, (x1, y1), (x2, y2), wcol in DIY_TOP_JUMPERS:
+            wx1, wy1 = pcb_rel_to_world_xy(x1, y1)
+            wx2, wy2 = pcb_rel_to_world_xy(x2, y2)
+            dx, dy = wx2 - wx1, wy2 - wy1
+            jlen = max(1e-3, math.hypot(dx, dy))
+            ux, uy = dx / jlen, dy / jlen
+            arch_z = 3.6  # local Z above FR4 bottom (2.0mm above FR4 top, well below NodeMCU bottom 10.1mm)
+            jpts = [
+                (wx1, wy1, 1.4),
+                (wx1, wy1, arch_z - 0.5),
+                (wx1 + ux * 0.9, wy1 + uy * 0.9, arch_z),
+                (wx2 - ux * 0.9, wy2 - uy * 0.9, arch_z),
+                (wx2, wy2, arch_z - 0.5),
+                (wx2, wy2, 1.4),
+            ]
+            add_wire_curve(f"DIY_Jumper_{jref}", jpts, 0.55, mats[f"wire_{wcol}"], parent=hub, bevel_res=3)
+
+        # Authentic ESP8266 NodeMCU v2 Amica seated flush on U1/U2 socket top (Z = 16.10 mm, XY = (-1.57, +1.22))
         # Official Amica PCB: 25.40 x 48.26 x 1.60 mm (~49.43 mm w/ Micro-USB overhang), total H = 7.14 mm
-        mcu = make_group("nodemcu", 0.0, 0.0, U12_SOCKET_TOP_Z)
+        mcu = make_group("nodemcu", NODEMCU_DX_MM, NODEMCU_DY_MM, U12_SOCKET_TOP_Z)
         for side, sx in [("L", -11.43), ("R", 11.43)]:
             add_box(f"NodeMCU_MaleHdr_{side}", sx, 0.0, 1.27, 2.54, 38.10, 2.54, mats["plastic_blk"], parent=mcu)
             add_box(f"NodeMCU_PinBar_{side}",  sx, 0.0, 4.64, 1.40, 37.50, 1.00, mats["copper"], parent=mcu)
@@ -431,7 +466,7 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         # LEFT SIDE: pump_unit (facing J2) & psu_5v (facing J1)
         # ------------------------------------------------------------------
         # 1. Mini Submersible Water Pump (45.0 L x 24.0 dia x 33.0 H mm, Ø7.5 nozzle)
-        px, py = -100.0, 22.0
+        px, py = -112.0, 20.0
         pump = make_group("pump_unit", px, py, 0.0)
         add_cyl("Pump_Body",        -5.0, 0.0, 12.0, 12.0, 35.0, mats["pump_white"], parent=pump, axis="X", segs=28)
         add_cyl("Pump_Intake",      17.5, 0.0, 12.0,  4.0, 10.0, mats["pump_white"], parent=pump, axis="X", segs=18)
@@ -445,12 +480,11 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("pump_unit", "Pump - (Black)")] = (px + 22.5, py - 2.5, 12.0)
 
         # 2. 5V 2A External Power Supply Terminal (34.0 x 22.0 x 16.0 mm)
-        psx, psy = -94.0, -18.0
+        psx, psy = -106.0, -18.0
         psu = make_group("psu_5v", psx, psy, 0.0)
         add_box("PSU_BasePCB",       0.0,  0.0,  1.0, 34.0, 22.0,  2.0, mats["pcb_black"], parent=psu, bevel_mm=0.2)
         add_box("PSU_DC005_Jack",   -8.0,  0.0,  7.5, 14.5, 10.0, 11.0, mats["plastic_blk"], parent=psu, bevel_mm=0.3)
         add_cyl("PSU_BarrelSleeve",-15.8,  0.0,  7.5,  3.2,  2.4, mats["silver_mtl"], parent=psu, axis="X", segs=18)
-        # Trim barrel sleeve flush inside 34.0 mm envelope (-17.0..+17.0)
         bpy.data.objects["PSU_BarrelSleeve"].location = vmm(-15.8, 0.0, 7.5)
         add_box("PSU_ScrewBlock",   11.5,  0.0,  9.0, 11.0, 12.0, 14.0, mats["term_blue"], parent=psu, bevel_mm=0.25)
         for k, sy in enumerate([2.54, -2.54]):
@@ -461,10 +495,10 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("psu_5v", "GND")] = (psx + 17.0, psy - 2.54, 9.5)
 
         # ------------------------------------------------------------------
-        # TOP SIDE: soil_probe, soil_lm393, dht11_sensor, led_living, led_bedroom
+        # TOP SIDE: soil_probe, soil_lm393 (J14), led_living (J4), sg90_servo (J3), dht11_sensor (J13)
         # ------------------------------------------------------------------
         # 3. YL-69 Soil Fork Probe (60.0 x 20.0 x 1.6 mm)
-        spx, spy = -108.0, 76.0
+        spx, spy = -120.0, 84.0
         probe = make_group("soil_probe", spx, spy, 0.0)
         add_box("SoilProbe_Head",    21.0,  0.0, 0.8, 18.0, 20.0, 1.6, mats["pcb_black"], parent=probe, bevel_mm=0.15)
         add_box("SoilProbe_ProngA",  -9.0,  5.0, 0.8, 42.0,  5.0, 1.6, mats["silver_mtl"], parent=probe, bevel_mm=0.1)
@@ -476,7 +510,7 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("soil_probe", "Prong B")] = (spx + 30.0, spy - 1.27, 1.6)
 
         # 4. Soil LM393 Comparator Module (32.0 x 14.0 x 12.1 mm -> oriented 14.0 X x 32.0 Y x 12.1 Z)
-        lmx, lmy = -48.0, 70.0
+        lmx, lmy = -56.0, 78.0
         lm = make_group("soil_lm393", lmx, lmy, 0.0)
         add_box("LM393_BluePCB",   0.0,   0.0,  0.80, 14.0, 32.0, 1.60, mats["pcb_blue"], parent=lm, bevel_mm=0.18)
         add_box("LM393_TrimPot",   0.0,   2.0,  6.35,  4.8,  9.5, 9.50, mats["pot_blue"], parent=lm)
@@ -487,30 +521,14 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         add_box("LM393_Hdr4",      0.0, -14.5,  2.87, 10.16, 3.0, 2.54, mats["plastic_blk"], parent=lm)
         add_box("LM393_Hdr2",     -5.5,   8.0,  2.87,  3.0, 5.08, 2.54, mats["plastic_blk"], parent=lm)
         mods["soil_lm393"] = lm
-        # 4-pin header on -Y edge: VCC, GND, DO(NC), AO
         pins[("soil_lm393", "VCC")] = (lmx - 3.81, lmy - 16.0, 2.87)
         pins[("soil_lm393", "GND")] = (lmx - 1.27, lmy - 16.0, 2.87)
         pins[("soil_lm393", "AO")]  = (lmx + 3.81, lmy - 16.0, 2.87)
-        # 2-pin probe header on -X edge facing soil_probe
         pins[("LM393", "P1")] = (lmx - 7.0, lmy + 9.27, 2.87)
         pins[("LM393", "P2")] = (lmx - 7.0, lmy + 6.73, 2.87)
 
-        # 5. DHT11 3-Pin Breakout (28.0 x 14.0 x 7.1 mm -> oriented 14.0 X x 28.0 Y x 7.1 Z)
-        dhx, dhy = -10.0, 70.0
-        dht = make_group("dht11_sensor", dhx, dhy, 0.0)
-        add_box("DHT11_PCB",       0.0,   0.0, 0.80, 14.0, 28.0, 1.60, mats["pcb_blue"], parent=dht, bevel_mm=0.18)
-        add_box("DHT11_BlueGrid",  0.0,   3.5, 4.35, 12.0, 15.5, 5.50, mats["dht_blue"], parent=dht, bevel_mm=0.25)
-        for row in range(3):
-            for col in range(3):
-                add_box(f"DHT11_Vent_{row}_{col}", -3.2 + col * 3.2, -0.5 + row * 4.0, 6.95, 1.9, 1.9, 0.3, mats["plastic_blk"], parent=dht)
-        add_box("DHT11_Hdr3",      0.0, -12.5, 2.87, 7.62,  3.0, 2.54, mats["plastic_blk"], parent=dht)
-        mods["dht11_sensor"] = dht
-        pins[("dht11_sensor", "VCC (+)")]    = (dhx - 2.54, dhy - 14.0, 2.87)
-        pins[("dht11_sensor", "DATA (OUT)")] = (dhx,        dhy - 14.0, 2.87)
-        pins[("dht11_sensor", "GND (-)")]    = (dhx + 2.54, dhy - 14.0, 2.87)
-
-        # 6. Living Room 5mm LED (exact Kingbright WP7113: Ø5.8 flange, Ø5.0 body+dome, 8.6 mm H)
-        llx, lly = 14.0, 68.0
+        # 5. Living Room 5mm LED (exact Kingbright WP7113: Ø5.8 flange, Ø5.0 body+dome, 8.6 mm H)
+        llx, lly = -8.0, 76.0
         led_lr = make_group("led_living", llx, lly, 6.0)
         add_cyl("LED_LR_Flange", 0.0, 0.0, 0.50, 2.9, 1.0, mats["led_lr"], parent=led_lr, axis="Z", segs=24)
         add_cyl("LED_LR_Body",   0.0, 0.0, 3.55, 2.5, 5.1, mats["led_lr"], parent=led_lr, axis="Z", segs=24)
@@ -519,21 +537,8 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("led_living", "Anode (+)")]   = (llx - 1.27, lly - 1.27, 2.0)
         pins[("led_living", "Cathode (-)")] = (llx + 1.27, lly - 1.27, 2.0)
 
-        # 7. Bedroom 5mm LED (exact Kingbright WP7113: Ø5.8 flange, Ø5.0 body+dome, 8.6 mm H)
-        lbx, lby = 38.0, 68.0
-        led_br = make_group("led_bedroom", lbx, lby, 6.0)
-        add_cyl("LED_BR_Flange", 0.0, 0.0, 0.50, 2.9, 1.0, mats["led_br"], parent=led_br, axis="Z", segs=24)
-        add_cyl("LED_BR_Body",   0.0, 0.0, 3.55, 2.5, 5.1, mats["led_br"], parent=led_br, axis="Z", segs=24)
-        add_sphere("LED_BR_Dome", 0.0, 0.0, 6.10, 2.5, mats["led_br"], parent=led_br, segs=20)
-        mods["led_bedroom"] = led_br
-        pins[("led_bedroom", "Anode (+)")]   = (lbx - 1.27, lby - 1.27, 2.0)
-        pins[("led_bedroom", "Cathode (-)")] = (lbx + 1.27, lby - 1.27, 2.0)
-
-        # ------------------------------------------------------------------
-        # RIGHT SIDE: sg90_servo, ky037_sound, relay1_pump, buzzer_alarm
-        # ------------------------------------------------------------------
-        # 8. SG90 Micro Servo (body 22.8x12.2x22.5, flange 32.2mm, overall H 31.0mm)
-        sgx, sgy = 90.0, 42.0
+        # 6. SG90 Micro Servo (body 22.8x12.2x22.5, flange 32.2mm, overall H 31.0mm) facing J3 on top edge
+        sgx, sgy = 18.0, 78.0
         sg = make_group("sg90_servo", sgx, sgy, 0.0)
         add_box("SG90_Body",       0.0, 0.0, 11.25, 22.8, 12.2, 22.5, mats["sg90_blue"], parent=sg, bevel_mm=0.35)
         add_box("SG90_Flange",     0.0, 0.0, 17.15, 32.2, 12.2,  2.5, mats["sg90_blue"], parent=sg)
@@ -542,12 +547,39 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         add_cyl("SG90_Shaft",      5.4, 0.0, 27.85,  2.4,  2.3,       mats["plastic_wht"], parent=sg, axis="Z", segs=18)
         add_box("SG90_WhiteHorn",  9.1, 0.0, 30.00, 14.0,  4.5,  2.0, mats["plastic_wht"], parent=sg, bevel_mm=0.3)
         mods["sg90_servo"] = sg
-        pins[("sg90_servo", "PWM (Orange)")] = (sgx - 11.4, sgy + 2.54, 4.5)
-        pins[("sg90_servo", "VCC (Red)")]    = (sgx - 11.4, sgy,        4.5)
-        pins[("sg90_servo", "GND (Brown)")]  = (sgx - 11.4, sgy - 2.54, 4.5)
+        pins[("sg90_servo", "PWM (Orange)")] = (sgx - 2.54, sgy - 6.1, 4.5)
+        pins[("sg90_servo", "VCC (Red)")]    = (sgx,        sgy - 6.1, 4.5)
+        pins[("sg90_servo", "GND (Brown)")]  = (sgx + 2.54, sgy - 6.1, 4.5)
+
+        # 7. DHT11 3-Pin Breakout (28.0 x 14.0 x 7.1 mm -> oriented 14.0 X x 28.0 Y x 7.1 Z) facing J13 on top edge
+        dhx, dhy = 54.0, 78.0
+        dht = make_group("dht11_sensor", dhx, dhy, 0.0)
+        add_box("DHT11_PCB",       0.0,   0.0, 0.80, 14.0, 28.0, 1.60, mats["pcb_blue"], parent=dht, bevel_mm=0.18)
+        add_box("DHT11_BlueGrid",  0.0,   3.5, 4.35, 12.0, 15.5, 5.50, mats["dht_blue"], parent=dht, bevel_mm=0.25)
+        for row in range(3):
+            for col in range(3):
+                add_box(f"DHT11_Vent_{row}_{col}", -3.2 + col * 3.2, -0.5 + row * 4.0, 6.95, 1.9, 1.9, 0.3, mats["plastic_blk"], parent=dht)
+        add_box("DHT11_Hdr3",      0.0, -12.5, 2.87, 7.62,  3.0, 2.54, mats["plastic_blk"], parent=dht)
+        mods["dht11_sensor"] = dht
+        pins[("dht11_sensor", "VCC (+)")]    = (dhx + 2.54, dhy - 14.0, 2.87)
+        pins[("dht11_sensor", "DATA (OUT)")] = (dhx,        dhy - 14.0, 2.87)
+        pins[("dht11_sensor", "GND (-)")]    = (dhx - 2.54, dhy - 14.0, 2.87)
+
+        # ------------------------------------------------------------------
+        # RIGHT SIDE: led_bedroom (J5), ky037_sound (J15), relay1_pump (J7/J8), buzzer_alarm (J6)
+        # ------------------------------------------------------------------
+        # 8. Bedroom 5mm LED (exact Kingbright WP7113: Ø5.8 flange, Ø5.0 body+dome, 8.6 mm H)
+        lbx, lby = 88.0, 34.0
+        led_br = make_group("led_bedroom", lbx, lby, 6.0)
+        add_cyl("LED_BR_Flange", 0.0, 0.0, 0.50, 2.9, 1.0, mats["led_br"], parent=led_br, axis="Z", segs=24)
+        add_cyl("LED_BR_Body",   0.0, 0.0, 3.55, 2.5, 5.1, mats["led_br"], parent=led_br, axis="Z", segs=24)
+        add_sphere("LED_BR_Dome", 0.0, 0.0, 6.10, 2.5, mats["led_br"], parent=led_br, segs=20)
+        mods["led_bedroom"] = led_br
+        pins[("led_bedroom", "Anode (+)")]   = (lbx - 1.27, lby + 1.27, 2.0)
+        pins[("led_bedroom", "Cathode (-)")] = (lbx - 1.27, lby - 1.27, 2.0)
 
         # 9. KY-037 / KY-038 Sound Sensor (35.0 x 15.0 x 13.1 mm, red PCB, Ø9.7x6.7 mic, 3296W pot, 4-pin header)
-        kyx, kyy = 94.0, 13.0
+        kyx, kyy = 106.0, 8.0
         ky = make_group("ky037_sound", kyx, kyy, 0.0)
         add_box("KY037_RedPCB",    0.0,  0.0,  0.80, 35.0, 15.0,  1.60, mats["pcb_red"], parent=ky, bevel_mm=0.18)
         add_cyl("KY037_MicCan",   11.5,  0.0,  4.95, 4.85,  6.7,        mats["silver_mtl"], parent=ky, axis="Z", segs=24)
@@ -562,10 +594,10 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("ky037_sound", "G (GND)")] = (kyx - 17.5, kyy + 1.27, 2.87)
         pins[("ky037_sound", "DO")]      = (kyx - 17.5, kyy - 1.27, 2.87)
 
-        # 10. Relay 1 Blue 5V 1-ch (50.0 x 26.0 x 18.5 mm)
-        r1x, r1y = 102.0, -18.0
+        # 10. Relay 1 Blue 5V 1-ch (50.0 x 26.0 x 18.5 mm; 44.5x20.5 mm holes)
+        r1x, r1y = 114.0, -22.0
         r1 = make_group("relay1_pump", r1x, r1y, 0.0)
-        for idx, (fx, fy) in enumerate([(-22.5, -10.5), (22.5, -10.5), (-22.5, 10.5), (22.5, 10.5)]):
+        for idx, (fx, fy) in enumerate([(-22.25, -10.25), (22.25, -10.25), (-22.25, 10.25), (22.25, 10.25)]):
             add_cyl(f"Rly1_Foot_{idx}", fx, fy, 0.75, 1.5, 1.5, mats["brass"], parent=r1, axis="Z", segs=12)
         add_box("Rly1_BluePCB",     0.0,  0.0,  2.30, 50.0, 26.0,  1.60, mats["pcb_blue"], parent=r1, bevel_mm=0.2)
         add_box("Rly1_SongleCube", -2.5,  0.0, 10.80, 19.0, 15.5, 15.40, mats["relay_cube"], parent=r1, bevel_mm=0.35)
@@ -576,14 +608,14 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         add_box("Rly1_LED_Pwr",   -14.5,  6.5,  3.60,  2.2,   1.4, 1.00, mats["led_red"], parent=r1)
         add_box("Rly1_LED_Trig",  -14.5, -6.5,  3.60,  2.2,   1.4, 1.00, mats["led_grn"], parent=r1)
         mods["relay1_pump"] = r1
-        pins[("relay1_pump", "VCC")]         = (r1x - 22.5, r1y + 2.54, 11.5)
+        pins[("relay1_pump", "VCC")]         = (r1x - 22.5, r1y - 2.54, 11.5)
         pins[("relay1_pump", "GND")]         = (r1x - 22.5, r1y,        11.5)
-        pins[("relay1_pump", "IN")]          = (r1x - 22.5, r1y - 2.54, 11.5)
+        pins[("relay1_pump", "IN")]          = (r1x - 22.5, r1y + 2.54, 11.5)
         pins[("relay1_pump", "COM (Screw)")] = (r1x + 23.0, r1y,         8.5)
         pins[("relay1_pump", "NO (Screw)")]  = (r1x + 23.0, r1y + 5.08,  8.5)
 
-        # 11. Active 5V Buzzer TMB12A05 (Ø12.0 x 9.5 mm)
-        bzx, bzy = 86.0, -52.0
+        # 11. Active 5V Buzzer TMB12A05 (Ø12.0 x 9.5 mm) driven by Q1 S8050 on J6
+        bzx, bzy = 96.0, -68.0
         buz = make_group("buzzer_alarm", bzx, bzy, 0.0)
         add_cyl("Buzzer_Body",     0.0, 0.0, 4.75, 6.0, 9.5, mats["plastic_blk"], parent=buz, axis="Z", segs=28)
         add_cyl("Buzzer_Port",     0.0, 0.0, 9.38, 1.5, 0.25, mats["silver_mtl"], parent=buz, axis="Z", segs=18)
@@ -596,10 +628,10 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         # ------------------------------------------------------------------
         # BOTTOM SIDE: relay2_speaker, pam8403_amp, speaker_mini
         # ------------------------------------------------------------------
-        # 12. Relay 2 Red Opto 5V (50.0 x 26.0 x 18.5 mm, Songle cube + PC817 + Yellow Jumper H)
-        r2x, r2y = -35.0, -72.0
+        # 12. Relay 2 Red Opto 5V (50.0 x 26.0 x 18.5 mm; 44.5x20.5 mm holes, Songle cube + PC817 + Yellow Jumper H)
+        r2x, r2y = -42.0, -84.0
         r2 = make_group("relay2_speaker", r2x, r2y, 0.0)
-        for idx, (fx, fy) in enumerate([(-22.5, -10.5), (22.5, -10.5), (-22.5, 10.5), (22.5, 10.5)]):
+        for idx, (fx, fy) in enumerate([(-22.25, -10.25), (22.25, -10.25), (-22.25, 10.25), (22.25, 10.25)]):
             add_cyl(f"Rly2_Foot_{idx}", fx, fy, 0.75, 1.5, 1.5, mats["brass"], parent=r2, axis="Z", segs=12)
         add_box("Rly2_RedPCB",       0.0,  0.0,  2.30, 50.0, 26.0,  1.60, mats["pcb_red"], parent=r2, bevel_mm=0.2)
         add_box("Rly2_SongleCube",  -2.0,  0.0, 10.80, 19.0, 15.5, 15.40, mats["relay_cube"], parent=r2, bevel_mm=0.35)
@@ -612,14 +644,14 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         add_box("Rly2_LED_Pwr",    -15.5, -7.5,  3.60,  2.2,   1.4, 1.00, mats["led_grn"], parent=r2)
         add_box("Rly2_LED_Trig",   -15.5, -4.5,  3.60,  2.2,   1.4, 1.00, mats["led_red"], parent=r2)
         mods["relay2_speaker"] = r2
-        pins[("relay2_speaker", "DC+")]         = (r2x - 22.5, r2y + 2.54, 11.5)
+        pins[("relay2_speaker", "DC+")]         = (r2x - 22.5, r2y - 2.54, 11.5)
         pins[("relay2_speaker", "DC-")]         = (r2x - 22.5, r2y,        11.5)
-        pins[("relay2_speaker", "IN")]          = (r2x - 22.5, r2y - 2.54, 11.5)
+        pins[("relay2_speaker", "IN")]          = (r2x - 22.5, r2y + 2.54, 11.5)
         pins[("relay2_speaker", "COM (Screw)")] = (r2x + 23.0, r2y,         8.5)
         pins[("relay2_speaker", "NO (Screw)")]  = (r2x + 23.0, r2y + 5.08,  8.5)
 
         # 13. PAM8403 Green Audio Amplifier (21.0 x 18.0 x 3.1 mm, SOP-16 IC)
-        pmx, pmy = 19.0, -72.0
+        pmx, pmy = 12.0, -84.0
         pam = make_group("pam8403_amp", pmx, pmy, 0.0)
         add_box("PAM8403_GreenPCB", 0.0, 0.0, 0.80, 21.0, 18.0, 1.60, mats["pcb_green"], parent=pam, bevel_mm=0.15)
         add_box("PAM8403_SOIC16",   0.0, 0.0, 2.35,  3.9,  9.9, 1.50, mats["ic_black"], parent=pam)
@@ -637,7 +669,7 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
         pins[("PAM8403", "L_OUT-")]            = (pmx + 10.5, pmy - 1.27, 2.0)
 
         # 14. Mini Speaker 28mm 8Ω 0.5W (PUI Audio AS02808MR-R: exact Ø28.0 x 5.2 mm)
-        skx, sky = 60.0, -74.0
+        skx, sky = 54.0, -84.0
         spk = make_group("speaker_mini", skx, sky, 0.0)
         add_cyl("Speaker_SilverRim",  0.0, 0.0, 2.30, 14.0, 4.6, mats["silver_mtl"], parent=spk, axis="Z", segs=32)
         add_cyl("Speaker_InnerCone",  0.0, 0.0, 4.60, 11.5, 0.6, mats["plastic_blk"], parent=spk, axis="Z", segs=28)
@@ -672,30 +704,30 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
 
         # 2. Black 2.54mm Dupont connector housings seated on EVERY off-board module header/LED/buzzer
         # Soil LM393 4-pin side (1x2 for VCC/GND + 1x1 for AO, leaving DO visibly open!)
-        add_box("ModPlug_LM393_Pwr", -50.54, 51.0, 2.87, 5.08, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
-        add_box("ModPlug_LM393_AO",  -44.19, 51.0, 2.87, 2.54, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_LM393_Pwr", -58.54,  59.0, 2.87, 5.08, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_LM393_AO",  -52.19,  59.0, 2.87, 2.54, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # Soil LM393 2-pin probe side & YL-69 probe head plug
-        add_box("ModPlug_LM393_Prb", -58.0,  78.0, 2.87, 6.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
-        add_box("ModPlug_SoilProbe", -75.0,  76.0, 1.60, 6.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_LM393_Prb", -66.0,   86.0, 2.87, 6.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_SoilProbe", -87.0,   84.0, 1.60, 6.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # DHT11 1x3 plug
-        add_box("ModPlug_DHT11",     -10.0,  53.0, 2.87, 7.62, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_DHT11",      54.0,   61.0, 2.87, 7.62, 6.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # Living & Bedroom 5mm LED vertical 1x2 Dupont sockets (Z = 0..6.0 mm directly under LED flange!)
-        add_box("ModPlug_LED_LR",     14.0,  68.0, 3.00, 5.08, 2.54, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
-        add_box("ModPlug_LED_BR",     38.0,  68.0, 3.00, 5.08, 2.54, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_LED_LR",     -8.0,   76.0, 3.00, 5.08, 2.54, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_LED_BR",     88.0,   34.0, 3.00, 2.54, 5.08, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # KY-037 1x3 plug (+, G, DO; AO pin left visibly open!)
-        add_box("ModPlug_KY037",      73.5,  14.27, 2.87, 6.0, 7.62, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_KY037",      85.5,    9.27, 2.87, 6.0, 7.62, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # Relay 1 1x3 vertical plug seated on pins
-        add_box("ModPlug_Relay1_In",  79.5, -18.0,  8.50, 2.54, 7.62, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_Relay1_In",  91.5,  -22.0,  8.50, 2.54, 7.62, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # Buzzer 1x2 plug
-        add_box("ModPlug_Buzzer",     77.5, -52.0,  2.50, 5.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_Buzzer",     87.5,  -68.0,  2.50, 5.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # Relay 2 1x3 vertical plug seated on pins
-        add_box("ModPlug_Relay2_In", -57.5, -72.0,  8.50, 2.54, 7.62, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_Relay2_In", -64.5,  -84.0,  8.50, 2.54, 7.62, 6.0, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
         # PAM8403 1x2 power plug, 1x2 audio-in plug, 1x2 speaker-out plug
-        add_box("ModPlug_PAM_Pwr",    13.27, -60.5, 2.00, 5.08, 5.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
-        add_box("ModPlug_PAM_Aud",    23.77, -60.5, 2.00, 5.08, 5.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
-        add_box("ModPlug_PAM_Out",    32.0,  -72.0, 2.00, 5.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_PAM_Pwr",     6.27, -72.5,  2.00, 5.08, 5.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_PAM_Aud",    16.77, -72.5,  2.00, 5.08, 5.0, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
+        add_box("ModPlug_PAM_Out",    25.0,  -84.0,  2.00, 5.0, 5.08, 2.54, mats["dupont_blk"], parent=harness, bevel_mm=0.1)
 
-        # 3. Deterministic, zero-clipping waypoints for EVERY wire W01..W40
+        # 3. Deterministic, zero-clipping waypoints for EVERY wire W01..W40 around the 100x80 mm DIY Hub PCB
         wire_records: dict[str, dict[str, Any]] = {}
 
         for w in WIRING_TABLE:
@@ -711,117 +743,117 @@ def run_blender_pipeline(out_dir: pathlib.Path) -> None:
 
             # Route cleanly by connector group so ribbons travel neatly together with ZERO clipping
             if w.hub_ref == "J1":  # Left Phoenix -> PSU
-                pts += [(sx - 6.0, sy, sz), (sx - 18.0, (sy + ey) * 0.5, 11.5), (ex + 6.0, ey, ez)]
+                pts += [(sx - 6.0, sy, sz), (sx - 20.0, (sy + ey) * 0.5, 11.5), (ex + 6.0, ey, ez)]
             elif w.hub_ref == "J2":  # Left Phoenix -> Pump
-                pts += [(sx - 6.0, sy, sz), (sx - 18.0, (sy + ey) * 0.5, 13.5), (ex + 6.0, ey, ez)]
+                pts += [(sx - 6.0, sy, sz), (sx - 20.0, (sy + ey) * 0.5, 13.5), (ex + 6.0, ey, ez)]
             elif w.hub_ref == "J14":  # Top edge -> Soil LM393
-                # Preserve left-to-right ribbon ordering cleanly
                 dy_off = {"1": 0.0, "2": -2.2, "3": -4.4}[w.hub_pin]
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, 36.5, 20.5),
-                    (ex, 43.0 + dy_off, 14.0),
+                    (sx, 44.0, 20.5),
+                    (ex, 52.0 + dy_off, 14.0),
                     (ex, ey - 5.5, ez),
                 ]
             elif w.hub_ref == "LM393":  # LM393 -> Soil Probe
                 pts += [(sx - 5.5, sy, sz), (0.5 * (sx + ex), 0.5 * (sy + ey), 5.0), (ex + 5.5, ey, ez)]
-            elif w.hub_ref == "J13":  # Top edge -> DHT11
-                pts += [
-                    (sx, sy, sz + 3.0),
-                    (sx, 38.0, 19.5),
-                    (ex, 45.0, 12.5),
-                    (ex, ey - 5.5, ez),
-                ]
             elif w.hub_ref == "J4":  # Top edge -> Living LED
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, 38.0, 19.5),
-                    (ex, 52.0, 11.0),
+                    (sx, 45.0, 19.5),
+                    (ex, 58.0, 11.0),
                     (ex, ey - 5.0, ez),
                 ]
-            elif w.hub_ref == "J5":  # Top edge -> Bedroom LED
+            elif w.hub_ref == "J3":  # Top edge -> SG90
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, 38.0, 19.5),
-                    (ex, 50.0, 11.0),
-                    (ex, ey - 5.0, ez),
+                    (sx, 45.0, 19.5),
+                    (ex, 58.0, 13.0),
+                    (ex, ey - 5.5, ez),
                 ]
-            elif w.hub_ref == "J3":  # Right edge -> SG90
-                dy_off = {"1": 2.5, "2": 0.0, "3": -2.5}[w.hub_pin]
+            elif w.hub_ref == "J13":  # Top edge -> DHT11
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (46.0, sy, 20.5),
-                    (62.0, ey, 14.5 + dy_off * 0.2),
-                    (ex - 6.0, ey, ez),
+                    (sx, 45.0, 19.5),
+                    (ex, 54.0, 12.5),
+                    (ex, ey - 5.5, ez),
+                ]
+            elif w.hub_ref == "J5":  # Right edge -> Bedroom LED
+                pts += [
+                    (sx, sy, sz + 3.0),
+                    (56.0, sy, 19.5),
+                    (72.0, ey, 11.0),
+                    (ex - 5.0, ey, ez),
                 ]
             elif w.hub_ref == "J15":  # Right edge -> KY-037
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (46.0, sy, 20.0),
-                    (64.0, ey, 12.5),
+                    (56.0, sy, 20.0),
+                    (74.0, ey, 12.5),
                     (ex - 5.5, ey, ez),
                 ]
             elif w.hub_ref == "J7":  # Right edge -> Relay 1 coil/signal
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (46.0, sy, 20.0),
-                    (65.0, ey, 16.5),
+                    (56.0, sy, 20.0),
+                    (76.0, ey, 16.5),
                     (ex, ey, ez + 4.5),
                 ]
             elif w.hub_ref == "J8":  # Left-inner J8 -> Perimeter route -> Relay 1 COM/NO screw terminals!
-                # Zero clipping: rises cleanly to Z=22.5 over bare NW corner (clear of NodeMCU, J2, J14),
-                # drops to Z=4.0 in the open North -> East -> South perimeter channel (12+ mm under arched cables),
+                # Zero clipping: rises to Z=23.5 over bare NW corner (clear of NodeMCU, J2, J14),
+                # drops to Z=4.0 in the open North -> East -> South perimeter channel (under arched cables),
                 # wraps around Relay 1 east end into COM/NO mouths!
                 lane = 1.2 if w.hub_pin == "1" else -1.2
                 pts += [
-                    (sx, sy, 22.8),
-                    (-31.2 + lane * 0.5, 23.0 + lane * 0.5, 22.8),
-                    (-31.2 + lane * 0.5, 38.5 + lane, 18.0),
-                    (-31.2 + lane * 0.5, 41.0 + lane, 4.0),
-                    (57.5 + lane, 41.0 + lane, 4.0),
-                    (57.5 + lane, -37.5 - lane, 4.0),
-                    (133.5 + lane, -37.5 - lane, 4.0),
-                    (133.5 + lane, ey, 8.5),
+                    (sx, sy, 23.5),
+                    (-38.0 + lane * 0.5, 25.0 + lane * 0.5, 23.5),
+                    (-38.0 + lane * 0.5, 45.0 + lane, 18.0),
+                    (-38.0 + lane * 0.5, 48.0 + lane, 4.0),
+                    (67.5 + lane, 48.0 + lane, 4.0),
+                    (67.5 + lane, -46.0 - lane, 4.0),
+                    (146.5 + lane, -46.0 - lane, 4.0),
+                    (146.5 + lane, ey, 8.5),
                     (ex + 3.5, ey, ez),
                 ]
-            elif w.hub_ref == "J6":  # Right edge -> Buzzer
+            elif w.hub_ref == "J9":  # Right edge -> South low perimeter channel -> Relay 2 coil/signal!
+                lane = {"1": -1.6, "2": 0.0, "3": 1.6}[w.hub_pin]
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (46.0, sy - 2.0, 20.0),
-                    (56.0, ey + 6.0, 15.0),
-                    (69.0, ey, 8.0),
-                    (ex - 5.0, ey, ez),
-                ]
-            elif w.hub_ref == "J9":  # Bottom edge -> Relay 2 coil/signal
-                dx_off = {"1": -2.5, "2": 0.0, "3": 2.5}[w.hub_pin]
-                pts += [
-                    (sx, sy, sz + 3.0),
-                    (sx, -41.0 + dx_off * 0.8, 18.5),
-                    (-68.0 + dx_off, -47.0 + dx_off * 0.8, 14.5),
-                    (-68.0 + dx_off, ey, 14.0),
+                    (56.0, sy, 19.5),
+                    (60.0 + lane, -44.0 + lane, 12.0),
+                    (60.0 + lane, -54.0 + lane, 4.0),
+                    (-75.0 + lane, -54.0 + lane, 4.0),
+                    (-75.0 + lane, ey, 14.0),
                     (ex, ey, ez + 4.5),
+                ]
+            elif w.hub_ref == "J6":  # Bottom-right edge -> Buzzer
+                lane = 1.2 if w.hub_pin == "1" else -1.2
+                pts += [
+                    (sx, sy, sz + 3.0),
+                    (sx, -46.0 + lane, 19.0),
+                    (74.0, ey, 11.0),
+                    (ex - 5.0, ey, ez),
                 ]
             elif w.hub_ref == "J10":  # Bottom edge -> Relay 2 COM/NO screw terminals
                 lane = 1.3 if w.hub_pin == "1" else -1.3
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, -42.0, 18.0),
-                    (-1.5 + lane, -52.0, 12.5),
-                    (-1.5 + lane, ey, 9.0),
+                    (sx, -48.0, 18.0),
+                    (-8.5 + lane, -62.0, 12.5),
+                    (-8.5 + lane, ey, 9.0),
                     (ex + 3.5, ey, ez),
                 ]
             elif w.hub_ref == "J11":  # Bottom edge -> PAM8403 Power
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, -40.0, 18.0),
-                    (ex, -50.0, 10.5),
+                    (sx, -46.0, 18.0),
+                    (ex, -60.0, 10.5),
                     (ex, ey + 5.0, ez),
                 ]
             elif w.hub_ref == "J12":  # Bottom edge -> PAM8403 Audio
                 pts += [
                     (sx, sy, sz + 3.0),
-                    (sx, -40.0, 18.0),
-                    (ex, -50.0, 10.5),
+                    (sx, -46.0, 18.0),
+                    (ex, -60.0, 10.5),
                     (ex, ey + 5.0, ez),
                 ]
             elif w.hub_ref == "PAM8403":  # PAM8403 -> Mini Speaker (BTL Yellow/Brown)
@@ -1313,13 +1345,13 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
         "sg90_servo":     ("SG90 Micro Servo (Door)",       "22.8×12.2×22.5 mm  |  J3 (D1, 5V)"),
         "ky037_sound":    ("KY-037/038 Sound Sensor",       "35×15×13.1 mm  |  J15 (D5, 3.3V)"),
         "relay1_pump":    ("Relay 1 (Blue 5V 1-ch)",        "50×26×18.5 mm  |  J7 (D6) & J8 (SW)"),
-        "buzzer_alarm":   ("Active 5V Buzzer (TMB12A05)",   "Ø12×9.5 mm  |  J6 (D8, D2 1N4007)"),
+        "buzzer_alarm":   ("Active 5V Buzzer (TMB12A05)",   "Ø12×9.5 mm  |  J6 (D8 via Q1 S8050)"),
         "speaker_mini":   ("Mini Speaker 28mm (8Ω 0.5W)",   "Ø28×5.2 mm  |  PAM8403 BTL (Yel/Brn)"),
         "pam8403_amp":    ("PAM8403 Audio Amplifier",       "21×18×3.1 mm  |  J11 (5V) & J12 (D3)"),
         "relay2_speaker": ("Relay 2 (Red Opto 5V, Jmp=H)",  "50×26×18.5 mm  |  J9 (D7) & J10 (SW)"),
         "psu_5v":         ("5V 2A External PSU Input",      "34×22×16 mm  |  J1 (+5V / GND)"),
         "pump_unit":      ("Mini Submersible Pump (3-6V)",  "45×24×33 mm  |  J2 (Switched 5V)"),
-        "hub_pcb":        ("Type-1 Central Hub PCB",        "80×65×1.6 mm FR4  |  15 Headers J1..J15"),
+        "hub_pcb":        ("1-Layer DIY Central Hub PCB",   "100×80×1.6 mm FR4  |  15 Headers + 7 Jumpers"),
         "nodemcu":        ("ESP8266 NodeMCU v2 Amica",      "48.26×25.4 mm  |  U1/U2 Sockets"),
     }
 
@@ -1432,8 +1464,8 @@ def run_annotate_and_glb_verify(out_dir: pathlib.Path) -> None:
 
         draw_header_and_legend(
             img,
-            "SMART HOME VOICE AI — TYPE-1 CENTRAL HUB PCB & ALL PLUG-IN MODULES (3D ISOMETRIC)",
-            "Exact 1:1 mm KiCad Hub PCB (80×65 mm) + ESP8266 NodeMCU + 14 Off-Board Modules + All 40 Color-Coded Dupont/Terminal Wires (Zero Clipping)",
+            "SMART HOME VOICE AI — 1-LAYER DIY CENTRAL HUB PCB & ALL PLUG-IN MODULES (3D ISOMETRIC)",
+            "Exact 1:1 mm KiCad Hub PCB (100×80 mm, Q1 S8050, 7 Jumpers) + ESP8266 NodeMCU + 14 Off-Board Modules + All 40 Color-Coded Wires (Zero Clipping)",
         )
         out_path = ss_dir / "51_pcb_modules_wired_3d_iso.png"
         img.convert("RGB").save(out_path, optimize=True)
