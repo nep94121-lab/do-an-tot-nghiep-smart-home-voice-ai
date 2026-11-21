@@ -9,13 +9,13 @@ Generic, deterministic, re-runnable KiCad 10 full-system hardware assembly proje
 
 ## Single-Command Regeneration
 
-### Regenerate from the default 80x65 mm Hub PCB
+### Regenerate from the default 100x80 mm 1-Layer DIY Hub PCB
 ```powershell
 & "C:\Users\LENOVO\AppData\Local\Programs\KiCad\10.0\bin\python.exe" `
     hardware/kicad/smarthome_assembly/build_assembly.py
 ```
 
-### Regenerate from ANY redesigned Hub PCB (e.g., 100x80 mm)
+### Regenerate from ANY Hub PCB Size
 All board dimensions, connector coordinates (`J1..J15`, `U1`, `U2`), edge assignments, module placements, NodeMCU seating, wire endpoints, and banner text (`SMARTHOME HUB ASSEMBLY (<W>X<H> MM)`) are computed **dynamically** via KiCad 10 `pcbnew` — zero hardcoded board dimensions or fixed pad coordinates:
 
 ```powershell
@@ -82,7 +82,7 @@ All board dimensions, connector coordinates (`J1..J15`, `U1`, `U2`), edge assign
 
 ## Verification Summary
 
-Verified against `hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb` (80.0 x 65.0 mm) and a synthetic 100.0 x 80.0 mm redesigned hub board:
+Verified against the merged 1-layer DIY hub board `hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb` (`100.00 x 80.00 mm`, 49 footprints incl. `Q1 S8050` + `R10 1k` buzzer driver, reconciled `44.5 × 20.5 mm Ø3.1 mm` relay mounting holes):
 
 - **Modules placed**: `15 / 15` (`nodemcu_v2_amica` + 14 off-board modules)
 - **NodeMCU `U1`/`U2` pad alignment error**: `0.000 mm`

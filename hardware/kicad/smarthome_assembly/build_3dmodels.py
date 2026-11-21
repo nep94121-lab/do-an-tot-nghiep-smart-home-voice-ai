@@ -630,13 +630,13 @@ def build_04_relay1_blue_srd05() -> ModuleSpec:
         datasheet_url="https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953",
         expected_body_mm=(50.00, 26.00, 18.50),
         expected_full_mm=(50.00, 26.00, 18.50),
-        sub_features="Blue PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; 3-pos 5.08mm screw terminal (15.24mm); 1x3 2.54mm header",
+        sub_features="Blue PCB 50.0x26.0x1.6mm w/ 4x Ø3.1mm holes (44.5x20.5mm pitch); Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; 3-pos 5.08mm screw terminal (15.24mm); 1x3 2.54mm header",
     )
 
     # Bottom THT solder-pin standoff tips Z = 0.0 .. 1.4 mm, Blue PCB Z = 1.4 .. 3.0 mm (1.60 mm thick)
     # Songle SRD-05VDC-SL-C cube Z = 3.0 .. 18.5 mm (15.50 mm tall) => exact 18.50 mm overall H!
     z0, z1 = 1.40, 3.00
-    holes = [(-22.0, 10.0, 1.5), (22.0, 10.0, 1.5), (-22.0, -10.0, 1.5), (22.0, -10.0, 1.5)]
+    holes = [(-22.25, 10.25, 1.55), (22.25, 10.25, 1.55), (-22.25, -10.25, 1.55), (22.25, -10.25, 1.55)]
     mod.add("pcb", "pcb_blue", pcb_with_holes(-25.0, 25.0, -13.0, 13.0, z0, z1, holes))
 
     # THT bottom solder pin tips under relay & terminal block resting on Z=0
@@ -695,11 +695,11 @@ def build_05_relay2_red_opto() -> ModuleSpec:
         datasheet_url="https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v",
         expected_body_mm=(50.00, 26.00, 18.50),
         expected_full_mm=(50.00, 26.00, 18.50),
-        sub_features="Red PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; PC817 optocoupler; yellow H/L jumper (set H); 3-pos 5.08mm terminal; 1x3 2.54mm header",
+        sub_features="Red PCB 50.0x26.0x1.6mm w/ 4x Ø3.1mm holes (44.5x20.5mm pitch); Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; PC817 optocoupler; yellow H/L jumper (set H); 3-pos 5.08mm terminal; 1x3 2.54mm header",
     )
 
     z0, z1 = 1.40, 3.00
-    holes = [(-22.0, 10.0, 1.5), (22.0, 10.0, 1.5), (-22.0, -10.0, 1.5), (22.0, -10.0, 1.5)]
+    holes = [(-22.25, 10.25, 1.55), (22.25, 10.25, 1.55), (-22.25, -10.25, 1.55), (22.25, -10.25, 1.55)]
     mod.add("pcb", "pcb_red", pcb_with_holes(-25.0, 25.0, -13.0, 13.0, z0, z1, holes))
 
     feet = [cyl_z(fx, fy, 0.0, 0.55, z0) for fx, fy in ((-21.5, 0.0), (2.5, 6.0), (2.5, -6.0), (20.0, 5.08), (20.0, -5.08))]

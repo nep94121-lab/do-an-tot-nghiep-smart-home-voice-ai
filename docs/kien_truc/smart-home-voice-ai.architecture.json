@@ -22,9 +22,9 @@
       },
       {
         "id": "hardware_edge",
-        "label": "2. Mạch Hub PCB KiCad 80x65mm (10 Chân Khóa Cứng)",
+        "label": "2. Mạch Hub PCB KiCad 100x80mm 1-Lớp DIY (10 Chân Khóa Cứng)",
         "focus": ["user_voice", "esp8266_mcu", "iot_actuators", "rule_engine", "mqtt_bridge"],
-        "note": "NodeMCU ESP8266 v2 điều khiển 6 thiết bị (D0, D1, D4, D6, D7/D3, D8) và đọc 3 cảm biến (DHT11 D2, Đất A0, KY-037 D5)"
+        "note": "NodeMCU ESP8266 v2 điều khiển 6 thiết bị (D0, D1, D4, D6, D7/D3, D8 qua Q1 S8050) và đọc 3 cảm biến (DHT11 D2, Đất A0, KY-037 D5)"
       },
       {
         "id": "audit_storage",
@@ -157,14 +157,14 @@
       "id": "esp8266_mcu",
       "type": "backend",
       "label": "NodeMCU ESP8266 v2",
-      "sublabel": "Hub PCB KiCad 80x65mm",
+      "sublabel": "Hub PCB DIY 100x80mm",
       "tag": "10 Chân Khóa Cứng",
       "size": [185, 68],
       "row": 1,
       "col": 4,
       "sources": [
         { "path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino", "line": 1, "end_line": 120, "label": "Firmware 10 Chân Khóa Cứng & Boot-Safety" },
-        { "path": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb", "line": 1, "end_line": 50, "label": "KiCad 10 Hub PCB 80x65mm (0 ERC/0 DRC)" }
+        { "path": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb", "line": 1, "end_line": 50, "label": "KiCad 10 Hub PCB 100x80mm 1-Lớp DIY (0 ERC/0 DRC)" }
       ]
     },
     {
@@ -221,9 +221,9 @@
       "dot": "amber",
       "title": "Hồ Sơ Phần Cứng KiCad PCB, Blender 3D & Mica FreeCAD",
       "items": [
-        "KiCad 10 Hub PCB 80×65mm (0 ERC / 0 DRC, 4 lỗ M3 bước 71×56mm): /hardware/kicad/smarthome_hub/bom.csv · /docs/phan_cung/DIMENSIONS_AUDIT.md",
+        "KiCad 10 Hub PCB 100×80mm 1-Lớp DIY (0 ERC / 0 DRC, 4 lỗ M3 bước 90×70mm, lái còi NPN Q1 S8050): /hardware/kicad/smarthome_hub/bom.csv · /docs/phan_cung/DIMENSIONS_AUDIT.md",
         "Mô hình nhà mở 3D Blender (16 node khóa cứng): /hardware/blender/SCENE_SPEC.json · / · /wokwi",
-        "Vỏ nhà 15 tấm Mica 3mm FreeCAD & DXF cắt laser: /docs/phan_cung/mica/MICA_PANELS.md · /archify/erd"
+        "Vỏ nhà 18 tấm Mica 3mm FreeCAD & bản vẽ 1:1 cắt tay: /docs/phan_cung/mica/MICA_PANELS.md · /archify/erd"
       ]
     },
     {

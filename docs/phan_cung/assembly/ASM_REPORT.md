@@ -4,7 +4,7 @@ STATUS: ALL_DONE
 
 ## 1. Summary & Goal
 
-**User Goal.** Build a separate, generic, re-runnable KiCad 10 assembly project (`hardware/kicad/smarthome_assembly/`) that displays the central hub PCB together with NodeMCU ESP8266 v2 Amica and all **14 off-board modules** in datasheet-accurate real-world scale, wired with color-coded 3D Dupont/screw-terminal wires and crisp readable labels, so a single 3D render showcases the complete Smart Home Voice AI hardware system on both the current `80 x 65 mm` hub board and the upcoming `100 x 80 mm` DIY redesign.
+**User Goal.** Build a separate, generic, re-runnable KiCad 10 assembly project (`hardware/kicad/smarthome_assembly/`) that displays the merged `100.00 x 80.00 mm` single-layer DIY central hub PCB (with `Q1` S8050 + `R10` 1k buzzer driver) together with NodeMCU ESP8266 v2 Amica and all **14 off-board modules** in datasheet-accurate real-world scale, wired with color-coded 3D Dupont/screw-terminal wires and crisp readable labels, so a single 3D render showcases the complete Smart Home Voice AI hardware system on any hub board size.
 
 **Execution Architecture (`/teamwork`).** Work was divided across four specialist roles inheriting high-effort reasoning, with a completely separate read-only independent reviewer cross-checking every deliverable across three verification rounds:
 - **3D Model / CAD Engineer (`cad-3d-engineer`):** Verified all 15 module dimensions against real datasheets and wrote `hardware/kicad/smarthome_assembly/build_3dmodels.py` (FreeCAD 1.1 OpenCASCADE B-Rep) emitting 15 multi-color `.wrl` (VRML 2.0) + 15 `.step` (AP214) models, `modules_manifest.json`, `modules_dimensions.csv`, and `modules_dimensions.md`.
@@ -29,8 +29,8 @@ All 15 models live in `hardware/kicad/smarthome_assembly/3dmodels/` as both mult
 | 1 | `sg90_servo` | TowerPro SG90 Micro Servo | `32.20 × 12.20 × 31.00` *(body 22.8×12.2×22.5)* | `32.20 × 12.20 × 31.00` | `0.000` | Translucent blue body, mounting tabs 32.2 mm at Z=15.9 mm w/ 2× Ø2.0 mm holes, gear boss 26.7 mm, white horn to 31.0 mm, 3-pin pigtail | [TowerPro SG90 9g Micro Servo Datasheet](https://www.handsontec.com/dataspecs/SG90-Servo.pdf) |
 | 2 | `led_5mm_living` | 5 mm LED Living Room (Warm Amber) | `5.80 × 5.80 × 8.60` | `5.55 × 5.80 × 8.60` | `0.251` *(cathode flat)* | Kingbright WP7113 T-1 3/4: Ø5.0 mm dome, Ø5.8×1.0 mm flange with authentic cathode flat, H=8.60 mm, 2.54 mm lead pitch | [Kingbright WP7113 T-1 3/4 5mm LED Datasheet](https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf) |
 | 3 | `led_5mm_bedroom` | 5 mm LED Bedroom (Bright Red) | `5.80 × 5.80 × 8.60` | `5.55 × 5.80 × 8.60` | `0.251` *(cathode flat)* | Kingbright WP7113ID T-1 3/4: Ø5.0 mm dome, Ø5.8×1.0 mm flange with cathode flat, H=8.60 mm, 2.54 mm lead pitch | [Kingbright WP7113ID T-1 3/4 5mm LED Datasheet](https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf) |
-| 4 | `relay1_blue_srd05` | Relay 1 Blue 1-Channel 5 V Module (Pump) | `50.00 × 26.00 × 18.50` | `50.00 × 26.00 × 18.50` | `0.000` | Blue PCB 50×26×1.6 mm w/ 4× Ø3.0 mm holes, Songle SRD-05VDC-SL-C 19×15.5×15.5 mm, 3-pos 5.08 mm screw terminal, 1×3 2.54 mm header | [1-Ch 5V Relay Module SRD-05VDC-SL-C (Reichelt)](https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953) |
-| 5 | `relay2_red_opto` | Relay 2 Red Opto-Isolated 1-Channel 5 V Module | `50.00 × 26.00 × 18.50` | `50.00 × 26.00 × 18.50` | `0.000` | Red PCB 50×26×1.6 mm w/ 4× Ø3.0 mm holes, Songle SRD-05VDC-SL-C, PC817 optocoupler, yellow H/L jumper on `H`, 3-pos 5.08 mm terminal, 1×3 header | [Songle SRD-05VDC-SL-C + PC817 Opto Relay (Electrokit)](https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v) |
+| 4 | `relay1_blue_srd05` | Relay 1 Blue 1-Channel 5 V Module (Pump) | `50.00 × 26.00 × 18.50` | `50.00 × 26.00 × 18.50` | `0.000` | Blue PCB 50×26×1.6 mm w/ 4× Ø3.1 mm holes (`44.5×20.5 mm` pitch, reconciled with Mica `P01A_BASE_TECH`), Songle SRD-05VDC-SL-C 19×15.5×15.5 mm, 3-pos 5.08 mm screw terminal, 1×3 2.54 mm header | [1-Ch 5V Relay Module SRD-05VDC-SL-C (Reichelt)](https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953) |
+| 5 | `relay2_red_opto` | Relay 2 Red Opto-Isolated 1-Channel 5 V Module | `50.00 × 26.00 × 18.50` | `50.00 × 26.00 × 18.50` | `0.000` | Red PCB 50×26×1.6 mm w/ 4× Ø3.1 mm holes (`44.5×20.5 mm` pitch, reconciled with Mica `P01A_BASE_TECH`), Songle SRD-05VDC-SL-C, PC817 optocoupler, yellow H/L jumper on `H`, 3-pos 5.08 mm terminal, 1×3 header | [Songle SRD-05VDC-SL-C + PC817 Opto Relay (Electrokit)](https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v) |
 | 6 | `submersible_pump` | 3–6 V Mini Submersible Pump + Silicone Tube | `45.00 × 24.00 × 33.00` | `45.00 × 24.00 × 41.87` *(incl. Ø8 mm tube)* | `0.007` | White horizontal cylinder Ø24×45 mm, top outlet nozzle Ø7.5 mm OD to Z=33 mm, intake grille, recessed matte-black rear epoxy seal, Ø8 mm OD silicone tube | [Soldered 101844 Mini Water Pump Datasheet (Mouser)](https://www.mouser.lt/datasheet/2/1398/Soldered_101844_mini_water_pump-3532437.pdf) |
 | 7 | `buzzer_tmb12a05` | TMB12A05 5 V Active Buzzer | `12.00 × 12.00 × 9.50` | `12.00 × 12.00 × 9.50` | `0.004` | Black cylinder Ø12.0×9.5 mm, top sound port Ø3.0 mm, white `+` polarity mark, 7.6 mm through-hole pin pitch | [TMB12A05 5V Active Buzzer Spec (Osoyoo)](https://osoyoo.com/2017/05/05/buzzer-5v-breadboard-friendlytmb12a05/) |
 | 8 | `pam8403_amp` | PAM8403 Mini Audio Amplifier Module | `21.00 × 18.00 × 3.10` | `21.00 × 18.00 × 3.10` | `0.000` | Bare green PCB 21×18×1.6 mm, SOP-16 PAM8403 IC 9.9×3.9×1.5 mm (1.27 mm pitch), SMD passives, 2.54 mm power/audio/BTL pads | [Diodes Inc. PAM8403 Datasheet (Elecrow)](https://www.elecrow.com/download/PAM8403-datasheet.pdf) |
@@ -65,8 +65,8 @@ Synchronized 100% with `hardware/wiring_contract.py`, `hardware/kicad/smarthome_
 | `W14` | Relay 1 (Blue 5V 1-ch) | `NO (Screw)` | **Yellow** (`#CA8A04`) | `J8 (RLY1_SW)` | `2` | `Switched +5V → J2.1` | `Switched +5V` | `PUMP_5V` | Dupont F-Pin 22AWG |
 | `W15` | Mini Submersible Pump | `Pump + (Red)` | **Red** (`#DC2626`) | `J2 (PUMP_OUT)` | `1` | `Switched +5V (via RLY1)` | `Switched +5V` | `PUMP_5V` | Screw Terminal 22AWG |
 | `W16` | Mini Submersible Pump | `Pump - (Black)` | **Black** (`#18181B`) | `J2 (PUMP_OUT)` | `2` | `GND` | `Ground` | `GND` | Screw Terminal 22AWG |
-| `W17` | Active 5V Buzzer (TMB12A05) | `Buzzer (+)` | **Orange** (`#EA580C`) | `J6 (BUZZ_D8)` | `1` | `D8 (U2.11)` | `GPIO15` | `D8_BUZZER` | Dupont 1×2 F-F |
-| `W18` | Active 5V Buzzer (TMB12A05) | `Buzzer (-)` | **Black** (`#18181B`) | `J6 (BUZZ_D8)` | `2` | `GND` | `Ground` | `GND` | Dupont 1×2 F-F |
+| `W17` | Active 5V Buzzer (TMB12A05) | `Buzzer (+)` | **Red** (`#DC2626`) | `J6 (BUZZ_D8)` | `1` | `VIN (+5V)` | `Power (+5V)` | `+5V` | Dupont 1×2 F-F |
+| `W18` | Active 5V Buzzer (TMB12A05) | `Buzzer (-)` | **Orange** (`#EA580C`) | `J6 (BUZZ_D8)` | `2` | `D8 (U2.11) via Q1 S8050` | `GPIO15 (NPN low-side)` | `BUZZ_K` | Dupont 1×2 F-F |
 | `W19` | Relay 2 (Red Opto 5V, Jmp=H) | `DC+` | **Red** (`#DC2626`) | `J9 (RLY2_AMP_D7)` | `1` | `VIN (U1.15)` | `Power (+5V)` | `+5V` | Dupont 1×3 F-F |
 | `W20` | Relay 2 (Red Opto 5V, Jmp=H) | `DC-` | **Black** (`#18181B`) | `J9 (RLY2_AMP_D7)` | `2` | `GND` | `Ground` | `GND` | Dupont 1×3 F-F |
 | `W21` | Relay 2 (Red Opto 5V, Jmp=H) | `IN` | **Cyan** (`#0891B2`) | `J9 (RLY2_AMP_D7)` | `3` | `D7 (U2.10)` | `GPIO13` | `D7_RLY2_AMP` | Dupont 1×3 F-F |
@@ -131,24 +131,24 @@ All commands run headless with zero interactive prompts:
 
 ---
 
-## 6. Verification Comparison: Current `80 × 65 mm` Hub vs `100 × 80 mm` Placeholder Hub
+## 6. Merged `100 × 80 mm` Single-Layer DIY Hub Assembly Verification (`hwmerge3-20261121`)
 
-`build_assembly.py` parses `Edge.Cuts` and every connector (`J1..J15`, `U1`, `U2`) dynamically without any hardcoded board size or coordinates. The `100 × 80 mm` placeholder hub board (with 4× M3 Ø3.2 mm mounting holes at 5 mm inset, `90 × 70 mm` pattern, centered `U1`/`U2` at 22.86 mm row spacing, and perimeter-spaced headers) was created strictly inside a temporary scratch directory — never inside `hardware/kicad/smarthome_hub/`.
+`build_assembly.py` parses `Edge.Cuts` and every connector (`J1..J15`, `U1`, `U2`) dynamically directly from the merged `100.00 × 80.00 mm` single-layer DIY hub PCB (`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`, 49 footprints incl. `Q1 S8050` + `R10 1k`, 4× M3 Ø3.2 mm mounting holes at `(5,5)(95,5)(5,75)(95,75)`):
 
-| Metric | Current Hub (`80 × 65 mm`) | Placeholder Hub (`100 × 80 mm`, 5 mm inset holes) |
-|---|---:|---:|
-| Parsed Hub Outline (`Edge.Cuts`) | `80.00 × 65.00 mm` | `100.00 × 80.00 mm` |
-| Dynamic Banner Text | `SMARTHOME HUB ASSEMBLY (80X65 MM)` | `SMARTHOME HUB ASSEMBLY (100X80 MM)` |
-| Modules Placed | `15 / 15` (NodeMCU + 14 off-board) | `15 / 15` (NodeMCU + 14 off-board) |
-| NodeMCU `U1`/`U2` 30-Pad Alignment Error | `0.000 mm` | `0.000 mm` |
-| 3D Wires Resolved (+ Dupont Boots) | `40 / 40` (`49` boots) | `40 / 40` (`49` boots) |
-| 3D Label Plaques Placed | `15 / 15` | `15 / 15` |
-| XY Bounding-Box Overlaps | `0` | `0` |
-| Min Inter-Module/Plaque Clearance | `8.0 mm` (`PLQ_dht11` ↔ `PLQ_soil_lm393`) | `8.0 mm` (`PLQ_buzzer` ↔ `MOD:relay1`) |
-| Min Module-to-Own-Plaque Clearance | `5.0 mm` (`pam8403_amp`) | `5.0 mm` (`pam8403_amp`) |
-| Full Assembly Envelope (incl. Banner) | `350.8 × 241.1 mm` | `370.8 × 256.1 mm` |
-| Forbidden Tokens (fan / AC / IR) | `0` | `0` |
-| Overall Verification Status | **PASS** | **PASS** |
+| Metric | Merged 1-Layer DIY Hub (`100 × 80 mm`, `hwmerge3-20261121`) |
+|---|---:|
+| Parsed Hub Outline (`Edge.Cuts`) | `100.00 × 80.00 mm` |
+| Dynamic Banner Text | `SMARTHOME HUB ASSEMBLY (100X80 MM)` |
+| Modules Placed | `15 / 15` (NodeMCU + 14 off-board) |
+| Relay Mounting Holes (`relay1_blue_srd05` & `relay2_red_opto`) | `44.5 × 20.5 mm`, `Ø3.1 mm` (reconciled w/ Mica `P01A_BASE_TECH`) |
+| NodeMCU `U1`/`U2` 30-Pad Alignment Error | `0.000 mm` |
+| 3D Wires Resolved (+ Dupont Boots) | `40 / 40` (`49` boots; `W17` Red `+5V`, `W18` Orange `BUZZ_K` via `Q1`) |
+| 3D Label Plaques Placed | `15 / 15` |
+| XY Bounding-Box Overlaps | `0` |
+| Min Inter-Module/Plaque Clearance | `8.0 mm` (`PLQ_dht11_module` ↔ `PLQ_sg90_servo`) |
+| Min Module-to-Own-Plaque Clearance | `5.0 mm` (`MOD:buzzer_tmb12a05` ↔ `PLQ_buzzer_tmb12a05`) |
+| Forbidden Tokens (fan / AC / IR) | `0` |
+| Overall Verification Status | **PASS** |
 
 ---
 

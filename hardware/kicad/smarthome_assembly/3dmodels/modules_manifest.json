@@ -609,8 +609,8 @@
       "category": "Actuator",
       "wrl_file": "relay1_blue_srd05.wrl",
       "step_file": "relay1_blue_srd05.step",
-      "wrl_bytes": 370190,
-      "step_bytes": 216219,
+      "wrl_bytes": 370025,
+      "step_bytes": 216497,
       "vrml_vertices": 6030,
       "vrml_triangles": 11948,
       "recommended_z_offset_mm": 0.0,
@@ -722,7 +722,7 @@
           "role": "Normally Closed"
         }
       ],
-      "sub_features": "Blue PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; 3-pos 5.08mm screw terminal (15.24mm); 1x3 2.54mm header",
+      "sub_features": "Blue PCB 50.0x26.0x1.6mm w/ 4x Ø3.1mm holes (44.5x20.5mm pitch); Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; 3-pos 5.08mm screw terminal (15.24mm); 1x3 2.54mm header",
       "datasheet_name": "1-Ch 5V Relay Module w/ Songle SRD-05VDC-SL-C",
       "datasheet_url": "https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953"
     },
@@ -732,8 +732,8 @@
       "category": "Actuator",
       "wrl_file": "relay2_red_opto.wrl",
       "step_file": "relay2_red_opto.step",
-      "wrl_bytes": 372083,
-      "step_bytes": 239873,
+      "wrl_bytes": 371918,
+      "step_bytes": 240151,
       "vrml_vertices": 6062,
       "vrml_triangles": 11996,
       "recommended_z_offset_mm": 0.0,
@@ -845,7 +845,7 @@
           "role": "Normally Closed"
         }
       ],
-      "sub_features": "Red PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; PC817 optocoupler; yellow H/L jumper (set H); 3-pos 5.08mm terminal; 1x3 2.54mm header",
+      "sub_features": "Red PCB 50.0x26.0x1.6mm w/ 4x Ø3.1mm holes (44.5x20.5mm pitch); Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; PC817 optocoupler; yellow H/L jumper (set H); 3-pos 5.08mm terminal; 1x3 2.54mm header",
       "datasheet_name": "1-Ch 5V Opto-Isolated Relay Module (SRD-05VDC-SL-C + PC817)",
       "datasheet_url": "https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v"
     },

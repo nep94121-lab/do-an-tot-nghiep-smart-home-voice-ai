@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generic, re-runnable KiCad 10 Full-System Assembly Generator.
 
-Reads ANY Smart Home Central Hub PCB (`--hub-pcb`, default 80x65 mm or any
-future 100x80 mm redesigned board) dynamically via KiCad 10 `pcbnew`, preserves
+Reads ANY Smart Home Central Hub PCB (`--hub-pcb`, default `100x80 mm` DIY
+single-layer hub board or any other board size) dynamically via KiCad 10 `pcbnew`, preserves
 100% of the hub board geometry/traces/zones/components untouched, and generates
 a complete self-contained KiCad 10 assembly project inside `--out-dir`:
 
@@ -638,6 +638,7 @@ def write_fp_lib_table(out_dir: Path) -> Path:
         '(fp_lib_table',
         '\t(version 7)',
         '\t(lib (name "smarthome_modules") (type "KiCad") (uri "${KIPRJMOD}/smarthome_modules.pretty") (options "") (descr "Smart Home Voice AI 3D Assembly Modules"))',
+        '\t(lib (name "DIY_Hub") (type "KiCad") (uri "${KIPRJMOD}/../smarthome_hub/DIY_Hub.pretty") (options "") (descr "Single-layer 100x80 DIY Hub footprints"))',
         '\t(lib (name "Capacitor_THT") (type "KiCad") (uri "${KICAD10_FOOTPRINT_DIR}/Capacitor_THT.pretty") (options "") (descr ""))',
         '\t(lib (name "Connector_PinHeader_2.54mm") (type "KiCad") (uri "${KICAD10_FOOTPRINT_DIR}/Connector_PinHeader_2.54mm.pretty") (options "") (descr ""))',
         '\t(lib (name "Connector_PinSocket_2.54mm") (type "KiCad") (uri "${KICAD10_FOOTPRINT_DIR}/Connector_PinSocket_2.54mm.pretty") (options "") (descr ""))',
@@ -669,7 +670,7 @@ def write_kicad_pro(out_dir: Path, hub_pcb_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# 3. Dynamic Placement Engine (Works on ANY Hub Size — 80x65, 100x80, etc.)
+# 3. Dynamic Placement Engine (Works on ANY Hub Size — default 100x80 mm DIY)
 # ---------------------------------------------------------------------------
 def _choose_module_rotation(mod_id: str, side: str) -> float:
     """Choose deterministic orientation so pins face hub (or companion) cleanly."""
@@ -2158,7 +2159,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--hub-pcb",
         type=Path,
         default=REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "smarthome_hub.kicad_pcb",
-        help="Input central hub .kicad_pcb (read-only; works on 80x65, 100x80, or any size).",
+        help="Input central hub .kicad_pcb (read-only; works on 100x80 mm or any size).",
     )
     parser.add_argument(
         "--out-dir",
