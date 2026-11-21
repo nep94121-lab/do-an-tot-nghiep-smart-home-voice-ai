@@ -263,12 +263,20 @@ def test_wokwi_diagram_10pin_wiring_and_no_fan_ac_ir() -> None:
     assert ("mcu:5", "servo_door:PWM") in conn_pairs
     assert ("dht11_sensor:SDA", "mcu:4") in conn_pairs
     assert ("mcu:0", "pam8403_speaker:2") in conn_pairs
-    assert ("mcu:2", "r_bedroom_220:1") in conn_pairs
+    assert ("relay_speaker:COM", "bb1:bn.15") in conn_pairs
+    assert ("relay_speaker:NO", "pam8403_speaker:1") in conn_pairs
+    assert ("bb1:tp.24", "r_bedroom_220:1") in conn_pairs
+    assert ("r_bedroom_220:2", "led_bedroom:A") in conn_pairs
+    assert ("led_bedroom:C", "mcu:2") in conn_pairs
     assert ("ky037_sound:2.l", "mcu:14") in conn_pairs
     assert ("mcu:12", "relay_pump:IN") in conn_pairs
     assert ("mcu:13", "relay_speaker:IN") in conn_pairs
     assert ("mcu:15", "buzzer_alarm:2") in conn_pairs
     assert ("soil_yl69:SIG", "mcu:34") in conn_pairs
+
+    wokwi_sketch = (ROOT / "firmware_esp8266" / "wokwi" / "sketch.ino").read_text(encoding="utf-8")
+    assert "#define BEDROOM_LED_ACTIVE_LOW true" in wokwi_sketch
+    assert "digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);" in wokwi_sketch
 
 
 def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(

@@ -400,8 +400,8 @@
         "<strong>Bảo vệ Máy bơm trắng:</strong> Kẹp song song ngược cực con <strong>Diode 1N4007</strong> (vạch bạc quay về phía dây + bơm) và đặt tụ <strong>470µF 16V</strong> sát đường 5V cấp bơm."
       ],
       d8_buzzer: [
-        "<strong>Còi báo động Buzzer 5V (Chân D8 / GPIO15):</strong> Cắm cực (-) vào <span class='hole-badge'>F24</span> nối xuống <span class='hole-badge'>BN19 (GND)</span> và cực (+) vào <span class='hole-badge'>J25</span> nối về <span class='hole-badge'>D8</span>.",
-        "<strong>An toàn boot:</strong> Đấu Active-HIGH xuống GND giúp Buzzer im lặng tuyệt đối khi khởi động (tuyệt đối không gắn trở kéo lên 3.3V vào D8)."
+        "<strong>Còi báo động Buzzer 5V (Chân D8 / GPIO15):</strong> Trên Breadboard test cắm cực (-) vào <span class='hole-badge'>F24</span> nối xuống <span class='hole-badge'>BN19 (GND)</span> và cực (+) vào <span class='hole-badge'>J25</span> nối về <span class='hole-badge'>D8</span>; trên mạch PCB Hub 1 lớp vật lý còi 5V được lái low-side qua transistor NPN <code>Q1 (S8050)</code> + <code>R10 (1kΩ)</code> + <code>R9 (10kΩ pull-down)</code> + <code>D2 (1N4007)</code>.",
+        "<strong>An toàn boot:</strong> Đấu Active-HIGH với trở kéo xuống <code>10kΩ</code> giúp GPIO15 luôn ở mức LOW và Buzzer im lặng tuyệt đối khi khởi động (tuyệt đối không gắn pull-up lên 3.3V vào D8)."
       ],
       a0_soil: [
         "<strong>Cảm biến Độ ẩm Đất (Chân A0 / ADC0):</strong> Cấp nguồn <span class='hole-badge'>VCC</span> của mạch xanh <code>LM393</code> vào <span class='hole-badge'>TP24 (+3.3V)</span> để bảo vệ ngõ vào A0 (≤3.3V) và nối <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN20</span>.",

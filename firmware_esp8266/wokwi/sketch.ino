@@ -16,11 +16,12 @@
 #define PIN_MAIN_DOOR_SERVO  5   // D1 (GPIO 5)  - Servo SG90 Cửa chính
 #define PIN_DHT11            4   // D2 (GPIO 4)  - Cảm biến Nhiệt độ & Độ ẩm DHT11
 #define PIN_AUDIO_PWM        0   // D3 (GPIO 0)  - PWM Audio ra PAM8403 (IDLE = INPUT)
-#define PIN_BEDROOM_LIGHT    2   // D4 (GPIO 2)  - Đèn phòng ngủ
+#define PIN_BEDROOM_LIGHT    2   // D4 (GPIO 2)  - Đèn phòng ngủ (Active-LOW an toàn boot)
+#define BEDROOM_LED_ACTIVE_LOW true
 #define PIN_KY037_DO         14  // D5 (GPIO 14) - Cảm biến âm thanh KY-037 DO
 #define PIN_GARDEN_PUMP      12  // D6 (GPIO 12) - Relay 1 (Xanh) Máy bơm tưới cây
 #define PIN_SPEAKER_AMP      13  // D7 (GPIO 13) - Relay 2 (Đỏ Opto) Nguồn mạch loa PAM8403
-#define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi báo động Buzzer 5V
+#define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi báo động Buzzer 5V (trên PCB vật lý lái qua NPN Q1 S8050 + R10 1k + R9 10k pull-down)
 #define PIN_SOIL_MOISTURE    34  // A0 (ADC)     - Cảm biến Độ ẩm Đất LM393
 
 Servo doorServo;
@@ -45,7 +46,7 @@ void setup() {
   pinMode(PIN_ALARM_SIREN, OUTPUT);
   digitalWrite(PIN_LIVING_LIGHT, LOW);
   pinMode(PIN_LIVING_LIGHT, OUTPUT);
-  digitalWrite(PIN_BEDROOM_LIGHT, LOW);
+  digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);
   pinMode(PIN_BEDROOM_LIGHT, OUTPUT);
   pinMode(PIN_KY037_DO, INPUT);
   pinMode(PIN_DHT11, INPUT_PULLUP);
@@ -54,12 +55,12 @@ void setup() {
   doorServo.write(0);
 
   // Power-On Self Test (6 thiết bị + 3 cảm biến)
-  Serial.println("[TEST 1] Bat Den Phong Khach (D0=16) & Den Phong Ngu (D4=2)...");
+  Serial.println("[TEST 1] Bat Den Phong Khach (D0=16 Active-HIGH) & Den Phong Ngu (D4=2 Active-LOW)...");
   digitalWrite(PIN_LIVING_LIGHT, HIGH);
-  digitalWrite(PIN_BEDROOM_LIGHT, HIGH);
+  digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? LOW : HIGH);
   delay(250);
   digitalWrite(PIN_LIVING_LIGHT, LOW);
-  digitalWrite(PIN_BEDROOM_LIGHT, LOW);
+  digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);
 
   Serial.println("[TEST 2] Bat Relay 2 PAM8403 (D7=13) & phat chuong PWM (D3=0)...");
   digitalWrite(PIN_SPEAKER_AMP, HIGH);

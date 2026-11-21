@@ -163,11 +163,11 @@
     [ "bb1:tn.22", "dht11_sensor:GND", "black", [ "v-80" ] ],
 
     [ "mcu:0", "pam8403_speaker:2", "purple", [ "h90", "v250" ] ],
-    [ "pam8403_speaker:1", "bb1:bn.16", "black", [ "v-70" ] ],
+    [ "relay_speaker:NO", "pam8403_speaker:1", "black", [ "v20", "h70" ] ],
 
-    [ "mcu:2", "r_bedroom_220:1", "orange", [ "h200", "v-90" ] ],
+    [ "bb1:tp.24", "r_bedroom_220:1", "red", [ "v-40" ] ],
     [ "r_bedroom_220:2", "led_bedroom:A", "orange", [ "v-20" ] ],
-    [ "led_bedroom:C", "bb1:tn.24", "black", [ "v80" ] ],
+    [ "led_bedroom:C", "mcu:2", "orange", [ "v80", "h-540" ] ],
 
     [ "bb1:tp.20", "ky037_sound:1.l", "red", [ "v240" ] ],
     [ "ky037_sound:2.l", "mcu:14", "violet", [ "v-45", "h-440" ] ],
@@ -185,10 +185,10 @@
     [ "mcu:13", "relay_speaker:IN", "purple", [ "h115", "v190" ] ],
     [ "bb1:bp.13", "relay_speaker:VCC", "red", [ "v70" ] ],
     [ "bb1:bn.13", "relay_speaker:GND", "black", [ "v70" ] ],
-    [ "bb1:bp.15", "relay_speaker:COM", "red", [ "v70" ] ],
-    [ "relay_speaker:NO", "r_spk_220:1", "purple", [ "v20" ] ],
+    [ "bb1:bn.15", "relay_speaker:COM", "black", [ "v70" ] ],
+    [ "bb1:bp.15", "r_spk_220:1", "red", [ "v160" ] ],
     [ "r_spk_220:2", "speaker_amp_indicator:A", "purple", [ "v10" ] ],
-    [ "speaker_amp_indicator:C", "bb1:bn.15", "black", [ "v-180" ] ],
+    [ "speaker_amp_indicator:C", "relay_speaker:NO", "black", [ "v-40" ] ],
 
     [ "mcu:15", "buzzer_alarm:2", "magenta", [ "h140", "v210" ] ],
     [ "buzzer_alarm:1", "bb1:bn.24", "black", [ "v-70" ] ],
