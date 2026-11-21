@@ -514,6 +514,37 @@ async def _background_warm_phrase(phrase: str, api_key: str) -> None:
         _WARMING_PHRASES.discard(norm)
 
 
+def schedule_aoede_background_warm(phrase: str) -> None:
+    """Lên lịch tổng hợp trước câu thoại Aoede chạy nền nếu đang online và chưa có trong cache."""
+    norm = _normalize_aoede_phrase(phrase)
+    if not norm or norm in _WARMING_PHRASES or norm in _LIVE_AOEDE_SESSION_CACHE:
+        return
+    if (
+        os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1"
+        or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        or os.environ.get("SMARTHOME_SKIP_PREWARM", "").strip() == "1"
+    ):
+        return
+    existing, db_model = _read_sqlite_aoede_cache(norm)
+    if len(existing) >= 2400:
+        _LIVE_AOEDE_SESSION_CACHE[norm] = existing
+        _LIVE_AOEDE_SOURCE_CACHE[norm] = "gemini_live_aoede" if db_model != "bundled_aoede" else "bundled_aoede_wav"
+        _LIVE_AOEDE_MODEL_CACHE[norm] = db_model or _WORKING_AOEDE_LIVE_MODEL or ""
+        return
+    raw_api_key = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", "")
+    if not raw_api_key:
+        with contextlib.suppress(Exception):
+            from simulator.api.deps import load_key
+
+            raw_api_key = load_key()
+    api_key = raw_api_key.strip().strip('"').strip("'").strip()
+    if not api_key:
+        return
+    with contextlib.suppress(RuntimeError):
+        loop = asyncio.get_running_loop()
+        loop.create_task(_background_warm_phrase(norm, api_key))
+
+
 async def synthesize_aoede_phrase_audio(
     phrase: str,
     *,
@@ -661,21 +692,28 @@ async def prewarm_aoede_common_phrases() -> int:
     phrases: list[str] = [
         FIXED_REJECTION_PHRASE_VI,
         FIXED_SAFE_DENY_REPEAT_PHRASE_VI,
+        "Đã mở cửa chính.",
+        "Đã đóng cửa chính.",
+        "Đã khóa cửa chính.",
         "Đã bật đèn phòng khách.",
         "Đã tắt đèn phòng khách.",
         "Đã bật Đèn phòng khách.",
         "Đã tắt Đèn phòng khách.",
         "Đã bật đèn phòng ngủ.",
         "Đã tắt đèn phòng ngủ.",
-        "Đã bật nguồn mạch loa.",
-        "Đã tắt nguồn mạch loa.",
-        "Đã mở cửa chính.",
-        "Đã khóa cửa chính.",
-        "Đã đóng cửa chính.",
+        "Đã bật tất cả đèn.",
+        "Đã tắt tất cả đèn.",
+        "Đã bật máy bơm tưới cây.",
+        "Đã tắt máy bơm tưới cây.",
         "Đã bật bơm tưới sân vườn.",
         "Đã tắt bơm tưới sân vườn.",
         "Đã bật còi báo động.",
         "Đã tắt còi báo động.",
+        "Đã bật nguồn mạch loa.",
+        "Đã tắt nguồn mạch loa.",
+        "Xin chào! Tôi có thể giúp gì cho bạn?",
+        "Đã xác nhận. Xong rồi ạ.",
+        "Đã hủy.",
         "Cửa chính đã mở.",
         "Cửa chính đã đóng.",
         "Đèn phòng khách đã bật.",

@@ -664,11 +664,15 @@ async def _attach_aoede_audio(data: dict[str, Any]) -> dict[str, Any]:
     try:
         from simulator.live.tts_rejection_vi import (
             build_aoede_http_audio_fields,
+            schedule_aoede_background_warm,
             synthesize_aoede_phrase_audio,
         )
 
-        bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=2.1)
+        cache_only = os.environ.get("SMARTHOME_AOEDE_CACHE_ONLY", "").strip().lower() in ("1", "true", "yes")
+        bundle = await synthesize_aoede_phrase_audio(spoken, allow_live_refresh=not cache_only)
         fields = build_aoede_http_audio_fields(bundle)
+        if not fields.get("pcm24k_b64") and cache_only:
+            schedule_aoede_background_warm(spoken)
         merged = {**data, **fields}
         merged["play_audio"] = bool(fields.get("pcm24k_b64"))
         return merged

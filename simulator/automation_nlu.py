@@ -12,9 +12,21 @@ and Gemini Live WebSocket tool dispatch:
 
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 import re
 import time
 from typing import Any
+
+try:
+    from rapidfuzz import fuzz as _rapidfuzz_fuzz
+except Exception:  # pragma: no cover - optional dependency
+    _rapidfuzz_fuzz = None  # type: ignore[assignment]
+
+
+def _fuzzy_ratio(a: str, b: str) -> float:
+    if _rapidfuzz_fuzz is not None:
+        return float(_rapidfuzz_fuzz.ratio(a, b))
+    return float(SequenceMatcher(None, a, b).ratio() * 100.0)
 
 from simulator.auth.tier_permissions import can_control_device
 from simulator.automation_repo import (
@@ -105,12 +117,26 @@ def has_removed_device_mention(text: str) -> bool:
     return bool(_REMOVED_DEVICE_MENTION_RE.search(norm))
 
 
+def _normalize_den_typos_vi(text: str) -> str:
+    """Normalize common ASR homophone 'đền' -> 'đèn' in explicit light contexts."""
+    s = str(text or "")
+    if not s:
+        return ""
+    s = re.sub(r"\bđền\s+phòng\s+khách\b", "đèn phòng khách", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bđền\s+phòng\s+ngủ\b", "đèn phòng ngủ", s, flags=re.IGNORECASE)
+    s = re.sub(r"\btất\s+cả\s+đền\b", "tất cả đèn", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bhết\s+đền\b", "hết đèn", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bmáy\s+bơm\s+(?:từ\s+tay|tu\s+tay)\b", "máy bơm tưới cây", s, flags=re.IGNORECASE)
+    return s
+
+
 def parse_single_device_and_action(
     clause: str,
     *,
     default_action: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Extract primary device/target and canonical action from a single clause."""
+    clause = _normalize_den_typos_vi(clause)
     norm = f" {normalize_phrase(clause)} "
     dev: str | None = None
     for kw, target in _DEVICE_SYNONYMS:
@@ -139,11 +165,12 @@ def parse_single_device_and_action(
         "hoat dong",
         "dong ho",
         "cong tac",
+        "dong y",
     ):
         action_norm = action_norm.replace(f" {_non_verb} ", " ")
     action_norm = f" {' '.join(action_norm.split())} "
 
-    off_words = ("tat", "dong", "khoa", "ngat", "dung")
+    off_words = ("tat", "dong", "khoa", "ngat", "dung", "ngung")
     on_words = ("bat", "mo", "khoi dong", "chay", "tuoi")
     act: str | None = None
     for w in off_words:
@@ -158,6 +185,17 @@ def parse_single_device_and_action(
     if act is None:
         act = default_action
 
+    if (dev is None or act is None) and clause:
+        from simulator.voice.vietnamese_policy import normalize_vietnamese_utterance
+
+        norm_vi = normalize_vietnamese_utterance(clause)
+        if norm_vi and normalize_phrase(norm_vi) != normalize_phrase(clause):
+            dev2, act2 = parse_single_device_and_action(norm_vi, default_action=default_action)
+            if dev is None and dev2 is not None:
+                dev = dev2
+            if act is None and act2 is not None:
+                act = act2
+
     if dev == "main_door" and act in ("turn_on", "turn_off"):
         act = "open" if act == "turn_on" else "close"
     return dev, act
@@ -165,6 +203,7 @@ def parse_single_device_and_action(
 
 def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
     """Parse one or more actions like 'tắt hết đèn và đóng cửa' into explicit device steps."""
+    text = _normalize_den_typos_vi(text)
     raw_clauses = re.split(
         r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b)",
         text,
@@ -181,18 +220,173 @@ def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
     return steps
 
 
+_VI_NUMBER_UNIT_MAP: dict[str, int] = {
+    "khong": 0,
+    "mot": 1,
+    "__most__": 1,
+    "hai": 2,
+    "ba": 3,
+    "bon": 4,
+    "nam": 5,
+    "__six__": 6,
+    "bay": 7,
+    "__bai__": 7,
+    "bai": 7,
+    "tam": 8,
+    "chin": 9,
+}
+
+_VI_AFTER_TEN_UNIT_MAP: dict[str, int] = {
+    **_VI_NUMBER_UNIT_MAP,
+    "sau": 6,
+    "tu": 4,
+    "lam": 5,
+    "__five_unit__": 5,
+}
+
+_VI_TENS_BASE: frozenset[str] = frozenset({
+    "hai", "ba", "bon", "nam", "__six__", "bay", "tam", "chin",
+})
+
+
+def _vi_words_to_int(words: list[str], *, allow_unaccented_sau_single: bool = False) -> int | None:
+    if len(words) == 1:
+        w0 = words[0]
+        if w0 == "muoi":
+            return 10
+        if w0 == "sau" and allow_unaccented_sau_single:
+            return 6
+        return _VI_NUMBER_UNIT_MAP.get(w0)
+    if len(words) == 2:
+        w0, w1 = words
+        if w0 == "muoi" and w1 in _VI_AFTER_TEN_UNIT_MAP and 1 <= _VI_AFTER_TEN_UNIT_MAP[w1] <= 9:
+            return 10 + _VI_AFTER_TEN_UNIT_MAP[w1]
+        if w0 in _VI_TENS_BASE and w1 == "muoi":
+            return _VI_NUMBER_UNIT_MAP[w0] * 10
+        if w0 in _VI_TENS_BASE and w1 in ("__most__", "__five_unit__", "tu"):
+            return _VI_NUMBER_UNIT_MAP[w0] * 10 + _VI_AFTER_TEN_UNIT_MAP[w1]
+        return None
+    if len(words) == 3:
+        w0, w1, w2 = words
+        if (
+            w0 in _VI_TENS_BASE
+            and w1 == "muoi"
+            and w2 in _VI_AFTER_TEN_UNIT_MAP
+            and 1 <= _VI_AFTER_TEN_UNIT_MAP[w2] <= 9
+        ):
+            return _VI_NUMBER_UNIT_MAP[w0] * 10 + _VI_AFTER_TEN_UNIT_MAP[w2]
+    return None
+
+
+def _normalize_vi_spoken_numbers(text: str) -> str:
+    """Convert Vietnamese spoken number words to ASCII digits ONLY when adjacent to time units."""
+    s = str(text or "").strip().lower()
+    if not s:
+        return ""
+
+    # Preserve accented tokens whose unaccented forms collide with non-number words ("sau", "từ", "làm", etc.)
+    sentinels = (
+        (r"\bsáu\b", "__six__"),
+        (r"\btừ\b", "__from__"),
+        (r"\blàm\b", "__do__"),
+        (r"\bbài\b", "__bai__"),
+        (r"\bmốt\b", "__most__"),
+        (r"\blăm\b", "__five_unit__"),
+        (r"\brưỡi\b", "__half__"),
+        (r"\bnửa\b", "__nua_half__"),
+    )
+    for pat, repl in sentinels:
+        s = re.sub(pat, repl, s)
+
+    s = strip_accents(s)
+
+    # Half-unit idioms ("nửa tiếng" -> "30 phut", "nửa phút" -> "30 giay")
+    s = re.sub(r"\b__nua_half__\s+(?:tieng|gio)\b", "30 phut", s)
+    s = re.sub(r"\b__nua_half__\s+phut\b", "30 giay", s)
+
+    # Position A: spoken number immediately BEFORE a time unit (gio / phut / giay / tieng)
+    def _repl_before_unit(m: re.Match[str]) -> str:
+        words = m.group(1).split()
+        unit = m.group(2)
+        after_ctx = s[m.end():m.end() + 18]
+        before_ctx = s[max(0, m.start() - 18):m.start()]
+        for k in (3, 2, 1):
+            if len(words) < k:
+                continue
+            cand = words[-k:]
+            allow_sau = False
+            if k == 1 and cand[0] == "sau":
+                if unit in ("phut", "giay", "tieng"):
+                    allow_sau = True
+                elif unit == "gio":
+                    not_non_clock = not re.match(r"^\s*(?:__do__|lam|hoc|an|ngu|choi)\b", after_ctx)
+                    has_clock_ctx = bool(
+                        re.search(r"\b(?:luc|vao|lich|thanh|sang|hen)\s*$", before_ctx)
+                        or re.match(r"^\s*(?:sang|trua|chieu|toi|dem|__half__|\d)\b", after_ctx)
+                    )
+                    allow_sau = not_non_clock and has_clock_ctx
+            val = _vi_words_to_int(cand, allow_unaccented_sau_single=allow_sau)
+            if val is not None:
+                prefix = " ".join(words[:-k])
+                return f"{prefix + ' ' if prefix else ''}{val} {unit}"
+        return m.group(0)
+
+    s = re.sub(
+        r"\b([a-z_]+(?:\s+[a-z_]+){0,2})\s+(gio|phut|giay|tieng)\b",
+        _repl_before_unit,
+        s,
+    )
+
+    # Half-hour / half-tieng after a number ("7 gio rưỡi" -> "7 gio 30")
+    s = re.sub(r"\b(\d{1,2})\s*gio\s+__half__\b", r"\1 gio 30", s)
+    s = re.sub(r"\b(\d{1,2})\s*tieng\s+__half__\b", r"\1 tieng 30 phut", s)
+
+    # Position B: spoken minutes immediately AFTER "<digit> gio" (e.g., "7 gio muoi lam sang" -> "7 gio 15 sang")
+    def _repl_after_gio(m: re.Match[str]) -> str:
+        hh_str = m.group(1)
+        words = m.group(2).split()
+        for k in (3, 2, 1):
+            if len(words) < k:
+                continue
+            cand = words[:k]
+            val = _vi_words_to_int(cand, allow_unaccented_sau_single=False)
+            if val is not None and 0 <= val <= 59:
+                tail = " ".join(words[k:])
+                return f"{hh_str} gio {val}" + (f" {tail}" if tail else "")
+        return m.group(0)
+
+    s = re.sub(
+        r"\b(\d{1,2})\s*gio\s+([a-z_]+(?:\s+[a-z_]+){0,2})(?=\s*(?:phut\b|p\b|sang\b|trua\b|chieu\b|toi\b|dem\b|am\b|pm\b|hang\b|moi\b|$|[.,!?]))",
+        _repl_after_gio,
+        s,
+    )
+
+    # Restore any untouched sentinels back to clean unaccented Vietnamese words
+    for sentinel, clean_w in (
+        ("__six__", "sau"),
+        ("__from__", "tu"),
+        ("__do__", "lam"),
+        ("__bai__", "bai"),
+        ("__most__", "mot"),
+        ("__five_unit__", "lam"),
+        ("__half__", "ruoi"),
+        ("__nua_half__", "nua"),
+    ):
+        s = s.replace(sentinel, clean_w)
+    return s
+
+
 def _parse_clock_hhmm_vi(text: str) -> tuple[str | None, bool, str]:
-    """Parse explicit clock time ('14 giờ 35', '22:30', '7h15 sáng') + daily repeat flag."""
-    raw_low = str(text or "").strip().lower()
-    norm = strip_accents(raw_low)
+    """Parse explicit clock time ('14 giờ 35', '22:30', '7h15 sáng', 'bảy giờ sáng') + daily repeat flag."""
+    norm = _normalize_vi_spoken_numbers(text)
     is_daily = bool(
         re.search(r"\b(?:hang ngay|moi ngay|ngay nao cung|lap lai|daily)\b", norm)
     )
 
     m = re.search(
-        r"(?:vào\s+lúc|vao\s+luc|đúng|dung|lúc|luc|vào|vao|tới|toi)?\s*"
-        r"(\d{1,2})\s*(?:giờ|gio|h|:)\s*(\d{1,2})?\s*(?:phút|phut|p)?\s*"
-        r"(sáng|sang|trưa|trua|chiều|chieu|tối|toi|đêm|dem|am|pm)?",
+        r"(?:vao\s+luc|dung|luc|vao|toi)?\s*"
+        r"(\d{1,2})\s*(?:gio|h|:)\s*(\d{1,2})?\s*(?:phut|p)?\s*"
+        r"(sang|trua|chieu|toi|dem|am|pm)?",
         norm,
     )
     if not m:
@@ -232,13 +426,13 @@ def _parse_clock_hhmm_vi(text: str) -> tuple[str | None, bool, str]:
     elif period in ("sang", "am") and hh == 12:
         hh = 0
 
-    cleaned_clause = (raw_low[:m.start()] + " " + raw_low[m.end():]).strip()
-    cleaned_clause = re.sub(r"\b(?:hằng|hàng|mỗi)\s+ngày\b", " ", cleaned_clause)
+    cleaned_clause = (norm[:m.start()] + " " + norm[m.end():]).strip()
+    cleaned_clause = re.sub(r"\b(?:hang|moi)\s+ngay\b", " ", cleaned_clause)
     return f"{hh:02d}:{mm:02d}", is_daily, cleaned_clause
 
 
 def _parse_countdown_seconds(text: str) -> tuple[float, str]:
-    norm = strip_accents(str(text or "").strip().lower())
+    norm = _normalize_vi_spoken_numbers(text)
     m_hr = re.search(r"(\d+(?:\.\d+)?)\s*(?:gio|tieng|h\b)", norm)
     m_min = re.search(r"(\d+(?:\.\d+)?)\s*(?:phut|p\b)", norm)
     m_sec = re.search(r"(\d+(?:\.\d+)?)\s*(?:giay|s\b)", norm)
@@ -356,38 +550,52 @@ def _expand_targets(dev: str) -> list[str]:
     return [dev]
 
 
-def _classify_confirmation_utterance(raw_text: str) -> str | None:
+def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False) -> str | None:
     """Return 'confirm', 'cancel', or None while distinguishing 'đúng' vs 'đừng'/'dừng'."""
     raw_low = re.sub(r"[?!.,;:]+$", "", str(raw_text or "").strip().lower()).strip()
     if not raw_low:
         return None
-    norm = re.sub(r"\s+", " ", normalize_phrase(raw_low)).strip()
+    raw_collapsed = re.sub(r"\s+", " ", re.sub(r"[,;]+", " ", raw_low)).strip()
+    norm = re.sub(r"\s+", " ", normalize_phrase(raw_collapsed)).strip()
 
     # Check accented cancel words first so 'đừng' / 'dừng' never collide with 'đúng' ('dung')
     if re.search(
-        r"^(?:đừng|dừng|không|hủy|huỷ|hủy bỏ|huỷ bỏ|thôi|bỏ|không làm|đừng làm|thôi bỏ|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
-        raw_low,
+        r"^(?:đừng(?:\s+đừng){0,2}|dừng(?:\s+dừng){0,2}|không(?:\s+không){0,2}|hủy(?:\s+hủy){0,2}|huỷ(?:\s+huỷ){0,2}|hủy bỏ|huỷ bỏ|thôi(?:\s+thôi){0,2}|bỏ(?:\s+bỏ){0,2}|không làm|đừng làm|thôi bỏ|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
+        raw_collapsed,
     ):
         return "cancel"
 
     if re.search(
-        r"^(?:khong|k|huy|huy bo|thoi|bo|no|cancel|khong lam|dung lam|thoi bo|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
+        r"^(?:khong(?:\s+khong){0,2}|k|huy(?:\s+huy){0,2}|huy bo|thoi(?:\s+thoi){0,2}|bo(?:\s+bo){0,2}|no|cancel|khong lam|dung lam|thoi bo|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
         norm,
     ):
         return "cancel"
 
     if re.search(
-        r"^(?:đúng|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ|ờ|ok|okay|oke|okie|được|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng|dạ|dạ vâng|dạ được|dạ đúng|có|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
-        raw_low,
+        r"^(?:đúng(?:\s+đúng){0,2}|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô kê|ôkê|đc|được(?:\s+được){0,2}|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ vâng|dạ được|dạ đúng|có(?:\s+có){0,2}|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
+        raw_collapsed,
     ):
         return "confirm"
 
     # Unaccented fallback (safe because accented 'đừng'/'dừng' already returned 'cancel' above)
-    if re.search(
-        r"^(?:xac nhan|dong y|chac chan|ok|okay|oke|okie|yes|confirm|u|uh|um|duoc|duoc roi|dung|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang|da|da vang|da duoc|da dung|co|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
+    if (has_pending or not re.match(r"^dược(?:\s|$)", raw_collapsed)) and re.search(
+        r"^(?:xac nhan|dong y|chac chan|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o ke|dc|yes|confirm|u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc roi|dung(?:\s+dung){0,2}|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da vang|da duoc|da dung|co(?:\s+co){0,2}|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
         norm,
     ):
         return "confirm"
+
+    # Context-sensitive single-word ASR slips ONLY when a pending confirmation is actively waiting
+    if has_pending:
+        if re.search(r"^(?:tối|toi)(?:\s+(?:ạ|nhé|nha|đi|em|bạn|a|nhe|di|ban))*\s*$", raw_collapsed) or re.search(
+            r"^toi(?:\s+(?:a|nhe|nha|di|em|ban))*\s*$",
+            norm,
+        ):
+            return "cancel"
+        if re.search(r"^(?:ờ|dược|o|duoc)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn|a|nhe|di|luon|roi|ban))*\s*$", raw_collapsed) or re.search(
+            r"^(?:o|duoc)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
+            norm,
+        ):
+            return "confirm"
 
     return None
 
@@ -395,11 +603,26 @@ def _classify_confirmation_utterance(raw_text: str) -> str | None:
 def _parse_sensor_trigger(clause: str) -> tuple[str, str] | None:
     """Parse sensor trigger phrases ('đất khô', 'có tiếng động lớn', etc.) into (sensor_id, state)."""
     norm = f" {normalize_phrase(clause)} "
-    if any(k in norm for k in (" dat kho ", " do am dat thap ", " do am dat kho ", " dat bi kho ", " dat qua kho ")):
+    if any(
+        k in norm
+        for k in (
+            " dat kho ", " dat co ", " dat o ", " nao kho ", " khi nao kho ",
+            " bi kho ", " qua kho ", " do am dat thap ", " do am dat kho ",
+            " dat bi kho ", " dat qua kho ", " dat kho qua ",
+        )
+    ):
         return "soil_sensor", "DRY"
     if any(k in norm for k in (" dat am ", " dat uot ", " do am dat cao ", " dat du am ")):
         return "soil_sensor", "WET"
-    if any(k in norm for k in (" tieng dong lon ", " co tieng dong ", " am thanh lon ", " phat hien am thanh ", " vo tay ", " ky037 ", " ky 037 ")):
+    if any(
+        k in norm
+        for k in (
+            " tieng dong lon ", " tieng doc luong ", " tin hieu lon ",
+            " chuyen dong lon ", " bien dong lon ", " bien dong ", " co tieng dong ", " am thanh lon ",
+            " co am thanh lon ", " phat hien am thanh ", " tieng on lon ",
+            " vo tay ", " ky037 ", " ky 037 ",
+        )
+    ):
         return "sound_sensor", "LOUD"
     if any(k in norm for k in (" yen tinh ", " het tieng dong ", " khong co tieng dong ")):
         return "sound_sensor", "QUIET"
@@ -1898,13 +2121,18 @@ async def handle_confirmation_reply(
     session_key: str = "",
 ) -> dict[str, Any] | None:
     """Resolve Step-2 confirmation ('xác nhận'/'đúng'/'ừ'/'ok' vs 'không'/'hủy'/>20s TTL)."""
-    decision = _classify_confirmation_utterance(raw_text)
-    if decision is None:
+    decision = _classify_confirmation_utterance(raw_text, has_pending=False)
+    is_short_reply = len(str(raw_text or "").strip().split()) <= 3
+    if decision is None and not is_short_reply:
         return None
 
     user_id, tier, _, _ = _session_actor(session)
     skey = session_key or _resolve_session_key(session, source)
     pending, was_expired = get_pending_confirmation(owner_user_id=user_id, session_key=skey)
+    if decision is None:
+        decision = _classify_confirmation_utterance(raw_text, has_pending=(pending is not None))
+        if decision is None:
+            return None
     if pending is not None and tier >= 3 and pending.get("action_kind") != "set_device":
         return _deny_mutation_error(
             session=session,
@@ -2214,7 +2442,7 @@ def answer_pool_or_member_query(
         pool_kind = "custom_commands"
     elif any(k in norm for k in (" lien ket", " luat lien ket", " luat tu dong", " nhung luat", " cac luat")):
         pool_kind = "links"
-    elif any(k in norm for k in (" hen gio", " lich hen", " nhung lich", " cac lich")):
+    elif any(k in norm for k in (" hen gio", " lich hen", " nhung lich", " cac lich", " co lich", " xem lich", " liet ke lich", " danh sach lich")) and " lich su " not in norm:
         pool_kind = "timers"
 
     if pool_kind is None:
@@ -2307,6 +2535,215 @@ def _detect_scoped_reset_intent(raw_text: str) -> tuple[str, bool, str | None] |
 
     clear_all, target_q = _extract_target_member_scope(raw_clean)
     return pool_kind, clear_all, target_q
+
+
+def _has_clock_or_timer_marker(snippet: str, *, reject_any_digit: bool = False) -> bool:
+    """Return True if snippet contains clock/timer markers so schedules/timers never match STEP 4."""
+    n_time = _normalize_vi_spoken_numbers(snippet)
+    if re.search(r"\d+\s*(?:gio|giay|phut|tieng|h\b|:)|\b(?:hang ngay|moi ngay|hen gio)\b", n_time):
+        return True
+    if reject_any_digit and re.search(r"\d", n_time):
+        return True
+    return False
+
+
+_STEP4_ACTION_VERB_START_RE = (
+    r"(?:bật|tắt|mở|đóng|khóa|khoá|ngắt|dừng|ngừng|tưới|"
+    r"bat|tat|mo|dong|khoa|ngat|dung|ngung|tuoi)"
+)
+_STEP4_IMPLICIT_BLOCKED_PREFIX_RE = re.compile(
+    r"^(?:khi|ky|neu|he|tu gio|hen gio|dat lich|sua lich|doi lich|cap nhat lich|"
+    r"doi hen gio|sua hen gio|xoa|huy|xu ly|reset|ri set|rex|dat lai|khoi phuc|"
+    r"hoi phuc|cap quyen|thu hoi|xem|kiem tra|trang thai)\b"
+)
+_STEP4_IMPLICIT_BLOCKED_PHRASE_WORDS: frozenset[str] = frozenset({
+    "nhiet do", "do am", "cam bien", "trang thai", "ban", "em", "toi", "anh", "chi",
+})
+
+
+def _parse_custom_command_create_or_edit(
+    raw: str,
+) -> tuple[str, list[dict[str, str]], bool, bool] | None:
+    """Parse custom-command create/edit utterances including noisy ASR prefixes.
+
+    Returns (phrase, steps, is_edit, is_strict_explicit) or None.
+    """
+    from simulator.voice.vietnamese_policy import _UNSUPPORTED_DEVICE_RE
+
+    raw_s = str(raw or "").strip()
+    if not raw_s:
+        return None
+    norm_full = normalize_phrase(raw_s)
+    has_unsupported = bool(_UNSUPPORTED_DEVICE_RE.search(f" {norm_full} "))
+
+    # Branch 1: Strict explicit custom-command prefix + strong separator (preserves 400 on invalid steps)
+    m_strict = re.match(
+        r"^(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi)\s+"
+        r"(?:khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
+        r"(?:\s+mới|\s+moi)?\s+"
+        r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
+        r"(?:là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
+        raw_s,
+        flags=re.IGNORECASE,
+    )
+    if not m_strict:
+        m_strict = re.match(
+            r"^(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi)\s+"
+            r"(?:khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|ngu\s+canh|kich\s+ban|scene|che\s+do)"
+            r"(?:\s+moi)?\s+"
+            r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
+            r"(?:la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
+            strip_accents(raw_s),
+            flags=re.IGNORECASE,
+        )
+    if m_strict:
+        verb_norm = normalize_phrase(m_strict.group("verb") or "")
+        phrase = (m_strict.group(2) or m_strict.group(3) or m_strict.group(4) or "").strip(" '\".,:")
+        steps_text = (m_strict.group(5) or "").strip()
+        if phrase and not _has_clock_or_timer_marker(phrase, reject_any_digit=False):
+            steps = parse_multi_steps_from_text(steps_text)
+            is_edit = verb_norm in ("sua", "cap nhat", "doi")
+            return phrase, steps, is_edit, True
+
+    # Non-strict ASR branches never accept unsupported devices or clock/timer markers
+    if has_unsupported:
+        return None
+
+    # Branch 2: Broad explicit prefix (optional verb including ASR variants + custom/mode/lịch/việc keyword)
+    broad_prefix_vi = (
+        r"^(?:(?:chỉ|chi)\s+)?"
+        r"(?:(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|bật|mở|đầu|sắp)\s+)?"
+        r"(?P<kw>khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|lịch|việc|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
+        r"(?:\s+mới|\s+moi)?\s+"
+    )
+    broad_prefix_ascii = (
+        r"^(?:chi\s+)?"
+        r"(?:(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi|ra|bat|mo|dau|sap)\s+)?"
+        r"(?P<kw>khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|lich|viec|ngu\s+canh|kich\s+ban|scene|che\s+do)"
+        r"(?:\s+moi)?\s+"
+    )
+    broad_patterns: list[tuple[str, str, bool]] = [
+        # 2a: strong separator
+        (
+            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
+            raw_s,
+            False,
+        ),
+        (
+            broad_prefix_ascii + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
+            strip_accents(raw_s),
+            False,
+        ),
+        # 2b: 'làm' separator ONLY when immediately followed by an action verb
+        (
+            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:làm|lam)\s+(" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
+            raw_s,
+            False,
+        ),
+        # 2c: comma separator (e.g. "Đầu lệnh đi nào, tắt tất cả đèn và đóng cửa chính.")
+        (
+            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|([^,]{1,40}))\s*,\s*(.+)$",
+            raw_s,
+            False,
+        ),
+        # 2d: separator-less with explicit verb+keyword (e.g. "tạo việc đi làm tắt tất cả đền và đóng cửa chính")
+        (
+            r"^(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|đầu|sắp|tao|them|dat|luu|sua|cap\s+nhat|doi|dau|sap)\s+"
+            r"(?P<kw>khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|lịch|việc|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ|"
+            r"khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|lich|viec|ngu\s+canh|kich\s+ban|che\s+do)"
+            r"(?:\s+mới|\s+moi)?\s+"
+            r"(?:'([^']+)'|\"([^\"]+)\"|(\S+(?:\s+\S+){0,2}))\s+(" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
+            raw_s,
+            True,
+        ),
+    ]
+    for pat, target_str, _is_sepless in broad_patterns:
+        m_b = re.match(pat, target_str, flags=re.IGNORECASE)
+        if not m_b:
+            continue
+        verb_norm = normalize_phrase(m_b.group("verb") or "")
+        phrase = (m_b.group(3) or m_b.group(4) or m_b.group(5) or "").strip(" '\".,:")
+        steps_text = (m_b.group(6) or "").strip()
+        if not phrase or len(phrase.split()) > 5:
+            continue
+        # Never split Vietnamese compound "đi làm" at "làm" (e.g. "tạo việc đi làm tắt tất cả đèn...")
+        if "(?:làm|lam)" in pat and normalize_phrase(phrase).split()[-1:] == ["di"]:
+            continue
+        if _has_clock_or_timer_marker(phrase, reject_any_digit=True):
+            continue
+        if _has_clock_or_timer_marker(steps_text, reject_any_digit=False):
+            continue
+        if _parse_sensor_trigger(phrase) is not None:
+            continue
+        steps = parse_multi_steps_from_text(steps_text)
+        if not steps:
+            continue
+        phrase = re.sub(r"^(?:khẩu\s+lệnh|lệnh|chế\s+độ|khau\s+lenh|lenh|che\s+do)\s+", "", phrase, flags=re.IGNORECASE).strip(" '\".,:")
+        if not phrase:
+            continue
+        is_edit = verb_norm in ("sua", "sap", "cap nhat", "doi")
+        return phrase, steps, is_edit, False
+
+    # Branch 3: Implicit "<1-3 word phrase> (là|làm|thành|mở <action_verb>) <steps>"
+    if _STEP4_IMPLICIT_BLOCKED_PREFIX_RE.search(norm_full) or " thi " in f" {norm_full} ":
+        return None
+
+    # Allow noisy ASR wrappers ("sau khi", "chào, hãy", "tắt hết") ONLY when followed by >=2 device steps
+    raw_imp = raw_s
+    stripped_wrapper = False
+    m_wrap = re.match(
+        r"^(?:sau\s+khi|chào\s*,?\s*hãy|chao\s*,?\s*hay|tắt\s+hết|tat\s+het)\s+(.+)$",
+        raw_s,
+        flags=re.IGNORECASE,
+    )
+    if m_wrap:
+        raw_imp = m_wrap.group(1).strip()
+        stripped_wrapper = True
+
+    implicit_patterns = (
+        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>là|thành|la|thanh)\s+(?P<steps>.+)$",
+        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>làm|lam)\s+(?P<steps>" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
+        # ASR mishearing "là" -> "mở" immediately before another action verb (e.g. "giờ đi làm mở tắt tất cả đèn...")
+        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>mở|mo)\s+(?P<steps>(?:tắt|đóng|khóa|khoá|ngắt|dừng|ngừng|bật|tat|dong|khoa|ngat|dung|ngung|bat)\b.+)$",
+    )
+    for pat in implicit_patterns:
+        m_imp = re.match(pat, raw_imp, flags=re.IGNORECASE)
+        if not m_imp:
+            continue
+        phrase = (m_imp.group("phrase") or "").strip(" '\".,:")
+        sep_norm = normalize_phrase(m_imp.group("sep") or "")
+        steps_text = (m_imp.group("steps") or "").strip()
+        if not phrase:
+            continue
+        # Never split Vietnamese compound "đi làm" at "làm" (e.g. "giờ đi làm mở tắt tất cả đèn...")
+        if sep_norm == "lam" and normalize_phrase(phrase).split()[-1:] == ["di"]:
+            continue
+        if _has_clock_or_timer_marker(phrase, reject_any_digit=True):
+            continue
+        if _has_clock_or_timer_marker(steps_text, reject_any_digit=False):
+            continue
+        if _parse_sensor_trigger(phrase) is not None:
+            continue
+        phrase_norm = normalize_phrase(phrase)
+        if not phrase_norm or phrase_norm in _STEP4_IMPLICIT_BLOCKED_PHRASE_WORDS:
+            continue
+        p_dev, p_act = parse_single_device_and_action(phrase)
+        if p_dev is not None or p_act is not None:
+            continue
+        steps = parse_multi_steps_from_text(steps_text)
+        if not steps or (stripped_wrapper and len(steps) < 2):
+            continue
+        is_edit = sep_norm == "thanh"
+        m_lead_edit = re.match(r"^(?:sắp|sửa|đổi|cập\s+nhật|sap|sua|doi|cap\s+nhat)\s+(.+)$", phrase, flags=re.IGNORECASE)
+        if m_lead_edit:
+            is_edit = True
+            phrase = m_lead_edit.group(1).strip(" '\".,:")
+        phrase = re.sub(r"^(?:khẩu\s+lệnh|lệnh|chế\s+độ|khau\s+lenh|lenh|che\s+do)\s+", "", phrase, flags=re.IGNORECASE).strip(" '\".,:")
+        if not phrase:
+            continue
+        return phrase, steps, is_edit, False
+
+    return None
 
 
 async def process_automation_nlu_command(
@@ -2406,7 +2843,15 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     # STEP 3. RESETS: reset_devices, factory_reset, and scoped reset_pool
     # ------------------------------------------------------------------
-    if re.search(r"\b(?:reset\s+trang\s+thai\s+thiet\s+bi|dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|reset\s+(?:cac\s+)?thiet\s+bi)\b", norm):
+    if re.search(
+        r"\b(?:"
+        r"(?:reset|ri\s+set|rex|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+trang\s+thai\s+(?:cac\s+)?thiet\s+bi|"
+        r"(?:ve\s+sinh\s+sach|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
+        r"dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
+        r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi"
+        r")\b",
+        norm,
+    ):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -2431,7 +2876,14 @@ async def process_automation_nlu_command(
         for k in (
             "reset cai dat",
             "reset he thong",
+            "ri set he thong",
             "khoi phuc cai dat goc",
+            "hoi phuc cai dat goc",
+            "khoi phuc cai dat go",
+            "hoi phuc cai dat go",
+            "khoi phuc cai dat mau",
+            "hoi phuc cai dat mau",
+            "khoi phuc va dat goc",
             "factory reset",
             "dat lai cai dat goc",
         )
@@ -2540,27 +2992,11 @@ async def process_automation_nlu_command(
     # Examples:
     # - "tạo lệnh 'chế độ ngủ' là tắt hết đèn và đóng cửa"
     # - "tạo lệnh mới 'giờ đi ngủ' là tắt hết đèn"
+    # - ASR variants: "chế độ đi làm là ...", "sắp đi làm thành ...", "tạo việc đi làm tắt ..."
     # ------------------------------------------------------------------
-    m_scene = re.match(
-        r"^(?:tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi)\s+"
-        r"(?:khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
-        r"(?:\s+mới|\s+moi)?\s+"
-        r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-        r"(?:là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
-        raw,
-        flags=re.IGNORECASE,
-    )
-    if not m_scene:
-        m_scene = re.match(
-            r"^(?:tao|them|dat|luu|sua|cap\s+nhat|doi)\s+"
-            r"(?:khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|ngu\s+canh|kich\s+ban|scene|che\s+do)"
-            r"(?:\s+moi)?\s+"
-            r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-            r"(?:la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
-            strip_accents(raw),
-            flags=re.IGNORECASE,
-        )
-    if m_scene:
+    parsed_custom = _parse_custom_command_create_or_edit(raw)
+    if parsed_custom is not None:
+        phrase, steps, is_edit_custom, is_strict_custom = parsed_custom
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -2570,54 +3006,117 @@ async def process_automation_nlu_command(
                 status_code=403,
                 target="custom_commands",
             )
-        phrase = (m_scene.group(1) or m_scene.group(2) or m_scene.group(3) or "").strip(" '\".,:")
-        steps_text = (m_scene.group(4) or "").strip()
-        steps = parse_multi_steps_from_text(steps_text)
         if not steps:
-            msg_empty = "Không nhận diện được các bước thiết bị cho lệnh tùy chỉnh."
-            return {
-                "handled": True,
-                "status_code": 400,
-                "payload": {
-                    "ok": False,
-                    "error": msg_empty,
-                    "reply": msg_empty,
-                    "exact_spoken_reply": msg_empty,
-                },
-            }
-        for st in steps:
-            allowed_dev, reason_dev = engine.check_device_permission(st["device_id"], actor_tier=tier)
-            if not allowed_dev:
-                return _deny_mutation_error(
+            if is_strict_custom:
+                msg_empty = "Không nhận diện được các bước thiết bị cho lệnh tùy chỉnh."
+                return {
+                    "handled": True,
+                    "status_code": 400,
+                    "payload": {
+                        "ok": False,
+                        "error": msg_empty,
+                        "reply": msg_empty,
+                        "exact_spoken_reply": msg_empty,
+                    },
+                }
+        else:
+            for st in steps:
+                allowed_dev, reason_dev = engine.check_device_permission(st["device_id"], actor_tier=tier)
+                if not allowed_dev:
+                    return _deny_mutation_error(
+                        session=session,
+                        source=source,
+                        category="rbac_deny_custom_command_device",
+                        msg=reason_dev,
+                        status_code=403,
+                        target=str(st["device_id"]),
+                    )
+            steps_summary = ", ".join(format_device_action_vi(st["device_id"], st["action"]) for st in steps)
+
+            existing_match = None
+            if is_edit_custom:
+                owner_scope = None if tier == 1 else user_id
+                existing_cmds = list_custom_commands(include_disabled=True, owner_user_id=owner_scope)
+                p_norm = normalize_phrase(phrase)
+                p_stripped = re.sub(r"^(?:sap|sua|doi|bat|me)\s+", "", p_norm).strip()
+                for cmd in existing_cmds:
+                    c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                    if c_norm == p_norm or (p_stripped and c_norm == p_stripped):
+                        existing_match = cmd
+                        break
+                if existing_match is None and p_norm:
+                    for cmd in existing_cmds:
+                        c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                        if c_norm.endswith(f" {p_norm}") or (p_stripped and c_norm.endswith(f" {p_stripped}")):
+                            existing_match = cmd
+                            break
+                if existing_match is None and p_norm:
+                    best_sc = 0.0
+                    for cmd in existing_cmds:
+                        c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                        sc = _fuzzy_ratio(p_stripped or p_norm, c_norm)
+                        if sc >= 78.0 and sc > best_sc:
+                            best_sc = sc
+                            existing_match = cmd
+
+            if existing_match is not None:
+                clean_phrase = existing_match["phrase"] if normalize_phrase(phrase) == existing_match["phrase_norm"] else phrase
+                return await prepare_pending_mutation(
+                    engine=engine,
                     session=session,
                     source=source,
-                    category="rbac_deny_custom_command_device",
-                    msg=reason_dev,
-                    status_code=403,
-                    target=str(st["device_id"]),
+                    session_key=skey,
+                    action_kind="update_custom_command",
+                    payload={"command_id": existing_match["command_id"], "phrase": clean_phrase, "steps": steps},
+                    prompt_summary=f"Cập nhật lệnh '{clean_phrase}' gồm {steps_summary}",
                 )
-        steps_summary = ", ".join(format_device_action_vi(st["device_id"], st["action"]) for st in steps)
-        return await prepare_pending_mutation(
-            engine=engine,
-            session=session,
-            source=source,
-            session_key=skey,
-            action_kind="create_custom_command",
-            payload={"phrase": phrase, "steps": steps},
-            prompt_summary=f"Tạo lệnh '{phrase}' gồm {steps_summary}",
-        )
+
+            return await prepare_pending_mutation(
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                action_kind="create_custom_command",
+                payload={"phrase": phrase, "steps": steps},
+                prompt_summary=f"Tạo lệnh '{phrase}' gồm {steps_summary}",
+            )
 
     # ------------------------------------------------------------------
     # STEP 4b. MODIFY EXISTING TIMER OR CLOCK SCHEDULE
     # Examples:
     # - "đổi hẹn giờ đèn phòng khách thành 5 giây"
     # - "sửa lịch 07:00 thành 08:00"
+    # - ASR homophone: "xử lý bảy giờ thành tám giờ"
     # ------------------------------------------------------------------
     m_mod_sched = re.match(
         r"^(?:đổi|sửa|cập\s+nhật|doi|sua|cap\s+nhat)\s+(?:lịch\s+hẹn|lịch|lich\s+hen|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
+    if not m_mod_sched:
+        m_xu_ly_sched = re.match(
+            r"^(?:xử\s+lý|xu\s+ly)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
+            raw,
+            flags=re.IGNORECASE,
+        )
+        if m_xu_ly_sched:
+            _old_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_xu_ly_sched.group(1).strip()}")
+            _new_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_xu_ly_sched.group(2).strip()}")
+            if _old_hh_chk and _new_hh_chk:
+                m_mod_sched = m_xu_ly_sched
+    if not m_mod_sched:
+        m_from_to_sched = re.match(
+            r"^(?:từ|tu)\s+(.+?)\s+(?:đến|tới|sang|thành|den|toi|sang|thanh)\s+(.+)$",
+            raw.rstrip("?!.,;: "),
+            flags=re.IGNORECASE,
+        )
+        if m_from_to_sched:
+            _old_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_from_to_sched.group(1).strip()}")
+            _new_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_from_to_sched.group(2).strip()}")
+            if _old_hh_chk and _new_hh_chk:
+                _scope_chk = None if tier == 1 else user_id
+                if any(sc.get("time_hhmm") == _old_hh_chk for sc in list_schedules(include_disabled=False, owner_user_id=_scope_chk)):
+                    m_mod_sched = m_from_to_sched
     if m_mod_sched:
         if tier >= 3:
             return _deny_mutation_error(
@@ -2752,7 +3251,7 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     m_rule = re.search(
         r"(?:^|\b)(?:(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
-        r"(?:khi|nếu|hễ|từ\s+giờ|neu|he|tu\s+gio)\s+(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
+        r"(?:khi|kỳ|ký|ky|nếu|hễ|từ\s+giờ|neu|he|tu\s+gio)\s+(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
@@ -2763,9 +3262,28 @@ async def process_automation_nlu_command(
             raw,
             flags=re.IGNORECASE,
         )
-    if m_rule and (" thi " in f" {norm} " or any(k in norm for k in ("khi ", "neu ", "he ", "tu gio", "tao luat", "lien ket"))):
-        when_part = m_rule.group(1).strip()
-        then_part_full = m_rule.group(2).strip()
+    comma_sensor_when_then: tuple[str, str] | None = None
+    if not m_rule and "," in raw:
+        _c_left, _c_right = raw.split(",", 1)
+        if _parse_sensor_trigger(_c_left.strip()) is not None and _c_right.strip():
+            comma_sensor_when_then = (_c_left.strip(), _c_right.strip())
+    if not m_rule and comma_sensor_when_then is None:
+        m_khi_di = re.match(
+            r"^(?:khi|kỳ|ký|ky|nếu|neu)\s+(.+?)\s+(?:đi|di)\s+((?:bật|tắt|mở|đóng|bat|tat|mo|dong)\s+máy\s+bơm.*)$",
+            raw,
+            flags=re.IGNORECASE,
+        )
+        if m_khi_di:
+            comma_sensor_when_then = (m_khi_di.group(1).strip(), m_khi_di.group(2).strip())
+
+    if comma_sensor_when_then is not None or (
+        m_rule and (" thi " in f" {norm} " or any(k in norm for k in ("khi ", "ky ", "neu ", "he ", "tu gio", "tao luat", "lien ket")))
+    ):
+        if comma_sensor_when_then is not None:
+            when_part, then_part_full = comma_sensor_when_then
+        else:
+            when_part = m_rule.group(1).strip()  # type: ignore[union-attr]
+            then_part_full = m_rule.group(2).strip()  # type: ignore[union-attr]
         else_part = ""
         m_else = re.split(r"\b(?:ngược lại|nguoc lai|còn nếu|con neu)\b", then_part_full, maxsplit=1, flags=re.IGNORECASE)
         then_part = m_else[0].strip()
@@ -2791,6 +3309,18 @@ async def process_automation_nlu_command(
                 w_dev = None
 
         t_dev, t_act = parse_single_device_and_action(then_part, default_action=w_act)
+        if w_dev is None and t_dev == "garden_pump":
+            _wn = f" {normalize_phrase(when_part)} "
+            if any(k in _wn for k in (" nhat co ", " em co ", " co kho ", " dat ", " kho ")):
+                w_dev, w_state, is_sensor_when = "soil_sensor", "DRY", True
+        if (
+            is_sensor_when
+            and t_dev
+            and not t_act
+            and w_dev in ("sound_sensor", "soil_sensor")
+            and w_state in ("LOUD", "DRY")
+        ):
+            t_act = "open" if t_dev == "main_door" else "turn_on"
         if t_dev == "all_lights":
             t_dev = "living_room_light"
 
@@ -2939,14 +3469,40 @@ async def process_automation_nlu_command(
                 "",
                 norm,
             ).strip(" '\".,:")
+            owner_scope = None if tier == 1 else user_id
+            existing_cmds = list_custom_commands(include_disabled=True, owner_user_id=owner_scope)
+            matched_del = None
+            if phrase_clean:
+                for cmd in existing_cmds:
+                    c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                    if c_norm == phrase_clean or c_norm in phrase_clean or phrase_clean in c_norm:
+                        matched_del = cmd
+                        break
+                if matched_del is None:
+                    best_sc = 0.0
+                    for cmd in existing_cmds:
+                        c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                        sc = _fuzzy_ratio(phrase_clean, c_norm)
+                        if sc >= 65.0 and sc > best_sc:
+                            best_sc = sc
+                            matched_del = cmd
+                if matched_del is None and len(existing_cmds) == 1:
+                    only_cmd = existing_cmds[0]
+                    only_norm = str(only_cmd.get("phrase_norm") or normalize_phrase(str(only_cmd.get("phrase") or ""))).strip()
+                    if len(phrase_clean.split()) == len(only_norm.split()):
+                        matched_del = only_cmd
+            del_payload: dict[str, Any] = {"phrase": matched_del["phrase"] if matched_del else (phrase_clean or norm)}
+            if matched_del is not None:
+                del_payload["command_id"] = matched_del["command_id"]
+            del_label = matched_del["phrase"] if matched_del else (phrase_clean or raw)
             return await prepare_pending_mutation(
                 engine=engine,
                 session=session,
                 source=source,
                 session_key=skey,
                 action_kind="delete_custom_command",
-                payload={"phrase": phrase_clean or norm},
-                prompt_summary=f"Xóa lệnh '{phrase_clean or raw}'",
+                payload=del_payload,
+                prompt_summary=f"Xóa lệnh '{del_label}'",
             )
 
     # ------------------------------------------------------------------
@@ -3015,10 +3571,11 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     # STEP 8. COUNTDOWN TIMER ("tắt đèn phòng khách sau 1 phút", "10 giây nữa bật quạt")
     # ------------------------------------------------------------------
+    norm_time = _normalize_vi_spoken_numbers(raw)
     has_countdown_cue = bool(
         re.search(
             r"(?:\bsau\s+\d+|\d+(?:\.\d+)?\s*(?:giay|phut|tieng)\b|\bhen\s+\d+|\b\d+(?:\.\d+)?\s*(?:giay|phut|gio)\s+nua\b|\bhen gio\b)",
-            norm,
+            norm_time,
         )
     )
     if has_countdown_cue:
@@ -3092,6 +3649,42 @@ async def process_automation_nlu_command(
     # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (stages short confirmation)
     # ------------------------------------------------------------------
     matched_cmd = find_custom_command_by_text(raw, owner_user_id=user_id)
+    if matched_cmd is None:
+        raw_punct_clean = re.sub(r"[?!.,;:\"'`]+", " ", raw).strip()
+        if raw_punct_clean and raw_punct_clean != raw:
+            matched_cmd = find_custom_command_by_text(raw_punct_clean, owner_user_id=user_id)
+        if matched_cmd is None and raw_punct_clean:
+            q_norm = normalize_phrase(raw_punct_clean)
+            q_toks = q_norm.split()
+            if q_toks:
+                from simulator.voice.vietnamese_policy import (
+                    _UNSUPPORTED_DEVICE_RE,
+                    is_foreign_or_nonsense_input,
+                )
+
+                is_bad_q, _ = is_foreign_or_nonsense_input(raw_punct_clean)
+                if not is_bad_q and not _UNSUPPORTED_DEVICE_RE.search(f" {q_norm} "):
+                    scored_cmds: list[tuple[float, dict[str, Any]]] = []
+                    suffix_cmds: list[dict[str, Any]] = []
+                    for cmd in list_custom_commands(include_disabled=False, owner_user_id=user_id):
+                        c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
+                        c_toks = c_norm.split()
+                        if not c_toks:
+                            continue
+                        if len(c_toks) == len(q_toks):
+                            sc = _fuzzy_ratio(q_norm, c_norm)
+                            if sc >= 88.0:
+                                scored_cmds.append((sc, cmd))
+                        elif len(q_toks) >= 2 and len(q_norm) >= 5 and len(c_toks) == len(q_toks) + 1 and c_norm.endswith(f" {q_norm}"):
+                            suffix_cmds.append(cmd)
+                    if scored_cmds:
+                        scored_cmds.sort(key=lambda pair: pair[0], reverse=True)
+                        best_sc, best_cmd = scored_cmds[0]
+                        second_sc = scored_cmds[1][0] if len(scored_cmds) > 1 else 0.0
+                        if len(scored_cmds) == 1 or (best_sc - second_sc) >= 5.0:
+                            matched_cmd = best_cmd
+                    elif len(suffix_cmds) == 1:
+                        matched_cmd = suffix_cmds[0]
     if matched_cmd:
         if tier >= 3:
             return _deny_mutation_error(

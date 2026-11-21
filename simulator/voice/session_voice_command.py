@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import logging
+import os
+import time
 from typing import Any
 
 import numpy as np
@@ -16,6 +19,7 @@ from simulator.live.echo_and_speech_guard import (
 )
 from simulator.live.tts_rejection_vi import (
     build_aoede_http_audio_fields,
+    schedule_aoede_background_warm,
     synthesize_aoede_phrase_audio,
 )
 from simulator.voice.enrollment_quality import (
@@ -181,49 +185,105 @@ def _first_spoken(result: dict[str, Any]) -> str:
     return ""
 
 
-def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
-    """Trích xuất khẩu lệnh từ audio WAV/PCM16 (catalog hash trước, sau đó local Whisper tiếng Việt)."""
+def _decode_payload_audio_pcm16k(payload: dict[str, Any] | None) -> tuple[np.ndarray, bytes] | None:
     body = payload if isinstance(payload, dict) else {}
     b64_val = str(
         body.get("wav_b64") or body.get("audio_b64") or body.get("pcm16k_b64") or ""
     ).strip()
     if not b64_val:
-        return ""
+        return None
     if "," in b64_val:
         b64_val = b64_val.split(",", 1)[1].strip()
     if len(b64_val) < 64:
-        return ""
+        return None
     try:
         raw_bytes = base64.b64decode(b64_val, validate=False)
     except (binascii.Error, ValueError):
-        return ""
+        return None
     if not raw_bytes or len(raw_bytes) < 64:
-        return ""
-    try:
-        from simulator.voice.stt_pipeline import (
-            decode_audio_bytes_to_pcm16k,
-            match_signature_from_catalog,
-        )
+        return None
+    from simulator.voice.stt_pipeline import decode_audio_bytes_to_pcm16k
 
-        pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
+    pcm16, decoded_raw = decode_audio_bytes_to_pcm16k(raw_bytes)
+    return pcm16, decoded_raw
+
+
+def _match_catalog_signature_text(pcm16: np.ndarray, decoded_raw: bytes) -> str:
+    from simulator.voice.stt_pipeline import match_signature_from_catalog
+
+    matched_sig, _score = match_signature_from_catalog(pcm16, decoded_raw)
+    if matched_sig is None:
+        return ""
+    rec = str(matched_sig.get("recognized_text") or "").strip()
+    canon = str(matched_sig.get("canonical_command") or "").strip()
+    is_greeting = "xin chao" in strip_vietnamese_diacritics(rec.lower())
+    if rec and (is_greeting or parse_vietnamese_voice_command_intents(rec)):
+        return rec
+    if canon:
+        return canon
+    if rec:
+        return rec
+    return ""
+
+
+async def _extract_wav_transcript_async(
+    payload: dict[str, Any] | None,
+    *,
+    has_pending_confirmation: bool = False,
+) -> tuple[str, str, float]:
+    """Trích xuất khẩu lệnh bất đồng bộ từ audio WAV/PCM16; trả về (text, stt_engine, stt_ms)."""
+    t0 = time.perf_counter()
+    try:
+        decoded = _decode_payload_audio_pcm16k(payload)
+        if decoded is None:
+            return "", "", 0.0
+        pcm16, decoded_raw = decoded
+        if pcm16.size < 1600:
+            return "", "acoustic_gate", round((time.perf_counter() - t0) * 1000.0, 1)
+        rms = float(np.sqrt(np.mean(pcm16.astype(np.float64) ** 2)))
+        if not np.isfinite(rms) or rms < 25.0:
+            return "", "acoustic_gate", round((time.perf_counter() - t0) * 1000.0, 1)
+
+        catalog_text = _match_catalog_signature_text(pcm16, decoded_raw)
+        if catalog_text:
+            return catalog_text, "catalog", round((time.perf_counter() - t0) * 1000.0, 1)
+
+        from simulator.voice.vietnamese_stt import transcribe_vietnamese_audio
+
+        stt_mode = os.environ.get("SMARTHOME_STT_MODE", "auto").strip().lower()
+        stt_res = await asyncio.to_thread(
+            transcribe_vietnamese_audio,
+            pcm16,
+            16000,
+            stt_mode=stt_mode,
+            has_pending_confirmation=has_pending_confirmation,
+        )
+        stt_engine = str(stt_res.get("stt_engine") or stt_mode or "auto")
+        stt_ms = float(stt_res.get("stt_ms") or round((time.perf_counter() - t0) * 1000.0, 1))
+        if stt_res.get("is_noise") and not stt_res.get("text"):
+            return "", stt_engine, stt_ms
+        return str(stt_res.get("text") or "").strip(), stt_engine, stt_ms
+    except Exception as exc:
+        LOG.debug("wav transcript lookup skipped: %s", exc)
+    return "", "", 0.0
+
+
+def _extract_offline_wav_transcript(payload: dict[str, Any] | None) -> str:
+    """Trích xuất khẩu lệnh đồng bộ từ audio WAV/PCM16 (tương thích ngược)."""
+    try:
+        decoded = _decode_payload_audio_pcm16k(payload)
+        if decoded is None:
+            return ""
+        pcm16, decoded_raw = decoded
         if pcm16.size < 1600:
             return ""
         rms = float(np.sqrt(np.mean(pcm16.astype(np.float64) ** 2)))
         if not np.isfinite(rms) or rms < 25.0:
             return ""
-        matched_sig, _score = match_signature_from_catalog(pcm16, decoded_raw)
-        if matched_sig is not None:
-            rec = str(matched_sig.get("recognized_text") or "").strip()
-            canon = str(matched_sig.get("canonical_command") or "").strip()
-            is_greeting = "xin chao" in strip_vietnamese_diacritics(rec.lower())
-            if rec and (is_greeting or parse_vietnamese_voice_command_intents(rec)):
-                return rec
-            if canon:
-                return canon
-            if rec:
-                return rec
+        catalog_text = _match_catalog_signature_text(pcm16, decoded_raw)
+        if catalog_text:
+            return catalog_text
 
-        # Fallback to local offline Vietnamese Whisper STT for any real WAV/PCM audio
         from simulator.voice.vietnamese_stt import transcribe_vietnamese_pcm16k
 
         stt_res = transcribe_vietnamese_pcm16k(pcm16, sr=16000)
@@ -276,11 +336,14 @@ async def _synthesize_voice_reply_fields(
         return {}
     echo_guard.record_ai_utterance(spoken)
     try:
-        aoede_bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=1.8)
+        cache_only = os.environ.get("SMARTHOME_AOEDE_CACHE_ONLY", "").strip().lower() in ("1", "true", "yes")
+        aoede_bundle = await synthesize_aoede_phrase_audio(spoken, allow_live_refresh=not cache_only)
         aoede_fields = build_aoede_http_audio_fields(aoede_bundle)
         pcm_bytes_out = aoede_bundle.get("pcm24k_bytes") or b""
         if pcm_bytes_out:
             echo_guard.note_ai_audio_chunk(len(pcm_bytes_out), sample_rate=24000)
+        elif cache_only:
+            schedule_aoede_background_warm(spoken)
         return aoede_fields
     except Exception as exc:
         LOG.debug("aoede voice synthesis fallback skipped: %s", exc)
@@ -721,6 +784,47 @@ async def execute_session_voice_intents(
     })
 
 
+def _peek_has_active_pending_confirmation(owner_user_id: str, session_key: str) -> bool:
+    """Pure read-only check for an unexpired pending confirmation (never mutates expired rows)."""
+    uid = str(owner_user_id or "").strip()
+    if not uid:
+        return False
+    skey = str(session_key or "").strip()
+    now_ts = time.time()
+    try:
+        from simulator.database_sqlite import _active_db_path
+        from simulator.db_migrations import open_wal_connection
+
+        db_path = _active_db_path()
+        if not db_path.exists():
+            return False
+        conn = open_wal_connection(db_path, readonly=True)
+        try:
+            if skey:
+                row = conn.execute(
+                    """
+                    SELECT 1 FROM pending_confirmations
+                    WHERE owner_user_id = ? AND session_key = ? AND status = 'pending' AND expires_at > ?
+                    LIMIT 1
+                    """,
+                    (uid, skey, now_ts),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT 1 FROM pending_confirmations
+                    WHERE owner_user_id = ? AND status = 'pending' AND expires_at > ?
+                    LIMIT 1
+                    """,
+                    (uid, now_ts),
+                ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
 async def process_session_voice_command(
     *,
     engine: Any,
@@ -731,16 +835,39 @@ async def process_session_voice_command(
     if not is_authenticated_control_session(session):
         return unauthenticated_voice_response()
     assert session is not None
-    transcript = extract_command_transcript(payload) or _extract_offline_wav_transcript(payload)
+    transcript = extract_command_transcript(payload)
+    stt_engine = ""
+    stt_ms = 0.0
+    if not transcript:
+        has_pending = False
+        try:
+            from simulator.automation_nlu import _resolve_session_key
+
+            skey = _resolve_session_key(session, source)
+            uid = str(getattr(session, "user_id", "") or "guest").strip()
+            has_pending = _peek_has_active_pending_confirmation(uid, skey)
+        except Exception:
+            has_pending = False
+        transcript, stt_engine, stt_ms = await _extract_wav_transcript_async(
+            payload,
+            has_pending_confirmation=has_pending,
+        )
     if not transcript:
         LOG.info("voice_command silent: empty transcript (no speaker check, no reprompt)")
-        return silent_no_transcript_response(session=session), 200
+        silent_body = silent_no_transcript_response(session=session)
+        if stt_engine:
+            silent_body["stt_engine"] = stt_engine
+            silent_body["stt_ms"] = round(stt_ms, 1)
+        return silent_body, 200
     body = await execute_session_voice_intents(
         engine=engine,
         session=session,
         transcript=transcript,
         source=source,
     )
+    if stt_engine:
+        body["stt_engine"] = stt_engine
+        body["stt_ms"] = round(stt_ms, 1)
     status = int(body.get("http_status") or 200)
     if status == 200 and body.get("rbac_blocked") and not body.get("ok"):
         status = 403

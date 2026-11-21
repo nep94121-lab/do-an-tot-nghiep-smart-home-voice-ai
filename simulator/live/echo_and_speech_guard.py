@@ -161,7 +161,8 @@ def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> boo
         return True
     if (
         ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se "))
-        or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a"))
+        or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a", " roi"))
+        or " dang " in f" {ai_norm} "
     ):
         return True
     return False
