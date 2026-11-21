@@ -5,4 +5,5 @@
 	(lib (name "Device") (type "KiCad") (uri "${KICAD10_SYMBOL_DIR}/Device.kicad_sym") (options "") (descr ""))
 	(lib (name "Mechanical") (type "KiCad") (uri "${KICAD10_SYMBOL_DIR}/Mechanical.kicad_sym") (options "") (descr ""))
 	(lib (name "power") (type "KiCad") (uri "${KICAD10_SYMBOL_DIR}/power.kicad_sym") (options "") (descr ""))
+	(lib (name "SystemWiring") (type "KiCad") (uri "${KIPRJMOD}/SystemWiring.kicad_sym") (options "") (descr "Off-board system wiring module symbols"))
 )

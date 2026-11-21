@@ -49,6 +49,9 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
             cfg_fb.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
         )
 
+        cfg_fallback = make_live_config(self.engine, strict_lang_fields=False)
+        self.assertIn(getattr(cfg_fallback.speech_config, "language_code", None), (None, ""))
+
         aad = cfg.realtime_input_config.automatic_activity_detection
         self.assertIsNotNone(aad, "Thiếu automatic_activity_detection")
         self.assertEqual(aad.silence_duration_ms, 350)

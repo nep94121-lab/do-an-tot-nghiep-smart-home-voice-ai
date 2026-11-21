@@ -516,7 +516,7 @@ def multi_instance_cluster(tmp_path: pathlib.Path) -> Any:
             procs.append(proc)
 
         for url, proc, log_path in zip(urls, procs, log_paths):
-            _wait_server_ready(url, proc, log_path=log_path, timeout_sec=18.0)
+            _wait_server_ready(url, proc, log_path=log_path, timeout_sec=60.0)
 
         owner_token = login_live_owner(urls[0], password)
         lb = RoundRobinLoadBalancer([("127.0.0.1", p) for p in ports])

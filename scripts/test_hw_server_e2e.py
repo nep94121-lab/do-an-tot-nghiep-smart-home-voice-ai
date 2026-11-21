@@ -40,7 +40,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 8097
+SERVER_PORT = int(os.environ.get("HW_E2E_PORT", "8097"))
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 
 EXPECTED_6_DEVICES = [
@@ -912,19 +912,29 @@ def run_e2e() -> dict[str, Any]:
                 timeout=3.0,
             )
 
-        # 11. Voice "ok" confirmation gate + removed device rejection ("Bật quạt trần")
+        # 11. Act-first direct voice command + automation "ok" confirmation gate + removed device rejection
         assert _device_state_map(http_client.get("/api/state", headers=owner_headers).json())["main_door"] == "CLOSED"
+
+        v_direct = http_client.post(
+            "/api/voice_command",
+            json={"transcript": "Mở cửa chính"},
+            headers=owner_headers,
+        )
+        assert v_direct.status_code == 200, v_direct.text
+        vd_body = v_direct.json()
+        assert not vd_body.get("requires_confirmation"), vd_body
+        assert vd_body.get("executed") is True, vd_body
+        assert _device_state_map(http_client.get("/api/state", headers=owner_headers).json())["main_door"] == "OPEN"
 
         v_step1 = http_client.post(
             "/api/voice_command",
-            json={"transcript": "Mở cửa chính"},
+            json={"transcript": "10 phút nữa tắt đèn phòng khách"},
             headers=owner_headers,
         )
         assert v_step1.status_code == 200, v_step1.text
         v1_body = v_step1.json()
         assert v1_body.get("requires_confirmation") is True, v1_body
         assert v1_body.get("executed") is False, v1_body
-        assert _device_state_map(http_client.get("/api/state", headers=owner_headers).json())["main_door"] == "CLOSED"
 
         v_step2 = http_client.post(
             "/api/voice_command",
@@ -935,7 +945,6 @@ def run_e2e() -> dict[str, Any]:
         v2_body = v_step2.json()
         assert v2_body.get("executed") is True, v2_body
         assert v2_body.get("confirmed") is True, v2_body
-        assert _device_state_map(http_client.get("/api/state", headers=owner_headers).json())["main_door"] == "OPEN"
 
         # Close main_door cleanly before removed-device check
         http_client.post("/api/device", json={"device_id": "main_door", "action": "close"}, headers=owner_headers)
