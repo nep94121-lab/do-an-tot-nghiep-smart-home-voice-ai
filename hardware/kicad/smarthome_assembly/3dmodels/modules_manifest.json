@@ -1,0 +1,1784 @@
+{
+  "schema_version": "1.0.0",
+  "coordinate_system": {
+    "manifest_bbox_and_pins": "KiCad PCBnew local mm (+X right, +Y DOWN, +Z UP from top surface)",
+    "wrl_models": "KiCad VRML 2.0 (1 unit = 2.54 mm; +X right, +Y UP, +Z UP)",
+    "step_models": "STEP AP214/B-Rep (1 unit = 1.00 mm; +X right, +Y UP, +Z UP)"
+  },
+  "module_count": 15,
+  "modules": {
+    "nodemcu_v2_amica": {
+      "module_id": "nodemcu_v2_amica",
+      "display_name": "NodeMCU ESP8266 v2 Amica (CP2102)",
+      "category": "MCU",
+      "wrl_file": "nodemcu_v2_amica.wrl",
+      "step_file": "nodemcu_v2_amica.step",
+      "wrl_bytes": 258406,
+      "step_bytes": 598849,
+      "vrml_vertices": 4280,
+      "vrml_triangles": 8220,
+      "recommended_z_offset_mm": 8.5,
+      "seating_notes": "Z=0 is bottom of male header plastic strip; mount at offset Z=+8.5mm on U1/U2 female sockets so pins (Z=-6..0mm) plug cleanly inside sockets.",
+      "expected_body_mm": [
+        25.4,
+        49.43,
+        7.14
+      ],
+      "expected_full_mm": [
+        25.4,
+        49.43,
+        13.14
+      ],
+      "bbox_mm": {
+        "min_x_mm": -12.7,
+        "max_x_mm": 12.7,
+        "min_y_mm": -24.13,
+        "max_y_mm": 25.3,
+        "min_z_mm": -6.0,
+        "max_z_mm": 7.14,
+        "size_x_mm": 25.4,
+        "size_y_mm": 49.43,
+        "size_z_mm": 13.14
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -12.7,
+        "max_x_mm": 12.7,
+        "min_y_mm": -24.13,
+        "max_y_mm": 25.3,
+        "min_z_mm": 0.0,
+        "max_z_mm": 7.14,
+        "size_x_mm": 25.4,
+        "size_y_mm": 49.43,
+        "size_z_mm": 7.14
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -12.7,
+        "max_x_mm": 12.7,
+        "min_y_mm": -24.13,
+        "max_y_mm": 25.3,
+        "min_z_mm": -6.0,
+        "max_z_mm": 7.14,
+        "size_x_mm": 25.4,
+        "size_y_mm": 49.43,
+        "size_z_mm": 13.14
+      },
+      "step_measured_mm": {
+        "min_x_mm": -12.7,
+        "max_x_mm": 12.7,
+        "min_y_mm": -24.13,
+        "max_y_mm": 25.3,
+        "min_z_mm": -6.0,
+        "max_z_mm": 7.14,
+        "size_x_mm": 25.4,
+        "size_y_mm": 49.43,
+        "size_z_mm": 13.14
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "U1.1",
+          "name": "A0",
+          "x_mm": -11.43,
+          "y_mm": -17.78,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.2",
+          "name": "RSV1",
+          "x_mm": -11.43,
+          "y_mm": -15.24,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.3",
+          "name": "RSV2",
+          "x_mm": -11.43,
+          "y_mm": -12.7,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.4",
+          "name": "SD3",
+          "x_mm": -11.43,
+          "y_mm": -10.16,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.5",
+          "name": "SD2",
+          "x_mm": -11.43,
+          "y_mm": -7.62,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.6",
+          "name": "SD1",
+          "x_mm": -11.43,
+          "y_mm": -5.08,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.7",
+          "name": "CMD",
+          "x_mm": -11.43,
+          "y_mm": -2.54,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.8",
+          "name": "SD0",
+          "x_mm": -11.43,
+          "y_mm": -0.0,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.9",
+          "name": "CLK",
+          "x_mm": -11.43,
+          "y_mm": 2.54,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.10",
+          "name": "GND",
+          "x_mm": -11.43,
+          "y_mm": 5.08,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.11",
+          "name": "3V3",
+          "x_mm": -11.43,
+          "y_mm": 7.62,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.12",
+          "name": "EN",
+          "x_mm": -11.43,
+          "y_mm": 10.16,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.13",
+          "name": "RST",
+          "x_mm": -11.43,
+          "y_mm": 12.7,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.14",
+          "name": "GND",
+          "x_mm": -11.43,
+          "y_mm": 15.24,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U1.15",
+          "name": "VIN",
+          "x_mm": -11.43,
+          "y_mm": 17.78,
+          "z_mm": 0.0,
+          "role": "U1 left header"
+        },
+        {
+          "num": "U2.1",
+          "name": "D0",
+          "x_mm": 11.43,
+          "y_mm": -17.78,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.2",
+          "name": "D1",
+          "x_mm": 11.43,
+          "y_mm": -15.24,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.3",
+          "name": "D2",
+          "x_mm": 11.43,
+          "y_mm": -12.7,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.4",
+          "name": "D3",
+          "x_mm": 11.43,
+          "y_mm": -10.16,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.5",
+          "name": "D4",
+          "x_mm": 11.43,
+          "y_mm": -7.62,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.6",
+          "name": "3V3",
+          "x_mm": 11.43,
+          "y_mm": -5.08,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.7",
+          "name": "GND",
+          "x_mm": 11.43,
+          "y_mm": -2.54,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.8",
+          "name": "D5",
+          "x_mm": 11.43,
+          "y_mm": -0.0,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.9",
+          "name": "D6",
+          "x_mm": 11.43,
+          "y_mm": 2.54,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.10",
+          "name": "D7",
+          "x_mm": 11.43,
+          "y_mm": 5.08,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.11",
+          "name": "D8",
+          "x_mm": 11.43,
+          "y_mm": 7.62,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.12",
+          "name": "RX",
+          "x_mm": 11.43,
+          "y_mm": 10.16,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.13",
+          "name": "TX",
+          "x_mm": 11.43,
+          "y_mm": 12.7,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.14",
+          "name": "GND",
+          "x_mm": 11.43,
+          "y_mm": 15.24,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        },
+        {
+          "num": "U2.15",
+          "name": "3V3",
+          "x_mm": 11.43,
+          "y_mm": 17.78,
+          "z_mm": 0.0,
+          "role": "U2 right header"
+        }
+      ],
+      "sub_features": "PCB 48.26x25.40x1.60mm; 2x15 header P2.54mm row 22.86mm; ESP-12E shield 16.0x12.0x3.0mm; Micro-USB +1.17mm overhang; CP2102 QFN; AMS1117; RST/FLASH buttons",
+      "datasheet_name": "Amica NodeMCU ESP8266 DevKit v1.0 (v2 CP2102)",
+      "datasheet_url": "https://components101.com/development-boards/nodemcu-esp8266-pinout-features-and-datasheet"
+    },
+    "sg90_servo": {
+      "module_id": "sg90_servo",
+      "display_name": "TowerPro SG90 Micro Servo",
+      "category": "Actuator",
+      "wrl_file": "sg90_servo.wrl",
+      "step_file": "sg90_servo.step",
+      "wrl_bytes": 252114,
+      "step_bytes": 91379,
+      "vrml_vertices": 4095,
+      "vrml_triangles": 8158,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        32.2,
+        12.2,
+        31.0
+      ],
+      "expected_full_mm": [
+        32.2,
+        12.2,
+        31.0
+      ],
+      "bbox_mm": {
+        "min_x_mm": -16.1,
+        "max_x_mm": 16.1,
+        "min_y_mm": -6.1,
+        "max_y_mm": 6.1,
+        "min_z_mm": 0.0,
+        "max_z_mm": 31.0,
+        "size_x_mm": 32.2,
+        "size_y_mm": 12.2,
+        "size_z_mm": 31.0
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -16.1,
+        "max_x_mm": 16.1,
+        "min_y_mm": -6.1,
+        "max_y_mm": 6.1,
+        "min_z_mm": 0.0,
+        "max_z_mm": 31.0,
+        "size_x_mm": 32.2,
+        "size_y_mm": 12.2,
+        "size_z_mm": 31.0
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -16.1,
+        "max_x_mm": 16.1,
+        "min_y_mm": -6.1,
+        "max_y_mm": 6.1,
+        "min_z_mm": 0.0,
+        "max_z_mm": 31.0,
+        "size_x_mm": 32.2,
+        "size_y_mm": 12.2,
+        "size_z_mm": 31.0
+      },
+      "step_measured_mm": {
+        "min_x_mm": -16.1,
+        "max_x_mm": 16.1,
+        "min_y_mm": -6.1,
+        "max_y_mm": 6.1,
+        "min_z_mm": 0.0,
+        "max_z_mm": 31.0,
+        "size_x_mm": 32.2,
+        "size_y_mm": 12.2,
+        "size_z_mm": 31.0
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "PWM (Orange)",
+          "x_mm": -16.0,
+          "y_mm": -2.54,
+          "z_mm": 2.8,
+          "role": "D1_SERVO PWM"
+        },
+        {
+          "num": "2",
+          "name": "VCC (Red)",
+          "x_mm": -16.0,
+          "y_mm": -0.0,
+          "z_mm": 2.8,
+          "role": "+5V"
+        },
+        {
+          "num": "3",
+          "name": "GND (Brown)",
+          "x_mm": -16.0,
+          "y_mm": 2.54,
+          "z_mm": 2.8,
+          "role": "GND"
+        }
+      ],
+      "sub_features": "Body 22.8x12.2x22.5mm; mounting ears 32.2x12.2x2.5mm at Z=15.9mm w/ 2x Ø2.0mm holes; gear boss Z=26.7mm; white output shaft & horn Z=31.0mm; 3-pin pigtail",
+      "datasheet_name": "TowerPro SG90 9g Micro Servo Datasheet",
+      "datasheet_url": "https://www.handsontec.com/dataspecs/SG90-Servo.pdf"
+    },
+    "led_5mm_living": {
+      "module_id": "led_5mm_living",
+      "display_name": "5mm LED Living Room (Warm Amber)",
+      "category": "Actuator",
+      "wrl_file": "led_5mm_living.wrl",
+      "step_file": "led_5mm_living.step",
+      "wrl_bytes": 195250,
+      "step_bytes": 36447,
+      "vrml_vertices": 3080,
+      "vrml_triangles": 6132,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "expected_full_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "bbox_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "step_measured_mm": {
+        "min_x_mm": -2.9,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.55,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "max_body_err_mm": 0.251,
+      "max_full_err_mm": 0.251,
+      "max_wrl_step_diff_mm": 0.001,
+      "pins": [
+        {
+          "num": "1",
+          "name": "Anode (+)",
+          "x_mm": -1.27,
+          "y_mm": -0.0,
+          "z_mm": 0.35,
+          "role": "Anode (+)"
+        },
+        {
+          "num": "2",
+          "name": "Cathode (-)",
+          "x_mm": 1.27,
+          "y_mm": -0.0,
+          "z_mm": 0.35,
+          "role": "Cathode (-)"
+        }
+      ],
+      "sub_features": "Ø5.0mm dome & barrel; Ø5.8x1.0mm base flange w/ cathode flat; body H=8.60mm; 2.54mm pitch Anode(+)/Cathode(-) pins",
+      "datasheet_name": "Kingbright WP7113 T-1 3/4 5mm LED (Warm Yellow/Amber)",
+      "datasheet_url": "https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf"
+    },
+    "led_5mm_bedroom": {
+      "module_id": "led_5mm_bedroom",
+      "display_name": "5mm LED Bedroom (Bright Red)",
+      "category": "Actuator",
+      "wrl_file": "led_5mm_bedroom.wrl",
+      "step_file": "led_5mm_bedroom.step",
+      "wrl_bytes": 195249,
+      "step_bytes": 36447,
+      "vrml_vertices": 3080,
+      "vrml_triangles": 6132,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "expected_full_mm": [
+        5.8,
+        5.8,
+        8.6
+      ],
+      "bbox_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -2.899,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.549,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "step_measured_mm": {
+        "min_x_mm": -2.9,
+        "max_x_mm": 2.65,
+        "min_y_mm": -2.9,
+        "max_y_mm": 2.9,
+        "min_z_mm": 0.0,
+        "max_z_mm": 8.6,
+        "size_x_mm": 5.55,
+        "size_y_mm": 5.8,
+        "size_z_mm": 8.6
+      },
+      "max_body_err_mm": 0.251,
+      "max_full_err_mm": 0.251,
+      "max_wrl_step_diff_mm": 0.001,
+      "pins": [
+        {
+          "num": "1",
+          "name": "Anode (+)",
+          "x_mm": -1.27,
+          "y_mm": -0.0,
+          "z_mm": 0.35,
+          "role": "Anode (+)"
+        },
+        {
+          "num": "2",
+          "name": "Cathode (-)",
+          "x_mm": 1.27,
+          "y_mm": -0.0,
+          "z_mm": 0.35,
+          "role": "Cathode (-)"
+        }
+      ],
+      "sub_features": "Ø5.0mm dome & barrel; Ø5.8x1.0mm base flange w/ cathode flat; body H=8.60mm; 2.54mm pitch Anode(+)/Cathode(-) pins",
+      "datasheet_name": "Kingbright WP7113 T-1 3/4 5mm LED (Bright Red WP7113ID)",
+      "datasheet_url": "https://www.kingbrightusa.com/images/catalog/spec/wp7113id.pdf"
+    },
+    "relay1_blue_srd05": {
+      "module_id": "relay1_blue_srd05",
+      "display_name": "Relay 1 Blue 1-Channel 5V Module",
+      "category": "Actuator",
+      "wrl_file": "relay1_blue_srd05.wrl",
+      "step_file": "relay1_blue_srd05.step",
+      "wrl_bytes": 370190,
+      "step_bytes": 216219,
+      "vrml_vertices": 6030,
+      "vrml_triangles": 11948,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "expected_full_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "bbox_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "step_measured_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "VCC",
+          "x_mm": -21.5,
+          "y_mm": -2.54,
+          "z_mm": 10.5,
+          "role": "+5V coil power"
+        },
+        {
+          "num": "2",
+          "name": "GND",
+          "x_mm": -21.5,
+          "y_mm": -0.0,
+          "z_mm": 10.5,
+          "role": "GND"
+        },
+        {
+          "num": "3",
+          "name": "IN",
+          "x_mm": -21.5,
+          "y_mm": 2.54,
+          "z_mm": 10.5,
+          "role": "D6_RLY1_PUMP"
+        },
+        {
+          "num": "4",
+          "name": "NO",
+          "x_mm": 24.6,
+          "y_mm": -5.08,
+          "z_mm": 6.6,
+          "role": "Switched +5V (PUMP_5V)"
+        },
+        {
+          "num": "5",
+          "name": "COM",
+          "x_mm": 24.6,
+          "y_mm": -0.0,
+          "z_mm": 6.6,
+          "role": "Common (+5V)"
+        },
+        {
+          "num": "6",
+          "name": "NC",
+          "x_mm": 24.6,
+          "y_mm": 5.08,
+          "z_mm": 6.6,
+          "role": "Normally Closed"
+        }
+      ],
+      "sub_features": "Blue PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; 3-pos 5.08mm screw terminal (15.24mm); 1x3 2.54mm header",
+      "datasheet_name": "1-Ch 5V Relay Module w/ Songle SRD-05VDC-SL-C",
+      "datasheet_url": "https://www.reichelt.com/de/en/shop/product/developer_boards_-_relay_1_channel_srd-05vdc-sl-c-371953"
+    },
+    "relay2_red_opto": {
+      "module_id": "relay2_red_opto",
+      "display_name": "Relay 2 Red Opto-Isolated 1-Channel 5V Module",
+      "category": "Actuator",
+      "wrl_file": "relay2_red_opto.wrl",
+      "step_file": "relay2_red_opto.step",
+      "wrl_bytes": 372083,
+      "step_bytes": 239873,
+      "vrml_vertices": 6062,
+      "vrml_triangles": 11996,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "expected_full_mm": [
+        50.0,
+        26.0,
+        18.5
+      ],
+      "bbox_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "step_measured_mm": {
+        "min_x_mm": -25.0,
+        "max_x_mm": 25.0,
+        "min_y_mm": -13.0,
+        "max_y_mm": 13.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 18.5,
+        "size_x_mm": 50.0,
+        "size_y_mm": 26.0,
+        "size_z_mm": 18.5
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "DC+",
+          "x_mm": -21.5,
+          "y_mm": -2.54,
+          "z_mm": 10.5,
+          "role": "+5V supply"
+        },
+        {
+          "num": "2",
+          "name": "DC-",
+          "x_mm": -21.5,
+          "y_mm": -0.0,
+          "z_mm": 10.5,
+          "role": "GND"
+        },
+        {
+          "num": "3",
+          "name": "IN",
+          "x_mm": -21.5,
+          "y_mm": 2.54,
+          "z_mm": 10.5,
+          "role": "D7_RLY2_AMP (Jmp=H)"
+        },
+        {
+          "num": "4",
+          "name": "NO",
+          "x_mm": 24.6,
+          "y_mm": -5.08,
+          "z_mm": 6.6,
+          "role": "Switched +5V (AMP_5V)"
+        },
+        {
+          "num": "5",
+          "name": "COM",
+          "x_mm": 24.6,
+          "y_mm": -0.0,
+          "z_mm": 6.6,
+          "role": "Common (+5V)"
+        },
+        {
+          "num": "6",
+          "name": "NC",
+          "x_mm": 24.6,
+          "y_mm": 5.08,
+          "z_mm": 6.6,
+          "role": "Normally Closed"
+        }
+      ],
+      "sub_features": "Red PCB 50.0x26.0x1.6mm w/ 4x Ø3.0mm holes; Songle SRD-05VDC-SL-C 19.0x15.5x15.5mm; PC817 optocoupler; yellow H/L jumper (set H); 3-pos 5.08mm terminal; 1x3 2.54mm header",
+      "datasheet_name": "1-Ch 5V Opto-Isolated Relay Module (SRD-05VDC-SL-C + PC817)",
+      "datasheet_url": "https://www.electrokit.com/en/rela-srd-1-pol-vaxlande-5v"
+    },
+    "submersible_pump": {
+      "module_id": "submersible_pump",
+      "display_name": "3-6V Mini Submersible Water Pump + Silicone Tube",
+      "category": "Actuator",
+      "wrl_file": "submersible_pump.wrl",
+      "step_file": "submersible_pump.step",
+      "wrl_bytes": 820893,
+      "step_bytes": 139088,
+      "vrml_vertices": 12380,
+      "vrml_triangles": 24720,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        45.0,
+        24.0,
+        33.0
+      ],
+      "expected_full_mm": [
+        45.0,
+        24.0,
+        41.5
+      ],
+      "bbox_mm": {
+        "min_x_mm": -22.5,
+        "max_x_mm": 22.5,
+        "min_y_mm": -11.996,
+        "max_y_mm": 11.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 41.866,
+        "size_x_mm": 45.0,
+        "size_y_mm": 23.993,
+        "size_z_mm": 41.866
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -22.5,
+        "max_x_mm": 22.5,
+        "min_y_mm": -11.996,
+        "max_y_mm": 11.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 33.0,
+        "size_x_mm": 45.0,
+        "size_y_mm": 23.993,
+        "size_z_mm": 33.0
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -22.5,
+        "max_x_mm": 22.5,
+        "min_y_mm": -11.996,
+        "max_y_mm": 11.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 41.866,
+        "size_x_mm": 45.0,
+        "size_y_mm": 23.993,
+        "size_z_mm": 41.866
+      },
+      "step_measured_mm": {
+        "min_x_mm": -22.5,
+        "max_x_mm": 22.5,
+        "min_y_mm": -12.0,
+        "max_y_mm": 12.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 41.98,
+        "size_x_mm": 45.0,
+        "size_y_mm": 24.0,
+        "size_z_mm": 41.98
+      },
+      "max_body_err_mm": 0.007,
+      "max_full_err_mm": 0.366,
+      "max_wrl_step_diff_mm": 0.114,
+      "pins": [
+        {
+          "num": "1",
+          "name": "Pump + (Red)",
+          "x_mm": -22.5,
+          "y_mm": -2.54,
+          "z_mm": 12.0,
+          "role": "PUMP_5V (Switched +5V)"
+        },
+        {
+          "num": "2",
+          "name": "Pump - (Black)",
+          "x_mm": -22.5,
+          "y_mm": 2.54,
+          "z_mm": 12.0,
+          "role": "GND"
+        }
+      ],
+      "sub_features": "White cylindrical motor Ø24.0x45.0mm; top vertical outlet nozzle Ø7.5mm OD to Z=33.0mm; front intake grille; curved Ø8.0mm OD translucent silicone tube stub",
+      "datasheet_name": "Horizontal 3-6V DC Mini Submersible Water Pump (Soldered 101844)",
+      "datasheet_url": "https://www.mouser.lt/datasheet/2/1398/Soldered_101844_mini_water_pump-3532437.pdf"
+    },
+    "buzzer_tmb12a05": {
+      "module_id": "buzzer_tmb12a05",
+      "display_name": "TMB12A05 Active 5V Buzzer",
+      "category": "Actuator",
+      "wrl_file": "buzzer_tmb12a05.wrl",
+      "step_file": "buzzer_tmb12a05.step",
+      "wrl_bytes": 74970,
+      "step_bytes": 30901,
+      "vrml_vertices": 1284,
+      "vrml_triangles": 2548,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        12.0,
+        12.0,
+        9.5
+      ],
+      "expected_full_mm": [
+        12.0,
+        12.0,
+        9.5
+      ],
+      "bbox_mm": {
+        "min_x_mm": -6.0,
+        "max_x_mm": 6.0,
+        "min_y_mm": -5.998,
+        "max_y_mm": 5.998,
+        "min_z_mm": 0.0,
+        "max_z_mm": 9.5,
+        "size_x_mm": 12.0,
+        "size_y_mm": 11.996,
+        "size_z_mm": 9.5
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -6.0,
+        "max_x_mm": 6.0,
+        "min_y_mm": -5.998,
+        "max_y_mm": 5.998,
+        "min_z_mm": 0.0,
+        "max_z_mm": 9.5,
+        "size_x_mm": 12.0,
+        "size_y_mm": 11.996,
+        "size_z_mm": 9.5
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -6.0,
+        "max_x_mm": 6.0,
+        "min_y_mm": -5.998,
+        "max_y_mm": 5.998,
+        "min_z_mm": 0.0,
+        "max_z_mm": 9.5,
+        "size_x_mm": 12.0,
+        "size_y_mm": 11.996,
+        "size_z_mm": 9.5
+      },
+      "step_measured_mm": {
+        "min_x_mm": -6.0,
+        "max_x_mm": 6.0,
+        "min_y_mm": -6.0,
+        "max_y_mm": 6.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 9.5,
+        "size_x_mm": 12.0,
+        "size_y_mm": 12.0,
+        "size_z_mm": 9.5
+      },
+      "max_body_err_mm": 0.004,
+      "max_full_err_mm": 0.004,
+      "max_wrl_step_diff_mm": 0.004,
+      "pins": [
+        {
+          "num": "1",
+          "name": "Buzzer (+)",
+          "x_mm": -3.8,
+          "y_mm": -0.0,
+          "z_mm": 0.3,
+          "role": "D8_BUZZER (Active-HIGH)"
+        },
+        {
+          "num": "2",
+          "name": "Buzzer (-)",
+          "x_mm": 3.8,
+          "y_mm": -0.0,
+          "z_mm": 0.3,
+          "role": "GND"
+        }
+      ],
+      "sub_features": "Black cylinder Ø12.0x9.5mm; top sound port Ø3.0mm; white '+' polarity mark; 7.6mm pin pitch",
+      "datasheet_name": "TMB12A05 5V Active Electromagnetic Buzzer",
+      "datasheet_url": "https://osoyoo.com/2017/05/05/buzzer-5v-breadboard-friendlytmb12a05/"
+    },
+    "pam8403_amp": {
+      "module_id": "pam8403_amp",
+      "display_name": "PAM8403 Mini Audio Amplifier Module",
+      "category": "Actuator",
+      "wrl_file": "pam8403_amp.wrl",
+      "step_file": "pam8403_amp.step",
+      "wrl_bytes": 610327,
+      "step_bytes": 311393,
+      "vrml_vertices": 9408,
+      "vrml_triangles": 18648,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        21.0,
+        18.0,
+        3.1
+      ],
+      "expected_full_mm": [
+        21.0,
+        18.0,
+        3.1
+      ],
+      "bbox_mm": {
+        "min_x_mm": -10.5,
+        "max_x_mm": 10.5,
+        "min_y_mm": -9.0,
+        "max_y_mm": 9.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 3.1,
+        "size_x_mm": 21.0,
+        "size_y_mm": 18.0,
+        "size_z_mm": 3.1
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -10.5,
+        "max_x_mm": 10.5,
+        "min_y_mm": -9.0,
+        "max_y_mm": 9.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 3.1,
+        "size_x_mm": 21.0,
+        "size_y_mm": 18.0,
+        "size_z_mm": 3.1
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -10.5,
+        "max_x_mm": 10.5,
+        "min_y_mm": -9.0,
+        "max_y_mm": 9.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 3.1,
+        "size_x_mm": 21.0,
+        "size_y_mm": 18.0,
+        "size_z_mm": 3.1
+      },
+      "step_measured_mm": {
+        "min_x_mm": -10.5,
+        "max_x_mm": 10.5,
+        "min_y_mm": -9.0,
+        "max_y_mm": 9.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 3.1,
+        "size_x_mm": 21.0,
+        "size_y_mm": 18.0,
+        "size_z_mm": 3.1
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "5V+",
+          "x_mm": -8.8,
+          "y_mm": -5.08,
+          "z_mm": 2.8,
+          "role": "AMP_5V"
+        },
+        {
+          "num": "2",
+          "name": "5V-",
+          "x_mm": -8.8,
+          "y_mm": -2.54,
+          "z_mm": 2.8,
+          "role": "GND"
+        },
+        {
+          "num": "3",
+          "name": "L",
+          "x_mm": -8.8,
+          "y_mm": 2.54,
+          "z_mm": 2.8,
+          "role": "AUD_OUT"
+        },
+        {
+          "num": "4",
+          "name": "GND",
+          "x_mm": -8.8,
+          "y_mm": 5.08,
+          "z_mm": 2.8,
+          "role": "Audio GND"
+        },
+        {
+          "num": "5",
+          "name": "R",
+          "x_mm": -8.8,
+          "y_mm": 7.62,
+          "z_mm": 2.8,
+          "role": "Right In (NC)"
+        },
+        {
+          "num": "6",
+          "name": "L_OUT+",
+          "x_mm": 8.8,
+          "y_mm": -5.08,
+          "z_mm": 2.8,
+          "role": "SPK_BTL_P"
+        },
+        {
+          "num": "7",
+          "name": "L_OUT-",
+          "x_mm": 8.8,
+          "y_mm": -2.54,
+          "z_mm": 2.8,
+          "role": "SPK_BTL_N"
+        },
+        {
+          "num": "8",
+          "name": "R_OUT-",
+          "x_mm": 8.8,
+          "y_mm": 2.54,
+          "z_mm": 2.8,
+          "role": "Right BTL -"
+        },
+        {
+          "num": "9",
+          "name": "R_OUT+",
+          "x_mm": 8.8,
+          "y_mm": 5.08,
+          "z_mm": 2.8,
+          "role": "Right BTL +"
+        }
+      ],
+      "sub_features": "Bare green PCB 21.0x18.0x1.6mm; SOP-16 PAM8403 IC 9.9x3.9x1.5mm (1.27mm pitch); 2.54mm power/audio/BTL pads",
+      "datasheet_name": "Diodes Inc. PAM8403 3W Stereo Class-D Audio Amplifier",
+      "datasheet_url": "https://www.elecrow.com/download/PAM8403-datasheet.pdf"
+    },
+    "speaker_28mm": {
+      "module_id": "speaker_28mm",
+      "display_name": "28mm 8 Ohm 0.5W Mini Speaker",
+      "category": "Actuator",
+      "wrl_file": "speaker_28mm.wrl",
+      "step_file": "speaker_28mm.step",
+      "wrl_bytes": 240205,
+      "step_bytes": 33547,
+      "vrml_vertices": 3888,
+      "vrml_triangles": 7748,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        28.0,
+        28.0,
+        5.2
+      ],
+      "expected_full_mm": [
+        28.0,
+        28.0,
+        5.2
+      ],
+      "bbox_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -13.996,
+        "max_y_mm": 13.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 5.2,
+        "size_x_mm": 28.0,
+        "size_y_mm": 27.991,
+        "size_z_mm": 5.2
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -13.996,
+        "max_y_mm": 13.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 5.2,
+        "size_x_mm": 28.0,
+        "size_y_mm": 27.991,
+        "size_z_mm": 5.2
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -13.996,
+        "max_y_mm": 13.996,
+        "min_z_mm": 0.0,
+        "max_z_mm": 5.2,
+        "size_x_mm": 28.0,
+        "size_y_mm": 27.991,
+        "size_z_mm": 5.2
+      },
+      "step_measured_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -14.0,
+        "max_y_mm": 14.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 5.2,
+        "size_x_mm": 28.0,
+        "size_y_mm": 28.0,
+        "size_z_mm": 5.2
+      },
+      "max_body_err_mm": 0.009,
+      "max_full_err_mm": 0.009,
+      "max_wrl_step_diff_mm": 0.009,
+      "pins": [
+        {
+          "num": "1",
+          "name": "SPK +",
+          "x_mm": -12.3,
+          "y_mm": -2.54,
+          "z_mm": 2.5,
+          "role": "PAM8403 L_OUT+ (BTL+)"
+        },
+        {
+          "num": "2",
+          "name": "SPK -",
+          "x_mm": -12.3,
+          "y_mm": 2.54,
+          "z_mm": 2.5,
+          "role": "PAM8403 L_OUT- (BTL-)"
+        }
+      ],
+      "sub_features": "Round silver metal frame Ø28.0x5.2mm; black Mylar cone + silver center dust cap; rear magnet boss Ø14.0mm; 2 rim solder pads",
+      "datasheet_name": "PUI Audio AS02808MR-R 28mm 8 Ohm 0.5W Speaker",
+      "datasheet_url": "https://puiaudio.com/file/specs-AS02808MR-R.pdf"
+    },
+    "dht11_module": {
+      "module_id": "dht11_module",
+      "display_name": "DHT11 3-Pin Breakout Module",
+      "category": "Sensor",
+      "wrl_file": "dht11_module.wrl",
+      "step_file": "dht11_module.step",
+      "wrl_bytes": 58611,
+      "step_bytes": 158299,
+      "vrml_vertices": 972,
+      "vrml_triangles": 1888,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        28.0,
+        14.0,
+        7.1
+      ],
+      "expected_full_mm": [
+        28.0,
+        14.0,
+        7.1
+      ],
+      "bbox_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 7.1,
+        "size_x_mm": 28.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 7.1
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 7.1,
+        "size_x_mm": 28.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 7.1
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 7.1,
+        "size_x_mm": 28.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 7.1
+      },
+      "step_measured_mm": {
+        "min_x_mm": -14.0,
+        "max_x_mm": 14.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 7.1,
+        "size_x_mm": 28.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 7.1
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "VCC (+)",
+          "x_mm": -12.2,
+          "y_mm": -2.54,
+          "z_mm": 6.8,
+          "role": "+3V3"
+        },
+        {
+          "num": "2",
+          "name": "DATA (OUT)",
+          "x_mm": -12.2,
+          "y_mm": -0.0,
+          "z_mm": 6.8,
+          "role": "D2_DHT11"
+        },
+        {
+          "num": "3",
+          "name": "GND (-)",
+          "x_mm": -12.2,
+          "y_mm": 2.54,
+          "z_mm": 6.8,
+          "role": "GND"
+        }
+      ],
+      "sub_features": "Blue PCB 28.0x14.0x1.6mm w/ Ø3.0mm hole; light-blue ventilated DHT11 grid body 15.5x12.0x5.5mm (H=7.1mm); 1x3 2.54mm header",
+      "datasheet_name": "Aosong DHT11 Digital Temperature & Humidity Sensor",
+      "datasheet_url": "https://image.dfrobot.com/image/data/KIT0003/DHT11%20datasheet.pdf"
+    },
+    "soil_lm393_board": {
+      "module_id": "soil_lm393_board",
+      "display_name": "LM393 Soil Moisture Comparator Module",
+      "category": "Sensor",
+      "wrl_file": "soil_lm393_board.wrl",
+      "step_file": "soil_lm393_board.step",
+      "wrl_bytes": 73735,
+      "step_bytes": 164654,
+      "vrml_vertices": 1221,
+      "vrml_triangles": 2338,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        32.0,
+        14.0,
+        12.1
+      ],
+      "expected_full_mm": [
+        32.0,
+        14.0,
+        12.1
+      ],
+      "bbox_mm": {
+        "min_x_mm": -16.0,
+        "max_x_mm": 16.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 12.1,
+        "size_x_mm": 32.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 12.1
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -16.0,
+        "max_x_mm": 16.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 12.1,
+        "size_x_mm": 32.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 12.1
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -16.0,
+        "max_x_mm": 16.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 12.1,
+        "size_x_mm": 32.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 12.1
+      },
+      "step_measured_mm": {
+        "min_x_mm": -16.0,
+        "max_x_mm": 16.0,
+        "min_y_mm": -7.0,
+        "max_y_mm": 7.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 12.1,
+        "size_x_mm": 32.0,
+        "size_y_mm": 14.0,
+        "size_z_mm": 12.1
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "VCC",
+          "x_mm": -14.2,
+          "y_mm": -3.81,
+          "z_mm": 8.8,
+          "role": "+3V3 (STRICTLY 3.3V)"
+        },
+        {
+          "num": "2",
+          "name": "GND",
+          "x_mm": -14.2,
+          "y_mm": -1.27,
+          "z_mm": 8.8,
+          "role": "GND"
+        },
+        {
+          "num": "3",
+          "name": "DO",
+          "x_mm": -14.2,
+          "y_mm": 1.27,
+          "z_mm": 8.8,
+          "role": "NC"
+        },
+        {
+          "num": "4",
+          "name": "AO",
+          "x_mm": -14.2,
+          "y_mm": 3.81,
+          "z_mm": 8.8,
+          "role": "A0_SOIL"
+        },
+        {
+          "num": "5",
+          "name": "P1",
+          "x_mm": 14.2,
+          "y_mm": -1.27,
+          "z_mm": 8.8,
+          "role": "SOIL_PROBE_A"
+        },
+        {
+          "num": "6",
+          "name": "P2",
+          "x_mm": 14.2,
+          "y_mm": 1.27,
+          "z_mm": 8.8,
+          "role": "SOIL_PROBE_B"
+        }
+      ],
+      "sub_features": "Blue PCB 32.0x14.0x1.6mm w/ Ø3.0mm hole; blue 3296W pot + brass screw (H=12.1mm); SOIC-8 LM393; 1x4 hub header + 1x2 probe header",
+      "datasheet_name": "LM393 Soil Moisture Sensor Comparator Board",
+      "datasheet_url": "https://handsontec.com/dataspecs/sensor/Soil%20Moisture%20Sensor.pdf"
+    },
+    "yl69_soil_probe": {
+      "module_id": "yl69_soil_probe",
+      "display_name": "YL-69 Soil Moisture Fork Probe",
+      "category": "Sensor",
+      "wrl_file": "yl69_soil_probe.wrl",
+      "step_file": "yl69_soil_probe.step",
+      "wrl_bytes": 5120,
+      "step_bytes": 53771,
+      "vrml_vertices": 76,
+      "vrml_triangles": 128,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        60.0,
+        20.0,
+        1.6
+      ],
+      "expected_full_mm": [
+        60.0,
+        20.0,
+        1.6
+      ],
+      "bbox_mm": {
+        "min_x_mm": -30.0,
+        "max_x_mm": 30.0,
+        "min_y_mm": -10.0,
+        "max_y_mm": 10.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 1.6,
+        "size_x_mm": 60.0,
+        "size_y_mm": 20.0,
+        "size_z_mm": 1.6
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -30.0,
+        "max_x_mm": 30.0,
+        "min_y_mm": -10.0,
+        "max_y_mm": 10.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 1.6,
+        "size_x_mm": 60.0,
+        "size_y_mm": 20.0,
+        "size_z_mm": 1.6
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -30.0,
+        "max_x_mm": 30.0,
+        "min_y_mm": -10.0,
+        "max_y_mm": 10.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 1.6,
+        "size_x_mm": 60.0,
+        "size_y_mm": 20.0,
+        "size_z_mm": 1.6
+      },
+      "step_measured_mm": {
+        "min_x_mm": -30.0,
+        "max_x_mm": 30.0,
+        "min_y_mm": -10.0,
+        "max_y_mm": 10.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 1.6,
+        "size_x_mm": 60.0,
+        "size_y_mm": 20.0,
+        "size_z_mm": 1.6
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "Prong A",
+          "x_mm": -29.8,
+          "y_mm": -1.27,
+          "z_mm": 0.8,
+          "role": "SOIL_PROBE_A"
+        },
+        {
+          "num": "2",
+          "name": "Prong B",
+          "x_mm": -29.8,
+          "y_mm": 1.27,
+          "z_mm": 0.8,
+          "role": "SOIL_PROBE_B"
+        }
+      ],
+      "sub_features": "Fork FR4 PCB 60.0x20.0x1.6mm w/ 7.0mm center slot between two 6.5mm prongs; gold-tinned sensing strips; 1x2 2.54mm header at handle",
+      "datasheet_name": "YL-69 / FC-28 Resistive Soil Moisture Fork Probe",
+      "datasheet_url": "https://handsontec.com/dataspecs/sensor/Soil%20Moisture%20Sensor.pdf"
+    },
+    "ky037_sound": {
+      "module_id": "ky037_sound",
+      "display_name": "KY-037 / KY-038 Sound Sensor Module",
+      "category": "Sensor",
+      "wrl_file": "ky037_sound.wrl",
+      "step_file": "ky037_sound.step",
+      "wrl_bytes": 104402,
+      "step_bytes": 180307,
+      "vrml_vertices": 1741,
+      "vrml_triangles": 3362,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        35.0,
+        15.0,
+        13.1
+      ],
+      "expected_full_mm": [
+        35.0,
+        15.0,
+        13.1
+      ],
+      "bbox_mm": {
+        "min_x_mm": -17.5,
+        "max_x_mm": 17.5,
+        "min_y_mm": -7.5,
+        "max_y_mm": 7.5,
+        "min_z_mm": 0.0,
+        "max_z_mm": 13.1,
+        "size_x_mm": 35.0,
+        "size_y_mm": 15.0,
+        "size_z_mm": 13.1
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -17.5,
+        "max_x_mm": 17.5,
+        "min_y_mm": -7.5,
+        "max_y_mm": 7.5,
+        "min_z_mm": 0.0,
+        "max_z_mm": 13.1,
+        "size_x_mm": 35.0,
+        "size_y_mm": 15.0,
+        "size_z_mm": 13.1
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -17.5,
+        "max_x_mm": 17.5,
+        "min_y_mm": -7.5,
+        "max_y_mm": 7.5,
+        "min_z_mm": 0.0,
+        "max_z_mm": 13.1,
+        "size_x_mm": 35.0,
+        "size_y_mm": 15.0,
+        "size_z_mm": 13.1
+      },
+      "step_measured_mm": {
+        "min_x_mm": -17.5,
+        "max_x_mm": 17.5,
+        "min_y_mm": -7.5,
+        "max_y_mm": 7.5,
+        "min_z_mm": 0.0,
+        "max_z_mm": 13.1,
+        "size_x_mm": 35.0,
+        "size_y_mm": 15.0,
+        "size_z_mm": 13.1
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "DO",
+          "x_mm": -15.8,
+          "y_mm": -3.81,
+          "z_mm": 8.8,
+          "role": "D5_MIC_DO (GPIO14)"
+        },
+        {
+          "num": "2",
+          "name": "G (GND)",
+          "x_mm": -15.8,
+          "y_mm": -1.27,
+          "z_mm": 8.8,
+          "role": "GND"
+        },
+        {
+          "num": "3",
+          "name": "+ (VCC)",
+          "x_mm": -15.8,
+          "y_mm": 1.27,
+          "z_mm": 8.8,
+          "role": "+3V3 (STRICTLY 3.3V)"
+        },
+        {
+          "num": "4",
+          "name": "AO",
+          "x_mm": -15.8,
+          "y_mm": 3.81,
+          "z_mm": 8.8,
+          "role": "NC"
+        }
+      ],
+      "sub_features": "Red PCB 31.5x15.0x1.6mm (total L=35.0mm w/ front mic); ECM-9767 silver mic Ø9.7x6.7mm w/ black felt; blue 3296W pot (H=13.1mm); LM393; 1x4 header (DO/G/+/AO)",
+      "datasheet_name": "Joy-IT KY-038 / KY-037 Sound Sensor (ECM-9767 + LM393)",
+      "datasheet_url": "https://sensorkit.joy-it.net/en/sensors/ky-038"
+    },
+    "psu_5v2a_dc_jack": {
+      "module_id": "psu_5v2a_dc_jack",
+      "display_name": "5V 2A DC Jack PSU Input (Adapter + 5.5x2.1mm Plug + Screw Terminal)",
+      "category": "Power",
+      "wrl_file": "psu_5v2a_dc_jack.wrl",
+      "step_file": "psu_5v2a_dc_jack.step",
+      "wrl_bytes": 848329,
+      "step_bytes": 202521,
+      "vrml_vertices": 12990,
+      "vrml_triangles": 25912,
+      "recommended_z_offset_mm": 0.0,
+      "seating_notes": "Mount flush on assembly top surface (Z offset = 0.0 mm)",
+      "expected_body_mm": [
+        118.0,
+        34.0,
+        24.0
+      ],
+      "expected_full_mm": [
+        118.0,
+        34.0,
+        24.0
+      ],
+      "bbox_mm": {
+        "min_x_mm": -59.0,
+        "max_x_mm": 59.0,
+        "min_y_mm": -17.0,
+        "max_y_mm": 17.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 24.0,
+        "size_x_mm": 118.0,
+        "size_y_mm": 34.0,
+        "size_z_mm": 24.0
+      },
+      "body_bbox_mm": {
+        "min_x_mm": -59.0,
+        "max_x_mm": 59.0,
+        "min_y_mm": -17.0,
+        "max_y_mm": 17.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 24.0,
+        "size_x_mm": 118.0,
+        "size_y_mm": 34.0,
+        "size_z_mm": 24.0
+      },
+      "wrl_measured_mm": {
+        "min_x_mm": -59.0,
+        "max_x_mm": 59.0,
+        "min_y_mm": -17.0,
+        "max_y_mm": 17.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 24.0,
+        "size_x_mm": 118.0,
+        "size_y_mm": 34.0,
+        "size_z_mm": 24.0
+      },
+      "step_measured_mm": {
+        "min_x_mm": -59.0,
+        "max_x_mm": 59.0,
+        "min_y_mm": -17.0,
+        "max_y_mm": 17.0,
+        "min_z_mm": 0.0,
+        "max_z_mm": 24.0,
+        "size_x_mm": 118.0,
+        "size_y_mm": 34.0,
+        "size_z_mm": 24.0
+      },
+      "max_body_err_mm": 0.0,
+      "max_full_err_mm": 0.0,
+      "max_wrl_step_diff_mm": 0.0,
+      "pins": [
+        {
+          "num": "1",
+          "name": "+5V",
+          "x_mm": 59.0,
+          "y_mm": -2.54,
+          "z_mm": 3.6,
+          "role": "Main +5V power rail -> Hub J1.1"
+        },
+        {
+          "num": "2",
+          "name": "GND",
+          "x_mm": 59.0,
+          "y_mm": 2.54,
+          "z_mm": 3.6,
+          "role": "Common GND -> Hub J1.2"
+        }
+      ],
+      "sub_features": "Compact matte-black 5V 2A adapter body 46.0x34.0x24.0mm w/ metallic prongs; black DC cable + mated 5.5x2.1mm male barrel plug (Ø5.5mm sleeve); green/black DC-005 female screw-terminal adapter 38.0x14.0x13.0mm (+5V/GND facing +X)",
+      "datasheet_name": "5V 2A DC Wall Adapter (Mean Well SGA12U05-P1J class) + Adafruit #368 Female 5.5x2.1mm Screw Terminal Adapter",
+      "datasheet_url": "https://www.mouser.com/datasheet/2/260/SGA12U-SPEC-1109436.pdf"
+    }
+  }
+}

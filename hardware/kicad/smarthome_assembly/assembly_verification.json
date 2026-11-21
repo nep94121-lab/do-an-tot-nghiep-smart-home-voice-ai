@@ -1,0 +1,470 @@
+{
+  "status": "PASS",
+  "hub_pcb": "C:\\Users\\LENOVO\\datn-wt\\hwasm\\hardware\\kicad\\smarthome_hub\\smarthome_hub.kicad_pcb",
+  "hub_dimensions_mm": {
+    "width": 80.0,
+    "height": 65.0,
+    "left": 100.0,
+    "top": 100.0,
+    "right": 180.0,
+    "bottom": 165.0
+  },
+  "modules_placed_count": 15,
+  "offboard_modules_count": 14,
+  "plaques_count": 15,
+  "wires_resolved_count": 40,
+  "nodemcu_u1_u2_alignment_err_mm": 0.0,
+  "overlap_count": 0,
+  "overlaps": [],
+  "min_overall_clearance_mm": 5.0,
+  "min_overall_clearance_pair": [
+    "MOD:pam8403_amp",
+    "PLQ_pam8403_amp"
+  ],
+  "min_inter_module_clearance_mm": 8.0,
+  "min_inter_module_clearance_pair": [
+    "PLQ_dht11_module",
+    "PLQ_soil_lm393_board"
+  ],
+  "forbidden_tokens_found": [],
+  "errors": [],
+  "modules": {
+    "buzzer_tmb12a05": {
+      "ref": "M_BUZZER",
+      "side": "right",
+      "center_mm": [
+        213.998,
+        174.197
+      ],
+      "rot_deg": -90.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        208.0,
+        168.197,
+        219.996,
+        180.197
+      ],
+      "plaque": {
+        "lines": [
+          "BUZZER 5V",
+          "J6 (D8/GPIO15)"
+        ],
+        "center_mm": [
+          249.171,
+          174.197
+        ],
+        "size_mm": [
+          44.35,
+          13.2
+        ]
+      }
+    },
+    "dht11_module": {
+      "ref": "M_DHT11",
+      "side": "top",
+      "center_mm": [
+        112.168,
+        57.0
+      ],
+      "rot_deg": 90.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        105.168,
+        43.0,
+        119.168,
+        71.0
+      ],
+      "plaque": {
+        "lines": [
+          "DHT11 SENSOR",
+          "J13 (D2/GPIO4)"
+        ],
+        "center_mm": [
+          112.168,
+          31.288
+        ],
+        "size_mm": [
+          44.35,
+          13.2
+        ]
+      }
+    },
+    "ky037_sound": {
+      "ref": "M_KY037",
+      "side": "right",
+      "center_mm": [
+        225.5,
+        118.098
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        208.0,
+        110.598,
+        243.0,
+        125.598
+      ],
+      "plaque": {
+        "lines": [
+          "KY-037 SOUND",
+          "J15 (D5/GPIO14)"
+        ],
+        "center_mm": [
+          273.6,
+          118.098
+        ],
+        "size_mm": [
+          47.2,
+          13.2
+        ]
+      }
+    },
+    "led_5mm_bedroom": {
+      "ref": "M_LED_BR",
+      "side": "top",
+      "center_mm": [
+        215.567,
+        68.1
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        212.668,
+        65.2,
+        218.217,
+        71.0
+      ],
+      "plaque": {
+        "lines": [
+          "LED BEDROOM",
+          "J5 (D4/GPIO2)"
+        ],
+        "center_mm": [
+          215.443,
+          52.408
+        ],
+        "size_mm": [
+          41.5,
+          13.2
+        ]
+      }
+    },
+    "led_5mm_living": {
+      "ref": "M_LED_LR",
+      "side": "top",
+      "center_mm": [
+        164.642,
+        68.1
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        161.743,
+        65.2,
+        167.292,
+        71.0
+      ],
+      "plaque": {
+        "lines": [
+          "LED LIVING",
+          "J4 (D0/GPIO16)"
+        ],
+        "center_mm": [
+          164.518,
+          52.408
+        ],
+        "size_mm": [
+          44.35,
+          13.2
+        ]
+      }
+    },
+    "nodemcu_v2_amica": {
+      "ref": "M_NODEMCU",
+      "side": "center",
+      "center_mm": [
+        140.0,
+        132.5
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 8.5,
+      "bbox_mm": [
+        127.3,
+        108.37,
+        152.7,
+        157.8
+      ],
+      "plaque": null
+    },
+    "pam8403_amp": {
+      "ref": "M_PAM8403",
+      "side": "bottom",
+      "center_mm": [
+        164.5,
+        199.0
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        154.0,
+        190.0,
+        175.0,
+        208.0
+      ],
+      "plaque": {
+        "lines": [
+          "PAM8403 AMP",
+          "J11/J12 (D3)"
+        ],
+        "center_mm": [
+          164.5,
+          219.6
+        ],
+        "size_mm": [
+          38.65,
+          13.2
+        ]
+      }
+    },
+    "psu_5v2a_dc_jack": {
+      "ref": "M_PSU",
+      "side": "left",
+      "center_mm": [
+        16.0,
+        149.788
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        -43.0,
+        132.788,
+        75.0,
+        166.788
+      ],
+      "plaque": {
+        "lines": [
+          "5V 2A PSU",
+          "J1 (PWR IN)"
+        ],
+        "center_mm": [
+          16.0,
+          178.388
+        ],
+        "size_mm": [
+          35.8,
+          13.2
+        ]
+      }
+    },
+    "relay1_blue_srd05": {
+      "ref": "M_RLY1",
+      "side": "right",
+      "center_mm": [
+        233.0,
+        146.598
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        208.0,
+        133.598,
+        258.0,
+        159.598
+      ],
+      "plaque": {
+        "lines": [
+          "RELAY1 PUMP",
+          "J7/J8 (D6)"
+        ],
+        "center_mm": [
+          289.9,
+          146.598
+        ],
+        "size_mm": [
+          35.8,
+          13.2
+        ]
+      }
+    },
+    "relay2_red_opto": {
+      "ref": "M_RLY2",
+      "side": "bottom",
+      "center_mm": [
+        112.175,
+        203.0
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        87.175,
+        190.0,
+        137.175,
+        216.0
+      ],
+      "plaque": {
+        "lines": [
+          "RELAY2 OPTO",
+          "J9/J10 (D7)"
+        ],
+        "center_mm": [
+          112.175,
+          227.6
+        ],
+        "size_mm": [
+          35.8,
+          13.2
+        ]
+      }
+    },
+    "sg90_servo": {
+      "ref": "M_SG90",
+      "side": "right",
+      "center_mm": [
+        224.1,
+        95.998
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        208.0,
+        89.898,
+        240.2,
+        102.098
+      ],
+      "plaque": {
+        "lines": [
+          "SG90 SERVO",
+          "J3 (D1/GPIO5)"
+        ],
+        "center_mm": [
+          269.95,
+          95.998
+        ],
+        "size_mm": [
+          41.5,
+          13.2
+        ]
+      }
+    },
+    "soil_lm393_board": {
+      "ref": "M_LM393",
+      "side": "top",
+      "center_mm": [
+        61.243,
+        55.0
+      ],
+      "rot_deg": 90.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        54.243,
+        39.0,
+        68.243,
+        71.0
+      ],
+      "plaque": {
+        "lines": [
+          "SOIL LM393",
+          "J14 (A0/ADC0)"
+        ],
+        "center_mm": [
+          61.243,
+          19.9
+        ],
+        "size_mm": [
+          41.5,
+          13.2
+        ]
+      }
+    },
+    "speaker_28mm": {
+      "ref": "M_SPEAKER",
+      "side": "bottom",
+      "center_mm": [
+        211.15,
+        203.996
+      ],
+      "rot_deg": 0.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        197.15,
+        190.0,
+        225.15,
+        217.992
+      ],
+      "plaque": {
+        "lines": [
+          "SPEAKER 28MM",
+          "PAM8403 BTL"
+        ],
+        "center_mm": [
+          211.15,
+          229.592
+        ],
+        "size_mm": [
+          38.65,
+          13.2
+        ]
+      }
+    },
+    "submersible_pump": {
+      "ref": "M_PUMP",
+      "side": "left",
+      "center_mm": [
+        52.5,
+        112.792
+      ],
+      "rot_deg": 180.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        30.0,
+        100.796,
+        75.0,
+        124.788
+      ],
+      "plaque": {
+        "lines": [
+          "PUMP + TUBE",
+          "J2 (PUMP OUT)"
+        ],
+        "center_mm": [
+          2.75,
+          102.796
+        ],
+        "size_mm": [
+          41.5,
+          13.2
+        ]
+      }
+    },
+    "yl69_soil_probe": {
+      "ref": "M_YL69",
+      "side": "top",
+      "center_mm": [
+        2.493,
+        55.0
+      ],
+      "rot_deg": 180.0,
+      "z_offset_mm": 0.0,
+      "bbox_mm": [
+        -27.507,
+        45.0,
+        32.493,
+        65.0
+      ],
+      "plaque": {
+        "lines": [
+          "YL-69 PROBE",
+          "LM393 P1/P2"
+        ],
+        "center_mm": [
+          2.493,
+          33.4
+        ],
+        "size_mm": [
+          35.8,
+          13.2
+        ]
+      }
+    }
+  }
+}
