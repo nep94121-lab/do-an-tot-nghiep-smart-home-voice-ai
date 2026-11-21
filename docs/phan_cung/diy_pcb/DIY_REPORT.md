@@ -14,11 +14,11 @@ STATUS: ALL_DONE
 `hardware/kicad/smarthome_hub` has been completely redesigned as a **single-layer (`B.Cu` only)**, maker-friendly PCB engineered specifically for **home toner-transfer etching and hand drilling**. The circuit retains the exact locked ESP8266 NodeMCU v2 Amica 10-GPIO hardware contract (6 actuators + 3 sensors; zero fan, zero AC, zero IR) and achieves:
 
 - **0 ERC errors / 0 ERC warnings** (`kicad-cli sch erc --severity-all` across both schematic sheets).
-- **0 DRC violations / 0 unconnected pads / 0 schematic-parity errors** (`kicad-cli pcb drc --schematic-parity --severity-all`, 47/47 footprints synchronized with schematic and `bom.csv`).
-- **True single copper layer (`B.Cu`)**: `0` vias, `175/175` track segments on `B.Cu`, `0` zones, `0` SMD pads, `0` `F.Cu` tracks/graphics, single-sided Gerber set omits `F_Cu.gtl`, and `smarthome_hub-B_Cu.gbl` contains all `118/118` PTH solder pad flashes + `175` track draws.
+- **0 DRC violations / 0 unconnected pads / 0 schematic-parity errors** (`kicad-cli pcb drc --schematic-parity --severity-all`, 49/49 footprints synchronized with schematic and `bom.csv`, including low-side NPN buzzer driver `Q1` S8050 + `R10` 1k).
+- **True single copper layer (`B.Cu`)**: `0` vias, `179/179` track segments on `B.Cu`, `0` zones, `0` SMD pads, `0` `F.Cu` tracks/graphics, single-sided Gerber set omits `F_Cu.gtl`, and `smarthome_hub-B_Cu.gbl` contains all `123/123` PTH solder pad flashes + `179` track draws.
 - **Forgiving DIY geometry**: signal traces `>= 1.00 mm`, power & GND traces `>= 2.00 mm`, copper clearance `>= 0.60 mm` (zero clearance exceptions), round pads `>= 2.60 mm`, non-header annular rings `>= 0.75 mm`, and **exact 4 drill classes** (`0.9 mm`, `1.1 mm`, `1.3 mm`, `3.2 mm`) enforced by `.kicad_dru` and `.kicad_pro`.
-- **Minimal 7 top-side wire jumpers (`JP1..JP7` / silkscreen `J-1..J-7`)**: `0` jumpers on `GND` (closed perimeter ring on `B.Cu`) and `0` jumpers on all 15 signal/GPIO nets; all 7 jumpers are strictly on `+3.3V` (3) and `+5V` (4) rails and modeled as real BOM/schematic components.
-- **Exact 1:1 printable PDFs verified by PyMuPDF**: `toner_B.Cu_MIRRORED_1to1.pdf` (text reads backwards, board `100.00 x 80.00 mm`, scale bar `50.00 mm`), `toner_B.Cu_check_NOT_mirrored_1to1.pdf` (text reads forward), `placement_top_silk_1to1.pdf`, and true 1:1 `drill_map.pdf` (all 122 holes matching `smarthome_hub.drl` and `drill_table.csv` 100%).
+- **Minimal 7 top-side wire jumpers (`JP1..JP7` / silkscreen `J-1..J-7`)**: `0` jumpers on `GND` (closed perimeter ring on `B.Cu`) and `0` jumpers on all 17 signal/GPIO nets; all 7 jumpers are strictly on `+3.3V` (3) and `+5V` (4) rails and modeled as real BOM/schematic components.
+- **Exact 1:1 printable PDFs verified by PyMuPDF**: `toner_B.Cu_MIRRORED_1to1.pdf` (text reads backwards, board `100.00 x 80.00 mm`, scale bar `50.00 mm`), `toner_B.Cu_check_NOT_mirrored_1to1.pdf` (text reads forward), `placement_top_silk_1to1.pdf`, and true 1:1 `drill_map.pdf` (all 127 holes matching `smarthome_hub.drl` and `drill_table.csv` 100%).
 
 ---
 
@@ -30,28 +30,28 @@ STATUS: ALL_DONE
 | :--- | :--- | :--- |
 | Board Outline (`Edge.Cuts`) | `100 x 80 mm` rectangular, `<= 3 mm` corner radius, `1.6 mm` thick | **`100.000 x 80.000 x 1.6 mm`**, `R = 3.000 mm` corner arcs |
 | 4x M3 Mounting Holes | `3.2 mm` NPTH @ `(5,5), (95,5), (5,75), (95,75)` mm (`90 x 70 mm`) | `H1(5,75)`, `H2(95,75)`, `H3(5,5)`, `H4(95,5)` mm, `3.20 mm` NPTH |
-| Copper Layers & Vias | Single layer `B.Cu` only, `0` vias, no `F.Cu` copper | `B.Cu` only, `0` vias, `175` B.Cu segments, `118/118` B.Cu PTH pads, no `F_Cu.gtl` |
-| Pin Map (NodeMCU v2 Amica) | `D0` LR LED, `D1` Servo, `D2` DHT11, `D3` Audio PWM, `D4` BR LED, `D5` KY-037 DO, `D6` Relay1, `D7` Relay2, `D8` Buzzer, `A0` Soil | 100% unchanged; verified via schematic netlist + `tests/test_hw_contract_6devices_20261120.py` (`14/14` passed) |
+| Copper Layers & Vias | Single layer `B.Cu` only, `0` vias, no `F.Cu` copper | `B.Cu` only, `0` vias, `179` B.Cu segments, `123/123` B.Cu PTH pads, no `F_Cu.gtl` |
+| Pin Map (NodeMCU v2 Amica) | `D0` LR LED, `D1` Servo, `D2` DHT11, `D3` Audio PWM, `D4` BR LED, `D5` KY-037 DO, `D6` Relay1, `D7` Relay2, `D8` Buzzer (via `Q1` S8050 + `R10` 1k + `R9` 10k pull-down), `A0` Soil | 100% unchanged; verified via schematic netlist + `tests/test_hw_contract_6devices_20261120.py` |
 | Excluded Devices | Zero fan, zero AC, zero IR | Confirmed `0` fan, `0` AC, `0` IR parts |
 
-### 2.2 Hole Table (Exact 4 Drill Classes — 122 Holes Total)
+### 2.2 Hole Table (Exact 4 Drill Classes — 127 Holes Total)
 
 | Drill Step | Bit Size | Type | Hole Count | Parts Using This Drill | Pin / Mechanical Basis |
 | :---: | :---: | :---: | :---: | :--- | :--- |
-| 1 | **`0.9 mm`** | PTH (`B.Cu`) | **48** | `R1..R9`, `C1..C7`, `D3`, `JP1..JP7` | Round component leads & 22 AWG jumper wire (`0.50–0.64 mm` dia) |
+| 1 | **`0.9 mm`** | PTH (`B.Cu`) | **53** | `R1..R10`, `Q1`, `C1..C7`, `D3`, `JP1..JP7` | Round component leads (`0.50–0.64 mm` dia), TO-92 BJT leads, & 22 AWG jumper wire |
 | 2 | **`1.1 mm`** | PTH (`B.Cu`) | **66** | `U1`, `U2`, `J3..J15`, `D1`, `D2` | `0.64 mm` sq header pins (`0.905 mm` diag), DO-41 leads (`0.86 mm` max), forgiving 15-pin hand-drill tolerance |
 | 3 | **`1.3 mm`** | PTH (`B.Cu`) | **4** | `J1`, `J2` | Phoenix MKDS 1,5/2-5,08 (`0.9 x 0.9 mm` pin = `1.27 mm` diag, datasheet `1.30 mm` drill) |
 | 4 | **`3.2 mm`** | NPTH | **4** | `H1..H4` | ISO 273 Medium clearance hole for M3 machine screws |
-| **Total** | **4 classes** | — | **122** | **47 footprints** | **122/122 exact match across PCB, Excellon `.drl`, `drill_table.csv`, `drill_table.md`, and `drill_map.pdf`** |
+| **Total** | **4 classes** | — | **127** | **49 footprints** | **127/127 exact match across PCB, Excellon `.drl`, `drill_table.csv`, `drill_table.md`, and `drill_map.pdf`** |
 
 ### 2.3 Trace, Pad, Clearance, Silkscreen & Annular Ring Stats
 
-- **Track segments**: `175` total (all on `B.Cu`): `61` signal segments at `1.00 mm` wide (rule `>= 1.00 mm`); `114` power & GND segments at `2.00 mm` wide (rule `>= 2.00 mm`).
+- **Track segments**: `179` total (all on `B.Cu`): signal segments at `1.00 mm` wide (rule `>= 1.00 mm`); power & GND segments at `2.00 mm` wide (rule `>= 2.00 mm`).
 - **Copper clearance**: `>= 0.60 mm` globally across all nets and board edge (`0` DRC clearance violations, zero clearance waivers).
-- **Round pads**: `41` round pads, minimum diameter **`2.60 mm`** (`R1..R9`, `C3, C5, C6, C7`), `2.80 mm` on `D3` and `JP1..JP7` (rule `>= 2.50 mm`).
-- **Non-header pads**: `56` pads (`R`, `C`, `D`, `LED`, `J1/J2`, `JP1..JP7`), minimum annular ring **`0.75 mm`** (strictly `>= 0.60 mm`).
+- **Round pads**: minimum diameter **`2.60 mm`** (`R1..R10`, `Q1`, `C3, C5, C6, C7`), `2.80 mm` on `D3` and `JP1..JP7` (rule `>= 2.50 mm`).
+- **Non-header pads**: `61` pads (`R`, `Q1`, `C`, `D`, `LED`, `J1/J2`, `JP1..JP7`), minimum annular ring **`0.75 mm`** (strictly `>= 0.60 mm`, zero `.kicad_dru` waiver needed for `Q1` `TO-92_Wide_DIY` which has `0.85 mm` annular ring and `0.99 mm` pad-to-pad clearance).
 - **2.54 mm header/socket pads (`U1, U2, J3..J15`, 62 pads) — Euclidean bound documentation**: Along a `2.54 mm` pitch with `1.10 mm` drill, available space between adjacent holes is `2.54 - 1.10 = 1.44 mm = 2 * ring_longitudinal + clearance`. Achieving both `clearance >= 0.60 mm` and `ring_longitudinal >= 0.60 mm` simultaneously requires `1.10 + 1.20 + 0.60 = 2.90 mm > 2.54 mm` (mathematically impossible). This design preserves **full `>= 0.60 mm` copper clearance everywhere** (actual `0.74 mm` inter-pad gap to prevent home toner-transfer bridging) using elongated **`3.80 x 1.80 mm`** oval/rect pads (`1.35 mm` transverse annular ring `>> 0.60 mm`, `0.35 mm` longitudinal ring, scoped in `.kicad_dru` rule `DIY_Header_254mm_Oval_Annular_Ring`).
-- **`F.SilkS` labels**: `52` visible labels, min height **`1.50 mm`**, min thickness **`0.25 mm`**, `0` pad overlaps, `0` silk overlaps. Every header (`J1..J15`) displays module name, NodeMCU pin, and per-pin `VCC/GND/SIG` polarity; electrolytic caps (`C1, C2, C4`), diodes (`D1, D2`), and green LED (`D3`) carry clear polarity marks; board title `HUB DIY v3 / 1L B.Cu / 100x80mm / NODEMCU / USB v` is centered cleanly.
+- **`F.SilkS` labels**: `54` visible labels, min height **`1.50 mm`**, min thickness **`0.25 mm`**, `0` pad overlaps, `0` silk overlaps. Every header (`J1..J15`) displays module name, NodeMCU pin, and per-pin `VCC/GND/SIG` polarity; `Q1` displays `Q1 S8050` + `E B C` + flat-side D-outline; `J6` displays `J6 BUZZ D8` + `-  +`; electrolytic caps (`C1, C2, C4`), diodes (`D1, D2`), and green LED (`D3`) carry clear polarity marks; board title `HUB DIY v3 / 1L B.Cu / 100x80mm / NODEMCU / USB v` is centered cleanly.
 
 ### 2.4 Minimal Top-Side Wire Jumpers (7 Total: `JP1..JP7`)
 
@@ -70,7 +70,8 @@ STATUS: ALL_DONE
 - **NodeMCU v2 Amica (`U1`, `U2`)**: `48.26 x 25.40–25.80 mm` PCB, 2×15 pins @ `2.54 mm` pitch, `22.86 mm` (`0.9 in`) row spacing; 8.5 mm vertical female sockets (`DIY_Hub:PinSocket_1x15_P2.54mm_DIY`, `1.1 mm` drill). Source: Amica NodeMCU v2 Mechanical Drawing & `docs/phan_cung/DIMENSIONS_AUDIT.md`. Only flat `R4` (`2.5 mm`) and `JP1` (`~2.0 mm`) sit beneath the NodeMCU belly.
 - **Screw Terminals (`J1`, `J2`)**: Phoenix Contact MKDS 1,5/2-5,08 — `5.08 mm` pitch, `0.9 x 0.9 mm` solder pin (`1.27 mm` diagonal), datasheet drill `1.30 mm`, body `10.16 x 9.80 mm` (`DIY_Hub:TerminalBlock_MKDS_1x02_P5.08mm_DIY`, `3.20 x 4.40 mm` pads). Source: Phoenix Contact MKDS 1,5/2-5,08 Datasheet (1715721).
 - **2.54 mm Pin Headers (`J3..J15`)**: `2.54 mm` pitch, `0.64 mm` sq pin (`0.905 mm` diagonal), `1.1 mm` forgiving hand-drill hole (`DIY_Hub:PinHeader_1x02/1x03_P2.54mm_DIY`). Source: Würth Elektronik 6130xx11121 / Samtec TSW Series.
-- **Axial 1/4W Resistors (`R1..R9`)**: DIN 0207 (`L = 6.3 mm`, `D = 2.5 mm`, `0.60 mm` lead, `10.16 mm` pitch, `0.9 mm` drill, `2.60 mm` round pads). Source: Vishay MBA/SMA 0204 & Yageo CFR-25 Datasheet.
+- **Axial 1/4W Resistors (`R1..R10`)**: DIN 0207 (`L = 6.3 mm`, `D = 2.5 mm`, `0.60 mm` lead, `10.16 mm` pitch, `0.9 mm` drill, `2.60 mm` round pads; includes `R10 = 1k` base resistor for `Q1`). Source: Vishay MBA/SMA 0204 & Yageo CFR-25 Datasheet.
+- **NPN BJT Buzzer Driver (`Q1` — `S8050` / `2N2222A`)**: TO-92 wide-formed E-B-C (`0.7 A Ic`, `20 V Vce`), staggered triangular leads `(0,0)`, `(2.54,-2.54)`, `(5.08,0)` mm, `0.9 mm` drill, `2.60 mm` round pads (`0.85 mm` annular ring, `0.99 mm` pad clearance), KiCad `TO-92_Wide.step` 3D model. Source: Unisonic S8050 Datasheet.
 - **DO-41 Diodes (`D1`, `D2` — `1N4007`)**: SOD-81 / DO-41 (`L = 5.2 mm`, `D = 2.7 mm`, max lead `0.86 mm`, `10.16 mm` pitch, `1.1 mm` drill, `2.60 x 3.40 mm` pads). Source: Vishay 1N4001–1N4007 Datasheet (88503).
 - **Bulk Electrolytic Caps (`C1`, `C2` — `470uF 16V`)**: Radial `D = 8.0 mm`, `H = 11.5 mm`, `P = 3.50 mm`, `0.60 mm` lead, `0.9 mm` drill, `2.60 x 3.60 mm` pads. Source: Nichicon UVR/UHE `470uF 16V` `8x11.5` Datasheet.
 - **Audio Coupling Cap (`C4` — `10uF 16V`)**: Radial `D = 5.0 mm`, leads formed to `P = 3.50 mm` for `>= 0.60 mm` pad clearance, `0.9 mm` drill, `2.60 x 3.40 mm` pads. Documented low-profile (`H <= 7 mm`) / lay-flat assembly guidance in `DIY_GUIDE.md` and `BOM_DIY_SHOPPING.md` to clear bulky NodeMCU Micro-USB plug overmolds.

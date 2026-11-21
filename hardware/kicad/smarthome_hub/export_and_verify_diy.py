@@ -40,7 +40,7 @@ REPO_ROOT = KICAD_DIR.parent.parent.parent
 DIY_OUT = REPO_ROOT / "docs" / "phan_cung" / "diy_pcb"
 GERBER_OUT = DIY_OUT / "gerbers"
 HW_GERBER_OUT = KICAD_DIR / "gerbers"
-RUN_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhwdiy2_20261121")
+RUN_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyhwmerge3_20261121")
 SHOT_DIR = RUN_DIR / "screenshots"
 
 KCLI = r"C:\Users\LENOVO\AppData\Local\Programs\KiCad\10.0\bin\kicad-cli.exe"
@@ -275,7 +275,7 @@ print(json.dumps({{
             parts_by_drill[d].append(h["ref"])
 
     drill_use_notes = {
-        0.9: "Resistors (R1-R9), Ceramic & Electrolytic Capacitors (C1-C7), Power LED (D3), Top-Side 22AWG Wire Jumpers (JP1-JP7)",
+        0.9: "Resistors (R1-R10), NPN Transistor (Q1 S8050), Ceramic & Electrolytic Capacitors (C1-C7), Power LED (D3), Top-Side 22AWG Wire Jumpers (JP1-JP7)",
         1.1: "NodeMCU Female Sockets (U1, U2), All 2.54mm Module Pin Headers (J3-J15), DO-41 Diodes (D1, D2)",
         1.3: "5.08mm Phoenix MKDS Screw Terminal Blocks (J1 Power 5V In, J2 Pump Output)",
         3.2: "4x Corner M3 Mounting Holes (H1-H4, NPTH, 90x70 mm pattern, 5 mm inset from corners)",
@@ -297,7 +297,8 @@ print(json.dumps({{
         htype = "NPTH" if d == 3.2 else "PTH (B.Cu)"
         refs_str = ", ".join(sorted(parts_by_drill[d], key=lambda r: (re.sub(r"\d+", "", r), int(re.search(r"\d+", r).group()))))
         md_lines.append(f"| {step_i} | **{d:.1f} mm** | {htype} | **{counts[d]}** | {refs_str} | {drill_use_notes[d]} |")
-    md_lines.append(f"| **Tổng** | **4 cỡ** | — | **{len(holes)}** | **47 footprints** | **Đạt chuẩn `.kicad_dru` (0 lỗi mũi khoan)** |")
+    fp_total = len({p["ref"] for p in board_data["pads"]})
+    md_lines.append(f"| **Tổng** | **4 cỡ** | — | **{len(holes)}** | **{fp_total} footprints** | **Đạt chuẩn `.kicad_dru` (0 lỗi mũi khoan)** |")
     md_lines.extend([
         "",
         "## 2. Tọa độ chi tiết từng lỗ khoan (so với góc dưới-trái bo 100 × 80 mm)",
@@ -367,7 +368,7 @@ print(json.dumps({{
         "- **Mũi khoan PCB hợp kim/HSS**: đúng 4 cỡ `0.9 mm`, `1.1 mm`, `1.3 mm`, và `3.2 mm` (hoặc mũi khoan 3.0–3.2 mm cho lỗ ốc M3).",
         "- **Ốc & trụ đồng M3**: 4 bộ ốc M3 × 10 mm + trụ đồng/nylon M3 (pattern lỗ `90.0 × 70.0 mm`).",
         "",
-        "## 1. Linh kiện hàn trực tiếp lên PCB (43 linh kiện + 4 lỗ M3 = 47 footprints)",
+        f"## 1. Linh kiện hàn trực tiếp lên PCB ({len(comps) - 4} linh kiện + 4 lỗ M3 = {len(comps)} footprints)",
         "",
         "| STT | Ký hiệu (Refs) | Giá trị / Tên linh kiện | Số lượng | Kiểu chân (Footprint DIY) | Mũi khoan | Nguồn chuẩn kích thước (Datasheet) |",
         "| ---: | :--- | :--- | :---: | :--- | :---: | :--- |",
@@ -383,6 +384,7 @@ print(json.dumps({{
         "CP_Radial_D5.0mm_P3.50mm_DIY": "10 uF 16V Radial Electrolytic (D=5.0 mm, P=3.50 mm formed; use low-profile H<=7mm or lay flat sideways to clear NodeMCU Micro-USB plug)",
         "C_Disc_D5.0mm_P5.00mm_DIY": "Ceramic Disc / MLCC 50V (D=5.0 mm, P=5.00 mm, lead 0.5 mm) — Murata RDE / Vishay K-series",
         "LED_D3.0mm_P5.08mm_DIY": "3 mm Green Indicator LED (D=3.0 mm, leads formed to P=5.08 mm for forgiving 2.8 mm DIY pads)",
+        "TO-92_Wide_DIY": "NPN BJT S8050 (hoặc 2N2222A, E-B-C, 0.7A/20V, TO-92 wide-formed leads, 0.9 mm drill, 2.60 mm round pads) — Unisonic S8050",
     }
     row_i = 0
     for (val, fp, dr), refs in sorted(bom_groups.items(), key=lambda kv: (kv[0][1].startswith("WireJumper"), kv[1][0])):
@@ -401,7 +403,7 @@ print(json.dumps({{
         "| Servo SG90 (cửa chính) | `J3` (`SERVO_D1`) | `D1 / GPIO5` | 3 dây Dupont: SIG / +5V / GND |",
         "| LED 5 mm Phòng khách | `J4` (`LED_LR_D0`) | `D0 / GPIO16` | Qua `R1` 220 Ω trên bo (`+` / GND) |",
         "| LED 5 mm Phòng ngủ | `J5` (`LED_BR_D4`) | `D4 / GPIO2` | Active-LOW safe-boot qua `R2` 220 Ω + `R7` 10k |",
-        "| Còi Buzzer chủ động 5V (TMB12A05) | `J6` (`BUZZ_D8`) | `D8 / GPIO15` | Active-HIGH, có `R9` 10k pull-down + `D2` 1N4007 chống xung |",
+        "| Còi Buzzer chủ động 5V (TMB12A05) | `J6` (`BUZZ_D8`) | `D8 / GPIO15` | Lái low-side qua `Q1` NPN `S8050` + `R10` 1k, `R9` 10k pull-down an toàn boot, `D2` 1N4007 dập xung (`+5V` / `BUZZ_K`) |",
         "| Module Relay 1 (Xanh 5V SRD-05VDC — Bơm) | `J7` (điều khiển) + `J8` (tiếp điểm) | `D6 / GPIO12` | `J7`: 5V/GND/D6; `J8`: COM=`+5V`, NO=`PUMP_5V` |",
         "| Bơm chìm mini DC 5V | `J2` (`PUMP_OUT`) | Qua Relay 1 | Vặn vít domino 5.08 mm, có `D1` 1N4007 dập xung |",
         "| Module Relay 2 (Đỏ Opto 5V — Cấp nguồn Amp) | `J9` (điều khiển) + `J10` (tiếp điểm) | `D7 / GPIO13` | `J9`: 5V/GND/D7; `J10`: COM=`+5V`, NO=`AMP_5V` |",
@@ -475,6 +477,11 @@ print(json.dumps({{
         pix.save(str(DIY_OUT / "drill_map.png"))
         shutil.copy2(DIY_OUT / "drill_map.png", SHOT_DIR / "94_drill_map.png")
 
+    # Remove transient local KiCad GUI view-state sidecar auto-created by kicad-cli pcb render
+    prl_path = PCB_PATH.with_suffix(".kicad_prl")
+    if prl_path.exists():
+        prl_path.unlink(missing_ok=True)
+
     return board_data
 
 
@@ -504,7 +511,7 @@ def generate_true_1to1_drill_map_pdf(
     c.setFillColor(HexColor("#334155"))
     c.drawString(
         26 * RL_MM, 179 * RL_MM,
-        "Top view (F.SilkS side, NOT mirrored) | Origin (0,0) at lower-left corner | Total 122 holes across exact 4 drill bits",
+        f"Top view (F.SilkS side, NOT mirrored) | Origin (0,0) at lower-left corner | Total {len(holes)} holes across exact 4 drill bits",
     )
 
     # Outer crop marks at exact 100 x 80 mm corners
@@ -590,7 +597,7 @@ def generate_true_1to1_drill_map_pdf(
         ("U1", 37.0, 62.5), ("U2", 59.9, 62.5), ("J1", 9.0, 30.0), ("J2", 9.0, 61.5),
         ("J14", 19.0, 74.5), ("J4", 41.8, 74.5), ("J3", 60.5, 74.5), ("J13", 79.0, 76.0),
         ("J5", 94.0, 60.7), ("J15", 94.0, 44.5), ("J7", 94.0, 31.0), ("J9", 94.0, 18.0),
-        ("J10", 17.8, 4.5), ("J11", 30.3, 4.5), ("J12", 54.8, 4.5), ("J6", 75.8, 4.5),
+        ("J10", 17.8, 4.5), ("J11", 30.3, 4.5), ("J12", 54.8, 4.5), ("Q1", 71.5, 6.0), ("J6", 83.7, 4.5),
     ]:
         c.drawCentredString((ox_mm + bx) * RL_MM, (oy_mm + by) * RL_MM, lbl)
 
@@ -626,7 +633,7 @@ def generate_true_1to1_drill_map_pdf(
     c.line((px + 5) * RL_MM, 156.5 * RL_MM, (px + 133) * RL_MM, 156.5 * RL_MM)
 
     rows = [
-        (0.9, "Step 1: 0.9 mm (PTH)", f"{counts[0.9]} holes", "R1-R9, C1-C7, D3, JP1-JP7 (wire jumpers)", "#1d4ed8"),
+        (0.9, "Step 1: 0.9 mm (PTH)", f"{counts[0.9]} holes", "R1-R10, Q1 (S8050), C1-C7, D3, JP1-JP7 (jumpers)", "#1d4ed8"),
         (1.1, "Step 2: 1.1 mm (PTH)", f"{counts[1.1]} holes", "U1, U2 (NodeMCU sockets), J3-J15, D1, D2", "#15803d"),
         (1.3, "Step 3: 1.3 mm (PTH)", f"{counts[1.3]} holes", "J1 (5V Power In), J2 (Pump Out) MKDS 5.08mm", "#dc2626"),
         (3.2, "Step 4: 3.2 mm (NPTH)", f"{counts[3.2]} holes", "H1-H4 M3 corners: (5,5),(95,5),(5,75),(95,75)", "#0f172a"),
@@ -669,7 +676,9 @@ def generate_true_1to1_drill_map_pdf(
     c.line((px + 5) * RL_MM, 66 * RL_MM, (px + 133) * RL_MM, 66 * RL_MM)
     c.setFillColor(HexColor("#0f172a"))
     c.setFont("Helvetica-Bold", 9.5)
-    c.drawString((px + 5) * RL_MM, 60 * RL_MM, f"TOTAL: {len(holes)} holes (118 PTH + 4 M3 NPTH) | Source: smarthome_hub.drl")
+    pth_n = sum(1 for h in holes if h["attr"] != 3)
+    npth_n = len(holes) - pth_n
+    c.drawString((px + 5) * RL_MM, 60 * RL_MM, f"TOTAL: {len(holes)} holes ({pth_n} PTH + {npth_n} M3 NPTH) | Source: smarthome_hub.drl")
     c.setFont("Helvetica", 8.5)
     c.setFillColor(HexColor("#334155"))
     c.drawString((px + 5) * RL_MM, 53.5 * RL_MM, "1. Print at 100% Actual Size on A4; verify 50.0 mm bar with caliper.")
@@ -926,7 +935,7 @@ def render_drc_screenshot(results: dict) -> None:
     checks = [
         ("ERC Errors / Warnings", "0 / 0  [PASS]"),
         ("DRC Violations / Unconnected", "0 / 0  [PASS]"),
-        ("Schematic-to-PCB Parity Errors", "0  (47/47 footprints synced)  [PASS]"),
+        ("Schematic-to-PCB Parity Errors", f"0  ({len(B.get_components())}/{len(B.get_components())} footprints synced)  [PASS]"),
         ("Board Outline (Edge.Cuts)", f"{results['board_size_mm']} mm, R=3.0 mm, t=1.6 mm  [PASS]"),
         ("4x M3 Mounting Holes (3.2mm NPTH)", "(5,5), (95,5), (5,75), (95,75) mm  [PASS]"),
         ("Single Copper Layer ONLY", f"Vias = {results['vias']}, Track layers = {results['track_layers']}  [PASS]"),

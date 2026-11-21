@@ -66,15 +66,17 @@ ONBOARD_PASSIVES: tuple[tuple[str, str, str, str, str], ...] = (
     ("R7", "10 kΩ", "1/4W Axial (DIN0207)", "+3V3 ↔ D4_LED_BR", "GPIO2 (D4) boot-safety pull-up resistor (keeps GPIO2 HIGH at reset)"),
     ("R8", "1 kΩ", "1/4W Axial (DIN0207)", "+5V ↔ PWR_LED_A", "Current-limiting resistor for on-board +5V power indicator LED D3"),
     ("R9", "10 kΩ", "1/4W Axial (DIN0207)", "D8_BUZZER ↔ GND", "GPIO15 (D8) boot-safety pull-down resistor (keeps GPIO15 LOW & buzzer silent at boot)"),
+    ("R10", "1 kΩ", "1/4W Axial (DIN0207)", "D8_BUZZER ↔ BUZZ_BASE", "Base current-limiting resistor for low-side NPN buzzer driver Q1 (~2.6 mA base drive from 3.3V GPIO15)"),
+    ("Q1", "S8050", "TO-92 Wide (E-B-C)", "E=GND, B=BUZZ_BASE, C=BUZZ_K", "Low-side NPN BJT driver (S8050 / 2N2222A, 0.7A) switching 5V TMB12A05 buzzer safely off GPIO15"),
     ("C1", "470 µF 16V", "Radial Ø8.0×P3.5mm", "+5V ↔ GND", "Bulk electrolytic decoupling for SG90 servo peak current & main +5V rail"),
     ("C2", "470 µF 16V", "Radial Ø8.0×P3.5mm", "+5V ↔ GND", "Bulk electrolytic decoupling near J1/J2 for garden pump inrush stabilization"),
-    ("C3", "100 nF", "Ceramic Disc P2.5mm", "+5V ↔ GND", "High-frequency noise decoupling on main +5V power rail"),
-    ("C4", "10 µF 16V", "Radial Ø5.0×P2.0mm", "D3_AUDIO_PWM ↔ AUD_AC", "DC-blocking coupling capacitor isolating GPIO0 boot strap from PAM8403 input"),
-    ("C5", "10 nF", "Ceramic Disc P2.5mm", "AUD_OUT ↔ GND", "RC low-pass filter capacitor smoothing PWM chime carrier into PAM8403"),
-    ("C6", "100 nF", "Ceramic Disc P2.5mm", "AMP_5V ↔ GND", "High-frequency decoupling on Relay-2-switched +5V rail feeding PAM8403 (J11)"),
-    ("C7", "100 nF", "Ceramic Disc P2.5mm", "A0_SOIL ↔ GND", "Analog low-pass noise filter on ESP8266 ADC0 soil moisture input (J14)"),
+    ("C3", "100 nF", "Ceramic Disc P5.0mm", "+5V ↔ GND", "High-frequency noise decoupling on main +5V power rail"),
+    ("C4", "10 µF 16V", "Radial Ø5.0×P3.5mm", "D3_AUDIO_PWM ↔ AUD_AC", "DC-blocking coupling capacitor isolating GPIO0 boot strap from PAM8403 input"),
+    ("C5", "10 nF", "Ceramic Disc P5.0mm", "AUD_OUT ↔ GND", "RC low-pass filter capacitor smoothing PWM chime carrier into PAM8403"),
+    ("C6", "100 nF", "Ceramic Disc P5.0mm", "AMP_5V ↔ GND", "High-frequency decoupling on Relay-2-switched +5V rail feeding PAM8403 (J11)"),
+    ("C7", "100 nF", "Ceramic Disc P5.0mm", "A0_SOIL ↔ GND", "Analog low-pass noise filter on ESP8266 ADC0 soil moisture input (J14)"),
     ("D1", "1N4007", "DO-41 P10.16mm", "K=PUMP_5V, A=GND", "Inductive flyback clamp diode across 3–6V garden pump motor (J2)"),
-    ("D2", "1N4007", "DO-41 P10.16mm", "K=D8_BUZZER, A=GND", "Inductive flyback protection diode across Active 5V Buzzer (J6)"),
+    ("D2", "1N4007", "DO-41 P10.16mm", "K=+5V, A=BUZZ_K", "Inductive flyback protection diode across 5V Active Buzzer coil (J6.1 +5V ↔ J6.2 Q1 Collector)"),
     ("D3", "LED_PWR_GRN", "3mm Green LED (T-1)", "A=PWR_LED_A, K=GND", "On-board +5V power rail indicator LED (in series with R8 1kΩ)"),
 )
 
@@ -768,10 +770,10 @@ def build_clean_wiring_diagram() -> VectorScene:
     )
     s.rect(1002, 22, 174, 24, fill="#1E293B", stroke="#38BDF8", stroke_width=0.8, rx=3.0)
     s.text(1089, 30.0, "SSOT: hardware/wiring_contract.py", size=6.1, color="#38BDF8", bold=True, mono=True, align="center")
-    s.text(1089, 39.5, "KiCad 80×65mm  |  NodeMCU v2 Amica", size=5.6, color="#E2E8F0", align="center")
+    s.text(1089, 39.5, "KiCad 100×80mm 1L  |  NodeMCU v2", size=5.6, color="#E2E8F0", align="center")
 
     # ------------------------------------------------------------------
-    # 1. CENTRAL HUB PCB (80.0 × 65.0 mm)
+    # 1. CENTRAL HUB PCB (100.0 × 80.0 mm 1-Layer DIY)
     # ------------------------------------------------------------------
     PCB_X, PCB_Y, PCB_W, PCB_H = 336.0, 228.0, 480.0, 354.0
     s.rect(PCB_X + 3, PCB_Y + 3, PCB_W, PCB_H, fill="#CBD5E1", rx=7.0)
@@ -790,11 +792,11 @@ def build_clean_wiring_diagram() -> VectorScene:
         s.text(hx, hy + (10.5 if hy < PCB_Y + 50 else -10.5), hlabel, size=4.8, color="#065F46", bold=True, mono=True, align="center")
 
     # PCB Title Ribbon inside Hub
-    s.rect(PCB_X + 104, PCB_Y + 49, 272, 16, fill="#065F46", rx=3.0)
+    s.rect(PCB_X + 94, PCB_Y + 49, 292, 16, fill="#065F46", rx=3.0)
     s.text(
         PCB_X + 240, PCB_Y + 57.0,
-        "TYPE 1 CENTRAL HUB PCB — 80.0 × 65.0 × 1.6 mm FR4 (40 BOM Parts)",
-        size=6.2, color="#ECFDF5", bold=True, align="center",
+        "CENTRAL HUB DIY PCB — 100.0 × 80.0 × 1.6 mm 1L FR4 (49 Footprints)",
+        size=6.0, color="#ECFDF5", bold=True, align="center",
     )
 
     # ------------------------------------------------------------------

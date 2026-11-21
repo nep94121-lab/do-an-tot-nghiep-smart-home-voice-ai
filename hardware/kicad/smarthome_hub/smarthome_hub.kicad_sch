@@ -2567,6 +2567,236 @@
 		)
 		(embedded_fonts no)
 	)
+	
+		(symbol "Transistor_BJT:Q_NPN_EBC"
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "Q"
+				(at 5.08 1.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "Q_NPN_EBC"
+				(at 5.08 -1.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 5.08 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "NPN transistor, emitter/base/collector"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Device" "NPN"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Pins" "1=E 2=B 3=C"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "BJT"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "Q_NPN_EBC_0_1"
+				(polyline
+					(pts
+						(xy -2.54 0) (xy 0.635 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 1.905) (xy 0.635 -1.905)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 1.27 0)
+					(radius 2.8194)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "Q_NPN_EBC_1_1"
+				(polyline
+					(pts
+						(xy 0.635 0.635) (xy 2.54 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 -0.635) (xy 2.54 -2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -1.778) (xy 1.778 -1.27) (xy 2.286 -2.286) (xy 1.27 -1.778)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type outline)
+					)
+				)
+				(pin passive line
+					(at 2.54 -5.08 90)
+					(length 2.54)
+					(name "E"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -5.08 0 0)
+					(length 2.54)
+					(name "B"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 2.54 5.08 270)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 	)
 	(rectangle (start 17.78 17.78) (end 157.48 149.86)
 		(stroke (width 0.25) (type dash) (color 40 90 160 1))
@@ -4321,7 +4551,7 @@
 		(property "Datasheet" "" (at 381.0000 48.2600 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(property "Description" "5V Alarm Buzzer Header (D8 Active-HIGH)" (at 381.0000 48.2600 0)
+		(property "Description" "5V Alarm Buzzer Header (+5V / Q1 S8050 Low-Side NPN Collector)" (at 381.0000 48.2600 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(pin "1" (uuid "ad2d2b28-f7f5-5ddf-908b-1b9cc9a39047"))
@@ -4336,7 +4566,7 @@
 		(stroke (width 0) (type default))
 		(uuid "c2f44b32-f802-55e7-a686-6bf37b84584d")
 	)
-	(label "D8_BUZZER" (at 365.7600 48.2600 180)
+	(label "+5V_RLY2" (at 365.7600 48.2600 180)
 		(effects (font (size 1.27 1.27)) (justify right bottom))
 		(uuid "e650ce4e-5951-574e-801e-fdaad0f28bec")
 	)
@@ -4344,30 +4574,9 @@
 		(stroke (width 0) (type default))
 		(uuid "0ded7b4b-af8d-5f2f-ab65-e52e4fa8eb96")
 	)
-	(symbol (lib_id "power:GND") (at 365.7600 50.8000 270) (unit 1)
-		(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)
-		(uuid "e5dfb4b6-4a1a-5eb6-9c3a-3a1d70cf1629")
-		(property "Reference" "#PWR035" (at 365.7600 56.8960 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Value" "GND" (at 365.7600 54.6100 0)
-			(effects (font (size 1.27 1.27)))
-		)
-		(property "Footprint" "" (at 365.7600 50.8000 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Datasheet" "" (at 365.7600 50.8000 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Description" "" (at 365.7600 50.8000 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(pin "1" (uuid "8e21ac1f-6eaa-5b53-9ab1-4c8ab57931b0"))
-		(instances
-			(project "smarthome_hub"
-				(path "/20f08b23-d419-582e-a433-7afe7edbad64" (reference "#PWR035") (unit 1))
-			)
-		)
+	(label "BUZZ_K" (at 365.7600 50.8000 0)
+		(effects (font (size 1.27 1.27)) (justify left bottom))
+		(uuid "6d4c0bfe-3a8d-5d60-84b9-970efc7efea4")
 	)
 	(symbol (lib_id "Device:R") (at 347.9800 71.1200 0) (unit 1)
 		(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)
@@ -4462,7 +4671,7 @@
 		(stroke (width 0) (type default))
 		(uuid "fd76e7f9-b91e-557f-a1a3-d4f1050ea8ce")
 	)
-	(label "D8_BUZZER" (at 370.8400 63.5000 0)
+	(label "+5V_RLY2" (at 370.8400 63.5000 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
 		(uuid "f7da2d66-ec79-5be6-b35c-22c8991b228a")
 	)
@@ -4470,32 +4679,11 @@
 		(stroke (width 0) (type default))
 		(uuid "ecdd5c29-8561-5c22-aee6-c4fa13cb49e9")
 	)
-	(symbol (lib_id "power:GND") (at 370.8400 78.7400 0) (unit 1)
-		(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)
-		(uuid "ca28526e-da11-5e8a-9061-24400745b904")
-		(property "Reference" "#PWR037" (at 370.8400 84.8360 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Value" "GND" (at 370.8400 82.5500 0)
-			(effects (font (size 1.27 1.27)))
-		)
-		(property "Footprint" "" (at 370.8400 78.7400 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Datasheet" "" (at 370.8400 78.7400 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(property "Description" "" (at 370.8400 78.7400 0)
-			(effects (font (size 1.27 1.27)) (hide yes))
-		)
-		(pin "1" (uuid "ed63e188-e3f8-5a83-a63e-776a96643480"))
-		(instances
-			(project "smarthome_hub"
-				(path "/20f08b23-d419-582e-a433-7afe7edbad64" (reference "#PWR037") (unit 1))
-			)
-		)
+	(label "BUZZ_K" (at 370.8400 78.7400 0)
+		(effects (font (size 1.27 1.27)) (justify left bottom))
+		(uuid "1136290c-f323-5eb7-a8c0-f8718adc66a4")
 	)
-	(text "Safe Boot: 10k pull-down -> GPIO15 LOW (silent)" (exclude_from_sim no) (at 335.28 91.44 0)
+	(text "Low-Side NPN Driver (Q1 S8050 + R10 1k) + R9 10k Boot Pull-Down + D2 1N4007" (exclude_from_sim no) (at 335.28 91.44 0)
 		(effects (font (size 1.10 1.10)) (justify left))
 		(uuid "e2e63f39-bb9e-587b-a77b-93f3334245b8")
 	)
@@ -5498,6 +5686,112 @@
 				(path "/20f08b23-d419-582e-a433-7afe7edbad64"
 					(page "2")
 				)
+			)
+		)
+	)
+	(symbol (lib_id "Device:R") (at 340.3600 48.2600 90) (unit 1)
+		(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)
+		(uuid "aecf0ff5-c63e-593d-987b-0b4c9ca3adbe")
+		(property "Reference" "R10" (at 340.3600 44.4500 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "1k" (at 340.3600 52.0700 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "DIY_Hub:R_Axial_P10.16mm_DIY" (at 340.3600 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "" (at 340.3600 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "Base Current-Limiting Resistor for Q1 Buzzer NPN Driver" (at 340.3600 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "026ab7e6-0263-5384-a32c-249ee8ee0422"))
+		(pin "2" (uuid "9113f1c0-61d7-54de-9357-3db11eb30fe9"))
+		(instances
+			(project "smarthome_hub"
+				(path "/20f08b23-d419-582e-a433-7afe7edbad64" (reference "R10") (unit 1))
+			)
+		)
+	)
+	(wire (pts (xy 336.5500 48.2600) (xy 332.7400 48.2600))
+		(stroke (width 0) (type default))
+		(uuid "7fe07d72-e8f8-5c75-aec0-3a79ad02f518")
+	)
+	(label "D8_BUZZER" (at 332.7400 48.2600 180)
+		(effects (font (size 1.27 1.27)) (justify right bottom))
+		(uuid "03d1bc41-d3ba-5340-a87f-0e49ad1f4216")
+	)
+	(wire (pts (xy 344.1700 48.2600) (xy 350.5200 48.2600))
+		(stroke (width 0) (type default))
+		(uuid "52803b76-1d82-530a-9399-84bc02c0b1a0")
+	)
+	(label "BUZZ_BASE" (at 347.9800 48.2600 0)
+		(effects (font (size 1.00 1.00)) (justify left bottom))
+		(uuid "3600c212-aa19-5d6f-afd9-0b642207ce00")
+	)
+	(symbol (lib_id "Transistor_BJT:Q_NPN_EBC") (at 355.6000 48.2600 0) (unit 1)
+		(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)
+		(uuid "e71b1247-ad49-5ee8-8c2c-d90f52825519")
+		(property "Reference" "Q1" (at 360.6800 46.9900 0)
+			(effects (font (size 1.27 1.27)) (justify left))
+		)
+		(property "Value" "S8050" (at 360.6800 49.5300 0)
+			(effects (font (size 1.27 1.27)) (justify left))
+		)
+		(property "Footprint" "DIY_Hub:TO-92_Wide_DIY" (at 355.6000 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "" (at 355.6000 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "Low-Side NPN Transistor Buzzer Driver (S8050 / 2N2222A, E-B-C, TO-92)" (at 355.6000 48.2600 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "db20014c-a5da-5c64-9e57-3385940c4bdc"))
+		(pin "2" (uuid "612f06d4-ab7a-53e8-8d0d-0edc6d57b519"))
+		(pin "3" (uuid "29246acf-1635-55d8-8683-fcad476f2013"))
+		(instances
+			(project "smarthome_hub"
+				(path "/20f08b23-d419-582e-a433-7afe7edbad64" (reference "Q1") (unit 1))
+			)
+		)
+	)
+	(wire (pts (xy 358.1400 43.1800) (xy 358.1400 40.6400))
+		(stroke (width 0) (type default))
+		(uuid "a48d8ccb-057a-5af2-b62f-bf23f16e17b4")
+	)
+	(label "BUZZ_K" (at 358.1400 40.6400 0)
+		(effects (font (size 1.27 1.27)) (justify left bottom))
+		(uuid "520736b5-0a8d-5ec4-8c4d-74a59dce104a")
+	)
+	(wire (pts (xy 358.1400 53.3400) (xy 358.1400 55.8800))
+		(stroke (width 0) (type default))
+		(uuid "666c2c38-32a2-5544-b2c0-846bdd4465a8")
+	)
+	(symbol (lib_id "power:GND") (at 358.1400 55.8800 0) (unit 1)
+		(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)
+		(uuid "89e131f6-bb64-50bf-97d9-41de73d00914")
+		(property "Reference" "#PWR098" (at 358.1400 61.9760 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "GND" (at 358.1400 59.6900 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "" (at 358.1400 55.8800 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "" (at 358.1400 55.8800 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "" (at 358.1400 55.8800 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "76839ac5-92b4-5d28-ad98-4d66131ed68b"))
+		(instances
+			(project "smarthome_hub"
+				(path "/20f08b23-d419-582e-a433-7afe7edbad64" (reference "#PWR098") (unit 1))
 			)
 		)
 	)

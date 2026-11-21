@@ -60,7 +60,7 @@
    - Rất nên dùng khi demo thực tế để tránh sụt áp cổng USB Laptop khi `Servo SG90`, `Máy bơm` và `PAM8403` chạy đồng thời (nối chung `GND` với NodeMCU).
 5. **Vật tư cho giai đoạn tự làm mạch PCB 1 lớp tại nhà (Toner Transfer + Khoan tay — `SmartHome Hub DIY v3.0`, `100 × 80 × 1.6 mm`):**
    - Xem bảng BOM mua sắm đầy đủ và kích thước mũi khoan tại [`diy_pcb/BOM_DIY_SHOPPING.md`](diy_pcb/BOM_DIY_SHOPPING.md), hướng dẫn ủi/ăn mòn/khoan/hàn tại [`diy_pcb/DIY_GUIDE.md`](diy_pcb/DIY_GUIDE.md), danh sách 7 dây nhảy mặt trên tại [`diy_pcb/jumper_list.md`](diy_pcb/jumper_list.md) và bản in 1:1 lật gương tại [`diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf`](diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf).
-   - Danh mục cần chuẩn bị thêm: 1 tấm phíp đồng 1 mặt `FR-4` `1.6 mm` (`>= 100 × 80 mm`), 2 thanh rào cái `1×15P 2.54 mm` (đế NodeMCU), rào đực `1×40P 2.54 mm` (cắt cho `J3..J15`), 2 domino vít `Phoenix MKDS / KF301 2P 5.08 mm` (`J1, J2`), tụ hóa `10 µF 16V` (`C4`) + `470 µF 16V` (`C1, C2`), tụ gốm `100 nF` (`C3, C6, C7`) + `10 nF` (`C5`), LED xanh 3 mm (`D3`), trở 1/4W (`220 Ω`, `1 kΩ`, `2.2 kΩ`, `10 kΩ`), dây lõi đặc `22 AWG` (làm 7 dây nhảy `JP1..JP7`), 4 bộ ốc trụ `M3`, và đúng 4 mũi khoan `0.9 / 1.1 / 1.3 / 3.2 mm`.
+   - Danh mục cần chuẩn bị thêm: 1 tấm phíp đồng 1 mặt `FR-4` `1.6 mm` (`>= 100 × 80 mm`), 2 thanh rào cái `1×15P 2.54 mm` (đế NodeMCU), rào đực `1×40P 2.54 mm` (cắt cho `J3..J15`), 2 domino vít `Phoenix MKDS / KF301 2P 5.08 mm` (`J1, J2`), 1 transistor NPN `S8050` (hoặc `2N2222A`, vỏ `TO-92` chân `E-B-C` cho `Q1` lái còi 5V), tụ hóa `10 µF 16V` (`C4`) + `470 µF 16V` (`C1, C2`), tụ gốm `100 nF` (`C3, C6, C7`) + `10 nF` (`C5`), LED xanh 3 mm (`D3`), trở 1/4W (`220 Ω`, `1 kΩ` gồm `R8` & `R10`, `2.2 kΩ`, `10 kΩ`), dây lõi đặc `22 AWG` (làm 7 dây nhảy `JP1..JP7`), 4 bộ ốc trụ `M3`, và đúng 4 mũi khoan `0.9 / 1.1 / 1.3 / 3.2 mm`.
 
 ---
 
@@ -78,7 +78,7 @@ Sơ đồ chân dưới đây đồng bộ 100% với Firmware [`esp8266_smartho
 | **`D5`** | `GPIO14` | `ky037` (Cảm biến âm thanh `DO`) | Theo thứ tự chân trên PCB đỏ (`DO \| G \| + \| AO`): `+ -> 3V3`, `G -> GND`, `DO -> D5`, bỏ trống `AO`. |
 | **`D6`** | `GPIO12` | `garden_pump` (Relay 1 xanh + Bơm trắng) | `VCC -> 5V`, `GND -> GND`, `IN -> D6`; `COM -> +5V ngoài`, `NO -> Bơm(+)`, `Bơm(-) -> GND`; kẹp **`1N4007`** (vạch bạc về phía `Bơm(+)`) và tụ **`470µF 16V`** trên rail `5V`. |
 | **`D7`** | `GPIO13` | `speaker_amp` (Relay 2 đỏ opto -> `PAM8403`) | Đặt jumper vàng về **`H`**; `DC+ -> 5V`, `DC- -> GND`, `IN -> D7`; `COM -> +5V`, `NO -> chân 5V+ của PAM8403`; pad `5V-` của `PAM8403 -> GND`. |
-| **`D8`** | `GPIO15` | `alarm_siren` (Còi Buzzer 5V) | Đấu **Active-HIGH**: `D8 -> Buzzer(+)`, `Buzzer(-) -> GND` (hoặc qua NPN + trở `1kΩ–2.2kΩ` nếu dùng nguồn `5V` riêng). Tuyệt đối không gắn pull-up lên `3.3V`. |
+| **`D8`** | `GPIO15` | `alarm_siren` (Còi Buzzer 5V) | Đấu **Active-HIGH** qua mạch lái low-side NPN trên PCB (`D8 -> R9 10k -> GND` giữ LOW khi boot; `D8 -> R10 1k -> Q1 S8050 Base`, `E -> GND`, `Buzzer(+) -> +5V`, `Buzzer(-) -> Q1 Collector`, kẹp `D2 1N4007` song song còi). Tuyệt đối không gắn pull-up lên `3.3V`. |
 | **`A0`** | `ADC0` | `soil_moisture` (Độ ẩm đất + `LM393`) | Cấp nguồn **`LM393 VCC -> 3V3`**, `GND -> GND`, `AO -> A0` (bỏ trống `DO`). |
 | **`VIN / 3V3 / GND`** | `Power` | Nguồn hệ thống | Nguồn công suất `5V` vào `VIN` + Servo + 2 Relay + Bơm; `3V3` nuôi `DHT11`, `KY-037`, `LM393`, `D4 LED`; nối chung `GND` toàn mạch. |
 

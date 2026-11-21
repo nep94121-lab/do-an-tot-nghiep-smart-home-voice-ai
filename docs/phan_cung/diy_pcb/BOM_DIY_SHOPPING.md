@@ -4,7 +4,7 @@
 - **Mũi khoan PCB hợp kim/HSS**: đúng 4 cỡ `0.9 mm`, `1.1 mm`, `1.3 mm`, và `3.2 mm` (hoặc mũi khoan 3.0–3.2 mm cho lỗ ốc M3).
 - **Ốc & trụ đồng M3**: 4 bộ ốc M3 × 10 mm + trụ đồng/nylon M3 (pattern lỗ `90.0 × 70.0 mm`).
 
-## 1. Linh kiện hàn trực tiếp lên PCB (43 linh kiện + 4 lỗ M3 = 47 footprints)
+## 1. Linh kiện hàn trực tiếp lên PCB (45 linh kiện + 4 lỗ M3 = 49 footprints)
 
 | STT | Ký hiệu (Refs) | Giá trị / Tên linh kiện | Số lượng | Kiểu chân (Footprint DIY) | Mũi khoan | Nguồn chuẩn kích thước (Datasheet) |
 | ---: | :--- | :--- | :---: | :--- | :---: | :--- |
@@ -29,18 +29,19 @@
 | 19 | J7 | `RLY1_PUMP_D6` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
 | 20 | J8 | `RLY1_SW` | **1** | `PinHeader_1x02_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300211121 / Samtec TSW |
 | 21 | J9 | `RLY2_AMP_D7` | **1** | `PinHeader_1x03_P2.54mm_DIY` | 1.1 mm | Standard 2.54 mm male pin header, 0.64 mm sq pin (0.905 mm diag) — Würth 61300311121 / Samtec TSW |
-| 22 | R1, R2 | `220R` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 23 | R3, R7, R4, R9 | `10k` | **4** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 24 | R5, R6 | `2.2k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 25 | R8 | `1k` | **1** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
-| 26 | U1 | `NodeMCU_Left_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
-| 27 | U2 | `NodeMCU_Right_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
-| 28 | JP1, JP5 | `JUMPER_12.70mm` | **2** | `WireJumper_P12.70mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 29 | JP2 | `JUMPER_17.78mm` | **1** | `WireJumper_P17.78mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 30 | JP3 | `JUMPER_7.62mm` | **1** | `WireJumper_P7.62mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 31 | JP4 | `JUMPER_35.56mm` | **1** | `WireJumper_P35.56mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 32 | JP6 | `JUMPER_20.32mm` | **1** | `WireJumper_P20.32mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
-| 33 | JP7 | `JUMPER_25.40mm` | **1** | `WireJumper_P25.40mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 22 | Q1 | `S8050` | **1** | `TO-92_Wide_DIY` | 0.9 mm | NPN BJT S8050 (hoặc 2N2222A, E-B-C, 0.7A/20V, TO-92 wide-formed leads, 0.9 mm drill, 2.60 mm round pads) — Unisonic S8050 |
+| 23 | R1, R2 | `220R` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 24 | R3, R7, R4, R9 | `10k` | **4** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 25 | R5, R6 | `2.2k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 26 | R8, R10 | `1k` | **2** | `R_Axial_P10.16mm_DIY` | 0.9 mm | 1/4W (0.25W) Metal/Carbon Film DIN 0207 (L=6.3 mm, D=2.5 mm, lead 0.6 mm, P=10.16 mm) |
+| 27 | U1 | `NodeMCU_Left_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
+| 28 | U2 | `NodeMCU_Right_1x15` | **1** | `PinSocket_1x15_P2.54mm_DIY` | 1.1 mm | 2.54 mm pitch, row spacing 22.86 mm (0.9 in), height 8.5 mm — NodeMCU v2 Amica (48.26 × 25.40 mm) |
+| 29 | JP1, JP5 | `JUMPER_12.70mm` | **2** | `WireJumper_P12.70mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 30 | JP2 | `JUMPER_17.78mm` | **1** | `WireJumper_P17.78mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 31 | JP3 | `JUMPER_7.62mm` | **1** | `WireJumper_P7.62mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 32 | JP4 | `JUMPER_35.56mm` | **1** | `WireJumper_P35.56mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 33 | JP6 | `JUMPER_20.32mm` | **1** | `WireJumper_P20.32mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
+| 34 | JP7 | `JUMPER_25.40mm` | **1** | `WireJumper_P25.40mm_DIY` | 0.9 mm | 22 AWG solid insulated hook-up wire jumper (0.64 mm core, 0.9 mm drill, 2.8 mm pads) |
 
 ## 2. 14 Module / Ngoại vi cắm ngoài (kết nối vào các header trên bo, giữ nguyên pin map)
 
@@ -51,7 +52,7 @@
 | Servo SG90 (cửa chính) | `J3` (`SERVO_D1`) | `D1 / GPIO5` | 3 dây Dupont: SIG / +5V / GND |
 | LED 5 mm Phòng khách | `J4` (`LED_LR_D0`) | `D0 / GPIO16` | Qua `R1` 220 Ω trên bo (`+` / GND) |
 | LED 5 mm Phòng ngủ | `J5` (`LED_BR_D4`) | `D4 / GPIO2` | Active-LOW safe-boot qua `R2` 220 Ω + `R7` 10k |
-| Còi Buzzer chủ động 5V (TMB12A05) | `J6` (`BUZZ_D8`) | `D8 / GPIO15` | Active-HIGH, có `R9` 10k pull-down + `D2` 1N4007 chống xung |
+| Còi Buzzer chủ động 5V (TMB12A05) | `J6` (`BUZZ_D8`) | `D8 / GPIO15` | Lái low-side qua `Q1` NPN `S8050` + `R10` 1k, `R9` 10k pull-down an toàn boot, `D2` 1N4007 dập xung (`+5V` / `BUZZ_K`) |
 | Module Relay 1 (Xanh 5V SRD-05VDC — Bơm) | `J7` (điều khiển) + `J8` (tiếp điểm) | `D6 / GPIO12` | `J7`: 5V/GND/D6; `J8`: COM=`+5V`, NO=`PUMP_5V` |
 | Bơm chìm mini DC 5V | `J2` (`PUMP_OUT`) | Qua Relay 1 | Vặn vít domino 5.08 mm, có `D1` 1N4007 dập xung |
 | Module Relay 2 (Đỏ Opto 5V — Cấp nguồn Amp) | `J9` (điều khiển) + `J10` (tiếp điểm) | `D7 / GPIO13` | `J9`: 5V/GND/D7; `J10`: COM=`+5V`, NO=`AMP_5V` |

@@ -66,11 +66,11 @@
 
 Trong file toner đã có sẵn **dấu tâm lỗ khoan nhỏ** giữa mỗi pad đồng để tự định tâm mũi khoan. Ngoài ra, có thể dán tờ **`drill_map.pdf`** (tỉ lệ 1:1) lên mặt trên phíp (căn khít 4 góc `Edge.Cuts` và 4 tâm lỗ M3) để kiểm tra chéo cỡ mũi từng cụm lỗ theo bảng **`drill_table.md`**.
 
-**Thứ tự khoan từ nhỏ đến lớn (tổng 122 lỗ)**:
+**Thứ tự khoan từ nhỏ đến lớn (tổng 127 lỗ)**:
 
 | Bước | Cỡ mũi khoan | Số lỗ | Nhóm linh kiện cần khoan |
 | :---: | :---: | :---: | :--- |
-| **1** | **0.9 mm** | **48 lỗ** | Tất cả điện trở (`R1..R9`), tụ điện (`C1..C7`), LED nguồn (`D3`), và 7 dây nhảy (`JP1..JP7`) |
+| **1** | **0.9 mm** | **53 lỗ** | Tất cả điện trở (`R1..R10`), transistor NPN (`Q1 S8050`), tụ điện (`C1..C7`), LED nguồn (`D3`), và 7 dây nhảy (`JP1..JP7`) |
 | **2** | **1.1 mm** | **66 lỗ** | 2 đế cái NodeMCU (`U1, U2`), tất cả header cắm module (`J3..J15`), và 2 diode 1N4007 (`D1, D2`) |
 | **3** | **1.3 mm** | **4 lỗ** | 2 domino bắt vít 5.08 mm (`J1` nguồn 5V vào, `J2` đầu ra bơm) |
 | **4** | **3.2 mm** | **4 lỗ** | 4 lỗ bắt ốc M3 ở 4 góc bo (`H1..H4`, tâm cách mép bo đúng `5.0 mm`) |
@@ -87,14 +87,15 @@ Trong file toner đã có sẵn **dấu tâm lỗ khoan nhỏ** giữa mỗi pad
    - Dùng dây đồng lõi đặc **22 AWG** có vỏ cách điện (gợi ý: **Cam** cho `J-1, J-2, J-3` là `+3.3V`; **Đỏ** cho `J-4, J-5, J-6, J-7` là `+5V`).
    - Tra chiều dài từng dây trong **`jumper_list.md`** (`7.62 mm` đến `35.56 mm`), cắt dư `+12 mm`, tuốt 2 đầu, bẻ góc 90° cắm từ mặt trên xuống mặt đồng `B.Cu` và hàn chặt.
    - Đảm bảo **`J-1`** (và `R4`) nằm sát mặt phíp để không cấn đáy NodeMCU.
-2. **Điện trở 1/4W (`R1..R9`)**: `R1, R2 = 220 Ω`; `R8 = 1 kΩ`; `R5, R6 = 2.2 kΩ`; `R3, R4, R7, R9 = 10 kΩ`.
-3. **Diode 1N4007 (`D1, D2`)**: Kiểm tra kỹ **vạch bạc cực âm (Cathode = chân 1)** hướng về phía `+PUMP_5V` (ở `D1`) và `+D8_BUZZER` (ở `D2`), đúng theo vạch dày trên bản `placement_top_silk_1to1.pdf`.
-4. **Tụ gốm (`C3, C5, C6, C7`)** và **LED nguồn 3 mm (`D3`)**: `C3, C6, C7 = 100 nF`, `C5 = 10 nF` (không phân cực); LED `D3` chân dài hơn (Anode `+`) vào chân 2 nối `R8`, chân ngắn / cạnh vát phẳng (Cathode `-`) vào chân 1 nối `GND`.
-5. **Tất cả header 2.54 mm (`J3..J15`) & 2 thanh đế cái 1×15 (`U1, U2`)**:
+2. **Điện trở 1/4W (`R1..R10`)**: `R1, R2 = 220 Ω`; `R8, R10 = 1 kΩ`; `R5, R6 = 2.2 kΩ`; `R3, R4, R7, R9 = 10 kΩ`.
+3. **Diode 1N4007 (`D1, D2`)**: Kiểm tra kỹ **vạch bạc cực âm (Cathode = chân 1)** hướng về phía `+PUMP_5V` (ở `D1`) và `+5V` (ở `D2`, dập xung cuộn dây còi buzzer nối giữa `+5V` và cực C của `Q1`), đúng theo vạch dày trên bản `placement_top_silk_1to1.pdf`.
+4. **Transistor NPN `Q1` (`S8050` hoặc `2N2222A`, vỏ TO-92, chân `E-B-C`)**: Uốn nhẹ 3 chân theo mẫu tam giác rộng (`TO-92_Wide_DIY`), đặt **mặt vát phẳng quay xuống cạnh dưới** đúng hình chữ D in trên silkscreen (`E` trái nối `GND`, `B` giữa nối `R10 1k`, `C` phải nối `J6.2` & `D2.2`).
+5. **Tụ gốm (`C3, C5, C6, C7`)** và **LED nguồn 3 mm (`D3`)**: `C3, C6, C7 = 100 nF`, `C5 = 10 nF` (không phân cực); LED `D3` chân dài hơn (Anode `+`) vào chân 2 nối `R8`, chân ngắn / cạnh vát phẳng (Cathode `-`) vào chân 1 nối `GND`.
+6. **Tất cả header 2.54 mm (`J3..J15`) & 2 thanh đế cái 1×15 (`U1, U2`)**:
    - *Mẹo căn thẳng `U1` và `U2`*: Cắm tạm 1 mạch NodeMCU (hoặc 2 header đực) vào 2 thanh cái `U1, U2` để cố định chuẩn khoảng cách `22.86 mm`, hàn trước 2 chân ngoài cùng mỗi thanh rồi kiểm tra vuông góc trước khi hàn hết 30 chân.
-6. **Tụ hóa phân cực (`C1, C2 = 470 µF 16V`, `C4 = 10 µF 16V`)**: Kiểm tra kỹ **chân dương `+` (chân dài)** vào lỗ pad vuông (chân 1), **vạch sọc trắng `-`** vào lỗ pad bầu dục (chân 2).
+7. **Tụ hóa phân cực (`C1, C2 = 470 µF 16V`, `C4 = 10 µF 16V`)**: Kiểm tra kỹ **chân dương `+` (chân dài)** vào lỗ pad vuông (chân 1), **vạch sọc trắng `-`** vào lỗ pad bầu dục (chân 2).
    - *Lưu ý riêng cho `C4` (`10 µF 16V`)*: `C4` nằm ngay phía trước hành lang cắm cáp Micro-USB của NodeMCU; nên dùng tụ lùn (`H ≤ 7 mm`) hoặc **bẻ gập thân tụ `C4` nằm ngang sát mặt bo về phía dưới/trái** trước khi hàn để không cấn đầu nhựa to của cáp Micro-USB.
-7. **2 Domino bắt vít 5.08 mm (`J1, J2`)**: Miệng đưa dây hướng ra cạnh trái bo mạch, hàn đủ thiếc dày vì chịu dòng nguồn 5V và bơm nước.
+8. **2 Domino bắt vít 5.08 mm (`J1, J2`)**: Miệng đưa dây hướng ra cạnh trái bo mạch, hàn đủ thiếc dày vì chịu dòng nguồn 5V và bơm nước.
 
 ---
 
@@ -107,8 +108,8 @@ Chuyển đồng hồ về thang đo **thông mạch (Buzzer / Ω)**, **CHƯA c�
    - Đo giữa `+3.3V` (`U1.11`) và `GND` (`U1.10`): **KHÔNG kêu bíp**.
    - Đo giữa `+5V` (`J1.1`) và `+3.3V` (`U1.11`): **KHÔNG kêu bíp**.
 2. **Kiểm tra thông mạch đường nguồn & 7 dây nhảy**:
-   - `GND` (`J1.2`) phải thông mạch tới: `U1.10`, `U1.14`, `U2.7`, `U2.14`, `J2.2`, `J3.3`, `J4.2`, `J6.2`, `J7.2`, `J9.2`, `J11.2`, `J12.2`, `J13.3`, `J14.2`, `J15.2`.
-   - `+5V` (`J1.1`) phải thông mạch tới: `U1.15`, `J8.1`, `J10.1`, và qua `J-4..J-7` tới `J9.1`, `J7.1`, `J3.2`.
+   - `GND` (`J1.2`) phải thông mạch tới: `U1.10`, `U1.14`, `U2.7`, `U2.14`, `Q1.1 (E)`, `J2.2`, `J3.3`, `J4.2`, `J7.2`, `J9.2`, `J11.2`, `J12.2`, `J13.3`, `J14.2`, `J15.2`.
+   - `+5V` (`J1.1`) phải thông mạch tới: `U1.15`, `J8.1`, `J10.1`, và qua `J-4..J-7` tới `J6.1 (+)`, `J9.1`, `J7.1`, `J3.2`.
    - `+3.3V` (`U1.11`) phải thông mạch qua `J-1, J-2, J-3` tới: `U2.6`, `U2.15`, `J14.1`, `J15.1`, `J13.1`.
 3. **Thử cấp nguồn nguội (Smoke Test)**:
    - Cấp nguồn **5V 2A** vào `J1` (chưa cắm NodeMCU): LED nguồn xanh `D3` phải sáng ngay; dùng đồng hồ đo DC xác nhận `J1.1`, `U1.15`, `J3.2`, `J7.1`, `J9.1` đều đúng `5.0 V ± 0.2 V`.

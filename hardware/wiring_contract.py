@@ -38,8 +38,8 @@ class HubConnector:
     kind: str  # "screw_508" or "header_254"
     edge: str  # "left", "top", "right", "bottom", "left_inner"
     rot_deg: float
-    # Exact pin coordinates in PCB local mm (origin = PCB top-left 0..80, 0..65)
-    # Matching KiCad board origin (100.0, 100.0)
+    # Exact pin coordinates in PCB local mm (origin = PCB top-left 0..100, 0..80)
+    # Matching KiCad board origin (50.0, 45.0) for 100x80mm 1-layer DIY hub PCB
     pins: tuple[tuple[str, float, float, str], ...]  # (pin_num, rel_x, rel_y, net)
 
 
@@ -47,112 +47,112 @@ HUB_CONNECTORS: tuple[HubConnector, ...] = (
     HubConnector(
         ref="J1", value="PWR_5V_IN", kind="screw_508", edge="left", rot_deg=-90.0,
         pins=(
-            ("1", 6.50, 41.00, "+5V"),
-            ("2", 6.50, 46.08, "GND"),
+            ("1", 9.00, 53.50, "+5V"),
+            ("2", 9.00, 58.58, "GND"),
         ),
     ),
     HubConnector(
         ref="J2", value="PUMP_OUT", kind="screw_508", edge="left", rot_deg=-90.0,
         pins=(
-            ("1", 6.50, 16.50, "PUMP_5V"),
-            ("2", 6.50, 21.58, "GND"),
+            ("1", 9.00, 22.00, "PUMP_5V"),
+            ("2", 9.00, 27.08, "GND"),
         ),
     ),
     HubConnector(
-        ref="J3", value="SERVO_D1", kind="header_254", edge="right", rot_deg=0.0,
+        ref="J3", value="SERVO_D1", kind="header_254", edge="top", rot_deg=90.0,
         pins=(
-            ("1", 74.50, 13.50, "D1_SERVO"),
-            ("2", 74.50, 16.04, "+5V"),
-            ("3", 74.50, 18.58, "GND"),
+            ("1", 58.00, 9.00, "D1_SERVO"),
+            ("2", 60.54, 9.00, "+5V"),
+            ("3", 63.08, 9.00, "GND"),
         ),
     ),
     HubConnector(
         ref="J4", value="LED_LR_D0", kind="header_254", edge="top", rot_deg=90.0,
         pins=(
-            ("1", 44.50, 4.50, "LED_LR_A"),
-            ("2", 47.04, 4.50, "GND"),
+            ("1", 40.50, 9.00, "LED_LR_A"),
+            ("2", 43.04, 9.00, "GND"),
         ),
     ),
     HubConnector(
-        ref="J5", value="LED_BR_D4", kind="header_254", edge="top", rot_deg=90.0,
+        ref="J5", value="LED_BR_D4", kind="header_254", edge="right", rot_deg=0.0,
         pins=(
-            ("1", 58.00, 4.50, "LED_BR_A"),
-            ("2", 60.54, 4.50, "D4_LED_BR"),
+            ("1", 91.00, 18.00, "LED_BR_A"),
+            ("2", 91.00, 20.54, "D4_LED_BR"),
         ),
     ),
     HubConnector(
-        ref="J6", value="BUZZ_D8", kind="header_254", edge="right", rot_deg=0.0,
+        ref="J6", value="BUZZ_D8", kind="header_254", edge="bottom", rot_deg=-90.0,
         pins=(
-            ("1", 74.50, 49.50, "D8_BUZZER"),
-            ("2", 74.50, 52.04, "GND"),
+            ("1", 85.00, 72.00, "+5V"),
+            ("2", 82.46, 72.00, "BUZZ_K"),
         ),
     ),
     HubConnector(
-        ref="J7", value="RLY1_PUMP_D6", kind="header_254", edge="right", rot_deg=0.0,
+        ref="J7", value="RLY1_PUMP_D6", kind="header_254", edge="right", rot_deg=180.0,
         pins=(
-            ("1", 74.50, 37.50, "+5V"),
-            ("2", 74.50, 40.04, "GND"),
-            ("3", 74.50, 42.58, "D6_RLY1_PUMP"),
+            ("1", 91.00, 51.58, "+5V"),
+            ("2", 91.00, 49.04, "GND"),
+            ("3", 91.00, 46.50, "D6_RLY1_PUMP"),
         ),
     ),
     HubConnector(
-        ref="J8", value="RLY1_SW", kind="header_254", edge="left_inner", rot_deg=0.0,
+        ref="J8", value="RLY1_SW", kind="header_254", edge="left_inner", rot_deg=180.0,
         pins=(
-            ("1", 16.50, 16.50, "+5V"),
-            ("2", 16.50, 19.04, "PUMP_5V"),
+            ("1", 23.50, 24.54, "+5V"),
+            ("2", 23.50, 22.00, "PUMP_5V"),
         ),
     ),
     HubConnector(
-        ref="J9", value="RLY2_AMP_D7", kind="header_254", edge="bottom", rot_deg=90.0,
+        ref="J9", value="RLY2_AMP_D7", kind="header_254", edge="right", rot_deg=180.0,
         pins=(
-            ("1", 16.00, 60.50, "+5V"),
-            ("2", 18.54, 60.50, "GND"),
-            ("3", 21.08, 60.50, "D7_RLY2_AMP"),
+            ("1", 91.00, 64.58, "+5V"),
+            ("2", 91.00, 62.04, "GND"),
+            ("3", 91.00, 59.50, "D7_RLY2_AMP"),
         ),
     ),
     HubConnector(
         ref="J10", value="RLY2_SW", kind="header_254", edge="bottom", rot_deg=90.0,
         pins=(
-            ("1", 31.00, 60.50, "+5V"),
-            ("2", 33.54, 60.50, "AMP_5V"),
+            ("1", 16.50, 71.50, "+5V"),
+            ("2", 19.04, 71.50, "AMP_5V"),
         ),
     ),
     HubConnector(
         ref="J11", value="PAM8403_PWR", kind="header_254", edge="bottom", rot_deg=90.0,
         pins=(
-            ("1", 43.50, 60.50, "AMP_5V"),
-            ("2", 46.04, 60.50, "GND"),
+            ("1", 29.00, 71.50, "AMP_5V"),
+            ("2", 31.54, 71.50, "GND"),
         ),
     ),
     HubConnector(
         ref="J12", value="AUDIO_D3", kind="header_254", edge="bottom", rot_deg=90.0,
         pins=(
-            ("1", 56.50, 60.50, "AUD_OUT"),
-            ("2", 59.04, 60.50, "GND"),
+            ("1", 53.50, 71.50, "AUD_OUT"),
+            ("2", 56.04, 71.50, "GND"),
         ),
     ),
     HubConnector(
-        ref="J13", value="DHT11_D2", kind="header_254", edge="top", rot_deg=90.0,
+        ref="J13", value="DHT11_D2", kind="header_254", edge="top", rot_deg=-90.0,
         pins=(
-            ("1", 29.00, 4.50, "+3V3"),
-            ("2", 31.54, 4.50, "D2_DHT11"),
-            ("3", 34.08, 4.50, "GND"),
+            ("1", 81.58, 7.50, "+3V3"),
+            ("2", 79.04, 7.50, "D2_DHT11"),
+            ("3", 76.50, 7.50, "GND"),
         ),
     ),
     HubConnector(
         ref="J14", value="SOIL_A0", kind="header_254", edge="top", rot_deg=90.0,
         pins=(
-            ("1", 14.50, 4.50, "+3V3"),
-            ("2", 17.04, 4.50, "GND"),
-            ("3", 19.58, 4.50, "A0_SOIL"),
+            ("1", 16.50, 9.00, "+3V3"),
+            ("2", 19.04, 9.00, "GND"),
+            ("3", 21.58, 9.00, "A0_SOIL"),
         ),
     ),
     HubConnector(
         ref="J15", value="KY037_D5", kind="header_254", edge="right", rot_deg=0.0,
         pins=(
-            ("1", 74.50, 25.50, "+3V3"),
-            ("2", 74.50, 28.04, "GND"),
-            ("3", 74.50, 30.58, "D5_MIC_DO"),
+            ("1", 91.00, 33.00, "+3V3"),
+            ("2", 91.00, 35.54, "GND"),
+            ("3", 91.00, 38.08, "D5_MIC_DO"),
         ),
     ),
 )
@@ -255,15 +255,15 @@ WIRING_TABLE: tuple[WireEntry, ...] = (
               "esp8266_smarthome.ino:61,572", "Screw Terminal 22AWG",
               "Pump motor return to GND (anode of on-board D1 1N4007)"),
 
-    # --- Device 5: Alarm Siren Buzzer (J6 -> Buzzer) ---
-    WireEntry("W17", "Alarm Siren (Buzzer)", "J6", "1", "J6.1 (BUZZ_D8)", "Orange",
-              "buzzer_alarm", "Active 5V Buzzer (TMB12A05)", "Buzzer (+)", "D8 (U2.11)", "GPIO15", "D8_BUZZER",
+    # --- Device 5: Alarm Siren Buzzer (J6 -> Buzzer, low-side NPN driver Q1 S8050 + R10 1k) ---
+    WireEntry("W17", "Alarm Siren (Buzzer)", "J6", "1", "J6.1 (BUZZ_D8)", "Red",
+              "buzzer_alarm", "Active 5V Buzzer (TMB12A05)", "Buzzer (+)", "VIN (+5V)", "Power (+5V)", "+5V",
               "esp8266_smarthome.ino:63,399", "Dupont 1x2 F-F",
-              "Active-HIGH; on-board R9 10k pull-down keeps GPIO15 LOW at boot + D2 1N4007 flyback"),
-    WireEntry("W18", "Alarm Siren (Buzzer)", "J6", "2", "J6.2 (BUZZ_D8)", "Black",
-              "buzzer_alarm", "Active 5V Buzzer (TMB12A05)", "Buzzer (-)", "GND", "Ground", "GND",
+              "+5V supply to TMB12A05 buzzer anode; protected by on-board D2 1N4007 flyback across J6.1-J6.2"),
+    WireEntry("W18", "Alarm Siren (Buzzer)", "J6", "2", "J6.2 (BUZZ_D8)", "Orange",
+              "buzzer_alarm", "Active 5V Buzzer (TMB12A05)", "Buzzer (-)", "D8 (U2.11) via Q1 S8050", "GPIO15 (NPN low-side)", "BUZZ_K",
               "esp8266_smarthome.ino:63,399", "Dupont 1x2 F-F",
-              "Buzzer cathode return to common GND"),
+              "Low-side switched by on-board Q1 (S8050 NPN) + R10 1k base resistor; R9 10k pull-down keeps GPIO15 LOW at boot"),
 
     # --- Device 6: Speaker Amp (J9/J10 -> Relay 2, J11/J12 -> PAM8403, PAM8403 -> Speaker) ---
     WireEntry("W19", "Speaker Amp (Relay 2)", "J9", "1", "J9.1 (RLY2_AMP_D7)", "Red",
@@ -365,7 +365,7 @@ WIRING_TABLE: tuple[WireEntry, ...] = (
 
 # Datasheet dimensions (exact match to docs/phan_cung/DIMENSIONS_AUDIT.md)
 MODULE_DIMENSIONS_MM: dict[str, dict[str, object]] = {
-    "hub_pcb":        {"label": "Central Hub PCB (Type 1)",       "dims_mm": (80.0, 65.0, 1.6),  "overall_h_mm": 17.3,  "source": "smarthome_hub.kicad_pcb"},
+    "hub_pcb":        {"label": "Central Hub DIY PCB (100x80mm, 1-Layer)", "dims_mm": (100.0, 80.0, 1.6), "overall_h_mm": 17.3, "source": "smarthome_hub.kicad_pcb"},
     "nodemcu":        {"label": "NodeMCU v2 Amica (ESP8266)",     "dims_mm": (48.26, 25.4, 1.6), "overall_h_mm": 7.14,  "source": "Amica DevKit v1.0"},
     "psu_5v":         {"label": "5V 2A Power Supply Terminal",    "dims_mm": (34.0, 22.0, 16.0), "overall_h_mm": 16.0,  "source": "External 5V/2A DC-005 + Screw Breakout"},
     "sg90_servo":     {"label": "SG90 Micro Servo",               "dims_mm": (22.8, 12.2, 22.5), "overall_h_mm": 31.0,  "source": "TowerPro SG90 (tab 32.2mm)"},

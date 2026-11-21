@@ -27,8 +27,8 @@ Every single physical plug-in wire is listed one row per wire (`W01`–`W40`), c
 | `W14` | `J8.2 (RLY1_SW)` | **Yellow** (`#CA8A04`) | Relay 1 (Blue 5V 1-ch) | `NO (Screw)` | `Switched +5V -> J2.1` | `Switched +5V` | `PUMP_5V` | Dupont F-Pin (22AWG) | `esp8266_smarthome.ino:61` | Switched +5V return from Relay 1 NO to Hub PCB D1 (1N4007 flyback) & J2.1 |
 | `W15` | `J2.1 (PUMP_OUT)` | **Red** (`#DC2626`) | Mini Submersible Pump (3-6V) | `Pump + (Red)` | `Switched +5V (via RLY1)` | `Switched +5V` | `PUMP_5V` | Screw Terminal 22AWG | `esp8266_smarthome.ino:61,572` | Switched +5V to pump motor; protected by on-board D1 1N4007 flyback & C2 470uF 16V |
 | `W16` | `J2.2 (PUMP_OUT)` | **Black** (`#18181B`) | Mini Submersible Pump (3-6V) | `Pump - (Black)` | `GND` | `Ground` | `GND` | Screw Terminal 22AWG | `esp8266_smarthome.ino:61,572` | Pump motor return to GND (anode of on-board D1 1N4007) |
-| `W17` | `J6.1 (BUZZ_D8)` | **Orange** (`#EA580C`) | Active 5V Buzzer (TMB12A05) | `Buzzer (+)` | `D8 (U2.11)` | `GPIO15` | `D8_BUZZER` | Dupont 1x2 F-F | `esp8266_smarthome.ino:63,399` | Active-HIGH; on-board R9 10k pull-down keeps GPIO15 LOW at boot + D2 1N4007 flyback |
-| `W18` | `J6.2 (BUZZ_D8)` | **Black** (`#18181B`) | Active 5V Buzzer (TMB12A05) | `Buzzer (-)` | `GND` | `Ground` | `GND` | Dupont 1x2 F-F | `esp8266_smarthome.ino:63,399` | Buzzer cathode return to common GND |
+| `W17` | `J6.1 (BUZZ_D8)` | **Red** (`#DC2626`) | Active 5V Buzzer (TMB12A05) | `Buzzer (+)` | `VIN (+5V)` | `Power (+5V)` | `+5V` | Dupont 1x2 F-F | `esp8266_smarthome.ino:63,399` | +5V supply to TMB12A05 buzzer anode; protected by on-board D2 1N4007 flyback across J6.1-J6.2 |
+| `W18` | `J6.2 (BUZZ_D8)` | **Orange** (`#EA580C`) | Active 5V Buzzer (TMB12A05) | `Buzzer (-)` | `D8 (U2.11) via Q1 S8050` | `GPIO15 (NPN low-side)` | `BUZZ_K` | Dupont 1x2 F-F | `esp8266_smarthome.ino:63,399` | Low-side switched by on-board Q1 (S8050 NPN) + R10 1k base resistor; R9 10k pull-down keeps GPIO15 LOW at boot |
 | `W19` | `J9.1 (RLY2_AMP_D7)` | **Red** (`#DC2626`) | Relay 2 (Red Opto 5V, Jmp=H) | `DC+` | `VIN (U1.15)` | `Power (+5V)` | `+5V` | Dupont 1x3 F-F | `esp8266_smarthome.ino:62,71` | 5V coil/opto supply for red opto-isolated 1-ch relay module (jumper set to H) |
 | `W20` | `J9.2 (RLY2_AMP_D7)` | **Black** (`#18181B`) | Relay 2 (Red Opto 5V, Jmp=H) | `DC-` | `GND` | `Ground` | `GND` | Dupont 1x3 F-F | `esp8266_smarthome.ino:62,71` | Relay 2 module ground |
 | `W21` | `J9.3 (RLY2_AMP_D7)` | **Cyan** (`#0891B2`) | Relay 2 (Red Opto 5V, Jmp=H) | `IN` | `D7 (U2.10)` | `GPIO13` | `D7_RLY2_AMP` | Dupont 1x3 F-F | `esp8266_smarthome.ino:62,71` | Active-HIGH trigger (SPEAKER_RELAY_ACTIVE_LOW=false); auto-off 1.5s after chime |
@@ -84,15 +84,17 @@ All 19 passive/indicator components are permanently soldered onto the `80.0 × 6
 | `R7` | **10 kΩ** | 1/4W Axial (DIN0207) | `+3V3 ↔ D4_LED_BR` | GPIO2 (D4) boot-safety pull-up resistor (keeps GPIO2 HIGH at reset) |
 | `R8` | **1 kΩ** | 1/4W Axial (DIN0207) | `+5V ↔ PWR_LED_A` | Current-limiting resistor for on-board +5V power indicator LED D3 |
 | `R9` | **10 kΩ** | 1/4W Axial (DIN0207) | `D8_BUZZER ↔ GND` | GPIO15 (D8) boot-safety pull-down resistor (keeps GPIO15 LOW & buzzer silent at boot) |
+| `R10` | **1 kΩ** | 1/4W Axial (DIN0207) | `D8_BUZZER ↔ BUZZ_BASE` | Base current-limiting resistor for low-side NPN buzzer driver Q1 (~2.6 mA base drive from 3.3V GPIO15) |
+| `Q1` | **S8050** | TO-92 Wide (E-B-C) | `E=GND, B=BUZZ_BASE, C=BUZZ_K` | Low-side NPN BJT driver (S8050 / 2N2222A, 0.7A) switching 5V TMB12A05 buzzer safely off GPIO15 |
 | `C1` | **470 µF 16V** | Radial Ø8.0×P3.5mm | `+5V ↔ GND` | Bulk electrolytic decoupling for SG90 servo peak current & main +5V rail |
 | `C2` | **470 µF 16V** | Radial Ø8.0×P3.5mm | `+5V ↔ GND` | Bulk electrolytic decoupling near J1/J2 for garden pump inrush stabilization |
-| `C3` | **100 nF** | Ceramic Disc P2.5mm | `+5V ↔ GND` | High-frequency noise decoupling on main +5V power rail |
-| `C4` | **10 µF 16V** | Radial Ø5.0×P2.0mm | `D3_AUDIO_PWM ↔ AUD_AC` | DC-blocking coupling capacitor isolating GPIO0 boot strap from PAM8403 input |
-| `C5` | **10 nF** | Ceramic Disc P2.5mm | `AUD_OUT ↔ GND` | RC low-pass filter capacitor smoothing PWM chime carrier into PAM8403 |
-| `C6` | **100 nF** | Ceramic Disc P2.5mm | `AMP_5V ↔ GND` | High-frequency decoupling on Relay-2-switched +5V rail feeding PAM8403 (J11) |
-| `C7` | **100 nF** | Ceramic Disc P2.5mm | `A0_SOIL ↔ GND` | Analog low-pass noise filter on ESP8266 ADC0 soil moisture input (J14) |
+| `C3` | **100 nF** | Ceramic Disc P5.0mm | `+5V ↔ GND` | High-frequency noise decoupling on main +5V power rail |
+| `C4` | **10 µF 16V** | Radial Ø5.0×P3.5mm | `D3_AUDIO_PWM ↔ AUD_AC` | DC-blocking coupling capacitor isolating GPIO0 boot strap from PAM8403 input |
+| `C5` | **10 nF** | Ceramic Disc P5.0mm | `AUD_OUT ↔ GND` | RC low-pass filter capacitor smoothing PWM chime carrier into PAM8403 |
+| `C6` | **100 nF** | Ceramic Disc P5.0mm | `AMP_5V ↔ GND` | High-frequency decoupling on Relay-2-switched +5V rail feeding PAM8403 (J11) |
+| `C7` | **100 nF** | Ceramic Disc P5.0mm | `A0_SOIL ↔ GND` | Analog low-pass noise filter on ESP8266 ADC0 soil moisture input (J14) |
 | `D1` | **1N4007** | DO-41 P10.16mm | `K=PUMP_5V, A=GND` | Inductive flyback clamp diode across 3–6V garden pump motor (J2) |
-| `D2` | **1N4007** | DO-41 P10.16mm | `K=D8_BUZZER, A=GND` | Inductive flyback protection diode across Active 5V Buzzer (J6) |
+| `D2` | **1N4007** | DO-41 P10.16mm | `K=+5V, A=BUZZ_K` | Inductive flyback protection diode across 5V Active Buzzer coil (J6.1 +5V ↔ J6.2 Q1 Collector) |
 | `D3` | **LED_PWR_GRN** | 3mm Green LED (T-1) | `A=PWR_LED_A, K=GND` | On-board +5V power rail indicator LED (in series with R8 1kΩ) |
 
 ## 4. Standard Wire Color Legend (Consistent Across 2D Diagram, 3D Blender & Docs)
@@ -135,7 +137,7 @@ All 19 passive/indicator components are permanently soldered onto the `80.0 × 6
 
 | Module ID | Component Name | Dimensions (L × W × H, mm) | Overall H (mm) | Datasheet / Source |
 |---|---|---:|---:|---|
-| `hub_pcb` | Central Hub PCB (Type 1) | `80.0 × 65.0 × 1.6` | `17.3` | smarthome_hub.kicad_pcb |
+| `hub_pcb` | Central Hub DIY PCB (100x80mm, 1-Layer) | `100.0 × 80.0 × 1.6` | `17.3` | smarthome_hub.kicad_pcb |
 | `nodemcu` | NodeMCU v2 Amica (ESP8266) | `48.3 × 25.4 × 1.6` | `7.1` | Amica DevKit v1.0 |
 | `psu_5v` | 5V 2A Power Supply Terminal | `34.0 × 22.0 × 16.0` | `16.0` | External 5V/2A DC-005 + Screw Breakout |
 | `sg90_servo` | SG90 Micro Servo | `22.8 × 12.2 × 22.5` | `31.0` | TowerPro SG90 (tab 32.2mm) |

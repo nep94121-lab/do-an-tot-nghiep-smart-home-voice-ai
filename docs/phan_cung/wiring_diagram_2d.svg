@@ -15,7 +15,7 @@
 <text x="30.00" y="44.83" class="sans" font-size="6.85" font-weight="400" fill="#CBD5E1" text-anchor="start">40 Physical Wires (36 Hub PCB J1–J15 + 4 Inter-Module)  |  10 Locked ESP8266 Pins (D0–D8, A0)  |  14 Off-Board Modules  |  5V/3.3V DC ONLY — NO Fan · NO AC · NO IR</text>
 <rect x="1002.00" y="22.00" width="174.00" height="24.00" rx="3.0" ry="3.0" fill="#1E293B" stroke="#38BDF8" stroke-width="0.8"/>
 <text x="1089.00" y="32.07" class="mono" font-size="6.10" font-weight="700" fill="#38BDF8" text-anchor="middle">SSOT: hardware/wiring_contract.py</text>
-<text x="1089.00" y="41.40" class="sans" font-size="5.60" font-weight="400" fill="#E2E8F0" text-anchor="middle">KiCad 80×65mm  |  NodeMCU v2 Amica</text>
+<text x="1089.00" y="41.40" class="sans" font-size="5.60" font-weight="400" fill="#E2E8F0" text-anchor="middle">KiCad 100×80mm 1L  |  NodeMCU v2</text>
 <rect x="339.00" y="231.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#CBD5E1" stroke="none" stroke-width="1.0"/>
 <rect x="336.00" y="228.00" width="480.00" height="354.00" rx="7.0" ry="7.0" fill="#ECFDF5" stroke="#065F46" stroke-width="2.0"/>
 <rect x="340.00" y="232.00" width="472.00" height="346.00" rx="5.0" ry="5.0" fill="none" stroke="#A7F3D0" stroke-width="0.7"/>
@@ -31,8 +31,8 @@
 <circle cx="803.00" cy="569.00" r="5.80" fill="#D1FAE5" stroke="#047857" stroke-width="1.0"/>
 <circle cx="803.00" cy="569.00" r="3.20" fill="#FFFFFF" stroke="#475569" stroke-width="0.9"/>
 <text x="803.00" y="560.13" class="mono" font-size="4.80" font-weight="700" fill="#065F46" text-anchor="middle">H4</text>
-<rect x="440.00" y="277.00" width="272.00" height="16.00" rx="3.0" ry="3.0" fill="#065F46" stroke="none" stroke-width="1.0"/>
-<text x="576.00" y="287.11" class="sans" font-size="6.20" font-weight="700" fill="#ECFDF5" text-anchor="middle">TYPE 1 CENTRAL HUB PCB — 80.0 × 65.0 × 1.6 mm FR4 (40 BOM Parts)</text>
+<rect x="430.00" y="277.00" width="292.00" height="16.00" rx="3.0" ry="3.0" fill="#065F46" stroke="none" stroke-width="1.0"/>
+<text x="576.00" y="287.04" class="sans" font-size="6.00" font-weight="700" fill="#ECFDF5" text-anchor="middle">CENTRAL HUB DIY PCB — 100.0 × 80.0 × 1.6 mm 1L FR4 (49 Footprints)</text>
 <rect x="480.00" y="304.00" width="192.00" height="206.00" rx="5.0" ry="5.0" fill="#0F172A" stroke="#334155" stroke-width="1.5"/>
 <rect x="550.00" y="312.00" width="52.00" height="14.00" rx="2.0" ry="2.0" fill="#1E293B" stroke="#F59E0B" stroke-width="0.7"/>
 <text x="576.00" y="320.67" class="mono" font-size="4.90" font-weight="700" fill="#FBBF24" text-anchor="middle">PCB ANT</text>
@@ -207,12 +207,12 @@
 <text x="795.70" y="472.92" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D6</text>
 <rect x="751.00" y="499.00" width="59.00" height="46.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.05"/>
 <text x="780.50" y="507.48" class="mono" font-size="4.95" font-weight="700" fill="#065F46" text-anchor="middle">J6 BUZZ_D8</text>
-<circle cx="802.50" cy="516.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="802.50" cy="516.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <text x="802.50" y="518.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
-<text x="795.70" y="518.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">D8</text>
-<circle cx="802.50" cy="530.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<text x="795.70" y="518.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">+5V</text>
+<circle cx="802.50" cy="530.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
 <text x="802.50" y="532.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
-<text x="795.70" y="532.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">GND</text>
+<text x="795.70" y="532.17" class="mono" font-size="4.90" font-weight="700" fill="#1E293B" text-anchor="end">BUZZ_K</text>
 <rect x="412.50" y="539.00" width="75.00" height="37.00" rx="3.0" ry="3.0" fill="#FFFFFF" stroke="#065F46" stroke-width="1.1"/>
 <text x="450.00" y="556.27" class="mono" font-size="5.20" font-weight="700" fill="#065F46" text-anchor="middle">J9 RLY2_AMP_D7</text>
 <circle cx="431.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
@@ -635,9 +635,9 @@
 <path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 471.25 L 848.00 471.25 Q 854.00 471.25 854.00 477.25 L 854.00 500.00 Q 854.00 506.00 860.00 506.00 L 956.00 506.00" fill="none" stroke="#16A34A" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 516.50 L 858.00 516.50 Q 864.00 516.50 864.00 522.50 L 864.00 626.00 Q 864.00 632.00 870.00 632.00 L 956.00 632.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#18181B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 802.50 530.50 L 848.00 530.50 Q 854.00 530.50 854.00 536.50 L 854.00 640.00 Q 854.00 646.00 860.00 646.00 L 956.00 646.00" fill="none" stroke="#EA580C" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 431.00 568.50 L 431.00 604.00 Q 431.00 610.00 425.00 610.00 L 362.00 610.00 Q 356.00 610.00 356.00 616.00 L 356.00 682.00" fill="none" stroke="#DC2626" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M 450.00 568.50 L 450.00 614.00 Q 450.00 620.00 444.00 620.00 L 432.00 620.00 Q 426.00 620.00 426.00 626.00 L 426.00 682.00" fill="none" stroke="#FFFFFF" stroke-width="4.65" stroke-linecap="round" stroke-linejoin="round"/>
@@ -721,9 +721,9 @@
 <text x="802.50" y="459.31" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
 <circle cx="802.50" cy="471.25" r="4.00" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
 <text x="802.50" y="472.81" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
-<circle cx="802.50" cy="516.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="802.50" cy="516.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <text x="802.50" y="518.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
-<circle cx="802.50" cy="530.50" r="4.00" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="802.50" cy="530.50" r="4.00" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
 <text x="802.50" y="532.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
 <circle cx="431.00" cy="568.50" r="4.00" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <text x="431.00" y="570.06" class="sans" font-size="4.60" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
@@ -772,8 +772,8 @@
 <circle cx="956.00" cy="506.00" r="3.60" fill="#16A34A" stroke="#0F172A" stroke-width="0.9"/>
 <circle cx="956.00" cy="532.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <circle cx="956.00" cy="548.00" r="3.60" fill="#EAB308" stroke="#854D0E" stroke-width="0.9"/>
-<circle cx="956.00" cy="632.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
-<circle cx="956.00" cy="646.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="632.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="646.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
 <circle cx="356.00" cy="682.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <circle cx="426.00" cy="682.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
 <circle cx="464.00" cy="682.00" r="3.60" fill="#0891B2" stroke="#0F172A" stroke-width="0.9"/>

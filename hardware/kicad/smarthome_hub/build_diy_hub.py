@@ -297,6 +297,40 @@ def build_footprint_body(
         lines.append(_pad_sexpr("2", "thru_hole", "circle", 5.08, 0.0, 2.80, 2.80, 0.9, pad_rot=pad_rot, net=p.get("2"), key=f"{kpref}:p2"))
         lines.append(_model("${KICAD10_3DMODEL_DIR}/LED_THT.3dshapes/LED_D3.0mm_Green.step", ox=1.27))
 
+    elif name == "TO-92_Wide_DIY":
+        # Flat face at +Y (bottom when rot=0), curved back at -Y; Pin 1=E (0,0), Pin 2=B (2.54,-2.54), Pin 3=C (5.08,0)
+        lines.append(_line(0.74, 1.85, 4.34, 1.85, "F.SilkS", 0.35, f"{kpref}:sflat"))
+        lines.append(
+            f'\t(fp_arc (start 0.1728 -1.1038) (mid 0.6790 -1.8327) (end 1.40 -2.35)\n'
+            f'\t\t(stroke (width {fmt(sw)}) (type solid)) (layer "F.SilkS") (uuid "{duuid(f"{kpref}:sa1")}"))'
+        )
+        lines.append(
+            f'\t(fp_arc (start 0.74 1.85) (mid 0.4461 1.5093) (end 0.2158 1.1228)\n'
+            f'\t\t(stroke (width {fmt(sw)}) (type solid)) (layer "F.SilkS") (uuid "{duuid(f"{kpref}:sa2")}"))'
+        )
+        lines.append(
+            f'\t(fp_arc (start 3.65 -2.35) (mid 4.3823 -1.8332) (end 4.8955 -1.0984)\n'
+            f'\t\t(stroke (width {fmt(sw)}) (type solid)) (layer "F.SilkS") (uuid "{duuid(f"{kpref}:sa3")}"))'
+        )
+        lines.append(
+            f'\t(fp_arc (start 4.8642 1.1228) (mid 4.6339 1.5093) (end 4.34 1.85)\n'
+            f'\t\t(stroke (width {fmt(sw)}) (type solid)) (layer "F.SilkS") (uuid "{duuid(f"{kpref}:sa4")}"))'
+        )
+        lines.append(_line(0.80, 1.75, 4.30, 1.75, "F.Fab", 0.12, f"{kpref}:fabflat"))
+        lines.append(
+            f'\t(fp_arc (start 0.7864 1.7536) (mid 0.2488 -0.9491) (end 2.54 -2.48)\n'
+            f'\t\t(stroke (width 0.12) (type solid)) (layer "F.Fab") (uuid "{duuid(f"{kpref}:fa1")}"))'
+        )
+        lines.append(
+            f'\t(fp_arc (start 2.54 -2.48) (mid 4.8312 -0.9491) (end 4.2936 1.7536)\n'
+            f'\t\t(stroke (width 0.12) (type solid)) (layer "F.Fab") (uuid "{duuid(f"{kpref}:fa2")}"))'
+        )
+        lines.append(_rect(-1.50, -4.05, 6.58, 2.05, "F.CrtYd", 0.05, f"{kpref}:crt"))
+        lines.append(_pad_sexpr("1", "thru_hole", "circle", 0.0, 0.0, 2.60, 2.60, 0.9, pad_rot=pad_rot, net=p.get("1"), key=f"{kpref}:p1"))
+        lines.append(_pad_sexpr("2", "thru_hole", "circle", 2.54, -2.54, 2.60, 2.60, 0.9, pad_rot=pad_rot, net=p.get("2"), key=f"{kpref}:p2"))
+        lines.append(_pad_sexpr("3", "thru_hole", "circle", 5.08, 0.0, 2.60, 2.60, 0.9, pad_rot=pad_rot, net=p.get("3"), key=f"{kpref}:p3"))
+        lines.append(_model("${KICAD10_3DMODEL_DIR}/Package_TO_SOT_THT.3dshapes/TO-92_Wide.step"))
+
     elif name == "MountingHole_3.2mm_M3_DIY":
         lines.append(_circle(0.0, 0.0, 3.00, "F.SilkS", sw, f"{kpref}:scirc"))
         lines.append(_circle(0.0, 0.0, 3.00, "F.Fab", 0.12, f"{kpref}:fab"))
@@ -335,6 +369,7 @@ FP_DESCRS: dict[str, str] = {
     "CP_Radial_D5.0mm_P3.50mm_DIY": "Electrolytic Cap D5.0mm P3.50mm formed (B.Cu 2.6x3.4mm pads, 0.9mm drill)",
     "C_Disc_D5.0mm_P5.00mm_DIY": "Ceramic Disc Cap D5.0mm P5.00mm (B.Cu 2.6mm pads, 0.9mm drill)",
     "LED_D3.0mm_P5.08mm_DIY": "3mm LED formed P5.08mm (B.Cu 2.8mm pads, 0.9mm drill)",
+    "TO-92_Wide_DIY": "TO-92 Wide Formed NPN BJT E-B-C (B.Cu 2.6mm round pads, 0.9mm drill)",
     "WireJumper_P7.62mm_DIY": "Top-side 22AWG Insulated Wire Jumper P7.62mm (B.Cu 2.8mm pads, 0.9mm drill)",
     "WireJumper_P12.70mm_DIY": "Top-side 22AWG Insulated Wire Jumper P12.70mm (B.Cu 2.8mm pads, 0.9mm drill)",
     "WireJumper_P17.78mm_DIY": "Top-side 22AWG Insulated Wire Jumper P17.78mm (B.Cu 2.8mm pads, 0.9mm drill)",
@@ -359,7 +394,7 @@ class ComponentSpec:
 
 
 def get_components() -> list[ComponentSpec]:
-    """40 circuit parts + 7 minimal top-side wire jumpers (JP1..JP7) = 47 footprints."""
+    """42 circuit parts (incl. Q1 S8050 + R10 1k buzzer driver) + 7 wire jumpers (JP1..JP7) = 49 footprints."""
     return [
         # --- 4 Fixed Corner M3 Mounting Holes (90 x 70 mm pattern, 5 mm edge inset) ---
         ComponentSpec("H1", "M3_3.2mm", "MountingHole_3.2mm_M3_DIY", 5.0, 75.0, 0.0, {}),
@@ -420,9 +455,11 @@ def get_components() -> list[ComponentSpec]:
         ComponentSpec("R6", "2.2k", "R_Axial_P10.16mm_DIY", 60.16, 12.8, 180.0, {"1": "AUD_OUT", "2": "GND"}),
         ComponentSpec("C5", "10nF", "C_Disc_D5.0mm_P5.00mm_DIY", 60.0, 8.5, 0.0, {"1": "AUD_OUT", "2": "GND"}),
         ComponentSpec("J12", "AUDIO_D3", "PinHeader_1x02_P2.54mm_DIY", 53.5, 8.5, 90.0, {"1": "AUD_OUT", "2": "GND"}),
-        ComponentSpec("R9", "10k", "R_Axial_P10.16mm_DIY", 75.5, 26.5, -90.0, {"1": "D8_BUZZER", "2": "GND"}),
-        ComponentSpec("D2", "1N4007", "D_DO41_P10.16mm_DIY", 79.8, 26.5, -90.0, {"1": "D8_BUZZER", "2": "GND"}),
-        ComponentSpec("J6", "BUZZ_D8", "PinHeader_1x02_P2.54mm_DIY", 74.5, 8.5, 90.0, {"1": "D8_BUZZER", "2": "GND"}),
+        ComponentSpec("R9", "10k", "R_Axial_P10.16mm_DIY", 75.5, 30.2, 180.0, {"1": "D8_BUZZER", "2": "GND"}),
+        ComponentSpec("R10", "1k", "R_Axial_P10.16mm_DIY", 75.5, 26.5, -90.0, {"1": "D8_BUZZER", "2": "BUZZ_BASE"}),
+        ComponentSpec("Q1", "S8050", "TO-92_Wide_DIY", 69.0, 10.5, 0.0, {"1": "GND", "2": "BUZZ_BASE", "3": "BUZZ_K"}),
+        ComponentSpec("D2", "1N4007", "D_DO41_P10.16mm_DIY", 80.5, 22.1, -90.0, {"1": "+5V_RLY2", "2": "BUZZ_K"}),
+        ComponentSpec("J6", "BUZZ_D8", "PinHeader_1x02_P2.54mm_DIY", 85.0, 8.0, -90.0, {"1": "+5V_RLY2", "2": "BUZZ_K"}),
 
         # --- 7 MINIMAL TOP-SIDE WIRE JUMPERS (ALL on +3V3 / +5V rails, 0 on GND or signals!) ---
         ComponentSpec(
@@ -482,6 +519,8 @@ def compute_pad_coords(comps: list[ComponentSpec]) -> dict[tuple[str, str], tupl
             lps = [("1", 0.0, 0.0), ("2", 5.00, 0.0)]
         elif c.fp_name.startswith("LED_D3"):
             lps = [("1", 0.0, 0.0), ("2", 5.08, 0.0)]
+        elif c.fp_name.startswith("TO-92_Wide"):
+            lps = [("1", 0.0, 0.0), ("2", 2.54, -2.54), ("3", 5.08, 0.0)]
         elif c.fp_name.startswith("WireJumper_P"):
             pitch = c.jumper_pitch or float(c.fp_name.split("_P")[1].split("mm")[0])
             lps = [("1", 0.0, 0.0), ("2", pitch, 0.0)]
@@ -522,11 +561,11 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
         ("GND", W_PWR, [P("J7", "2", +OFF, 0.0), (97.2, P("J7", "2")[1])]),
         ("GND", W_PWR, [P("J9", "2", +OFF, 0.0), (97.2, P("J9", "2")[1])]),
         ("GND", W_PWR, [P("U2", "7", +0.90, -0.035), (62.5, 43.725), (64.0, 43.40), (86.5, 43.40), (88.0, P("J15", "2")[1]), P("J15", "2", -OFF, 0.0)]),
-        ("GND", W_PWR, [P("J6", "2"), (P("J6", "2")[0], 2.8)]),
         ("GND", W_PWR, [P("J12", "2"), (P("J12", "2")[0], 2.8)]),
         ("GND", W_PWR, [P("J11", "2", 0.0, -OFF), (P("J11", "2")[0], 2.8)]),
-        ("GND", W_PWR, [P("R9", "2"), P("D2", "2"), (79.0, 12.0), (77.04, 10.5), P("J6", "2")]),
-        ("GND", W_PWR, [P("U2", "14", +OFF, 0.0), (65.0, P("U2", "14")[1]), P("C5", "2"), (65.0, 2.8)]),
+        ("GND", W_PWR, [P("Q1", "1"), (P("Q1", "1")[0], 2.8)]),
+        ("GND", W_PWR, [P("U2", "14", +OFF, 0.0), (65.0, P("U2", "14")[1]), P("R9", "2")]),
+        ("GND", W_PWR, [(65.0, P("U2", "14")[1]), P("C5", "2"), (65.0, 2.8)]),
         ("GND", W_PWR, [P("R6", "2"), (50.0, 2.8)]),
         ("GND", W_PWR, [(2.8, P("J1", "2")[1]), P("J1", "2")]),
         ("GND", W_PWR, [(2.8, P("D3", "1")[1]), P("D3", "1")]),
@@ -553,9 +592,11 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
         ("LED_BR_A", W_SIG, [P("R2", "2"), (86.16, 62.0), P("J5", "1")]),
         ("D5_MIC_DO", W_SIG, [P("U2", "8"), (87.5, P("U2", "8")[1]), (88.5, P("J15", "3")[1]), P("J15", "3")]),
         ("D6_RLY1_PUMP", W_SIG, [P("U2", "9"), (78.0, P("U2", "9")[1]), (81.5, 36.5), (88.5, 36.5), (89.5, P("J7", "3")[1]), P("J7", "3")]),
-        ("D7_RLY2_AMP", W_SIG, [P("U2", "10"), (76.0, P("U2", "10")[1]), (82.6, 30.0), (82.6, 23.0), (88.5, 23.0), (89.5, P("J9", "3")[1]), P("J9", "3")]),
-        ("D8_BUZZER", W_SIG, [P("U2", "11"), (68.5, P("U2", "11")[1]), (68.5, 26.5), P("R9", "1"), P("D2", "1")]),
-        ("D8_BUZZER", W_SIG, [(68.5, 26.5), (68.5, 11.2), (74.5, 11.2), P("J6", "1")]),
+        ("D7_RLY2_AMP", W_SIG, [P("U2", "10"), (76.0, P("U2", "10")[1]), (82.6, 30.0), (82.6, 24.8), (88.5, 24.8), (88.5, 21.5), (89.5, P("J9", "3")[1]), P("J9", "3")]),
+        ("D8_BUZZER", W_SIG, [P("U2", "11"), (75.5, P("U2", "11")[1]), P("R9", "1"), P("R10", "1")]),
+        ("BUZZ_BASE", W_SIG, [P("R10", "2"), P("Q1", "2")]),
+        ("BUZZ_K", W_SIG, [P("Q1", "3"), (78.5, P("Q1", "3")[1]), P("D2", "2")]),
+        ("BUZZ_K", W_SIG, [(78.5, P("Q1", "3")[1]), (80.5, 8.0), P("J6", "2")]),
 
         # 4. +3V3 NETS (2.0 mm wide, bridged by JP1, JP2, JP3)
         ("+3V3", W_PWR, [P("U1", "11", +OFF, 0.0), (43.0, P("U1", "11")[1]), P("JP1", "1"), P("R4", "1"), (41.0, 55.0), (40.5, 60.5), P("JP2", "1")]),
@@ -570,7 +611,8 @@ def get_tracks(pm: dict[tuple[str, str], tuple[float, float, str]]) -> list[tupl
         ("+5V", W_PWR, [(23.5, 26.5), (23.5, 23.44), P("C3", "1"), (29.0, 22.0), (36.5, 22.0), (37.0, 22.5), P("U1", "15", 0.0, -0.16)]),
         ("+5V", W_PWR, [(36.5, 22.0), P("JP4", "1")]),
         ("+5V", W_PWR, [(23.5, 23.44), (22.0, 21.0), P("R8", "1"), (16.34, 17.0), P("J10", "1", -0.16, +OFF)]),
-        ("+5V_RLY2", W_PWR, [P("JP4", "2"), (85.5, 20.0), P("JP5", "1"), (88.0, P("J9", "1")[1]), P("J9", "1", -OFF, 0.0)]),
+        ("+5V_RLY2", W_PWR, [P("JP4", "2"), (75.5, 21.4), P("D2", "1"), (83.5, 21.8), (85.5, 19.8), P("JP5", "1"), (88.0, P("J9", "1")[1]), P("J9", "1", -OFF, 0.0)]),
+        ("+5V_RLY2", W_PWR, [P("JP5", "1"), (85.5, 11.5), P("J6", "1", 0.0, +OFF)]),
         ("+5V_RLY1", W_PWR, [P("JP6", "1"), P("JP5", "2"), P("J7", "1", -OFF, 0.0)]),
         ("+5V_TOP", W_PWR, [P("JP6", "2"), (81.0, 54.5), (81.0, 62.5), (82.5, 62.5), (85.5, 64.2), P("JP7", "1")]),
         ("+5V_SERVO", W_PWR, [P("JP7", "2"), (60.54, 68.0), P("J3", "2", 0.0, -OFF)]),
@@ -592,20 +634,53 @@ PWR_SWAP_MAP: dict[str, str] = {
     "#PWR043": "+5V_RLY2",
     "#PWR038": "+5V_RLY1",
     "#PWR030": "+5V_SERVO",
+    "#PWR035": "BUZZ_K",
+    "#PWR037": "BUZZ_K",
 }
+
+BASE_SCH_COMMIT = "131bdc2"
+KICAD_BJT_SYM_LIB = pathlib.Path(
+    r"C:\Users\LENOVO\AppData\Local\Programs\KiCad\10.0\share\kicad\symbols\Transistor_BJT.kicad_sym"
+)
+
+
+def _extract_lib_symbol(lib_path: pathlib.Path, sym_name: str, lib_prefix: str) -> str:
+    txt = lib_path.read_text(encoding="utf-8")
+    marker = f'\t(symbol "{sym_name}"'
+    start = txt.index(marker)
+    depth = 0
+    i = start + 1
+    while i < len(txt):
+        ch = txt[i]
+        if ch == '"':
+            i += 1
+            while i < len(txt) and txt[i] != '"':
+                if txt[i] == "\\":
+                    i += 1
+                i += 1
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+        i += 1
+    blk = txt[start:end].replace(f'(symbol "{sym_name}"', f'(symbol "{lib_prefix}:{sym_name}"', 1)
+    return "\n" + "\n".join("\t" + ln for ln in blk.splitlines())
 
 
 def sync_schematic(comps: list[ComponentSpec]) -> tuple[dict[str, str], dict[str, str], dict[tuple[str, str], str]]:
-    """Update smarthome_hub.kicad_sch from clean HEAD base so re-runs are 100% idempotent.
+    """Update smarthome_hub.kicad_sch from clean pre-DIY base commit so re-runs are 100% idempotent.
 
     Returns:
       - sch_paths: {ref: schematic_symbol_path}
       - sch_descrs: {ref: schematic_Description_field}
       - sch_pad_nets: {(ref, pin): exact_kicad_schematic_net_name} (from kicad-cli sch export netlist)
     """
-    # Always start from clean git HEAD schematic so repeated runs are idempotent!
+    # Always start from clean pre-DIY git base schematic so repeated runs are 100% idempotent!
     raw = subprocess.check_output(
-        ["git", "-C", str(REPO_ROOT), "show", "HEAD:hardware/kicad/smarthome_hub/smarthome_hub.kicad_sch"],
+        ["git", "-C", str(REPO_ROOT), "show", f"{BASE_SCH_COMMIT}:hardware/kicad/smarthome_hub/smarthome_hub.kicad_sch"],
     ).decode("utf-8")
 
     # Update title block revision/date
@@ -615,6 +690,28 @@ def sync_schematic(comps: list[ComponentSpec]) -> tuple[dict[str, str], dict[str
     )
     raw = raw.replace('(date "2026-11-20")', '(date "2026-11-21")')
     raw = raw.replace('(rev "2.0")', '(rev "3.0-DIY")')
+
+    # Rewire J6.1 & D2.1 from D8_BUZZER to +5V_RLY2 (low-side NPN driver puts buzzer & flyback across +5V_RLY2 <-> BUZZ_K)
+    raw = raw.replace(
+        '(label "D8_BUZZER" (at 365.7600 48.2600 180)',
+        '(label "+5V_RLY2" (at 365.7600 48.2600 180)',
+        1,
+    )
+    raw = raw.replace(
+        '(label "D8_BUZZER" (at 370.8400 63.5000 0)',
+        '(label "+5V_RLY2" (at 370.8400 63.5000 0)',
+        1,
+    )
+    raw = raw.replace(
+        '(property "Description" "5V Alarm Buzzer Header (D8 Active-HIGH)"',
+        '(property "Description" "5V Alarm Buzzer Header (+5V / Q1 S8050 Low-Side NPN Collector)"',
+        1,
+    )
+    raw = raw.replace(
+        '(text "Safe Boot: 10k pull-down -> GPIO15 LOW (silent)"',
+        '(text "Low-Side NPN Driver (Q1 S8050 + R10 1k) + R9 10k Boot Pull-Down + D2 1N4007"',
+        1,
+    )
 
     fp_by_ref = {c.ref: f"DIY_Hub:{c.fp_name}" for c in comps}
     sch_paths: dict[str, str] = {}
@@ -640,7 +737,9 @@ def sync_schematic(comps: list[ComponentSpec]) -> tuple[dict[str, str], dict[str
                 idx_body = i + 1
                 break
         i += 1
-    head = raw[:idx_body]
+    # Embed Transistor_BJT:Q_NPN_EBC into (lib_symbols ...) for zero ERC lib_symbol_issues
+    bjt_lib_sym = _extract_lib_symbol(KICAD_BJT_SYM_LIB, "Q_NPN_EBC", "Transistor_BJT")
+    head = raw[:idx_body - 1] + bjt_lib_sym + "\n\t)"
     body = raw[idx_body:]
 
     # Parse balanced S-expr blocks of `(symbol (lib_id ...` in body
@@ -803,9 +902,128 @@ def sync_schematic(comps: list[ComponentSpec]) -> tuple[dict[str, str], dict[str
                     f'\t)'
                 )
 
-    # Insert jumper block right before `(sheet_instances`
+    # Add R10 (1k base resistor) & Q1 (S8050 NPN low-side buzzer driver) cleanly inside Box 4
+    r10_u = duuid("sch:sym:R10")
+    q1_u = duuid("sch:sym:Q1")
+    sch_paths["R10"] = f"/{ROOT_SHEET_UUID}/{r10_u}"
+    sch_descrs["R10"] = "Base Current-Limiting Resistor for Q1 Buzzer NPN Driver"
+    sch_paths["Q1"] = f"/{ROOT_SHEET_UUID}/{q1_u}"
+    sch_descrs["Q1"] = "Low-Side NPN Transistor Buzzer Driver (S8050 / 2N2222A, E-B-C, TO-92)"
+
+    buzzer_drv_blocks: list[str] = [
+        # R10 horizontal at (340.36, 48.26, rot=90): Pin 1 at (336.55, 48.26), Pin 2 at (344.17, 48.26)
+        f'\n\t(symbol (lib_id "Device:R") (at 340.3600 48.2600 90) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+        f'\t\t(uuid "{r10_u}")\n'
+        f'\t\t(property "Reference" "R10" (at 340.3600 44.4500 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "1k" (at 340.3600 52.0700 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "DIY_Hub:R_Axial_P10.16mm_DIY" (at 340.3600 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 340.3600 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "{sch_descrs["R10"]}" (at 340.3600 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pin:R10:1")}"))\n'
+        f'\t\t(pin "2" (uuid "{duuid("sch:pin:R10:2")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "R10") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 336.5500 48.2600) (xy 332.7400 48.2600))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:R10:1")}")\n'
+        f'\t)',
+        f'\n\t(label "D8_BUZZER" (at 332.7400 48.2600 180)\n'
+        f'\t\t(effects (font (size 1.27 1.27)) (justify right bottom))\n'
+        f'\t\t(uuid "{duuid("sch:lbl:R10:D8")}")\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 344.1700 48.2600) (xy 350.5200 48.2600))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:R10:2")}")\n'
+        f'\t)',
+        f'\n\t(label "BUZZ_BASE" (at 347.9800 48.2600 0)\n'
+        f'\t\t(effects (font (size 1.00 1.00)) (justify left bottom))\n'
+        f'\t\t(uuid "{duuid("sch:lbl:Q1:BASE")}")\n'
+        f'\t)',
+        # Q1 S8050 at (355.60, 48.26, rot=0): Pin 1(E)=(358.14, 53.34), Pin 2(B)=(350.52, 48.26), Pin 3(C)=(358.14, 43.18)
+        f'\n\t(symbol (lib_id "Transistor_BJT:Q_NPN_EBC") (at 355.6000 48.2600 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+        f'\t\t(uuid "{q1_u}")\n'
+        f'\t\t(property "Reference" "Q1" (at 360.6800 46.9900 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "S8050" (at 360.6800 49.5300 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (justify left))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "DIY_Hub:TO-92_Wide_DIY" (at 355.6000 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 355.6000 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "{sch_descrs["Q1"]}" (at 355.6000 48.2600 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pin:Q1:1")}"))\n'
+        f'\t\t(pin "2" (uuid "{duuid("sch:pin:Q1:2")}"))\n'
+        f'\t\t(pin "3" (uuid "{duuid("sch:pin:Q1:3")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "Q1") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 358.1400 43.1800) (xy 358.1400 40.6400))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:Q1:C")}")\n'
+        f'\t)',
+        f'\n\t(label "BUZZ_K" (at 358.1400 40.6400 0)\n'
+        f'\t\t(effects (font (size 1.27 1.27)) (justify left bottom))\n'
+        f'\t\t(uuid "{duuid("sch:lbl:Q1:C")}")\n'
+        f'\t)',
+        f'\n\t(wire (pts (xy 358.1400 53.3400) (xy 358.1400 55.8800))\n'
+        f'\t\t(stroke (width 0) (type default))\n'
+        f'\t\t(uuid "{duuid("sch:w:Q1:E")}")\n'
+        f'\t)',
+        f'\n\t(symbol (lib_id "power:GND") (at 358.1400 55.8800 0) (unit 1)\n'
+        f'\t\t(exclude_from_sim no) (in_bom no) (on_board no) (dnp no)\n'
+        f'\t\t(uuid "{duuid("sch:pwr:#PWR098")}")\n'
+        f'\t\t(property "Reference" "#PWR098" (at 358.1400 61.9760 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Value" "GND" (at 358.1400 59.6900 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Footprint" "" (at 358.1400 55.8800 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Datasheet" "" (at 358.1400 55.8800 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(property "Description" "" (at 358.1400 55.8800 0)\n'
+        f'\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n'
+        f'\t\t)\n'
+        f'\t\t(pin "1" (uuid "{duuid("sch:pwrpin:#PWR098")}"))\n'
+        f'\t\t(instances\n'
+        f'\t\t\t(project "smarthome_hub"\n'
+        f'\t\t\t\t(path "/{ROOT_SHEET_UUID}" (reference "#PWR098") (unit 1))\n'
+        f'\t\t\t)\n'
+        f'\t\t)\n'
+        f'\t)',
+    ]
+
+    # Insert buzzer driver & jumper blocks right before `(sheet_instances`
     ins = new_body.rindex("\n\t(sheet_instances")
-    final_sch = head + new_body[:ins] + "".join(jp_blocks) + new_body[ins:]
+    final_sch = head + new_body[:ins] + "".join(buzzer_drv_blocks) + "".join(jp_blocks) + new_body[ins:]
     sch_path = KICAD_DIR / "smarthome_hub.kicad_sch"
     sch_path.write_text(final_sch, encoding="utf-8")
 
@@ -954,6 +1172,13 @@ def write_fp_lib_table() -> None:
 )
 """
     (KICAD_DIR / "fp-lib-table").write_text(txt, encoding="utf-8")
+    sym_tbl = KICAD_DIR / "sym-lib-table"
+    if sym_tbl.exists():
+        stxt = sym_tbl.read_text(encoding="utf-8")
+        if '(name "Transistor_BJT")' not in stxt:
+            entry = '\t(lib (name "Transistor_BJT") (type "KiCad") (uri "${KICAD10_SYMBOL_DIR}/Transistor_BJT.kicad_sym") (options "") (descr ""))'
+            stxt = stxt[:stxt.rfind(")")].rstrip() + "\n" + entry + "\n)\n"
+            sym_tbl.write_text(stxt, encoding="utf-8")
 
 
 def write_dru(power_net_names: list[str]) -> None:
@@ -1121,8 +1346,10 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("5V G", 30.3, 11.8, 0.0, 1.5, 0.25),
         ("J12 AUD D3", 54.0, 2.8, 0.0, 1.5, 0.25),
         ("L  G", 54.8, 5.4, 0.0, 1.5, 0.25),
-        ("J6 BUZZ D8", 75.8, 2.8, 0.0, 1.5, 0.25),
-        ("+  G", 75.8, 5.4, 0.0, 1.5, 0.25),
+        ("Q1 S8050", 71.5, 4.8, 0.0, 1.5, 0.25),
+        ("E B C", 71.5, 7.2, 0.0, 1.5, 0.25),
+        ("J6 BUZZ D8", 83.7, 2.8, 0.0, 1.5, 0.25),
+        ("-  +", 83.7, 5.2, 0.0, 1.5, 0.25),
 
         # Left edge terminals & header
         ("J2 PUMP", 10.0, 64.5, 0.0, 1.5, 0.25),
@@ -1162,8 +1389,9 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("C6 100n", 36.0, 17.6, 0.0),
         ("C7 100n", 29.0, 69.5, 0.0),
         ("D1 1N4007", 13.8, 52.9, 90.0),
-        ("D2 1N4007", 81.9, 21.4, 90.0),
+        ("D2 1N4007", 80.5, 16.7, 90.0),
         ("D3 PWR", 10.0, 15.8, 0.0),
+        ("Q1 S8050", 71.5, 11.2, 0.0),
         ("R1 220R", 48.9, 65.5, 0.0),
         ("R2 220R", 81.1, 60.8, 0.0),
         ("R3 10k", 70.9, 64.1, 0.0),
@@ -1172,7 +1400,8 @@ def build_silkscreen_and_fab(comps: list[ComponentSpec]) -> list[str]:
         ("R6 2.2k", 55.1, 12.8, 0.0),
         ("R7 10k", 81.1, 57.5, 0.0),
         ("R8 1k", 16.9, 17.0, 0.0),
-        ("R9 10k", 75.5, 21.4, 90.0),
+        ("R9 10k", 70.4, 30.2, 0.0),
+        ("R10 1k", 75.5, 21.4, 90.0),
         ("U1 LEFT 1x15", 34.4, 41.2, 90.0),
         ("U2 RIGHT 1x15", 62.5, 41.2, 90.0),
     ]

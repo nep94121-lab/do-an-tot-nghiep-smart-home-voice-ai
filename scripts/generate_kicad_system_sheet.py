@@ -10,7 +10,7 @@ Reads Single Source of Truth `hardware/wiring_contract.py` and:
    5V Jmp=H, PAM8403 Audio Amp, Mini Speaker 28mm 8Ohm, DHT11, Soil LM393,
    YL-69 Soil Fork Probe, KY-037/038 Sound Module).
 2. All off-board & system-view symbols carry `(on_board no)` and `(in_bom no)`
-   so the 80x65mm Type 1 Hub PCB and `bom.csv` remain 100% untouched.
+   so the 100x80mm 1-Layer DIY Hub PCB and `bom.csv` remain 100% untouched.
 3. Links `system_wiring.kicad_sch` cleanly and idempotently as a hierarchical
    sub-sheet (Page 2) inside `hardware/kicad/smarthome_hub/smarthome_hub.kicad_sch`.
 
@@ -541,7 +541,7 @@ def generate_system_wiring_sch() -> str:
     sheet_items.append(build_symbol_instance(
         "SystemWiring:Central_Hub_PCB",
         "HUB1",
-        "Type 1 Central Hub PCB (80x65mm, Sheet 1)",
+        "Central Hub DIY PCB (100x80mm 1-Layer, Sheet 1)",
         "Central Hub PCB Plug-In Interface (U1/U2 + J1..J15) - reference view only",
         HUB_CX,
         HUB_CY,
@@ -554,7 +554,7 @@ def generate_system_wiring_sch() -> str:
 
     # HUB1 internal banner text & connector silkscreen headers
     sheet_items.append(kicad_text(
-        "CENTRAL HUB PCB (TYPE 1 - 80x65mm)",
+        "CENTRAL HUB PCB (DIY 1L - 100x80mm)",
         HUB_CX, 33.65, "txt:hub_banner",
         size=1.45, bold=True, justify="center", color=(20, 83, 45),
     ))
@@ -572,17 +572,17 @@ def generate_system_wiring_sch() -> str:
     # HUB1 internal on-board circuitry box text (bottom-right of HUB1)
     onboard_notes = [
         ("ON-BOARD HUB PCB (Sheet 1)", True, (20, 83, 45)),
-        ("80x65mm 2-Layer FR4 (DRC=0)", False, (40, 60, 45)),
+        ("100x80mm 1-Layer B.Cu (DRC=0)", False, (40, 60, 45)),
         ("C1/C2: 470uF 16V Bulk", False, (40, 60, 45)),
         ("C3/C6/C7: 100nF Decoupling", False, (40, 60, 45)),
-        ("D1(Pump) / D2(Buzz): 1N4007", False, (40, 60, 45)),
+        ("D1(Pump)/D2(Buzz): 1N4007", False, (40, 60, 45)),
+        ("Q1(S8050)+R10(1k): Buzz NPN", False, (40, 60, 45)),
         ("D3: Green PWR LED + R8 1k", False, (40, 60, 45)),
         ("R1(D0)/R2(D4): 220R LED Lim", False, (40, 60, 45)),
-        ("R3(D2): 10k DHT11 Pull-Up", False, (40, 60, 45)),
-        ("R4(D3)/R7(D4): 10k Safe-Boot", False, (40, 60, 45)),
+        ("R3(D2)/R4(D3)/R7(D4): 10k PU", False, (40, 60, 45)),
         ("R9(D8): 10k Boot Pull-Down", False, (40, 60, 45)),
         ("C4/R5/R6/C5: PWM Audio RC", False, (40, 60, 45)),
-        ("H1..H4: 4x M3 (3.2mm) Holes", False, (40, 60, 45)),
+        ("H1..H4: 4x M3 (90x70mm)", False, (40, 60, 45)),
     ]
     for idx, (line_txt, is_bold, col) in enumerate(onboard_notes):
         sheet_items.append(kicad_text(
@@ -1225,15 +1225,15 @@ def generate_system_wiring_sch() -> str:
             net=w.net, color=w.color, tag_text=w.wire_id, side_of_hub="right", key=w.wire_id,
         )
     sheet_items.append(kicad_text(
-        "Alarm Siren (TMB12A05)", 472.44, 148.00, "txt:buz_n1",
+        "Alarm Siren (TMB12A05, 5V)", 472.44, 148.00, "txt:buz_n1",
         size=1.08, bold=True, color=(194, 65, 12),
     ))
     sheet_items.append(kicad_text(
-        "Hub R9 10k pull-down (GPIO15)", 472.44, 153.08, "txt:buz_n2",
+        "Hub Q1 S8050 NPN + R10 1k (D8)", 472.44, 153.08, "txt:buz_n2",
         size=1.02, color=(55, 65, 81),
     ))
     sheet_items.append(kicad_text(
-        "+ D2 1N4007 flyback protection", 472.44, 158.16, "txt:buz_n3",
+        "R9 10k pull-down + D2 1N4007", 472.44, 158.16, "txt:buz_n3",
         size=1.02, color=(55, 65, 81),
     ))
 
@@ -1423,7 +1423,7 @@ def generate_system_wiring_sch() -> str:
         size=1.40, bold=True, color=(15, 23, 42),
     ))
     contract_bullets = [
-        "- BOM / PCB Isolation: Every symbol on Sheet 2 has (on_board no) & (in_bom no). Type 1 Hub PCB (80x65mm) & bom.csv stay 100% intact.",
+        "- BOM / PCB Isolation: Every symbol on Sheet 2 has (on_board no) & (in_bom no). 1-Layer DIY Hub PCB (100x80mm) & bom.csv stay 100% intact.",
         "- Locked Hardware Scope: 6 Actuators (SG90 D1, Living LED D0, Bedroom LED D4, Pump/RLY1 D6, Buzzer D8, Amp/RLY2 D7+D3) + 3 Sensors.",
         "- Strictly Excluded: ZERO Fan, ZERO AC Mains, ZERO IR Blaster anywhere in schematic, PCB, firmware, or docs.",
         "- Voltage Safety: Soil LM393 (J14) & KY-037 (J15) & DHT11 (J13) strictly +3.3V; SG90/Relays/Pump/PAM8403 on +5V rail.",
