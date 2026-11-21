@@ -129,12 +129,23 @@ _UNSUPPORTED_DEVICE_RE = re.compile(
     r"dieu\s+hoa|may\s+lanh|aircon|"
     r"tivi|ti\s+vi|\btv\b|"
     r"may\s+giat|tu\s+lanh|"
-    r"(?:rem|dem|giem)(?:\s+cua)?|"
-    r"cua\s+cuon|"
+    r"(?:rem|dem|giem)(?:\s+cua)?|ren\s+cua|"
+    r"cua\s+(?:cuon|so|ban\s+cong|phong\s+ngu|nha\s+ve\s+sinh|gara|tu|kinh)|"
+    r"den\s+(?:bep|nha\s+ve\s+sinh|ban\s+cong|cau\s+thang|ban\s+hoc)|"
+    r"loa\s+bluetooth|bom\s+tang\s+ap|"
     r"(?:binh\s+)?nong\s+lanh|"
     r"lo\s+vi\s+song|robot\s+hut\s+bui|"
     r"hoc\s+lenh|hong\s+ngoai|remote|vs1838b?"
     r")(?:\s|$)"
+)
+
+_NEGATED_OR_RHETORICAL_DIRECT_RE = re.compile(
+    r"(?:^|\s)(?:"
+    r"(?:không|khong|đừng|chưa\s+cần|chua\s+can|khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong|đừng\s+có)\s+"
+    r"(?:mở|mo|đóng|dong|bật|bat|tắt|tat|khóa|khoa|chốt|chot|khép|khep|ngắt|ngat|dừng|dung|chạy|chay)\b|"
+    r"đúng\s+(?:rồi|không|chưa|nhỉ|nhé|ạ)\b"
+    r")",
+    re.IGNORECASE,
 )
 
 _DEVICE_LABELS_SHORT_VI: dict[str, str] = {
@@ -506,8 +517,11 @@ def normalize_vietnamese_utterance(text: str) -> str:
     s = re.sub(r"\b(?:đóng|dong)\s+(?:cữa|cổng|cong)\b", "đóng cửa chính", s)
 
     # Lights regional & colloquial variants
+    s = re.sub(r"\b(?:hát|hat)\s+(?:đèn|den)\b", "tắt đèn", s)
     s = re.sub(r"\bđền\s+phòng\s+khách\b", "đèn phòng khách", s)
     s = re.sub(r"\bđền\s+phòng\s+ngủ\b", "đèn phòng ngủ", s)
+    s = re.sub(r"\bđèn\s+(?:ngồi|vừa)\s+ngủ\b|\bden\s+(?:ngoi|vua)\s+ngu\b", "đèn phòng ngủ", s)
+    s = re.sub(r"\bđèn\s+(?:hò\s+khách|vòm\s+hết|vòm\s+khách)\b|\bden\s+(?:ho\s+khach|vom\s+het|vom\s+khach)\b", "đèn phòng khách", s)
     s = re.sub(r"\btất\s+cả\s+đền\b", "tất cả đèn", s)
     s = re.sub(r"\bhết\s+đền\b", "hết đèn", s)
     s = re.sub(r"\b(?:tắt\s+tắt\s+đèn|tat\s+tat\s+den)\b", "tắt tất cả đèn", s)
@@ -515,18 +529,19 @@ def normalize_vietnamese_utterance(text: str) -> str:
     s = re.sub(r"\b(?:bật|mở|bat|mo)\s+(?:thiết\s+đèn|thiet\s+den)\b", "bật tất cả đèn", s)
     s = re.sub(r"\b(?:tắt|tat)\s+(?:thiết\s+đèn|thiet\s+den)\b", "tắt tất cả đèn", s)
     s = re.sub(r"\b(bật|tắt|mở|đóng|bat|tat|mo|dong)\s+(?:đèn\s+khác|den\s+khac)\b", r"\1 đèn phòng khách", s)
+    s = re.sub(r"\b(?:vận\s+hành|van\s+hanh)\s+(?:phòng\s+khách|phong\s+khach)\b", "bật đèn phòng khách", s)
     s = re.sub(r"\bbóng\s+đèn\s+phòng\s+khách\b|\bbóng\s+đèn\s+khách\b|\bđèn\s+khách\b|\bđèn\s+ngoài\b|\bđèn\s+chính\b", "đèn phòng khách", s)
     s = re.sub(r"\bbong\s+den\s+phong\s+khach\b|\bbong\s+den\s+khach\b|\bden\s+khach\b|\bden\s+ngoai\b|\bden\s+chinh\b", "đèn phòng khách", s)
     s = re.sub(r"\bbóng\s+đèn\s+phòng\s+ngủ\b|\bđèn\s+ngủ\b|\bđèn\s+buồng\b|\bđèn\s+buồn\b|\bđèn\s+trong\s+phòng\b", "đèn phòng ngủ", s)
     s = re.sub(r"\bbong\s+den\s+phong\s+ngu\b|\bden\s+ngu\b|\bden\s+buong\b|\bden\s+buon\b|\bden\s+trong\s+phong\b", "đèn phòng ngủ", s)
-    s = re.sub(r"\b(?:hết|toàn\s+bộ|cả\s+hai|hai|cả\s+2|2|các|mọi)\s+đèn\b", "tất cả đèn", s)
-    s = re.sub(r"\b(?:het|toan\s+bo|ca\s+hai|hai|ca\s+2|2|cac|moi)\s+den\b", "tất cả đèn", s)
+    s = re.sub(r"\b(?:hết|toàn\s+bộ|cả\s+hai|hai|cả\s+2|2|các|mọi)\s+đèn(?!\s+(?:phòng|khách|ngủ|buồng))\b", "tất cả đèn", s)
+    s = re.sub(r"\b(?:het|toan\s+bo|ca\s+hai|hai|ca\s+2|2|cac|moi)\s+den(?!\s+(?:phong|khach|ngu|buong))\b", "tất cả đèn", s)
 
     # Pump variants
     s = re.sub(
-        r"\b(?:ngừng|dừng|tắt|ngắt|ngung|dung|tat|ngat)\s+"
-        r"(?:tưới\s+cây|tưới\s+vườn|dưới\s+cây|dưới\s+vườn|dưới\s+vần|tưới\s+vần|"
-        r"tuoi\s+cay|tuoi\s+vuon|duoi\s+cay|duoi\s+vuon|duoi\s+van|tuoi\s+van)\b",
+        r"\b(?:ngừng|dừng|rừng|tắt|ngắt|ngung|dung|rung|tat|ngat)\s+"
+        r"(?:tưới\s+cây|tưới\s+vườn|tưới\s+vừa|dưới\s+cây|dưới\s+vườn|dưới\s+vừa|dưới\s+vần|tưới\s+vần|"
+        r"tuoi\s+cay|tuoi\s+vuon|tuoi\s+vua|duoi\s+cay|duoi\s+vuon|duoi\s+vua|duoi\s+van|tuoi\s+van)\b",
         "tắt máy bơm tưới cây",
         s,
     )
@@ -554,11 +569,12 @@ def normalize_vietnamese_utterance(text: str) -> str:
     s = re.sub(r"\b(?:còi\s+hú|coi\s+hu|chống\s+trộm|chong\s+trom)\b", "còi báo động", s)
 
     # Speaker amp variants
-    s = re.sub(r"^(?:bật|mở|bat|mo)\s+hoa(?:\s*[.!?]*)$", "bật nguồn mạch loa", s)
+    s = re.sub(r"^(?:bật|mở|bạch|bat|mo|bach)\s+(?:hoa|loa)(?:\s*[.!?]*)$", "bật nguồn mạch loa", s)
     s = re.sub(r"^(?:tắt|ngắt|tat|ngat)\s+hoa(?:\s*[.!?]*)$", "tắt nguồn mạch loa", s)
-    s = re.sub(r"\b(?:bật|mở|bat|mo)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|pam8403)\b", "bật nguồn mạch loa", s)
-    s = re.sub(r"\b(?:tắt|ngắt|dừng|tat|ngat|dung)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|pam8403)\b", "tắt nguồn mạch loa", s)
-    s = re.sub(r"\b(?:âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|pam8403)\b", "nguồn mạch loa", s)
+    s = re.sub(r"\b(?:bạn|ban)\s+nguồn\s+(?:mạch|mệt|mạt|vài|bài)\s+loa\b", "bật nguồn mạch loa", s)
+    s = re.sub(r"\b(?:bật|mở|bat|mo)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "bật nguồn mạch loa", s)
+    s = re.sub(r"\b(?:tắt|ngắt|dừng|tat|ngat|dung)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "tắt nguồn mạch loa", s)
+    s = re.sub(r"\b(?:âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|(?<!nguồn\s)mạch\s+loa|(?<!nguon\s)mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "nguồn mạch loa", s)
 
     # Strip polite fillers inside / at end without breaking clause conjunctions
     s = re.sub(
@@ -710,13 +726,16 @@ def _expand_direct_target(dev_id: str, action: str) -> list[dict[str, str]]:
 _NON_DIRECT_INTENT_CUES: tuple[str, ...] = (
     " dang mo hay dong ", " dang bat hay tat ", " co dang bat ", " co dang mo ",
     " co dang tat ", " co dang dong ", " trang thai ", " hen gio ", " dat lich ",
-    " sua lich ", " doi lich ", " xoa lich ", " huy lich ", " lich hen ",
+    " hen lich ", " sua lich ", " doi lich ", " xoa lich ", " huy lich ", " lich hen ",
+    " hang ngay ", " moi ngay ", " ngay nao cung ", " lap lai ",
+    " gio sang ", " gio trua ", " gio chieu ", " gio toi ", " gio dem ",
     " tao lenh ", " sua lenh ", " doi lenh ", " xoa lenh ", " huy lenh ",
-    " tao viec ", " ra lenh ", " dau lenh ",
+    " tao viec ", " ra lenh ", " dau lenh ", " doc lenh ", " tao ra ",
     " thanh bat ", " thanh tat ", " thanh mo ", " thanh dong ",
     " lenh custom ", " lenh tuy chinh ", " tao luat ", " lien ket ",
     " xoa lien ket ", " huy lien ket ", " phut nua ", " giay nua ", " gio nua ",
-    " reset ", " ri set ", " rex ", " rexit ", " khoi phuc ", " hoi phuc ", " cai dat goc ",
+    " reset ", " ri set ", " rex ", " rexit ", " rep trang thai ", " rep lien ket ",
+    " virus lien ket ", " khoi phuc ", " hoi phuc ", " cai dat goc ", " thiet lap ",
     " dat lai ", " thiet lap trang thai ", " save trang thai ", " ve sinh sach thiet bi ",
     " khi ", " neu ", " dat kho ", " tieng dong lon ", " chuyen dong lon ", " bien dong lon ",
 )
@@ -885,6 +904,9 @@ def parse_direct_device_intents_vi(
     # Never guess a supported device when an unsupported appliance is mentioned (e.g. "đóng rèm cửa")
     if _UNSUPPORTED_DEVICE_RE.search(norm_raw):
         return []
+    # Never execute negated commands ("đừng bật đèn", "không mở cửa") or rhetorical checks ("cửa chính đúng không")
+    if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(mapped):
+        return []
     # Never treat status questions, timers/schedules, custom CRUD, resets, or conditional rules as immediate toggles
     if (
         any(k in norm_raw for k in _NON_DIRECT_INTENT_CUES)
@@ -899,10 +921,18 @@ def parse_direct_device_intents_vi(
     if not normalized:
         return []
 
-    # Split multi-device sentences on conjunctions / punctuation
+    # Split multi-device sentences on conjunctions / punctuation, and also between adjacent
+    # verb-device clauses when ASR drops a comma (e.g. 'tắt đèn phòng khách tắt đèn phòng ngủ').
+    split_prep = re.sub(
+        r"\b(khách|khach|ngủ|ngu|chính|chinh|cửa|cua|cổng|cong|bơm|bom|cây|cay|vườn|vuon|còi|coi|động|dong|loa|đèn|den)\s+"
+        r"(?=(?:bật|tắt|mở|đóng|bat|tat|mo|dong)\s+(?:đèn|den|cửa|cua|cổng|cong|máy\s+bơm|may\s+bom|bơm|bom|còi|coi|nguồn|nguon|loa|tất\s+cả|tat\s+ca|hết|het)\b)",
+        r"\1 , ",
+        normalized,
+        flags=re.IGNORECASE,
+    )
     clauses = re.split(
         r"\s*(?:,|;|\bvà\b|\bva\b|\brồi\s+thì\b|\broi\s+thi\b|\brồi\b|\broi\b|\bcùng\s+với\b|\bcung\s+voi\b|\bxong\b|\bvới\b|\bvoi\b)\s*",
-        normalized,
+        split_prep,
         flags=re.IGNORECASE,
     )
 
@@ -1075,9 +1105,11 @@ def handle_sensor_or_status_query_vi(
         k in padded
         for k in (
             " tao luat ", " lien ket ", " khi ", " neu ", " hen gio ", " dat lich ",
-            " reset ", " ri set ", " rex ", " dat lai ", " khoi phuc ", " hoi phuc ",
+            " reset ", " ri set ", " rex ", " rexit ", " reet ", " dat lai ", " khoi phuc ", " hoi phuc ",
             " truy van trang thai ", " truy suat trang thai ", " refresh trang thai ",
-            " re trang thai ", " xep trang thai ", " thiet lap trang thai ", " save trang thai ",
+            " re trang thai ", " rep trang thai ", " xep trang thai ", " vi sep trang thai ",
+            " viet trang thai ", " logic trang thai ", " re logic ",
+            " thiet lap trang thai ", " save trang thai ",
         )
     ):
         return None

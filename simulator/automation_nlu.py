@@ -124,6 +124,7 @@ def _normalize_den_typos_vi(text: str) -> str:
         return ""
     s = re.sub(r"\bđền\s+phòng\s+khách\b", "đèn phòng khách", s, flags=re.IGNORECASE)
     s = re.sub(r"\bđền\s+phòng\s+ngủ\b", "đèn phòng ngủ", s, flags=re.IGNORECASE)
+    s = re.sub(r"\b(?:đặt|đoàn)\s+(?:nền|đèn)\s+phòng\s+khách\b", "bật đèn phòng khách", s, flags=re.IGNORECASE)
     s = re.sub(r"\btất\s+cả\s+đền\b", "tất cả đèn", s, flags=re.IGNORECASE)
     s = re.sub(r"\bhết\s+đền\b", "hết đèn", s, flags=re.IGNORECASE)
     s = re.sub(r"\bmáy\s+bơm\s+(?:từ\s+tay|tu\s+tay)\b", "máy bơm tưới cây", s, flags=re.IGNORECASE)
@@ -138,6 +139,13 @@ def parse_single_device_and_action(
     """Extract primary device/target and canonical action from a single clause."""
     clause = _normalize_den_typos_vi(clause)
     norm = f" {normalize_phrase(clause)} "
+    try:
+        from simulator.voice.vietnamese_policy import _UNSUPPORTED_DEVICE_RE
+
+        if _UNSUPPORTED_DEVICE_RE.search(norm):
+            return None, None
+    except Exception:
+        pass
     dev: str | None = None
     for kw, target in _DEVICE_SYNONYMS:
         if f" {kw} " in norm:
@@ -586,8 +594,11 @@ def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False
 
     # Context-sensitive single-word ASR slips ONLY when a pending confirmation is actively waiting
     if has_pending:
-        if re.search(r"^(?:tối|toi)(?:\s+(?:ạ|nhé|nha|đi|em|bạn|a|nhe|di|ban))*\s*$", raw_collapsed) or re.search(
-            r"^toi(?:\s+(?:a|nhe|nha|di|em|ban))*\s*$",
+        if re.search(
+            r"^(?:tối|toi|quý|quỷ|quy|mỹ|my|đồng\s+thời|dong\s+thoi)(?:\s+(?:ạ|nhé|nha|đi|em|bạn|a|nhe|di|ban))*\s*$",
+            raw_collapsed,
+        ) or re.search(
+            r"^(?:toi|quy|my|dong\s+thoi)(?:\s+(?:a|nhe|nha|di|em|ban))*\s*$",
             norm,
         ):
             return "cancel"
@@ -1745,8 +1756,9 @@ async def execute_confirmed_mutation(
                 deleted = 1
                 append_audit_log("AUTOMATION", "rule_deleted", f"Xóa luật {rid}", user_name=user_name, tier=tier)
         else:
+            match_devs = {"all_lights", "living_room_light", "bedroom_light"} if dev == "all_lights" else ({dev} if dev else set())
             for r in list_automation_rules(include_disabled=True, owner_user_id=(None if tier == 1 else user_id)):
-                if dev and r["when_device_id"] != dev and r["then_device_id"] != dev:
+                if match_devs and r["when_device_id"] not in match_devs and r["then_device_id"] not in match_devs:
                     continue
                 if delete_automation_rule(r["rule_id"]):
                     deleted += 1
@@ -2512,9 +2524,11 @@ def _detect_scoped_reset_intent(raw_text: str) -> tuple[str, bool, str | None] |
     """Detect scoped reset intents ('reset lệnh custom', 'reset liên kết', 'xóa hẹn giờ')."""
     raw_clean = str(raw_text or "").strip()
     norm = normalize_phrase(raw_clean)
+    if re.fullmatch(r"bat\s+thiet\s+bi\s+lien\s+ket", norm):
+        return "links", False, None
     has_reset = bool(
         re.match(
-            r"^(?:reset|dat lai|xoa het|xoa toan bo|xoa tat ca|xoa moi|huy het|huy toan bo|huy tat ca|huy moi|don sach)\b",
+            r"^(?:reset|ri\s+set|rexit|rex|rep|ret|reic|reet|refresh|virus|dat lai|xoa het|xoa toan bo|xoa tat ca|xoa moi|huy het|huy toan bo|huy tat ca|huy moi|don sach)\b",
             norm,
         )
     )
@@ -2612,13 +2626,13 @@ def _parse_custom_command_create_or_edit(
     # Branch 2: Broad explicit prefix (optional verb including ASR variants + custom/mode/lịch/việc keyword)
     broad_prefix_vi = (
         r"^(?:(?:chỉ|chi)\s+)?"
-        r"(?:(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|bật|mở|đầu|sắp)\s+)?"
+        r"(?:(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|bật|mở|đầu|đọc|sắp)\s+)?"
         r"(?P<kw>khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|lịch|việc|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
         r"(?:\s+mới|\s+moi)?\s+"
     )
     broad_prefix_ascii = (
         r"^(?:chi\s+)?"
-        r"(?:(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi|ra|bat|mo|dau|sap)\s+)?"
+        r"(?:(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi|ra|bat|mo|dau|doc|sap)\s+)?"
         r"(?P<kw>khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|lich|viec|ngu\s+canh|kich\s+ban|scene|che\s+do)"
         r"(?:\s+moi)?\s+"
     )
@@ -2692,7 +2706,7 @@ def _parse_custom_command_create_or_edit(
     raw_imp = raw_s
     stripped_wrapper = False
     m_wrap = re.match(
-        r"^(?:sau\s+khi|chào\s*,?\s*hãy|chao\s*,?\s*hay|tắt\s+hết|tat\s+het)\s+(.+)$",
+        r"^(?:sau\s+khi|chào\s*,?\s*hãy|chao\s*,?\s*hay|tắt\s+hết|tat\s+het|(?:đọc|tạo|doc|tao)\s+(?:đèn|den))\s+(.+)$",
         raw_s,
         flags=re.IGNORECASE,
     )
@@ -2845,13 +2859,13 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     if re.search(
         r"\b(?:"
-        r"(?:reset|ri\s+set|rex|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+trang\s+thai\s+(?:cac\s+)?thiet\s+bi|"
+        r"(?:reset|ri\s+set|vi\s+sep|viet|re\s+logic|logic|rexit|rex|rep|ret|reet|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+(?:lai\s+)?trang\s+thai\s+(?:cac\s+)?thiet\s+(?:bi|di|nghi)|"
         r"(?:ve\s+sinh\s+sach|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
         r"dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
         r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi"
         r")\b",
         norm,
-    ):
+    ) or re.fullmatch(r"(?:reset|ri\s+set|rexit|rex)\s+trang\s+thai", norm):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -2883,7 +2897,9 @@ async def process_automation_nlu_command(
             "hoi phuc cai dat go",
             "khoi phuc cai dat mau",
             "hoi phuc cai dat mau",
+            "khoi phuc va dat mau",
             "khoi phuc va dat goc",
+            "khoi phuc ngay dan",
             "factory reset",
             "dat lai cai dat goc",
         )
@@ -3060,7 +3076,7 @@ async def process_automation_nlu_command(
                             existing_match = cmd
 
             if existing_match is not None:
-                clean_phrase = existing_match["phrase"] if normalize_phrase(phrase) == existing_match["phrase_norm"] else phrase
+                clean_phrase = existing_match["phrase"]
                 return await prepare_pending_mutation(
                     engine=engine,
                     session=session,
@@ -3089,13 +3105,13 @@ async def process_automation_nlu_command(
     # - ASR homophone: "xử lý bảy giờ thành tám giờ"
     # ------------------------------------------------------------------
     m_mod_sched = re.match(
-        r"^(?:đổi|sửa|cập\s+nhật|doi|sua|cap\s+nhat)\s+(?:lịch\s+hẹn|lịch|lich\s+hen|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
+        r"^(?:đổi|sửa|cập\s+nhật|dự|doi|sua|cap\s+nhat|du)\s+(?:lịch\s+hẹn|lịch|lich\s+hen|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
     if not m_mod_sched:
         m_xu_ly_sched = re.match(
-            r"^(?:xử\s+lý|xu\s+ly)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
+            r"^(?:xử\s+lý|xu\s+ly|dự\s+định|du\s+dinh)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
             raw,
             flags=re.IGNORECASE,
         )
@@ -3311,8 +3327,15 @@ async def process_automation_nlu_command(
         t_dev, t_act = parse_single_device_and_action(then_part, default_action=w_act)
         if w_dev is None and t_dev == "garden_pump":
             _wn = f" {normalize_phrase(when_part)} "
-            if any(k in _wn for k in (" nhat co ", " em co ", " co kho ", " dat ", " kho ")):
+            if any(k in _wn for k in (" nhat co ", " em co ", " co kho ", " het o ", " dat ", " kho ")):
                 w_dev, w_state, is_sensor_when = "soil_sensor", "DRY", True
+        if w_dev is None and t_dev == "alarm_siren":
+            _wn = f" {normalize_phrase(when_part)} "
+            if any(k in _wn for k in (" dong lon ", " nuoc lon ", " on lon ", " tieng lon ", " am lon ", " tin hieu lon ")):
+                w_dev, w_state, is_sensor_when = "sound_sensor", "LOUD", True
+        if is_sensor_when and w_dev == "sound_sensor" and w_state == "LOUD" and t_dev is None:
+            if re.search(r"\b(?:bat|mo)\s+(?:hoi|coi)\b", normalize_phrase(then_part)):
+                t_dev, t_act = "alarm_siren", "turn_on"
         if (
             is_sensor_when
             and t_dev
@@ -3411,7 +3434,7 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     # STEP 6. CANCEL / DELETE SINGLE TIMER, SCHEDULE, RULE, CUSTOM COMMAND
     # ------------------------------------------------------------------
-    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lenh|scene|kich ban)\b", norm):
+    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lien het|lien thiep|lenh|le|lai|scene|kich ban)\b", norm):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -3451,7 +3474,7 @@ async def process_automation_nlu_command(
                 payload={"device_id": dev, "time_hhmm": hhmm},
                 prompt_summary=desc,
             )
-        if any(k in norm for k in ("luat", "lien ket")):
+        if any(k in norm for k in ("luat", "lien ket", "lien het", "lien thiep")):
             dev, _ = parse_single_device_and_action(raw)
             desc = "Xóa liên kết" + (f" liên quan tới {DEFAULT_DEVICES.get(dev, {}).get('name', dev)}" if dev else "")
             return await prepare_pending_mutation(
@@ -3463,9 +3486,10 @@ async def process_automation_nlu_command(
                 payload={"device_id": dev},
                 prompt_summary=desc,
             )
-        if any(k in norm for k in ("lenh", "scene", "kich ban")):
+        if any(k in norm for k in ("lenh", "scene", "kich ban")) or re.match(r"^(?:huy|xoa)\s+(?:le|lai)\s+\S+", norm):
+            is_asr_del_slip = not any(k in norm for k in ("lenh", "scene", "kich ban"))
             phrase_clean = re.sub(
-                r"^(?:huy|xoa)\s+(?:lenh tuy chinh|lenh custom|lenh|scene|kich ban)\s*",
+                r"^(?:huy|xoa)\s+(?:lenh tuy chinh|lenh custom|lenh|le|lai|scene|kich ban)\s*",
                 "",
                 norm,
             ).strip(" '\".,:")
@@ -3483,27 +3507,31 @@ async def process_automation_nlu_command(
                     for cmd in existing_cmds:
                         c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
                         sc = _fuzzy_ratio(phrase_clean, c_norm)
-                        if sc >= 65.0 and sc > best_sc:
+                        min_sc = 78.0 if is_asr_del_slip else 65.0
+                        if sc >= min_sc and sc > best_sc:
                             best_sc = sc
                             matched_del = cmd
-                if matched_del is None and len(existing_cmds) == 1:
+                if matched_del is None and not is_asr_del_slip and len(existing_cmds) == 1:
                     only_cmd = existing_cmds[0]
                     only_norm = str(only_cmd.get("phrase_norm") or normalize_phrase(str(only_cmd.get("phrase") or ""))).strip()
                     if len(phrase_clean.split()) == len(only_norm.split()):
                         matched_del = only_cmd
-            del_payload: dict[str, Any] = {"phrase": matched_del["phrase"] if matched_del else (phrase_clean or norm)}
-            if matched_del is not None:
-                del_payload["command_id"] = matched_del["command_id"]
-            del_label = matched_del["phrase"] if matched_del else (phrase_clean or raw)
-            return await prepare_pending_mutation(
-                engine=engine,
-                session=session,
-                source=source,
-                session_key=skey,
-                action_kind="delete_custom_command",
-                payload=del_payload,
-                prompt_summary=f"Xóa lệnh '{del_label}'",
-            )
+            if is_asr_del_slip and matched_del is None:
+                pass
+            else:
+                del_payload: dict[str, Any] = {"phrase": matched_del["phrase"] if matched_del else (phrase_clean or norm)}
+                if matched_del is not None:
+                    del_payload["command_id"] = matched_del["command_id"]
+                del_label = matched_del["phrase"] if matched_del else (phrase_clean or raw)
+                return await prepare_pending_mutation(
+                    engine=engine,
+                    session=session,
+                    source=source,
+                    session_key=skey,
+                    action_kind="delete_custom_command",
+                    payload=del_payload,
+                    prompt_summary=f"Xóa lệnh '{del_label}'",
+                )
 
     # ------------------------------------------------------------------
     # STEP 7. CLOCK SCHEDULE ("bật quạt trần lúc 14 giờ 35", "tắt đèn lúc 22:30 hằng ngày")

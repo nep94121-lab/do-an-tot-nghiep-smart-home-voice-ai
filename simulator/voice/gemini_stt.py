@@ -33,10 +33,38 @@ _COOLDOWN_LOCK = threading.Lock()
 _MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 _MODEL_429_STREAK: dict[str, int] = {}
 
+_PACE_LOCK = threading.Lock()
+_LAST_GEMINI_CALL_TS: float = 0.0
+
+
+def _pace_gemini_api_call() -> None:
+    """Server-side RPM pacer applied ONLY to actual Gemini API calls (never slows local offline clips)."""
+    global _LAST_GEMINI_CALL_TS
+    if os.environ.get("PYTEST", "").strip() == "1":
+        return
+    rpm_raw = os.environ.get("SMARTHOME_GEMINI_PACE_RPM", "").strip()
+    if not rpm_raw:
+        return
+    try:
+        rpm = float(rpm_raw)
+    except ValueError:
+        return
+    if rpm <= 0.0:
+        return
+    min_interval = 60.0 / rpm
+    with _PACE_LOCK:
+        now = time.monotonic()
+        if _LAST_GEMINI_CALL_TS > 0.0:
+            rem = min_interval - (now - _LAST_GEMINI_CALL_TS)
+            if rem > 0.0:
+                time.sleep(rem)
+        _LAST_GEMINI_CALL_TS = time.monotonic()
+
 _DEFAULT_MODEL_CHAIN: tuple[str, ...] = (
     "gemini-3.1-flash-lite",
     "gemini-3.1-flash-lite-preview",
     "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview",
     "gemini-flash-lite-latest",
 )
 _DEFAULT_PRIMARY_MODEL = _DEFAULT_MODEL_CHAIN[0]
@@ -66,28 +94,39 @@ _NOISE_TOKEN_RE = re.compile(
 )
 
 _BASE_ASR_PROMPT = (
-    "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao.\n"
+    "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao cho nhà thông minh.\n"
     "Hãy lắng nghe kỹ giọng người nói chính (lớn nhất ở tiền cảnh) và chép lại CHÍNH XÁC NGUYÊN VĂN lời họ nói.\n"
+    "Từ vựng tham khảo để chép đúng chính tả (CHỈ dùng khi thực sự nghe thấy âm thanh tương ứng, "
+    "TUYỆT ĐỐI KHÔNG ép khớp hay thay từ khác sang danh sách này):\n"
+    "- 6 thiết bị hỗ trợ: cửa chính (cửa/cổng), đèn phòng khách, đèn phòng ngủ (đèn buồng), tất cả đèn (hết đèn), "
+    "máy bơm tưới cây (máy bơm/tưới vườn), còi báo động (còi hú), nguồn mạch loa (loa/âm ly).\n"
+    "- Tự động hóa & cảm biến: tạo lệnh ... là ..., sửa lệnh ... thành ..., xóa lệnh ..., "
+    "đặt lịch <số> giờ sáng/tối hằng ngày ..., sửa lịch ... thành ..., xóa lịch ..., hẹn giờ <số> giây/phút ..., "
+    "khi ... thì ..., xóa liên kết ..., reset trạng thái thiết bị, reset liên kết, khôi phục cài đặt gốc, "
+    "đất khô, tiếng động lớn, nhiệt độ, độ ẩm đất, cảm biến âm thanh.\n"
     "Quy tắc bắt buộc:\n"
     "- Chỉ xuất ra đúng lời nói nguyên văn, không giải thích, không thêm lời bình.\n"
-    "- Chú ý thật kỹ âm tiết đầu tiên: phân biệt rõ 'tắt' và 'bật', 'đóng' và 'mở', 'xóa' và 'tạo', "
-    "'còi' và 'tới'/'rồi'; tuyệt đối không bỏ sót động từ đầu câu.\n"
-    "- TUYỆT ĐỐI KHÔNG tự bịa hoặc tự hoàn chỉnh từ không được nói: nếu chỉ nghe thấy 'cửa chính' "
-    "thì chỉ xuất 'cửa chính' (không thêm 'mở'); nếu chỉ nghe thấy 'bật lên đi' thì chỉ xuất 'bật lên đi' "
-    "(không thêm 'đèn').\n"
-    "- Giữ nguyên văn các từ khóa phổ biến nếu thực sự nghe thấy trong câu (như 'reset', 'liên kết', 'đặt lịch', "
-    "'xóa liên kết', 'tạo lệnh', 'khôi phục cài đặt gốc', 'đất khô', 'tiếng động lớn'), không thay bằng từ đồng âm khác.\n"
-    "- Giữ nguyên các câu trả lời ngắn 1-2 âm tiết như: ok, được, có, ừ, không, thôi, hủy, đồng ý.\n"
-    "- Nếu người nói dùng ngoại ngữ (Anh, Pháp, Hàn, Tây Ban Nha, Đức...), chép lại nguyên văn bằng ngôn ngữ đó, "
+    "- Chú ý thật kỹ âm đầu & cặp dễ nhầm: phân biệt rõ 'tắt' và 'bật', 'đóng' và 'mở', 'xóa liên kết' và 'tắt hết', "
+    "'reset' và 'bật thiết bị'/'vệ sinh'/'save', 'tắt loa' và 'tắt hoa', 'bật hết đèn' và 'bật thiết đèn', "
+    "'tưới cây' và 'từ tay', 'đất khô' và 'em cô', 'tiếng động lớn' và 'biến động lớn', 'hủy' và 'quý'.\n"
+    "- TUYỆT ĐỐI KHÔNG bỏ sót động từ đầu câu, giờ/số đếm, hoặc từ nối điều kiện 'khi ... thì ...' "
+    "(ví dụ: nghe 'khi mở cửa chính thì bật đèn phòng khách' thì giữ nguyên 'khi ... thì ...', "
+    "không rút gọn thành 'mở cửa chính, bật đèn phòng khách').\n"
+    "- CHỐNG BỊA LỆNH (tối quan trọng):\n"
+    "  1. Câu thiếu/cộc: KHÔNG tự thêm động từ hay thiết bị không được nói — chỉ nghe 'cửa chính' xuất 'cửa chính'; "
+    "chỉ nghe 'tất cả đèn' xuất 'tất cả đèn'; chỉ nghe 'bật lên đi' xuất 'bật lên đi'.\n"
+    "  2. Thiết bị ngoài danh sách: nếu nghe 'rèm cửa', 'cửa cuốn', 'quạt trần', 'điều hòa', 'tivi', 'máy giặt', "
+    "'bình nóng lạnh' thì PHẢI chép đúng nguyên văn, TUYỆT ĐỐI KHÔNG đổi thành 'cửa chính' hay thiết bị khác.\n"
+    "  3. Ngoại ngữ: nếu người nói dùng tiếng Anh, Pháp, Hàn, Tây Ban Nha, Đức... thì chép nguyên văn bằng ngoại ngữ đó, "
     "KHÔNG dịch sang tiếng Việt.\n"
-    "- Nếu chỉ có tiếng ồn, nhiễu tĩnh hoặc tiếng nói nền hỗn tạp không rõ lời người nói chính ở tiền cảnh, "
-    "chỉ xuất đúng `[NOISE]`."
+    "  4. Nhiễu/từ đệm: chỉ có từ đệm ('ờ à ừm') thì chép 'ờ à ừm'; chỉ có tiếng ồn trắng, nhiễu tĩnh hoặc tạp âm nền "
+    "không rõ lời người nói chính ở tiền cảnh thì chỉ xuất đúng `[NOISE]`."
 )
 
 _SHORT_PENDING_CONFIRM_PROMPT = (
     "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao.\n"
     "Hệ thống đang chờ người dùng xác nhận. Hãy lắng nghe và chép lại CHÍNH XÁC NGUYÊN VĂN từ/câu ngắn người dùng nói "
-    "(có thể chỉ là 1-2 âm tiết như: ok, được, có, ừ, đồng ý, không, thôi, hủy, hoặc một câu ngắn khác).\n"
+    "(có thể chỉ là 1-2 âm tiết như: ok, được, có, ừ, đồng ý, không, thôi, hủy — chú ý phân biệt rõ 'hủy' và 'quý', hoặc một câu ngắn khác).\n"
     "- Chỉ xuất đúng lời nói nguyên văn, KHÔNG tự thêm hay bịa câu lệnh dài.\n"
     "- Nếu là ngoại ngữ, chép lại nguyên văn bằng ngôn ngữ đó.\n"
     "- CHỈ xuất đúng `[NOISE]` nếu hoàn toàn không có tiếng người nói."
@@ -239,6 +278,7 @@ def _run_high_noise_hallucination_gate(
     noise_ratio: float,
     used_model: str,
     t0: float,
+    muffled_babble: bool = False,
 ) -> dict[str, Any] | None:
     """Cross-check Gemini direct device commands against local STT on high background noise (SNR <= 10 dB)."""
     if noise_ratio < 0.14 or not gemini_text:
@@ -330,10 +370,9 @@ def _run_high_noise_hallucination_gate(
             }
 
         # Zero device-cue corroboration from local STT on severe noise -> reject hallucinated command.
-        # If local abstained completely (empty string), still reject ultra-short <=2-word commands
-        # (e.g. 'Bật đèn.', 'Tắt loa.') while allowing 3+ word specific commands to preserve SNR 5 recall.
+        # If local abstained completely (empty string), reject ultra-short <=2-word commands AND any muffled-babble command.
         if not _local_corroborates_device_intents(local_txt, gemini_intents):
-            if local_txt or len(gemini_words) <= 2:
+            if local_txt or len(gemini_words) <= 2 or muffled_babble:
                 return {
                     "ok": False,
                     "text": "",
@@ -432,18 +471,28 @@ def transcribe_vietnamese_gemini_pcm16k(
             from google.genai import types
 
             client = _get_genai_client(api_key)
-            cfg = types.GenerateContentConfig(
+            cfg_lite = types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=64,
             )
+            try:
+                cfg_flash_nothink = types.GenerateContentConfig(
+                    temperature=0.0,
+                    max_output_tokens=64,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                )
+            except Exception:
+                cfg_flash_nothink = cfg_lite
             audio_part = types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav")
 
             for model_name in models_to_try:
                 try:
+                    _pace_gemini_api_call()
+                    use_cfg = cfg_flash_nothink if ("lite" not in model_name.lower()) else cfg_lite
                     resp = client.models.generate_content(
                         model=model_name,
                         contents=[prompt, audio_part],
-                        config=cfg,
+                        config=use_cfg,
                     )
                     raw_out = getattr(resp, "text", None) or ""
                     gemini_text = _clean_gemini_transcript(raw_out)
@@ -559,6 +608,7 @@ def transcribe_vietnamese_gemini_pcm16k(
         noise_ratio=noise_ratio,
         used_model=used_model,
         t0=t0,
+        muffled_babble=muffled_babble,
     )
     if gated is not None:
         return gated
@@ -571,3 +621,117 @@ def transcribe_vietnamese_gemini_pcm16k(
         "stt_ms": elapsed_ms,
         "stt_engine": f"gemini:{used_model}",
     }
+
+
+def _should_escalate_offline_to_gemini(
+    off_res: dict[str, Any],
+    audio_f32: np.ndarray,
+    sr: int,
+    *,
+    has_pending_confirmation: bool,
+) -> tuple[bool, str]:
+    """Decide whether an offline STT result needs Gemini escalation in the quota-aware cascade."""
+    from simulator.voice.vietnamese_policy import classify_small_talk_vi
+    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+
+    eng = str(off_res.get("stt_engine") or "")
+    txt = str(off_res.get("text") or "").strip()
+
+    # Pure silence / pure white noise already blocked at acoustic gate -> never spend Gemini quota
+    if eng == "acoustic_gate":
+        return False, "acoustic_gate"
+
+    # Pure muffled babble without foreground speech (noise_ratio >= 0.30) -> keep safely rejected locally (0 false actions)
+    if ":babble_guard" in eng or eng == "babble_guard":
+        if _is_muffled_babble_only(audio_f32, sr=sr) and _compute_noise_ratio(audio_f32, sr=sr) >= 0.30:
+            return False, "pure_babble_local_reject"
+        return True, "babble_guard"
+    if not off_res.get("ok") or not txt:
+        return True, "offline_empty"
+    if "_fallback" in eng or eng in ("unavailable", "disabled", "whisper_error"):
+        return True, "offline_fallback"
+
+    kind, _bare_dev = _classify_offline_transcript_kind(txt)
+    if kind == "unrecognized":
+        return True, "unrecognized"
+    if kind == "nonsense":
+        return False, "local_confident:nonsense"
+
+    # Pending confirmation: if offline did not hear a confirmation/cancel word or direct command, escalate
+    if has_pending_confirmation and _classify_confirm_safe(txt) is None and kind != "recognized":
+        return True, "pending_confirm_uncertain"
+
+    # Short high-pitch speaker (e.g. child F0 >= 245 Hz, dur <= 1.30s) decoded as 2-word small talk ('bạn ơi' for 'bật bơm')
+    dur_s = float(audio_f32.size) / float(max(1, sr))
+    if dur_s <= 1.30 and len(txt.split()) <= 2 and classify_small_talk_vi(txt) is not None:
+        try:
+            from simulator.voice.chunkformer_ctc import estimate_pitch_f0_hz
+
+            if estimate_pitch_f0_hz(audio_f32, sr=sr) >= 245.0:
+                return True, "high_pitch_short_smalltalk"
+        except Exception:
+            pass
+
+    # High-confidence local match (recognized, bare_verified, bare_verb, unsupported, foreign) -> keep locally!
+    return False, f"local_confident:{kind}"
+
+
+def transcribe_vietnamese_cascade_pcm16k(
+    pcm16: np.ndarray,
+    sr: int = 16000,
+    *,
+    has_pending_confirmation: bool = False,
+) -> dict[str, Any]:
+    """Quota-aware production cascade: run fast local STT first, escalate to Gemini ONLY when confidence/grammar is low."""
+    t0 = time.perf_counter()
+    audio_f32, is_noise = _analyze_and_preprocess_audio(pcm16, sr=sr)
+    if is_noise or audio_f32.size == 0:
+        return {
+            "ok": False,
+            "text": "",
+            "confidence": 0.0,
+            "is_noise": True,
+            "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+            "stt_engine": "acoustic_gate",
+        }
+
+    # Step 1: Fast local Zipformer + ChunkFormer-CTC offline pass
+    off_res = transcribe_vietnamese_offline_pcm16k(pcm16, sr=sr)
+    need_gemini, reason = _should_escalate_offline_to_gemini(
+        off_res,
+        audio_f32,
+        sr=16000,
+        has_pending_confirmation=has_pending_confirmation,
+    )
+    if not need_gemini:
+        out = dict(off_res)
+        orig_eng = str(out.get("stt_engine") or "offline")
+        if orig_eng != "acoustic_gate":
+            out["stt_engine"] = f"cascade_local:{orig_eng}"
+        out["stt_ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+        return out
+
+    # Step 2: Escalate only uncertain / noisy / unrecognized clips to Gemini STT
+    api_key = (load_key() or os.environ.get("GEMINI_API_KEY", "")).strip()
+    models_to_try = _get_candidate_models() if api_key else []
+    if not api_key or not models_to_try:
+        out = dict(off_res)
+        orig_eng = str(out.get("stt_engine") or "offline")
+        prefix = "offline_no_key" if not api_key else "offline_fallback"
+        out["stt_engine"] = f"{prefix}:{orig_eng}"
+        out["stt_ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+        return out
+
+    gem_res = transcribe_vietnamese_gemini_pcm16k(
+        pcm16,
+        sr=sr,
+        has_pending_confirmation=has_pending_confirmation,
+    )
+    gem_res["stt_ms"] = round((time.perf_counter() - t0) * 1000.0, 1)
+    LOG.debug(
+        "Cascade escalated (%s) -> engine=%s ms=%.1f",
+        reason,
+        gem_res.get("stt_engine"),
+        gem_res["stt_ms"],
+    )
+    return gem_res

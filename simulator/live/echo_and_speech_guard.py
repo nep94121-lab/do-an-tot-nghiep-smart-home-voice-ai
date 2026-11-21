@@ -160,7 +160,7 @@ def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> boo
     if ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a"):
         return True
     if (
-        ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se "))
+        ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se ", "ban muon "))
         or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a", " roi"))
         or " dang " in f" {ai_norm} "
     ):

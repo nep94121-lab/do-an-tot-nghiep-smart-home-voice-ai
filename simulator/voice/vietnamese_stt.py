@@ -395,42 +395,197 @@ def _clean_zipformer_text(raw_text: str) -> str:
     return txt.lower().strip()
 
 
-def _decode_zipformer(rec: Any, audio_f32: np.ndarray, sr: int = 16000, *, pad_short: bool = True) -> str:
+def _decode_zipformer_with_gap(
+    rec: Any,
+    audio_f32: np.ndarray,
+    sr: int = 16000,
+    *,
+    pad_sec: float = 0.25,
+) -> tuple[str, float]:
+    """Decode with Zipformer using universal silence padding and compute pre-token acoustic onset gap."""
     samples = audio_f32
-    if pad_short and samples.size < int(sr * 1.25):
-        pad = np.zeros(int(sr * 0.25), dtype=np.float32)
+    if pad_sec > 0.0:
+        pad = np.zeros(int(sr * pad_sec), dtype=np.float32)
         samples = np.concatenate([pad, samples, pad])
     stream = rec.create_stream()
     stream.accept_waveform(sr, samples.tolist() if samples.dtype != np.float32 else samples)
     rec.decode_stream(stream)
-    return _clean_zipformer_text(getattr(stream.result, "text", ""))
+    txt = _clean_zipformer_text(getattr(stream.result, "text", ""))
+    tok_ts = list(getattr(stream.result, "timestamps", []) or [])
+    if not tok_ts:
+        return txt, 0.0
+    frame_len = max(1, int(sr * 0.02))
+    n_frames = samples.size // frame_len
+    if n_frames < 4:
+        return txt, 0.0
+    frames = samples[: n_frames * frame_len].reshape(n_frames, frame_len)
+    frame_rms = np.sqrt(np.mean(frames * frames, axis=1) + 1e-12)
+    peak_rms = float(np.max(frame_rms))
+    speech_idx = np.where(frame_rms > peak_rms * 0.12)[0]
+    onset_s = float(speech_idx[0] * 0.02) if speech_idx.size else 0.0
+    first_tok_s = float(tok_ts[0])
+    return txt, (first_tok_s - onset_s)
+
+
+def _decode_zipformer(rec: Any, audio_f32: np.ndarray, sr: int = 16000, *, pad_short: bool = True) -> str:
+    txt, _gap = _decode_zipformer_with_gap(rec, audio_f32, sr=sr, pad_sec=(0.25 if pad_short else 0.0))
+    return txt
+
+
+def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
+    """Classify an offline transcript to decide whether ensemble rescue is needed.
+
+    Returns (kind, device_id_if_bare_noun) where kind is one of:
+    'empty' | 'unsupported' | 'foreign' | 'recognized' | 'bare_device' | 'bare_verb' | 'unrecognized'.
+    """
+    low = re.sub(r"[?!.,;:]+$", "", (text or "").strip().lower()).strip()
+    if not low:
+        return "empty", None
+    try:
+        from simulator.automation_nlu import (
+            _classify_confirmation_utterance,
+            _detect_scoped_reset_intent,
+            _parse_clock_hhmm_vi,
+            _parse_countdown_seconds,
+            _parse_custom_command_create_or_edit,
+            _parse_sensor_trigger,
+        )
+        from simulator.voice.vietnamese_policy import (
+            _UNSUPPORTED_DEVICE_RE,
+            _extract_clause_action,
+            _extract_clause_device,
+            classify_small_talk_vi,
+            is_foreign_or_nonsense_input,
+            normalize_vietnamese_utterance,
+            parse_direct_device_intents_vi,
+            strip_vi_accents,
+        )
+    except Exception:
+        return "recognized", None
+
+    is_bad, bad_kind = is_foreign_or_nonsense_input(low)
+    if is_bad and bad_kind == "foreign":
+        return "foreign", None
+    if is_bad and bad_kind == "nonsense":
+        return "nonsense", None
+
+    norm_raw = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(low)).split())
+    padded_raw = f" {norm_raw} "
+    if _UNSUPPORTED_DEVICE_RE.search(padded_raw):
+        return "unsupported", None
+
+    tokens = low.split()
+    if len(tokens) == 1 and tokens[0] in _VALID_SHORT_SINGLE_TOKENS:
+        return "recognized", None
+    if _classify_confirmation_utterance(low, has_pending=False) is not None:
+        return "recognized", None
+    if classify_small_talk_vi(low) is not None:
+        return "recognized", None
+    if parse_direct_device_intents_vi(low):
+        return "recognized", None
+
+    # Sensor/status queries
+    if any(
+        k in padded_raw
+        for k in (
+            " nhiet do ", " do am ", " cam bien ", " am thanh ", " ky037 ", " ky 037 ",
+            " bom tu dong ", " che do bom ", " dang mo hay dong ",
+            " dang bat hay tat ", " co dang bat ", " co dang mo ", " co dang keu ",
+            " co nhung ", " danh sach ", " liet ke ", " thanh vien ",
+        )
+    ):
+        if not re.match(r"^(?:rep|rex|rexit|vi\s+sep|viet|re\s+logic|logic|reet)\b", norm_raw):
+            return "recognized", None
+    if " trang thai " in padded_raw and not re.match(
+        r"^(?:rep|rex|rexit|vi\s+sep|viet|re\s+logic|logic|reet|reset|ri\s+set|dat\s+lai|tuyet|vi\s+thich)\b",
+        norm_raw,
+    ):
+        if any(
+            k in padded_raw
+            for k in (
+                " thiet bi ", " trong nha ", " cua ", " den ", " bom ", " coi ", " loa ",
+                " cam bien ", " dang ", " nao ", " the nao ",
+            )
+        ):
+            return "recognized", None
+
+    # Automation: reset, custom create/edit/delete, schedule, timer, cross-rule
+    if _detect_scoped_reset_intent(low) is not None:
+        return "recognized", None
+    if any(
+        k in padded_raw
+        for k in (
+            " reset trang thai ", " ri set trang thai ", " rexit trang thai ",
+            " rep trang thai ", " vi sep trang thai ", " viet trang thai ",
+            " re logic trang thai ", " logic trang thai ", " reet trang thai ",
+            " dat lai trang thai ", " khoi phuc cai dat ",
+            " hoi phuc cai dat ", " khoi phuc ngay dan ",
+            " factory reset ", " cap quyen ", " thu hoi ",
+        )
+    ):
+        return "recognized", None
+    if _parse_custom_command_create_or_edit(low) is not None:
+        return "recognized", None
+    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lien het|lien thiep|lenh|scene|kich ban)\b", norm_raw):
+        return "recognized", None
+    if re.match(r"^(?:doi|sua|cap nhat|du)\s+(?:lich|hen gio)\b", norm_raw):
+        return "recognized", None
+    if re.match(r"^(?:xu ly|du dinh)\s+.+\s+(?:thanh|sang)\s+.+", norm_raw):
+        return "recognized", None
+    if " thi " in padded_raw and (
+        _parse_sensor_trigger(low) is not None
+        or any(k in padded_raw for k in (" khi ", " neu ", " mo cua ", " dong cua ", " bat ", " tat "))
+    ):
+        from simulator.automation_nlu import parse_single_device_and_action
+
+        parts_thi = re.split(r"\b(?:thì|thi)\b", low, maxsplit=1, flags=re.IGNORECASE)
+        if len(parts_thi) == 2:
+            t_dev, t_act = parse_single_device_and_action(parts_thi[1].strip())
+            if t_dev is not None and t_act is not None:
+                return "recognized", None
+    hhmm, _, _ = _parse_clock_hhmm_vi(low)
+    if hhmm is not None and any(k in padded_raw for k in (" mo ", " dong ", " bat ", " tat ")):
+        return "recognized", None
+    cd_sec, _ = _parse_countdown_seconds(low)
+    if cd_sec > 0 and any(k in padded_raw for k in (" sau ", " nua ", " hen gio ")) and any(
+        k in padded_raw for k in (" mo ", " dong ", " bat ", " tat ")
+    ):
+        return "recognized", None
+
+    # Check bare device noun vs bare verb (for onset-gap physics guard!)
+    # Strictly require NO extra unrecognized leading/trailing word (e.g. 'các còi báo động' or 'bật kết quả' is NOT bare).
+    normalized = normalize_vietnamese_utterance(low)
+    norm_clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(normalized.lower())).split())
+    norm_stripped = re.sub(r"\s+(?:a|nha|nhe|oi|di|nay|voi|giup minh|ho minh)$", "", norm_clean).strip()
+    dev = _extract_clause_device(norm_clean) if norm_clean else None
+    act = _extract_clause_action(norm_clean, dev) if norm_clean else None
+    _EXACT_BARE_DEVICE_PHRASES = {
+        "cua", "cua chinh", "cong", "cua ra vao", "cua nha", "cai cua",
+        "den", "bong den", "tat ca den", "het den", "toan bo den", "ca hai den", "hai den", "ca den", "may cai den",
+        "den phong khach", "bong den phong khach", "den khach", "phong khach",
+        "den phong ngu", "bong den phong ngu", "den ngu", "phong ngu",
+        "may bom", "may bom tuoi cay", "bom", "bom tuoi cay", "bom vuon", "may bom nuoc", "bom nuoc",
+        "coi", "coi bao dong", "chuong bao dong", "bao dong",
+        "loa", "mach loa", "nguon mach loa", "nguon loa", "am li", "amply",
+        "tat ca thiet bi", "cac thiet bi", "thiet bi",
+    }
+    _EXACT_BARE_VERB_PHRASES = {
+        "bat", "tat", "mo", "dong", "khoa",
+        "bat len", "tat xuong", "mo ra", "dong lai", "khoa lai",
+        "bat len di", "mo ra di", "dong lai di",
+        "bat het len", "tat het di", "bat no len", "tat no di",
+    }
+    if dev is not None and act is None and norm_stripped in _EXACT_BARE_DEVICE_PHRASES:
+        return "bare_device", dev
+    if act is not None and dev is None and norm_stripped in _EXACT_BARE_VERB_PHRASES:
+        return "bare_verb", None
+
+    return "unrecognized", None
 
 
 def _is_plausible_short_reply_or_command(text: str) -> bool:
-    low = re.sub(r"[?!.,;:]+$", "", (text or "").strip().lower()).strip()
-    if not low:
-        return False
-    tokens = low.split()
-    if len(tokens) == 1 and tokens[0] in _VALID_SHORT_SINGLE_TOKENS:
-        return True
-    try:
-        from simulator.automation_nlu import _classify_confirmation_utterance
-
-        if _classify_confirmation_utterance(low) is not None:
-            return True
-    except Exception:
-        pass
-    try:
-        from simulator.voice.vietnamese_policy import (
-            classify_small_talk_vi,
-            parse_direct_device_intents_vi,
-        )
-
-        if classify_small_talk_vi(low) is not None or parse_direct_device_intents_vi(low):
-            return True
-    except Exception:
-        pass
-    return False
+    kind, _ = _classify_offline_transcript_kind(text)
+    return kind == "recognized"
 
 
 def _transcribe_with_whisper_model(
@@ -563,29 +718,19 @@ def transcribe_vietnamese_offline_pcm16k(
     muffled_babble = _is_muffled_babble_only(audio_f32, sr=16000)
     engine_pref = os.environ.get("SMARTHOME_OFFLINE_STT_ENGINE", "").strip().lower()
 
-    # Engine 1 (primary offline): Sherpa-ONNX Zipformer-70M-int8 (and 30M-int8 for short clips <1.20s or fallback)
+    # Engine 1 (primary offline): Sherpa-ONNX Zipformer-70M/30M + ChunkFormer-CTC acoustic rescue
     if engine_pref != "whisper":
-        order = ("30m", "70m") if duration_sec < 1.20 else ("70m", "30m")
-        for idx, variant in enumerate(order):
-            rec = _get_zipformer_recognizer(variant)
-            if rec is None:
-                continue
+        primary_variant = "30m" if duration_sec < 1.20 else "70m"
+        alt_variant = "70m" if primary_variant == "30m" else "30m"
+        rec_primary = _get_zipformer_recognizer(primary_variant)
+        if rec_primary is not None:
             try:
-                txt = _decode_zipformer(rec, audio_f32, sr=16000, pad_short=True)
-                if not txt:
-                    if muffled_babble:
-                        return {
-                            "ok": False,
-                            "text": "",
-                            "confidence": 0.0,
-                            "is_noise": True,
-                            "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
-                            "stt_engine": f"zipformer_{variant}:babble_guard",
-                        }
-                    continue
-                tokens = txt.split()
-                # Reject random 1-3 nonsense syllables produced on pure muffled babble
-                if muffled_babble and len(tokens) <= 3 and not _is_plausible_short_reply_or_command(txt):
+                # Pad only very short clips (< 1.25s); leading silence pad on >= 1.25s clips causes
+                # Zipformer-70M to hallucinate a leading 'bật' on bare nouns like 'tất cả đèn'.
+                zip_pad = 0.25 if duration_sec < 1.25 else 0.0
+                txt, onset_gap = _decode_zipformer_with_gap(rec_primary, audio_f32, sr=16000, pad_sec=zip_pad)
+                variant = primary_variant
+                if not txt and muffled_babble:
                     return {
                         "ok": False,
                         "text": "",
@@ -594,33 +739,29 @@ def transcribe_vietnamese_offline_pcm16k(
                         "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
                         "stt_engine": f"zipformer_{variant}:babble_guard",
                     }
-                # If primary 70M emitted a severely truncated 1-word output on a longer clip (>=1.6s),
-                # check 30M once to recover fuller speech (e.g. SNR 10 white noise).
+
+                tokens = txt.split() if txt else []
+                # Reject random 1-3 nonsense syllables produced on pure muffled babble
+                if txt and muffled_babble and len(tokens) <= 3 and not _is_plausible_short_reply_or_command(txt):
+                    return {
+                        "ok": False,
+                        "text": "",
+                        "confidence": 0.0,
+                        "is_noise": True,
+                        "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                        "stt_engine": f"zipformer_{variant}:babble_guard",
+                    }
+
+                # Preserve trailing unsupported-noun tail rescue (e.g. 'mở cửa cuốn' truncated to 'mở cửa')
                 if (
-                    idx == 0
-                    and variant == "70m"
-                    and duration_sec >= 1.60
-                    and len(tokens) <= 1
-                    and not muffled_babble
-                ):
-                    rec_alt = _get_zipformer_recognizer("30m")
-                    if rec_alt is not None:
-                        alt_txt = _decode_zipformer(rec_alt, audio_f32, sr=16000, pad_short=True)
-                        if len(alt_txt.split()) >= 2:
-                            txt = alt_txt
-                            variant = "30m_rescue"
-                # If primary 70M emitted a 2-word output on a longer clip (>=1.5s)
-                # (e.g. 'mở cửa cuốn' truncated to 'mở cửa'), check 30M once to recover dropped trailing words.
-                elif (
-                    idx == 0
-                    and variant == "70m"
+                    variant == "70m"
                     and duration_sec >= 1.50
                     and len(tokens) == 2
                     and not muffled_babble
                 ):
                     rec_alt = _get_zipformer_recognizer("30m")
                     if rec_alt is not None:
-                        alt_txt = _decode_zipformer(rec_alt, audio_f32, sr=16000, pad_short=True)
+                        alt_txt, _ = _decode_zipformer_with_gap(rec_alt, audio_f32, sr=16000, pad_sec=zip_pad)
                         alt_tokens = alt_txt.split()
                         if len(alt_tokens) >= 3 and (
                             alt_txt.startswith(txt + " ")
@@ -628,16 +769,170 @@ def transcribe_vietnamese_offline_pcm16k(
                         ):
                             txt = alt_txt
                             variant = "30m_tail_rescue"
-                return {
-                    "ok": True,
-                    "text": txt,
-                    "confidence": 0.88 if variant == "70m" else 0.85,
-                    "is_noise": False,
-                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
-                    "stt_engine": f"zipformer_{variant}",
-                }
+
+                kind, bare_dev = _classify_offline_transcript_kind(txt)
+
+                # Long multi-device utterances (>= 3.5s with ' và '): if Zipformer garbled a trailing clause
+                # after ' và ', check ChunkFormer-CTC and prefer it if it recovers strictly more device intents.
+                if (
+                    kind == "recognized"
+                    and duration_sec >= 3.50
+                    and not muffled_babble
+                    and " và " in txt.lower()
+                ):
+                    try:
+                        from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+                        base_intents = parse_direct_device_intents_vi(txt)
+                        tail_part = txt.lower().rsplit(" và ", 1)[-1].strip()
+                        if base_intents and tail_part and not parse_direct_device_intents_vi(tail_part):
+                            from simulator.voice.chunkformer_ctc import decode_chunkformer_with_logprobs
+
+                            cf_multi, _ = decode_chunkformer_with_logprobs(audio_f32, sr=16000, pad_s=0.25)
+                            cf_multi_kind, _ = _classify_offline_transcript_kind(cf_multi)
+                            if (
+                                cf_multi_kind == "recognized"
+                                and len(parse_direct_device_intents_vi(cf_multi)) > len(base_intents)
+                            ):
+                                return {
+                                    "ok": True,
+                                    "text": cf_multi,
+                                    "confidence": 0.90,
+                                    "is_noise": False,
+                                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                    "stt_engine": f"zipformer_{variant}+chunkformer_ctc_multi",
+                                }
+                    except Exception:
+                        pass
+
+                # Fast path (~0.8-1.2s): return immediately on recognized intents, unsupported devices,
+                # foreign speech, bare verbs, or bare nouns with NO un-decoded leading speech (onset_gap < 0.08s).
+                if kind in ("recognized", "unsupported", "foreign", "bare_verb"):
+                    return {
+                        "ok": True,
+                        "text": txt,
+                        "confidence": 0.88 if variant == "70m" else 0.85,
+                        "is_noise": False,
+                        "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                        "stt_engine": f"zipformer_{variant}",
+                    }
+                if kind == "bare_device" and onset_gap < 0.08:
+                    return {
+                        "ok": True,
+                        "text": txt,
+                        "confidence": 0.86,
+                        "is_noise": False,
+                        "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                        "stt_engine": f"zipformer_{variant}:bare_verified",
+                    }
+
+                # Pass 2 (~0.42s): ChunkFormer-CTC rescue for unrecognized utterances or dropped-verb commands (onset_gap >= 0.08s)
+                cf_greedy = ""
+                if not muffled_babble:
+                    try:
+                        from simulator.voice.chunkformer_ctc import (
+                            decode_chunkformer_with_logprobs,
+                            estimate_pitch_f0_hz,
+                            rescore_closed_command_ctc,
+                            vtln_resample,
+                        )
+
+                        cf_greedy, cf_lp = decode_chunkformer_with_logprobs(audio_f32, sr=16000, pad_s=0.25)
+                        cf_kind, _ = _classify_offline_transcript_kind(cf_greedy)
+                        if cf_kind in ("unsupported", "foreign"):
+                            return {
+                                "ok": True,
+                                "text": cf_greedy,
+                                "confidence": 0.88,
+                                "is_noise": False,
+                                "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                "stt_engine": f"zipformer_{variant}+chunkformer_ctc",
+                            }
+                        if cf_kind == "recognized":
+                            return {
+                                "ok": True,
+                                "text": cf_greedy,
+                                "confidence": 0.90,
+                                "is_noise": False,
+                                "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                "stt_engine": f"zipformer_{variant}+chunkformer_ctc",
+                            }
+                        # Constrained CTC acoustic rescoring
+                        expected_dev = bare_dev if (kind == "bare_device" and onset_gap >= 0.08) else None
+                        rescored = rescore_closed_command_ctc(
+                            cf_lp,
+                            cf_greedy,
+                            expected_device=expected_dev,
+                        )
+                        if rescored:
+                            return {
+                                "ok": True,
+                                "text": rescored,
+                                "confidence": 0.87,
+                                "is_noise": False,
+                                "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                "stt_engine": (
+                                    f"zipformer_{variant}+chunkformer_ctc_onset"
+                                    if expected_dev
+                                    else f"zipformer_{variant}+chunkformer_ctc_rescore"
+                                ),
+                            }
+                        # High-pitch fast speaker VTLN rescue (e.g. children F0 >= 245 Hz, dur <= 1.5s)
+                        if expected_dev is None and duration_sec <= 1.50 and estimate_pitch_f0_hz(audio_f32, sr=16000) >= 245.0:
+                            vtln_audio = vtln_resample(audio_f32, factor=0.75)
+                            vg, vlp = decode_chunkformer_with_logprobs(vtln_audio, sr=16000, pad_s=0.25)
+                            v_kind, _ = _classify_offline_transcript_kind(vg)
+                            if v_kind in ("unsupported", "foreign", "recognized"):
+                                return {
+                                    "ok": True,
+                                    "text": vg,
+                                    "confidence": 0.87,
+                                    "is_noise": False,
+                                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                    "stt_engine": f"zipformer_{variant}+chunkformer_ctc_vtln",
+                                }
+                            v_rescored = rescore_closed_command_ctc(vlp, vg)
+                            if v_rescored:
+                                return {
+                                    "ok": True,
+                                    "text": v_rescored,
+                                    "confidence": 0.86,
+                                    "is_noise": False,
+                                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                    "stt_engine": f"zipformer_{variant}+chunkformer_ctc_vtln_rescore",
+                                }
+                    except Exception as exc:
+                        LOG.debug("ChunkFormer-CTC rescue skipped: %s", exc)
+
+                # Pass 3 (~0.45s): Alternate Zipformer tie-breaker (e.g. 30M catches elderly/fast clauses 70M missed)
+                if not muffled_babble:
+                    rec_alt = _get_zipformer_recognizer(alt_variant)
+                    if rec_alt is not None:
+                        alt_txt, _ = _decode_zipformer_with_gap(rec_alt, audio_f32, sr=16000, pad_sec=zip_pad)
+                        alt_kind, _ = _classify_offline_transcript_kind(alt_txt)
+                        if alt_kind in ("unsupported", "foreign", "recognized"):
+                            return {
+                                "ok": True,
+                                "text": alt_txt,
+                                "confidence": 0.85,
+                                "is_noise": False,
+                                "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                "stt_engine": f"zipformer_{alt_variant}_rescue",
+                            }
+
+                # Preserve bare device noun for clean clarification; otherwise prefer ChunkFormer (e.g. custom scene phrases like 'đi làm')
+                final_txt = txt if kind == "bare_device" else (cf_greedy or txt)
+                if final_txt:
+                    return {
+                        "ok": True,
+                        "text": final_txt,
+                        "confidence": 0.82,
+                        "is_noise": False,
+                        "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                        "stt_engine": f"zipformer_{variant}+chunkformer_ctc_fallback" if (final_txt == cf_greedy and cf_greedy) else f"zipformer_{variant}",
+                    }
             except Exception as exc:
-                LOG.warning("Local Zipformer-%s STT failed: %s", variant, exc)
+                LOG.warning("Local Zipformer-%s STT failed: %s", primary_variant, exc)
 
     # Engine 2 (secondary fallback): PhoWhisper-base-ct2 -> faster-whisper-small/tiny
     if muffled_babble:
@@ -740,10 +1035,20 @@ def transcribe_vietnamese_audio(
     except Exception:
         has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
 
-    if mode == "gemini" or (mode == "auto" and has_key):
-        from simulator.voice.gemini_stt import transcribe_vietnamese_gemini_pcm16k
+    if mode in ("gemini", "cascade") or (mode == "auto" and has_key):
+        from simulator.voice.gemini_stt import (
+            transcribe_vietnamese_cascade_pcm16k,
+            transcribe_vietnamese_gemini_pcm16k,
+        )
 
-        return transcribe_vietnamese_gemini_pcm16k(
+        # Production quota-aware cascade (offline-first, escalate to Gemini only on low-confidence/unrecognized/noisy)
+        if os.environ.get("SMARTHOME_GEMINI_DIRECT_ONLY", "0").strip() == "1":
+            return transcribe_vietnamese_gemini_pcm16k(
+                pcm16,
+                sr=sr,
+                has_pending_confirmation=has_pending_confirmation,
+            )
+        return transcribe_vietnamese_cascade_pcm16k(
             pcm16,
             sr=sr,
             has_pending_confirmation=has_pending_confirmation,
