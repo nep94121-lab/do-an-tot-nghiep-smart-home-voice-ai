@@ -1,65 +1,160 @@
 {
   "verification": {
+    "schema": "MICA2",
+    "default_T_mm": 3.0,
+    "default_tab_clr_mm": 0.25,
+    "unique_panels": 18,
+    "physical_pieces": 19,
     "checks": {
       "dxf_closed_contours": {
         "passed": true,
-        "panel_count": 15,
+        "panel_count": 18,
+        "errors": []
+      },
+      "min_hole_and_datasheet_clearance": {
+        "passed": true,
+        "total_holes": 76,
+        "min_general_hole_mm": 3.0,
+        "documented_lt3mm_exceptions": [
+          {
+            "panel": "P07_SERVO_SHELF",
+            "hole": "SG90_M2_Front",
+            "diameter_mm": 2.5,
+            "reason": "TowerPro SG90 datasheet M2 mounting ear screw (2.0 mm + 0.5 mm clearance = 2.5 mm; use M2 washers)"
+          },
+          {
+            "panel": "P07_SERVO_SHELF",
+            "hole": "SG90_M2_Rear",
+            "diameter_mm": 2.5,
+            "reason": "TowerPro SG90 datasheet M2 mounting ear screw (2.0 mm + 0.5 mm clearance = 2.5 mm; use M2 washers)"
+          }
+        ],
+        "datasheet_clearances_checked": 14,
         "errors": []
       },
       "min_web_and_non_overlap": {
         "passed": true,
-        "min_general_web_mm": 2.5,
+        "min_general_web_mm": 3.0,
         "sg90_datasheet_flange_web_notes": [
-          "P07_SERVO_SHELF:SG90_M2_Front to SG90_Cutout = 1.40 mm (mandated by SG90 27.8mm M2 tab datasheet; use M2 washer)",
-          "P07_SERVO_SHELF:SG90_M2_Rear to SG90_Cutout = 1.40 mm (mandated by SG90 27.8mm M2 tab datasheet; use M2 washer)"
+          "P07_SERVO_SHELF:SG90_M2_Front to SG90_Cutout = 1.00 mm (SG90 datasheet 27.8mm M2 ear pitch with 23.3mm cutout + Dia 2.5mm hole; use M2 washer)",
+          "P07_SERVO_SHELF:SG90_M2_Rear to SG90_Cutout = 1.00 mm (SG90 datasheet 27.8mm M2 ear pitch with 23.3mm cutout + Dia 2.5mm hole; use M2 washer)"
         ],
         "violations": []
       },
-      "tab_slot_matching": {
+      "tab_slot_matching_and_min_tab": {
         "passed": true,
-        "total_tab_slot_joints": 55,
-        "base_slots": 33,
+        "total_tab_slot_joints": 59,
+        "p01a_base_slots": 15,
+        "p01b_base_slots": 18,
+        "min_tab_width_mm": 14.0,
+        "default_tab_clr_mm": 0.25,
         "tested_thicknesses_mm": [
           2.0,
           3.0,
           5.0
         ],
+        "tested_clearances_mm": [
+          0.2,
+          0.25,
+          0.3
+        ],
         "errors": []
       },
-      "kicad_pcb_hole_match": {
-        "passed": true,
-        "kicad_H1_H4_pitch_mm": [
-          71.0,
-          56.0
-        ],
-        "base_panel_pitch_mm": [
-          71.0,
-          56.0
-        ],
-        "kicad_drill_mm": [
-          3.2
-        ],
-        "base_drill_mm": [
-          3.2
-        ],
-        "max_error_mm": 0.0
-      },
-      "freecad_recompute_T_2_3_5": {
+      "freecad_recompute_and_3d_collision": {
         "passed": true,
         "freecad_version": "1.1.4.20260928 (Git shallow)",
-        "panels_verified": 15,
-        "log_file": "hardware\\freecad\\mica\\freecad_recompute_check.log"
+        "unique_panels_verified": 18,
+        "physical_pieces_verified": 19,
+        "runs_checked": [
+          "T_2mm_clr_0.25mm",
+          "T_3mm_clr_0.25mm",
+          "T_5mm_clr_0.25mm",
+          "T_3mm_clr_0.20mm",
+          "T_3mm_clr_0.30mm"
+        ],
+        "collision_count": 0,
+        "max_interference_vol_mm3": 0.0,
+        "hw_vs_panel_pairs_checked": 337,
+        "hw_vs_panel_collision_count": 0,
+        "hw_vs_panel_max_interference_vol_mm3": 0.0,
+        "joint_engagement_failures": 0,
+        "max_brep_vs_dxf_bbox_err_mm": 0.0,
+        "errors": []
       },
-      "modules_fit_rooms_and_zero_removed": {
+      "pcb_plate_fit_90x70": {
         "passed": true,
-        "modules_checked": 16,
+        "panel_id": "P16_PCB_PLATE",
+        "plate_size_mm": [
+          130.0,
+          110.0
+        ],
+        "pcb_size_mm": [
+          100.0,
+          80.0
+        ],
+        "hole_pattern_mm": [
+          90.0,
+          70.0
+        ],
+        "hole_dias_mm": [
+          3.4
+        ],
+        "outer_standoff_pitch_mm": [
+          116.0,
+          96.0
+        ],
+        "free_margins_mm": {
+          "left": 15.0,
+          "right": 15.0,
+          "bottom": 15.0,
+          "top": 15.0
+        },
+        "min_margin_mm": 15.0,
+        "errors": []
+      },
+      "modules_fit_rooms_and_15mm_wiring_gaps": {
+        "passed": true,
+        "hardware_entries_checked": 17,
+        "wiring_pairs_checked": 135,
+        "min_wiring_gap_mm": 18.0,
+        "closest_pair": [
+          "HW_RELAY1",
+          "HW_RELAY2"
+        ],
         "room_errors": [],
+        "wiring_violations": [],
         "forbidden_device_hits": []
       },
-      "a3_nesting_complete": {
+      "sheet_nesting_a3_and_a4": {
         "passed": true,
-        "sheets_a3": 3,
-        "panels_nested": 15
+        "total_physical_pieces": 19,
+        "a3_sheets": 6,
+        "a3_pieces_nested": 19,
+        "a3_oversized": [],
+        "a4_sheets": 5,
+        "a4_pieces_nested": 15,
+        "a4_oversized_tiled": [
+          "P01A_BASE_TECH",
+          "P01B_BASE_HOUSE",
+          "P02_WALL_BACK",
+          "P05_WALL_FRONT"
+        ],
+        "a4_tiled_pages": 9,
+        "errors": []
+      },
+      "holes_csv_consistency": {
+        "passed": true,
+        "csv_file": "docs\\phan_cung\\mica\\holes_table.csv",
+        "header": [
+          "panel",
+          "id",
+          "x",
+          "y",
+          "diameter",
+          "purpose"
+        ],
+        "hole_rows": 76,
+        "errors": []
       }
     },
     "all_passed": true
@@ -70,43 +165,108 @@
       420.0,
       297.0
     ],
-    "sheet_count": 3,
+    "margin_mm": 5.0,
+    "spacing_mm": 4.0,
+    "sheet_count": 6,
+    "nested_piece_count": 19,
     "sheets": [
       {
         "sheet_no": 1,
-        "panels": [
-          "P01_BASE",
-          "P14_SOIL_BRIDGE"
+        "pieces": [
+          "P01B_BASE_HOUSE",
+          "P15_TECH_FASCIA",
+          "P12_GARDEN_FRONT"
         ],
-        "utilization_pct": 87.2
+        "panels": [
+          "P01B_BASE_HOUSE",
+          "P15_TECH_FASCIA",
+          "P12_GARDEN_FRONT"
+        ],
+        "utilization_pct": 79.8
       },
       {
         "sheet_no": 2,
-        "panels": [
-          "P02_WALL_BACK",
-          "P05_WALL_FRONT",
-          "P15_TECH_FASCIA",
+        "pieces": [
+          "P01A_BASE_TECH",
+          "P13_GARDEN_BACK",
+          "P09_GARDEN_LEFT",
+          "P10_WATER_DIVIDER",
+          "P14_SOIL_BRIDGE",
+          "P17_BASE_JOINER_L",
+          "P17_BASE_JOINER_R",
           "P07_SERVO_SHELF"
         ],
-        "utilization_pct": 48.4
+        "panels": [
+          "P01A_BASE_TECH",
+          "P13_GARDEN_BACK",
+          "P09_GARDEN_LEFT",
+          "P10_WATER_DIVIDER",
+          "P14_SOIL_BRIDGE",
+          "P17_BASE_JOINER",
+          "P17_BASE_JOINER",
+          "P07_SERVO_SHELF"
+        ],
+        "utilization_pct": 79.2
       },
       {
         "sheet_no": 3,
+        "pieces": [
+          "P02_WALL_BACK",
+          "P16_PCB_PLATE",
+          "P11_GARDEN_RIGHT",
+          "P08_DOOR_LEAF"
+        ],
+        "panels": [
+          "P02_WALL_BACK",
+          "P16_PCB_PLATE",
+          "P11_GARDEN_RIGHT",
+          "P08_DOOR_LEAF"
+        ],
+        "utilization_pct": 58.5
+      },
+      {
+        "sheet_no": 4,
+        "pieces": [
+          "P05_WALL_FRONT"
+        ],
+        "panels": [
+          "P05_WALL_FRONT"
+        ],
+        "utilization_pct": 15.4
+      },
+      {
+        "sheet_no": 5,
+        "pieces": [
+          "P03_WALL_LEFT",
+          "P04_WALL_RIGHT"
+        ],
         "panels": [
           "P03_WALL_LEFT",
-          "P04_WALL_RIGHT",
-          "P06_WALL_MID",
-          "P12_GARDEN_FRONT",
-          "P13_GARDEN_BACK",
-          "P08_DOOR_LEAF",
-          "P09_GARDEN_LEFT",
-          "P10_WATER_DIVIDER",
-          "P11_GARDEN_RIGHT"
+          "P04_WALL_RIGHT"
         ],
-        "utilization_pct": 61.0
+        "utilization_pct": 32.0
+      },
+      {
+        "sheet_no": 6,
+        "pieces": [
+          "P06_WALL_MID"
+        ],
+        "panels": [
+          "P06_WALL_MID"
+        ],
+        "utilization_pct": 17.0
       }
     ],
-    "oversized_panels": []
+    "oversized_panels": [],
+    "pdf_1to1_all": "sheet_layout_A3_1to1.pdf",
+    "pdf_1to1_per_sheet": [
+      "sheet_layout_A3_sheet1.pdf",
+      "sheet_layout_A3_sheet2.pdf",
+      "sheet_layout_A3_sheet3.pdf",
+      "sheet_layout_A3_sheet4.pdf",
+      "sheet_layout_A3_sheet5.pdf",
+      "sheet_layout_A3_sheet6.pdf"
+    ]
   },
   "nesting_A4": {
     "sheet_type": "A4",
@@ -114,43 +274,138 @@
       297.0,
       210.0
     ],
-    "sheet_count": 3,
+    "margin_mm": 5.0,
+    "spacing_mm": 4.0,
+    "sheet_count": 5,
+    "nested_piece_count": 15,
     "sheets": [
       {
         "sheet_no": 1,
-        "panels": [
+        "pieces": [
           "P03_WALL_LEFT",
-          "P15_TECH_FASCIA",
           "P12_GARDEN_FRONT",
-          "P13_GARDEN_BACK",
+          "P14_SOIL_BRIDGE",
+          "P17_BASE_JOINER_L",
+          "P17_BASE_JOINER_R",
           "P07_SERVO_SHELF"
         ],
-        "utilization_pct": 54.6
+        "panels": [
+          "P03_WALL_LEFT",
+          "P12_GARDEN_FRONT",
+          "P14_SOIL_BRIDGE",
+          "P17_BASE_JOINER",
+          "P17_BASE_JOINER",
+          "P07_SERVO_SHELF"
+        ],
+        "utilization_pct": 56.9
       },
       {
         "sheet_no": 2,
+        "pieces": [
+          "P04_WALL_RIGHT",
+          "P13_GARDEN_BACK"
+        ],
         "panels": [
           "P04_WALL_RIGHT",
-          "P08_DOOR_LEAF",
-          "P09_GARDEN_LEFT",
-          "P10_WATER_DIVIDER",
-          "P11_GARDEN_RIGHT",
-          "P14_SOIL_BRIDGE"
+          "P13_GARDEN_BACK"
         ],
-        "utilization_pct": 50.0
+        "utilization_pct": 41.8
       },
       {
         "sheet_no": 3,
-        "panels": [
-          "P06_WALL_MID"
+        "pieces": [
+          "P06_WALL_MID",
+          "P09_GARDEN_LEFT"
         ],
-        "utilization_pct": 29.4
+        "panels": [
+          "P06_WALL_MID",
+          "P09_GARDEN_LEFT"
+        ],
+        "utilization_pct": 44.5
+      },
+      {
+        "sheet_no": 4,
+        "pieces": [
+          "P16_PCB_PLATE",
+          "P15_TECH_FASCIA",
+          "P10_WATER_DIVIDER"
+        ],
+        "panels": [
+          "P16_PCB_PLATE",
+          "P15_TECH_FASCIA",
+          "P10_WATER_DIVIDER"
+        ],
+        "utilization_pct": 45.0
+      },
+      {
+        "sheet_no": 5,
+        "pieces": [
+          "P11_GARDEN_RIGHT",
+          "P08_DOOR_LEAF"
+        ],
+        "panels": [
+          "P11_GARDEN_RIGHT",
+          "P08_DOOR_LEAF"
+        ],
+        "utilization_pct": 17.2
       }
     ],
     "oversized_panels": [
-      "P01_BASE",
+      "P01A_BASE_TECH",
+      "P01B_BASE_HOUSE",
       "P02_WALL_BACK",
       "P05_WALL_FRONT"
+    ],
+    "pdf_1to1_all": "sheet_layout_A4_1to1.pdf",
+    "pdf_1to1_per_sheet": [
+      "sheet_layout_A4_sheet1.pdf",
+      "sheet_layout_A4_sheet2.pdf",
+      "sheet_layout_A4_sheet3.pdf",
+      "sheet_layout_A4_sheet4.pdf",
+      "sheet_layout_A4_sheet5.pdf"
+    ]
+  },
+  "nesting_A4_tiled_oversized": {
+    "pdf_file": "sheet_layout_A4_tiled_oversized_1to1.pdf",
+    "panel_count": 4,
+    "total_pages": 9,
+    "panels": [
+      {
+        "panel_id": "P01A_BASE_TECH",
+        "size_mm": [
+          406.0,
+          181.875
+        ],
+        "orientation": "A4 Landscape",
+        "tile_pages": 2
+      },
+      {
+        "panel_id": "P01B_BASE_HOUSE",
+        "size_mm": [
+          406.0,
+          215.875
+        ],
+        "orientation": "A4 Portrait",
+        "tile_pages": 3
+      },
+      {
+        "panel_id": "P02_WALL_BACK",
+        "size_mm": [
+          386.0,
+          150.0
+        ],
+        "orientation": "A4 Landscape",
+        "tile_pages": 2
+      },
+      {
+        "panel_id": "P05_WALL_FRONT",
+        "size_mm": [
+          386.0,
+          150.0
+        ],
+        "orientation": "A4 Landscape",
+        "tile_pages": 2
+      }
     ]
   }
 }

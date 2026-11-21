@@ -1,62 +1,86 @@
 FreeCAD Version: 1.1.4.20260928 (Git shallow)
 Document: smarthome_mica_house.FCStd
-Panel Count: 15
-====================================================================================
+Unique Panels: 18 | Physical Instances: 19 | Joints: 59
+============================================================================================
 
-[RECOMPUTE T = 2.0 mm | kerf = 0.15 mm | slot_w = 2.15 mm | 6.14s]
+[RECOMPUTE T = 2.0 mm | tab_clr = 0.25 mm | slot_w = 2.25 mm | 3.78s]
   Document errors: []
-  PASS P01_BASE           | dims=380.00x286.00x2.00 (exp 380.00x286.00x2.00) | vol= 215149.1 (err 0.0000%) | solids=1
-  PASS P02_WALL_BACK      | dims=356.00x134.00x2.00 (exp 356.00x134.00x2.00) | vol=  79113.8 (err 0.0000%) | solids=1
-  PASS P03_WALL_LEFT      | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  34530.9 (err 0.0000%) | solids=1
-  PASS P04_WALL_RIGHT     | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  33024.0 (err 0.0000%) | solids=1
-  PASS P05_WALL_FRONT     | dims=356.00x134.00x2.00 (exp 356.00x134.00x2.00) | vol=  29918.4 (err 0.0000%) | solids=1
-  PASS P06_WALL_MID       | dims=178.00x134.00x2.00 (exp 178.00x134.00x2.00) | vol=  36982.9 (err 0.0000%) | solids=1
-  PASS P07_SERVO_SHELF    | dims= 28.00x 42.00x2.00 (exp  28.00x 42.00x2.00) | vol=   1713.0 (err 0.0000%) | solids=1
-  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x2.00 (exp  51.00x 93.00x2.00) | vol=   8123.2 (err 0.0000%) | solids=1
-  PASS P09_GARDEN_LEFT    | dims= 74.00x 46.00x2.00 (exp  74.00x 46.00x2.00) | vol=   6256.0 (err 0.0000%) | solids=1
-  PASS P10_WATER_DIVIDER  | dims= 74.00x 46.00x2.00 (exp  74.00x 46.00x2.00) | vol=   6226.2 (err 0.0000%) | solids=1
-  PASS P11_GARDEN_RIGHT   | dims= 74.00x 42.00x2.00 (exp  74.00x 42.00x2.00) | vol=   5808.0 (err 0.0000%) | solids=1
-  PASS P12_GARDEN_FRONT   | dims=134.00x 46.00x2.00 (exp 134.00x 46.00x2.00) | vol=  11009.3 (err 0.0000%) | solids=1
-  PASS P13_GARDEN_BACK    | dims=134.00x 46.00x2.00 (exp 134.00x 46.00x2.00) | vol=  11025.4 (err 0.0000%) | solids=1
-  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x2.00 (exp  24.00x 74.00x2.00) | vol=   3315.2 (err 0.0000%) | solids=1
-  PASS P15_TECH_FASCIA    | dims=210.00x 44.00x2.00 (exp 210.00x 44.00x2.00) | vol=   9897.2 (err 0.0000%) | solids=1
+  PASS P01A_BASE_TECH     | dims=406.00x181.88x2.00 (exp 406.00x181.88x2.00) | vol=  141379.1 (err 0.0000%) | solids=1
+  PASS P01B_BASE_HOUSE    | dims=406.00x215.88x2.00 (exp 406.00x215.88x2.00) | vol=  172187.6 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=386.00x149.00x2.00 (exp 386.00x149.00x2.00) | vol=   96202.2 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=190.00x149.00x2.00 (exp 190.00x149.00x2.00) | vol=   40823.9 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=190.00x149.00x2.00 (exp 190.00x149.00x2.00) | vol=   39323.8 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=386.00x149.00x2.00 (exp 386.00x149.00x2.00) | vol=   38559.9 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=190.00x149.00x2.00 (exp 190.00x149.00x2.00) | vol=   42621.9 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 34.00x 48.12x2.00 (exp  34.00x 48.12x2.00) | vol=    2584.5 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 56.00x100.00x2.00 (exp  56.00x100.00x2.00) | vol=    9597.6 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims=126.00x 56.00x2.00 (exp 126.00x 56.00x2.00) | vol=   13220.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims=126.00x 56.00x2.00 (exp 126.00x 56.00x2.00) | vol=   13222.9 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims=126.00x 50.00x2.00 (exp 126.00x 50.00x2.00) | vol=   11919.0 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=130.00x 56.00x2.00 (exp 130.00x 56.00x2.00) | vol=   13006.9 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=130.00x 56.00x2.00 (exp 130.00x 56.00x2.00) | vol=   13026.2 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 32.00x126.00x2.00 (exp  32.00x126.00x2.00) | vol=    7757.0 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=246.00x 50.00x2.00 (exp 246.00x 50.00x2.00) | vol=   14396.2 (err 0.0000%) | solids=1
+  PASS P16_PCB_PLATE      | dims=130.00x110.00x2.00 (exp 130.00x110.00x2.00) | vol=   28454.7 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_L  | dims= 64.00x 28.00x2.00 (exp  64.00x 28.00x2.00) | vol=    3511.4 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_R  | dims= 64.00x 28.00x2.00 (exp  64.00x 28.00x2.00) | vol=    3511.4 (err 0.0000%) | solids=1
+  [3D BREP COLLISION & JOINTS T=2.0mm] pairs=171, collisions=0, max_inter_vol=0.000000 mm3 | joints=59, failures=0 -> PASS
 
-[RECOMPUTE T = 3.0 mm | kerf = 0.15 mm | slot_w = 3.15 mm | 5.84s]
+[RECOMPUTE T = 3.0 mm | tab_clr = 0.25 mm | slot_w = 3.25 mm | 4.96s]
   Document errors: []
-  PASS P01_BASE           | dims=380.00x286.00x3.00 (exp 380.00x286.00x3.00) | vol= 321331.8 (err 0.0000%) | solids=1
-  PASS P02_WALL_BACK      | dims=356.00x135.00x3.00 (exp 356.00x135.00x3.00) | vol= 118531.6 (err 0.0000%) | solids=1
-  PASS P03_WALL_LEFT      | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  51616.4 (err 0.0000%) | solids=1
-  PASS P04_WALL_RIGHT     | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  49356.0 (err 0.0000%) | solids=1
-  PASS P05_WALL_FRONT     | dims=356.00x135.00x3.00 (exp 356.00x135.00x3.00) | vol=  44863.4 (err 0.0000%) | solids=1
-  PASS P06_WALL_MID       | dims=178.00x135.00x3.00 (exp 178.00x135.00x3.00) | vol=  54997.4 (err 0.0000%) | solids=1
-  PASS P07_SERVO_SHELF    | dims= 28.00x 43.00x3.00 (exp  28.00x 43.00x3.00) | vol=   2611.6 (err 0.0000%) | solids=1
-  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x3.00 (exp  51.00x 93.00x3.00) | vol=  12184.7 (err 0.0000%) | solids=1
-  PASS P09_GARDEN_LEFT    | dims= 74.00x 47.00x3.00 (exp  74.00x 47.00x3.00) | vol=   9276.0 (err 0.0000%) | solids=1
-  PASS P10_WATER_DIVIDER  | dims= 74.00x 47.00x3.00 (exp  74.00x 47.00x3.00) | vol=   9231.4 (err 0.0000%) | solids=1
-  PASS P11_GARDEN_RIGHT   | dims= 74.00x 43.00x3.00 (exp  74.00x 43.00x3.00) | vol=   8628.0 (err 0.0000%) | solids=1
-  PASS P12_GARDEN_FRONT   | dims=134.00x 47.00x3.00 (exp 134.00x 47.00x3.00) | vol=  16458.1 (err 0.0000%) | solids=1
-  PASS P13_GARDEN_BACK    | dims=134.00x 47.00x3.00 (exp 134.00x 47.00x3.00) | vol=  16482.2 (err 0.0000%) | solids=1
-  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x3.00 (exp  24.00x 74.00x3.00) | vol=   4900.8 (err 0.0000%) | solids=1
-  PASS P15_TECH_FASCIA    | dims=210.00x 45.00x3.00 (exp 210.00x 45.00x3.00) | vol=  14980.8 (err 0.0000%) | solids=1
+  PASS P01A_BASE_TECH     | dims=406.00x181.88x3.00 (exp 406.00x181.88x3.00) | vol=  211391.5 (err 0.0000%) | solids=1
+  PASS P01B_BASE_HOUSE    | dims=406.00x215.88x3.00 (exp 406.00x215.88x3.00) | vol=  257295.9 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=386.00x150.00x3.00 (exp 386.00x150.00x3.00) | vol=  144134.6 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=190.00x150.00x3.00 (exp 190.00x150.00x3.00) | vol=   61058.8 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=190.00x150.00x3.00 (exp 190.00x150.00x3.00) | vol=   58808.6 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=386.00x150.00x3.00 (exp 386.00x150.00x3.00) | vol=   57812.1 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=190.00x150.00x3.00 (exp 190.00x150.00x3.00) | vol=   63533.8 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 34.00x 49.12x3.00 (exp  34.00x 49.12x3.00) | vol=    3924.8 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 56.00x100.00x3.00 (exp  56.00x100.00x3.00) | vol=   14396.4 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims=126.00x 57.00x3.00 (exp 126.00x 57.00x3.00) | vol=   19674.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims=126.00x 57.00x3.00 (exp 126.00x 57.00x3.00) | vol=   19678.4 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims=126.00x 51.00x3.00 (exp 126.00x 51.00x3.00) | vol=   17758.5 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=130.00x 57.00x3.00 (exp 130.00x 57.00x3.00) | vol=   19465.4 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=130.00x 57.00x3.00 (exp 130.00x 57.00x3.00) | vol=   19494.3 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 32.00x126.00x3.00 (exp  32.00x126.00x3.00) | vol=   11527.5 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=246.00x 51.00x3.00 (exp 246.00x 51.00x3.00) | vol=   21756.3 (err 0.0000%) | solids=1
+  PASS P16_PCB_PLATE      | dims=130.00x110.00x3.00 (exp 130.00x110.00x3.00) | vol=   42682.1 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_L  | dims= 64.00x 28.00x3.00 (exp  64.00x 28.00x3.00) | vol=    5267.0 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_R  | dims= 64.00x 28.00x3.00 (exp  64.00x 28.00x3.00) | vol=    5267.0 (err 0.0000%) | solids=1
+  [3D BREP COLLISION & JOINTS T=3.0mm] pairs=171, collisions=0, max_inter_vol=0.000000 mm3 | joints=59, failures=0 -> PASS
 
-[RECOMPUTE T = 5.0 mm | kerf = 0.15 mm | slot_w = 5.15 mm | 6.13s]
+[RECOMPUTE T = 5.0 mm | tab_clr = 0.25 mm | slot_w = 5.25 mm | 4.90s]
   Document errors: []
-  PASS P01_BASE           | dims=380.00x286.00x5.00 (exp 380.00x286.00x5.00) | vol= 530913.5 (err 0.0000%) | solids=1
-  PASS P02_WALL_BACK      | dims=356.00x137.00x5.00 (exp 356.00x137.00x5.00) | vol= 197089.2 (err 0.0000%) | solids=1
-  PASS P03_WALL_LEFT      | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  85427.3 (err 0.0000%) | solids=1
-  PASS P04_WALL_RIGHT     | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  81660.0 (err 0.0000%) | solids=1
-  PASS P05_WALL_FRONT     | dims=356.00x137.00x5.00 (exp 356.00x137.00x5.00) | vol=  74724.9 (err 0.0000%) | solids=1
-  PASS P06_WALL_MID       | dims=178.00x137.00x5.00 (exp 178.00x137.00x5.00) | vol=  90072.3 (err 0.0000%) | solids=1
-  PASS P07_SERVO_SHELF    | dims= 28.00x 45.00x5.00 (exp  28.00x 45.00x5.00) | vol=   4492.6 (err 0.0000%) | solids=1
-  PASS P08_DOOR_LEAF      | dims= 51.00x 93.00x5.00 (exp  51.00x 93.00x5.00) | vol=  20307.9 (err 0.0000%) | solids=1
-  PASS P09_GARDEN_LEFT    | dims= 74.00x 49.00x5.00 (exp  74.00x 49.00x5.00) | vol=  15100.0 (err 0.0000%) | solids=1
-  PASS P10_WATER_DIVIDER  | dims= 74.00x 49.00x5.00 (exp  74.00x 49.00x5.00) | vol=  15025.6 (err 0.0000%) | solids=1
-  PASS P11_GARDEN_RIGHT   | dims= 74.00x 45.00x5.00 (exp  74.00x 45.00x5.00) | vol=  14100.0 (err 0.0000%) | solids=1
-  PASS P12_GARDEN_FRONT   | dims=134.00x 49.00x5.00 (exp 134.00x 49.00x5.00) | vol=  27244.2 (err 0.0000%) | solids=1
-  PASS P13_GARDEN_BACK    | dims=134.00x 49.00x5.00 (exp 134.00x 49.00x5.00) | vol=  27284.4 (err 0.0000%) | solids=1
-  PASS P14_SOIL_BRIDGE    | dims= 24.00x 74.00x5.00 (exp  24.00x 74.00x5.00) | vol=   7928.0 (err 0.0000%) | solids=1
-  PASS P15_TECH_FASCIA    | dims=210.00x 47.00x5.00 (exp 210.00x 47.00x5.00) | vol=  25418.0 (err 0.0000%) | solids=1
+  PASS P01A_BASE_TECH     | dims=406.00x181.88x5.00 (exp 406.00x181.88x5.00) | vol=  350061.6 (err 0.0000%) | solids=1
+  PASS P01B_BASE_HOUSE    | dims=406.00x215.88x5.00 (exp 406.00x215.88x5.00) | vol=  425541.5 (err 0.0000%) | solids=1
+  PASS P02_WALL_BACK      | dims=386.00x152.00x5.00 (exp 386.00x152.00x5.00) | vol=  239661.8 (err 0.0000%) | solids=1
+  PASS P03_WALL_LEFT      | dims=190.00x152.00x5.00 (exp 190.00x152.00x5.00) | vol=  101174.7 (err 0.0000%) | solids=1
+  PASS P04_WALL_RIGHT     | dims=190.00x152.00x5.00 (exp 190.00x152.00x5.00) | vol=   97424.4 (err 0.0000%) | solids=1
+  PASS P05_WALL_FRONT     | dims=386.00x152.00x5.00 (exp 386.00x152.00x5.00) | vol=   96261.0 (err 0.0000%) | solids=1
+  PASS P06_WALL_MID       | dims=190.00x152.00x5.00 (exp 190.00x152.00x5.00) | vol=  104559.7 (err 0.0000%) | solids=1
+  PASS P07_SERVO_SHELF    | dims= 34.00x 51.12x5.00 (exp  34.00x 51.12x5.00) | vol=    6701.4 (err 0.0000%) | solids=1
+  PASS P08_DOOR_LEAF      | dims= 56.00x100.00x5.00 (exp  56.00x100.00x5.00) | vol=   23994.0 (err 0.0000%) | solids=1
+  PASS P09_GARDEN_LEFT    | dims=126.00x 59.00x5.00 (exp 126.00x 59.00x5.00) | vol=   32270.0 (err 0.0000%) | solids=1
+  PASS P10_WATER_DIVIDER  | dims=126.00x 59.00x5.00 (exp 126.00x 59.00x5.00) | vol=   32277.3 (err 0.0000%) | solids=1
+  PASS P11_GARDEN_RIGHT   | dims=126.00x 53.00x5.00 (exp 126.00x 53.00x5.00) | vol=   29197.5 (err 0.0000%) | solids=1
+  PASS P12_GARDEN_FRONT   | dims=130.00x 59.00x5.00 (exp 130.00x 59.00x5.00) | vol=   32292.4 (err 0.0000%) | solids=1
+  PASS P13_GARDEN_BACK    | dims=130.00x 59.00x5.00 (exp 130.00x 59.00x5.00) | vol=   32340.5 (err 0.0000%) | solids=1
+  PASS P14_SOIL_BRIDGE    | dims= 32.00x126.00x5.00 (exp  32.00x126.00x5.00) | vol=   18852.5 (err 0.0000%) | solids=1
+  PASS P15_TECH_FASCIA    | dims=246.00x 53.00x5.00 (exp 246.00x 53.00x5.00) | vol=   36800.6 (err 0.0000%) | solids=1
+  PASS P16_PCB_PLATE      | dims=130.00x110.00x5.00 (exp 130.00x110.00x5.00) | vol=   71136.8 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_L  | dims= 64.00x 28.00x5.00 (exp  64.00x 28.00x5.00) | vol=    8778.4 (err 0.0000%) | solids=1
+  PASS P17_BASE_JOINER_R  | dims= 64.00x 28.00x5.00 (exp  64.00x 28.00x5.00) | vol=    8778.4 (err 0.0000%) | solids=1
+  [3D BREP COLLISION & JOINTS T=5.0mm] pairs=171, collisions=0, max_inter_vol=0.000000 mm3 | joints=59, failures=0 -> PASS
 
-====================================================================================
-OVERALL PARAMETRIC RECOMPUTE (T=2, 3, 5 mm): ALL_PASS
-Restored committed default: T_mm = 3.0 mm
+[CLEARANCE SWEEP T=3.0 mm | tab_clr=0.20 mm | slot_w=3.20 mm | 4.98s] errors=0, collisions=0, joint_failures=0 -> PASS
+
+[CLEARANCE SWEEP T=3.0 mm | tab_clr=0.25 mm | slot_w=3.25 mm | cached] errors=0, collisions=0, joint_failures=0 -> PASS
+
+[CLEARANCE SWEEP T=3.0 mm | tab_clr=0.30 mm | slot_w=3.30 mm | 4.92s] errors=0, collisions=0, joint_failures=0 -> PASS
+
+============================================================================================
+HARDWARE WIRING GAP CHECK: 135 non-mated pairs | min_gap=18.00 mm (HW_RELAY1 <-> HW_RELAY2) >= 15.0 mm -> PASS
+HARDWARE VS PANEL 3D BREP CHECK (T=3.0mm): 337 pairs | collisions=0, max_inter_vol=0.000000 mm3 -> PASS
+PCB MOUNTING PLATE CHECK: plate=[130.0, 110.0] mm, pattern=[90.0, 70.0] mm (Dia [3.4]), min_margin=15.0 mm (>= 10.0 mm) -> PASS
+OVERALL PARAMETRIC RECOMPUTE & 3D BREP VERIFICATION: ALL_PASS
+Restored committed defaults: T_mm = 3.0 mm, tab_clr = 0.25 mm

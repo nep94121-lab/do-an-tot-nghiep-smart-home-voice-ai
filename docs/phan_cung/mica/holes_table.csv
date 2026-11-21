@@ -1,0 +1,77 @@
+panel,id,x,y,diameter,purpose
+P01A_BASE_TECH,PLT_H1_M3,24.000,147.000,3.400,P16_PCB_PLATE corner standoff M3 #1
+P01A_BASE_TECH,PLT_H2_M3,140.000,147.000,3.400,P16_PCB_PLATE corner standoff M3 #2
+P01A_BASE_TECH,PLT_H3_M3,24.000,51.000,3.400,P16_PCB_PLATE corner standoff M3 #3
+P01A_BASE_TECH,PLT_H4_M3,140.000,51.000,3.400,P16_PCB_PLATE corner standoff M3 #4
+P01A_BASE_TECH,RLY1_H1_M3,173.750,146.250,3.500,Relay 1 (Pump) M3 #1
+P01A_BASE_TECH,RLY1_H2_M3,218.250,146.250,3.500,Relay 1 (Pump) M3 #2
+P01A_BASE_TECH,RLY1_H3_M3,173.750,125.750,3.500,Relay 1 (Pump) M3 #3
+P01A_BASE_TECH,RLY1_H4_M3,218.250,125.750,3.500,Relay 1 (Pump) M3 #4
+P01A_BASE_TECH,RLY2_H1_M3,173.750,102.250,3.500,Relay 2 (Amp) M3 #1
+P01A_BASE_TECH,RLY2_H2_M3,218.250,102.250,3.500,Relay 2 (Amp) M3 #2
+P01A_BASE_TECH,RLY2_H3_M3,173.750,81.750,3.500,Relay 2 (Amp) M3 #3
+P01A_BASE_TECH,RLY2_H4_M3,218.250,81.750,3.500,Relay 2 (Amp) M3 #4
+P01A_BASE_TECH,PAM_CLAMP_L,169.000,52.000,3.000,PAM8403 nylon tie/clamp left
+P01A_BASE_TECH,PAM_CLAMP_R,195.000,52.000,3.000,PAM8403 nylon tie/clamp right
+P01A_BASE_TECH,JOIN_L1_M3,80.000,166.000,3.400,Base seam joiner left M3 #1
+P01A_BASE_TECH,JOIN_L2_M3,120.000,166.000,3.400,Base seam joiner left M3 #2
+P01A_BASE_TECH,JOIN_R1_M3,286.000,166.000,3.400,Base seam joiner right M3 #1
+P01A_BASE_TECH,JOIN_R2_M3,326.000,166.000,3.400,Base seam joiner right M3 #2
+P01B_BASE_HOUSE,JOIN_L3_M3,80.000,7.875,3.400,Base seam joiner left M3 #3
+P01B_BASE_HOUSE,JOIN_L4_M3,120.000,7.875,3.400,Base seam joiner left M3 #4
+P01B_BASE_HOUSE,JOIN_R3_M3,286.000,7.875,3.400,Base seam joiner right M3 #3
+P01B_BASE_HOUSE,JOIN_R4_M3,326.000,7.875,3.400,Base seam joiner right M3 #4
+P02_WALL_BACK,LED_Living_5mm,85.000,127.000,5.500,Living Room 5mm LED (D0)
+P02_WALL_BACK,LED_Bedroom_5mm,290.000,131.000,5.500,Bedroom 5mm LED (D4)
+P02_WALL_BACK,DHT11_Mount_M3,148.000,109.000,3.500,DHT11 breakout M3 mount
+P02_WALL_BACK,Cable_Rear_LR,34.000,23.000,14.000,Living Room rear Dupont routing
+P02_WALL_BACK,Cable_Rear_BR,224.000,23.000,14.000,Bedroom rear Dupont routing
+P03_WALL_LEFT,Cable_Left_Service,128.000,23.000,14.000,Left service Dupont pass-through
+P05_WALL_FRONT,Buzzer_12mm,190.000,129.000,12.500,12mm Active Buzzer TMB12A05 (D8)
+P05_WALL_FRONT,KY037_Mic_Aperture,148.000,29.000,10.500,KY-037 electret mic acoustic window
+P05_WALL_FRONT,KY037_Mount_M3,168.000,29.000,3.500,KY-037 PCB M3 mounting hole
+P05_WALL_FRONT,Cable_Front_LR,16.000,20.000,14.000,Tech Bay to Living Room cable pass-through
+P05_WALL_FRONT,Cable_Front_BR,224.000,20.000,14.000,Tech Bay to Bedroom cable pass-through
+P06_WALL_MID,Cable_Mid_Rooms,154.000,23.000,14.000,Living Room to Bedroom cable pass-through
+P07_SERVO_SHELF,SG90_M2_Front,17.000,12.225,2.500,"SG90 M2 tab screw #1 (Dia 2.5mm, use M2 washer)"
+P07_SERVO_SHELF,SG90_M2_Rear,17.000,40.025,2.500,"SG90 M2 tab screw #2 (Dia 2.5mm, use M2 washer)"
+P08_DOOR_LEAF,Door_Hinge_Bot,5.500,16.000,3.000,Bottom hinge Dia 3.0mm hole
+P08_DOOR_LEAF,Door_Hinge_Top,5.500,84.000,3.000,Top hinge Dia 3.0mm hole
+P08_DOOR_LEAF,Door_Servo_Link,15.000,28.000,3.000,SG90 servo push-rod linkage Dia 3.0mm hole
+P10_WATER_DIVIDER,Pump_Tube_Hole,63.000,41.000,10.000,Silicone pump tube pass-through (Dia 10.0mm)
+P12_GARDEN_FRONT,LM393_Mount_M3,92.000,27.000,3.500,LM393 soil comparator M3 exterior mount
+P15_TECH_FASCIA,DC022_Power_Jack,22.000,25.000,12.500,DC-022 5V 2A M12 panel-mount barrel jack (Dia 12.5mm)
+P15_TECH_FASCIA,LED_Power_3mm,49.000,25.000,3.500,3mm Power Indicator LED (Dia 3.5mm)
+P15_TECH_FASCIA,Speaker_Clamp_L,197.000,29.000,3.500,28mm Speaker M3 clamp left (Dia 3.5mm)
+P15_TECH_FASCIA,Speaker_Clamp_R,233.000,29.000,3.500,28mm Speaker M3 clamp right (Dia 3.5mm)
+P15_TECH_FASCIA,Spk_Grille_00,215.000,29.000,3.000,Speaker grille center (Dia 3.0mm)
+P15_TECH_FASCIA,Spk_Grille_I1,221.000,29.000,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_I2,218.000,34.196,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_I3,212.000,34.196,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_I4,209.000,29.000,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_I5,212.000,23.804,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_I6,218.000,23.804,3.000,"Speaker grille inner ring (R=6.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O01,226.591,32.106,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O02,223.485,37.485,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O03,218.106,40.591,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O04,211.894,40.591,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O05,206.515,37.485,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O06,203.409,32.106,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O07,203.409,25.894,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O08,206.515,20.515,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O09,211.894,17.409,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O10,218.106,17.409,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O11,223.485,20.515,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P15_TECH_FASCIA,Spk_Grille_O12,226.591,25.894,3.000,"Speaker grille outer ring (R=12.0, Dia 3.0mm)"
+P16_PCB_PLATE,PCB_H1_M3,20.000,20.000,3.400,Hub PCB M3 standoff hole #1 (90x70 pattern)
+P16_PCB_PLATE,PCB_H2_M3,110.000,20.000,3.400,Hub PCB M3 standoff hole #2 (90x70 pattern)
+P16_PCB_PLATE,PCB_H3_M3,20.000,90.000,3.400,Hub PCB M3 standoff hole #3 (90x70 pattern)
+P16_PCB_PLATE,PCB_H4_M3,110.000,90.000,3.400,Hub PCB M3 standoff hole #4 (90x70 pattern)
+P16_PCB_PLATE,PLATE_C1_M3,7.000,7.000,3.400,Plate-to-base M3 standoff corner #1
+P16_PCB_PLATE,PLATE_C2_M3,123.000,7.000,3.400,Plate-to-base M3 standoff corner #2
+P16_PCB_PLATE,PLATE_C3_M3,7.000,103.000,3.400,Plate-to-base M3 standoff corner #3
+P16_PCB_PLATE,PLATE_C4_M3,123.000,103.000,3.400,Plate-to-base M3 standoff corner #4
+P17_BASE_JOINER,JOIN_H1_M3,12.000,6.000,3.400,Seam joiner M3 bolt hole #1 (to P01A)
+P17_BASE_JOINER,JOIN_H2_M3,52.000,6.000,3.400,Seam joiner M3 bolt hole #2 (to P01A)
+P17_BASE_JOINER,JOIN_H3_M3,12.000,22.000,3.400,Seam joiner M3 bolt hole #3 (to P01B)
+P17_BASE_JOINER,JOIN_H4_M3,52.000,22.000,3.400,Seam joiner M3 bolt hole #4 (to P01B)
