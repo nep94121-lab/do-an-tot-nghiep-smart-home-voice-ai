@@ -58,8 +58,9 @@
    - Mua thêm nếu số sợi dây hiện có trên bàn không đủ đi gọn trong vỏ mô hình nhà.
 4. **Củ nguồn ngoài `5V - 2A` + dây cáp `Micro-USB` truyền dữ liệu:**
    - Rất nên dùng khi demo thực tế để tránh sụt áp cổng USB Laptop khi `Servo SG90`, `Máy bơm` và `PAM8403` chạy đồng thời (nối chung `GND` với NodeMCU).
-5. **Vật tư cho giai đoạn hàn mạch PCB cố định (nếu chuyển từ Breadboard sang PCB):**
-   - Rào cắm cái `Female Header 1x15P` (`2 thanh` cho NodeMCU), `Male Header 1x40P`, Domino `KF301-2P/3P`, giắc nguồn `DC-005`, công tắc nguồn `SS12D00`, nút nhấn `Tactile Switch 6x6mm`, tụ lọc `100nF`, phíp đồng `FR-4` và trụ đồng `M3`.
+5. **Vật tư cho giai đoạn tự làm mạch PCB 1 lớp tại nhà (Toner Transfer + Khoan tay — `SmartHome Hub DIY v3.0`, `100 × 80 × 1.6 mm`):**
+   - Xem bảng BOM mua sắm đầy đủ và kích thước mũi khoan tại [`diy_pcb/BOM_DIY_SHOPPING.md`](diy_pcb/BOM_DIY_SHOPPING.md), hướng dẫn ủi/ăn mòn/khoan/hàn tại [`diy_pcb/DIY_GUIDE.md`](diy_pcb/DIY_GUIDE.md), danh sách 7 dây nhảy mặt trên tại [`diy_pcb/jumper_list.md`](diy_pcb/jumper_list.md) và bản in 1:1 lật gương tại [`diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf`](diy_pcb/toner_B.Cu_MIRRORED_1to1.pdf).
+   - Danh mục cần chuẩn bị thêm: 1 tấm phíp đồng 1 mặt `FR-4` `1.6 mm` (`>= 100 × 80 mm`), 2 thanh rào cái `1×15P 2.54 mm` (đế NodeMCU), rào đực `1×40P 2.54 mm` (cắt cho `J3..J15`), 2 domino vít `Phoenix MKDS / KF301 2P 5.08 mm` (`J1, J2`), tụ hóa `10 µF 16V` (`C4`) + `470 µF 16V` (`C1, C2`), tụ gốm `100 nF` (`C3, C6, C7`) + `10 nF` (`C5`), LED xanh 3 mm (`D3`), trở 1/4W (`220 Ω`, `1 kΩ`, `2.2 kΩ`, `10 kΩ`), dây lõi đặc `22 AWG` (làm 7 dây nhảy `JP1..JP7`), 4 bộ ốc trụ `M3`, và đúng 4 mũi khoan `0.9 / 1.1 / 1.3 / 3.2 mm`.
 
 ---
 

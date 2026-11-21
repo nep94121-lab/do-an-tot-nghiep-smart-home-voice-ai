@@ -1,0 +1,118 @@
+(footprint "R_Axial_P10.16mm_DIY"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "1/4W Axial Resistor P10.16mm (B.Cu 2.6mm pads, 0.9mm drill)")
+	(property "Reference" "REF**"
+		(at 0 -3.5 180)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "a40579f2-6932-4f19-858c-a776b8d731cc")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.25)
+			)
+		)
+	)
+	(property "Value" "R_Axial_P10.16mm_DIY"
+		(at 0 3.5 180)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "524b41c8-9e20-4216-ad84-42b6f0c1f60a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f5ad4c10-a14e-4e90-a3cf-266c2c63de5a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "5V Power LED Current-Limiting Resistor"
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "14078cc5-daca-4c9d-94f2-e3263065bc57")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_rect
+		(start 1.9 -1.35)
+		(end 8.26 1.35)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "9adfb7cc-876e-51af-a063-25a6a17047d5")
+	)
+	(fp_rect
+		(start -1.5 -1.5)
+		(end 11.66 1.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "983219a9-c872-53dc-9a2e-767fcb83e7ed")
+	)
+	(fp_rect
+		(start 1.93 -1.25)
+		(end 8.23 1.25)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "dd63d98e-e23d-5daf-a657-8308b234fbee")
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 2.6 2.6)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "b1b59915-8bcd-5335-bdbb-b313e893dcc3")
+	)
+	(pad "2" thru_hole circle
+		(at 10.16 0)
+		(size 2.6 2.6)
+		(drill 0.9)
+		(layers "*.Cu" "B.Mask")
+		(remove_unused_layers no)
+		(uuid "899c815b-8165-57c4-a35c-401f3add0bf5")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Resistor_THT.3dshapes/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
