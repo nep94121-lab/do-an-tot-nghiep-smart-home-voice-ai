@@ -94,8 +94,22 @@ _CLOSED_GRAMMAR: tuple[tuple[str, str, str], ...] = (
     ("mở cửa cuốn", "unsupported", ""),
     ("chào bạn", "smalltalk", ""),
     ("xin chào", "smalltalk", ""),
+    ("chào buổi sáng", "smalltalk", ""),
+    ("chào buổi tối", "smalltalk", ""),
+    ("tạm biệt", "smalltalk", ""),
     ("tạm biệt bạn", "smalltalk", ""),
+    ("cảm ơn", "smalltalk", ""),
+    ("cảm ơn bạn", "smalltalk", ""),
+    ("ngủ ngon", "smalltalk", ""),
+    ("hẹn gặp lại", "smalltalk", ""),
+    ("bạn là ai", "smalltalk", ""),
     ("tốt lắm", "smalltalk", ""),
+    ("không mở cửa", "negated", ""),
+    ("đừng mở cửa", "negated", ""),
+    ("không bật đèn phòng khách", "negated", ""),
+    ("đừng bật đèn phòng khách", "negated", ""),
+    ("không bật đèn", "negated", ""),
+    ("đừng bật đèn", "negated", ""),
     ("ok", "confirm", ""),
     ("được", "confirm", ""),
     ("đồng ý", "confirm", ""),
@@ -154,7 +168,8 @@ def _get_chunkformer_model() -> Any:
                 _CF_FAILED = True
                 return None
 
-            num_threads = max(1, int(os.environ.get("SMARTHOME_STT_THREADS", "8") or "8"))
+            # 4 PyTorch threads avoids OpenMP spin-wait contention with single-threaded Sherpa-ONNX Zipformer.
+            num_threads = max(1, int(os.environ.get("SMARTHOME_TORCH_THREADS", "4") or "4"))
             torch.set_num_threads(num_threads)
             model = ChunkFormerModel.from_pretrained(snap_str)
             model.eval()
@@ -285,6 +300,7 @@ def rescore_closed_command_ctc(
     import torch
     import torch.nn.functional as F
     from simulator.voice.vietnamese_policy import (
+        _NEGATED_OR_RHETORICAL_DIRECT_RE,
         _UNSUPPORTED_DEVICE_RE,
         is_foreign_or_nonsense_input,
         strip_vi_accents,
@@ -294,8 +310,13 @@ def rescore_closed_command_ctc(
         is_bad, kind = is_foreign_or_nonsense_input(greedy_text)
         if is_bad and kind == "foreign":
             return None
+        if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(greedy_text.lower()):
+            return None
         g_norm = " ".join(strip_vi_accents(greedy_text.lower()).split())
         if _UNSUPPORTED_DEVICE_RE.search(f" {g_norm} "):
+            return None
+        g_toks = g_norm.split()
+        if g_toks and g_toks[0] in ("khong", "dung", "cho", "khoi", "chua"):
             return None
 
     T = int(log_probs.shape[0])
@@ -366,3 +387,71 @@ def rescore_closed_command_ctc(
     if delta >= max_delta and margin >= min_margin:
         return top1_ph
     return None
+
+
+_POLARITY_PAIR_BY_TARGET: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "main_door": (("mở cửa chính", "mở cửa"), ("đóng cửa chính", "đóng cửa", "khóa cửa chính")),
+    "living_room_light": (("bật đèn phòng khách", "bật đèn khách"), ("tắt đèn phòng khách", "tắt đèn khách")),
+    "bedroom_light": (("bật đèn phòng ngủ", "bật đèn ngủ"), ("tắt đèn phòng ngủ", "tắt đèn ngủ")),
+    "all_lights": (("bật tất cả đèn", "bật hết đèn"), ("tắt tất cả đèn", "tắt hết đèn")),
+    "garden_pump": (("bật máy bơm", "bật máy bơm tưới cây", "bật bơm"), ("tắt máy bơm", "tắt máy bơm tưới cây", "tắt bơm")),
+    "alarm_siren": (("bật còi báo động", "bật còi", "bật còi hú"), ("tắt còi báo động", "tắt còi", "tắt còi hú")),
+    "speaker_amp": (("bật nguồn mạch loa", "bật loa"), ("tắt nguồn mạch loa", "tắt loa")),
+    "all_devices": (("bật tất cả thiết bị",), ("tắt tất cả thiết bị",)),
+}
+
+
+def verify_command_polarity_ctc(
+    audio_f32: np.ndarray,
+    target_key: str,
+    claimed_polarity: str,
+    *,
+    sr: int = 16000,
+    veto_margin: float = 1.8,
+) -> bool:
+    """Return False if ChunkFormer-CTC acoustic posteriors strongly favor the OPPOSITE polarity."""
+    pairs = _POLARITY_PAIR_BY_TARGET.get(target_key)
+    if not pairs or claimed_polarity not in ("on", "off"):
+        return True
+    _g, log_probs = decode_chunkformer_with_logprobs(audio_f32, sr=sr, pad_s=0.25)
+    if log_probs is None or not _CF_TOK2ID:
+        return True
+    import torch
+    import torch.nn.functional as F
+
+    T = int(log_probs.shape[0])
+    if T < 4:
+        return True
+    lp_t = log_probs.unsqueeze(1)
+    in_len = torch.tensor([T], dtype=torch.long)
+
+    def _best_score(phrases: tuple[str, ...]) -> float:
+        best = -999.0
+        for ph in phrases:
+            ids = _encode_bpe(ph, _CF_TOK2ID)
+            if not ids or len(ids) > T:
+                continue
+            sc = -float(
+                F.ctc_loss(
+                    lp_t,
+                    torch.tensor(ids, dtype=torch.long),
+                    in_len,
+                    torch.tensor([len(ids)], dtype=torch.long),
+                    blank=0,
+                    reduction="sum",
+                    zero_infinity=True,
+                ).item()
+            )
+            if sc > best:
+                best = sc
+        return best
+
+    on_sc = _best_score(pairs[0])
+    off_sc = _best_score(pairs[1])
+    if on_sc <= -900.0 or off_sc <= -900.0:
+        return True
+    if claimed_polarity == "on" and (off_sc - on_sc) >= veto_margin:
+        return False
+    if claimed_polarity == "off" and (on_sc - off_sc) >= veto_margin:
+        return False
+    return True

@@ -2566,7 +2566,7 @@ _STEP4_ACTION_VERB_START_RE = (
     r"bat|tat|mo|dong|khoa|ngat|dung|ngung|tuoi)"
 )
 _STEP4_IMPLICIT_BLOCKED_PREFIX_RE = re.compile(
-    r"^(?:khi|ky|neu|he|tu gio|hen gio|dat lich|sua lich|doi lich|cap nhat lich|"
+    r"^(?:khi|ky|neu|he|tu gio|hen gio|dat lich|dac lich|sua lich|doi lich|cap nhat lich|"
     r"doi hen gio|sua hen gio|xoa|huy|xu ly|reset|ri set|rex|dat lai|khoi phuc|"
     r"hoi phuc|cap quyen|thu hoi|xem|kiem tra|trang thai)\b"
 )
@@ -2859,8 +2859,8 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     if re.search(
         r"\b(?:"
-        r"(?:reset|ri\s+set|vi\s+sep|viet|re\s+logic|logic|rexit|rex|rep|ret|reet|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+(?:lai\s+)?trang\s+thai\s+(?:cac\s+)?thiet\s+(?:bi|di|nghi)|"
-        r"(?:ve\s+sinh\s+sach|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
+        r"(?:reset|ri\s+set|vi\s+sep|vi\s+sach|vi\s+thich|viet|re\s+logic|logic|rexit|rex|rep|ret|reet|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+(?:lai\s+)?trang\s+thai\s+(?:cac\s+)?thiet\s+(?:bi|di|nghi)|"
+        r"(?:ve\s+sinh(?:\s+sach)?|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
         r"dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
         r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi"
         r")\b",

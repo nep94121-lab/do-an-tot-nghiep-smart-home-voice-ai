@@ -814,3 +814,239 @@ def test_round3_adversarial_role3_hardening() -> None:
     assert _classify_offline_transcript_kind("nguồn mạch loa") == ("bare_device", "speaker_amp")
     assert _classify_offline_transcript_kind("tất cả thiết bị") == ("bare_device", "all_devices")
     assert _classify_offline_transcript_kind("ờ à ừm") == ("nonsense", None)
+
+
+def test_round4_acoustic_length_and_cascade_disagreement_zero_false_actions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify Round 4 cross-engine & acoustic-length safety guards eliminate all 7 false-action modes."""
+    import numpy as np
+    from simulator.voice import gemini_stt
+    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+    pcm = np.zeros(16000, dtype=np.int16)
+
+    # 1. 2-letter phonetic collision fixed: 'cam kết bảo vệ' must NOT corroborate lights ('vệ'->'ze' vs 'đèn'->'zen')
+    all_lights = parse_direct_device_intents_vi("bật hết đèn")
+    assert gemini_stt._local_corroborates_device_intents("cam kết bảo vệ", all_lights) is False
+    assert gemini_stt._local_corroborates_all_device_groups("mở cửa chính", parse_direct_device_intents_vi("bật đèn phòng khách, mở cửa chính")) is False
+
+    # 2. R2 short-clip hallucination expansion blocked (clean J05_09 'bật còi' -> 'Bật đèn phòng khách.', babble_snr10 J01_52 'tạm biệt' -> 'tắt đèn phòng khách')
+    g_j05 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="Bật đèn phòng khách.",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=1.15,
+        noise_ratio=0.0,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=0.66,
+        offline_hint_text="mệt thôi",
+        offline_engine="zipformer_30m+chunkformer_ctc_fallback",
+    )
+    assert g_j05 is not None and g_j05["ok"] is False and g_j05["text"] == ""
+
+    g_j52 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="tắt đèn phòng khách",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=1.20,
+        noise_ratio=0.22,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=0.66,
+        offline_hint_text="làm gì",
+        offline_engine="zipformer_30m+chunkformer_ctc_fallback",
+    )
+    assert g_j52 is not None and g_j52["ok"] is False and g_j52["text"] == ""
+
+    # 3. R1 non-direct cue veto: local heard 'tạo lệnh' / 'hai giây' -> NEVER execute Gemini's stripped direct command
+    g_j21 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="Hãy tắt tất cả đèn và đóng cửa chính.",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=4.49,
+        noise_ratio=0.27,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=3.32,
+        offline_hint_text="tạo lệnh đi làm mà khác rất cả đèn và nóng đồng khí",
+        offline_engine="zipformer_70m+chunkformer_ctc_fallback",
+    )
+    assert g_j21 is not None and "tạo lệnh" in g_j21["text"]
+    assert parse_direct_device_intents_vi(g_j21["text"]) == []
+
+    g_j31 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="Hãy bật đèn phòng ngủ.",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=3.05,
+        noise_ratio=0.43,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=2.16,
+        offline_hint_text="mẹ giường hai giây một lần phòng ngủ",
+        offline_engine="zipformer_70m+chunkformer_ctc_fallback",
+    )
+    assert g_j31 is not None and "hai giây" in g_j31["text"]
+    assert parse_direct_device_intents_vi(g_j31["text"]) == []
+
+    # 4. R3 prefix drop & R4 severe-noise multi-device corroboration & R5 polarity conflict
+    g_j29 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="bật đèn phòng khách, mở cửa chính",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=3.55,
+        noise_ratio=0.43,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=2.72,
+        offline_hint_text="làm một lần thứ tháng là ngày một vị chín",
+        offline_engine="zipformer_70m+chunkformer_ctc_fallback",
+    )
+    assert g_j29 is not None and g_j29["ok"] is False and g_j29["text"] == ""
+
+    g_pol = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="bật đèn phòng khách",
+        pcm16=pcm,
+        sr=16000,
+        duration_sec=1.80,
+        noise_ratio=0.25,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=1.20,
+        offline_hint_text="tắt đèn phòng khách",
+        offline_engine="zipformer_70m",
+    )
+    assert g_pol is not None and g_pol["ok"] is False and g_pol["text"] == ""
+
+
+def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
+    """Verify NLU prefix/clause integrity, dem/đêm fix, conditional escalation, expanded negations, and noisy small talk."""
+    from simulator.server import app
+    from simulator.voice.vietnamese_policy import classify_small_talk_vi, parse_direct_device_intents_vi
+    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+    from tests.voice_policy.journey_suite import JourneyStep
+    from tests.voice_policy.run_voice_journeys import _evaluate_response
+
+    # 1. Garbled multi-clause prefix must NEVER execute trailing clause (speed_1.2x J01_21)
+    assert parse_direct_device_intents_vi("ở đây đi làm át tất cả đền và đóng cửa chính") == []
+    assert parse_direct_device_intents_vi("sự đẹp đi làm thành một nền phòng khách và đóng cửa chính") == []
+
+    # 2. Expanded negations & standalone clock prefixes never leak into direct device execution
+    for bad in (
+        "không cần bật đèn phòng khách",
+        "không muốn mở cửa chính",
+        "không được bật còi báo động",
+        "không nên bật máy bơm",
+        "đừng vội mở cửa",
+        "chớ bật còi báo động",
+        "đừng bao giờ mở cửa chính",
+        "20 giờ bật đèn phòng khách",
+        "6h30 mở cửa chính",
+        "tắt đèn nhà tắm",
+        "bật loa tivi",
+    ):
+        assert parse_direct_device_intents_vi(bad) == [], f"Unexpected direct intent on {bad!r}"
+
+    # 3. Fixed dem/đêm collision and conditional 'cửa kính' escalation
+    assert _classify_offline_transcript_kind("ban đêm không ngủ") == ("unrecognized", None)
+    assert _classify_offline_transcript_kind("khi mở cửa kính thì ban ngày gom rách") == ("unrecognized", None)
+    assert _classify_offline_transcript_kind("vì sách trạng thái thiết bị") == ("recognized", None)
+
+    # 4. Small talk including 'gặp lại sau' & noisy small-talk corruptions -> 0 executions, 0 device mutations
+    assert classify_small_talk_vi("gặp lại sau") is not None
+    engine = _reset_engine_clean()
+    h1, _, _, _ = _seed_sessions()
+    with TestClient(app) as client:
+        for phrase in (
+            "tạm biệt", "tạm biệt nhé", "cảm ơn bạn", "ngủ ngon", "hẹn gặp lại", "gặp lại sau",
+            "tốt lắm", "bạn là ai", "tắt biệt", "tạm điện", "chào bán", "ngủ con",
+        ):
+            r = client.post("/api/voice_command", headers=h1, json={"transcript": phrase})
+            assert r.status_code == 200
+            d = r.json()
+            assert d.get("executed") is False, f"False execution on {phrase!r}: {d}"
+            assert d.get("requires_confirmation") is False, f"Unexpected confirm on {phrase!r}: {d}"
+            _assert_vi_reply(d)
+        for did, info in engine.devices.items():
+            exp = "CLOSED" if did == "main_door" else "OFF"
+            assert info["state"] == exp, f"Device {did} mutated during small talk!"
+
+        # Reset via 'vì sách trạng thái thiết bị' must stage confirmation, not execute
+        r_rst = client.post("/api/voice_command", headers=h1, json={"transcript": "vì sách trạng thái thiết bị"})
+        assert r_rst.status_code == 200 and r_rst.json().get("requires_confirmation") is True
+
+    # 5. Strict all-rows false_action evaluation check (wrong device, flipped polarity, unexpected confirm_prompt execution)
+    st_imm = JourneyStep("T1", "J", 2, "s", "bac_male", 1, "bật còi", "immediate_device", expected_device_states={"alarm_siren": "ON"})
+    ev_wrong = _evaluate_response(
+        st_imm,
+        status_code=200,
+        body={"ok": True, "executed": True, "intents": [{"device_id": "living_room_light", "action": "turn_on"}], "reply": "Đèn phòng khách đang bật rồi."},
+        before_states={"living_room_light": "ON", "alarm_siren": "OFF"},
+        after_states={"living_room_light": "ON", "alarm_siren": "OFF"},
+        post_ok=True,
+        post_note="",
+        mode="voice_clean",
+    )
+    assert ev_wrong["false_action"] is True
+
+    st_conf = JourneyStep("T2", "J", 4, "s", "bac_male", 1, "tạo lệnh đi làm là đóng cửa", "confirm_prompt")
+    ev_conf = _evaluate_response(
+        st_conf,
+        status_code=200,
+        body={"ok": True, "executed": True, "requires_confirmation": False, "intents": [{"device_id": "main_door", "action": "close"}], "reply": "Đã đóng cửa chính."},
+        before_states={"main_door": "OPEN"},
+        after_states={"main_door": "CLOSED"},
+        post_ok=True,
+        post_note="",
+        mode="voice_degraded",
+    )
+    assert ev_conf["false_action"] is True
+
+    # 6. Round 4 polarity/corroboration regressions: stopword 'không' must NOT corroborate 'phòng',
+    #    bare-noun expansion under SNR10 and 2-word uncorroborated hallucination must be blocked,
+    #    and 'bật ngùng mặt loa' must resolve to speaker_amp:turn_on without 'ngừng' OFF collision.
+    import numpy as np
+    from simulator.voice import gemini_stt
+
+    assert not gemini_stt._local_corroborates_all_device_groups(
+        "nguồn không là là",
+        [{"device_id": "living_room_light", "action": "turn_on"}],
+    )
+    assert parse_direct_device_intents_vi("bật ngùng mặt loa") == [
+        {"device_id": "speaker_amp", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("không mở cửa") == []
+    assert parse_direct_device_intents_vi("đừng bật đèn phòng khách") == []
+
+    t = np.linspace(0.0, 1.4, int(16000 * 1.4), endpoint=False, dtype=np.float32)
+    adult_pcm = np.clip(0.3 * np.sin(2.0 * np.pi * 130.0 * t) * 32767.0, -32767, 32767).astype(np.int16)
+
+    g_j06 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="mở cửa chính",
+        pcm16=adult_pcm,
+        sr=16000,
+        duration_sec=1.39,
+        noise_ratio=0.24,
+        used_model="gemini-3.1-flash-lite",
+        t0=time.perf_counter(),
+        active_speech_dur=0.82,
+        offline_hint_text="sửa tiếng",
+        offline_engine="zipformer_70m+chunkformer_ctc_fallback",
+    )
+    assert g_j06 is not None and g_j06["ok"] is False and g_j06["text"] == ""
+
+    g_j52 = gemini_stt._run_high_noise_hallucination_gate(
+        gemini_text="tắt đèn",
+        pcm16=adult_pcm,
+        sr=16000,
+        duration_sec=1.50,
+        noise_ratio=0.0,
+        used_model="gemini-flash-lite-latest",
+        t0=time.perf_counter(),
+        active_speech_dur=0.74,
+        offline_hint_text="ờ biệt",
+        offline_engine="zipformer_70m+chunkformer_ctc_fallback",
+    )
+    assert g_j52 is not None and g_j52["ok"] is False and g_j52["text"] == ""
+
+

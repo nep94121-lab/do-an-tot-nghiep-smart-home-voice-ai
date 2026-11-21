@@ -28,6 +28,18 @@ _ZIPFORMER_LOCK = threading.Lock()
 _ZIPFORMER_CACHE: dict[str, Any] = {}
 _ZIPFORMER_FAILED: set[str] = set()
 
+_ENHANCER_LOCK = threading.Lock()
+_ENHANCER_MODEL: Any = None
+_ENHANCER_NAME: str = ""
+_ENHANCER_FAILED: bool = False
+
+_WARM_LOCK = threading.Lock()
+_STT_WARM_STATE: dict[str, Any] = {
+    "ready": False,
+    "cold_start_ms": 0.0,
+    "models": [],
+}
+
 _ZIPFORMER_REPOS: dict[str, str] = {
     "70m": "models--csukuangfj--sherpa-onnx-zipformer-vi-int8-2025-04-20",
     "30m": "models--csukuangfj2--sherpa-onnx-zipformer-vi-30M-int8-2026-02-09",
@@ -153,7 +165,9 @@ def _get_zipformer_recognizer(variant: str = "70m") -> Any:
             _ZIPFORMER_FAILED.add(variant)
             return None
 
-        num_threads = max(1, int(os.environ.get("SMARTHOME_STT_THREADS", "8") or "8"))
+        # 1 thread per Sherpa-ONNX Zipformer instance is fastest (~150-210ms) and avoids OpenMP spin-wait
+        # contention with PyTorch ChunkFormer-CTC (which otherwise slows ChunkFormer by ~7-9x).
+        num_threads = max(1, int(os.environ.get("SMARTHOME_ZIPFORMER_THREADS", "1") or "1"))
         try:
             rec = sherpa_onnx.OfflineRecognizer.from_transducer(
                 encoder=encoder,
@@ -167,12 +181,187 @@ def _get_zipformer_recognizer(variant: str = "70m") -> Any:
                 provider="cpu",
             )
             _ZIPFORMER_CACHE[variant] = rec
-            LOG.info("Loaded local Vietnamese Zipformer-%s model (%s)", variant, snap_dir)
+            LOG.info("Loaded local Vietnamese Zipformer-%s model (%s, threads=%d)", variant, snap_dir, num_threads)
             return rec
         except Exception as exc:
             LOG.warning("Failed loading Zipformer-%s: %s", variant, exc)
             _ZIPFORMER_FAILED.add(variant)
             return None
+
+
+def _find_local_enhancer_model() -> tuple[str, str] | None:
+    """Locate cached free Sherpa-ONNX neural speech enhancement model (DPDFNet-baseline or GTCRN)."""
+    candidate_dirs: list[pathlib.Path] = []
+    home_dir = pathlib.Path.home()
+    candidate_dirs.append(home_dir / ".cache" / "sherpa_onnx_enhancer")
+    candidate_dirs.append(home_dir.parent / ".cache" / "sherpa_onnx_enhancer")
+    user_profile = os.environ.get("USERPROFILE", "").strip()
+    if user_profile:
+        candidate_dirs.append(pathlib.Path(user_profile) / ".cache" / "sherpa_onnx_enhancer")
+    win_user = os.environ.get("USERNAME", "").strip()
+    if win_user:
+        candidate_dirs.append(pathlib.Path("C:/Users") / win_user / ".cache" / "sherpa_onnx_enhancer")
+
+    seen: set[str] = set()
+    for d in candidate_dirs:
+        key = str(d).lower()
+        if key in seen or not d.is_dir():
+            continue
+        seen.add(key)
+        for kind, fname in (("dpdfnet", "dpdfnet_baseline.onnx"), ("gtcrn", "gtcrn_simple.onnx")):
+            p = d / fname
+            if p.is_file() and p.stat().st_size > 10000:
+                return kind, str(p)
+    return None
+
+
+def _get_speech_enhancer() -> tuple[Any, str]:
+    global _ENHANCER_MODEL, _ENHANCER_NAME, _ENHANCER_FAILED
+    if os.environ.get("SMARTHOME_DISABLE_LOCAL_STT", "0").strip() == "1":
+        return None, ""
+    if _ENHANCER_MODEL is not None:
+        return _ENHANCER_MODEL, _ENHANCER_NAME
+    if _ENHANCER_FAILED:
+        return None, ""
+
+    with _ENHANCER_LOCK:
+        if _ENHANCER_MODEL is not None:
+            return _ENHANCER_MODEL, _ENHANCER_NAME
+        if _ENHANCER_FAILED:
+            return None, ""
+        found = _find_local_enhancer_model()
+        if not found:
+            _ENHANCER_FAILED = True
+            return None, ""
+        kind, model_path = found
+        try:
+            import sherpa_onnx
+
+            if kind == "dpdfnet":
+                mcfg = sherpa_onnx.OfflineSpeechDenoiserModelConfig(
+                    dpdfnet=sherpa_onnx.OfflineSpeechDenoiserDpdfNetModelConfig(model=model_path),
+                    num_threads=1,
+                    provider="cpu",
+                )
+            else:
+                mcfg = sherpa_onnx.OfflineSpeechDenoiserModelConfig(
+                    gtcrn=sherpa_onnx.OfflineSpeechDenoiserGtcrnModelConfig(model=model_path),
+                    num_threads=1,
+                    provider="cpu",
+                )
+            _ENHANCER_MODEL = sherpa_onnx.OfflineSpeechDenoiser(
+                sherpa_onnx.OfflineSpeechDenoiserConfig(model=mcfg)
+            )
+            _ENHANCER_NAME = kind
+            LOG.info("Loaded local speech enhancer: %s (%s)", kind, model_path)
+            return _ENHANCER_MODEL, _ENHANCER_NAME
+        except Exception as exc:
+            LOG.debug("Speech enhancer unavailable: %s", exc)
+            _ENHANCER_FAILED = True
+            return None, ""
+
+
+def is_broadband_white_noise(audio_f32: np.ndarray, sr: int = 16000) -> bool:
+    """Detect stationary broadband white noise (SNR <= ~12 dB) with high energy >= 2200 Hz."""
+    if audio_f32 is None or audio_f32.size < int(sr * 0.4):
+        return False
+    frame_len = max(1, int(sr * 0.02))
+    n_frames = audio_f32.size // frame_len
+    if n_frames < 8:
+        return False
+    frames = audio_f32[: n_frames * frame_len].reshape(n_frames, frame_len)
+    frame_rms = np.sqrt(np.mean(frames * frames, axis=1) + 1e-12)
+    p15 = float(np.percentile(frame_rms, 15))
+    p90 = float(np.percentile(frame_rms, 90))
+    if (p15 / max(p90, 1e-6)) < 0.14:
+        return False
+    win_n = min(audio_f32.size, 32768)
+    freqs = np.fft.rfftfreq(win_n, d=1.0 / float(sr))
+    spec = np.abs(np.fft.rfft(audio_f32[:win_n] * np.hanning(win_n))) ** 2
+    hf_ratio = float(np.sum(spec[freqs >= 2200.0]) / (float(np.sum(spec)) + 1e-18))
+    return hf_ratio >= 0.03
+
+
+def enhance_white_noise_audio(audio_f32: np.ndarray, sr: int = 16000) -> tuple[np.ndarray, str]:
+    """Suppress broadband white noise using cached neural enhancer (DPDFNet/GTCRN) or stationary spectral gate."""
+    if audio_f32 is None or audio_f32.size < int(sr * 0.3):
+        return audio_f32, ""
+    enh, name = _get_speech_enhancer()
+    if enh is not None:
+        try:
+            res = enh(audio_f32.astype(np.float32), int(sr))
+            y = np.asarray(res.samples, dtype=np.float32)
+            pk = float(np.max(np.abs(y))) if y.size else 0.0
+            if pk > 0.02:
+                y = np.clip(y * (0.78 / pk), -0.98, 0.98).astype(np.float32)
+                return y, name
+        except Exception as exc:
+            LOG.debug("Neural enhancer failed: %s", exc)
+    try:
+        import noisereduce as nr_lib
+
+        y = nr_lib.reduce_noise(y=audio_f32, sr=int(sr), stationary=True, prop_decrease=0.72).astype(np.float32)
+        pk = float(np.max(np.abs(y))) if y.size else 0.0
+        if pk > 0.02:
+            y = np.clip(y * (0.78 / pk), -0.98, 0.98).astype(np.float32)
+        return y, "noisereduce"
+    except Exception:
+        return audio_f32, ""
+
+
+def get_local_stt_warm_state() -> dict[str, Any]:
+    with _WARM_LOCK:
+        return {
+            "ready": bool(_STT_WARM_STATE.get("ready")),
+            "cold_start_ms": float(_STT_WARM_STATE.get("cold_start_ms") or 0.0),
+            "models": list(_STT_WARM_STATE.get("models") or []),
+        }
+
+
+def preload_local_stt_models() -> dict[str, Any]:
+    """Load and warm Zipformer-30M, Zipformer-70M, ChunkFormer-CTC, and neural enhancer at server startup."""
+    if os.environ.get("SMARTHOME_DISABLE_LOCAL_STT", "0").strip() == "1":
+        return get_local_stt_warm_state()
+    with _WARM_LOCK:
+        if _STT_WARM_STATE.get("ready"):
+            return dict(_STT_WARM_STATE)
+        t0 = time.perf_counter()
+        loaded: list[str] = []
+        dummy_f32 = (np.sin(np.linspace(0.0, 240.0, 9600, dtype=np.float32)) * 0.15).astype(np.float32)
+
+        for var in ("30m", "70m"):
+            rec = _get_zipformer_recognizer(var)
+            if rec is not None:
+                loaded.append(f"zipformer_{var}")
+                try:
+                    _decode_zipformer_with_gap(rec, dummy_f32, sr=16000, pad_sec=0.1)
+                except Exception:
+                    pass
+
+        try:
+            from simulator.voice.chunkformer_ctc import _get_chunkformer_model, decode_chunkformer_with_logprobs
+
+            cf = _get_chunkformer_model()
+            if cf is not None:
+                loaded.append("chunkformer_ctc")
+                decode_chunkformer_with_logprobs(dummy_f32, sr=16000, pad_s=0.1)
+        except Exception as exc:
+            LOG.debug("ChunkFormer preload skipped: %s", exc)
+
+        enh, enh_name = _get_speech_enhancer()
+        if enh is not None and enh_name:
+            loaded.append(f"enhancer_{enh_name}")
+            try:
+                enh(dummy_f32, 16000)
+            except Exception:
+                pass
+
+        cold_ms = round((time.perf_counter() - t0) * 1000.0, 1)
+        _STT_WARM_STATE["ready"] = True
+        _STT_WARM_STATE["cold_start_ms"] = cold_ms
+        _STT_WARM_STATE["models"] = loaded
+        LOG.info("Preloaded & warmed local STT models (%s) in %.1f ms", ", ".join(loaded), cold_ms)
+        return dict(_STT_WARM_STATE)
 
 
 def _get_phowhisper_model() -> Any:
@@ -361,8 +550,9 @@ def _is_muffled_babble_only(audio_f32: np.ndarray, sr: int = 16000) -> bool:
     rms_mean = float(np.mean(frame_rms))
     rms_cv = float(np.std(frame_rms) / max(rms_mean, 1e-9))
 
-    # Real speech has syllable pauses / dynamic modulation; dense reversed babble has a steady energy floor
-    if p80 <= 1e-6 or (p20 / p80) < 0.36 or rms_cv > 0.45:
+    # Real speech (including babble_snr5 with cv >= 0.37 and p20/p80 <= 0.55) has clear syllable pauses;
+    # pure continuous muffled room babble has flat energy (p20/p80 >= 0.56 and rms_cv <= 0.34).
+    if p80 <= 1e-6 or (p20 / p80) < 0.56 or rms_cv > 0.34:
         return False
 
     # Check high-frequency energy (>2200 Hz) across the clip
@@ -451,6 +641,7 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
             _parse_sensor_trigger,
         )
         from simulator.voice.vietnamese_policy import (
+            _NEGATED_OR_RHETORICAL_DIRECT_RE,
             _UNSUPPORTED_DEVICE_RE,
             _extract_clause_action,
             _extract_clause_device,
@@ -468,10 +659,22 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
         return "foreign", None
     if is_bad and bad_kind == "nonsense":
         return "nonsense", None
+    if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(low):
+        return "negated", None
 
     norm_raw = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(low)).split())
     padded_raw = f" {norm_raw} "
     if _UNSUPPORTED_DEVICE_RE.search(padded_raw):
+        # Conditional/automation utterances with a single-phoneme slip (e.g. 'khi mở cửa kính thì ...')
+        # whose 'then'-clause is garbled must escalate rather than be locked in locally as unsupported.
+        if " thi " in padded_raw and any(k in padded_raw for k in (" khi ", " neu ", " mo cua ", " dong cua ")):
+            from simulator.automation_nlu import parse_single_device_and_action
+
+            parts_u = re.split(r"\b(?:thì|thi)\b", low, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts_u) == 2:
+                u_dev, u_act = parse_single_device_and_action(parts_u[1].strip())
+                if u_dev is None or u_act is None:
+                    return "unrecognized", None
         return "unsupported", None
 
     tokens = low.split()
@@ -496,8 +699,9 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
     ):
         if not re.match(r"^(?:rep|rex|rexit|vi\s+sep|viet|re\s+logic|logic|reet)\b", norm_raw):
             return "recognized", None
-    if " trang thai " in padded_raw and not re.match(
-        r"^(?:rep|rex|rexit|vi\s+sep|viet|re\s+logic|logic|reet|reset|ri\s+set|dat\s+lai|tuyet|vi\s+thich)\b",
+    if " trang thai " in padded_raw and re.match(
+        r"^(?:trang\s+thai|xem|kiem\s+tra|cho\s+(?:toi\s+|minh\s+)?(?:xem|biet)|hoi|bao\s+cao|doc|"
+        r"cac|tat\s+ca|toan\s+bo|den|cua|may\s+bom|coi|loa|thiet\s+bi)\b",
         norm_raw,
     ):
         if any(
@@ -516,7 +720,8 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
         k in padded_raw
         for k in (
             " reset trang thai ", " ri set trang thai ", " rexit trang thai ",
-            " rep trang thai ", " vi sep trang thai ", " viet trang thai ",
+            " rep trang thai ", " vi sep trang thai ", " vi sach trang thai thiet bi ",
+            " vi thich trang thai thiet bi ", " viet trang thai ",
             " re logic trang thai ", " logic trang thai ", " reet trang thai ",
             " dat lai trang thai ", " khoi phuc cai dat ",
             " hoi phuc cai dat ", " khoi phuc ngay dan ",
@@ -805,9 +1010,9 @@ def transcribe_vietnamese_offline_pcm16k(
                     except Exception:
                         pass
 
-                # Fast path (~0.8-1.2s): return immediately on recognized intents, unsupported devices,
-                # foreign speech, bare verbs, or bare nouns with NO un-decoded leading speech (onset_gap < 0.08s).
-                if kind in ("recognized", "unsupported", "foreign", "bare_verb"):
+                # Fast path (~0.2-0.5s): return immediately on recognized intents, unsupported devices,
+                # negated utterances, foreign speech, bare verbs, or bare nouns with NO un-decoded leading speech.
+                if kind in ("recognized", "unsupported", "negated", "foreign", "bare_verb"):
                     return {
                         "ok": True,
                         "text": txt,
@@ -839,7 +1044,7 @@ def transcribe_vietnamese_offline_pcm16k(
 
                         cf_greedy, cf_lp = decode_chunkformer_with_logprobs(audio_f32, sr=16000, pad_s=0.25)
                         cf_kind, _ = _classify_offline_transcript_kind(cf_greedy)
-                        if cf_kind in ("unsupported", "foreign"):
+                        if cf_kind in ("unsupported", "negated", "foreign"):
                             return {
                                 "ok": True,
                                 "text": cf_greedy,
@@ -882,7 +1087,7 @@ def transcribe_vietnamese_offline_pcm16k(
                             vtln_audio = vtln_resample(audio_f32, factor=0.75)
                             vg, vlp = decode_chunkformer_with_logprobs(vtln_audio, sr=16000, pad_s=0.25)
                             v_kind, _ = _classify_offline_transcript_kind(vg)
-                            if v_kind in ("unsupported", "foreign", "recognized"):
+                            if v_kind in ("unsupported", "negated", "foreign", "recognized"):
                                 return {
                                     "ok": True,
                                     "text": vg,
@@ -910,7 +1115,7 @@ def transcribe_vietnamese_offline_pcm16k(
                     if rec_alt is not None:
                         alt_txt, _ = _decode_zipformer_with_gap(rec_alt, audio_f32, sr=16000, pad_sec=zip_pad)
                         alt_kind, _ = _classify_offline_transcript_kind(alt_txt)
-                        if alt_kind in ("unsupported", "foreign", "recognized"):
+                        if alt_kind in ("unsupported", "negated", "foreign", "recognized"):
                             return {
                                 "ok": True,
                                 "text": alt_txt,
@@ -919,6 +1124,38 @@ def transcribe_vietnamese_offline_pcm16k(
                                 "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
                                 "stt_engine": f"zipformer_{alt_variant}_rescue",
                             }
+
+                # Pass 4 (selective white-noise neural enhancement rescue ONLY when raw passes 1-3 failed AND broadband white noise is present):
+                if not muffled_babble and kind not in ("bare_device",) and is_broadband_white_noise(audio_f32, sr=16000):
+                    try:
+                        enh_audio, enh_name = enhance_white_noise_audio(audio_f32, sr=16000)
+                        if enh_name and enh_audio.size > 0:
+                            from simulator.voice.chunkformer_ctc import decode_chunkformer_with_logprobs
+
+                            enh_cf, _ = decode_chunkformer_with_logprobs(enh_audio, sr=16000, pad_s=0.25)
+                            enh_kind, _ = _classify_offline_transcript_kind(enh_cf)
+                            if enh_kind in ("unsupported", "negated", "recognized"):
+                                return {
+                                    "ok": True,
+                                    "text": enh_cf,
+                                    "confidence": 0.86,
+                                    "is_noise": False,
+                                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                    "stt_engine": f"zipformer_{variant}+enh_{enh_name}+chunkformer_ctc",
+                                }
+                            enh_z70, _ = _decode_zipformer_with_gap(rec_primary, enh_audio, sr=16000, pad_sec=zip_pad)
+                            enh_z_kind, _ = _classify_offline_transcript_kind(enh_z70)
+                            if enh_z_kind in ("unsupported", "negated", "recognized"):
+                                return {
+                                    "ok": True,
+                                    "text": enh_z70,
+                                    "confidence": 0.85,
+                                    "is_noise": False,
+                                    "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                                    "stt_engine": f"zipformer_{variant}+enh_{enh_name}",
+                                }
+                    except Exception as exc:
+                        LOG.debug("Selective white-noise enhancer rescue skipped: %s", exc)
 
                 # Preserve bare device noun for clean clarification; otherwise prefer ChunkFormer (e.g. custom scene phrases like 'đi làm')
                 final_txt = txt if kind == "bare_device" else (cf_greedy or txt)

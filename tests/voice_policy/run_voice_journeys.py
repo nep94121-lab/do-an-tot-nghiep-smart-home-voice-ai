@@ -464,11 +464,19 @@ def _evaluate_response(
     expired = bool(body.get("expired"))
     kind = str(body.get("kind") or "")
 
-    # Detect ANY unexpected device state mutation
+    # Detect ANY unexpected device state mutation or executed device command (even no-op!)
     mutated_devices = [
         d for d in ALL_6_DEVICES
         if before_states.get(d) and after_states.get(d) and before_states[d] != after_states[d]
     ]
+    executed_intents = (
+        body.get("intents")
+        if (executed and isinstance(body.get("intents"), list) and body.get("intents"))
+        else []
+    )
+    did_device_action = bool(mutated_devices) or bool(executed_intents) or (
+        executed and kind in ("device_set", "custom_command_executed", "devices_reset", "factory_reset")
+    )
 
     allow_empty = (step.expected_behavior == "noise_no_action" and silent) or (
         step.expected_behavior in ("foreign_no_action", "clarify_no_action") and mode != "text" and silent
@@ -487,7 +495,7 @@ def _evaluate_response(
             reasons.append(f"small_talk bad flags status={status_code} rbac={rbac_blocked} conf={req_conf} exec={executed} mut={mutated_devices}")
         if req_conf:
             confirm_policy_ok = False
-        if mutated_devices or executed:
+        if did_device_action or executed:
             false_action = True
 
     elif beh == "immediate_device":
@@ -500,6 +508,33 @@ def _evaluate_response(
             if after_states.get(d) != exp_st:
                 action_ok = False
                 reasons.append(f"device {d} expected {exp_st} got {after_states.get(d)}")
+        # Any executed command targeting a wrong device or wrong polarity is a FALSE ACTION (even if no-op!)
+        if did_device_action and step.expected_device_states:
+            exp_devs = set(step.expected_device_states.keys())
+            wrong_dev = any(
+                (str(it.get("device_id") or "") not in exp_devs)
+                for it in executed_intents
+                if isinstance(it, dict) and it.get("device_id")
+            ) or any(d not in exp_devs for d in mutated_devices)
+            wrong_pol = False
+            for it in executed_intents:
+                if not isinstance(it, dict):
+                    continue
+                did = str(it.get("device_id") or "")
+                act = str(it.get("action") or "").lower()
+                if did in step.expected_device_states:
+                    exp_s = step.expected_device_states[did]
+                    is_on_act = act in ("open", "turn_on")
+                    exp_on = exp_s in ("OPEN", "ON")
+                    if is_on_act != exp_on:
+                        wrong_pol = True
+            for d, exp_s in step.expected_device_states.items():
+                if d in mutated_devices and after_states.get(d) != exp_s:
+                    wrong_pol = True
+            if wrong_dev or wrong_pol:
+                false_action = True
+                action_ok = False
+                reasons.append(f"wrong_device_or_polarity(wrong_dev={wrong_dev},wrong_pol={wrong_pol})")
 
     elif beh in ("sensor_query", "status_query"):
         if status_code != 200 or rbac_blocked or req_conf or mutated_devices:
@@ -507,7 +542,7 @@ def _evaluate_response(
             reasons.append(f"{beh} fail status={status_code} rbac={rbac_blocked} conf={req_conf} mut={mutated_devices}")
         if req_conf:
             confirm_policy_ok = False
-        if mutated_devices:
+        if did_device_action:
             false_action = True
 
     elif beh == "pool_query":
@@ -516,12 +551,16 @@ def _evaluate_response(
             reasons.append(f"pool_query fail status={status_code} rbac={rbac_blocked} conf={req_conf}")
         if req_conf:
             confirm_policy_ok = False
+        if did_device_action:
+            false_action = True
 
     elif beh == "confirm_prompt":
         if status_code != 200 or not req_conf or executed or mutated_devices:
             action_ok = False
             confirm_policy_ok = False
             reasons.append(f"confirm_prompt fail status={status_code} conf={req_conf} exec={executed} mut={mutated_devices}")
+        if did_device_action or executed:
+            false_action = True
 
     elif beh == "confirm_yes":
         if status_code != 200 or not (confirmed or body.get("ok")):
@@ -536,26 +575,26 @@ def _evaluate_response(
         if status_code != 200 or not cancelled or executed or mutated_devices:
             action_ok = False
             reasons.append(f"confirm_no fail status={status_code} cancelled={cancelled} exec={executed} mut={mutated_devices}")
-        if executed or mutated_devices:
+        if did_device_action or executed:
             false_action = True
 
     elif beh == "confirm_expired":
         if status_code != 200 or not (expired or cancelled) or executed or mutated_devices:
             action_ok = False
             reasons.append(f"confirm_expired fail status={status_code} expired={expired} cancelled={cancelled} exec={executed}")
-        if executed or mutated_devices:
+        if did_device_action or executed:
             false_action = True
 
     elif beh == "confirm_reminder":
         if status_code != 200 or not req_conf or executed or mutated_devices or kind != "confirmation_reminder":
             action_ok = False
             reasons.append(f"confirm_reminder fail status={status_code} conf={req_conf} exec={executed} kind={kind}")
-        if executed or mutated_devices:
+        if did_device_action or executed:
             false_action = True
 
     elif beh in ("clarify_no_action", "noise_no_action", "foreign_no_action"):
         # CRITICAL: ZERO device actions allowed!
-        if executed or mutated_devices or req_conf:
+        if did_device_action or executed or req_conf:
             action_ok = False
             false_action = True
             reasons.append(f"{beh} FALSE ACTION exec={executed} conf={req_conf} mut={mutated_devices}")
@@ -567,7 +606,7 @@ def _evaluate_response(
         if status_code != 403 or not rbac_blocked or executed or mutated_devices:
             action_ok = False
             reasons.append(f"rbac_denied fail status={status_code} rbac={rbac_blocked} exec={executed} mut={mutated_devices}")
-        if executed or mutated_devices:
+        if did_device_action or executed:
             false_action = True
         for d, exp_st in step.expected_device_states.items():
             if after_states.get(d) != exp_st:
@@ -650,6 +689,21 @@ FRESH_VOICE_PROFILES: dict[str, dict[str, Any]] = {
     "regional_nam_style": {"voice": "vi-VN-HoaiMyNeural", "rate": "+5%", "pitch": "+6Hz", "degradation": "clean"},
     "regional_trung_reverb": {"voice": "vi-VN-NamMinhNeural", "rate": "-8%", "pitch": "-8Hz", "degradation": "reverb_echo"},
     "noisy_babble10_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "babble_snr10"},
+    # Round-4 noisy-room holdout profiles (F81..F124: babble/white 10dB & 5dB, far-field reverb/low-gain, elderly, kid, Bac/Trung/Nam)
+    "r4_babble10_bac_male": {"voice": "vi-VN-NamMinhNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "babble_snr10"},
+    "r4_babble10_nam_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+5%", "pitch": "+6Hz", "degradation": "babble_snr10"},
+    "r4_babble5_bac_male": {"voice": "vi-VN-NamMinhNeural", "rate": "+6%", "pitch": "-4Hz", "degradation": "babble_snr5"},
+    "r4_babble5_nam_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "babble_snr5"},
+    "r4_white10_trung_male": {"voice": "vi-VN-NamMinhNeural", "rate": "-8%", "pitch": "-8Hz", "degradation": "white_snr10"},
+    "r4_white10_nam_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+4%", "pitch": "+5Hz", "degradation": "white_snr10"},
+    "r4_white5_bac_male": {"voice": "vi-VN-NamMinhNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "white_snr5"},
+    "r4_white5_nam_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+0%", "pitch": "+0Hz", "degradation": "white_snr5"},
+    "r4_farfield_reverb_female": {"voice": "vi-VN-HoaiMyNeural", "rate": "+3%", "pitch": "+4Hz", "degradation": "reverb_echo"},
+    "r4_farfield_lowgain_trung": {"voice": "vi-VN-NamMinhNeural", "rate": "-6%", "pitch": "-8Hz", "degradation": "low_gain_m20db"},
+    "r4_elderly_babble10": {"voice": "vi-VN-HoaiMyNeural", "rate": "-20%", "pitch": "-14Hz", "degradation": "babble_snr10"},
+    "r4_elderly_white10": {"voice": "vi-VN-NamMinhNeural", "rate": "-18%", "pitch": "-12Hz", "degradation": "white_snr10"},
+    "r4_kid_fast_babble10": {"voice": "vi-VN-HoaiMyNeural", "rate": "+20%", "pitch": "+22Hz", "degradation": "babble_snr10"},
+    "r4_kid_fast_white10": {"voice": "vi-VN-HoaiMyNeural", "rate": "+20%", "pitch": "+22Hz", "degradation": "white_snr10"},
 }
 
 
@@ -782,22 +836,84 @@ def build_fresh_voice_steps() -> list[JourneyStep]:
         _f("F79", 9, "r3_foreign_fr", "fast_male_bac", "bonjour ouvre la porte", "foreign_no_action", lang="fr"),
         # Cat 10: Session end (1)
         _f("F80", 10, "r3_goodbye_elderly", "elderly_slow_female", "tạm biệt bạn nhé", "small_talk"),
+        # ------------------------------------------------------------------
+        # Round-4 +44 Fresh Noisy-Room Holdout Utterances (F81..F124) — NOT used for tuning
+        # ------------------------------------------------------------------
+        # Group A: 14 noisy small talk / greeting / identity / help / thanks / goodbye (10 dB & 5 dB babble/white -> strictly 0 false actions)
+        _f("F81", 1, "r4_st_greet_babble10", "r4_babble10_bac_male", "chào bạn", "small_talk", pre_setup="reset_devices_off"),
+        _f("F82", 1, "r4_st_xinchao_babble5", "r4_babble5_nam_female", "xin chào", "small_talk"),
+        _f("F83", 1, "r4_st_morning_white10", "r4_white10_nam_female", "chào buổi sáng", "small_talk"),
+        _f("F84", 1, "r4_st_evening_white5", "r4_white5_bac_male", "chào buổi tối", "small_talk"),
+        _f("F85", 1, "r4_st_identity_kid_b10", "r4_kid_fast_babble10", "bạn là ai", "small_talk"),
+        _f("F86", 1, "r4_st_name_elderly_w10", "r4_elderly_white10", "bạn tên gì", "small_talk"),
+        _f("F87", 1, "r4_st_help_babble5", "r4_babble5_bac_male", "bạn có thể làm gì", "small_talk"),
+        _f("F88", 10, "r4_st_thanks_babble10", "r4_babble10_nam_female", "cảm ơn bạn", "small_talk"),
+        _f("F89", 10, "r4_st_thanks_white5", "r4_white5_nam_female", "cảm ơn nhiều", "small_talk"),
+        _f("F90", 10, "r4_st_praise_white10", "r4_white10_trung_male", "tốt lắm", "small_talk"),
+        _f("F91", 10, "r4_st_bye_babble5", "r4_babble5_nam_female", "tạm biệt", "small_talk"),
+        _f("F92", 10, "r4_st_bye_white5", "r4_white5_bac_male", "tạm biệt nhé", "small_talk"),
+        _f("F93", 10, "r4_st_goodnight_babble5", "r4_babble5_bac_male", "ngủ ngon", "small_talk"),
+        _f("F94", 10, "r4_st_seeyou_elderly_b10", "r4_elderly_babble10", "hẹn gặp lại", "small_talk"),
+        # Group B: 8 noisy adversarial (unsupported, ambiguous, negated, foreign, pure babble -> strictly 0 false actions)
+        _f("F95", 9, "r4_adv_curtain_babble10", "r4_babble10_bac_male", "đóng rèm cửa", "clarify_no_action", pre_setup="clear_pending"),
+        _f("F96", 9, "r4_adv_fan_white10", "r4_white10_nam_female", "bật quạt trần", "clarify_no_action"),
+        _f("F97", 9, "r4_adv_bare_door_white5", "r4_white5_bac_male", "cửa chính", "clarify_no_action"),
+        _f("F98", 9, "r4_adv_bare_verb_kid_b10", "r4_kid_fast_babble10", "bật lên đi", "clarify_no_action"),
+        _f("F99", 9, "r4_adv_neg_light_babble10", "r4_babble10_nam_female", "đừng bật đèn phòng khách", "clarify_no_action"),
+        _f("F100", 9, "r4_adv_neg_door_white5", "r4_white5_nam_female", "không mở cửa", "clarify_no_action"),
+        _f("F101", 9, "r4_adv_foreign_en_babble10", "r4_babble10_bac_male", "turn off the light", "foreign_no_action", lang="en"),
+        _f("F102", 9, "r4_adv_pure_babble", "r4_babble5_nam_female", "[PURE_BABBLE_NOISE_R4]", "noise_no_action", audio_kind="pure_babble_noise"),
+        # Group C: 12 noisy-room direct device commands (all 6 devices + all_lights + multi-device)
+        _f("F103", 2, "r4_door_open_elderly_b10", "r4_elderly_babble10", "mở cửa chính giúp bà", "immediate_device", pre_setup="reset_devices_off", expected_device_states={"main_door": "OPEN"}),
+        _f("F104", 2, "r4_door_close_white5", "r4_white5_bac_male", "đóng cửa chính", "immediate_device", expected_device_states={"main_door": "CLOSED"}),
+        _f("F105", 2, "r4_living_on_kid_w10", "r4_kid_fast_white10", "bật đèn phòng khách", "immediate_device", expected_device_states={"living_room_light": "ON"}),
+        _f("F106", 2, "r4_bedroom_on_babble5", "r4_babble5_nam_female", "bật đèn phòng ngủ", "immediate_device", expected_device_states={"bedroom_light": "ON"}),
+        _f("F107", 2, "r4_all_lights_off_farfield", "r4_farfield_lowgain_trung", "tắt tất cả đèn", "immediate_device", expected_device_states={"living_room_light": "OFF", "bedroom_light": "OFF"}),
+        _f("F108", 2, "r4_all_lights_on_white10", "r4_white10_nam_female", "bật hết đèn giùm nha", "immediate_device", expected_device_states={"living_room_light": "ON", "bedroom_light": "ON"}),
+        _f("F109", 2, "r4_pump_on_babble10", "r4_babble10_bac_male", "bật máy bơm tưới cây", "immediate_device", expected_device_states={"garden_pump": "ON"}),
+        _f("F110", 2, "r4_pump_off_farfield_rev", "r4_farfield_reverb_female", "tắt máy bơm tưới cây", "immediate_device", expected_device_states={"garden_pump": "OFF"}),
+        _f("F111", 2, "r4_siren_on_white5", "r4_white5_nam_female", "bật còi báo động", "immediate_device", expected_device_states={"alarm_siren": "ON"}),
+        _f("F112", 2, "r4_siren_off_kid_b10", "r4_kid_fast_babble10", "tắt còi báo động", "immediate_device", expected_device_states={"alarm_siren": "OFF"}),
+        _f("F113", 2, "r4_spk_on_babble5", "r4_babble5_bac_male", "bật nguồn mạch loa", "immediate_device", expected_device_states={"speaker_amp": "ON"}),
+        _f("F114", 2, "r4_multi_elderly_w10", "r4_elderly_white10", "tắt nguồn mạch loa và tắt đèn phòng ngủ", "immediate_device", expected_device_states={"speaker_amp": "OFF", "bedroom_light": "OFF"}),
+        # Group D: 2 noisy sensor & status queries
+        _f("F115", 3, "r4_temp_babble10", "r4_babble10_nam_female", "nhiệt độ và độ ẩm hiện tại bao nhiêu", "sensor_query", pre_setup="set_sensors_known"),
+        _f("F116", 3, "r4_status_farfield_lowgain", "r4_farfield_lowgain_trung", "đèn phòng khách đang bật hay tắt", "status_query"),
+        # Group E: 8 noisy confirmation-required flows (custom, schedule, cross-rule, reset)
+        _f("F117", 4, "r4_custom_create_farfield", "r4_farfield_reverb_female", "tạo lệnh ra ngoài là tắt tất cả đèn và đóng cửa chính", "confirm_prompt", pre_setup="clear_pending"),
+        _f("F118", 4, "r4_custom_cancel_white10", "r4_white10_trung_male", "hủy", "confirm_no"),
+        _f("F119", 5, "r4_sched_create_white10", "r4_white10_trung_male", "đặt lịch 7 giờ tối hằng ngày bật đèn phòng khách", "confirm_prompt", pre_setup="clear_pending"),
+        _f("F120", 5, "r4_sched_cancel_babble10", "r4_babble10_bac_male", "không", "confirm_no"),
+        _f("F121", 6, "r4_rule_create_elderly_b10", "r4_elderly_babble10", "khi phát hiện tiếng động lớn thì bật còi báo động", "confirm_prompt", pre_setup="clear_pending"),
+        _f("F122", 6, "r4_rule_cancel_kid_w10", "r4_kid_fast_white10", "thôi", "confirm_no"),
+        _f("F123", 7, "r4_reset_devices_babble10", "r4_babble10_nam_female", "reset trạng thái thiết bị", "confirm_prompt", pre_setup="clear_pending"),
+        _f("F124", 7, "r4_reset_confirm_farfield", "r4_farfield_reverb_female", "đồng ý", "confirm_yes", expected_device_states={"main_door": "CLOSED", "living_room_light": "OFF", "bedroom_light": "OFF", "garden_pump": "OFF", "alarm_siren": "OFF", "speaker_amp": "OFF"}),
     ]
 
 
 def _build_fresh_step_pcm16(step: JourneyStep, idx: int, fresh_cache_dir: pathlib.Path) -> np.ndarray:
     if step.audio_kind == "pure_white_noise":
         return synth_pure_white_noise(duration_sec=1.8, seed=9100 + idx)
+    if step.audio_kind == "pure_babble_noise":
+        return synth_babble_only(duration_sec=2.0, seed=9200 + idx, cache_dir=fresh_cache_dir)
+    prof = FRESH_VOICE_PROFILES.get(step.persona, {"degradation": "clean"})
     if step.lang != "vi":
         foreign_voice = "fr-FR-DeniseNeural" if step.lang == "fr" else "en-US-JennyNeural"
-        return synthesize_edge_tts_speech(
+        pcm = synthesize_edge_tts_speech(
             step.text,
             voice=foreign_voice,
             rate="+0%",
             pitch="+0Hz",
             cache_dir=fresh_cache_dir,
         )
-    prof = FRESH_VOICE_PROFILES[step.persona]
+        if prof.get("degradation", "clean") != "clean":
+            pcm = apply_degradation(
+                pcm,
+                prof["degradation"],
+                seed=9500 + idx,
+                cache_dir=fresh_cache_dir,
+            )
+        return pcm
     pcm = synthesize_edge_tts_speech(
         step.text,
         voice=prof["voice"],
@@ -1093,11 +1209,31 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     all_records: list[dict[str, Any]] = []
     journey_summaries: dict[str, dict[str, Any]] = {}
     warmed = False
+    cold_start_ms_measured = 0.0
 
     def _warm_stt_once() -> None:
-        nonlocal warmed
+        nonlocal warmed, cold_start_ms_measured
         if warmed:
             return
+        # Wait for server startup background ASR preload (Zipformer-30M, Zipformer-70M, ChunkFormer-CTC, enhancer)
+        t_wait = time.perf_counter()
+        deadline = time.time() + 120.0
+        while time.time() < deadline:
+            try:
+                hr = http.get(f"{BASE_URL}/api/health", timeout=5.0)
+                if hr.status_code == 200:
+                    hb = hr.json()
+                    if hb.get("stt_warm"):
+                        cold_start_ms_measured = float(hb.get("stt_cold_start_ms") or 0.0)
+                        _log(
+                            f"  Server startup ASR preload ready: models={hb.get('stt_models')} "
+                            f"cold_start_ms={cold_start_ms_measured:.1f}ms (waited {time.perf_counter()-t_wait:.1f}s)",
+                            progress_log,
+                        )
+                        break
+            except Exception:
+                pass
+            time.sleep(0.5)
         _reset_all_devices_off(http, owner_headers)
         _cancel_all_timers_and_schedules(http, owner_headers, temp_data_dir)
         warm_pcm = audio_cache.get("J01_53")
@@ -1508,7 +1644,15 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
 
     adv_behaviors = {"clarify_no_action", "noise_no_action", "foreign_no_action"}
     adv_recs = [r for r in all_records if r["expected_behavior"] in adv_behaviors]
-    false_acts = [r for r in adv_recs if r["false_action"]]
+    adv_false_acts = [r for r in adv_recs if r["false_action"]]
+    false_acts_all = [r for r in all_records if r["false_action"]]
+    false_actions_by_row_type: dict[str, dict[str, int]] = {}
+    for beh_key in sorted({r["expected_behavior"] for r in all_records}):
+        sub_b = [r for r in all_records if r["expected_behavior"] == beh_key]
+        false_actions_by_row_type[beh_key] = {
+            "total": len(sub_b),
+            "false_actions": sum(1 for r in sub_b if r["false_action"]),
+        }
 
     def _pct(num: int, den: int) -> float:
         return round(100.0 * num / den, 2) if den > 0 else 0.0
@@ -1632,7 +1776,8 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     frsh_vi_ok = sum(1 for r in frsh_recs if r["vi_only_ok"])
     frsh_conf_ok = sum(1 for r in frsh_recs if r["confirm_policy_ok"])
     frsh_adv = [r for r in frsh_recs if r["expected_behavior"] in adv_behaviors]
-    frsh_false = [r for r in frsh_adv if r["false_action"]]
+    frsh_false = [r for r in frsh_recs if r["false_action"]]
+    frsh_adv_false = [r for r in frsh_adv if r["false_action"]]
     fresh_by_profile: dict[str, Any] = {}
     for prof in sorted({r["persona"] for r in frsh_recs}):
         pr = [r for r in frsh_recs if r["persona"] == prof]
@@ -1653,8 +1798,9 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
         "vi_only_rate_pct": _pct(frsh_vi_ok, len(frsh_recs)),
         "confirm_policy_rate_pct": _pct(frsh_conf_ok, len(frsh_recs)),
         "false_action_count": len(frsh_false),
+        "adversarial_false_action_count": len(frsh_adv_false),
         "adversarial_total": len(frsh_adv),
-        "false_action_rate_pct": _pct(len(frsh_false), len(frsh_adv)),
+        "false_action_rate_pct": _pct(len(frsh_false), len(frsh_recs)),
         "latency_p50_ms": _percentile([r["latency_ms"] for r in frsh_recs], 50),
         "latency_p95_ms": _percentile([r["latency_ms"] for r in frsh_recs], 95),
         "by_profile": fresh_by_profile,
@@ -1701,12 +1847,15 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
             "clean_voice_confirm_policy_rate_pct": _pct(cln_conf_ok, len(cln_recs)),
             "degraded_voice_confirm_policy_rate_pct": _pct(deg_conf_ok, len(deg_recs)),
             "fresh_voice_confirm_policy_rate_pct": _pct(frsh_conf_ok, len(frsh_recs)),
-            "false_action_count": len(false_acts),
+            "false_action_count": len(false_acts_all),
+            "adversarial_false_action_count": len(adv_false_acts),
             "adversarial_total": len(adv_recs),
-            "false_action_rate_pct": _pct(len(false_acts), len(adv_recs)),
+            "false_action_rate_pct": _pct(len(false_acts_all), len(all_records)),
+            "false_actions_by_row_type": false_actions_by_row_type,
             "total_failures": len(failures),
         },
         "latency_ms": {
+            "cold_start_preload_ms": round(cold_start_ms_measured, 1),
             "simple_text_p50": _percentile(simple_txt_lats, 50),
             "simple_text_p95": _percentile(simple_txt_lats, 95),
             "simple_voice_clean_p50": _percentile(simple_cln_lats, 50),

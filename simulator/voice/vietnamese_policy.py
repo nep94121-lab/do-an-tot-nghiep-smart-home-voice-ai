@@ -129,10 +129,10 @@ _UNSUPPORTED_DEVICE_RE = re.compile(
     r"dieu\s+hoa|may\s+lanh|aircon|"
     r"tivi|ti\s+vi|\btv\b|"
     r"may\s+giat|tu\s+lanh|"
-    r"(?:rem|dem|giem)(?:\s+cua)?|ren\s+cua|"
+    r"rem(?:\s+cua)?|(?:dem|giem|ren)\s+cua|"
     r"cua\s+(?:cuon|so|ban\s+cong|phong\s+ngu|nha\s+ve\s+sinh|gara|tu|kinh)|"
-    r"den\s+(?:bep|nha\s+ve\s+sinh|ban\s+cong|cau\s+thang|ban\s+hoc)|"
-    r"loa\s+bluetooth|bom\s+tang\s+ap|"
+    r"den\s+(?:bep|nha\s+ve\s+sinh|nha\s+tam|ban\s+cong|cau\s+thang|ban\s+hoc)|"
+    r"loa\s+(?:bluetooth|tivi|tv)|bom\s+tang\s+ap|"
     r"(?:binh\s+)?nong\s+lanh|"
     r"lo\s+vi\s+song|robot\s+hut\s+bui|"
     r"hoc\s+lenh|hong\s+ngoai|remote|vs1838b?"
@@ -141,7 +141,9 @@ _UNSUPPORTED_DEVICE_RE = re.compile(
 
 _NEGATED_OR_RHETORICAL_DIRECT_RE = re.compile(
     r"(?:^|\s)(?:"
-    r"(?:không|khong|đừng|chưa\s+cần|chua\s+can|khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong|đừng\s+có)\s+"
+    r"(?:không(?:\s+(?:cần|muốn|được|nên|phải))?|khong(?:\s+(?:can|muon|duoc|nen|phai))?|"
+    r"đừng(?:\s+(?:có|vội|bao\s+giờ))?|chớ|"
+    r"chưa\s+cần|chua\s+can|khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong)\s+"
     r"(?:mở|mo|đóng|dong|bật|bat|tắt|tat|khóa|khoa|chốt|chot|khép|khep|ngắt|ngat|dừng|dung|chạy|chay)\b|"
     r"đúng\s+(?:rồi|không|chưa|nhỉ|nhé|ạ)\b"
     r")",
@@ -330,7 +332,10 @@ def _contains_command_or_query_intent(text: str) -> bool:
     if any(k in norm for k in sensor_cues):
         return True
     if any(k in norm for k in automation_cues):
-        return True
+        if " gap lai sau " in norm and not any(k in norm for k in automation_cues if k != " sau "):
+            pass
+        else:
+            return True
     if any(d in norm for d in device_cues) and any(a in norm for a in action_cues):
         return True
     if " tuoi cay " in norm or " tuoi vuon " in norm:
@@ -437,7 +442,7 @@ def classify_small_talk_vi(
         }
 
     # Greetings
-    if any(p in norm for p in ("chao buoi sang",)):
+    if any(p in norm for p in ("chao buoi sang",)) or norm in ("vao buoi sang", "trong buoi sang"):
         return {
             "kind": "small_talk",
             "subkind": "greeting",
@@ -572,6 +577,7 @@ def normalize_vietnamese_utterance(text: str) -> str:
     s = re.sub(r"^(?:bật|mở|bạch|bat|mo|bach)\s+(?:hoa|loa)(?:\s*[.!?]*)$", "bật nguồn mạch loa", s)
     s = re.sub(r"^(?:tắt|ngắt|tat|ngat)\s+hoa(?:\s*[.!?]*)$", "tắt nguồn mạch loa", s)
     s = re.sub(r"\b(?:bạn|ban)\s+nguồn\s+(?:mạch|mệt|mạt|vài|bài)\s+loa\b", "bật nguồn mạch loa", s)
+    s = re.sub(r"\b(bật|tắt|mở|đóng|bat|tat|mo|dong)\s+(?:nguồn|ngùng|nguon|ngung)\s+(?:mạch|mặt|mệt|mạt|vài|bài|mach|mat|met|vai|bai)\s+loa\b", r"\1 nguồn mạch loa", s)
     s = re.sub(r"\b(?:bật|mở|bat|mo)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "bật nguồn mạch loa", s)
     s = re.sub(r"\b(?:tắt|ngắt|dừng|tat|ngat|dung)\s+(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "tắt nguồn mạch loa", s)
     s = re.sub(r"\b(?:âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|(?<!nguồn\s)mạch\s+loa|(?<!nguon\s)mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "nguồn mạch loa", s)
@@ -678,12 +684,23 @@ def _strip_non_verb_phrases(norm_clause: str) -> str:
 def _extract_clause_action(norm_clause: str, dev_id: str | None) -> str | None:
     action_clause = _strip_non_verb_phrases(norm_clause)
     padded = f" {action_clause} "
+    off_verb: str | None = None
+    on_verb: str | None = None
     for w in ("tat", "dong", "khoa", "chot", "khep", "gai", "ngat", "dung", "ngung"):
         if f" {w} " in padded:
-            return "close" if (dev_id == "main_door" or w in ("dong", "khoa", "chot", "khep", "gai")) else "turn_off"
+            off_verb = w
+            break
     for w in ("bat", "mo", "khoi dong", "chay"):
         if f" {w} " in padded:
-            return "open" if (dev_id == "main_door" or w == "mo") else "turn_on"
+            on_verb = w
+            break
+    # Conflicting ON and OFF verbs in a single clause -> ambiguous (never silently flip polarity!).
+    if off_verb is not None and on_verb is not None:
+        return None
+    if off_verb is not None:
+        return "close" if (dev_id == "main_door" or off_verb in ("dong", "khoa", "chot", "khep", "gai")) else "turn_off"
+    if on_verb is not None:
+        return "open" if (dev_id == "main_door" or on_verb == "mo") else "turn_on"
     if (" tuoi cay " in padded or " tuoi vuon " in padded) and " may bom " not in padded and " bom " not in padded:
         return "turn_on"
     return None
@@ -725,7 +742,7 @@ def _expand_direct_target(dev_id: str, action: str) -> list[dict[str, str]]:
 
 _NON_DIRECT_INTENT_CUES: tuple[str, ...] = (
     " dang mo hay dong ", " dang bat hay tat ", " co dang bat ", " co dang mo ",
-    " co dang tat ", " co dang dong ", " trang thai ", " hen gio ", " dat lich ",
+    " co dang tat ", " co dang dong ", " trang thai ", " hen gio ", " dat lich ", " dac lich ",
     " hen lich ", " sua lich ", " doi lich ", " xoa lich ", " huy lich ", " lich hen ",
     " hang ngay ", " moi ngay ", " ngay nao cung ", " lap lai ",
     " gio sang ", " gio trua ", " gio chieu ", " gio toi ", " gio dem ",
@@ -750,7 +767,8 @@ _COUNTDOWN_OR_CLOCK_GUARD_RE = re.compile(
     r"(?:\bsau\s+(?:\d+|(?:mot|hai|ba|bon|nam|sau|bay|bai|tam|chin|muoi|nua)\s+(?:giay|phut|gio|tieng))\b|"
     r"\b(?:giay|phut|tieng)\s+nua\b|"
     r"\b\d+\s*(?:giay|phut|tieng)\b|"
-    r"\b(?:luc|vao\s+luc)\s+(?:\d+|mot|hai|ba|bon|nam|sau|bay|bai|tam|chin|muoi)\s*(?:gio|h)\b)"
+    r"\b(?:luc|vao\s+luc)\s+(?:\d+|mot|hai|ba|bon|nam|sau|bay|bai|tam|chin|muoi)\s*(?:gio|h)\b|"
+    r"\b\d{1,2}\s*(?:gio|h)\s*\d{0,2}\b|\b\d{1,2}:\d{2}\b)"
 )
 
 _CONDITIONAL_THI_GUARD_RE = re.compile(r"(?<!\broi)\s+thi\s+")
@@ -940,12 +958,20 @@ def parse_direct_device_intents_vi(
     seen: set[tuple[str, str]] = set()
     last_action: str | None = None
 
+    first_nonempty_seen = False
     for cl in clauses:
         cl_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(cl.lower())).split())
         if not cl_norm:
             continue
         dev = _extract_clause_device(cl_norm)
         act = _extract_clause_action(cl_norm, dev)
+
+        if not first_nonempty_seen:
+            first_nonempty_seen = True
+            # Multi-clause utterance with a long garbled/unrecognized prefix before 'và <device>'
+            # (e.g. ASR-corrupted 'tạo lệnh đi làm ... và đóng cửa chính') must clarify, never act.
+            if len(clauses) >= 2 and dev is None and act is None and len(cl_norm.split()) >= 4:
+                return []
 
         if act is not None:
             last_action = act
@@ -955,8 +981,8 @@ def parse_direct_device_intents_vi(
         if dev is None:
             continue
         if act is None:
-            # Ambiguous: device without action
-            continue
+            # Ambiguous/garbled device clause without action: abort the whole utterance rather than executing a trailing clause.
+            return []
 
         for item in _expand_direct_target(dev, act):
             key = (item["device_id"], item["action"])
@@ -1108,6 +1134,7 @@ def handle_sensor_or_status_query_vi(
             " reset ", " ri set ", " rex ", " rexit ", " reet ", " dat lai ", " khoi phuc ", " hoi phuc ",
             " truy van trang thai ", " truy suat trang thai ", " refresh trang thai ",
             " re trang thai ", " rep trang thai ", " xep trang thai ", " vi sep trang thai ",
+            " vi sach trang thai ", " vi thich trang thai ",
             " viet trang thai ", " logic trang thai ", " re logic ",
             " thiet lap trang thai ", " save trang thai ",
         )
