@@ -36,12 +36,17 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.audio_dir = ROOT / "test_audio"
 
     def test_01_make_live_config_vietnamese_and_vad(self) -> None:
-        """Kiểm tra cấu hình Gemini Live dùng giọng Aoede (không gắn language_code gây lỗi native-audio) và VAD 350ms HIGH."""
+        """Kiểm tra cấu hình Gemini Live khóa tiếng Việt vi-VN (có fallback strict_lang_fields=False), giọng Aoede và VAD 350ms HIGH."""
         cfg = make_live_config(self.engine)
         self.assertIsNotNone(cfg.speech_config, "Thiếu speech_config trong LiveConnectConfig")
-        self.assertIn(getattr(cfg.speech_config, "language_code", None), (None, ""))
+        self.assertEqual(getattr(cfg.speech_config, "language_code", None), "vi-VN")
         self.assertEqual(
             cfg.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
+        )
+        cfg_fb = make_live_config(self.engine, strict_lang_fields=False)
+        self.assertIn(getattr(cfg_fb.speech_config, "language_code", None), (None, ""))
+        self.assertEqual(
+            cfg_fb.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
         )
 
         aad = cfg.realtime_input_config.automatic_activity_detection

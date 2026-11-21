@@ -534,3 +534,113 @@ def test_local_whisper_stt_rejects_pure_white_noise_fast() -> None:
     assert res["ok"] is False
     assert res["is_noise"] is True
     assert res["text"] == ""
+
+
+def test_round2_nlu_echo_guard_and_3d_pin_contrast_fixes() -> None:
+    """Verify round-2 NLU normalizations, echo guard J03_07 fix, unsupported device guards, and 3D pin CSS."""
+    from simulator.automation_nlu import (
+        _normalize_vi_spoken_numbers,
+        _parse_custom_command_create_or_edit,
+        _parse_sensor_trigger,
+    )
+    from simulator.live.echo_and_speech_guard import ServerEchoGuard
+    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+    # 1. Echo guard J03_07: redundant command after 'đang bật rồi.' must NOT be echo-suppressed
+    eg = ServerEchoGuard()
+    eg.record_ai_utterance("Đèn phòng khách đang bật rồi.")
+    is_echo, _sc, _rsn = eg.check_echo_transcript("bật đèn phòng khách")
+    assert is_echo is False
+
+    # 2. Unsupported devices & bare nouns must produce 0 actions
+    for bad in ("mở cửa cuốn", "đóng rèm cửa", "đóng dèm cửa", "bật điều hòa", "cửa chính", "tất cả đèn"):
+        assert parse_direct_device_intents_vi(bad) == [], f"Unexpected action on {bad!r}"
+
+    # 3. Regional / clipped direct commands preserve polarity
+    assert parse_direct_device_intents_vi("Bật thiết đèn.") == [
+        {"device_id": "living_room_light", "action": "turn_on"},
+        {"device_id": "bedroom_light", "action": "turn_on"},
+    ]
+    assert parse_direct_device_intents_vi("tắt hoa") == [{"device_id": "speaker_amp", "action": "turn_off"}]
+    assert parse_direct_device_intents_vi("hóa cửa chính") == [{"device_id": "main_door", "action": "close"}]
+    assert parse_direct_device_intents_vi("bật ngòi hú") == [{"device_id": "alarm_siren", "action": "turn_on"}]
+
+    # 4. Spoken Vietnamese numbers, custom-command ASR wrappers, and sensor triggers
+    assert "7 gio" in _normalize_vi_spoken_numbers("bảy giờ sáng")
+    assert "2 giay" in _normalize_vi_spoken_numbers("hai giây nữa")
+    assert _parse_sensor_trigger("Khi có biến động lớn") == ("sound_sensor", "LOUD")
+    for utt in (
+        "Sau khi đi làm là tắt tất cả đèn và đóng cửa chính.",
+        "Chào, hãy đi làm là tắt tất cả đèn và đóng cửa chính.",
+        "Chỉ tạo lệnh ghi âm là tắt tất cả đèn và đóng cửa chính.",
+    ):
+        parsed = _parse_custom_command_create_or_edit(utt)
+        assert parsed is not None and len(parsed[1]) >= 2, f"Custom command parse failed: {utt!r}"
+
+    # 5. 3D pin high-contrast CSS rule prevents washout of 'Cửa chính (D1): OPEN'
+    import pathlib as _pl
+
+    css_path = _pl.Path(__file__).resolve().parents[2] / "simulator" / "static" / "css" / "style.css"
+    css_txt = css_path.read_text(encoding="utf-8")
+    assert ".pin-3d.on .pin-state" in css_txt
+    assert "#075985" in css_txt
+    assert "rgba(15, 23, 42, 0.94)" in css_txt
+
+
+def test_round2_gemini_stt_cooldown_and_mock_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify Gemini STT 429 cooldown logic, garbage rejection, and noise gate without live API calls."""
+    import numpy as np
+    from simulator.voice import gemini_stt
+
+    # Reset cooldown state cleanly
+    gemini_stt._MODEL_COOLDOWN_UNTIL.clear()
+    gemini_stt._MODEL_429_STREAK.clear()
+
+    class _FakeErr(Exception):
+        def __init__(self, msg: str, code: int = 429) -> None:
+            super().__init__(msg)
+            self.code = code
+
+    # Per-minute 429 -> short 15s cooldown; per-day 429 -> long 3600s cooldown
+    gemini_stt._record_model_error("m_rpm", _FakeErr("429 RESOURCE_EXHAUSTED per minute", 429))
+    assert "m_rpm" in gemini_stt._MODEL_COOLDOWN_UNTIL
+    rpm_cd = gemini_stt._MODEL_COOLDOWN_UNTIL["m_rpm"] - time.monotonic()
+    assert 5.0 < rpm_cd <= 20.0
+
+    gemini_stt._record_model_error("m_day", _FakeErr("429 RESOURCE_EXHAUSTED PerDay quota", 429))
+    day_cd = gemini_stt._MODEL_COOLDOWN_UNTIL["m_day"] - time.monotonic()
+    assert day_cd > 3000.0
+
+    # Alphanumeric garbage detector
+    assert gemini_stt._is_alnum_garbage("FGH9A") is True
+    assert gemini_stt._is_alnum_garbage("KY037") is False
+    assert gemini_stt._is_alnum_garbage("mở cửa") is False
+
+    # Pure white noise rejected immediately at acoustic gate before any Gemini client call
+    noise = synth_pure_white_noise(duration_sec=1.5, seed=99)
+    res_n = gemini_stt.transcribe_vietnamese_gemini_pcm16k(noise, sr=16000)
+    assert res_n["ok"] is False and res_n["is_noise"] is True and res_n["stt_engine"] == "acoustic_gate"
+
+    # Clean speech with mocked Gemini client returns exact transcript and gemini engine label
+    t = np.linspace(0.0, 1.0, 16000, endpoint=False, dtype=np.float32)
+    speech_like = (0.35 * np.sin(2.0 * np.pi * 220.0 * t) * (0.5 + 0.5 * np.sin(2.0 * np.pi * 4.0 * t)))
+    pcm = np.clip(speech_like * 32767.0, -32767, 32767).astype(np.int16)
+
+    class _FakeResp:
+        text = "mở cửa chính"
+
+    class _FakeModels:
+        def generate_content(self, **kwargs: Any) -> _FakeResp:
+            return _FakeResp()
+
+    class _FakeClient:
+        models = _FakeModels()
+
+    monkeypatch.setattr(gemini_stt, "load_key", lambda: "AIzaFakeTestKeyForUnitTestOnly1234567")
+    monkeypatch.setattr(gemini_stt, "_get_genai_client", lambda _k: _FakeClient())
+    gemini_stt._MODEL_COOLDOWN_UNTIL.clear()
+
+    res_ok = gemini_stt.transcribe_vietnamese_gemini_pcm16k(pcm, sr=16000)
+    assert res_ok["ok"] is True
+    assert res_ok["text"] == "mở cửa chính"
+    assert str(res_ok["stt_engine"]).startswith("gemini:")
