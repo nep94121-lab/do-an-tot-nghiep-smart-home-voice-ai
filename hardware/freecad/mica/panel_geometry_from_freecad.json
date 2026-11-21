@@ -1,10 +1,16 @@
 {
   "freecad_version": "1.1.4.20260928 (Git shallow)",
   "default_T_mm": 3.0,
-  "default_kerf_mm": 0.15,
+  "default_tab_clr_mm": 0.25,
+  "default_kerf_mm": 0.25,
+  "unique_panel_count": 18,
+  "physical_piece_count": 19,
+  "joint_count": 59,
   "all_recompute_passed": true,
   "panels": {
-    "P01_BASE": {
+    "P01A_BASE_TECH": {
+      "panel_id": "P01A_BASE_TECH",
+      "qty": 1,
       "plane": "XY",
       "bbox_min": [
         0.0,
@@ -12,357 +18,515 @@
         -3.0
       ],
       "bbox_max": [
-        380.0,
-        286.0,
+        406.0,
+        181.875,
         0.0
       ],
       "dims_uvt": [
-        380.0,
-        286.0,
+        406.0,
+        181.875,
         3.0
       ],
-      "volume_mm3": 321331.79,
-      "expected_vol_mm3": 321331.791,
+      "volume_mm3": 211391.468,
+      "expected_vol_mm3": 211391.469,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
-      "faces": 152
+      "faces": 100
     },
-    "P02_WALL_BACK": {
-      "plane": "XZ",
+    "P01B_BASE_HOUSE": {
+      "panel_id": "P01B_BASE_HOUSE",
+      "qty": 1,
+      "plane": "XY",
       "bbox_min": [
-        12.0,
-        277.0,
+        0.0,
+        174.125,
         -3.0
       ],
       "bbox_max": [
-        368.0,
-        280.0,
-        132.0
+        406.0,
+        390.0,
+        0.0
       ],
       "dims_uvt": [
-        356.0,
-        135.0,
+        406.0,
+        215.875,
         3.0
       ],
-      "volume_mm3": 118531.608,
-      "expected_vol_mm3": 118531.608,
+      "volume_mm3": 257295.925,
+      "expected_vol_mm3": 257295.924,
+      "vol_err_pct": 0.0,
+      "solids": 1,
+      "valid": true,
+      "faces": 98
+    },
+    "P02_WALL_BACK": {
+      "panel_id": "P02_WALL_BACK",
+      "qty": 1,
+      "plane": "XZ",
+      "bbox_min": [
+        10.0,
+        379.0,
+        -3.0
+      ],
+      "bbox_max": [
+        396.0,
+        382.0,
+        147.0
+      ],
+      "dims_uvt": [
+        386.0,
+        150.0,
+        3.0
+      ],
+      "volume_mm3": 144134.584,
+      "expected_vol_mm3": 144134.583,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 79
     },
     "P03_WALL_LEFT": {
+      "panel_id": "P03_WALL_LEFT",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        12.0,
-        102.0,
+        10.0,
+        192.0,
         -3.0
       ],
       "bbox_max": [
-        15.0,
-        280.0,
-        132.0
+        13.0,
+        382.0,
+        147.0
       ],
       "dims_uvt": [
-        178.0,
-        135.0,
+        190.0,
+        150.0,
         3.0
       ],
-      "volume_mm3": 51616.381,
-      "expected_vol_mm3": 51616.38,
+      "volume_mm3": 61058.811,
+      "expected_vol_mm3": 61058.811,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 37
     },
     "P04_WALL_RIGHT": {
+      "panel_id": "P04_WALL_RIGHT",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        365.0,
-        102.0,
+        393.0,
+        192.0,
         -3.0
       ],
       "bbox_max": [
-        368.0,
-        280.0,
-        132.0
+        396.0,
+        382.0,
+        147.0
       ],
       "dims_uvt": [
-        178.0,
-        135.0,
+        190.0,
+        150.0,
         3.0
       ],
-      "volume_mm3": 49356.0,
-      "expected_vol_mm3": 49356.0,
+      "volume_mm3": 58808.625,
+      "expected_vol_mm3": 58808.625,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 36
     },
     "P05_WALL_FRONT": {
+      "panel_id": "P05_WALL_FRONT",
+      "qty": 1,
       "plane": "XZ",
       "bbox_min": [
-        12.0,
-        102.0,
+        10.0,
+        192.0,
         -3.0
       ],
       "bbox_max": [
-        368.0,
-        105.0,
-        132.0
+        396.0,
+        195.0,
+        147.0
       ],
       "dims_uvt": [
-        356.0,
-        135.0,
+        386.0,
+        150.0,
         3.0
       ],
-      "volume_mm3": 44863.415,
-      "expected_vol_mm3": 44863.416,
+      "volume_mm3": 57812.083,
+      "expected_vol_mm3": 57812.082,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 59
     },
     "P06_WALL_MID": {
+      "panel_id": "P06_WALL_MID",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        183.5,
-        102.0,
+        198.5,
+        192.0,
         -3.0
       ],
       "bbox_max": [
-        186.5,
-        280.0,
-        132.0
+        201.5,
+        382.0,
+        147.0
       ],
       "dims_uvt": [
-        178.0,
-        135.0,
+        190.0,
+        150.0,
         3.0
       ],
-      "volume_mm3": 54997.381,
-      "expected_vol_mm3": 54997.38,
+      "volume_mm3": 63533.811,
+      "expected_vol_mm3": 63533.811,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
-      "faces": 39
+      "faces": 41
     },
     "P07_SERVO_SHELF": {
+      "panel_id": "P07_SERVO_SHELF",
+      "qty": 1,
       "plane": "XY",
       "bbox_min": [
-        46.0,
-        102.0,
-        22.5
+        34.0,
+        192.0,
+        26.5
       ],
       "bbox_max": [
-        74.0,
-        145.0,
-        25.5
+        68.0,
+        241.125,
+        29.5
       ],
       "dims_uvt": [
-        28.0,
-        43.0,
+        34.0,
+        49.125,
         3.0
       ],
-      "volume_mm3": 2611.55,
-      "expected_vol_mm3": 2611.551,
-      "vol_err_pct": 2e-05,
+      "volume_mm3": 3924.818,
+      "expected_vol_mm3": 3924.819,
+      "vol_err_pct": 4e-05,
       "solids": 1,
       "valid": true,
       "faces": 16
     },
     "P08_DOOR_LEAF": {
+      "panel_id": "P08_DOOR_LEAF",
+      "qty": 1,
       "plane": "XZ",
       "bbox_min": [
-        75.5,
-        102.0,
-        1.5
+        78.0,
+        192.0,
+        2.0
       ],
       "bbox_max": [
-        126.5,
-        105.0,
-        94.5
+        134.0,
+        195.0,
+        102.0
       ],
       "dims_uvt": [
-        51.0,
-        93.0,
+        56.0,
+        100.0,
         3.0
       ],
-      "volume_mm3": 12184.726,
-      "expected_vol_mm3": 12184.725,
+      "volume_mm3": 14396.383,
+      "expected_vol_mm3": 14396.382,
       "vol_err_pct": 1e-05,
       "solids": 1,
       "valid": true,
       "faces": 13
     },
     "P09_GARDEN_LEFT": {
+      "panel_id": "P09_GARDEN_LEFT",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        230.0,
-        18.0,
+        266.0,
+        26.0,
         -3.0
       ],
       "bbox_max": [
-        233.0,
-        92.0,
-        44.0
+        269.0,
+        152.0,
+        54.0
       ],
       "dims_uvt": [
-        74.0,
-        47.0,
+        126.0,
+        57.0,
         3.0
       ],
-      "volume_mm3": 9276.0,
-      "expected_vol_mm3": 9276.0,
+      "volume_mm3": 19674.0,
+      "expected_vol_mm3": 19674.0,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 26
     },
     "P10_WATER_DIVIDER": {
+      "panel_id": "P10_WATER_DIVIDER",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        276.5,
-        18.0,
+        316.5,
+        26.0,
         -3.0
       ],
       "bbox_max": [
-        279.5,
-        92.0,
-        44.0
+        319.5,
+        152.0,
+        54.0
       ],
       "dims_uvt": [
-        74.0,
-        47.0,
+        126.0,
+        57.0,
         3.0
       ],
-      "volume_mm3": 9231.353,
-      "expected_vol_mm3": 9231.354,
-      "vol_err_pct": 1e-05,
+      "volume_mm3": 19678.381,
+      "expected_vol_mm3": 19678.38,
+      "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 23
     },
     "P11_GARDEN_RIGHT": {
+      "panel_id": "P11_GARDEN_RIGHT",
+      "qty": 1,
       "plane": "YZ",
       "bbox_min": [
-        361.0,
-        18.0,
+        393.0,
+        26.0,
         -3.0
       ],
       "bbox_max": [
-        364.0,
-        92.0,
-        40.0
+        396.0,
+        152.0,
+        48.0
       ],
       "dims_uvt": [
-        74.0,
-        43.0,
+        126.0,
+        51.0,
         3.0
       ],
-      "volume_mm3": 8628.0,
-      "expected_vol_mm3": 8628.0,
+      "volume_mm3": 17758.5,
+      "expected_vol_mm3": 17758.5,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 22
     },
     "P12_GARDEN_FRONT": {
+      "panel_id": "P12_GARDEN_FRONT",
+      "qty": 1,
       "plane": "XZ",
       "bbox_min": [
-        230.0,
-        18.0,
+        266.0,
+        26.0,
         -3.0
       ],
       "bbox_max": [
-        364.0,
-        21.0,
-        44.0
+        396.0,
+        29.0,
+        54.0
       ],
       "dims_uvt": [
-        134.0,
-        47.0,
+        130.0,
+        57.0,
         3.0
       ],
-      "volume_mm3": 16458.105,
-      "expected_vol_mm3": 16458.105,
-      "vol_err_pct": 0.0,
+      "volume_mm3": 19465.418,
+      "expected_vol_mm3": 19465.419,
+      "vol_err_pct": 1e-05,
       "solids": 1,
       "valid": true,
       "faces": 37
     },
     "P13_GARDEN_BACK": {
+      "panel_id": "P13_GARDEN_BACK",
+      "qty": 1,
       "plane": "XZ",
       "bbox_min": [
-        230.0,
-        89.0,
+        266.0,
+        149.0,
         -3.0
       ],
       "bbox_max": [
-        364.0,
-        92.0,
-        44.0
+        396.0,
+        152.0,
+        54.0
       ],
       "dims_uvt": [
-        134.0,
-        47.0,
+        130.0,
+        57.0,
         3.0
       ],
-      "volume_mm3": 16482.233,
-      "expected_vol_mm3": 16482.231,
-      "vol_err_pct": 1e-05,
+      "volume_mm3": 19494.281,
+      "expected_vol_mm3": 19494.282,
+      "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 36
     },
     "P14_SOIL_BRIDGE": {
+      "panel_id": "P14_SOIL_BRIDGE",
+      "qty": 1,
       "plane": "XY",
       "bbox_min": [
-        308.0,
-        18.0,
-        37.0
+        342.0,
+        26.0,
+        45.0
       ],
       "bbox_max": [
-        332.0,
-        92.0,
-        40.0
+        374.0,
+        152.0,
+        48.0
       ],
       "dims_uvt": [
-        24.0,
-        74.0,
+        32.0,
+        126.0,
         3.0
       ],
-      "volume_mm3": 4900.8,
-      "expected_vol_mm3": 4900.8,
+      "volume_mm3": 11527.5,
+      "expected_vol_mm3": 11527.5,
       "vol_err_pct": 0.0,
       "solids": 1,
       "valid": true,
       "faces": 18
     },
     "P15_TECH_FASCIA": {
+      "panel_id": "P15_TECH_FASCIA",
+      "qty": 1,
       "plane": "XZ",
       "bbox_min": [
-        14.0,
         8.0,
+        10.0,
         -3.0
       ],
       "bbox_max": [
-        224.0,
-        11.0,
-        42.0
+        254.0,
+        13.0,
+        48.0
       ],
       "dims_uvt": [
-        210.0,
-        45.0,
+        246.0,
+        51.0,
         3.0
       ],
-      "volume_mm3": 14980.82,
-      "expected_vol_mm3": 14980.821,
+      "volume_mm3": 21756.345,
+      "expected_vol_mm3": 21756.345,
+      "vol_err_pct": 0.0,
+      "solids": 1,
+      "valid": true,
+      "faces": 45
+    },
+    "P16_PCB_PLATE": {
+      "panel_id": "P16_PCB_PLATE",
+      "qty": 1,
+      "plane": "XY",
+      "bbox_min": [
+        17.0,
+        44.0,
+        6.0
+      ],
+      "bbox_max": [
+        147.0,
+        154.0,
+        9.0
+      ],
+      "dims_uvt": [
+        130.0,
+        110.0,
+        3.0
+      ],
+      "volume_mm3": 42682.099,
+      "expected_vol_mm3": 42682.098,
+      "vol_err_pct": 0.0,
+      "solids": 1,
+      "valid": true,
+      "faces": 14
+    },
+    "P17_BASE_JOINER_L": {
+      "panel_id": "P17_BASE_JOINER",
+      "qty": 2,
+      "plane": "XY",
+      "bbox_min": [
+        68.0,
+        160.0,
+        -6.0
+      ],
+      "bbox_max": [
+        132.0,
+        188.0,
+        -3.0
+      ],
+      "dims_uvt": [
+        64.0,
+        28.0,
+        3.0
+      ],
+      "volume_mm3": 5267.05,
+      "expected_vol_mm3": 5267.049,
       "vol_err_pct": 1e-05,
       "solids": 1,
       "valid": true,
-      "faces": 48
+      "faces": 10
+    },
+    "P17_BASE_JOINER": {
+      "panel_id": "P17_BASE_JOINER",
+      "qty": 2,
+      "plane": "XY",
+      "bbox_min": [
+        68.0,
+        160.0,
+        -6.0
+      ],
+      "bbox_max": [
+        132.0,
+        188.0,
+        -3.0
+      ],
+      "dims_uvt": [
+        64.0,
+        28.0,
+        3.0
+      ],
+      "volume_mm3": 5267.05,
+      "expected_vol_mm3": 5267.049,
+      "vol_err_pct": 1e-05,
+      "solids": 1,
+      "valid": true,
+      "faces": 10
+    },
+    "P17_BASE_JOINER_R": {
+      "panel_id": "P17_BASE_JOINER",
+      "qty": 2,
+      "plane": "XY",
+      "bbox_min": [
+        274.0,
+        160.0,
+        -6.0
+      ],
+      "bbox_max": [
+        338.0,
+        188.0,
+        -3.0
+      ],
+      "dims_uvt": [
+        64.0,
+        28.0,
+        3.0
+      ],
+      "volume_mm3": 5267.05,
+      "expected_vol_mm3": 5267.049,
+      "vol_err_pct": 1e-05,
+      "solids": 1,
+      "valid": true,
+      "faces": 10
     }
   }
 }
