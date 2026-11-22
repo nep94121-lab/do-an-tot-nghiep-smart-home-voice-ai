@@ -388,17 +388,25 @@ class EngineRulesMixin:
         db_schedules: list[dict[str, Any]] = []
         db_rules: list[dict[str, Any]] = []
         db_scenes: list[dict[str, Any]] = []
+        db_compound_rules: list[dict[str, Any]] = []
         try:
             from simulator.automation_repo import get_automation_snapshot_bundle
 
             db_schedules, db_rules, db_scenes = get_automation_snapshot_bundle()
         except Exception:
             pass
+        try:
+            from simulator.automation_engine import list_compound_rules
+
+            db_compound_rules = list_compound_rules(include_disabled=True)
+        except Exception:
+            db_compound_rules = []
         if tier >= 3:
             timers_list = []
             db_schedules = []
             db_rules = []
             db_scenes = []
+            db_compound_rules = []
         elif tier == 2:
             timers_list = [
                 t for t in timers_list
@@ -415,6 +423,10 @@ class EngineRulesMixin:
             db_scenes = [
                 c for c in db_scenes
                 if str(c.get("owner_user_id") or "") == uid
+            ]
+            db_compound_rules = [
+                r for r in db_compound_rules
+                if str(r.get("owner_user_id") or "") == uid
             ]
         can_custom = tier <= 2
         cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
@@ -448,6 +460,8 @@ class EngineRulesMixin:
             "timers": timers_list,
             "schedules": db_schedules,
             "automation_rules": db_rules,
+            "compound_rules": db_compound_rules,
+            "house_mode": str(getattr(getattr(self, "_root_engine", self), "house_mode", "HOME") or "HOME"),
             "custom_commands": db_scenes,
             "scenes": db_scenes,
             "sensors": self.read_all_sensors() if hasattr(self, "read_all_sensors") else {},
@@ -1228,6 +1242,12 @@ class EngineRulesMixin:
                     "if_else_rules": [],
                 }
                 self._save_overlay()
+                try:
+                    from simulator.automation_engine import clear_compound_rules_scoped
+
+                    clear_compound_rules_scoped(target_owner_id=uid)
+                except Exception:
+                    pass
 
             spoken_t2 = {
                 "timers": "Đã reset đặt thời gian riêng của bạn.",
@@ -1328,6 +1348,7 @@ class EngineRulesMixin:
                             target_root.devices[k] = td
                     target_root.server_connected = True
                     target_root.pump_manual_override_off = False
+                    target_root.house_mode = "HOME"
                     if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
                         target_root.mqtt_bridge.esp8266_status["online"] = True
                         target_root.mqtt_bridge.esp8266_status["power_mode"] = "SERVER_ONLINE_FULL_AI"
@@ -1392,6 +1413,7 @@ class EngineRulesMixin:
             check_steps_rbac,
             find_custom_command_by_text,
             format_device_action_vi,
+            is_custom_query_step,
             list_custom_commands,
         )
 
@@ -1451,9 +1473,18 @@ class EngineRulesMixin:
             )
             return {"ok": False, "rbac_blocked": True, "error": rbac_err, "exact_spoken_reply": rbac_err}
 
+        control_steps = [
+            s for s in steps
+            if not is_custom_query_step(str(s.get("device_id") or ""), str(s.get("action") or ""))
+        ]
+        query_steps = [
+            s for s in steps
+            if is_custom_query_step(str(s.get("device_id") or ""), str(s.get("action") or ""))
+        ]
+
         all_results: list[dict[str, Any]] = []
         phrase = str(target_cmd["phrase"])
-        for step in steps:
+        for step in control_steps:
             dev_id = str(step.get("device_id") or "")
             act = str(step.get("action") or "")
             if not dev_id or not act:
@@ -1473,8 +1504,25 @@ class EngineRulesMixin:
                 err_msg = str(step_res.get("error") or step_res.get("exact_spoken_reply") or "Từ chối quyền thiết bị.")
                 return {"ok": False, "rbac_blocked": True, "error": err_msg, "exact_spoken_reply": err_msg, "results": all_results}
 
+        query_spoken = ""
+        query_data: dict[str, Any] = {}
+        if query_steps:
+            from simulator.voice.vietnamese_policy import execute_custom_command_query_steps
+
+            q_ok, q_rbac, q_err, query_spoken, query_data = execute_custom_command_query_steps(
+                query_steps, self, eff_tier
+            )
+            if not q_ok and q_rbac:
+                return {"ok": False, "rbac_blocked": True, "error": q_err, "exact_spoken_reply": q_err, "results": all_results}
+
         summary = ", ".join(format_device_action_vi(s.get("device_id", ""), s.get("action", "")) for s in steps)
-        spoken = f"Đã chạy ngữ cảnh {phrase}: {summary}."
+        if control_steps and query_spoken:
+            ctrl_summary = ", ".join(format_device_action_vi(s.get("device_id", ""), s.get("action", "")) for s in control_steps)
+            spoken = f"Đã chạy ngữ cảnh {phrase}: {ctrl_summary}. {query_spoken}"
+        elif query_spoken:
+            spoken = query_spoken
+        else:
+            spoken = f"Đã chạy ngữ cảnh {phrase}: {summary}."
         append_audit_log(
             "AUTOMATION",
             "scene_executed",
@@ -1503,6 +1551,7 @@ class EngineRulesMixin:
             "phrase": phrase,
             "steps": steps,
             "results": all_results,
+            **query_data,
             "exact_spoken_reply": spoken,
             "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{spoken}'",
             "message": spoken,

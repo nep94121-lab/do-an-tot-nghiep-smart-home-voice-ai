@@ -43,6 +43,11 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
         self.assertEqual(
             cfg.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
         )
+        cfg_fb = make_live_config(self.engine, strict_lang_fields=False)
+        self.assertIn(getattr(cfg_fb.speech_config, "language_code", None), (None, ""))
+        self.assertEqual(
+            cfg_fb.speech_config.voice_config.prebuilt_voice_config.voice_name, "Aoede"
+        )
 
         cfg_fallback = make_live_config(self.engine, strict_lang_fields=False)
         self.assertIn(getattr(cfg_fallback.speech_config, "language_code", None), (None, ""))

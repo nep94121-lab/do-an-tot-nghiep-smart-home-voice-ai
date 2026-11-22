@@ -66,7 +66,7 @@ def _owner_error(request: Request, payload: dict[str, Any]) -> JSONResponse | No
     sess = resolve_request_session(request, payload=payload)
     if not sess.is_authenticated:
         return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
-    if sess.tier != 1 or sess.role != "ADMIN":
+    if sess.tier != 1 or str(sess.role).upper() not in ("ADMIN", "OWNER"):
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà được thay đổi cài đặt."}, status_code=403)
     return None
 
@@ -80,49 +80,48 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
         if cw_low and cw_low in mapped_text:
             mapped_text = mapped_text.replace(cw_low, f" {tv_low} ")
 
+    has_diac = bool(re.search(r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", mapped_text))
     tn = strip_vietnamese_diacritics(mapped_text)
 
-    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")) or any(
-        k in tn for k in ("tat ca thiet bi", "toan bo thiet bi", "het thiet bi", "moi thiet bi")
+    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")) or (
+        not has_diac and any(k in tn for k in ("tat ca thiet bi", "toan bo thiet bi", "het thiet bi", "moi thiet bi"))
     ):
         return ["all_devices"]
-    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")) or any(
-        k in tn for k in ("tat ca den", "toan bo den", "hai den", "2 den", "ca 2 den", "ca hai den", "het den", "cac den")
+    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")) or (
+        not has_diac and any(k in tn for k in ("tat ca den", "toan bo den", "hai den", "2 den", "ca 2 den", "ca hai den", "het den", "cac den"))
     ):
         return ["all_lights"]
 
     targets: list[str] = []
     if (
-        any(k in mapped_text for k in ("cửa chính", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "công tắc cổng", "main_door"))
-        or any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "cua ra vao", "cua sat", "cong tac cong", "mo cua", "dong cua", "khoa cua"))
+        any(k in mapped_text for k in ("cửa chính", "cửa chánh", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "công tắc cổng", "main_door"))
+        or (not has_diac and any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "cua ra vao", "cua sat", "cong tac cong", "mo cua", "dong cua", "khoa cua")))
         or re.search(r"\bcửa\b", mapped_text)
     ):
         targets.append("main_door")
-    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")) or any(
-        k in tn for k in ("den phong khach", "den khach")
+    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")) or (
+        not has_diac and any(k in tn for k in ("den phong khach", "den khach"))
     ):
         targets.append("living_room_light")
-    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")) or any(
-        k in tn for k in ("den phong ngu", "den ngu")
+    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")) or (
+        not has_diac and any(k in tn for k in ("den phong ngu", "den ngu"))
     ):
         targets.append("bedroom_light")
-    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or any(
-        k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom")
+    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or (
+        not has_diac and any(k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom"))
     ) or re.search(r"\bcòi\b", mapped_text):
         targets.append("alarm_siren")
-    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "tưới cây", "tưới vườn", "garden_pump")) or any(
-        k in tn for k in ("may bom", "bom nuoc", "bom vuon", "tuoi cay", "tuoi vuon")
+    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "bơm ngoài vườn", "tưới cây", "tưới vườn", "garden_pump")) or (
+        not has_diac and any(k in tn for k in ("may bom", "bom nuoc", "bom vuon", "bom ngoai vuon", "tuoi cay", "tuoi vuon"))
     ):
         targets.append("garden_pump")
     if (
-        any(k in mapped_text for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "pam8403", "speaker_amp"))
-        or any(k in tn for k in ("nguon mach loa", "mach loa", "nguon loa", "pam8403", "speaker amp"))
+        any(k in mapped_text for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "loa chuông", "pam8403", "speaker_amp"))
+        or (not has_diac and any(k in tn for k in ("nguon mach loa", "mach loa", "nguon loa", "loa chuong", "pam8403", "speaker amp")))
         or re.search(r"\bloa\b", tn)
     ):
         targets.append("speaker_amp")
 
-    if not targets and ("đèn" in mapped_text or re.search(r"\bden\b", tn)):
-        targets.append("living_room_light")
     return targets
 
 
@@ -349,6 +348,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         request_tier=session_tier,
         request_user_name=session_user,
         request_role=session_role,
+        request_user_id=session.user_id,
         target_state=target_state,
         client_id=client_id,
         client_seq=client_seq,
@@ -419,8 +419,11 @@ async def api_control_device_by_path(device_id: str, request: Request, payload: 
 async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Tạo hẹn giờ từ ứng dụng di động Android / PWA (Chặn Khách Cấp 3 theo RBAC)."""
     body = payload if isinstance(payload, dict) else {}
-    dev_id = str(body.get("device_id") or "living_room_light").strip() or "living_room_light"
-    act = str(body.get("action") or "turn_on").strip() or "turn_on"
+    dev_id = str(body.get("device_id") or "").strip()
+    act = str(body.get("action") or "").strip()
+    if not dev_id or not act:
+        msg_req = "Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?"
+        return JSONResponse({"ok": False, "error": msg_req, "reply": msg_req, "exact_spoken_reply": msg_req}, status_code=400)
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
     req_sess = await asyncio.to_thread(resolve_request_session, request, body, None)
@@ -664,11 +667,15 @@ async def _attach_aoede_audio(data: dict[str, Any]) -> dict[str, Any]:
     try:
         from simulator.live.tts_rejection_vi import (
             build_aoede_http_audio_fields,
+            schedule_aoede_background_warm,
             synthesize_aoede_phrase_audio,
         )
 
-        bundle = await synthesize_aoede_phrase_audio(spoken, interactive_budget_sec=2.1)
+        cache_only = os.environ.get("SMARTHOME_AOEDE_CACHE_ONLY", "").strip().lower() in ("1", "true", "yes")
+        bundle = await synthesize_aoede_phrase_audio(spoken, allow_live_refresh=not cache_only)
         fields = build_aoede_http_audio_fields(bundle)
+        if not fields.get("pcm24k_b64") and cache_only:
+            schedule_aoede_background_warm(spoken)
         merged = {**data, **fields}
         merged["play_audio"] = bool(fields.get("pcm24k_b64"))
         return merged
@@ -759,6 +766,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
     from simulator.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
     from simulator.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
+        classify_no_action_response_vi,
         classify_small_talk_vi,
         ensure_vietnamese_reply,
         format_short_action_reply_vi,
@@ -768,23 +776,22 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
 
     skey_txt = _resolve_session_key(session, "text_command")
 
-    # 0. Active pending confirmation reply FIRST
-    if _classify_confirmation_utterance(text) is not None:
-        conf_res = await handle_confirmation_reply(
-            raw_text=text,
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            session_key=skey_txt,
-        )
-        if conf_res is not None:
-            await broadcast_rest_state_to_bridges()
-            c_payload = dict(conf_res.get("payload") or {})
-            if c_payload.get("exact_spoken_reply"):
-                sp_c = ensure_vietnamese_reply(str(c_payload["exact_spoken_reply"]))
-                c_payload["exact_spoken_reply"] = sp_c
-                c_payload["reply"] = sp_c
-            return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
+    # 0. Active pending confirmation reply FIRST (checks active pending + pending action_kind before re-parsing)
+    conf_res = await handle_confirmation_reply(
+        raw_text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+    )
+    if conf_res is not None:
+        await broadcast_rest_state_to_bridges()
+        c_payload = dict(conf_res.get("payload") or {})
+        if c_payload.get("exact_spoken_reply"):
+            sp_c = ensure_vietnamese_reply(str(c_payload["exact_spoken_reply"]))
+            c_payload["exact_spoken_reply"] = sp_c
+            c_payload["reply"] = sp_c
+        return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
 
     # 1. Small talk BEFORE any automation/permission rejections (unless saved custom command)
     saved_custom_txt = (
@@ -819,10 +826,20 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
 
     t_low = text.lower()
 
-    # 2a. Explicit owner-only sensor simulation SET commands
-    if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
-        m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
-        if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+    # 2a. Explicit owner-only sensor simulation SET commands (never hijack conditional/automation rules or DHT11 model digits)
+    t_sensor_set_probe = re.sub(r"\b(?:dht\s*11|ky\s*-?\s*03[78]|yl\s*-?\s*69|pam\s*8403|esp\s*8266)\b", " ", t_low)
+    is_rule_or_cond_sensor = bool(
+        re.search(
+            r"(?:^|\s)(?:nếu|khi|thì|cứ|hễ|quy\s+tắc|liên\s+kết|tạo\s+luật|vượt\s+quá|vượt|xuống\s+dưới|lên\s+trên|cao\s+hơn|thấp\s+hơn|lớn\s+hơn|nhỏ\s+hơn|trên\s+\d|dưới\s+\d)(?:\s|$)",
+            t_low,
+        )
+    )
+    has_explicit_set_verb = bool(
+        re.search(r"(?:^|\s)(?:set|chỉnh|đặt|thay\s+đổi)(?:\s|$)|=", t_low)
+    )
+    if not is_rule_or_cond_sensor and has_explicit_set_verb and ("độ ẩm đất" in t_low or "cảm biến đất" in t_low):
+        m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_sensor_set_probe)
+        if m_soil:
             error = _owner_error(request, body)
             if error is not None:
                 return error
@@ -831,20 +848,40 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             sp_s = ensure_vietnamese_reply(str(res_soil.get("exact_spoken_reply") or ""))
             return JSONResponse({"ok": True, "executed": True, "reply": sp_s, "exact_spoken_reply": sp_s})
 
-    if ("nhiệt độ" in t_low or "độ ẩm" in t_low) and "độ ẩm đất" not in t_low:
-        if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")) and re.search(r"\d", t_low):
+    if not is_rule_or_cond_sensor and has_explicit_set_verb and ("nhiệt độ" in t_low or "độ ẩm" in t_low) and "độ ẩm đất" not in t_low:
+        if re.search(r"\d", t_sensor_set_probe):
             error = _owner_error(request, body)
             if error is not None:
                 return error
             cur_dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
-            m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_low)
-            m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_low)
+            m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_sensor_set_probe)
+            m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_sensor_set_probe)
             t_val = float(m_t.group(1)) if m_t else float(cur_dht.get("temp_c", 28.5))
             h_val = float(m_h.group(1)) if m_h else float(cur_dht.get("humidity_pct", 65.0))
             res_dht = await _REST_ENGINE.update_sensor_telemetry(t_val, h_val)
             await broadcast_rest_state_to_bridges()
             sp_d = ensure_vietnamese_reply(str(res_dht.get("exact_spoken_reply") or ""))
             return JSONResponse({"ok": True, "executed": True, "reply": sp_d, "exact_spoken_reply": sp_d})
+
+    # 2b-pre. UI guidance questions ("ở đâu", "bấm vào đâu", "chỗ nào") take precedence over sensor value readout
+    from simulator.compound_nlu import is_ui_guidance_question, process_compound_nlu_command
+
+    if is_ui_guidance_question(text):
+        ui_res = await process_compound_nlu_command(
+            text=text,
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            session_key=skey_txt,
+        )
+        if ui_res is not None:
+            ui_pl = dict(ui_res.get("payload") or {})
+            if ui_pl.get("exact_spoken_reply"):
+                sp_u = ensure_vietnamese_reply(str(ui_pl["exact_spoken_reply"]))
+                ui_pl["exact_spoken_reply"] = sp_u
+                ui_pl["reply"] = sp_u
+            ui_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
+            return JSONResponse(ui_pl, status_code=int(ui_res.get("status_code") or 200))
 
     # 2b. Sensor & device status queries (immediate, no confirmation)
     q_info = handle_sensor_or_status_query_vi(text, _REST_ENGINE, session)
@@ -874,6 +911,27 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             },
             status_code=q_code,
         )
+
+    # 2c. Compound NLU (UI guidance, removed-device guard, house mode, compound rules, weekday schedules, toggles)
+    from simulator.compound_nlu import process_compound_nlu_command
+
+    comp_res = await process_compound_nlu_command(
+        text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+    )
+    if comp_res is not None:
+        comp_pl = dict(comp_res.get("payload") or {})
+        if comp_pl.get("ok") or comp_pl.get("executed") or comp_pl.get("confirmed"):
+            await broadcast_rest_state_to_bridges()
+        if comp_pl.get("exact_spoken_reply"):
+            sp_c = ensure_vietnamese_reply(str(comp_pl["exact_spoken_reply"]))
+            comp_pl["exact_spoken_reply"] = sp_c
+            comp_pl["reply"] = sp_c
+        comp_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
+        return JSONResponse(comp_pl, status_code=int(comp_res.get("status_code") or 200))
 
     # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
     nlu_res = await process_automation_nlu_command(
@@ -941,7 +999,11 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         )
         for item in direct_intents:
             dev_id = item["device_id"]
-            allowed, _reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
+            allowed, _reason = _REST_ENGINE.check_device_permission(
+                dev_id,
+                actor_tier=effective_tier,
+                actor_user_id=session.user_id,
+            )
             if not allowed:
                 deny_msg = ensure_vietnamese_reply(FIXED_REJECTION_PHRASE_VI)
                 deny_code = 200 if session.source == "legacy_test" else 403
@@ -975,6 +1037,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 request_tier=effective_tier,
                 request_user_name=effective_user,
                 request_role=effective_role,
+                request_user_id=session.user_id,
             )
             if not res.get("ok"):
                 is_blk = bool(res.get("rbac_blocked"))
@@ -1045,11 +1108,11 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         rem_pl["reply"] = sp_rem
         return JSONResponse(rem_pl, status_code=200)
 
-    clarification = ensure_vietnamese_reply(
-        classify_ambiguous_or_unsupported_vi(text) or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé."
-    )
+    no_act_kind, raw_clar = classify_no_action_response_vi(text)
+    clarification = ensure_vietnamese_reply(raw_clar or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé.")
     return JSONResponse({
         "ok": True,
+        "kind": no_act_kind,
         "executed": False,
         "requires_confirmation": False,
         "needs_clarification": True,

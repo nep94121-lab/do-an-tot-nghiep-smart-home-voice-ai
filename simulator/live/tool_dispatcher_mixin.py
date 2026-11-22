@@ -312,6 +312,41 @@ class LiveToolDispatcherMixin:
             msg_ret = "Tính năng nhận diện giọng nói đã được gỡ bỏ; phân quyền dùng tài khoản và lời mời."
             return {"ok": False, "status": "RETIRED_ENDPOINT", "error": msg_ret, "exact_spoken_reply": msg_ret}
 
+        _unified_registry_tools = (
+            "edit_timer",
+            "edit_schedule",
+            "toggle_schedule",
+            "create_custom_command",
+            "list_custom_commands",
+            "edit_custom_command",
+            "delete_custom_command",
+            "run_custom_command",
+            "create_automation_rule",
+            "list_automation_rules",
+            "edit_automation_rule",
+            "toggle_automation_rule",
+            "delete_automation_rule",
+            "reset_automations",
+            "set_house_mode",
+            "get_ui_guidance",
+        )
+        if name in _unified_registry_tools or (
+            name == "create_schedule" and (args.get("weekdays") or str(args.get("schedule_type") or "").lower() == "weekly")
+        ):
+            from simulator.ai_tool_registry import dispatch_tool as _dispatch_unified_tool
+
+            res_u = await _dispatch_unified_tool(
+                name,
+                args,
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+            )
+            if res_u.get("ok") and not res_u.get("requires_confirmation"):
+                await _broadcast_rest_state_to_bridges()
+            return res_u
+
         if name == "list_devices":
             devices = self.engine.list_accessible_devices(actor_tier=actor_tier)
             summary = ", ".join(f"{d['name']} {d['state_vi']}" for d in devices)
@@ -401,6 +436,7 @@ class LiveToolDispatcherMixin:
                 request_tier=actor_tier,
                 request_role=str(getattr(actor_sess, "role", self.engine.current_role)),
                 request_user_name=str(getattr(actor_sess, "display_name", self.engine.get_current_user_name())),
+                request_user_id=actor_uid,
             )
             if not res_set.get("ok"):
                 if res_set.get("rbac_blocked"):
@@ -856,6 +892,7 @@ class LiveToolDispatcherMixin:
                     request_tier=actor_tier,
                     request_role=str(getattr(actor_sess, "role", self.engine.current_role)),
                     request_user_name=str(getattr(actor_sess, "display_name", self.engine.get_current_user_name())),
+                    request_user_id=actor_uid,
                 )
                 if not r_dev.get("ok"):
                     if r_dev.get("rbac_blocked"):
@@ -1088,8 +1125,18 @@ class LiveToolDispatcherMixin:
                         target="timers",
                     )
                 )
-            dev_id = str(args.get("device_id", "") or "living_room_light").strip()
-            act = str(args.get("action", "") or "turn_on").strip()
+            dev_id = str(args.get("device_id", "") or "").strip()
+            act = str(args.get("action", "") or "").strip()
+            if not dev_id or not act:
+                ask_msg = "Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?"
+                return {
+                    "ok": True,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "needs_clarification": True,
+                    "reply": ask_msg,
+                    "exact_spoken_reply": ask_msg,
+                }
             sec = float(args.get("seconds", args.get("delay_seconds", 0)) or 0)
             hrs = float(args.get("hours", 0) or 0)
             mins = float(args.get("minutes", 0) or 0)
@@ -1398,9 +1445,19 @@ class LiveToolDispatcherMixin:
             wdev = str(args.get("when_device_id", "")).strip()
             wstate = str(args.get("when_state", "ON") or "ON").strip()
             tdev = str(args.get("then_device_id", "")).strip()
-            tact = str(args.get("then_action", "turn_on") or "turn_on").strip()
+            tact = str(args.get("then_action", "") or "").strip()
             edev = str(args.get("else_device_id", "") or "").strip()
             eact = str(args.get("else_action", "") or "").strip()
+            if not tdev or not tact:
+                ask_rule_msg = "Bạn muốn tạo liên kết cho thiết bị đích nào và hành động bật hay tắt?"
+                return {
+                    "ok": True,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "needs_clarification": True,
+                    "reply": ask_rule_msg,
+                    "exact_spoken_reply": ask_rule_msg,
+                }
             allowed_then, reason_then = self.engine.check_device_permission(tdev, actor_tier=actor_tier)
             if not allowed_then:
                 return self._wrap_nlu_tool_result(

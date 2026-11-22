@@ -863,8 +863,13 @@ fn_create_schedule = types.FunctionDeclaration(
             "time_hhmm": {"type": "STRING", "description": "Giờ thực hiện dạng 24 giờ HH:MM (ví dụ 22:30)."},
             "schedule_type": {
                 "type": "STRING",
-                "enum": ["once", "daily"],
-                "description": "Một lần hoặc hằng ngày.",
+                "enum": ["once", "daily", "weekly"],
+                "description": "Một lần, hằng ngày hoặc theo các thứ trong tuần.",
+            },
+            "weekdays": {
+                "type": "ARRAY",
+                "items": {"type": "INTEGER"},
+                "description": "Danh sách thứ lặp lại trong tuần (0=Thứ 2 đến 6=Chủ nhật).",
             },
         },
         "required": ["device_id", "action", "time_hhmm"],
@@ -942,6 +947,24 @@ if hasattr(types, "Behavior"):
     for _tool_group in ALL_TOOLS:
         for _fn_decl in (_tool_group.function_declarations or []):
             _fn_decl.behavior = types.Behavior.BLOCKING
+
+
+def _append_unified_registry_tools() -> None:
+    try:
+        from simulator.ai_tool_registry import build_gemini_function_declarations
+
+        existing_decls = list(ALL_TOOLS[0].function_declarations or [])
+        existing_names = {d.name for d in existing_decls}
+        for decl in build_gemini_function_declarations():
+            if decl.name not in existing_names:
+                existing_decls.append(decl)
+                existing_names.add(decl.name)
+        ALL_TOOLS[0].function_declarations = existing_decls
+    except Exception:
+        pass
+
+
+_append_unified_registry_tools()
 
 
 FIXED_REJECTION_PHRASE_VI = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
@@ -1064,12 +1087,12 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         f"- Luật liên kết của {cur_user}: {ifelse_txt}; Luật đã lưu: {db_rules_txt}.\n"
         "\n"
         "4. QUY TẮC HÀNH ĐỘNG & XÁC NHẬN (6 CHÍNH SÁCH BẮT BUỘC):\n"
-        "- CHÍNH SÁCH 1 (HÀNH ĐỘNG NGAY với lệnh thiết bị đơn giản): Mọi lệnh bật/tắt/mở/đóng trực tiếp cho 6 thiết bị (VD: 'mở cửa', 'đóng cửa', 'bật đèn phòng khách', 'tắt tất cả đèn', 'bật máy bơm', 'tắt còi', 'bật loa') -> gọi ngay công cụ điều khiển thiết bị để thực thi NGAY LẬP TỨC (KHÔNG hỏi xác nhận trước) và chỉ báo lại CỰC NGẮN GỌN SAU KHI LÀM XONG (VD: 'Đã mở cửa chính.', 'Đã bật đèn phòng khách.').\n"
-        "- CHÍNH SÁCH 2 (CHỈ XÁC NHẬN với cấu hình phức tạp/tự động hóa): CHỈ hỏi xác nhận ngắn bằng tiếng Việt (VD: 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?') trước khi thực thi đối với: (1) tạo/sửa/xóa/chạy lệnh tùy chỉnh (custom command), (2) đặt/sửa/hủy hẹn giờ & lịch, (3) tạo/xóa luật liên kết giữa thiết bị hoặc cảm biến, (4) reset thiết bị / reset bể lệnh / khôi phục cài đặt gốc. Khi người dùng trả lời 'ok'/'đồng ý'/'được'/'đúng rồi'/'ừ'/'có' mới xác nhận; nói 'không'/'hủy'/'thôi' thì hủy và báo 'Đã hủy.'.\n"
-        "- CHÍNH SÁCH 3 (HỎI CẢM BIẾN & TRẠNG THÁI): Khi hỏi nhiệt độ, độ ẩm, độ ẩm đất, âm thanh KY-037, trạng thái thiết bị hoặc chế độ bơm tự động -> gọi công cụ đọc tương ứng và trả lời ngay số liệu thực tế bằng tiếng Việt ngắn gọn.\n"
+        "- CHÍNH SÁCH 1 (HÀNH ĐỘNG NGAY với lệnh thiết bị đơn giản): Chỉ áp dụng cho danh mục khép kín 6 thiết bị (cửa chính, đèn phòng khách, đèn phòng ngủ, máy bơm tưới cây, còi báo động, nguồn mạch loa PAM8403). Mọi lệnh bật/tắt/mở/đóng trực tiếp -> gọi ngay công cụ điều khiển thiết bị để thực thi NGAY LẬP TỨC (KHÔNG hỏi xác nhận trước) và chỉ báo lại CỰC NGẮN GỌN SAU KHI LÀM XONG (VD: 'Đã mở cửa chính.', 'Đã bật đèn phòng khách.').\n"
+        "- CHÍNH SÁCH 2 (CHỈ XÁC NHẬN với cấu hình phức tạp/tự động hóa): CHỈ hỏi xác nhận ngắn bằng tiếng Việt (VD: 'Mình sẽ tắt đèn phòng khách sau 10 phút, bạn đồng ý không?') trước khi thực thi đối với: (1) tạo/sửa/xóa/chạy lệnh tùy chỉnh (custom command), (2) đặt/sửa/bật tắt/hủy hẹn giờ & lịch (gồm lịch theo thứ trong tuần), (3) tạo/sửa/bật tắt/xóa luật tự động đơn giản hoặc phức hợp (kết hợp nhiều điều kiện VÀ/HOẶC và nhiều hành động — luôn đọc lại đầy đủ điều kiện và hành động trước khi lưu), (4) reset thiết bị / reset bể lệnh / khôi phục cài đặt gốc. Khi người dùng trả lời 'ok'/'đồng ý'/'được'/'đúng rồi'/'ừ'/'có' mới xác nhận; nói 'không'/'hủy'/'thôi' thì hủy và báo 'Đã hủy.'.\n"
+        "- CHÍNH SÁCH 3 (HỎI CẢM BIẾN, TRẠNG THÁI & HƯỚNG DẪN GIAO DIỆN): Khi hỏi nhiệt độ, độ ẩm, độ ẩm đất, âm thanh KY-037, trạng thái thiết bị, chế độ ở nhà/vắng nhà hoặc hỏi vị trí trang, tab, nút bấm trên giao diện web -> gọi công cụ tra cứu tương ứng và trả lời ngay bằng tiếng Việt ngắn gọn, chính xác theo giao diện thực tế.\n"
         "- CHÍNH SÁCH 4 (CHÀO HỎI & GIAO TIẾP TỰ NHIÊN): Các câu chào hỏi ('chào bạn', 'xin chào', 'bạn là ai', 'cảm ơn', 'tạm biệt', 'giúp tôi') luôn được trả lời thân thiện, ngắn gọn bằng tiếng Việt cho MỌI TẦNG QUYỀN (Cấp 1, 2, 3), TUYỆT ĐỐI KHÔNG báo lỗi không có quyền cho câu chào hỏi.\n"
         "- CHÍNH SÁCH 5 (KHÓA CỨNG 100% TIẾNG VIỆT): Luôn nghe hiểu và trả lời 100% bằng tiếng Việt. Nếu nghe ngoại ngữ, chỉ đáp bằng tiếng Việt: 'Tôi chỉ hỗ trợ tiếng Việt, bạn vui lòng nói lệnh bằng tiếng Việt nhé.' và KHÔNG thực hiện bất kỳ thao tác thiết bị nào.\n"
-        "- CHÍNH SÁCH 6 (KHÔNG ĐOÁN BỪA KHI MƠ HỒ): Nếu thiếu hành động, thiếu thiết bị, thiết bị không hỗ trợ (quạt, điều hòa, tivi...) hoặc âm thanh nhiễu -> KHÔNG tác động thiết bị, chỉ hỏi lại ngắn gọn bằng tiếng Việt.\n"
+        "- CHÍNH SÁCH 6 (KHÔNG ĐOÁN BỪA KHI MƠ HỒ): Nếu thiếu hành động, thiếu thiết bị, thiết bị không hỗ trợ (quạt, điều hòa, máy lạnh, tivi, tủ lạnh, máy giặt, rèm cửa, bình nóng lạnh, lò vi sóng, robot hút bụi, cửa cuốn, học lệnh IR...) hoặc âm thanh nhiễu -> KHÔNG tác động thiết bị, chỉ hỏi lại ngắn gọn bằng tiếng Việt.\n"
         f'- Chỉ khi người dùng cố thực hiện lệnh thiết bị/tự động hóa vượt quá cấp quyền mới nói: "{FIXED_REJECTION_PHRASE_VI}".'
     )
 

@@ -3188,7 +3188,7 @@
       if (cList) {
         cList.innerHTML = scenes.map(sc => {
           const cid = String(sc.command_id || '');
-          const stepTxt = (Array.isArray(sc.steps) ? sc.steps : [])
+          const stepTxt = String(sc.steps_summary || '').trim() || (Array.isArray(sc.steps) ? sc.steps : [])
             .map(s => `${MOBILE_ACT_LABELS[s.action] || s.action} ${MOBILE_DEV_LABELS[s.device_id] || s.device_id}`)
             .join(', ');
           const canMod = canRules && (tier === 1 || String(sc.owner_user_id || '') === uid);

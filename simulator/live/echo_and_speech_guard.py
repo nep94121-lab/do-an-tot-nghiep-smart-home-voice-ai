@@ -144,27 +144,64 @@ _IMPERATIVE_CMD_PREFIXES = (
     "hen ",
 )
 
+_ECHO_NON_VERB_PHRASES = (
+    "bao dong",
+    "tu dong",
+    "tieng dong",
+    "chuyen dong",
+    "hoat dong",
+    "cong tac",
+    "dong y",
+    "tat ca",
+)
+_ECHO_ON_VERBS = frozenset({"bat", "mo"})
+_ECHO_OFF_VERBS = frozenset({"tat", "dong", "khoa", "ngat", "ngung", "dung"})
+
+
+def _extract_echo_polarity_verbs(norm_text: str) -> tuple[set[str], set[str]]:
+    padded = f" {norm_text} "
+    for phrase in _ECHO_NON_VERB_PHRASES:
+        padded = padded.replace(f" {phrase} ", " ")
+    toks = set(padded.split())
+    return toks & _ECHO_ON_VERBS, toks & _ECHO_OFF_VERBS
+
+
+def _has_opposite_action_verbs(user_norm: str, ai_norm: str) -> bool:
+    u_on, u_off = _extract_echo_polarity_verbs(user_norm)
+    a_on, a_off = _extract_echo_polarity_verbs(ai_norm)
+    if (u_off and a_on and not a_off) or (u_on and a_off and not a_on):
+        return True
+    if (u_off and a_on and not u_on) or (u_on and a_off and not u_off):
+        return True
+    return False
+
 
 def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> bool:
-    """Avoid suppressing a fresh bare imperative user command ('mo cua chinh', 'dong cua chinh')
-    because AI earlier spoke a framed confirmation question ('minh se ..., ban dong y khong')
-    or completion reply ('minh da ... roi a')."""
+    """Avoid suppressing a fresh bare or multi-device imperative user command when AI earlier spoke a framed confirmation question or completion/status reply."""
     if not any(user_norm.startswith(p) for p in _IMPERATIVE_CMD_PREFIXES):
         return False
     tokens = user_norm.split()
-    if len(tokens) > 7:
+    if len(tokens) > 14:
         return False
-    non_verb_forbidden = ("da", "se", "roi", "minh", "em", "toi", "xin", "loi", "ban", "khong")
+    non_verb_forbidden = ("da", "se", "minh", "em", "toi", "xin", "loi", "ban", "khong")
     if any(tok in tokens for tok in non_verb_forbidden) or "dong y" in user_norm:
         return False
-    if ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a"):
+    if tokens[-1] == "roi" or user_norm.endswith("roi a"):
+        return False
+    is_ai_framed = (
+        ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a")
+        or ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se ", "ban muon "))
+        or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a", " roi"))
+        or " dang " in f" {ai_norm} "
+    )
+    if not is_ai_framed:
+        return False
+    if _has_opposite_action_verbs(user_norm, ai_norm):
         return True
-    if (
-        ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se "))
-        or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a"))
-    ):
+    if len(tokens) <= 7:
         return True
-    return False
+    # For longer multi-device imperatives (8-14 tokens), allow unless user_norm is a verbatim clipped substring of ai_norm
+    return user_norm not in ai_norm
 
 
 def compute_echo_similarity(user_norm: str, ai_norm: str) -> tuple[float, str]:

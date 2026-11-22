@@ -1942,9 +1942,7 @@ window.SmartHome3D = (() => {
       const el = document.createElement("button");
       el.setAttribute("data-id", m.id);
       if (m.kind === "sensor") {
-        el.className = "pin-3d on";
-        el.style.borderColor = "#38bdf8";
-        el.style.background = "rgba(15, 23, 42, 0.88)";
+        el.className = "pin-3d sensor-pin";
         el.title = "Bấm để chuyển góc nhìn Camera cận cảnh tới linh kiện này";
         let initVal = "ONLINE";
         if (m.id === "sensor_soil_a0") initVal = `${sensorState.soil_moisture_pct}%`;
@@ -1954,7 +1952,7 @@ window.SmartHome3D = (() => {
         if (!el.dataset) el.dataset = {};
         el.dataset.hasValue = "true";
         el.setAttribute("data-has-value", "true");
-        el.innerHTML = `${m.icon ? `<span class="pin-icon">${m.icon}</span> ` : ""}<span class="pin-name">${m.shortName}:</span> <strong class="pin-state" style="color:#38bdf8;">${initVal}</strong>`;
+        el.innerHTML = `${m.icon ? `<span class="pin-icon">${m.icon}</span> ` : ""}<span class="pin-name">${m.shortName}:</span> <strong class="pin-state">${initVal}</strong>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           if (m.cam) setCameraView(m.cam);
@@ -2071,7 +2069,7 @@ window.SmartHome3D = (() => {
       const halfW = chipW * 0.5;
       const halfH = chipH * 0.5;
 
-      const pad = 6;
+      const pad = 8;
       rawX = Math.max(pad + halfW, Math.min(w - pad - halfW, rawX));
       rawY = Math.max(pad + halfH, Math.min(h - pad - halfH, rawY));
 
@@ -2084,9 +2082,9 @@ window.SmartHome3D = (() => {
       });
     });
 
-    const iterations = 3;
-    const gapX = 6;
-    const gapY = 4;
+    const iterations = 6;
+    const gapX = 8;
+    const gapY = 6;
     for (let iter = 0; iter < iterations; iter++) {
       for (let i = 0; i < visiblePins.length; i++) {
         for (let j = i + 1; j < visiblePins.length; j++) {
@@ -2123,7 +2121,7 @@ window.SmartHome3D = (() => {
         }
       }
 
-      const pad = 6;
+      const pad = 8;
       visiblePins.forEach((p) => {
         p.x = Math.max(pad + p.hw, Math.min(w - pad - p.hw, p.x));
         p.y = Math.max(pad + p.hh, Math.min(h - pad - p.hh, p.y));
@@ -2368,9 +2366,10 @@ window.SmartHome3D = (() => {
       const st = pinBoard.querySelector(".pin-state");
       if (st) {
         st.textContent = isOnline ? "SERVER ONLINE" : "OFFLINE (MẶC ĐỊNH)";
-        st.style.color = isOnline ? "#38bdf8" : "#fb923c";
+        st.style.color = "";
       }
-      pinBoard.style.borderColor = isOnline ? "#38bdf8" : "#f59e0b";
+      pinBoard.className = isOnline ? "pin-3d sensor-pin" : "pin-3d sensor-pin pin-tone-warn";
+      pinBoard.style.borderColor = "";
     }
     if (boardLedMats.esp_onboard) {
       boardLedMats.esp_onboard.color.setHex(isOnline ? 0x38bdf8 : 0xf59e0b);
@@ -2386,8 +2385,10 @@ window.SmartHome3D = (() => {
         const st = pinSoil.querySelector(".pin-state");
         if (st) {
           st.textContent = `${sensorState.soil_moisture_pct}% (${sensorState.soil_status})`;
-          st.style.color = safeSoil < 40 ? "#fb923c" : "#4ade80";
+          st.style.color = "";
         }
+        pinSoil.className = safeSoil < 40 ? "pin-3d sensor-pin pin-tone-warn" : "pin-3d sensor-pin pin-tone-ok";
+        pinSoil.style.borderColor = "";
       }
       if (lm393AlertLedMat) {
         lm393AlertLedMat.color.setHex(safeSoil < 40 ? 0xef4444 : 0x22c55e);
@@ -2405,8 +2406,10 @@ window.SmartHome3D = (() => {
         const st = pinDht.querySelector(".pin-state");
         if (st) {
           st.textContent = `${sensorState.temp_c}°C | ${sensorState.humidity_pct}%`;
-          st.style.color = Number(dht.temp_c) > 31 ? "#f87171" : "#38bdf8";
+          st.style.color = "";
         }
+        pinDht.className = Number(dht.temp_c) > 31 ? "pin-3d sensor-pin pin-tone-danger" : "pin-3d sensor-pin";
+        pinDht.style.borderColor = "";
       }
     }
 
@@ -2430,9 +2433,10 @@ window.SmartHome3D = (() => {
       const st = pinKy.querySelector(".pin-state");
       if (st) {
         st.textContent = isLoud ? "CÓ TIẾNG ĐỘNG!" : `Yên tĩnh (${sensorState.event_count})`;
-        st.style.color = isLoud ? "#fb923c" : "#38bdf8";
+        st.style.color = "";
       }
-      pinKy.style.borderColor = isLoud ? "#f97316" : "#38bdf8";
+      pinKy.className = isLoud ? "pin-3d sensor-pin pin-tone-warn" : "pin-3d sensor-pin";
+      pinKy.style.borderColor = "";
     }
     if (boardLedMats.d5_ky037_do) {
       boardLedMats.d5_ky037_do.color.setHex(isLoud ? 0xf97316 : 0x431407);
@@ -2463,7 +2467,7 @@ window.SmartHome3D = (() => {
         const stSpan = pin.querySelector(".pin-state");
         if (stSpan) {
           stSpan.textContent = stateVal;
-          stSpan.style.color = isLockedOffline ? "#fbbf24" : "";
+          stSpan.style.color = "";
         }
         if (!pin.dataset) pin.dataset = {};
         if (!stateVal) {
@@ -2473,8 +2477,8 @@ window.SmartHome3D = (() => {
         } else {
           pin.dataset.hasValue = "true";
           pin.setAttribute("data-has-value", "true");
-          pin.className = `pin-3d ${isActive ? "on" : "off"}`;
-          pin.style.borderColor = isLockedOffline ? "#f59e0b" : "";
+          pin.className = `pin-3d ${isActive ? "on" : "off"}${isLockedOffline ? " pin-offline" : ""}`;
+          pin.style.borderColor = "";
         }
       }
     });
@@ -2602,6 +2606,8 @@ window.SmartHome3D = (() => {
     if (deviceStates.speaker_amp || anyStateChanged) {
       triggerHardwareVoiceWave(45);
     }
+
+    updatePinPositions();
   }
 
   let lastRenderTimeMs = 0;

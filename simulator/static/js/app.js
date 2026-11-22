@@ -1360,7 +1360,7 @@
       scenes.forEach((sc) => {
         const cid = String(sc.command_id || "");
         const steps = Array.isArray(sc.steps) ? sc.steps : [];
-        const stepTxt = steps
+        const stepTxt = String(sc.steps_summary || "").trim() || steps
           .map((s) => `${AUTO_ACT_LABELS[s.action] || s.action} ${AUTO_DEV_LABELS[s.device_id] || s.device_id}`)
           .join(", ");
         const canMod = canRules && (tier === 1 || String(sc.owner_user_id || "") === uid);
@@ -1526,6 +1526,9 @@
       snap.system_policies
     );
     renderDesktopAutomation(snap);
+    try {
+      window.dispatchEvent(new CustomEvent("sh:snapshot", { detail: snap }));
+    } catch (_) {}
   }
 
   function updateLatencyUI(toolMs, audioMs, leadMs) {

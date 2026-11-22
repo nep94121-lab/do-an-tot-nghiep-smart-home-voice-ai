@@ -144,6 +144,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pending_voice_enrollment: dict[str, Any] | None = None
         self.server_connected: bool = True
         self.pump_manual_override_off: bool = False
+        self.house_mode: str = "HOME"
+        self._compound_eval_depth: int = 0
         self._explicit_test_user_set: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
         self._applying_shared_state_depth = 0
@@ -203,6 +205,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         object.__setattr__(view, "pending_voice_enrollment", None)
         object.__setattr__(view, "server_connected", root.server_connected)
         object.__setattr__(view, "pump_manual_override_off", root.pump_manual_override_off)
+        object.__setattr__(view, "house_mode", getattr(root, "house_mode", "HOME"))
+        object.__setattr__(view, "_compound_eval_depth", 0)
         object.__setattr__(view, "mqtt_bridge", root.mqtt_bridge)
         object.__setattr__(view, "_applying_shared_state", False)
         object.__setattr__(view, "_initialized_devices", True)
@@ -237,6 +241,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "revision_ts_ns": self._last_synced_ts_ns,
             "server_connected": bool(self.server_connected),
             "pump_manual_override_off": bool(getattr(self, "pump_manual_override_off", False)),
+            "house_mode": str(getattr(self, "house_mode", "HOME") or "HOME"),
             "devices": {
                 k: {
                     "id": str(v.get("id", k)),
@@ -273,6 +278,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         if root is not self:
             root.server_connected = self.server_connected
             root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+            root.house_mode = getattr(self, "house_mode", getattr(root, "house_mode", "HOME"))
             saved = root.persist_to_shared_store()
             self._last_synced_seq = root._last_synced_seq
             self._last_synced_ts_ns = root._last_synced_ts_ns
@@ -324,6 +330,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     )
             if "pump_manual_override_off" in shared and "garden_pump" not in dirty:
                 self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
+            if "house_mode" in shared and not dirty:
+                hm_val = str(shared.get("house_mode") or "HOME").strip().upper()
+                if hm_val in ("HOME", "AWAY"):
+                    self.house_mode = hm_val
 
             remote_rev = int(shared.get("revision_seq", 0) or 0)
             local_rev = int(self._last_synced_seq or 0)
@@ -460,6 +470,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             ok = root.sync_from_shared_store(force=force)
             self.server_connected = root.server_connected
             self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+            self.house_mode = getattr(root, "house_mode", "HOME")
             self._last_synced_seq = root._last_synced_seq
             self._last_synced_ts_ns = root._last_synced_ts_ns
             return ok
@@ -505,11 +516,13 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             with root.state_transaction():
                 self.server_connected = root.server_connected
                 self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                self.house_mode = getattr(root, "house_mode", "HOME")
                 try:
                     yield
                 finally:
                     root.server_connected = self.server_connected
                     root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+                    root.house_mode = getattr(self, "house_mode", getattr(root, "house_mode", "HOME"))
             return
         is_outer = (self._mutation_depth == 0)
         if is_outer:
@@ -879,21 +892,38 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "role": "UNKNOWN",
             })
 
-        uid = actor_user_id or (
-            self._current_user_id
-            if str(self._current_user_id).strip().lower() != "unknown"
-            else USER_ROLE_MAP.get(tier, OWNER_ID)
-        )
         actor_role = ROLE_MAP.get(tier, "UNKNOWN")
 
-        u = self.users.get(uid) if uid else None
-        if u and not u.get("active", True):
-            return PermissionCheckResult({
-                "allowed": False,
-                "reason": f"Từ chối truy cập! Quyền của {u.get('name', uid)} đã bị hủy.",
-                "tier": 99,
-                "role": "UNKNOWN",
-            })
+        if actor_user_id is not None:
+            uid_lookup = str(actor_user_id).strip()
+            u = self.users.get(uid_lookup)
+            if u is None:
+                uid_low = uid_lookup.lower()
+                u = next(
+                    (cand for k, cand in self.users.items() if str(k).strip().lower() == uid_low),
+                    None,
+                )
+            if u and not u.get("active", True) and tier != 1:
+                return PermissionCheckResult({
+                    "allowed": False,
+                    "reason": f"Từ chối truy cập! Quyền của {u.get('name', uid_lookup)} đã bị hủy.",
+                    "tier": 99,
+                    "role": "UNKNOWN",
+                })
+        elif actor_tier is None:
+            uid = (
+                self._current_user_id
+                if str(self._current_user_id).strip().lower() != "unknown"
+                else USER_ROLE_MAP.get(tier, OWNER_ID)
+            )
+            u = self.users.get(uid) if uid else None
+            if u and not u.get("active", True) and tier != 1:
+                return PermissionCheckResult({
+                    "allowed": False,
+                    "reason": f"Từ chối truy cập! Quyền của {u.get('name', uid)} đã bị hủy.",
+                    "tier": 99,
+                    "role": "UNKNOWN",
+                })
 
         canonical_id = DEVICE_ID_ALIASES.get(dev_id, dev_id)
         dev = self.devices.get(canonical_id, {})
@@ -1224,6 +1254,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_tier: int | None = None,
         request_user_name: str | None = None,
         request_role: str | None = None,
+        request_user_id: str | None = None,
         reason: str | None = None,
         target_state: Any = None,
         client_id: str | None = None,
@@ -1244,6 +1275,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     request_tier=request_tier,
                     request_user_name=request_user_name,
                     request_role=request_role,
+                    request_user_id=request_user_id,
                     reason=reason,
                     target_state=target_state,
                     client_id=client_id,
@@ -1262,6 +1294,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             request_tier=request_tier,
             request_user_name=request_user_name,
             request_role=request_role,
+            request_user_id=request_user_id,
             reason=reason,
             target_state=target_state,
             client_id=client_id,
@@ -1275,13 +1308,19 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         raw = str(device_id or "").strip().lower()
         return DEVICE_ID_ALIASES.get(raw, raw)
 
-    def get_device_state_record(self, device_id: str, *, actor_tier: int | None = None) -> dict[str, Any]:
+    def get_device_state_record(
+        self,
+        device_id: str,
+        *,
+        actor_tier: int | None = None,
+        actor_user_id: str | None = None,
+    ) -> dict[str, Any]:
         """Đọc trạng thái và thông số của một thiết bị, tôn trọng RBAC/pool theo tier."""
         cid = self.resolve_canonical_device_id(device_id)
         if cid not in self.devices:
             return {"ok": False, "error": f"Không tìm thấy thiết bị '{device_id}'.", "status_code": 404}
         tier = int(self.current_tier if actor_tier is None else actor_tier)
-        allowed, reason = self.check_device_permission(cid, actor_tier=tier)
+        allowed, reason = self.check_device_permission(cid, actor_tier=tier, actor_user_id=actor_user_id)
         if not allowed:
             return {
                 "ok": False,
@@ -1317,15 +1356,20 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             },
         }
 
-    def list_accessible_devices(self, *, actor_tier: int | None = None) -> list[dict[str, Any]]:
+    def list_accessible_devices(
+        self,
+        *,
+        actor_tier: int | None = None,
+        actor_user_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Liệt kê tất cả thiết bị thuộc pool quyền của người dùng hiện tại."""
         tier = int(self.current_tier if actor_tier is None else actor_tier)
         items: list[dict[str, Any]] = []
         for cid in self.devices:
-            allowed, _ = self.check_device_permission(cid, actor_tier=tier)
+            allowed, _ = self.check_device_permission(cid, actor_tier=tier, actor_user_id=actor_user_id)
             if not allowed:
                 continue
-            rec = self.get_device_state_record(cid, actor_tier=tier)
+            rec = self.get_device_state_record(cid, actor_tier=tier, actor_user_id=actor_user_id)
             if rec.get("ok"):
                 items.append(rec)
         return items
@@ -1369,6 +1413,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         temperature_c: Any = None,
         fan_speed: Any = None,
         actor_tier: int | None = None,
+        actor_user_id: str | None = None,
     ) -> tuple[bool, dict[str, Any]]:
         """Kiểm tra chặt thiết bị, quyền RBAC và tham số cho set_device trước khi lưu nháp/thực thi."""
         cid = self.resolve_canonical_device_id(device_id)
@@ -1380,7 +1425,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "exact_spoken_reply": "Thiết bị bạn yêu cầu không có trong nhà thông minh.",
             }
         tier = int(self.current_tier if actor_tier is None else actor_tier)
-        allowed, _reason = self.check_device_permission(cid, actor_tier=tier)
+        allowed, _reason = self.check_device_permission(cid, actor_tier=tier, actor_user_id=actor_user_id)
         if not allowed:
             return False, {
                 "ok": False,
@@ -1486,6 +1531,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_tier: int | None = None,
         request_role: str | None = None,
         request_user_name: str | None = None,
+        request_user_id: str | None = None,
     ) -> dict[str, Any]:
         """Thực thi bật/tắt/mở/đóng và cập nhật tham số thiết bị (độ sáng, nhiệt độ điều hòa, tốc độ quạt)."""
         ok_val, info = self.validate_device_set_request(
@@ -1495,6 +1541,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             temperature_c=temperature_c,
             fan_speed=fan_speed,
             actor_tier=request_tier,
+            actor_user_id=request_user_id,
         )
         if not ok_val:
             return info
@@ -1512,6 +1559,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             request_tier=request_tier,
             request_role=request_role,
             request_user_name=request_user_name,
+            request_user_id=request_user_id,
             trigger_chains=True,
         )
         if isinstance(act_res, dict) and (not act_res.get("ok", True) or act_res.get("rbac_blocked")):
@@ -1559,6 +1607,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         request_tier: int | None = None,
         request_user_name: str | None = None,
         request_role: str | None = None,
+        request_user_id: str | None = None,
         reason: str | None = None,
         target_state: Any = None,
         client_id: str | None = None,
@@ -1663,7 +1712,12 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 effective_role = request_role or ROLE_MAP.get(effective_tier, self.current_role)
 
                 if not bypass_rbac:
-                    allowed, reason = self.check_device_permission(dev_id, action=act, actor_tier=effective_tier)
+                    allowed, reason = self.check_device_permission(
+                        dev_id,
+                        action=act,
+                        actor_tier=effective_tier,
+                        actor_user_id=request_user_id,
+                    )
                     if not allowed:
                         await self.emit({
                             "type": "rbac_blocked",
@@ -1901,6 +1955,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 if trigger_chains and self.server_connected:
                     triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                     results.extend(triggered_fx)
+                    try:
+                        from simulator.automation_engine import evaluate_compound_rules
+
+                        comp_fx = await evaluate_compound_rules(self, trigger_source=f"device:{dev_id}")
+                        if comp_fx:
+                            results.extend(comp_fx)
+                    except Exception:
+                        pass
 
         defer_voice_snap = (
             source == "session_voice"
@@ -1984,6 +2046,20 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
             h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
             triggered: list[dict[str, Any]] = []
+            temp_hits = await self._evaluate_numeric_sensor_rules("temp_sensor", t_clamped)
+            if temp_hits:
+                triggered.extend(temp_hits)
+            hum_hits = await self._evaluate_numeric_sensor_rules("humidity_sensor", h_clamped)
+            if hum_hits:
+                triggered.extend(hum_hits)
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_hits = await evaluate_compound_rules(self, trigger_source="sensor:dht11")
+                if comp_hits:
+                    triggered.extend(comp_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {
@@ -2057,10 +2133,17 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 spoken = f"Độ ẩm đất đã đủ ({pct:.0f}%), máy bơm tưới cây đã tự động tắt."
             else:
                 spoken = f"Độ ẩm đất hiện tại là {pct:.0f}%."
-            soil_rule_state = "DRY" if pct < float(auto_pump_below_pct) else "WET"
-            soil_rule_hits = await self._evaluate_reactive_if_else("soil_sensor", soil_rule_state)
+            soil_rule_hits = await self._evaluate_numeric_sensor_rules("soil_sensor", pct)
             if soil_rule_hits:
                 triggered.extend(soil_rule_hits)
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_soil_hits = await evaluate_compound_rules(self, trigger_source="sensor:soil")
+                if comp_soil_hits:
+                    triggered.extend(comp_soil_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
@@ -2113,6 +2196,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "sound_sensor",
                 "LOUD" if is_loud else "QUIET",
             )
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_sound_hits = await evaluate_compound_rules(self, trigger_source="sensor:sound")
+                if comp_sound_hits:
+                    triggered_rules.extend(comp_sound_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = (
             f"Cảm biến âm thanh KY-037 trên chân D5 phát hiện tiếng động lớn (tổng {snd.get('event_count', 0)} lần)."
@@ -2126,6 +2217,148 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "triggered_actions": triggered_rules,
             "exact_spoken_reply": spoken,
         }
+
+    async def set_house_mode(
+        self,
+        mode: str,
+        *,
+        source: str = "user",
+        actor_name: str = "",
+        actor_tier: int = 1,
+    ) -> dict[str, Any]:
+        """Chuyển trạng thái hiện diện ngôi nhà giữa Ở nhà (HOME) và Vắng nhà (AWAY) và đánh giá luật phức hợp."""
+        norm_mode = str(mode or "HOME").strip().upper()
+        if norm_mode not in ("HOME", "AWAY"):
+            return {"ok": False, "error": "Chế độ nhà chỉ hỗ trợ HOME hoặc AWAY."}
+        root = getattr(self, "_root_engine", self)
+        old_mode = str(getattr(root, "house_mode", "HOME") or "HOME").upper()
+        root.house_mode = norm_mode
+        self.house_mode = norm_mode
+        self.persist_to_shared_store()
+        triggered: list[dict[str, Any]] = []
+        try:
+            from simulator.automation_engine import evaluate_compound_rules
+
+            triggered = await evaluate_compound_rules(self, trigger_source=f"house_mode:{norm_mode}")
+        except Exception:
+            triggered = []
+        mode_vi = "Vắng nhà" if norm_mode == "AWAY" else "Ở nhà"
+        spoken = f"Đã chuyển sang chế độ {mode_vi}."
+        append_audit_log(
+            "AUTOMATION",
+            "house_mode_changed",
+            f"Đổi chế độ nhà {old_mode} -> {norm_mode} ({mode_vi})",
+            user_name=actor_name or self.get_current_user_name(),
+            tier=int(actor_tier or self.current_tier),
+            details={"old_mode": old_mode, "house_mode": norm_mode, "source": source},
+        )
+        await self.emit(
+            {
+                "type": "house_mode_changed",
+                "old_mode": old_mode,
+                "house_mode": norm_mode,
+                "message": spoken,
+                "source": source,
+            }
+        )
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot(sync=False)})
+        return {
+            "ok": True,
+            "house_mode": norm_mode,
+            "mode_vi": mode_vi,
+            "triggered_actions": triggered,
+            "reply": spoken,
+            "exact_spoken_reply": spoken,
+        }
+
+    async def _evaluate_numeric_sensor_rules(self, sensor_id: str, sensor_value: float) -> list[dict[str, Any]]:
+        """Evaluate persisted sensor-trigger rules using each rule's own numeric threshold/operator (or qualitative spec)."""
+        from simulator.auth.tier_permissions import can_control_device
+        from simulator.automation_engine import QUALITATIVE_SENSOR_THRESHOLDS
+        from simulator.automation_repo import SENSOR_TRIGGER_DEVICES, get_automation_snapshot_bundle
+
+        def _cmp(val: float, op: str, thresh: float) -> bool:
+            if op == ">":
+                return val > thresh
+            if op == ">=":
+                return val >= thresh
+            if op == "<":
+                return val < thresh
+            if op == "<=":
+                return val <= thresh
+            if op == "==":
+                return abs(val - thresh) <= 1e-6
+            if op == "!=":
+                return abs(val - thresh) > 1e-6
+            return False
+
+        triggered_results: list[dict[str, Any]] = []
+        t1_locked_targets: set[str] = set()
+        source_name = str(SENSOR_TRIGGER_DEVICES.get(sensor_id, {}).get("name") or sensor_id)
+
+        try:
+            _, rules_cached, _ = get_automation_snapshot_bundle()
+            db_rules = sorted(rules_cached, key=lambda r: int(r.get("owner_tier") or 1))
+        except Exception:
+            db_rules = []
+
+        for rule in db_rules:
+            if rule.get("when_device_id") != sensor_id:
+                continue
+            rule_tier = int(rule.get("owner_tier") or 1)
+            if rule_tier >= 3:
+                continue
+            if_state = str(rule.get("when_state") or "").upper()
+            op = str(rule.get("threshold_op") or "").strip()
+            thresh_raw = rule.get("threshold_value")
+            if op and thresh_raw is not None:
+                matched = _cmp(sensor_value, op, float(thresh_raw))
+            else:
+                q_spec = QUALITATIVE_SENSOR_THRESHOLDS.get(sensor_id, {}).get(if_state)
+                if q_spec is None:
+                    continue
+                q_op, q_val = q_spec
+                matched = _cmp(sensor_value, q_op, float(q_val))
+
+            delay_sec = float(rule.get("delay_seconds") or 0.0)
+            if matched:
+                target_dev = str(rule.get("then_device_id") or "")
+                target_act = str(rule.get("then_action") or "")
+                prefix_lbl = "IF"
+            else:
+                target_dev = str(rule.get("else_device_id") or "")
+                target_act = str(rule.get("else_action") or "")
+                prefix_lbl = "ELSE"
+
+            if not target_dev or not target_act or target_dev == sensor_id:
+                continue
+            if not can_control_device(rule_tier, target_dev):
+                continue
+            if rule_tier > 1 and target_dev in t1_locked_targets:
+                continue
+            if rule_tier == 1:
+                t1_locked_targets.add(target_dev)
+
+            reason_lbl = f"{prefix_lbl} {source_name}={sensor_value:.1f}"
+            if delay_sec <= 0.2:
+                res = await self.execute_device_action(
+                    device_id=target_dev,
+                    action=target_act,
+                    source=reason_lbl,
+                    bypass_rbac=True,
+                    trigger_chains=False,
+                )
+                triggered_results.extend(res.get("results", []))
+            else:
+                await self.schedule_action(
+                    device_id=target_dev,
+                    action=target_act,
+                    delay_seconds=delay_sec,
+                    reason=reason_lbl,
+                    bypass_rbac=True,
+                    trigger_chains=False,
+                )
+        return triggered_results
 
     async def _evaluate_reactive_if_else(self, changed_dev_id: str, new_state: str) -> list[dict[str, Any]]:
         """Kiểm tra luật IF khi `changed_dev_id` chuyển sang `new_state`."""

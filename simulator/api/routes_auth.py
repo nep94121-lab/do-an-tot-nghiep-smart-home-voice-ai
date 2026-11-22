@@ -90,7 +90,7 @@ def _require_admin_session(request: Request) -> tuple[UserSession | None, JSONRe
             ),
             status_code=401,
         )
-    if sess.tier != 1 or sess.role != "ADMIN":
+    if sess.tier != 1 or str(sess.role).upper() not in ("ADMIN", "OWNER"):
         return None, JSONResponse(
             sanitize_api_payload(
                 {
@@ -224,7 +224,7 @@ async def api_auth3_add_family_email(request: Request, payload: dict[str, Any]) 
             details=err_res,
         )
         return JSONResponse(sanitize_api_payload(err_res), status_code=401)
-    if sess.tier != 1 or sess.role != "ADMIN":
+    if sess.tier != 1 or str(sess.role).upper() not in ("ADMIN", "OWNER"):
         err_res = {
             "ok": False,
             "authenticated": True,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 import pathlib
+import re
 import sqlite3
 import time
 import unicodedata
@@ -54,22 +55,93 @@ SENSOR_TRIGGER_DEVICES: dict[str, dict[str, Any]] = {
         "name": "Cảm biến âm thanh KY-037",
         "states": ("LOUD", "QUIET"),
     },
+    "temp_sensor": {
+        "name": "Cảm biến nhiệt độ DHT11",
+        "states": ("HIGH", "LOW"),
+    },
+    "humidity_sensor": {
+        "name": "Cảm biến độ ẩm không khí DHT11",
+        "states": ("HIGH", "LOW"),
+    },
 }
+
+SENSOR_QUERY_TARGETS: dict[str, dict[str, str]] = {
+    "sensor_temperature": {
+        "name": "nhiệt độ DHT11",
+        "label_vi": "Đọc nhiệt độ DHT11",
+    },
+    "sensor_humidity": {
+        "name": "độ ẩm không khí DHT11",
+        "label_vi": "Đọc độ ẩm không khí DHT11",
+    },
+    "sensor_soil": {
+        "name": "độ ẩm đất",
+        "label_vi": "Đọc độ ẩm đất",
+    },
+    "sensor_sound": {
+        "name": "cảm biến âm thanh KY-037",
+        "label_vi": "Đọc cảm biến âm thanh KY-037",
+    },
+    "sensor_all": {
+        "name": "tất cả cảm biến",
+        "label_vi": "Đọc tất cả cảm biến",
+    },
+}
+
+
+def is_custom_query_step(device_id: str, action: str) -> bool:
+    did = str(device_id or "").strip()
+    act = str(action or "").strip().lower()
+    if did in SENSOR_QUERY_TARGETS and act in ("read", "read_state", "query", ""):
+        return True
+    if act == "read_state" and (did in DEFAULT_DEVICES or did in ("all_lights", "all_devices")):
+        return True
+    return False
 
 SENSOR_STATE_OPPOSITE: dict[str, str] = {
     "DRY": "WET",
     "WET": "DRY",
     "LOUD": "QUIET",
     "QUIET": "LOUD",
+    "HIGH": "LOW",
+    "LOW": "HIGH",
 }
 
 
-def format_sensor_trigger_vi(when_device_id: str, when_state: str) -> str:
+def format_sensor_trigger_vi(
+    when_device_id: str,
+    when_state: str,
+    *,
+    threshold_op: str = "",
+    threshold_value: float | None = None,
+) -> str:
     st = str(when_state or "").upper()
+    op = str(threshold_op or "").strip()
+    if op and threshold_value is not None:
+        op_vi = {
+            ">": "trên",
+            ">=": "từ",
+            "<": "dưới",
+            "<=": "tối đa",
+            "==": "bằng",
+            "!=": "khác",
+        }.get(op, op)
+        val_f = float(threshold_value)
+        val_str = f"{int(val_f)}" if val_f.is_integer() else f"{val_f:.1f}"
+        if when_device_id == "temp_sensor":
+            return f"nhiệt độ {op_vi} {val_str}°C"
+        if when_device_id == "humidity_sensor":
+            return f"độ ẩm không khí {op_vi} {val_str}%"
+        if when_device_id == "soil_sensor":
+            return f"độ ẩm đất {op_vi} {val_str}%"
     if when_device_id == "soil_sensor":
         return "đất khô" if st == "DRY" else "đất ẩm"
     if when_device_id == "sound_sensor":
         return "có tiếng động lớn" if st == "LOUD" else "yên tĩnh"
+    if when_device_id == "temp_sensor":
+        return "nhiệt độ cao" if st == "HIGH" else "nhiệt độ thấp"
+    if when_device_id == "humidity_sensor":
+        return "độ ẩm không khí cao" if st == "HIGH" else "độ ẩm không khí thấp"
     return f"{when_device_id}={st}"
 
 
@@ -177,9 +249,15 @@ def format_duration_vi(total_sec: float) -> str:
 
 
 def format_device_action_vi(device_id: str, action: str) -> str:
-    dname = DEVICE_LABELS_VI.get(device_id) or DEFAULT_DEVICES.get(device_id, {}).get("name") or device_id
+    did = str(device_id or "").strip()
     act = str(action or "").strip().lower()
-    if device_id == "main_door":
+    if did in SENSOR_QUERY_TARGETS:
+        return SENSOR_QUERY_TARGETS[did]["label_vi"]
+    extra_labels = {"all_lights": "tất cả đèn", "all_devices": "tất cả thiết bị"}
+    dname = extra_labels.get(did) or DEVICE_LABELS_VI.get(did) or DEFAULT_DEVICES.get(did, {}).get("name") or did
+    if act == "read_state":
+        return f"Xem trạng thái {dname.lower()}"
+    if did == "main_door":
         verb = "Mở" if act in ("open", "turn_on") else "Đóng"
     else:
         verb = ACTION_VI_LABEL.get(act, "Bật" if act in ("open", "turn_on") else "Tắt")
@@ -474,10 +552,27 @@ def list_pending_timers(
 # CLOCK SCHEDULES (Asia/Saigon, once / daily)
 # =============================================================================
 
+def _parse_weekdays_csv(raw: Any) -> tuple[list[int], str]:
+    if raw is None or raw == "":
+        return [], ""
+    if isinstance(raw, (list, tuple, set)):
+        days = sorted({int(x) for x in raw if not isinstance(x, bool) and str(x).strip().isdigit() and 0 <= int(x) <= 6})
+        return days, ",".join(str(d) for d in days)
+    s = str(raw).strip()
+    if not s:
+        return [], ""
+    days = sorted({int(p.strip()) for p in s.split(",") if p.strip().isdigit() and 0 <= int(p.strip()) <= 6})
+    return days, ",".join(str(d) for d in days)
+
+
 def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool = True) -> list[dict[str, Any]]:
-    sql = """
+    cols = {str(r["name"]) for r in conn.execute("PRAGMA table_info(schedules)").fetchall()}
+    has_wd = "weekdays" in cols
+    wd_col = "COALESCE(s.weekdays, '') AS weekdays," if has_wd else "'' AS weekdays,"
+    sql = f"""
         SELECT s.schedule_id, s.owner_user_id, COALESCE(u.full_name, s.owner_user_id) AS owner_name,
                s.owner_tier, s.device_id, s.action, s.time_hhmm, s.schedule_type,
+               {wd_col}
                s.run_date_vn, s.timezone, s.enabled, s.last_fired_date_vn,
                s.label, s.created_at, s.updated_at
         FROM schedules s
@@ -492,6 +587,8 @@ def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool 
         did = str(r["device_id"])
         dname = DEVICE_LABELS_VI.get(did) or DEFAULT_DEVICES.get(did, {}).get("name") or did
         act = str(r["action"])
+        wd_list, wd_csv = _parse_weekdays_csv(r["weekdays"])
+        st_type = str(r["schedule_type"] or "once")
         out.append({
             "id": str(r["schedule_id"]),
             "schedule_id": str(r["schedule_id"]),
@@ -503,8 +600,10 @@ def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool 
             "action": act,
             "action_vi": ACTION_VI_LABEL.get(act, act),
             "time_hhmm": str(r["time_hhmm"]),
-            "schedule_type": str(r["schedule_type"] or "once"),
-            "repeat": str(r["schedule_type"] or "once"),
+            "schedule_type": st_type,
+            "repeat": "weekly" if wd_list else st_type,
+            "weekdays": wd_list,
+            "weekdays_csv": wd_csv,
             "run_date_vn": str(r["run_date_vn"] or ""),
             "timezone": str(r["timezone"] or "Asia/Saigon"),
             "enabled": bool(int(r["enabled"] or 0)),
@@ -538,6 +637,7 @@ def create_schedule(
     action: str,
     time_hhmm: str,
     schedule_type: str = "once",
+    weekdays: Any = None,
     run_date_vn: str = "",
     label: str = "",
     enabled: bool = True,
@@ -549,7 +649,9 @@ def create_schedule(
         raise ValueError(f"Thiết bị '{device_id}' không hợp lệ.")
     if action not in ACTION_TO_STATE:
         raise ValueError(f"Hành động '{action}' không hợp lệ.")
-    st_type = "daily" if str(schedule_type).strip().lower() == "daily" else "once"
+    wd_list, wd_csv = _parse_weekdays_csv(weekdays)
+    raw_type = str(schedule_type).strip().lower()
+    st_type = "daily" if (raw_type in ("daily", "weekly") or bool(wd_list)) else "once"
     hh, mm = [int(p) for p in str(time_hhmm).strip().split(":", 1)]
     if not (0 <= hh <= 23 and 0 <= mm <= 59):
         raise ValueError("Giờ phải nằm trong 00:00 đến 23:59.")
@@ -590,9 +692,9 @@ def create_schedule(
                     """
                     INSERT INTO schedules (
                         schedule_id, owner_user_id, owner_tier, device_id, action,
-                        time_hhmm, schedule_type, run_date_vn, timezone, enabled,
+                        time_hhmm, schedule_type, weekdays, run_date_vn, timezone, enabled,
                         last_fired_date_vn, label, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Asia/Saigon', ?, '', ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Asia/Saigon', ?, '', ?, ?, ?)
                     """,
                     (
                         sid,
@@ -602,6 +704,7 @@ def create_schedule(
                         action,
                         hhmm_norm,
                         st_type,
+                        wd_csv,
                         date_vn,
                         1 if enabled else 0,
                         clean_label,
@@ -626,7 +729,9 @@ def create_schedule(
         "action_vi": ACTION_VI_LABEL.get(action, action),
         "time_hhmm": hhmm_norm,
         "schedule_type": st_type,
-        "repeat": st_type,
+        "repeat": "weekly" if wd_list else st_type,
+        "weekdays": wd_list,
+        "weekdays_csv": wd_csv,
         "run_date_vn": date_vn,
         "timezone": "Asia/Saigon",
         "enabled": bool(enabled),
@@ -640,6 +745,7 @@ def update_schedule(
     *,
     time_hhmm: str | None = None,
     schedule_type: str | None = None,
+    weekdays: Any = None,
     run_date_vn: str | None = None,
     device_id: str | None = None,
     action: str | None = None,
@@ -670,14 +776,29 @@ def update_schedule(
                 if new_act not in ACTION_TO_STATE:
                     raise ValueError(f"Hành động '{new_act}' không hợp lệ.")
 
+                row_keys = set(row.keys())
+                ex_wd_csv = str(row["weekdays"] or "") if "weekdays" in row_keys else ""
+                if weekdays is not None:
+                    wd_list, new_wd_csv = _parse_weekdays_csv(weekdays)
+                else:
+                    wd_list, new_wd_csv = _parse_weekdays_csv(ex_wd_csv)
+
+                eff_sched_type = schedule_type
+                if eff_sched_type is not None and str(eff_sched_type).strip().lower() == "weekly":
+                    eff_sched_type = "daily"
+                elif wd_list and eff_sched_type is None:
+                    eff_sched_type = "daily"
+
                 new_hhmm, new_type, run_date, new_enabled_bool = compute_candidate_schedule_state(
                     row,
                     time_hhmm=time_hhmm,
-                    schedule_type=schedule_type,
+                    schedule_type=eff_sched_type,
                     run_date_vn=run_date_vn,
                     enabled=enabled,
                     now_vn=now_vn,
                 )
+                if new_type == "once" and weekdays is None and schedule_type == "once":
+                    new_wd_csv = ""
                 eff_tier = int(actor_tier if actor_tier is not None else (row["owner_tier"] or 1))
                 if new_enabled_bool and eff_tier > 1:
                     c_msg = _check_tier1_conflict_in_conn(
@@ -698,12 +819,13 @@ def update_schedule(
                     time_hhmm is not None
                     or run_date != str(row["run_date_vn"] or "")
                     or new_type != str(row["schedule_type"] or "once")
+                    or new_wd_csv != ex_wd_csv
                 )
                 c.execute(
                     """
                     UPDATE schedules
                     SET device_id = ?, action = ?, time_hhmm = ?, schedule_type = ?,
-                        run_date_vn = ?, enabled = ?, label = ?, updated_at = ?,
+                        weekdays = ?, run_date_vn = ?, enabled = ?, label = ?, updated_at = ?,
                         last_fired_date_vn = ?
                     WHERE schedule_id = ?
                     """,
@@ -712,6 +834,7 @@ def update_schedule(
                         new_act,
                         new_hhmm,
                         new_type,
+                        new_wd_csv,
                         run_date,
                         1 if new_enabled_bool else 0,
                         new_label,
@@ -863,9 +986,9 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
         trig = str(sr["trigger_expr"] or "")
         if ":" not in trig:
             continue
-        wdev, wstate = trig.split(":", 1)
-        wdev = wdev.strip()
-        wstate = wstate.strip().upper()
+        trig_parts = trig.split(":")
+        wdev = trig_parts[0].strip()
+        wstate = trig_parts[1].strip().upper() if len(trig_parts) >= 2 else ""
         if wdev not in SENSOR_TRIGGER_DEVICES:
             continue
         tdev = str(sr["target_device_id"] or "").strip()
@@ -884,13 +1007,16 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
             continue
         edev = str(meta.get("else_device_id") or "").strip()
         eact = str(meta.get("else_action") or "").strip()
+        th_op = str(meta.get("threshold_op") or "").strip()
+        th_val_raw = meta.get("threshold_value")
+        th_val: float | None = float(th_val_raw) if th_val_raw is not None else None
         wname = str(SENSOR_TRIGGER_DEVICES[wdev]["name"])
         tname = DEVICE_LABELS_VI.get(tdev) or DEFAULT_DEVICES.get(tdev, {}).get("name") or tdev
         ename = DEVICE_LABELS_VI.get(edev) or DEFAULT_DEVICES.get(edev, {}).get("name") or edev if edev else ""
         created_ts = float(meta.get("created_at") or 0.0)
         lbl = str(
             meta.get("label")
-            or f"Khi {format_sensor_trigger_vi(wdev, wstate)} thì {format_device_action_vi(tdev, tact).lower()}"
+            or f"Khi {format_sensor_trigger_vi(wdev, wstate, threshold_op=th_op, threshold_value=th_val)} thì {format_device_action_vi(tdev, tact).lower()}"
         )
         out.append({
             "id": str(sr["rule_id"]),
@@ -902,6 +1028,8 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
             "when_device_id": wdev,
             "when_device_name": wname,
             "when_state": wstate,
+            "threshold_op": th_op,
+            "threshold_value": th_val,
             "then_device_id": tdev,
             "then_device_name": tname,
             "then_action": tact,
@@ -1008,6 +1136,8 @@ def create_automation_rule(
     label: str = "",
     owner_name: str = "",
     rule_id: str | None = None,
+    threshold_op: str = "",
+    threshold_value: float | None = None,
     db_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     (
@@ -1036,10 +1166,19 @@ def create_automation_rule(
 
     if is_sensor_trigger:
         when_display_name = str(SENSOR_TRIGGER_DEVICES[when_device_id]["name"])
+        clean_th_op = str(threshold_op or "").strip()
+        if clean_th_op not in (">", ">=", "<", "<=", "==", "!="):
+            clean_th_op = ""
+        clean_th_val: float | None = float(threshold_value) if (clean_th_op and threshold_value is not None) else None
         clean_label = str(
-            label or f"Khi {format_sensor_trigger_vi(when_device_id, norm_when_state)} thì {format_device_action_vi(then_device_id, then_action).lower()}"
+            label
+            or f"Khi {format_sensor_trigger_vi(when_device_id, norm_when_state, threshold_op=clean_th_op, threshold_value=clean_th_val)} thì {format_device_action_vi(then_device_id, then_action).lower()}"
         ).strip()
-        trig_expr = f"{when_device_id}:{norm_when_state}"
+        trig_expr = (
+            f"{when_device_id}:{norm_when_state}:{clean_th_op}{clean_th_val:g}"
+            if (clean_th_op and clean_th_val is not None)
+            else f"{when_device_id}:{norm_when_state}"
+        )
         meta_json = json.dumps(
             {
                 "label": clean_label,
@@ -1047,6 +1186,8 @@ def create_automation_rule(
                 "else_device_id": valid_else_dev or "",
                 "else_action": valid_else_act,
                 "delay_seconds": safe_delay,
+                "threshold_op": clean_th_op,
+                "threshold_value": clean_th_val,
                 "enabled": True,
                 "created_at": now_ts,
                 "updated_at": now_ts,
@@ -1100,6 +1241,8 @@ def create_automation_rule(
             "when_device_id": when_device_id,
             "when_device_name": when_display_name,
             "when_state": norm_when_state,
+            "threshold_op": clean_th_op,
+            "threshold_value": clean_th_val,
             "then_device_id": then_device_id,
             "then_device_name": DEVICE_LABELS_VI.get(then_device_id, then_device_id),
             "then_action": then_action,
@@ -1213,34 +1356,48 @@ def _normalize_steps(steps: list[dict[str, Any]]) -> list[dict[str, str]]:
             continue
         did = str(step.get("device_id") or "").strip()
         act = str(step.get("action") or "").strip().lower()
-        if act not in ACTION_TO_STATE:
-            continue
-        if did == "all_lights":
-            expanded_act = "turn_on" if act in ("open", "turn_on") else "turn_off"
-            pairs = [("living_room_light", expanded_act), ("bedroom_light", expanded_act)]
-        elif did == "all_devices":
-            if act in ("close", "turn_off"):
-                pairs = [
-                    ("living_room_light", "turn_off"),
-                    ("bedroom_light", "turn_off"),
-                    ("garden_pump", "turn_off"),
-                    ("speaker_amp", "turn_off"),
-                    ("alarm_siren", "turn_off"),
-                    ("main_door", "close"),
-                ]
+        if did in SENSOR_QUERY_TARGETS:
+            if act not in ("read", "read_state", "query", ""):
+                continue
+            pairs = [(did, "read")]
+        elif act == "read_state":
+            if did == "all_lights":
+                pairs = [("living_room_light", "read_state"), ("bedroom_light", "read_state")]
+            elif did == "all_devices":
+                pairs = [(d, "read_state") for d in DEFAULT_DEVICES.keys()]
+            elif did in DEFAULT_DEVICES:
+                pairs = [(did, "read_state")]
             else:
-                pairs = [
-                    ("living_room_light", "turn_on"),
-                    ("bedroom_light", "turn_on"),
-                    ("speaker_amp", "turn_on"),
-                ]
-        elif did in DEFAULT_DEVICES:
-            fixed_act = (
-                ("open" if act in ("open", "turn_on") else "close")
-                if did == "main_door"
-                else ("turn_on" if act in ("open", "turn_on") else "turn_off")
-            )
-            pairs = [(did, fixed_act)]
+                continue
+        elif act in ACTION_TO_STATE:
+            if did == "all_lights":
+                expanded_act = "turn_on" if act in ("open", "turn_on") else "turn_off"
+                pairs = [("living_room_light", expanded_act), ("bedroom_light", expanded_act)]
+            elif did == "all_devices":
+                if act in ("close", "turn_off"):
+                    pairs = [
+                        ("living_room_light", "turn_off"),
+                        ("bedroom_light", "turn_off"),
+                        ("garden_pump", "turn_off"),
+                        ("speaker_amp", "turn_off"),
+                        ("alarm_siren", "turn_off"),
+                        ("main_door", "close"),
+                    ]
+                else:
+                    pairs = [
+                        ("living_room_light", "turn_on"),
+                        ("bedroom_light", "turn_on"),
+                        ("speaker_amp", "turn_on"),
+                    ]
+            elif did in DEFAULT_DEVICES:
+                fixed_act = (
+                    ("open" if act in ("open", "turn_on") else "close")
+                    if did == "main_door"
+                    else ("turn_on" if act in ("open", "turn_on") else "turn_off")
+                )
+                pairs = [(did, fixed_act)]
+            else:
+                continue
         else:
             continue
         for pd, pa in pairs:
@@ -1485,11 +1642,39 @@ def find_custom_command_by_text(
         if cmd["phrase_norm"] == norm_text:
             return cmd
     stripped = norm_text
-    for prefix in ("kich hoat ", "chay lenh ", "chay ", "bat ", "mo ", "thuc hien ", "dung "):
+    for prefix in (
+        "kich hoat khau lenh ",
+        "kich hoat cau lenh ",
+        "kich hoat phim tat ",
+        "kich hoat kich ban ",
+        "kich hoat lenh ",
+        "thuc hien khau lenh ",
+        "thuc hien cau lenh ",
+        "thuc hien phim tat ",
+        "thuc hien kich ban ",
+        "thuc hien lenh ",
+        "chay khau lenh ",
+        "chay cau lenh ",
+        "chay phim tat ",
+        "chay kich ban ",
+        "chay lenh ",
+        "goi lenh ",
+        "kich hoat ",
+        "chay ",
+        "bat ",
+        "mo ",
+        "thuc hien ",
+        "dung ",
+    ):
         if stripped.startswith(prefix):
             cand = stripped[len(prefix):].strip()
+            cand_no_polite = re.sub(
+                r"\s+(?:giup\s+(?:toi|minh|anh|chi|em)|ho\s+(?:toi|minh|anh|chi|em)|(?:gium|dum)\s+(?:toi|minh|anh|chi|em)|di|nhe|nha|a|luon|ngay)+$",
+                "",
+                cand,
+            ).strip()
             for cmd in commands:
-                if cmd["phrase_norm"] == cand:
+                if cmd["phrase_norm"] == cand or (cand_no_polite and cmd["phrase_norm"] == cand_no_polite):
                     return cmd
     # Fallback: longer phrase contained as whole words
     best: dict[str, Any] | None = None
@@ -1513,6 +1698,11 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
                 c.execute("DELETE FROM automation_rules")
                 c.execute("DELETE FROM custom_commands")
                 c.execute("DELETE FROM rules_pool WHERE rule_category = 'sensor_link'")
+                has_comp = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='compound_automation_rules'"
+                ).fetchone()
+                if has_comp:
+                    c.execute("DELETE FROM compound_automation_rules")
 
             run_write_transaction(conn, _tx)
         finally:
@@ -1521,23 +1711,31 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
 
 
 def check_steps_rbac(steps: list[dict[str, Any]], actor_tier: int) -> tuple[bool, str]:
+    if int(actor_tier) >= 3:
+        return False, GUEST_ONLY_TOGGLE_MSG_VI
     for step in steps or []:
         did = str(step.get("device_id") or "")
         act = str(step.get("action") or "turn_on").lower()
         if not did:
             continue
+        if did in SENSOR_QUERY_TARGETS:
+            continue
         if did == "all_lights":
             expanded = ["living_room_light", "bedroom_light"]
         elif did == "all_devices":
-            expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
-                "living_room_light", "bedroom_light", "speaker_amp"
-            ]
+            if act == "read_state":
+                expanded = list(DEFAULT_DEVICES.keys())
+            else:
+                expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
+                    "living_room_light", "bedroom_light", "speaker_amp"
+                ]
         else:
             expanded = [did]
         for target_dev in expanded:
             if not can_control_device(actor_tier, target_dev):
                 dname = DEVICE_LABELS_VI.get(target_dev, target_dev)
-                return False, f"Từ chối: Cấp {actor_tier} không có quyền điều khiển {dname} trong ngữ cảnh này."
+                verb_vi = "xem trạng thái" if act == "read_state" else "điều khiển"
+                return False, f"Từ chối: Cấp {actor_tier} không có quyền {verb_vi} {dname} trong ngữ cảnh này."
     return True, ""
 
 
@@ -1945,16 +2143,25 @@ def reset_links_scoped(
         conn = get_connection(target)
         try:
             def _tx(c: sqlite3.Connection) -> int:
+                has_comp = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='compound_automation_rules'"
+                ).fetchone()
                 if clear_all:
                     cur1 = c.execute("DELETE FROM automation_rules")
                     cur2 = c.execute("DELETE FROM rules_pool WHERE rule_category IN ('if_else', 'link', 'sensor_link')")
-                    return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
+                    cur3 = c.execute("DELETE FROM compound_automation_rules") if has_comp else None
+                    return int(cur1.rowcount or 0) + int(cur2.rowcount or 0) + int(cur3.rowcount or 0 if cur3 else 0)
                 cur1 = c.execute("DELETE FROM automation_rules WHERE owner_user_id = ?", (uid,))
                 cur2 = c.execute(
                     "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('if_else', 'link', 'sensor_link')",
                     (uid,),
                 )
-                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
+                cur3 = (
+                    c.execute("DELETE FROM compound_automation_rules WHERE owner_user_id = ?", (uid,))
+                    if has_comp
+                    else None
+                )
+                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0) + int(cur3.rowcount or 0 if cur3 else 0)
 
             removed = run_write_transaction(conn, _tx)
         finally:

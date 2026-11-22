@@ -680,6 +680,13 @@ def parse_vietnamese_voice_command_intents(transcript_text: str) -> list[dict[st
     t = (transcript_text or "").strip().lower()
     if not t:
         return []
+    has_diac = bool(re.search(r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", t))
+    # Reject wrong-diacritic near-miss light words (e.g. "tắt đen phòng khách") in accented input
+    if has_diac and any(
+        strip_vietnamese_diacritics(w) == "den" and w != "đèn"
+        for w in re.findall(r"[a-zA-ZÀ-ỹ]+", t)
+    ):
+        return []
     tn = strip_vietnamese_diacritics(t)
     tn = re.sub(r"[^\w\s]", " ", tn)
     tn = " ".join(tn.split())
@@ -691,7 +698,10 @@ def parse_vietnamese_voice_command_intents(transcript_text: str) -> list[dict[st
     intents: list[dict[str, str]] = []
 
     # 1. Cửa chính / Cổng chính (main_door)
-    is_gate_switch = ("cong tac cong" in tn) or ("cua chinh" in tn) or ("cua nha" in tn) or ("het cua" in tn) or ("mo cua" in tn) or ("dong cua" in tn) or ("khoa cua" in tn)
+    is_gate_switch = (
+        any(p in t for p in ("công tắc cổng", "cửa chính", "cửa chánh", "cửa nhà", "hết cửa", "mở cửa", "đóng cửa", "khóa cửa"))
+        or (not has_diac and any(p in tn for p in ("cong tac cong", "cua chinh", "cua nha", "het cua", "mo cua", "dong cua", "khoa cua")))
+    )
     if is_gate_switch:
         if "dong" in tokens or "khoa" in tokens or "tat" in tokens or "close" in tn:
             intents.append({"device_id": "main_door", "action": "close"})
@@ -699,15 +709,28 @@ def parse_vietnamese_voice_command_intents(transcript_text: str) -> list[dict[st
             intents.append({"device_id": "main_door", "action": "open"})
 
     # 2. Hệ thống đèn (all_lights / living_room_light / bedroom_light)
-    if any(p in tn for p in ("tat het den", "tat toan bo den", "tat tat ca den", "tat 2 den", "tat hai den")):
+    if any(p in t for p in ("tắt hết đèn", "tắt toàn bộ đèn", "tắt tất cả đèn", "tắt 2 đèn", "tắt hai đèn")) or (
+        not has_diac and any(p in tn for p in ("tat het den", "tat toan bo den", "tat tat ca den", "tat 2 den", "tat hai den"))
+    ):
         intents.append({"device_id": "all_lights", "action": "turn_off"})
-    elif any(p in tn for p in ("bat het den", "bat toan bo den", "bat tat ca den", "bat 2 den", "bat hai den")):
+    elif any(p in t for p in ("bật hết đèn", "bật toàn bộ đèn", "bật tất cả đèn", "bật 2 đèn", "bật hai đèn")) or (
+        not has_diac and any(p in tn for p in ("bat het den", "bat toan bo den", "bat tat ca den", "bat 2 den", "bat hai den"))
+    ):
         intents.append({"device_id": "all_lights", "action": "turn_on"})
     else:
-        if "den phong khach" in tn or "den khach" in tn or ("bat den" in tn and "ngu" not in tn) or ("tat den" in tn and "ngu" not in tn):
+        lr_hit = (
+            any(p in t for p in ("đèn phòng khách", "đèn khách"))
+            or (re.search(r"\b(?:bật|tắt)\s+đèn\b", t) and "ngủ" not in t)
+            or (not has_diac and ("den phong khach" in tn or "den khach" in tn))
+        )
+        if lr_hit:
             act_lr = "turn_off" if ("tat den" in tn or (has_off and not has_on)) else "turn_on"
             intents.append({"device_id": "living_room_light", "action": act_lr})
-        if "den phong ngu" in tn or "den ngu" in tn:
+        br_hit = (
+            any(p in t for p in ("đèn phòng ngủ", "đèn ngủ"))
+            or (not has_diac and ("den phong ngu" in tn or "den ngu" in tn))
+        )
+        if br_hit:
             act_br = "turn_off" if ("tat den" in tn or (has_off and not has_on)) else "turn_on"
             intents.append({"device_id": "bedroom_light", "action": act_br})
 

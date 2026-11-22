@@ -415,3 +415,63 @@ def synth_foreign_audio(
 ) -> np.ndarray:
     """Synthesize non-Vietnamese speech (English, French, Korean, Spanish, German)."""
     return synthesize_persona_speech(text, persona=persona, lang=lang, cache_dir=cache_dir)
+
+
+async def _edge_tts_to_mp3_bytes(text: str, *, voice: str, rate: str, pitch: str) -> bytes:
+    import edge_tts
+
+    comm = edge_tts.Communicate(text=text, voice=voice, rate=rate, pitch=pitch)
+    chunks: list[bytes] = []
+    async for chunk in comm.stream():
+        if chunk.get("type") == "audio" and chunk.get("data"):
+            chunks.append(chunk["data"])
+    return b"".join(chunks)
+
+
+def _run_async_coro(coro: Any) -> Any:
+    import asyncio
+    import concurrent.futures
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        return ex.submit(asyncio.run, coro).result()
+
+
+def synthesize_edge_tts_speech(
+    text: str,
+    *,
+    voice: str = "vi-VN-HoaiMyNeural",
+    rate: str = "+0%",
+    pitch: str = "+0Hz",
+    cache_dir: pathlib.Path | None = None,
+) -> np.ndarray:
+    """Synthesize neural speech via edge-tts + PyAV (16kHz mono PCM16), cached to disk.
+
+    Falls back cleanly to synthesize_base_tts if edge-tts network synthesis fails.
+    """
+    cdir = _ensure_cache_dir(cache_dir)
+    clean_txt = text.strip()
+    safe_voice = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(voice))
+    key = _sha256_key("edge_tts_v1", voice, rate, pitch, clean_txt)
+    wav_path = cdir / f"edge_{safe_voice}_{key}.wav"
+    if wav_path.is_file() and wav_path.stat().st_size > 44:
+        return _read_wav_pcm16(wav_path)
+
+    try:
+        mp3_bytes = _run_async_coro(
+            _edge_tts_to_mp3_bytes(clean_txt, voice=voice, rate=rate, pitch=pitch)
+        )
+        if not mp3_bytes or len(mp3_bytes) < 64:
+            raise RuntimeError("edge-tts returned empty audio")
+        pcm = _decode_mp3_bytes_to_pcm16(mp3_bytes, target_sr=TARGET_SR)
+        pad = np.zeros(int(TARGET_SR * 0.12), dtype=np.int16)
+        pcm = np.concatenate([pad, pcm, pad])
+        _write_wav_pcm16(wav_path, pcm, sr=TARGET_SR)
+        return pcm
+    except Exception:
+        fallback_lang = "en" if str(voice).lower().startswith("en-") else "vi"
+        fallback_slow = str(rate).strip().startswith("-")
+        return synthesize_base_tts(clean_txt, lang=fallback_lang, slow=fallback_slow, cache_dir=cdir)

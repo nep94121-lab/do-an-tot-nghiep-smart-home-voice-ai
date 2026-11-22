@@ -151,18 +151,45 @@ async def broadcast_rest_state_to_bridges(
 _broadcast_rest_state_to_bridges = broadcast_rest_state_to_bridges
 
 
-def load_key() -> str:
-    """Đọc GEMINI_API_KEY từ biến môi trường hoặc tệp .env."""
-    env_val = os.environ.get("GEMINI_API_KEY", "").strip()
-    if env_val:
-        return env_val
-    env_file = ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
+_LAST_LOADED_KEY: str = ""
+
+
+def _read_key_from_env_file(env_file: pathlib.Path) -> str:
+    if not env_file.is_file():
+        return ""
+    try:
+        for raw_line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
             if line.startswith("GEMINI_API_KEY="):
-                val = line.split("=", 1)[1].strip()
+                val = line.split("=", 1)[1].strip().strip('"').strip("'").strip()
                 if val:
                     return val
+    except OSError:
+        return ""
+    return ""
+
+
+def load_key() -> str:
+    """Đọc GEMINI_API_KEY từ biến môi trường, SMARTHOME_ENV_FILE, hoặc tệp .env."""
+    global _LAST_LOADED_KEY
+    env_val = os.environ.get("GEMINI_API_KEY", "").strip().strip('"').strip("'").strip()
+    if env_val:
+        _LAST_LOADED_KEY = env_val
+        return env_val
+
+    custom_env = os.environ.get("SMARTHOME_ENV_FILE", "").strip()
+    if custom_env:
+        val = _read_key_from_env_file(pathlib.Path(custom_env))
+        if val:
+            _LAST_LOADED_KEY = val
+            return val
+
+    val = _read_key_from_env_file(ROOT / ".env")
+    if val:
+        _LAST_LOADED_KEY = val
+        return val
     return ""
 
 
@@ -172,6 +199,7 @@ KEY = load_key()
 def safe_str(msg: object) -> str:
     """Che key nếu xuất hiện trong log hoặc thông báo lỗi."""
     s = str(msg)
-    if KEY:
-        return s.replace(KEY, "***")
+    for secret in (KEY, _LAST_LOADED_KEY, os.environ.get("GEMINI_API_KEY", "").strip().strip('"').strip("'").strip()):
+        if secret:
+            s = s.replace(secret, "***")
     return s

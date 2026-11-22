@@ -362,6 +362,17 @@ async def auth_page(request: Request) -> Response:
     return _serve_cached_html(request, STATIC_DIR / "auth.html")
 
 
+@app.get("/automation")
+async def automation_page(request: Request) -> Response:
+    auto_file = STATIC_DIR / "automation.html"
+    if not auto_file.exists():
+        return HTMLResponse(
+            "<h1>Tự động hóa</h1><p>Đang tải trang Tự động hóa...</p>",
+            status_code=200,
+        )
+    return _serve_cached_html(request, auto_file)
+
+
 @app.get("/guest_guide")
 @app.get("/guest_guide/")
 async def guest_guide_page(request: Request) -> Response:
@@ -648,6 +659,13 @@ async def api_health() -> JSONResponse:
                 conn.close()
 
     hub = get_realtime_hub()
+    stt_warm = {"ready": False, "cold_start_ms": 0.0, "models": []}
+    try:
+        from simulator.voice.vietnamese_stt import get_local_stt_warm_state
+
+        stt_warm = get_local_stt_warm_state()
+    except Exception:
+        pass
     status_code = 200 if sqlite_ok else 503
     payload = {
         "ok": sqlite_ok,
@@ -657,6 +675,9 @@ async def api_health() -> JSONResponse:
         "table_count": table_count,
         "realtime_subscribers": hub.subscriber_count(),
         "active_ws_bridges": len(_ACTIVE_BRIDGES),
+        "stt_warm": bool(stt_warm.get("ready")),
+        "stt_cold_start_ms": float(stt_warm.get("cold_start_ms") or 0.0),
+        "stt_models": list(stt_warm.get("models") or []),
         **_resolve_deployment_version_info(),
     }
     return JSONResponse(payload, status_code=status_code, headers={"Cache-Control": "no-store"})
@@ -667,10 +688,17 @@ _SCHEDULER_TASK: asyncio.Task[Any] | None = None
 
 async def _automation_scheduler_loop() -> None:
     from simulator.api.routes_automation import run_scheduler_tick_once
+    from simulator.automation_engine import evaluate_compound_rules
 
+    tick_count = 0
     while True:
         try:
             await run_scheduler_tick_once()
+            tick_count += 1
+            if tick_count % 5 == 0:
+                hits = await evaluate_compound_rules(_REST_ENGINE, trigger_source="time_tick")
+                if hits:
+                    await broadcast_rest_state_to_bridges()
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -688,9 +716,26 @@ async def _on_server_startup_prewarm() -> None:
         pass
     if _SCHEDULER_TASK is None or _SCHEDULER_TASK.done():
         _SCHEDULER_TASK = asyncio.create_task(_automation_scheduler_loop())
-    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("PYTEST", "").strip() == "1"
+        or os.environ.get("VERCEL", "").strip() == "1"
+        or os.environ.get("SMARTHOME_UPSTREAM_URL", "").strip()
+    ):
         return
-    if os.environ.get("VERCEL", "").strip() == "1":
+    if os.environ.get("SMARTHOME_DISABLE_LOCAL_STT", "0").strip() != "1" and os.environ.get("SMARTHOME_SKIP_STT_PRELOAD", "0").strip() != "1":
+        async def _delayed_preload_local_stt() -> None:
+            # Yield briefly so uvicorn finishes binding its HTTP socket before heavy torch/ONNX imports.
+            await asyncio.sleep(0.6)
+            try:
+                from simulator.voice.vietnamese_stt import preload_local_stt_models
+
+                await asyncio.to_thread(preload_local_stt_models)
+            except Exception:
+                pass
+
+        asyncio.create_task(_delayed_preload_local_stt())
+    if os.environ.get("SIMULATOR_OFFLINE_SANDBOX", "").strip() == "1":
         return
     try:
         from simulator.live.tts_rejection_vi import prewarm_aoede_common_phrases

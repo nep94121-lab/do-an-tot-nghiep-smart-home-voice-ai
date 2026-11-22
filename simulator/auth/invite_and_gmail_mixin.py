@@ -1550,6 +1550,9 @@ class AuthInviteGmailMixin:
         t_low = spoken_text.strip().lower()
         if not t_low:
             return None
+        # Never hijack link-permission commands ("thu hồi quyền tạo liên kết...") — those require 4-step confirmation in automation_nlu
+        if "liên kết" in t_low or "lien ket" in t_low:
+            return None
 
         revoke_keywords = (
             "xóa quyền",
