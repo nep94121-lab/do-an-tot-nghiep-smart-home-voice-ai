@@ -312,6 +312,41 @@ class LiveToolDispatcherMixin:
             msg_ret = "Tính năng nhận diện giọng nói đã được gỡ bỏ; phân quyền dùng tài khoản và lời mời."
             return {"ok": False, "status": "RETIRED_ENDPOINT", "error": msg_ret, "exact_spoken_reply": msg_ret}
 
+        _unified_registry_tools = (
+            "edit_timer",
+            "edit_schedule",
+            "toggle_schedule",
+            "create_custom_command",
+            "list_custom_commands",
+            "edit_custom_command",
+            "delete_custom_command",
+            "run_custom_command",
+            "create_automation_rule",
+            "list_automation_rules",
+            "edit_automation_rule",
+            "toggle_automation_rule",
+            "delete_automation_rule",
+            "reset_automations",
+            "set_house_mode",
+            "get_ui_guidance",
+        )
+        if name in _unified_registry_tools or (
+            name == "create_schedule" and (args.get("weekdays") or str(args.get("schedule_type") or "").lower() == "weekly")
+        ):
+            from simulator.ai_tool_registry import dispatch_tool as _dispatch_unified_tool
+
+            res_u = await _dispatch_unified_tool(
+                name,
+                args,
+                engine=self.engine,
+                session=actor_sess,
+                source="gemini_live",
+                session_key=live_session_key,
+            )
+            if res_u.get("ok") and not res_u.get("requires_confirmation"):
+                await _broadcast_rest_state_to_bridges()
+            return res_u
+
         if name == "list_devices":
             devices = self.engine.list_accessible_devices(actor_tier=actor_tier)
             summary = ", ".join(f"{d['name']} {d['state_vi']}" for d in devices)

@@ -489,10 +489,27 @@ def list_pending_timers(
 # CLOCK SCHEDULES (Asia/Saigon, once / daily)
 # =============================================================================
 
+def _parse_weekdays_csv(raw: Any) -> tuple[list[int], str]:
+    if raw is None or raw == "":
+        return [], ""
+    if isinstance(raw, (list, tuple, set)):
+        days = sorted({int(x) for x in raw if not isinstance(x, bool) and str(x).strip().isdigit() and 0 <= int(x) <= 6})
+        return days, ",".join(str(d) for d in days)
+    s = str(raw).strip()
+    if not s:
+        return [], ""
+    days = sorted({int(p.strip()) for p in s.split(",") if p.strip().isdigit() and 0 <= int(p.strip()) <= 6})
+    return days, ",".join(str(d) for d in days)
+
+
 def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool = True) -> list[dict[str, Any]]:
-    sql = """
+    cols = {str(r["name"]) for r in conn.execute("PRAGMA table_info(schedules)").fetchall()}
+    has_wd = "weekdays" in cols
+    wd_col = "COALESCE(s.weekdays, '') AS weekdays," if has_wd else "'' AS weekdays,"
+    sql = f"""
         SELECT s.schedule_id, s.owner_user_id, COALESCE(u.full_name, s.owner_user_id) AS owner_name,
                s.owner_tier, s.device_id, s.action, s.time_hhmm, s.schedule_type,
+               {wd_col}
                s.run_date_vn, s.timezone, s.enabled, s.last_fired_date_vn,
                s.label, s.created_at, s.updated_at
         FROM schedules s
@@ -507,6 +524,8 @@ def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool 
         did = str(r["device_id"])
         dname = DEVICE_LABELS_VI.get(did) or DEFAULT_DEVICES.get(did, {}).get("name") or did
         act = str(r["action"])
+        wd_list, wd_csv = _parse_weekdays_csv(r["weekdays"])
+        st_type = str(r["schedule_type"] or "once")
         out.append({
             "id": str(r["schedule_id"]),
             "schedule_id": str(r["schedule_id"]),
@@ -518,8 +537,10 @@ def _list_schedules_in_conn(conn: sqlite3.Connection, *, include_disabled: bool 
             "action": act,
             "action_vi": ACTION_VI_LABEL.get(act, act),
             "time_hhmm": str(r["time_hhmm"]),
-            "schedule_type": str(r["schedule_type"] or "once"),
-            "repeat": str(r["schedule_type"] or "once"),
+            "schedule_type": st_type,
+            "repeat": "weekly" if wd_list else st_type,
+            "weekdays": wd_list,
+            "weekdays_csv": wd_csv,
             "run_date_vn": str(r["run_date_vn"] or ""),
             "timezone": str(r["timezone"] or "Asia/Saigon"),
             "enabled": bool(int(r["enabled"] or 0)),
@@ -553,6 +574,7 @@ def create_schedule(
     action: str,
     time_hhmm: str,
     schedule_type: str = "once",
+    weekdays: Any = None,
     run_date_vn: str = "",
     label: str = "",
     enabled: bool = True,
@@ -564,7 +586,9 @@ def create_schedule(
         raise ValueError(f"Thiết bị '{device_id}' không hợp lệ.")
     if action not in ACTION_TO_STATE:
         raise ValueError(f"Hành động '{action}' không hợp lệ.")
-    st_type = "daily" if str(schedule_type).strip().lower() == "daily" else "once"
+    wd_list, wd_csv = _parse_weekdays_csv(weekdays)
+    raw_type = str(schedule_type).strip().lower()
+    st_type = "daily" if (raw_type in ("daily", "weekly") or bool(wd_list)) else "once"
     hh, mm = [int(p) for p in str(time_hhmm).strip().split(":", 1)]
     if not (0 <= hh <= 23 and 0 <= mm <= 59):
         raise ValueError("Giờ phải nằm trong 00:00 đến 23:59.")
@@ -605,9 +629,9 @@ def create_schedule(
                     """
                     INSERT INTO schedules (
                         schedule_id, owner_user_id, owner_tier, device_id, action,
-                        time_hhmm, schedule_type, run_date_vn, timezone, enabled,
+                        time_hhmm, schedule_type, weekdays, run_date_vn, timezone, enabled,
                         last_fired_date_vn, label, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Asia/Saigon', ?, '', ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Asia/Saigon', ?, '', ?, ?, ?)
                     """,
                     (
                         sid,
@@ -617,6 +641,7 @@ def create_schedule(
                         action,
                         hhmm_norm,
                         st_type,
+                        wd_csv,
                         date_vn,
                         1 if enabled else 0,
                         clean_label,
@@ -641,7 +666,9 @@ def create_schedule(
         "action_vi": ACTION_VI_LABEL.get(action, action),
         "time_hhmm": hhmm_norm,
         "schedule_type": st_type,
-        "repeat": st_type,
+        "repeat": "weekly" if wd_list else st_type,
+        "weekdays": wd_list,
+        "weekdays_csv": wd_csv,
         "run_date_vn": date_vn,
         "timezone": "Asia/Saigon",
         "enabled": bool(enabled),
@@ -655,6 +682,7 @@ def update_schedule(
     *,
     time_hhmm: str | None = None,
     schedule_type: str | None = None,
+    weekdays: Any = None,
     run_date_vn: str | None = None,
     device_id: str | None = None,
     action: str | None = None,
@@ -685,14 +713,29 @@ def update_schedule(
                 if new_act not in ACTION_TO_STATE:
                     raise ValueError(f"Hành động '{new_act}' không hợp lệ.")
 
+                row_keys = set(row.keys())
+                ex_wd_csv = str(row["weekdays"] or "") if "weekdays" in row_keys else ""
+                if weekdays is not None:
+                    wd_list, new_wd_csv = _parse_weekdays_csv(weekdays)
+                else:
+                    wd_list, new_wd_csv = _parse_weekdays_csv(ex_wd_csv)
+
+                eff_sched_type = schedule_type
+                if eff_sched_type is not None and str(eff_sched_type).strip().lower() == "weekly":
+                    eff_sched_type = "daily"
+                elif wd_list and eff_sched_type is None:
+                    eff_sched_type = "daily"
+
                 new_hhmm, new_type, run_date, new_enabled_bool = compute_candidate_schedule_state(
                     row,
                     time_hhmm=time_hhmm,
-                    schedule_type=schedule_type,
+                    schedule_type=eff_sched_type,
                     run_date_vn=run_date_vn,
                     enabled=enabled,
                     now_vn=now_vn,
                 )
+                if new_type == "once" and weekdays is None and schedule_type == "once":
+                    new_wd_csv = ""
                 eff_tier = int(actor_tier if actor_tier is not None else (row["owner_tier"] or 1))
                 if new_enabled_bool and eff_tier > 1:
                     c_msg = _check_tier1_conflict_in_conn(
@@ -713,12 +756,13 @@ def update_schedule(
                     time_hhmm is not None
                     or run_date != str(row["run_date_vn"] or "")
                     or new_type != str(row["schedule_type"] or "once")
+                    or new_wd_csv != ex_wd_csv
                 )
                 c.execute(
                     """
                     UPDATE schedules
                     SET device_id = ?, action = ?, time_hhmm = ?, schedule_type = ?,
-                        run_date_vn = ?, enabled = ?, label = ?, updated_at = ?,
+                        weekdays = ?, run_date_vn = ?, enabled = ?, label = ?, updated_at = ?,
                         last_fired_date_vn = ?
                     WHERE schedule_id = ?
                     """,
@@ -727,6 +771,7 @@ def update_schedule(
                         new_act,
                         new_hhmm,
                         new_type,
+                        new_wd_csv,
                         run_date,
                         1 if new_enabled_bool else 0,
                         new_label,
@@ -1528,6 +1573,11 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
                 c.execute("DELETE FROM automation_rules")
                 c.execute("DELETE FROM custom_commands")
                 c.execute("DELETE FROM rules_pool WHERE rule_category = 'sensor_link'")
+                has_comp = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='compound_automation_rules'"
+                ).fetchone()
+                if has_comp:
+                    c.execute("DELETE FROM compound_automation_rules")
 
             run_write_transaction(conn, _tx)
         finally:
@@ -1960,16 +2010,25 @@ def reset_links_scoped(
         conn = get_connection(target)
         try:
             def _tx(c: sqlite3.Connection) -> int:
+                has_comp = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='compound_automation_rules'"
+                ).fetchone()
                 if clear_all:
                     cur1 = c.execute("DELETE FROM automation_rules")
                     cur2 = c.execute("DELETE FROM rules_pool WHERE rule_category IN ('if_else', 'link', 'sensor_link')")
-                    return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
+                    cur3 = c.execute("DELETE FROM compound_automation_rules") if has_comp else None
+                    return int(cur1.rowcount or 0) + int(cur2.rowcount or 0) + int(cur3.rowcount or 0 if cur3 else 0)
                 cur1 = c.execute("DELETE FROM automation_rules WHERE owner_user_id = ?", (uid,))
                 cur2 = c.execute(
                     "DELETE FROM rules_pool WHERE owner_user_id = ? AND rule_category IN ('if_else', 'link', 'sensor_link')",
                     (uid,),
                 )
-                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0)
+                cur3 = (
+                    c.execute("DELETE FROM compound_automation_rules WHERE owner_user_id = ?", (uid,))
+                    if has_comp
+                    else None
+                )
+                return int(cur1.rowcount or 0) + int(cur2.rowcount or 0) + int(cur3.rowcount or 0 if cur3 else 0)
 
             removed = run_write_transaction(conn, _tx)
         finally:

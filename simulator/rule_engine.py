@@ -144,6 +144,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.pending_voice_enrollment: dict[str, Any] | None = None
         self.server_connected: bool = True
         self.pump_manual_override_off: bool = False
+        self.house_mode: str = "HOME"
+        self._compound_eval_depth: int = 0
         self._explicit_test_user_set: bool = False
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
         self._applying_shared_state_depth = 0
@@ -203,6 +205,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         object.__setattr__(view, "pending_voice_enrollment", None)
         object.__setattr__(view, "server_connected", root.server_connected)
         object.__setattr__(view, "pump_manual_override_off", root.pump_manual_override_off)
+        object.__setattr__(view, "house_mode", getattr(root, "house_mode", "HOME"))
+        object.__setattr__(view, "_compound_eval_depth", 0)
         object.__setattr__(view, "mqtt_bridge", root.mqtt_bridge)
         object.__setattr__(view, "_applying_shared_state", False)
         object.__setattr__(view, "_initialized_devices", True)
@@ -237,6 +241,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "revision_ts_ns": self._last_synced_ts_ns,
             "server_connected": bool(self.server_connected),
             "pump_manual_override_off": bool(getattr(self, "pump_manual_override_off", False)),
+            "house_mode": str(getattr(self, "house_mode", "HOME") or "HOME"),
             "devices": {
                 k: {
                     "id": str(v.get("id", k)),
@@ -273,6 +278,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         if root is not self:
             root.server_connected = self.server_connected
             root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+            root.house_mode = getattr(self, "house_mode", getattr(root, "house_mode", "HOME"))
             saved = root.persist_to_shared_store()
             self._last_synced_seq = root._last_synced_seq
             self._last_synced_ts_ns = root._last_synced_ts_ns
@@ -324,6 +330,10 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     )
             if "pump_manual_override_off" in shared and "garden_pump" not in dirty:
                 self.pump_manual_override_off = bool(shared["pump_manual_override_off"])
+            if "house_mode" in shared and not dirty:
+                hm_val = str(shared.get("house_mode") or "HOME").strip().upper()
+                if hm_val in ("HOME", "AWAY"):
+                    self.house_mode = hm_val
 
             remote_rev = int(shared.get("revision_seq", 0) or 0)
             local_rev = int(self._last_synced_seq or 0)
@@ -460,6 +470,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             ok = root.sync_from_shared_store(force=force)
             self.server_connected = root.server_connected
             self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+            self.house_mode = getattr(root, "house_mode", "HOME")
             self._last_synced_seq = root._last_synced_seq
             self._last_synced_ts_ns = root._last_synced_ts_ns
             return ok
@@ -505,11 +516,13 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             with root.state_transaction():
                 self.server_connected = root.server_connected
                 self.pump_manual_override_off = getattr(root, "pump_manual_override_off", False)
+                self.house_mode = getattr(root, "house_mode", "HOME")
                 try:
                     yield
                 finally:
                     root.server_connected = self.server_connected
                     root.pump_manual_override_off = getattr(self, "pump_manual_override_off", False)
+                    root.house_mode = getattr(self, "house_mode", getattr(root, "house_mode", "HOME"))
             return
         is_outer = (self._mutation_depth == 0)
         if is_outer:
@@ -1901,6 +1914,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 if trigger_chains and self.server_connected:
                     triggered_fx = await self._evaluate_reactive_if_else(dev_id, new_state)
                     results.extend(triggered_fx)
+                    try:
+                        from simulator.automation_engine import evaluate_compound_rules
+
+                        comp_fx = await evaluate_compound_rules(self, trigger_source=f"device:{dev_id}")
+                        if comp_fx:
+                            results.extend(comp_fx)
+                    except Exception:
+                        pass
 
         defer_voice_snap = (
             source == "session_voice"
@@ -1992,6 +2013,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             hum_hits = await self._evaluate_reactive_if_else("humidity_sensor", hum_state)
             if hum_hits:
                 triggered.extend(hum_hits)
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_hits = await evaluate_compound_rules(self, trigger_source="sensor:dht11")
+                if comp_hits:
+                    triggered.extend(comp_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {
@@ -2069,6 +2098,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             soil_rule_hits = await self._evaluate_reactive_if_else("soil_sensor", soil_rule_state)
             if soil_rule_hits:
                 triggered.extend(soil_rule_hits)
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_soil_hits = await evaluate_compound_rules(self, trigger_source="sensor:soil")
+                if comp_soil_hits:
+                    triggered.extend(comp_soil_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         return {
             "ok": True,
@@ -2121,6 +2158,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "sound_sensor",
                 "LOUD" if is_loud else "QUIET",
             )
+            try:
+                from simulator.automation_engine import evaluate_compound_rules
+
+                comp_sound_hits = await evaluate_compound_rules(self, trigger_source="sensor:sound")
+                if comp_sound_hits:
+                    triggered_rules.extend(comp_sound_hits)
+            except Exception:
+                pass
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = (
             f"Cảm biến âm thanh KY-037 trên chân D5 phát hiện tiếng động lớn (tổng {snd.get('event_count', 0)} lần)."
@@ -2132,6 +2177,59 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "telemetry": snd,
             "mqtt_packet": pkt,
             "triggered_actions": triggered_rules,
+            "exact_spoken_reply": spoken,
+        }
+
+    async def set_house_mode(
+        self,
+        mode: str,
+        *,
+        source: str = "user",
+        actor_name: str = "",
+        actor_tier: int = 1,
+    ) -> dict[str, Any]:
+        """Chuyển trạng thái hiện diện ngôi nhà giữa Ở nhà (HOME) và Vắng nhà (AWAY) và đánh giá luật phức hợp."""
+        norm_mode = str(mode or "HOME").strip().upper()
+        if norm_mode not in ("HOME", "AWAY"):
+            return {"ok": False, "error": "Chế độ nhà chỉ hỗ trợ HOME hoặc AWAY."}
+        root = getattr(self, "_root_engine", self)
+        old_mode = str(getattr(root, "house_mode", "HOME") or "HOME").upper()
+        root.house_mode = norm_mode
+        self.house_mode = norm_mode
+        self.persist_to_shared_store()
+        triggered: list[dict[str, Any]] = []
+        try:
+            from simulator.automation_engine import evaluate_compound_rules
+
+            triggered = await evaluate_compound_rules(self, trigger_source=f"house_mode:{norm_mode}")
+        except Exception:
+            triggered = []
+        mode_vi = "Vắng nhà" if norm_mode == "AWAY" else "Ở nhà"
+        spoken = f"Đã chuyển sang chế độ {mode_vi}."
+        append_audit_log(
+            "AUTOMATION",
+            "house_mode_changed",
+            f"Đổi chế độ nhà {old_mode} -> {norm_mode} ({mode_vi})",
+            user_name=actor_name or self.get_current_user_name(),
+            tier=int(actor_tier or self.current_tier),
+            details={"old_mode": old_mode, "house_mode": norm_mode, "source": source},
+        )
+        await self.emit(
+            {
+                "type": "house_mode_changed",
+                "old_mode": old_mode,
+                "house_mode": norm_mode,
+                "message": spoken,
+                "source": source,
+            }
+        )
+        await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot(sync=False)})
+        return {
+            "ok": True,
+            "house_mode": norm_mode,
+            "mode_vi": mode_vi,
+            "triggered_actions": triggered,
+            "reply": spoken,
             "exact_spoken_reply": spoken,
         }
 

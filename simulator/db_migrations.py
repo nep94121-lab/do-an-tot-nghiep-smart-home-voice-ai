@@ -989,6 +989,30 @@ def apply_schema_migrations(conn: sqlite3.Connection) -> int:
     _ensure_column(conn, "devices", "room", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "devices", "device_type", "TEXT NOT NULL DEFAULT 'switch'")
     _ensure_column(conn, "system_state_meta", "sound_json", "TEXT NOT NULL DEFAULT '{}'")
+    _ensure_column(conn, "schedules", "weekdays", "TEXT NOT NULL DEFAULT ''")
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS compound_automation_rules (
+            rule_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            owner_tier INTEGER NOT NULL DEFAULT 1,
+            logic TEXT NOT NULL DEFAULT 'AND' CHECK (logic IN ('AND', 'OR')),
+            conditions_json TEXT NOT NULL DEFAULT '[]',
+            actions_json TEXT NOT NULL DEFAULT '[]',
+            else_actions_json TEXT NOT NULL DEFAULT '[]',
+            cooldown_seconds REAL NOT NULL DEFAULT 10.0,
+            hysteresis REAL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            label TEXT NOT NULL DEFAULT '',
+            last_fired_at REAL NOT NULL DEFAULT 0,
+            last_matched INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_compound_rules_owner ON compound_automation_rules(owner_user_id, enabled);
+        """
+    )
 
     _migrate_schema_v3(conn)
     _migrate_custom_commands_per_owner(conn)
