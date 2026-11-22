@@ -54,7 +54,7 @@ except ImportError:  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
-# Verified On-Board Hub Passives (R1..R9, C1..C7, D1..D3) matching KiCad PCB
+# Verified On-Board Hub Active/Passive/Indicator Components (R1..R10, Q1, C1..C7, D1..D3) matching KiCad PCB
 # ---------------------------------------------------------------------------
 ONBOARD_PASSIVES: tuple[tuple[str, str, str, str, str], ...] = (
     ("R1", "220 Ω", "1/4W Axial (DIN0207)", "D0_LED_LR ↔ LED_LR_A", "Current-limiting resistor for Living Room 5mm LED (J4, Active-HIGH)"),
@@ -200,7 +200,7 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
         "PIN_KY037_DO": ("U2.8", "3.3V digital input (`RISING` interrupt, `debounce >= 400ms`, lines 73–74, 412)"),
         "PIN_GARDEN_PUMP": ("U2.9", "Active-HIGH (`PUMP_RELAY_ACTIVE_LOW = false`, line 70); soil hysteresis `<40% ON / >=70% OFF`"),
         "PIN_SPEAKER_AMP": ("U2.10", "Active-HIGH (`SPEAKER_RELAY_ACTIVE_LOW = false`, line 71; Relay 2 Jumper=`H`); auto-off `1.5s`"),
-        "PIN_ALARM_SIREN": ("U2.11", "**Boot-strap LOW:** Active-HIGH + `R9 10kΩ` pull-down (silent at boot) + `D2 1N4007` flyback"),
+        "PIN_ALARM_SIREN": ("U2.11", "**Boot-strap LOW:** Active-HIGH via `R10 1kΩ → Q1 S8050` (NPN low-side) + `R9 10kΩ` pull-down (silent at boot) + `D2 1N4007` flyback"),
         "PIN_SOIL_MOISTURE": ("U1.1", "10-bit ADC0 (`0–3.3V` via NodeMCU divider) + `C7 100nF` filter; LM393 strictly powered by `+3V3`"),
     }
     for macro, (dx, gpio, hub_sig) in FIRMWARE_PIN_CONTRACT.items():
@@ -212,10 +212,15 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
         )
     lines.append("")
 
-    # Section 3: On-Board Hub Passives
-    lines.append("## 3. On-Board Type-1 Hub PCB Protective Passives (`R1`–`R9`, `C1`–`C7`, `D1`–`D3`)")
+    # Section 3: On-Board Hub Active/Passive/Indicator Components
+    lines.append("## 3. On-Board Type-1 Hub PCB Active, Passive & Indicator Components (`R1`–`R10`, `Q1`, `C1`–`C7`, `D1`–`D3`)")
     lines.append("")
-    lines.append("All 19 passive/indicator components are permanently soldered onto the `80.0 × 65.0 × 1.6 mm` FR4 Hub PCB (`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`, 40 total BOM parts including `U1/U2`, `J1..J15`, `H1..H4`):")
+    lines.append(
+        f"All {len(ONBOARD_PASSIVES)} on-board active/passive/indicator components (`R1`–`R10`, `Q1`, `C1`–`C7`, `D1`–`D3`) "
+        "are permanently soldered onto the `100.0 × 80.0 × 1.6 mm` single-layer FR4 Hub PCB "
+        "(`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`, **49 total BOM footprints** = **45 soldered parts + 4 M3 mounting holes**: "
+        "21 active/passive/indicator components, `U1`–`U2` sockets, `J1`–`J15` connectors, `JP1`–`JP7` top-side wire jumpers, and `H1`–`H4` mounting holes):"
+    )
     lines.append("")
     lines.append("| Ref | Value | Package / Pitch | Verified KiCad Nets | Electrical & Protection Role |")
     lines.append("|---|---|---|---|---|")
@@ -238,7 +243,7 @@ def generate_wiring_table_md(out_path: Path, stats: dict[str, object]) -> None:
     lines.append("### Boot-Strap & Electrical Safety Verification")
     lines.append("- [x] **`D3` (`GPIO0`) Audio PWM (`J12` → `PAM8403 L`):** Protected by on-board `R4` (`10 kΩ` pull-up to `+3V3`), `C4` (`10 µF 16V` DC-blocking cap), `R5/R6` (`2.2 kΩ / 2.2 kΩ` attenuator), and `C5` (`10 nF` RC filter). Firmware keeps `PIN_AUDIO_PWM` in `INPUT` (high-Z) during idle and returns to `INPUT` immediately after `noTone()` (`esp8266_smarthome.ino:166-184, 394`), preventing accidental UART flash mode entry.")
     lines.append("- [x] **`D4` (`GPIO2`) Bedroom LED (`J5`):** Wired **Active-LOW** (`+3V3 → R2 220Ω → J5.1 → LED(+) → LED(-) → J5.2 → D4`) with on-board `R7` (`10 kΩ` pull-up). Firmware sets `BEDROOM_LED_ACTIVE_LOW = true` and pre-writes `HIGH` before `pinMode(OUTPUT)` (`esp8266_smarthome.ino:68, 396-397`), ensuring `GPIO2` stays `HIGH` during reset.")
-    lines.append("- [x] **`D8` (`GPIO15`) Alarm Buzzer (`J6`):** Wired **Active-HIGH** with on-board `R9` (`10 kΩ` pull-down to `GND`) and `D2` (`1N4007` flyback diode). Firmware pre-writes `LOW` before `pinMode(OUTPUT)` (`esp8266_smarthome.ino:63, 399-400`), ensuring boot success and zero startup chirp.")
+    lines.append("- [x] **`D8` (`GPIO15`) Alarm Buzzer (`J6`):** Driven low-side via on-board `R10` (`1 kΩ` base resistor) → `Q1` (`S8050` NPN, `E=GND`, `Buzzer(+)=+5V`, `Buzzer(-)=Q1 Collector`), with `R9` (`10 kΩ` pull-down from `D8` to `GND`) and `D2` (`1N4007` flyback diode across `J6.1–J6.2`). Firmware pre-writes `LOW` before `pinMode(OUTPUT)` (`esp8266_smarthome.ino:63, 399-400`), ensuring boot success and zero startup chirp.")
     lines.append("- [x] **Strictly 3.3V-Only Sensor Modules (`LM393` on `J14`, `KY-037/038` on `J15`):** Both sensor boards are fed exclusively from the NodeMCU `+3V3` rail (NEVER `+5V`), guaranteeing `LM393 AO` stays safely within the ESP8266 `ADC0` input window and `KY-037 DO` outputs 3.3V-safe logic levels into `D5 (GPIO14)`.")
     lines.append("- [x] **PAM8403 Bridge-Tied Load (BTL) Speaker Warning (`W28`, `W29`):** The Mini Speaker (`28 mm, 8 Ω, 0.5 W`) connects differentially across `PAM8403 L_OUT+` (Yellow) and `L_OUT-` (Brown). **NEVER tie `L_OUT-` to system `GND`** — doing so shorts the Class-D H-bridge output stage and damages the PAM8403 IC.")
     lines.append("- [x] **Inductive Flyback & Power Rail Decoupling (`D1`, `D2`, `C1`, `C2`, `C3`, `C6`, `C7`):** `D1` (`1N4007`) clamps back-EMF across the 3–6V submersible pump (`J2`, `PUMP_5V ↔ GND`), `D2` (`1N4007`) clamps the active buzzer (`J6`), `C1` & `C2` (`470 µF 16V` each) absorb SG90 servo and pump startup current surges on `+5V`, and `C3`/`C6`/`C7` (`100 nF`) suppress high-frequency noise on `+5V`, `AMP_5V`, and `A0_SOIL`.")
@@ -878,7 +883,7 @@ def build_clean_wiring_diagram() -> VectorScene:
     draw_passive_badge(678, 308, 66, 28, "#F3E8FF", "#9333EA", "R1/R2 220Ω", "LR & BR LED")
     draw_passive_badge(678, 342, 66, 32, "#E0E7FF", "#4F46E5", "R3/R4/R7/R9", "10k Pull-Up/Dn")
     draw_passive_badge(678, 380, 66, 38, "#FEF3C7", "#B45309", "C4 10µ·C5 10n", "R5/R6 2.2k RC")
-    draw_passive_badge(678, 424, 66, 28, "#FEE2E2", "#DC2626", "D2 1N4007", "Buzz Flyback")
+    draw_passive_badge(678, 424, 66, 28, "#FEE2E2", "#DC2626", "Q1/R10+D2", "S8050+1N4007")
     draw_passive_badge(678, 458, 66, 28, "#E0F2FE", "#0284C7", "C6 100nF", "AMP_5V Decpl")
 
     # ------------------------------------------------------------------
@@ -1108,7 +1113,7 @@ def build_clean_wiring_diagram() -> VectorScene:
         "• D3 (GPIO0): C4 10µF + R5/R6 2.2k + C5 10nF;",
         "  R4 10k pull-up; firmware IDLE = INPUT (high-Z)",
         "• D4 (GPIO2): Active-LOW + R7 10k pull-up",
-        "• D8 (GPIO15): Active-HIGH + R9 10k pull-down",
+        "• D8 (GPIO15): R10 1k→Q1 S8050 + R9 10k PD",
         "• LM393 (J14) & KY-037 (J15): 3.3V ONLY!",
         "• PAM8403 BTL: NEVER tie L_OUT- to GND!",
         "• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF",
@@ -1277,10 +1282,10 @@ def build_clean_wiring_diagram() -> VectorScene:
         subtitle="Alarm Siren · Active-HIGH (D8)",
         dims="Ø12.0×9.5 mm",
         accent="#DC2626", header_bg="#FEE2E2",
-        badge="R9+D2", badge_bg="#FEF3C7", badge_fg="#92400E",
-        extra_note="Silent at boot (R9 10k pull-down)",
+        badge="Q1+R9/R10+D2", badge_bg="#FEF3C7", badge_fg="#92400E",
+        extra_note="Low-side Q1 S8050 + R9 10k PD",
     )
-    for py, pname, wid, col in [(632.0, "Buzzer (+)", "W17", "Orange"), (646.0, "Buzzer (-)", "W18", "Black")]:
+    for py, pname, wid, col in [(632.0, "Buzzer (+)", "W17", "Red"), (646.0, "Buzzer (-)", "W18", "Orange")]:
         px = 956.0
         draw_pin_dot(s, px, py, color_name=col, r=3.6)
         s.text(px + 7.0, py, f"({wid}) {pname}", size=5.4, color="#0F172A", bold=True, mono=True, align="left")

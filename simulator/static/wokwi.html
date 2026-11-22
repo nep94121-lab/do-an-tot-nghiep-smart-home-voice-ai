@@ -70,6 +70,10 @@
             <span id="hoverHoleInfo">Nhiệt độ: 28.5°C · Độ ẩm: 65% · Độ ẩm đất: 55%</span>
           </div>
 
+          <div class="pcb-wiring-note" id="pcbWiringNote" role="note">
+            <strong>Lưu ý đấu nối thực tế theo PCB Hub (100×80 mm):</strong> Cắm dây trên breadboard phải tuân thủ đúng sơ đồ mạch PCB thực tế (đèn ngủ <strong>D4</strong> đấu Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ; đường âm thanh <strong>D3</strong> dùng R4 10kΩ kéo lên 3.3V, tụ <strong>C4 10µF 16V</strong>, cầu R5/R6 2.2kΩ và C5 10nF). Riêng chân <strong>D8 (GPIO15)</strong> bắt buộc có điện trở kéo xuống <strong>R9 (10kΩ → GND)</strong> để an toàn khi khởi động, và lái còi 5V qua <strong>R10 (1kΩ) → Q1 (S8050 NPN)</strong> kèm diode dập xung <strong>D2 (1N4007)</strong> (không nối trực tiếp còi vào D8).
+          </div>
+
           <div class="workbench-scroll" id="workbenchScroll">
             <div class="circuit-stage-wrap" id="circuitStageWrap">
             <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
@@ -136,35 +140,77 @@
 
           <!-- 3. CÁC LINH KIỆN WOKWI THẬT CẮM TRỰC TIẾP LÊN LỖ BREADBOARD (TÁCH RÕ NỬA TRÊN & NỬA DƯỚI KHÔNG ĐÈ NHAU) -->
 
-          <!-- 3.1. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Khách LED Đỏ (D0) + Điện trở 220Ω (Cột 4 → 9) -->
-          <div class="hw-comp" id="box_r_liv" style="left: 376px; top: 140px; pointer-events:none;">
+          <!-- 3.1. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Khách LED Đỏ (D0) + R1 220Ω (Cột 4 → 9) -->
+          <div class="hw-comp" id="box_r_liv" style="left: 376px; top: 140px; pointer-events:none;" title="R1 220Ω hạn dòng LED phòng khách (D0)">
             <wokwi-resistor id="w_r_liv" value="220"></wokwi-resistor>
+            <div style="font-family:Consolas,monospace; font-size:9px; font-weight:700; color:#15803d; text-align:center; margin-top:2px; background:rgba(248,250,252,0.95); border-radius:3px; padding:0 3px;">R1 220Ω</div>
           </div>
-          <div class="hw-comp" id="box_led_liv" style="left: 416px; top: 75px; cursor:pointer;" onclick="toggleDevice('living_room_light')" title="Bấm để Bật/Tắt Đèn Phòng Khách (D0/GPIO16)">
+          <div class="hw-comp" id="box_led_liv" style="left: 416px; top: 75px; cursor:pointer;" onclick="toggleDevice('living_room_light')" title="Bấm để Bật/Tắt Đèn Phòng Khách (D0/GPIO16 qua R1 220Ω)">
             <wokwi-led id="w_led_living" color="red" flip="true"></wokwi-led>
           </div>
 
-          <!-- 3.2. Tụ hóa lọc nguồn 470µF 16V + Cầu phân áp RC / Tụ chặn DC 100nF (Cột 13 → 17) -->
-          <div class="hw-comp" id="box_cap_rail" style="left: 505px; top: 96px; pointer-events:none;" title="Tụ lọc nguồn 470µF 16V &amp; mạch đệm RC âm thanh D3">
-            <svg width="78" height="72" viewBox="0 0 78 72">
-              <rect x="6" y="10" width="24" height="36" rx="5" fill="#166534" stroke="#eab308" stroke-width="1.5"/>
-              <rect x="24" y="10" width="6" height="36" rx="2" fill="#e2e8f0"/>
-              <text x="16" y="25" font-size="6.5" text-anchor="middle" fill="#fef08a" font-weight="bold">470µF</text>
-              <text x="16" y="36" font-size="6" text-anchor="middle" fill="#dcfce7">16V</text>
-              <line x1="12" y1="46" x2="12" y2="66" stroke="#94a3b8" stroke-width="2"/>
-              <line x1="24" y1="46" x2="24" y2="66" stroke="#94a3b8" stroke-width="2"/>
-              <circle cx="54" cy="24" r="10" fill="#d97706" stroke="#fde047" stroke-width="1.5"/>
-              <text x="54" y="27" font-size="6.5" text-anchor="middle" fill="#fff" font-weight="bold">104</text>
-              <line x1="49" y1="34" x2="49" y2="66" stroke="#94a3b8" stroke-width="1.8"/>
-              <line x1="59" y1="34" x2="59" y2="66" stroke="#94a3b8" stroke-width="1.8"/>
+          <!-- 3.2. MẠCH ÂM THANH D3 (GPIO0) ĐÚNG PCB: R4 10k kéo lên 3.3V + C4 10µF 16V + R5/R6 2.2k + C5 10nF (Cột 11 → 20) -->
+          <div class="hw-comp" id="box_d3_audio_rc" style="left: 472px; top: 66px; cursor:pointer;" onclick="filterStep('d3_d7_speaker')" title="Mạch âm thanh D3 đúng PCB: R4 10k kéo lên 3.3V, tụ C4 10µF 16V, cầu R5/R6 2.2kΩ và tụ lọc C5 10nF">
+            <svg width="158" height="122" viewBox="0 0 158 122">
+              <rect x="1" y="1" width="156" height="120" rx="6" fill="rgba(15,23,42,0.94)" stroke="#a855f7" stroke-width="1.6"/>
+              <text x="86" y="14" font-size="8" text-anchor="middle" fill="#e9d5ff" font-weight="bold">Mạch âm thanh D3 (PCB)</text>
+
+              <!-- Đường nguồn +3.3V và R4 10k kéo lên D3 -->
+              <circle cx="24" cy="24" r="3" fill="#fb923c" stroke="#fff" stroke-width="0.8"/>
+              <text x="30" y="27" font-size="6.6" fill="#fdba74" font-weight="bold">+3.3V</text>
+              <line x1="24" y1="27" x2="24" y2="33" stroke="#fb923c" stroke-width="1.6"/>
+              <rect x="12" y="33" width="24" height="15" rx="2" fill="#1e293b" stroke="#fb923c" stroke-width="1.2"/>
+              <text x="24" y="43" font-size="6.2" text-anchor="middle" fill="#fed7aa" font-weight="bold">R4 10k</text>
+              <line x1="24" y1="48" x2="24" y2="62" stroke="#a855f7" stroke-width="1.8"/>
+
+              <!-- Đầu vào D3 -> C4 10µF 16V -> R5 2.2k -> nút AUD_OUT -->
+              <circle cx="10" cy="62" r="3.4" fill="#a855f7" stroke="#fff" stroke-width="0.9"/>
+              <text x="10" y="74" font-size="6.8" text-anchor="middle" fill="#d8b4fe" font-weight="bold">D3</text>
+              <line x1="13" y1="62" x2="36" y2="62" stroke="#a855f7" stroke-width="2"/>
+              <circle cx="24" cy="62" r="2.2" fill="#e9d5ff"/>
+
+              <!-- Tụ hóa C4 10µF 16V -->
+              <rect x="36" y="49" width="38" height="25" rx="4" fill="#166534" stroke="#fde047" stroke-width="1.4"/>
+              <rect x="68" y="49" width="6" height="25" rx="1.5" fill="#e2e8f0"/>
+              <text x="52" y="59.5" font-size="6.2" text-anchor="middle" fill="#fef08a" font-weight="bold">C4 10µF</text>
+              <text x="52" y="69.5" font-size="5.8" text-anchor="middle" fill="#dcfce7" font-weight="bold">16V (+)</text>
+              <line x1="74" y1="62" x2="82" y2="62" stroke="#c084fc" stroke-width="2"/>
+
+              <!-- Điện trở R5 2.2kΩ nối tiếp -->
+              <rect x="82" y="54" width="30" height="16" rx="2.5" fill="#1e293b" stroke="#38bdf8" stroke-width="1.2"/>
+              <text x="97" y="64.5" font-size="6.2" text-anchor="middle" fill="#bae6fd" font-weight="bold">R5 2.2k</text>
+              <line x1="112" y1="62" x2="146" y2="62" stroke="#c084fc" stroke-width="2"/>
+
+              <!-- Nút AUD_OUT (sau R5) ra PAM8403 (L) -->
+              <circle cx="122" cy="62" r="2.4" fill="#fef08a"/>
+              <circle cx="146" cy="62" r="3.4" fill="#c084fc" stroke="#fff" stroke-width="0.9"/>
+              <text x="140" y="52" font-size="6.3" text-anchor="middle" fill="#f5d0fe" font-weight="bold">L→AMP</text>
+
+              <!-- Nhánh xuống GND từ nút AUD_OUT (sau R5): R6 2.2kΩ và tụ gốm C5 10nF -->
+              <polyline points="122,62 122,74 102,74 102,79" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+              <rect x="86" y="79" width="32" height="15" rx="2.5" fill="#1e293b" stroke="#38bdf8" stroke-width="1.2"/>
+              <text x="102" y="89" font-size="6.1" text-anchor="middle" fill="#bae6fd" font-weight="bold">R6 2.2k</text>
+              <line x1="102" y1="94" x2="102" y2="106" stroke="#94a3b8" stroke-width="1.5"/>
+
+              <polyline points="122,62 122,74 136,74 136,79" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+              <circle cx="136" cy="87" r="8.5" fill="#d97706" stroke="#fde047" stroke-width="1.2"/>
+              <text x="136" y="86" font-size="5.5" text-anchor="middle" fill="#fff" font-weight="bold">C5</text>
+              <text x="136" y="92" font-size="5" text-anchor="middle" fill="#fef08a" font-weight="bold">10nF</text>
+              <line x1="136" y1="95.5" x2="136" y2="106" stroke="#94a3b8" stroke-width="1.5"/>
+
+              <!-- Thanh GND chung -->
+              <line x1="92" y1="106" x2="144" y2="106" stroke="#94a3b8" stroke-width="2"/>
+              <circle cx="118" cy="106" r="3" fill="#64748b" stroke="#fff" stroke-width="0.8"/>
+              <text x="46" y="109" font-size="6.4" text-anchor="middle" fill="#cbd5e1" font-weight="bold">C4=10µF · C5=10nF · GND</text>
             </svg>
           </div>
 
-          <!-- 3.3. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Phòng Ngủ (D4/GPIO2 Active-LOW): Trở 220Ω + LED Vàng 5mm (Cột 22 → 26) -->
-          <div class="hw-comp" id="box_r_bed" style="left: 637px; top: 140px; pointer-events:none;">
+          <!-- 3.3. NỬA TRÊN BREADBOARD (Hàng a..e): Đèn Phòng Ngủ (D4/GPIO2 Active-LOW): R2 220Ω + R7 10kΩ + LED Vàng 5mm (Cột 22 → 26) -->
+          <div class="hw-comp" id="box_r_bed" style="left: 637px; top: 140px; pointer-events:none;" title="R2 220Ω hạn dòng + R7 10kΩ kéo lên 3.3V cho LED ngủ D4 Active-LOW">
             <wokwi-resistor id="w_r_bed" value="220"></wokwi-resistor>
+            <div style="font-family:Consolas,monospace; font-size:8.6px; font-weight:700; color:#7e22ce; text-align:center; margin-top:2px; background:rgba(248,250,252,0.95); border-radius:3px; padding:0 3px;">R2 220Ω · R7 10k</div>
           </div>
-          <div class="hw-comp" id="box_led_bed" style="left: 677px; top: 75px; cursor:pointer;" onclick="toggleDevice('bedroom_light')" title="Bấm để Bật/Tắt Đèn Phòng Ngủ (D4/GPIO2 — Active-LOW an toàn boot)">
+          <div class="hw-comp" id="box_led_bed" style="left: 677px; top: 75px; cursor:pointer;" onclick="toggleDevice('bedroom_light')" title="Bấm để Bật/Tắt Đèn Phòng Ngủ (D4/GPIO2 — Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ)">
             <wokwi-led id="w_led_bedroom" color="yellow" flip="true"></wokwi-led>
           </div>
 
@@ -174,17 +220,80 @@
           </div>
           <div class="comp-tag" style="left: 315px; top: 360px; font-size:10px; border-color:#f87171; color:#fecaca;">KY-037 Âm thanh (Chân D5)</div>
 
-          <!-- 3.5. NỬA DƯỚI BREADBOARD (Hàng f..j): Cảm biến DHT11 (<wokwi-dht22>) cắm vào hàng f..j (Cột 14 → 17) -->
-          <div class="hw-comp" id="box_dht" style="left: 518px; top: 202px; transform: scale(0.66); transform-origin: top left; cursor:pointer;" onclick="filterStep('d2_dht11')" title="Cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D2/GPIO4)">
+          <!-- 3.5. NỬA DƯỚI BREADBOARD (Hàng f..j): Cảm biến DHT11 (<wokwi-dht22>) + R3 10kΩ kéo lên 3.3V (Cột 14 → 17) -->
+          <div class="hw-comp" id="box_dht" style="left: 510px; top: 202px; transform: scale(0.64); transform-origin: top left; cursor:pointer;" onclick="filterStep('d2_dht11')" title="Cảm biến Nhiệt độ &amp; Độ ẩm DHT11 (Chân D2/GPIO4, kèm điện trở kéo lên R3 10kΩ)">
             <wokwi-dht22 id="w_dht" temperature="28.5" humidity="65"></wokwi-dht22>
+            <div style="font-family:Consolas,monospace; font-size:11.5px; font-weight:700; color:#0369a1; text-align:center; background:rgba(248,250,252,0.94); border-radius:4px; margin-top:-4px; padding:0 3px;">R3 10k</div>
           </div>
           <div class="comp-tag" style="left: 500px; top: 360px; font-size:10px; border-color:#38bdf8;">Cảm biến DHT11 (Chân D2)</div>
 
-          <!-- 3.6. NỬA DƯỚI BREADBOARD (Hàng f..j): Còi báo động Buzzer 5V (<wokwi-buzzer>) cắm vào hàng j (Cột 24, 25) -->
-          <div class="hw-comp" id="box_buzzer" style="left: 642px; top: 216px; transform: scale(0.68); transform-origin: top left; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8/GPIO15)">
+          <!-- 3.6. NỬA DƯỚI BREADBOARD (Hàng f..j): Mạch lái NPN Còi 5V (D8 -> R10 1k -> Q1 S8050, R9 10k kéo xuống GND, D2 1N4007 dập xung) + Còi Buzzer 5V -->
+          <div class="hw-comp" id="box_buzzer_npn" style="left: 572px; top: 202px; cursor:pointer;" onclick="filterStep('d8_buzzer')" title="Mạch lái còi 5V đúng PCB: D8 → R10 1kΩ → Q1 S8050 (NPN), R9 10kΩ kéo xuống GND, Còi (+) → 5V, Còi (-) → Q1(C), D2 1N4007 dập xung song song còi">
+            <svg width="144" height="126" viewBox="0 0 144 126">
+              <rect x="1" y="1" width="142" height="124" rx="6" fill="rgba(15,23,42,0.94)" stroke="#f43f5e" stroke-width="1.6"/>
+              <text x="64" y="13" font-size="7.8" text-anchor="middle" fill="#fecdd3" font-weight="bold">Mạch lái còi NPN (D8)</text>
+
+              <!-- Đầu vào D8 và R9 10kΩ kéo xuống GND -->
+              <circle cx="10" cy="48" r="3.4" fill="#f43f5e" stroke="#fff" stroke-width="0.9"/>
+              <text x="10" y="38" font-size="6.8" text-anchor="middle" fill="#fda4af" font-weight="bold">D8</text>
+              <line x1="13" y1="48" x2="36" y2="48" stroke="#f43f5e" stroke-width="2"/>
+              <circle cx="24" cy="48" r="2.2" fill="#fecdd3"/>
+
+              <!-- R9 10kΩ kéo xuống GND -->
+              <line x1="24" y1="48" x2="24" y2="62" stroke="#94a3b8" stroke-width="1.6"/>
+              <rect x="9" y="62" width="30" height="22" rx="2.5" fill="#1e293b" stroke="#fbbf24" stroke-width="1.2"/>
+              <text x="24" y="71.5" font-size="6.2" text-anchor="middle" fill="#fde68a" font-weight="bold">R9 10k</text>
+              <text x="24" y="80" font-size="5.4" text-anchor="middle" fill="#cbd5e1">kéo GND</text>
+              <line x1="24" y1="84" x2="24" y2="114" stroke="#94a3b8" stroke-width="1.6"/>
+
+              <!-- R10 1kΩ vào cực B của Q1 -->
+              <rect x="36" y="40" width="28" height="16" rx="2.5" fill="#1e293b" stroke="#f43f5e" stroke-width="1.2"/>
+              <text x="50" y="50.5" font-size="6.3" text-anchor="middle" fill="#fecdd3" font-weight="bold">R10 1k</text>
+              <line x1="64" y1="48" x2="77" y2="48" stroke="#fb7185" stroke-width="1.8"/>
+
+              <!-- Transistor NPN Q1 S8050 -->
+              <circle cx="88" cy="52" r="13.5" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+              <line x1="82" y1="44" x2="82" y2="60" stroke="#e2e8f0" stroke-width="2"/>
+              <line x1="77" y1="48" x2="82" y2="48" stroke="#e2e8f0" stroke-width="1.6"/>
+              <line x1="82" y1="47" x2="94" y2="40" stroke="#f97316" stroke-width="1.8"/>
+              <line x1="82" y1="57" x2="94" y2="64" stroke="#94a3b8" stroke-width="1.8"/>
+              <polygon points="94,64 88,63 91,58" fill="#94a3b8"/>
+              <text x="72" y="43" font-size="5.8" fill="#fda4af" font-weight="bold">B</text>
+              <text x="97" y="38" font-size="5.8" fill="#fdba74" font-weight="bold">C</text>
+              <text x="98" y="69" font-size="5.8" fill="#cbd5e1" font-weight="bold">E</text>
+
+              <!-- Nhãn Q1 S8050 đặt gọn bên trái đường Emitter (không bị đè dây) -->
+              <text x="66" y="79" font-size="6.5" text-anchor="middle" fill="#7dd3fc" font-weight="bold">Q1 S8050</text>
+              <text x="66" y="88" font-size="5.5" text-anchor="middle" fill="#cbd5e1">(NPN E-B-C)</text>
+
+              <!-- Cực E nối GND chung -->
+              <line x1="94" y1="64" x2="94" y2="114" stroke="#94a3b8" stroke-width="1.8"/>
+              <line x1="18" y1="114" x2="100" y2="114" stroke="#94a3b8" stroke-width="2"/>
+              <text x="60" y="106" font-size="6" text-anchor="middle" fill="#cbd5e1" font-weight="bold">GND (R9 + Q1.E)</text>
+              <circle cx="60" cy="114" r="3" fill="#64748b" stroke="#fff" stroke-width="0.8"/>
+
+              <!-- Đường +5V, D2 1N4007 dập xung và ra Còi (+ / -) -->
+              <line x1="94" y1="40" x2="134" y2="40" stroke="#f97316" stroke-width="2"/>
+              <circle cx="134" cy="40" r="3.2" fill="#f97316" stroke="#fff" stroke-width="0.9"/>
+              <text x="129" y="51" font-size="5.8" text-anchor="middle" fill="#fdba74" font-weight="bold">Còi(-)</text>
+
+              <circle cx="134" cy="24" r="3.2" fill="#ef4444" stroke="#fff" stroke-width="0.9"/>
+              <text x="115" y="19.5" font-size="5.8" text-anchor="middle" fill="#fca5a5" font-weight="bold">+5V→Còi(+)</text>
+
+              <!-- Diode dập xung D2 1N4007 song song giữa +5V (Cathode) và Q1.C / Còi(-) (Anode) -->
+              <line x1="115" y1="24" x2="134" y2="24" stroke="#ef4444" stroke-width="1.8"/>
+              <line x1="115" y1="24" x2="115" y2="40" stroke="#e2e8f0" stroke-width="1.6"/>
+              <rect x="109" y="27" width="12" height="10" rx="1.5" fill="#0f172a" stroke="#94a3b8" stroke-width="1"/>
+              <rect x="109" y="27" width="12" height="2.6" fill="#e2e8f0"/>
+              <text x="122" y="64" font-size="6.1" text-anchor="middle" fill="#fde047" font-weight="bold">D2</text>
+              <text x="122" y="72.5" font-size="5.6" text-anchor="middle" fill="#fde047" font-weight="bold">1N4007</text>
+              <text x="122" y="80.5" font-size="5.2" text-anchor="middle" fill="#cbd5e1">dập xung</text>
+            </svg>
+          </div>
+          <div class="hw-comp" id="box_buzzer" style="left: 716px; top: 218px; transform: scale(0.62); transform-origin: top left; cursor:pointer;" onclick="toggleDevice('alarm_siren')" title="Bấm để Bật/Tắt Còi báo động Buzzer 5V (Chân D8 qua R10 1kΩ → Q1 S8050 NPN, Còi + nối 5V, Còi - nối Q1 Collector)">
             <wokwi-buzzer id="w_buzzer"></wokwi-buzzer>
           </div>
-          <div class="comp-tag" style="left: 648px; top: 388px; font-size:10px; border-color:#f43f5e;">Còi Buzzer 5V (Chân D8)</div>
+          <div class="comp-tag" style="left: 576px; top: 388px; font-size:10px; border-color:#f43f5e;">Còi Buzzer 5V (D8 → Q1 S8050 + D2)</div>
 
           <!-- 4. CÁC THIẾT BỊ NGOẠI VI BÊN PHẢI & PHÍA DƯỚI (ĐÚNG NHƯ TRÊN BÀN CỦA BẠN) -->
 
@@ -219,27 +328,27 @@
               <!-- Đèn báo nguồn & Đèn báo kích Relay -->
               <circle cx="30" cy="96" r="4.5" fill="#22c55e"/>
               <circle id="relay_act_led" cx="50" cy="96" r="4.5" fill="#450a0a" stroke="#fca5a5"/>
-              <text x="95" y="99" font-size="7.5" text-anchor="middle" fill="#bfdbfe" font-weight="bold">BLUE 1-CH</text>
+              <text x="95" y="99" font-size="7.5" text-anchor="middle" fill="#bfdbfe" font-weight="bold">RƠ-LE 1 KÊNH</text>
               <!-- 3 chân cắm DC+ | DC- | IN -->
               <rect x="14" y="42" width="18" height="40" rx="2" fill="#0f172a"/>
               <circle cx="23" cy="50" r="3" fill="#facc15"/><text x="35" y="53" font-size="7.5" fill="#fde047" font-weight="bold">IN</text>
               <circle cx="23" cy="62" r="3" fill="#94a3b8"/><text x="35" y="65" font-size="7.5" fill="#cbd5e1" font-weight="bold">GND</text>
               <circle cx="23" cy="74" r="3" fill="#ef4444"/><text x="35" y="77" font-size="7.5" fill="#fca5a5" font-weight="bold">VCC</text>
 
-              <!-- Con Diode đen 1N4007 chống dòng ngược mắc song song 2 dây Máy bơm -->
+              <!-- Con Diode đen D1 1N4007 chống dòng ngược mắc song song 2 dây Máy bơm -->
               <g transform="translate(172, 16)">
                 <line x1="0" y1="14" x2="78" y2="14" stroke="#94a3b8" stroke-width="2.5"/>
                 <rect x="16" y="6" width="44" height="16" rx="3" fill="#0f172a" stroke="#64748b" stroke-width="1.5"/>
                 <rect x="50" y="6" width="6" height="16" fill="#e2e8f0"/>
-                <text x="38" y="17" font-size="8" text-anchor="middle" fill="#f8fafc" font-weight="bold">1N4007</text>
-                <text x="38" y="34" font-size="8" text-anchor="middle" fill="#fde047" font-weight="bold">Flyback Diode</text>
+                <text x="38" y="17" font-size="7.5" text-anchor="middle" fill="#f8fafc" font-weight="bold">D1 1N4007</text>
+                <text x="38" y="34" font-size="7.5" text-anchor="middle" fill="#fde047" font-weight="bold">Diode dập xung</text>
               </g>
 
-              <!-- Tụ hóa lọc nguồn 470µF 16V cạnh Máy bơm -->
+              <!-- Tụ hóa lọc nguồn C2 470µF 16V cạnh Máy bơm -->
               <g transform="translate(274, 10)">
                 <rect x="4" y="2" width="38" height="28" rx="4" fill="#166534" stroke="#eab308" stroke-width="1.5"/>
                 <rect x="34" y="2" width="8" height="28" rx="2" fill="#e2e8f0"/>
-                <text x="19" y="14" font-size="7.5" text-anchor="middle" fill="#fef08a" font-weight="bold">470µF</text>
+                <text x="19" y="14" font-size="7.2" text-anchor="middle" fill="#fef08a" font-weight="bold">C2 470µF</text>
                 <text x="19" y="24" font-size="7" text-anchor="middle" fill="#dcfce7">16V</text>
                 <text x="23" y="42" font-size="7.5" text-anchor="middle" fill="#86efac" font-weight="bold">Lọc 5V</text>
               </g>
@@ -307,12 +416,12 @@
                   <span id="ky037_panel_count" style="font-family:Consolas,monospace; font-size:11px; color:#fde047;">0 lần</span>
                 </span>
               </div>
-              <div style="font-size:10.5px; color:#94a3b8; margin-bottom:7px;">Header: <code style="color:#fde047;">DO | G | + | AO</code> (3.3V)</div>
+              <div style="font-size:10.5px; color:#94a3b8; margin-bottom:7px;">Chân cắm: <code style="color:#fde047;">DO | G | + | AO</code> (3.3V)</div>
               <button class="btn secondary" type="button" style="width:100%; font-size:11px; padding:5px 8px; justify-content:center; border-color:#f87171; color:#fecaca; background:#1e293b;" onclick="triggerKy037SoundDemo()">
                 Vỗ tay / Âm thanh (D5)
               </button>
               <div style="font-size:10px; color:#94a3b8; margin-top:7px; line-height:1.35;">
-                Thụ động: <span style="color:#cbd5e1;">1N4007 · 470µF 16V · 2.2kΩ 1%</span>
+                PCB Hub: <span style="color:#cbd5e1;">Q1 S8050 · C4 10µF · R5/R6 2.2k · D1/D2 1N4007</span>
               </div>
             </div>
           </div>
@@ -337,7 +446,7 @@
               <rect x="14" y="16" width="96" height="96" rx="5" fill="#991b1b" stroke="#f87171" stroke-width="1.5"/>
               <rect x="34" y="24" width="52" height="36" rx="3" fill="#1d4ed8" stroke="#60a5fa"/>
               <text x="60" y="40" font-size="7.5" text-anchor="middle" fill="#fff" font-weight="bold">RELAY 2</text>
-              <text x="60" y="52" font-size="6.8" text-anchor="middle" fill="#fde047">OPTO (D7)</text>
+              <text x="60" y="52" font-size="6.4" text-anchor="middle" fill="#fde047">CÁCH LY (D7)</text>
               <rect x="20" y="68" width="22" height="11" rx="2" fill="#eab308"/>
               <text x="31" y="76" font-size="7" text-anchor="middle" fill="#000" font-weight="bold">H</text>
               <circle cx="55" cy="73" r="3.5" fill="#22c55e"/>
@@ -350,7 +459,7 @@
               <rect x="145" y="42" width="34" height="28" rx="2" fill="#0f172a" stroke="#94a3b8"/>
               <text x="162" y="59" font-size="6.8" text-anchor="middle" fill="#f8fafc" font-weight="bold">PAM8403</text>
               <text x="162" y="84" font-size="7" text-anchor="middle" fill="#fef08a">L ⊥ R | 5V + -</text>
-              <text x="162" y="98" font-size="6.5" text-anchor="middle" fill="#bbf7d0">D3 → 100nF+RC</text>
+              <text x="162" y="98" font-size="6.3" text-anchor="middle" fill="#bbf7d0">D3 → C4 10µF+RC</text>
 
               <!-- Loa tròn mini màu bạc -->
               <circle id="hw_spk_cone" cx="256" cy="60" r="32" fill="#cbd5e1" stroke="#64748b" stroke-width="2.5"/>
@@ -425,7 +534,7 @@
           <button class="step-btn" onclick="filterStep('d1_servo', this)">B2: Cửa Servo SG90 (D1)</button>
           <button class="step-btn" onclick="filterStep('d2_dht11', this)">B3: Cảm Biến DHT11 (D2)</button>
           <button class="step-btn" onclick="filterStep('d3_d7_speaker', this)">B4: Relay 2 + PAM8403 (D7/D3)</button>
-          <button class="step-btn" onclick="filterStep('d4_bedroom', this)">B5: Đèn Ngủ Boot-Safe (D4)</button>
+          <button class="step-btn" onclick="filterStep('d4_bedroom', this)">B5: Đèn Ngủ an toàn boot (D4)</button>
           <button class="step-btn" onclick="filterStep('d5_ky037', this)">B6: Âm Thanh KY-037 (D5)</button>
           <button class="step-btn" onclick="filterStep('d6_pump', this)">B7: Relay 1 Xanh + Bơm (D6)</button>
           <button class="step-btn" onclick="filterStep('d8_buzzer', this)">B8: Còi Buzzer 5V (D8)</button>
@@ -439,7 +548,7 @@
           </h4>
           <ol id="guideItems">
             <li>Cấp nguồn từ chân <span class="hole-badge">3V3</span> vào rãnh dương trên, chân <span class="hole-badge">VIN (5V)</span> vào rãnh dương dưới và chân <span class="hole-badge">GND</span> vào rãnh âm.</li>
-            <li>Cắm đèn phòng khách (<span class="hole-badge">D0</span>) ở cột 4–9, đèn phòng ngủ Active-LOW (<span class="hole-badge">D4</span>) ở cột 22–26, cảm biến âm thanh KY-037 (<span class="hole-badge">D5</span>) ở cột 6–9, DHT11 (<span class="hole-badge">D2</span>) ở cột 14–17 và còi Buzzer (<span class="hole-badge">D8</span>) ở cột 24–26.</li>
+            <li>Cắm đúng mạch PCB Hub 100×80 mm: Đèn khách (<span class="hole-badge">D0</span> qua R1 220Ω), âm thanh (<span class="hole-badge">D3</span> qua R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF), đèn ngủ Active-LOW (<span class="hole-badge">D4</span> qua R2 220Ω + R7 10kΩ), KY-037 (<span class="hole-badge">D5</span>), DHT11 (<span class="hole-badge">D2</span> + R3 10kΩ) và còi 5V (<span class="hole-badge">D8</span> qua R9 10kΩ kéo xuống GND + R10 1kΩ → Q1 S8050 + D2 1N4007).</li>
           </ol>
         </div>
 
@@ -516,7 +625,7 @@
                   <td style="padding:6px 8px;">Đỏ</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">BP1</span></td>
                   <td style="padding:6px 8px;">Nguồn +5V</td>
-                  <td style="padding:6px 8px;">Servo SG90, Relay 1 (Bơm), Relay 2 (PAM8403)</td>
+                  <td style="padding:6px 8px;">Servo SG90, Relay 1 (Bơm), Relay 2 (PAM8403), Còi 5V (qua Q1)</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
                   <td style="padding:6px 8px;"><span class="hole-badge">GND</span></td>
@@ -529,7 +638,7 @@
                   <td style="padding:6px 8px;"><span class="hole-badge">D0 (GPIO16)</span></td>
                   <td style="padding:6px 8px;">Xanh lá</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">C4</span> → <span class="hole-badge">C9</span></td>
-                  <td style="padding:6px 8px;">Trở 220Ω + LED Đỏ</td>
+                  <td style="padding:6px 8px;">R1 220Ω + LED Đỏ</td>
                   <td style="padding:6px 8px;">Đèn phòng khách &amp; nháy enroll_blink</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
@@ -543,21 +652,21 @@
                   <td style="padding:6px 8px;"><span class="hole-badge">D2 (GPIO4)</span></td>
                   <td style="padding:6px 8px;">Xanh lơ</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">F14–F17</span></td>
-                  <td style="padding:6px 8px;">Module DHT11 (3.3V)</td>
+                  <td style="padding:6px 8px;">Module DHT11 (3.3V) + R3 10kΩ</td>
                   <td style="padding:6px 8px;">Cảm biến Nhiệt độ &amp; Độ ẩm</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
                   <td style="padding:6px 8px;"><span class="hole-badge">D3 (GPIO0)</span></td>
                   <td style="padding:6px 8px;">Tím</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">C13–C17</span></td>
-                  <td style="padding:6px 8px;">Tụ 100nF–1µF + Cầu RC</td>
-                  <td style="padding:6px 8px;">Âm thanh PWM tới PAM8403 (IDLE = INPUT)</td>
+                  <td style="padding:6px 8px;"><span class="hole-badge">C11–C20</span></td>
+                  <td style="padding:6px 8px;">R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF</td>
+                  <td style="padding:6px 8px;">Âm thanh PWM tới PAM8403 (nghỉ = INPUT)</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
                   <td style="padding:6px 8px;"><span class="hole-badge">D4 (GPIO2)</span></td>
                   <td style="padding:6px 8px;">Vàng nhạt</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">C22</span> → <span class="hole-badge">C26</span></td>
-                  <td style="padding:6px 8px;">Trở 220Ω + LED Vàng</td>
+                  <td style="padding:6px 8px;">R2 220Ω + R7 10kΩ + LED Vàng</td>
                   <td style="padding:6px 8px;">Đèn phòng ngủ (Active-LOW từ 3.3V, an toàn boot)</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
@@ -571,28 +680,28 @@
                   <td style="padding:6px 8px;"><span class="hole-badge">D6 (GPIO12)</span></td>
                   <td style="padding:6px 8px;">Xanh dương</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">BP22</span>, <span class="hole-badge">BN22</span></td>
-                  <td style="padding:6px 8px;">Relay 1 Xanh + 1N4007 + 470µF</td>
+                  <td style="padding:6px 8px;">Relay 1 Xanh + D1 1N4007 + C2 470µF</td>
                   <td style="padding:6px 8px;">Máy bơm tưới cây (tự bật &lt;40% / tắt ≥70%)</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
                   <td style="padding:6px 8px;"><span class="hole-badge">D7 (GPIO13)</span></td>
                   <td style="padding:6px 8px;">Tím hồng</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">BP4</span>, <span class="hole-badge">BN4</span></td>
-                  <td style="padding:6px 8px;">Relay 2 Đỏ Opto (Jumper H)</td>
-                  <td style="padding:6px 8px;">Nguồn 5V mạch loa PAM8403 (speaker_amp)</td>
+                  <td style="padding:6px 8px;">Relay 2 Đỏ Opto (Jumper H) + C6 100nF</td>
+                  <td style="padding:6px 8px;">Nguồn 5V mạch loa PAM8403 (COM/NO → 5V)</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--line);">
                   <td style="padding:6px 8px;"><span class="hole-badge">D8 (GPIO15)</span></td>
                   <td style="padding:6px 8px;">Đỏ hồng</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">J24–J25</span></td>
-                  <td style="padding:6px 8px;">Buzzer 5V (Active-HIGH)</td>
-                  <td style="padding:6px 8px;">Còi báo động (im lặng khi boot)</td>
+                  <td style="padding:6px 8px;"><span class="hole-badge">F19–J29</span></td>
+                  <td style="padding:6px 8px;">R9 10kΩ kéo GND + R10 1kΩ → Q1 S8050 (NPN) + D2 1N4007 + Buzzer 5V</td>
+                  <td style="padding:6px 8px;">Còi báo động (Còi + → 5V, Còi - → Q1.C, im lặng khi boot)</td>
                 </tr>
                 <tr>
                   <td style="padding:6px 8px;"><span class="hole-badge">A0 (ADC0)</span></td>
                   <td style="padding:6px 8px;">Vàng</td>
                   <td style="padding:6px 8px;"><span class="hole-badge">TP24</span>, <span class="hole-badge">BN20</span></td>
-                  <td style="padding:6px 8px;">LM393 (nguồn 3.3V) + Đầu dò</td>
+                  <td style="padding:6px 8px;">LM393 (nguồn 3.3V) + C7 100nF + Đầu dò</td>
                   <td style="padding:6px 8px;">Cảm biến độ ẩm đất (0–100%)</td>
                 </tr>
               </tbody>
@@ -602,7 +711,10 @@
           <div class="card" style="display:flex; flex-direction:column;">
             <h3>
               <span>Mã nguồn nạp mạch</span>
-              <button class="btn secondary" type="button" onclick="copyConfiguredInoCode()" style="font-size:12.5px; padding:6px 10px;">Sao chép mã nguồn</button>
+              <span style="display:inline-flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn secondary" type="button" onclick="copyWokwiFile('diagram')" style="font-size:12px; padding:6px 10px;">Sao chép diagram.json</button>
+                <button class="btn secondary" type="button" onclick="copyConfiguredInoCode()" style="font-size:12px; padding:6px 10px;">Sao chép mã nguồn</button>
+              </span>
             </h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:8px; font-size:12px;">
               <div>

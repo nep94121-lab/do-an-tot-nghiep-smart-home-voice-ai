@@ -42,7 +42,7 @@
    - Khi có xung kích hợp lệ (debounce `>= 400ms`), ESP8266 gửi telemetry `smarthome/telemetry/sound` (hoặc `POST /api/sound_sensor`) về Dashboard.
 3. **Mạch Loa Phản hồi `PAM8403` + Loa tròn bạc (`D7` + `D3`):**
    - **Relay 2 (`D7 / GPIO13`)** đóng/ngắt nguồn `5V` cho `PAM8403` để mạch loa hoàn toàn im lặng (không sôi nhiễu) khi nghỉ.
-   - **Chân `D3 (GPIO0)`** phát xung `tone()` qua **tụ chặn DC (`100nF–1µF`) + cầu phân áp RC** tới ngõ vào `L` của `PAM8403` khi phát chuông xác nhận, sau đó tự tắt Relay 2 sau `1.5 giây` nếu không bật giữ tay.
+   - **Chân `D3 (GPIO0)`** phát xung `tone()` qua **`R4 10kΩ`** kéo lên `+3.3V`, **tụ chặn DC `C4 10µF 16V`**, cầu phân áp **`R5/R6 2.2kΩ`** và tụ lọc **`C5 10nF`** tới ngõ vào `L` của `PAM8403` khi phát chuông xác nhận, sau đó tự tắt Relay 2 sau `1.5 giây` nếu không bật giữ tay.
 
 ---
 
@@ -50,8 +50,8 @@
 
 **0 linh kiện chấp hành hay cảm biến cốt lõi nào phải mua thêm** để chạy đủ 6 thiết bị + 3 cảm biến trên Breadboard. Dưới đây chỉ là các món **tùy chọn / mua bổ sung về sau** (khi lắp sa bàn hoặc chuyển sang hàn PCB):
 
-1. **Tụ gốm / tụ màng mỏng giá trị nhỏ `100nF (104)` hoặc `1µF` (`1–2 con`) + rào cắm `Header 2.54mm`:**
-   - Dùng làm tụ chặn DC nối tiếp trên đường tín hiệu âm thanh `D3 -> PAM8403` (nếu trong túi linh kiện phụ chưa có sẵn tụ nhỏ hơn `470µF`) và hàn chân cắm lên 2 hàng lỗ trống của mạch `PAM8403` (`pam8403_ky037_closeup.png`).
+1. **Tụ hóa `C4 10µF 16V`, tụ gốm `C5 10nF` / `100nF (104)` + rào cắm `Header 2.54mm`:**
+   - Dùng `C4 10µF 16V` làm tụ chặn DC nối tiếp + `C5 10nF` làm tụ lọc RC trên đường tín hiệu âm thanh `D3 -> PAM8403` đúng mạch PCB Hub, và hàn chân cắm lên 2 hàng lỗ trống của mạch `PAM8403` (`pam8403_ky037_closeup.png`).
 2. **Ống nhựa silicon mềm đường kính trong `6mm–8mm` (`~1m`):**
    - Nối đầu xả của máy bơm nước mini trắng vào chậu cây trên sa bàn (nếu chưa cắt sẵn).
 3. **Dây cắm Dupont `20cm` (`M-M`, `M-F`, `F-F`) dự phòng:**
@@ -73,7 +73,7 @@ Sơ đồ chân dưới đây đồng bộ 100% với Firmware [`esp8266_smartho
 | **`D0`** | `GPIO16` | `living_room_light` (Đèn phòng khách) | `D0 -> Trở 220Ω–470Ω -> LED(+) -> LED(-) -> GND` (Active-HIGH, kiêm nháy `enroll_blink`). |
 | **`D1`** | `GPIO5` | `main_door` (Servo SG90 Cửa chính) | Dây tín hiệu (cam/vàng) vào `D1`; dây đỏ vào `+5V` (kèm tụ `470µF 16V` lọc nguồn); dây nâu vào `GND`. |
 | **`D2`** | `GPIO4` | `dht11` (Cảm biến Nhiệt độ & Độ ẩm) | `VCC -> 3V3`, `GND -> GND`, `DATA -> D2` (module xanh đã có sẵn điện trở kéo lên). |
-| **`D3`** | `GPIO0` | Ngõ ra âm thanh PWM tới `PAM8403` | `D3 -> Tụ chặn DC 100nF–1µF -> Trở 2.2kΩ -> [Nút Audio] -> Trở 1kΩ–2.2kΩ -> GND`; nối `[Nút Audio]` vào chân `L` và `GND` vào pad `⊥` của `PAM8403`. |
+| **`D3`** | `GPIO0` | Ngõ ra âm thanh PWM tới `PAM8403` | `R4 10kΩ` kéo `D3` lên `+3.3V`; `D3 -> Tụ chặn DC C4 10µF 16V -> R5 2.2kΩ -> [AUD_OUT] -> R6 2.2kΩ & C5 10nF -> GND`; nối `[AUD_OUT]` vào chân `L` và `GND` vào pad `⊥` của `PAM8403`. |
 | **`D4`** | `GPIO2` | `bedroom_light` (Đèn phòng ngủ) | **Đấu Active-LOW:** `3V3 -> Trở 220Ω–1kΩ -> LED(+) -> LED(-) -> D4` (khớp `BEDROOM_LED_ACTIVE_LOW = true`). |
 | **`D5`** | `GPIO14` | `ky037` (Cảm biến âm thanh `DO`) | Theo thứ tự chân trên PCB đỏ (`DO \| G \| + \| AO`): `+ -> 3V3`, `G -> GND`, `DO -> D5`, bỏ trống `AO`. |
 | **`D6`** | `GPIO12` | `garden_pump` (Relay 1 xanh + Bơm trắng) | `VCC -> 5V`, `GND -> GND`, `IN -> D6`; `COM -> +5V ngoài`, `NO -> Bơm(+)`, `Bơm(-) -> GND`; kẹp **`1N4007`** (vạch bạc về phía `Bơm(+)`) và tụ **`470µF 16V`** trên rail `5V`. |
@@ -84,7 +84,7 @@ Sơ đồ chân dưới đây đồng bộ 100% với Firmware [`esp8266_smartho
 
 ### Checklist An toàn Boot & Bảo vệ Điện tử (Bắt buộc kiểm tra trước khi cấp nguồn)
 
-- [ ] **`D3 (GPIO0)` tuyệt đối KHÔNG dùng tụ `470µF` nối tiếp làm tụ chặn DC:** Hằng số thời gian `(10kΩ + 2.2kΩ) × 470µF ≈ 5.7 giây` sẽ kéo `GPIO0` xuống `LOW` khi reset và làm ESP8266 kẹt ở chế độ nạp UART. Luôn dùng tụ nhỏ **`100nF–1µF`** trước cầu phân áp RC `2.2kΩ / 1kΩ–2.2kΩ`, và giữ `D3` ở trạng thái `INPUT` khi không phát âm.
+- [ ] **`D3 (GPIO0)` dùng đúng tụ chặn DC `C4 10µF 16V` kèm `R4 10kΩ` pull-up + `R5/R6 2.2kΩ` + `C5 10nF`:** Giữ đúng giá trị trên PCB Hub để tách DC và tránh kéo `GPIO0` xuống `LOW` khi reset; luôn trả `D3` về trạng thái `INPUT` khi không phát âm.
 - [ ] **`PAM8403` ngõ ra loa là mạch cầu BTL (`L OUT + / -`):** Chỉ nối 2 dây loa tròn bạc vào `L OUT +` và `L OUT -`, **tuyệt đối không nối một đầu loa xuống `GND`** để tránh chập IC `PAM8403`.
 - [ ] **`D4 (GPIO2)` đấu Active-LOW khớp Firmware:** Dây `3.3V -> Trở -> LED(+) -> LED(-) -> D4` giúp `GPIO2` luôn được kéo lên `HIGH` khi boot và đèn ngủ tắt hoàn toàn khi mới bật nguồn (`BEDROOM_LED_ACTIVE_LOW = true`).
 - [ ] **`D8 (GPIO15)` giữ mức `LOW` khi boot:** Chỉ đấu tải xuống `GND` (Active-HIGH), không mắc bất kỳ điện trở kéo lên `3.3V` nào trên chân `D8`.

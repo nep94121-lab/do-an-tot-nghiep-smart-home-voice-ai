@@ -1,200 +1,374 @@
 {
   "version": 1,
-  "author": "Nguyen Tuan Anh - HUST SEEE Smart Home Voice AI",
+  "author": "Nguyen Tuan Anh - HUST SEEE Smart Home Voice AI (100x80mm DIY Hub PCB v3.0)",
   "editor": "wokwi",
   "parts": [
+    {
+      "type": "wokwi-text",
+      "id": "note_pcb",
+      "top": -185,
+      "left": 20,
+      "attrs": {
+        "text": "ESP8266 NodeMCU v2 Amica — Hub PCB 100x80mm (R1..R10, C1..C7, D1..D3, Q1 S8050)"
+      }
+    },
     {
       "type": "wokwi-breadboard-half",
       "id": "bb1",
       "top": 40,
-      "left": 220,
-      "attrs": {}
+      "left": 240,
+      "attrs": { "label": "Breadboard 400 (theo PCB 100x80mm)" }
     },
     {
-      "type": "board-esp32-devkit-c-v4",
+      "type": "board-esp8266-nodemcu",
       "id": "mcu",
-      "top": 60,
+      "top": 55,
       "left": 20,
-      "attrs": { "builder": "esp8266-nodemcu-pinmap" }
+      "attrs": { "label": "U1/U2 NodeMCU ESP8266 v2 Amica" }
     },
     {
       "type": "wokwi-servo",
       "id": "servo_door",
-      "top": -110,
-      "left": 260,
-      "attrs": { "horn": "single" }
+      "top": -130,
+      "left": 250,
+      "attrs": { "horn": "single", "label": "J3 SG90 Main Door (D1)" }
     },
     {
       "type": "wokwi-led",
       "id": "led_living",
-      "top": -90,
+      "top": -110,
       "left": 450,
-      "attrs": { "color": "red" }
+      "attrs": { "color": "red", "label": "J4 LED Living Room (D0)" }
     },
     {
       "type": "wokwi-resistor",
-      "id": "r_living_220",
-      "top": 10,
+      "id": "r1",
+      "top": -10,
       "left": 445,
       "rotate": 90,
-      "attrs": { "value": "220" }
+      "attrs": { "value": "220", "label": "R1 220R" }
     },
     {
       "type": "wokwi-dht22",
       "id": "dht11_sensor",
-      "top": -110,
-      "left": 580,
-      "attrs": { "temperature": "28.5", "humidity": "65" }
+      "top": -130,
+      "left": 575,
+      "attrs": { "temperature": "28.5", "humidity": "65", "label": "J13 DHT11 (D2)" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": -10,
+      "left": 615,
+      "rotate": 90,
+      "attrs": { "value": "10000", "label": "R3 10k" }
     },
     {
       "type": "wokwi-led",
       "id": "led_bedroom",
-      "top": -90,
+      "top": -110,
       "left": 740,
-      "attrs": { "color": "yellow" }
+      "attrs": { "color": "yellow", "label": "J5 LED Bedroom Active-LOW (D4)" }
     },
     {
       "type": "wokwi-resistor",
-      "id": "r_bedroom_220",
-      "top": 10,
-      "left": 735,
+      "id": "r2",
+      "top": -10,
+      "left": 725,
       "rotate": 90,
-      "attrs": { "value": "220" }
+      "attrs": { "value": "220", "label": "R2 220R" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r7",
+      "top": -10,
+      "left": 770,
+      "rotate": 90,
+      "attrs": { "value": "10000", "label": "R7 10k" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c1",
+      "top": 60,
+      "left": 830,
+      "attrs": { "value": "470uF", "label": "C1 470uF 16V" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c2",
+      "top": 120,
+      "left": 830,
+      "attrs": { "value": "470uF", "label": "C2 470uF 16V" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c3",
+      "top": 180,
+      "left": 830,
+      "attrs": { "value": "100nF", "label": "C3 100nF" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r8",
+      "top": 60,
+      "left": 900,
+      "rotate": 90,
+      "attrs": { "value": "1000", "label": "R8 1k" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "d3",
+      "top": 120,
+      "left": 905,
+      "attrs": { "color": "green", "label": "D3 LED_PWR_GRN" }
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay_pump",
-      "top": 310,
-      "left": 210,
-      "attrs": {}
+      "top": 320,
+      "left": 180,
+      "attrs": { "label": "J7/J8 Relay1 Pump (D6)" }
+    },
+    {
+      "type": "wokwi-diode",
+      "id": "d1",
+      "top": 420,
+      "left": 175,
+      "attrs": { "model": "1N4007", "label": "D1 1N4007" }
     },
     {
       "type": "wokwi-resistor",
       "id": "r_pump_220",
-      "top": 410,
-      "left": 225,
+      "top": 420,
+      "left": 240,
       "rotate": 90,
-      "attrs": { "value": "220" }
+      "attrs": { "value": "220", "label": "R_PUMP 220R" }
     },
     {
       "type": "wokwi-led",
       "id": "motor_pump_indicator",
-      "top": 450,
-      "left": 230,
-      "attrs": { "color": "cyan" }
+      "top": 470,
+      "left": 245,
+      "attrs": { "color": "cyan", "label": "J2 Pump 5V Load" }
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay_speaker",
-      "top": 310,
+      "top": 320,
       "left": 350,
-      "attrs": {}
+      "attrs": { "label": "J9/J10 Relay2 PAM8403 (D7)" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c6",
+      "top": 420,
+      "left": 345,
+      "attrs": { "value": "100nF", "label": "C6 100nF" }
     },
     {
       "type": "wokwi-resistor",
       "id": "r_spk_220",
-      "top": 410,
-      "left": 365,
+      "top": 420,
+      "left": 405,
       "rotate": 90,
-      "attrs": { "value": "220" }
+      "attrs": { "value": "220", "label": "R_AMP 220R" }
     },
     {
       "type": "wokwi-led",
       "id": "speaker_amp_indicator",
-      "top": 450,
-      "left": 370,
-      "attrs": { "color": "purple" }
+      "top": 470,
+      "left": 410,
+      "attrs": { "color": "purple", "label": "J11 PAM8403 +5V Power" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r4",
+      "top": 320,
+      "left": 485,
+      "rotate": 90,
+      "attrs": { "value": "10000", "label": "R4 10k" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c4",
+      "top": 385,
+      "left": 485,
+      "attrs": { "value": "10uF", "label": "C4 10uF 16V" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r5",
+      "top": 385,
+      "left": 545,
+      "attrs": { "value": "2200", "label": "R5 2.2k" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r6",
+      "top": 445,
+      "left": 565,
+      "rotate": 90,
+      "attrs": { "value": "2200", "label": "R6 2.2k" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "c5",
+      "top": 445,
+      "left": 615,
+      "attrs": { "value": "10nF", "label": "C5 10nF" }
     },
     {
       "type": "wokwi-buzzer",
       "id": "pam8403_speaker",
-      "top": 430,
-      "left": 455,
-      "attrs": { "volume": "0.5" }
+      "top": 510,
+      "left": 540,
+      "attrs": { "volume": "0.5", "label": "J12 PAM8403 + Speaker 8R (D3)" }
     },
     {
       "type": "wokwi-potentiometer",
       "id": "soil_yl69",
-      "top": 310,
-      "left": 510,
-      "attrs": { "value": "350" }
+      "top": 320,
+      "left": 680,
+      "attrs": { "value": "550", "label": "J14 Soil LM393/YL-69 (A0)" }
     },
     {
-      "type": "wokwi-pushbutton",
+      "type": "wokwi-capacitor",
+      "id": "c7",
+      "top": 410,
+      "left": 695,
+      "attrs": { "value": "100nF", "label": "C7 100nF" }
+    },
+    {
+      "type": "wokwi-big-sound-sensor",
       "id": "ky037_sound",
-      "top": 310,
-      "left": 635,
-      "attrs": { "color": "red" }
+      "top": 320,
+      "left": 790,
+      "attrs": { "label": "J15 KY-037 Sound (D5)" }
     },
     {
       "type": "wokwi-resistor",
-      "id": "r_ky037_10k",
-      "top": 375,
-      "left": 640,
+      "id": "r9",
+      "top": 320,
+      "left": 930,
       "rotate": 90,
-      "attrs": { "value": "10000" }
+      "attrs": { "value": "10000", "label": "R9 10k" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r10",
+      "top": 320,
+      "left": 985,
+      "attrs": { "value": "1000", "label": "R10 1k" }
+    },
+    {
+      "type": "wokwi-npn-transistor",
+      "id": "q1",
+      "top": 385,
+      "left": 995,
+      "attrs": { "part": "S8050", "label": "Q1 S8050" }
+    },
+    {
+      "type": "wokwi-diode",
+      "id": "d2",
+      "top": 385,
+      "left": 1070,
+      "attrs": { "model": "1N4007", "label": "D2 1N4007" }
     },
     {
       "type": "wokwi-buzzer",
       "id": "buzzer_alarm",
-      "top": 310,
-      "left": 780,
-      "attrs": { "volume": "0.8" }
+      "top": 320,
+      "left": 1125,
+      "attrs": { "volume": "0.8", "label": "J6 Buzzer 5V TMB12A05 (D8/Q1)" }
     }
   ],
   "connections": [
     [ "mcu:TX", "$serialMonitor:RX", "", [] ],
     [ "mcu:RX", "$serialMonitor:TX", "", [] ],
-    [ "mcu:3V3", "bb1:tp.1", "red", [ "h40", "v-20" ] ],
+    [ "mcu:3V3", "bb1:tp.1", "orange", [ "h40", "v-20" ] ],
     [ "mcu:GND.1", "bb1:tn.1", "black", [ "h50", "v-10" ] ],
-    [ "mcu:5V", "bb1:bp.1", "orange", [ "h40", "v180" ] ],
+    [ "mcu:VIN", "bb1:bp.1", "red", [ "h40", "v180" ] ],
     [ "bb1:tn.25", "bb1:bn.25", "black", [ "v0" ] ],
 
-    [ "mcu:16", "r_living_220:1", "green", [ "h150", "v-90" ] ],
-    [ "r_living_220:2", "led_living:A", "green", [ "v-20" ] ],
+    [ "bb1:bp.2", "c1:1", "red", [ "v-10" ] ],
+    [ "c1:2", "bb1:bn.2", "black", [ "v10" ] ],
+    [ "bb1:bp.3", "c2:1", "red", [ "v-10" ] ],
+    [ "c2:2", "bb1:bn.3", "black", [ "v10" ] ],
+    [ "bb1:bp.4", "c3:1", "red", [ "v-10" ] ],
+    [ "c3:2", "bb1:bn.4", "black", [ "v10" ] ],
+    [ "bb1:bp.6", "r8:1", "red", [ "v-10" ] ],
+    [ "r8:2", "d3:A", "green", [ "v10" ] ],
+    [ "d3:C", "bb1:bn.6", "black", [ "v10" ] ],
+
+    [ "mcu:D0", "r1:1", "green", [ "h150", "v-90" ] ],
+    [ "r1:2", "led_living:A", "green", [ "v-20" ] ],
     [ "led_living:C", "bb1:tn.10", "black", [ "v80" ] ],
 
-    [ "mcu:5", "servo_door:PWM", "gold", [ "h120", "v-180" ] ],
+    [ "mcu:D1", "servo_door:PWM", "gold", [ "h120", "v-180" ] ],
     [ "bb1:bp.5", "servo_door:V+", "red", [ "v-320" ] ],
     [ "bb1:bn.5", "servo_door:GND", "black", [ "v-330" ] ],
 
-    [ "dht11_sensor:SDA", "mcu:4", "cyan", [ "v90", "h-400" ] ],
-    [ "bb1:tp.22", "dht11_sensor:VCC", "red", [ "v-80" ] ],
+    [ "dht11_sensor:SDA", "mcu:D2", "cyan", [ "v90", "h-400" ] ],
+    [ "bb1:tp.21", "r3:1", "orange", [ "v-40" ] ],
+    [ "r3:2", "dht11_sensor:SDA", "cyan", [ "v-20" ] ],
+    [ "bb1:tp.22", "dht11_sensor:VCC", "orange", [ "v-80" ] ],
     [ "bb1:tn.22", "dht11_sensor:GND", "black", [ "v-80" ] ],
 
-    [ "mcu:0", "pam8403_speaker:2", "purple", [ "h90", "v250" ] ],
-    [ "relay_speaker:NO", "pam8403_speaker:1", "black", [ "v20", "h70" ] ],
+    [ "bb1:tp.14", "r4:1", "orange", [ "v200" ] ],
+    [ "r4:2", "mcu:D3", "purple", [ "h-300" ] ],
+    [ "mcu:D3", "c4:1", "purple", [ "h90", "v240" ] ],
+    [ "c4:2", "r5:1", "purple", [ "h10" ] ],
+    [ "r5:2", "r6:1", "purple", [ "v15" ] ],
+    [ "r6:2", "bb1:bn.17", "black", [ "v-120" ] ],
+    [ "r5:2", "c5:1", "purple", [ "h20" ] ],
+    [ "c5:2", "bb1:bn.18", "black", [ "v-120" ] ],
+    [ "r5:2", "pam8403_speaker:2", "purple", [ "v60" ] ],
+    [ "pam8403_speaker:1", "bb1:bn.19", "black", [ "v-160" ] ],
 
-    [ "bb1:tp.24", "r_bedroom_220:1", "red", [ "v-40" ] ],
-    [ "r_bedroom_220:2", "led_bedroom:A", "orange", [ "v-20" ] ],
-    [ "led_bedroom:C", "mcu:2", "orange", [ "v80", "h-540" ] ],
+    [ "bb1:tp.24", "r2:1", "orange", [ "v-40" ] ],
+    [ "r2:2", "led_bedroom:A", "purple", [ "v-20" ] ],
+    [ "led_bedroom:C", "mcu:D4", "white", [ "v80", "h-540" ] ],
+    [ "bb1:tp.25", "r7:1", "orange", [ "v-40" ] ],
+    [ "r7:2", "mcu:D4", "white", [ "v80", "h-560" ] ],
 
-    [ "bb1:tp.20", "ky037_sound:1.l", "red", [ "v240" ] ],
-    [ "ky037_sound:2.l", "mcu:14", "violet", [ "v-45", "h-440" ] ],
-    [ "ky037_sound:2.l", "r_ky037_10k:1", "violet", [ "v10" ] ],
-    [ "r_ky037_10k:2", "bb1:tn.20", "black", [ "v-100" ] ],
+    [ "bb1:tp.20", "ky037_sound:VCC", "orange", [ "v240" ] ],
+    [ "bb1:tn.20", "ky037_sound:GND", "black", [ "v240" ] ],
+    [ "ky037_sound:DOUT", "mcu:D5", "yellow", [ "v-45", "h-580" ] ],
 
-    [ "mcu:12", "relay_pump:IN", "blue", [ "h100", "v190" ] ],
+    [ "mcu:D6", "relay_pump:IN", "blue", [ "h100", "v190" ] ],
     [ "bb1:bp.8", "relay_pump:VCC", "red", [ "v70" ] ],
     [ "bb1:bn.8", "relay_pump:GND", "black", [ "v70" ] ],
     [ "bb1:bp.10", "relay_pump:COM", "red", [ "v70" ] ],
-    [ "relay_pump:NO", "r_pump_220:1", "cyan", [ "v20" ] ],
+    [ "relay_pump:NO", "d1:C", "yellow", [ "v20" ] ],
+    [ "d1:A", "bb1:bn.9", "black", [ "v-100" ] ],
+    [ "relay_pump:NO", "r_pump_220:1", "yellow", [ "v20" ] ],
     [ "r_pump_220:2", "motor_pump_indicator:A", "cyan", [ "v10" ] ],
     [ "motor_pump_indicator:C", "bb1:bn.10", "black", [ "v-180" ] ],
 
-    [ "mcu:13", "relay_speaker:IN", "purple", [ "h115", "v190" ] ],
+    [ "mcu:D7", "relay_speaker:IN", "cyan", [ "h115", "v190" ] ],
     [ "bb1:bp.13", "relay_speaker:VCC", "red", [ "v70" ] ],
     [ "bb1:bn.13", "relay_speaker:GND", "black", [ "v70" ] ],
-    [ "bb1:bn.15", "relay_speaker:COM", "black", [ "v70" ] ],
-    [ "bb1:bp.15", "r_spk_220:1", "red", [ "v160" ] ],
+    [ "bb1:bp.15", "relay_speaker:COM", "red", [ "v70" ] ],
+    [ "relay_speaker:NO", "c6:1", "orange", [ "v20" ] ],
+    [ "c6:2", "bb1:bn.14", "black", [ "v-100" ] ],
+    [ "relay_speaker:NO", "r_spk_220:1", "orange", [ "v20" ] ],
     [ "r_spk_220:2", "speaker_amp_indicator:A", "purple", [ "v10" ] ],
-    [ "speaker_amp_indicator:C", "relay_speaker:NO", "black", [ "v-40" ] ],
+    [ "speaker_amp_indicator:C", "bb1:bn.15", "black", [ "v-160" ] ],
 
-    [ "mcu:15", "buzzer_alarm:2", "magenta", [ "h140", "v210" ] ],
-    [ "buzzer_alarm:1", "bb1:bn.24", "black", [ "v-70" ] ],
+    [ "mcu:D8", "r9:1", "magenta", [ "h140", "v210" ] ],
+    [ "r9:2", "bb1:bn.22", "black", [ "v-70" ] ],
+    [ "mcu:D8", "r10:1", "magenta", [ "h160", "v210" ] ],
+    [ "r10:2", "q1:B", "magenta", [ "v30" ] ],
+    [ "q1:E", "bb1:bn.23", "black", [ "v-80" ] ],
+    [ "bb1:bp.24", "buzzer_alarm:2", "red", [ "v60" ] ],
+    [ "buzzer_alarm:1", "q1:C", "orange", [ "v30", "h-60" ] ],
+    [ "bb1:bp.24", "d2:C", "red", [ "v70" ] ],
+    [ "d2:A", "q1:C", "orange", [ "h-30" ] ],
 
-    [ "soil_yl69:SIG", "mcu:34", "yellow", [ "v-40", "h-340" ] ],
-    [ "bb1:tp.16", "soil_yl69:VCC", "red", [ "v240" ] ],
+    [ "soil_yl69:SIG", "mcu:A0", "green", [ "v-40", "h-520" ] ],
+    [ "soil_yl69:SIG", "c7:1", "green", [ "v30" ] ],
+    [ "c7:2", "bb1:bn.20", "black", [ "v-90" ] ],
+    [ "bb1:tp.16", "soil_yl69:VCC", "orange", [ "v240" ] ],
     [ "bb1:tn.16", "soil_yl69:GND", "black", [ "v240" ] ]
   ],
   "dependencies": {}

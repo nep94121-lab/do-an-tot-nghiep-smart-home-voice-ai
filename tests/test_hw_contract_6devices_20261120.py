@@ -237,10 +237,29 @@ def test_wokwi_diagram_10pin_wiring_and_no_fan_ac_ir() -> None:
         "mcu",
         "servo_door",
         "led_living",
-        "r_living_220",
+        "r1",
         "dht11_sensor",
+        "r3",
         "led_bedroom",
-        "r_bedroom_220",
+        "r2",
+        "r7",
+        "r4",
+        "r5",
+        "r6",
+        "r8",
+        "r9",
+        "r10",
+        "q1",
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6",
+        "c7",
+        "d1",
+        "d2",
+        "d3",
         "relay_pump",
         "r_pump_220",
         "motor_pump_indicator",
@@ -250,33 +269,135 @@ def test_wokwi_diagram_10pin_wiring_and_no_fan_ac_ir() -> None:
         "pam8403_speaker",
         "soil_yl69",
         "ky037_sound",
-        "r_ky037_10k",
         "buzzer_alarm",
     }
     assert expected_part_ids.issubset(parts.keys())
+
+    # (3) Must use ESP8266 NodeMCU (not ESP32) and valid Wokwi part names
+    assert parts["mcu"]["type"] == "board-esp8266-nodemcu"
+    assert "esp32" not in parts["mcu"]["type"].lower()
+    valid_prefixes = ("wokwi-", "board-")
+    for p in diagram["parts"]:
+        assert p["type"].startswith(valid_prefixes), f"Invalid Wokwi part type: {p['type']}"
+        attrs = p.get("attrs") or {}
+        if p["id"] != "note_pcb":
+            assert attrs.get("label"), f"Missing label on part {p['id']}"
+
+    # Every PCB passive/active ref (R1..R10, C1..C7, D1..D3, Q1) has ref + value label
+    expected_labels = {
+        "r1": ("R1", "220"),
+        "r2": ("R2", "220"),
+        "r3": ("R3", "10k"),
+        "r4": ("R4", "10k"),
+        "r5": ("R5", "2.2k"),
+        "r6": ("R6", "2.2k"),
+        "r7": ("R7", "10k"),
+        "r8": ("R8", "1k"),
+        "r9": ("R9", "10k"),
+        "r10": ("R10", "1k"),
+        "c1": ("C1", "470uF"),
+        "c2": ("C2", "470uF"),
+        "c3": ("C3", "100nF"),
+        "c4": ("C4", "10uF"),
+        "c5": ("C5", "10nF"),
+        "c6": ("C6", "100nF"),
+        "c7": ("C7", "100nF"),
+        "d1": ("D1", "1N4007"),
+        "d2": ("D2", "1N4007"),
+        "d3": ("D3", "LED_PWR_GRN"),
+        "q1": ("Q1", "S8050"),
+    }
+    for pid, (ref_tok, val_tok) in expected_labels.items():
+        lbl = parts[pid]["attrs"]["label"]
+        assert ref_tok in lbl and val_tok in lbl, f"Part {pid} label {lbl!r} missing {ref_tok}/{val_tok}"
+
     raw_lower = json.dumps(diagram).lower()
     for retired in ("fan", "vs1838", "ir_rx", "ir_tx", "vc02"):
         assert retired not in raw_lower
 
     conn_pairs = {(c[0], c[1]) for c in diagram["connections"]} | {(c[1], c[0]) for c in diagram["connections"]}
-    assert ("mcu:16", "r_living_220:1") in conn_pairs
-    assert ("mcu:5", "servo_door:PWM") in conn_pairs
-    assert ("dht11_sensor:SDA", "mcu:4") in conn_pairs
-    assert ("mcu:0", "pam8403_speaker:2") in conn_pairs
-    assert ("relay_speaker:COM", "bb1:bn.15") in conn_pairs
-    assert ("relay_speaker:NO", "pam8403_speaker:1") in conn_pairs
-    assert ("bb1:tp.24", "r_bedroom_220:1") in conn_pairs
-    assert ("r_bedroom_220:2", "led_bedroom:A") in conn_pairs
-    assert ("led_bedroom:C", "mcu:2") in conn_pairs
-    assert ("ky037_sound:2.l", "mcu:14") in conn_pairs
-    assert ("mcu:12", "relay_pump:IN") in conn_pairs
-    assert ("mcu:13", "relay_speaker:IN") in conn_pairs
-    assert ("mcu:15", "buzzer_alarm:2") in conn_pairs
-    assert ("soil_yl69:SIG", "mcu:34") in conn_pairs
+    # Living LED D0 via R1 220R
+    assert ("mcu:D0", "r1:1") in conn_pairs
+    assert ("r1:2", "led_living:A") in conn_pairs
+    # Servo D1
+    assert ("mcu:D1", "servo_door:PWM") in conn_pairs
+    # DHT11 D2 + R3 10k pull-up
+    assert ("dht11_sensor:SDA", "mcu:D2") in conn_pairs
+    assert ("r3:2", "dht11_sensor:SDA") in conn_pairs
+    # D3 audio path: R4 10k pull-up, C4 10uF 16V, R5/R6 2.2k, C5 10nF
+    assert ("r4:2", "mcu:D3") in conn_pairs
+    assert ("mcu:D3", "c4:1") in conn_pairs
+    assert ("c4:2", "r5:1") in conn_pairs
+    assert ("r5:2", "r6:1") in conn_pairs
+    assert ("r5:2", "c5:1") in conn_pairs
+    assert ("r5:2", "pam8403_speaker:2") in conn_pairs
+    # Bedroom LED D4 active-LOW: 3.3V -> R2 220R -> LED A, LED C -> D4 + R7 10k pull-up
+    assert ("bb1:tp.24", "r2:1") in conn_pairs
+    assert ("r2:2", "led_bedroom:A") in conn_pairs
+    assert ("led_bedroom:C", "mcu:D4") in conn_pairs
+    assert ("r7:2", "mcu:D4") in conn_pairs
+    # KY-037 D5
+    assert ("ky037_sound:DOUT", "mcu:D5") in conn_pairs
+    # Relay 1 pump D6 + D1 1N4007 flyback
+    assert ("mcu:D6", "relay_pump:IN") in conn_pairs
+    assert ("bb1:bp.10", "relay_pump:COM") in conn_pairs
+    assert ("relay_pump:NO", "d1:C") in conn_pairs
+    # Relay 2 speaker D7: COM -> +5V (not GND), NO -> C6 + AMP_5V
+    assert ("mcu:D7", "relay_speaker:IN") in conn_pairs
+    assert ("bb1:bp.15", "relay_speaker:COM") in conn_pairs
+    assert ("bb1:bn.15", "relay_speaker:COM") not in conn_pairs
+    assert ("relay_speaker:NO", "c6:1") in conn_pairs
+    # Buzzer D8 via NPN low-side driver Q1 S8050 + R10 1k + R9 10k pull-down + D2 1N4007 (NO direct D8->buzzer)
+    assert ("mcu:D8", "r9:1") in conn_pairs
+    assert ("mcu:D8", "r10:1") in conn_pairs
+    assert ("r10:2", "q1:B") in conn_pairs
+    assert ("q1:E", "bb1:bn.23") in conn_pairs
+    assert ("bb1:bp.24", "buzzer_alarm:2") in conn_pairs
+    assert ("buzzer_alarm:1", "q1:C") in conn_pairs
+    assert ("bb1:bp.24", "d2:C") in conn_pairs
+    assert ("d2:A", "q1:C") in conn_pairs
+    assert ("mcu:D8", "buzzer_alarm:2") not in conn_pairs
+    assert ("mcu:D8", "buzzer_alarm:1") not in conn_pairs
+    # Soil sensor on A0 (not GPIO34) + C7 100nF
+    assert ("soil_yl69:SIG", "mcu:A0") in conn_pairs
+    assert ("soil_yl69:SIG", "c7:1") in conn_pairs
+    assert ("soil_yl69:SIG", "mcu:34") not in conn_pairs
 
     wokwi_sketch = (ROOT / "firmware_esp8266" / "wokwi" / "sketch.ino").read_text(encoding="utf-8")
     assert "#define BEDROOM_LED_ACTIVE_LOW true" in wokwi_sketch
+    assert "#define PIN_SOIL_MOISTURE    A0" in wokwi_sketch
     assert "digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);" in wokwi_sketch
+
+
+def test_wokwi_page_and_wiring_table_match_100x80_diy_pcb() -> None:
+    """Verify /wokwi UI, wokwi.js, and WIRING_TABLE.md match the 100x80mm KiCad Hub PCB."""
+    wokwi_html = (ROOT / "simulator" / "static" / "wokwi.html").read_text(encoding="utf-8")
+    wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
+    wiring_md = (ROOT / "docs" / "phan_cung" / "WIRING_TABLE.md").read_text(encoding="utf-8")
+
+    # (1) Buzzer NPN path on /wokwi, no direct D8->buzzer
+    assert "box_buzzer_npn" in wokwi_html
+    assert "Q1 S8050" in wokwi_html and "R10 1k" in wokwi_html and "R9 10k" in wokwi_html and "D2" in wokwi_html
+    assert "1N4007" in wokwi_html
+    assert "H('j25')" not in wokwi_js
+
+    # (2) D3 audio coupling capacitor = C4 10uF 16V, zero stale 100nF-1uF captions on D3
+    assert "C4 10µF" in wokwi_html
+    assert "R4" in wokwi_html and "R5 2.2k" in wokwi_html and "R6 2.2k" in wokwi_html and "C5" in wokwi_html
+    assert "100nF–1µF" not in wokwi_html and "100nF-1uF" not in wokwi_html and "100nF+RC" not in wokwi_html
+    assert "100nF–1µF" not in wokwi_js and "100nF-1uF" not in wokwi_js
+    assert "C4 10µF 16V" in wokwi_js
+
+    # (4) WIRING_TABLE.md section 3: 100x80 mm, R10/Q1, 21 active/passive/indicator parts, 49 BOM footprints
+    assert "80.0 × 65.0" not in wiring_md
+    assert "100.0 × 80.0 × 1.6 mm" in wiring_md
+    assert "`R1`–`R10`, `Q1`, `C1`–`C7`, `D1`–`D3`" in wiring_md
+    assert "All 21 on-board active/passive/indicator components" in wiring_md
+    assert "49 total BOM footprints" in wiring_md
+
+    # (5) Vietnamese PCB & D8 pull-down note on /wokwi
+    assert 'id="pcbWiringNote"' in wokwi_html
+    assert "breadboard" in wokwi_html.lower() and "R9 (10kΩ → GND)" in wokwi_html
 
 
 def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(

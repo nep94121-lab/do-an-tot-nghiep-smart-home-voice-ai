@@ -111,8 +111,8 @@
 <text x="711.00" y="394.67" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C4 10µ·C5 10n</text>
 <text x="711.00" y="408.98" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">R5/R6 2.2k RC</text>
 <rect x="678.00" y="424.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.85"/>
-<text x="711.00" y="435.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">D2 1N4007</text>
-<text x="711.00" y="445.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">Buzz Flyback</text>
+<text x="711.00" y="435.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">Q1/R10+D2</text>
+<text x="711.00" y="445.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">S8050+1N4007</text>
 <rect x="678.00" y="458.00" width="66.00" height="28.00" rx="3.0" ry="3.0" fill="#E0F2FE" stroke="#0284C7" stroke-width="0.85"/>
 <text x="711.00" y="469.27" class="mono" font-size="5.15" font-weight="700" fill="#0F172A" text-anchor="middle">C6 100nF</text>
 <text x="711.00" y="479.78" class="sans" font-size="4.75" font-weight="400" fill="#334155" text-anchor="middle">AMP_5V Decpl</text>
@@ -340,7 +340,7 @@
 <text x="963.00" y="93.35" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D3 (GPIO0): C4 10µF + R5/R6 2.2k + C5 10nF;</text>
 <text x="963.00" y="104.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">  R4 10k pull-up; firmware IDLE = INPUT (high-Z)</text>
 <text x="963.00" y="115.75" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D4 (GPIO2): Active-LOW + R7 10k pull-up</text>
-<text x="963.00" y="126.95" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D8 (GPIO15): Active-HIGH + R9 10k pull-down</text>
+<text x="963.00" y="126.95" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• D8 (GPIO15): R10 1k→Q1 S8050 + R9 10k PD</text>
 <text x="963.00" y="138.15" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• LM393 (J14) &amp; KY-037 (J15): 3.3V ONLY!</text>
 <text x="963.00" y="149.35" class="sans" font-size="5.45" font-weight="700" fill="#B91C1C" text-anchor="start">• PAM8403 BTL: NEVER tie L_OUT- to GND!</text>
 <text x="963.00" y="160.55" class="sans" font-size="5.45" font-weight="400" fill="#1E293B" text-anchor="start">• Pump/Buzz: D1/D2 1N4007 + C1/C2 470µF</text>
@@ -488,12 +488,12 @@
 <line x1="956.00" y1="610.00" x2="1176.00" y2="610.00" stroke="#DC2626" stroke-width="0.9" stroke-linecap="round"/>
 <text x="963.00" y="597.08" class="sans" font-size="7.60" font-weight="700" fill="#0F172A" text-anchor="start">Active 5V Buzzer (TMB12A05)</text>
 <text x="963.00" y="606.14" class="sans" font-size="5.70" font-weight="400" fill="#334155" text-anchor="start">Alarm Siren · Active-HIGH (D8)  ·  Ø12.0×9.5 mm</text>
-<rect x="1141.75" y="614.00" width="29.25" height="12.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#92400E" stroke-width="0.6"/>
-<text x="1156.38" y="621.84" class="sans" font-size="5.40" font-weight="700" fill="#92400E" text-anchor="middle">R9+D2</text>
-<text x="963.00" y="621.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Silent at boot (R9 10k pull-down)</text>
-<circle cx="956.00" cy="632.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
+<rect x="1114.80" y="614.00" width="56.20" height="12.00" rx="3.0" ry="3.0" fill="#FEF3C7" stroke="#92400E" stroke-width="0.6"/>
+<text x="1142.90" y="621.84" class="sans" font-size="5.40" font-weight="700" fill="#92400E" text-anchor="middle">Q1+R9/R10+D2</text>
+<text x="963.00" y="621.70" class="sans" font-size="5.60" font-weight="400" fill="#475569" text-anchor="start">Low-side Q1 S8050 + R9 10k PD</text>
+<circle cx="956.00" cy="632.00" r="3.60" fill="#DC2626" stroke="#0F172A" stroke-width="0.9"/>
 <text x="963.00" y="633.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W17) Buzzer (+)</text>
-<circle cx="956.00" cy="646.00" r="3.60" fill="#18181B" stroke="#0F172A" stroke-width="0.9"/>
+<circle cx="956.00" cy="646.00" r="3.60" fill="#EA580C" stroke="#0F172A" stroke-width="0.9"/>
 <text x="963.00" y="647.84" class="mono" font-size="5.40" font-weight="700" fill="#0F172A" text-anchor="start">(W18) Buzzer (-)</text>
 <rect x="328.00" y="684.20" width="308.00" height="116.00" rx="6.0" ry="6.0" fill="#E2E8F0" stroke="none" stroke-width="1.0"/>
 <rect x="326.00" y="682.00" width="308.00" height="116.00" rx="6.0" ry="6.0" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.4"/>

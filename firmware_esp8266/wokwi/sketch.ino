@@ -3,26 +3,27 @@
  * BẢN MÔ PHỎNG WOKWI SIMULATOR (10 CHÂN KHÓA CỨNG — 6 THIẾT BỊ + 3 CẢM BIẾN)
  * Đồ án Tốt nghiệp: Smart Home Voice AI — Nguyễn Tuấn Anh (HUST SEEE)
  *
- * Lưu ý Wokwi: dùng ESP32 DevKit v4 làm proxy cho cùng bảng số GPIO NodeMCU:
- *  D0=16, D1=5, D2=4, D3=0, D4=2, D5=14, D6=12, D7=13, D8=15, A0=34
+ * Khớp 100% mạch PCB Hub 1 lớp 100x80mm (NodeMCU ESP8266 v2 Amica):
+ *  D0=GPIO16, D1=GPIO5, D2=GPIO4, D3=GPIO0, D4=GPIO2,
+ *  D5=GPIO14, D6=GPIO12, D7=GPIO13, D8=GPIO15, A0=ADC0
  * ============================================================================
  */
 
-#include <WiFi.h>
-#include <ESP32Servo.h>
+#include <ESP8266WiFi.h>
+#include <Servo.h>
 
-// Hợp đồng 10 chân khóa cứng (NodeMCU ESP8266 -> Wokwi ESP32 GPIO proxy):
-#define PIN_LIVING_LIGHT     16  // D0 (GPIO 16) - Đèn phòng khách
+// Hợp đồng 10 chân khóa cứng trên NodeMCU ESP8266 v2 Amica:
+#define PIN_LIVING_LIGHT     16  // D0 (GPIO 16) - Đèn phòng khách qua R1 220R
 #define PIN_MAIN_DOOR_SERVO  5   // D1 (GPIO 5)  - Servo SG90 Cửa chính
-#define PIN_DHT11            4   // D2 (GPIO 4)  - Cảm biến Nhiệt độ & Độ ẩm DHT11
-#define PIN_AUDIO_PWM        0   // D3 (GPIO 0)  - PWM Audio ra PAM8403 (IDLE = INPUT)
-#define PIN_BEDROOM_LIGHT    2   // D4 (GPIO 2)  - Đèn phòng ngủ (Active-LOW an toàn boot)
+#define PIN_DHT11            4   // D2 (GPIO 4)  - Cảm biến DHT11 (kèm R3 10k pull-up)
+#define PIN_AUDIO_PWM        0   // D3 (GPIO 0)  - PWM Audio ra PAM8403 qua R4 10k pull-up, C4 10uF 16V, R5/R6 2.2k, C5 10nF (IDLE = INPUT)
+#define PIN_BEDROOM_LIGHT    2   // D4 (GPIO 2)  - Đèn phòng ngủ Active-LOW (3.3V -> R2 220R -> LED -> D4, R7 10k pull-up)
 #define BEDROOM_LED_ACTIVE_LOW true
 #define PIN_KY037_DO         14  // D5 (GPIO 14) - Cảm biến âm thanh KY-037 DO
-#define PIN_GARDEN_PUMP      12  // D6 (GPIO 12) - Relay 1 (Xanh) Máy bơm tưới cây
-#define PIN_SPEAKER_AMP      13  // D7 (GPIO 13) - Relay 2 (Đỏ Opto) Nguồn mạch loa PAM8403
-#define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi báo động Buzzer 5V (trên PCB vật lý lái qua NPN Q1 S8050 + R10 1k + R9 10k pull-down)
-#define PIN_SOIL_MOISTURE    34  // A0 (ADC)     - Cảm biến Độ ẩm Đất LM393
+#define PIN_GARDEN_PUMP      12  // D6 (GPIO 12) - Relay 1 (Xanh) Máy bơm + D1 1N4007 + C2 470uF
+#define PIN_SPEAKER_AMP      13  // D7 (GPIO 13) - Relay 2 (Đỏ Opto, COM/NO -> +5V) Nguồn PAM8403 + C6 100nF
+#define PIN_ALARM_SIREN      15  // D8 (GPIO 15) - Còi 5V qua R10 1k -> Q1 S8050 (NPN), R9 10k pull-down -> GND, D2 1N4007
+#define PIN_SOIL_MOISTURE    A0  // A0 (ADC0)    - Cảm biến Độ ẩm Đất LM393 (3.3V) + C7 100nF
 
 Servo doorServo;
 bool pumpAutoTriggered = false;
@@ -33,7 +34,7 @@ unsigned long lastCheckMs = 0;
 void setup() {
   Serial.begin(115200);
   Serial.println("====================================================");
-  Serial.println(" KHOI DONG MACH SMART HOME WOKWI (6+3 LOCKED PINOUT)");
+  Serial.println(" KHOI DONG MACH SMART HOME ESP8266 (6+3 LOCKED PINOUT)");
   Serial.println(" Sinh vien: Nguyen Tuan Anh - HUST SEEE");
   Serial.println("====================================================");
 
@@ -62,7 +63,7 @@ void setup() {
   digitalWrite(PIN_LIVING_LIGHT, LOW);
   digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);
 
-  Serial.println("[TEST 2] Bat Relay 2 PAM8403 (D7=13) & phat chuong PWM (D3=0)...");
+  Serial.println("[TEST 2] Bat Relay 2 PAM8403 (D7=13, +5V COM/NO) & phat chuong PWM (D3=0 qua C4 10uF 16V)...");
   digitalWrite(PIN_SPEAKER_AMP, HIGH);
   delay(20);
   tone(PIN_AUDIO_PWM, 1180, 90);
@@ -73,7 +74,7 @@ void setup() {
   pinMode(PIN_AUDIO_PWM, INPUT);
   digitalWrite(PIN_SPEAKER_AMP, LOW);
 
-  Serial.println("[TEST 3] Khoa Cua Chinh SG90 (D1=5 -> 0 deg), tat Coi (D8=15 -> LOW)...");
+  Serial.println("[TEST 3] Khoa Cua Chinh SG90 (D1=5 -> 0 deg), tat Coi Q1 S8050 (D8=15 -> LOW)...");
   doorServo.write(0);
   Serial.println("WOKWI_POST_OK: 6_DEVICES_3_SENSORS");
 }
@@ -81,9 +82,9 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // Giám sát cảm biến âm thanh KY-037 DO (D5/GPIO14) với debounce 300ms
+  // Giám sát cảm biến âm thanh KY-037 DO (D5/GPIO14) với debounce 400ms
   int kyState = digitalRead(PIN_KY037_DO);
-  if (kyState == HIGH && lastKy037State == LOW && (now - lastKy037Ms >= 300)) {
+  if (kyState == HIGH && lastKy037State == LOW && (now - lastKy037Ms >= 400)) {
     lastKy037Ms = now;
     Serial.println("[KY-037 D5] Phat hien am thanh / tieng vo tay (DO=HIGH)!");
   }
@@ -92,9 +93,9 @@ void loop() {
   if (now - lastCheckMs >= 2000) {
     lastCheckMs = now;
 
-    // Đọc giá trị Độ ẩm Đất từ LM393 (0..4095) trên A0 (GPIO34)
+    // Đọc giá trị Độ ẩm Đất từ LM393 (ADC0 10-bit 0..1023) trên A0
     int rawAdc = analogRead(PIN_SOIL_MOISTURE);
-    float soilPct = constrain(map(rawAdc, 4095, 0, 0, 100), 0, 100);
+    float soilPct = constrain(map(rawAdc, 1023, 0, 0, 100), 0, 100);
 
     Serial.print("[CAM BIEN A0] Do am dat = ");
     Serial.print(soilPct, 1);

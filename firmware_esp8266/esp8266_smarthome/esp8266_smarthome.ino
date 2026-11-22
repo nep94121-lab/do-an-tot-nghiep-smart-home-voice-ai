@@ -9,12 +9,12 @@
  *  - D0 (GPIO16): Đèn phòng khách (`living_room_light`) + nháy `enroll_blink`
  *  - D1 (GPIO5) : Cửa chính Servo SG90 (`main_door`, 0° đóng / 90° mở)
  *  - D2 (GPIO4) : Cảm biến Nhiệt độ & Độ ẩm `DHT11`
- *  - D3 (GPIO0) : Ngõ ra âm thanh PWM tới `PAM8403` qua tụ chặn DC (100nF–1uF) + cầu phân áp RC (IDLE = INPUT)
+ *  - D3 (GPIO0) : Ngõ ra âm thanh PWM tới `PAM8403` qua `R4 10k` pull-up, tụ chặn DC `C4 10uF 16V` + cầu phân áp `R5/R6 2.2k` + `C5 10nF` (IDLE = INPUT)
  *  - D4 (GPIO2) : Đèn phòng ngủ (`bedroom_light`, Active-LOW an toàn boot)
  *  - D5 (GPIO14): Cảm biến âm thanh `KY-037/038 DO` (ngắt + debounce >= 400ms -> `smarthome/telemetry/sound`)
  *  - D6 (GPIO12): Relay 1 xanh dương 5V -> Máy bơm tưới cây (`garden_pump`) + `1N4007` + tụ `470uF 16V`
  *  - D7 (GPIO13): Relay 2 đỏ opto 5V -> Nguồn mạch loa PAM8403 (`speaker_amp`, tự bật khi phát chuông, tự tắt sau 1.5s)
- *  - D8 (GPIO15): Còi báo động Buzzer 5V (`alarm_siren`, active-HIGH, im lặng khi boot)
+ *  - D8 (GPIO15): Còi báo động Buzzer 5V (`alarm_siren`, qua `R10 1k` -> `Q1 S8050` NPN, `R9 10k` pull-down, `D2 1N4007`, im lặng khi boot)
  *  - A0 (ADC0)  : Cảm biến độ ẩm đất (`soil_moisture`, LM393 nguồn 3.3V -> 0-100%, tự bơm <40% ON / >=70% OFF)
  *
  * Kiến trúc áp dụng: The System Design Primer

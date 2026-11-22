@@ -243,6 +243,19 @@
       font-size: 12px;
       color: var(--muted);
     }
+    .pcb-wiring-note {
+      background: var(--warn-soft);
+      border: 1px solid var(--amber-border);
+      color: #78350f;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+    .pcb-wiring-note strong {
+      color: #92400e;
+      font-weight: 600;
+    }
 
     .workbench-scroll {
       width: 100%;
