@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 import pathlib
+import re
 import sqlite3
 import time
 import unicodedata
@@ -107,8 +108,32 @@ SENSOR_STATE_OPPOSITE: dict[str, str] = {
 }
 
 
-def format_sensor_trigger_vi(when_device_id: str, when_state: str) -> str:
+def format_sensor_trigger_vi(
+    when_device_id: str,
+    when_state: str,
+    *,
+    threshold_op: str = "",
+    threshold_value: float | None = None,
+) -> str:
     st = str(when_state or "").upper()
+    op = str(threshold_op or "").strip()
+    if op and threshold_value is not None:
+        op_vi = {
+            ">": "trên",
+            ">=": "từ",
+            "<": "dưới",
+            "<=": "tối đa",
+            "==": "bằng",
+            "!=": "khác",
+        }.get(op, op)
+        val_f = float(threshold_value)
+        val_str = f"{int(val_f)}" if val_f.is_integer() else f"{val_f:.1f}"
+        if when_device_id == "temp_sensor":
+            return f"nhiệt độ {op_vi} {val_str}°C"
+        if when_device_id == "humidity_sensor":
+            return f"độ ẩm không khí {op_vi} {val_str}%"
+        if when_device_id == "soil_sensor":
+            return f"độ ẩm đất {op_vi} {val_str}%"
     if when_device_id == "soil_sensor":
         return "đất khô" if st == "DRY" else "đất ẩm"
     if when_device_id == "sound_sensor":
@@ -961,9 +986,9 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
         trig = str(sr["trigger_expr"] or "")
         if ":" not in trig:
             continue
-        wdev, wstate = trig.split(":", 1)
-        wdev = wdev.strip()
-        wstate = wstate.strip().upper()
+        trig_parts = trig.split(":")
+        wdev = trig_parts[0].strip()
+        wstate = trig_parts[1].strip().upper() if len(trig_parts) >= 2 else ""
         if wdev not in SENSOR_TRIGGER_DEVICES:
             continue
         tdev = str(sr["target_device_id"] or "").strip()
@@ -982,13 +1007,16 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
             continue
         edev = str(meta.get("else_device_id") or "").strip()
         eact = str(meta.get("else_action") or "").strip()
+        th_op = str(meta.get("threshold_op") or "").strip()
+        th_val_raw = meta.get("threshold_value")
+        th_val: float | None = float(th_val_raw) if th_val_raw is not None else None
         wname = str(SENSOR_TRIGGER_DEVICES[wdev]["name"])
         tname = DEVICE_LABELS_VI.get(tdev) or DEFAULT_DEVICES.get(tdev, {}).get("name") or tdev
         ename = DEVICE_LABELS_VI.get(edev) or DEFAULT_DEVICES.get(edev, {}).get("name") or edev if edev else ""
         created_ts = float(meta.get("created_at") or 0.0)
         lbl = str(
             meta.get("label")
-            or f"Khi {format_sensor_trigger_vi(wdev, wstate)} thì {format_device_action_vi(tdev, tact).lower()}"
+            or f"Khi {format_sensor_trigger_vi(wdev, wstate, threshold_op=th_op, threshold_value=th_val)} thì {format_device_action_vi(tdev, tact).lower()}"
         )
         out.append({
             "id": str(sr["rule_id"]),
@@ -1000,6 +1028,8 @@ def _list_automation_rules_in_conn(conn: sqlite3.Connection, *, include_disabled
             "when_device_id": wdev,
             "when_device_name": wname,
             "when_state": wstate,
+            "threshold_op": th_op,
+            "threshold_value": th_val,
             "then_device_id": tdev,
             "then_device_name": tname,
             "then_action": tact,
@@ -1106,6 +1136,8 @@ def create_automation_rule(
     label: str = "",
     owner_name: str = "",
     rule_id: str | None = None,
+    threshold_op: str = "",
+    threshold_value: float | None = None,
     db_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     (
@@ -1134,10 +1166,19 @@ def create_automation_rule(
 
     if is_sensor_trigger:
         when_display_name = str(SENSOR_TRIGGER_DEVICES[when_device_id]["name"])
+        clean_th_op = str(threshold_op or "").strip()
+        if clean_th_op not in (">", ">=", "<", "<=", "==", "!="):
+            clean_th_op = ""
+        clean_th_val: float | None = float(threshold_value) if (clean_th_op and threshold_value is not None) else None
         clean_label = str(
-            label or f"Khi {format_sensor_trigger_vi(when_device_id, norm_when_state)} thì {format_device_action_vi(then_device_id, then_action).lower()}"
+            label
+            or f"Khi {format_sensor_trigger_vi(when_device_id, norm_when_state, threshold_op=clean_th_op, threshold_value=clean_th_val)} thì {format_device_action_vi(then_device_id, then_action).lower()}"
         ).strip()
-        trig_expr = f"{when_device_id}:{norm_when_state}"
+        trig_expr = (
+            f"{when_device_id}:{norm_when_state}:{clean_th_op}{clean_th_val:g}"
+            if (clean_th_op and clean_th_val is not None)
+            else f"{when_device_id}:{norm_when_state}"
+        )
         meta_json = json.dumps(
             {
                 "label": clean_label,
@@ -1145,6 +1186,8 @@ def create_automation_rule(
                 "else_device_id": valid_else_dev or "",
                 "else_action": valid_else_act,
                 "delay_seconds": safe_delay,
+                "threshold_op": clean_th_op,
+                "threshold_value": clean_th_val,
                 "enabled": True,
                 "created_at": now_ts,
                 "updated_at": now_ts,
@@ -1198,6 +1241,8 @@ def create_automation_rule(
             "when_device_id": when_device_id,
             "when_device_name": when_display_name,
             "when_state": norm_when_state,
+            "threshold_op": clean_th_op,
+            "threshold_value": clean_th_val,
             "then_device_id": then_device_id,
             "then_device_name": DEVICE_LABELS_VI.get(then_device_id, then_device_id),
             "then_action": then_action,
@@ -1597,11 +1642,39 @@ def find_custom_command_by_text(
         if cmd["phrase_norm"] == norm_text:
             return cmd
     stripped = norm_text
-    for prefix in ("kich hoat ", "chay lenh ", "chay ", "bat ", "mo ", "thuc hien ", "dung "):
+    for prefix in (
+        "kich hoat khau lenh ",
+        "kich hoat cau lenh ",
+        "kich hoat phim tat ",
+        "kich hoat kich ban ",
+        "kich hoat lenh ",
+        "thuc hien khau lenh ",
+        "thuc hien cau lenh ",
+        "thuc hien phim tat ",
+        "thuc hien kich ban ",
+        "thuc hien lenh ",
+        "chay khau lenh ",
+        "chay cau lenh ",
+        "chay phim tat ",
+        "chay kich ban ",
+        "chay lenh ",
+        "goi lenh ",
+        "kich hoat ",
+        "chay ",
+        "bat ",
+        "mo ",
+        "thuc hien ",
+        "dung ",
+    ):
         if stripped.startswith(prefix):
             cand = stripped[len(prefix):].strip()
+            cand_no_polite = re.sub(
+                r"\s+(?:giup\s+(?:toi|minh|anh|chi|em)|ho\s+(?:toi|minh|anh|chi|em)|(?:gium|dum)\s+(?:toi|minh|anh|chi|em)|di|nhe|nha|a|luon|ngay)+$",
+                "",
+                cand,
+            ).strip()
             for cmd in commands:
-                if cmd["phrase_norm"] == cand:
+                if cmd["phrase_norm"] == cand or (cand_no_polite and cmd["phrase_norm"] == cand_no_polite):
                     return cmd
     # Fallback: longer phrase contained as whole words
     best: dict[str, Any] | None = None

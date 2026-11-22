@@ -375,6 +375,11 @@ async def api_reset_automations(request: Request, payload: dict[str, Any] = Body
             {"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà cấp 1 mới được khôi phục cài đặt gốc ạ."},
             status_code=403,
         )
+    if scope == "devices" and int(sess.tier) != 1:
+        return JSONResponse(
+            {"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà cấp 1 mới có quyền đặt lại trạng thái toàn bộ thiết bị."},
+            status_code=403,
+        )
     clear_all_users = bool(body.get("clear_all_users", False))
     if clear_all_users and int(sess.tier) > 1:
         return JSONResponse(

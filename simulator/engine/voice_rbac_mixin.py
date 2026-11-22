@@ -143,7 +143,7 @@ class EngineVoiceRbacMixin:
 
     async def set_query_permission_policy(self, mode: str) -> dict[str, Any]:
         """Thay đổi quy tắc phân quyền hỏi đáp (CHỈ Cấp 1 Nguyễn Tuấn Anh mới có quyền thay đổi)."""
-        if self.current_tier != 1 or self.current_role != "ADMIN":
+        if self.current_tier != 1 or str(self.current_role).upper() not in ("ADMIN", "OWNER"):
             msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "set_query_permission_policy", "role": self.current_role, "reason": msg})
             return {
@@ -186,7 +186,7 @@ class EngineVoiceRbacMixin:
         target_device_id: str = "",
     ) -> dict[str, Any]:
         """Cho phép Admin Cấp 1 (Nguyễn Tuấn Anh) sửa BẤT KỲ quy tắc hệ thống, quyền hạn của Cấp 2/Cấp 3."""
-        if self.current_tier != 1 or self.current_role != "ADMIN":
+        if self.current_tier != 1 or str(self.current_role).upper() not in ("ADMIN", "OWNER"):
             msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "admin_update_system_policy", "role": self.current_role, "reason": msg})
             return {
@@ -436,6 +436,11 @@ class EngineVoiceRbacMixin:
                 self._current_user_id = "unknown"
                 self._current_role = "UNKNOWN"
                 return
+        if hasattr(self, "users") and v in self.users:
+            u = self.users[v]
+            self._current_user_id = v
+            self._current_role = u["role"] if u.get("active", True) else "UNKNOWN"
+            return
         if hasattr(self, "users") and v_low in self.users:
             u = self.users[v_low]
             self._current_user_id = v_low
@@ -443,19 +448,21 @@ class EngineVoiceRbacMixin:
             return
         if hasattr(self, "users"):
             for uid, u in self.users.items():
-                if u.get("name", "").strip().lower() == v_low:
+                if str(uid).strip().lower() == v_low or u.get("name", "").strip().lower() == v_low:
                     self._current_user_id = uid
                     self._current_role = u["role"] if u.get("active", True) else "UNKNOWN"
                     return
         r = v.upper()
-        if r in ("ADMIN", "MEMBER", "CHILD_GUEST"):
-            self._current_role = r
-            if r == "ADMIN":
-                self._current_user_id = OWNER_ID
-            elif r == "MEMBER":
+        if r in ("ADMIN", "OWNER", "MEMBER", "CHILD_GUEST"):
+            norm_r = "ADMIN" if r in ("ADMIN", "OWNER") else r
+            self._current_role = norm_r
+            if norm_r == "ADMIN":
+                if not hasattr(self, "users") or self.users.get(self._current_user_id, {}).get("tier") != 1:
+                    self._current_user_id = OWNER_ID
+            elif norm_r == "MEMBER":
                 if not hasattr(self, "users") or self.users.get(self._current_user_id, {}).get("tier") != 2:
                     self._current_user_id = USER_ROLE_MAP.get(2, "thanh_vien_a")
-            elif r == "CHILD_GUEST":
+            elif norm_r == "CHILD_GUEST":
                 if not hasattr(self, "users") or self.users.get(self._current_user_id, {}).get("tier") != 3:
                     self._current_user_id = USER_ROLE_MAP.get(3, "khach_c")
             return
@@ -489,7 +496,8 @@ class EngineVoiceRbacMixin:
                 False,
                 f"Từ chối truy cập! Quyền của {u.get('name', self._current_user_id)} đã bị hủy.",
             )
-        user_lvl = ROLE_LEVELS.get(self.current_role, 0)
+        cur_role_key = "ADMIN" if str(self.current_role).upper() == "OWNER" else self.current_role
+        user_lvl = ROLE_LEVELS.get(cur_role_key, 0)
         req_lvl = ROLE_LEVELS.get(required_role, 3)
         if user_lvl < req_lvl:
             return (
@@ -652,7 +660,7 @@ class EngineVoiceRbacMixin:
         duration_sec: int | None = None,
     ) -> dict[str, Any]:
         pol = self.system_policies
-        if self.current_tier != 1 or self.current_role != "ADMIN":
+        if self.current_tier != 1 or str(self.current_role).upper() not in ("ADMIN", "OWNER"):
             msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "start_voice_enrollment", "role": self.current_role, "reason": msg})
             return {
@@ -810,7 +818,7 @@ class EngineVoiceRbacMixin:
     ) -> dict[str, Any]:
         if tier is not None:
             target_tier = int(tier)
-        if self.current_tier != 1 or self.current_role != "ADMIN":
+        if self.current_tier != 1 or str(self.current_role).upper() not in ("ADMIN", "OWNER"):
             msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "grant_user_permission", "role": self.current_role, "reason": msg})
             return {
@@ -889,7 +897,7 @@ class EngineVoiceRbacMixin:
         }
 
     async def revoke_user_permission(self, target_name: str) -> dict[str, Any]:
-        if self.current_tier != 1 or self.current_role != "ADMIN":
+        if self.current_tier != 1 or str(self.current_role).upper() not in ("ADMIN", "OWNER"):
             msg = FIXED_REJECTION_PHRASE_VI
             await self.emit({"type": "rbac_blocked", "action": "revoke_user_permission", "role": self.current_role, "reason": msg})
             return {

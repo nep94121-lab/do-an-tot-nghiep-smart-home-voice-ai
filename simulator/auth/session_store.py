@@ -668,10 +668,11 @@ def session_is_current(sess: UserSession | None) -> bool:
     if sess.email and sess.source != "seed":
         from simulator.auth_3layer import get_auth_3layer_manager
 
-        account = get_auth_3layer_manager().find_account(sess.email)
+        mgr = get_auth_3layer_manager()
+        account = mgr.find_exact_account(sess.email) if hasattr(mgr, "find_exact_account") else mgr.find_account(sess.email)
         if account and (not account.get("permission_active", True) or int(account.get("tier") or 99) != sess.tier):
             return False
-    if sess.source != "seed":
+    if sess.source != "seed" and int(sess.tier) != 1:
         from simulator.api.deps import _REST_ENGINE
 
         user = _REST_ENGINE.users.get(sess.user_id)

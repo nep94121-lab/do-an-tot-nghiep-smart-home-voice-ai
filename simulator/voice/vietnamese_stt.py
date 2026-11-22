@@ -31,45 +31,140 @@ _ZIPFORMER_FAILED: set[str] = set()
 _ZIPFORMER_HW_CACHE: dict[str, Any] = {}
 _ZIPFORMER_HW_FAILED: set[str] = set()
 
-# General Vietnamese smart-home domain hotwords (pre-tokenized to BPE tokens from tokens.txt)
-_SMART_HOME_HOTWORDS: tuple[tuple[str, float], ...] = (
-    ("BẬT ĐÈN PHÒNG KHÁCH", 1.8),
-    ("TẮT ĐÈN PHÒNG KHÁCH", 1.8),
-    ("BẬT ĐÈN PHÒNG NGỦ", 1.8),
-    ("TẮT ĐÈN PHÒNG NGỦ", 1.8),
-    ("BẬT ĐÈN BUỒNG", 1.9),
-    ("TẮT ĐÈN BUỒNG", 1.9),
-    ("BẬT TẤT CẢ ĐÈN", 1.8),
-    ("TẮT TẤT CẢ ĐÈN", 1.8),
-    ("MỞ CỬA CHÍNH", 1.8),
-    ("ĐÓNG CỬA CHÍNH", 1.8),
-    ("BẬT MÁY BƠM", 2.0),
-    ("TẮT MÁY BƠM", 2.0),
-    ("MÁY BƠM TƯỚI CÂY", 2.0),
-    ("BẬT BƠM", 2.2),
-    ("TẮT BƠM", 2.2),
-    ("BƠM VƯỜN", 2.2),
-    ("CÁI BƠM", 2.0),
-    ("BẬT CÒI", 2.2),
-    ("TẮT CÒI", 2.2),
-    ("CÒI BÁO ĐỘNG", 1.8),
-    ("BẬT LOA", 2.0),
-    ("TẮT LOA", 2.0),
-    ("NGUỒN MẠCH LOA", 1.8),
-    ("TẮT CƠ", 2.0),
-    ("HỦY HẸN GIỜ", 2.2),
-    ("HẸN GIỜ", 1.8),
-    ("ĐẶT LỊCH", 1.8),
-    ("TẠO LỆNH", 1.8),
-    ("SỬA LỆNH", 1.8),
-    ("XÓA LỆNH", 1.8),
-    ("RESET TRẠNG THÁI THIẾT BỊ", 2.2),
-    ("RESET LIÊN KẾT", 2.0),
-    ("KHÔI PHỤC CÀI ĐẶT GỐC", 2.2),
-    ("KHI ĐẤT KHÔ THÌ", 2.0),
-    ("KHI CÓ TIẾNG ĐỘNG LỚN THÌ", 2.0),
-    ("KHI MỞ CỬA CHÍNH THÌ", 2.0),
+_CANONICAL_SENSOR_LABELS_VI: tuple[str, ...] = (
+    "nhiệt độ",
+    "độ ẩm không khí",
+    "độ ẩm đất",
+    "cảm biến âm thanh",
 )
+
+# Concise natural spoken synonyms per canonical device ID, paired with DEVICE_LABELS_VI
+_DEVICE_SPOKEN_ALIASES_VI: dict[str, tuple[str, ...]] = {
+    "main_door": ("cửa chính", "cửa", "cổng"),
+    "living_room_light": ("đèn phòng khách", "đèn khách"),
+    "bedroom_light": ("đèn phòng ngủ", "đèn ngủ", "đèn buồng"),
+    "garden_pump": ("máy bơm tưới cây", "máy bơm", "bơm", "bơm vườn", "máy bơm nước", "bơm nước"),
+    "alarm_siren": ("còi báo động", "còi", "còi hú", "chuông báo động"),
+    "speaker_amp": ("nguồn mạch loa", "loa", "mạch loa", "nguồn loa"),
+}
+
+_DEVICE_ACTION_VERBS_VI: dict[str, tuple[tuple[str, str], ...]] = {
+    "main_door": (("open", "mở"), ("close", "đóng"), ("close", "khóa"), ("close", "khép")),
+    "_default": (("turn_on", "bật"), ("turn_off", "tắt")),
+}
+
+
+def _strip_hardware_code_from_label(label: str) -> str:
+    """Strip hardware model codes (e.g. 'PAM8403') from a display label for spoken ASR vocabulary."""
+    cleaned = re.sub(r"\b[A-Z]{2,}\d+[A-Z0-9]*\b", "", str(label or "")).strip()
+    return " ".join(cleaned.lower().split())
+
+
+def get_registry_asr_vocabulary() -> dict[str, Any]:
+    """Derive canonical ASR device, action, and sensor vocabularies from the hardware permission registry."""
+    try:
+        from simulator.auth.tier_permissions import DEVICE_LABELS_VI
+
+        device_labels = dict(DEVICE_LABELS_VI)
+    except Exception:
+        device_labels = {
+            "main_door": "Cửa chính",
+            "living_room_light": "Đèn phòng khách",
+            "bedroom_light": "Đèn phòng ngủ",
+            "garden_pump": "Máy bơm tưới cây",
+            "alarm_siren": "Còi báo động",
+            "speaker_amp": "Nguồn mạch loa PAM8403",
+        }
+
+    spoken_labels: dict[str, str] = {}
+    device_aliases: dict[str, tuple[str, ...]] = {}
+    action_verbs: dict[str, tuple[tuple[str, str], ...]] = {}
+
+    for dev_id, raw_label in device_labels.items():
+        spoken = _strip_hardware_code_from_label(raw_label) or dev_id.replace("_", " ")
+        spoken_labels[dev_id] = spoken
+        merged: list[str] = [spoken]
+        for alias in _DEVICE_SPOKEN_ALIASES_VI.get(dev_id, ()):
+            a_low = " ".join(alias.lower().split())
+            if a_low and a_low not in merged:
+                merged.append(a_low)
+        device_aliases[dev_id] = tuple(merged)
+        action_verbs[dev_id] = _DEVICE_ACTION_VERBS_VI.get(dev_id, _DEVICE_ACTION_VERBS_VI["_default"])
+
+    return {
+        "device_labels": device_labels,
+        "spoken_labels": spoken_labels,
+        "device_aliases": device_aliases,
+        "sensor_labels": _CANONICAL_SENSOR_LABELS_VI,
+        "action_verbs": action_verbs,
+    }
+
+
+def _build_registry_hotwords() -> tuple[tuple[str, float], ...]:
+    """Build Zipformer BPE hotwords dynamically from the canonical 6-device / 3-sensor registry."""
+    vocab = get_registry_asr_vocabulary()
+    hotwords: list[tuple[str, float]] = []
+    seen: set[str] = set()
+
+    def _add(phrase: str, weight: float) -> None:
+        key = " ".join(phrase.upper().split())
+        if key and key not in seen:
+            seen.add(key)
+            hotwords.append((key, weight))
+
+    light_count = 0
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        if "light" in dev_id:
+            light_count += 1
+        primary_verbs = tuple(v for _a, v in vocab["action_verbs"][dev_id][:2])
+        aliases = vocab["device_aliases"][dev_id]
+        # Canonical full spoken label + primary short aliases
+        for idx, alias in enumerate(aliases[:3]):
+            if alias in ("cửa", "cổng"):
+                continue
+            w = 2.0 if len(alias.split()) <= 2 else 1.8
+            for verb in primary_verbs:
+                _add(f"{verb} {alias}", w)
+            if idx == 0 and len(alias.split()) >= 3:
+                _add(alias, 1.8)
+        if dev_id == "garden_pump":
+            _add("bơm vườn", 2.0)
+
+    if light_count >= 2:
+        _add("bật tất cả đèn", 1.8)
+        _add("tắt tất cả đèn", 1.8)
+
+    for sensor in vocab["sensor_labels"]:
+        _add(sensor, 1.8)
+    for phrase, weight in (
+        ("đất khô", 1.8),
+        ("tiếng động lớn", 1.8),
+        ("hẹn giờ", 1.8),
+        ("hủy hẹn giờ", 2.0),
+        ("đặt lịch", 1.8),
+        ("tạo lệnh", 1.8),
+        ("sửa lệnh", 1.8),
+        ("xóa lệnh", 1.8),
+        ("reset trạng thái thiết bị", 2.0),
+        ("reset liên kết", 1.9),
+        ("khôi phục cài đặt gốc", 2.0),
+    ):
+        _add(phrase, weight)
+
+    return tuple(hotwords)
+
+
+def _build_registry_whisper_prompt() -> str:
+    vocab = get_registry_asr_vocabulary()
+    labels = list(vocab["spoken_labels"].values())
+    if not labels:
+        return "Nhà thông minh."
+    formatted = [labels[0].capitalize()] + labels[1:]
+    return ", ".join(formatted) + "."
+
+
+# Registry-derived Vietnamese smart-home domain hotwords (pre-tokenized to BPE tokens from tokens.txt)
+_SMART_HOME_HOTWORDS: tuple[tuple[str, float], ...] = _build_registry_hotwords()
 
 _ENHANCER_LOCK = threading.Lock()
 _ENHANCER_MODEL: Any = None
@@ -89,10 +184,8 @@ _ZIPFORMER_REPOS: dict[str, str] = {
 }
 _PHOWHISPER_REPO = "models--diepho--PhoWhisper-base-ct2"
 
-# Concise domain prompt for Whisper fallback only (avoids hallucination loops on silence/noise)
-_SMART_HOME_VI_PROMPT = (
-    "Đèn phòng khách, đèn phòng ngủ, cửa chính, máy bơm tưới cây, còi báo động, nguồn mạch loa."
-)
+# Concise registry-derived domain prompt for Whisper fallback only (avoids hallucination loops on silence/noise)
+_SMART_HOME_VI_PROMPT = _build_registry_whisper_prompt()
 
 _HALLUCINATION_RE = re.compile(
     r"(?:"
@@ -310,7 +403,7 @@ def _get_zipformer_hotwords_recognizer(variant: str = "70m") -> Any:
             if not hw_lines:
                 _ZIPFORMER_HW_FAILED.add(variant)
                 return None
-            hw_file = pathlib.Path(tempfile.gettempdir()) / f"smarthome_zf_{variant}_bpe_hotwords_v1.txt"
+            hw_file = pathlib.Path(tempfile.gettempdir()) / f"smarthome_zf_{variant}_bpe_hotwords_v2.txt"
             hw_content = "\n".join(hw_lines) + "\n"
             if not hw_file.is_file() or hw_file.read_text(encoding="utf-8") != hw_content:
                 hw_file.write_text(hw_content, encoding="utf-8")
@@ -713,8 +806,7 @@ def _is_muffled_babble_only(audio_f32: np.ndarray, sr: int = 16000) -> bool:
     rms_mean = float(np.mean(frame_rms))
     rms_cv = float(np.std(frame_rms) / max(rms_mean, 1e-9))
 
-    # Real speech (including babble_snr5 with cv >= 0.37 and p20/p80 <= 0.55) has clear syllable pauses;
-    # pure continuous muffled room babble has flat energy (p20/p80 >= 0.56 and rms_cv <= 0.34).
+    # Real speech has clear syllable-level energy pauses; continuous muffled room babble has a flat envelope.
     if p80 <= 1e-6 or (p20 / p80) < 0.56 or rms_cv > 0.34:
         return False
 
@@ -860,8 +952,7 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
             " co nhung ", " danh sach ", " liet ke ", " thanh vien ",
         )
     ):
-        if not re.match(r"^(?:rep|rex|rexit|vi\s+sep|viet|re\s+logic|logic|reet)\b", norm_raw):
-            return "recognized", None
+        return "recognized", None
     if " trang thai " in padded_raw and re.match(
         r"^(?:trang\s+thai|xem|kiem\s+tra|cho\s+(?:toi\s+|minh\s+)?(?:xem|biet)|hoi|bao\s+cao|doc|"
         r"cac|tat\s+ca|toan\s+bo|den|cua|may\s+bom|coi|loa|thiet\s+bi)\b",
@@ -876,18 +967,16 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
         ):
             return "recognized", None
 
-    # Automation: reset, custom create/edit/delete, schedule, timer, cross-rule
+    # Automation: canonical reset, custom create/edit/delete, schedule, timer, cross-rule.
+    # Uncertain or garbled transcripts must fall through as 'unrecognized' so they escalate cleanly
+    # on cascade or ask for clarification offline rather than matching destructive intents.
     if _detect_scoped_reset_intent(low) is not None:
         return "recognized", None
     if any(
         k in padded_raw
         for k in (
-            " reset trang thai ", " ri set trang thai ", " rexit trang thai thiet bi ",
-            " rep trang thai thiet bi ", " vi sep trang thai thiet bi ", " vi sach trang thai thiet bi ",
-            " vi thich trang thai thiet bi ", " viet trang thai thiet bi ",
-            " re logic trang thai thiet bi ", " logic trang thai thiet bi ", " reet trang thai thiet bi ",
-            " dat lai trang thai ", " khoi phuc cai dat ",
-            " hoi phuc cai dat ", " khoi phuc ngay dan ",
+            " reset trang thai ", " dat lai trang thai ",
+            " khoi phuc cai dat goc ", " khoi phuc cai dat mac dinh ",
             " factory reset ", " cap quyen ", " thu hoi ",
         )
     ):
@@ -895,16 +984,14 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
     cc_parsed = _parse_custom_command_create_or_edit(low)
     if cc_parsed is not None:
         # _parse_custom_command_create_or_edit returns (phrase, steps, is_edit, is_strict_explicit).
-        # Only count as recognized when at least one valid step was parsed (lets T120 'bật vườn' enter rescue).
+        # Only count as recognized when at least one valid step was parsed.
         cc_steps = cc_parsed[1] if isinstance(cc_parsed, tuple) and len(cc_parsed) >= 2 else []
         if cc_steps:
             return "recognized", None
         return "unrecognized", None
-    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lien het|lien thiep|lenh|scene|kich ban)\b", norm_raw):
+    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lenh|scene|kich ban)\b", norm_raw):
         return "recognized", None
-    if re.match(r"^(?:doi|sua|cap nhat|du)\s+(?:lich|hen gio)\b", norm_raw):
-        return "recognized", None
-    if re.match(r"^(?:xu ly|du dinh)\s+.+\s+(?:thanh|sang)\s+.+", norm_raw):
+    if re.match(r"^(?:doi|sua|cap nhat)\s+(?:lich|hen gio)\b", norm_raw):
         return "recognized", None
     if " thi " in padded_raw and (
         _parse_sensor_trigger(low) is not None
@@ -927,31 +1014,35 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
         return "recognized", None
 
     # Check bare device noun vs bare verb (for onset-gap physics guard!)
-    # Strictly require NO extra unrecognized leading/trailing word (e.g. 'các còi báo động' or 'bật kết quả' is NOT bare).
+    # Strictly require NO extra unrecognized leading/trailing word.
     normalized = normalize_vietnamese_utterance(low)
     norm_clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(normalized.lower())).split())
     norm_stripped = re.sub(r"\s+(?:a|nha|nhe|oi|di|nay|voi|giup minh|ho minh)$", "", norm_clean).strip()
     dev = _extract_clause_device(norm_clean, raw_clause=normalized) if norm_clean else None
     act = _extract_clause_action(norm_clean, dev, raw_clause=normalized) if norm_clean else None
-    _EXACT_BARE_DEVICE_PHRASES = {
-        "cua", "cua chinh", "cong", "cua ra vao", "cua nha", "cai cua",
+    vocab = get_registry_asr_vocabulary()
+    exact_bare_device_phrases: set[str] = {
+        "cua ra vao", "cua nha", "cai cua",
         "den", "bong den", "tat ca den", "het den", "toan bo den", "ca hai den", "hai den", "ca den", "may cai den",
-        "den phong khach", "bong den phong khach", "den khach", "phong khach",
-        "den phong ngu", "bong den phong ngu", "den ngu", "phong ngu",
-        "may bom", "may bom tuoi cay", "bom", "bom tuoi cay", "bom vuon", "may bom nuoc", "bom nuoc",
-        "coi", "coi bao dong", "chuong bao dong", "bao dong",
-        "loa", "mach loa", "nguon mach loa", "nguon loa", "am li", "amply",
+        "bong den phong khach", "phong khach",
+        "bong den phong ngu", "phong ngu",
+        "bao dong", "am li", "amply",
         "tat ca thiet bi", "cac thiet bi", "thiet bi",
     }
-    _EXACT_BARE_VERB_PHRASES = {
+    for aliases in vocab["device_aliases"].values():
+        for alias in aliases:
+            a_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(alias.lower())).split())
+            if a_norm:
+                exact_bare_device_phrases.add(a_norm)
+    exact_bare_verb_phrases = {
         "bat", "tat", "mo", "dong", "khoa",
         "bat len", "tat xuong", "mo ra", "dong lai", "khoa lai",
         "bat len di", "mo ra di", "dong lai di",
         "bat het len", "tat het di", "bat no len", "tat no di",
     }
-    if dev is not None and act is None and norm_stripped in _EXACT_BARE_DEVICE_PHRASES:
+    if dev is not None and act is None and norm_stripped in exact_bare_device_phrases:
         return "bare_device", dev
-    if act is not None and dev is None and norm_stripped in _EXACT_BARE_VERB_PHRASES:
+    if act is not None and dev is None and norm_stripped in exact_bare_verb_phrases:
         return "bare_verb", None
 
     return "unrecognized", None
@@ -1132,7 +1223,13 @@ def _is_safe_rescue_direct_command(cand_txt: str, base_txt: str, cf_greedy: str)
         r_pad = f" {r_norm} "
         if r_toks and r_toks[0] in _AUTO_LEAD_TOKENS:
             return False
-        if any(k in r_pad for k in (" tao lenh ", " di lam ", " dat lich ", " hen gio ", " phut nua ", " giay nua ", " thi ")):
+        if any(
+            k in r_pad
+            for k in (
+                " tao lenh ", " sua lenh ", " xoa lenh ", " dat lich ",
+                " hen gio ", " phut nua ", " giay nua ", " tieng nua ", " gio nua ", " thi ",
+            )
+        ):
             return False
         if len(r_toks) >= 7 and len(c_toks) <= len(r_toks) - 2:
             return False
@@ -1140,7 +1237,7 @@ def _is_safe_rescue_direct_command(cand_txt: str, base_txt: str, cf_greedy: str)
 
 
 def _has_background_noise_for_denoise(audio_f32: np.ndarray, sr: int = 16000) -> bool:
-    """Detect non-trivial background noise (white SNR <= 20dB or babble SNR <= 15dB) for selective Pass-4 denoising."""
+    """Detect non-trivial background noise for selective neural speech enhancement."""
     if is_broadband_white_noise(audio_f32, sr=sr):
         return True
     if audio_f32 is None or audio_f32.size < int(sr * 0.4):
@@ -1241,8 +1338,8 @@ def transcribe_vietnamese_offline_pcm16k(
 
                 kind, bare_dev = _classify_offline_transcript_kind(txt)
 
-                # Detect Pass-1 anomalies where greedy Zipformer returned a partial/confused transcript
-                # (e.g. 'tắt bom' for 'tắt bơm', 'tắc' for 'tắt', dropped multi-clause tail, or child 'bạn ơi' for 'bật bơm').
+                # Detect Pass-1 anomalies where greedy Zipformer returned a partial or phonetically confused transcript
+                # (near-homophones 'bom'/'tắc', dropped multi-clause tail, or short high-pitch small-talk decode).
                 low_txt = txt.lower()
                 has_bom_or_tac = bool(re.search(r"\b(?:bom|tắc)\b", low_txt))
                 has_query_smalltalk_collision = bool(
@@ -1266,21 +1363,27 @@ def transcribe_vietnamese_offline_pcm16k(
                         pass
 
                 is_high_pitch_short = False
-                is_high_pitch_ban_oi = False
+                is_high_pitch_short_smalltalk = False
                 if not muffled_babble and duration_sec <= 1.35:
                     try:
                         from simulator.voice.chunkformer_ctc import estimate_pitch_f0_hz
+                        from simulator.voice.vietnamese_policy import classify_small_talk_vi
 
                         if estimate_pitch_f0_hz(audio_f32, sr=16000) >= 245.0:
                             is_high_pitch_short = True
-                            if len(tokens) <= 2 and low_txt.strip() == "bạn ơi":
-                                is_high_pitch_ban_oi = True
+                            if len(tokens) <= 2 and classify_small_talk_vi(low_txt) is not None:
+                                is_high_pitch_short_smalltalk = True
                     except Exception:
                         pass
 
                 pass1_needs_anomaly_rescue = bool(
                     not muffled_babble
-                    and (has_bom_or_tac or has_partial_multi or is_high_pitch_ban_oi or has_query_smalltalk_collision)
+                    and (
+                        has_bom_or_tac
+                        or has_partial_multi
+                        or is_high_pitch_short_smalltalk
+                        or has_query_smalltalk_collision
+                    )
                 )
 
                 # Fast path (~0.2-0.5s): return immediately on clean recognized intents, unsupported devices,
@@ -1322,7 +1425,7 @@ def transcribe_vietnamese_offline_pcm16k(
                         cf_greedy, cf_lp = decode_chunkformer_with_logprobs(audio_f32, sr=16000, pad_s=0.25)
                         cf_kind, _ = _classify_offline_transcript_kind(cf_greedy)
 
-                        if pass1_needs_anomaly_rescue and not is_high_pitch_ban_oi and not has_query_smalltalk_collision:
+                        if pass1_needs_anomaly_rescue and not is_high_pitch_short_smalltalk and not has_query_smalltalk_collision:
                             # Compare greedy Pass-1 vs ChunkFormer vs Zipformer-70M-Hotwords vs Zipformer-30M
                             from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
 
@@ -1396,10 +1499,10 @@ def transcribe_vietnamese_offline_pcm16k(
                                 cf_greedy=cf_greedy,
                             )
 
-                        # Pass 2b (~0.25s): Zipformer-70M with pre-tokenized Vietnamese smart-home BPE hotwords
-                        # Rescues domain phrases ('tắt đèn buồng', '12 phút nữa bật loa', 'bật bơm', 'bật đèn phòng khách' low-gain)
+                        # Pass 2b (~0.25s): Zipformer-70M with registry-derived Vietnamese smart-home BPE hotwords
+                        # Rescues domain device and automation phrases under accent or low-gain conditions.
                         rec_hw = _get_zipformer_hotwords_recognizer("70m")
-                        if rec_hw is not None and not is_high_pitch_ban_oi and not has_query_smalltalk_collision:
+                        if rec_hw is not None and not is_high_pitch_short_smalltalk and not has_query_smalltalk_collision:
                             hw_txt, _ = _decode_zipformer_with_gap(rec_hw, audio_f32, sr=16000, pad_sec=zip_pad)
                             hw_kind, _ = _classify_offline_transcript_kind(hw_txt)
                             if hw_kind in ("unsupported", "negated", "foreign") or (
@@ -1475,7 +1578,7 @@ def transcribe_vietnamese_offline_pcm16k(
                                     cf_greedy=cf_greedy,
                                 )
 
-                        # High-pitch fast speaker VTLN rescue (e.g. children F0 >= 245 Hz, dur <= 1.5s)
+                        # High-pitch short speaker VTLN rescue (F0 >= 245 Hz, dur <= 1.5s)
                         if expected_dev is None and duration_sec <= 1.50 and is_high_pitch_short:
                             vtln_audio = vtln_resample(audio_f32, factor=0.78)
                             vg, vlp = decode_chunkformer_with_logprobs(vtln_audio, sr=16000, pad_s=0.25)
@@ -1504,11 +1607,11 @@ def transcribe_vietnamese_offline_pcm16k(
                     except Exception as exc:
                         LOG.debug("ChunkFormer-CTC rescue skipped: %s", exc)
 
-                # If high-pitch 'bạn ơi' was NOT rescued into a real command, return 'bạn ơi' safely
-                if is_high_pitch_ban_oi:
+                # If high-pitch short small talk was not rescued into a clear command, return original transcript safely
+                if is_high_pitch_short_smalltalk:
                     return _finalize_offline_result(txt, audio_f32, f"zipformer_{variant}", 0.85, t0)
 
-                # Pass 3 (~0.35s): Alternate Zipformer tie-breaker (e.g. 30M catches elderly/fast clauses 70M missed)
+                # Pass 3 (~0.35s): Alternate Zipformer size tie-breaker
                 if not muffled_babble:
                     rec_alt = _get_zipformer_recognizer(alt_variant)
                     if rec_alt is not None:
@@ -1588,7 +1691,7 @@ def transcribe_vietnamese_offline_pcm16k(
                     except Exception as exc:
                         LOG.debug("Selective neural enhancer rescue skipped: %s", exc)
 
-                # Preserve bare device noun for clean clarification; otherwise prefer ChunkFormer (e.g. custom scene phrases like 'đi làm')
+                # Preserve bare device noun for clean clarification; otherwise prefer ChunkFormer for open-vocabulary phrases
                 final_txt = txt if kind == "bare_device" else (cf_greedy or hw_txt or txt)
                 if final_txt:
                     return _finalize_offline_result(

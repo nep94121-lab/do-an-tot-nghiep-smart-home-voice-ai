@@ -119,20 +119,6 @@ def has_removed_device_mention(text: str) -> bool:
     return bool(_REMOVED_DEVICE_MENTION_RE.search(norm))
 
 
-def _normalize_den_typos_vi(text: str) -> str:
-    """Normalize common ASR homophone 'đền' -> 'đèn' in explicit light contexts."""
-    s = str(text or "")
-    if not s:
-        return ""
-    s = re.sub(r"\bđền\s+phòng\s+khách\b", "đèn phòng khách", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bđền\s+phòng\s+ngủ\b", "đèn phòng ngủ", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b(?:đặt|đoàn)\s+(?:nền|đèn)\s+phòng\s+khách\b", "bật đèn phòng khách", s, flags=re.IGNORECASE)
-    s = re.sub(r"\btất\s+cả\s+đền\b", "tất cả đèn", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bhết\s+đền\b", "hết đèn", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bmáy\s+bơm\s+(?:từ\s+tay|tu\s+tay)\b", "máy bơm tưới cây", s, flags=re.IGNORECASE)
-    return s
-
-
 def parse_single_device_and_action(
     clause: str,
     *,
@@ -140,8 +126,7 @@ def parse_single_device_and_action(
     allow_den_asr_homophone: bool = False,
 ) -> tuple[str | None, str | None]:
     """Extract primary device/target and canonical action from a single clause (diacritic-aware)."""
-    if allow_den_asr_homophone:
-        clause = _normalize_den_typos_vi(clause)
+    _ = allow_den_asr_homophone  # Never coerce wrong-diacritic 'đền' -> 'đèn'
     raw_s = str(clause or "").strip().lower()
     norm = f" {normalize_phrase(raw_s)} "
     try:
@@ -191,27 +176,63 @@ def parse_single_device_and_action(
         "hoat dong",
         "cong tac",
         "dong y",
+        "dong thoi",
+        "dong bo",
     ):
         action_norm = action_norm.replace(f" {_non_verb} ", " ")
+    action_norm = re.sub(r"\b(?:ngung|dung|tat|ngat|cup)\s+(?:chay|hoat\s+dong|kich\s+hoat|keu|sang|tuoi)\b", "ngung", action_norm)
     if not has_diac or "tất cả" in raw_s:
         action_norm = action_norm.replace(" tat ca ", " ")
     if not has_diac or "đồng hồ" in raw_s:
         action_norm = action_norm.replace(" dong ho ", " ")
+    action_norm = action_norm.replace(" khoi dong ", " __khoi_dong__ ")
     action_norm = f" {' '.join(action_norm.split())} "
 
-    off_words = ("tat", "dong", "khoa", "ngat", "dung", "ngung")
-    on_words = ("bat", "mo", "khoi dong", "chay", "tuoi")
+    _acc_off_guard = {
+        "tat": r"\btắt\b",
+        "dong": r"\bđóng\b",
+        "khoa": r"\b(?:khóa|khoá)\b",
+        "chot": r"\bchốt\b",
+        "khep": r"\bkhép\b",
+        "gai": r"\bgài\b",
+        "ngat": r"\bngắt\b",
+        "dung": r"\bdừng\b",
+        "ngung": r"\b(?:ngừng|ngưng|dừng|tắt|ngắt|cúp)\b",
+        "cup": r"\bcúp\b",
+        "dap": r"\bdập\b",
+    }
+    _acc_on_guard = {
+        "bat": r"\bbật\b",
+        "mo": r"\bmở\b",
+        "he mo": r"\bhé\s+mở\b",
+        "chay": r"\bchạy\b",
+    }
+    off_words = ("tat nguon", "ngat nguon", "cup nguon", "tat han", "dong kin", "tat", "dong", "khoa", "chot", "khep", "gai", "ngat", "dung", "ngung", "cup", "dap")
+    on_words = ("he mo", "kich hoat", "__khoi_dong__", "cap nguon", "mo nguon", "bat nguon", "cho chay", "cho sang", "lam sang", "cho hoat dong", "cho keu", "cho hu", "bat", "mo", "chay", "tuoi")
     act: str | None = None
     for w in off_words:
         if f" {w} " in action_norm:
-            act = "close" if (dev == "main_door" or w in ("dong", "khoa")) else "turn_off"
+            g_pat = _acc_off_guard.get(w)
+            if g_pat and has_diac and not re.search(g_pat, raw_s):
+                continue
+            act = "close" if (dev == "main_door" or w in ("dong", "dong kin", "khoa", "chot", "khep", "gai")) else "turn_off"
             break
     if act is None:
         for w in on_words:
             if f" {w} " in action_norm:
-                act = "open" if (dev == "main_door" or w == "mo") else "turn_on"
+                g_pat = _acc_on_guard.get(w)
+                if g_pat and has_diac and not re.search(g_pat, raw_s):
+                    continue
+                act = "open" if (dev == "main_door" or w in ("mo", "he mo")) else "turn_on"
                 break
+    if act is None and dev == "main_door":
+        if has_diac and re.search(r"\bhé\b", raw_s):
+            act = "open"
+        elif not has_diac and re.search(r"\bhe\s+(?:cua|cong)\b", action_norm):
+            act = "open"
     if act is None and dev in ("speaker_amp", "alarm_siren") and " keu " in action_norm:
+        act = "turn_on"
+    if act is None and dev == "alarm_siren" and " hu " in action_norm and (not has_diac or re.search(r"\bhú\b", raw_s)):
         act = "turn_on"
     if act is None:
         act = default_action
@@ -224,7 +245,6 @@ def parse_single_device_and_action(
             dev2, act2 = parse_single_device_and_action(
                 norm_vi,
                 default_action=default_action,
-                allow_den_asr_homophone=allow_den_asr_homophone,
             )
             if dev is None and dev2 is not None:
                 dev = dev2
@@ -269,14 +289,14 @@ def _parse_query_steps_from_clause(
     )
     has_state_cue = any(k in norm for k in (" trang thai ", " xem ", " kiem tra ", " check ", " doc ", " bao cao "))
 
-    # 1. Sensor queries (support typed "đọc nhiệt độ và độ ẩm DHT11" AND ASR "đọc nhiệt độ và độ ẩm ư")
+    # 1. Sensor queries (temperature, air humidity, soil moisture, sound)
     is_temp = any(k in norm for k in (" nhiet do ", " bao nhieu do ", " do c "))
     is_soil = any(
         k in norm
-        for k in (" do am dat ", " cam bien dat ", " cam bien do am dat ", " am dat ", " so do dat ", " dat ngoai vuon ")
-    )
+        for k in (" do am dat ", " cam bien dat ", " cam bien do am dat ", " am dat ")
+    ) or (" dat " in norm and any(k in norm for k in (" do am ", " am ", " kho ", " uot ", " vuon ")))
     is_air_hum = (" do am " in norm) and not (is_soil and " khong khi " not in norm)
-    is_sound = any(k in norm for k in (" am thanh ", " ky037 ", " ky 037 ", " tieng dong ", " cam bien tieng dong "))
+    is_sound = any(k in norm for k in (" am thanh ", " ky037 ", " ky 037 ", " tieng dong ", " tieng on ", " cam bien tieng dong ", " phat hien tieng "))
     is_dht11_only = any(k in norm for k in (" dht11 ", " dht 11 ")) and not (is_temp or is_air_hum)
     is_all_sensors = (" cam bien " in norm) and not (is_temp or is_air_hum or is_soil or is_sound or is_dht11_only)
 
@@ -300,7 +320,7 @@ def _parse_query_steps_from_clause(
 
     # 2. Device state query (only when query/state cue is present and NO explicit device-control verb)
     if has_state_cue or (inherited_query and has_query_verb) or inherited_query:
-        ctrl_dev, ctrl_act = parse_single_device_and_action(clause, default_action=None, allow_den_asr_homophone=True)
+        ctrl_dev, ctrl_act = parse_single_device_and_action(clause, default_action=None)
         if ctrl_act is not None:
             return []
         dev_q = ctrl_dev
@@ -318,10 +338,9 @@ def _parse_query_steps_from_clause(
 
 def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
     """Parse one or more device-control and/or sensor/device-state query steps."""
-    text = _normalize_den_typos_vi(text)
     raw_clauses = re.split(
         r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b|\bvới\b|\bvoi\b|\blẫn\b|\blan\b)",
-        text,
+        str(text or ""),
         flags=re.IGNORECASE,
     )
     steps: list[dict[str, str]] = []
@@ -345,7 +364,7 @@ def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
                     steps.append(qs)
             continue
 
-        dev, act = parse_single_device_and_action(cl_s, default_action=last_act, allow_den_asr_homophone=True)
+        dev, act = parse_single_device_and_action(cl_s, default_action=last_act)
         if dev is None and last_dev in ("living_room_light", "bedroom_light", "all_lights"):
             cn = normalize_phrase(cl_s)
             if cn in ("phong ngu", "ngu"):
@@ -526,7 +545,7 @@ def _parse_clock_hhmm_vi(text: str) -> tuple[str | None, bool, str]:
     """Parse explicit clock time ('14 giờ 35', '22:30', '7h15 sáng', 'bảy giờ sáng') + daily repeat flag."""
     norm = _normalize_vi_spoken_numbers(text)
     is_daily = bool(
-        re.search(r"\b(?:hang ngay|moi ngay|ngay nao cung|lap lai|daily)\b", norm)
+        re.search(r"\b(?:hang ngay|moi ngay|ngay nao cung|lap lai|moi sang|moi toi|hang tuan|daily)\b", norm)
     )
 
     m = re.search(
@@ -540,14 +559,18 @@ def _parse_clock_hhmm_vi(text: str) -> tuple[str | None, bool, str]:
 
     prefix = norm[max(0, m.start() - 12):m.start()]
     suffix = norm[m.end():m.end() + 10]
-    if re.search(r"\b(?:sau|nua|trong|con)\s*$", prefix) or re.match(r"^\s*(?:nua|sau)\b", suffix):
-        if ":" not in m.group(0) and not any(w in norm[:m.start()] for w in ("luc", "vao")):
+    m_has_clock_prefix = bool(
+        re.match(r"^(?:vao\s+luc|luc|vao)\b", m.group(0).strip())
+        or any(w in norm[:m.start()] for w in ("luc", "vao"))
+    )
+    if re.search(r"(?<!thu\s)\b(?:sau|nua|trong|con)\s*$", prefix) or re.match(r"^\s*(?:nua|sau)\b", suffix):
+        if ":" not in m.group(0) and not m_has_clock_prefix:
             return None, is_daily, ""
 
     has_clock_marker = (
         any(k in norm for k in ("luc", "vao", ":"))
         or (m.group(3) is not None)
-        or (("gio" in m.group(0) or "h" in m.group(0)) and "nua" not in norm and "sau " not in norm)
+        or (("gio" in m.group(0) or "h" in m.group(0)) and "nua" not in norm and not re.search(r"(?<!thu\s)\bsau\s+\d", norm))
     )
     if not has_clock_marker:
         return None, is_daily, ""
@@ -702,108 +725,359 @@ def _expand_targets(dev: str) -> list[str]:
     return [dev]
 
 
-def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False) -> str | None:
-    """Return 'confirm', 'cancel', or None while distinguishing 'đúng' vs 'đừng'/'dừng'."""
-    raw_low = re.sub(r"[?!.,;:]+$", "", str(raw_text or "").strip().lower()).strip()
+_DESTRUCTIVE_PENDING_KINDS: frozenset[str] = frozenset({
+    "delete_timer",
+    "delete_schedule",
+    "delete_automation_rule",
+    "delete_custom_command",
+    "delete_compound_rule",
+    "reset_pool",
+    "reset_devices",
+    "factory_reset",
+    "reset_automations",
+})
+
+
+def _classify_confirmation_utterance(
+    raw_text: str,
+    *,
+    has_pending: bool = False,
+    pending_action_kind: str = "",
+) -> str | None:
+    """Return 'confirm', 'cancel', or None while distinguishing 'đúng' vs 'đừng'/'dừng' and natural Vietnamese replies."""
+    raw_s_full = str(raw_text or "").strip()
+    raw_low = re.sub(r"[?!.,;:]+$", "", raw_s_full.lower()).strip()
     if not raw_low:
         return None
     raw_collapsed = re.sub(r"\s+", " ", re.sub(r"[,;]+", " ", raw_low)).strip()
     norm = re.sub(r"\s+", " ", normalize_phrase(raw_collapsed)).strip()
 
+    lead_vi = r"(?:(?:ừ|ừm|ư|ờ|vâng|dạ|ok|okay|oke|okie|ô\s*kê|rồi|thôi|à)\s+){0,2}"
+    lead_en = r"(?:(?:u|um|uh|o|vang|da|ok|okay|oke|okie|o\s*ke|roi|thoi|a)\s+){0,2}"
+    # Cancel lead-in excludes affirmative particles ('ừ', 'vâng', 'dạ', 'ok') so 'ừ hủy đi' confirms a pending cancel/delete!
+    cancel_lead_vi = r"(?:(?:thôi|à|ờ|không)\s+){0,2}"
+    cancel_lead_en = r"(?:(?:thoi|a|o|khong)\s+){0,2}"
+    polite_vi = (
+        r"(?:\s+(?:giúp\s+(?:anh|chị|em|tôi|mình)|giùm\s+(?:anh|chị|em|tôi|mình)|"
+        r"dùm\s+(?:anh|chị|em|tôi|mình)|hộ\s+(?:anh|chị|em|tôi|mình)|"
+        r"xác\s+nhận|đồng\s+ý|nhất\s+trí|chốt(?:\s+đơn)?|được|đúng|chuẩn|làm|thực\s+hiện|tiến\s+hành|triển\s+khai|"
+        r"lưu(?:\s+lại)?|đặt|tạo|cài|sửa|xóa|xoá|hủy|huỷ|reset|chạy|mở|bật|tắt|đóng|"
+        r"như\s+vậy|như\s+thế|đấy|đó|ơi|ạ|nhé|nha|nhá|đi|luôn|ngay|rồi|nữa|đâu|em|bạn|anh|chị|nào))*"
+    )
+    polite_en = (
+        r"(?:\s+(?:giup\s+(?:anh|chi|em|toi|minh)|gium\s+(?:anh|chi|em|toi|minh)|"
+        r"dum\s+(?:anh|chi|em|toi|minh)|ho\s+(?:anh|chi|em|toi|minh)|"
+        r"xac\s+nhan|dong\s+y|nhat\s+tri|chot(?:\s+don)?|duoc|dung|chuan|lam|thuc\s+hien|tien\s+hanh|trien\s+khai|"
+        r"luu(?:\s+lai)?|dat|tao|cai|sua|xoa|huy|reset|chay|mo|bat|tat|dong|"
+        r"nhu\s+vay|nhu\s+the|day|do|oi|a|nhe|nha|di|luon|ngay|roi|nua|dau|em|ban|anh|chi|nao))*"
+    )
+
     # Check accented cancel words first so 'đừng' / 'dừng' never collide with 'đúng' ('dung')
     if re.search(
-        r"^(?:đừng(?:\s+đừng){0,2}|dừng(?:\s+dừng){0,2}|không(?:\s+không){0,2}|hủy(?:\s+hủy){0,2}|huỷ(?:\s+huỷ){0,2}|hủy bỏ|huỷ bỏ|thôi\s+hủy|thôi\s+huỷ|thôi\s+hủy\s+bỏ|thôi(?:\s+thôi){0,2}|bỏ(?:\s+bỏ){0,2}|không làm|đừng làm|thôi bỏ|thôi không|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
+        rf"^{cancel_lead_vi}(?:"
+        r"đừng(?:\s+đừng){0,2}|đừng\s+(?:làm|thực\s+hiện|tạo|đặt|cài|lưu|xóa|xoá|chạy|reset)|"
+        r"dừng(?:\s+dừng){0,2}|dừng\s+lại|"
+        r"không(?:\s+không){0,2}|không\s+(?:làm|cần|đồng\s+ý|muốn|thực\s+hiện|xác\s+nhận)|"
+        r"hủy(?:\s+hủy){0,2}|huỷ(?:\s+huỷ){0,2}|hủy\s+bỏ|huỷ\s+bỏ|"
+        r"thôi(?:\s+thôi){0,2}|thôi\s+(?:hủy|huỷ|hủy\s+bỏ|huỷ\s+bỏ|bỏ|không|đừng|khỏi)|"
+        r"bỏ(?:\s+bỏ){0,2}|bỏ\s+đi|bỏ\s+qua|đổi\s+ý|quay\s+lại|khoan\s+đã|từ\s+chối|khỏi\s+cần"
+        rf"){polite_vi}\s*$",
         raw_collapsed,
     ):
         return "cancel"
 
     if re.search(
-        r"^(?:khong(?:\s+khong){0,2}|k|huy(?:\s+huy){0,2}|huy bo|thoi\s+huy|thoi\s+huy\s+bo|thoi(?:\s+thoi){0,2}|bo(?:\s+bo){0,2}|no|cancel|khong lam|dung lam|thoi bo|thoi khong|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
+        rf"^{cancel_lead_en}(?:"
+        r"khong(?:\s+khong){0,2}|k|khong\s+(?:lam|can|dong\s+y|muon|thuc\s+hien|xac\s+nhan)|"
+        r"dung\s+(?:lam|lai|thuc\s+hien|tao|dat|cai|luu|xoa|chay|reset)|"
+        r"huy(?:\s+huy){0,2}|huy\s+bo|"
+        r"thoi(?:\s+thoi){0,2}|thoi\s+(?:huy|huy\s+bo|bo|khong|dung|khoi)|"
+        r"bo(?:\s+bo){0,2}|bo\s+di|bo\s+qua|doi\s+y|quay\s+lai|khoan\s+da|no|cancel|tu\s+choi|khoi\s+can"
+        rf"){polite_en}\s*$",
         norm,
     ):
         return "cancel"
 
+    confirm_verbs_vi = (
+        r"(?:làm|thực\s+hiện|tiến\s+hành|triển\s+khai|tiếp\s+tục|lưu|tạo|đặt|cài|chạy|xóa|xoá|reset|mở|bật|tắt|đóng)\s+"
+        r"(?:lại|đi|luôn|ngay|nhé|nha|ạ|rồi|giúp\s+(?:anh|chị|em|tôi|mình)|giùm\s+(?:anh|chị|em|tôi|mình)|hộ\s+(?:anh|chị|em|tôi|mình))"
+    )
+    confirm_verbs_en = (
+        r"(?:lam|thuc\s+hien|tien\s+hanh|trien\s+khai|tiep\s+tuc|luu|tao|dat|cai|chay|xoa|reset|mo|bat|tat|dong)\s+"
+        r"(?:lai|di|luon|ngay|nhe|nha|a|roi|giup\s+(?:anh|chi|em|toi|minh)|gium\s+(?:anh|chi|em|toi|minh)|ho\s+(?:anh|chi|em|toi|minh))"
+    )
+
     if re.search(
-        r"^(?:đúng(?:\s+đúng){0,2}|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô kê|ôkê|đc|được(?:\s+được){0,2}|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ vâng|dạ được|dạ đúng|có(?:\s+có){0,2}|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:xác nhận|đồng ý|làm|thực hiện|tiến hành|lưu|đặt|tạo|sửa|xóa|hủy|huỷ|chạy|mở|bật|tắt|đóng|ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
+        rf"^{lead_vi}(?:"
+        r"đúng(?:\s+đúng){0,2}|đúng\s+(?:rồi|vậy|ý|thế)|chuẩn(?:\s+(?:rồi|luôn|đấy))?|chốt(?:\s+(?:đơn|đi|luôn|ngay|nhé|nha))?|"
+        r"xác\s+nhận|đồng\s+ý|nhất\s+trí|chắc\s+chắn|"
+        r"ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|"
+        r"ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô\s*kê|"
+        r"đc|được(?:\s+được){0,2}|được\s+(?:rồi|đấy)|yes|"
+        r"vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ\s+(?:vâng|được|đúng|ok|oke|chốt|đồng\s+ý|nhất\s+trí)|có(?:\s+có){0,2}|"
+        r"thực\s+hiện|tiến\s+hành|triển\s+khai|tiếp\s+tục|"
+        rf"{confirm_verbs_vi}"
+        rf"){polite_vi}\s*$",
         raw_collapsed,
     ):
         return "confirm"
 
     # Unaccented fallback (safe because accented 'đừng'/'dừng' already returned 'cancel' above)
     if (has_pending or not re.match(r"^dược(?:\s|$)", raw_collapsed)) and re.search(
-        r"^(?:xac nhan|dong y|chac chan|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o ke|dc|yes|confirm|u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc roi|dung(?:\s+dung){0,2}|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da vang|da duoc|da dung|co(?:\s+co){0,2}|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:xac nhan|dong y|lam|thuc hien|tien hanh|luu|dat|tao|sua|xoa|huy|chay|mo|bat|tat|dong|a|nhe|nha|di|luon|roi|em|ban))*\s*$",
+        rf"^{lead_en}(?:"
+        r"xac\s+nhan|dong\s+y|nhat\s+tri|chac\s+chan|chuan(?:\s+(?:roi|luon|day))?|chot(?:\s+(?:don|di|luon|ngay|nhe|nha))?|"
+        r"ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o\s*ke|dc|yes|confirm|"
+        r"u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc\s+(?:roi|day)|"
+        r"dung(?:\s+dung){0,2}|dung\s+(?:roi|vay|y|the)|"
+        r"vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da\s+(?:vang|duoc|dung|ok|oke|chot|dong\s+y|nhat\s+tri)|co(?:\s+co){0,2}|"
+        r"thuc\s+hien|tien\s+hanh|trien\s+khai|tiep\s+tuc|"
+        rf"{confirm_verbs_en}"
+        rf"){polite_en}\s*$",
         norm,
     ):
         return "confirm"
 
-    # Context-sensitive single-word ASR slips ONLY when a pending confirmation is actively waiting
+    # General natural Vietnamese multi-word confirmation / cancellation when a pending confirmation is actively waiting
     if has_pending:
-        if re.search(
-            r"^(?:tối|toi|quý|quỷ|quy|mỹ|my|đồng\s+thời|dong\s+thoi)(?:\s+(?:ạ|nhé|nha|đi|em|bạn|a|nhe|di|ban))*\s*$",
-            raw_collapsed,
-        ) or re.search(
-            r"^(?:toi|quy|my|dong\s+thoi)(?:\s+(?:a|nhe|nha|di|em|ban))*\s*$",
+        # Never hijack genuine questions into confirm/cancel
+        if "?" in raw_s_full or re.search(
+            r"\b(?:bao\s+nhieu|the\s+nao|ra\s+sao|o\s+dau|la\s+ai|la\s+gi|may\s+gio|may\s+do|co\s+nhung)\b",
             norm,
         ):
-            return "cancel"
-        if re.search(r"^(?:ờ|dược|o|duoc)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn|a|nhe|di|luon|roi|ban))*\s*$", raw_collapsed) or re.search(
-            r"^(?:o|duoc)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
-            norm,
-        ):
+            return None
+
+        has_diac = any(ord(ch) > 127 for ch in raw_collapsed)
+        if re.search(r"^(?:ờ|o)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn|a|nhe|di|luon|roi|ban))*\s*$", raw_collapsed):
             return "confirm"
 
+        is_destructive_pending = pending_action_kind in _DESTRUCTIVE_PENDING_KINDS
+
+        # Accent-safe refusal/negation cues (excluding bare 'hủy'/'xóa' so destructive pending confirms like 'ừ hủy đi' work)
+        has_refusal_non_huy = bool(
+            (
+                re.search(
+                    r"\b(?:không|đừng|chưa|thôi|khoan|đổi\s+ý|bỏ\s+qua|bỏ\s+đi|từ\s+chối|khỏi\s+cần|dừng\s+lại|quay\s+lại)\b",
+                    raw_collapsed,
+                )
+                if has_diac
+                else re.search(
+                    r"\b(?:khong|chua|thoi|khoan|doi\s+y|bo\s+qua|bo\s+di|tu\s+choi|khoi\s+can|dung\s+lai|quay\s+lai|no|cancel|"
+                    r"dung\s+(?:lam|luu|dat|tao|cai|reset|xoa|chay|thuc\s+hien|tien\s+hanh|sua|doi|hen))\b",
+                    norm,
+                )
+            )
+            or re.match(r"^(?:không|khong|k|no|cancel)\b", raw_collapsed)
+        )
+        has_huy_word = bool(
+            re.search(r"\b(?:hủy|huỷ)\b", raw_collapsed) if has_diac else re.search(r"\bhuy\b", norm)
+        )
+
+        # Affirmative heads/verbs (excluding 'chốt cửa')
+        has_chot_confirm = bool(
+            re.search(r"\bchốt(?!\s+(?:cửa|cổng))\b", raw_collapsed)
+            if has_diac
+            else re.search(r"\bchot(?!\s+(?:cua|cong))\b", norm)
+        )
+        has_affirmative = bool(
+            has_chot_confirm
+            or (
+                re.search(
+                    r"\b(?:đồng\s+ý|xác\s+nhận|nhất\s+trí|chắc\s+chắn|"
+                    r"đúng\s+(?:rồi|vậy|ý|thế|như\s+vậy|luôn)|"
+                    r"chuẩn\s+(?:rồi|luôn|quá|đấy|nhé|đó)|"
+                    r"ok|oke|okay|okie|ô\s*kê|yes|confirm|"
+                    r"được\s+(?:rồi|đấy|luôn|nhé|nha|ạ|đó)|"
+                    r"tiến\s+hành|triển\s+khai|thực\s+hiện|tiếp\s+tục|"
+                    r"làm\s+(?:đi|ngay|luôn|giúp|giùm|hộ|vậy|thế)|"
+                    r"lưu\s+(?:đi|lại|ngay|luôn|giúp|giùm|hộ)|"
+                    r"cứ\s+(?:thế|vậy|như\s+thế|như\s+vậy|lưu|tạo|đặt|chạy|xóa|xoá|hủy|huỷ|reset|làm|tiến\s+hành|thực\s+hiện|triển\s+khai|hẹn|sửa|đổi|khôi\s+phục))\b|"
+                    r"^(?:ừ|ừa|ừm|vâng|dạ)\b",
+                    raw_collapsed,
+                )
+                if has_diac
+                else re.search(
+                    r"\b(?:dong\s+y|xac\s+nhan|nhat\s+tri|chac\s+chan|"
+                    r"dung\s+(?:roi|vay|y|the|nhu\s+vay|luon)|"
+                    r"chuan\s+(?:roi|luon|qua|day|nhe|do)|"
+                    r"ok|oke|okay|okie|o\s*ke|yes|confirm|"
+                    r"duoc\s+(?:roi|day|luon|nhe|nha|a|do)|"
+                    r"tien\s+hanh|trien\s+khai|thuc\s+hien|tiep\s+tuc|"
+                    r"lam\s+(?:di|ngay|luon|giup|gium|ho|vay|the)|"
+                    r"luu\s+(?:di|lai|ngay|luon|giup|gium|ho)|"
+                    r"cu\s+(?:the|vay|nhu\s+the|nhu\s+vay|luu|tao|dat|chay|xoa|huy|reset|lam|tien\s+hanh|thuc\s+hien|trien\s+khai|hen|sua|doi|khoi\s+phuc))\b|"
+                    r"^(?:u|ua|um|vang|da)\b",
+                    norm,
+                )
+            )
+        )
+
+        # Confirm pending destructive/delete/reset action when affirmative + NO non-huy refusal (e.g. 'ừ hủy đi', 'đồng ý xóa đi')
+        if has_affirmative and not has_refusal_non_huy:
+            if is_destructive_pending:
+                return "confirm"
+            if not has_huy_word:
+                return "confirm"
+            if not pending_action_kind and re.match(
+                r"^(?:ừ|ừm|vâng|dạ|ok|oke|okay|đồng\s+ý|xác\s+nhận|u|um|vang|da|dong\s+y|xac\s+nhan)\b.+\b(?:hủy|huỷ|xóa|xoá|reset|huy|xoa)\s+(?:đi|luôn|ngay|giúp|giùm|hộ|di|luon|ngay|giup)\b",
+                raw_collapsed,
+            ):
+                return "confirm"
+
+        # Natural multi-word cancel sentences (even when echoing the pending action noun like 'đừng reset thiết bị nữa, hủy đi')
+        if has_refusal_non_huy or has_huy_word:
+            if re.search(
+                r"\b(?:hủy|huỷ|huy|thôi|thoi|bỏ\s+đi|bỏ\s+qua|bo\s+di|bo\s+qua|đổi\s+ý|doi\s+y|"
+                r"từ\s+chối|tu\s+choi|khỏi\s+cần|khoi\s+can|dừng\s+lại|dung\s+lai|quay\s+lại|quay\s+lai|"
+                r"khoan(?:\s+đã|\s+da|\s+hẵng)?|"
+                r"(?:không|khong)\s+(?:làm|cần|đồng\s+ý|dong\s+y|muốn|muon|xác\s+nhận|xac\s+nhan|thực\s+hiện|thuc\s+hien|tiến\s+hành|tien\s+hanh|reset|xóa|xoá|xoa|đặt|dat|tạo|tao|lưu|luu|cài|cai|chạy|chay|sửa|sua|đổi|doi|hẹn|hen|hủy|huỷ|huy)|"
+                r"đừng\s+(?:làm|lưu|đặt|tạo|cài|reset|xóa|xoá|chạy|thực\s+hiện|tiến\s+hành|sửa|đổi|hẹn))\b|"
+                r"^(?:không|khong|k|no|cancel)\b",
+                raw_collapsed if has_diac else norm,
+            ) or (
+                not has_diac
+                and re.search(r"\bdung\s+(?:lam|luu|dat|tao|cai|reset|xoa|chay|thuc\s+hien|tien\s+hanh|sua|doi|hen)\b", norm)
+            ):
+                return "cancel"
+
+    return None
+
+
+def _parse_sensor_trigger_with_threshold(clause: str) -> tuple[str, str, str, float | None] | None:
+    """Parse sensor trigger phrases with optional per-rule numeric operator and threshold value."""
+    raw_c = str(clause or "").strip()
+    norm = f" {normalize_phrase(raw_c)} "
+    raw_no_model = re.sub(r"\b(?:dht\s*11|ky\s*-?\s*03[78]|yl\s*-?\s*69|pam\s*8403)\b", " ", raw_c, flags=re.IGNORECASE)
+    norm_no_model = f" {normalize_phrase(raw_no_model)} "
+
+    def _extract_num_op(sensor_id: str) -> tuple[str, float] | None:
+        m_sym = re.search(r"(>=|<=|!=|==|>|<)\s*(\d+(?:\.\d+)?)", raw_no_model)
+        if m_sym:
+            return m_sym.group(1), float(m_sym.group(2))
+        val: float | None = None
+        m_dig = re.search(r"(\d+(?:\.\d+)?)", norm_no_model)
+        if m_dig:
+            val = float(m_dig.group(1))
+        else:
+            units = {
+                "khong": 0, "mot": 1, "hai": 2, "ba": 3, "bon": 4, "tu": 4,
+                "nam": 5, "lam": 5, "sau": 6, "bay": 7, "tam": 8, "chin": 9,
+            }
+            toks = norm_no_model.split()
+            for idx in range(len(toks)):
+                t0 = toks[idx]
+                if t0 == "muoi":
+                    val = float(10 + units[toks[idx + 1]]) if (idx + 1 < len(toks) and toks[idx + 1] in units and 1 <= units[toks[idx + 1]] <= 9) else 10.0
+                    break
+                if t0 in units and 2 <= units[t0] <= 9 and idx + 1 < len(toks) and toks[idx + 1] == "muoi":
+                    base = units[t0] * 10
+                    val = float(base + units[toks[idx + 2]]) if (idx + 2 < len(toks) and toks[idx + 2] in units and 1 <= units[toks[idx + 2]] <= 9) else float(base)
+                    break
+        if val is None:
+            return None
+        if any(k in norm_no_model for k in (" tro len ", " lon hon hoac bang ", " it nhat ")):
+            return ">=", val
+        if any(k in norm_no_model for k in (" tro xuong ", " nho hon hoac bang ", " toi da ")):
+            return "<=", val
+        if any(k in norm_no_model for k in (" len tren ", " tren ", " vuot ", " vuot qua ", " cao hon ", " lon hon ")):
+            return ">", val
+        if any(
+            k in norm_no_model
+            for k in (
+                " giam xuong duoi ", " giam duoi ", " lanh duoi ", " xuong duoi ", " duoi ",
+                " thap hon ", " nho hon ", " lanh hon ", " it hon ", " giam xuong ", " ha xuong ",
+            )
+        ):
+            return "<", val
+        if any(k in norm_no_model for k in (" bang ",)):
+            return "==", val
+        return None
+
+    # Soil moisture triggers (allows optional intervening location words)
+    if (
+        any(k in norm for k in (" do am dat ", " cam bien dat "))
+        or (" dat " in norm and any(k in norm for k in (" kho ", " am ", " uot ", " duoi ", " tren ", " vuot ", " thap ", " cao ", " nho hon ", " lon hon ")))
+    ):
+        num_spec = _extract_num_op("soil_sensor")
+        if num_spec is not None:
+            op, val = num_spec
+            st = "DRY" if op in ("<", "<=") else "WET"
+            return "soil_sensor", st, op, val
+        if (
+            any(k in norm for k in (" dat kho ", " bi kho ", " qua kho ", " do am dat thap ", " do am dat kho ", " dat bi kho ", " dat qua kho ", " dat kho qua ", " duoi ", " thap hon ", " nho hon ", " it hon "))
+            or re.search(r"\bdat\b(?:\s+\S+){0,3}\s+(?:bi\s+|qua\s+|hoi\s+|dang\s+)?kho\b", norm)
+        ):
+            return "soil_sensor", "DRY", "", None
+        if (
+            any(k in norm for k in (" dat am ", " dat uot ", " do am dat cao ", " dat du am ", " vuot ", " tren ", " cao hon ", " lon hon "))
+            or re.search(r"\bdat\b(?:\s+\S+){0,3}\s+(?:du\s+|qua\s+|bi\s+|dang\s+)?(?:am|uot)\b", norm)
+        ):
+            return "soil_sensor", "WET", "", None
+
+    # Sound sensor KY-037 triggers (check quiet/negated first)
+    if any(k in norm for k in (" yen tinh ", " het tieng dong ", " khong co tieng dong ", " khong co tieng on ")):
+        return "sound_sensor", "QUIET", "", None
+    if any(
+        k in norm
+        for k in (
+            " tieng dong ", " tieng on ", " am thanh lon ", " am thanh bat thuong ",
+            " on ao ", " phat hien am thanh ", " phat hien tieng ", " nghe thay tieng ",
+            " vo tay ", " ky037 ", " ky 037 ",
+        )
+    ):
+        return "sound_sensor", "LOUD", "", None
+
+    # DHT11 temperature triggers
+    if (
+        " nhiet do " in norm
+        or (" dht11 " in norm and " do c " in norm)
+        or (
+            " do am " not in norm
+            and (
+                " do c " in norm
+                or "°c" in raw_c.lower()
+                or (
+                    " do " in norm
+                    and any(
+                        k in norm
+                        for k in (
+                            " lanh ", " nong ", " duoi ", " tren ", " thap ", " cao ", " vuot ",
+                            " giam ", " tang ", " xuong ", " tro xuong ", " tro len ",
+                        )
+                    )
+                )
+            )
+        )
+    ):
+        num_spec = _extract_num_op("temp_sensor")
+        if num_spec is not None:
+            op, val = num_spec
+            st = "HIGH" if op in (">", ">=") else "LOW"
+            return "temp_sensor", st, op, val
+        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ", " nong ")):
+            return "temp_sensor", "HIGH", "", None
+        if any(k in norm for k in (" xuong duoi ", " giam duoi ", " lanh duoi ", " duoi ", " thap ", " lanh ")):
+            return "temp_sensor", "LOW", "", None
+
+    # DHT11 air humidity triggers
+    if " do am khong khi " in norm or (" do am " in norm and " dat " not in norm):
+        num_spec = _extract_num_op("humidity_sensor")
+        if num_spec is not None:
+            op, val = num_spec
+            st = "LOW" if op in ("<", "<=") else "HIGH"
+            return "humidity_sensor", st, op, val
+        if any(k in norm for k in (" xuong duoi ", " duoi ", " thap ")):
+            return "humidity_sensor", "LOW", "", None
+        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ")):
+            return "humidity_sensor", "HIGH", "", None
     return None
 
 
 def _parse_sensor_trigger(clause: str) -> tuple[str, str] | None:
     """Parse sensor trigger phrases ('đất khô', 'độ ẩm đất dưới 30%', 'nhiệt độ trên 35°C', 'có tiếng động lớn', etc.)."""
-    norm = f" {normalize_phrase(clause)} "
-    # Soil moisture triggers
-    if any(
-        k in norm
-        for k in (
-            " dat kho ", " dat co ", " dat o ", " nao kho ", " khi nao kho ",
-            " bi kho ", " qua kho ", " do am dat thap ", " do am dat kho ",
-            " dat bi kho ", " dat qua kho ", " dat kho qua ",
-        )
-    ):
-        return "soil_sensor", "DRY"
-    if any(k in norm for k in (" do am dat ", " cam bien dat ", " dat ")) and any(
-        k in norm for k in (" duoi ", " thap hon ", " nho hon ", " it hon ")
-    ):
-        return "soil_sensor", "DRY"
-    if any(k in norm for k in (" dat am ", " dat uot ", " do am dat cao ", " dat du am ")):
-        return "soil_sensor", "WET"
-    if any(k in norm for k in (" do am dat ", " cam bien dat ", " dat ")) and any(
-        k in norm for k in (" vuot ", " tren ", " cao hon ", " lon hon ")
-    ):
-        return "soil_sensor", "WET"
-    # Sound sensor KY-037 triggers
-    if any(
-        k in norm
-        for k in (
-            " tieng dong lon ", " tieng doc luong ", " tin hieu lon ",
-            " chuyen dong lon ", " bien dong lon ", " bien dong ", " co tieng dong ", " am thanh lon ",
-            " co am thanh lon ", " phat hien am thanh ", " phat hien tieng dong ", " tieng on lon ",
-            " vo tay ", " ky037 ", " ky 037 ",
-        )
-    ):
-        return "sound_sensor", "LOUD"
-    if any(k in norm for k in (" yen tinh ", " het tieng dong ", " khong co tieng dong ")):
-        return "sound_sensor", "QUIET"
-    # DHT11 temperature triggers
-    if " nhiet do " in norm or (" dht11 " in norm and " do c " in norm):
-        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ", " nong ")):
-            return "temp_sensor", "HIGH"
-        if any(k in norm for k in (" xuong duoi ", " duoi ", " thap ", " lanh ")):
-            return "temp_sensor", "LOW"
-    # DHT11 air humidity triggers
-    if (" do am khong khi " in norm or (" do am " in norm and " dat " not in norm and " dht11 " in norm)):
-        if any(k in norm for k in (" xuong duoi ", " duoi ", " thap ")):
-            return "humidity_sensor", "LOW"
-        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ")):
-            return "humidity_sensor", "HIGH"
-    return None
+    res = _parse_sensor_trigger_with_threshold(clause)
+    if res is None:
+        return None
+    return res[0], res[1]
 
 
 def _ensure_confirmation_question(summary_text: str) -> str:
@@ -868,6 +1142,7 @@ async def stage_device_intents_for_confirmation(
                 temperature_c=intent.get("temperature_c"),
                 fan_speed=intent.get("fan_speed"),
                 actor_tier=tier,
+                actor_user_id=_user_id,
             )
             if not ok_v:
                 is_rbac = bool(v_info.get("rbac_blocked")) or int(v_info.get("status_code") or 0) == 403
@@ -1047,6 +1322,7 @@ async def execute_confirmed_mutation(
                     request_tier=tier,
                     request_role=role,
                     request_user_name=user_name,
+                    request_user_id=user_id,
                 )
                 if not res_item.get("ok"):
                     return _deny_mutation_error(
@@ -1110,6 +1386,7 @@ async def execute_confirmed_mutation(
             request_tier=tier,
             request_role=role,
             request_user_name=user_name,
+            request_user_id=user_id,
         )
         if not res_set.get("ok"):
             return _deny_mutation_error(
@@ -1291,7 +1568,7 @@ async def execute_confirmed_mutation(
         delay_sec = float(payload.get("delay_seconds") or 0.0)
         label = str(payload.get("label") or "").strip()
 
-        allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier)
+        allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier, actor_user_id=user_id)
         if not allowed_then:
             return _deny_mutation_error(
                 session=session,
@@ -1302,7 +1579,7 @@ async def execute_confirmed_mutation(
                 target=t_dev,
             )
         if e_dev:
-            allowed_else, reason_else = engine.check_device_permission(e_dev, actor_tier=tier)
+            allowed_else, reason_else = engine.check_device_permission(e_dev, actor_tier=tier, actor_user_id=user_id)
             if not allowed_else:
                 return _deny_mutation_error(
                     session=session,
@@ -1325,6 +1602,8 @@ async def execute_confirmed_mutation(
                 delay_seconds=delay_sec,
                 label=label,
                 owner_name=user_name,
+                threshold_op=str(payload.get("threshold_op") or ""),
+                threshold_value=payload.get("threshold_value"),
             )
         except ValueError as exc:
             return _deny_mutation_error(
@@ -1373,7 +1652,7 @@ async def execute_confirmed_mutation(
         run_date_vn = str(payload.get("run_date_vn") or "")
         label = str(payload.get("label") or "")
         for td in target_devs:
-            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier, actor_user_id=user_id)
             if not allowed_td:
                 return _deny_mutation_error(
                     session=session,
@@ -1597,7 +1876,7 @@ async def execute_confirmed_mutation(
             seconds = 10.0
             total_sec = 10.0
         for td in _expand_targets(dev):
-            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier, actor_user_id=user_id)
             if not allowed_td:
                 return _deny_mutation_error(
                     session=session,
@@ -1716,7 +1995,7 @@ async def execute_confirmed_mutation(
                     target=tid,
                 )
             for td in _expand_targets(target_dev):
-                allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+                allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier, actor_user_id=user_id)
                 if not allowed_td:
                     return _deny_mutation_error(
                         session=session,
@@ -2214,6 +2493,7 @@ async def execute_confirmed_mutation(
                         request_tier=tier,
                         request_user_name=user_name,
                         request_role=role,
+                        request_user_id=user_id,
                         source=source,
                     )
                     results.append(res)
@@ -2290,6 +2570,15 @@ async def execute_confirmed_mutation(
         }
 
     if action_kind == "reset_devices":
+        if tier != 1:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_reset_devices",
+                msg="Chỉ chủ nhà cấp 1 mới có quyền đặt lại trạng thái toàn bộ thiết bị.",
+                status_code=403,
+                target="reset_devices",
+            )
         device_reset_plan = [
             ("living_room_light", "turn_off"),
             ("bedroom_light", "turn_off"),
@@ -2309,6 +2598,7 @@ async def execute_confirmed_mutation(
                 request_tier=tier,
                 request_user_name=user_name,
                 request_role=role,
+                request_user_id=user_id,
                 trigger_chains=False,
             )
             reset_results.append(r_dev)
@@ -2400,19 +2690,21 @@ async def handle_confirmation_reply(
     source: str,
     session_key: str = "",
 ) -> dict[str, Any] | None:
-    """Resolve Step-2 confirmation ('xác nhận'/'đúng'/'ừ'/'ok' vs 'không'/'hủy'/>20s TTL)."""
-    decision = _classify_confirmation_utterance(raw_text, has_pending=False)
-    is_short_reply = len(str(raw_text or "").strip().split()) <= 3
-    if decision is None and not is_short_reply:
-        return None
-
+    """Resolve Step-2 confirmation ('xác nhận'/'đúng'/'ừ'/'ok'/'chốt đi' vs 'không'/'hủy'/>20s TTL)."""
     user_id, tier, _, _ = _session_actor(session)
     skey = session_key or _resolve_session_key(session, source)
     pending, was_expired = get_pending_confirmation(owner_user_id=user_id, session_key=skey)
+    if pending is None and not was_expired:
+        return None
+
+    pending_kind = str((pending or {}).get("action_kind") or "")
+    decision = _classify_confirmation_utterance(
+        raw_text,
+        has_pending=True,
+        pending_action_kind=pending_kind,
+    )
     if decision is None:
-        decision = _classify_confirmation_utterance(raw_text, has_pending=(pending is not None))
-        if decision is None:
-            return None
+        return None
     if pending is not None and tier >= 3 and pending.get("action_kind") != "set_device":
         return _deny_mutation_error(
             session=session,
@@ -2565,7 +2857,9 @@ def _extract_target_member_scope(raw_text: str) -> tuple[bool, str | None]:
         return False, None
     cand = m.group(1).strip()
     cand_norm = normalize_phrase(cand)
-    if cand_norm in ("toi", "minh", "ban than", "nha minh"):
+    if cand_norm in ("he thong", "toan he thong", "nha thong minh", "ca nha", "tat ca", "moi nguoi", "tat ca moi nguoi"):
+        return True, None
+    if cand_norm in ("toi", "minh", "ban than", "nha minh", "thiet bi"):
         return False, None
     return False, cand
 
@@ -2693,18 +2987,44 @@ def answer_pool_or_member_query(
     session: Any,
     source: str,
 ) -> dict[str, Any] | None:
-    """Detect and answer ADDENDUM A pool/member questions."""
-    norm = f" {normalize_phrase(raw_text)} "
+    """Detect and answer ADDENDUM A pool/member questions without hijacking device/macro/run/delete commands."""
+    raw_low = str(raw_text or "").strip().lower()
+    norm_s = normalize_phrase(raw_text)
+    norm = f" {norm_s} "
+    from simulator.voice.vietnamese_policy import has_vi_diacritics
+
+    has_diac = has_vi_diacritics(raw_low)
+    # Never hijack explicit create/edit/delete/run/reset or direct device-control imperatives into pool/member queries
+    norm_no_lead = re.sub(r"^(?:hay|xin|vui\s+long|lam\s+on)\s+", "", norm_s).strip()
+    if re.match(
+        r"^(?:tao|them|cai|dat|luu|thiet\s+lap|dang\s+ky|gan|ghi\s+nho|nho|"
+        r"sua|chinh\s+sua|chinh|cap\s+nhat|doi|xoa|go(?:\s+bo)?|huy|reset|dat\s+lai|"
+        r"chay|kich\s+hoat|thuc\s+hien|bat|tat|mo|dong|khoa|khep|ngat|cup|dap|dung|ngung|khoi\s+dong|cho\s+chay)\b",
+        norm_no_lead,
+    ):
+        return None
+
     is_mutation_verb = any(
-        w in norm for w in (" tao ", " them ", " sua ", " xoa ", " huy ", " reset ", " dat lai ", " bat ", " tat ", " mo ", " dong ")
+        w in norm
+        for w in (
+            " tao ", " them ", " cai ", " dat ", " luu ", " thiet lap ", " dang ky ", " gan ", " ghi nho ",
+            " sua ", " chinh sua ", " doi ", " xoa ", " go ", " go bo ", " huy ", " reset ", " dat lai ",
+            " chay ", " kich hoat ", " thuc hien ",
+            " bat ", " tat ", " mo ", " dong ", " ngat ", " cup ", " khoi dong ",
+        )
+    )
+    # Avoid ASCII 'may' colliding with 'máy bơm' / 'máy lạnh'
+    has_may_question = bool(
+        (re.search(r"\bmấy\b", raw_low) if has_diac else re.search(r"\b(?:co\s+may|cap\s+may|may\s+(?:nguoi|thanh\s+vien|lenh|lich|luat|thiet\s+bi))\b", norm_s))
     )
     has_question_cue = (
         "?" in str(raw_text)
+        or has_may_question
         or any(
             q in norm
             for q in (
-                " nao ", " gi ", " may ", " bao nhieu ", " danh sach ", " liet ke ",
-                " co nhung ", " co may ", " xem ", " hien co ", " ai ", " ten gi ", " cap may ",
+                " nao ", " gi ", " bao nhieu ", " danh sach ", " liet ke ",
+                " co nhung ", " xem ", " hien co ", " ai ", " ten gi ", " cap may ",
             )
         )
     )
@@ -2716,9 +3036,21 @@ def answer_pool_or_member_query(
         return None
 
     pool_kind: str | None = None
-    if any(k in norm for k in (" thanh vien", " gia dinh", " toi cap may", " cap may", " trong nha co ai", " co nhung ai", " nha co may nguoi")):
+    has_member_noun = (
+        any(
+            k in norm
+            for k in (
+                " thanh vien ", " tai khoan ", " nguoi dung ", " danh sach quyen ",
+                " ai co quyen ", " ai dang co quyen ", " toi cap may ",
+                " trong nha co ai ", " co nhung ai ", " nha co may nguoi ",
+                " ai trong gia dinh ", " gia dinh co may nguoi ",
+            )
+        )
+        or (has_may_question and " cap " in norm)
+    )
+    if has_member_noun:
         pool_kind = "members"
-    elif any(k in norm for k in (" lenh custom", " lenh tuy chinh", " khau lenh", " nhung lenh", " cac lenh", " scene", " kich ban")):
+    elif any(k in norm for k in (" lenh custom", " lenh tuy chinh", " khau lenh", " nhung lenh", " cac lenh", " phim tat", " scene", " kich ban")):
         pool_kind = "custom_commands"
     elif any(k in norm for k in (" lien ket", " luat lien ket", " luat tu dong", " nhung luat", " cac luat")):
         pool_kind = "links"
@@ -2727,7 +3059,7 @@ def answer_pool_or_member_query(
 
     if pool_kind is None:
         return None
-    if is_mutation_verb and not any(q in norm for q in (" nao", " may", " gi", " co nhung", " danh sach", " liet ke", " bao nhieu")):
+    if is_mutation_verb and not any(q in norm for q in (" nao", " gi", " co nhung", " danh sach", " liet ke", " bao nhieu")) and not has_may_question:
         return None
 
     _, tier, _, _ = _session_actor(session)
@@ -2789,28 +3121,44 @@ def _detect_member_link_permission_intent(raw_text: str) -> tuple[bool, str] | N
 
 
 def _detect_scoped_reset_intent(raw_text: str) -> tuple[str, bool, str | None] | None:
-    """Detect scoped reset intents ('reset lệnh custom', 'reset liên kết', 'xóa hẹn giờ')."""
+    """Detect explicit scoped reset or bulk-clear intents for timers, links, or custom commands."""
     raw_clean = str(raw_text or "").strip()
     norm = normalize_phrase(raw_clean)
-    if re.fullmatch(r"bat\s+thiet\s+bi\s+lien\s+ket", norm):
-        return "links", False, None
+    norm_no_lead = re.sub(
+        r"^(?:(?:toi|minh|em)\s+muon\s+|giup\s+(?:toi|minh|anh|chi|em)\s+|ban\s+|hay\s+|xin\s+|vui\s+long\s+|lam\s+on\s+)+",
+        "",
+        norm,
+    ).strip()
+    polite_infix = r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em)\s+)?"
     has_reset = bool(
         re.match(
-            r"^(?:reset|ri\s+set|rexit|rex|rep|ret|reic|reet|refresh|virus|dat lai|xoa het|xoa toan bo|xoa tat ca|xoa moi|huy het|huy toan bo|huy tat ca|huy moi|don sach)\b",
-            norm,
+            rf"^(?:reset|ri\s+set|dat\s+lai|thiet\s+lap\s+lai|khoi\s+tao\s+lai)\b|"
+            rf"^(?:xoa|huy|don|go|bo|dep|loai)(?:\s+(?:bo|sach|di))?\s+{polite_infix}"
+            r"(?:het|toan\s+bo|tat\s+ca|moi|cac|sach)\b|"
+            rf"^(?:xoa|don|huy)\s+(?:sach|het)\b",
+            norm_no_lead,
+        )
+        or re.search(
+            r"^(?:xoa|huy|don|go|bo|dep|reset)\b.+\b(?:hen\s+gio|lich(?:\s+(?:hen|trinh))?)\b.+\b(?:het|toan\s+bo|tat\s+ca|sach)\b",
+            norm_no_lead,
         )
     )
-    has_bare_timer_reset = bool(re.match(r"^(?:xoa|huy)\s+(?:hen gio|lich hen)(?:\s+cua\s+.+)?$", norm))
+    has_bare_timer_reset = bool(
+        re.match(
+            rf"^(?:xoa|huy(?:\s+bo)?|don(?:\s+sach)?|bo|tat|dung)\s+{polite_infix}(?:hen\s+gio|lich\s+(?:hen|trinh))(?:\s+(?:va\s+(?:hen\s+gio|lich(?:\s+(?:hen|trinh))?)|cua\s+.+))?$",
+            norm_no_lead,
+        )
+    )
     if not has_reset and not has_bare_timer_reset:
         return None
 
-    if any(k in norm for k in ("lenh custom", "lenh tuy chinh", "khau lenh", "scene", "kich ban", "lenh")):
-        pool_kind = "custom_commands"
-    elif any(k in norm for k in ("lien ket", "luat")):
+    if any(k in norm_no_lead for k in ("lien ket", "luat", "quy tac")):
         pool_kind = "links"
-    elif any(k in norm for k in ("hen gio", "lich")):
+    elif any(k in norm_no_lead for k in ("hen gio", "lich")):
         pool_kind = "timers"
-    elif any(k in norm for k in ("tat ca", "toan bo")):
+    elif any(k in norm_no_lead for k in ("lenh custom", "lenh tuy chinh", "khau lenh", "cau lenh", "scene", "kich ban", "ngu canh", "bi danh", "lenh")):
+        pool_kind = "custom_commands"
+    elif any(k in norm_no_lead for k in ("tat ca", "toan bo")):
         pool_kind = "all"
     else:
         return None
@@ -2830,34 +3178,46 @@ def _has_clock_or_timer_marker(snippet: str, *, reject_any_digit: bool = False) 
 
 
 _STEP4_ACTION_VERB_START_RE = (
-    r"(?:bật|tắt|mở|đóng|khóa|khoá|ngắt|dừng|ngừng|tưới|"
-    r"bat|tat|mo|dong|khoa|ngat|dung|ngung|tuoi)"
+    r"(?:bật|tắt|mở|đóng|khóa|khoá|ngắt|dừng|ngừng|ngưng|cúp|tưới|đọc|xem|kiểm\s+tra|"
+    r"bat|tat|mo|dong|khoa|ngat|dung|ngung|cup|tuoi|doc|xem|kiem\s+tra)"
 )
 _STEP4_IMPLICIT_BLOCKED_PREFIX_RE = re.compile(
-    r"^(?:khi|ky|neu|he|tu gio|hen gio|dat lich|dac lich|sua lich|doi lich|cap nhat lich|"
-    r"doi hen gio|sua hen gio|xoa|huy|xu ly|reset|ri set|rex|dat lai|khoi phuc|"
-    r"hoi phuc|cap quyen|thu hoi|xem|kiem tra|trang thai)\b"
+    r"^(?:khi|neu|he|cu|tu\s+gio|hen\s+gio|dat\s+lich|sua\s+lich|doi\s+lich|cap\s+nhat\s+lich|"
+    r"doi\s+hen\s+gio|sua\s+hen\s+gio|xoa|huy|reset|ri\s+set|dat\s+lai|thiet\s+lap\s+lai|khoi\s+phuc|"
+    r"hoi\s+phuc|cap\s+quyen|thu\s+hoi|xem|kiem\s+tra|trang\s+thai)\b"
 )
 _STEP4_IMPLICIT_BLOCKED_PHRASE_WORDS: frozenset[str] = frozenset({
     "nhiet do", "do am", "cam bien", "trang thai", "ban", "em", "toi", "anh", "chi",
 })
+_CONDITIONAL_BODY_IN_MACRO_RE = re.compile(
+    r"^(?:(?:tôi|mình|em)\s+muốn\s+|giúp\s+(?:tôi|mình)\s+|hãy\s+)?"
+    r"(?:tạo|thêm|đặt|lưu|cài|tao|them|dat|luu|cai)\s+"
+    r"(?:khẩu\s+lệnh|lệnh|khau\s+lenh|lenh)(?:\s+mới|\s+moi)?\s+"
+    r"(?:cứ|khi|nếu|hễ|cu|khi|neu|he)\s+.+\s+(?:là|thì|la|thi)\s+.+$",
+    re.IGNORECASE,
+)
 
 
 def _parse_custom_command_create_or_edit(
     raw: str,
 ) -> tuple[str, list[dict[str, str]], bool, bool] | None:
-    """Parse custom-command create/edit utterances including noisy ASR prefixes.
+    """Parse compositional Vietnamese custom-command create/edit utterances.
 
     Returns (phrase, steps, is_edit, is_strict_explicit) or None.
+    Conditional rule grammar ('tạo lệnh cứ <trigger> là/thì <action>') takes precedence and returns None here.
     """
     from simulator.voice.vietnamese_policy import _UNSUPPORTED_DEVICE_RE
 
     raw_s = str(raw or "").strip()
     if not raw_s:
         return None
-    # Strip optional polite lead-in like "tôi muốn ..." / "giúp tôi ..."
+    # Conditional rule precedence: if body starts with cứ/khi/nếu/hễ ... là/thì ..., route to STEP 5 rule parser.
+    if _CONDITIONAL_BODY_IN_MACRO_RE.match(raw_s):
+        return None
+
+    # Strip optional polite lead-in like "tôi muốn ..." / "giúp tôi ..." / "hãy ..."
     raw_s = re.sub(
-        r"^(?:tôi\s+muốn|mình\s+muốn|em\s+muốn|giúp\s+(?:tôi|mình)|toi\s+muon|minh\s+muon)\s+",
+        r"^(?:tôi\s+muốn|mình\s+muốn|em\s+muốn|giúp\s+(?:tôi|mình)|hãy|xin|toi\s+muon|minh\s+muon|hay)\s+",
         "",
         raw_s,
         flags=re.IGNORECASE,
@@ -2867,28 +3227,36 @@ def _parse_custom_command_create_or_edit(
 
     def _clean_custom_phrase(p: str) -> str:
         c = p.strip(" '\".,:")
-        c = re.sub(r"^(?:tên|ten)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
+        c = re.sub(r"^(?:gọi\s+là|có\s+tên(?:\s+là)?|tên(?:\s+là)?|goi\s+la|co\s+ten(?:\s+la)?|ten(?:\s+la)?)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
         c = re.sub(r"[,;:\s]+(?:nội\s+dung|noi\s+dung)$", "", c, flags=re.IGNORECASE).strip(" '\".,:")
-        c = re.sub(r"^(?:khẩu\s+lệnh|lệnh|câu|chế\s+độ|khau\s+lenh|lenh|cau|che\s+do)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
+        c = re.sub(r"^(?:khẩu\s+lệnh|câu\s+lệnh|lệnh|câu|chế\s+độ|bí\s+danh|khau\s+lenh|cau\s+lenh|lenh|cau|che\s+do|bi\s+danh)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
         return c
 
-    # Branch 1: Strict explicit custom-command prefix + strong separator (preserves 400 on invalid steps)
+    # Branch 1: Explicit compositional macro-creation / edit grammar (preserves HTTP 400 on invalid/unsupported steps)
     m_strict = re.match(
-        r"^(?P<verb>tạo|thêm|đặt|lưu|gán|sửa|cập\s+nhật|đổi)\s+"
-        r"(?:khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|câu|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
+        r"^(?P<verb>tạo|thêm|đặt|lưu|gán|cài|thiết\s+lập|đăng\s+ký|ghi\s+nhớ|nhớ|chỉnh\s+sửa|sửa|cập\s+nhật|đổi)\s+"
+        r"(?:(?:giúp|giùm|dùm|hộ|cho)\s+(?:tôi|mình|anh|chị|em|bạn)\s+)?"
+        r"(?:một\s+)?"
+        r"(?:khẩu\s+lệnh|câu\s+lệnh|lệnh(?:\s+(?:mới|riêng|tắt|tùy\s+chỉnh|custom|giọng\s+nói))?|"
+        r"câu|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ|bí\s+danh|phím\s+tắt(?:\s+giọng\s+nói)?)"
         r"(?:\s+mới|\s+moi)?\s+"
+        r"(?:(?:gọi\s+là|có\s+tên(?:\s+là)?|tên(?:\s+là)?)\s+)?"
         r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-        r"(?:(?:,\s*)?nội\s+dung\s+là|cho\s+thao\s+tác|thành\s+lệnh|để|là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
+        r"(?:(?:,\s*)?nội\s+dung\s+là|cho\s+thao\s+tác|thành\s+lệnh|để|là|gồm|bao\s+gồm|sẽ|thành|như\s+sau|:|=|->)\s+(.+)$",
         raw_s,
         flags=re.IGNORECASE,
     )
     if not m_strict:
         m_strict = re.match(
-            r"^(?P<verb>tao|them|dat|luu|gan|sua|cap\s+nhat|doi)\s+"
-            r"(?:khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|cau|ngu\s+canh|kich\s+ban|scene|che\s+do)"
+            r"^(?P<verb>tao|them|dat|luu|gan|cai|thiet\s+lap|dang\s+ky|ghi\s+nho|nho|chinh\s+sua|sua|cap\s+nhat|doi)\s+"
+            r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em|ban)\s+)?"
+            r"(?:mot\s+)?"
+            r"(?:khau\s+lenh|cau\s+lenh|lenh(?:\s+(?:moi|rieng|tat|tuy\s+chinh|custom|giong\s+noi))?|"
+            r"cau|ngu\s+canh|kich\s+ban|scene|che\s+do|bi\s+danh|phim\s+tat(?:\s+giong\s+noi)?)"
             r"(?:\s+moi)?\s+"
+            r"(?:(?:goi\s+la|co\s+ten(?:\s+la)?|ten(?:\s+la)?)\s+)?"
             r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-            r"(?:(?:,\s*)?noi\s+dung\s+la|cho\s+thao\s+tac|thanh\s+lenh|de|la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
+            r"(?:(?:,\s*)?noi\s+dung\s+la|cho\s+thao\s+tac|thanh\s+lenh|de|la|gom|bao\s+gom|se|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
             strip_accents(raw_s),
             flags=re.IGNORECASE,
         )
@@ -2897,150 +3265,44 @@ def _parse_custom_command_create_or_edit(
         phrase = _clean_custom_phrase(m_strict.group(2) or m_strict.group(3) or m_strict.group(4) or "")
         steps_text = (m_strict.group(5) or "").strip()
         if phrase and not _has_clock_or_timer_marker(phrase, reject_any_digit=False):
+            # Guard against conditional cue prefixes inside the macro name
+            if re.match(r"^(?:cu|khi|neu|he)\s+", normalize_phrase(phrase)):
+                return None
             if _UNSUPPORTED_DEVICE_RE.search(f" {normalize_phrase(steps_text)} "):
                 steps = []
             else:
                 steps = parse_multi_steps_from_text(steps_text)
-            is_edit = verb_norm in ("sua", "cap nhat", "doi")
+            is_edit = verb_norm in ("sua", "chinh sua", "cap nhat", "doi")
             return phrase, steps, is_edit, True
 
-    # Non-strict ASR branches never accept unsupported devices or clock/timer markers
-    if has_unsupported:
+    # Non-strict branch never accepts unsupported devices or clock/timer/rule markers
+    if has_unsupported or _STEP4_IMPLICIT_BLOCKED_PREFIX_RE.search(norm_full) or " thi " in f" {norm_full} ":
         return None
 
-    # Branch 2: Broad explicit prefix (optional verb including ASR variants + custom/mode/lịch/việc keyword)
-    broad_prefix_vi = (
-        r"^(?:(?:chỉ|chi)\s+)?"
-        r"(?:(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|bật|mở|đầu|đọc|sắp)\s+)?"
-        r"(?P<kw>khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|lịch|việc|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
-        r"(?:\s+mới|\s+moi)?\s+"
-    )
-    broad_prefix_ascii = (
-        r"^(?:chi\s+)?"
-        r"(?:(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi|ra|bat|mo|dau|doc|sap)\s+)?"
-        r"(?P<kw>khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|lich|viec|ngu\s+canh|kich\s+ban|scene|che\s+do)"
-        r"(?:\s+moi)?\s+"
-    )
-    broad_patterns: list[tuple[str, str, bool]] = [
-        # 2a: strong separator
-        (
-            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:để|là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
-            raw_s,
-            False,
-        ),
-        (
-            broad_prefix_ascii + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:de|la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
-            strip_accents(raw_s),
-            False,
-        ),
-        # 2b: 'làm' separator ONLY when immediately followed by an action verb
-        (
-            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:làm|lam)\s+(" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
-            raw_s,
-            False,
-        ),
-        # 2c: comma separator (e.g. "Đầu lệnh đi nào, tắt tất cả đèn và đóng cửa chính.")
-        (
-            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|([^,]{1,40}))\s*,\s*(.+)$",
-            raw_s,
-            False,
-        ),
-        # 2d: separator-less with explicit verb+keyword (e.g. "tạo việc đi làm tắt tất cả đền và đóng cửa chính")
-        (
-            r"^(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi|ra|đầu|sắp|tao|them|dat|luu|sua|cap\s+nhat|doi|dau|sap)\s+"
-            r"(?P<kw>khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|lịch|việc|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ|"
-            r"khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|lich|viec|ngu\s+canh|kich\s+ban|che\s+do)"
-            r"(?:\s+mới|\s+moi)?\s+"
-            r"(?:'([^']+)'|\"([^\"]+)\"|(\S+(?:\s+\S+){0,2}))\s+(" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
-            raw_s,
-            True,
-        ),
-    ]
-    for pat, target_str, _is_sepless in broad_patterns:
-        m_b = re.match(pat, target_str, flags=re.IGNORECASE)
-        if not m_b:
-            continue
-        verb_norm = normalize_phrase(m_b.group("verb") or "")
-        phrase = (m_b.group(3) or m_b.group(4) or m_b.group(5) or "").strip(" '\".,:")
-        steps_text = (m_b.group(6) or "").strip()
-        if not phrase or len(phrase.split()) > 5:
-            continue
-        # Never split Vietnamese compound "đi làm" at "làm" (e.g. "tạo việc đi làm tắt tất cả đèn...")
-        if "(?:làm|lam)" in pat and normalize_phrase(phrase).split()[-1:] == ["di"]:
-            continue
-        if _has_clock_or_timer_marker(phrase, reject_any_digit=True):
-            continue
-        if _has_clock_or_timer_marker(steps_text, reject_any_digit=False):
-            continue
-        if _parse_sensor_trigger(phrase) is not None:
-            continue
-        steps = parse_multi_steps_from_text(steps_text)
-        if not steps:
-            continue
-        phrase = re.sub(r"^(?:khẩu\s+lệnh|lệnh|chế\s+độ|khau\s+lenh|lenh|che\s+do)\s+", "", phrase, flags=re.IGNORECASE).strip(" '\".,:")
-        if not phrase:
-            continue
-        is_edit = verb_norm in ("sua", "sap", "cap nhat", "doi")
-        return phrase, steps, is_edit, False
-
-    # Branch 3: Implicit "<1-3 word phrase> (là|làm|thành|mở <action_verb>) <steps>"
-    if _STEP4_IMPLICIT_BLOCKED_PREFIX_RE.search(norm_full) or " thi " in f" {norm_full} ":
-        return None
-
-    # Allow noisy ASR wrappers ("sau khi", "chào, hãy", "tắt hết") ONLY when followed by >=2 device steps
-    raw_imp = raw_s
-    stripped_wrapper = False
-    m_wrap = re.match(
-        r"^(?:sau\s+khi|chào\s*,?\s*hãy|chao\s*,?\s*hay|tắt\s+hết|tat\s+het|(?:đọc|tạo|doc|tao)\s+(?:đèn|den))\s+(.+)$",
+    # Branch 2: Clean implicit "<1-3 word phrase> (là|thành) <valid steps>" (no garbled ASR wrappers)
+    m_imp = re.match(
+        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>là|thành|la|thanh)\s+(?P<steps>.+)$",
         raw_s,
         flags=re.IGNORECASE,
     )
-    if m_wrap:
-        raw_imp = m_wrap.group(1).strip()
-        stripped_wrapper = True
-
-    implicit_patterns = (
-        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>là|thành|la|thanh)\s+(?P<steps>.+)$",
-        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>làm|lam)\s+(?P<steps>" + _STEP4_ACTION_VERB_START_RE + r"\b.+)$",
-        # ASR mishearing "là" -> "mở" immediately before another action verb (e.g. "giờ đi làm mở tắt tất cả đèn...")
-        r"^(?P<phrase>\S+(?:\s+\S+){0,2})\s+(?P<sep>mở|mo)\s+(?P<steps>(?:tắt|đóng|khóa|khoá|ngắt|dừng|ngừng|bật|tat|dong|khoa|ngat|dung|ngung|bat)\b.+)$",
-    )
-    for pat in implicit_patterns:
-        m_imp = re.match(pat, raw_imp, flags=re.IGNORECASE)
-        if not m_imp:
-            continue
-        phrase = (m_imp.group("phrase") or "").strip(" '\".,:")
+    if m_imp:
+        phrase = _clean_custom_phrase(m_imp.group("phrase") or "")
         sep_norm = normalize_phrase(m_imp.group("sep") or "")
         steps_text = (m_imp.group("steps") or "").strip()
-        if not phrase:
-            continue
-        # Never split Vietnamese compound "đi làm" at "làm" (e.g. "giờ đi làm mở tắt tất cả đèn...")
-        if sep_norm == "lam" and normalize_phrase(phrase).split()[-1:] == ["di"]:
-            continue
-        if _has_clock_or_timer_marker(phrase, reject_any_digit=True):
-            continue
-        if _has_clock_or_timer_marker(steps_text, reject_any_digit=False):
-            continue
-        if _parse_sensor_trigger(phrase) is not None:
-            continue
-        phrase_norm = normalize_phrase(phrase)
-        if not phrase_norm or phrase_norm in _STEP4_IMPLICIT_BLOCKED_PHRASE_WORDS:
-            continue
-        p_dev, p_act = parse_single_device_and_action(phrase)
-        if p_dev is not None or p_act is not None:
-            continue
-        steps = parse_multi_steps_from_text(steps_text)
-        if not steps or (stripped_wrapper and len(steps) < 2):
-            continue
-        is_edit = sep_norm == "thanh"
-        m_lead_edit = re.match(r"^(?:sắp|sửa|đổi|cập\s+nhật|sap|sua|doi|cap\s+nhat)\s+(.+)$", phrase, flags=re.IGNORECASE)
-        if m_lead_edit:
-            is_edit = True
-            phrase = m_lead_edit.group(1).strip(" '\".,:")
-        phrase = re.sub(r"^(?:khẩu\s+lệnh|lệnh|chế\s+độ|khau\s+lenh|lenh|che\s+do)\s+", "", phrase, flags=re.IGNORECASE).strip(" '\".,:")
-        if not phrase:
-            continue
-        return phrase, steps, is_edit, False
+        if (
+            phrase
+            and not _has_clock_or_timer_marker(phrase, reject_any_digit=True)
+            and not _has_clock_or_timer_marker(steps_text, reject_any_digit=False)
+            and _parse_sensor_trigger(phrase) is None
+        ):
+            phrase_norm = normalize_phrase(phrase)
+            if phrase_norm and phrase_norm not in _STEP4_IMPLICIT_BLOCKED_PHRASE_WORDS:
+                p_dev, p_act = parse_single_device_and_action(phrase)
+                if p_dev is None and p_act is None:
+                    steps = parse_multi_steps_from_text(steps_text)
+                    if steps:
+                        is_edit = sep_norm == "thanh"
+                        return phrase, steps, is_edit, False
 
     return None
 
@@ -3140,19 +3402,37 @@ async def process_automation_nlu_command(
         )
 
     # ------------------------------------------------------------------
-    # STEP 3. RESETS: reset_devices, factory_reset, and scoped reset_pool
+    # STEP 3. RESETS: Compositional destructive-verb + target parser (confirmation mandatory)
+    # Block non-destructive save/status/query verbs & negated/deferred/question utterances from matching resets!
     # ------------------------------------------------------------------
-    if re.search(
-        r"\b(?:"
-        r"(?:reset|ri\s+set|vi\s+sep|vi\s+sach|vi\s+thich|viet|re\s+logic|logic|rexit|rex|rep|ret|reet|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+(?:lai\s+)?trang\s+thai\s+(?:cac\s+)?thiet\s+(?:bi|di|nghi)|"
-        r"(?:ve\s+sinh(?:\s+sach)?|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
-        r"dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
-        r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi|"
-        r"khoi\s+dong\s+lai\s+(?:bo\s+dieu\s+khien|he\s+thong|nha\s+thong\s+minh|thiet\s+bi|thoi)"
-        r")\b",
-        norm,
-    ) or re.fullmatch(r"(?:reset|ri\s+set|rexit|rex)\s+trang\s+thai", norm) or (
-        "khoi dong lai" in norm and "giu nguyen cai dat" in norm
+    from simulator.voice.vietnamese_policy import is_no_action_safety_blocked_vi
+
+    norm_step3 = re.sub(r"^(?:hay|xin|vui\s+long|lam\s+on)\s+", "", norm).strip()
+    is_non_destructive_save_or_status = bool(
+        "?" in raw
+        or is_no_action_safety_blocked_vi(raw)
+        or re.match(r"^(?:save|luu|sao\s+luu|truy\s+van|kiem\s+tra|xem|doc|hoi)\b", norm_step3)
+    )
+    has_keep_settings = bool(re.search(r"\bgiu\s+nguyen\s+(?:cai\s+dat|cau\s+hinh)\b", norm))
+    is_reboot_system = bool(
+        not is_non_destructive_save_or_status
+        and re.search(r"\bkhoi\s+dong\s+lai\b", norm)
+        and (
+            has_keep_settings
+            or re.search(r"\bkhoi\s+dong\s+lai\s+(?:bo\s+dieu\s+khien|he\s+thong|nha\s+thong\s+minh|thiet\s+bi|toan\s+bo)\b", norm)
+            or parse_single_device_and_action(raw)[0] is None
+        )
+    )
+    if not is_non_destructive_save_or_status and (
+        is_reboot_system
+        or re.search(
+            r"\b(?:"
+            r"(?:reset|ri\s+set|dat\s+lai|thiet\s+lap\s+lai)\s+(?:lai\s+)?(?:trang\s+thai\s+)?(?:cac\s+|toan\s+bo\s+|tat\s+ca\s+|moi\s+)?thiet\s+bi|"
+            r"(?:reset|ri\s+set|dat\s+lai|thiet\s+lap\s+lai)\s+trang\s+thai|"
+            r"(?:dua|dat|tra)\s+(?:trang\s+thai\s+)?(?:cac\s+|toan\s+bo\s+|tat\s+ca\s+|moi\s+)?thiet\s+bi\s+ve\s+(?:trang\s+thai\s+)?(?:ban\s+dau|mac\s+dinh)"
+            r")\b",
+            norm,
+        )
     ):
         if tier >= 3:
             return _deny_mutation_error(
@@ -3160,6 +3440,15 @@ async def process_automation_nlu_command(
                 source=source,
                 category="rbac_deny_reset_devices",
                 msg=GUEST_ONLY_TOGGLE_MSG_VI,
+                status_code=403,
+                target="reset_devices",
+            )
+        if tier != 1:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_reset_devices",
+                msg="Chỉ chủ nhà cấp 1 mới có quyền đặt lại trạng thái toàn bộ thiết bị.",
                 status_code=403,
                 target="reset_devices",
             )
@@ -3173,28 +3462,19 @@ async def process_automation_nlu_command(
             prompt_summary="Đặt lại trạng thái các thiết bị về mặc định",
         )
 
-    if any(
-        k in norm
-        for k in (
-            "reset cai dat",
-            "reset he thong",
-            "ri set he thong",
-            "khoi phuc cai dat goc",
-            "hoi phuc cai dat goc",
-            "khoi phuc cai dat go",
-            "hoi phuc cai dat go",
-            "khoi phuc cai dat mau",
-            "hoi phuc cai dat mau",
-            "khoi phuc va dat mau",
-            "khoi phuc va dat goc",
-            "khoi phuc ngay dan",
-            "factory reset",
-            "dat lai cai dat goc",
-            "ve mac dinh ban dau",
-            "cau hinh ve mac dinh",
-            "dat lai he thong tu dau",
-        )
-    ) or ("xoa" in norm and "cai dat" in norm and "dat lai" in norm):
+    if not is_non_destructive_save_or_status and not has_keep_settings and "he thong tuoi" not in norm and re.search(
+        r"\b(?:"
+        r"(?:khoi\s+phuc|hoi\s+phuc|dat\s+lai|thiet\s+lap\s+lai|reset|ri\s+set|xoa(?:\s+(?:sach|het|bo))?|don(?:\s+(?:sach|het))?)\s+"
+        r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em)\s+)?"
+        r"(?:toan\s+bo\s+|tat\s+ca\s+|moi\s+|het\s+|cac\s+|toan\s+)?(?:cai\s+dat(?:\s+(?:goc|mac\s+dinh|nha\s+san\s+xuat))?|"
+        r"cau\s+hinh(?:\s+(?:goc|mac\s+dinh|he\s+thong))?|thiet\s+lap(?:\s+(?:goc|mac\s+dinh|he\s+thong))?|"
+        r"mac\s+dinh(?:\s+goc)?|trang\s+thai\s+xuat\s+xuong|xuat\s+xuong|he\s+thong)|"
+        r"factory\s+reset|"
+        r"(?:dua|dat|tra)\s+(?:(?:toan\s+bo|tat\s+ca|moi|cac)\s+)?(?:moi\s+thu(?:\s+trong\s+he\s+thong)?|he\s+thong|cai\s+dat|cau\s+hinh|thiet\s+lap)\s+ve\s+(?:trang\s+thai\s+)?(?:mac\s+dinh|xuat\s+xuong|goc|ban\s+dau)|"
+        r"(?:xoa|don)\s+(?:sach\s+|het\s+|toan\s+bo\s+|tat\s+ca\s+|moi\s+|cac\s+)?(?:cai\s+dat|cau\s+hinh|thiet\s+lap)\b"
+        r")\b",
+        norm,
+    ):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -3223,7 +3503,7 @@ async def process_automation_nlu_command(
             prompt_summary="Khôi phục cài đặt gốc toàn hệ thống",
         )
 
-    reset_intent = _detect_scoped_reset_intent(raw)
+    reset_intent = None if is_non_destructive_save_or_status else _detect_scoped_reset_intent(raw)
     if reset_intent is not None:
         pool_kind, clear_all, target_q = reset_intent
         if tier >= 3:
@@ -3296,10 +3576,7 @@ async def process_automation_nlu_command(
 
     # ------------------------------------------------------------------
     # STEP 4. CREATE / UPDATE CUSTOM COMMAND OR SCENE
-    # Examples:
-    # - "tạo lệnh 'chế độ ngủ' là tắt hết đèn và đóng cửa"
-    # - "tạo lệnh mới 'giờ đi ngủ' là tắt hết đèn"
-    # - ASR variants: "chế độ đi làm là ...", "sắp đi làm thành ...", "tạo việc đi làm tắt ..."
+    # Compositional grammar: <create|edit verb> <command noun> [name introducer] <phrase> <separator> <steps>
     # ------------------------------------------------------------------
     parsed_custom = _parse_custom_command_create_or_edit(raw)
     if parsed_custom is not None:
@@ -3389,27 +3666,14 @@ async def process_automation_nlu_command(
 
     # ------------------------------------------------------------------
     # STEP 4b. MODIFY EXISTING TIMER OR CLOCK SCHEDULE
-    # Examples:
-    # - "đổi hẹn giờ đèn phòng khách thành 5 giây"
-    # - "sửa lịch 07:00 thành 08:00"
-    # - ASR homophone: "xử lý bảy giờ thành tám giờ"
     # ------------------------------------------------------------------
     m_mod_sched = re.match(
-        r"^(?:đổi|sửa|cập\s+nhật|dự|doi|sua|cap\s+nhat|du)\s+(?:lịch\s+hẹn|lịch|lich\s+hen|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
+        r"^(?:hãy\s+|hay\s+|giúp\s+(?:tôi|mình|anh|chị|em)\s+)?(?:đổi|chỉnh\s+sửa|sửa|cập\s+nhật|doi|chinh\s+sua|sua|cap\s+nhat)\s+"
+        r"(?:(?:giúp|giùm|dùm|hộ)\s+(?:tôi|mình|anh|chị|em)\s+)?"
+        r"(?:lịch\s+(?:hẹn|trình|định\s+kỳ|tự\s+động)|lịch|lich\s+(?:hen|trinh|dinh\s+ky|tu\s+dong)|lich)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
-    if not m_mod_sched:
-        m_xu_ly_sched = re.match(
-            r"^(?:xử\s+lý|xu\s+ly|dự\s+định|du\s+dinh)\s+(.+?)\s+(?:thành|sang|thanh)\s+(.+)$",
-            raw,
-            flags=re.IGNORECASE,
-        )
-        if m_xu_ly_sched:
-            _old_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_xu_ly_sched.group(1).strip()}")
-            _new_hh_chk, _, _ = _parse_clock_hhmm_vi(f"lúc {m_xu_ly_sched.group(2).strip()}")
-            if _old_hh_chk and _new_hh_chk:
-                m_mod_sched = m_xu_ly_sched
     if not m_mod_sched:
         m_from_to_sched = re.match(
             r"^(?:từ|tu)\s+(.+?)\s+(?:đến|tới|sang|thành|den|toi|sang|thanh)\s+(.+)$",
@@ -3433,14 +3697,18 @@ async def process_automation_nlu_command(
                 status_code=403,
                 target="schedules",
             )
+        from simulator.automation_engine import parse_weekdays_vi
+
         old_part = m_mod_sched.group(1).strip()
         new_part = m_mod_sched.group(2).strip()
         old_hhmm, _, _ = _parse_clock_hhmm_vi(f"lúc {old_part}")
         new_hhmm, new_daily, _ = _parse_clock_hhmm_vi(f"lúc {new_part}")
         old_dev, _ = parse_single_device_and_action(old_part)
-        if new_hhmm:
+        new_dev, new_act = parse_single_device_and_action(new_part)
+        new_weekdays = parse_weekdays_vi(new_part)
+        if new_hhmm or new_act or new_weekdays:
             owner_scope = None if tier == 1 else user_id
-            candidates = list_schedules(include_disabled=False, owner_user_id=owner_scope)
+            candidates = list_schedules(include_disabled=False, owner_user_id=owner_scope) or list_schedules(include_disabled=True, owner_user_id=owner_scope)
             target_sc = None
             for sc in candidates:
                 if old_hhmm and sc.get("time_hhmm") != old_hhmm:
@@ -3460,10 +3728,11 @@ async def process_automation_nlu_command(
                         "exact_spoken_reply": "Không tìm thấy lịch hẹn cần sửa.",
                     },
                 }
-            sc_type = "daily" if new_daily else str(target_sc.get("schedule_type") or "once")
+            eff_hhmm = new_hhmm or str(target_sc.get("time_hhmm") or "")
+            sc_type = "daily" if (new_daily or new_weekdays) else str(target_sc.get("schedule_type") or "once")
             conflict_msg = check_tier1_schedule_conflict(
                 actor_tier=tier,
-                time_hhmm=new_hhmm,
+                time_hhmm=eff_hhmm,
                 schedule_type=sc_type,
                 exclude_schedule_id=str(target_sc["schedule_id"]),
                 engine=engine,
@@ -3477,18 +3746,25 @@ async def process_automation_nlu_command(
                     status_code=409,
                     target="schedules",
                 )
+            upd_payload: dict[str, Any] = {
+                "schedule_id": target_sc["schedule_id"],
+                "time_hhmm": eff_hhmm,
+                "schedule_type": sc_type,
+            }
+            if new_weekdays:
+                upd_payload["weekdays"] = new_weekdays
+            if new_dev and new_dev in DEFAULT_DEVICES:
+                upd_payload["device_id"] = new_dev
+            if new_act and new_act in ACTION_TO_STATE:
+                upd_payload["action"] = new_act
             return await prepare_pending_mutation(
                 engine=engine,
                 session=session,
                 source=source,
                 session_key=skey,
                 action_kind="update_schedule",
-                payload={
-                    "schedule_id": target_sc["schedule_id"],
-                    "time_hhmm": new_hhmm,
-                    "schedule_type": sc_type,
-                },
-                prompt_summary=f"Đổi lịch {target_sc['time_hhmm']} thành {new_hhmm}",
+                payload=upd_payload,
+                prompt_summary=f"Đổi lịch {target_sc['time_hhmm']} thành {eff_hhmm}",
             )
 
     m_mod_timer = re.match(
@@ -3553,11 +3829,11 @@ async def process_automation_nlu_command(
             )
 
     # ------------------------------------------------------------------
-    # STEP 5. CREATE LINKED AUTOMATION RULE (device-trigger AND sensor-trigger)
+    # STEP 5. CREATE LINKED AUTOMATION RULE (device-trigger AND sensor-trigger with per-rule thresholds)
     # ------------------------------------------------------------------
     m_rule = re.search(
-        r"(?:^|\b)(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
-        r"(?:khi|kỳ|ký|ky|nếu|hễ|từ\s+giờ|neu|he|tu\s+gio)\s+(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
+        r"(?:^|\b)(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket|khẩu\s+lệnh|khau\s+lenh|lệnh|lenh)(?:\s+mới|\s+moi)?\s*)?"
+        r"(?:khi|nếu|hễ|bất\s+cứ\s+lúc\s+nào|mỗi\s+lúc|từ\s+giờ|neu|he|bat\s+cu\s+luc\s+nao|moi\s+luc|tu\s+gio)\s+(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
@@ -3570,8 +3846,8 @@ async def process_automation_nlu_command(
         )
     if not m_rule:
         m_rule = re.search(
-            r"(?:^|\b)(?:(?:cài\s+cho\s+(?:tôi|mình)|tạo\s+luật|đặt\s+quy\s+tắc|quy\s+tắc|cai\s+cho\s+(?:toi|minh)|tao\s+luat|dat\s+quy\s+tac|quy\s+tac)\s+)?"
-            r"(?:cứ|cu)\s+(.+?)\s+(?:là|la)\s+(?:tự\s+động\s+)?(.+)$",
+            r"(?:^|\b)(?:(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket|khẩu\s+lệnh|khau\s+lenh|lệnh|lenh)(?:\s+mới|\s+moi)?|quy\s+tắc|quy\s+tac)\s+)?"
+            r"(?:cứ|cu)\s+(.+?)\s+(?:là|la|thì|thi)\s+(?:tự\s+động\s+)?(.+)$",
             raw,
             flags=re.IGNORECASE,
         )
@@ -3581,25 +3857,47 @@ async def process_automation_nlu_command(
             raw,
             flags=re.IGNORECASE,
         )
-    comma_sensor_when_then: tuple[str, str] | None = None
-    if not m_rule and "," in raw:
-        _c_left, _c_right = raw.split(",", 1)
-        if _parse_sensor_trigger(_c_left.strip()) is not None and _c_right.strip():
-            comma_sensor_when_then = (_c_left.strip(), _c_right.strip())
-    if not m_rule and comma_sensor_when_then is None:
-        m_khi_di = re.match(
-            r"^(?:khi|kỳ|ký|ky|nếu|neu)\s+(.+?)\s+(?:đi|di)\s+((?:bật|tắt|mở|đóng|bat|tat|mo|dong)\s+máy\s+bơm.*)$",
+    if not m_rule:
+        m_rule = re.search(
+            r"(?:^|\b)(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
+            r"(?:khi|nếu|hễ|bất\s+cứ\s+lúc\s+nào|mỗi\s+lúc|từ\s+giờ|neu|he|bat\s+cu\s+luc\s+nao|moi\s+luc|tu\s+gio)?\s*"
+            r"(.+?)\s+(?:hệ\s+thống\s+(?:tự\s+động|tự|sẽ)|he\s+thong\s+(?:tu\s+dong|tu|se)|tự\s+động|tu\s+dong|sẽ|se)\s+(.+)$",
             raw,
             flags=re.IGNORECASE,
         )
-        if m_khi_di:
-            comma_sensor_when_then = (m_khi_di.group(1).strip(), m_khi_di.group(2).strip())
+        if m_rule and _parse_sensor_trigger_with_threshold(m_rule.group(1).strip()) is None:
+            m_rule = None
+    comma_sensor_when_then: tuple[str, str] | None = None
+    if not m_rule and "," in raw:
+        _c_left, _c_right = raw.split(",", 1)
+        _c_trig = _parse_sensor_trigger_with_threshold(_c_left.strip())
+        if _c_trig is not None and _c_right.strip():
+            _c_left_n = f" {normalize_phrase(_c_left)} "
+            _c_right_n = f" {normalize_phrase(_c_right)} "
+            _has_rule_intent_cue = bool(
+                _c_trig[3] is not None
+                or any(k in _c_right_n for k in (" tu dong ", " tu bat ", " tu tat ", " tu mo ", " tu dong ", " he thong tu "))
+                or any(k in f" {norm} " for k in (" tao luat ", " dat luat ", " quy tac ", " lien ket "))
+            )
+            _is_situational_direct_ctx = bool(
+                any(k in _c_left_n for k in (" qua roi ", " qua ", " roi ", " dang ", " la ", " ngoai san ", " ngoai cong "))
+                or any(k in _c_right_n for k in (" ho toi ", " giup toi ", " giup minh ", " giup em ", " giup anh ", " ho em ", " gium toi ", " ngay ", " di "))
+            )
+            if _has_rule_intent_cue and not (not (_c_trig[3] is not None) and _is_situational_direct_ctx):
+                comma_sensor_when_then = (_c_left.strip(), _c_right.strip())
 
     if comma_sensor_when_then is not None or (
         m_rule
         and (
             " thi " in f" {norm} "
-            or any(k in norm for k in ("khi ", "ky ", "neu ", "he ", "tu gio", "tao luat", "lien ket", "quy tac", "cu mo ", "cu dong ", "cu bat ", "cu tat "))
+            or _parse_sensor_trigger_with_threshold(m_rule.group(1).strip()) is not None
+            or any(
+                k in norm
+                for k in (
+                    "khi ", "neu ", "he ", "bat cu luc nao", "moi luc", "tu gio",
+                    "tao luat", "lien ket", "quy tac", "cu mo ", "cu dong ", "cu bat ", "cu tat ",
+                )
+            )
         )
     ):
         if comma_sensor_when_then is not None:
@@ -3613,14 +3911,16 @@ async def process_automation_nlu_command(
         if len(m_else) > 1:
             else_part = m_else[1].strip()
 
-        sensor_trig = _parse_sensor_trigger(when_part)
+        sensor_trig = _parse_sensor_trigger_with_threshold(when_part)
         w_dev: str | None = None
         w_act: str | None = None
         w_state: str = "ON"
+        th_op: str = ""
+        th_val: float | None = None
         is_sensor_when = False
 
         if sensor_trig is not None:
-            w_dev, w_state = sensor_trig
+            w_dev, w_state, th_op, th_val = sensor_trig
             is_sensor_when = True
         else:
             w_dev, w_act = parse_single_device_and_action(when_part)
@@ -3632,25 +3932,6 @@ async def process_automation_nlu_command(
                 w_dev = None
 
         t_dev, t_act = parse_single_device_and_action(then_part, default_action=w_act)
-        if w_dev is None and t_dev == "garden_pump":
-            _wn = f" {normalize_phrase(when_part)} "
-            if any(k in _wn for k in (" nhat co ", " em co ", " co kho ", " het o ", " dat ", " kho ")):
-                w_dev, w_state, is_sensor_when = "soil_sensor", "DRY", True
-        if w_dev is None and t_dev == "alarm_siren":
-            _wn = f" {normalize_phrase(when_part)} "
-            if any(k in _wn for k in (" dong lon ", " nuoc lon ", " on lon ", " tieng lon ", " am lon ", " tin hieu lon ")):
-                w_dev, w_state, is_sensor_when = "sound_sensor", "LOUD", True
-        if is_sensor_when and w_dev == "sound_sensor" and w_state == "LOUD" and t_dev is None:
-            if re.search(r"\b(?:bat|mo)\s+(?:hoi|coi)\b", normalize_phrase(then_part)):
-                t_dev, t_act = "alarm_siren", "turn_on"
-        if (
-            is_sensor_when
-            and t_dev
-            and not t_act
-            and w_dev in ("sound_sensor", "soil_sensor")
-            and w_state in ("LOUD", "DRY")
-        ):
-            t_act = "open" if t_dev == "main_door" else "turn_on"
         if t_dev == "all_lights":
             t_dev = "living_room_light"
 
@@ -3674,7 +3955,7 @@ async def process_automation_nlu_command(
                     target="automation_rules",
                 )
 
-            allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier)
+            allowed_then, reason_then = engine.check_device_permission(t_dev, actor_tier=tier, actor_user_id=user_id)
             if not allowed_then:
                 return _deny_mutation_error(
                     session=session,
@@ -3689,7 +3970,7 @@ async def process_automation_nlu_command(
             if else_part:
                 ed, ea = parse_single_device_and_action(else_part)
                 if ed in DEFAULT_DEVICES and ea in ACTION_TO_STATE:
-                    allowed_else, reason_else = engine.check_device_permission(ed, actor_tier=tier)
+                    allowed_else, reason_else = engine.check_device_permission(ed, actor_tier=tier, actor_user_id=user_id)
                     if not allowed_else:
                         return _deny_mutation_error(
                             session=session,
@@ -3713,7 +3994,7 @@ async def process_automation_nlu_command(
                 )
 
             w_label = (
-                format_sensor_trigger_vi(w_dev, w_state)
+                format_sensor_trigger_vi(w_dev, w_state, threshold_op=th_op, threshold_value=th_val)
                 if is_sensor_when
                 else format_device_action_vi(w_dev, w_act or "turn_on").lower()
             )
@@ -3730,6 +4011,8 @@ async def process_automation_nlu_command(
                 payload={
                     "when_device_id": w_dev,
                     "when_state": w_state,
+                    "threshold_op": th_op,
+                    "threshold_value": th_val,
                     "then_device_id": t_dev,
                     "then_action": t_act,
                     "else_device_id": e_dev,
@@ -3741,7 +4024,20 @@ async def process_automation_nlu_command(
     # ------------------------------------------------------------------
     # STEP 6. CANCEL / DELETE SINGLE TIMER, SCHEDULE, RULE, CUSTOM COMMAND
     # ------------------------------------------------------------------
-    if re.match(r"^(?:huy|xoa)\s+(?:hen gio|lich|luat|lien ket|lien het|lien thiep|lenh|le|lai|scene|kich ban)\b", norm):
+    norm_del = re.sub(
+        r"^(?:(?:toi|minh|em)\s+muon\s+|giup\s+(?:toi|minh|anh|chi|em)\s+|ban\s+|hay\s+|xin\s+|vui\s+long\s+|lam\s+on\s+)+",
+        "",
+        norm,
+    ).strip()
+    if re.match(
+        r"^(?:huy(?:\s+bo)?|xoa(?:\s+(?:bo|di))?|go(?:\s+bo)?|dep(?:\s+bo)?|loai\s+bo|bo(?:\s+di)?|tat|dung)\s+"
+        r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em)\s+)?"
+        r"(?:(?:cai|mot)\s+)?"
+        r"(?:hen\s+gio|lich(?:\s+(?:hen|trinh|dinh\s+ky))?|luat|quy\s+tac|lien\s+ket|"
+        r"cau\s+lenh|khau\s+lenh|lenh(?:\s+(?:rieng|tat|tuy\s+chinh|custom|giong\s+noi|da\s+luu|cu|moi))?|"
+        r"phim\s+tat(?:\s+giong\s+noi)?|ngu\s+canh|scene|kich\s+ban|bi\s+danh)\b",
+        norm_del,
+    ):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -3751,7 +4047,7 @@ async def process_automation_nlu_command(
                 status_code=403,
                 target="automation",
             )
-        if "hen gio" in norm:
+        if "hen gio" in norm_del:
             dev, _ = parse_single_device_and_action(raw)
             dev_target = dev or "all_devices"
             dev_label = DEFAULT_DEVICES.get(dev_target, {}).get("name", dev_target)
@@ -3764,7 +4060,7 @@ async def process_automation_nlu_command(
                 payload={"device_id": dev_target},
                 prompt_summary=f"Hủy hẹn giờ {dev_label}" if dev else "Hủy hẹn giờ hiện tại",
             )
-        if "lich" in norm:
+        if "lich" in norm_del:
             dev, _ = parse_single_device_and_action(raw)
             hhmm, _, _ = _parse_clock_hhmm_vi(raw)
             desc = "Xóa lịch hẹn"
@@ -3781,7 +4077,7 @@ async def process_automation_nlu_command(
                 payload={"device_id": dev, "time_hhmm": hhmm},
                 prompt_summary=desc,
             )
-        if any(k in norm for k in ("luat", "lien ket", "lien het", "lien thiep")):
+        if any(k in norm_del for k in ("luat", "quy tac", "lien ket")):
             dev, _ = parse_single_device_and_action(raw)
             desc = "Xóa liên kết" + (f" liên quan tới {DEFAULT_DEVICES.get(dev, {}).get('name', dev)}" if dev else "")
             return await prepare_pending_mutation(
@@ -3793,12 +4089,21 @@ async def process_automation_nlu_command(
                 payload={"device_id": dev},
                 prompt_summary=desc,
             )
-        if any(k in norm for k in ("lenh", "scene", "kich ban")) or re.match(r"^(?:huy|xoa)\s+(?:le|lai)\s+\S+", norm):
-            is_asr_del_slip = not any(k in norm for k in ("lenh", "scene", "kich ban"))
+        if any(k in norm_del for k in ("lenh", "khau lenh", "cau lenh", "phim tat", "ngu canh", "scene", "kich ban", "bi danh")):
             phrase_clean = re.sub(
-                r"^(?:huy|xoa)\s+(?:lenh tuy chinh|lenh custom|lenh|le|lai|scene|kich ban)\s*",
+                r"^(?:huy(?:\s+bo)?|xoa(?:\s+(?:bo|di))?|go(?:\s+bo)?|dep(?:\s+bo)?|loai\s+bo|bo(?:\s+di)?|tat|dung)\s+"
+                r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em)\s+)?"
+                r"(?:(?:cai|mot)\s+)?"
+                r"(?:khau\s+lenh|cau\s+lenh|lenh(?:\s+(?:rieng|tat|tuy\s+chinh|custom|giong\s+noi|da\s+luu|cu|moi))?|"
+                r"phim\s+tat(?:\s+giong\s+noi)?|ngu\s+canh|scene|kich\s+ban|bi\s+danh)\s*"
+                r"(?:(?:goi\s+la|co\s+ten(?:\s+la)?|ten(?:\s+la)?)\s+)?",
                 "",
-                norm,
+                norm_del,
+            ).strip(" '\".,:")
+            phrase_clean = re.sub(
+                r"\s+(?:giup\s+(?:minh|toi|anh|chi|em)|cho\s+(?:minh|toi|anh|chi|em)|ho\s+(?:minh|toi|anh|chi|em)|(?:gium|dum)(?:\s+(?:minh|toi|tui|em))?|di|luon|ngay|nhe|nha|a)+$",
+                "",
+                phrase_clean,
             ).strip(" '\".,:")
             owner_scope = None if tier == 1 else user_id
             existing_cmds = list_custom_commands(include_disabled=True, owner_user_id=owner_scope)
@@ -3814,31 +4119,22 @@ async def process_automation_nlu_command(
                     for cmd in existing_cmds:
                         c_norm = str(cmd.get("phrase_norm") or normalize_phrase(str(cmd.get("phrase") or ""))).strip()
                         sc = _fuzzy_ratio(phrase_clean, c_norm)
-                        min_sc = 78.0 if is_asr_del_slip else 65.0
-                        if sc >= min_sc and sc > best_sc:
+                        if sc >= 72.0 and sc > best_sc:
                             best_sc = sc
                             matched_del = cmd
-                if matched_del is None and not is_asr_del_slip and len(existing_cmds) == 1:
-                    only_cmd = existing_cmds[0]
-                    only_norm = str(only_cmd.get("phrase_norm") or normalize_phrase(str(only_cmd.get("phrase") or ""))).strip()
-                    if len(phrase_clean.split()) == len(only_norm.split()):
-                        matched_del = only_cmd
-            if is_asr_del_slip and matched_del is None:
-                pass
-            else:
-                del_payload: dict[str, Any] = {"phrase": matched_del["phrase"] if matched_del else (phrase_clean or norm)}
-                if matched_del is not None:
-                    del_payload["command_id"] = matched_del["command_id"]
-                del_label = matched_del["phrase"] if matched_del else (phrase_clean or raw)
-                return await prepare_pending_mutation(
-                    engine=engine,
-                    session=session,
-                    source=source,
-                    session_key=skey,
-                    action_kind="delete_custom_command",
-                    payload=del_payload,
-                    prompt_summary=f"Xóa lệnh '{del_label}'",
-                )
+            del_payload: dict[str, Any] = {"phrase": matched_del["phrase"] if matched_del else (phrase_clean or norm_del)}
+            if matched_del is not None:
+                del_payload["command_id"] = matched_del["command_id"]
+            del_label = matched_del["phrase"] if matched_del else (phrase_clean or raw)
+            return await prepare_pending_mutation(
+                engine=engine,
+                session=session,
+                source=source,
+                session_key=skey,
+                action_kind="delete_custom_command",
+                payload=del_payload,
+                prompt_summary=f"Xóa lệnh '{del_label}'",
+            )
 
     # ------------------------------------------------------------------
     # STEP 7. CLOCK SCHEDULE ("bật đèn phòng ngủ lúc 14 giờ 35", "tắt đèn lúc 22:30 hằng ngày")
@@ -3856,7 +4152,10 @@ async def process_automation_nlu_command(
             msg_c = f"Bạn muốn {kind_vi} cho thiết bị nào và bật hay tắt?"
         elif not dev_opt:
             act_vi = "tắt" if act_opt in ("turn_off", "close") else ("mở" if act_opt == "open" else "bật")
-            msg_c = f"Bạn muốn {kind_vi} {act_vi} thiết bị nào?"
+            if re.search(r"\b(?:đèn|den)\b", raw, flags=re.IGNORECASE):
+                msg_c = f"Bạn muốn {kind_vi} {act_vi} đèn phòng khách hay đèn phòng ngủ?"
+            else:
+                msg_c = f"Bạn muốn {kind_vi} {act_vi} thiết bị nào?"
         else:
             if dev_opt == "main_door":
                 msg_c = f"Bạn muốn {kind_vi} mở hay đóng cửa chính?"
@@ -3882,7 +4181,7 @@ async def process_automation_nlu_command(
         }
 
     hhmm, is_daily, cleaned_clock = _parse_clock_hhmm_vi(raw)
-    if hhmm is not None:
+    if hhmm is not None and not is_no_action_safety_blocked_vi(raw):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -3942,7 +4241,7 @@ async def process_automation_nlu_command(
         if dev and act:
             target_devs = _expand_targets(dev)
             for td in target_devs:
-                allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+                allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier, actor_user_id=user_id)
                 if not allowed_td:
                     return _deny_mutation_error(
                         session=session,
@@ -3989,13 +4288,21 @@ async def process_automation_nlu_command(
     # STEP 8. COUNTDOWN TIMER ("tắt đèn phòng khách sau 1 phút", "10 giây nữa bật đèn phòng ngủ")
     # ------------------------------------------------------------------
     norm_time = _normalize_vi_spoken_numbers(raw)
+    is_del_or_reset_verb = bool(
+        re.match(
+            r"^(?:(?:toi|minh|em)\s+muon\s+|giup\s+(?:toi|minh|anh|chi|em)\s+|hay\s+|xin\s+|vui\s+long\s+|lam\s+on\s+)*"
+            r"(?:xoa|huy|don|go|dep|loai\s+bo|reset)\b",
+            norm,
+        )
+    )
     has_countdown_cue = bool(
-        re.search(
+        not is_del_or_reset_verb
+        and re.search(
             r"(?:\bsau\s+\d+|\d+(?:\.\d+)?\s*(?:giay|phut|tieng)\b|\bhen\s+\d+|\b\d+(?:\.\d+)?\s*(?:giay|phut|gio)\s+nua\b|\bhen gio\b)",
             norm_time,
         )
     )
-    if has_countdown_cue:
+    if has_countdown_cue and not is_no_action_safety_blocked_vi(raw):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -4051,7 +4358,7 @@ async def process_automation_nlu_command(
         if total_sec <= 0:
             return _clarify_missing_timer_or_schedule(kind_vi="hẹn giờ", dev_opt=dev, act_opt=act, missing_time=True)
         for td in _expand_targets(dev):
-            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
+            allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier, actor_user_id=user_id)
             if not allowed_td:
                 return _deny_mutation_error(
                     session=session,
@@ -4086,6 +4393,32 @@ async def process_automation_nlu_command(
             payload={"device_id": dev, "action": act, "seconds": total_sec},
             prompt_summary=f"Đặt hẹn giờ sau {format_duration_vi(sec_i)} sẽ {act_label.lower()}",
         )
+
+    # Defense-in-depth: explicit schedule creation without clock time MUST clarify instead of leaking to direct execution
+    if (
+        not is_del_or_reset_verb
+        and "?" not in raw
+        and not is_no_action_safety_blocked_vi(raw)
+        and re.search(
+            r"(?:^|\s)(?:dat\s+lich|len\s+lich|tao\s+lich|hen\s+lich|lap\s+lich|lich\s+tu\s+dong)(?:\s|$)",
+            f" {norm} ",
+        )
+        and not re.search(r"\b(?:xem|danh\s+sach|liet\s+ke|sua|chinh\s+sua|doi|tam\s+dung|tam\s+tat|bat\s+lai)\b", norm)
+    ):
+        msg_sched_time = "Bạn muốn đặt lịch vào lúc mấy giờ?"
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "executed": False,
+                "requires_confirmation": False,
+                "needs_clarification": True,
+                "kind": "clarify_missing_schedule_time",
+                "reply": msg_sched_time,
+                "exact_spoken_reply": msg_sched_time,
+            },
+        }
 
     # ------------------------------------------------------------------
     # STEP 9. RUN PER-USER CUSTOM COMMAND FROM SQLITE POOL (stages short confirmation)

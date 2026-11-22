@@ -22,6 +22,7 @@ from simulator.voice.vietnamese_stt import (
     _is_muffled_babble_only,
     _is_plausible_short_reply_or_command,
     enhance_white_noise_audio,
+    get_registry_asr_vocabulary,
     is_broadband_white_noise,
     transcribe_short_zipformer30m_pcm16k,
     transcribe_vietnamese_offline_pcm16k,
@@ -80,14 +81,46 @@ _FALLBACK_MODEL = _DEFAULT_MODEL_CHAIN[-1]
 _ALNUM_GARBAGE_RE = re.compile(r"[A-Z0-9]{4,}")
 _ALLOWED_ALNUM_CODES: frozenset[str] = frozenset({"KY037", "KY038", "DHT11"})
 
-_DEVICE_CORROBORATION_CUES: dict[str, tuple[str, ...]] = {
-    "main_door": ("cua", "chinh", "cong"),
-    "living_room_light": ("den", "khach"),
-    "bedroom_light": ("den", "ngu", "buong"),
-    "garden_pump": ("bom", "tuoi", "cay", "vuon", "nuoc"),
-    "alarm_siren": ("coi", "bao", "hu", "trom"),
-    "speaker_amp": ("loa", "mach", "pam8403"),
+_GENERIC_CORROBORATION_TOKENS: frozenset[str] = frozenset({
+    "phong", "may", "dong", "nguon", "chuong", "tat", "bat", "mo", "cay",
+})
+
+_EXTRA_DOMAIN_STEMS: dict[str, tuple[str, ...]] = {
+    "garden_pump": ("cay", "vuon", "nuoc"),
+    "alarm_siren": ("hu", "trom"),
 }
+
+
+def _strip_ascii_vi(text: str) -> str:
+    import unicodedata
+
+    s = str(text or "").replace("đ", "d").replace("Đ", "D")
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^a-z0-9\s]+", " ", s.lower()).split())
+
+
+def _build_device_corroboration_cues() -> dict[str, tuple[str, ...]]:
+    """Derive per-device corroboration stems from the canonical hardware registry."""
+    vocab = get_registry_asr_vocabulary()
+    cues: dict[str, tuple[str, ...]] = {}
+    for dev_id, raw_label in vocab["device_labels"].items():
+        tokens: list[str] = []
+        sources = list(vocab["device_aliases"].get(dev_id, ())) + [raw_label]
+        for phrase in sources:
+            for tok in _strip_ascii_vi(phrase).split():
+                if len(tok) < 2 or tok in _GENERIC_CORROBORATION_TOKENS:
+                    continue
+                if tok not in tokens:
+                    tokens.append(tok)
+        for extra in _EXTRA_DOMAIN_STEMS.get(dev_id, ()):
+            if extra not in tokens:
+                tokens.append(extra)
+        cues[dev_id] = tuple(tokens)
+    return cues
+
+
+_DEVICE_CORROBORATION_CUES: dict[str, tuple[str, ...]] = _build_device_corroboration_cues()
 
 _CORROBORATION_STOPWORDS: frozenset[str] = frozenset({
     "khong", "nhung", "trong", "cung", "dung", "luon", "nguon", "chong", "song", "long", "xong", "vong",
@@ -104,44 +137,53 @@ _NOISE_TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 
-_BASE_ASR_PROMPT = (
-    "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao cho nhà thông minh.\n"
-    "Hãy lắng nghe kỹ giọng người nói chính (lớn nhất ở tiền cảnh) và chép lại CHÍNH XÁC NGUYÊN VĂN lời họ nói.\n"
-    "Từ vựng tham khảo để chép đúng chính tả (CHỈ dùng khi thực sự nghe thấy âm thanh tương ứng, "
-    "TUYỆT ĐỐI KHÔNG ép khớp hay thay từ khác sang danh sách này):\n"
-    "- 6 thiết bị hỗ trợ: cửa chính (cửa/cổng), đèn phòng khách, đèn phòng ngủ (đèn buồng), tất cả đèn (hết đèn), "
-    "máy bơm tưới cây (máy bơm/tưới vườn), còi báo động (còi/còi hú, ví dụ: bật còi, tắt còi), nguồn mạch loa (loa/âm ly).\n"
-    "- Tự động hóa & cảm biến: tạo lệnh ... là ..., sửa lệnh ... thành ..., xóa lệnh ..., "
-    "đặt lịch <số> giờ sáng/tối hằng ngày ..., sửa lịch ... thành ..., xóa lịch ..., hẹn giờ <số> giây/phút ..., "
-    "khi ... thì ..., xóa liên kết ..., reset trạng thái thiết bị, reset liên kết, khôi phục cài đặt gốc, "
-    "đất khô, tiếng động lớn, nhiệt độ, độ ẩm đất, cảm biến âm thanh.\n"
-    "Quy tắc bắt buộc:\n"
-    "- Chỉ xuất ra đúng lời nói nguyên văn, không giải thích, không thêm lời bình.\n"
-    "- Chú ý thật kỹ âm đầu & cặp dễ nhầm: phân biệt rõ 'tắt' và 'bật', 'đóng' và 'mở', 'xóa liên kết' và 'tắt hết', "
-    "'reset' và 'bật thiết bị'/'vệ sinh'/'save', 'tắt loa' và 'tắt hoa', 'bật hết đèn' và 'bật thiết đèn', "
-    "'tưới cây' và 'từ tay', 'đất khô' và 'em cô', 'tiếng động lớn' và 'biến động lớn', 'hủy' và 'quý', 'tạm biệt' và 'tắt đèn'.\n"
-    "- TUYỆT ĐỐI KHÔNG bỏ sót động từ đầu câu, giờ/số đếm, hoặc tiền tố tự động hóa ('tạo lệnh ... là ...', "
-    "'đặt lịch ...', 'hẹn giờ ...', 'khi ... thì ...'). KHÔNG ĐƯỢC thay tiền tố nghe chưa rõ bằng 'Hãy ...' "
-    "hay rút gọn thành lệnh bật/tắt trực tiếp.\n"
-    "- CHỐNG BỊA LỆNH (tối quan trọng):\n"
-    "  1. Câu thiếu/ngắn (1-2 âm tiết như 'tạm biệt', 'bật còi', 'tắt còi', 'cửa chính'): TUYỆT ĐỐI KHÔNG tự kéo dài "
-    "hay bịa thêm thiết bị/động từ không có trong âm thanh. Chỉ nghe 'cửa chính' xuất 'cửa chính'; chỉ nghe 'tất cả đèn' "
-    "xuất 'tất cả đèn'; chỉ nghe 'bật lên đi' xuất 'bật lên đi'.\n"
-    "  2. Khi có tiếng ồn nền hoặc nhiều giọng nói: tập trung chép lời người nói chính to nhất ở tiền cảnh; "
-    "KHÔNG đoán ngược cực bật/tắt hay mở/đóng; chỉ xuất `[NOISE]` khi hoàn toàn không nghe ra từ tiếng Việt rõ ràng nào.\n"
-    "  3. Thiết bị ngoài danh sách: nếu nghe 'rèm cửa', 'cửa cuốn', 'quạt trần', 'điều hòa', 'tivi', 'máy giặt', "
-    "'bình nóng lạnh' thì PHẢI chép đúng nguyên văn, TUYỆT ĐỐI KHÔNG đổi thành 'cửa chính' hay thiết bị khác.\n"
-    "  4. Ngoại ngữ: nếu người nói dùng tiếng Anh, Pháp, Hàn, Tây Ban Nha, Đức... thì chép nguyên văn bằng ngoại ngữ đó, "
-    "KHÔNG dịch sang tiếng Việt.\n"
-    "  5. Nhiễu/từ đệm: chỉ có từ đệm ('ờ à ừm') thì chép 'ờ à ừm'; chỉ có tiếng ồn trắng, nhiễu tĩnh hoặc tạp âm nền "
-    "không rõ lời người nói chính ở tiền cảnh thì chỉ xuất đúng `[NOISE]`."
-)
+
+def _build_base_asr_prompt() -> str:
+    """Build a clean, registry-derived Vietnamese verbatim ASR prompt with zero memorized garbles."""
+    vocab = get_registry_asr_vocabulary()
+    device_items: list[str] = []
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        aliases = [a for a in vocab["device_aliases"].get(dev_id, ()) if a != spoken][:2]
+        if aliases:
+            device_items.append(f"{spoken} ({'/'.join(aliases)})")
+        else:
+            device_items.append(spoken)
+    devices_line = ", ".join(device_items)
+    sensors_line = ", ".join(vocab["sensor_labels"])
+    return (
+        "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao cho nhà thông minh.\n"
+        "Hãy lắng nghe kỹ giọng người nói chính (lớn nhất ở tiền cảnh) và chép lại CHÍNH XÁC NGUYÊN VĂN lời họ nói.\n"
+        "Từ vựng tham khảo của hệ thống để chép đúng chính tả (CHỈ dùng khi thực sự nghe thấy âm thanh tương ứng, "
+        "TUYỆT ĐỐI KHÔNG ép khớp hay thay từ khác sang danh sách này):\n"
+        f"- {len(device_items)} thiết bị hỗ trợ: {devices_line}, tất cả đèn, tất cả thiết bị.\n"
+        f"- Cảm biến & tự động hóa: {sensors_line}, đất khô, tiếng động lớn; "
+        "tạo/sửa/xóa lệnh tùy chỉnh, đặt/sửa/xóa lịch, hẹn giờ, luật điều kiện 'khi/nếu ... thì ...', "
+        "reset trạng thái thiết bị, reset liên kết, khôi phục cài đặt gốc.\n"
+        "Quy tắc bắt buộc:\n"
+        "- Chỉ xuất ra đúng lời nói nguyên văn, không giải thích, không thêm lời bình.\n"
+        "- Giữ chính xác tuyệt đối dấu thanh tiếng Việt, cực hành động ('bật'/'tắt', 'mở'/'đóng'), "
+        "số đếm, mốc giờ, từ phủ định ('không', 'đừng', 'chưa', 'khoan'), từ đệm ngập ngừng và tiền tố tự động hóa.\n"
+        "- KHÔNG ĐƯỢC bỏ sót tiền tố tự động hóa hoặc rút gọn câu điều kiện/hẹn giờ/lệnh tùy chỉnh thành lệnh bật/tắt trực tiếp.\n"
+        "- CHỐNG BỊA LỆNH:\n"
+        "  1. Câu ngắn hoặc thiếu thành phần (1-2 âm tiết, chỉ có tên thiết bị hoặc chỉ có động từ): "
+        "TUYỆT ĐỐI KHÔNG tự kéo dài hay bịa thêm động từ hoặc thiết bị không có trong âm thanh.\n"
+        "  2. Khi có tiếng ồn nền hoặc nhiều giọng nói: chỉ chép lời người nói chính ở tiền cảnh; "
+        "KHÔNG đoán ngược cực bật/tắt hay mở/đóng; chỉ xuất `[NOISE]` khi hoàn toàn không nghe ra lời nói rõ ràng.\n"
+        "  3. Thiết bị ngoài danh sách (ví dụ quạt, điều hòa, tivi, rèm cửa, máy giặt, cửa cuốn...): "
+        "PHẢI chép đúng nguyên văn, TUYỆT ĐỐI KHÔNG đổi sang thiết bị hỗ trợ.\n"
+        "  4. Ngoại ngữ: nếu người nói dùng ngôn ngữ khác tiếng Việt, chép nguyên văn bằng ngôn ngữ đó, KHÔNG dịch.\n"
+        "  5. Nếu chỉ có từ đệm ngập ngừng ('ờ', 'à', 'ừm') thì chép nguyên văn từ đệm; "
+        "nếu chỉ có tạp âm nền không có lời người nói chính thì xuất đúng `[NOISE]`."
+    )
+
+
+_BASE_ASR_PROMPT = _build_base_asr_prompt()
 
 _SHORT_PENDING_CONFIRM_PROMPT = (
     "Bạn là bộ nhận dạng giọng nói (ASR) tiếng Việt chính xác cao.\n"
-    "Hệ thống đang chờ người dùng xác nhận. Hãy lắng nghe và chép lại CHÍNH XÁC NGUYÊN VĂN từ/câu ngắn người dùng nói "
-    "(có thể chỉ là 1-2 âm tiết như: ok, được, có, ừ, đồng ý, không, thôi, hủy — chú ý phân biệt rõ 'hủy' và 'quý', hoặc một câu ngắn khác).\n"
-    "- Chỉ xuất đúng lời nói nguyên văn, KHÔNG tự thêm hay bịa câu lệnh dài.\n"
+    "Hệ thống đang chờ người dùng xác nhận. Hãy lắng nghe và chép lại CHÍNH XÁC NGUYÊN VĂN từ hoặc câu ngắn người dùng nói "
+    "(có thể là lời đồng ý/từ chối ngắn 1-2 âm tiết hoặc một câu ngắn khác).\n"
+    "- Chỉ xuất đúng lời nói nguyên văn, giữ đúng dấu thanh tiếng Việt, KHÔNG tự thêm hay bịa câu lệnh dài.\n"
     "- Nếu là ngoại ngữ, chép lại nguyên văn bằng ngôn ngữ đó.\n"
     "- CHỈ xuất đúng `[NOISE]` nếu hoàn toàn không có tiếng người nói."
 )
@@ -487,8 +529,8 @@ def _run_high_noise_hallucination_gate(
         local_txt = str(local_res.get("text") or "").strip()
         local_engine = str(local_res.get("stt_engine") or "local")
 
-    # 1. Under background noise, if local clearly hears small talk (e.g. 'chào bạn', 'tạm biệt'), override Gemini hallucination.
-    # Never override clean high-pitch child escalations (noise_ratio < 0.14) where offline misheard 'bật bơm' as 'bạn ơi'.
+    # 1. Under background noise, if local clearly hears small talk, override Gemini hallucination.
+    # Preserve clean high-pitch speaker escalations (noise_ratio < 0.14) where offline ASR may mishear short commands.
     if noise_ratio >= 0.14 and local_txt and classify_small_talk_vi(local_txt) is not None:
         return {
             "ok": True,
@@ -522,8 +564,8 @@ def _run_high_noise_hallucination_gate(
             "stt_engine": f"gemini:{used_model}+noise_gate_unsupported:{local_engine}",
         }
 
-    # R1. Non-Direct Cue Veto: if local heard automation/timer/schedule/custom/reset cues
-    # (e.g. 'tạo lệnh đi làm', 'hai giây ...'), never let Gemini downgrade it into an immediate toggle!
+    # R1. Non-Direct Cue Veto: if local heard automation/timer/schedule/custom/reset cues,
+    # never let Gemini downgrade it into an immediate device toggle.
     if local_txt and _text_has_non_direct_intent_cue(local_txt):
         return {
             "ok": True,
@@ -537,9 +579,9 @@ def _run_high_noise_hallucination_gate(
     gemini_words = re.sub(r"[?!.,;:]+$", "", gemini_text.strip()).split()
     local_words = local_norm.split()
 
-    # R2. Short-Clip Hallucination Expansion Guard (applies to ALL noise levels including clean & SNR10):
-    # A 1-2 syllable clip (e.g. 'tạm biệt' / 'bật còi', active_speech < 0.85s) cannot become a 4-5 syllable
-    # command ('tắt đèn phòng khách' / 'bật đèn phòng khách') with zero local device-cue corroboration.
+    # R2. Short-Clip Hallucination Expansion Guard:
+    # A 1-2 syllable clip (active_speech < 0.85s) cannot expand into a 4+ syllable direct device command
+    # when local STT has zero device-cue corroboration.
     short_local_expansion = (
         duration_sec < 1.35
         and 1 <= len(local_words) <= 2
@@ -580,7 +622,7 @@ def _run_high_noise_hallucination_gate(
     gem_devs = {str(it.get("device_id") or "") for it in gemini_intents}
     gem_groups = {_device_group_for(d) for d in gem_devs if d}
 
-    # Acoustic CTC 'đen' vs 'đèn' tone check on direct light commands (prevents T158 'tắt đen phòng khách' false actions)
+    # Acoustic CTC tone check ('đen' vs 'đèn') on direct light commands to prevent wrong-diacritic false actions
     if re.search(r"\bđèn\b", gemini_text, flags=re.IGNORECASE):
         try:
             from simulator.voice.chunkformer_ctc import verify_light_den_tone_ctc
@@ -601,7 +643,7 @@ def _run_high_noise_hallucination_gate(
             pass
 
     # Universal acoustic CTC polarity verification whenever Gemini outputs a direct device command
-    # whose polarity was NOT explicitly corroborated by local STT (catches clean/speed/noisy flips like 'tắt bơm'->'bật bơm').
+    # whose polarity was NOT explicitly corroborated by local STT.
     if gem_pol is not None and loc_pol != gem_pol:
         target_key = (
             "all_lights"
@@ -631,8 +673,7 @@ def _run_high_noise_hallucination_gate(
             except Exception:
                 pass
 
-    # Universal 2-word direct command corroboration guard (e.g. speed_0.8x 'tạm biệt' -> local 'ờ biệt' vs gem 'tắt đèn').
-    # Exempt clean high-pitch child voice (F0 >= 245 Hz, noise_ratio < 0.14) where offline mishears 'bật bơm' as 'bạn ơi'.
+    # Universal 2-word direct command corroboration guard; exempt clean high-pitch speakers (F0 >= 245 Hz).
     if len(gemini_words) <= 2 and local_txt and not _local_corroborates_all_device_groups(local_txt, gemini_intents):
         allow_clean_child = False
         if noise_ratio < 0.14:
@@ -678,7 +719,7 @@ def _run_high_noise_hallucination_gate(
                 "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
                 "stt_engine": f"gemini:{used_model}+gate_room_conflict:{local_engine}",
             }
-        # Multi-group command OR SNR <= 10 dB short command expanding a <=2-word local decode must corroborate target device(s)
+        # Multi-group commands or noisy short expansions over a <=2-word local decode must corroborate target device(s)
         if (
             len(gem_groups) >= 2
             or (noise_ratio >= 0.20 and len(gemini_words) <= 3 and len(local_words) <= 2)
@@ -689,10 +730,10 @@ def _run_high_noise_hallucination_gate(
                 "confidence": 0.0,
                 "is_noise": True,
                 "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
-                "stt_engine": f"gemini:{used_model}+gate_snr10_corrob_reject:{local_engine}",
+                "stt_engine": f"gemini:{used_model}+gate_noise_corrob_reject:{local_engine}",
             }
 
-    # R4. Noise Corroboration Gate (SNR <= 8-10 dB full device-group corroboration & exact bare-phrase checks)
+    # R4. High-Noise Corroboration Gate (full device-group corroboration & exact bare-phrase checks)
     if noise_ratio >= 0.25:
         local_intents = parse_direct_device_intents_vi(local_txt) if local_txt else []
         if local_intents:
@@ -766,7 +807,7 @@ def _classify_confirm_safe(text: str) -> str | None:
 
 
 def _is_likely_short_gibberish(text: str) -> bool:
-    """Detect single-word mismatched output on a <0.95s clip (e.g. 'được' -> 'lịch')."""
+    """Detect an implausible 1-2 token output on a very short clip."""
     if not text:
         return True
     tokens = re.sub(r"[?!.,;:]+$", "", text.strip().lower()).split()
@@ -809,7 +850,7 @@ def transcribe_vietnamese_gemini_pcm16k(
     active_speech_dur = _estimate_active_speech_duration_sec(audio_f32, sr=16000)
 
     # Send raw preprocessed 16kHz audio to Gemini: its multimodal encoder preserves Vietnamese tones
-    # far better on raw SNR 5-10 dB speech than single-channel CPU denoisers (which smear formants).
+    # better on noisy speech than single-channel CPU denoisers (which can smear formants).
     enh_tag = ""
     wav_bytes = _float32_to_wav16k_bytes(audio_f32, pad_short=True)
 
@@ -1018,7 +1059,7 @@ def transcribe_vietnamese_gemini_pcm16k(
             "stt_engine": f"gemini:{used_model}{enh_tag}:babble_guard",
         }
 
-    # Cross-Engine & Acoustic-Length Hallucination Gate (0 false actions across clean, SNR10, and SNR5)
+    # Cross-Engine & Acoustic-Length Hallucination Gate
     gated = _run_high_noise_hallucination_gate(
         gemini_text=gemini_text,
         pcm16=pcm16,
@@ -1043,6 +1084,31 @@ def transcribe_vietnamese_gemini_pcm16k(
         "stt_ms": elapsed_ms,
         "stt_engine": f"gemini:{used_model}{enh_tag}",
     }
+
+
+def _is_destructive_intent_text(text: str) -> bool:
+    """Return True if transcript indicates a destructive reset, factory-reset, or delete/unlink intent."""
+    if not text:
+        return False
+    norm = _strip_ascii_vi(text)
+    if not norm:
+        return False
+    padded = f" {norm} "
+    if any(
+        k in padded
+        for k in (
+            " reset ", " factory reset ", " khoi phuc cai dat ", " dat lai trang thai ",
+            " dat lai he thong ", " xoa lien ket ", " xoa het ", " huy het ",
+            " xoa toan bo ", " huy toan bo ", " xoa tat ca ", " huy tat ca ",
+        )
+    ):
+        return True
+    try:
+        from simulator.automation_nlu import _detect_scoped_reset_intent
+
+        return _detect_scoped_reset_intent(text) is not None
+    except Exception:
+        return False
 
 
 def _should_escalate_offline_to_gemini(
@@ -1078,13 +1144,22 @@ def _should_escalate_offline_to_gemini(
     if "_fallback" in eng or eng in ("unavailable", "disabled", "whisper_error"):
         return True, "offline_fallback"
 
+    # Low-confidence offline transcript -> escalate cleanly to Gemini STT
+    off_conf = off_res.get("confidence")
+    if off_conf is not None and float(off_conf) < 0.80:
+        return True, "low_confidence"
+
     kind, _bare_dev = _classify_offline_transcript_kind(txt)
     if kind == "unrecognized":
         return True, "unrecognized"
     if kind == "nonsense":
         return False, "local_confident:nonsense"
 
-    # Under severe noise (SNR <= 5 dB, noise_ratio >= 0.31), never execute a local-only direct device toggle
+    # Under moderate/high noise, verify destructive reset/delete intents with Gemini rather than locking in locally
+    if noise_ratio >= 0.20 and kind == "recognized" and _is_destructive_intent_text(txt):
+        return True, "noisy_destructive_verify"
+
+    # Under severe background noise (noise_ratio >= 0.31), never execute a local-only direct device toggle
     # without Gemini cross-verification (prevents noisy babble/small-talk false positives).
     if noise_ratio >= 0.31 and kind == "recognized" and parse_direct_device_intents_vi(txt):
         return True, "severe_noise_verify_direct"
@@ -1093,7 +1168,7 @@ def _should_escalate_offline_to_gemini(
     if has_pending_confirmation and _classify_confirm_safe(txt) is None and kind != "recognized":
         return True, "pending_confirm_uncertain"
 
-    # Short high-pitch speaker (e.g. child F0 >= 245 Hz, dur <= 1.30s) decoded as 2-word small talk ('bạn ơi' for 'bật bơm')
+    # Short high-pitch speaker (F0 >= 245 Hz, dur <= 1.30s) decoded locally as 1-2 word small talk
     dur_s = float(audio_f32.size) / float(max(1, sr))
     if dur_s <= 1.30 and len(txt.split()) <= 2 and classify_small_talk_vi(txt) is not None:
         try:

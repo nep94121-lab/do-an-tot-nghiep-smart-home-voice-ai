@@ -1132,6 +1132,15 @@ async def execute_extended_confirmed_mutation(
                 clear_all=clear_all_users,
             )
         if scope == "devices":
+            if tier != 1:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_reset_devices",
+                    msg="Chỉ chủ nhà cấp 1 mới có quyền đặt lại trạng thái toàn bộ thiết bị.",
+                    status_code=403,
+                    target="devices",
+                )
             device_plan = [
                 ("living_room_light", "turn_off"),
                 ("bedroom_light", "turn_off"),
@@ -1246,6 +1255,7 @@ async def dispatch_tool(
                 request_tier=tier,
                 request_role=role,
                 request_user_name=user_name,
+                request_user_id=user_id,
             )
             res_set.setdefault("executed", bool(res_set.get("ok")))
             res_set.setdefault("requires_confirmation", False)
@@ -1257,6 +1267,7 @@ async def dispatch_tool(
             request_tier=tier,
             request_role=role,
             request_user_name=user_name,
+            request_user_id=user_id,
         )
         res_ctrl.setdefault("executed", bool(res_ctrl.get("ok")))
         res_ctrl.setdefault("requires_confirmation", False)
@@ -1992,6 +2003,8 @@ async def dispatch_tool(
             return _err_resp("Phạm vi đặt lại không hợp lệ.", status_code=400)
         if scope == "factory" and tier != 1:
             return _err_resp("Chỉ chủ nhà cấp 1 mới được khôi phục cài đặt gốc ạ.", status_code=403, rbac_blocked=True)
+        if scope == "devices" and tier != 1:
+            return _err_resp("Chỉ chủ nhà cấp 1 mới có quyền đặt lại trạng thái toàn bộ thiết bị.", status_code=403, rbac_blocked=True)
         clear_all_users = bool(tool_args.get("clear_all_users", False))
         if clear_all_users and tier > 1:
             return _err_resp("Chỉ chủ nhà cấp 1 mới được đặt lại dữ liệu của toàn bộ thành viên ạ.", status_code=403, rbac_blocked=True)

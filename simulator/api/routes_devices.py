@@ -66,7 +66,7 @@ def _owner_error(request: Request, payload: dict[str, Any]) -> JSONResponse | No
     sess = resolve_request_session(request, payload=payload)
     if not sess.is_authenticated:
         return JSONResponse({"ok": False, "error": "Yêu cầu đăng nhập."}, status_code=401)
-    if sess.tier != 1 or sess.role != "ADMIN":
+    if sess.tier != 1 or str(sess.role).upper() not in ("ADMIN", "OWNER"):
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà được thay đổi cài đặt."}, status_code=403)
     return None
 
@@ -122,8 +122,6 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
     ):
         targets.append("speaker_amp")
 
-    if not targets and re.search(r"\bđèn\b", mapped_text):
-        targets.append("living_room_light")
     return targets
 
 
@@ -350,6 +348,7 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
         request_tier=session_tier,
         request_user_name=session_user,
         request_role=session_role,
+        request_user_id=session.user_id,
         target_state=target_state,
         client_id=client_id,
         client_seq=client_seq,
@@ -767,6 +766,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
     from simulator.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
     from simulator.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
+        classify_no_action_response_vi,
         classify_small_talk_vi,
         ensure_vietnamese_reply,
         format_short_action_reply_vi,
@@ -776,23 +776,22 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
 
     skey_txt = _resolve_session_key(session, "text_command")
 
-    # 0. Active pending confirmation reply FIRST
-    if _classify_confirmation_utterance(text) is not None:
-        conf_res = await handle_confirmation_reply(
-            raw_text=text,
-            engine=_REST_ENGINE,
-            session=session,
-            source="text_command",
-            session_key=skey_txt,
-        )
-        if conf_res is not None:
-            await broadcast_rest_state_to_bridges()
-            c_payload = dict(conf_res.get("payload") or {})
-            if c_payload.get("exact_spoken_reply"):
-                sp_c = ensure_vietnamese_reply(str(c_payload["exact_spoken_reply"]))
-                c_payload["exact_spoken_reply"] = sp_c
-                c_payload["reply"] = sp_c
-            return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
+    # 0. Active pending confirmation reply FIRST (checks active pending + pending action_kind before re-parsing)
+    conf_res = await handle_confirmation_reply(
+        raw_text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+    )
+    if conf_res is not None:
+        await broadcast_rest_state_to_bridges()
+        c_payload = dict(conf_res.get("payload") or {})
+        if c_payload.get("exact_spoken_reply"):
+            sp_c = ensure_vietnamese_reply(str(c_payload["exact_spoken_reply"]))
+            c_payload["exact_spoken_reply"] = sp_c
+            c_payload["reply"] = sp_c
+        return JSONResponse(c_payload, status_code=int(conf_res.get("status_code") or 200))
 
     # 1. Small talk BEFORE any automation/permission rejections (unless saved custom command)
     saved_custom_txt = (
@@ -831,7 +830,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
     t_sensor_set_probe = re.sub(r"\b(?:dht\s*11|ky\s*-?\s*03[78]|yl\s*-?\s*69|pam\s*8403|esp\s*8266)\b", " ", t_low)
     is_rule_or_cond_sensor = bool(
         re.search(
-            r"(?:^|\s)(?:nếu|khi|thì|cứ|quy\s+tắc|liên\s+kết|tạo\s+luật|cài\s+cho\s+tôi|mà\s+lên\s+trên|vượt\s+quá|xuống\s+dưới|lên\s+trên)(?:\s|$)",
+            r"(?:^|\s)(?:nếu|khi|thì|cứ|hễ|quy\s+tắc|liên\s+kết|tạo\s+luật|vượt\s+quá|vượt|xuống\s+dưới|lên\s+trên|cao\s+hơn|thấp\s+hơn|lớn\s+hơn|nhỏ\s+hơn|trên\s+\d|dưới\s+\d)(?:\s|$)",
             t_low,
         )
     )
@@ -1000,7 +999,11 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         )
         for item in direct_intents:
             dev_id = item["device_id"]
-            allowed, _reason = _REST_ENGINE.check_device_permission(dev_id, actor_tier=effective_tier)
+            allowed, _reason = _REST_ENGINE.check_device_permission(
+                dev_id,
+                actor_tier=effective_tier,
+                actor_user_id=session.user_id,
+            )
             if not allowed:
                 deny_msg = ensure_vietnamese_reply(FIXED_REJECTION_PHRASE_VI)
                 deny_code = 200 if session.source == "legacy_test" else 403
@@ -1034,6 +1037,7 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 request_tier=effective_tier,
                 request_user_name=effective_user,
                 request_role=effective_role,
+                request_user_id=session.user_id,
             )
             if not res.get("ok"):
                 is_blk = bool(res.get("rbac_blocked"))
@@ -1104,11 +1108,11 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
         rem_pl["reply"] = sp_rem
         return JSONResponse(rem_pl, status_code=200)
 
-    clarification = ensure_vietnamese_reply(
-        classify_ambiguous_or_unsupported_vi(text) or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé."
-    )
+    no_act_kind, raw_clar = classify_no_action_response_vi(text)
+    clarification = ensure_vietnamese_reply(raw_clar or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé.")
     return JSONResponse({
         "ok": True,
+        "kind": no_act_kind,
         "executed": False,
         "requires_confirmation": False,
         "needs_clarification": True,

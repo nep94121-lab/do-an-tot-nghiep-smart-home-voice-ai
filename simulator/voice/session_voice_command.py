@@ -368,6 +368,7 @@ async def execute_session_voice_intents(
     from simulator.engine.voice_rbac_mixin import FIXED_REJECTION_PHRASE_VI
     from simulator.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
+        classify_no_action_response_vi,
         classify_small_talk_vi,
         ensure_vietnamese_reply,
         format_short_action_reply_vi,
@@ -380,8 +381,13 @@ async def execute_session_voice_intents(
     user_id = str(getattr(session, "user_id", "") or "guest").strip()
     actor_tier = int(session.tier)
 
-    # Never echo-suppress an explicit short confirm/cancel reply ("ok", "đồng ý", "hủy", "không"...).
-    conf_decision = _classify_confirmation_utterance(transcript)
+    # Never echo-suppress an explicit short/natural confirm or cancel reply while a pending confirmation is active.
+    has_pending_now, pending_kind_now = _peek_active_pending_confirmation_info(user_id, skey)
+    conf_decision = _classify_confirmation_utterance(
+        transcript,
+        has_pending=has_pending_now,
+        pending_action_kind=pending_kind_now,
+    )
     if conf_decision is None:
         is_echo, _score, _reason = echo_guard.check_echo_transcript(transcript)
         if is_echo:
@@ -389,8 +395,8 @@ async def execute_session_voice_intents(
         # Confirmed non-echo user turn: clear stale prior-turn AI utterances so earlier prompts cannot suppress later commands.
         echo_guard.clear_recent_utterances()
 
-    # 0. Active pending confirmation reply FIRST
-    if conf_decision is not None:
+    # 0. Active pending confirmation reply FIRST (always check before re-parsing timers/schedules/resets/commands)
+    if True:
         conf_res = await handle_confirmation_reply(
             raw_text=transcript,
             engine=engine,
@@ -522,6 +528,59 @@ async def execute_session_voice_intents(
             "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
         })
 
+    # 2b. Compound NLU (UI guidance, house mode, compound rules, numeric thresholds, weekday schedules, toggles)
+    from simulator.compound_nlu import process_compound_nlu_command
+
+    comp_res = await process_compound_nlu_command(
+        text=transcript,
+        engine=engine,
+        session=session,
+        source=source,
+        session_key=skey,
+    )
+    if comp_res is not None:
+        comp_payload = dict(comp_res.get("payload") or {})
+        raw_spoken_comp = str(
+            comp_payload.get("exact_spoken_reply")
+            or comp_payload.get("reply")
+            or comp_payload.get("error")
+            or ""
+        ).strip()
+        spoken_comp = ensure_vietnamese_reply(sanitize_spoken_vietnamese_text(raw_spoken_comp) or raw_spoken_comp)
+        aoede_fields_comp = await _synthesize_voice_reply_fields(spoken_comp, echo_guard)
+        is_ok_comp = bool(comp_payload.get("ok"))
+        is_pending_comp = bool(comp_payload.get("requires_confirmation"))
+        is_clarify_comp = bool(comp_payload.get("needs_clarification"))
+        if "executed" in comp_payload:
+            is_executed_comp = bool(comp_payload.get("executed"))
+        else:
+            is_executed_comp = is_ok_comp and not is_pending_comp and not is_clarify_comp
+        is_blocked_comp = bool(comp_payload.get("rbac_blocked"))
+        http_status_comp = int(comp_res.get("status_code") or (403 if is_blocked_comp else 200))
+        return _strip_legacy_repeat_speech({
+            **comp_payload,
+            "ok": is_ok_comp,
+            "http_status": http_status_comp,
+            "executed": is_executed_comp,
+            "authorized": not is_blocked_comp,
+            "permission": "DENIED" if is_blocked_comp else "ALLOWED",
+            "silent": False,
+            "should_reply": bool(spoken_comp),
+            "ask_repeat": False,
+            "play_audio": bool(spoken_comp and aoede_fields_comp.get("pcm24k_b64")),
+            "no_reprompt": True,
+            "recognized_text": transcript,
+            "transcript": transcript,
+            "tier": actor_tier,
+            "role": session.role,
+            "user_name": session.display_name,
+            "reply": spoken_comp,
+            "exact_spoken_reply": spoken_comp,
+            "rejection_speech": spoken_comp if is_blocked_comp else "",
+            "reply_text": spoken_comp,
+            **aoede_fields_comp,
+        })
+
     # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
     nlu_res = await process_automation_nlu_command(
         text=transcript,
@@ -588,7 +647,11 @@ async def execute_session_voice_intents(
         # Pre-check RBAC across all target devices before mutating any device
         for item in intents:
             dev_id = item["device_id"]
-            allowed, _reason = engine.check_device_permission(dev_id, actor_tier=actor_tier)
+            allowed, _reason = engine.check_device_permission(
+                dev_id,
+                actor_tier=actor_tier,
+                actor_user_id=session.user_id,
+            )
             if not allowed:
                 spoken_deny = ensure_vietnamese_reply(FIXED_REJECTION_PHRASE_VI)
                 aoede_deny = await _synthesize_voice_reply_fields(spoken_deny, echo_guard)
@@ -635,6 +698,7 @@ async def execute_session_voice_intents(
                 request_tier=actor_tier,
                 request_user_name=session.display_name,
                 request_role=session.role,
+                request_user_id=session.user_id,
             )
             if not res.get("ok"):
                 is_blk = bool(res.get("rbac_blocked"))
@@ -753,13 +817,13 @@ async def execute_session_voice_intents(
             **aoede_rem,
         })
 
-    clarification = ensure_vietnamese_reply(
-        classify_ambiguous_or_unsupported_vi(transcript) or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé."
-    )
+    no_act_kind, raw_clar = classify_no_action_response_vi(transcript)
+    clarification = ensure_vietnamese_reply(raw_clar or "Tôi chưa nghe rõ lệnh, bạn nói lại rõ hơn nhé.")
     aoede_cl = await _synthesize_voice_reply_fields(clarification, echo_guard)
     return _strip_legacy_repeat_speech({
         "ok": True,
         "http_status": 200,
+        "kind": no_act_kind,
         "executed": False,
         "requires_confirmation": False,
         "needs_clarification": True,
@@ -771,7 +835,7 @@ async def execute_session_voice_intents(
         "ask_repeat": False,
         "play_audio": bool(aoede_cl.get("pcm24k_b64")),
         "no_reprompt": True,
-        "reason": "needs_clarification",
+        "reason": no_act_kind,
         "recognized_text": transcript,
         "transcript": transcript,
         "intents": [],
@@ -788,11 +852,11 @@ async def execute_session_voice_intents(
     })
 
 
-def _peek_has_active_pending_confirmation(owner_user_id: str, session_key: str) -> bool:
-    """Pure read-only check for an unexpired pending confirmation (never mutates expired rows)."""
+def _peek_active_pending_confirmation_info(owner_user_id: str, session_key: str) -> tuple[bool, str]:
+    """Pure read-only check for an unexpired pending confirmation and its action_kind (never mutates expired rows)."""
     uid = str(owner_user_id or "").strip()
     if not uid:
-        return False
+        return False, ""
     skey = str(session_key or "").strip()
     now_ts = time.time()
     try:
@@ -801,14 +865,15 @@ def _peek_has_active_pending_confirmation(owner_user_id: str, session_key: str) 
 
         db_path = _active_db_path()
         if not db_path.exists():
-            return False
+            return False, ""
         conn = open_wal_connection(db_path, readonly=True)
         try:
             if skey:
                 row = conn.execute(
                     """
-                    SELECT 1 FROM pending_confirmations
+                    SELECT action_kind FROM pending_confirmations
                     WHERE owner_user_id = ? AND session_key = ? AND status = 'pending' AND expires_at > ?
+                    ORDER BY created_at DESC
                     LIMIT 1
                     """,
                     (uid, skey, now_ts),
@@ -816,17 +881,26 @@ def _peek_has_active_pending_confirmation(owner_user_id: str, session_key: str) 
             else:
                 row = conn.execute(
                     """
-                    SELECT 1 FROM pending_confirmations
+                    SELECT action_kind FROM pending_confirmations
                     WHERE owner_user_id = ? AND status = 'pending' AND expires_at > ?
+                    ORDER BY created_at DESC
                     LIMIT 1
                     """,
                     (uid, now_ts),
                 ).fetchone()
-            return row is not None
+            if row is None:
+                return False, ""
+            return True, str(row[0] or "")
         finally:
             conn.close()
     except Exception:
-        return False
+        return False, ""
+
+
+def _peek_has_active_pending_confirmation(owner_user_id: str, session_key: str) -> bool:
+    """Pure read-only check for an unexpired pending confirmation (never mutates expired rows)."""
+    has_p, _ = _peek_active_pending_confirmation_info(owner_user_id, session_key)
+    return has_p
 
 
 async def process_session_voice_command(

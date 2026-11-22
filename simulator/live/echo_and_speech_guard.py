@@ -177,9 +177,7 @@ def _has_opposite_action_verbs(user_norm: str, ai_norm: str) -> bool:
 
 
 def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> bool:
-    """Avoid suppressing a fresh bare imperative user command ('mo cua chinh', 'dong cua chinh',
-    or multi-device imperatives like 'dong cua chinh lai tat luon den phong khach') because AI
-    earlier spoke a framed confirmation question or completion/status reply."""
+    """Avoid suppressing a fresh bare or multi-device imperative user command when AI earlier spoke a framed confirmation question or completion/status reply."""
     if not any(user_norm.startswith(p) for p in _IMPERATIVE_CMD_PREFIXES):
         return False
     tokens = user_norm.split()

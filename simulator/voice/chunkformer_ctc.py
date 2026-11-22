@@ -29,202 +29,210 @@ _NON_VERB_LEADING_TOKENS_RAW: frozenset[str] = frozenset({
     "cái", "chiếc", "mấy", "các",
 })
 
-# Read-only sensor & status queries (0 possible device mutations / 0 false actions!)
-_SENSOR_QUERY_GRAMMAR: tuple[tuple[str, str], ...] = (
-    ("nhiệt độ và độ ẩm hiện tại là bao nhiêu", "qry:temp_hum"),
-    ("độ ẩm đất hiện tại bao nhiêu", "qry:soil"),
-    ("cảm biến âm thanh thế nào", "qry:sound"),
-    ("nhiệt độ hiện tại bao nhiêu", "qry:temp"),
-    ("nhiệt độ bao nhiêu", "qry:temp"),
-    ("độ ẩm không khí hiện tại là bao nhiêu", "qry:air_hum"),
-    ("kiểm tra tất cả cảm biến", "qry:all_sensors"),
-    ("đèn phòng ngủ đang bật hay tắt", "qry:bed_status"),
-    ("đèn phòng khách đang bật hay tắt", "qry:living_status"),
-    ("cửa chính đang mở hay đóng", "qry:door_status"),
-)
 
-# Confirmation-gated system commands (reset / factory_reset / timer cancel)
-# Includes Vietnamese phonetic renderings of English 'reset' ('ri sét', 'vì sét', 'vì sếp')
-# because Vietnamese CTC models split Latin 'reset' into rare character tokens.
-_CONFIRM_SYSTEM_GRAMMAR: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    (
-        "reset trạng thái thiết bị",
-        "sys:reset_devices",
+def _get_registry_vocab() -> dict[str, Any]:
+    from simulator.voice.vietnamese_stt import get_registry_asr_vocabulary
+
+    return get_registry_asr_vocabulary()
+
+
+def _build_sensor_query_grammar() -> tuple[tuple[str, str], ...]:
+    """Derive read-only sensor & device status query candidates from the canonical hardware registry."""
+    vocab = _get_registry_vocab()
+    spoken = vocab["spoken_labels"]
+    items: list[tuple[str, str]] = [
+        ("nhiệt độ và độ ẩm hiện tại là bao nhiêu", "qry:temp_hum"),
+        ("nhiệt độ hiện tại là bao nhiêu", "qry:temp"),
+        ("nhiệt độ hiện tại bao nhiêu", "qry:temp"),
+        ("độ ẩm không khí bao nhiêu", "qry:air_hum"),
+        ("độ ẩm đất bao nhiêu", "qry:soil"),
+        ("cảm biến âm thanh hiện tại thế nào", "qry:sound"),
+        ("kiểm tra cảm biến trong nhà", "qry:all_sensors"),
+    ]
+    for dev_id, lbl in spoken.items():
+        if dev_id == "main_door":
+            items.append((f"{lbl} đang mở hay đóng", f"qry:{dev_id}_status"))
+        elif "light" in dev_id:
+            items.append((f"{lbl} đang bật hay tắt", f"qry:{dev_id}_status"))
+    return tuple(items)
+
+
+def _build_confirm_system_grammar() -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """Derive confirmation-gated system commands strictly from clean canonical registry names (zero garbles)."""
+    vocab = _get_registry_vocab()
+    items: list[tuple[str, str, tuple[str, ...]]] = [
         (
             "reset trạng thái thiết bị",
-            "ri sét trạng thái thiết bị",
-            "vì sét trạng thái thiết bị",
-            "vì sếp trạng thái thiết bị",
+            "sys:reset_devices",
+            ("reset trạng thái thiết bị", "đặt lại trạng thái thiết bị"),
         ),
-    ),
-    (
-        "reset liên kết",
-        "sys:reset_links",
-        ("reset liên kết", "ri sét liên kết", "vì sét liên kết", "vì sếp liên kết"),
-    ),
-    ("khôi phục cài đặt gốc", "sys:factory_reset", ("khôi phục cài đặt gốc",)),
-    ("xóa hết hẹn giờ", "sys:clear_timers", ("xóa hết hẹn giờ",)),
-    ("hủy hẹn giờ đèn phòng khách", "sys:cancel_living", ("hủy hẹn giờ đèn phòng khách",)),
-    ("hủy hẹn giờ đèn phòng ngủ", "sys:cancel_bedroom", ("hủy hẹn giờ đèn phòng ngủ",)),
-    ("hủy hẹn giờ cửa chính", "sys:cancel_door", ("hủy hẹn giờ cửa chính",)),
-    ("hủy hẹn giờ máy bơm", "sys:cancel_pump", ("hủy hẹn giờ máy bơm",)),
-    ("hủy hẹn giờ còi báo động", "sys:cancel_siren", ("hủy hẹn giờ còi báo động",)),
-    ("hủy hẹn giờ nguồn mạch loa", "sys:cancel_speaker", ("hủy hẹn giờ nguồn mạch loa",)),
-)
+        ("reset liên kết", "sys:reset_links", ("reset liên kết", "xóa liên kết")),
+        ("khôi phục cài đặt gốc", "sys:factory_reset", ("khôi phục cài đặt gốc",)),
+        ("xóa hết hẹn giờ", "sys:clear_timers", ("xóa hết hẹn giờ", "hủy tất cả hẹn giờ")),
+    ]
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        short = "máy bơm" if dev_id == "garden_pump" else spoken
+        variants = (f"hủy hẹn giờ {short}",) if short == spoken else (f"hủy hẹn giờ {short}", f"hủy hẹn giờ {spoken}")
+        items.append((f"hủy hẹn giờ {short}", f"sys:cancel_{dev_id}", variants))
+    return tuple(items)
 
-# Length-matched 4-7 word negative anchors for confirmation & conditional CTC rescoring
+
+# Neutral general Vietnamese sentences (4-7 words) used as length-matched negative anchors for CTC rescoring
 _LONG_NEGATIVE_ANCHORS: tuple[str, ...] = (
-    "bạn có thể làm những gì",
-    "hôm nay trời mát quá nhỉ",
-    "hôm nay trời nắng đẹp lắm",
-    "nhiệt độ và độ ẩm hiện tại",
-    "độ ẩm đất hiện tại bao nhiêu",
-    "cảm biến âm thanh thế nào",
-    "trạng thái các thiết bị trong nhà",
-    "bật quạt trần phòng khách",
-    "tắt điều hòa phòng ngủ",
-    "mở tivi phòng khách giúp mình",
-    "đóng rèm cửa phòng ngủ lại",
-    "không bật đèn phòng khách đâu",
-    "đừng mở cửa chính ra nhé",
+    "trời hôm nay khá dịu mát",
+    "chiều nay trời có chút nắng nhẹ",
+    "mọi người đang ăn cơm tối",
+    "nhà mình vừa dọn dẹp xong rồi",
+    "bạn có khỏe không hôm nay",
+    "nhiệt độ phòng đang khá dễ chịu",
+    "độ ẩm không khí ngoài trời cao",
+    "cảm biến ngoài sân vẫn ổn định",
+    "mở quạt máy ngoài hành lang",
+    "tắt máy lạnh trên tầng hai",
+    "mở tivi xem bản tin tối",
+    "kéo rèm cửa sổ phòng ngủ",
+    "không cần bật đèn lúc này",
+    "đừng mở cửa khi trời mưa",
     "cảm ơn bạn rất nhiều nhé",
-    "xin chào mọi người trong nhà",
-    "tạm biệt hẹn gặp lại bạn",
+    "chào buổi tối cả gia đình",
 )
 
-_CONDITIONAL_TRIGGERS: tuple[tuple[str, str], ...] = (
-    ("khi mở cửa chính", "trig:door_open"),
-    ("khi đóng cửa chính", "trig:door_close"),
-    ("khi đất khô", "trig:soil_dry"),
-    ("khi có tiếng động lớn", "trig:loud_sound"),
-    ("khi đèn phòng khách bật", "trig:living_on"),
-    ("khi đèn phòng khách tắt", "trig:living_off"),
-)
 
-_CONDITIONAL_ACTIONS: tuple[tuple[str, str, str], ...] = (
-    ("bật đèn phòng khách", "living_room_light", "on"),
-    ("tắt đèn phòng khách", "living_room_light", "off"),
-    ("bật đèn phòng ngủ", "bedroom_light", "on"),
-    ("tắt đèn phòng ngủ", "bedroom_light", "off"),
-    ("bật tất cả đèn", "all_lights", "on"),
-    ("tắt tất cả đèn", "all_lights", "off"),
-    ("mở cửa chính", "main_door", "on"),
-    ("đóng cửa chính", "main_door", "off"),
-    ("bật máy bơm tưới cây", "garden_pump", "on"),
-    ("tắt máy bơm tưới cây", "garden_pump", "off"),
-    ("bật còi báo động", "alarm_siren", "on"),
-    ("tắt còi báo động", "alarm_siren", "off"),
-    ("bật nguồn mạch loa", "speaker_amp", "on"),
-    ("tắt nguồn mạch loa", "speaker_amp", "off"),
-)
+def _build_conditional_triggers() -> tuple[tuple[str, str], ...]:
+    vocab = _get_registry_vocab()
+    spoken = vocab["spoken_labels"]
+    door_lbl = spoken.get("main_door", "cửa chính")
+    living_lbl = spoken.get("living_room_light", "đèn phòng khách")
+    return (
+        (f"khi mở {door_lbl}", "trig:door_open"),
+        (f"khi đóng {door_lbl}", "trig:door_close"),
+        ("khi đất khô", "trig:soil_dry"),
+        ("khi có tiếng động lớn", "trig:loud_sound"),
+        (f"khi {living_lbl} bật", "trig:living_on"),
+        (f"khi {living_lbl} tắt", "trig:living_off"),
+    )
+
+
+def _build_conditional_actions() -> tuple[tuple[str, str, str], ...]:
+    vocab = _get_registry_vocab()
+    actions: list[tuple[str, str, str]] = []
+    light_count = 0
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        if "light" in dev_id:
+            light_count += 1
+        verbs = vocab["action_verbs"][dev_id]
+        on_v = next((v for a, v in verbs if a in ("open", "turn_on")), "bật")
+        off_v = next((v for a, v in verbs if a in ("close", "turn_off")), "tắt")
+        actions.append((f"{on_v} {spoken}", dev_id, "on"))
+        actions.append((f"{off_v} {spoken}", dev_id, "off"))
+    if light_count >= 2:
+        actions.append(("bật tất cả đèn", "all_lights", "on"))
+        actions.append(("tắt tất cả đèn", "all_lights", "off"))
+    return tuple(actions)
+
 
 _CONDITIONAL_NEG_ANCHORS: tuple[str, ...] = (
-    "khi trời mưa thì bật quạt trần",
-    "khi mở tivi thì tắt điều hòa",
-    "khi đóng rèm cửa thì bật máy giặt",
-    "khi bật quạt trần thì tắt bình nóng lạnh",
-    "hôm nay trời nắng nhẹ mọi người nói chuyện",
-    "bạn có thể làm những gì giúp mình",
-    "nhiệt độ và độ ẩm hiện tại là bao nhiêu",
+    "khi trời mưa thì đóng cửa sổ",
+    "khi xem phim thì tắt máy lạnh",
+    "khi ra ngoài thì kéo rèm lại",
+    "khi nóng quá thì mở quạt trần",
+    "buổi chiều trời mát mọi người nghỉ ngơi",
+    "bạn giới thiệu chức năng giúp tôi",
+    "nhiệt độ phòng bây giờ khoảng mấy độ",
 )
 
-# Closed 6-device Vietnamese command grammar + competitive bare-noun/bare-verb/unsupported/smalltalk anchors.
-# Every command MUST beat all bare nouns, unsupported appliances, bare verbs, and opposite polarities in CTC log-prob.
-_CLOSED_GRAMMAR: tuple[tuple[str, str, str], ...] = (
-    # Main door
-    ("mở cửa chính", "cmd:main_door:open", "main_door"),
-    ("mở cửa", "cmd:main_door:open", "main_door"),
-    ("đóng cửa chính", "cmd:main_door:close", "main_door"),
-    ("đóng cửa", "cmd:main_door:close", "main_door"),
-    ("khóa cửa chính", "cmd:main_door:close", "main_door"),
-    ("khóa cửa", "cmd:main_door:close", "main_door"),
-    ("khép cửa chính", "cmd:main_door:close", "main_door"),
-    # Living room light
-    ("bật đèn phòng khách", "cmd:living_room_light:turn_on", "living_room_light"),
-    ("tắt đèn phòng khách", "cmd:living_room_light:turn_off", "living_room_light"),
-    ("bật đèn khách", "cmd:living_room_light:turn_on", "living_room_light"),
-    ("tắt đèn khách", "cmd:living_room_light:turn_off", "living_room_light"),
-    # Bedroom light
-    ("bật đèn phòng ngủ", "cmd:bedroom_light:turn_on", "bedroom_light"),
-    ("tắt đèn phòng ngủ", "cmd:bedroom_light:turn_off", "bedroom_light"),
-    ("bật đèn ngủ", "cmd:bedroom_light:turn_on", "bedroom_light"),
-    ("tắt đèn ngủ", "cmd:bedroom_light:turn_off", "bedroom_light"),
-    ("bật đèn buồng", "cmd:bedroom_light:turn_on", "bedroom_light"),
-    ("tắt đèn buồng", "cmd:bedroom_light:turn_off", "bedroom_light"),
-    # All lights
-    ("bật tất cả đèn", "cmd:all_lights:turn_on", "all_lights"),
-    ("tắt tất cả đèn", "cmd:all_lights:turn_off", "all_lights"),
-    ("bật hết đèn", "cmd:all_lights:turn_on", "all_lights"),
-    ("tắt hết đèn", "cmd:all_lights:turn_off", "all_lights"),
-    # Garden pump
-    ("bật máy bơm", "cmd:garden_pump:turn_on", "garden_pump"),
-    ("tắt máy bơm", "cmd:garden_pump:turn_off", "garden_pump"),
-    ("bật máy bơm tưới cây", "cmd:garden_pump:turn_on", "garden_pump"),
-    ("tắt máy bơm tưới cây", "cmd:garden_pump:turn_off", "garden_pump"),
-    ("bật bơm", "cmd:garden_pump:turn_on", "garden_pump"),
-    ("tắt bơm", "cmd:garden_pump:turn_off", "garden_pump"),
-    ("dừng tưới vườn", "cmd:garden_pump:turn_off", "garden_pump"),
-    # Alarm siren
-    ("bật còi báo động", "cmd:alarm_siren:turn_on", "alarm_siren"),
-    ("tắt còi báo động", "cmd:alarm_siren:turn_off", "alarm_siren"),
-    ("bật còi", "cmd:alarm_siren:turn_on", "alarm_siren"),
-    ("tắt còi", "cmd:alarm_siren:turn_off", "alarm_siren"),
-    ("bật còi hú", "cmd:alarm_siren:turn_on", "alarm_siren"),
-    ("tắt còi hú", "cmd:alarm_siren:turn_off", "alarm_siren"),
-    # Speaker amp
-    ("bật nguồn mạch loa", "cmd:speaker_amp:turn_on", "speaker_amp"),
-    ("tắt nguồn mạch loa", "cmd:speaker_amp:turn_off", "speaker_amp"),
-    ("bật loa", "cmd:speaker_amp:turn_on", "speaker_amp"),
-    ("tắt loa", "cmd:speaker_amp:turn_off", "speaker_amp"),
-    # All devices
-    ("bật tất cả thiết bị", "cmd:all_devices:turn_on", "all_devices"),
-    ("tắt tất cả thiết bị", "cmd:all_devices:turn_off", "all_devices"),
-    # Competitive negative anchors (never executed; prevent false positives)
-    ("cửa chính", "bare", "main_door"),
-    ("đèn phòng khách", "bare", "living_room_light"),
-    ("đèn phòng ngủ", "bare", "bedroom_light"),
-    ("tất cả đèn", "bare", "all_lights"),
-    ("máy bơm", "bare", "garden_pump"),
-    ("còi báo động", "bare", "alarm_siren"),
-    ("nguồn mạch loa", "bare", "speaker_amp"),
-    ("tất cả thiết bị", "bare", "all_devices"),
-    ("bật lên đi", "bare", ""),
-    ("tắt đi", "bare", ""),
-    ("mở đi", "bare", ""),
-    ("đóng đi", "bare", ""),
-    ("bật quạt trần", "unsupported", ""),
-    ("tắt điều hòa", "unsupported", ""),
-    ("mở tivi", "unsupported", ""),
-    ("bật máy giặt", "unsupported", ""),
-    ("đóng rèm cửa", "unsupported", ""),
-    ("bật bình nóng lạnh", "unsupported", ""),
-    ("học lệnh hồng ngoại", "unsupported", ""),
-    ("mở cửa cuốn", "unsupported", ""),
-    ("chào bạn", "smalltalk", ""),
-    ("xin chào", "smalltalk", ""),
-    ("chào buổi sáng", "smalltalk", ""),
-    ("chào buổi tối", "smalltalk", ""),
-    ("tạm biệt", "smalltalk", ""),
-    ("tạm biệt bạn", "smalltalk", ""),
-    ("cảm ơn", "smalltalk", ""),
-    ("cảm ơn bạn", "smalltalk", ""),
-    ("ngủ ngon", "smalltalk", ""),
-    ("hẹn gặp lại", "smalltalk", ""),
-    ("bạn là ai", "smalltalk", ""),
-    ("tốt lắm", "smalltalk", ""),
-    ("không mở cửa", "negated", ""),
-    ("đừng mở cửa", "negated", ""),
-    ("không bật đèn phòng khách", "negated", ""),
-    ("đừng bật đèn phòng khách", "negated", ""),
-    ("không bật đèn", "negated", ""),
-    ("đừng bật đèn", "negated", ""),
-    ("ok", "confirm", ""),
-    ("được", "confirm", ""),
-    ("đồng ý", "confirm", ""),
-    ("không", "confirm", ""),
-    ("thôi", "confirm", ""),
-    ("hủy", "confirm", ""),
-)
+
+def _build_closed_grammar() -> tuple[tuple[str, str, str], ...]:
+    """Derive closed-vocabulary device commands and neutral negative anchors from the hardware registry."""
+    vocab = _get_registry_vocab()
+    entries: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _add(phrase: str, kind: str, dev_id: str) -> None:
+        key = (phrase, kind)
+        if phrase and key not in seen:
+            seen.add(key)
+            entries.append((phrase, kind, dev_id))
+
+    light_count = 0
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        if "light" in dev_id:
+            light_count += 1
+        verbs = vocab["action_verbs"][dev_id]
+        aliases = vocab["device_aliases"][dev_id]
+        for alias in aliases:
+            if alias in ("cổng", "máy bơm nước", "bơm nước", "bơm vườn", "chuông báo động", "mạch loa", "nguồn loa"):
+                continue
+            for act_id, verb in verbs:
+                if verb in ("khóa", "khép") and alias != spoken and alias != "cửa":
+                    continue
+                if verb == "khép" and alias == "cửa":
+                    continue
+                _add(f"{verb} {alias}", f"cmd:{dev_id}:{act_id}", dev_id)
+        if dev_id == "garden_pump":
+            _add("dừng tưới vườn", f"cmd:{dev_id}:turn_off", dev_id)
+
+    if light_count >= 2:
+        for alias in ("tất cả đèn", "hết đèn"):
+            _add(f"bật {alias}", "cmd:all_lights:turn_on", "all_lights")
+            _add(f"tắt {alias}", "cmd:all_lights:turn_off", "all_lights")
+
+    _add("bật tất cả thiết bị", "cmd:all_devices:turn_on", "all_devices")
+    _add("tắt tất cả thiết bị", "cmd:all_devices:turn_off", "all_devices")
+
+    # Bare-noun negative anchors derived from the same device registry
+    for dev_id, spoken in vocab["spoken_labels"].items():
+        bare_lbl = "máy bơm" if dev_id == "garden_pump" else spoken
+        _add(bare_lbl, "bare", dev_id)
+    if light_count >= 2:
+        _add("tất cả đèn", "bare", "all_lights")
+    _add("tất cả thiết bị", "bare", "all_devices")
+
+    # General neutral negative anchors (bare verbs, unsupported appliances, greetings, negations, confirmations)
+    for phrase, kind in (
+        ("bật lên đi", "bare"),
+        ("tắt đi", "bare"),
+        ("mở đi", "bare"),
+        ("đóng đi", "bare"),
+        ("bật quạt trần", "unsupported"),
+        ("tắt điều hòa", "unsupported"),
+        ("mở tivi", "unsupported"),
+        ("bật máy giặt", "unsupported"),
+        ("đóng rèm cửa", "unsupported"),
+        ("mở cửa cuốn", "unsupported"),
+        ("bật lò vi sóng", "unsupported"),
+        ("chào bạn", "smalltalk"),
+        ("xin chào", "smalltalk"),
+        ("chào buổi sáng", "smalltalk"),
+        ("chào buổi tối", "smalltalk"),
+        ("tạm biệt", "smalltalk"),
+        ("cảm ơn", "smalltalk"),
+        ("cảm ơn bạn", "smalltalk"),
+        ("ngủ ngon", "smalltalk"),
+        ("hẹn gặp lại", "smalltalk"),
+        ("không mở cửa", "negated"),
+        ("đừng mở cửa", "negated"),
+        ("không bật đèn", "negated"),
+        ("đừng bật đèn", "negated"),
+        ("không bật máy bơm", "negated"),
+        ("đừng bật còi", "negated"),
+        ("ok", "confirm"),
+        ("được", "confirm"),
+        ("đồng ý", "confirm"),
+        ("không", "confirm"),
+        ("thôi", "confirm"),
+        ("hủy", "confirm"),
+    ):
+        _add(phrase, kind, "")
+
+    return tuple(entries)
+
+
+_SENSOR_QUERY_GRAMMAR: tuple[tuple[str, str], ...] = _build_sensor_query_grammar()
+_CONFIRM_SYSTEM_GRAMMAR: tuple[tuple[str, str, tuple[str, ...]], ...] = _build_confirm_system_grammar()
+_CONDITIONAL_TRIGGERS: tuple[tuple[str, str], ...] = _build_conditional_triggers()
+_CONDITIONAL_ACTIONS: tuple[tuple[str, str, str], ...] = _build_conditional_actions()
+_CLOSED_GRAMMAR: tuple[tuple[str, str, str], ...] = _build_closed_grammar()
 
 
 def _encode_bpe(phrase: str, tok2id: dict[str, int]) -> list[int] | None:
@@ -460,11 +468,8 @@ def verify_light_den_tone_ctc(
 ) -> tuple[str, bool]:
     """Acoustically verify Vietnamese tone 'đèn' (huyền) vs 'đen' (ngang) via ChunkFormer-CTC.
 
-    Fixes RNN-T LM bias where Zipformer converts spoken 'Tắt đen phòng khách' into 'tắt đèn phòng khách'.
-    Measured CTC diff score('...đen...') - score('...đèn...'):
-      - Spoken 'đen' across voices: +1.17 to +3.21
-      - Spoken 'đèn' across voices/personas: -5.57 to -11.03
-    Returns (verified_transcript, was_flipped_to_den_ngang).
+    Counteracts RNN-T LM bias that can convert spoken 'đen' (ngang tone) into 'đèn' (huyền tone)
+    in light-command contexts. Returns (verified_transcript, was_flipped_to_den_ngang).
     """
     if not transcript or not re.search(r"\bđèn\b", transcript, flags=re.IGNORECASE):
         return transcript, False
@@ -500,8 +505,8 @@ def verify_light_den_tone_ctc(
     greedy_has_den = bool(greedy_text and re.search(r"\bđen\b", greedy_text.lower()))
 
     if noise_ratio < 0.14:
-        # Require ChunkFormer greedy to actually hear 'đen' (or an overwhelming >= 2.0 tone margin)
-        # so fast/degraded 'tắt tất cả đèn' (greedy 'hát hết cả em') is never false-flipped.
+        # Require ChunkFormer greedy to actually hear 'đen' (or a clear >= 2.0 tone margin)
+        # so degraded speech with a weak greedy match is never false-flipped.
         if (greedy_has_den and diff >= threshold) or diff >= 2.0:
             return re.sub(r"\bđèn\b", "đen", transcript, flags=re.IGNORECASE), True
     else:
@@ -608,9 +613,9 @@ def rescore_closed_command_ctc(
             return top1_ph
 
     # Length-Fair Spoken-Verb Override & Acoustic Onset-Gap Override:
-    # In CTC, a 3-word bare device noun ('đèn phòng ngủ', 'đèn phòng khách', 'tất cả đèn') can absorb
-    # a degraded leading spoken verb ('và', 'ban', 'hoàn', 'hát', 'rác') as <blank> frames, beating the
-    # true 4-word command by 0-3.5 log-prob. Real bare nouns have bare - cmd >= 8.0 and no spoken leading syllable.
+    # In CTC, a 3-word bare device noun can absorb a degraded leading spoken verb syllable as <blank>
+    # frames, beating the full 4-word command by 0-3.5 log-prob. Real bare nouns have bare - cmd >= 8.0
+    # and no spoken leading verb syllable.
     cmd_entries = [(k, v) for k, v in ranked if k.startswith("cmd:")]
     if cmd_entries and "bare" in best_by_kind and g_raw_toks and g_raw_toks[0] not in _NON_VERB_LEADING_TOKENS_RAW:
         best_cmd_kind, (best_cmd_ph, best_cmd_dev, best_cmd_sc) = cmd_entries[0]
@@ -634,14 +639,14 @@ def rescore_closed_command_ctc(
                 and not g_norm.startswith(bare_norm)
             )
             # Case A: Greedy decoded an extra LEADING spoken verb syllable before the bare device noun
-            # (never fire when greedy starts with the device noun itself, e.g. 'đèn phòng khách phòng'!)
+            # (never fire when greedy already starts with the device noun itself).
             if has_leading_non_device_tok and len(g_toks) >= bare_n_words + 1 and bare_gap <= 4.0:
                 if pol_margin >= 2.2 and neg_margin >= 2.8 and cmd_delta >= -14.5:
                     return best_cmd_ph
                 # High non-bare certainty (beats all noise/smalltalk/unsupported by >= 6.0) with clear polarity >= 1.2
                 if pol_margin >= 1.2 and neg_margin >= 6.0 and cmd_delta >= -14.5:
                     return best_cmd_ph
-                # Noisy SNR 10 dB with strong polarity >= 3.5 and tight bare gap <= 2.5
+                # Moderate noise with strong polarity >= 3.5 and tight bare gap <= 2.5
                 if pol_margin >= 3.5 and neg_margin >= 3.0 and bare_gap <= 2.5 and cmd_delta >= -16.5:
                     return best_cmd_ph
             # Case B: Reverb/dropped verb where Zipformer measured strong pre-token acoustic onset_gap >= 0.14s
@@ -663,10 +668,10 @@ _TIMER_PREFIX_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         ),
         "keep",
     ),
-    # 'hẹn giờ <num> giây/phút <tail>' (including mild noisy prefix mishear like 'mẹ giường hai giây' / 'thay giường hai giây')
+    # 'hẹn giờ <num> giây/phút <tail>'
     (
         re.compile(
-            r"^(?:(?:hẹn\s+giờ|hè\s+giờ|mẹ\s+giường|xuân\s+thay\s+giường|thay\s+giường)\s+)"
+            r"^(?:hẹn\s+giờ\s+)"
             r"((?:\d+|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười(?:\s+(?:một|lăm|hai|ba|bốn|năm|sáu|bảy|tám|chín))?|"
             r"(?:hai|ba|bốn|năm|sáu)\s+mươi(?:\s+(?:mốt|lăm|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))?)\s+"
             r"(?:giây|phút|tiếng|giờ))\s+(.+)$",
@@ -766,7 +771,7 @@ def rescore_timer_or_conditional_ctc(
         if top1_kind.startswith("cmd:") and (top1_sc - second_sc) >= 2.0 and (top1_sc - g_sc) >= -22.0:
             return f"{canon_prefix} {top1_ph}"
 
-        # Length-fair bare override on the tail (e.g. 'mười lăm phút nữa bạn về phòng ngủ' -> 4-word tail vs 3-word bare)
+        # Length-fair bare override on the action tail when tail has a spoken leading verb syllable
         cmd_entries = [(k, v) for k, v in ranked if k.startswith("cmd:")]
         tail_raw_words = tail.split()
         if cmd_entries and "bare" in best_by_kind and tail_raw_words and tail_raw_words[0] not in _NON_VERB_LEADING_TOKENS_RAW:
@@ -816,8 +821,8 @@ def rescore_timer_or_conditional_ctc(
         len(g_words) >= 5
         and (
             " thi " in padded_g
-            or g_words[0] in ("khi", "khien", "mien")
-            or any(k in padded_g for k in (" dat kho ", " tieng dong ", " bien dong ", " mo cua ", " mo tuoi "))
+            or g_words[0] in ("khi", "neu")
+            or any(k in padded_g for k in (" dat kho ", " tieng dong ", " mo cua ", " dong cua "))
         )
     )
     if not has_cond_cue:
@@ -885,6 +890,11 @@ def rescore_confirm_command_ctc(
     if _UNSUPPORTED_DEVICE_RE.search(padded_g):
         return None
     if any(k in padded_g for k in (" nhiet do ", " do am ", " cam bien ", " am thanh ", " bao nhieu ", " the nao ")):
+        return None
+    if not any(
+        k in padded_g
+        for k in (" reset ", " dat lai ", " khoi phuc ", " huy ", " xoa ", " hen gio ", " cai dat ", " lien ket ", " trang thai ")
+    ):
         return None
     g_words = g_norm.split()
     if len(g_words) < 3:
@@ -956,12 +966,12 @@ def rescore_sensor_query_ctc(
     if len(g_words) < 3:
         return None
 
-    # Require at least one acoustic query/question cue so random noise or commands don't become sensor queries
+    # Require at least one genuine Vietnamese query/sensor lexical cue
     if not any(
         k in padded_g
         for k in (
-            " bao nhieu ", " the nao ", " hien tai ", " hien cao ", " dat ", " am ",
-            " cam bien ", " giam thieu ", " nhiet ", " dang ", " hay tat ", " khai thac ",
+            " bao nhieu ", " the nao ", " hien tai ", " dat ", " am ",
+            " cam bien ", " nhiet ", " dang ", " hay tat ", " hay dong ", " kiem tra ",
         )
     ):
         return None
@@ -992,16 +1002,26 @@ def rescore_sensor_query_ctc(
     return None
 
 
-_POLARITY_PAIR_BY_TARGET: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    "main_door": (("mở cửa chính", "mở cửa"), ("đóng cửa chính", "đóng cửa", "khóa cửa chính")),
-    "living_room_light": (("bật đèn phòng khách", "bật đèn khách"), ("tắt đèn phòng khách", "tắt đèn khách")),
-    "bedroom_light": (("bật đèn phòng ngủ", "bật đèn ngủ"), ("tắt đèn phòng ngủ", "tắt đèn ngủ")),
-    "all_lights": (("bật tất cả đèn", "bật hết đèn"), ("tắt tất cả đèn", "tắt hết đèn")),
-    "garden_pump": (("bật máy bơm", "bật máy bơm tưới cây", "bật bơm"), ("tắt máy bơm", "tắt máy bơm tưới cây", "tắt bơm")),
-    "alarm_siren": (("bật còi báo động", "bật còi", "bật còi hú"), ("tắt còi báo động", "tắt còi", "tắt còi hú")),
-    "speaker_amp": (("bật nguồn mạch loa", "bật loa"), ("tắt nguồn mạch loa", "tắt loa")),
-    "all_devices": (("bật tất cả thiết bị",), ("tắt tất cả thiết bị",)),
-}
+def _build_polarity_pairs() -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
+    """Derive ON/OFF acoustic polarity comparison pairs directly from the registry-built closed grammar."""
+    on_by_dev: dict[str, list[str]] = {}
+    off_by_dev: dict[str, list[str]] = {}
+    for phrase, kind, dev_id in _CLOSED_GRAMMAR:
+        if not kind.startswith("cmd:") or not dev_id:
+            continue
+        act = kind.split(":", 2)[2]
+        if act in ("open", "turn_on"):
+            on_by_dev.setdefault(dev_id, []).append(phrase)
+        elif act in ("close", "turn_off"):
+            off_by_dev.setdefault(dev_id, []).append(phrase)
+    return {
+        dev_id: (tuple(on_by_dev.get(dev_id, ())), tuple(off_by_dev.get(dev_id, ())))
+        for dev_id in set(on_by_dev) | set(off_by_dev)
+        if on_by_dev.get(dev_id) and off_by_dev.get(dev_id)
+    }
+
+
+_POLARITY_PAIR_BY_TARGET: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = _build_polarity_pairs()
 
 
 def verify_command_polarity_ctc(

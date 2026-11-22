@@ -111,6 +111,17 @@ def parse_weekdays_vi(text: str) -> list[int]:
     norm = " ".join(strip_accents(str(text or "").lower()).split())
     if not norm:
         return []
+    # Normalize spoken Vietnamese weekday numbers before range/list matching
+    for word, digit in (
+        ("hai", "2"),
+        ("ba", "3"),
+        ("tu", "4"),
+        ("bon", "4"),
+        ("nam", "5"),
+        ("sau", "6"),
+        ("bay", "7"),
+    ):
+        norm = re.sub(rf"\bthu\s+{word}\b", f"thu {digit}", norm)
     days: set[int] = set()
 
     if any(k in norm for k in ("cuoi tuan", "weekend")):
@@ -118,7 +129,7 @@ def parse_weekdays_vi(text: str) -> list[int]:
     if any(k in norm for k in ("ngay thuong", "trong tuan", "dau tuan den cuoi tuan", "weekday", "weekdays")):
         days.update((0, 1, 2, 3, 4))
 
-    # Ranges like "tu thu 2 den thu 6" or "thu 2 - thu 6" or "t2 den t6"
+    # Weekday ranges (numeric or spoken Vietnamese days)
     for m_rng in re.finditer(
         r"(?:tu\s+)?(?:thu\s*|t)([2-7])\s*(?:den|toi|-)\s*(?:(?:thu\s*|t)([2-7])|(chu\s*nhat|cn))",
         norm,
@@ -139,7 +150,9 @@ def parse_weekdays_vi(text: str) -> list[int]:
     if re.search(r"\b(?:chu\s+nhat|cn)\b", norm):
         days.add(6)
 
-    # English aliases for tool inputs (strip Vietnamese "thu [2-7]" first so "thứ" never collides with English "thu")
+    # English aliases for tool inputs (only match pure ASCII weekday abbreviations, never Vietnamese 'thứ'/'thử'/'thư'/'thú')
+    raw_low = str(text or "").lower()
+    raw_toks = set(re.findall(r"[a-zA-ZÀ-ỹ]+", raw_low))
     eng_probe = re.sub(r"\bthu\s*[2-7]\b", " ", norm)
     eng_map = {
         "mon": 0, "monday": 0,
@@ -152,6 +165,8 @@ def parse_weekdays_vi(text: str) -> list[int]:
     }
     for tok in re.findall(r"[a-z]+", eng_probe):
         if tok in eng_map:
+            if tok == "thu" and ("thu" not in raw_toks or re.search(r"\b(?:moi|cac|nhung|mot|mua|cai|thu)\s+thu\b", norm)):
+                continue
             days.add(eng_map[tok])
 
     return sorted(d for d in days if 0 <= d <= 6)

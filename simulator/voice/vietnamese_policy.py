@@ -102,20 +102,27 @@ _COMMON_VI_WORDS: frozenset[str] = frozenset({
     "hien", "lenh", "nay", "chi", "ho", "tro", "viet", "chao", "giup", "gi",
     "cho", "nha", "thong", "minh", "hen", "gio", "lich", "luat", "lien", "ket",
     "khi", "thi", "roi", "duoc", "dung", "huy", "xoa", "tao", "sua", "doi",
-    "cap", "thanh", "vien", "chu", "nguoi", "tat", "ca", "hai", "het", "mot",
-    "lan", "hang", "ngay", "phut", "giay", "sau", "nua", "luc", "sang", "trua",
-    "chieu", "toi", "dem", "chua", "nghe", "ro", "noi", "lai", "hon", "nhe",
-    "thiet", "bi", "he", "thong", "trang", "thai", "tu", "dong", "vuon", "kho",
-    "uot", "vui", "long", "bang", "cam", "on", "tam", "biet", "gap", "ngon",
-    "ai", "ten", "la", "lam", "xong", "khoa", "chot", "khep", "gai", "ngat",
-    "muc", "bao", "nhieu", "nao", "the", "hay", "va", "cung", "voi", "cua",
-    "minh", "em", "anh", "chi", "me", "bo", "con", "ong", "ba", "a", "nha",
-    "nhung", "cac", "moi", "trong", "ngoai", "buong", "bong", "cong", "hu",
-    "chong", "trom", "vo", "tay", "dat", "lai", "goc", "cai", "xac", "nhan",
-    "y", "vang", "u", "thoi", "bo", "ke", "xem", "danh", "sach", "hien", "tai",
-    "phan", "tram", "do", "c", "giu", "tat", "tay", "nguoc", "tri", "thuc",
-    "giong", "ao", "nguyen", "tuan", "cu", "the", "vua", "se", "nhap", "phien",
-    "can", "goi", "rat", "tot", "gioi", "qua", "tuyet", "voi", "chuc", "muon",
+    "cap", "vien", "chu", "nguoi", "ca", "hai", "het", "mot", "ba", "bon",
+    "nam", "sau", "bay", "tam", "chin", "muoi", "lan", "hang", "ngay", "phut",
+    "giay", "nua", "luc", "sang", "trua", "chieu", "dem", "chua", "nghe", "ro",
+    "noi", "lai", "hon", "nhe", "thiet", "bi", "he", "trang", "thai", "tu",
+    "vuon", "kho", "uot", "vui", "long", "bang", "on", "tam", "biet", "gap",
+    "ngon", "ai", "ten", "la", "lam", "xong", "khoa", "chot", "khep", "gai",
+    "ngat", "muc", "nhieu", "nao", "the", "hay", "va", "cung", "voi", "em",
+    "anh", "me", "bo", "con", "ong", "a", "nhung", "cac", "moi", "trong",
+    "ngoai", "buong", "bong", "cong", "hu", "chong", "trom", "vo", "tay",
+    "goc", "cai", "xac", "nhan", "y", "vang", "u", "thoi", "ke", "xem",
+    "danh", "sach", "tai", "phan", "tram", "c", "giu", "nguoc", "tri", "giong",
+    "ao", "nguyen", "tuan", "cu", "vua", "se", "nhap", "phien", "can", "goi",
+    "rat", "tot", "gioi", "qua", "tuyet", "chuc", "muon", "len", "xuong", "ra",
+    "vao", "gium", "dum", "kich", "hoat", "ngung", "cup", "dap", "keu", "san",
+    "rau", "heo", "nong", "lanh", "toan", "nhanh", "luon", "khoi", "chay",
+    "phu", "nuoc", "kiem", "tra", "doc", "hoi", "tuy", "phim", "ghi", "nho",
+    "rieng", "tuan", "thu", "nhat", "cuoi", "truoc", "neu", "khac", "them",
+    "it", "cao", "thap", "vuot", "duoi", "tren", "nha", "ma", "vi", "nen",
+    "de", "van", "hom", "mai", "khuya", "dien", "mat", "don", "ve", "di",
+    "an", "viec", "hoc", "nhac", "luong", "khoan", "chut", "xiu", "lat",
+    "tru", "troi", "sap", "phai", "hoac", "ben", "phia", "khu", "nhung", "lan",
 })
 
 _PURE_FILLERS: frozenset[str] = frozenset({
@@ -125,13 +132,16 @@ _PURE_FILLERS: frozenset[str] = frozenset({
 
 _UNSUPPORTED_DEVICE_RE = re.compile(
     r"(?:^|\s)(?:"
-    r"quat(?:\s+tran|\s+dung|\s+ban|\s+may)?|"
+    r"quat(?:\s+tran|\s+dung|\s+ban|\s+may|\s+hut)?|"
     r"dieu\s+hoa|may\s+lanh|aircon|"
     r"tivi|ti\s+vi|\btv\b|"
-    r"may\s+giat|tu\s+lanh|"
+    r"may\s+giat|tu\s+lanh|may\s+loc(?:\s+khong\s+khi|\s+nuoc)?|"
     r"rem(?:\s+cua)?|(?:dem|giem|ren)\s+cua|"
-    r"cua\s+(?:cuon|so|ban\s+cong|phong\s+ngu|nha\s+ve\s+sinh|gara|tu|kinh)|"
-    r"den\s+(?:bep|nha\s+ve\s+sinh|nha\s+tam|ban\s+cong|cau\s+thang|ban\s+hoc)|"
+    r"cua\s+(?:cuon|so|ban\s+cong|phong\s+ngu|phong\s+khach|nha\s+ve\s+sinh|nha\s+tam|bep|gara|tu|kinh|hau|sau|phu)|"
+    r"(?:bong\s+)?den\s+(?:(?:ngoai|o|trong|tren|duoi|ben|phia|tai|khu)\s+)?(?:(?:nha|phong)\s+)?(?:"
+    r"bep|ve\s+sinh|tam|wc|toilet|an|tho|lam\s+viec|kho|gara|xe|"
+    r"ban\s+cong|hanh\s+lang|cau\s+thang|san(?:\s+thuong)?|gac(?:\s+xep)?|"
+    r"ban\s+hoc|ban\s+an|mai|hien|ngo|lau|tang(?:\s+ham)?|vuon|cong)|"
     r"loa\s+(?:bluetooth|tivi|tv)|bom\s+tang\s+ap|"
     r"(?:binh\s+)?nong\s+lanh|"
     r"lo\s+vi\s+song|robot\s+hut\s+bui|"
@@ -141,10 +151,14 @@ _UNSUPPORTED_DEVICE_RE = re.compile(
 
 _NEGATED_OR_RHETORICAL_DIRECT_RE = re.compile(
     r"(?:^|\s)(?:"
-    r"(?:không(?:\s+(?:cần|muốn|được|nên|phải))?|khong(?:\s+(?:can|muon|duoc|nen|phai))?|"
-    r"đừng(?:\s+(?:có|vội|bao\s+giờ))?|chớ|"
-    r"chưa\s+cần|chua\s+can|khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong)\s+"
-    r"(?:mở|mo|đóng|dong|bật|bat|tắt|tat|khóa|khoa|chốt|chot|khép|khep|ngắt|ngat|dừng|dung|chạy|chay)\b|"
+    r"(?:không(?:\s+(?:cần|muốn|được|nên|phải|đụng))?|khong(?:\s+(?:can|muon|duoc|nen|phai|dung))?|"
+    r"đừng(?:\s+(?:có|vội|bao\s+giờ|đụng))?|chớ|"
+    r"chưa\s+(?:cần|muốn|vội|đâu)|chua\s+(?:can|muon|voi|dau)|"
+    r"khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong)\s+"
+    r"(?:mở|mo|đóng|dong|bật|bat|tắt|tat|khóa|khoa|chốt|chot|khép|khep|ngắt|ngat|dừng|dung|ngừng|ngung|cúp|cup|dập|dap|chạy|chay|kích\s+hoạt|kich\s+hoat|khởi\s+động|khoi\s+dong|cấp\s+nguồn|cap\s+nguon)\b|"
+    r"(?:khoan(?:\s+(?:đã|hẵng|hãy|vội))?|chờ\s+(?:chút|đã|xíu|một\s+(?:chút|lát|xíu)|tý|tí)|cho\s+(?:chut|da|xiu|mot\s+(?:chut|lat))|"
+    r"đợi\s+(?:chút|đã|xíu|một\s+(?:chút|lát|xíu)|tý|tí)|doi\s+(?:chut|da|xiu|mot\s+(?:chut|lat))|"
+    r"từ\s+từ|tu\s+tu|để\s+sau|de\s+sau|lát\s+nữa|lat\s+nua|đừng\s+vội|chưa\s+cần|chưa\s+muốn|chua\s+can|chua\s+muon)\b|"
     r"đúng\s+(?:rồi|không|chưa|nhỉ|nhé|ạ)\b"
     r")",
     re.IGNORECASE,
@@ -189,32 +203,142 @@ def _has_wrong_diacritic_token(text: str, ascii_root: str, valid_accented: tuple
     return False
 
 
+_DEVICE_HEAD_NOUN_DIACRITICS: dict[str, tuple[str, ...]] = {
+    "den": ("đèn",),
+    "coi": ("còi",),
+    "cua": ("cửa", "cữa"),
+    "bom": ("bơm",),
+    "loa": ("loa",),
+    "phong": ("phòng",),
+}
+
+
+def _has_wrong_diacritic_device_head(text: str, ascii_root: str) -> bool:
+    """Uniform positional wrong-diacritic guard across all 6 device head nouns (đèn, còi, cửa, bơm, loa, phòng)."""
+    raw = str(text or "").strip().lower()
+    if not raw or not has_vi_diacritics(raw):
+        return False
+    valid = _DEVICE_HEAD_NOUN_DIACRITICS.get(ascii_root)
+    if not valid:
+        return False
+    toks = re.findall(r"[a-zA-ZÀ-ỹ]+", raw)
+    # If the exact properly-spelled head noun is already present, unrelated words elsewhere must not poison it.
+    if any(t in valid for t in toks):
+        return False
+    if ascii_root == "den":
+        light_verbs = {
+            "bật", "tắt", "mở", "ngắt", "cúp", "dập", "rọi", "kích", "hoạt",
+            "dừng", "ngừng", "ngưng", "cái", "bóng", "hai", "cả", "hết", "tất",
+        }
+        light_quals = {"phòng", "khách", "ngủ", "buồng", "hết", "tất", "toàn"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "den" and tok not in valid:
+                prev_t = toks[idx - 1] if idx > 0 else ""
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                # 'đến' is a normal Vietnamese preposition ('từ ... đến ...', 'có người đến'); only flag in light-command position
+                if tok == "đến":
+                    if prev_t in light_verbs or next_t in light_quals:
+                        return True
+                    continue
+                if prev_t in ("màu", "tối") and next_t not in light_quals:
+                    continue
+                return True
+        return False
+    if ascii_root == "cua":
+        # 'của' is a normal Vietnamese possessive preposition ("của tôi"); only flag wrong-diacritic 'cua'/'của'
+        # when used in a door-command position (after open/close verb or before door qualifier).
+        door_verbs = {"mở", "đóng", "khóa", "khoá", "chốt", "khép", "gài", "kín", "hé"}
+        door_quals = {"chính", "chánh", "lớn", "nhà", "ra", "đi", "lại"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "cua" and tok not in valid:
+                prev_t = toks[idx - 1] if idx > 0 else ""
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                if prev_t in door_verbs or next_t in door_quals or tok != "của":
+                    return True
+        return False
+    if ascii_root == "coi":
+        # Southern/colloquial particle 'coi' ("mở loa lên coi") is NOT a wrong-diacritic siren unless paired with siren words or after a siren verb.
+        siren_quals = {"báo", "hú", "chống"}
+        siren_verbs = {"bật", "tắt", "mở", "ngắt", "dừng", "ngừng", "ngưng", "cúp", "dập", "hoạt", "động", "cho"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "coi" and tok not in valid:
+                prev_t = toks[idx - 1] if idx > 0 else ""
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                if next_t in siren_quals or prev_t in siren_verbs or tok != "coi":
+                    return True
+        return False
+    if ascii_root == "phong":
+        room_quals = {"khách", "ngủ", "buồng"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "phong" and tok not in valid:
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                if next_t in room_quals:
+                    return True
+        return False
+    if ascii_root == "bom":
+        pump_verbs = {"bật", "tắt", "mở", "ngắt", "dừng", "ngừng", "ngưng", "cúp", "dập", "hoạt", "động", "cho", "chạy", "máy"}
+        pump_quals = {"tưới", "nước", "vườn", "cây", "ngoài"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "bom" and tok not in valid:
+                prev_t = toks[idx - 1] if idx > 0 else ""
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                if prev_t in pump_verbs or next_t in pump_quals:
+                    return True
+        return False
+    if ascii_root == "loa":
+        amp_verbs = {"bật", "tắt", "mở", "ngắt", "dừng", "ngừng", "ngưng", "cúp", "dập", "hoạt", "động", "cho", "mạch", "nguồn"}
+        amp_quals = {"chuông", "kêu", "lên", "đi"}
+        for idx, tok in enumerate(toks):
+            if strip_vi_accents(tok) == "loa" and tok not in valid:
+                prev_t = toks[idx - 1] if idx > 0 else ""
+                next_t = toks[idx + 1] if idx + 1 < len(toks) else ""
+                if prev_t in amp_verbs or next_t in amp_quals:
+                    return True
+        return False
+    return _has_wrong_diacritic_token(raw, ascii_root, valid)
+
+
 def _has_wrong_diacritic_light_word(text: str) -> bool:
-    """True when accented Vietnamese contains a word that strips to 'den' but is NOT 'đèn' (e.g. đen, đến, dền, đền, den)."""
-    return _has_wrong_diacritic_token(text, "den", ("đèn",))
+    """True when accented Vietnamese contains a wrong-diacritic light head word."""
+    return _has_wrong_diacritic_device_head(text, "den")
 
 
 def _detect_wrong_diacritic_near_miss_clarification(raw_text: str) -> str | None:
-    """For accented input with an action verb + wrong-diacritic light word (e.g. 'tắt đen phòng khách'), ask clarification."""
+    """For accented input with an action verb + wrong-diacritic device head noun across all 6 devices, ask clarification."""
     raw = _clean_space(raw_text).lower()
     if not raw or not has_vi_diacritics(raw):
         return None
-    if not _has_wrong_diacritic_light_word(raw):
+    bad_den = _has_wrong_diacritic_device_head(raw, "den") or _has_wrong_diacritic_device_head(raw, "phong")
+    bad_coi = _has_wrong_diacritic_device_head(raw, "coi")
+    bad_cua = _has_wrong_diacritic_device_head(raw, "cua")
+    bad_bom = _has_wrong_diacritic_device_head(raw, "bom")
+    bad_loa = _has_wrong_diacritic_device_head(raw, "loa")
+    if not (bad_den or bad_coi or bad_cua or bad_bom or bad_loa):
         return None
-    # Non-command descriptive sentences (e.g. "cái áo này màu đen đẹp nhỉ") have no device action verb.
     norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(raw)).split())
     act = _extract_clause_action(norm, None, raw_clause=raw, input_has_diacritics=True)
     if act is None:
         return None
     act_vi = "tắt" if act in ("turn_off", "close") else "bật"
+    door_vi = "đóng" if act in ("turn_off", "close") else "mở"
     padded = f" {norm} "
-    if " phong ngu " in padded or " ngu " in padded or " buong " in padded:
-        return f"Bạn muốn {act_vi} đèn phòng ngủ phải không?"
-    if any(k in padded for k in (" tat ca ", " toan bo ", " ca hai ", " hai ", " het ")):
-        return f"Bạn muốn {act_vi} tất cả đèn phải không?"
-    if " phong khach " in padded or " khach " in padded:
-        return f"Bạn muốn {act_vi} đèn phòng khách phải không?"
-    return f"Bạn muốn {act_vi} đèn phòng khách hay đèn phòng ngủ?"
+    if bad_den:
+        if " phong ngu " in padded or " ngu " in padded or " buong " in padded:
+            return f"Bạn muốn {act_vi} đèn phòng ngủ phải không?"
+        if any(k in padded for k in (" tat ca ", " toan bo ", " ca hai ", " hai ", " het ")):
+            return f"Bạn muốn {act_vi} tất cả đèn phải không?"
+        if " phong khach " in padded or " khach " in padded:
+            return f"Bạn muốn {act_vi} đèn phòng khách phải không?"
+        return f"Bạn muốn {act_vi} đèn phòng khách hay đèn phòng ngủ?"
+    if bad_coi:
+        return f"Bạn muốn {act_vi} còi báo động phải không?"
+    if bad_cua:
+        return f"Bạn muốn {door_vi} cửa chính phải không?"
+    if bad_bom:
+        return f"Bạn muốn {act_vi} máy bơm tưới cây phải không?"
+    if bad_loa:
+        return f"Bạn muốn {act_vi} nguồn mạch loa phải không?"
+    return None
 
 
 def _clean_space(text: str) -> str:
@@ -282,6 +406,15 @@ def _detect_foreign_latin(text: str) -> bool:
         return True
     if foreign_hits >= 1 and vi_hits == 0 and not has_vi_diacritics:
         return True
+
+    # Never let langdetect misclassify clean unaccented Vietnamese commands as foreign
+    if (
+        not has_vi_diacritics
+        and foreign_hits == 0
+        and all(_is_plausible_vi_word(t) for t in alpha_tokens)
+        and (vi_hits >= 2 or _contains_command_or_query_intent(raw))
+    ):
+        return False
 
     if not has_vi_diacritics and len(alpha_tokens) >= 3 and _langdetect_detect is not None:
         filtered_str = " ".join(alpha_tokens)
@@ -432,23 +565,31 @@ def classify_small_talk_vi(
             "reply": "Tôi là trợ lý ảo điều khiển nhà thông minh do Nguyễn Tuấn Anh tạo ra.",
         }
 
-    # Help / capabilities
-    if any(
-        p in norm
-        for p in (
-            "giup toi",
-            "giup minh",
-            "huong dan",
-            "ban lam duoc gi",
-            "ban co the lam gi",
-            "ban co the lam nhung gi",
-            "ban duoc lam nhung gi",
-            "co nhung lenh gi",
-            "tro giup",
-            "ho tro gi",
-            "chuc nang cua ban",
+    # Help / capabilities (standalone help ONLY: never hijack commands carrying polite tail "giúp mình"/"giúp tôi")
+    help_explicit = (
+        "huong dan",
+        "ban lam duoc gi",
+        "ban co the lam gi",
+        "ban co the lam nhung gi",
+        "ban duoc lam nhung gi",
+        "co nhung lenh gi",
+        "tro giup",
+        "ho tro gi",
+        "chuc nang cua ban",
+    )
+    is_standalone_help = (
+        any(p in norm for p in help_explicit)
+        or (
+            len(norm.split()) <= 5
+            and any(p in norm for p in ("giup toi", "giup minh"))
+            and re.fullmatch(
+                r"(?:ban|em|tro\s+ly|hay|xin|vui\s+long)?\s*(?:co\s+the\s+)?giup\s+(?:toi|minh)(?:\s+(?:voi|nhe|nha|duoc\s+khong|nhe|a))?",
+                norm,
+            )
+            is not None
         )
-    ):
+    )
+    if is_standalone_help:
         return {
             "kind": "small_talk",
             "subkind": "help",
@@ -491,7 +632,7 @@ def classify_small_talk_vi(
         }
 
     # Greetings
-    if any(p in norm for p in ("chao buoi sang",)) or norm in ("vao buoi sang", "trong buoi sang"):
+    if any(p in norm for p in ("chao buoi sang",)):
         return {
             "kind": "small_talk",
             "subkind": "greeting",
@@ -535,20 +676,18 @@ def classify_small_talk_vi(
 
 
 def normalize_vietnamese_utterance(text: str) -> str:
-    """Strip conversational fillers and normalize Bac/Trung/Nam regional & STT variants for direct commands."""
+    """Strip conversational fillers and normalize natural Vietnamese regional variants for direct commands."""
     s = _clean_space(text).lower()
     if not s:
         return ""
     input_has_diac = has_vi_diacritics(s)
 
-    # Strip leading greeting/attention/vocative prefixes when followed by a command
+    # Strip leading greeting/attention/vocative prefixes ("trợ lý ơi, ...", "<1-2 words> ơi, ...") when followed by a command
     s = re.sub(
         r"^(?:(?:xin\s+)?chào(?:\s+(?:bạn|em|anh|chị|trợ\s+lý|nhà\s+thông\s+minh))?|"
         r"(?:xin\s+)?chao(?:\s+(?:ban|em|anh|chi|tro\s+ly|nha\s+thong\s+minh))?|"
         r"ê\s+trợ\s+lý|e\s+tro\s+ly|al[ôo]\s+trợ\s+lý|al[ôo]\s+tro\s+ly|"
-        r"nhà\s+thông\s+minh\s+ơi|nha\s+thong\s+minh\s+oi|"
-        r"cô\s+máy\s+ơi|co\s+may\s+oi|cháu\s+ơi|chau\s+oi|bác\s+ơi|bac\s+oi|"
-        r"trợ\s+lý\s+ơi|tro\s+ly\s+oi|bạn\s+ơi|ban\s+oi|em\s+ơi|em\s+oi)\s*[,;:.!?…-]*\s+",
+        r"[a-zA-ZÀ-ỹ]+(?:\s+[a-zA-ZÀ-ỹ]+){0,2}\s+(?:ơi|oi))\s*[,;:.!?…-]*\s+",
         "",
         s,
         flags=re.IGNORECASE,
@@ -569,8 +708,7 @@ def normalize_vietnamese_utterance(text: str) -> str:
             break
         s = updated
 
-    # Collapse stuttered word repetition across ellipsis/fillers (e.g. "đèn phòng... à phòng ngủ" -> "đèn phòng ngủ",
-    # "tắt đèn phòng à phòng ngủ nhé" -> "tắt đèn phòng ngủ nhé", "bật... bật đèn" -> "bật đèn", "mở, mở cái cửa" -> "mở cái cửa")
+    # Collapse stuttered word repetition across ellipsis or discourse fillers
     s = re.sub(
         r"\b(phòng|cửa|bơm|còi|đèn|loa|bật|tắt|mở|đóng|cái)\b(?:\s*[,;:.…-]+\s*(?:(?:à|ờ|ừm|ơ)\s+)?|\s+(?:à|ờ|ừm|ơ)\s+)\1\b",
         r"\1",
@@ -586,131 +724,122 @@ def normalize_vietnamese_utterance(text: str) -> str:
         )
     s = re.sub(r"[…]+|\.{2,}", " ", s)
 
-    # Normalize common STT clipped/mumbled & regional forms BEFORE filler stripping
+    # Normalize natural Vietnamese regional/colloquial device synonyms (strictly preserving diacritic safety)
     # Door variants
     s = re.sub(r"\bcửa\s+chánh\b", "cửa chính", s)
-    s = re.sub(r"\b(?:mở\s+cữa|mơ\s+cửa|mở\s+củ|mở\s+cổng)\b", "mở cửa chính", s)
-    s = re.sub(r"\b(?:khóa|khoá|hóa|hoá|chốt|khép|gài)\s+(?:cửa\s+chính|cửa|cữa|cổng)\b", "đóng cửa chính", s)
-    s = re.sub(r"\bđóng\s+(?:cữa|cổng)\b", "đóng cửa chính", s)
+    s = re.sub(r"\bmở\s+cổng\b", "mở cửa chính", s)
+    s = re.sub(r"\b(?:khóa|khoá|chốt|khép|gài)\s+(?:cửa\s+chính|cửa|cổng)\b", "đóng cửa chính", s)
+    s = re.sub(r"\bđóng\s+cổng\b", "đóng cửa chính", s)
     if not input_has_diac:
-        s = re.sub(r"\b(?:mo\s+cu|mo\s+cua\s+di|mo\s+cong)\b", "mo cua chinh", s)
-        s = re.sub(r"\b(?:khoa|hoa|chot|khep|gai)\s+(?:cua\s+chinh|cua|cong)\b", "dong cua chinh", s)
+        s = re.sub(r"\bmo\s+cong\b", "mo cua chinh", s)
+        s = re.sub(r"\b(?:khoa|chot|khep|gai)\s+(?:cua\s+chinh|cua|cong)\b", "dong cua chinh", s)
         s = re.sub(r"\bdong\s+cong\b", "dong cua chinh", s)
 
-    # Lights regional & colloquial variants (NEVER map wrong-diacritic đen/đến/dền/đền -> đèn!)
-    s = re.sub(r"\bhát\s+đèn\b", "tắt đèn", s)
-    s = re.sub(r"\bđèn\s+(?:ngồi|vừa)\s+ngủ\b", "đèn phòng ngủ", s)
-    s = re.sub(r"\bđèn\s+(?:hò\s+khách|vòm\s+hết|vòm\s+khách)\b", "đèn phòng khách", s)
-    s = re.sub(r"\btắt\s+tắt\s+đèn\b", "tắt tất cả đèn", s)
-    s = re.sub(r"\bbật\s+bật\s+đèn\b", "bật tất cả đèn", s)
-    s = re.sub(r"\b(?:bật|mở)\s+thiết\s+đèn\b", "bật tất cả đèn", s)
-    s = re.sub(r"\btắt\s+thiết\s+đèn\b", "tắt tất cả đèn", s)
-    s = re.sub(r"\b(bật|tắt|mở|đóng)\s+đèn\s+khác\b", r"\1 đèn phòng khách", s)
-    s = re.sub(r"\bvận\s+hành\s+phòng\s+khách\b", "bật đèn phòng khách", s)
-    s = re.sub(r"\bbóng\s+đèn\s+phòng\s+khách\b|\bbóng\s+đèn\s+khách\b|\bđèn\s+khách\b|\bđèn\s+ngoài\b|\bđèn\s+chính\b", "đèn phòng khách", s)
-    s = re.sub(r"\bbóng\s+đèn\s+phòng\s+ngủ\b|\bđèn\s+ngủ\b|\bđèn\s+buồng\b|\bđèn\s+buồn\b|\bđèn\s+trong\s+phòng\b", "đèn phòng ngủ", s)
-    s = re.sub(r"\b(?:hết|toàn\s+bộ|cả\s+hai|hai|cả\s+2|2|các|mọi)\s+đèn(?!\s+(?:phòng|khách|ngủ|buồng))\b", "tất cả đèn", s)
+    # Lights natural regional/colloquial variants (NEVER default bare 'đèn' or coerce wrong-diacritic tokens!)
+    s = re.sub(r"\brọi\s+(?:cái\s+)?((?:bóng\s+)?đèn)\b", r"bật \1", s)
+    s = re.sub(
+        r"\bbóng\s+đèn\s+phòng\s+khách\b|\bbóng\s+đèn\s+khách\b|\bđèn\s+khách\b|"
+        r"\bđèn\s+ngoài(?!\s+(?:ban\s+công|sân|hiên|cổng|vườn|hành\s+lang|ngõ|nhà|kho|gara|bếp|tắm|vệ\s+sinh))\b|\bđèn\s+chính\b",
+        "đèn phòng khách",
+        s,
+    )
+    s = re.sub(r"\bbóng\s+đèn\s+phòng\s+ngủ\b|\bđèn\s+ngủ\b|\bđèn\s+buồng\b|\bđèn\s+trong\s+phòng\b", "đèn phòng ngủ", s)
+    s = re.sub(
+        r"\b(?:(?:hết|toàn\s+bộ|tất\s+cả)(?:\s+các)?|cả\s+hai|hai|cả\s+2|2|các|mọi)\s+(?:bóng\s+)?đèn(?!\s+(?:phòng|khách|ngủ|buồng))\b",
+        "tất cả đèn",
+        s,
+    )
+    s = re.sub(r"\bđèn\s+(?:cả\s+)?(?:hai|2)\s+phòng\b", "tất cả đèn", s)
+    s = re.sub(
+        r"\b(?:(?:toàn\s+bộ|tất\s+cả|hết|cả|mọi)\s+)+(?:(?:các|sáu|6)\s+)*thiết\s+bị\b",
+        "tất cả thiết bị",
+        s,
+    )
+    s = re.sub(r"\bcho\s+(?:cái\s+)?(đèn\s+phòng\s+(?:khách|ngủ)|tất\s+cả\s+đèn)\s+sáng(?:\s+lên)?\b", r"bật \1", s)
     if not input_has_diac:
-        s = re.sub(r"\bhat\s+den\b", "tat den", s)
-        s = re.sub(r"\bden\s+(?:ngoi|vua)\s+ngu\b", "den phong ngu", s)
-        s = re.sub(r"\bden\s+(?:ho\s+khach|vom\s+het|vom\s+khach)\b", "den phong khach", s)
-        s = re.sub(r"\btat\s+tat\s+den\b", "tat tat ca den", s)
-        s = re.sub(r"\bbat\s+bat\s+den\b", "bat tat ca den", s)
-        s = re.sub(r"\b(?:bat|mo)\s+thiet\s+den\b", "bat tat ca den", s)
-        s = re.sub(r"\btat\s+thiet\s+den\b", "tat tat ca den", s)
-        s = re.sub(r"\b(bat|tat|mo|dong)\s+den\s+khac\b", r"\1 den phong khach", s)
-        s = re.sub(r"\bvan\s+hanh\s+phong\s+khach\b", "bat den phong khach", s)
-        s = re.sub(r"\bbong\s+den\s+phong\s+khach\b|\bbong\s+den\s+khach\b|\bden\s+khach\b|\bden\s+ngoai\b|\bden\s+chinh\b", "den phong khach", s)
-        s = re.sub(r"\bbong\s+den\s+phong\s+ngu\b|\bden\s+ngu\b|\bden\s+buong\b|\bden\s+buon\b|\bden\s+trong\s+phong\b", "den phong ngu", s)
-        s = re.sub(r"\b(?:het|toan\s+bo|ca\s+hai|hai|ca\s+2|2|cac|moi)\s+den(?!\s+(?:phong|khach|ngu|buong))\b", "tat ca den", s)
+        s = re.sub(r"\broi\s+(?:cai\s+)?((?:bong\s+)?den)\b", r"bat \1", s)
+        s = re.sub(
+            r"\bbong\s+den\s+phong\s+khach\b|\bbong\s+den\s+khach\b|\bden\s+khach\b|"
+            r"\bden\s+ngoai(?!\s+(?:ban\s+cong|san|hien|cong|vuon|hanh\s+lang|ngo|nha|kho|gara|bep|tam|ve\s+sinh))\b|\bden\s+chinh\b",
+            "den phong khach",
+            s,
+        )
+        s = re.sub(r"\bbong\s+den\s+phong\s+ngu\b|\bden\s+ngu\b|\bden\s+buong\b|\bden\s+trong\s+phong\b", "den phong ngu", s)
+        s = re.sub(
+            r"\b(?:(?:het|toan\s+bo|tat\s+ca)(?:\s+cac)?|ca\s+hai|hai|ca\s+2|2|cac|moi)\s+(?:bong\s+)?den(?!\s+(?:phong|khach|ngu|buong))\b",
+            "tat ca den",
+            s,
+        )
+        s = re.sub(r"\bden\s+(?:ca\s+)?(?:hai|2)\s+phong\b", "tat ca den", s)
+        s = re.sub(
+            r"\b(?:(?:toan\s+bo|tat\s+ca|het|ca|moi)\s+)+(?:(?:cac|sau|6)\s+)*thiet\s+bi\b",
+            "tat ca thiet bi",
+            s,
+        )
+        s = re.sub(r"\bcho\s+(?:cai\s+)?(den\s+phong\s+(?:khach|ngu)|tat\s+ca\s+den)\s+sang(?:\s+len)?\b", r"bat \1", s)
 
-    # Pump variants
+    # Pump natural variants
+    s = re.sub(r"\b(?:ngừng|ngưng|dừng|tắt|ngắt|cúp|dập)\s+(?:chạy\s+)?(?:tưới\s+cây|tưới\s+vườn|tưới\s+nước)\b", "tắt máy bơm tưới cây", s)
     s = re.sub(
-        r"\b(?:ngừng|dừng|rừng|tắt|ngắt)\s+"
-        r"(?:tưới\s+cây|tưới\s+vườn|tưới\s+vừa|dưới\s+cây|dưới\s+vườn|dưới\s+vừa|dưới\s+vần|tưới\s+vần)\b",
-        "tắt máy bơm tưới cây",
+        r"\b(?:hệ\s+thống\s+tưới(?:\s+(?:nước|cây|vườn))?(?:\s+ngoài\s+vườn)?|"
+        r"tưới\s+nước(?:\s+ngoài\s+vườn)?|"
+        r"máy\s+bơm\s+ngoài\s+vườn|bơm\s+ngoài\s+vườn|"
+        r"bơm\s+nước(?:\s+tưới\s+(?:cây|vườn))?|bơm\s+tưới\s+(?:cây|vườn)|bơm\s+vườn)\b",
+        "máy bơm tưới cây",
         s,
     )
+    if not input_has_diac:
+        s = re.sub(r"\b(?:ngung|dung|tat|ngat|cup|dap)\s+(?:chay\s+)?(?:tuoi\s+cay|tuoi\s+vuon|tuoi\s+nuoc)\b", "tat may bom tuoi cay", s)
+        s = re.sub(
+            r"\b(?:he\s+thong\s+tuoi(?:\s+(?:nuoc|cay|vuon))?(?:\s+ngoai\s+vuon)?|"
+            r"tuoi\s+nuoc(?:\s+ngoai\s+vuon)?|"
+            r"may\s+bom\s+ngoai\s+vuon|bom\s+ngoai\s+vuon|"
+            r"bom\s+nuoc(?:\s+tuoi\s+(?:cay|vuon))?|bom\s+tuoi\s+(?:cay|vuon)|bom\s+vuon)\b",
+            "may bom tuoi cay",
+            s,
+        )
+
+    # General causative activation: "cho <device> hoạt động / chạy / hú / kêu" -> "bật <device>"
     s = re.sub(
-        r"\b(?:bật|mở)\s+(?:cái\s+)?(?:máy\s+bơm|máy\s+ôm|bơm)"
-        r"(?:\s+(?:ngoài\s+vườn|tưới\s+cây|dưới\s+cây|tưới\s+vườn|dưới\s+vườn))?"
-        r"(?!\s+(?:nước|vườn))\b",
-        "bật máy bơm tưới cây",
+        r"\bcho\s+(?:cái\s+)?(máy\s+bơm(?:\s+tưới\s+cây)?|bơm|đèn\s+phòng\s+(?:khách|ngủ)|tất\s+cả\s+đèn|còi\s+báo\s+động|còi\s+hú|còi|nguồn\s+mạch\s+loa|mạch\s+loa|loa\s+chuông)\s+(?:hoạt\s+động|chạy|hú|kêu)\b",
+        r"bật \1",
         s,
     )
-    s = re.sub(
-        r"\b(?:tắt|ngắt|dừng|ngừng)\s+(?:cái\s+)?(?:máy\s+ôm|bơm)"
-        r"(?:\s+(?:ngoài\s+vườn|tưới\s+cây|dưới\s+cây|tưới\s+vườn|dưới\s+vườn))?"
-        r"(?!\s+(?:nước|vườn))\b",
-        "tắt máy bơm tưới cây",
-        s,
-    )
-    s = re.sub(r"\b(?:máy\s+bơm\s+ngoài\s+vườn|bơm\s+ngoài\s+vườn|bơm\s+nước|bơm\s+vườn)\b", "máy bơm tưới cây", s)
     if not input_has_diac:
         s = re.sub(
-            r"\b(?:ngung|dung|rung|tat|ngat)\s+"
-            r"(?:tuoi\s+cay|tuoi\s+vuon|tuoi\s+vua|duoi\s+cay|duoi\s+vuon|duoi\s+vua|duoi\s+van|tuoi\s+van)\b",
-            "tat may bom tuoi cay",
+            r"\bcho\s+(?:cai\s+)?(may\s+bom(?:\s+tuoi\s+cay)?|bom|den\s+phong\s+(?:khach|ngu)|tat\s+ca\s+den|coi\s+bao\s+dong|coi\s+hu|coi|nguon\s+mach\s+loa|mach\s+loa|loa\s+chuong)\s+(?:hoat\s+dong|chay|hu|keu)\b",
+            r"bat \1",
             s,
         )
-        s = re.sub(
-            r"\b(?:bat|mo)\s+(?:cai\s+)?(?:may\s+bom|may\s+om|bom)"
-            r"(?:\s+(?:ngoai\s+vuon|tuoi\s+cay|duoi\s+cay|tuoi\s+vuon|duoi\s+vuon))?"
-            r"(?!\s+(?:nuoc|vuon))\b",
-            "bat may bom tuoi cay",
-            s,
-        )
-        s = re.sub(
-            r"\b(?:tat|ngat|dung|ngung)\s+(?:cai\s+)?(?:may\s+om|bom)"
-            r"(?:\s+(?:ngoai\s+vuon|tuoi\s+cay|duoi\s+cay|tuoi\s+vuon|duoi\s+vuon))?"
-            r"(?!\s+(?:nuoc|vuon))\b",
-            "tat may bom tuoi cay",
-            s,
-        )
-        s = re.sub(r"\b(?:may\s+bom\s+ngoai\s+vuon|bom\s+ngoai\s+vuon|bom\s+nuoc|bom\s+vuon)\b", "may bom tuoi cay", s)
 
-    # Siren variants (in accented text, NEVER match unaccented particle 'coi' as 'còi'!)
-    s = re.sub(r"\b(?:bật|mở)\s+ngòi\s+hú\b", "bật còi báo động", s)
-    s = re.sub(r"\b(?:tắt|ngắt|dừng|ngừng)\s+ngòi\s+hú\b", "tắt còi báo động", s)
-    s = re.sub(r"\b(?:bật|mở)\s+còi(?!\s+(?:báo\s+động|hú))\b", "bật còi báo động", s)
-    s = re.sub(r"\b(?:tắt|ngắt|dừng)\s+(?:còi|báo\s+động)(?!\s+(?:báo\s+động|hú))\b", "tắt còi báo động", s)
+    # Siren natural variants (never coerce unaccented particle 'coi' in accented text!)
     s = re.sub(r"\b(?:còi\s+hú|chống\s+trộm)\b", "còi báo động", s)
     if not input_has_diac:
-        s = re.sub(r"\b(?:bat|mo)\s+ngoi\s+hu\b", "bat coi bao dong", s)
-        s = re.sub(r"\b(?:tat|ngat|dung|ngung)\s+ngoi\s+hu\b", "tat coi bao dong", s)
-        s = re.sub(r"\b(?:bat|mo)\s+coi(?!\s+(?:bao\s+dong|hu))\b", "bat coi bao dong", s)
-        s = re.sub(r"\b(?:tat|ngat|dung)\s+(?:coi|bao\s+dong)(?!\s+(?:bao\s+dong|hu))\b", "tat coi bao dong", s)
         s = re.sub(r"\b(?:coi\s+hu|chong\s+trom)\b", "coi bao dong", s)
 
-    # Speaker amp variants (including "loa chuông" and "cho loa chuông kêu")
-    s = re.sub(r"\bcho\s+(?:cái\s+)?(?:loa\s+chuông|nguồn\s+mạch\s+loa|loa)\s+kêu\b", "bật nguồn mạch loa", s)
-    s = re.sub(r"\bloa\s+chuông\b", "nguồn mạch loa", s)
-    if not input_has_diac:
-        s = re.sub(r"\bcho\s+(?:cai\s+)?(?:loa\s+chuong|nguon\s+mach\s+loa|loa)\s+keu\b", "bat nguon mach loa", s)
-        s = re.sub(r"\bloa\s+chuong\b", "nguon mach loa", s)
-    s = re.sub(r"^(?:bật|mở|bạch|bat|mo|bach)\s+(?:hoa|loa)(?:\s*[.!?]*)$", "bật nguồn mạch loa", s)
-    s = re.sub(r"^(?:tắt|ngắt|tat|ngat)\s+hoa(?:\s*[.!?]*)$", "tắt nguồn mạch loa", s)
-    s = re.sub(r"\b(?:bạn|ban)\s+nguồn\s+(?:mạch|mệt|mạt|vài|bài)\s+loa\b", "bật nguồn mạch loa", s)
-    s = re.sub(r"\b(bật|tắt|mở|đóng|bat|tat|mo|dong)\s+(?:nguồn|ngùng|nguon|ngung)\s+(?:mạch|mặt|mệt|mạt|vài|bài|mach|mat|met|vai|bai)\s+loa\b", r"\1 nguồn mạch loa", s)
-    s = re.sub(r"\b(?:bật|mở|bat|mo)\s+(?:cái\s+)?(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "bật nguồn mạch loa", s)
-    s = re.sub(r"\b(?:tắt|ngắt|dừng|tat|ngat|dung)\s+(?:cái\s+)?(?:loa|âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|mạch\s+loa|mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "tắt nguồn mạch loa", s)
-    s = re.sub(r"\b(?:âm\s+ly|ấm\s+lý|âm\s+li|am\s+ly|am\s+li|(?<!nguồn\s)mạch\s+loa|(?<!nguon\s)mach\s+loa|nguồn\s+loa|nguon\s+loa|nguồn\s+(?:vài|bài)\s+loa|nguon\s+(?:vai|bai)\s+loa|pam8403)\b", "nguồn mạch loa", s)
+    # Speaker amp natural variants
+    if input_has_diac:
+        s = re.sub(r"\bcho\s+(?:cái\s+)?(?:loa\s+chuông|nguồn\s+mạch\s+loa|mạch\s+loa|loa)\s+kêu\b", "bật nguồn mạch loa", s)
+        s = re.sub(r"\b(?:loa\s+chuông|âm\s+ly|âm\s+li|(?<!nguồn\s)mạch\s+loa|nguồn\s+loa|pam8403)\b", "nguồn mạch loa", s)
+    else:
+        s = re.sub(r"\bcho\s+(?:cai\s+)?(?:loa\s+chuong|nguon\s+mach\s+loa|mach\s+loa|loa)\s+keu\b", "bat nguon mach loa", s)
+        s = re.sub(r"\b(?:loa\s+chuong|am\s+ly|am\s+li|(?<!nguon\s)mach\s+loa|nguon\s+loa|pam8403)\b", "nguon mach loa", s)
 
     # Strip polite fillers inside / at end without breaking clause conjunctions
     s = re.sub(
-        r"\b(?:giúp\s+(?:mình|tôi|tớ|bà|ông|bé|con)|hộ\s+(?:mình|tôi|ông|bà)|"
-        r"(?:giùm|dùm)\s+(?:tôi|mình|tui|cái|tau)|"
-        r"cho\s+(?:tôi|mình|bà|ông|bé|con)|làm\s+ơn|"
-        r"giup\s+(?:minh|toi|toy|to|ba|ong|be|con)|ho\s+(?:minh|toi|ong|ba)|"
-        r"(?:gium|dum)\s+(?:toi|minh|tui|cai|tau)|"
-        r"cho\s+(?:toi|minh|ba|ong|be|con)|lam\s+on)\b",
+        r"\b(?:giúp\s+(?:mình|tôi|tớ|bà|ông|bé|con|anh|chị|em)|hộ\s+(?:mình|tôi|ông|bà|anh|chị|em)|"
+        r"(?:giùm|dùm)\s+(?:tôi|mình|tui|cái|tau|anh|chị|em)|"
+        r"cho\s+(?:tôi|mình|bà|ông|bé|con|anh|chị|em)|làm\s+ơn|"
+        r"giup\s+(?:minh|toi|to|ba|ong|be|con|anh|chi|em)|ho\s+(?:minh|toi|ong|ba|anh|chi|em)|"
+        r"(?:gium|dum)\s+(?:toi|minh|tui|cai|tau|anh|chi|em)|"
+        r"cho\s+(?:toi|minh|ba|ong|be|con|anh|chi|em)|lam\s+on)\b",
         " ",
         s,
     )
-    # Strip trailing softeners & regional particles (note: unaccented 'coi' particle only when accented input or after 'len'/'phat'/'cai')
+    # Strip trailing softeners & regional particles
     if input_has_diac:
         s = re.sub(r"\b(?:phát|cái|lên|đi)\s+coi\b", " ", s)
-        # ASR frequently mishears polite imperative ending "đi ạ" as "đi à" (no question mark)
+        # Polite imperative ending "đi ạ" is sometimes heard as "đi à" without question mark
         s = re.sub(r"\s+đi\s+à\s*[.!]*$", "", s.strip()).strip()
     for _ in range(3):
         updated = re.sub(
@@ -722,7 +851,7 @@ def normalize_vietnamese_utterance(text: str) -> str:
             break
         s = updated
 
-    # Strip inline fillers "luôn", "ngay", "nhanh", "lẹ", "nhé", "nha", "nhá", "ạ"
+    # Strip inline fillers
     s = re.sub(r"\b(?:luôn|ngay|nhanh|lẹ|nhé|nha|nhá|nghen|hen|hỉ|hè|ạ)\b", " ", s)
     return _clean_space(s)
 
@@ -814,37 +943,55 @@ def _extract_clause_device(
     input_has_diacritics: bool | None = None,
     allow_unaccented_bare_den: bool = False,
 ) -> str | None:
-    """Match device targets on accented Vietnamese first; forbid wrong-diacritic collisions (đen/đến/dền/coi/cua/bom)."""
+    """Match device targets on accented Vietnamese first; enforce uniform wrong-diacritic guard and never default bare 'đèn'."""
+    _ = allow_unaccented_bare_den  # Bare 'đèn' must always clarify when >1 light exists in registry.
     if raw_clause is not None:
         raw_clean = " ".join(re.sub(r"[^a-zA-ZÀ-ỹ0-9\s]+", " ", raw_clause.lower()).split())
         has_diac = has_vi_diacritics(raw_clean) if input_has_diacritics is None else bool(input_has_diacritics)
         if has_diac:
             raw_padded = f" {raw_clean} "
-            # Reject explicit wrong-diacritic "coi báo động" (coi != còi) even though "báo động" is accented
-            if " coi báo động " in raw_padded or " coi hú " in raw_padded:
-                return None
+            bad_den = _has_wrong_diacritic_device_head(raw_clean, "den")
+            bad_coi = _has_wrong_diacritic_device_head(raw_clean, "coi")
+            bad_cua = _has_wrong_diacritic_device_head(raw_clean, "cua")
+            bad_bom = _has_wrong_diacritic_device_head(raw_clean, "bom")
+            bad_loa = _has_wrong_diacritic_device_head(raw_clean, "loa")
+            bad_phong = _has_wrong_diacritic_device_head(raw_clean, "phong")
             for kw, dev_id in _DIRECT_DEVICE_PATTERNS_ACCENTED:
                 if f" {kw} " in raw_padded:
+                    if dev_id in ("living_room_light", "bedroom_light", "all_lights") and (bad_den or bad_phong):
+                        return None
+                    if dev_id == "alarm_siren" and bad_coi:
+                        return None
+                    if dev_id == "main_door" and bad_cua:
+                        return None
+                    if dev_id == "garden_pump" and bad_bom:
+                        return None
+                    if dev_id == "speaker_amp" and bad_loa:
+                        return None
                     return dev_id
-            # Exact accented single-word device nouns ONLY (never đen, đến, dền, đền, den, coi, cua, của, bom)
-            if " đèn " in raw_padded and " đèn phòng " not in raw_padded:
-                return "living_room_light"
+            # Never default bare 'đèn' to living_room_light when multiple lights exist in DEFAULT_DEVICES.
             if (
-                " cửa " in raw_padded
-                and not any(
-                    bad_c in raw_padded
-                    for bad_c in (
-                        " cửa hàng ", " cửa tiệm ", " cửa hiệu ", " cửa sổ ",
-                        " cửa miệng ", " cửa sông ", " cửa biển ",
+                not bad_cua
+                and (
+                    (
+                        " cửa " in raw_padded
+                        and not any(
+                            bad_c in raw_padded
+                            for bad_c in (
+                                " cửa hàng ", " cửa tiệm ", " cửa hiệu ", " cửa sổ ",
+                                " cửa miệng ", " cửa sông ", " cửa biển ",
+                            )
+                        )
                     )
+                    or " cổng " in raw_padded
                 )
-            ) or " cổng " in raw_padded:
+            ):
                 return "main_door"
-            if " bơm " in raw_padded:
+            if not bad_bom and " bơm " in raw_padded:
                 return "garden_pump"
-            if " còi " in raw_padded:
+            if not bad_coi and " còi " in raw_padded:
                 return "alarm_siren"
-            if " loa " in raw_padded:
+            if not bad_loa and " loa " in raw_padded:
                 return "speaker_amp"
             return None
 
@@ -852,8 +999,6 @@ def _extract_clause_device(
     for kw, dev_id in _DIRECT_DEVICE_PATTERNS:
         if f" {kw} " in padded:
             return dev_id
-    if allow_unaccented_bare_den and " den " in padded and " den phong " not in padded:
-        return "living_room_light"
     if (
         " cua " in padded
         and not any(
@@ -882,10 +1027,16 @@ _NON_VERB_NOUN_PHRASES: tuple[str, ...] = (
     "hoat dong",
     "cong tac",
     "dong y",
+    "dong thoi",
+    "dong bo",
 )
 
 _DESCRIPTIVE_STATE_RE = re.compile(
-    r"\b(?:đang|dang)\s+(?:chạy|chay|bật|bat|mở|mo|tắt|tat|đóng|dong|kêu|keu)\b",
+    r"(?:"
+    r"\b(?:đang|dang)\s+(?:chạy|chay|bật|bat|mở|mo|tắt|tat|đóng|dong|kêu|keu|sáng|sang|hoạt\s+động|hoat\s+dong)\b|"
+    r"\b(?:kêu|keu|sáng|sang|chạy|chay)\s+(?:inh\s+ỏi|inh\s+oi|ầm\s+ĩ|am\s+i|mãi|mai|hoài|hoai|rồi|roi|quá|qua|lớn\s+quá|lon\s+qua|to\s+quá|to\s+qua)\b|"
+    r"\b(?:đủ\s+nước|du\s+nuoc|tối\s+om|toi\s+om|tối\s+quá|toi\s+qua|sáng\s+quá|sang\s+qua|có\s+người\s+tới|co\s+nguoi\s+toi|có\s+khách|co\s+khach)\b"
+    r")",
     re.IGNORECASE,
 )
 
@@ -901,7 +1052,7 @@ def _strip_non_verb_phrases(
         if (input_has_diacritics is None and raw_clause is not None)
         else bool(input_has_diacritics)
     )
-    # Strip descriptive states ("đang chạy", "đang bật", "đang mở") EXCEPT in alternative status questions ("đang bật hay tắt")
+    # Strip descriptive state clauses except inside alternative status questions
     padded_pre = f" {' '.join(norm_clause.split())} "
     if " hay " in padded_pre or " hoac " in padded_pre:
         cleaned = norm_clause
@@ -910,6 +1061,12 @@ def _strip_non_verb_phrases(
     padded = f" {' '.join(cleaned.split())} "
     for phrase in _NON_VERB_NOUN_PHRASES:
         padded = padded.replace(f" {phrase} ", " ")
+    # Collapse compound stop-phrases ("ngưng chạy", "dừng chạy", "ngừng hoạt động") -> single OFF verb "ngung"
+    padded = re.sub(
+        r"\b(?:ngung|dung|tat|ngat|cup)\s+(?:chay|hoat\s+dong|kich\s+hoat|keu|sang|tuoi)\b",
+        "ngung",
+        padded,
+    )
     # Only strip "tất cả" (all), NEVER "tắt cả" (turn off both)!
     if raw_clause is not None and has_diac:
         if "tất cả" in raw_clause.lower():
@@ -944,28 +1101,58 @@ def _extract_clause_action(
         else bool(input_has_diacritics)
     )
     raw_low_act = (raw_clause or "").lower()
+    # Protect 'khoi dong' (start up) so its second token 'dong' never collides with OFF verb 'dong' (close)
+    padded = padded.replace(" khoi dong ", " __khoi_dong__ ")
     off_verb: str | None = None
     on_verb: str | None = None
-    for w in ("tat", "dong", "khoa", "chot", "khep", "gai", "ngat", "dung", "ngung"):
+    _ACCENTED_OFF_GUARD: dict[str, str] = {
+        "tat": r"\btắt\b",
+        "dong": r"\bđóng\b",
+        "khoa": r"\b(?:khóa|khoá)\b",
+        "chot": r"\bchốt\b",
+        "khep": r"\bkhép\b",
+        "gai": r"\bgài\b",
+        "ngat": r"\bngắt\b",
+        "dung": r"\bdừng\b",
+        "cup": r"\bcúp\b",
+        "dap": r"\bdập\b",
+    }
+    _ACCENTED_ON_GUARD: dict[str, str] = {
+        "bat": r"\bbật\b",
+        "mo": r"\bmở\b",
+        "he mo": r"\bhé\s+mở\b",
+        "chay": r"\bchạy\b",
+    }
+    for w in ("tat nguon", "ngat nguon", "cup nguon", "tat han", "dong kin", "tat", "dong", "khoa", "chot", "khep", "gai", "ngat", "dung", "ngung", "cup", "dap"):
         if f" {w} " in padded:
-            # In accented text, 'dùng' (use/ASR for dùm) or 'đúng' (correct) must NEVER collide with 'dừng' (stop)
-            if w == "dung" and has_diac and not re.search(r"\bdừng\b", raw_low_act):
+            guard_pat = _ACCENTED_OFF_GUARD.get(w)
+            if guard_pat and has_diac and not re.search(guard_pat, raw_low_act):
                 continue
             off_verb = w
             break
-    for w in ("bat", "mo", "khoi dong", "chay"):
+    for w in ("he mo", "kich hoat", "__khoi_dong__", "cap nguon", "mo nguon", "bat nguon", "cho chay", "cho sang", "lam sang", "cho hoat dong", "cho keu", "cho hu", "bat", "mo", "chay"):
         if f" {w} " in padded:
+            guard_pat = _ACCENTED_ON_GUARD.get(w)
+            if guard_pat and has_diac and not re.search(guard_pat, raw_low_act):
+                continue
             on_verb = w
             break
+    if on_verb is None and dev_id == "main_door":
+        if has_diac and re.search(r"\bhé\b", raw_low_act):
+            on_verb = "he mo"
+        elif not has_diac and re.search(r"\bhe\s+(?:cua|cong)\b", padded):
+            on_verb = "he mo"
     if on_verb is None and dev_id in ("speaker_amp", "alarm_siren") and " keu " in padded:
         on_verb = "keu"
+    if on_verb is None and dev_id == "alarm_siren" and " hu " in padded and (not has_diac or re.search(r"\bhú\b", raw_low_act)):
+        on_verb = "hu"
     # Conflicting ON and OFF verbs in a single clause -> ambiguous (never silently flip polarity!).
     if off_verb is not None and on_verb is not None:
         return None
     if off_verb is not None:
-        return "close" if (dev_id == "main_door" or off_verb in ("dong", "khoa", "chot", "khep", "gai")) else "turn_off"
+        return "close" if (dev_id == "main_door" or off_verb in ("dong", "dong kin", "khoa", "chot", "khep", "gai")) else "turn_off"
     if on_verb is not None:
-        return "open" if (dev_id == "main_door" or on_verb == "mo") else "turn_on"
+        return "open" if (dev_id == "main_door" or on_verb in ("mo", "he mo")) else "turn_on"
     if (" tuoi cay " in padded or " tuoi vuon " in padded) and " may bom " not in padded and " bom " not in padded:
         return "turn_on"
     return None
@@ -992,7 +1179,10 @@ def _expand_direct_target(dev_id: str, action: str) -> list[dict[str, str]]:
             return [
                 {"device_id": "living_room_light", "action": "turn_on"},
                 {"device_id": "bedroom_light", "action": "turn_on"},
+                {"device_id": "garden_pump", "action": "turn_on"},
+                {"device_id": "alarm_siren", "action": "turn_on"},
                 {"device_id": "speaker_amp", "action": "turn_on"},
+                {"device_id": "main_door", "action": "open"},
             ]
         return [
             {"device_id": "living_room_light", "action": "turn_off"},
@@ -1009,48 +1199,182 @@ _NON_DIRECT_INTENT_CUES: tuple[str, ...] = (
     " dang mo hay dong ", " dang dong hay mo ", " dang mo hay da dong ", " dang mo hoac dong ", " dang dong hoac mo ",
     " dang bat hay tat ", " dang tat hay bat ", " dang bat hay da tat ", " dang bat hoac tat ", " dang tat hoac bat ",
     " co dang bat ", " co dang mo ",
-    " co dang tat ", " co dang dong ", " trang thai ", " hen gio ", " dat lich ", " dac lich ",
-    " hen lich ", " sua lich ", " doi lich ", " xoa lich ", " huy lich ", " lich hen ",
-    " hang ngay ", " moi ngay ", " ngay nao cung ", " lap lai ",
+    " co dang tat ", " co dang dong ", " trang thai ", " hen gio ", " dat hen gio ",
+    " dat lich ", " dac lich ", " len lich ", " tao lich ", " lap lich ", " hen lich ",
+    " sua lich ", " doi lich ", " xoa lich ", " huy lich ", " lich hen ", " lich trinh ", " lich tu dong ", " dinh ky ",
+    " hang ngay ", " hang sang ", " hang chieu ", " hang toi ", " hang dem ", " hang tuan ",
+    " ngay nao cung ", " lap lai ",
     " gio sang ", " gio trua ", " gio chieu ", " gio toi ", " gio dem ",
-    " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " sua lenh ", " doi lenh ", " xoa lenh ", " huy lenh ",
+    " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " dang ky lenh ", " cai lenh ", " thiet lap lenh ",
+    " sua lenh ", " chinh sua lenh ", " doi lenh ", " cap nhat lenh ", " xoa lenh ", " huy lenh ", " go lenh ", " go bo lenh ",
+    " tao khau lenh ", " them khau lenh ", " thiet lap khau lenh ", " cau lenh ", " tao ngu canh ", " them ngu canh ",
+    " tao kich ban ", " them kich ban ", " tao bi danh ", " dat bi danh ",
     " luu cau ", " dat cau ", " gan cau ", " tao cau ", " noi dung la ", " cho thao tac ",
-    " tao viec ", " ra lenh ", " dau lenh ", " doc lenh ", " tao ra ",
     " thanh bat ", " thanh tat ", " thanh mo ", " thanh dong ", " thanh lenh ",
-    " lenh custom ", " lenh tuy chinh ", " tao luat ", " dat quy tac ", " quy tac ", " lien ket ",
+    " lenh custom ", " lenh tuy chinh ", " tao luat ", " dat luat ", " them luat ",
+    " dat quy tac ", " tao quy tac ", " quy tac ", " lien ket ",
     " xoa lien ket ", " huy lien ket ", " phut nua ", " giay nua ", " gio nua ",
-    " reset ", " ri set ", " rex ", " rexit ", " rep trang thai ", " rep lien ket ",
-    " virus lien ket ", " khoi phuc ", " hoi phuc ", " cai dat goc ", " thiet lap ",
-    " dat lai ", " khoi dong lai ", " ve mac dinh ", " xoa cac cai dat ",
-    " thiet lap trang thai ", " save trang thai ", " ve sinh sach thiet bi ",
-    " khi ", " neu ", " dat kho ", " tieng dong lon ", " chuyen dong lon ", " bien dong lon ",
-    " tu bat ", " tu tat ", " bat theo ", " tat theo ",
+    " reset ", " ri set ", " khoi phuc ", " hoi phuc ", " cai dat goc ", " thiet lap lai ",
+    " dat lai ", " khoi dong lai ", " ve mac dinh ", " mac dinh goc ", " xuat xuong ", " tinh trang ",
+    " cau hinh ", " moi cai dat ", " tat ca cai dat ", " toan he thong ",
+    " khi ", " neu ", " bat cu luc nao ", " moi luc ", " dat kho ", " tieng dong lon ",
+    " tu bat ", " tu tat ", " bat theo ", " tat theo ", " phim tat ", " lenh rieng ", " lenh tat ",
+    " lenh giong noi ", " ghi nho ",
+)
+
+_RECURRING_MOI_ACCENTED_RE = re.compile(r"\bmỗi\s+(?:ngày|sáng|trưa|chiều|tối|đêm|tuần)\b", re.IGNORECASE)
+_RECURRING_MOI_UNACCENTED_RE = re.compile(r"\bmoi\s+(?:ngay|sang|trua|chieu|toi|dem|tuan)\b", re.IGNORECASE)
+
+_MACRO_LIFECYCLE_GUARD_RE = re.compile(
+    r"(?:^|\s)(?:tao|them|cai|dat|luu|thiet\s+lap|dang\s+ky|gan|ghi\s+nho|nho|"
+    r"sua|chinh\s+sua|chinh|cap\s+nhat|doi|xoa(?:\s+(?:bo|di))?|go(?:\s+bo)?|dep(?:\s+bo)?|loai\s+bo|huy(?:\s+bo)?)\s+"
+    r"(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em|ban)\s+)?"
+    r"(?:(?:mot|cai)\s+)?(?:khau\s+lenh|cau\s+lenh|lenh(?:\s+(?:moi|rieng|tat|tuy\s+chinh|custom|giong\s+noi|da\s+luu|cu))?|"
+    r"kich\s+ban|bi\s+danh|phim\s+tat(?:\s+giong\s+noi)?|ngu\s+canh|scene|che\s+do)\b"
 )
 
 _CUSTOM_COMMAND_DIRECT_GUARD_RE = re.compile(
-    r"(?:\b(?:che\s+do|lenh|cau|tao\s+lich|vi\s*ec|viec|kich\s+ban|ngu\s+canh)\b.+\b(?:la|lam|thanh|de|cho\s+thao\s+tac)\b|"
-    r"\btao\b.+\bde\s+(?:bat|tat|mo|dong|khoa|ngat|dung|ngung)\b|"
-    r"\b(?:la|lam|thanh)\s+(?:bat|tat|mo|dong|khoa|ngat|dung|ngung)\b|"
-    r"\bcu\s+(?:mo|dong|bat|tat)\b.+\bla\b|"
-    r"\bmo\s+(?:tat|dong|khoa|ngat)\b)"
+    r"(?:\b(?:che\s+do|lenh|khau\s+lenh|cau\s+lenh|cau|kich\s+ban|ngu\s+canh|bi\s+danh|phim\s+tat)\b.+\b(?:la|lam|thanh|de|gom|se|cho\s+thao\s+tac|noi\s+dung\s+la)\b|"
+    r"\b(?:tao|them|luu|dat|gan|cai|thiet\s+lap|dang\s+ky|ghi\s+nho|nho)\b.+\b(?:de|gom|se)\s+(?:bat|tat|mo|dong|khoa|ngat|dung|ngung|doc|xem|kich\s+hoat|khoi\s+dong)\b|"
+    r"\b(?:chinh\s+sua|go(?:\s+bo)?|dep(?:\s+bo)?|thiet\s+lap|ghi\s+nho)\s+(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em|ban)\s+)?(?:(?:mot|cai)\s+)?(?:khau\s+lenh|cau\s+lenh|lenh|kich\s+ban|ngu\s+canh|bi\s+danh|phim\s+tat)\b|"
+    r"\b(?:dua|dat|tra)\b.+\bve\s+(?:trang\s+thai\s+)?(?:mac\s+dinh|ban\s+dau|xuat\s+xuong|goc)\b|"
+    r"\b(?:la|thanh)\s+(?:bat|tat|mo|dong|khoa|ngat|dung|ngung)\b|"
+    r"\bcu\s+(?:mo|dong|bat|tat)\b.+\bla\b)"
 )
 
 _META_LINGUISTIC_NO_ACTION_RE = re.compile(
     r"(?:"
-    r"\b(?:đang\s+nói\s+từ|nói\s+từ|chỉ\s+(?:đang\s+)?đọc\s+lại|đọc\s+lại\s+câu|"
-    r"chưa\s+nhờ\s+(?:bạn|em|máy)|không\s+bảo|không\s+nhờ|không\s+yêu\s+cầu|"
-    r"có\s+mấy\s+chữ|mấy\s+chữ\s+vậy|"
-    r"hôm\s+qua|hom\s+qua|vừa\s+nãy|vua\s+nay|lúc\s+nãy|luc\s+nay|"
-    r"(?:tôi|mình|toi|minh)\s+quên|(?:tôi|mình|toi|minh)\s+quen|"
-    r"hay\s+gì|hay\s+gi|"
-    r"đúng\s+(?:không|chưa|rồi)|dung\s+(?:khong|chua|roi)|"
-    r"dang\s+noi\s+tu|noi\s+tu|chi\s+(?:dang\s+)?doc\s+lai|doc\s+lai\s+cau|"
-    r"chua\s+nho\s+(?:ban|em|may)|khong\s+bao|khong\s+nho|khong\s+yeu\s+cau|"
-    r"co\s+may\s+chu|may\s+chu\s+vay)\b|"
-    r"^(?!.*\bđi\s+à\s*[.!]*$)(?:(?!(?:.*,|\b(?:làm\s+ơn|lam\s+on|giúp|giup|giùm|gium|dùm|dum|hộ|ho)\b)).)+\s(?:chưa|chua|à|hả|ha|sao)\s*[.!?]*$"
+    # Quotation / metalinguistic mention / linguistic question frames
+    r"\b(?:đang\s+|chỉ\s+(?:đang\s+)?)?(?:nói|đọc|nhắc|viết|gõ|lặp\s+lại|ví\s+dụ|thử\s+nói)\s+(?:lại\s+)?(?:từ|câu|chữ|cụm|lệnh)\b|"
+    r"\b(?:dang\s+|chi\s+(?:dang\s+)?)?(?:noi|doc|nhac|viet|go|lap\s+lai|vi\s+du|thu\s+noi)\s+(?:lai\s+)?(?:tu|cau|chu|cum|lenh)\b|"
+    r"\b(?:từ|câu|chữ|tu|cau|chu)\b.{1,40}\b(?:có\s+mấy|co\s+may|mấy\s+chữ|may\s+chu|nghĩa\s+là|nghia\s+la|viết\s+thế\s+nào|viet\s+the\s+nao)\b|"
+    # Explicit disclaimer ("chưa nhờ", "không bảo", "không yêu cầu", "chưa kêu")
+    r"\b(?:chưa|không|chua|khong)\s+(?:nhờ|bảo|yêu\s+cầu|kêu|ra\s+lệnh|nho|bao|yeu\s+cau|keu|ra\s+lenh)\b|"
+    # Tag / confirmation questions
+    r"\b(?:hay\s+gì|hay\s+gi|đúng\s+(?:không|chưa|rồi)|dung\s+(?:khong|chua|roi))\b|"
+    r"^(?!.*\bđi\s+à\s*[.!]*$)(?:(?!(?:.*,|\b(?:làm\s+ơn|lam\s+on|giúp|giup|giùm|gium|dùm|dum|hộ|ho)\b)).)+\s(?:à|hả|ha|sao)\s*[.!?]*$"
     r")",
     re.IGNORECASE,
 )
+
+_PAST_TEMPORAL_MARKER_RE = re.compile(
+    r"\b(?:hồi\s+(?:sáng|trưa|chiều|tối|nãy)|hoi\s+(?:sang|trua|chieu|toi|nay)|"
+    r"lúc\s+(?:sáng|trưa|chiều|tối|nãy)|luc\s+(?:sang|trua|chieu|toi)|"
+    r"ban\s+nãy|ban\s+nay|nãy\s+giờ|nay\s+gio|từ\s+(?:sáng|trưa|chiều|tối|hôm\s+qua|tối\s+qua)|"
+    r"hôm\s+(?:qua|trước)|hom\s+(?:qua|truoc)|tuần\s+trước|tuan\s+truoc|tối\s+qua|toi\s+qua|"
+    r"vừa\s+nãy|vua\s+nay|vừa\s+rồi(?:\s+đã)?|vua\s+roi(?:\s+da)?|"
+    r"sáng\s+nay\s+đã|sang\s+nay\s+da|(?:tôi|mình|toi|minh|đã|da)\s+(?:quên|quen))\b",
+    re.IGNORECASE,
+)
+
+_PAST_TENSE_ACTION_RE = re.compile(
+    r"\b(?:đã|vừa(?:\s+mới)?|mới)\s+"
+    r"(?:bật|tắt|mở|đóng|khóa|khoá|ngắt|cúp|dừng|ngừng|ngưng|dập|khép|kích\s+hoạt|khởi\s+động)\b",
+    re.IGNORECASE,
+)
+
+_PAST_TENSE_ACTION_UNACCENTED_RE = re.compile(
+    r"\b(?:da|vua(?:\s+moi)?|moi)\s+"
+    r"(?:bat|tat|mo|dong|khoa|ngat|cup|dung|ngung|dap|khep|kich\s+hoat|khoi\s+dong)\b",
+    re.IGNORECASE,
+)
+
+_LEADING_DEFERRAL_RE = re.compile(
+    r"^(?:(?:ờ|à|ừ|ừm|thôi|này|ơi|o|a|u|um|thoi|nay|oi)\s*[,;:.!?…-]*\s*)*"
+    r"(?:khoan(?:\s+(?:đã|hẵng|hãy|vội|da|hang|hay|voi))?|"
+    r"(?:chờ|đợi|cho|doi)\s+(?:chút|đã|xíu|tý|tí|một\s+(?:chút|lát|xíu)|chut|da|xiu|ty|ti|mot\s+(?:chut|lat|xiu))|"
+    r"từ\s+từ|tu\s+tu|để\s+sau|de\s+sau|lát\s+nữa|lat\s+nua|"
+    r"đừng\s+vội|chưa\s+(?:cần|muốn)|chua\s+(?:can|muon))\b",
+    re.IGNORECASE,
+)
+
+_KEEP_UNCHANGED_PHRASE_RE = re.compile(
+    r"\b(?:cứ\s+để\s+nguyên|để\s+nguyên|giữ\s+nguyên|cứ\s+giữ\s+nguyên|"
+    r"không\s+cần\s+đụng|đừng\s+đụng(?:\s+tới|\s+vào)?|không\s+đụng(?:\s+tới|\s+vào)?|"
+    r"cu\s+de\s+nguyen|de\s+nguyen|giu\s+nguyen|cu\s+giu\s+nguyen|"
+    r"khong\s+can\s+dung|dung\s+dung(?:\s+toi|\s+vao)?|khong\s+dung(?:\s+toi|\s+vao)?)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_status_question_vi(raw_text: str) -> bool:
+    """True when the utterance is asking about device/sensor status rather than narrating a past event."""
+    raw = _clean_space(raw_text).lower()
+    if not raw:
+        return False
+    if "?" in raw:
+        return True
+    if re.search(r"\b(?:chưa|chua)\s*[.!?]*$", raw):
+        return True
+    if re.search(r"\b(?:bao\s+nhiêu|bao\s+nhieu|mấy\s+độ|may\s+do|thế\s+nào|the\s+nao|ra\s+sao)\b", raw):
+        return True
+    if re.search(r"\b(?:đang|dang)\b.+\b(?:hay|hoặc|hoac)\b", raw):
+        return True
+    if re.search(r"\b(?:có|co)\s+(?:đang|còn|bị|dang|con|bi)?\b.+\b(?:không|khong)\s*[.!?]*$", raw):
+        return True
+    return False
+
+
+def _is_past_clause_vi(clause_raw: str, *, has_diac: bool) -> bool:
+    """True if a single clause expresses a past-tense event or past temporal narration."""
+    cl = _clean_space(clause_raw).lower()
+    if not cl:
+        return False
+    if _PAST_TEMPORAL_MARKER_RE.search(cl):
+        return True
+    return bool(_PAST_TENSE_ACTION_RE.search(cl) if has_diac else _PAST_TENSE_ACTION_UNACCENTED_RE.search(cl))
+
+
+def _is_past_tense_narration_without_imperative(raw_text: str) -> bool:
+    """True for past-tense narration without a separate present imperative targeting a device (never blocks status questions)."""
+    raw = _clean_space(raw_text).lower()
+    if not raw or _is_status_question_vi(raw):
+        return False
+    has_diac = has_vi_diacritics(raw)
+    has_past_act = bool(_PAST_TENSE_ACTION_RE.search(raw) if has_diac else _PAST_TENSE_ACTION_UNACCENTED_RE.search(raw))
+    has_past_temp = bool(_PAST_TEMPORAL_MARKER_RE.search(raw))
+    if not (has_past_act or has_past_temp):
+        return False
+    # Split into clauses and check whether ANY distinct clause is a present imperative targeting a device
+    clauses = re.split(r"\s*(?:,|;|\.(?=\s|$)|\bnhưng\b|\bnhung\b|\bnên\b|\bnen\b|\bvậy\s+nên\b|\bthế\s+nên\b)\s*", raw)
+    if len(clauses) >= 2:
+        for cl in clauses:
+            cl_s = cl.strip(" .!?…")
+            if not cl_s:
+                continue
+            if _is_past_clause_vi(cl_s, has_diac=has_diac):
+                continue
+            if (
+                _CLAUSE_NEGATED_OR_KEEP_RE.search(cl_s)
+                or _NEGATED_OR_RHETORICAL_DIRECT_RE.search(cl_s)
+                or _LEADING_DEFERRAL_RE.match(cl_s)
+            ):
+                continue
+            cl_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(cl_s)).split())
+            dev_c = _extract_clause_device(cl_norm, raw_clause=cl_s, input_has_diacritics=has_diac)
+            act_c = _extract_clause_action(cl_norm, dev_c, raw_clause=cl_s, input_has_diacritics=has_diac)
+            if dev_c is not None and act_c is not None:
+                return False
+    return True
+
+
+def is_no_action_safety_blocked_vi(raw_text: str) -> bool:
+    """Single source of truth for deferral, hesitation, negation, keep-unchanged, and past-tense safety blocks."""
+    raw = _clean_space(raw_text).lower()
+    if not raw:
+        return False
+    resolved = _resolve_self_correction_vi(raw)
+    if _META_LINGUISTIC_NO_ACTION_RE.search(resolved):
+        return True
+    if _is_past_tense_narration_without_imperative(resolved):
+        return True
+    if _LEADING_DEFERRAL_RE.match(resolved):
+        return True
+    if _KEEP_UNCHANGED_PHRASE_RE.search(resolved) and not re.search(r"(?:,|;|\bnhưng\b|\bcòn\b|\bnhung\b|\bcon\b)", resolved):
+        return True
+    if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(resolved) and not re.search(r"(?:,|;|\bnhưng\b|\bcòn\b|\bnhung\b|\bcon\b)", resolved):
+        return True
+    return False
 
 _SELF_CORRECTION_RE = re.compile(
     r"^(?P<before>.+?)\s*(?:(?:\.{2,}|…)\s*(?:à|ờ)\s+(?=(?:bật|tắt|mở|đóng|bat|tat|mo|dong)\b)|"
@@ -1059,16 +1383,22 @@ _SELF_CORRECTION_RE = re.compile(
 )
 
 _CLAUSE_NEGATED_OR_KEEP_RE = re.compile(
-    r"(?:^|\s)(?:"
+    r"(?:(?:^|\s)(?:"
     r"đừng(?:\s+(?:có|vội|bao\s+giờ|đụng|chạm|tắt|bật|mở|đóng))?|"
     r"chớ\b|"
-    r"không(?:\s+(?:phải|cần|muốn|được|nên|phải|bảo|nhờ|bật|tắt|mở|đóng|khóa|ngắt|dừng))|"
-    r"khong(?:\s+(?:phai|can|muon|duoc|nen|bao|nho|bat|tat|mo|dong|khoa|ngat|dung))|"
-    r"chưa\s+cần|chua\s+can|khỏi\s+cần|khoi\s+can|thôi\s+không|thoi\s+khong|"
-    r"cứ\s+để\s+nguyên|để\s+nguyên|giữ\s+nguyên|cu\s+de\s+nguyen|de\s+nguyen|giu\s+nguyen|"
-    r"đừng\s+đụng\s+tới|dung\s+dung\s+toi|"
+    r"không(?:\s+(?:phải|cần|muốn|được|nên|bảo|nhờ|đụng|bật|tắt|mở|đóng|khóa|ngắt|dừng|ngừng|ngưng|cúp|dập|chạy|kích\s+hoạt|khởi\s+động))|"
+    r"khong(?:\s+(?:phai|can|muon|duoc|nen|bao|nho|dung|bat|tat|mo|dong|khoa|ngat|ngung|cup|dap|chay|kich\s+hoat|khoi\s+dong))|"
+    r"chưa\s+(?:cần|muốn|vội|đâu)|chua\s+(?:can|muon|voi|dau)|"
+    r"khoan(?:\s+(?:đã|hẵng|hãy|vội|da|hang|hay|voi))?\b|"
+    r"(?:chờ|đợi|cho|doi)\s+(?:chút|đã|xíu|một\s+(?:chút|lát|xíu)|tý|tí|chut|da|xiu|mot\s+(?:chut|lat|xiu))\b|"
+    r"từ\s+từ\b|tu\s+tu\b|để\s+sau\b|de\s+sau\b|lát\s+nữa\b|lat\s+nua\b|"
+    r"khỏi\s+cần|khoi\s+can|"
+    r"thôi\s+(?:không|khỏi|bỏ|hủy|huỷ|đừng)\b|thoi\s+(?:khong|khoi|bo|huy|dung)\b|"
+    r"hủy(?:\s+bỏ)?\b|huỷ(?:\s+bỏ)?\b|bỏ\s+đi\b|"
+    r"cứ\s+để\s+nguyên|để\s+nguyên|giữ\s+nguyên|cứ\s+giữ\s+nguyên|cu\s+de\s+nguyen|de\s+nguyen|giu\s+nguyen|cu\s+giu\s+nguyen|"
+    r"đừng\s+đụng(?:\s+tới|\s+vào)?|không\s+cần\s+đụng|không\s+đụng(?:\s+tới|\s+vào)?|dung\s+dung(?:\s+toi|\s+vao)?|khong\s+can\s+dung|"
     r"đúng\s+(?:rồi|không|chưa|nhỉ|nhé|ạ)\b"
-    r")",
+    r")|^\s*(?:(?:ờ|à|ừ|thế|vậy|o|a|u|the|vay)\s+)?(?:thôi|thoi)\b)",
     re.IGNORECASE,
 )
 
@@ -1083,15 +1413,16 @@ _COUNTDOWN_OR_CLOCK_GUARD_RE = re.compile(
 _CONDITIONAL_THI_GUARD_RE = re.compile(r"(?<!\broi)(?<!\bo)(?<!\ba)(?<!\bum)\s+thi\s+")
 
 _EXPLICIT_OFF_VERBS: frozenset[str] = frozenset({
-    "tat", "dong", "khoa", "chot", "khep", "gai", "ngung", "dung", "ngat",
+    "tat", "dong", "khoa", "chot", "khep", "gai", "ngung", "dung", "ngat", "cup",
 })
 _EXPLICIT_ON_VERBS: frozenset[str] = frozenset({
-    "bat", "mo", "khoi",
+    "bat", "mo", "khoi", "kich", "cap",
 })
 
 _FUZZY_BLOCKED_QUERY_CUES: tuple[str, ...] = (
     " bao nhieu ", " the nao ", " la gi ", " cam bien ", " nhiet do ",
     " do am ", " thanh vien ", " tai khoan ", " quyen ", " lich ", " hen ",
+    " reset ", " khoi phuc ", " xoa ", " huy ", " dat lai ", " thiet lap ",
 )
 
 
@@ -1122,41 +1453,61 @@ def _vi_phonetic_skeleton(text: str) -> str:
     return " ".join(folded)
 
 
-_CANONICAL_DIRECT_COMMANDS: tuple[tuple[str, str, str, str, str, int], ...] = tuple(
-    (phrase, pol, dev, act, _vi_phonetic_skeleton(phrase), len(phrase.split()))
-    for phrase, pol, dev, act in (
-        ("mo cua chinh", "on", "main_door", "open"),
-        ("mo cua", "on", "main_door", "open"),
-        ("dong cua chinh", "off", "main_door", "close"),
-        ("dong cua", "off", "main_door", "close"),
-        ("khoa cua chinh", "off", "main_door", "close"),
-        ("khoa cua", "off", "main_door", "close"),
-        ("bat den phong khach", "on", "living_room_light", "turn_on"),
-        ("tat den phong khach", "off", "living_room_light", "turn_off"),
-        ("bat den phong ngu", "on", "bedroom_light", "turn_on"),
-        ("tat den phong ngu", "off", "bedroom_light", "turn_off"),
-        ("bat tat ca den", "on", "all_lights", "turn_on"),
-        ("tat tat ca den", "off", "all_lights", "turn_off"),
-        ("bat may bom tuoi cay", "on", "garden_pump", "turn_on"),
-        ("bat may bom", "on", "garden_pump", "turn_on"),
-        ("tat may bom tuoi cay", "off", "garden_pump", "turn_off"),
-        ("tat may bom", "off", "garden_pump", "turn_off"),
-        ("bat coi bao dong", "on", "alarm_siren", "turn_on"),
-        ("tat coi bao dong", "off", "alarm_siren", "turn_off"),
-        ("bat nguon mach loa", "on", "speaker_amp", "turn_on"),
-        ("tat nguon mach loa", "off", "speaker_amp", "turn_off"),
-        ("tat tat ca thiet bi", "off", "all_devices", "turn_off"),
+def _build_registry_canonical_commands() -> tuple[tuple[str, str, str, str, str, int], ...]:
+    """Derive canonical direct command vocabulary dynamically from DEFAULT_DEVICES registry."""
+    extra_aliases: dict[str, tuple[str, ...]] = {
+        "main_door": ("cua chinh", "cua"),
+        "garden_pump": ("may bom tuoi cay", "may bom"),
+        "alarm_siren": ("coi bao dong",),
+        "speaker_amp": ("nguon mach loa", "mach loa"),
+        "living_room_light": ("den phong khach",),
+        "bedroom_light": ("den phong ngu",),
+    }
+    rows: list[tuple[str, str, str, str]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for dev_id, info in DEFAULT_DEVICES.items():
+        raw_name = str(info.get("name") or dev_id)
+        clean_name = " ".join(
+            re.sub(r"\([^)]*\)", " ", strip_vi_accents(raw_name.lower())).split()
+        )
+        clean_name = re.sub(r"[^a-z0-9\s]+", " ", clean_name).strip()
+        names = [clean_name] if clean_name else []
+        for al in extra_aliases.get(dev_id, ()):
+            if al not in names:
+                names.append(al)
+        if dev_id == "main_door":
+            verb_specs = (("mo", "on", "open"), ("dong", "off", "close"), ("khoa", "off", "close"))
+        else:
+            verb_specs = (("bat", "on", "turn_on"), ("tat", "off", "turn_off"))
+        for nm in names:
+            for v, pol, act in verb_specs:
+                ph = f"{v} {nm}".strip()
+                if (ph, dev_id) not in seen_pairs:
+                    seen_pairs.add((ph, dev_id))
+                    rows.append((ph, pol, dev_id, act))
+    # Registry group quantifiers (derived when >1 light / >1 device exist)
+    light_ids = [d for d in DEFAULT_DEVICES if "light" in d]
+    if len(light_ids) > 1:
+        rows.append(("bat tat ca den", "on", "all_lights", "turn_on"))
+        rows.append(("tat tat ca den", "off", "all_lights", "turn_off"))
+    if len(DEFAULT_DEVICES) > 1:
+        rows.append(("tat tat ca thiet bi", "off", "all_devices", "turn_off"))
+    return tuple(
+        (phrase, pol, dev, act, _vi_phonetic_skeleton(phrase), len(phrase.split()))
+        for phrase, pol, dev, act in rows
     )
-)
+
+
+_CANONICAL_DIRECT_COMMANDS: tuple[tuple[str, str, str, str, str, int], ...] = _build_registry_canonical_commands()
 
 
 def _match_constrained_direct_command_vi(norm_text: str, *, raw_text: str = "") -> list[dict[str, str]]:
-    """High-precision phonetic + edit-distance matcher over the closed 6-device Vietnamese command grammar.
+    """High-precision registry-derived phonetic + edit-distance matcher over canonical Vietnamese device commands.
 
     Safety invariants:
-    - Never runs on foreign/nonsense, unsupported devices, questions, wrong-diacritic near-misses, or automation cues.
+    - Never runs on foreign/nonsense, unsupported devices, questions, wrong-diacritic near-misses, or destructive/automation cues.
     - Requires an explicit ON or OFF verb token and strictly locks polarity (never flips ON<->OFF, never guesses bare nouns).
-    - Requires score >= 85, token-count compatibility (|diff| <= 1), and margin >= 6 over the runner-up target.
+    - Requires score >= 86, token-count compatibility (|diff| <= 1), and margin >= 6 over the runner-up target.
     """
     if not norm_text or "?" in norm_text:
         return []
@@ -1167,9 +1518,9 @@ def _match_constrained_direct_command_vi(norm_text: str, *, raw_text: str = "") 
     if not clean:
         return []
     padded = f" {clean} "
-    # Never fuzzy-match ambiguous unaccented bare "den" without room qualifier
-    if not has_vi_diacritics(src) and " den " in padded and not any(
-        k in padded for k in (" phong khach ", " khach ", " phong ngu ", " ngu ", " tat ca ", " het ", " ca hai ")
+    # Never fuzzy-match bare 'den' without an explicit room or multi-light quantifier (accented or unaccented)
+    if " den " in padded and not any(
+        k in padded for k in (" phong khach ", " khach ", " phong ngu ", " ngu ", " buong ", " tat ca ", " toan bo ", " het ", " ca hai ", " hai ")
     ):
         return []
     if _UNSUPPORTED_DEVICE_RE.search(padded):
@@ -1190,12 +1541,11 @@ def _match_constrained_direct_command_vi(norm_text: str, *, raw_text: str = "") 
     required_polarity = "off" if has_off else "on"
 
     phon_in = _vi_phonetic_skeleton(clean)
-    src_has_diac = has_vi_diacritics(src)
-    src_low = src.lower()
-    bad_den = src_has_diac and _has_wrong_diacritic_token(src_low, "den", ("đèn",))
-    bad_cua = src_has_diac and _has_wrong_diacritic_token(src_low, "cua", ("cửa", "cữa")) and not any(w in src_low for w in ("cửa", "cữa", "cổng"))
-    bad_coi = src_has_diac and _has_wrong_diacritic_token(src_low, "coi", ("còi",)) and not any(w in src_low for w in ("còi", "ngòi"))
-    bad_bom = src_has_diac and _has_wrong_diacritic_token(src_low, "bom", ("bơm",)) and not any(w in src_low for w in ("bơm", "tưới"))
+    bad_den = _has_wrong_diacritic_device_head(src, "den") or _has_wrong_diacritic_device_head(src, "phong")
+    bad_cua = _has_wrong_diacritic_device_head(src, "cua")
+    bad_coi = _has_wrong_diacritic_device_head(src, "coi")
+    bad_bom = _has_wrong_diacritic_device_head(src, "bom")
+    bad_loa = _has_wrong_diacritic_device_head(src, "loa")
 
     best_by_target: dict[tuple[str, str], float] = {}
     for phrase, pol, dev, act, cand_phon, cand_tok_n in _CANONICAL_DIRECT_COMMANDS:
@@ -1208,6 +1558,8 @@ def _match_constrained_direct_command_vi(norm_text: str, *, raw_text: str = "") 
         if dev == "alarm_siren" and bad_coi:
             continue
         if dev == "garden_pump" and bad_bom:
+            continue
+        if dev == "speaker_amp" and bad_loa:
             continue
         if abs(len(tokens) - cand_tok_n) > 1:
             continue
@@ -1223,13 +1575,13 @@ def _match_constrained_direct_command_vi(norm_text: str, *, raw_text: str = "") 
     ranked = sorted(best_by_target.items(), key=lambda kv: kv[1], reverse=True)
     (best_dev, best_act), best_score = ranked[0]
     second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-    if best_score < 85.0 or (best_score - second_score) < 6.0:
+    if best_score < 86.0 or (best_score - second_score) < 6.0:
         return []
     return _expand_direct_target(best_dev, best_act)
 
 
 def _resolve_self_correction_vi(text: str) -> str:
-    """Resolve spoken self-corrections like 'bật còi... à không, tắt còi' or 'bật đèn phòng ngủ... à nhầm, phòng khách'."""
+    """Resolve spoken self-corrections (<initial clause> <correction cue> <replacement clause>)."""
     m = _SELF_CORRECTION_RE.match(text.strip())
     if not m:
         return text
@@ -1277,50 +1629,98 @@ def parse_direct_device_intents_vi(
             if cw and cw in mapped:
                 mapped = mapped.replace(cw, f" {tv} ")
 
-    # Never execute meta-linguistic mentions/quotes/word-count questions ("tôi đang nói từ mở cửa...", "câu tắt đèn có mấy chữ?")
+    # Never execute meta-linguistic mentions, quotes, past-tense narrations, or word-count questions
     if _META_LINGUISTIC_NO_ACTION_RE.search(mapped):
         return []
-    # Never execute rhetorical/meta questions ending in '?' (device commands are imperatives)
-    if "?" in mapped:
+    if _is_past_tense_narration_without_imperative(mapped):
+        return []
+    # Never execute rhetorical/meta/status questions (device commands are imperatives)
+    if "?" in mapped or _is_status_question_vi(mapped):
         return []
 
-    # Resolve spoken self-corrections BEFORE custom-command / negation guards ("bật còi... ý mình là tắt còi")
+    # Resolve spoken self-corrections BEFORE custom-command and negation guards
     resolved_text = _resolve_self_correction_vi(mapped)
 
-    # Preserve 'không khí' before checking non-direct cues so 'không khí' never triggers 'khi'
+    # Leading deferral / hesitation governs the utterance -> block immediate execution
+    if _LEADING_DEFERRAL_RE.match(resolved_text):
+        return []
+
+    # Preserve ambient-air phrase before checking non-direct cues so it never collides with conditional cues
     mapped_no_air = re.sub(r"\b(?:không\s+khí|khong\s+khi)\b", " khong_khi ", resolved_text)
     norm_raw = f" {' '.join(re.sub(r'[^a-z0-9_\s]+', ' ', strip_vi_accents(mapped_no_air)).split())} "
-    # Never guess a supported device when an unsupported appliance is mentioned (e.g. "đóng rèm cửa")
-    if _UNSUPPORTED_DEVICE_RE.search(norm_raw):
+    # Never guess a supported device when an unsupported appliance is mentioned (preserve clause punctuation boundaries!)
+    norm_punct_safe = f" {' '.join(re.sub(r'([,;.])', r' \1 ', re.sub(r'[^a-z0-9_,;.\s]+', ' ', strip_vi_accents(resolved_text.lower()))).split())} "
+    if _UNSUPPORTED_DEVICE_RE.search(norm_punct_safe):
+        return []
+
+    # Never execute direct device control on save/backup/macro-lifecycle/conditional utterances
+    if _MACRO_LIFECYCLE_GUARD_RE.search(norm_raw):
         return []
 
     # Check non-direct cues (timers, schedules, custom CRUD, resets, conditional rules)
-    # Allow contrastive "còn <device> thì <verb>" (e.g. "Bật còi báo động, còn loa chuông thì tắt.")
-    # and leading discourse filler "ờ thì..."
-    has_contrastive_con_thi = bool(re.search(r"\bcòn\b.+\bthì\b|\bcon\b.+\bthi\b", resolved_text))
+    # Allow contrastive topic-comment structures and leading discourse fillers
+    has_contrastive_or_topic_thi = bool(
+        re.search(r"\bcòn\b.+\bthì\b|\bcon\b.+\bthi\b", resolved_text)
+        or re.search(
+            r"(?:^|[,;.]|\bvà\b|\bva\b|\brồi\b|\broi\b|\bnhưng\b|\bnhung\b)\s*(?:phòng\s+(?:khách|ngủ)|phong\s+(?:khach|ngu)|"
+            r"(?:ngoài\s+)?vườn|(?:ngoai\s+)?vuon|"
+            r"đèn\s+phòng\s+(?:khách|ngủ)|den\s+phong\s+(?:khach|ngu)|"
+            r"cửa\s+chính|cua\s+chinh|máy\s+bơm(?:\s+tưới\s+cây)?|may\s+bom(?:\s+tuoi\s+cay)?|bơm|bom|"
+            r"còi\s+báo\s+động|coi\s+bao\s+dong|(?:nguồn\s+)?(?:mạch\s+)?loa(?:\s+chuông)?|(?:nguon\s+)?(?:mach\s+)?loa(?:\s+chuong)?)\s+"
+            r"(?:thì|thi)\s+",
+            resolved_text,
+            flags=re.IGNORECASE,
+        )
+    )
     norm_for_thi = re.sub(r"^\s*(?:o|a|um|u)\s+thi\b", "", norm_raw.strip())
     norm_for_thi = f" {norm_for_thi} "
+    input_has_diac = has_vi_diacritics(resolved_text)
+    has_recurring_moi = bool(
+        _RECURRING_MOI_ACCENTED_RE.search(resolved_text)
+        if input_has_diac
+        else _RECURRING_MOI_UNACCENTED_RE.search(norm_raw)
+    )
+    has_conditional_he = bool(
+        re.search(r"\bhễ\b", resolved_text)
+        if input_has_diac
+        else (re.search(r"\bhe\s+(?!thong\b|mo\b|cua\b)\S+", norm_raw.strip()) and (" thi " in norm_raw or " la " in norm_raw))
+    )
     if (
         any(k in norm_raw for k in _NON_DIRECT_INTENT_CUES)
+        or has_recurring_moi
+        or has_conditional_he
         or _COUNTDOWN_OR_CLOCK_GUARD_RE.search(norm_raw)
-        or (not has_contrastive_con_thi and _CONDITIONAL_THI_GUARD_RE.search(norm_for_thi))
+        or (not has_contrastive_or_topic_thi and _CONDITIONAL_THI_GUARD_RE.search(norm_for_thi))
         or _CUSTOM_COMMAND_DIRECT_GUARD_RE.search(norm_raw)
-        or (" ky " in norm_raw and " thi " in norm_raw)
     ):
         return []
 
-    input_has_diac = has_vi_diacritics(resolved_text)
-
-    # Strip inline exclusion phrases like "chứ không phải phòng ngủ" / "không phải phòng ngủ"
-    resolved_text = re.sub(
-        r"(?:,?\s*)?(?:chứ\s+)?không\s+phải\s+(?:phòng\s+(?:khách|ngủ)|đèn\s+phòng\s+(?:khách|ngủ)|còi\s+báo\s+động|loa\s+chuông)\b",
-        "",
-        resolved_text,
+    # Extract explicit exclusions across ALL 6 registry devices (set-difference connectors)
+    excluded_devs: set[str] = set()
+    m_excl_re = re.compile(
+        r"(?:,?\s*)?(?:chứ\s+)?(?:không\s+phải|khong\s+phai|ngoại\s+trừ|ngoai\s+tru|trừ|tru)\s+"
+        r"([^,;.!?]+?)(?=(?:,|;|\.|!|\?|$|\bvà\b|\bva\b|\bcòn\b|\bcon\b))",
         flags=re.IGNORECASE,
     )
 
-    # Insert clause breaks before trailing negated/keep-unchanged clauses when ASR drops commas
-    # (never split between a device noun and its own "đừng đụng tới" / "cứ để nguyên"!)
+    def _collect_exclusion(m_ex: re.Match[str]) -> str:
+        ex_raw = m_ex.group(1).strip()
+        ex_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(ex_raw.lower())).split())
+        ex_dev = _extract_clause_device(ex_norm, raw_clause=ex_raw, input_has_diacritics=input_has_diac)
+        if ex_dev is None:
+            if ex_norm in ("phong khach", "khach"):
+                ex_dev = "living_room_light"
+            elif ex_norm in ("phong ngu", "ngu", "buong"):
+                ex_dev = "bedroom_light"
+        if ex_dev == "all_lights":
+            excluded_devs.update(("living_room_light", "bedroom_light"))
+        elif ex_dev is not None:
+            excluded_devs.add(ex_dev)
+        return ""
+
+    resolved_text = m_excl_re.sub(_collect_exclusion, resolved_text).strip()
+
+    # Insert clause breaks before trailing negated/keep-unchanged clauses when commas are absent
     seg_prep = re.sub(
         r"\b(chính|chinh|khách|khach|ngủ|ngu|động|dong|vườn|vuon|cây|cay|loa|chuông|chuong|đèn|den|cửa|cua|bơm|bom|còi|coi|thôi|thoi)\s+"
         r"(?=(?:(?:đừng|chớ)\s+(?:bật|tắt|mở|đóng|khóa|bat|tat|mo|dong|khoa)|"
@@ -1331,15 +1731,36 @@ def parse_direct_device_intents_vi(
         flags=re.IGNORECASE,
     )
 
-    # Split into punctuation/contrast segments first so negated or keep-unchanged clauses are dropped cleanly
-    # ("Mở cửa chính, đừng mở nhạc." -> keeps "Mở cửa chính"; "Đừng mở cửa chính." -> drops all -> [])
-    pre_segments = re.split(r"\s*(?:,|;|\bchứ\b|\bnhưng\b)\s*", seg_prep, flags=re.IGNORECASE)
+    # Split into punctuation/sentence/contrast segments so negated/keep-unchanged clauses exclude only their target device;
+    # a pure utterance-wide cancellation/deferral clause with no target device aborts the whole utterance.
+    pre_segments = re.split(r"\s*(?:,|;|\.(?=\s)|\bchứ\b|\bnhưng\b)\s*", seg_prep, flags=re.IGNORECASE)
     kept_segments: list[str] = []
     for seg in pre_segments:
         seg_s = seg.strip(" .!?…")
         if not seg_s:
             continue
         if _CLAUSE_NEGATED_OR_KEEP_RE.search(seg_s) or _NEGATED_OR_RHETORICAL_DIRECT_RE.search(seg_s):
+            seg_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(seg_s.lower())).split())
+            neg_dev = _extract_clause_device(seg_norm, raw_clause=seg_s, input_has_diacritics=input_has_diac)
+            if neg_dev == "all_lights":
+                excluded_devs.update(("living_room_light", "bedroom_light"))
+            elif neg_dev == "all_devices":
+                return []
+            elif neg_dev is not None:
+                excluded_devs.add(neg_dev)
+            elif re.fullmatch(
+                r"(?:khoan(?:\s+(?:da|hang|hay|voi))?|"
+                r"(?:cho|doi)\s+(?:chut|da|xiu|mot\s+(?:chut|lat|xiu)|ty|ti)|"
+                r"tu\s+tu(?:\s+da)?|de\s+sau|lat\s+nua|"
+                r"dung\s+voi|chua\s+(?:can|muon)(?:\s+dau)?|"
+                r"thoi(?:\s+(?:khong|khoi|bo|huy|dung|di|nhe|nha|lam))?|"
+                r"huy(?:\s+bo)?(?:\s+(?:di|nhe|nha))?|bo\s+di|"
+                r"(?:dung|khong)\s+(?:lam|thuc\s+hien|mo|dong|bat|tat|can)(?:\s+(?:nua|di|dau|nhe|nha|voi))?)"
+                r"(?:\s+(?:da|nhe|nha|a|di|day|em|ban|anh|chi|toi|minh|lai))*",
+                seg_norm,
+            ):
+                # Pure utterance-wide cancellation/deferral with no distinct object noun
+                return []
             continue
         kept_segments.append(seg_s)
 
@@ -1347,31 +1768,74 @@ def parse_direct_device_intents_vi(
         return []
 
     filtered_text = " , ".join(kept_segments)
+    # Strip trailing restrictive particle 'thôi' on already-validated positive clauses
+    filtered_text = re.sub(r"\b(?:thôi|thoi)\b(?=\s*(?:,|;|$))", "", filtered_text, flags=re.IGNORECASE).strip()
     normalized = normalize_vietnamese_utterance(filtered_text)
     if not normalized:
         return []
 
+    # Normalize multi-device 'cả ... lẫn ...' connector before splitting
+    split_prep = re.sub(r"\bcả\s+(?=.+\blẫn\b)", "", normalized, flags=re.IGNORECASE)
+    if not input_has_diac:
+        split_prep = re.sub(r"\bca\s+(?=.+\blan\b)", "", split_prep, flags=re.IGNORECASE)
+
     # Split multi-device sentences on conjunctions / punctuation, and between adjacent verb-device clauses
-    # (including optional trailing 'lại'/'ra'/'lên'/'đi'/'thôi' when ASR drops commas, e.g. 'đóng cửa chính lại tắt đèn phòng khách')
     split_prep = re.sub(
-        r"\b(khách|khach|ngủ|ngu|chính|chinh|cửa|cua|cổng|cong|bơm|bom|cây|cay|vườn|vuon|còi|coi|động|dong|loa|đèn|den)"
-        r"(?:\s+(?:lại|lai|ra|lên|len|xuống|xuong|đi|di|thôi|thoi))?\s+"
-        r"(?=(?:bật|tắt|mở|đóng|bat|tat|mo|dong)\s+(?:đèn|den|cửa|cua|cổng|cong|máy\s+bơm|may\s+bom|bơm|bom|còi|coi|nguồn|nguon|loa|tất\s+cả|tat\s+ca|hết|het)\b)",
+        r"\b(khách|khach|ngủ|ngu|chính|chinh|cửa|cua|cổng|cong|bơm|bom|cây|cay|vườn|vuon|còi|coi|động|dong|loa|đèn|den|bị|bi)"
+        r"(?:\s+(?:lại|lai|ra|lên|len|xuống|xuong|đi|di|thôi|thoi|kín|kin|chặt|chat|rộng|rong|sáng|sang|hẳn|han|hết|het)){0,2}\s+"
+        r"(?=(?:bật|tắt|mở|đóng|khóa|khoá|khép|chốt|gài|hé(?:\s+mở)?|ngắt|ngưng|ngừng|dừng|cúp|dập|kích\s+hoạt|khởi\s+động|cấp\s+nguồn|"
+        r"bat|tat|mo|dong|khoa|khep|chot|gai|he\s+mo|ngat|ngung|dung|cup|dap|kich\s+hoat|khoi\s+dong|cap\s+nguon)\s+"
+        r"(?:(?:cái|cai)\s+)?(?:đèn|den|cửa|cua|cổng|cong|máy\s+bơm|may\s+bom|bơm|bom|còi|coi|nguồn|nguon|loa|tất\s+cả|tat\s+ca|toàn\s+bộ|toan\s+bo|hết|het)\b)",
         r"\1 , ",
-        normalized,
+        split_prep,
         flags=re.IGNORECASE,
     )
-    # Mark contrastive "còn ..." clauses so a clipped contrastive clause ("bật còi báo động còn loa chuông thì")
-    # NEVER inherits opposite polarity from the preceding clause!
+    # Mark contrastive clauses so a clipped contrastive clause never inherits opposite polarity
     split_prep = re.sub(r"\bcòn\b", " , __contrast__ ", split_prep, flags=re.IGNORECASE)
     clauses = re.split(
-        r"\s*(?:,|;|\bvà\b|\bva\b|\brồi\s+thì\b|\broi\s+thi\b|\brồi\b|\broi\b|\bcùng\s+với\b|\bcung\s+voi\b|\bxong\b|\bvới\b|\bvoi\b)\s*",
+        r"\s*(?:,|;|\bvà\b|\bva\b|\blẫn\b|\blan\b|\bsau\s+đó\b|\bsau\s+do\b|\bđồng\s+thời\b|\bdong\s+thoi\b|"
+        r"\bcùng\s+lúc\b|\bcung\s+luc\b|\btiếp\s+theo\b|\btiep\s+theo\b|\btiếp\s+đến\b|\btiep\s+den\b|"
+        r"\bkế\s+tiếp\b|\bke\s+tiep\b|\bsau\s+cùng\b|\bsau\s+cung\b|\bcuối\s+cùng\b|\bcuoi\s+cung\b|"
+        r"\bkèm(?:\s+theo)?\b|\bkem(?:\s+theo)?\b|\brồi\s+thì\b|\broi\s+thi\b|\brồi\b|\broi\b|\bnên\b|\bnen\b|"
+        r"\bcùng\s+với\b|\bcung\s+voi\b|\bcùng\b|\bcung\b|\bxong\b|\bvới\b|\bvoi\b)\s*",
         split_prep,
         flags=re.IGNORECASE,
     )
 
-    # Pre-parse clauses so topic-comment ("Cái bơm ngoài vườn đang chạy, tắt giùm tui nghe" or
-    # "Phòng khách, bật đèn lên") and multi-room lights ("Tắt cả hai đèn phòng khách, phòng ngủ") resolve cleanly.
+    # Pre-parse clauses so topic-comment, past-context, and descriptive-context + imperative structures resolve cleanly
+    _DESCRIPTIVE_CONTEXT_PREFIX_RE = re.compile(
+        r"(?:\b(?:đủ\s+nước|du\s+nuoc|hết\s+nước|het\s+nuoc|tối\s+om|toi\s+om|tối\s+quá|toi\s+qua|"
+        r"sáng\s+quá|sang\s+qua|nóng\s+quá|nong\s+qua|lạnh\s+quá|lanh\s+qua|"
+        r"khô\s+quá|kho\s+qua|khô\s+rồi|kho\s+roi|khô\s+hết|kho\s+het|đất\s+khô|dat\s+kho|"
+        r"héo|heo|mất\s+điện|mat\s+dien|có\s+lại|co\s+lai|tiếng\s+động|tieng\s+dong|"
+        r"có\s+người|co\s+nguoi|có\s+khách|co\s+khach|ngoài\s+cổng|ngoai\s+cong|ngoài\s+sân|ngoai\s+san|"
+        r"trời\s+tối|troi\s+toi|trời\s+sáng|troi\s+sang|đang\s+chạy|dang\s+chay|"
+        r"đang\s+bật|dang\s+bat|đang\s+mở|dang\s+mo|kêu\s+inh|keu\s+inh|kêu\s+ầm|keu\s+am|"
+        r"ồn\s+quá|on\s+qua|ồn\s+ào|on\s+ao)\b)",
+        re.IGNORECASE,
+    )
+    # Expand any single clause that still contains multiple verb+device commands separated only by spaces/particles
+    # Only split when the prefix before the second verb ALREADY names a device (preserves room topic-comment clauses)!
+    expanded_clauses: list[str] = []
+    _MULTI_VERB_SPLIT_RE = re.compile(
+        r"\s+(?=(?:bật|tắt|mở|đóng|khóa|khoá|khép|chốt|gài|hé(?:\s+mở)?|ngắt|ngưng|ngừng|dừng|cúp|dập|kích\s+hoạt|khởi\s+động|cấp\s+nguồn|"
+        r"bat|tat|mo|dong|khoa|khep|chot|gai|he\s+mo|ngat|ngung|dung|cup|dap|kich\s+hoat|khoi\s+dong|cap\s+nguon)\s+"
+        r"(?:(?:cái|cai)\s+)?(?:đèn|den|cửa|cua|cổng|cong|máy\s+bơm|may\s+bom|bơm|bom|còi|coi|nguồn|nguon|loa|tất\s+cả|tat\s+ca|toàn\s+bộ|toan\s+bo|hết|het)\b)",
+        flags=re.IGNORECASE,
+    )
+    for cl in clauses:
+        parts_sub = _MULTI_VERB_SPLIT_RE.split(cl)
+        if len(parts_sub) >= 2:
+            p0_raw = parts_sub[0].replace("__contrast__", " ").strip(" .!?…")
+            p0_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(p0_raw.lower())).split())
+            if p0_norm and _extract_clause_device(p0_norm, raw_clause=p0_raw, input_has_diacritics=input_has_diac) is not None:
+                for ps in parts_sub:
+                    if ps.strip():
+                        expanded_clauses.append(ps)
+                continue
+        expanded_clauses.append(cl)
+    clauses = expanded_clauses
+
     parsed_clauses: list[tuple[str, str, str | None, str | None, bool]] = []
     for cl in clauses:
         is_contrast = "__contrast__" in cl
@@ -1379,6 +1843,47 @@ def parse_direct_device_intents_vi(
         cl_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(cl_raw.lower())).split())
         if not cl_norm:
             continue
+        # Skip past-tense narration/context clauses (we already verified a separate present imperative exists)
+        if _is_past_clause_vi(cl_raw, has_diac=input_has_diac):
+            parsed_clauses.append((cl_raw, cl_norm, None, None, is_contrast))
+            continue
+        # Handle inline room/garden topic-comment: <room|garden> <topic marker> <action + device>
+        m_room_topic = re.match(
+            r"^(phòng\s+khách|phòng\s+ngủ|phong\s+khach|phong\s+ngu|(?:ngoài\s+)?vườn|(?:ngoai\s+)?vuon)\s+(?:thì|thi)\s+(.+)$",
+            cl_raw,
+            flags=re.IGNORECASE,
+        )
+        if m_room_topic:
+            r_raw = m_room_topic.group(1).strip()
+            r_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(r_raw.lower())).split())
+            body_raw = m_room_topic.group(2).strip()
+            body_norm = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(body_raw.lower())).split())
+            body_dev = _extract_clause_device(body_norm, raw_clause=body_raw, input_has_diacritics=input_has_diac)
+            if body_dev is None and (" den " in f" {body_norm} " or " đèn " in f" {body_raw.lower()} "):
+                if "khach" in r_norm:
+                    body_dev = "living_room_light"
+                elif "ngu" in r_norm:
+                    body_dev = "bedroom_light"
+            if body_dev is None and "vuon" in r_norm and (" bom " in f" {body_norm} " or " tuoi " in f" {body_norm} "):
+                body_dev = "garden_pump"
+            body_act = _extract_clause_action(body_norm, body_dev, raw_clause=body_raw, input_has_diacritics=input_has_diac)
+            parsed_clauses.append((cl_raw, cl_norm, body_dev, body_act, is_contrast))
+            continue
+
+        # Strip pure descriptive/context clauses before device extraction so location nouns do not emit a verb-less device topic
+        if _DESCRIPTIVE_CONTEXT_PREFIX_RE.search(cl_raw):
+            cl_dev_chk = _extract_clause_device(cl_norm, raw_clause=cl_raw, input_has_diacritics=input_has_diac)
+            cl_act_chk = _extract_clause_action(cl_norm, cl_dev_chk, raw_clause=cl_raw, input_has_diacritics=input_has_diac)
+            if cl_act_chk is None and re.search(
+                r"\b(?:có\s+người|co\s+nguoi|có\s+khách|co\s+khach|tối|toi|đủ\s+nước|du\s+nuoc|"
+                r"ồn\s+quá|on\s+qua|ồn\s+ào|on\s+ao|khô\s+quá|kho\s+qua|khô\s+rồi|kho\s+roi|"
+                r"héo|heo|tiếng\s+động|tieng\s+dong|mất\s+điện|mat\s+dien|ngoài\s+sân|ngoai\s+san)\b",
+                cl_raw,
+                flags=re.IGNORECASE,
+            ):
+                parsed_clauses.append((cl_raw, cl_norm, None, None, is_contrast))
+                continue
+
         dev = _extract_clause_device(cl_norm, raw_clause=cl_raw, input_has_diacritics=input_has_diac)
         act = _extract_clause_action(cl_norm, dev, raw_clause=cl_raw, input_has_diacritics=input_has_diac)
         parsed_clauses.append((cl_raw, cl_norm, dev, act, is_contrast))
@@ -1396,30 +1901,41 @@ def parse_direct_device_intents_vi(
     while i < len(parsed_clauses):
         cl_raw, cl_norm, dev, act, is_contrast = parsed_clauses[i]
 
-        # Multi-clause utterance with a long garbled/unrecognized prefix before 'và <device>'
-        # (e.g. ASR-corrupted 'tạo lệnh đi làm ... và đóng cửa chính') must clarify, never act.
+        # Handle clause 0 when it has no device and no action (room topic, situational context/reason, or wrong-diacritic prefix)
         if i == 0 and len(parsed_clauses) >= 2 and dev is None and act is None:
-            # Check if clause 0 is an explicit room topic ("phòng khách" / "phòng ngủ")
             if re.fullmatch(r"(?:phong khach|phong ngu)", cl_norm):
                 pending_room_topic = "living_room_light" if "khach" in cl_norm else "bedroom_light"
                 i += 1
                 continue
-            if len(cl_norm.split()) >= 4 and not cl_norm.endswith(" oi"):
+            if any(_has_wrong_diacritic_device_head(cl_raw, h) for h in ("den", "coi", "cua", "bom", "loa", "phong")):
                 return []
+            if _DESCRIPTIVE_CONTEXT_PREFIX_RE.search(cl_raw):
+                i += 1
+                continue
+            # Allow clean Vietnamese situational context clauses (separated by ',', ';', 'rồi', 'nên' — NEVER coordinate 'và'!)
+            cl0_toks = cl_norm.split()
+            if len(cl0_toks) >= 2 and not cl_norm.endswith(" oi"):
+                joined_by_va = bool(re.search(rf"{re.escape(cl_raw)}\s+(?:và|va)\b", split_prep, flags=re.IGNORECASE))
+                vi_ok_ratio = sum(1 for t in cl0_toks if _is_plausible_vi_word(t)) / max(1, len(cl0_toks))
+                has_later_imperative = any(p_dev is not None and p_act is not None for _, _, p_dev, p_act, _ in parsed_clauses[1:])
+                if joined_by_va or not has_later_imperative or vi_ok_ratio < 0.85:
+                    return []
+                i += 1
+                continue
 
-        # Room-only continuation after a light clause ("Tắt cả hai đèn phòng khách, phòng ngủ")
+        # Room-only continuation after an explicit light clause
         if dev is None and act is None and last_dev in ("living_room_light", "bedroom_light", "all_lights"):
             if cl_norm in ("phong ngu", "ngu"):
                 dev = "bedroom_light"
             elif cl_norm in ("phong khach", "khach"):
                 dev = "living_room_light"
 
-        # Apply room topic ("Phòng khách, bật đèn lên" -> living_room_light)
-        if pending_room_topic is not None and dev == "living_room_light" and "phong" not in cl_norm:
+        # Apply pending room topic to a following bare light clause
+        if pending_room_topic is not None and dev is None and (" den " in f" {cl_norm} " or " đèn " in f" {cl_raw.lower()} "):
             dev = pending_room_topic
             pending_room_topic = None
 
-        # Topic-comment binding ("Cái bơm ngoài vườn đang chạy, tắt giùm tui nghe.")
+        # Topic-comment binding: <device + descriptive state>, <verb-only imperative>
         if dev is not None and act is None and (i + 1) < len(parsed_clauses):
             _, _, next_dev, next_act, _ = parsed_clauses[i + 1]
             if next_dev is None and next_act is not None:
@@ -1440,13 +1956,15 @@ def parse_direct_device_intents_vi(
 
         last_dev = dev
         for item in _expand_direct_target(dev, act):
+            if item["device_id"] in excluded_devs:
+                continue
             key = (item["device_id"], item["action"])
             if key not in seen:
                 seen.add(key)
                 intents.append(item)
         i += 1
 
-    if not intents:
+    if not intents and not excluded_devs:
         # Only run fuzzy fallback when there was no wrong-diacritic light word and no garbled multi-clause prefix
         if not _has_wrong_diacritic_light_word(resolved_text) and len(parsed_clauses) == 1:
             intents = _match_constrained_direct_command_vi(normalized, raw_text=resolved_text)
@@ -1454,62 +1972,84 @@ def parse_direct_device_intents_vi(
     return intents
 
 
-def classify_ambiguous_or_unsupported_vi(text: str) -> str | None:
-    """Return a concise Vietnamese clarification/refusal for foreign, nonsense, unsupported, wrong-diacritic, or ambiguous input."""
+def classify_no_action_response_vi(text: str) -> tuple[str, str]:
+    """Return (semantic_kind, reply_vi) for non-executing utterances: negation_no_action, unsupported_device, or clarify_no_action."""
     raw = _clean_space(text)
     if not raw:
-        return NONSENSE_INPUT_REPLY_VI
+        return "clarify_no_action", NONSENSE_INPUT_REPLY_VI
 
     is_bad, kind = is_foreign_or_nonsense_input(raw)
     if is_bad:
-        return FOREIGN_INPUT_REPLY_VI if kind == "foreign" else NONSENSE_INPUT_REPLY_VI
+        return "clarify_no_action", (FOREIGN_INPUT_REPLY_VI if kind == "foreign" else NONSENSE_INPUT_REPLY_VI)
 
-    norm_raw = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(raw.lower())).split())
-    if _UNSUPPORTED_DEVICE_RE.search(f" {norm_raw} "):
-        return UNSUPPORTED_DEVICE_REPLY_VI
+    norm_punct_safe = " ".join(re.sub(r"([,;.])", r" \1 ", re.sub(r"[^a-z0-9_,;.\s]+", " ", strip_vi_accents(raw.lower()))).split())
+    if _UNSUPPORTED_DEVICE_RE.search(f" {norm_punct_safe} "):
+        return "unsupported_device", UNSUPPORTED_DEVICE_REPLY_VI
 
-    # Near-miss wrong-diacritic light command (e.g. "tắt đen phòng khách", "bật đến phòng khách", "tắt dền phòng ngủ")
+    # Near-miss wrong-diacritic device command across all 6 devices -> clarify_no_action
     near_miss_msg = _detect_wrong_diacritic_near_miss_clarification(raw)
     if near_miss_msg is not None:
-        return near_miss_msg
+        return "clarify_no_action", near_miss_msg
 
-    # Meta-linguistic or negated phrases -> polite no-action acknowledgment, never ask to act on a negated device
-    if _META_LINGUISTIC_NO_ACTION_RE.search(raw.lower()):
-        return "Vâng, tôi hiểu rồi, tôi sẽ không tác động tới thiết bị nào."
+    # Meta-linguistic, past-tense narration, keep-unchanged, or negated/hesitation/deferral phrases -> negation_no_action
+    raw_low = raw.lower()
+    if (
+        _META_LINGUISTIC_NO_ACTION_RE.search(raw_low)
+        or _is_past_tense_narration_without_imperative(raw_low)
+        or _LEADING_DEFERRAL_RE.match(raw_low)
+        or _KEEP_UNCHANGED_PHRASE_RE.search(raw_low)
+        or _CLAUSE_NEGATED_OR_KEEP_RE.search(raw_low)
+        or _NEGATED_OR_RHETORICAL_DIRECT_RE.search(raw_low)
+    ):
+        return "negation_no_action", "Vâng, tôi hiểu rồi, tôi sẽ không tác động tới thiết bị nào."
 
     input_has_diac = has_vi_diacritics(raw)
     normalized = normalize_vietnamese_utterance(raw)
     norm_clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(normalized.lower())).split())
 
-    # Unaccented bare "bat den" / "tat den" without room -> ask which light instead of guessing
-    if not input_has_diac and " den " in f" {norm_clean} " and not any(
-        k in f" {norm_clean} " for k in (" phong khach ", " khach ", " phong ngu ", " ngu ", " tat ca ", " het ", " ca hai ")
+    # Bare "đèn" / "den" without an explicit supported room or multi-light quantifier (BOTH accented and unaccented)
+    # when >1 light exists in the device registry -> ALWAYS ask which light instead of defaulting to living_room_light!
+    light_count = sum(1 for d in DEFAULT_DEVICES if "light" in d)
+    has_bare_light_word = (
+        (" đèn " in f" {normalized.lower()} " and not _has_wrong_diacritic_light_word(raw))
+        if input_has_diac
+        else (" den " in f" {norm_clean} ")
+    )
+    if light_count > 1 and has_bare_light_word and not any(
+        k in f" {norm_clean} "
+        for k in (" phong khach ", " khach ", " phong ngu ", " ngu ", " buong ", " tat ca ", " toan bo ", " het ", " ca hai ", " hai ")
     ):
-        act_u = _extract_clause_action(norm_clean, None, raw_clause=normalized, input_has_diacritics=False)
+        act_u = _extract_clause_action(norm_clean, None, raw_clause=normalized, input_has_diacritics=input_has_diac)
         if act_u is not None:
             act_vi = "tắt" if act_u in ("turn_off", "close") else "bật"
-            return f"Bạn muốn {act_vi} đèn phòng khách hay đèn phòng ngủ?"
-        return "Bạn muốn bật hay tắt đèn phòng khách hay đèn phòng ngủ?"
+            return "clarify_no_action", f"Bạn muốn {act_vi} đèn phòng khách hay đèn phòng ngủ?"
+        return "clarify_no_action", "Bạn muốn bật hay tắt đèn phòng khách hay đèn phòng ngủ?"
 
     dev = _extract_clause_device(norm_clean, raw_clause=normalized, input_has_diacritics=input_has_diac)
     act = _extract_clause_action(norm_clean, dev, raw_clause=normalized, input_has_diacritics=input_has_diac)
 
     if dev is not None and act is None:
         if dev == "main_door":
-            return "Bạn muốn mở hay đóng cửa chính?"
+            return "clarify_no_action", "Bạn muốn mở hay đóng cửa chính?"
         if dev == "all_lights":
-            return "Bạn muốn bật hay tắt tất cả đèn?"
+            return "clarify_no_action", "Bạn muốn bật hay tắt tất cả đèn?"
         if dev == "all_devices":
-            return "Bạn muốn bật hay tắt tất cả thiết bị?"
+            return "clarify_no_action", "Bạn muốn bật hay tắt tất cả thiết bị?"
         lbl = _DEVICE_LABELS_SHORT_VI.get(dev, "thiết bị này")
-        return f"Bạn muốn bật hay tắt {lbl}?"
+        return "clarify_no_action", f"Bạn muốn bật hay tắt {lbl}?"
 
     if act is not None and dev is None:
         if act in ("open", "close"):
-            return "Bạn muốn mở hay đóng thiết bị nào?"
-        return "Bạn muốn bật hoặc tắt thiết bị nào?"
+            return "clarify_no_action", "Bạn muốn mở hay đóng thiết bị nào?"
+        return "clarify_no_action", "Bạn muốn bật hoặc tắt thiết bị nào?"
 
-    return NONSENSE_INPUT_REPLY_VI
+    return "clarify_no_action", NONSENSE_INPUT_REPLY_VI
+
+
+def classify_ambiguous_or_unsupported_vi(text: str) -> str | None:
+    """Return a concise Vietnamese clarification/refusal for foreign, nonsense, unsupported, wrong-diacritic, or ambiguous input."""
+    _, reply = classify_no_action_response_vi(text)
+    return reply
 
 
 def format_short_action_reply_vi(
@@ -1610,24 +2150,60 @@ def handle_sensor_or_status_query_vi(
     norm_no_air = " ".join(re.sub(r"[^a-z0-9_\s]+", " ", strip_vi_accents(raw_no_air)).split())
     padded_no_air = f" {norm_no_air} "
 
-    if " thi " in padded_no_air or any(
-        k in padded_no_air
-        for k in (
-            " tao luat ", " lien ket ", " khi ", " neu ", " hen gio ", " dat lich ",
-            " reset ", " ri set ", " rex ", " rexit ", " reet ", " dat lai ", " khoi phuc ", " hoi phuc ",
-            " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " sua lenh ", " doi lenh ", " cap nhat lenh ",
-            " tao khau lenh ", " them khau lenh ", " tao ngu canh ", " them ngu canh ",
-            " tao kich ban ", " them kich ban ", " tao che do ", " them che do ", " dat che do ", " luu che do ",
-            " tao cau ", " dat cau ", " gan cau ", " luu cau ",
-            " truy van trang thai ", " truy suat trang thai ", " refresh trang thai ",
-            " re trang thai ", " rep trang thai ", " xep trang thai ", " vi sep trang thai ",
-            " vi sach trang thai ", " vi thich trang thai ",
-            " viet trang thai ", " logic trang thai ", " re logic ",
-            " thiet lap trang thai ", " save trang thai ",
+    has_cond_he_q = bool(
+        re.search(r"\bhễ\b", raw.lower())
+        if has_vi_diacritics(raw)
+        else (re.search(r"\bhe\s+(?!thong\b|mo\b|cua\b)\S+", norm_no_air) and (" thi " in padded_no_air or " la " in padded_no_air))
+    )
+    has_reset_or_macro_q = bool(
+        _MACRO_LIFECYCLE_GUARD_RE.search(padded_no_air)
+        or re.search(
+            r"\b(?:dua|dat|tra)\b.+\bve\s+(?:trang\s+thai\s+)?(?:mac\s+dinh|ban\s+dau|xuat\s+xuong|goc)\b|"
+            r"\b(?:xuat\s+xuong|factory\s+reset)\b|"
+            r"\b(?:xoa|don|huy)(?:\s+(?:bo|sach))?\s+(?:toan\s+bo|tat\s+ca|het|cac|moi)\s+(?:cac\s+)?(?:lien\s+ket|luat|quy\s+tac|cai\s+dat|cau\s+hinh|thiet\s+lap|hen\s+gio|lich)\b|"
+            r"\b(?:thiet\s+lap|chinh\s+sua|go(?:\s+bo)?|dep(?:\s+bo)?|ghi\s+nho)\s+(?:(?:giup|gium|dum|ho|cho)\s+(?:toi|minh|anh|chi|em|ban)\s+)?(?:(?:mot|cai)\s+)?(?:khau\s+lenh|cau\s+lenh|lenh|kich\s+ban|ngu\s+canh|bi\s+danh|phim\s+tat)\b",
+            norm_no_air,
+        )
+    )
+    # Never hijack save/backup utterances or keep-unchanged / deferral / past-tense safety utterances into status/sensor queries
+    if re.match(r"^(?:hay\s+|xin\s+|vui\s+long\s+)?(?:save|luu|sao\s+luu)\b", norm_no_air):
+        return None
+    if _LEADING_DEFERRAL_RE.match(raw.lower()):
+        return None
+    if not _is_status_question_vi(raw) and (
+        _KEEP_UNCHANGED_PHRASE_RE.search(raw.lower())
+        or _is_past_tense_narration_without_imperative(raw.lower())
+    ):
+        # Allow sensor questions that carry a negated device tail (e.g. 'đọc nhiệt độ, đừng bật đèn')
+        has_explicit_sensor_read = bool(
+            re.search(r"\b(?:nhiet\s+do|do\s+am|cam\s+bien|ky\s*037|dht\s*11|bao\s+nhieu|so\s+do|thong\s+so)\b", norm_no_air)
+            and re.search(r"\b(?:doc|xem|kiem\s+tra|hoi|bao\s+nhieu|the\s+nao|ra\s+sao|bao\s+cao)\b", norm_no_air)
+        )
+        if not has_explicit_sensor_read:
+            return None
+
+    if (
+        " thi " in padded_no_air
+        or has_cond_he_q
+        or has_reset_or_macro_q
+        or any(
+            k in padded_no_air
+            for k in (
+                " tao luat ", " dat luat ", " them luat ", " lien ket ", " khi ", " neu ",
+                " bat cu luc nao ", " moi luc ",
+                " hen gio ", " dat hen gio ", " dat lich ", " len lich ", " tao lich ", " lap lich ", " hen lich ",
+                " reset ", " ri set ", " dat lai ", " thiet lap lai ",
+                " khoi phuc ", " hoi phuc ", " khoi dong lai ", " cau hinh ",
+                " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " dang ky lenh ", " cai lenh ",
+                " sua lenh ", " doi lenh ", " cap nhat lenh ", " cau lenh ", " phim tat ", " ghi nho ",
+                " tao khau lenh ", " them khau lenh ", " tao ngu canh ", " them ngu canh ",
+                " tao kich ban ", " them kich ban ", " tao che do ", " them che do ", " dat che do ", " luu che do ",
+                " tao bi danh ", " dat bi danh ", " tao cau ", " dat cau ", " gan cau ", " luu cau ",
+            )
         )
     ):
         return None
-    if "," in raw and any(k in padded for k in (" dat kho ", " tieng dong lon ", " am thanh lon ", " chuyen dong lon ")) and any(
+    if "," in raw and any(k in padded for k in (" dat kho ", " tieng dong lon ", " am thanh lon ")) and any(
         v in padded for v in (" bat ", " tat ", " mo ", " dong ", " tuoi ")
     ):
         return None
@@ -1647,9 +2223,14 @@ def handle_sensor_or_status_query_vi(
                         continue
                     if norm == _pn or norm in (
                         f"kich hoat {_pn}",
+                        f"kich hoat lenh {_pn}",
                         f"chay lenh {_pn}",
+                        f"chay khau lenh {_pn}",
+                        f"chay phim tat {_pn}",
+                        f"chay kich ban {_pn}",
                         f"chay {_pn}",
                         f"thuc hien {_pn}",
+                        f"thuc hien lenh {_pn}",
                         f"dung {_pn}",
                     ):
                         return None
@@ -1691,24 +2272,146 @@ def handle_sensor_or_status_query_vi(
             "exact_spoken_reply": spoken,
         }
 
-    # 2. Sensor queries (filter out negated sensor clauses like "tôi không hỏi độ ẩm không khí")
+    # 2. Compositional sensor queries (exclude explicitly negated or keep-unchanged clauses)
     pos_sensor_norm = re.sub(
-        r"\b(?:khong\s+hoi|khong\s+xem|khong\s+phai|chu\s+khong(?:\s+phai)?|dung\s+bat|dung\s+tat)\b[^,.;!?]*",
+        r"\b(?:khong\s+(?:hoi|xem|phai|bat|tat|mo|dong|can)|chu\s+khong(?:\s+phai)?|"
+        r"dung\s+(?:bat|tat|mo|dong|chay|tuoi|dung\s+toi)|cu\s+de\s+nguyen|de\s+nguyen|giu\s+nguyen)\b[^,.;!?]*",
         " ",
         norm,
     )
     pos_padded = f" {' '.join(pos_sensor_norm.split())} "
+    raw_low_q = raw.lower()
+    raw_has_diac_q = has_vi_diacritics(raw)
     ask_temp = any(k in pos_padded for k in (" nhiet do ", " bao nhieu do ", " may do ", " do c "))
-    ask_soil = any(
+    has_soil_word = bool(re.search(r"\bđất\b", raw_low_q)) if raw_has_diac_q else (" dat " in pos_padded)
+    has_humid_word = bool(re.search(r"\bẩm\b", raw_low_q)) if raw_has_diac_q else (" am " in pos_padded)
+    has_dry_word = bool(re.search(r"\bkhô\b", raw_low_q)) if raw_has_diac_q else (" kho " in pos_padded)
+    has_wet_word = bool(re.search(r"\bướt\b", raw_low_q)) if raw_has_diac_q else (" uot " in pos_padded)
+    has_soil_prop = (
+        has_humid_word
+        or has_dry_word
+        or has_wet_word
+        or any(
+            k in pos_padded
+            for k in (
+                " do am ", " bao nhieu ", " the nao ", " ra sao ",
+                " can tuoi ", " cam bien ", " so do ", " thong so ", " gia tri ", " tinh trang ", " trang thai ", " chi so ",
+            )
+        )
+        or (bool(re.search(r"\bmức\b", raw_low_q)) if raw_has_diac_q else (" muc " in pos_padded))
+    )
+    ask_soil = (" do am dat " in pos_padded or " cam bien dat " in pos_padded) or (
+        has_soil_word and has_soil_prop
+    )
+    ask_air_hum = (
+        (
+            " do am " in pos_padded
+            or (" khong khi " in pos_padded and has_humid_word)
+        )
+        and not (ask_soil and " khong khi " not in pos_padded and " phong " not in pos_padded and " trong nha " not in pos_padded)
+    )
+    ask_sound = any(
         k in pos_padded
         for k in (
-            " do am dat ", " cam bien dat ", " dat kho ", " dat uot ", " dat co kho ",
-            " dat ngoai vuon ", " so do dat ", " dat con am ",
+            " am thanh ", " ky037 ", " ky 037 ", " tieng dong ", " tieng on ",
+            " vo tay ", " phat hien tieng ", " co tieng ", " yen tinh ", " on ao ",
         )
     )
-    ask_air_hum = (" do am " in pos_padded) and not (ask_soil and " khong khi " not in pos_padded)
-    ask_sound = any(k in pos_padded for k in (" am thanh ", " ky037 ", " ky 037 ", " tieng dong ", " vo tay "))
     ask_all_sensors = " cam bien " in pos_padded and not (ask_temp or ask_air_hum or ask_soil or ask_sound)
+
+    # Require an explicit query/measurement cue (or concise standalone sensor noun lookup) and NEVER answer
+    # sensor_query on casual non-query household statements (dusting/cleaning/wiping/arranging furniture).
+    if ask_temp or ask_air_hum or ask_soil or ask_sound or ask_all_sensors:
+        has_casual_chore = bool(
+            re.search(
+                r"\b(?:lau(?:\s+chùi|\s+bụi|\s+dọn)?|chùi|quét(?:\s+dọn)?|dọn(?:\s+dẹp)?|vệ\s+sinh|phủi(?:\s+bụi)?|bụi|sắp\s+xếp|rửa|giặt|nấu)\b",
+                raw_low_q,
+            )
+            if raw_has_diac_q
+            else re.search(r"\b(?:lau|chui|quet|don\s+dep|ve\s+sinh|phui|bui|sap\s+xep|rua|giat|nau)\b", pos_padded)
+        )
+        has_explicit_query_cue = bool(
+            "?" in raw
+            or any(
+                q in pos_padded
+                for q in (
+                    " bao nhieu ", " bao nhiu ", " may do ", " the nao ", " ra sao ", " sao ",
+                    " chua ", " co dang ", " co khong ", " hay ", " hoac ",
+                    " xem ", " doc ", " kiem tra ", " check ",
+                    " cho biet ", " cho xem ", " cho toi biet ", " cho minh biet ",
+                    " liet ke ", " bao cao ", " thong bao ", " bao cho ", " hoi ",
+                    " tinh trang ", " trang thai ", " chi so ", " so do ", " thong so ", " gia tri ",
+                    " phan tram ", " can tuoi ", " co tieng ", " phat hien tieng ",
+                    " hien tai ", " bay gio ",
+                )
+            )
+            or re.search(r"\b(?:khong|chua|nhi|chu)\s*$", pos_sensor_norm.strip())
+            or (
+                raw_has_diac_q
+                and bool(re.search(r"\b(?:mấy|đo|mức|độ\s*c|báo)\b", raw_low_q))
+            )
+            or (
+                not raw_has_diac_q
+                and any(q in pos_padded for q in (" may phan tram ", " muc ", " do c ", " nhiet do may "))
+            )
+        )
+        # Concise standalone sensor noun phrase (e.g. "nhiệt độ phòng", "độ ẩm đất", "cảm biến DHT11")
+        is_concise_sensor_lookup = (
+            not has_casual_chore
+            and len(pos_sensor_norm.split()) <= 8
+            and not re.search(
+                r"\b(?:vua|da|dang\s+lau|dang\s+don|dang\s+quet|bui)\b",
+                pos_padded,
+            )
+            and any(
+                k in pos_padded
+                for k in (" nhiet do ", " do am ", " cam bien ", " dht11 ", " ky037 ", " ky 037 ", " am thanh ")
+            )
+        )
+        if not has_explicit_query_cue and not is_concise_sensor_lookup:
+            return None
+        if has_casual_chore and "?" not in raw and not any(
+            q in pos_padded
+            for q in (
+                " bao nhieu ", " may do ", " the nao ", " ra sao ",
+                " xem ", " doc ", " kiem tra ", " check ", " cho biet ", " liet ke ", " bao cao ",
+                " chi so ", " so do ", " thong so ", " gia tri ",
+            )
+        ):
+            return None
+
+    # Wrong-diacritic & imperative precedence over sensor_query:
+    # An imperative control verb paired with a device or wrong-diacritic device head MUST NOT be hijacked into sensor_query
+    # just because a context clause mentions 'tiếng động', 'đất khô', 'nóng', 'ẩm', or 'ồn'.
+    if (ask_temp or ask_air_hum or ask_soil or ask_sound or ask_all_sensors) and "?" not in raw:
+        if _detect_wrong_diacritic_near_miss_clarification(raw) is not None:
+            return None
+        has_explicit_sensor_question_cue = bool(
+            any(
+                q in pos_padded
+                for q in (
+                    " doc ", " hoi ", " bao nhieu ", " may do ", " the nao ",
+                    " ra sao ", " so do ", " thong so ", " gia tri ", " cam bien ",
+                    " ky037 ", " ky 037 ", " dht11 ", " co dang ", " phan tram ",
+                )
+            )
+            or (raw_has_diac_q and re.search(r"\bmấy\b", raw_low_q))
+        )
+        if not has_explicit_sensor_question_cue and parse_direct_device_intents_vi(raw):
+            return None
+        # Also defer when a direct device imperative clearly governs a device even if trailing purpose says 'lên kiểm tra' / 'xem'
+        if (
+            not has_explicit_sensor_question_cue
+            and re.search(
+                r"\b(?:bat|tat|mo|dong|kich\s+hoat|ngat|cup|dung|ngung|dap|cho\s+chay|khoi\s+dong|cap\s+nguon)\b",
+                pos_padded,
+            )
+            and any(
+                d in pos_padded
+                for d in (" den ", " coi ", " cua ", " bom ", " loa ", " thiet bi ")
+            )
+        ):
+            return None
 
     if ask_temp or ask_air_hum or ask_soil or ask_sound or ask_all_sensors:
         sensors = (
@@ -1754,14 +2457,15 @@ def handle_sensor_or_status_query_vi(
             "exact_spoken_reply": spoken,
         }
 
-    # 3. Device status queries
+    # 3. Device status queries (compositional state-question markers)
     is_status_query = bool(
         any(
             k in padded
             for k in (
-                " trang thai ", " dang mo hay dong ", " dang dong hay mo ",
+                " trang thai ", " tinh trang ",
+                " dang mo hay dong ", " dang dong hay mo ",
                 " dang mo hay da dong ", " dang mo hoac dong ", " dang dong hoac mo ",
-                " dang bat hay tat ", " dang tat hay bat ",
+                " dang bat hay tat ", " dang tat hay bat ", " dang sang hay tat ", " dang tat hay sang ",
                 " dang bat hay da tat ", " dang bat hoac tat ", " dang tat hoac bat ",
                 " co dang bat ",
                 " co dang tat ", " co dang mo ", " co dang dong ", " co mo khong ",
@@ -1769,16 +2473,38 @@ def handle_sensor_or_status_query_vi(
                 " dang mo khong ", " dang bat khong ", " dang dong khong ",
                 " dang tat khong ", " dang keu khong ", " co dang keu ",
                 " dang the nao ", " thiet bi nao dang ", " nhung thiet bi nao ",
+                " dang bat gi ", " dang mo gi ", " co gi dang bat ", " co gi dang mo ",
+                " nha minh dang bat ", " nha dang bat ",
             )
+        )
+        or re.search(
+            r"\b(?:dang\s+)?(?:bat|sang|mo|keu|chay)\s+(?:hay|hoac)\s+(?:da\s+)?(?:tat|dong|ngung|dung)\b|"
+            r"\b(?:dang\s+)?(?:tat|dong)\s+(?:hay|hoac)\s+(?:da\s+)?(?:bat|sang|mo)\b|"
+            r"\b(?:da\s+)?(?:duoc\s+)?(?:khep|dong|mo|khoa|chot|bat|tat|sang|chay|keu|hu|ngung|dung)(?:\s+(?:lai|ra|len|kin|ky|chat|het|roi)){0,2}\s+chua\b|"
+            r"\bco\s+(?:dang\s+|con\s+|bi\s+)?(?:mo|dong|khep|khoa|chot|bat|tat|sang|chay|keu|hu)(?:\s+(?:lai|ra|len|kin))?\s+khong\b|"
+            r"\b(?:kiem\s+tra|xem)(?:\s+(?:giup|ho|gium|thu|lai))?\s+.+\s+(?:dang|da|co)\b",
+            norm,
         )
     )
     if not is_status_query:
         return None
 
+    actor_uid = str(getattr(session, "user_id", "") or "").strip() or None
     # All devices status query
-    if any(k in padded for k in (" cac thiet bi ", " tat ca thiet bi ", " toan bo thiet bi ", " trong nha ", " thiet bi nao ")):
+    is_all_dev_status_cue = any(
+        k in padded
+        for k in (
+            " cac thiet bi ", " tat ca thiet bi ", " tat ca cac thiet bi ",
+            " toan bo thiet bi ", " toan bo cac thiet bi ", " sau thiet bi ", " 6 thiet bi ",
+            " may thiet bi ", " moi thiet bi ", " trong nha ", " thiet bi nao ",
+            " nha minh ", " ca nha ", " dang bat gi ", " dang mo gi ",
+            " co gi dang bat ", " co gi dang mo ", " he thong ",
+        )
+    )
+    single_dev_probe = _extract_clause_device(norm, raw_clause=raw)
+    if is_all_dev_status_cue or (single_dev_probe is None and any(k in padded for k in (" trang thai ", " tinh trang ", " thiet bi "))):
         if hasattr(engine, "list_accessible_devices"):
-            devs = engine.list_accessible_devices(actor_tier=actor_tier)
+            devs = engine.list_accessible_devices(actor_tier=actor_tier, actor_user_id=actor_uid)
         else:
             devs = [
                 {
@@ -1800,7 +2526,7 @@ def handle_sensor_or_status_query_vi(
         }
 
     # Single device status query (pass raw_clause so accented 'đèn' matches and 'của'/'coi' never false-match!)
-    dev = _extract_clause_device(norm, raw_clause=raw)
+    dev = single_dev_probe
     if dev is None:
         return None
 
@@ -1815,7 +2541,7 @@ def handle_sensor_or_status_query_vi(
     recs: list[dict[str, Any]] = []
     for td in targets:
         if hasattr(engine, "get_device_state_record"):
-            rec = engine.get_device_state_record(td, actor_tier=actor_tier)
+            rec = engine.get_device_state_record(td, actor_tier=actor_tier, actor_user_id=actor_uid)
             if not rec.get("ok"):
                 if rec.get("rbac_blocked"):
                     deny = str(rec.get("exact_spoken_reply") or "Xin lỗi, bạn không có quyền thực hiện lệnh này.")

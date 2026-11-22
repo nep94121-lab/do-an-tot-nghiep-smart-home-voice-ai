@@ -305,9 +305,10 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             return False
         if cached.session_id in get_session_store()._revoked_sids:
             return False
-        rest_user = _REST_ENGINE.users.get(cached.user_id)
-        if isinstance(rest_user, dict) and not rest_user.get("active", True):
-            return False
+        if int(cached.tier) != 1:
+            rest_user = _REST_ENGINE.users.get(cached.user_id)
+            if isinstance(rest_user, dict) and not rest_user.get("active", True):
+                return False
         return True
 
     def _resolve_ws_session(self, msg: dict[str, Any] | None = None) -> UserSession:
@@ -326,6 +327,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
             stored = get_session_store().get_session(self.ws_session.session_id)
             if stored is not None:
                 if session_is_current(stored):
+                    self.ws_session = stored
                     self._cached_ws_actor = stored
                     self._cached_ws_actor_ts = now_pc
                     return stored
@@ -354,14 +356,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
         if actor.is_authenticated and not actor.is_expired():
             uid = str(actor.user_id or "guest").strip() or "guest"
             target_tier = int(actor.tier)
-            target_role = str(actor.role or "GUEST")
+            raw_role = str(actor.role or ("ADMIN" if target_tier == 1 else ("MEMBER" if target_tier == 2 else "CHILD_GUEST"))).strip().upper()
+            target_role = "ADMIN" if (target_tier == 1 and raw_role in ("ADMIN", "OWNER")) else raw_role
             target_name = str(actor.display_name or uid)
             existing = self.engine.users.get(uid)
             need_set_active = (
                 not isinstance(existing, dict)
                 or getattr(self.engine, "_current_user_id", None) != uid
                 or self.engine.current_tier != target_tier
-                or self.engine.current_role != target_role
+                or str(self.engine.current_role).upper() != target_role
                 or self.last_mic_turn_blocked
             )
             if not isinstance(existing, dict):
@@ -1338,6 +1341,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             request_tier=ws_sess.tier,
                             request_role=ws_sess.role,
                             request_user_name=ws_sess.display_name,
+                            request_user_id=ws_sess.user_id,
                             trigger_chains=True,
                             target_state=target_state,
                             client_id=client_id,
@@ -1403,7 +1407,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             })
                             await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
                             continue
-                        self.engine.set_active_user(OWNER_ID)
+                        self._apply_actor_to_engine(ws_sess)
                         t_name = str(msg.get("target_name") or msg.get("user_name") or "").strip()
                         t_tier = int(msg.get("target_tier") or msg.get("tier") or 3)
                         res_grant = await self.engine.grant_user_permission(target_name=t_name, target_tier=t_tier)
@@ -1421,7 +1425,7 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                             })
                             await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
                             continue
-                        self.engine.set_active_user(OWNER_ID)
+                        self._apply_actor_to_engine(ws_sess)
                         t_name = str(msg.get("target_name") or msg.get("user_name") or "").strip()
                         res_revoke = await self.engine.revoke_user_permission(target_name=t_name)
                         await self.send_ws_json({"type": "permission_revoked", "result": res_revoke})

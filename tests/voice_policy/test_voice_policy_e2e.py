@@ -556,23 +556,26 @@ def test_round2_nlu_echo_guard_and_3d_pin_contrast_fixes() -> None:
     for bad in ("mở cửa cuốn", "đóng rèm cửa", "đóng dèm cửa", "bật điều hòa", "cửa chính", "tất cả đèn"):
         assert parse_direct_device_intents_vi(bad) == [], f"Unexpected action on {bad!r}"
 
-    # 3. Regional / clipped direct commands preserve polarity
-    assert parse_direct_device_intents_vi("Bật thiết đèn.") == [
+    # 3. Natural regional/colloquial direct commands preserve polarity; deleted ASR garbles must NOT falsely act
+    assert parse_direct_device_intents_vi("Bật hết đèn.") == [
         {"device_id": "living_room_light", "action": "turn_on"},
         {"device_id": "bedroom_light", "action": "turn_on"},
     ]
-    assert parse_direct_device_intents_vi("tắt hoa") == [{"device_id": "speaker_amp", "action": "turn_off"}]
-    assert parse_direct_device_intents_vi("hóa cửa chính") == [{"device_id": "main_door", "action": "close"}]
-    assert parse_direct_device_intents_vi("bật ngòi hú") == [{"device_id": "alarm_siren", "action": "turn_on"}]
+    assert parse_direct_device_intents_vi("tắt loa") == [{"device_id": "speaker_amp", "action": "turn_off"}]
+    assert parse_direct_device_intents_vi("khóa cửa chính") == [{"device_id": "main_door", "action": "close"}]
+    assert parse_direct_device_intents_vi("bật còi hú") == [{"device_id": "alarm_siren", "action": "turn_on"}]
+    # Deleted benchmark garbles must produce 0 direct mutations
+    for deleted_garble in ("Bật thiết đèn.", "tắt hoa", "bật ngòi hú", "vận hành phòng khách"):
+        assert parse_direct_device_intents_vi(deleted_garble) == [], f"Deleted garble leaked action: {deleted_garble!r}"
 
-    # 4. Spoken Vietnamese numbers, custom-command ASR wrappers, and sensor triggers
+    # 4. Spoken Vietnamese numbers, compositional custom commands, and clean sensor triggers
     assert "7 gio" in _normalize_vi_spoken_numbers("bảy giờ sáng")
     assert "2 giay" in _normalize_vi_spoken_numbers("hai giây nữa")
-    assert _parse_sensor_trigger("Khi có biến động lớn") == ("sound_sensor", "LOUD")
+    assert _parse_sensor_trigger("Khi có tiếng động lớn") == ("sound_sensor", "LOUD")
     for utt in (
-        "Sau khi đi làm là tắt tất cả đèn và đóng cửa chính.",
-        "Chào, hãy đi làm là tắt tất cả đèn và đóng cửa chính.",
-        "Chỉ tạo lệnh ghi âm là tắt tất cả đèn và đóng cửa chính.",
+        "Tạo lệnh đi làm là tắt tất cả đèn và đóng cửa chính.",
+        "Thêm khẩu lệnh ra ngoài để tắt tất cả đèn và đóng cửa chính.",
+        "Lưu chế độ rời nhà gồm tắt tất cả đèn và đóng cửa chính.",
     ):
         parsed = _parse_custom_command_create_or_edit(utt)
         assert parsed is not None and len(parsed[1]) >= 2, f"Custom command parse failed: {utt!r}"
@@ -683,57 +686,54 @@ def test_round3_offline_nlu_and_policy_regressions() -> None:
         assert engine.devices["living_room_light"]["state"] == "OFF"
         assert engine.devices["bedroom_light"]["state"] == "OFF"
 
-        # 5. J01_13 ASR slip 'bạn nguồn mệt loa' -> turns ON speaker_amp immediately
-        r_amp = client.post("/api/voice_command", headers=h1, json={"transcript": "bạn nguồn mệt loa"})
+        # 5. Clean speaker amp command turns ON speaker_amp; deleted garble must NOT act
+        r_amp_bad = client.post("/api/voice_command", headers=h1, json={"transcript": "bạn nguồn mệt loa"})
+        assert r_amp_bad.status_code == 200 and r_amp_bad.json().get("executed") is False
+        r_amp = client.post("/api/voice_command", headers=h1, json={"transcript": "bật nguồn mạch loa"})
         assert r_amp.status_code == 200 and r_amp.json().get("executed") is True
         assert engine.devices["speaker_amp"]["state"] == "ON"
 
-        # 6. J04_14 ASR slip 'khôi phục ngày đàn tốt' -> requires confirmation for Tier 1, denied for Tier 2
-        r_fr_t2 = client.post("/api/voice_command", headers=h2, json={"transcript": "khôi phục ngày đàn tốt"})
+        # 6. Factory reset requires confirmation for Tier 1, denied for Tier 2; deleted garble must NOT trigger factory reset
+        r_fr_bad = client.post("/api/voice_command", headers=h1, json={"transcript": "khôi phục ngày đàn tốt"})
+        assert r_fr_bad.status_code == 200 and r_fr_bad.json().get("requires_confirmation") is False
+        r_fr_t2 = client.post("/api/voice_command", headers=h2, json={"transcript": "khôi phục cài đặt gốc"})
         assert r_fr_t2.status_code == 403
-        r_fr_t1 = client.post("/api/voice_command", headers=h1, json={"transcript": "khôi phục ngày đàn tốt"})
+        r_fr_t1 = client.post("/api/voice_command", headers=h1, json={"transcript": "khôi phục cài đặt gốc"})
         assert r_fr_t1.status_code == 200 and r_fr_t1.json().get("requires_confirmation") is True
-        # Cancel with ASR slip 'đồng thời' (for 'không thôi')
-        r_can = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng thời"})
+        r_can = client.post("/api/voice_command", headers=h1, json={"transcript": "thôi hủy"})
         assert r_can.status_code == 200 and r_can.json().get("executed") is False
 
-        # 7. Scoped reset ASR slip 'reet lại trạng thái thiết bị' -> requires confirmation
-        r_rs = client.post("/api/voice_command", headers=h1, json={"transcript": "reet lại trạng thái thiết bị"})
+        # 7. Clean device reset phrasing ('hãy thiết lập lại thiết bị') stages confirmation; deleted garbles do NOT
+        r_rs_bad = client.post("/api/voice_command", headers=h1, json={"transcript": "re logic trạng thái thiết nghi"})
+        assert r_rs_bad.status_code == 200 and r_rs_bad.json().get("requires_confirmation") is False
+        r_rs = client.post("/api/voice_command", headers=h1, json={"transcript": "hãy thiết lập lại thiết bị"})
         assert r_rs.status_code == 200 and r_rs.json().get("requires_confirmation") is True
         client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
-        # 8. Schedule modify slip 'dự lịch 7 giờ thành 8 giờ' & delete rule slip 'xóa liên thiếp đèn phòng khách'
+        # 8. Clean schedule modify & rule delete stage confirmation cleanly
         r_mk = client.post("/api/voice_command", headers=h1, json={"transcript": "7 giờ sáng bật đèn phòng khách"})
         assert r_mk.status_code == 200 and r_mk.json().get("requires_confirmation") is True
         r_mk_ok = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng ý"})
         assert r_mk_ok.status_code == 200 and r_mk_ok.json().get("confirmed") is True
 
-        r_mod = client.post("/api/voice_command", headers=h1, json={"transcript": "dự lịch 7 giờ thành 8 giờ"})
+        r_mod = client.post("/api/voice_command", headers=h1, json={"transcript": "sửa lịch 7 giờ thành 8 giờ"})
         assert r_mod.status_code == 200 and r_mod.json().get("requires_confirmation") is True
         client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
-        r_del_rule = client.post("/api/voice_command", headers=h1, json={"transcript": "xóa liên thiếp đèn phòng khách"})
+        r_del_rule = client.post("/api/voice_command", headers=h1, json={"transcript": "xóa liên kết đèn phòng khách"})
         assert r_del_rule.status_code == 200 and r_del_rule.json().get("requires_confirmation") is True
         client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
-        # 9. Iteration-3 ASR NLU slips: 're logic trạng thái thiết nghi', 'dự định 7 giờ thành 8 giờ', 'hát đèn' -> 'tắt đèn'
-        r_rl = client.post("/api/voice_command", headers=h1, json={"transcript": "re logic trạng thái thiết nghi"})
-        assert r_rl.status_code == 200 and r_rl.json().get("requires_confirmation") is True
-        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
-
-        r_dd = client.post("/api/voice_command", headers=h1, json={"transcript": "dự định bảy giờ thành tám giờ"})
-        assert r_dd.status_code == 200 and r_dd.json().get("requires_confirmation") is True
-        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
-
-        r_ht = client.post("/api/voice_command", headers=h1, json={"transcript": "sau ba giây hát đèn hò khách"})
+        # 9. Clean countdown timer stages confirmation cleanly
+        r_ht = client.post("/api/voice_command", headers=h1, json={"transcript": "sau ba giây tắt đèn phòng khách"})
         assert r_ht.status_code == 200 and r_ht.json().get("requires_confirmation") is True
         assert "tắt đèn phòng khách" in str(r_ht.json().get("reply") or "").lower()
         client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
-        # 10. Multi-clause without comma ('tắt đèn phòng khách tắt đèn ngồi ngủ và tắt nguồn vài loa') -> all 3 devices
+        # 10. Multi-clause without comma resolves all 3 devices cleanly
         from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
 
-        m3 = parse_direct_device_intents_vi("tắt đèn phòng khách tắt đèn ngồi ngủ và tắt nguồn vài loa")
+        m3 = parse_direct_device_intents_vi("tắt đèn phòng khách tắt đèn phòng ngủ và tắt nguồn mạch loa")
         assert {it["device_id"] for it in m3} == {"living_room_light", "bedroom_light", "speaker_amp"}
         assert all(it["action"] == "turn_off" for it in m3)
 
@@ -950,7 +950,6 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
     # 3. Fixed dem/đêm collision and conditional 'cửa kính' escalation
     assert _classify_offline_transcript_kind("ban đêm không ngủ") == ("unrecognized", None)
     assert _classify_offline_transcript_kind("khi mở cửa kính thì ban ngày gom rách") == ("unrecognized", None)
-    assert _classify_offline_transcript_kind("vì sách trạng thái thiết bị") == ("recognized", None)
 
     # 4. Small talk including 'gặp lại sau' & noisy small-talk corruptions -> 0 executions, 0 device mutations
     assert classify_small_talk_vi("gặp lại sau") is not None
@@ -971,9 +970,12 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
             exp = "CLOSED" if did == "main_door" else "OFF"
             assert info["state"] == exp, f"Device {did} mutated during small talk!"
 
-        # Reset via 'vì sách trạng thái thiết bị' must stage confirmation, not execute
-        r_rst = client.post("/api/voice_command", headers=h1, json={"transcript": "vì sách trạng thái thiết bị"})
+        # Deleted garble 'vì sách trạng thái thiết bị' must NOT trigger reset; clean phrasing DOES stage confirmation
+        r_rst_bad = client.post("/api/voice_command", headers=h1, json={"transcript": "vì sách trạng thái thiết bị"})
+        assert r_rst_bad.status_code == 200 and r_rst_bad.json().get("requires_confirmation") is False
+        r_rst = client.post("/api/voice_command", headers=h1, json={"transcript": "đặt lại trạng thái thiết bị"})
         assert r_rst.status_code == 200 and r_rst.json().get("requires_confirmation") is True
+        client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
     # 5. Strict all-rows false_action evaluation check (wrong device, flipped polarity, unexpected confirm_prompt execution)
     st_imm = JourneyStep("T1", "J", 2, "s", "bac_male", 1, "bật còi", "immediate_device", expected_device_states={"alarm_siren": "ON"})
@@ -1012,9 +1014,10 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
         "nguồn không là là",
         [{"device_id": "living_room_light", "action": "turn_on"}],
     )
-    assert parse_direct_device_intents_vi("bật ngùng mặt loa") == [
+    assert parse_direct_device_intents_vi("cấp nguồn mạch loa") == [
         {"device_id": "speaker_amp", "action": "turn_on"}
     ]
+    assert parse_direct_device_intents_vi("bật ngùng mặt loa") == []
     assert parse_direct_device_intents_vi("không mở cửa") == []
     assert parse_direct_device_intents_vi("đừng bật đèn phòng khách") == []
 
@@ -1035,8 +1038,10 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
     )
     assert g_j06 is not None and g_j06["ok"] is False and g_j06["text"] == ""
 
+    # Bare 'tắt đèn' is itself safe (clarifies with 0 intents); verify 2-word uncorroborated direct command ('mở cửa') is gated
+    assert parse_direct_device_intents_vi("tắt đèn") == []
     g_j52 = gemini_stt._run_high_noise_hallucination_gate(
-        gemini_text="tắt đèn",
+        gemini_text="mở cửa",
         pcm16=adult_pcm,
         sr=16000,
         duration_sec=1.50,
@@ -1510,6 +1515,276 @@ def test_round7_ctc_bare_noun_tail_guard_and_den_tone_verification() -> None:
                 )
                 is True
             )
+
+
+def test_round8_general_nlu_goals_1_to_7_and_thresholds() -> None:
+    """Round 8 generic regressions: bare-light clarification (accented + unaccented), unlisted rooms,
+    per-rule numeric thresholds (no hardcoded 35C/40%), clause decomposition, generic hesitation/deferral/exclusion,
+    sound query without literal KY-037, conditional rule precedence over custom command, and reset phrasing."""
+    from simulator.automation_repo import list_automation_rules
+    from simulator.server import app
+    from simulator.voice.vietnamese_policy import (
+        classify_ambiguous_or_unsupported_vi,
+        classify_small_talk_vi,
+        parse_direct_device_intents_vi,
+    )
+
+    # Goal 2: Bare 'đèn' (BOTH accented AND unaccented) MUST clarify, NEVER mutate living_room_light
+    for bare_light in ("bật đèn", "tắt đèn", "bat den", "tat den", "mở đèn đi"):
+        assert parse_direct_device_intents_vi(bare_light) == [], f"Bare light mutated: {bare_light!r}"
+        clar = classify_ambiguous_or_unsupported_vi(bare_light) or ""
+        assert "phòng khách" in clar.lower() and "phòng ngủ" in clar.lower(), f"Bad clarify for {bare_light!r}: {clar!r}"
+
+    # Goal 2: Unlisted rooms after 'đèn' MUST refuse with 0 mutations
+    for unlisted in (
+        "bật đèn bếp",
+        "tắt đèn hành lang",
+        "bật đèn ban công",
+        "bật đèn sân thượng",
+        "tắt đèn gác xép",
+        "bật đèn nhà tắm",
+        "bật đèn nhà vệ sinh",
+    ):
+        assert parse_direct_device_intents_vi(unlisted) == [], f"Unlisted room mutated: {unlisted!r}"
+
+    # Goal 4: Clause decomposition (descriptive/reason prefix + imperative tail -> 0 polarity flips)
+    assert parse_direct_device_intents_vi("Còi báo động kêu inh ỏi rồi, tắt ngay") == [
+        {"device_id": "alarm_siren", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("Đủ nước rồi, ngưng chạy máy bơm") == [
+        {"device_id": "garden_pump", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("Ngoài cổng có người tới, mở cửa chính") == [
+        {"device_id": "main_door", "action": "open"}
+    ]
+    assert parse_direct_device_intents_vi("Tối om rồi, bật đèn phòng khách") == [
+        {"device_id": "living_room_light", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("Phòng ngủ thì bật đèn") == [
+        {"device_id": "bedroom_light", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("Bật cả đèn phòng khách lẫn đèn phòng ngủ") == [
+        {"device_id": "living_room_light", "action": "turn_on"},
+        {"device_id": "bedroom_light", "action": "turn_on"},
+    ]
+    assert parse_direct_device_intents_vi("Cúp nguồn mạch loa") == [
+        {"device_id": "speaker_amp", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("Kích hoạt còi báo động") == [
+        {"device_id": "alarm_siren", "action": "turn_on"}
+    ]
+    # Standalone-only help guard: polite tail 'giúp mình' must NOT hijack commands
+    assert classify_small_talk_vi("mở cửa chính giúp mình") is None
+    assert classify_small_talk_vi("giúp mình với") is not None
+
+    # Goal 5: Generic hesitation, deferral, past-tense narration, and all-6-device exclusions
+    for no_act in (
+        "khoan đã bật đèn phòng khách",
+        "khoan hẵng mở cửa chính",
+        "chờ chút hãy bật máy bơm",
+        "từ từ tắt còi báo động",
+        "để sau mở cửa chính",
+        "chưa muốn bật đèn phòng ngủ",
+        "hồi sáng tôi đã bật đèn phòng khách",
+        "vừa rồi đã đóng cửa chính",
+        "để nguyên cửa chính",
+        "giữ nguyên đèn phòng ngủ",
+    ):
+        assert parse_direct_device_intents_vi(no_act) == [], f"Safety guard leaked action on {no_act!r}"
+
+    # Exclusion across all 6 devices (set-difference on 'trừ')
+    assert parse_direct_device_intents_vi("tắt hết đèn trừ đèn phòng ngủ") == [
+        {"device_id": "living_room_light", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("bật máy bơm chứ không phải cửa chính") == [
+        {"device_id": "garden_pump", "action": "turn_on"}
+    ]
+
+    engine = _reset_engine_clean()
+    h1, _, _, _ = _seed_sessions()
+
+    with TestClient(app) as client:
+        # Goal 2 E2E: bare 'bật đèn' clarifies with 0 device mutation
+        r_bare = client.post("/api/voice_command", headers=h1, json={"transcript": "bật đèn"})
+        assert r_bare.status_code == 200 and r_bare.json().get("executed") is False
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+        assert "phòng khách" in _assert_vi_reply(r_bare.json()).lower()
+
+        # Goal 7 T116: sound-sensor query without literal KY-037
+        asyncio.run(engine.update_sound_telemetry(sound_detected=True))
+        r_snd = client.post("/api/voice_command", headers=h1, json={"transcript": "Cảm biến có đang phát hiện tiếng động không?"})
+        assert r_snd.status_code == 200 and r_snd.json().get("kind") == "sensor_query"
+        assert "tiếng động lớn" in _assert_vi_reply(r_snd.json()).lower()
+
+        # Goal 7 T139: conditional rule grammar takes precedence over custom command
+        r_t139 = client.post("/api/voice_command", headers=h1, json={"transcript": "Tạo lệnh cứ mở cửa chính là đèn phòng khách tự bật."})
+        assert r_t139.status_code == 200
+        d_t139 = r_t139.json()
+        assert d_t139.get("requires_confirmation") is True
+        assert d_t139.get("action_kind") in ("create_automation_rule", "create_compound_rule")
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "ok"}).json().get("confirmed") is True
+        client.post("/api/device", headers=h1, json={"device_id": "main_door", "action": "open"})
+        assert engine.devices["living_room_light"]["state"] == "ON"
+
+        # Goal 3: Per-rule numeric thresholds (>30°C triggers at 31°C, NOT at 29°C; >34°C triggers at 35°C, NOT at 32°C)
+        _reset_engine_clean()
+        r_th1 = client.post("/api/text_command", headers=h1, json={"text": "Khi nhiệt độ trên 30 độ thì bật đèn phòng khách"})
+        assert r_th1.status_code == 200 and r_th1.json().get("requires_confirmation") is True
+        assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
+
+        r_th2 = client.post("/api/text_command", headers=h1, json={"text": "Khi nhiệt độ trên 34 độ thì bật còi báo động"})
+        assert r_th2.status_code == 200 and r_th2.json().get("requires_confirmation") is True
+        assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
+
+        asyncio.run(engine.update_sensor_telemetry(temp_c=29.0, humidity_pct=60.0))
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+        assert engine.devices["alarm_siren"]["state"] == "OFF"
+
+        asyncio.run(engine.update_sensor_telemetry(temp_c=31.5, humidity_pct=60.0))
+        assert engine.devices["living_room_light"]["state"] == "ON"
+        assert engine.devices["alarm_siren"]["state"] == "OFF"
+
+        asyncio.run(engine.update_sensor_telemetry(temp_c=35.0, humidity_pct=60.0))
+        assert engine.devices["alarm_siren"]["state"] == "ON"
+
+        # Soil threshold < 50% triggers at 48% (NOT collapsed to hardcoded 40%!)
+        _reset_engine_clean()
+        r_soil = client.post("/api/text_command", headers=h1, json={"text": "Khi độ ẩm đất dưới 50% thì bật đèn phòng ngủ"})
+        assert r_soil.status_code == 200 and r_soil.json().get("requires_confirmation") is True
+        assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
+
+        asyncio.run(engine.update_soil_moisture_telemetry(55.0))
+        assert engine.devices["bedroom_light"]["state"] == "OFF"
+        asyncio.run(engine.update_soil_moisture_telemetry(48.0))
+        assert engine.devices["bedroom_light"]["state"] == "ON"
+        assert len(list_automation_rules()) >= 0
+
+
+def test_round8_remediation1_general_structural_safety_and_nlu() -> None:
+    """Verify all 7 general structural fixes: deferral/keep-unchanged/past-narration safety,
+    wrong-diacritic & imperative precedence over sensor_query, benign save/status vs reset,
+    query_members & macro-creation guards, generalized direct/context/unaccented/unlisted-room parsing,
+    broadened confirmation/cancellation, and weekday-range schedules + sound rules + all-device status."""
+    from simulator.automation_engine import parse_weekdays_vi
+    from simulator.automation_nlu import _classify_confirmation_utterance
+    from simulator.server import app
+    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+    # 1. Weekday ranges (digits & spoken Vietnamese)
+    assert parse_weekdays_vi("lịch từ thứ 2 đến thứ 6") == [0, 1, 2, 3, 4]
+    assert parse_weekdays_vi("lịch từ thứ hai đến thứ sáu") == [0, 1, 2, 3, 4]
+    assert parse_weekdays_vi("lịch thứ 2 tới thứ 7") == [0, 1, 2, 3, 4, 5]
+    assert parse_weekdays_vi("lịch từ thứ hai đến chủ nhật") == [0, 1, 2, 3, 4, 5, 6]
+    assert parse_weekdays_vi("lịch làm việc trong tuần") == [0, 1, 2, 3, 4]
+    assert parse_weekdays_vi("lịch cuối tuần") == [5, 6]
+
+    # 2. Broadened confirmation & cancellation classifier
+    for c_yes in (
+        "chốt", "chốt đi", "chốt luôn", "ừ chốt luôn giúp anh nhé",
+        "vâng đồng ý thực hiện giúp tôi đi", "chuẩn rồi làm đi em",
+        "ok lưu đi nhé", "được tạo đi giúp tôi", "xác nhận xóa đi", "oke reset đi", "ừ hủy đi",
+    ):
+        assert _classify_confirmation_utterance(c_yes, has_pending=True) == "confirm", f"Missed confirm: {c_yes!r}"
+    for c_no in (
+        "hủy bỏ", "thôi không làm nữa đâu em", "không cần nữa ạ", "dừng lại đi", "đừng làm nhé",
+    ):
+        assert _classify_confirmation_utterance(c_no, has_pending=True) == "cancel", f"Missed cancel: {c_no!r}"
+
+    # 3. Direct, context-clause, multi-device, unaccented, and unlisted-room prepositions
+    assert parse_direct_device_intents_vi("tat den phong ngu") == [{"device_id": "bedroom_light", "action": "turn_off"}]
+    assert parse_direct_device_intents_vi("mo cua chinh") == [{"device_id": "main_door", "action": "open"}]
+    assert parse_direct_device_intents_vi("bat may bom tuoi cay giup em") == [{"device_id": "garden_pump", "action": "turn_on"}]
+    assert parse_direct_device_intents_vi("Ngoài sân tối quá bật đèn phòng khách giúp tôi") == [
+        {"device_id": "living_room_light", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("Mấy luống rau ngoài sân héo rồi khởi động máy bơm tưới cây lên hộ tôi") == [
+        {"device_id": "garden_pump", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("Phòng khách thì tắt đèn, ngoài vườn thì bật bơm") == [
+        {"device_id": "living_room_light", "action": "turn_off"},
+        {"device_id": "garden_pump", "action": "turn_on"},
+    ]
+    assert parse_direct_device_intents_vi("mở đèn ngoài ban công") == []
+    assert parse_direct_device_intents_vi("bật đèn ở nhà bếp") == []
+
+    engine = _reset_engine_clean()
+    h1, _, _, _ = _seed_sessions()
+    with TestClient(app) as client:
+        # 4. Deferral + 'kích hoạt', keep-unchanged, and past-tense narration -> 0 mutations, executed=False
+        for safe_utt in (
+            "Khoan hẵng kích hoạt còi báo động nhé, tôi còn đang kiểm tra.",
+            "Chờ chút, đừng mở cửa chính, tôi ra ngay.",
+            "Cứ để nguyên đèn phòng khách nhé.",
+            "Giữ nguyên trạng thái đèn phòng ngủ nhé.",
+            "Hồi sáng tôi đã bật máy bơm tưới cây rồi.",
+            "Lúc nãy anh vừa mới đóng cửa chính rồi.",
+        ):
+            r = client.post("/api/voice_command", headers=h1, json={"transcript": safe_utt})
+            d = r.json()
+            assert r.status_code == 200 and d.get("executed") is False and d.get("requires_confirmation") is False, f"Leak on {safe_utt!r}: {d}"
+            assert d.get("kind") == "negation_no_action", f"Wrong kind on {safe_utt!r}: {d.get('kind')}"
+
+        # 5. Wrong-diacritic over sensor_query -> clarify_no_action (executed=False), NEVER sensor_query
+        r_wd = client.post("/api/voice_command", headers=h1, json={"transcript": "Ngoài sân có tiếng động lạ, bật côi báo động lên"})
+        assert r_wd.status_code == 200 and r_wd.json().get("executed") is False
+        assert r_wd.json().get("kind") == "clarify_no_action"
+
+        # 6. Imperative with noise/dryness context -> executes device, NOT sensor_query
+        r_imp = client.post("/api/voice_command", headers=h1, json={"transcript": "Đất ngoài vườn khô quá rồi, bật máy bơm tưới cây lên hộ tôi"})
+        assert r_imp.status_code == 200 and r_imp.json().get("executed") is True
+        assert engine.devices["garden_pump"]["state"] == "ON"
+
+        # 7. Benign save/status NEVER triggers factory_reset or reset_devices
+        for benign in ("Lưu trạng thái thiết bị hiện tại.", "Save trạng thái hệ thống."):
+            rb = client.post("/api/text_command", headers=h1, json={"text": benign})
+            assert rb.status_code == 200 and rb.json().get("requires_confirmation") is False
+
+        # 8. Compositional macro creation hard-blocks premature device execution & run/delete beats query_custom_commands
+        _reset_engine_clean()
+        rm = client.post(
+            "/api/voice_command",
+            headers=h1,
+            json={"transcript": "Thiết lập giùm tôi một lệnh riêng tên là tiếp khách để bật đèn phòng khách và mở cửa chính."},
+        )
+        assert rm.status_code == 200 and rm.json().get("requires_confirmation") is True
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+        assert engine.devices["main_door"]["state"] == "CLOSED"
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "chốt luôn giúp anh nhé"}).json().get("confirmed") is True
+
+        r_run = client.post("/api/voice_command", headers=h1, json={"transcript": "Kích hoạt lệnh tiếp khách"})
+        assert r_run.status_code == 200 and r_run.json().get("requires_confirmation") is True
+        assert r_run.json().get("action_kind") == "run_custom_command"
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "hủy bỏ nhé"}).json().get("cancelled") is True
+
+        r_del = client.post("/api/voice_command", headers=h1, json={"transcript": "Gỡ bỏ lệnh tiếp khách giúp tôi"})
+        assert r_del.status_code == 200 and r_del.json().get("requires_confirmation") is True
+        assert r_del.json().get("action_kind") == "delete_custom_command"
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "ok xóa đi"}).json().get("confirmed") is True
+
+        # 9. Weekday-range schedule does NOT trigger clarify_near_miss_timer
+        r_wd_sc = client.post(
+            "/api/voice_command",
+            headers=h1,
+            json={"transcript": "Đặt lịch định kỳ từ thứ hai đến thứ sáu lúc 7 giờ 30 bật đèn phòng khách."},
+        )
+        assert r_wd_sc.status_code == 200 and r_wd_sc.json().get("requires_confirmation") is True
+        assert r_wd_sc.json().get("action_kind") == "create_schedule"
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"}).json().get("cancelled") is True
+
+        # 10. Sound rule trigger & all-devices status query
+        r_snd_rule = client.post(
+            "/api/voice_command",
+            headers=h1,
+            json={"transcript": "Bất cứ lúc nào có tiếng ồn bất thường thì bật còi báo động."},
+        )
+        assert r_snd_rule.status_code == 200 and r_snd_rule.json().get("requires_confirmation") is True
+        assert client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"}).json().get("cancelled") is True
+
+        r_st = client.post("/api/voice_command", headers=h1, json={"transcript": "Nhà mình đang bật gì thế?"})
+        assert r_st.status_code == 200 and r_st.json().get("kind") == "device_status_query"
+        assert len(r_st.json().get("devices") or []) == 6
+
+
 
 
 
