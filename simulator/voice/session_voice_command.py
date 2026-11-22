@@ -480,8 +480,8 @@ async def execute_session_voice_intents(
                 "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
             })
 
-    # 2. Sensor & device status queries execute immediately with real values
-    query_info = handle_sensor_or_status_query_vi(transcript, engine, session)
+    # 2. Sensor & device status queries execute immediately with real values (unless user invoked a saved custom command)
+    query_info = handle_sensor_or_status_query_vi(transcript, engine, session) if saved_custom is None else None
     if query_info is not None:
         await handle_pending_interruption_if_any(
             raw_text=transcript,

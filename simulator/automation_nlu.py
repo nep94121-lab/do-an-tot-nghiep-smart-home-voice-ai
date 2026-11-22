@@ -32,6 +32,7 @@ from simulator.auth.tier_permissions import can_control_device
 from simulator.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
     PENDING_CONFIRM_TTL_SEC,
+    SENSOR_QUERY_TARGETS,
     SENSOR_TRIGGER_DEVICES,
     TIER1_SCHEDULE_CONFLICT_MSG_VI,
     ScheduleConflictError,
@@ -51,6 +52,7 @@ from simulator.automation_repo import (
     format_duration_vi,
     format_sensor_trigger_vi,
     get_pending_confirmation,
+    is_custom_query_step,
     list_automation_rules,
     list_custom_commands,
     list_household_members,
@@ -165,7 +167,13 @@ def parse_single_device_and_action(
                 dev = target
                 break
         if dev is None:
-            if " cua " in norm:
+            if " cua " in norm and not any(
+                bad_c in norm
+                for bad_c in (
+                    " cua hang ", " cua tiem ", " cua hieu ", " cua so ",
+                    " cua mieng ", " cua song ", " cua bien ",
+                )
+            ):
                 dev = "main_door"
             elif " coi " in norm:
                 dev = "alarm_siren"
@@ -228,21 +236,115 @@ def parse_single_device_and_action(
     return dev, act
 
 
+def _parse_query_steps_from_clause(
+    clause: str,
+    *,
+    inherited_query: bool = False,
+) -> list[dict[str, str]]:
+    """Parse sensor-read or device-state-read custom-command steps from a single clause."""
+    raw_s = str(clause or "").strip().lower()
+    if not raw_s:
+        return []
+    norm = f" {normalize_phrase(raw_s)} "
+    try:
+        from simulator.voice.vietnamese_policy import (
+            _UNSUPPORTED_DEVICE_RE,
+            _extract_clause_device,
+            has_vi_diacritics,
+        )
+
+        if _UNSUPPORTED_DEVICE_RE.search(norm):
+            return []
+        has_diac = has_vi_diacritics(raw_s)
+    except Exception:
+        has_diac = False
+        _extract_clause_device = None  # type: ignore[assignment]
+
+    has_query_verb = any(
+        k in norm
+        for k in (
+            " doc ", " xem ", " kiem tra ", " check ", " bao cao ",
+            " hoi ", " trang thai ", " so do ", " thong so ", " gia tri ",
+        )
+    )
+    has_state_cue = any(k in norm for k in (" trang thai ", " xem ", " kiem tra ", " check ", " doc ", " bao cao "))
+
+    # 1. Sensor queries (support typed "đọc nhiệt độ và độ ẩm DHT11" AND ASR "đọc nhiệt độ và độ ẩm ư")
+    is_temp = any(k in norm for k in (" nhiet do ", " bao nhieu do ", " do c "))
+    is_soil = any(
+        k in norm
+        for k in (" do am dat ", " cam bien dat ", " cam bien do am dat ", " am dat ", " so do dat ", " dat ngoai vuon ")
+    )
+    is_air_hum = (" do am " in norm) and not (is_soil and " khong khi " not in norm)
+    is_sound = any(k in norm for k in (" am thanh ", " ky037 ", " ky 037 ", " tieng dong ", " cam bien tieng dong "))
+    is_dht11_only = any(k in norm for k in (" dht11 ", " dht 11 ")) and not (is_temp or is_air_hum)
+    is_all_sensors = (" cam bien " in norm) and not (is_temp or is_air_hum or is_soil or is_sound or is_dht11_only)
+
+    if is_temp or is_air_hum or is_soil or is_sound or is_dht11_only or is_all_sensors:
+        out: list[dict[str, str]] = []
+        if is_all_sensors:
+            out.append({"device_id": "sensor_all", "action": "read"})
+        else:
+            if is_temp:
+                out.append({"device_id": "sensor_temperature", "action": "read"})
+            if is_air_hum:
+                out.append({"device_id": "sensor_humidity", "action": "read"})
+            if is_dht11_only:
+                out.append({"device_id": "sensor_temperature", "action": "read"})
+                out.append({"device_id": "sensor_humidity", "action": "read"})
+            if is_soil:
+                out.append({"device_id": "sensor_soil", "action": "read"})
+            if is_sound:
+                out.append({"device_id": "sensor_sound", "action": "read"})
+        return out
+
+    # 2. Device state query (only when query/state cue is present and NO explicit device-control verb)
+    if has_state_cue or (inherited_query and has_query_verb) or inherited_query:
+        ctrl_dev, ctrl_act = parse_single_device_and_action(clause, default_action=None, allow_den_asr_homophone=True)
+        if ctrl_act is not None:
+            return []
+        dev_q = ctrl_dev
+        if dev_q is None and any(k in norm for k in (" cac thiet bi ", " tat ca thiet bi ", " toan bo thiet bi ", " moi thiet bi ")):
+            dev_q = "all_devices"
+        elif dev_q is None and any(k in norm for k in (" cac den ", " tat ca den ", " toan bo den ", " hai den ")):
+            dev_q = "all_lights"
+        elif dev_q is None and _extract_clause_device is not None:
+            dev_q = _extract_clause_device(norm.strip(), raw_clause=raw_s, input_has_diacritics=has_diac)
+        if dev_q and (has_state_cue or inherited_query):
+            return [{"device_id": dev_q, "action": "read_state"}]
+
+    return []
+
+
 def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
-    """Parse one or more actions like 'tắt hết đèn và đóng cửa' into explicit device steps."""
+    """Parse one or more device-control and/or sensor/device-state query steps."""
     text = _normalize_den_typos_vi(text)
     raw_clauses = re.split(
-        r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b|\bvới\b|\bvoi\b)",
+        r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b|\bvới\b|\bvoi\b|\blẫn\b|\blan\b)",
         text,
         flags=re.IGNORECASE,
     )
     steps: list[dict[str, str]] = []
+    seen_steps: set[tuple[str, str]] = set()
     last_act: str | None = None
     last_dev: str | None = None
+    last_is_query: bool = False
     for cl in raw_clauses:
         cl_s = cl.strip()
         if not cl_s:
             continue
+        # Try sensor/state query step first when no explicit device-control verb overrides it
+        q_steps = _parse_query_steps_from_clause(cl_s, inherited_query=last_is_query)
+        if q_steps:
+            last_is_query = True
+            last_act = None
+            for qs in q_steps:
+                key = (qs["device_id"], qs["action"])
+                if key not in seen_steps:
+                    seen_steps.add(key)
+                    steps.append(qs)
+            continue
+
         dev, act = parse_single_device_and_action(cl_s, default_action=last_act, allow_den_asr_homophone=True)
         if dev is None and last_dev in ("living_room_light", "bedroom_light", "all_lights"):
             cn = normalize_phrase(cl_s)
@@ -254,9 +356,13 @@ def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
                 act = act or last_act
         if act:
             last_act = act
+            last_is_query = False
         if dev and act:
             last_dev = dev
-            steps.append({"device_id": dev, "action": act})
+            key = (dev, act)
+            if key not in seen_steps:
+                seen_steps.add(key)
+                steps.append({"device_id": dev, "action": act})
     return steps
 
 
@@ -606,13 +712,13 @@ def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False
 
     # Check accented cancel words first so 'đừng' / 'dừng' never collide with 'đúng' ('dung')
     if re.search(
-        r"^(?:đừng(?:\s+đừng){0,2}|dừng(?:\s+dừng){0,2}|không(?:\s+không){0,2}|hủy(?:\s+hủy){0,2}|huỷ(?:\s+huỷ){0,2}|hủy bỏ|huỷ bỏ|thôi(?:\s+thôi){0,2}|bỏ(?:\s+bỏ){0,2}|không làm|đừng làm|thôi bỏ|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
+        r"^(?:đừng(?:\s+đừng){0,2}|dừng(?:\s+dừng){0,2}|không(?:\s+không){0,2}|hủy(?:\s+hủy){0,2}|huỷ(?:\s+huỷ){0,2}|hủy bỏ|huỷ bỏ|thôi\s+hủy|thôi\s+huỷ|thôi\s+hủy\s+bỏ|thôi(?:\s+thôi){0,2}|bỏ(?:\s+bỏ){0,2}|không làm|đừng làm|thôi bỏ|thôi không|không cần|không đồng ý|từ chối)(?:\s+(?:ạ|nhé|nha|đi|nữa|nhá|em|bạn))*\s*$",
         raw_collapsed,
     ):
         return "cancel"
 
     if re.search(
-        r"^(?:khong(?:\s+khong){0,2}|k|huy(?:\s+huy){0,2}|huy bo|thoi(?:\s+thoi){0,2}|bo(?:\s+bo){0,2}|no|cancel|khong lam|dung lam|thoi bo|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
+        r"^(?:khong(?:\s+khong){0,2}|k|huy(?:\s+huy){0,2}|huy bo|thoi\s+huy|thoi\s+huy\s+bo|thoi(?:\s+thoi){0,2}|bo(?:\s+bo){0,2}|no|cancel|khong lam|dung lam|thoi bo|thoi khong|khong can|khong dong y|tu choi)(?:\s+(?:a|nhe|nha|di|nua|nha|em|ban))*\s*$",
         norm,
     ):
         return "cancel"
@@ -2075,6 +2181,18 @@ async def execute_confirmed_mutation(
                 target=cid or phrase_q or "custom_command",
             )
         steps = list(matched_cmd.get("steps") or [])
+        ok_steps_run, err_steps_run = check_steps_rbac(steps, tier)
+        if not ok_steps_run:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="rbac_deny_custom_command_step",
+                msg=err_steps_run,
+                status_code=403,
+                target=str(matched_cmd.get("phrase") or "custom_command"),
+            )
+        control_steps = [st for st in steps if not is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))]
+        query_steps = [st for st in steps if is_custom_query_step(str(st.get("device_id") or ""), str(st.get("action") or ""))]
         results: list[dict[str, Any]] = []
         exec_items: list[dict[str, Any]] = []
         prev_uid = getattr(engine, "_current_user_id", user_id)
@@ -2082,7 +2200,7 @@ async def execute_confirmed_mutation(
         try:
             engine._current_user_id = user_id
             engine._current_role = role
-            for st in steps:
+            for st in control_steps:
                 dev_id = str(st.get("device_id") or "")
                 action = str(st.get("action") or "")
                 for td in _expand_targets(dev_id):
@@ -2117,10 +2235,40 @@ async def execute_confirmed_mutation(
         finally:
             engine._current_user_id = prev_uid
             engine._current_role = prev_role
-        await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
-        from simulator.voice.vietnamese_policy import format_short_action_reply_vi
 
-        spoken_exec = format_short_action_reply_vi(exec_items, engine.devices) if exec_items else f"Đã chạy lệnh '{matched_cmd['phrase']}'."
+        from simulator.voice.vietnamese_policy import (
+            execute_custom_command_query_steps,
+            format_short_action_reply_vi,
+        )
+
+        query_spoken = ""
+        query_data: dict[str, Any] = {}
+        if query_steps:
+            q_ok, q_rbac, q_err, query_spoken, query_data = execute_custom_command_query_steps(
+                query_steps, engine, tier
+            )
+            if not q_ok and q_rbac:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_custom_command_step",
+                    msg=q_err,
+                    status_code=403,
+                    target=str(matched_cmd.get("phrase") or "custom_command"),
+                )
+
+        if control_steps:
+            await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
+
+        ctrl_spoken = format_short_action_reply_vi(exec_items, engine.devices) if exec_items else ""
+        if ctrl_spoken and query_spoken:
+            spoken_exec = f"{ctrl_spoken} {query_spoken}"
+        elif query_spoken:
+            spoken_exec = query_spoken
+        elif ctrl_spoken:
+            spoken_exec = ctrl_spoken
+        else:
+            spoken_exec = f"Đã chạy lệnh '{matched_cmd['phrase']}'."
         return {
             "handled": True,
             "status_code": 200,
@@ -2131,6 +2279,7 @@ async def execute_confirmed_mutation(
                 "kind": "custom_command_executed",
                 "command": matched_cmd,
                 "results": results,
+                **query_data,
                 "reply": spoken_exec,
                 "exact_spoken_reply": spoken_exec,
                 "snapshot": engine.get_snapshot(session=session, sync=False),
@@ -2725,7 +2874,10 @@ def _parse_custom_command_create_or_edit(
         phrase = _clean_custom_phrase(m_strict.group(2) or m_strict.group(3) or m_strict.group(4) or "")
         steps_text = (m_strict.group(5) or "").strip()
         if phrase and not _has_clock_or_timer_marker(phrase, reject_any_digit=False):
-            steps = parse_multi_steps_from_text(steps_text)
+            if _UNSUPPORTED_DEVICE_RE.search(f" {normalize_phrase(steps_text)} "):
+                steps = []
+            else:
+                steps = parse_multi_steps_from_text(steps_text)
             is_edit = verb_norm in ("sua", "cap nhat", "doi")
             return phrase, steps, is_edit, True
 
@@ -2749,12 +2901,12 @@ def _parse_custom_command_create_or_edit(
     broad_patterns: list[tuple[str, str, bool]] = [
         # 2a: strong separator
         (
-            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
+            broad_prefix_vi + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:để|là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
             raw_s,
             False,
         ),
         (
-            broad_prefix_ascii + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
+            broad_prefix_ascii + r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+(?:de|la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
             strip_accents(raw_s),
             False,
         ),
@@ -3152,17 +3304,16 @@ async def process_automation_nlu_command(
                     },
                 }
         else:
-            for st in steps:
-                allowed_dev, reason_dev = engine.check_device_permission(st["device_id"], actor_tier=tier)
-                if not allowed_dev:
-                    return _deny_mutation_error(
-                        session=session,
-                        source=source,
-                        category="rbac_deny_custom_command_device",
-                        msg=reason_dev,
-                        status_code=403,
-                        target=str(st["device_id"]),
-                    )
+            allowed_steps, reason_steps = check_steps_rbac(steps, tier)
+            if not allowed_steps:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="rbac_deny_custom_command_device",
+                    msg=reason_steps,
+                    status_code=403,
+                    target="custom_commands",
+                )
             steps_summary = ", ".join(format_device_action_vi(st["device_id"], st["action"]) for st in steps)
 
             existing_match = None

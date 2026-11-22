@@ -64,6 +64,39 @@ SENSOR_TRIGGER_DEVICES: dict[str, dict[str, Any]] = {
     },
 }
 
+SENSOR_QUERY_TARGETS: dict[str, dict[str, str]] = {
+    "sensor_temperature": {
+        "name": "nhiệt độ DHT11",
+        "label_vi": "Đọc nhiệt độ DHT11",
+    },
+    "sensor_humidity": {
+        "name": "độ ẩm không khí DHT11",
+        "label_vi": "Đọc độ ẩm không khí DHT11",
+    },
+    "sensor_soil": {
+        "name": "độ ẩm đất",
+        "label_vi": "Đọc độ ẩm đất",
+    },
+    "sensor_sound": {
+        "name": "cảm biến âm thanh KY-037",
+        "label_vi": "Đọc cảm biến âm thanh KY-037",
+    },
+    "sensor_all": {
+        "name": "tất cả cảm biến",
+        "label_vi": "Đọc tất cả cảm biến",
+    },
+}
+
+
+def is_custom_query_step(device_id: str, action: str) -> bool:
+    did = str(device_id or "").strip()
+    act = str(action or "").strip().lower()
+    if did in SENSOR_QUERY_TARGETS and act in ("read", "read_state", "query", ""):
+        return True
+    if act == "read_state" and (did in DEFAULT_DEVICES or did in ("all_lights", "all_devices")):
+        return True
+    return False
+
 SENSOR_STATE_OPPOSITE: dict[str, str] = {
     "DRY": "WET",
     "WET": "DRY",
@@ -191,10 +224,15 @@ def format_duration_vi(total_sec: float) -> str:
 
 
 def format_device_action_vi(device_id: str, action: str) -> str:
-    extra_labels = {"all_lights": "tất cả đèn", "all_devices": "tất cả thiết bị"}
-    dname = extra_labels.get(device_id) or DEVICE_LABELS_VI.get(device_id) or DEFAULT_DEVICES.get(device_id, {}).get("name") or device_id
+    did = str(device_id or "").strip()
     act = str(action or "").strip().lower()
-    if device_id == "main_door":
+    if did in SENSOR_QUERY_TARGETS:
+        return SENSOR_QUERY_TARGETS[did]["label_vi"]
+    extra_labels = {"all_lights": "tất cả đèn", "all_devices": "tất cả thiết bị"}
+    dname = extra_labels.get(did) or DEVICE_LABELS_VI.get(did) or DEFAULT_DEVICES.get(did, {}).get("name") or did
+    if act == "read_state":
+        return f"Xem trạng thái {dname.lower()}"
+    if did == "main_door":
         verb = "Mở" if act in ("open", "turn_on") else "Đóng"
     else:
         verb = ACTION_VI_LABEL.get(act, "Bật" if act in ("open", "turn_on") else "Tắt")
@@ -1228,34 +1266,48 @@ def _normalize_steps(steps: list[dict[str, Any]]) -> list[dict[str, str]]:
             continue
         did = str(step.get("device_id") or "").strip()
         act = str(step.get("action") or "").strip().lower()
-        if act not in ACTION_TO_STATE:
-            continue
-        if did == "all_lights":
-            expanded_act = "turn_on" if act in ("open", "turn_on") else "turn_off"
-            pairs = [("living_room_light", expanded_act), ("bedroom_light", expanded_act)]
-        elif did == "all_devices":
-            if act in ("close", "turn_off"):
-                pairs = [
-                    ("living_room_light", "turn_off"),
-                    ("bedroom_light", "turn_off"),
-                    ("garden_pump", "turn_off"),
-                    ("speaker_amp", "turn_off"),
-                    ("alarm_siren", "turn_off"),
-                    ("main_door", "close"),
-                ]
+        if did in SENSOR_QUERY_TARGETS:
+            if act not in ("read", "read_state", "query", ""):
+                continue
+            pairs = [(did, "read")]
+        elif act == "read_state":
+            if did == "all_lights":
+                pairs = [("living_room_light", "read_state"), ("bedroom_light", "read_state")]
+            elif did == "all_devices":
+                pairs = [(d, "read_state") for d in DEFAULT_DEVICES.keys()]
+            elif did in DEFAULT_DEVICES:
+                pairs = [(did, "read_state")]
             else:
-                pairs = [
-                    ("living_room_light", "turn_on"),
-                    ("bedroom_light", "turn_on"),
-                    ("speaker_amp", "turn_on"),
-                ]
-        elif did in DEFAULT_DEVICES:
-            fixed_act = (
-                ("open" if act in ("open", "turn_on") else "close")
-                if did == "main_door"
-                else ("turn_on" if act in ("open", "turn_on") else "turn_off")
-            )
-            pairs = [(did, fixed_act)]
+                continue
+        elif act in ACTION_TO_STATE:
+            if did == "all_lights":
+                expanded_act = "turn_on" if act in ("open", "turn_on") else "turn_off"
+                pairs = [("living_room_light", expanded_act), ("bedroom_light", expanded_act)]
+            elif did == "all_devices":
+                if act in ("close", "turn_off"):
+                    pairs = [
+                        ("living_room_light", "turn_off"),
+                        ("bedroom_light", "turn_off"),
+                        ("garden_pump", "turn_off"),
+                        ("speaker_amp", "turn_off"),
+                        ("alarm_siren", "turn_off"),
+                        ("main_door", "close"),
+                    ]
+                else:
+                    pairs = [
+                        ("living_room_light", "turn_on"),
+                        ("bedroom_light", "turn_on"),
+                        ("speaker_amp", "turn_on"),
+                    ]
+            elif did in DEFAULT_DEVICES:
+                fixed_act = (
+                    ("open" if act in ("open", "turn_on") else "close")
+                    if did == "main_door"
+                    else ("turn_on" if act in ("open", "turn_on") else "turn_off")
+                )
+                pairs = [(did, fixed_act)]
+            else:
+                continue
         else:
             continue
         for pd, pa in pairs:
@@ -1536,23 +1588,31 @@ def clear_all_rules_and_commands(*, db_path: pathlib.Path | None = None) -> None
 
 
 def check_steps_rbac(steps: list[dict[str, Any]], actor_tier: int) -> tuple[bool, str]:
+    if int(actor_tier) >= 3:
+        return False, GUEST_ONLY_TOGGLE_MSG_VI
     for step in steps or []:
         did = str(step.get("device_id") or "")
         act = str(step.get("action") or "turn_on").lower()
         if not did:
             continue
+        if did in SENSOR_QUERY_TARGETS:
+            continue
         if did == "all_lights":
             expanded = ["living_room_light", "bedroom_light"]
         elif did == "all_devices":
-            expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
-                "living_room_light", "bedroom_light", "speaker_amp"
-            ]
+            if act == "read_state":
+                expanded = list(DEFAULT_DEVICES.keys())
+            else:
+                expanded = list(DEFAULT_DEVICES.keys()) if act in ("close", "turn_off") else [
+                    "living_room_light", "bedroom_light", "speaker_amp"
+                ]
         else:
             expanded = [did]
         for target_dev in expanded:
             if not can_control_device(actor_tier, target_dev):
                 dname = DEVICE_LABELS_VI.get(target_dev, target_dev)
-                return False, f"Từ chối: Cấp {actor_tier} không có quyền điều khiển {dname} trong ngữ cảnh này."
+                verb_vi = "xem trạng thái" if act == "read_state" else "điều khiển"
+                return False, f"Từ chối: Cấp {actor_tier} không có quyền {verb_vi} {dname} trong ngữ cảnh này."
     return True, ""
 
 

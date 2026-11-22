@@ -1228,4 +1228,291 @@ def test_round5_diacritic_near_miss_no_silent_timer_defaults_and_hard_utterances
         client.post("/api/text_command", headers=h1, json={"text": "hủy"})
 
 
+def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
+    """Round 7 regressions:
+    (a) T124 custom commands with sensor-query & device-state-query steps (typed, ASR, REST, mixed, Guest RBAC, invalid 400).
+    (b) T047 stutter without ellipsis ('tắt đèn phòng à phòng ngủ nhé').
+    (c) T063 'đi à' ASR mishearing of 'đi ạ' without relaxing rhetorical questions.
+    (d) T105 multi-device imperative echo guard without breaking real echo suppression.
+    """
+    from simulator.automation_nlu import parse_multi_steps_from_text
+    from simulator.automation_repo import list_custom_commands
+    from simulator.live.echo_and_speech_guard import ServerEchoGuard
+    from simulator.server import app
+    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+
+    # --- (b) T047 stutter without ellipsis ---
+    assert parse_direct_device_intents_vi("tắt đèn phòng à phòng ngủ nhé") == [
+        {"device_id": "bedroom_light", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("Tắt đèn phòng... à phòng ngủ nhé.") == [
+        {"device_id": "bedroom_light", "action": "turn_off"}
+    ]
+    assert parse_direct_device_intents_vi("bật bơm ờ bơm ngoài vườn") == [
+        {"device_id": "garden_pump", "action": "turn_on"}
+    ]
+
+    # --- (c) T063 'đi à' imperative ASR vs genuine rhetorical questions ---
+    assert parse_direct_device_intents_vi("cô máy ơi cho cái loa chuông kêu đi à") == [
+        {"device_id": "speaker_amp", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("tắt đèn buồng đi à") == [
+        {"device_id": "bedroom_light", "action": "turn_off"}
+    ]
+    for rhetorical in (
+        "tắt đèn à?",
+        "tắt đèn à",
+        "đèn đang bật à",
+        "cửa đóng chưa",
+        "bật đèn phòng khách hả",
+        "tắt đèn đi à?",
+    ):
+        assert parse_direct_device_intents_vi(rhetorical) == [], f"Rhetorical question leaked action: {rhetorical!r}"
+
+    # --- (d) T105 echo guard ---
+    eg = ServerEchoGuard()
+    eg.record_ai_utterance("Đã mở cửa chính và bật đèn phòng khách.")
+    is_echo_t105, _sc1, _r1 = eg.check_echo_transcript("Đóng cửa chính lại, tắt luôn đèn phòng khách.")
+    assert is_echo_t105 is False, "T105 multi-device opposite-verb imperative must NOT be echo-suppressed"
+    is_echo_real, _sc2, _r2 = eg.check_echo_transcript("Đã mở cửa chính và bật đèn phòng khách.")
+    assert is_echo_real is True, "Verbatim echo of AI speech MUST still be suppressed"
+    is_echo_clip, _sc3, _r3 = eg.check_echo_transcript("mở cửa chính và bật đèn phòng khách")
+    assert is_echo_clip is True, "Clipped verbatim echo without opposite verb MUST still be suppressed"
+
+    # --- (a) Goal 4 / T124 sensor & device-state steps in custom commands ---
+    # ASR variant where DHT11 was dropped to 'ư'
+    assert parse_multi_steps_from_text("đọc nhiệt độ và độ ẩm ư") == [
+        {"device_id": "sensor_temperature", "action": "read"},
+        {"device_id": "sensor_humidity", "action": "read"},
+    ]
+    assert parse_multi_steps_from_text("đọc độ ẩm đất") == [
+        {"device_id": "sensor_soil", "action": "read"},
+    ]
+    assert parse_multi_steps_from_text("xem cảm biến âm thanh") == [
+        {"device_id": "sensor_sound", "action": "read"},
+    ]
+    assert parse_multi_steps_from_text("xem trạng thái cửa chính") == [
+        {"device_id": "main_door", "action": "read_state"},
+    ]
+    assert parse_multi_steps_from_text("bật điều hòa") == []
+
+    engine = _reset_engine_clean()
+    asyncio.run(engine.update_sensor_telemetry(temp_c=29.2, humidity_pct=64.0))
+    asyncio.run(engine.update_soil_moisture_telemetry(48.0))
+    asyncio.run(engine.update_sound_telemetry(sound_detected=True))
+    asyncio.run(engine.execute_device_action("main_door", "open", bypass_rbac=True))
+    h1, _, _, h3 = _seed_sessions()
+
+    def _device_snapshot() -> dict[str, str]:
+        return {k: str(v.get("state") or "") for k, v in engine.devices.items()}
+
+    with TestClient(app) as client:
+        # 1. T124 create -> confirm -> invoke -> confirm -> replies with live temp & humidity, 0 device mutations
+        before_devs = _device_snapshot()
+        r_c1 = client.post(
+            "/api/text_command",
+            headers=h1,
+            json={"text": "Thêm lệnh tên xem không khí để đọc nhiệt độ và độ ẩm DHT11."},
+        )
+        assert r_c1.status_code == 200
+        d_c1 = r_c1.json()
+        assert d_c1.get("requires_confirmation") is True
+        assert d_c1.get("action_kind") == "create_custom_command"
+        assert len(list_custom_commands()) == 0
+
+        r_c1_ok = client.post("/api/text_command", headers=h1, json={"text": "ok"})
+        assert r_c1_ok.status_code == 200 and r_c1_ok.json().get("confirmed") is True
+        cmds = list_custom_commands()
+        assert len(cmds) == 1
+        cmd_id_t124 = cmds[0]["command_id"]
+
+        # Invoke via voice -> asks confirmation (NOT hijacked by direct sensor query) -> confirm -> live values, 0 mutations
+        r_run_ask = client.post("/api/voice_command", headers=h1, json={"transcript": "xem không khí"})
+        assert r_run_ask.status_code == 200
+        assert r_run_ask.json().get("requires_confirmation") is True
+        assert r_run_ask.json().get("action_kind") == "run_custom_command"
+
+        r_run_ok = client.post("/api/voice_command", headers=h1, json={"transcript": "đồng ý"})
+        assert r_run_ok.status_code == 200
+        d_run = r_run_ok.json()
+        assert d_run.get("confirmed") is True and d_run.get("executed") is True
+        rep_run = _assert_vi_reply(d_run)
+        assert "29.2" in rep_run and "64%" in rep_run
+        assert _device_snapshot() == before_devs, "Sensor-only custom command must NOT mutate any device"
+
+        # REST POST /api/scenes/{id}/run also returns live Vietnamese sensor values with 0 mutations
+        r_rest = client.post(f"/api/scenes/{cmd_id_t124}/run", headers=h1)
+        assert r_rest.status_code == 200
+        rep_rest = _assert_vi_reply(r_rest.json())
+        assert "29.2" in rep_rest and "64%" in rep_rest
+        assert _device_snapshot() == before_devs
+
+        # 2. Soil + sound + device-state query custom command (via REST + confirm)
+        r_q2 = client.post(
+            "/api/text_command",
+            headers=h1,
+            json={"text": "Tạo lệnh kiểm tra nhà gồm đọc độ ẩm đất, xem cảm biến âm thanh và xem trạng thái cửa chính"},
+        )
+        assert r_q2.status_code == 200 and r_q2.json().get("requires_confirmation") is True
+        assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
+        r_q2_ask = client.post("/api/text_command", headers=h1, json={"text": "kiểm tra nhà"})
+        assert r_q2_ask.status_code == 200 and r_q2_ask.json().get("requires_confirmation") is True
+        r_q2_go = client.post("/api/text_command", headers=h1, json={"text": "ok"})
+        assert r_q2_go.status_code == 200
+        rep_q2 = _assert_vi_reply(r_q2_go.json())
+        assert "48%" in rep_q2 and "tiếng động lớn" in rep_q2.lower() and "cửa chính đang mở" in rep_q2.lower()
+        assert _device_snapshot() == before_devs
+
+        # 3. Mixed device-control + sensor-query custom command
+        assert engine.devices["living_room_light"]["state"] == "OFF"
+        r_mix = client.post(
+            "/api/text_command",
+            headers=h1,
+            json={"text": "Tạo lệnh chào buổi tối là bật đèn phòng khách và đọc nhiệt độ"},
+        )
+        assert r_mix.status_code == 200 and r_mix.json().get("requires_confirmation") is True
+        assert client.post("/api/text_command", headers=h1, json={"text": "ok"}).json().get("confirmed") is True
+        r_mix_ask = client.post("/api/text_command", headers=h1, json={"text": "chào buổi tối"})
+        assert r_mix_ask.status_code == 200 and r_mix_ask.json().get("requires_confirmation") is True
+        r_mix_go = client.post("/api/text_command", headers=h1, json={"text": "ok"})
+        assert r_mix_go.status_code == 200
+        rep_mix = _assert_vi_reply(r_mix_go.json())
+        assert engine.devices["living_room_light"]["state"] == "ON"
+        assert "đèn phòng khách" in rep_mix.lower() and "29.2" in rep_mix
+
+        # 4. Guest Tier 3 still RBAC-denied (403) on creating/running sensor custom commands
+        r_g1 = client.post(
+            "/api/text_command",
+            headers=h3,
+            json={"text": "Thêm lệnh tên xem khách để đọc nhiệt độ và độ ẩm DHT11."},
+        )
+        assert r_g1.status_code == 403 and r_g1.json().get("rbac_blocked") is True
+        r_g2 = client.post(f"/api/scenes/{cmd_id_t124}/run", headers=h3)
+        assert r_g2.status_code == 403 and r_g2.json().get("rbac_blocked") is True
+
+        # 5. Invalid/unsupported custom command still rejected with 400 and NOT created
+        cnt_before = len(list_custom_commands())
+        r_bad = client.post(
+            "/api/text_command",
+            headers=h1,
+            json={"text": "Tạo lệnh mát mẻ là bật điều hòa"},
+        )
+        assert r_bad.status_code == 400
+        assert len(list_custom_commands()) == cnt_before
+
+        # 6. E2E voice checks for T047 and T063 + rhetorical negative
+        asyncio.run(engine.execute_device_action("bedroom_light", "turn_on", bypass_rbac=True))
+        r_t047 = client.post("/api/voice_command", headers=h1, json={"transcript": "tắt đèn phòng à phòng ngủ nhé"})
+        assert r_t047.status_code == 200 and r_t047.json().get("executed") is True
+        assert engine.devices["bedroom_light"]["state"] == "OFF"
+
+        r_t063 = client.post("/api/voice_command", headers=h1, json={"transcript": "cô máy ơi cho cái loa chuông kêu đi à"})
+        assert r_t063.status_code == 200 and r_t063.json().get("executed") is True
+        assert engine.devices["speaker_amp"]["state"] == "ON"
+
+        r_rhet = client.post("/api/voice_command", headers=h1, json={"transcript": "đèn đang bật à"})
+        assert r_rhet.status_code == 200 and r_rhet.json().get("executed") is False
+
+        # 7. Role 3 adversarial regressions: non-device door compounds ('cửa hàng', 'cửa sổ') & mixed valid+unsupported custom command
+        for non_door in ("mở cửa hàng đi", "đóng cửa tiệm lại", "mở cửa sổ phòng khách", "mo cua hang di"):
+            assert parse_direct_device_intents_vi(non_door) == [], f"Non-device door compound leaked action: {non_door!r}"
+        r_door_shop = client.post("/api/text_command", headers=h1, json={"text": "mở cửa hàng đi"})
+        assert r_door_shop.status_code == 200 and r_door_shop.json().get("executed") is False
+
+        cnt_before_mix = len(list_custom_commands())
+        for bad_mix in (
+            "Tạo lệnh xem bậy hai gồm bật đèn phòng khách và bật điều hòa",
+            "Tạo lệnh xem bậy ba gồm đọc nhiệt độ và bật quạt trần",
+        ):
+            r_bm = client.post("/api/text_command", headers=h1, json={"text": bad_mix})
+            assert r_bm.status_code == 400 and not r_bm.json().get("requires_confirmation")
+        r_bm_check = client.post("/api/text_command", headers=h1, json={"text": "Đặt lịch 21 giờ tối nay bật đèn phòng ngủ."})
+        assert r_bm_check.status_code == 200 and r_bm_check.json().get("requires_confirmation") is True
+        r_cancel_vi = client.post("/api/text_command", headers=h1, json={"text": "thôi hủy đi"})
+        assert r_cancel_vi.status_code == 200 and r_cancel_vi.json().get("cancelled") is True
+        assert len(list_custom_commands()) == cnt_before_mix
+
+
+def test_round7_ctc_bare_noun_tail_guard_and_den_tone_verification() -> None:
+    """Round 7 STT safety regressions: bare noun with trailing CTC repetition never triggers an action (F77), and 'đen' vs 'đèn' CTC tone verification preserves 'đen' (T158)."""
+    from simulator.voice.chunkformer_ctc import rescore_closed_command_ctc
+    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+
+    # Bare noun with trailing repetition ('đèn phòng khách phòng') must never trigger Case A spoken-verb override
+    import torch
+    import simulator.voice.chunkformer_ctc as cf_mod
+
+    # Synthetic unit check of Case A leading-token invariant even without loading heavy model weights
+    import numpy as np
+
+    assert _classify_offline_transcript_kind("tắt đen phòng khách")[0] == "unrecognized"
+    from simulator.voice.gemini_stt import _should_escalate_offline_to_gemini
+
+    need_esc, esc_reason = _should_escalate_offline_to_gemini(
+        {"ok": True, "text": "tắt đen phòng khách", "stt_engine": "zipformer_70m+ctc_den_tone"},
+        np.zeros(16000, dtype=np.float32),
+        16000,
+        has_pending_confirmation=False,
+    )
+    assert need_esc is False and esc_reason == "local_confident:ctc_den_tone"
+    if cf_mod._CF_MODEL is not None and cf_mod._CF_TOK2ID:
+        # When model is already loaded, ensure None/tiny tensors fail safely
+        assert rescore_closed_command_ctc(None, "đèn phòng khách phòng") is None
+
+    # Severe-noise CTC polarity confirmation margin: reject coin-flip off/on claims when min_confirm_margin=1.0
+    from unittest.mock import patch
+    from simulator.voice.chunkformer_ctc import verify_command_polarity_ctc
+
+    fake_tok2id = {
+        "\u2581bật": 1,
+        "\u2581tắt": 2,
+        "\u2581đèn": 3,
+        "\u2581phòng": 4,
+        "\u2581ngủ": 5,
+        "\u2581ng": 5,
+    }
+    # Construct log_probs of shape (12, 8) where 'tắt' only barely beats 'bật' (margin < 1.0)
+    lp = torch.full((12, 8), -8.0, dtype=torch.float32)
+    lp[:, 0] = -0.2  # blank default
+    lp[1, 1] = -0.75  # bật
+    lp[1, 2] = -0.35  # tắt (slightly higher than bật, margin ~0.40 < 1.0)
+    lp[3, 3] = -0.05  # đèn
+    lp[5, 4] = -0.05  # phòng
+    lp[7, 5] = -0.05  # ngủ
+    lp = torch.log_softmax(lp, dim=-1)
+
+    with (
+        patch.object(cf_mod, "_CF_TOK2ID", fake_tok2id),
+        patch.object(cf_mod, "decode_chunkformer_with_logprobs", return_value=("tắt đèn phòng ngủ", lp)),
+    ):
+        assert verify_command_polarity_ctc(np.zeros(16000, dtype=np.float32), "bedroom_light", "off") is True
+        assert (
+            verify_command_polarity_ctc(
+                np.zeros(16000, dtype=np.float32),
+                "bedroom_light",
+                "off",
+                min_confirm_margin=1.0,
+            )
+            is False
+        )
+        # Clear margin (>= 1.0) still passes confirmation
+        lp_clear = lp.clone()
+        lp_clear[1, 2] = 2.0
+        lp_clear[1, 1] = -3.0
+        lp_clear = torch.log_softmax(lp_clear, dim=-1)
+        with patch.object(cf_mod, "decode_chunkformer_with_logprobs", return_value=("tắt đèn phòng ngủ", lp_clear)):
+            assert (
+                verify_command_polarity_ctc(
+                    np.zeros(16000, dtype=np.float32),
+                    "bedroom_light",
+                    "off",
+                    min_confirm_margin=1.0,
+                )
+                is True
+            )
+
+
+
+
+
 

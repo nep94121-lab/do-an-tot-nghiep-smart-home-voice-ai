@@ -580,6 +580,26 @@ def _run_high_noise_hallucination_gate(
     gem_devs = {str(it.get("device_id") or "") for it in gemini_intents}
     gem_groups = {_device_group_for(d) for d in gem_devs if d}
 
+    # Acoustic CTC 'đen' vs 'đèn' tone check on direct light commands (prevents T158 'tắt đen phòng khách' false actions)
+    if re.search(r"\bđèn\b", gemini_text, flags=re.IGNORECASE):
+        try:
+            from simulator.voice.chunkformer_ctc import verify_light_den_tone_ctc
+
+            audio_tone, _ = _analyze_and_preprocess_audio(pcm16, sr=sr)
+            if audio_tone.size > 0:
+                checked_txt, was_flipped = verify_light_den_tone_ctc(audio_tone, gemini_text, sr=16000)
+                if was_flipped:
+                    return {
+                        "ok": True,
+                        "text": checked_txt,
+                        "confidence": 0.90,
+                        "is_noise": False,
+                        "stt_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+                        "stt_engine": f"gemini:{used_model}+gate_ctc_den_tone:{local_engine}",
+                    }
+        except Exception:
+            pass
+
     # Universal acoustic CTC polarity verification whenever Gemini outputs a direct device command
     # whose polarity was NOT explicitly corroborated by local STT (catches clean/speed/noisy flips like 'tắt bơm'->'bật bơm').
     if gem_pol is not None and loc_pol != gem_pol:
@@ -594,7 +614,11 @@ def _run_high_noise_hallucination_gate(
 
                 audio_chk, _ = _analyze_and_preprocess_audio(pcm16, sr=sr)
                 if audio_chk.size > 0 and not verify_command_polarity_ctc(
-                    audio_chk, target_key, gem_pol, sr=16000
+                    audio_chk,
+                    target_key,
+                    gem_pol,
+                    sr=16000,
+                    min_confirm_margin=(1.0 if noise_ratio >= 0.35 else None),
                 ):
                     return {
                         "ok": False,
@@ -1039,6 +1063,10 @@ def _should_escalate_offline_to_gemini(
     # Pure silence / pure white noise already blocked at acoustic gate -> never spend Gemini quota
     if eng == "acoustic_gate":
         return False, "acoustic_gate"
+
+    # Acoustic ChunkFormer-CTC already verified 'đen' (wrong diacritic) vs 'đèn' -> keep locally so Gemini LM cannot override it
+    if "+ctc_den_tone" in eng:
+        return False, "local_confident:ctc_den_tone"
 
     # Pure muffled babble without foreground speech (noise_ratio >= 0.30) -> keep safely rejected locally (0 false actions)
     if ":babble_guard" in eng or eng == "babble_guard":

@@ -570,13 +570,20 @@ def normalize_vietnamese_utterance(text: str) -> str:
         s = updated
 
     # Collapse stuttered word repetition across ellipsis/fillers (e.g. "đèn phòng... à phòng ngủ" -> "đèn phòng ngủ",
-    # "bật... bật đèn" -> "bật đèn", "mở, mở cái cửa" -> "mở cái cửa", "cái... cái cửa" -> "cái cửa")
+    # "tắt đèn phòng à phòng ngủ nhé" -> "tắt đèn phòng ngủ nhé", "bật... bật đèn" -> "bật đèn", "mở, mở cái cửa" -> "mở cái cửa")
     s = re.sub(
-        r"\b(phòng|cửa|bơm|còi|đèn|loa|bật|tắt|mở|đóng|cái)\b\s*[,;:.…-]+\s*(?:(?:à|ờ|ừm|ơ)\s+)?\1\b",
+        r"\b(phòng|cửa|bơm|còi|đèn|loa|bật|tắt|mở|đóng|cái)\b(?:\s*[,;:.…-]+\s*(?:(?:à|ờ|ừm|ơ)\s+)?|\s+(?:à|ờ|ừm|ơ)\s+)\1\b",
         r"\1",
         s,
         flags=re.IGNORECASE,
     )
+    if not input_has_diac:
+        s = re.sub(
+            r"\b(phong|cua|bom|coi|den|loa|bat|tat|mo|dong|cai)\b(?:\s*[,;:.…-]+\s*(?:(?:a|o|um)\s+)?|\s+(?:a|o|um)\s+)\1\b",
+            r"\1",
+            s,
+            flags=re.IGNORECASE,
+        )
     s = re.sub(r"[…]+|\.{2,}", " ", s)
 
     # Normalize common STT clipped/mumbled & regional forms BEFORE filler stripping
@@ -703,6 +710,8 @@ def normalize_vietnamese_utterance(text: str) -> str:
     # Strip trailing softeners & regional particles (note: unaccented 'coi' particle only when accented input or after 'len'/'phat'/'cai')
     if input_has_diac:
         s = re.sub(r"\b(?:phát|cái|lên|đi)\s+coi\b", " ", s)
+        # ASR frequently mishears polite imperative ending "đi ạ" as "đi à" (no question mark)
+        s = re.sub(r"\s+đi\s+à\s*[.!]*$", "", s.strip()).strip()
     for _ in range(3):
         updated = re.sub(
             r"(?:\s+(?:nhé|nha|nhá|nghen|hen|hỉ|hè|nghe|cơ|đê|nào|ấy|ạ|đi|với|luôn|ngay|nhanh|lẹ|cái|hộ|giùm|dùm|nhe|nha|a|di|voi|luon|ngay|nhanh|cai|ma))+\s*[.!?]*$",
@@ -820,7 +829,16 @@ def _extract_clause_device(
             # Exact accented single-word device nouns ONLY (never đen, đến, dền, đền, den, coi, cua, của, bom)
             if " đèn " in raw_padded and " đèn phòng " not in raw_padded:
                 return "living_room_light"
-            if " cửa " in raw_padded or " cổng " in raw_padded:
+            if (
+                " cửa " in raw_padded
+                and not any(
+                    bad_c in raw_padded
+                    for bad_c in (
+                        " cửa hàng ", " cửa tiệm ", " cửa hiệu ", " cửa sổ ",
+                        " cửa miệng ", " cửa sông ", " cửa biển ",
+                    )
+                )
+            ) or " cổng " in raw_padded:
                 return "main_door"
             if " bơm " in raw_padded:
                 return "garden_pump"
@@ -836,7 +854,16 @@ def _extract_clause_device(
             return dev_id
     if allow_unaccented_bare_den and " den " in padded and " den phong " not in padded:
         return "living_room_light"
-    if " cua " in padded or " cong " in padded:
+    if (
+        " cua " in padded
+        and not any(
+            bad_c in padded
+            for bad_c in (
+                " cua hang ", " cua tiem ", " cua hieu ", " cua so ",
+                " cua mieng ", " cua song ", " cua bien ",
+            )
+        )
+    ) or " cong " in padded:
         return "main_door"
     if " bom " in padded:
         return "garden_pump"
@@ -1020,7 +1047,7 @@ _META_LINGUISTIC_NO_ACTION_RE = re.compile(
     r"dang\s+noi\s+tu|noi\s+tu|chi\s+(?:dang\s+)?doc\s+lai|doc\s+lai\s+cau|"
     r"chua\s+nho\s+(?:ban|em|may)|khong\s+bao|khong\s+nho|khong\s+yeu\s+cau|"
     r"co\s+may\s+chu|may\s+chu\s+vay)\b|"
-    r"^(?:(?!(?:.*,|\b(?:làm\s+ơn|lam\s+on|giúp|giup|giùm|gium|dùm|dum|hộ|ho)\b)).)+\s(?:chưa|chua|à|hả|ha|sao)\s*[.!?]*$"
+    r"^(?!.*\bđi\s+à\s*[.!]*$)(?:(?!(?:.*,|\b(?:làm\s+ơn|lam\s+on|giúp|giup|giùm|gium|dùm|dum|hộ|ho)\b)).)+\s(?:chưa|chua|à|hả|ha|sao)\s*[.!?]*$"
     r")",
     re.IGNORECASE,
 )
@@ -1588,7 +1615,10 @@ def handle_sensor_or_status_query_vi(
         for k in (
             " tao luat ", " lien ket ", " khi ", " neu ", " hen gio ", " dat lich ",
             " reset ", " ri set ", " rex ", " rexit ", " reet ", " dat lai ", " khoi phuc ", " hoi phuc ",
-            " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " gan cau ", " luu cau ",
+            " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " sua lenh ", " doi lenh ", " cap nhat lenh ",
+            " tao khau lenh ", " them khau lenh ", " tao ngu canh ", " them ngu canh ",
+            " tao kich ban ", " them kich ban ", " tao che do ", " them che do ", " dat che do ", " luu che do ",
+            " tao cau ", " dat cau ", " gan cau ", " luu cau ",
             " truy van trang thai ", " truy suat trang thai ", " refresh trang thai ",
             " re trang thai ", " rep trang thai ", " xep trang thai ", " vi sep trang thai ",
             " vi sach trang thai ", " vi thich trang thai ",
@@ -1601,6 +1631,30 @@ def handle_sensor_or_status_query_vi(
         v in padded for v in (" bat ", " tat ", " mo ", " dong ", " tuoi ")
     ):
         return None
+
+    # Never hijack an explicitly saved custom command whose phrase matches this utterance
+    actor_tier_pre = int(getattr(session, "tier", 3) or 3)
+    if actor_tier_pre < 3:
+        try:
+            from simulator.automation_repo import list_custom_commands
+
+            uid_pre = str(getattr(session, "user_id", "") or "").strip()
+            if uid_pre:
+                cmds_pre = list_custom_commands(include_disabled=False, owner_user_id=uid_pre)
+                for _c in cmds_pre:
+                    _pn = str(_c.get("phrase_norm") or "").strip()
+                    if not _pn:
+                        continue
+                    if norm == _pn or norm in (
+                        f"kich hoat {_pn}",
+                        f"chay lenh {_pn}",
+                        f"chay {_pn}",
+                        f"thuc hien {_pn}",
+                        f"dung {_pn}",
+                    ):
+                        return None
+        except Exception:
+            pass
 
     # Never hijack sensor SET mutations ("chỉnh nhiệt độ lên 30", "set độ ẩm đất 25")
     norm_no_models = re.sub(r"\b(?:dht\s*11|ky\s*03[78]|yl\s*69|pam\s*8403)\b", " ", norm)
@@ -1794,3 +1848,117 @@ def handle_sensor_or_status_query_vi(
         "reply": spoken,
         "exact_spoken_reply": spoken,
     }
+
+
+def execute_custom_command_query_steps(
+    query_steps: list[dict[str, Any]],
+    engine: Any,
+    actor_tier: int,
+) -> tuple[bool, bool, str, str, dict[str, Any]]:
+    """Read live sensor and/or device-state values for custom-command query steps without mutating any device.
+
+    Returns (ok, rbac_blocked, error_msg, spoken_reply, data_payload).
+    """
+    from simulator.automation_repo import SENSOR_QUERY_TARGETS
+
+    if not query_steps:
+        return True, False, "", "", {}
+
+    if hasattr(engine, "sync_from_shared_store"):
+        try:
+            engine.sync_from_shared_store(force=False)
+        except Exception:
+            pass
+
+    needs_sensors = any(str(s.get("device_id") or "") in SENSOR_QUERY_TARGETS for s in query_steps)
+    sensors: dict[str, Any] | None = None
+    if needs_sensors:
+        sensors = (
+            engine.read_all_sensors()
+            if hasattr(engine, "read_all_sensors")
+            else {
+                "temperature_c": 28.5,
+                "humidity_pct": 65.0,
+                "soil_moisture_pct": 62.0,
+                "soil_status": "Bình thường",
+                "sound_detected": False,
+                "sound_status": "Yên tĩnh",
+            }
+        )
+
+    parts: list[str] = []
+    seen_parts: set[str] = set()
+    device_recs: list[dict[str, Any]] = []
+
+    def _add_part(key: str, text_seg: str) -> None:
+        if key not in seen_parts and text_seg:
+            seen_parts.add(key)
+            parts.append(text_seg)
+
+    for step in query_steps:
+        did = str(step.get("device_id") or "").strip()
+        act = str(step.get("action") or "").strip().lower()
+        if did in SENSOR_QUERY_TARGETS and sensors is not None:
+            if did == "sensor_all":
+                sound_lbl = "phát hiện tiếng động lớn" if sensors.get("sound_detected") else "yên tĩnh"
+                soil_st = str(sensors.get("soil_status") or "").strip()
+                soil_pct = float(sensors.get("soil_moisture_pct", 55.0))
+                _add_part("sensor_temperature", f"nhiệt độ phòng {float(sensors.get('temperature_c', 28.5)):.1f}°C")
+                _add_part("sensor_humidity", f"độ ẩm không khí {float(sensors.get('humidity_pct', 65.0)):.0f}%")
+                _add_part("sensor_soil", f"độ ẩm đất {soil_pct:.0f}%" + (f" ({soil_st})" if soil_st else ""))
+                _add_part("sensor_sound", f"cảm biến âm thanh KY-037 đang {sound_lbl}")
+            elif did == "sensor_temperature":
+                _add_part("sensor_temperature", f"nhiệt độ phòng {float(sensors.get('temperature_c', 28.5)):.1f}°C")
+            elif did == "sensor_humidity":
+                _add_part("sensor_humidity", f"độ ẩm không khí {float(sensors.get('humidity_pct', 65.0)):.0f}%")
+            elif did == "sensor_soil":
+                soil_st = str(sensors.get("soil_status") or "").strip()
+                soil_pct = float(sensors.get("soil_moisture_pct", 55.0))
+                _add_part("sensor_soil", f"độ ẩm đất {soil_pct:.0f}%" + (f" ({soil_st})" if soil_st else ""))
+            elif did == "sensor_sound":
+                sound_lbl = "phát hiện tiếng động lớn" if sensors.get("sound_detected") else "yên tĩnh"
+                _add_part("sensor_sound", f"cảm biến âm thanh KY-037 đang {sound_lbl}")
+            continue
+
+        if act == "read_state":
+            if did == "all_lights":
+                targets = ["living_room_light", "bedroom_light"]
+            elif did == "all_devices":
+                targets = list((getattr(engine, "devices", {}) or DEFAULT_DEVICES).keys())
+            else:
+                targets = [did]
+            for td in targets:
+                if f"dev:{td}" in seen_parts:
+                    continue
+                if hasattr(engine, "get_device_state_record"):
+                    rec = engine.get_device_state_record(td, actor_tier=actor_tier)
+                    if not rec.get("ok"):
+                        if rec.get("rbac_blocked"):
+                            deny = str(rec.get("exact_spoken_reply") or "Xin lỗi, bạn không có quyền thực hiện lệnh này.")
+                            return False, True, deny, deny, {}
+                        continue
+                    device_recs.append(rec)
+                    _add_part(f"dev:{td}", f"{str(rec.get('name') or td).lower()} {rec['state_vi']}")
+                else:
+                    info = (getattr(engine, "devices", {}) or {}).get(td)
+                    if info:
+                        st_vi = _state_vi_phrase(td, str(info.get("state") or "OFF"))
+                        device_recs.append({
+                            "device_id": td,
+                            "name": info.get("name", td),
+                            "state": info.get("state", "OFF"),
+                            "state_vi": st_vi,
+                        })
+                        _add_part(f"dev:{td}", f"{str(info.get('name') or td).lower()} {st_vi}")
+
+    if not parts:
+        return True, False, "", "", {}
+
+    joined = ", ".join(parts)
+    spoken = f"{joined[0].upper() + joined[1:]}."
+    data: dict[str, Any] = {}
+    if sensors is not None:
+        data["sensors"] = sensors
+    if device_recs:
+        data["devices"] = device_recs
+    return True, False, "", spoken, data
