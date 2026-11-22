@@ -362,6 +362,17 @@ async def auth_page(request: Request) -> Response:
     return _serve_cached_html(request, STATIC_DIR / "auth.html")
 
 
+@app.get("/automation")
+async def automation_page(request: Request) -> Response:
+    auto_file = STATIC_DIR / "automation.html"
+    if not auto_file.exists():
+        return HTMLResponse(
+            "<h1>Tự động hóa</h1><p>Đang tải trang Tự động hóa...</p>",
+            status_code=200,
+        )
+    return _serve_cached_html(request, auto_file)
+
+
 @app.get("/guest_guide")
 @app.get("/guest_guide/")
 async def guest_guide_page(request: Request) -> Response:
@@ -637,10 +648,17 @@ _SCHEDULER_TASK: asyncio.Task[Any] | None = None
 
 async def _automation_scheduler_loop() -> None:
     from simulator.api.routes_automation import run_scheduler_tick_once
+    from simulator.automation_engine import evaluate_compound_rules
 
+    tick_count = 0
     while True:
         try:
             await run_scheduler_tick_once()
+            tick_count += 1
+            if tick_count % 5 == 0:
+                hits = await evaluate_compound_rules(_REST_ENGINE, trigger_source="time_tick")
+                if hits:
+                    await broadcast_rest_state_to_bridges()
         except asyncio.CancelledError:
             raise
         except Exception:

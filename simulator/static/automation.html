@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tự động hóa · Nhà thông minh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/automation_panel.css">
+  <link rel="prefetch" href="/" as="document">
+  <link rel="prefetch" href="/auth" as="document">
+  <link rel="prefetch" href="/wokwi" as="document">
+  <link rel="prefetch" href="/logs" as="document">
+</head>
+<body data-nav-guard-auto="true">
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3-8 3v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4M14 21h3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </svg>
+
+  <div class="app" id="automationAppShell">
+    <aside class="sidebar">
+      <a class="brand" href="/">Nhà thông minh</a>
+      <nav aria-label="Điều hướng chính">
+        <p class="nav-label">Điều khiển</p>
+        <div class="nav-list" data-ui-nav="sidebar">
+          <a href="/" data-nav-key="home"><svg class="icon"><use href="#i-home"/></svg><span>Tổng quan</span></a>
+          <a class="active" href="/automation" aria-current="page" data-nav-key="automation"><svg class="icon"><use href="#i-clock"/></svg><span>Tự động hóa</span></a>
+          <a href="/auth" data-nav-key="auth"><svg class="icon"><use href="#i-shield"/></svg><span>Xác thực</span></a>
+          <a href="/wokwi" data-nav-key="wokwi"><svg class="icon"><use href="#i-cpu"/></svg><span>Phần cứng</span></a>
+          <a href="/logs" data-owner-only="true" data-nav-key="logs"><svg class="icon"><use href="#i-log"/></svg><span>Nhật ký</span></a>
+        </div>
+      </nav>
+      <div class="sidebar-links">
+        <a href="/app">Ứng dụng</a>
+        <a href="/guest_guide">Khách</a>
+        <a href="/login">Đăng nhập</a>
+        <a href="/register">Đăng ký</a>
+        <a href="/archify">Tài liệu dự án</a>
+      </div>
+    </aside>
+
+    <div class="content">
+      <header class="auto-page-header">
+        <div class="auto-header-row">
+          <div class="auto-header-title-wrap">
+            <h1 id="autoPageTitle">Tự động hóa</h1>
+            <p class="auto-header-sub">Quản lý hẹn giờ, lịch trình, lệnh tùy chỉnh và luật tự động liên thiết bị theo thời gian thực.</p>
+          </div>
+          <div class="auto-header-actions">
+            <span class="status" id="autoConnStatus" aria-live="polite">
+              <span class="dot" id="autoConnDot"></span>
+              <span id="autoConnText">Đang kết nối...</span>
+            </span>
+            <span class="status" id="autoAccountBadge" title="Tài khoản đang đăng nhập">Đang kiểm tra phiên...</span>
+          </div>
+        </div>
+        <div class="auto-header-row">
+          <div class="auto-header-actions">
+            <button type="button" class="auto-mode-btn" id="btnToggleHouseMode" data-mode="HOME" aria-pressed="false" title="Chuyển đổi chế độ Ở nhà / Vắng nhà">
+              <span class="auto-mode-dot" aria-hidden="true"></span>
+              <span id="houseModeLabel">Chế độ ở nhà</span>
+            </button>
+          </div>
+          <div class="auto-header-actions">
+            <button type="button" class="auto-reset-btn" id="btnAutoResetAll">Đặt lại tự động hóa</button>
+          </div>
+        </div>
+      </header>
+
+      <div id="autoAuthNotice" class="auto-notice-banner is-warn" role="alert" hidden>
+        <span id="autoAuthNoticeText">Vui lòng đăng nhập để quản lý tự động hóa.</span>
+        <a href="/login" class="btn btn-primary" style="min-height:38px;padding:0 14px;">Đăng nhập</a>
+      </div>
+
+      <div id="autoPageConfirmBanner" class="auto-confirm-banner" role="alert" aria-live="polite" hidden>
+        <div class="auto-confirm-question" id="autoPageConfirmQuestion"></div>
+        <div class="auto-confirm-actions">
+          <button type="button" class="btn btn-primary" id="btnAutoPageConfirmYes" style="min-height:40px;">Đồng ý</button>
+          <button type="button" class="btn btn-secondary" id="btnAutoPageConfirmNo" style="min-height:40px;">Hủy</button>
+        </div>
+      </div>
+
+      <section class="auto-ai-card" aria-label="Lệnh nhanh tới Trợ lý AI">
+        <form class="auto-ai-form" id="autoAiForm">
+          <input type="text" id="autoAiInput" class="auto-ai-input" autocomplete="off" aria-label="Nhập lệnh tiếng Việt cho Trợ lý AI" placeholder="Nhập lệnh nhanh cho AI (vd: hẹn 5 phút tắt đèn phòng khách, tạo luật tự động...)">
+          <button type="submit" class="btn btn-primary" id="btnAutoAiSend" style="min-height:44px;">Gửi lệnh</button>
+        </form>
+        <div id="autoAiOutput" class="auto-ai-output" hidden aria-live="polite">
+          <div class="auto-ai-line">
+            <span class="auto-ai-tag">Bạn nhập:</span>
+            <span id="autoAiUserText"></span>
+          </div>
+          <div class="auto-ai-line">
+            <span class="auto-ai-tag">Trợ lý AI:</span>
+            <span id="autoAiReplyText" class="auto-ai-reply-text"></span>
+          </div>
+          <div id="autoAiConfirmRow" class="auto-ai-confirm-row" hidden>
+            <button type="button" class="btn btn-primary" id="btnAutoAiConfirmYes" style="min-height:40px;">Đồng ý</button>
+            <button type="button" class="btn btn-secondary" id="btnAutoAiConfirmNo" style="min-height:40px;">Hủy</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="auto-kpi-strip" aria-label="Tổng quan số lượng tự động hóa">
+        <button type="button" class="auto-kpi-pill" data-kpi-tab="timers">
+          <span class="auto-kpi-label" data-label-tab="timers">Hẹn giờ</span>
+          <span class="auto-kpi-count" id="autoKpiTimers">0</span>
+        </button>
+        <button type="button" class="auto-kpi-pill" data-kpi-tab="schedules">
+          <span class="auto-kpi-label" data-label-tab="schedules">Lịch trình</span>
+          <span class="auto-kpi-count" id="autoKpiSchedules">0</span>
+        </button>
+        <button type="button" class="auto-kpi-pill" data-kpi-tab="commands">
+          <span class="auto-kpi-label" data-label-tab="commands">Lệnh tùy chỉnh</span>
+          <span class="auto-kpi-count" id="autoKpiCommands">0</span>
+        </button>
+        <button type="button" class="auto-kpi-pill" data-kpi-tab="rules">
+          <span class="auto-kpi-label" data-label-tab="rules">Luật tự động</span>
+          <span class="auto-kpi-count" id="autoKpiRules">0</span>
+        </button>
+      </section>
+
+      <div class="auto-tab-bar" id="autoTabBar" role="tablist" aria-label="Danh mục tự động hóa">
+        <button type="button" class="auto-tab-btn active" role="tab" aria-selected="true" data-auto-tab="all" id="tabAutoAll">
+          <span>Tất cả</span>
+          <span class="auto-tab-count" id="autoTabCountAll">0</span>
+        </button>
+        <button type="button" class="auto-tab-btn" role="tab" aria-selected="false" data-auto-tab="timers" id="tabAutoTimers">
+          <span data-label-tab="timers">Hẹn giờ</span>
+          <span class="auto-tab-count" id="autoTabCountTimers">0</span>
+        </button>
+        <button type="button" class="auto-tab-btn" role="tab" aria-selected="false" data-auto-tab="schedules" id="tabAutoSchedules">
+          <span data-label-tab="schedules">Lịch trình</span>
+          <span class="auto-tab-count" id="autoTabCountSchedules">0</span>
+        </button>
+        <button type="button" class="auto-tab-btn" role="tab" aria-selected="false" data-auto-tab="commands" id="tabAutoCommands">
+          <span data-label-tab="commands">Lệnh tùy chỉnh</span>
+          <span class="auto-tab-count" id="autoTabCountCommands">0</span>
+        </button>
+        <button type="button" class="auto-tab-btn" role="tab" aria-selected="false" data-auto-tab="rules" id="tabAutoRules">
+          <span data-label-tab="rules">Luật tự động</span>
+          <span class="auto-tab-count" id="autoTabCountRules">0</span>
+        </button>
+      </div>
+
+      <main id="autoSectionsGrid" class="auto-sections-grid">
+        <section class="auto-section-card" id="autoSecTimers" data-section="timers" aria-labelledby="autoHeadTimers">
+          <div class="auto-section-head">
+            <div class="auto-section-title-group">
+              <h2 id="autoHeadTimers" data-label-tab="timers">Hẹn giờ</h2>
+              <span class="auto-count-badge" id="autoSecCountTimers">0</span>
+            </div>
+            <button type="button" class="auto-create-btn" id="btnAutoCreateTimer" data-auto-open-modal="timer">
+              <svg class="icon" style="width:15px;height:15px;"><use href="#i-plus"/></svg>
+              <span>Tạo hẹn giờ</span>
+            </button>
+          </div>
+          <div id="autoPageTimerList" class="auto-list"></div>
+        </section>
+
+        <section class="auto-section-card" id="autoSecSchedules" data-section="schedules" aria-labelledby="autoHeadSchedules">
+          <div class="auto-section-head">
+            <div class="auto-section-title-group">
+              <h2 id="autoHeadSchedules" data-label-tab="schedules">Lịch trình</h2>
+              <span class="auto-count-badge" id="autoSecCountSchedules">0</span>
+            </div>
+            <button type="button" class="auto-create-btn" id="btnAutoCreateSchedule" data-auto-open-modal="schedule">
+              <svg class="icon" style="width:15px;height:15px;"><use href="#i-plus"/></svg>
+              <span>Tạo lịch mới</span>
+            </button>
+          </div>
+          <div id="autoPageScheduleList" class="auto-list"></div>
+        </section>
+
+        <section class="auto-section-card" id="autoSecCommands" data-section="commands" aria-labelledby="autoHeadCommands">
+          <div class="auto-section-head">
+            <div class="auto-section-title-group">
+              <h2 id="autoHeadCommands" data-label-tab="commands">Lệnh tùy chỉnh</h2>
+              <span class="auto-count-badge" id="autoSecCountCommands">0</span>
+            </div>
+            <button type="button" class="auto-create-btn" id="btnAutoCreateCommand" data-auto-open-modal="command">
+              <svg class="icon" style="width:15px;height:15px;"><use href="#i-plus"/></svg>
+              <span>Tạo lệnh mới</span>
+            </button>
+          </div>
+          <div id="autoPageCommandList" class="auto-list"></div>
+        </section>
+
+        <section class="auto-section-card" id="autoSecRules" data-section="rules" aria-labelledby="autoHeadRules">
+          <div class="auto-section-head">
+            <div class="auto-section-title-group">
+              <h2 id="autoHeadRules" data-label-tab="rules">Luật tự động</h2>
+              <span class="auto-count-badge" id="autoSecCountRules">0</span>
+            </div>
+            <button type="button" class="auto-create-btn" id="btnAutoCreateRule" data-auto-open-modal="rule">
+              <svg class="icon" style="width:15px;height:15px;"><use href="#i-plus"/></svg>
+              <span>Tạo luật mới</span>
+            </button>
+          </div>
+          <div id="autoPageRuleList" class="auto-list"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Điều hướng di động">
+    <a href="/"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
+    <a class="active" href="/automation" aria-current="page"><svg class="icon"><use href="#i-clock"/></svg>Tự động</a>
+    <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
+    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
+  </nav>
+
+  <!-- HỘP THOẠI TẠO / CHỈNH SỬA TỰ ĐỘNG HÓA -->
+  <div id="automationModal" class="auto-modal-backdrop hidden" hidden>
+    <div id="automationModalDialog" class="auto-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="autoModalTitle">
+      <div class="auto-modal-header">
+        <h3 id="autoModalTitle">Tạo luật tự động mới</h3>
+        <button type="button" class="btn-close" id="btnAutoModalClose" aria-label="Đóng hộp thoại">
+          <svg class="icon"><use href="#i-x"/></svg>
+        </button>
+      </div>
+
+      <form id="autoModalForm" class="auto-modal-body" novalidate>
+        <input type="hidden" id="autoModalKind" value="rule">
+        <input type="hidden" id="autoModalEditId" value="">
+
+        <!-- 1. FORM HẸN GIỜ -->
+        <div id="autoModalTimerFields" hidden>
+          <div class="auto-grid-2">
+            <div class="auto-field">
+              <label for="autoModalTimerDevice">Thiết bị</label>
+              <select id="autoModalTimerDevice" class="auto-select"></select>
+            </div>
+            <div class="auto-field">
+              <label for="autoModalTimerAction">Hành động</label>
+              <select id="autoModalTimerAction" class="auto-select"></select>
+            </div>
+          </div>
+          <div class="auto-grid-3" style="margin-top:10px;">
+            <div class="auto-field">
+              <label for="autoModalTimerHours">Giờ</label>
+              <input type="number" id="autoModalTimerHours" class="auto-input" min="0" max="24" step="1" value="0">
+            </div>
+            <div class="auto-field">
+              <label for="autoModalTimerMinutes">Phút</label>
+              <input type="number" id="autoModalTimerMinutes" class="auto-input" min="0" max="59" step="1" value="0">
+            </div>
+            <div class="auto-field">
+              <label for="autoModalTimerSeconds">Giây</label>
+              <input type="number" id="autoModalTimerSeconds" class="auto-input" min="0" max="59" step="1" value="30">
+            </div>
+          </div>
+          <div class="auto-field" style="margin-top:10px;">
+            <label for="autoModalTimerRepeat">Lặp lại</label>
+            <select id="autoModalTimerRepeat" class="auto-select">
+              <option value="once">Một lần</option>
+              <option value="hourly">Mỗi giờ</option>
+              <option value="daily">Hằng ngày</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 2. FORM LỊCH TRÌNH -->
+        <div id="autoModalScheduleFields" hidden>
+          <div class="auto-grid-2">
+            <div class="auto-field">
+              <label for="autoModalScheduleDevice">Thiết bị</label>
+              <select id="autoModalScheduleDevice" class="auto-select"></select>
+            </div>
+            <div class="auto-field">
+              <label for="autoModalScheduleAction">Hành động</label>
+              <select id="autoModalScheduleAction" class="auto-select"></select>
+            </div>
+          </div>
+          <div class="auto-grid-2" style="margin-top:10px;">
+            <div class="auto-field">
+              <label for="autoModalScheduleTime">Giờ thực thi (HH:MM)</label>
+              <input type="time" id="autoModalScheduleTime" class="auto-input" value="07:00" required>
+            </div>
+            <div class="auto-field">
+              <label for="autoModalScheduleType">Chu kỳ lặp</label>
+              <select id="autoModalScheduleType" class="auto-select">
+                <option value="once">Một lần</option>
+                <option value="daily">Hằng ngày</option>
+                <option value="weekly">Theo thứ trong tuần</option>
+              </select>
+            </div>
+          </div>
+          <div id="autoModalWeekdaysWrap" class="auto-field" style="margin-top:10px;" hidden>
+            <span class="auto-field-label">Chọn các thứ lặp lại</span>
+            <div class="auto-weekday-grid" id="autoModalWeekdaysGrid">
+              <label class="auto-weekday-pill"><input type="checkbox" value="0">T2</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="1">T3</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="2">T4</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="3">T5</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="4">T6</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="5">T7</label>
+              <label class="auto-weekday-pill"><input type="checkbox" value="6">CN</label>
+            </div>
+          </div>
+          <div class="auto-field" style="margin-top:10px;">
+            <label for="autoModalScheduleLabel">Nhãn lịch trình (tùy chọn)</label>
+            <input type="text" id="autoModalScheduleLabel" class="auto-input" placeholder="Ví dụ: Bật đèn buổi tối">
+          </div>
+        </div>
+
+        <!-- 3. FORM LỆNH TÙY CHỈNH -->
+        <div id="autoModalCommandFields" hidden>
+          <div class="auto-field">
+            <label for="autoModalCommandPhrase">Câu lệnh kích hoạt</label>
+            <input type="text" id="autoModalCommandPhrase" class="auto-input" placeholder="Ví dụ: chế độ đi ngủ, ra ngoài...">
+          </div>
+          <div class="auto-builder-section" style="margin-top:10px;">
+            <div class="auto-builder-head">
+              <span class="auto-builder-title">Các bước thực hiện</span>
+              <button type="button" class="btn-mini accent" id="btnAutoAddCmdStep">+ Thêm bước</button>
+            </div>
+            <div id="autoModalCmdStepsList" class="auto-builder-list"></div>
+          </div>
+        </div>
+
+        <!-- 4. FORM LUẬT TỰ ĐỘNG (ĐƠN & PHỨC HỢP AND/OR) -->
+        <div id="autoModalRuleFields" hidden>
+          <div class="auto-field">
+            <label for="autoRuleNameInput">Tên luật tự động (tùy chọn)</label>
+            <input type="text" id="autoRuleNameInput" class="auto-input" placeholder="Nhập tên gợi nhớ cho luật tự động">
+          </div>
+
+          <div class="auto-field" style="margin-top:10px;">
+            <span class="auto-field-label">Logic kết hợp điều kiện</span>
+            <div class="auto-logic-group" id="autoRuleLogicGroup">
+              <label class="auto-logic-option is-selected" data-logic-opt="AND">
+                <input type="radio" name="autoRuleLogic" value="AND" checked>
+                <span>Thỏa mãn TẤT CẢ điều kiện (VÀ)</span>
+              </label>
+              <label class="auto-logic-option" data-logic-opt="OR">
+                <input type="radio" name="autoRuleLogic" value="OR">
+                <span>Thỏa mãn BẤT KỲ điều kiện nào (HOẶC)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="auto-builder-section" style="margin-top:10px;">
+            <div class="auto-builder-head">
+              <span class="auto-builder-title">Điều kiện kích hoạt</span>
+              <button type="button" class="btn-mini accent" id="btnAutoAddCondition">+ Thêm điều kiện</button>
+            </div>
+            <div id="autoRuleConditionsList" class="auto-builder-list"></div>
+          </div>
+
+          <div class="auto-builder-section" style="margin-top:10px;">
+            <div class="auto-builder-head">
+              <span class="auto-builder-title">Hành động thực thi</span>
+              <button type="button" class="btn-mini accent" id="btnAutoAddAction">+ Thêm hành động</button>
+            </div>
+            <div id="autoRuleActionsList" class="auto-builder-list"></div>
+          </div>
+
+          <div style="margin-top:10px; display:grid; gap:8px;">
+            <label class="auto-toggle-line">
+              <input type="checkbox" id="chkAutoEnableElse">
+              <span>+ Hành động ngược lại khi hết điều kiện</span>
+            </label>
+            <div id="autoRuleElseWrap" class="auto-builder-section" hidden>
+              <div class="auto-builder-head">
+                <span class="auto-builder-title">Hành động ngược lại (ELSE)</span>
+                <button type="button" class="btn-mini accent" id="btnAutoAddElseAction">+ Thêm hành động ngược lại</button>
+              </div>
+              <div id="autoRuleElseActionsList" class="auto-builder-list"></div>
+            </div>
+          </div>
+
+          <div class="auto-field" style="margin-top:10px; max-width:240px;">
+            <label for="autoRuleCooldownInput">Thời gian chờ lặp lại (giây)</label>
+            <input type="number" id="autoRuleCooldownInput" class="auto-input" min="0" max="86400" step="1" value="10">
+          </div>
+        </div>
+
+        <div id="autoModalFeedback" class="auto-modal-feedback" role="status" aria-live="polite" hidden></div>
+
+        <div id="autoModalConfirmBanner" class="auto-confirm-banner" role="alert" aria-live="polite" hidden>
+          <div class="auto-confirm-question" id="autoModalConfirmQuestion"></div>
+          <div class="auto-confirm-actions">
+            <button type="button" class="btn btn-primary" id="btnAutoModalConfirmYes" style="min-height:40px;">Đồng ý</button>
+            <button type="button" class="btn btn-secondary" id="btnAutoModalConfirmNo" style="min-height:40px;">Hủy</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="auto-modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnAutoModalCancel" style="min-height:42px;">Hủy</button>
+        <button type="button" class="btn btn-primary" id="btnAutoModalSave" style="min-height:42px;">Lưu tự động hóa</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/nav_auth_guard.js"></script>
+  <script src="/static/js/automation_panel.js"></script>
+  <script src="/static/js/spa_nav.js" defer></script>
+</body>
+</html>

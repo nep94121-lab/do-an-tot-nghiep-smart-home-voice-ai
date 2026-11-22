@@ -4,15 +4,17 @@
   }
   window.__shSpaRouterLoaded = true;
 
-  const SPA_ROUTES = new Set(["/", "/auth", "/wokwi", "/logs"]);
+  const SPA_ROUTES = new Set(["/", "/automation", "/auth", "/wokwi", "/logs"]);
   const ROUTE_CSS = {
     "/": "/static/css/style.css",
+    "/automation": "/static/css/automation_panel.css",
     "/auth": "/static/css/auth.css",
     "/wokwi": "/static/css/wokwi.css",
     "/logs": "/static/css/logs.css",
   };
   const ROUTE_TITLES = {
     "/": "Tổng quan · Nhà thông minh",
+    "/automation": "Tự động hóa · Nhà thông minh",
     "/auth": "Xác thực & Phân quyền · Nhà thông minh",
     "/wokwi": "Phần cứng — Nhà thông minh",
     "/logs": "Nhật ký · Nhà thông minh",
@@ -60,7 +62,7 @@
     document.querySelectorAll('link[rel="stylesheet"]').forEach((lnk) => {
       try {
         const u = new URL(lnk.getAttribute("href"), window.location.origin);
-        if (u.pathname === expectedCss) {
+        if (u.pathname === expectedCss || u.pathname.startsWith("/static/css/")) {
           lnk.setAttribute("data-spa-route-css", route);
           list.push(lnk);
         }
@@ -362,6 +364,16 @@
         },
       })
     );
+    window.dispatchEvent(
+      new CustomEvent("sh:spa-route", {
+        detail: { from: prevRoute, to: targetRoute, firstMount: isFirstMount },
+      })
+    );
+    if (typeof window.initSmartHomeAutomationPanel === "function") {
+      try {
+        window.initSmartHomeAutomationPanel();
+      } catch (_) {}
+    }
   }
 
   document.addEventListener("click", (ev) => {

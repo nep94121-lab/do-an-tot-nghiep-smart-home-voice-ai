@@ -724,14 +724,14 @@ def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False
         return "cancel"
 
     if re.search(
-        r"^(?:đúng(?:\s+đúng){0,2}|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô kê|ôkê|đc|được(?:\s+được){0,2}|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ vâng|dạ được|dạ đúng|có(?:\s+có){0,2}|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
+        r"^(?:đúng(?:\s+đúng){0,2}|đúng rồi|đúng vậy|xác nhận|đồng ý|chắc chắn|ừ(?:\s+ừ){0,2}|ừm(?:\s+ừm){0,2}|ư|ờ|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|ô kê|ôkê|đc|được(?:\s+được){0,2}|được rồi|yes|làm đi|thực hiện|thực hiện đi|tiến hành|tiếp tục|vâng(?:\s+vâng){0,2}|dạ(?:\s+dạ){0,2}|dạ vâng|dạ được|dạ đúng|có(?:\s+có){0,2}|mở đi|bật đi|tắt đi|đóng đi|chạy đi)(?:\s+(?:xác nhận|đồng ý|làm|thực hiện|tiến hành|lưu|đặt|tạo|sửa|xóa|hủy|huỷ|chạy|mở|bật|tắt|đóng|ạ|nhé|nha|đi|luôn|rồi|em|bạn))*\s*$",
         raw_collapsed,
     ):
         return "confirm"
 
     # Unaccented fallback (safe because accented 'đừng'/'dừng' already returned 'cancel' above)
     if (has_pending or not re.match(r"^dược(?:\s|$)", raw_collapsed)) and re.search(
-        r"^(?:xac nhan|dong y|chac chan|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o ke|dc|yes|confirm|u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc roi|dung(?:\s+dung){0,2}|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da vang|da duoc|da dung|co(?:\s+co){0,2}|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:a|nhe|nha|di|luon|roi|em|ban))*\s*$",
+        r"^(?:xac nhan|dong y|chac chan|ok(?:\s+ok){0,2}|okay(?:\s+okay){0,2}|oke(?:\s+oke){0,2}|okie|o ke|dc|yes|confirm|u(?:\s+u){0,2}|uh|um(?:\s+um){0,2}|duoc(?:\s+duoc){0,2}|duoc roi|dung(?:\s+dung){0,2}|dung roi|dung vay|lam di|thuc hien|thuc hien di|tien hanh|tiep tuc|vang(?:\s+vang){0,2}|da(?:\s+da){0,2}|da vang|da duoc|da dung|co(?:\s+co){0,2}|mo di|bat di|tat di|dong di|chay di)(?:\s+(?:xac nhan|dong y|lam|thuc hien|tien hanh|luu|dat|tao|sua|xoa|huy|chay|mo|bat|tat|dong|a|nhe|nha|di|luon|roi|em|ban))*\s*$",
         norm,
     ):
         return "confirm"
@@ -1369,6 +1369,7 @@ async def execute_confirmed_mutation(
             )
         hhmm = str(payload.get("time_hhmm") or "")
         schedule_type = str(payload.get("schedule_type") or "once")
+        weekdays = payload.get("weekdays")
         run_date_vn = str(payload.get("run_date_vn") or "")
         label = str(payload.get("label") or "")
         for td in target_devs:
@@ -1385,7 +1386,7 @@ async def execute_confirmed_mutation(
         conflict_msg = check_tier1_schedule_conflict(
             actor_tier=tier,
             time_hhmm=hhmm,
-            schedule_type=schedule_type,
+            schedule_type="daily" if (schedule_type == "weekly" or weekdays) else schedule_type,
             run_date_vn=run_date_vn,
             engine=engine,
         )
@@ -1407,6 +1408,7 @@ async def execute_confirmed_mutation(
                     action=act,
                     time_hhmm=hhmm,
                     schedule_type=schedule_type,
+                    weekdays=weekdays,
                     run_date_vn=run_date_vn,
                     label=label,
                     owner_name=user_name,
@@ -1525,6 +1527,7 @@ async def execute_confirmed_mutation(
                 sid,
                 time_hhmm=payload.get("time_hhmm"),
                 schedule_type=payload.get("schedule_type"),
+                weekdays=payload.get("weekdays"),
                 run_date_vn=payload.get("run_date_vn"),
                 device_id=new_dev,
                 action=payload.get("action"),
@@ -2356,6 +2359,26 @@ async def execute_confirmed_mutation(
                 "snapshot": snap,
             },
         }
+
+    if action_kind in (
+        "create_compound_rule",
+        "update_compound_rule",
+        "toggle_compound_rule",
+        "delete_compound_rule",
+        "toggle_schedule",
+        "reset_automations",
+    ):
+        from simulator.ai_tool_registry import execute_extended_confirmed_mutation
+
+        ext_res = await execute_extended_confirmed_mutation(
+            engine=engine,
+            session=session,
+            source=source,
+            action_kind=action_kind,
+            payload=payload,
+        )
+        if ext_res is not None:
+            return ext_res
 
     return {
         "handled": True,

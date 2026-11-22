@@ -253,7 +253,7 @@ def restrict_guest_snapshot(
             if k in pub_mqtt
         }
     if tier >= 3:
-        for priv_key in ("timers", "schedules", "automation_rules", "custom_commands", "scenes"):
+        for priv_key in ("timers", "schedules", "automation_rules", "compound_rules", "custom_commands", "scenes"):
             snap[priv_key] = []
         return snap
 
@@ -275,6 +275,12 @@ def restrict_guest_snapshot(
         and rl.get("when_device_id") in allowed_set
         and rl.get("then_device_id") in allowed_set
         and str(rl.get("owner_user_id") or rl.get("owner_id") or "") == uid
+    ]
+    snap["compound_rules"] = [
+        rl for rl in (snap.get("compound_rules") or [])
+        if isinstance(rl, dict)
+        and str(rl.get("owner_user_id") or rl.get("owner_id") or "") == uid
+        and all(str(a.get("device_id") or "") in allowed_set for a in (rl.get("actions") or []))
     ]
     visible_scenes = []
     for cmd in (snap.get("custom_commands") or snap.get("scenes") or []):

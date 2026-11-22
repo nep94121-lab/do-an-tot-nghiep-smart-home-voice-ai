@@ -388,17 +388,25 @@ class EngineRulesMixin:
         db_schedules: list[dict[str, Any]] = []
         db_rules: list[dict[str, Any]] = []
         db_scenes: list[dict[str, Any]] = []
+        db_compound_rules: list[dict[str, Any]] = []
         try:
             from simulator.automation_repo import get_automation_snapshot_bundle
 
             db_schedules, db_rules, db_scenes = get_automation_snapshot_bundle()
         except Exception:
             pass
+        try:
+            from simulator.automation_engine import list_compound_rules
+
+            db_compound_rules = list_compound_rules(include_disabled=True)
+        except Exception:
+            db_compound_rules = []
         if tier >= 3:
             timers_list = []
             db_schedules = []
             db_rules = []
             db_scenes = []
+            db_compound_rules = []
         elif tier == 2:
             timers_list = [
                 t for t in timers_list
@@ -415,6 +423,10 @@ class EngineRulesMixin:
             db_scenes = [
                 c for c in db_scenes
                 if str(c.get("owner_user_id") or "") == uid
+            ]
+            db_compound_rules = [
+                r for r in db_compound_rules
+                if str(r.get("owner_user_id") or "") == uid
             ]
         can_custom = tier <= 2
         cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
@@ -448,6 +460,8 @@ class EngineRulesMixin:
             "timers": timers_list,
             "schedules": db_schedules,
             "automation_rules": db_rules,
+            "compound_rules": db_compound_rules,
+            "house_mode": str(getattr(getattr(self, "_root_engine", self), "house_mode", "HOME") or "HOME"),
             "custom_commands": db_scenes,
             "scenes": db_scenes,
             "sensors": self.read_all_sensors() if hasattr(self, "read_all_sensors") else {},
@@ -1228,6 +1242,12 @@ class EngineRulesMixin:
                     "if_else_rules": [],
                 }
                 self._save_overlay()
+                try:
+                    from simulator.automation_engine import clear_compound_rules_scoped
+
+                    clear_compound_rules_scoped(target_owner_id=uid)
+                except Exception:
+                    pass
 
             spoken_t2 = {
                 "timers": "Đã reset đặt thời gian riêng của bạn.",
@@ -1328,6 +1348,7 @@ class EngineRulesMixin:
                             target_root.devices[k] = td
                     target_root.server_connected = True
                     target_root.pump_manual_override_off = False
+                    target_root.house_mode = "HOME"
                     if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
                         target_root.mqtt_bridge.esp8266_status["online"] = True
                         target_root.mqtt_bridge.esp8266_status["power_mode"] = "SERVER_ONLINE_FULL_AI"

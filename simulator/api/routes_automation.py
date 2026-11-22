@@ -301,6 +301,106 @@ async def api_confirm_automation_by_id(
     return await _handle_confirm_automation(request, body, path_pending_id=pending_id)
 
 
+@router.get("/api/ui_registry")
+async def api_get_ui_registry() -> JSONResponse:
+    from simulator.ui_registry import get_ui_registry
+
+    return JSONResponse(get_ui_registry())
+
+
+@router.get("/api/tools")
+async def api_get_ai_tools() -> JSONResponse:
+    from simulator.ai_tool_registry import get_tool_specs
+
+    specs = get_tool_specs()
+    return JSONResponse({"ok": True, "count": len(specs), "tools": specs})
+
+
+@router.get("/api/house_mode")
+async def api_get_house_mode(request: Request) -> JSONResponse:
+    sess, err = _require_auth(request)
+    if err is not None:
+        return err
+    mode = str(getattr(getattr(_REST_ENGINE, "_root_engine", _REST_ENGINE), "house_mode", "HOME") or "HOME")
+    return JSONResponse(
+        {
+            "ok": True,
+            "house_mode": mode,
+            "mode_vi": "Vắng nhà" if mode == "AWAY" else "Ở nhà",
+        }
+    )
+
+
+@router.post("/api/house_mode")
+async def api_set_house_mode(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    body = payload if isinstance(payload, dict) else {}
+    sess, err = _require_auth(request, body)
+    if err is not None:
+        return err
+    g_err = _deny_guest_tier3(sess, "POST /api/house_mode")
+    if g_err is not None:
+        return g_err
+    raw_mode = str(body.get("mode") or body.get("house_mode") or "").strip().upper()
+    if raw_mode in ("VANG_NHA", "VANG", "ABSENT", "OUT"):
+        raw_mode = "AWAY"
+    elif raw_mode in ("O_NHA", "PRESENT", "IN"):
+        raw_mode = "HOME"
+    if raw_mode not in ("HOME", "AWAY"):
+        return JSONResponse({"ok": False, "error": "Chế độ nhà chỉ hỗ trợ HOME hoặc AWAY."}, status_code=400)
+    res = await _REST_ENGINE.set_house_mode(
+        raw_mode,
+        source=f"REST ({sess.display_name})",
+        actor_name=str(sess.display_name),
+        actor_tier=int(sess.tier),
+    )
+    await broadcast_rest_state_to_bridges()
+    res["snapshot"] = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+    return JSONResponse(res)
+
+
+@router.post("/api/automation/reset")
+async def api_reset_automations(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    body = payload if isinstance(payload, dict) else {}
+    sess, err = _require_auth(request, body)
+    if err is not None:
+        return err
+    g_err = _deny_guest_tier3(sess, "POST /api/automation/reset")
+    if g_err is not None:
+        return g_err
+    scope = str(body.get("scope") or "all").strip().lower()
+    if scope not in ("timers", "schedules", "custom_commands", "rules", "all", "devices", "factory"):
+        return JSONResponse({"ok": False, "error": "Phạm vi đặt lại không hợp lệ."}, status_code=400)
+    if scope == "factory" and int(sess.tier) != 1:
+        return JSONResponse(
+            {"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà cấp 1 mới được khôi phục cài đặt gốc ạ."},
+            status_code=403,
+        )
+    clear_all_users = bool(body.get("clear_all_users", False))
+    if clear_all_users and int(sess.tier) > 1:
+        return JSONResponse(
+            {"ok": False, "rbac_blocked": True, "error": "Chỉ chủ nhà cấp 1 mới được đặt lại dữ liệu của mọi người ạ."},
+            status_code=403,
+        )
+    scope_vi = {
+        "timers": "tất cả hẹn giờ",
+        "schedules": "tất cả lịch trình",
+        "custom_commands": "tất cả lệnh tùy chỉnh",
+        "rules": "tất cả luật tự động",
+        "all": "toàn bộ tự động hóa",
+        "devices": "trạng thái các thiết bị về mặc định",
+        "factory": "toàn bộ hệ thống về cài đặt gốc",
+    }[scope]
+    return await stage_or_execute_rest_confirmation(
+        request=request,
+        sess=sess,
+        body=body,
+        action_kind="reset_automations",
+        payload={"scope": scope, "clear_all_users": clear_all_users},
+        prompt_summary=f"Đặt lại {scope_vi}",
+        source=f"REST ({sess.display_name})",
+    )
+
+
 @router.get("/api/automation")
 async def api_get_automation_overview(request: Request) -> JSONResponse:
     sess, err = _require_auth(request)
@@ -311,14 +411,19 @@ async def api_get_automation_overview(request: Request) -> JSONResponse:
         return g_err
     _REST_ENGINE.sync_from_shared_store(force=True)
     snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+    owner_filter = None if int(sess.tier) == 1 else str(sess.user_id)
+    all_rules = list_automation_rules(include_disabled=True, owner_user_id=owner_filter)
+    all_scenes = list_custom_commands(include_disabled=True, owner_user_id=owner_filter)
     return JSONResponse({
         "ok": True,
         "tier": int(sess.tier),
+        "house_mode": snap.get("house_mode", "HOME"),
         "timers": snap.get("timers", []),
         "schedules": snap.get("schedules", []),
-        "automation_rules": snap.get("automation_rules", []),
-        "custom_commands": snap.get("custom_commands", []),
-        "scenes": snap.get("scenes", snap.get("custom_commands", [])),
+        "automation_rules": all_rules,
+        "compound_rules": snap.get("compound_rules", []),
+        "custom_commands": all_scenes,
+        "scenes": all_scenes,
     })
 
 
@@ -586,6 +691,9 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
     action = str(body.get("action") or "").strip().lower()
     time_hhmm = str(body.get("time_hhmm") or "").strip()
     schedule_type = str(body.get("schedule_type") or body.get("repeat") or "once").strip().lower()
+    from simulator.automation_engine import format_weekdays_vi, normalize_weekdays
+
+    weekdays = normalize_weekdays(body.get("weekdays"))
     run_date_vn = str(body.get("run_date_vn") or "").strip()
     label = str(body.get("label") or "").strip()
 
@@ -600,7 +708,7 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
     hhmm_norm, hhmm_err = _parse_hhmm_or_error(time_hhmm)
     if hhmm_err is not None or hhmm_norm is None:
         return hhmm_err
-    st_type = "daily" if schedule_type == "daily" else "once"
+    st_type = "daily" if (schedule_type in ("daily", "weekly") or bool(weekdays)) else "once"
 
     conflict_msg = check_tier1_schedule_conflict(
         actor_tier=int(sess.tier),
@@ -628,7 +736,7 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
             status_code=409,
         )
 
-    rep_txt = "hằng ngày" if st_type == "daily" else "một lần"
+    rep_txt = format_weekdays_vi(weekdays) if weekdays else ("hằng ngày" if st_type == "daily" else "một lần")
     summary = f"Đặt lịch {format_device_action_vi(device_id, action).lower()} lúc {hhmm_norm} ({rep_txt})"
     return await stage_or_execute_rest_confirmation(
         request=request,
@@ -640,6 +748,7 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
             "action": action,
             "time_hhmm": hhmm_norm,
             "schedule_type": st_type,
+            "weekdays": weekdays,
             "run_date_vn": run_date_vn,
             "label": label,
         },
@@ -682,9 +791,14 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
         if hhmm_err is not None:
             return hhmm_err
 
+    from simulator.automation_engine import normalize_weekdays
+
+    new_weekdays = normalize_weekdays(body.get("weekdays")) if "weekdays" in body and body.get("weekdays") is not None else None
     new_type = str(body.get("schedule_type") or body.get("repeat") or "").strip().lower() or None
     if new_type is not None:
-        new_type = "daily" if new_type == "daily" else "once"
+        new_type = "daily" if new_type in ("daily", "weekly") else "once"
+    elif new_weekdays:
+        new_type = "daily"
     new_run_date = str(body.get("run_date_vn") or "").strip() if "run_date_vn" in body else None
     new_enabled = bool(body.get("enabled")) if "enabled" in body else bool(existing.get("enabled", True))
     try:
@@ -721,6 +835,7 @@ async def api_update_schedule(request: Request, schedule_id: str, payload: dict[
         "schedule_id": schedule_id,
         "time_hhmm": new_hhmm,
         "schedule_type": new_type,
+        "weekdays": new_weekdays,
         "device_id": new_dev,
         "action": new_action,
         "enabled": body.get("enabled") if "enabled" in body else None,
@@ -782,10 +897,30 @@ async def api_list_rules(request: Request) -> JSONResponse:
     if g_err is not None:
         return g_err
     snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
-    return JSONResponse({"ok": True, "rules": snap.get("automation_rules", [])})
+    owner_filter = None if int(sess.tier) == 1 else str(sess.user_id)
+    all_simple = list_automation_rules(include_disabled=True, owner_user_id=owner_filter)
+    return JSONResponse({
+        "ok": True,
+        "rules": all_simple,
+        "compound_rules": snap.get("compound_rules", []),
+    })
+
+
+@router.get("/api/compound_rules")
+async def api_list_compound_rules(request: Request) -> JSONResponse:
+    sess, err = _require_auth(request)
+    if err is not None:
+        return err
+    g_err = _deny_guest_tier3(sess, "GET /api/compound_rules")
+    if g_err is not None:
+        return g_err
+    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+    comp = snap.get("compound_rules", [])
+    return JSONResponse({"ok": True, "rules": comp, "compound_rules": comp})
 
 
 @router.post("/api/rules")
+@router.post("/api/compound_rules")
 async def api_create_rule(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     body = payload if isinstance(payload, dict) else {}
     sess, err = _require_auth(request, body)
@@ -797,6 +932,48 @@ async def api_create_rule(request: Request, payload: dict[str, Any] = Body(defau
         msg = "Cấp 2 chưa được Chủ nhà cấp quyền tạo luật liên kết ạ."
         append_audit_log("SECURITY", "rule_link_permission_blocked", f"RBAC Chặn Cấp 2 ({sess.display_name}) tạo liên kết khi chưa được cấp quyền", user_name=sess.display_name, tier=int(sess.tier))
         return JSONResponse({"ok": False, "rbac_blocked": True, "error": msg, "exact_spoken_reply": msg}, status_code=403)
+
+    if isinstance(body.get("conditions"), list) or isinstance(body.get("actions"), list):
+        from simulator.automation_engine import format_compound_rule_vi, validate_compound_rule_input
+
+        try:
+            validated = validate_compound_rule_input(
+                owner_user_id=str(sess.user_id),
+                owner_tier=int(sess.tier),
+                logic=str(body.get("logic") or "AND"),
+                conditions=list(body.get("conditions") or []),
+                actions=list(body.get("actions") or []),
+                else_actions=list(body.get("else_actions") or []),
+                cooldown_seconds=float(body.get("cooldown_seconds") if body.get("cooldown_seconds") is not None else 10.0),
+                hysteresis=body.get("hysteresis"),
+                engine=_REST_ENGINE,
+            )
+        except PermissionError as exc:
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": str(exc)}, status_code=403)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+        label_vi = str(body.get("label") or "").strip() or format_compound_rule_vi(
+            validated["logic"], validated["conditions"], validated["actions"], validated["else_actions"]
+        )
+        return await stage_or_execute_rest_confirmation(
+            request=request,
+            sess=sess,
+            body=body,
+            action_kind="create_compound_rule",
+            payload={
+                "name": str(body.get("name") or "").strip() or label_vi[:80],
+                "logic": validated["logic"],
+                "conditions": validated["conditions"],
+                "actions": validated["actions"],
+                "else_actions": validated["else_actions"],
+                "cooldown_seconds": validated["cooldown_seconds"],
+                "hysteresis": validated["hysteresis"],
+                "label": label_vi,
+                "enabled": bool(body.get("enabled", True)),
+            },
+            prompt_summary=f"Tạo luật tự động: {label_vi}",
+            source=f"REST ({sess.display_name})",
+        )
 
     wdev = str(body.get("when_device_id") or "").strip()
     wstate = str(body.get("when_state") or "ON").strip().upper()
@@ -824,7 +1001,13 @@ async def api_create_rule(request: Request, payload: dict[str, Any] = Body(defau
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
-    summary = f"Tạo liên kết khi {DEFAULT_DEVICES[v_wdev]['name']} {v_wstate} thì {format_device_action_vi(v_tdev, v_tact).lower()}"
+    from simulator.automation_repo import SENSOR_TRIGGER_DEVICES, format_sensor_trigger_vi
+
+    if v_wdev in SENSOR_TRIGGER_DEVICES:
+        when_desc = format_sensor_trigger_vi(v_wdev, v_wstate)
+    else:
+        when_desc = f"{DEFAULT_DEVICES[v_wdev]['name']} {v_wstate}"
+    summary = f"Tạo liên kết khi {when_desc} thì {format_device_action_vi(v_tdev, v_tact).lower()}"
     return await stage_or_execute_rest_confirmation(
         request=request,
         sess=sess,
@@ -845,14 +1028,128 @@ async def api_create_rule(request: Request, payload: dict[str, Any] = Body(defau
     )
 
 
+@router.patch("/api/rules/{rule_id}")
+@router.put("/api/rules/{rule_id}")
+@router.patch("/api/compound_rules/{rule_id}")
+@router.put("/api/compound_rules/{rule_id}")
+async def api_update_rule(request: Request, rule_id: str, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    from simulator.automation_engine import format_compound_rule_vi, get_compound_rule, validate_compound_rule_input
+
+    body = payload if isinstance(payload, dict) else {}
+    sess, err = _require_auth(request, body)
+    if err is not None:
+        return err
+    if not _can_manage_rules(sess):
+        return _deny_guest_tier3(sess, "PATCH /api/rules")
+
+    comp = get_compound_rule(rule_id)
+    if comp is not None:
+        if int(sess.tier) > 1 and comp["owner_user_id"] != sess.user_id:
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền sửa luật của chính mình."}, status_code=403)
+        only_toggle = set(body.keys()) - {"confirm_token", "pending_id"} == {"enabled"}
+        if only_toggle:
+            en = bool(body["enabled"])
+            verb = "Bật lại" if en else "Tạm tắt"
+            return await stage_or_execute_rest_confirmation(
+                request=request,
+                sess=sess,
+                body=body,
+                action_kind="toggle_compound_rule",
+                payload={"rule_id": rule_id, "is_compound": True, "enabled": en},
+                prompt_summary=f"{verb} luật tự động '{comp.get('label') or rule_id}'",
+                source=f"REST ({sess.display_name})",
+                expected_payload_match={"rule_id": rule_id},
+            )
+        try:
+            validated = validate_compound_rule_input(
+                owner_user_id=comp["owner_user_id"],
+                owner_tier=int(sess.tier),
+                logic=str(body.get("logic") or comp["logic"]),
+                conditions=body.get("conditions") if "conditions" in body else comp["conditions"],
+                actions=body.get("actions") if "actions" in body else comp["actions"],
+                else_actions=body.get("else_actions") if "else_actions" in body else comp["else_actions"],
+                cooldown_seconds=float(body.get("cooldown_seconds") if body.get("cooldown_seconds") is not None else comp["cooldown_seconds"]),
+                hysteresis=body.get("hysteresis") if "hysteresis" in body else comp["hysteresis"],
+                exclude_rule_id=rule_id,
+                engine=_REST_ENGINE,
+            )
+        except PermissionError as exc:
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": str(exc)}, status_code=403)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+        new_lbl = str(body.get("label") or "").strip() or format_compound_rule_vi(
+            validated["logic"], validated["conditions"], validated["actions"], validated["else_actions"]
+        )
+        return await stage_or_execute_rest_confirmation(
+            request=request,
+            sess=sess,
+            body=body,
+            action_kind="update_compound_rule",
+            payload={
+                "rule_id": rule_id,
+                "name": body.get("name"),
+                "logic": validated["logic"],
+                "conditions": validated["conditions"],
+                "actions": validated["actions"],
+                "else_actions": validated["else_actions"],
+                "cooldown_seconds": validated["cooldown_seconds"],
+                "hysteresis": validated["hysteresis"],
+                "enabled": body.get("enabled") if "enabled" in body else None,
+                "label": new_lbl,
+            },
+            prompt_summary=f"Cập nhật luật tự động thành: {new_lbl}",
+            source=f"REST ({sess.display_name})",
+            expected_payload_match={"rule_id": rule_id},
+        )
+
+    existing = next((r for r in list_automation_rules(include_disabled=True) if r["rule_id"] == rule_id), None)
+    if existing is None:
+        return JSONResponse({"ok": False, "error": "Không tìm thấy luật tự động."}, status_code=404)
+    if int(sess.tier) > 1 and existing["owner_user_id"] != sess.user_id:
+        return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền sửa luật của chính mình."}, status_code=403)
+    if "enabled" in body:
+        en = bool(body["enabled"])
+        verb = "Bật lại" if en else "Tạm tắt"
+        return await stage_or_execute_rest_confirmation(
+            request=request,
+            sess=sess,
+            body=body,
+            action_kind="toggle_compound_rule",
+            payload={"rule_id": rule_id, "is_compound": False, "enabled": en},
+            prompt_summary=f"{verb} luật '{existing.get('label') or rule_id}'",
+            source=f"REST ({sess.display_name})",
+            expected_payload_match={"rule_id": rule_id},
+        )
+    return JSONResponse({"ok": False, "error": "Không có trường hợp lệ để cập nhật."}, status_code=400)
+
+
 @router.delete("/api/rules/{rule_id}")
+@router.delete("/api/compound_rules/{rule_id}")
 async def api_delete_rule(request: Request, rule_id: str) -> JSONResponse:
+    from simulator.automation_engine import get_compound_rule
+
     body = await _optional_json_body(request)
     sess, err = _require_auth(request, body)
     if err is not None:
         return err
     if not _can_manage_rules(sess):
         return _deny_guest_tier3(sess, "DELETE /api/rules")
+
+    comp = get_compound_rule(rule_id)
+    if comp is not None:
+        if int(sess.tier) > 1 and comp["owner_user_id"] != sess.user_id:
+            append_audit_log("SECURITY", "rule_delete_blocked", f"RBAC Chặn {sess.display_name} xóa luật của {comp['owner_user_id']}", user_name=sess.display_name, tier=int(sess.tier))
+            return JSONResponse({"ok": False, "rbac_blocked": True, "error": "Bạn chỉ có quyền xóa luật của chính mình."}, status_code=403)
+        return await stage_or_execute_rest_confirmation(
+            request=request,
+            sess=sess,
+            body=body,
+            action_kind="delete_compound_rule",
+            payload={"rule_id": rule_id},
+            prompt_summary=f"Xóa luật tự động '{comp.get('label') or rule_id}'",
+            source=f"REST ({sess.display_name})",
+            expected_payload_match={"rule_id": rule_id},
+        )
 
     existing = next((r for r in list_automation_rules(include_disabled=True) if r["rule_id"] == rule_id), None)
     if existing is None:
@@ -1072,6 +1369,9 @@ async def run_scheduler_tick_once(now_override: Any = None) -> int:
         st_type = str(sc.get("schedule_type") or "once").lower()
         run_date = str(sc.get("run_date_vn") or "")
         if st_type == "once" and run_date and run_date != today_vn:
+            continue
+        sc_weekdays = sc.get("weekdays") or []
+        if sc_weekdays and now_vn.weekday() not in sc_weekdays:
             continue
         sid = str(sc["schedule_id"])
         dev_id = str(sc["device_id"])

@@ -864,6 +864,26 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             sp_d = ensure_vietnamese_reply(str(res_dht.get("exact_spoken_reply") or ""))
             return JSONResponse({"ok": True, "executed": True, "reply": sp_d, "exact_spoken_reply": sp_d})
 
+    # 2b-pre. UI guidance questions ("ở đâu", "bấm vào đâu", "chỗ nào") take precedence over sensor value readout
+    from simulator.compound_nlu import is_ui_guidance_question, process_compound_nlu_command
+
+    if is_ui_guidance_question(text):
+        ui_res = await process_compound_nlu_command(
+            text=text,
+            engine=_REST_ENGINE,
+            session=session,
+            source="text_command",
+            session_key=skey_txt,
+        )
+        if ui_res is not None:
+            ui_pl = dict(ui_res.get("payload") or {})
+            if ui_pl.get("exact_spoken_reply"):
+                sp_u = ensure_vietnamese_reply(str(ui_pl["exact_spoken_reply"]))
+                ui_pl["exact_spoken_reply"] = sp_u
+                ui_pl["reply"] = sp_u
+            ui_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
+            return JSONResponse(ui_pl, status_code=int(ui_res.get("status_code") or 200))
+
     # 2b. Sensor & device status queries (immediate, no confirmation)
     q_info = handle_sensor_or_status_query_vi(text, _REST_ENGINE, session)
     if q_info is not None:
@@ -892,6 +912,27 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             },
             status_code=q_code,
         )
+
+    # 2c. Compound NLU (UI guidance, removed-device guard, house mode, compound rules, weekday schedules, toggles)
+    from simulator.compound_nlu import process_compound_nlu_command
+
+    comp_res = await process_compound_nlu_command(
+        text=text,
+        engine=_REST_ENGINE,
+        session=session,
+        source="text_command",
+        session_key=skey_txt,
+    )
+    if comp_res is not None:
+        comp_pl = dict(comp_res.get("payload") or {})
+        if comp_pl.get("ok") or comp_pl.get("executed") or comp_pl.get("confirmed"):
+            await broadcast_rest_state_to_bridges()
+        if comp_pl.get("exact_spoken_reply"):
+            sp_c = ensure_vietnamese_reply(str(comp_pl["exact_spoken_reply"]))
+            comp_pl["exact_spoken_reply"] = sp_c
+            comp_pl["reply"] = sp_c
+        comp_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
+        return JSONResponse(comp_pl, status_code=int(comp_res.get("status_code") or 200))
 
     # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
     nlu_res = await process_automation_nlu_command(

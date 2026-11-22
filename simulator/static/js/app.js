@@ -1526,6 +1526,9 @@
       snap.system_policies
     );
     renderDesktopAutomation(snap);
+    try {
+      window.dispatchEvent(new CustomEvent("sh:snapshot", { detail: snap }));
+    } catch (_) {}
   }
 
   function updateLatencyUI(toolMs, audioMs, leadMs) {
