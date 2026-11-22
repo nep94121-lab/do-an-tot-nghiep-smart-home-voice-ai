@@ -1050,3 +1050,182 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
     assert g_j52 is not None and g_j52["ok"] is False and g_j52["text"] == ""
 
 
+def test_round5_diacritic_near_miss_no_silent_timer_defaults_and_hard_utterances() -> None:
+    """Round 5 safety regressions: wrong-diacritic near-misses clarify without acting, missing-device timers ask instead of defaulting, member link permission keeps confirmation, and hard utterances pass."""
+    from simulator.automation_repo import list_pending_timers, list_schedules
+    from simulator.server import app
+    from simulator.voice.vietnamese_policy import (
+        classify_ambiguous_or_unsupported_vi,
+        parse_direct_device_intents_vi,
+    )
+
+    # 1. Finding 1: Wrong-diacritic light/siren/door near-misses must NEVER fire direct device actions
+    for near_miss in (
+        "tắt đen phòng khách",
+        "bật đến phòng khách",
+        "tắt dền phòng ngủ",
+        "tắt đền phòng khách",
+        "bật den phòng khách",
+        "đóng cua chính",
+        "mở của chính",
+        "mở cua đi",
+        "bật coi báo động",
+        "bật bom vườn",
+        "cái áo này màu đen đẹp nhỉ",
+        "bat den",
+        "tat den",
+        "bat den phong khach hay gi",
+        "tat den phong khach dung khong",
+        "dong cua chinh dung khong",
+        "tắt đèn phòng khách chưa",
+        "bật đèn phòng khách à",
+        "hôm qua tôi quên tắt đèn phòng khách",
+        "đèn phòng khách đang bật hay đã tắt",
+        "cửa chính đang mở hay đã đóng",
+    ):
+        assert parse_direct_device_intents_vi(near_miss) == [], f"Near-miss/rhetorical leaked action: {near_miss!r}"
+
+    # Helpful Vietnamese clarification on wrong-diacritic light command
+    clar_den = classify_ambiguous_or_unsupported_vi("tắt đen phòng khách") or ""
+    assert "đèn phòng khách" in clar_den.lower() and "phải không" in clar_den.lower()
+
+    # Exact accented match AND unambiguous fully unaccented typed command still execute cleanly
+    assert parse_direct_device_intents_vi("bật đèn phòng khách") == [
+        {"device_id": "living_room_light", "action": "turn_on"}
+    ]
+    assert parse_direct_device_intents_vi("bat den phong khach") == [
+        {"device_id": "living_room_light", "action": "turn_on"}
+    ]
+
+    # Accented 'coi' particle must NOT trigger alarm_siren; 'Mở cái loa chuông lên coi.' targets speaker_amp ONLY
+    assert parse_direct_device_intents_vi("Mở cái loa chuông lên coi.") == [
+        {"device_id": "speaker_amp", "action": "turn_on"}
+    ]
+    # 'Đóng hộ' must NOT collide with 'đồng hồ'; 'Tắt cả hai đèn...' must NOT collide with 'tất cả'
+    assert parse_direct_device_intents_vi("Đóng hộ cái cửa chính lại nhé.") == [
+        {"device_id": "main_door", "action": "close"}
+    ]
+    assert parse_direct_device_intents_vi("Tắt cả hai đèn phòng khách, phòng ngủ và tắt loa chuông nữa.") == [
+        {"device_id": "living_room_light", "action": "turn_off"},
+        {"device_id": "bedroom_light", "action": "turn_off"},
+        {"device_id": "speaker_amp", "action": "turn_off"},
+    ]
+
+    engine = _reset_engine_clean()
+    h1, _, _, _ = _seed_sessions()
+    with TestClient(app) as client:
+        # 1b. E2E check: 'tắt đen phòng khách' clarifies, 0 execution, 0 state change
+        asyncio.run(engine.execute_device_action("living_room_light", "turn_on", bypass_rbac=True))
+        r_nm = client.post("/api/text_command", headers=h1, json={"text": "tắt đen phòng khách"})
+        assert r_nm.status_code == 200
+        d_nm = r_nm.json()
+        assert d_nm.get("executed") is False
+        assert d_nm.get("requires_confirmation") is False
+        assert engine.devices["living_room_light"]["state"] == "ON"
+        assert "đèn phòng khách" in _assert_vi_reply(d_nm).lower()
+
+        # 2. Finding 2: Missing-device / missing-action timers & schedules ask in Vietnamese, NEVER default to living_room_light/turn_on
+        for vague_timer in (
+            "hẹn giờ 5 phút nữa",
+            "hẹn giờ 5 phút nữa tắt",
+            "hẹn giờ 5 phút nữa đèn phòng khách",
+            "hẹn giờ bật đèn phòng khách",
+            "đặt lịch 9 giờ tối",
+        ):
+            r_vt = client.post("/api/text_command", headers=h1, json={"text": vague_timer})
+            assert r_vt.status_code == 200, f"{vague_timer!r} -> {r_vt.status_code} {r_vt.text}"
+            d_vt = r_vt.json()
+            assert d_vt.get("executed") is False, f"{vague_timer!r} must NOT execute!"
+            assert d_vt.get("requires_confirmation") is False, f"{vague_timer!r} must clarify, not stage guessed timer!"
+            rep_vt = _assert_vi_reply(d_vt)
+            assert "?" in rep_vt
+        assert len(list_pending_timers()) == 0
+        assert len(list_schedules(include_disabled=False)) == 0
+
+        # REST POST /api/timers with omitted device_id/action must reject with 400 (no silent default)
+        r_api_tm = client.post("/api/timers", headers=h1, json={"seconds": 30})
+        assert r_api_tm.status_code == 400
+        assert len(list_pending_timers()) == 0
+
+        # 3. KEEP: set_member_link_permission still requires confirmation
+        from simulator.auth_3layer import get_auth_3layer_manager
+        from simulator.automation_repo import can_user_create_links
+
+        mgr = get_auth_3layer_manager()
+        added_qa_member = False
+        if not any(str(a.get("user_id") or "") == "qa_member_t2" for a in mgr.accounts):
+            mgr.accounts.append({
+                "account_id": "qa_member_t2",
+                "user_id": "qa_member_t2",
+                "email": "qa_member@test.local",
+                "display_name": "Thành viên QA",
+                "full_name": "Thành viên QA",
+                "tier": 2,
+                "role": "MEMBER",
+                "permission_active": True,
+                "permission_status": "ACTIVE",
+            })
+            added_qa_member = True
+        try:
+            r_perm = client.post("/api/text_command", headers=h1, json={"text": "cấp quyền tạo liên kết cho Thành viên QA"})
+            assert r_perm.status_code == 200
+            d_perm = r_perm.json()
+            assert d_perm.get("requires_confirmation") is True
+            assert d_perm.get("action_kind") == "set_member_link_permission"
+            assert can_user_create_links("qa_member_t2", 2, engine=engine) is False
+            r_perm_no = client.post("/api/text_command", headers=h1, json={"text": "hủy"})
+            assert r_perm_no.status_code == 200
+
+            # Revoking member link permission via /api/text_command MUST also require confirmation (never hijack/revoke account!)
+            r_rev = client.post("/api/text_command", headers=h1, json={"text": "thu hồi quyền tạo liên kết của Thành viên QA"})
+            assert r_rev.status_code == 200
+            d_rev = r_rev.json()
+            assert d_rev.get("requires_confirmation") is True
+            assert d_rev.get("action_kind") == "set_member_link_permission"
+            client.post("/api/text_command", headers=h1, json={"text": "hủy"})
+        finally:
+            if added_qa_member:
+                mgr.accounts[:] = [a for a in mgr.accounts if str(a.get("user_id") or "") != "qa_member_t2"]
+
+        # Timer + wrong-diacritic combo must clarify with executed=False on BOTH /api/text_command and /api/voice_command
+        for ep, body in (
+            ("/api/text_command", {"text": "hẹn giờ 5 phút nữa tắt đen phòng khách"}),
+            ("/api/voice_command", {"transcript": "hẹn giờ 5 phút nữa"}),
+        ):
+            r_c = client.post(ep, headers=h1, json=body)
+            assert r_c.status_code == 200
+            dc = r_c.json()
+            assert dc.get("executed") is False, f"{ep} {body} returned executed=True!"
+            assert dc.get("requires_confirmation") is False
+        assert len(list_pending_timers()) == 0
+
+        # 4. Hard-utterance regressions: DHT11 rule must NOT overwrite DHT11 sensor to 11.0°C; air humidity query must NOT collide with 'khi'
+        asyncio.run(engine.update_sensor_telemetry(temp_c=29.2, humidity_pct=64.0))
+        r_rule = client.post("/api/text_command", headers=h1, json={"text": "Nhiệt độ DHT11 mà lên trên ba mươi lăm độ C thì bật còi báo động."})
+        assert r_rule.status_code == 200 and r_rule.json().get("requires_confirmation") is True
+        assert abs(float(engine.mqtt_bridge.dht11_telemetry["temp_c"]) - 29.2) < 0.01
+        client.post("/api/text_command", headers=h1, json={"text": "hủy"})
+
+        r_hum = client.post("/api/text_command", headers=h1, json={"text": "Cho tôi hỏi độ ẩm không khí đang bao nhiêu đấy?"})
+        assert r_hum.status_code == 200 and r_hum.json().get("kind") == "sensor_query"
+        assert "64%" in _assert_vi_reply(r_hum.json())
+
+        # Self-correction, meta-linguistic mention, and topic-comment safety
+        for no_act in (
+            "Tôi đang nói từ mở cửa, chưa nhờ bạn làm gì cả.",
+            "Câu tắt đèn phòng ngủ có mấy chữ vậy?",
+            "Đóng cửa chính à? Không, tôi chỉ đang đọc lại câu đó.",
+            "Tạm biệt bạn, tôi không bảo tắt đèn phòng khách.",
+            "tạo nền nhà sàn lên để bật cả đèn phòng khách và phòng ngủ",
+        ):
+            r_na = client.post("/api/text_command", headers=h1, json={"text": no_act})
+            assert r_na.status_code == 200 and r_na.json().get("executed") is False, f"False action on {no_act!r}"
+
+        # Schedule with leading period parses 21:00 (not 09:00)
+        r_sc21 = client.post("/api/text_command", headers=h1, json={"text": "Tối nay lúc chín giờ bật đèn phòng ngủ cho tôi."})
+        assert r_sc21.status_code == 200 and r_sc21.json().get("requires_confirmation") is True
+        assert "21:00" in _assert_vi_reply(r_sc21.json())
+        client.post("/api/text_command", headers=h1, json={"text": "hủy"})
+
+
+

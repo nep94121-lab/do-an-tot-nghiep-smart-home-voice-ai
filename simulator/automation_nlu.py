@@ -135,47 +135,60 @@ def parse_single_device_and_action(
     clause: str,
     *,
     default_action: str | None = None,
+    allow_den_asr_homophone: bool = False,
 ) -> tuple[str | None, str | None]:
-    """Extract primary device/target and canonical action from a single clause."""
-    clause = _normalize_den_typos_vi(clause)
-    norm = f" {normalize_phrase(clause)} "
+    """Extract primary device/target and canonical action from a single clause (diacritic-aware)."""
+    if allow_den_asr_homophone:
+        clause = _normalize_den_typos_vi(clause)
+    raw_s = str(clause or "").strip().lower()
+    norm = f" {normalize_phrase(raw_s)} "
     try:
-        from simulator.voice.vietnamese_policy import _UNSUPPORTED_DEVICE_RE
+        from simulator.voice.vietnamese_policy import (
+            _UNSUPPORTED_DEVICE_RE,
+            _extract_clause_device,
+            has_vi_diacritics,
+        )
 
         if _UNSUPPORTED_DEVICE_RE.search(norm):
             return None, None
+        has_diac = has_vi_diacritics(raw_s)
     except Exception:
-        pass
+        has_diac = False
+        _extract_clause_device = None  # type: ignore[assignment]
+
     dev: str | None = None
-    for kw, target in _DEVICE_SYNONYMS:
-        if f" {kw} " in norm:
-            dev = target
-            break
-    if dev is None:
-        if " den " in norm:
-            dev = "living_room_light"
-        elif " cua " in norm:
-            dev = "main_door"
-        elif " coi " in norm:
-            dev = "alarm_siren"
-        elif " bom " in norm:
-            dev = "garden_pump"
-        elif " loa " in norm:
-            dev = "speaker_amp"
+    if _extract_clause_device is not None:
+        dev = _extract_clause_device(norm.strip(), raw_clause=raw_s, input_has_diacritics=has_diac)
+    if dev is None and not has_diac:
+        for kw, target in _DEVICE_SYNONYMS:
+            if f" {kw} " in norm:
+                dev = target
+                break
+        if dev is None:
+            if " cua " in norm:
+                dev = "main_door"
+            elif " coi " in norm:
+                dev = "alarm_siren"
+            elif " bom " in norm:
+                dev = "garden_pump"
+            elif " loa " in norm:
+                dev = "speaker_amp"
 
     action_norm = norm
     for _non_verb in (
         "bao dong",
         "tu dong",
-        "tat ca",
         "tieng dong",
         "chuyen dong",
         "hoat dong",
-        "dong ho",
         "cong tac",
         "dong y",
     ):
         action_norm = action_norm.replace(f" {_non_verb} ", " ")
+    if not has_diac or "tất cả" in raw_s:
+        action_norm = action_norm.replace(" tat ca ", " ")
+    if not has_diac or "đồng hồ" in raw_s:
+        action_norm = action_norm.replace(" dong ho ", " ")
     action_norm = f" {' '.join(action_norm.split())} "
 
     off_words = ("tat", "dong", "khoa", "ngat", "dung", "ngung")
@@ -190,6 +203,8 @@ def parse_single_device_and_action(
             if f" {w} " in action_norm:
                 act = "open" if (dev == "main_door" or w == "mo") else "turn_on"
                 break
+    if act is None and dev in ("speaker_amp", "alarm_siren") and " keu " in action_norm:
+        act = "turn_on"
     if act is None:
         act = default_action
 
@@ -198,7 +213,11 @@ def parse_single_device_and_action(
 
         norm_vi = normalize_vietnamese_utterance(clause)
         if norm_vi and normalize_phrase(norm_vi) != normalize_phrase(clause):
-            dev2, act2 = parse_single_device_and_action(norm_vi, default_action=default_action)
+            dev2, act2 = parse_single_device_and_action(
+                norm_vi,
+                default_action=default_action,
+                allow_den_asr_homophone=allow_den_asr_homophone,
+            )
             if dev is None and dev2 is not None:
                 dev = dev2
             if act is None and act2 is not None:
@@ -213,17 +232,30 @@ def parse_multi_steps_from_text(text: str) -> list[dict[str, str]]:
     """Parse one or more actions like 'tắt hết đèn và đóng cửa' into explicit device steps."""
     text = _normalize_den_typos_vi(text)
     raw_clauses = re.split(
-        r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b)",
+        r"(?:,|;|\bvà\b|\bva\b|\brồi\b|\broi\b|\bcùng với\b|\bcung voi\b|\bvới\b|\bvoi\b)",
         text,
         flags=re.IGNORECASE,
     )
     steps: list[dict[str, str]] = []
+    last_act: str | None = None
+    last_dev: str | None = None
     for cl in raw_clauses:
         cl_s = cl.strip()
         if not cl_s:
             continue
-        dev, act = parse_single_device_and_action(cl_s)
+        dev, act = parse_single_device_and_action(cl_s, default_action=last_act, allow_den_asr_homophone=True)
+        if dev is None and last_dev in ("living_room_light", "bedroom_light", "all_lights"):
+            cn = normalize_phrase(cl_s)
+            if cn in ("phong ngu", "ngu"):
+                dev = "bedroom_light"
+                act = act or last_act
+            elif cn in ("phong khach", "khach"):
+                dev = "living_room_light"
+                act = act or last_act
+        if act:
+            last_act = act
         if dev and act:
+            last_dev = dev
             steps.append({"device_id": dev, "action": act})
     return steps
 
@@ -414,9 +446,15 @@ def _parse_clock_hhmm_vi(text: str) -> tuple[str | None, bool, str]:
     if not has_clock_marker:
         return None, is_daily, ""
 
+    # Support period BEFORE clock time ("tối nay lúc 9 giờ", "sáng mai 6 giờ") as well as after ("9 giờ tối")
+    lead_period = ""
+    m_lead_p = re.search(r"\b(sang|trua|chieu|toi|dem)\s+(?:nay|mai)\b", norm[:m.start() + 4])
+    if m_lead_p:
+        lead_period = m_lead_p.group(1).strip()
+
     hh = int(m.group(1))
     mm = int(m.group(2) or 0)
-    period = (m.group(3) or "").strip()
+    period = (m.group(3) or lead_period or "").strip()
     if mm < 0 or mm > 59 or hh < 0 or hh > 23:
         return None, is_daily, ""
 
@@ -612,8 +650,9 @@ def _classify_confirmation_utterance(raw_text: str, *, has_pending: bool = False
 
 
 def _parse_sensor_trigger(clause: str) -> tuple[str, str] | None:
-    """Parse sensor trigger phrases ('đất khô', 'có tiếng động lớn', etc.) into (sensor_id, state)."""
+    """Parse sensor trigger phrases ('đất khô', 'độ ẩm đất dưới 30%', 'nhiệt độ trên 35°C', 'có tiếng động lớn', etc.)."""
     norm = f" {normalize_phrase(clause)} "
+    # Soil moisture triggers
     if any(
         k in norm
         for k in (
@@ -623,20 +662,41 @@ def _parse_sensor_trigger(clause: str) -> tuple[str, str] | None:
         )
     ):
         return "soil_sensor", "DRY"
+    if any(k in norm for k in (" do am dat ", " cam bien dat ", " dat ")) and any(
+        k in norm for k in (" duoi ", " thap hon ", " nho hon ", " it hon ")
+    ):
+        return "soil_sensor", "DRY"
     if any(k in norm for k in (" dat am ", " dat uot ", " do am dat cao ", " dat du am ")):
         return "soil_sensor", "WET"
+    if any(k in norm for k in (" do am dat ", " cam bien dat ", " dat ")) and any(
+        k in norm for k in (" vuot ", " tren ", " cao hon ", " lon hon ")
+    ):
+        return "soil_sensor", "WET"
+    # Sound sensor KY-037 triggers
     if any(
         k in norm
         for k in (
             " tieng dong lon ", " tieng doc luong ", " tin hieu lon ",
             " chuyen dong lon ", " bien dong lon ", " bien dong ", " co tieng dong ", " am thanh lon ",
-            " co am thanh lon ", " phat hien am thanh ", " tieng on lon ",
+            " co am thanh lon ", " phat hien am thanh ", " phat hien tieng dong ", " tieng on lon ",
             " vo tay ", " ky037 ", " ky 037 ",
         )
     ):
         return "sound_sensor", "LOUD"
     if any(k in norm for k in (" yen tinh ", " het tieng dong ", " khong co tieng dong ")):
         return "sound_sensor", "QUIET"
+    # DHT11 temperature triggers
+    if " nhiet do " in norm or (" dht11 " in norm and " do c " in norm):
+        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ", " nong ")):
+            return "temp_sensor", "HIGH"
+        if any(k in norm for k in (" xuong duoi ", " duoi ", " thap ", " lanh ")):
+            return "temp_sensor", "LOW"
+    # DHT11 air humidity triggers
+    if (" do am khong khi " in norm or (" do am " in norm and " dat " not in norm and " dht11 " in norm)):
+        if any(k in norm for k in (" xuong duoi ", " duoi ", " thap ")):
+            return "humidity_sensor", "LOW"
+        if any(k in norm for k in (" len tren ", " tren ", " vuot ", " cao ")):
+            return "humidity_sensor", "HIGH"
     return None
 
 
@@ -1110,7 +1170,16 @@ async def execute_confirmed_mutation(
         w_dev = str(payload.get("when_device_id") or "")
         w_state = str(payload.get("when_state") or "ON")
         t_dev = str(payload.get("then_device_id") or "")
-        t_act = str(payload.get("then_action") or "turn_on")
+        t_act = str(payload.get("then_action") or "").strip()
+        if not t_dev or not t_act:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_automation_rule",
+                msg="Thiếu thiết bị đích hoặc hành động cho liên kết.",
+                status_code=400,
+                target="automation_rules",
+            )
         e_dev = str(payload.get("else_device_id") or "")
         e_act = str(payload.get("else_action") or "")
         delay_sec = float(payload.get("delay_seconds") or 0.0)
@@ -1182,7 +1251,16 @@ async def execute_confirmed_mutation(
 
     if action_kind == "create_schedule":
         target_devs = list(payload.get("target_devs") or [])
-        act = str(payload.get("action") or "turn_on")
+        act = str(payload.get("action") or "").strip()
+        if not target_devs or not act:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_schedule",
+                msg="Bạn muốn đặt lịch cho thiết bị nào và bật hay tắt?",
+                status_code=400,
+                target="schedules",
+            )
         hhmm = str(payload.get("time_hhmm") or "")
         schedule_type = str(payload.get("schedule_type") or "once")
         run_date_vn = str(payload.get("run_date_vn") or "")
@@ -1390,8 +1468,17 @@ async def execute_confirmed_mutation(
         }
 
     if action_kind == "create_timer":
-        dev = str(payload.get("device_id") or "living_room_light")
-        act = str(payload.get("action") or "turn_on")
+        dev = str(payload.get("device_id") or "").strip()
+        act = str(payload.get("action") or "").strip()
+        if not dev or not act:
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="invalid_timer",
+                msg="Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?",
+                status_code=400,
+                target="timers",
+            )
         hours = float(payload.get("hours") or 0.0)
         minutes = float(payload.get("minutes") or 0.0)
         seconds = float(payload.get("seconds") or 0.0)
@@ -1508,8 +1595,17 @@ async def execute_confirmed_mutation(
                     status_code=403,
                     target=tid,
                 )
-            target_dev = str(payload.get("device_id") or existing_t.get("raw_target") or existing_t.get("device_id") or "living_room_light")
-            target_act = new_action or str(existing_t.get("action") or "turn_on")
+            target_dev = str(payload.get("device_id") or existing_t.get("raw_target") or existing_t.get("device_id") or "").strip()
+            target_act = (new_action or str(existing_t.get("action") or "")).strip()
+            if not target_dev or not target_act:
+                return _deny_mutation_error(
+                    session=session,
+                    source=source,
+                    category="timer_update_failed",
+                    msg="Bạn muốn đổi hẹn giờ cho thiết bị nào và bật hay tắt?",
+                    status_code=400,
+                    target=tid,
+                )
             for td in _expand_targets(target_dev):
                 allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
                 if not allowed_td:
@@ -2587,32 +2683,46 @@ def _parse_custom_command_create_or_edit(
     raw_s = str(raw or "").strip()
     if not raw_s:
         return None
+    # Strip optional polite lead-in like "tôi muốn ..." / "giúp tôi ..."
+    raw_s = re.sub(
+        r"^(?:tôi\s+muốn|mình\s+muốn|em\s+muốn|giúp\s+(?:tôi|mình)|toi\s+muon|minh\s+muon)\s+",
+        "",
+        raw_s,
+        flags=re.IGNORECASE,
+    ).strip()
     norm_full = normalize_phrase(raw_s)
     has_unsupported = bool(_UNSUPPORTED_DEVICE_RE.search(f" {norm_full} "))
 
+    def _clean_custom_phrase(p: str) -> str:
+        c = p.strip(" '\".,:")
+        c = re.sub(r"^(?:tên|ten)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
+        c = re.sub(r"[,;:\s]+(?:nội\s+dung|noi\s+dung)$", "", c, flags=re.IGNORECASE).strip(" '\".,:")
+        c = re.sub(r"^(?:khẩu\s+lệnh|lệnh|câu|chế\s+độ|khau\s+lenh|lenh|cau|che\s+do)\s+", "", c, flags=re.IGNORECASE).strip(" '\".,:")
+        return c
+
     # Branch 1: Strict explicit custom-command prefix + strong separator (preserves 400 on invalid steps)
     m_strict = re.match(
-        r"^(?P<verb>tạo|thêm|đặt|lưu|sửa|cập\s+nhật|đổi)\s+"
-        r"(?:khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
+        r"^(?P<verb>tạo|thêm|đặt|lưu|gán|sửa|cập\s+nhật|đổi)\s+"
+        r"(?:khẩu\s+lệnh|lệnh\s+(?:tùy\s+chỉnh|custom)|lệnh|câu|ngữ\s+cảnh|kịch\s+bản|scene|chế\s+độ)"
         r"(?:\s+mới|\s+moi)?\s+"
         r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-        r"(?:là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
+        r"(?:(?:,\s*)?nội\s+dung\s+là|cho\s+thao\s+tác|thành\s+lệnh|để|là|gồm|bao\s+gồm|thành|như\s+sau|:|=|->)\s+(.+)$",
         raw_s,
         flags=re.IGNORECASE,
     )
     if not m_strict:
         m_strict = re.match(
-            r"^(?P<verb>tao|them|dat|luu|sua|cap\s+nhat|doi)\s+"
-            r"(?:khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|ngu\s+canh|kich\s+ban|scene|che\s+do)"
+            r"^(?P<verb>tao|them|dat|luu|gan|sua|cap\s+nhat|doi)\s+"
+            r"(?:khau\s+lenh|lenh\s+(?:tuy\s+chinh|custom)|lenh|cau|ngu\s+canh|kich\s+ban|scene|che\s+do)"
             r"(?:\s+moi)?\s+"
             r"(?:'([^']+)'|\"([^\"]+)\"|(.+?))\s+"
-            r"(?:la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
+            r"(?:(?:,\s*)?noi\s+dung\s+la|cho\s+thao\s+tac|thanh\s+lenh|de|la|gom|bao\s+gom|thanh|nhu\s+sau|:|=|->)\s+(.+)$",
             strip_accents(raw_s),
             flags=re.IGNORECASE,
         )
     if m_strict:
         verb_norm = normalize_phrase(m_strict.group("verb") or "")
-        phrase = (m_strict.group(2) or m_strict.group(3) or m_strict.group(4) or "").strip(" '\".,:")
+        phrase = _clean_custom_phrase(m_strict.group(2) or m_strict.group(3) or m_strict.group(4) or "")
         steps_text = (m_strict.group(5) or "").strip()
         if phrase and not _has_clock_or_timer_marker(phrase, reject_any_digit=False):
             steps = parse_multi_steps_from_text(steps_text)
@@ -2862,10 +2972,13 @@ async def process_automation_nlu_command(
         r"(?:reset|ri\s+set|vi\s+sep|vi\s+sach|vi\s+thich|viet|re\s+logic|logic|rexit|rex|rep|ret|reet|refresh|re|truy\s+suat|truy\s+van|xep|thiet\s+lap|save)\s+(?:lai\s+)?trang\s+thai\s+(?:cac\s+)?thiet\s+(?:bi|di|nghi)|"
         r"(?:ve\s+sinh(?:\s+sach)?|rexit\s+tro\s+thanh)\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
         r"dat\s+lai\s+(?:trang\s+thai\s+)?(?:cac\s+)?thiet\s+bi|"
-        r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi"
+        r"(?:reset|ri\s+set|refresh)\s+(?:cac\s+)?thiet\s+bi|"
+        r"khoi\s+dong\s+lai\s+(?:bo\s+dieu\s+khien|he\s+thong|nha\s+thong\s+minh|thiet\s+bi|thoi)"
         r")\b",
         norm,
-    ) or re.fullmatch(r"(?:reset|ri\s+set|rexit|rex)\s+trang\s+thai", norm):
+    ) or re.fullmatch(r"(?:reset|ri\s+set|rexit|rex)\s+trang\s+thai", norm) or (
+        "khoi dong lai" in norm and "giu nguyen cai dat" in norm
+    ):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -2902,8 +3015,11 @@ async def process_automation_nlu_command(
             "khoi phuc ngay dan",
             "factory reset",
             "dat lai cai dat goc",
+            "ve mac dinh ban dau",
+            "cau hinh ve mac dinh",
+            "dat lai he thong tu dau",
         )
-    ):
+    ) or ("xoa" in norm and "cai dat" in norm and "dat lai" in norm):
         if tier >= 3:
             return _deny_mutation_error(
                 session=session,
@@ -3266,15 +3382,28 @@ async def process_automation_nlu_command(
     # STEP 5. CREATE LINKED AUTOMATION RULE (device-trigger AND sensor-trigger)
     # ------------------------------------------------------------------
     m_rule = re.search(
-        r"(?:^|\b)(?:(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
+        r"(?:^|\b)(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?\s*)?"
         r"(?:khi|kỳ|ký|ky|nếu|hễ|từ\s+giờ|neu|he|tu\s+gio)\s+(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
         raw,
         flags=re.IGNORECASE,
     )
     if not m_rule:
         m_rule = re.search(
-            r"^(?:(?:tạo|thêm|đặt|tao|them|dat)\s+(?:luật|luat|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?(?:\s+là|\s+la|\s*:)?\s+)?"
+            r"^(?:(?:tạo|thêm|đặt|cài|tao|them|dat|cai)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:luật|luat|quy\s+tắc|quy\s+tac|liên\s+kết|lien\s+ket)(?:\s+mới|\s+moi)?(?:\s+là|\s+la|\s*:)?\s+)?"
             r"(.+?)\s+(?:thì|thi)\s+(?:luôn|cả|tự\s+động|cùng|luon|ca|tu\s+dong|cung)?\s*(.+)$",
+            raw,
+            flags=re.IGNORECASE,
+        )
+    if not m_rule:
+        m_rule = re.search(
+            r"(?:^|\b)(?:(?:cài\s+cho\s+(?:tôi|mình)|tạo\s+luật|đặt\s+quy\s+tắc|quy\s+tắc|cai\s+cho\s+(?:toi|minh)|tao\s+luat|dat\s+quy\s+tac|quy\s+tac)\s+)?"
+            r"(?:cứ|cu)\s+(.+?)\s+(?:là|la)\s+(?:tự\s+động\s+)?(.+)$",
+            raw,
+            flags=re.IGNORECASE,
+        )
+    if not m_rule:
+        m_rule = re.search(
+            r"^(?:đặt|tạo|thêm|cài|dat|tao|them|cai)\s+(?:quy\s+tắc|quy\s+tac|luật|luat|liên\s+kết|lien\s+ket)\s+(.+?)\s+(?:là|la)\s+(.+)$",
             raw,
             flags=re.IGNORECASE,
         )
@@ -3293,7 +3422,11 @@ async def process_automation_nlu_command(
             comma_sensor_when_then = (m_khi_di.group(1).strip(), m_khi_di.group(2).strip())
 
     if comma_sensor_when_then is not None or (
-        m_rule and (" thi " in f" {norm} " or any(k in norm for k in ("khi ", "ky ", "neu ", "he ", "tu gio", "tao luat", "lien ket")))
+        m_rule
+        and (
+            " thi " in f" {norm} "
+            or any(k in norm for k in ("khi ", "ky ", "neu ", "he ", "tu gio", "tao luat", "lien ket", "quy tac", "cu mo ", "cu dong ", "cu bat ", "cu tat "))
+        )
     ):
         if comma_sensor_when_then is not None:
             when_part, then_part_full = comma_sensor_when_then
@@ -3534,8 +3667,46 @@ async def process_automation_nlu_command(
                 )
 
     # ------------------------------------------------------------------
-    # STEP 7. CLOCK SCHEDULE ("bật quạt trần lúc 14 giờ 35", "tắt đèn lúc 22:30 hằng ngày")
+    # STEP 7. CLOCK SCHEDULE ("bật đèn phòng ngủ lúc 14 giờ 35", "tắt đèn lúc 22:30 hằng ngày")
     # ------------------------------------------------------------------
+    def _clarify_missing_timer_or_schedule(
+        *,
+        kind_vi: str,
+        dev_opt: str | None,
+        act_opt: str | None,
+        missing_time: bool = False,
+    ) -> dict[str, Any]:
+        if missing_time:
+            msg_c = f"Bạn muốn {kind_vi} sau bao lâu?"
+        elif not dev_opt and not act_opt:
+            msg_c = f"Bạn muốn {kind_vi} cho thiết bị nào và bật hay tắt?"
+        elif not dev_opt:
+            act_vi = "tắt" if act_opt in ("turn_off", "close") else ("mở" if act_opt == "open" else "bật")
+            msg_c = f"Bạn muốn {kind_vi} {act_vi} thiết bị nào?"
+        else:
+            if dev_opt == "main_door":
+                msg_c = f"Bạn muốn {kind_vi} mở hay đóng cửa chính?"
+            elif dev_opt == "all_lights":
+                msg_c = f"Bạn muốn {kind_vi} bật hay tắt tất cả đèn?"
+            elif dev_opt == "all_devices":
+                msg_c = f"Bạn muốn {kind_vi} bật hay tắt tất cả thiết bị?"
+            else:
+                lbl = str(DEFAULT_DEVICES.get(dev_opt, {}).get("name") or "thiết bị này").lower()
+                msg_c = f"Bạn muốn {kind_vi} bật hay tắt {lbl}?"
+        return {
+            "handled": True,
+            "status_code": 200,
+            "payload": {
+                "ok": True,
+                "executed": False,
+                "requires_confirmation": False,
+                "needs_clarification": True,
+                "kind": "clarify_missing_timer_target",
+                "reply": msg_c,
+                "exact_spoken_reply": msg_c,
+            },
+        }
+
     hhmm, is_daily, cleaned_clock = _parse_clock_hhmm_vi(raw)
     if hhmm is not None:
         if tier >= 3:
@@ -3547,9 +3718,53 @@ async def process_automation_nlu_command(
                 status_code=403,
                 target="schedules",
             )
-        dev, act = parse_single_device_and_action(cleaned_clock or raw)
+        from simulator.voice.vietnamese_policy import (
+            _detect_wrong_diacritic_near_miss_clarification,
+            has_vi_diacritics,
+        )
+
+        raw_has_diac = has_vi_diacritics(raw)
+        dev, act = parse_single_device_and_action(raw)
+        # Only fall back to ASCII-stripped cleaned_clock when input is unaccented (never bypass diacritic safety!)
+        if (not dev or not act) and not raw_has_diac and cleaned_clock:
+            dev2, act2 = parse_single_device_and_action(cleaned_clock)
+            dev = dev or dev2
+            act = act or act2
+        if dev is None and has_removed_device_mention(raw):
+            return _deny_mutation_error(
+                session=session,
+                source=source,
+                category="unsupported_removed_device",
+                msg=(
+                    "Thiết bị hoặc tính năng bạn yêu cầu (quạt, điều hòa, học lệnh hồng ngoại IR) "
+                    "không còn được hỗ trợ trên hệ thống 6 thiết bị mới."
+                ),
+                status_code=400,
+                target="removed_device",
+            )
+        if dev is None:
+            nm_sched = _detect_wrong_diacritic_near_miss_clarification(raw)
+            if nm_sched is not None:
+                return {
+                    "handled": True,
+                    "status_code": 200,
+                    "payload": {
+                        "ok": True,
+                        "executed": False,
+                        "requires_confirmation": False,
+                        "needs_clarification": True,
+                        "kind": "clarify_near_miss_schedule",
+                        "reply": nm_sched,
+                        "exact_spoken_reply": nm_sched,
+                    },
+                }
         if not dev or not act:
-            dev, act = parse_single_device_and_action(raw)
+            has_explicit_sched_cue = any(
+                k in f" {norm} "
+                for k in (" dat lich ", " lich ", " hen gio ", " hen lich ", " hang ngay ", " moi ngay ", " ngay nao cung ", " sang mai ", " toi nay ")
+            )
+            if has_explicit_sched_cue:
+                return _clarify_missing_timer_or_schedule(kind_vi="đặt lịch", dev_opt=dev, act_opt=act)
         if dev and act:
             target_devs = _expand_targets(dev)
             for td in target_devs:
@@ -3597,7 +3812,7 @@ async def process_automation_nlu_command(
             )
 
     # ------------------------------------------------------------------
-    # STEP 8. COUNTDOWN TIMER ("tắt đèn phòng khách sau 1 phút", "10 giây nữa bật quạt")
+    # STEP 8. COUNTDOWN TIMER ("tắt đèn phòng khách sau 1 phút", "10 giây nữa bật đèn phòng ngủ")
     # ------------------------------------------------------------------
     norm_time = _normalize_vi_spoken_numbers(raw)
     has_countdown_cue = bool(
@@ -3616,12 +3831,19 @@ async def process_automation_nlu_command(
                 status_code=403,
                 target="timers",
             )
+        from simulator.voice.vietnamese_policy import (
+            _detect_wrong_diacritic_near_miss_clarification,
+            has_vi_diacritics,
+        )
+
+        raw_has_diac = has_vi_diacritics(raw)
         total_sec, cleaned_cd = _parse_countdown_seconds(raw)
-        if total_sec <= 0:
-            total_sec = 10.0
-        dev, act = parse_single_device_and_action(cleaned_cd)
-        if not dev:
-            dev, act = parse_single_device_and_action(raw)
+        dev, act = parse_single_device_and_action(raw)
+        # Only fall back to ASCII-stripped cleaned_cd when input is unaccented (never bypass diacritic safety!)
+        if (not dev or not act) and not raw_has_diac and cleaned_cd:
+            dev2, act2 = parse_single_device_and_action(cleaned_cd)
+            dev = dev or dev2
+            act = act or act2
         if dev is None and has_removed_device_mention(raw):
             return _deny_mutation_error(
                 session=session,
@@ -3634,8 +3856,26 @@ async def process_automation_nlu_command(
                 status_code=400,
                 target="removed_device",
             )
-        dev = dev or "living_room_light"
-        act = act or "turn_on"
+        if dev is None:
+            nm_timer = _detect_wrong_diacritic_near_miss_clarification(raw)
+            if nm_timer is not None:
+                return {
+                    "handled": True,
+                    "status_code": 200,
+                    "payload": {
+                        "ok": True,
+                        "executed": False,
+                        "requires_confirmation": False,
+                        "needs_clarification": True,
+                        "kind": "clarify_near_miss_timer",
+                        "reply": nm_timer,
+                        "exact_spoken_reply": nm_timer,
+                    },
+                }
+        if not dev or not act:
+            return _clarify_missing_timer_or_schedule(kind_vi="hẹn giờ", dev_opt=dev, act_opt=act)
+        if total_sec <= 0:
+            return _clarify_missing_timer_or_schedule(kind_vi="hẹn giờ", dev_opt=dev, act_opt=act, missing_time=True)
         for td in _expand_targets(dev):
             allowed_td, reason_td = engine.check_device_permission(td, actor_tier=tier)
             if not allowed_td:

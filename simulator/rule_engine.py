@@ -1984,6 +1984,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
             h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
             triggered: list[dict[str, Any]] = []
+            temp_state = "HIGH" if t_clamped >= 35.0 else "LOW"
+            temp_hits = await self._evaluate_reactive_if_else("temp_sensor", temp_state)
+            if temp_hits:
+                triggered.extend(temp_hits)
+            hum_state = "LOW" if h_clamped <= 40.0 else "HIGH"
+            hum_hits = await self._evaluate_reactive_if_else("humidity_sensor", hum_state)
+            if hum_hits:
+                triggered.extend(hum_hits)
         await self.emit({"type": "state_snapshot", "snapshot": self.get_snapshot()})
         spoken = f"Nhiệt độ phòng là {t_clamped:.1f} độ C, độ ẩm {h_clamped:.0f}%."
         return {

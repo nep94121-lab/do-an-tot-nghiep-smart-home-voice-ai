@@ -391,15 +391,19 @@ def _text_has_non_direct_intent_cue(text: str) -> bool:
         )
     except Exception:
         return False
-    norm_num = _normalize_vi_spoken_numbers(text)
-    norm_clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(norm_num.lower())).split())
+    raw_low = text.lower()
+    raw_no_air = re.sub(r"\b(?:không\s+khí|khong\s+khi)\b", " khong_khi ", raw_low)
+    norm_num = _normalize_vi_spoken_numbers(raw_no_air)
+    norm_clean = " ".join(re.sub(r"[^a-z0-9_\s]+", " ", strip_vi_accents(norm_num.lower())).split())
     if not norm_clean:
         return False
     padded = f" {norm_clean} "
+    has_contrastive_con_thi = bool(re.search(r"\bcòn\b.+\bthì\b|\bcon\b.+\bthi\b", raw_low))
+    norm_for_thi = f" {re.sub(r'^(?:o|a|um|u)\s+thi\b', '', norm_clean).strip()} "
     return bool(
         any(k in padded for k in _NON_DIRECT_INTENT_CUES)
         or _COUNTDOWN_OR_CLOCK_GUARD_RE.search(padded)
-        or _CONDITIONAL_THI_GUARD_RE.search(padded)
+        or (not has_contrastive_con_thi and _CONDITIONAL_THI_GUARD_RE.search(norm_for_thi))
         or _CUSTOM_COMMAND_DIRECT_GUARD_RE.search(padded)
     )
 
@@ -420,7 +424,7 @@ def _extract_explicit_polarity(text: str) -> str | None:
     clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(text.lower())).split())
     if not clean:
         return None
-    tokens = set(_strip_non_verb_phrases(clean).split())
+    tokens = set(_strip_non_verb_phrases(clean, raw_clause=text).split())
     has_on = bool(tokens & _EXPLICIT_ON_VERBS)
     has_off = bool(tokens & _EXPLICIT_OFF_VERBS)
     if has_on == has_off:
@@ -496,7 +500,7 @@ def _run_high_noise_hallucination_gate(
         }
 
     # 2. Local clearly hears a negated/rhetorical phrase ('đừng bật đèn', 'không mở cửa') -> never execute
-    if local_txt and _NEGATED_OR_RHETORICAL_DIRECT_RE.search(local_txt.lower()):
+    if local_txt and _NEGATED_OR_RHETORICAL_DIRECT_RE.search(local_txt.lower()) and not parse_direct_device_intents_vi(local_txt):
         return {
             "ok": True,
             "text": local_txt,

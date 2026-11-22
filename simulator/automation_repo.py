@@ -54,6 +54,14 @@ SENSOR_TRIGGER_DEVICES: dict[str, dict[str, Any]] = {
         "name": "Cảm biến âm thanh KY-037",
         "states": ("LOUD", "QUIET"),
     },
+    "temp_sensor": {
+        "name": "Cảm biến nhiệt độ DHT11",
+        "states": ("HIGH", "LOW"),
+    },
+    "humidity_sensor": {
+        "name": "Cảm biến độ ẩm không khí DHT11",
+        "states": ("HIGH", "LOW"),
+    },
 }
 
 SENSOR_STATE_OPPOSITE: dict[str, str] = {
@@ -61,6 +69,8 @@ SENSOR_STATE_OPPOSITE: dict[str, str] = {
     "WET": "DRY",
     "LOUD": "QUIET",
     "QUIET": "LOUD",
+    "HIGH": "LOW",
+    "LOW": "HIGH",
 }
 
 
@@ -70,6 +80,10 @@ def format_sensor_trigger_vi(when_device_id: str, when_state: str) -> str:
         return "đất khô" if st == "DRY" else "đất ẩm"
     if when_device_id == "sound_sensor":
         return "có tiếng động lớn" if st == "LOUD" else "yên tĩnh"
+    if when_device_id == "temp_sensor":
+        return "nhiệt độ cao" if st == "HIGH" else "nhiệt độ thấp"
+    if when_device_id == "humidity_sensor":
+        return "độ ẩm không khí cao" if st == "HIGH" else "độ ẩm không khí thấp"
     return f"{when_device_id}={st}"
 
 
@@ -177,7 +191,8 @@ def format_duration_vi(total_sec: float) -> str:
 
 
 def format_device_action_vi(device_id: str, action: str) -> str:
-    dname = DEVICE_LABELS_VI.get(device_id) or DEFAULT_DEVICES.get(device_id, {}).get("name") or device_id
+    extra_labels = {"all_lights": "tất cả đèn", "all_devices": "tất cả thiết bị"}
+    dname = extra_labels.get(device_id) or DEVICE_LABELS_VI.get(device_id) or DEFAULT_DEVICES.get(device_id, {}).get("name") or device_id
     act = str(action or "").strip().lower()
     if device_id == "main_door":
         verb = "Mở" if act in ("open", "turn_on") else "Đóng"

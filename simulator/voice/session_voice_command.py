@@ -542,7 +542,11 @@ async def execute_session_voice_intents(
         aoede_fields_nlu = await _synthesize_voice_reply_fields(spoken_nlu, echo_guard)
         is_ok_nlu = bool(nlu_payload.get("ok"))
         is_pending_nlu = bool(nlu_payload.get("requires_confirmation"))
-        is_executed_nlu = is_ok_nlu and not is_pending_nlu
+        is_clarify_nlu = bool(nlu_payload.get("needs_clarification"))
+        if "executed" in nlu_payload:
+            is_executed_nlu = bool(nlu_payload.get("executed"))
+        else:
+            is_executed_nlu = is_ok_nlu and not is_pending_nlu and not is_clarify_nlu
         is_blocked_nlu = bool(nlu_payload.get("rbac_blocked"))
         http_status_nlu = int(nlu_res.get("status_code") or (403 if is_blocked_nlu else 200))
         return _strip_legacy_repeat_speech({

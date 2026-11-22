@@ -335,10 +335,11 @@ async def api_create_timer(request: Request, payload: dict[str, Any] = Body(defa
     if not _can_manage_timers(sess):
         return _deny_guest_tier3(sess, "POST /api/timers")
 
-    device_id = str(body.get("device_id") or "living_room_light").strip()
-    action = str(body.get("action") or "turn_on").strip().lower()
-    if action not in ACTION_TO_STATE:
-        action = "turn_on"
+    device_id = str(body.get("device_id") or "").strip()
+    action = str(body.get("action") or "").strip().lower()
+    if not device_id or not action or action not in ACTION_TO_STATE:
+        msg_req = "Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?"
+        return JSONResponse({"ok": False, "error": msg_req, "reply": msg_req, "exact_spoken_reply": msg_req}, status_code=400)
 
     target_devs = (
         ["living_room_light", "bedroom_light"]
@@ -360,7 +361,8 @@ async def api_create_timer(request: Request, payload: dict[str, Any] = Body(defa
     except (TypeError, ValueError):
         return JSONResponse({"ok": False, "error": "Thời gian đếm ngược không hợp lệ."}, status_code=400)
     if hours <= 0 and minutes <= 0 and seconds <= 0:
-        seconds = 10.0
+        msg_time = "Bạn muốn hẹn giờ sau bao lâu?"
+        return JSONResponse({"ok": False, "error": msg_time, "reply": msg_time, "exact_spoken_reply": msg_time}, status_code=400)
     repeat = str(body.get("repeat") or "once").strip() or "once"
 
     total_sec = hours * 3600.0 + minutes * 60.0 + seconds
@@ -581,7 +583,7 @@ async def api_create_schedule(request: Request, payload: dict[str, Any] = Body(d
         return _deny_guest_tier3(sess, "POST /api/schedules")
 
     device_id = str(body.get("device_id") or "").strip()
-    action = str(body.get("action") or "turn_on").strip().lower()
+    action = str(body.get("action") or "").strip().lower()
     time_hhmm = str(body.get("time_hhmm") or "").strip()
     schedule_type = str(body.get("schedule_type") or body.get("repeat") or "once").strip().lower()
     run_date_vn = str(body.get("run_date_vn") or "").strip()
@@ -799,7 +801,7 @@ async def api_create_rule(request: Request, payload: dict[str, Any] = Body(defau
     wdev = str(body.get("when_device_id") or "").strip()
     wstate = str(body.get("when_state") or "ON").strip().upper()
     tdev = str(body.get("then_device_id") or "").strip()
-    tact = str(body.get("then_action") or "turn_on").strip().lower()
+    tact = str(body.get("then_action") or "").strip().lower()
     edev = str(body.get("else_device_id") or "").strip()
     eact = str(body.get("else_action") or "").strip().lower()
     delay_sec = float(body.get("delay_seconds") or 0.0)

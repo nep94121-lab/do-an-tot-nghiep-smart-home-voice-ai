@@ -1088,8 +1088,18 @@ class LiveToolDispatcherMixin:
                         target="timers",
                     )
                 )
-            dev_id = str(args.get("device_id", "") or "living_room_light").strip()
-            act = str(args.get("action", "") or "turn_on").strip()
+            dev_id = str(args.get("device_id", "") or "").strip()
+            act = str(args.get("action", "") or "").strip()
+            if not dev_id or not act:
+                ask_msg = "Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?"
+                return {
+                    "ok": True,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "needs_clarification": True,
+                    "reply": ask_msg,
+                    "exact_spoken_reply": ask_msg,
+                }
             sec = float(args.get("seconds", args.get("delay_seconds", 0)) or 0)
             hrs = float(args.get("hours", 0) or 0)
             mins = float(args.get("minutes", 0) or 0)
@@ -1398,9 +1408,19 @@ class LiveToolDispatcherMixin:
             wdev = str(args.get("when_device_id", "")).strip()
             wstate = str(args.get("when_state", "ON") or "ON").strip()
             tdev = str(args.get("then_device_id", "")).strip()
-            tact = str(args.get("then_action", "turn_on") or "turn_on").strip()
+            tact = str(args.get("then_action", "") or "").strip()
             edev = str(args.get("else_device_id", "") or "").strip()
             eact = str(args.get("else_action", "") or "").strip()
+            if not tdev or not tact:
+                ask_rule_msg = "Bạn muốn tạo liên kết cho thiết bị đích nào và hành động bật hay tắt?"
+                return {
+                    "ok": True,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "needs_clarification": True,
+                    "reply": ask_rule_msg,
+                    "exact_spoken_reply": ask_rule_msg,
+                }
             allowed_then, reason_then = self.engine.check_device_permission(tdev, actor_tier=actor_tier)
             if not allowed_then:
                 return self._wrap_nlu_tool_result(

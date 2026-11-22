@@ -80,48 +80,49 @@ def _parse_text_device_targets(t_low: str) -> list[str]:
         if cw_low and cw_low in mapped_text:
             mapped_text = mapped_text.replace(cw_low, f" {tv_low} ")
 
+    has_diac = bool(re.search(r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", mapped_text))
     tn = strip_vietnamese_diacritics(mapped_text)
 
-    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")) or any(
-        k in tn for k in ("tat ca thiet bi", "toan bo thiet bi", "het thiet bi", "moi thiet bi")
+    if any(k in mapped_text for k in ("tất cả thiết bị", "toàn bộ thiết bị", "hết thiết bị", "mọi thiết bị", "all_devices")) or (
+        not has_diac and any(k in tn for k in ("tat ca thiet bi", "toan bo thiet bi", "het thiet bi", "moi thiet bi"))
     ):
         return ["all_devices"]
-    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")) or any(
-        k in tn for k in ("tat ca den", "toan bo den", "hai den", "2 den", "ca 2 den", "ca hai den", "het den", "cac den")
+    if any(k in mapped_text for k in ("tất cả đèn", "toàn bộ đèn", "hai đèn", "2 đèn", "cả 2 đèn", "cả hai đèn", "hết đèn", "các đèn", "all_lights")) or (
+        not has_diac and any(k in tn for k in ("tat ca den", "toan bo den", "hai den", "2 den", "ca 2 den", "ca hai den", "het den", "cac den"))
     ):
         return ["all_lights"]
 
     targets: list[str] = []
     if (
-        any(k in mapped_text for k in ("cửa chính", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "công tắc cổng", "main_door"))
-        or any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "cua ra vao", "cua sat", "cong tac cong", "mo cua", "dong cua", "khoa cua"))
+        any(k in mapped_text for k in ("cửa chính", "cửa chánh", "cửa lớn", "cửa nhà", "cửa ra vào", "cửa sắt", "công tắc cổng", "main_door"))
+        or (not has_diac and any(k in tn for k in ("cua chinh", "cua lon", "cua nha", "cua ra vao", "cua sat", "cong tac cong", "mo cua", "dong cua", "khoa cua")))
         or re.search(r"\bcửa\b", mapped_text)
     ):
         targets.append("main_door")
-    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")) or any(
-        k in tn for k in ("den phong khach", "den khach")
+    if any(k in mapped_text for k in ("đèn phòng khách", "đèn khách", "living_room_light")) or (
+        not has_diac and any(k in tn for k in ("den phong khach", "den khach"))
     ):
         targets.append("living_room_light")
-    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")) or any(
-        k in tn for k in ("den phong ngu", "den ngu")
+    if any(k in mapped_text for k in ("đèn phòng ngủ", "đèn ngủ", "bedroom_light")) or (
+        not has_diac and any(k in tn for k in ("den phong ngu", "den ngu"))
     ):
         targets.append("bedroom_light")
-    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or any(
-        k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom")
+    if any(k in mapped_text for k in ("còi báo động", "báo động", "còi hú", "chống trộm", "alarm_siren")) or (
+        not has_diac and any(k in tn for k in ("coi bao dong", "bao dong", "coi hu", "chong trom"))
     ) or re.search(r"\bcòi\b", mapped_text):
         targets.append("alarm_siren")
-    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "tưới cây", "tưới vườn", "garden_pump")) or any(
-        k in tn for k in ("may bom", "bom nuoc", "bom vuon", "tuoi cay", "tuoi vuon")
+    if any(k in mapped_text for k in ("máy bơm", "bơm nước", "bơm vườn", "bơm ngoài vườn", "tưới cây", "tưới vườn", "garden_pump")) or (
+        not has_diac and any(k in tn for k in ("may bom", "bom nuoc", "bom vuon", "bom ngoai vuon", "tuoi cay", "tuoi vuon"))
     ):
         targets.append("garden_pump")
     if (
-        any(k in mapped_text for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "pam8403", "speaker_amp"))
-        or any(k in tn for k in ("nguon mach loa", "mach loa", "nguon loa", "pam8403", "speaker amp"))
+        any(k in mapped_text for k in ("nguồn mạch loa", "mạch loa", "nguồn loa", "loa chuông", "pam8403", "speaker_amp"))
+        or (not has_diac and any(k in tn for k in ("nguon mach loa", "mach loa", "nguon loa", "loa chuong", "pam8403", "speaker amp")))
         or re.search(r"\bloa\b", tn)
     ):
         targets.append("speaker_amp")
 
-    if not targets and ("đèn" in mapped_text or re.search(r"\bden\b", tn)):
+    if not targets and re.search(r"\bđèn\b", mapped_text):
         targets.append("living_room_light")
     return targets
 
@@ -419,8 +420,11 @@ async def api_control_device_by_path(device_id: str, request: Request, payload: 
 async def api_mobile_schedule(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Tạo hẹn giờ từ ứng dụng di động Android / PWA (Chặn Khách Cấp 3 theo RBAC)."""
     body = payload if isinstance(payload, dict) else {}
-    dev_id = str(body.get("device_id") or "living_room_light").strip() or "living_room_light"
-    act = str(body.get("action") or "turn_on").strip() or "turn_on"
+    dev_id = str(body.get("device_id") or "").strip()
+    act = str(body.get("action") or "").strip()
+    if not dev_id or not act:
+        msg_req = "Bạn muốn hẹn giờ cho thiết bị nào và bật hay tắt?"
+        return JSONResponse({"ok": False, "error": msg_req, "reply": msg_req, "exact_spoken_reply": msg_req}, status_code=400)
     sec = _REST_ENGINE.mqtt_bridge._clamp_sensor_float(body.get("seconds", 15), 1.0, 86400.0, 15.0)
 
     req_sess = await asyncio.to_thread(resolve_request_session, request, body, None)
@@ -823,10 +827,20 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
 
     t_low = text.lower()
 
-    # 2a. Explicit owner-only sensor simulation SET commands
-    if "độ ẩm đất" in t_low or "cảm biến đất" in t_low:
-        m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_low)
-        if m_soil and any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")):
+    # 2a. Explicit owner-only sensor simulation SET commands (never hijack conditional/automation rules or DHT11 model digits)
+    t_sensor_set_probe = re.sub(r"\b(?:dht\s*11|ky\s*-?\s*03[78]|yl\s*-?\s*69|pam\s*8403|esp\s*8266)\b", " ", t_low)
+    is_rule_or_cond_sensor = bool(
+        re.search(
+            r"(?:^|\s)(?:nếu|khi|thì|cứ|quy\s+tắc|liên\s+kết|tạo\s+luật|cài\s+cho\s+tôi|mà\s+lên\s+trên|vượt\s+quá|xuống\s+dưới|lên\s+trên)(?:\s|$)",
+            t_low,
+        )
+    )
+    has_explicit_set_verb = bool(
+        re.search(r"(?:^|\s)(?:set|chỉnh|đặt|thay\s+đổi)(?:\s|$)|=", t_low)
+    )
+    if not is_rule_or_cond_sensor and has_explicit_set_verb and ("độ ẩm đất" in t_low or "cảm biến đất" in t_low):
+        m_soil = re.search(r"(\d+(?:\.\d+)?)\s*%?", t_sensor_set_probe)
+        if m_soil:
             error = _owner_error(request, body)
             if error is not None:
                 return error
@@ -835,14 +849,14 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             sp_s = ensure_vietnamese_reply(str(res_soil.get("exact_spoken_reply") or ""))
             return JSONResponse({"ok": True, "executed": True, "reply": sp_s, "exact_spoken_reply": sp_s})
 
-    if ("nhiệt độ" in t_low or "độ ẩm" in t_low) and "độ ẩm đất" not in t_low:
-        if any(w in t_low for w in ("set", "chỉnh", "đặt", "lên", "xuống", "thành", "=")) and re.search(r"\d", t_low):
+    if not is_rule_or_cond_sensor and has_explicit_set_verb and ("nhiệt độ" in t_low or "độ ẩm" in t_low) and "độ ẩm đất" not in t_low:
+        if re.search(r"\d", t_sensor_set_probe):
             error = _owner_error(request, body)
             if error is not None:
                 return error
             cur_dht = _REST_ENGINE.mqtt_bridge.dht11_telemetry
-            m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_low)
-            m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_low)
+            m_t = re.search(r"nhiệt độ[^\d]*(\d+(?:\.\d+)?)", t_sensor_set_probe)
+            m_h = re.search(r"độ ẩm[^\d]*(\d+(?:\.\d+)?)", t_sensor_set_probe)
             t_val = float(m_t.group(1)) if m_t else float(cur_dht.get("temp_c", 28.5))
             h_val = float(m_h.group(1)) if m_h else float(cur_dht.get("humidity_pct", 65.0))
             res_dht = await _REST_ENGINE.update_sensor_telemetry(t_val, h_val)

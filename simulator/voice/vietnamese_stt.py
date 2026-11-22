@@ -659,7 +659,7 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
         return "foreign", None
     if is_bad and bad_kind == "nonsense":
         return "nonsense", None
-    if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(low):
+    if _NEGATED_OR_RHETORICAL_DIRECT_RE.search(low) and not parse_direct_device_intents_vi(low):
         return "negated", None
 
     norm_raw = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(low)).split())
@@ -762,8 +762,8 @@ def _classify_offline_transcript_kind(text: str) -> tuple[str, str | None]:
     normalized = normalize_vietnamese_utterance(low)
     norm_clean = " ".join(re.sub(r"[^a-z0-9\s]+", " ", strip_vi_accents(normalized.lower())).split())
     norm_stripped = re.sub(r"\s+(?:a|nha|nhe|oi|di|nay|voi|giup minh|ho minh)$", "", norm_clean).strip()
-    dev = _extract_clause_device(norm_clean) if norm_clean else None
-    act = _extract_clause_action(norm_clean, dev) if norm_clean else None
+    dev = _extract_clause_device(norm_clean, raw_clause=normalized) if norm_clean else None
+    act = _extract_clause_action(norm_clean, dev, raw_clause=normalized) if norm_clean else None
     _EXACT_BARE_DEVICE_PHRASES = {
         "cua", "cua chinh", "cong", "cua ra vao", "cua nha", "cai cua",
         "den", "bong den", "tat ca den", "het den", "toan bo den", "ca hai den", "hai den", "ca den", "may cai den",
