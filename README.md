@@ -124,15 +124,21 @@ docker compose up --build -d
 
 ## 7. Thư viện Ảnh chụp Màn hình Phát hành
 
-Thư mục ảnh chụp tuyển chọn cho bản phát hành `v1.0` được lưu tại [`docs/screenshots/`](docs/screenshots/) với bộ ảnh minh họa chuẩn:
+Thư mục ảnh chụp tuyển chọn cho bản phát hành `v1.0` được lưu tại [`docs/screenshots/`](docs/screenshots/) với đầy đủ 13 ảnh minh họa thực tế:
 
-| Tệp dự kiến trong `docs/screenshots/` | Nội dung minh họa |
+| Ảnh chụp (`docs/screenshots/`) | Nội dung minh họa |
 | :--- | :--- |
-| `01_web_dashboard_3d.png` | Giao diện Web Dashboard 3D Digital Twin & 6 thiết bị |
-| `02_web_automation.png` | Trang Tự động hóa (`/automation`): luật `AND`/`OR`, lịch tuần & hẹn giờ |
-| `03_web_auth_rbac.png` | Trang Quản lý Phiên & Phân quyền 3 cấp (`/auth`) |
-| `04_web_wokwi_hardware.png` | Trang Mô phỏng Phần cứng 10 chân ESP8266 (`/wokwi`) |
-| `05_web_logs_owner.png` | Trang Nhật ký Hệ thống dành riêng cho Chủ nhà (`/logs`) |
-| `06_android_home_devices.png` | Ứng dụng Android gốc: màn hình chính, cảm biến & 6 thiết bị |
-| `07_android_voice_qr.png` | Ứng dụng Android gốc: trợ lý giọng nói tiếng Việt & quét mã QR |
+| [`01_dashboard_3d_desktop_1440x900.png`](docs/screenshots/01_dashboard_3d_desktop_1440x900.png) | Giao diện Web Dashboard 3D Digital Twin & 6 thiết bị (`1440x900`) |
+| [`02_dashboard_3d_desktop_1366x768.png`](docs/screenshots/02_dashboard_3d_desktop_1366x768.png) | Giao diện Web Dashboard 3D Digital Twin trên màn hình laptop (`1366x768`) |
+| [`03_dashboard_3d_mobile_390x844.png`](docs/screenshots/03_dashboard_3d_mobile_390x844.png) | Giao diện Web Dashboard đáp ứng di động (`390x844`) |
+| [`04_automation_panel_1440x900.png`](docs/screenshots/04_automation_panel_1440x900.png) | Trang Tự động hóa (`/automation`): luật `AND`/`OR`, lịch tuần & hẹn giờ |
+| [`05_wokwi_circuit_1440x900.png`](docs/screenshots/05_wokwi_circuit_1440x900.png) | Trang Mô phỏng Phần cứng 10 chân ESP8266 & PCB Hub 100×80mm (`/wokwi`) |
+| [`06_auth_rbac_1440x900.png`](docs/screenshots/06_auth_rbac_1440x900.png) | Trang Quản lý Phiên & Phân quyền 3 cấp (`/auth`) |
+| [`07_logs_audit_1440x900.png`](docs/screenshots/07_logs_audit_1440x900.png) | Trang Nhật ký Hệ thống dành riêng cho Chủ nhà (`/logs`) |
+| [`08_mobile_pwa_390x844.png`](docs/screenshots/08_mobile_pwa_390x844.png) | Giao diện Ứng dụng Web Di động PWA (`/app`, `390x844`) |
+| [`09_android_auth_gate.png`](docs/screenshots/09_android_auth_gate.png) | Ứng dụng Android gốc: cổng xác thực khi chưa đăng nhập & nút Quét mã QR |
+| [`10_android_home_live.png`](docs/screenshots/10_android_home_live.png) | Ứng dụng Android gốc: màn hình chính & lưới 4 thông số cảm biến thực |
+| [`11_android_devices_6locked.png`](docs/screenshots/11_android_devices_6locked.png) | Ứng dụng Android gốc: danh sách thiết bị theo hợp đồng khóa cứng 6 thiết bị |
+| [`12_android_voice_vi.png`](docs/screenshots/12_android_voice_vi.png) | Ứng dụng Android gốc: trợ lý giọng nói tiếng Việt đồng bộ trực tiếp máy chủ |
+| [`13_hardware_wiring_2d.png`](docs/screenshots/13_hardware_wiring_2d.png) | Sơ đồ đấu nối tổng thể 2D 40 dây & 15 đầu nối PCB Hub 100×80mm |
 | `08_hardware_pcb_mica.png` | Bố trí mạch PCB DIY `100 × 80 mm` & mô hình lắp ghép Mica |
