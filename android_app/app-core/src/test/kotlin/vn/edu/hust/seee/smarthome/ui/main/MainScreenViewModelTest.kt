@@ -90,18 +90,18 @@ class MainScreenViewModelTest {
   fun domainHelpers_mapDoorAndStandardDevicesCleanly() {
     assertEquals("open", canonicalDeviceAction("main_door", true))
     assertEquals("close", canonicalDeviceAction("main_door", false))
-    assertEquals("turn_on", canonicalDeviceAction("fan", true))
-    assertEquals("turn_off", canonicalDeviceAction("fan", false))
+    assertEquals("turn_on", canonicalDeviceAction("speaker_amp", true))
+    assertEquals("turn_off", canonicalDeviceAction("speaker_amp", false))
 
     assertEquals("OPEN", canonicalWhenState("main_door", true))
     assertEquals("CLOSED", canonicalWhenState("main_door", false))
-    assertEquals("ON", canonicalWhenState("ac", true))
-    assertEquals("OFF", canonicalWhenState("ac", false))
+    assertEquals("ON", canonicalWhenState("garden_pump", true))
+    assertEquals("OFF", canonicalWhenState("garden_pump", false))
 
     assertEquals("Mở Cửa chính", formatDeviceActionLabel("main_door", "Cửa chính", "open"))
     assertEquals("Khóa Cửa chính", formatDeviceActionLabel("main_door", "Cửa chính", "close"))
-    assertEquals("Bật Quạt trần", formatDeviceActionLabel("fan", "Quạt trần", "turn_on"))
-    assertEquals("Tắt Quạt trần", formatDeviceActionLabel("fan", "Quạt trần", "turn_off"))
+    assertEquals("Bật Nguồn mạch loa PAM8403", formatDeviceActionLabel("speaker_amp", "Nguồn mạch loa PAM8403", "turn_on"))
+    assertEquals("Tắt Nguồn mạch loa PAM8403", formatDeviceActionLabel("speaker_amp", "Nguồn mạch loa PAM8403", "turn_off"))
   }
 }
 

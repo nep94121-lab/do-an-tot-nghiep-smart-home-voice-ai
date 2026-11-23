@@ -141,15 +141,35 @@ internal fun LineIcon(
         }
         drawPath(p, color = tint, style = stroke)
       }
-      "snow" -> {
-        drawLine(tint, Offset(w * 0.50f, h * 0.14f), Offset(w * 0.50f, h * 0.86f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.14f, h * 0.50f), Offset(w * 0.86f, h * 0.50f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.24f, h * 0.24f), Offset(w * 0.76f, h * 0.76f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.76f, h * 0.24f), Offset(w * 0.24f, h * 0.76f), strokeWidth = sw, cap = StrokeCap.Round)
-      }
-      "fan" -> {
-        drawCircle(tint, radius = w * 0.10f, center = Offset(w * 0.50f, h * 0.50f), style = stroke)
-        drawCircle(tint, radius = w * 0.36f, center = Offset(w * 0.50f, h * 0.50f), style = stroke)
+      "speaker" -> {
+        val p = Path().apply {
+          moveTo(w * 0.16f, h * 0.38f)
+          lineTo(w * 0.34f, h * 0.38f)
+          lineTo(w * 0.54f, h * 0.20f)
+          lineTo(w * 0.54f, h * 0.80f)
+          lineTo(w * 0.34f, h * 0.62f)
+          lineTo(w * 0.16f, h * 0.62f)
+          close()
+        }
+        drawPath(p, color = tint, style = stroke)
+        drawArc(
+          color = tint,
+          startAngle = -45f,
+          sweepAngle = 90f,
+          useCenter = false,
+          topLeft = Offset(w * 0.50f, h * 0.32f),
+          size = Size(w * 0.24f, h * 0.36f),
+          style = stroke,
+        )
+        drawArc(
+          color = tint,
+          startAngle = -50f,
+          sweepAngle = 100f,
+          useCenter = false,
+          topLeft = Offset(w * 0.56f, h * 0.20f),
+          size = Size(w * 0.32f, h * 0.60f),
+          style = stroke,
+        )
       }
       "bell" -> {
         drawArc(tint, 180f, 180f, false, Offset(w * 0.24f, h * 0.18f), Size(w * 0.52f, h * 0.52f), style = stroke)

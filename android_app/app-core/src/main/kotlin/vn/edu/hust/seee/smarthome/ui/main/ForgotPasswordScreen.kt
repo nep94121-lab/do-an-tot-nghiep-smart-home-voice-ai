@@ -62,8 +62,8 @@ fun ForgotPasswordScreen(
   onComplete: () -> Unit = onBack,
   modifier: Modifier = Modifier,
 ) {
-  var currentStep by remember { mutableIntStateOf(2) } // Defaults to Step 2 to match mockup np_m3_forgot_otp.html
-  var emailInput by remember { mutableStateOf(if (initialEmail.contains("***")) "nep94121@gmail.com" else initialEmail) }
+  var emailInput by remember { mutableStateOf(if (initialEmail.contains("***")) "" else initialEmail) }
+  var currentStep by remember { mutableIntStateOf(if (emailInput.isBlank()) 1 else 2) }
   var otpInput by remember { mutableStateOf("") }
   var newPassword by remember { mutableStateOf("") }
   var confirmPassword by remember { mutableStateOf("") }

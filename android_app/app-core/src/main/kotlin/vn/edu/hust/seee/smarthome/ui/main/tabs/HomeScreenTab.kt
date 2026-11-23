@@ -36,7 +36,13 @@ import vn.edu.hust.seee.smarthome.ui.main.models.formatDeviceActionLabel
 @Composable
 fun HomeScreenTab(
   temperature: Double,
+  humidity: Int,
   soilMoisture: Int,
+  soundDetected: Boolean,
+  soundEventCount: Int,
+  isAuthenticated: Boolean,
+  selectedTier: Int,
+  visibleDevicesCount: Int,
   deviceStates: Map<String, Boolean>,
   activeTimers: List<CountdownTimerItem>,
   accentCyan: Color,
@@ -47,6 +53,8 @@ fun HomeScreenTab(
   textSecondary: Color,
   onOpenVoiceSheet: () -> Unit,
   onNavigateToDevices: () -> Unit,
+  onNavigateToAuth: () -> Unit = {},
+  onNavigateToQr: () -> Unit = {},
   modifier: Modifier = Modifier,
   clockSchedules: List<ClockScheduleItem> = emptyList(),
   automationRules: List<AutomationRuleItem> = emptyList(),
@@ -57,7 +65,58 @@ fun HomeScreenTab(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    // 1. Card "Ngôi nhà" (badge "Toàn cảnh", placeholder 3D ~16:9)
+    if (!isAuthenticated) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(16.dp))
+          .background(cardBg)
+          .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+          .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        Text(
+          text = "Chưa đăng nhập",
+          color = textPrimary,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+          text = "Vui lòng đăng nhập bằng tài khoản được cấp quyền hoặc quét mã QR mời khách để xem trạng thái và điều khiển ngôi nhà.",
+          color = textSecondary,
+          fontSize = 13.sp,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Button(
+            onClick = onNavigateToAuth,
+            colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.weight(1f).height(44.dp),
+          ) {
+            Text("Đăng nhập", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+          Button(
+            onClick = onNavigateToQr,
+            colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+              .weight(1f)
+              .height(44.dp)
+              .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
+          ) {
+            Text("Quét mã QR", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+      }
+      return@Column
+    }
+
+    // 1. Card "Ngôi nhà" (tổng quan không gian và số thiết bị đang hoạt động)
+    val activeDevicesCount = deviceStates.values.count { it }
+    val totalDevs = if (visibleDevicesCount > 0) visibleDevicesCount else deviceStates.size
     Column(
       modifier = Modifier
         .fillMaxWidth()
@@ -79,36 +138,79 @@ fun HomeScreenTab(
           fontWeight = FontWeight.SemiBold,
         )
         Text(
-          text = "Toàn cảnh",
-          color = textSecondary,
+          text = "$activeDevicesCount/$totalDevs đang bật",
+          color = accentCyan,
           fontSize = 12.sp,
           fontWeight = FontWeight.Medium,
           modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .border(1.dp, cardBorder, RoundedCornerShape(999.dp))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .background(Color(0xFFE6F3F2))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
         )
       }
 
-      Box(
+      Column(
         modifier = Modifier
           .fillMaxWidth()
-          .height(92.dp)
           .clip(RoundedCornerShape(12.dp))
           .background(Color(0xFFF4F9F9))
-          .border(1.dp, Color(0xFFB9CCCE), RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center,
+          .border(1.dp, Color(0xFFD4E5E6), RoundedCornerShape(12.dp))
+          .clickable { onNavigateToDevices() }
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
       ) {
         Text(
-          text = "Vùng mô hình 3D Toàn cảnh\nThay bằng viewport hiện hữu",
-          color = textSecondary,
-          fontSize = 12.sp,
-          textAlign = TextAlign.Center,
+          text = "Tổng quan khu vực hoạt động",
+          color = textPrimary,
+          fontSize = 13.sp,
+          fontWeight = FontWeight.SemiBold,
         )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          val roomChips = buildList {
+            add("Phòng khách" to (deviceStates["living_room_light"] == true || deviceStates["speaker_amp"] == true))
+            add("Phòng ngủ" to (deviceStates["bedroom_light"] == true))
+            if (selectedTier == 1) {
+              add("Lối vào" to (deviceStates["main_door"] == true || deviceStates["alarm_siren"] == true))
+            }
+            if (selectedTier <= 2) {
+              add("Sân vườn" to (deviceStates["garden_pump"] == true))
+            }
+          }
+          roomChips.forEach { (roomName, isActive) ->
+            Column(
+              modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (isActive) Color(0xFFE6F3F2) else cardBg)
+                .border(1.dp, if (isActive) accentCyan else cardBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+              Text(
+                text = roomName,
+                color = textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+              Text(
+                text = if (isActive) "Đang bật" else "Đang nghỉ",
+                color = if (isActive) accentCyan else textSecondary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+              )
+            }
+          }
+        }
       }
     }
 
-    // 2. Card "Cảm biến" 2-ô grid: Nhiệt độ & Độ ẩm đất (không có ô thứ 3)
+    // 2. Card "Cảm biến" 2x2 grid: Nhiệt độ DHT11, Độ ẩm DHT11, Độ ẩm đất A0, Âm thanh KY-037
     Column(
       modifier = Modifier
         .fillMaxWidth()
@@ -119,7 +221,7 @@ fun HomeScreenTab(
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-        text = "Cảm biến",
+        text = "Cảm biến môi trường",
         color = textPrimary,
         fontSize = 15.sp,
         fontWeight = FontWeight.SemiBold,
@@ -129,7 +231,7 @@ fun HomeScreenTab(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        // Ô 1: Nhiệt độ
+        // Ô 1: Nhiệt độ DHT11
         Column(
           modifier = Modifier
             .weight(1f)
@@ -139,25 +241,17 @@ fun HomeScreenTab(
             .padding(10.dp),
           verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-          Text(
-            text = "Nhiệt độ",
-            color = textSecondary,
-            fontSize = 12.sp,
-          )
+          Text(text = "Nhiệt độ · DHT11", color = textSecondary, fontSize = 12.sp)
           Text(
             text = "${String.format(Locale.US, "%.1f", temperature)}°C",
             color = textPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
           )
-          Text(
-            text = "Trong nhà",
-            color = textSecondary,
-            fontSize = 11.sp,
-          )
+          Text(text = "Trong nhà · D2", color = textSecondary, fontSize = 11.sp)
         }
 
-        // Ô 2: Độ ẩm đất
+        // Ô 2: Độ ẩm không khí DHT11
         Column(
           modifier = Modifier
             .weight(1f)
@@ -167,79 +261,112 @@ fun HomeScreenTab(
             .padding(10.dp),
           verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+          Text(text = "Độ ẩm · DHT11", color = textSecondary, fontSize = 12.sp)
           Text(
-            text = "Độ ẩm đất",
-            color = textSecondary,
-            fontSize = 12.sp,
+            text = "$humidity%",
+            color = textPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
           )
+          Text(text = "Không khí · D2", color = textSecondary, fontSize = 11.sp)
+        }
+      }
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        // Ô 3: Độ ẩm đất A0
+        Column(
+          modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardBg)
+            .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+          Text(text = "Độ ẩm đất · A0", color = textSecondary, fontSize = 12.sp)
           Text(
             text = "$soilMoisture%",
             color = textPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
           )
+          Text(text = "Sân vườn · A0", color = textSecondary, fontSize = 11.sp)
+        }
+
+        // Ô 4: Âm thanh KY-037
+        Column(
+          modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardBg)
+            .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+          Text(text = "Âm thanh · KY-037", color = textSecondary, fontSize = 12.sp)
           Text(
-            text = "Sân vườn",
-            color = textSecondary,
-            fontSize = 11.sp,
+            text = if (soundDetected) "Có tiếng động" else "Yên tĩnh",
+            color = if (soundDetected) accentCyan else textPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
           )
+          Text(text = "D5 · $soundEventCount sự kiện", color = textSecondary, fontSize = 11.sp)
         }
       }
     }
 
-    // 3. Card "Trạng thái an toàn": Cửa chính & Còi báo động
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(16.dp))
-        .background(cardBg)
-        .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
-        .padding(12.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(
-        text = "Trạng thái an toàn",
-        color = textPrimary,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.SemiBold,
-      )
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+    // 3. Card "Trạng thái an toàn": chỉ hiển thị cho Chủ nhà (Cấp 1)
+    if (selectedTier == 1) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(16.dp))
+          .background(cardBg)
+          .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         Text(
-          text = "Cửa chính",
+          text = "Trạng thái an toàn",
           color = textPrimary,
-          fontSize = 14.sp,
-        )
-        Text(
-          text = if (deviceStates["main_door"] == true) "Đang mở" else "Đang khóa",
-          color = textPrimary,
-          fontSize = 14.sp,
+          fontSize = 15.sp,
           fontWeight = FontWeight.SemiBold,
         )
-      }
 
-      Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(text = "Cửa chính", color = textPrimary, fontSize = 14.sp)
+          Text(
+            text = if (deviceStates["main_door"] == true) "Đang mở" else "Đang khóa",
+            color = textPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+          )
+        }
 
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          text = "Còi báo động",
-          color = textPrimary,
-          fontSize = 14.sp,
-        )
-        Text(
-          text = if (deviceStates["alarm_siren"] == true) "Đang bật" else "Tắt",
-          color = textPrimary,
-          fontSize = 14.sp,
-          fontWeight = FontWeight.SemiBold,
-        )
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(text = "Còi báo động", color = textPrimary, fontSize = 14.sp)
+          Text(
+            text = if (deviceStates["alarm_siren"] == true) "Đang bật" else "Đang tắt",
+            color = textPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+          )
+        }
       }
     }
 

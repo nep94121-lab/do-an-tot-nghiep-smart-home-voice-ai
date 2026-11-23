@@ -37,6 +37,7 @@ import vn.edu.hust.seee.smarthome.ui.main.components.TierChip
 fun AccountScreenTab(
   accountSubScreen: String,
   onNavigateSubScreen: (String) -> Unit,
+  isAuthenticated: Boolean,
   selectedTier: Int,
   onSelectTier: (Int, String) -> Unit,
   authEmail: String,
@@ -45,8 +46,6 @@ fun AccountScreenTab(
   onAuthPasswordChange: (String) -> Unit,
   authOtpInput: String,
   onAuthOtpInputChange: (String) -> Unit,
-  openAuthStep: Int,
-  onOpenAuthStepChange: (Int) -> Unit,
   authStepDone: Int,
   authStatusMessage: String = "",
   authStatusColor: Color,
@@ -54,7 +53,6 @@ fun AccountScreenTab(
   onAllowlistTargetEmailChange: (String) -> Unit,
   allowlistStatusMessage: String,
   allowlistStatusColor: Color,
-  hasRecordedAuthSample: Boolean,
   newMemberName: String,
   onNewMemberNameChange: (String) -> Unit,
   guestQrDuration: String,
@@ -68,11 +66,8 @@ fun AccountScreenTab(
   onPerformRegister: () -> Unit = {},
   onPerformLayer1Login: (String) -> Unit,
   onPerformLayer2OtpVerify: () -> Unit,
-  onUploadVoiceSample: () -> Unit,
   onSubmitAddFamilyEmail: () -> Unit,
   onLogout: () -> Unit,
-  onSpeakSamplePhrase: () -> Unit,
-  onReRecordVoiceSample: () -> Unit,
   onQrCodeScanned: (String) -> Unit,
   accentCyan: Color,
   accentRed: Color,
@@ -112,10 +107,14 @@ fun AccountScreenTab(
         ) {
           Text("Vai trò", color = textSecondary, fontSize = 13.sp)
           Text(
-            text = when (selectedTier) {
-              1 -> "Chủ nhà"
-              2 -> "Gia đình"
-              else -> "Khách"
+            text = if (!isAuthenticated) {
+              "Chưa đăng nhập"
+            } else {
+              when (selectedTier) {
+                1 -> "Chủ nhà"
+                2 -> "Gia đình"
+                else -> "Khách"
+              }
             },
             color = textPrimary,
             fontSize = 14.sp,
@@ -132,7 +131,7 @@ fun AccountScreenTab(
         ) {
           Text("Email", color = textSecondary, fontSize = 13.sp)
           Text(
-            text = authEmail.ifBlank { "Chưa đăng nhập" },
+            text = if (!isAuthenticated) "Chưa đăng nhập" else authEmail.ifBlank { "Phiên QR khách" },
             color = textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -151,7 +150,11 @@ fun AccountScreenTab(
         ) {
           Text("Thời hạn", color = textSecondary, fontSize = 13.sp)
           Text(
-            text = if (selectedTier == 3) "Còn 24 giờ" else "Không giới hạn",
+            text = when {
+              !isAuthenticated -> "Chưa kích hoạt"
+              selectedTier == 3 -> "Tạm thời"
+              else -> "Không giới hạn"
+            },
             color = textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -159,7 +162,7 @@ fun AccountScreenTab(
         }
       }
 
-      // Card Quản lý ("Xác thực", "Lời mời", "Quét mã QR", "Quên mật khẩu", "Cài đặt")
+      // Card Quản lý
       Column(
         modifier = Modifier
           .fillMaxWidth()
@@ -184,21 +187,7 @@ fun AccountScreenTab(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          Text("Xác thực", color = textPrimary, fontSize = 14.sp)
-          Text("›", color = textSecondary, fontSize = 16.sp)
-        }
-
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
-
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNavigateSubScreen("guest") }
-            .padding(vertical = 2.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text("Lời mời", color = textPrimary, fontSize = 14.sp)
+          Text("Đăng nhập / Xác thực", color = textPrimary, fontSize = 14.sp)
           Text("›", color = textSecondary, fontSize = 16.sp)
         }
 
@@ -212,7 +201,7 @@ fun AccountScreenTab(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          Text("Quét mã QR", color = textPrimary, fontSize = 14.sp)
+          Text("Quét mã QR mời khách", color = textPrimary, fontSize = 14.sp)
           Text("›", color = textSecondary, fontSize = 16.sp)
         }
 
@@ -230,37 +219,60 @@ fun AccountScreenTab(
           Text("›", color = textSecondary, fontSize = 16.sp)
         }
 
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
+        if (isAuthenticated && selectedTier == 1) {
+          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
 
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNavigateSubScreen("settings") }
-            .padding(vertical = 2.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text("Cài đặt", color = textPrimary, fontSize = 14.sp)
-          Text("›", color = textSecondary, fontSize = 16.sp)
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { onNavigateSubScreen("guest") }
+              .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text("Lời mời", color = textPrimary, fontSize = 14.sp)
+            Text("›", color = textSecondary, fontSize = 16.sp)
+          }
+
+          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
+
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { onNavigateSubScreen("logs") }
+              .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text("Nhật ký", color = textPrimary, fontSize = 14.sp)
+            Text("›", color = textSecondary, fontSize = 16.sp)
+          }
         }
       }
 
-      Text(
-        text = "Mỗi tab mở một màn riêng, không cuộn tới mục khác.",
-        color = textSecondary,
-        fontSize = 12.sp,
-      )
-
-      Button(
-        onClick = onLogout,
-        colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(42.dp)
-          .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
-      ) {
-        Text("Đăng xuất", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+      if (isAuthenticated) {
+        Button(
+          onClick = onLogout,
+          colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
+          shape = RoundedCornerShape(10.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
+        ) {
+          Text("Đăng xuất", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+      } else {
+        Button(
+          onClick = { onNavigateSubScreen("auth") },
+          colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
+          shape = RoundedCornerShape(10.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp),
+        ) {
+          Text("Đăng nhập tài khoản", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
       }
     } else if (accountSubScreen == "forgot_otp") {
       ForgotPasswordScreen(
@@ -274,7 +286,6 @@ fun AccountScreenTab(
         onClose = { onNavigateSubScreen("menu") },
       )
     } else if (accountSubScreen == "auth") {
-      // 12. Android auth: tiến trình dạng chữ "Bước n/3" và progress line mảnh
       Column(
         modifier = Modifier
           .fillMaxWidth()
@@ -282,354 +293,141 @@ fun AccountScreenTab(
           .background(cardBg)
           .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
           .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
       ) {
+        Text(
+          text = "Đăng nhập bằng Email & Mật khẩu",
+          color = textPrimary,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+          text = "Nhập tài khoản đã đăng ký. Chủ nhà Cấp 1 xác nhận thêm mã OTP gửi qua Gmail khi được yêu cầu.",
+          color = textSecondary,
+          fontSize = 12.sp,
+        )
+        OutlinedTextField(
+          value = authEmail,
+          onValueChange = onAuthEmailChange,
+          placeholder = { Text("Email tài khoản", fontSize = 13.sp) },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+          value = authPassword,
+          onValueChange = onAuthPasswordChange,
+          placeholder = { Text("Mật khẩu", fontSize = 13.sp) },
+          singleLine = true,
+          visualTransformation = PasswordVisualTransformation(),
+          modifier = Modifier.fillMaxWidth(),
+        )
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Button(
+            onClick = onPerformRegister,
+            colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = accentCyan),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+              .weight(1f)
+              .height(42.dp)
+              .border(1.dp, accentCyan, RoundedCornerShape(10.dp)),
+          ) {
+            Text("Đăng ký", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+          Button(
+            onClick = { onPerformLayer1Login("password") },
+            colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+              .weight(1f)
+              .height(42.dp),
+          ) {
+            Text("Đăng nhập", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+        if (authStatusMessage.isNotBlank()) {
+          Text(
+            text = authStatusMessage,
+            color = authStatusColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+          )
+        }
+
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
+
+        Text(
+          text = "Xác thực OTP Gmail (khi hệ thống yêu cầu)",
+          color = textPrimary,
+          fontSize = 13.sp,
+          fontWeight = FontWeight.Medium,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
+          OutlinedTextField(
+            value = authOtpInput,
+            onValueChange = onAuthOtpInputChange,
+            placeholder = { Text("Mã OTP 6 số", fontSize = 13.sp) },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+          Button(
+            onClick = onPerformLayer2OtpVerify,
+            colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.height(48.dp),
+          ) {
+            Text("Xác nhận", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+
+        Button(
+          onClick = { onNavigateSubScreen("qr_scanner") },
+          colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
+          shape = RoundedCornerShape(10.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
+        ) {
+          Text("Quét mã QR mời khách", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        }
+
+        if (isAuthenticated && selectedTier == 1) {
+          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(cardBorder))
           Text(
-            text = "Bước $openAuthStep/3",
-            color = accentCyan,
+            text = "Quản trị thành viên gia đình (Chủ nhà)",
+            color = textPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
           )
-          Text(
-            text = when (openAuthStep) {
-              1 -> "Tài khoản"
-              2 -> "Giọng nói"
-              else -> "Xác nhận"
-            },
-            color = textSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Normal,
-          )
-        }
-
-        // Progress line mảnh
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(cardBorder),
-        ) {
-          Box(
-            modifier = Modifier
-              .fillMaxWidth(fraction = (openAuthStep / 3f).coerceIn(0.33f, 1f))
-              .height(4.dp)
-              .clip(RoundedCornerShape(999.dp))
-              .background(accentCyan),
-          )
-        }
-
-        // Bước 1: 1. Tài khoản
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgDark)
-            .border(1.dp, if (openAuthStep == 1) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(10.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { onOpenAuthStepChange(1) },
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Text(
-              text = "1. Tài khoản",
-              color = textPrimary,
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Medium,
-            )
-            Text(
-              text = when {
-                authStepDone >= 2 -> "Hoàn tất"
-                openAuthStep == 1 -> "Đang thực hiện"
-                else -> "Chưa bắt đầu"
-              },
-              color = if (authStepDone >= 2) accentCyan else textSecondary,
-              fontSize = 12.sp,
-              fontWeight = FontWeight.Medium,
-            )
-          }
-          if (openAuthStep == 1) {
-            Text(
-              text = "Đăng nhập tài khoản và xác nhận mã gửi qua email.",
-              color = textSecondary,
-              fontSize = 13.sp,
-            )
-            OutlinedTextField(
-              value = authEmail,
-              onValueChange = onAuthEmailChange,
-              placeholder = { Text("Email tài khoản", fontSize = 13.sp) },
-              singleLine = true,
-              modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-              value = authPassword,
-              onValueChange = onAuthPasswordChange,
-              placeholder = { Text("Mật khẩu", fontSize = 13.sp) },
-              singleLine = true,
-              visualTransformation = PasswordVisualTransformation(),
-              modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-              Button(
-                onClick = onPerformRegister,
-                colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = accentCyan),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                  .weight(1f)
-                  .height(42.dp)
-                  .border(1.dp, accentCyan, RoundedCornerShape(10.dp)),
-              ) {
-                Text("Đăng ký", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-              }
-              Button(
-                onClick = { onPerformLayer1Login("password") },
-                colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                  .weight(1f)
-                  .height(42.dp),
-              ) {
-                Text("Đăng nhập", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-              }
-            }
-            if (authStatusMessage.isNotBlank()) {
-              Text(
-                text = authStatusMessage,
-                color = authStatusColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-              )
-            }
-            OutlinedTextField(
-              value = authOtpInput,
-              onValueChange = onAuthOtpInputChange,
-              placeholder = { Text("Mã xác nhận 6 số", fontSize = 13.sp) },
-              singleLine = true,
-              modifier = Modifier.fillMaxWidth(),
-            )
-          }
-        }
-
-        // Bước 2: 2. Giọng nói
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgDark)
-            .border(1.dp, if (openAuthStep == 2) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { onOpenAuthStepChange(2) },
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Text(
-              text = "2. Giọng nói",
-              color = textPrimary,
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Medium,
-            )
-            Text(
-              text = when {
-                authStepDone >= 3 -> "Hoàn tất"
-                authStatusColor == accentRed && openAuthStep == 2 -> "Cần thử lại"
-                openAuthStep == 2 -> "Đang thực hiện"
-                else -> "Chưa bắt đầu"
-              },
-              color = if (authStepDone >= 3) accentCyan else textSecondary,
-              fontSize = 12.sp,
-              fontWeight = FontWeight.Medium,
-            )
-          }
-          if (openAuthStep == 2) {
-            Text(
-              text = "Bước 2/3 · Lưu giọng nói WeSpeaker (5 mẫu · 3–5 giây/mẫu)",
-              color = textPrimary,
-              fontSize = 13.sp,
-              fontWeight = FontWeight.Medium,
-            )
-            Text(
-              text = "Đọc lần lượt 5 câu mẫu riêng biệt bên dưới (mỗi mẫu 3–5 giây).",
-              color = textSecondary,
-              fontSize = 13.sp,
-            )
-            Box(
-              modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(cardBg)
-                .border(1.dp, cardBorder, RoundedCornerShape(10.dp))
-                .padding(12.dp),
-            ) {
-              Text(
-                text = "1/5 (3–5s): “Nhà thông minh xin chào, mở đèn phòng khách và kiểm tra nhiệt độ hôm nay.”\n" +
-                  "2/5 (3–5s): “Bật quạt trần phòng khách và đóng rèm cửa sổ.”\n" +
-                  "3/5 (3–5s): “Bật điều hòa hai mươi sáu độ và khóa cửa chính an toàn.”\n" +
-                  "4/5 (3–5s): “Tắt đèn hành lang và kích hoạt chế độ an ninh ban đêm.”\n" +
-                  "5/5 (3–5s): “Xác nhận lưu năm mẫu giọng nói riêng biệt lên hệ thống.”",
-                color = textPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Normal,
-              )
-            }
-          }
-        }
-
-        // Bước 3: 3. Xác nhận
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgDark)
-            .border(1.dp, if (openAuthStep == 3) accentCyan else cardBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { onOpenAuthStepChange(3) },
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Text(
-              text = "3. Xác nhận",
-              color = textPrimary,
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Medium,
-            )
-            Text(
-              text = when {
-                authStepDone >= 3 -> "Hoàn tất"
-                openAuthStep == 3 -> "Đang thực hiện"
-                else -> "Chưa bắt đầu"
-              },
-              color = if (authStepDone >= 3) accentCyan else textSecondary,
-              fontSize = 12.sp,
-              fontWeight = FontWeight.Medium,
-            )
-          }
-          if (openAuthStep == 3) {
-            Text(
-              text = "Đã lưu giọng nói",
-              color = accentCyan,
-              fontSize = 13.sp,
-              fontWeight = FontWeight.Medium,
-            )
-            if (selectedTier < 3) {
-              OutlinedTextField(
-                value = allowlistTargetEmail,
-                onValueChange = onAllowlistTargetEmailChange,
-                placeholder = { Text("Thêm email thành viên gia đình", fontSize = 13.sp) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-              )
-              if (allowlistStatusMessage.isNotEmpty()) {
-                Text(
-                  text = allowlistStatusMessage,
-                  color = allowlistStatusColor,
-                  fontSize = 12.sp,
-                )
-              }
-            }
-          }
-        }
-
-        // Nút chính full-width dưới cùng tùy bước: "Tiếp tục" / "Thu âm" / "Hoàn tất"
-        Button(
-          onClick = {
-            when (openAuthStep) {
-              1 -> {
-                if (authOtpInput.isNotBlank()) {
-                  onPerformLayer2OtpVerify()
-                } else {
-                  onPerformLayer1Login("password")
-                }
-                onOpenAuthStepChange(2)
-              }
-              2 -> {
-                onUploadVoiceSample()
-                onOpenAuthStepChange(3)
-              }
-              else -> {
-                if (allowlistTargetEmail.isNotBlank()) {
-                  onSubmitAddFamilyEmail()
-                } else {
-                  onNavigateSubScreen("menu")
-                }
-              }
-            }
-          },
-          colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
-          shape = RoundedCornerShape(10.dp),
-          modifier = Modifier.fillMaxWidth().height(46.dp),
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            if (openAuthStep == 2) {
-              LineIcon("mic", Color.White, 18)
-            }
-            Text(
-              text = when {
-                authStatusColor == accentRed && openAuthStep == 2 -> "Thử lại"
-                openAuthStep == 1 -> "Tiếp tục"
-                openAuthStep == 2 -> "Thu âm"
-                else -> "Hoàn tất"
-              },
-              color = Color.White,
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Medium,
-            )
-          }
-        }
-
-        if (openAuthStep == 2 && hasRecordedAuthSample) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            TierChip(
-              label = "Nghe lại",
-              selected = false,
-              activeColor = accentCyan,
-              onClick = onSpeakSamplePhrase,
-              modifier = Modifier.weight(1f),
-            )
-            TierChip(
-              label = "Thu lại",
-              selected = false,
-              activeColor = textSecondary,
-              onClick = onReRecordVoiceSample,
-              modifier = Modifier.weight(1f),
-            )
-          }
-        } else if (openAuthStep > 1) {
-          TierChip(
-            label = "Quay lại",
-            selected = false,
-            activeColor = textSecondary,
-            onClick = { onOpenAuthStepChange((openAuthStep - 1).coerceAtLeast(1)) },
+          OutlinedTextField(
+            value = allowlistTargetEmail,
+            onValueChange = onAllowlistTargetEmailChange,
+            placeholder = { Text("Email thành viên gia đình", fontSize = 13.sp) },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth(),
           )
+          if (allowlistStatusMessage.isNotEmpty()) {
+            Text(
+              text = allowlistStatusMessage,
+              color = allowlistStatusColor,
+              fontSize = 12.sp,
+            )
+          }
+          Button(
+            onClick = onSubmitAddFamilyEmail,
+            colors = ButtonDefaults.buttonColors(containerColor = accentCyan, contentColor = Color.White),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().height(42.dp),
+          ) {
+            Text("Thêm email gia đình", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
         }
       }
     } else if (accountSubScreen == "guest") {

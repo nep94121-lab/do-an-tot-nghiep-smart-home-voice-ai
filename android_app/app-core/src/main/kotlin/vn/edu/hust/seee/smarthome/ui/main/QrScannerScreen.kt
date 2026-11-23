@@ -276,12 +276,8 @@ fun QrScannerScreen(
         Button(
           onClick = {
             if (showManualInput && manualCode.isNotBlank()) {
-              statusMessage = "Đang kiểm tra mã: $manualCode..."
-              scope.launch {
-                delay(800)
-                statusMessage = "Mã hợp lệ! Đã cấp quyền khách."
-                onCodeScanned(manualCode)
-              }
+              statusMessage = "Đang gửi mã lên máy chủ để xác thực..."
+              onCodeScanned(manualCode.trim())
             } else {
               isCameraActive = !isCameraActive
               statusMessage = if (isCameraActive) "Camera đang hoạt động. Di chuyển lại gần mã QR..." else "Khi quét được mã: Đang kiểm tra mã…"

@@ -72,7 +72,7 @@ fun VoiceScreenTab(
         fontWeight = FontWeight.Normal,
       )
 
-      if (selectedTier >= 99) {
+      if (selectedTier <= 0 || selectedTier >= 99) {
         Box(
           modifier = Modifier
             .fillMaxWidth()
@@ -82,7 +82,7 @@ fun VoiceScreenTab(
             .padding(12.dp),
         ) {
           Text(
-            text = "Đăng ký giọng nói để bắt đầu",
+            text = "Vui lòng đăng nhập tài khoản hoặc quét mã QR mời khách để điều khiển bằng giọng nói.",
             color = textSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Normal,
@@ -95,7 +95,7 @@ fun VoiceScreenTab(
           modifier = Modifier.fillMaxWidth().height(44.dp),
         ) {
           Text(
-            text = "Đăng ký giọng nói",
+            text = "Đăng nhập tài khoản",
             color = Color.White,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
@@ -250,22 +250,6 @@ fun VoiceScreenTab(
             uncheckedThumbColor = textSecondary,
             uncheckedTrackColor = cardBorder,
           ),
-        )
-      }
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-      ) {
-        Text(
-          text = "Đăng ký giọng nói",
-          color = accentCyan,
-          fontSize = 13.sp,
-          fontWeight = FontWeight.Medium,
-          modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onNavigateToAuth() }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
         )
       }
     }

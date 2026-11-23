@@ -82,6 +82,10 @@ fun DevicesScreenTab(
   onDeleteScene: (commandId: String) -> Unit = {},
   onRunScene: (CustomSceneItem) -> Unit = {},
   accentRed: Color = Color(0xFFC83E3B),
+  isAuthenticated: Boolean = true,
+  selectedTier: Int = 1,
+  onNavigateToAuth: () -> Unit = {},
+  onNavigateToQr: () -> Unit = {},
 ) {
   var showCreateTimerDialog by remember { mutableStateOf(false) }
   var showCreateScheduleDialog by remember { mutableStateOf(false) }
@@ -92,7 +96,59 @@ fun DevicesScreenTab(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
+    if (!isAuthenticated) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(16.dp))
+          .background(cardBg)
+          .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+          .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        Text(
+          text = "Yêu cầu đăng nhập",
+          color = textPrimary,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+          text = "Đăng nhập hoặc quét mã QR mời khách để xem danh sách thiết bị thuộc quyền của bạn.",
+          color = textSecondary,
+          fontSize = 13.sp,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Button(
+            onClick = onNavigateToAuth,
+            colors = ButtonDefaults.buttonColors(containerColor = accentCyan),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.weight(1f).height(44.dp),
+          ) {
+            Text("Đăng nhập", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+          Button(
+            onClick = onNavigateToQr,
+            colors = ButtonDefaults.buttonColors(containerColor = cardBg, contentColor = textPrimary),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+              .weight(1f)
+              .height(44.dp)
+              .border(1.dp, cardBorder, RoundedCornerShape(10.dp)),
+          ) {
+            Text("Quét mã QR", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+      }
+      return@Column
+    }
+
     // 1. Device list card with room filters
+    val availableRooms = remember(devices) {
+      listOf("Tất cả") + devices.map { it.pinInfo }.distinct()
+    }
     Column(
       modifier = Modifier
         .fillMaxWidth()
@@ -108,7 +164,7 @@ fun DevicesScreenTab(
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        listOf("Tất cả", "Phòng khách", "Phòng ngủ", "Lối vào", "Sân vườn").forEach { room ->
+        availableRooms.forEach { room ->
           TierChip(
             label = room,
             selected = selectedRoomFilter == room,
@@ -175,6 +231,7 @@ fun DevicesScreenTab(
       }
     }
 
+    if (selectedTier in 1..2) {
     // 2. Countdown Timers & Asia/Saigon Clock Schedules Card
     Column(
       modifier = Modifier
@@ -500,6 +557,7 @@ fun DevicesScreenTab(
           }
         }
       }
+    }
     }
   }
 

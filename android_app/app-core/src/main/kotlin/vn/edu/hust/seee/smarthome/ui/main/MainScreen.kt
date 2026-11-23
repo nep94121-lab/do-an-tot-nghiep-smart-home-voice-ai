@@ -242,8 +242,8 @@ fun MainScreen(
   var isUploadingVoiceToServer by remember { mutableStateOf(false) }
   var ttsEnabled by remember { mutableStateOf(true) }
 
-  var selectedTier by remember { mutableIntStateOf(1) }
-  var activeSpeakerName by remember { mutableStateOf("Nguyễn Tuấn Anh (Tầng 1)") }
+  var selectedTier by remember { mutableIntStateOf(0) }
+  var activeSpeakerName by remember { mutableStateOf("Chưa đăng nhập") }
   var lastDetectedF0 by remember { mutableDoubleStateOf(126.0) }
   var lastCosineScore by remember { mutableDoubleStateOf(0.92) }
 
@@ -252,12 +252,9 @@ fun MainScreen(
   var authOtpInput by remember { mutableStateOf("") }
   var authStepDone by remember { mutableIntStateOf(0) }
   var authStatusMessage by remember {
-    mutableStateOf("Nhập email và mật khẩu để đăng ký hoặc đăng nhập.")
+    mutableStateOf("Nhập email và mật khẩu để đăng nhập hoặc quét mã QR mời khách.")
   }
   var authStatusColor by remember { mutableStateOf(accentCyan) }
-  var testSummaryText by remember {
-    mutableStateOf("Đạt 8/8 bài kiểm thử Xác thực 3 Lớp (Mật khẩu + Gmail OTP + Giọng nói)")
-  }
 
   var voiceInput by remember { mutableStateOf("") }
   var lastSpokenText by remember { mutableStateOf("") }
@@ -266,8 +263,6 @@ fun MainScreen(
   var selectedRoomFilter by remember { mutableStateOf("Tất cả") }
   var accountSubScreen by remember { mutableStateOf("menu") }
   var showTechLogs by remember { mutableStateOf(false) }
-  var hasRecordedAuthSample by remember { mutableStateOf(false) }
-  var openAuthStep by remember { mutableIntStateOf(1) }
   var newMemberName by remember { mutableStateOf("Thành viên Minh") }
   var newMemberTier by remember { mutableIntStateOf(2) }
 
@@ -279,12 +274,14 @@ fun MainScreen(
   var guestQrCountdown by remember { mutableIntStateOf(10) }
 
   var speakerReply by remember { mutableStateOf("Chưa có lệnh") }
-  var metricBadge by remember { mutableStateOf("Đã xác thực") }
+  var metricBadge by remember { mutableStateOf("Chưa đăng nhập") }
   var lastStatusColor by remember { mutableStateOf(accentGreen) }
 
   var temperature by remember { mutableDoubleStateOf(28.5) }
   var humidity by remember { mutableIntStateOf(65) }
   var soilMoisture by remember { mutableIntStateOf(62) }
+  var soundDetected by remember { mutableStateOf(false) }
+  var soundEventCount by remember { mutableIntStateOf(0) }
 
   val activeTimers = remember { mutableStateListOf<CountdownTimerItem>() }
   val clockSchedules = remember { mutableStateListOf<ClockScheduleItem>() }
@@ -297,25 +294,24 @@ fun MainScreen(
 
   val deviceStates = remember {
     mutableStateMapOf(
-      "main_door" to true,
+      "main_door" to false,
       "living_room_light" to false,
-      "garden_pump" to false,
-      "ac" to false,
-      "fan" to false,
       "bedroom_light" to false,
+      "garden_pump" to false,
       "alarm_siren" to false,
+      "speaker_amp" to false,
     )
   }
+  val allowedDeviceIds = remember { mutableStateListOf<String>() }
 
   val devices = remember {
     listOf(
       HardwareDevice("living_room_light", "Đèn phòng khách", "Phòng khách", "lamp", "Đang bật", "Đang tắt"),
       HardwareDevice("bedroom_light", "Đèn phòng ngủ", "Phòng ngủ", "lamp", "Đang bật", "Đang tắt"),
-      HardwareDevice("ac", "Điều hòa", "Phòng ngủ", "snow", "Đang bật · 24°C", "Đang tắt"),
-      HardwareDevice("fan", "Quạt trần", "Phòng khách", "fan", "Đang bật", "Đang tắt"),
-      HardwareDevice("main_door", "Cửa chính", "Lối vào", "lock", "Đang mở", "Đang khóa"),
-      HardwareDevice("alarm_siren", "Còi báo động", "Lối vào", "alarm", "Đang bật", "Tắt"),
-      HardwareDevice("garden_pump", "Bơm tưới sân vườn", "Sân vườn", "pump", "Đang bật", "Đang tắt"),
+      HardwareDevice("speaker_amp", "Nguồn mạch loa PAM8403", "Phòng khách", "speaker", "Đang bật", "Đang tắt"),
+      HardwareDevice("main_door", "Cửa chính", "Lối vào", "door", "Đang mở", "Đang khóa"),
+      HardwareDevice("alarm_siren", "Còi báo động", "Lối vào", "bell", "Đang bật", "Đang tắt"),
+      HardwareDevice("garden_pump", "Máy bơm tưới cây", "Sân vườn", "drop", "Đang bật", "Đang tắt"),
     )
   }
 
@@ -355,10 +351,6 @@ fun MainScreen(
       t.contains("đèn phòng khách") -> "turn_on_living_room_light.mp3"
       t.contains("đèn phòng ngủ") && t.contains("tắt") -> "turn_off_bedroom_light.mp3"
       t.contains("đèn phòng ngủ") -> "turn_on_bedroom_light.mp3"
-      t.contains("quạt") && t.contains("tắt") -> "turn_off_fan.mp3"
-      t.contains("quạt") -> "turn_on_fan.mp3"
-      t.contains("điều hòa") && t.contains("tắt") -> "turn_off_ac.mp3"
-      t.contains("điều hòa") -> "turn_on_ac.mp3"
       else -> "stranger_blocked.mp3"
     }
   }
@@ -496,9 +488,25 @@ fun MainScreen(
   }
 
   var activeSessionToken by remember { mutableStateOf("") }
+  val isAuthenticated = activeSessionToken.isNotBlank()
   val sessionCookies = remember { ConcurrentHashMap<String, String>() }
 
-  val allowLocalDebugFallback = false
+  val visibleDevices = remember(isAuthenticated, selectedTier, allowedDeviceIds.toList()) {
+    if (!isAuthenticated) {
+      emptyList()
+    } else if (allowedDeviceIds.isNotEmpty()) {
+      devices.filter { it.serverId in allowedDeviceIds }
+    } else {
+      when (selectedTier) {
+        1 -> devices
+        2 -> devices.filter { it.serverId in setOf("living_room_light", "bedroom_light", "garden_pump", "speaker_amp") }
+        3 -> devices.filter { it.serverId in setOf("living_room_light", "bedroom_light") }
+        else -> emptyList()
+      }
+    }
+  }
+
+  val allowLocalDebugFallback = true
 
   fun captureCookiesFromResponse(conn: HttpURLConnection) {
     val headerEntries = conn.headerFields ?: return
@@ -541,7 +549,7 @@ fun MainScreen(
       val primaryBase = "https://laptop-6i654f8c.tail3020d6.ts.net"
       val fallbackBase = "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app"
       val candidates = if (allowLocalDebugFallback) {
-        listOf(primaryBase, fallbackBase, "http://10.0.2.2:8088", "http://127.0.0.1:8088", "http://localhost:8088")
+        listOf("http://127.0.0.1:8088", primaryBase, fallbackBase, "http://10.0.2.2:8088")
       } else {
         listOf(primaryBase, fallbackBase)
       }
@@ -602,14 +610,32 @@ fun MainScreen(
       try {
         val raw = JSONObject(resStr)
         val root = raw.optJSONObject("snapshot") ?: raw
+        if (root.has("authenticated") && !root.optBoolean("authenticated", true)) {
+          return@withContext
+        }
+        val curTier = root.optInt("current_tier", 0)
+        if (curTier in 1..3 && activeSessionToken.isNotBlank()) {
+          selectedTier = curTier
+        }
         val devArr = root.optJSONArray("devices")
-        if (devArr != null) {
+        if (devArr != null && activeSessionToken.isNotBlank()) {
+          val seenIds = mutableSetOf<String>()
           for (i in 0 until devArr.length()) {
             val obj = devArr.optJSONObject(i) ?: continue
             val id = obj.optString("id")
             val st = obj.optString("state")
             if (id.isNotBlank() && deviceStates.containsKey(id)) {
+              seenIds.add(id)
               deviceStates[id] = (st == "ON" || st == "OPEN")
+            }
+          }
+          if (seenIds.isNotEmpty()) {
+            allowedDeviceIds.clear()
+            allowedDeviceIds.addAll(seenIds)
+            for (k in deviceStates.keys.toList()) {
+              if (k !in seenIds) {
+                deviceStates[k] = false
+              }
             }
           }
         }
@@ -622,6 +648,11 @@ fun MainScreen(
         val soilObj = mqttObj?.optJSONObject("soil_moisture_telemetry")
         if (soilObj != null) {
           soilMoisture = soilObj.optDouble("soil_moisture_pct", soilMoisture.toDouble()).toInt()
+        }
+        val soundObj = mqttObj?.optJSONObject("sound_telemetry")
+        if (soundObj != null) {
+          soundDetected = soundObj.optBoolean("sound_detected", soundDetected)
+          soundEventCount = soundObj.optInt("event_count", soundEventCount)
         }
 
         val timersArr = root.optJSONArray("timers")
@@ -1049,12 +1080,23 @@ fun MainScreen(
 
   LaunchedEffect(isOnlineMode, activeSessionToken) {
     if (!isOnlineMode) return@LaunchedEffect
+    if (activeSessionToken.isBlank()) {
+      serverSynced = false
+      return@LaunchedEffect
+    }
     syncServerState()
-    if (activeSessionToken.isBlank()) return@LaunchedEffect
-    val sseBases = listOf(
-      "https://laptop-6i654f8c.tail3020d6.ts.net",
-      "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app",
-    )
+    val sseBases = if (allowLocalDebugFallback) {
+      listOf(
+        "http://127.0.0.1:8088",
+        "https://laptop-6i654f8c.tail3020d6.ts.net",
+        "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app",
+      )
+    } else {
+      listOf(
+        "https://laptop-6i654f8c.tail3020d6.ts.net",
+        "https://do-an-tot-nghiep-smart-home-voice-a.vercel.app",
+      )
+    }
     while (isOnlineMode && activeSessionToken.isNotBlank()) {
       var streamed = false
       for (base in sseBases) {
@@ -1231,99 +1273,85 @@ fun MainScreen(
             if (serverTier in 1..3) {
               selectedTier = serverTier
             }
-            authStatusMessage = "Lớp 2 thành công! Hãy đọc mẫu câu xác thực giọng nói."
-            addHistoryLog("Lớp 2 xác thực OTP thành công.")
+            authStatusMessage = "Xác thực OTP thành công! Đã đăng nhập."
+            addHistoryLog("Xác thực OTP thành công.")
             scope.launch { syncServerState() }
           } else {
             authStatusColor = accentRed
             authStatusMessage = res.optString("error", res.optString("message", "Mã OTP không đúng hoặc hết hạn!"))
           }
         } else {
-          if (code.length == 6) {
-            authStepDone = maxOf(authStepDone, 2)
-            authStatusColor = accentGreen
-            authStatusMessage = "Xác nhận OTP thành công."
-          }
+          authStatusColor = accentRed
+          authStatusMessage = "Không thể kết nối máy chủ để xác thực OTP."
         }
       }
     }
   }
 
-  fun uploadVoiceToServerForRecognition(simulatedF0: Double? = null, emailTarget: String = "") {
-    isUploadingVoiceToServer = true
-    val requiredSamples = 5
-    val sampleDurationMs = 3200
-    authStatusMessage = "Đang thu 5 mẫu giọng WeSpeaker (Mẫu 1/$requiredSamples · 3–5s)..."
+  fun extractInviteToken(rawCode: String): String {
+    val trimmed = rawCode.trim()
+    if (trimmed.isBlank()) return ""
+    if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+      try {
+        val uri = Uri.parse(trimmed)
+        val qToken = uri.getQueryParameter("token") ?: uri.getQueryParameter("invite")
+        if (!qToken.isNullOrBlank()) return qToken.trim()
+        val lastSeg = uri.lastPathSegment
+        if (!lastSeg.isNullOrBlank() && lastSeg != "guest" && lastSeg != "guest_enroll") {
+          return lastSeg.trim()
+        }
+      } catch (_: Exception) {}
+    }
+    return trimmed
+  }
+
+  fun redeemGuestQrCode(rawCode: String) {
+    val token = extractInviteToken(rawCode)
+    if (token.isBlank()) {
+      authStatusColor = accentRed
+      authStatusMessage = "Mã QR mời khách không hợp lệ."
+      showAutomationFeedback(authStatusMessage, isError = true)
+      return
+    }
+    authStatusColor = accentCyan
+    authStatusMessage = "Đang xác thực mã mời QR với máy chủ..."
     scope.launch(Dispatchers.IO) {
-      val samplesJsonArr = JSONArray()
-      var firstPcmB64 = ""
-      var detectedF0Sum = 0.0
-      for (sampleIdx in 0 until requiredSamples) {
-        withContext(Dispatchers.Main) {
-          authStatusMessage = "Đang thu Mẫu ${sampleIdx + 1}/$requiredSamples (3–5 giây/mẫu)..."
-        }
-        val captured = captureMicPcmAndPitch(sampleDurationMs)
-        if (sampleIdx == 0) {
-          firstPcmB64 = captured.pcm16kBase64
-        }
-        detectedF0Sum += captured.f0Hz
-        if (captured.pcm16kBase64.isNotBlank()) {
-          samplesJsonArr.put(captured.pcm16kBase64)
-        }
-      }
-      val f0ToUse = simulatedF0 ?: (detectedF0Sum / requiredSamples.toDouble())
-      withContext(Dispatchers.Main) {
-        authStatusMessage = "Đang trích xuất 5 vector WeSpeaker ResNet34 ONNX..."
-      }
       val payload = JSONObject().apply {
-        put("email", if (emailTarget.isNotBlank()) emailTarget else authEmail)
-        put("pcm_base64", firstPcmB64)
-        put("audio_pcm_b64", firstPcmB64)
-        put("samples_b64", samplesJsonArr)
-        put("sample_count", requiredSamples)
-        put("hold_duration_sec", 3.5)
-        put("simulated_f0", f0ToUse)
+        put("token", token)
       }.toString()
-      val resStr = callServerHttp("/api/auth3/enroll_voice_sample", "POST", payload)
+      val resStr = callServerHttp("/api/guest/redeem", "POST", payload)
       withContext(Dispatchers.Main) {
-        isUploadingVoiceToServer = false
-        hasRecordedAuthSample = true
-        if (resStr != null) {
-          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
-          val serverSpeech = extractServerSpokenReply(res)
-          val serverPcmB64 = res.optString("pcm24k_b64", "")
-          if (res.optBoolean("ok")) {
-            authStepDone = maxOf(authStepDone, 3)
-            authStatusColor = accentGreen
-            val returnedToken = res.optString("session_token", "")
-              .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
-            if (returnedToken.isNotBlank()) {
-              activeSessionToken = returnedToken
-            }
-            val serverTier = res.optInt("tier", 0)
-            if (serverTier in 1..3) {
-              selectedTier = serverTier
-            }
-            authStatusMessage = serverSpeech.ifBlank { "Đã lưu 5/5 mẫu giọng WeSpeaker thành công!" }
-            addHistoryLog("Lớp 3: Đã lưu trung bình 5 mẫu vân giọng WeSpeaker.")
-            if (serverSpeech.isNotBlank() || serverPcmB64.isNotBlank()) {
-              speakerReply = serverSpeech
-              speakOutLoud(serverSpeech, serverPcmB64)
-            }
-            scope.launch { syncServerState() }
-          } else {
-            authStatusColor = accentRed
-            val rejSpeech = serverSpeech.ifBlank {
-              res.optString("error", res.optString("message", "Giọng nói chưa đạt chuẩn. Hãy thử lại!"))
-            }
-            authStatusMessage = rejSpeech
-            speakerReply = rejSpeech
-            speakOutLoud(rejSpeech, serverPcmB64)
+        if (resStr == null) {
+          authStatusColor = accentRed
+          authStatusMessage = "Không thể kết nối máy chủ để đổi mã QR mời."
+          showAutomationFeedback(authStatusMessage, isError = true)
+          return@withContext
+        }
+        val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
+        if (res.optBoolean("ok")) {
+          val returnedToken = res.optString("session_token", "")
+            .ifBlank { sessionCookies["sh_session_token"] ?: sessionCookies["session_token"] ?: "" }
+          val tierVal = res.optInt("tier", 3).coerceIn(1, 3)
+          if (returnedToken.isNotBlank()) {
+            activeSessionToken = returnedToken
           }
-        } else {
-          authStepDone = maxOf(authStepDone, 3)
+          selectedTier = tierVal
+          activeSpeakerName = res.optString("display_name").ifBlank {
+            if (tierVal == 2) "Gia đình (QR)" else "Khách mời (QR)"
+          }
+          authStepDone = 2
           authStatusColor = accentGreen
-          authStatusMessage = "Đã lưu 5/5 mẫu giọng nói."
+          authStatusMessage = "Đã kích hoạt phiên truy cập bằng mã QR (Cấp $tierVal)."
+          addHistoryLog("Đổi mã QR mời thành công (Cấp $tierVal)")
+          accountSubScreen = "menu"
+          showAutomationFeedback(authStatusMessage, isError = false)
+          scope.launch { syncServerState() }
+        } else {
+          val errMsg = res.optString("error", res.optString("message", "Mã mời không hợp lệ hoặc đã hết hạn."))
+          authStatusColor = accentRed
+          authStatusMessage = errMsg
+          addHistoryLog("Đổi mã QR thất bại: $errMsg")
+          showAutomationFeedback(errMsg, isError = true)
         }
       }
     }
@@ -1331,17 +1359,23 @@ fun MainScreen(
 
   fun submitAddFamilyEmail() {
     if (allowlistTargetEmail.isBlank()) return
+    if (!isAuthenticated) {
+      allowlistStatusColor = accentRed
+      allowlistStatusMessage = "Vui lòng đăng nhập tài khoản Chủ nhà trước."
+      return
+    }
     scope.launch(Dispatchers.IO) {
       val payload = JSONObject().apply {
         put("target_email", allowlistTargetEmail.trim())
         put("target_tier", allowlistTargetTier)
-        put("actor_email", authEmail.trim().ifBlank { "nep94121@gmail.com" })
-        put("actor_id", "tuan_anh")
+        if (authEmail.isNotBlank()) {
+          put("actor_email", authEmail.trim())
+        }
       }.toString()
       val resStr = callServerHttp("/api/auth3/add_family_email", "POST", payload)
       withContext(Dispatchers.Main) {
         if (resStr != null) {
-          val res = JSONObject(resStr)
+          val res = try { JSONObject(resStr) } catch (_: Exception) { JSONObject() }
           if (res.optBoolean("ok")) {
             allowlistStatusColor = accentGreen
             allowlistStatusMessage = "Đã thêm thành viên: $allowlistTargetEmail"
@@ -1352,9 +1386,8 @@ fun MainScreen(
             allowlistStatusMessage = res.optString("error", res.optString("message", "Không thể thêm email!"))
           }
         } else {
-          allowlistStatusColor = accentGreen
-          allowlistStatusMessage = "Đã cấp quyền cho $allowlistTargetEmail."
-          allowlistTargetEmail = ""
+          allowlistStatusColor = accentRed
+          allowlistStatusMessage = "Không thể kết nối máy chủ. Chưa thêm được email thành viên."
         }
       }
     }
@@ -1383,12 +1416,11 @@ fun MainScreen(
       lower.contains("cả hai") ||
       customScenes.any { it.phraseNorm.isNotBlank() && lower.contains(it.phraseNorm) }
 
-    val targetDevice = if (isAutomationOrMultiPhrase) null else devices.firstOrNull { dev ->
+    val targetDevice = if (isAutomationOrMultiPhrase) null else visibleDevices.firstOrNull { dev ->
       when (dev.serverId) {
         "living_room_light" -> lower.contains("phòng khách") || lower.contains("đèn khách")
         "bedroom_light" -> lower.contains("phòng ngủ") || lower.contains("đèn ngủ")
-        "ac" -> lower.contains("điều hòa") || lower.contains("máy lạnh")
-        "fan" -> lower.contains("quạt")
+        "speaker_amp" -> lower.contains("loa") || lower.contains("mạch loa") || lower.contains("pam8403")
         "main_door" -> lower.contains("cửa")
         "alarm_siren" -> lower.contains("còi") || lower.contains("báo động")
         "garden_pump" -> lower.contains("bơm") || lower.contains("sân vườn")
@@ -1399,8 +1431,8 @@ fun MainScreen(
     val isTurnOn = lower.contains("bật") || lower.contains("mở") || lower.contains("khởi động")
     val isTurnOff = lower.contains("tắt") || lower.contains("đóng") || lower.contains("ngắt")
 
-    if (selectedTier >= 99) {
-      val rejReply = "Tôi không được phép nhận lệnh từ người lạ."
+    if (!isAuthenticated || selectedTier <= 0 || selectedTier >= 99) {
+      val rejReply = "Vui lòng đăng nhập trước khi điều khiển thiết bị."
       speakerReply = rejReply
       speakOutLoud(rejReply)
       return
@@ -1462,7 +1494,10 @@ fun MainScreen(
               if (isOnlineMode) speakOutLoud(reply)
             }
           } else if (isOnlineMode) {
-            speakOutLoud(reply)
+            deviceStates[targetDevice.serverId] = prevState
+            val errMsg = "Không thể kết nối máy chủ."
+            speakerReply = errMsg
+            showAutomationFeedback(errMsg, isError = true)
           }
         }
       }
@@ -1499,7 +1534,9 @@ fun MainScreen(
               if (isOnlineMode) speakOutLoud(reply)
             }
           } else if (isOnlineMode) {
-            speakOutLoud(reply)
+            val errMsg = "Không thể kết nối máy chủ."
+            speakerReply = errMsg
+            showAutomationFeedback(errMsg, isError = true)
           }
         }
       }
@@ -1552,7 +1589,7 @@ fun MainScreen(
     1 -> "Thiết bị"
     2 -> "Giọng nói"
     else -> when (accountSubScreen) {
-      "auth" -> "Xác thực giọng nói"
+      "auth" -> "Đăng nhập & Xác thực"
       "guest" -> "Mời khách"
       "qr_scanner" -> "Quét mã QR"
       "forgot_otp" -> "Quên mật khẩu"
@@ -1563,11 +1600,11 @@ fun MainScreen(
   }
 
   val topBarSubtitle = when (currentTab) {
-    0 -> "Theo dõi trạng thái trong nhà"
-    1 -> "Điều khiển các thiết bị trong nhà"
+    0 -> if (isAuthenticated) "Theo dõi trạng thái trong nhà" else "Đăng nhập để điều khiển ngôi nhà"
+    1 -> if (isAuthenticated) "Điều khiển các thiết bị trong nhà" else "Yêu cầu đăng nhập"
     2 -> "Nói điều bạn muốn làm trong nhà."
     else -> when (accountSubScreen) {
-      "auth" -> "Đăng ký giọng nói 3 bước"
+      "auth" -> "Email, mật khẩu và OTP bảo mật"
       "guest" -> "Chọn thời hạn và quyền truy cập"
       "qr_scanner" -> "Quét lời mời từ Chủ nhà"
       "forgot_otp" -> "Nhập mã 6 số đã gửi tới Gmail"
@@ -1642,10 +1679,20 @@ fun MainScreen(
                 modifier = Modifier
                   .size(7.dp)
                   .clip(CircleShape)
-                  .background(if (serverSynced && isOnlineMode) Color(0xFF15803D) else accentRed),
+                  .background(
+                    when {
+                      !isAuthenticated -> accentAmber
+                      serverSynced && isOnlineMode -> Color(0xFF15803D)
+                      else -> accentRed
+                    }
+                  ),
               )
               Text(
-                text = if (serverSynced && isOnlineMode) "Đã kết nối" else "Mất kết nối",
+                text = when {
+                  !isAuthenticated -> "Chưa đăng nhập"
+                  serverSynced && isOnlineMode -> "Đã kết nối"
+                  else -> "Mất kết nối"
+                },
                 color = textPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -1677,7 +1724,13 @@ fun MainScreen(
         when (currentTab) {
           0 -> HomeScreenTab(
             temperature = temperature,
+            humidity = humidity,
             soilMoisture = soilMoisture,
+            soundDetected = soundDetected,
+            soundEventCount = soundEventCount,
+            isAuthenticated = isAuthenticated,
+            selectedTier = selectedTier,
+            visibleDevicesCount = visibleDevices.size,
             deviceStates = deviceStates,
             activeTimers = activeTimers,
             accentCyan = accentCyan,
@@ -1688,18 +1741,22 @@ fun MainScreen(
             textSecondary = textSecondary,
             onOpenVoiceSheet = { showVoiceSheet = true },
             onNavigateToDevices = { currentTab = 1 },
+            onNavigateToAuth = { currentTab = 3; accountSubScreen = "auth" },
+            onNavigateToQr = { currentTab = 3; accountSubScreen = "qr_scanner" },
             clockSchedules = clockSchedules,
             automationRules = automationRules,
             customScenes = customScenes,
             onRunScene = { runCustomScene(it) },
           )
           1 -> DevicesScreenTab(
-            devices = devices,
+            devices = visibleDevices,
             deviceStates = deviceStates,
             selectedRoomFilter = selectedRoomFilter,
             onSelectRoomFilter = { selectedRoomFilter = it },
             onToggleDevice = { dev, newValue ->
-              if (dev.tier1Only && selectedTier != 1) {
+              if (!isAuthenticated) {
+                showAutomationFeedback("Vui lòng đăng nhập để điều khiển thiết bị.", isError = true)
+              } else if (dev.tier1Only && selectedTier != 1) {
                 val denyMsg = "Chỉ chủ nhà mới được điều khiển ${dev.name}."
                 speakerReply = denyMsg
                 speakOutLoud(denyMsg)
@@ -1744,6 +1801,11 @@ fun MainScreen(
                         }
                       } catch (_: Exception) {}
                     }
+                  } else {
+                    withContext(Dispatchers.Main) {
+                      deviceStates[dev.serverId] = prevVal
+                      showAutomationFeedback("Không thể kết nối máy chủ.", isError = true)
+                    }
                   }
                 }
               }
@@ -1772,6 +1834,10 @@ fun MainScreen(
             onDeleteScene = { deleteCustomScene(it) },
             onRunScene = { runCustomScene(it) },
             accentRed = accentRed,
+            isAuthenticated = isAuthenticated,
+            selectedTier = selectedTier,
+            onNavigateToAuth = { currentTab = 3; accountSubScreen = "auth" },
+            onNavigateToQr = { currentTab = 3; accountSubScreen = "qr_scanner" },
           )
           2 -> VoiceScreenTab(
             selectedTier = selectedTier,
@@ -1804,6 +1870,7 @@ fun MainScreen(
           else -> AccountScreenTab(
             accountSubScreen = accountSubScreen,
             onNavigateSubScreen = { accountSubScreen = it },
+            isAuthenticated = isAuthenticated,
             selectedTier = selectedTier,
             onSelectTier = { tier, name -> selectedTier = tier; activeSpeakerName = name },
             authEmail = authEmail,
@@ -1812,8 +1879,6 @@ fun MainScreen(
             onAuthPasswordChange = { authPassword = it },
             authOtpInput = authOtpInput,
             onAuthOtpInputChange = { authOtpInput = it },
-            openAuthStep = openAuthStep,
-            onOpenAuthStepChange = { openAuthStep = it },
             authStepDone = authStepDone,
             authStatusMessage = authStatusMessage,
             authStatusColor = authStatusColor,
@@ -1821,7 +1886,6 @@ fun MainScreen(
             onAllowlistTargetEmailChange = { allowlistTargetEmail = it },
             allowlistStatusMessage = allowlistStatusMessage,
             allowlistStatusColor = allowlistStatusColor,
-            hasRecordedAuthSample = hasRecordedAuthSample,
             newMemberName = newMemberName,
             onNewMemberNameChange = { newMemberName = it },
             guestQrDuration = guestQrDuration,
@@ -1835,30 +1899,39 @@ fun MainScreen(
             onPerformRegister = { performRegisterAccount() },
             onPerformLayer1Login = { performLayer1Login(it) },
             onPerformLayer2OtpVerify = { performLayer2OtpVerify() },
-            onUploadVoiceSample = { uploadVoiceToServerForRecognition(null, authEmail) },
             onSubmitAddFamilyEmail = { submitAddFamilyEmail() },
             onLogout = {
-              selectedTier = 3
-              activeSpeakerName = "Khách"
-              activeSessionToken = ""
-              sessionCookies.clear()
-              activeTimers.clear()
-              clockSchedules.clear()
-              automationRules.clear()
-              customScenes.clear()
-              automationStatusMessage = ""
-              authEmail = ""
-              authPassword = ""
-              authOtpInput = ""
-              authStepDone = 0
-              authStatusMessage = "Đã đăng xuất tài khoản."
-              addHistoryLog("Đã đăng xuất tài khoản")
+              scope.launch(Dispatchers.IO) {
+                if (activeSessionToken.isNotBlank()) {
+                  callServerHttp("/api/auth/logout", "POST", "{}")
+                }
+                withContext(Dispatchers.Main) {
+                  selectedTier = 0
+                  activeSpeakerName = "Chưa đăng nhập"
+                  activeSessionToken = ""
+                  serverSynced = false
+                  sessionCookies.clear()
+                  allowedDeviceIds.clear()
+                  for (k in deviceStates.keys.toList()) {
+                    deviceStates[k] = false
+                  }
+                  activeTimers.clear()
+                  clockSchedules.clear()
+                  automationRules.clear()
+                  customScenes.clear()
+                  automationStatusMessage = ""
+                  authEmail = ""
+                  authPassword = ""
+                  authOtpInput = ""
+                  authStepDone = 0
+                  authStatusColor = accentCyan
+                  authStatusMessage = "Đã đăng xuất tài khoản."
+                  addHistoryLog("Đã đăng xuất tài khoản")
+                }
+              }
             },
-            onSpeakSamplePhrase = { speakOutLoud("Nhà thông minh xin chào, mở đèn phòng khách và kiểm tra nhiệt độ hôm nay.") },
-            onReRecordVoiceSample = { uploadVoiceToServerForRecognition(126.0, authEmail) },
             onQrCodeScanned = { code ->
-              addHistoryLog("Quét mã khách: $code")
-              accountSubScreen = "menu"
+              redeemGuestQrCode(code)
             },
             accentCyan = accentCyan,
             accentRed = accentRed,
