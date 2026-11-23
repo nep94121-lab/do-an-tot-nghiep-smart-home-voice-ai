@@ -341,7 +341,7 @@ class TestF1GeminiLiveAoedeAudio:
 
                 starts = await page.evaluate("() => window.__recordedAudioStarts")
                 reply_text = await page.inner_text("#liveAiReply")
-                assert "Cửa chính" in reply_text
+                assert "cửa chính" in reply_text.lower()
                 assert starts[0]["sampleRate"] == 24000
                 assert starts[0]["length"] > 1000
                 assert starts[0]["maxAbs"] > 0.05
@@ -746,6 +746,7 @@ class TestF5F6F7F8AnonymousSecurityAndMobileNav:
         self, live_funcfix_server: dict[str, str]
     ) -> None:
         base_url = live_funcfix_server["base_url"]
+        owner_token = live_funcfix_server["owner_token"]
 
         async def _run() -> None:
             from playwright.async_api import async_playwright
@@ -753,11 +754,35 @@ class TestF5F6F7F8AnonymousSecurityAndMobileNav:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True, channel="chrome")
                 for vp in ({"width": 1366, "height": 768}, {"width": 390, "height": 844}):
+                    # 1. Anonymous navigation to /logs must fail closed via server-side redirect to /login?next=/logs
+                    anon_ctx = await browser.new_context(viewport=vp)
+                    anon_page = await anon_ctx.new_page()
+                    await anon_page.goto(base_url + "/logs", wait_until="domcontentloaded")
+                    assert "/login" in anon_page.url and "next=/logs" in anon_page.url
+                    assert await anon_page.locator("#logsAdminShell").count() == 0
+                    await anon_ctx.close()
+
+                    # 2. Client-side gate on /logs when session expires/becomes unauthenticated
                     ctx = await browser.new_context(viewport=vp)
+                    await ctx.add_cookies(
+                        [
+                            {"name": "sh_session_token", "value": owner_token, "url": base_url},
+                            {"name": "session_token", "value": owner_token, "url": base_url},
+                        ]
+                    )
                     page = await ctx.new_page()
                     await page.goto(base_url + "/logs", wait_until="domcontentloaded")
-                    await page.wait_for_selector("#logsAccessDeniedGate", timeout=10000)
-                    await asyncio.sleep(0.4)
+                    await ctx.clear_cookies()
+                    await page.evaluate(
+                        """async () => {
+                            try { sessionStorage.clear(); localStorage.clear(); } catch (_) {}
+                            if (typeof window.loadDashboard === 'function') {
+                                await window.loadDashboard();
+                            }
+                        }"""
+                    )
+                    await page.wait_for_selector("#logsAccessDeniedGate", state="visible", timeout=10000)
+                    await asyncio.sleep(0.2)
 
                     snap = await page.evaluate(
                         """() => {

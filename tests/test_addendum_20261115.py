@@ -210,7 +210,7 @@ class TestSchemaSecurityAndDelivery:
             for rd in redirects
         )
         v_ign = (ROOT / ".vercelignore").read_text(encoding="utf-8")
-        assert "api" in v_ign and "simulator" in v_ign
+        assert "backend" in v_ign and "firmware" in v_ign and "hardware" in v_ign
 
 
 # ==============================================================================

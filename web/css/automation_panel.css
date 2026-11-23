@@ -1021,8 +1021,13 @@
     justify-content: flex-start;
   }
   .auto-item-actions .btn-mini {
-    min-height: 42px;
+    min-height: 44px;
     padding: 6px 12px;
+  }
+  #secAutomation .dash-auto-head-actions .btn-mini {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
   }
   .auto-modal-backdrop {
     padding: 10px;

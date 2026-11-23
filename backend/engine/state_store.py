@@ -212,11 +212,15 @@ class FileStateBackend:
 
     def __init__(self, file_path: pathlib.Path | None = None) -> None:
         if file_path is None:
-            import hashlib
+            env_data_dir = os.environ.get("SMARTHOME_DATA_DIR", "").strip()
+            if env_data_dir and not os.environ.get("VERCEL"):
+                file_path = pathlib.Path(env_data_dir) / "shared_device_state.json"
+            else:
+                import hashlib
 
-            wt_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
-            wt_hash = hashlib.sha256(wt_root.encode("utf-8")).hexdigest()[:12]
-            file_path = pathlib.Path(tempfile.gettempdir()) / f"smarthome_shared_device_state_{wt_hash}.json"
+                wt_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
+                wt_hash = hashlib.sha256(wt_root.encode("utf-8")).hexdigest()[:12]
+                file_path = pathlib.Path(tempfile.gettempdir()) / f"smarthome_shared_device_state_{wt_hash}.json"
         self.file_path = file_path
         self._lock_path = self.file_path.with_suffix(self.file_path.suffix + ".lock")
         self._lock = threading.RLock()

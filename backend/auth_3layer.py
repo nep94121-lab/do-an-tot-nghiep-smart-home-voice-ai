@@ -945,9 +945,15 @@ class ThreeLayerAuthManager(
         self._purge_throwaway_qa_accounts()
         sanitized_accounts = [self._sanitize_account_for_cas(a) for a in self.accounts]
         payload = (json.dumps(sanitized_accounts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        is_default_accounts_path = (
+            ACCOUNTS_FILE.name == "accounts_3layer.json" and ACCOUNTS_FILE.parent == DATA_DIR
+        )
         use_cas_dir = bool(
-            os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
-            or (os.environ.get("SMARTHOME_DATA_DIR", "").strip() and not os.environ.get("VERCEL"))
+            is_default_accounts_path
+            and (
+                os.environ.get("SIMULATOR_SECURITY_STATE_DIR", "").strip()
+                or (os.environ.get("SMARTHOME_DATA_DIR", "").strip() and not os.environ.get("VERCEL"))
+            )
         )
         target = self._cas_data_dir() / ACCOUNTS_FILE.name if use_cas_dir else ACCOUNTS_FILE
         with _ACCOUNTS_FILE_LOCK:

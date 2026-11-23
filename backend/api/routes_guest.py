@@ -100,7 +100,7 @@ async def guest_page(request: Request) -> Response:
         return HTMLResponse(_INVALID_HTML, status_code=403, headers={"Cache-Control": "no-store"})
     from pathlib import Path
 
-    path = Path(__file__).resolve().parents[1] / "static" / "guest_control.html"
+    path = Path(__file__).resolve().parents[2] / "web" / "guest_control.html"
     html = path.read_text(encoding="utf-8")
     return HTMLResponse(html, status_code=200, headers={"Cache-Control": "no-store"})
 

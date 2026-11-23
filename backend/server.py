@@ -255,20 +255,27 @@ async def custom_http_exception_handler(request: Request, exc: Exception) -> Res
     status_code = getattr(exc, "status_code", 404)
     raw_detail = getattr(exc, "detail", "")
     if status_code == 404:
-        detail = (
+        detail = raw_detail or "Not Found"
+        vi_message = (
             "Không tìm thấy tài nguyên yêu cầu."
             if (not raw_detail or str(raw_detail).strip().lower() == "not found")
-            else raw_detail
+            else str(raw_detail)
         )
         accept = request.headers.get("accept", "")
         # Nếu là gọi API (/api/*) hoặc client không yêu cầu HTML: trả JSON chuẩn
         if request.url.path.startswith("/api/") or "text/html" not in accept:
-            return JSONResponse({"detail": detail}, status_code=404)
+            return JSONResponse(
+                {"detail": detail, "message": vi_message, "error": vi_message},
+                status_code=404,
+            )
         # Nếu là điều hướng trình duyệt (browser navigation): trả HTML trang 404
         file_404 = STATIC_DIR / "404.html"
         if file_404.exists():
             return FileResponse(file_404, status_code=404, media_type="text/html")
-        return JSONResponse({"detail": detail}, status_code=404)
+        return JSONResponse(
+            {"detail": detail, "message": vi_message, "error": vi_message},
+            status_code=404,
+        )
     elif status_code == 405:
         detail = (
             "Phương thức truy cập không được hỗ trợ."

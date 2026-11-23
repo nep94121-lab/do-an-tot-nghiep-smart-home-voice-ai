@@ -217,7 +217,7 @@ class TestVercelRoutingStress:
 
     def test_vercel_boundary_clamping_prevents_prefix_hijack(self, vercel_config: dict[str, Any]):
         assert "routes" not in vercel_config
-        assert (ROOT / "public" / "index.html").exists()
+        assert (ROOT / "web" / "public" / "index.html").exists()
 
     def test_vercel_precedence_login_register_before_catchall(self, vercel_config: dict[str, Any]):
         redirects = vercel_config.get("redirects", [])

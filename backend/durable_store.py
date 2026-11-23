@@ -94,6 +94,14 @@ def _resolve_durable_vault_dir() -> pathlib.Path:
             pass
 
     if not os.environ.get("VERCEL"):
+        env_data_dir = os.environ.get("SMARTHOME_DATA_DIR", "").strip()
+        if env_data_dir:
+            scoped_vault = pathlib.Path(env_data_dir) / ".durable_vault"
+            try:
+                scoped_vault.mkdir(parents=True, exist_ok=True)
+                return scoped_vault
+            except Exception:
+                pass
         home_vault = pathlib.Path(tempfile.gettempdir()) / "smarthome_durable_vault"
         try:
             home_vault.mkdir(parents=True, exist_ok=True)

@@ -1,17 +1,53 @@
+"""Repository secret scanner for release hygiene verification."""
+
+from __future__ import annotations
+
+import pathlib
 import re
+import subprocess
+import sys
 
-text = open("FIX_REPORT_20261104.md", encoding="utf-8").read()
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# Check for raw secrets
-known_secrets = ["[REDACTED_PASSWORD]"]
-for s in known_secrets:
-    if s in text:
-        print(f"ALERT: Plaintext secret found: {s}")
+SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("Google API key", re.compile(r"AIza[0-9A-Za-z\-_]{35}")),
+    ("GitHub classic PAT", re.compile(r"ghp_[0-9A-Za-z]{36}")),
+    ("GitHub fine-grained PAT", re.compile(r"github_pat_[0-9A-Za-z_]{20,}")),
+    ("Private key block", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
+    ("Slack token", re.compile(r"xox[baprs]-[0-9A-Za-z\-]{10,}")),
+)
 
-# Check for unmasked password assignments
-for m in re.finditer(r'(?:password|mật khẩu)\s*[:=]\s*["\']?([^"\']{4,})', text, re.I):
-    val = m.group(1).strip()
-    if not (val.startswith("*") or val.startswith("[") or "mặc định" in val or "nhập" in val or "mới" in val):
-        print(f"Potential unmasked password at pos {m.start()}: {m.group(0)}")
+TEXT_EXTS = {
+    ".py", ".js", ".html", ".css", ".json", ".md", ".ps1",
+    ".txt", ".yml", ".yaml", ".toml", ".ini", ".sh", ".sql",
+    ".kt", ".kts", ".gradle", ".properties", ".ino", ".h", ".c", ".cpp",
+}
 
-print("Security audit scan complete. Zero secrets confirmed!")
+
+def main() -> int:
+    tracked = subprocess.check_output(
+        ["git", "-C", str(ROOT), "ls-files"], text=True
+    ).splitlines()
+    hits: list[str] = []
+    for rel in tracked:
+        p = ROOT / rel
+        if not p.is_file() or p.suffix.lower() not in TEXT_EXTS:
+            continue
+        raw = p.read_bytes()
+        if b"\x00" in raw:
+            continue
+        text = raw.decode("utf-8", errors="replace")
+        for label, pat in SECRET_PATTERNS:
+            for m in pat.finditer(text):
+                line_no = text.count("\n", 0, m.start()) + 1
+                hits.append(f"{rel}:{line_no}: {label}")
+    if hits:
+        for h in hits:
+            print(f"ALERT: {h}", file=sys.stderr)
+        return 1
+    print(f"Security audit scan complete ({len(tracked)} tracked files). Zero secrets confirmed!")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

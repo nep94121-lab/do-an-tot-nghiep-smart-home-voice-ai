@@ -135,9 +135,22 @@
     return false;
   }
 
+  function isPublicAuthEntryPath() {
+    try {
+      const p = String((window.location && window.location.pathname) || "").replace(/\/+$/, "") || "/";
+      return p === "/login" || p === "/register";
+    } catch (_) {
+      return false;
+    }
+  }
+
   function bootAutoSync() {
     if (document.body && document.body.getAttribute("data-nav-guard-auto") === "true") {
-      syncFromServer();
+      if (isPublicAuthEntryPath() && !hasClientAuthHint()) {
+        applyNavAuthState({ authenticated: false });
+      } else {
+        syncFromServer();
+      }
     } else if (!currentAuthState.authenticated) {
       guardUnauthHash(false);
     }

@@ -3,6 +3,10 @@ import pathlib
 import sys
 import time
 
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 kind, directory, data_dir = sys.argv[1:]
 barrier = pathlib.Path(directory)
 data_dir = pathlib.Path(data_dir)

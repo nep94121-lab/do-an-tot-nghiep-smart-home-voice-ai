@@ -29,6 +29,7 @@ import pathlib
 import re
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import time

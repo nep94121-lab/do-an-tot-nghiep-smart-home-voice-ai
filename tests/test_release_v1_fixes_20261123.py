@@ -222,12 +222,13 @@ def test_triv01_get_timers_and_vietnamese_404_405() -> None:
     assert "Method Not Allowed" not in d405
     assert "không được hỗ trợ" in d405.lower()
 
-    # HTTP 404 must return Vietnamese detail (no English 'Not Found')
+    # HTTP 404 preserves FastAPI 'Not Found' detail compatibility while exposing Vietnamese message/error
     r_404 = client.get("/api/this_route_does_not_exist_12345")
     assert r_404.status_code == 404
-    d404 = str(r_404.json().get("detail") or "")
-    assert "Not Found" not in d404
-    assert "không tìm thấy" in d404.lower()
+    body_404 = r_404.json()
+    assert body_404.get("detail") == "Not Found"
+    msg_404 = str(body_404.get("message") or body_404.get("error") or "")
+    assert "không tìm thấy" in msg_404.lower()
 
 
 def test_triv04_garbled_prefix_not_hijacked_as_device_status_query() -> None:
