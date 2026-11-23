@@ -351,6 +351,40 @@ def _cancel_all_timers_and_schedules(
             )
     except Exception:
         pass
+    # Clear persisted & cached automation_rules and compound_automation_rules between journeys
+    for list_ep, key in (("/api/rules", "rules"), ("/api/compound_rules", "compound_rules")):
+        try:
+            r_list = http.get(f"{BASE_URL}{list_ep}", headers=owner_headers, timeout=10.0)
+            if r_list.status_code == 200:
+                payload = r_list.json() if r_list.headers.get("content-type", "").startswith("application/json") else {}
+                items = payload.get(key) or payload.get("automation_rules") or []
+                for item in items:
+                    rid = str(item.get("rule_id") or "").strip()
+                    if not rid:
+                        continue
+                    r_del = http.delete(f"{BASE_URL}/api/rules/{rid}", headers=owner_headers, timeout=10.0)
+                    b_del = r_del.json() if r_del.headers.get("content-type", "").startswith("application/json") else {}
+                    if b_del.get("requires_confirmation") and b_del.get("pending_id"):
+                        http.post(
+                            f"{BASE_URL}/api/confirmations/{b_del['pending_id']}",
+                            headers=owner_headers,
+                            json={"confirm": True},
+                            timeout=10.0,
+                        )
+        except Exception:
+            pass
+    db_path = data_dir / "smarthome.db"
+    if db_path.exists():
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+        try:
+            for tbl in ("automation_rules", "compound_automation_rules"):
+                try:
+                    conn.execute(f"DELETE FROM {tbl}")
+                except Exception:
+                    pass
+            conn.commit()
+        finally:
+            conn.close()
     _clear_pending_in_temp_db(data_dir)
 
 

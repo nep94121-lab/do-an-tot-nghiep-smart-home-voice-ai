@@ -64,6 +64,12 @@
             setElemHidden(el, !isOwner);
           }
         });
+        document.querySelectorAll("[data-max-tier]").forEach((el) => {
+          const maxTier = Number(el.getAttribute("data-max-tier") || 0);
+          if (maxTier > 0) {
+            setElemHidden(el, !isAuthed || tierNum <= 0 || tierNum > maxTier);
+          }
+        });
         document.querySelectorAll('[data-guest-only="true"]').forEach((el) => {
           setElemHidden(el, isAuthed);
         });
@@ -131,11 +137,7 @@
 
   function bootAutoSync() {
     if (document.body && document.body.getAttribute("data-nav-guard-auto") === "true") {
-      if (hasClientAuthHint()) {
-        syncFromServer();
-      } else {
-        applyNavAuthState({ authenticated: false });
-      }
+      syncFromServer();
     } else if (!currentAuthState.authenticated) {
       guardUnauthHash(false);
     }

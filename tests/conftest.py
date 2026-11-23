@@ -202,9 +202,24 @@ def _reset_engine_runtime_timers_and_guards(engine: Any) -> None:
 
 def _ensure_initial_data_snapshot() -> None:
     """Lazily snapshot initial clean data files when SMARTHOME_DATA_DIR starts empty."""
+    sqlite_env = os.environ.get("SMARTHOME_SQLITE_PATH", "").strip()
+    db_path = pathlib.Path(sqlite_env) if sqlite_env else (DATA_DIR / "smarthome.db")
+    if "smarthome.db" not in _INITIAL_DATA_BYTES and not db_path.exists():
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            from simulator.database_sqlite import init_sqlite_db
+            from simulator.db_migrations import close_wal_anchors
+
+            init_sqlite_db()
+            with contextlib.closing(sqlite3.connect(str(db_path), timeout=5.0)) as conn:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                conn.commit()
+            close_wal_anchors()
+        except Exception:
+            pass
     for fname in _TRACKED_DATA_FILES:
         if fname not in _INITIAL_DATA_BYTES:
-            fpath = DATA_DIR / fname
+            fpath = db_path if fname == "smarthome.db" else (DATA_DIR / fname)
             if fpath.exists():
                 try:
                     _INITIAL_DATA_BYTES[fname] = fpath.read_bytes()

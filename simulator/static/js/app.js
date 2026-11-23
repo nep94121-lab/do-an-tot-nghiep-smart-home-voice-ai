@@ -1290,8 +1290,15 @@
     const canTimers = tier <= 2 || Boolean(pol.tier3_can_schedule_timer);
     const canRules = tier <= 2 || Boolean(pol.tier3_can_custom_rules);
 
+    const canAutomate = canTimers || canRules;
     const toggleBtn = byId("btnToggleAutoForm");
-    if (toggleBtn) toggleBtn.hidden = !canTimers && !canRules;
+    if (toggleBtn) toggleBtn.hidden = !canAutomate;
+    const createRuleBtn = byId("btnAutoCreateRule");
+    if (createRuleBtn) createRuleBtn.hidden = !canRules;
+    const openAutoLink = byId("lnkOpenAutomationPage");
+    if (openAutoLink) openAutoLink.hidden = !canAutomate;
+    const modeRow = typeof document !== "undefined" ? document.querySelector("#secAutomation .dash-auto-mode-row") : null;
+    if (modeRow) modeRow.hidden = !canAutomate;
 
     const schedules = Array.isArray(snap && snap.schedules) ? snap.schedules : [];
     currentSchedulesCount = schedules.length;
@@ -3536,25 +3543,50 @@
   function syncHomeNavRoleVisibility(userObj) {
     try {
       const isAuthed = Boolean(serverSessionConfirmed && userObj);
-      const isOwner = isAuthed && Number(userObj.tier || 0) === 1;
+      const tierNum = isAuthed ? Number(userObj.tier || 0) : 0;
+      const isOwner = isAuthed && tierNum === 1;
       const roots = [homeAppShellEl, homeMobileNavEl].filter(Boolean);
+      const setHiddenAttrs = (el, shouldHide) => {
+        if (!el) return;
+        if (typeof el.setAttribute === "function" && typeof el.removeAttribute === "function") {
+          if (shouldHide) {
+            el.setAttribute("aria-hidden", "true");
+            el.setAttribute("inert", "");
+            if (el.tagName === "A" || el.tagName === "BUTTON") el.setAttribute("tabindex", "-1");
+          } else {
+            el.removeAttribute("aria-hidden");
+            el.removeAttribute("inert");
+            if (el.getAttribute("tabindex") === "-1") el.removeAttribute("tabindex");
+          }
+        }
+        el.hidden = Boolean(shouldHide);
+      };
       roots.forEach((root) => {
         if (typeof root.querySelectorAll !== "function") return;
         root.querySelectorAll('[data-owner-only="true"]').forEach((el) => {
-          if (typeof el.setAttribute === "function" && typeof el.removeAttribute === "function") {
-            if (!isOwner) {
-              el.setAttribute("aria-hidden", "true");
-              el.setAttribute("inert", "");
-              el.setAttribute("tabindex", "-1");
-            } else {
-              el.removeAttribute("aria-hidden");
-              el.removeAttribute("inert");
-              if (el.getAttribute("tabindex") === "-1") el.removeAttribute("tabindex");
-            }
+          setHiddenAttrs(el, !isOwner);
+        });
+        root.querySelectorAll("[data-max-tier]").forEach((el) => {
+          const maxTier = Number(el.getAttribute("data-max-tier") || 0);
+          if (maxTier > 0) {
+            setHiddenAttrs(el, !isAuthed || tierNum <= 0 || tierNum > maxTier);
           }
-          el.hidden = !isOwner;
         });
       });
+      setHiddenAttrs(byId("ownerGuestQrPanel"), !isOwner);
+      setHiddenAttrs(byId("guestInviteCard"), !isOwner);
+      setHiddenAttrs(byId("ownerOptionsMenu"), !isOwner);
+      setHiddenAttrs(byId("selActiveSpeaker"), !isOwner);
+      if (typeof document !== "undefined" && typeof document.querySelector === "function") {
+        setHiddenAttrs(document.querySelector('label[for="selActiveSpeaker"]'), !isOwner);
+      }
+      if (isAuthed && tierNum >= 3) {
+        setHiddenAttrs(byId("btnToggleAutoForm"), true);
+        setHiddenAttrs(byId("btnAutoCreateRule"), true);
+        setHiddenAttrs(byId("lnkOpenAutomationPage"), true);
+        const modeRow = typeof document !== "undefined" ? document.querySelector("#secAutomation .dash-auto-mode-row") : null;
+        if (modeRow) setHiddenAttrs(modeRow, true);
+      }
       if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
         window.dispatchEvent(
           new CustomEvent("smarthome:auth-changed", {

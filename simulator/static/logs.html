@@ -71,7 +71,11 @@
       </header>
       <div id="logsActionStatus" class="logs-status-banner" role="alert" aria-live="polite" hidden></div>
 
-      <section id="logsAccessDeniedGate" class="card logs-gate-card" aria-label="Yêu cầu đăng nhập quyền Chủ nhà">
+      <section id="logsLoadingState" class="card" aria-live="polite">
+        <p style="margin:0; color:var(--muted);">Đang tải nhật ký...</p>
+      </section>
+
+      <section id="logsAccessDeniedGate" class="card logs-gate-card" aria-label="Yêu cầu đăng nhập quyền Chủ nhà" hidden>
         <h2>Truy cập bị giới hạn · Chỉ Chủ nhà (Cấp 1)</h2>
         <p id="logsAccessDeniedMsg" class="logs-gate-desc">Vui lòng đăng nhập bằng tài khoản Chủ nhà để xem nhật ký sự kiện, trạng thái thiết bị và công cụ quản trị.</p>
         <div class="logs-gate-actions">

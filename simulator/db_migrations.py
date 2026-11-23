@@ -592,10 +592,9 @@ def _table_fk_targets(conn: sqlite3.Connection, table_name: str) -> set[tuple[st
 
 def _is_guest_or_anon_user_id(user_id: str | None, source: str = "", invite_jti: str = "") -> bool:
     uid = str(user_id or "").strip().lower()
-    src = str(source or "").strip().lower()
     if not uid or uid in ("anonymous", "unknown", "stranger", "guest"):
         return True
-    if uid.startswith("guest_") or src.startswith("guest_invite:"):
+    if uid.startswith("guest_"):
         return True
     if invite_jti and uid.startswith("guest"):
         return True

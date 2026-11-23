@@ -506,15 +506,21 @@ class SessionStore:
                     r_jti = str(row["invite_jti"] or "")
                     if not r_jti and str(row["source"] or "").startswith("guest_invite:"):
                         r_jti = str(row["source"]).split(":", 1)[1].strip()
-                    resolved_uid = str(row["user_id"] or "") or (f"guest_{r_jti[:12]}" if r_jti else "anonymous")
-                    resolved_dname = str(row["display_name"] or "") or (
-                        f"Guest tier {int(row['tier'])}" if r_jti else resolved_uid
-                    )
+                    tok_meta = self._decode_signed_token(sid)
+                    raw_row_uid = str(row["user_id"] or "").strip()
+                    if not raw_row_uid and tok_meta is not None:
+                        tok_uid = str(tok_meta.user_id or "").strip()
+                        if tok_uid and not tok_uid.lower().startswith("guest_") and tok_uid.lower() not in ("anonymous", "unknown", "stranger", "guest"):
+                            raw_row_uid = tok_uid
+                    resolved_uid = raw_row_uid or (f"guest_{r_jti[:12]}" if r_jti else "anonymous")
+                    resolved_dname = str(row["display_name"] or "").strip()
+                    if not resolved_dname and tok_meta is not None and tok_meta.display_name:
+                        resolved_dname = tok_meta.display_name
+                    if not resolved_dname:
+                        resolved_dname = f"Guest tier {int(row['tier'])}" if (r_jti and not raw_row_uid) else resolved_uid
                     resolved_email = str(row["email"] or "").strip()
-                    if not resolved_email:
-                        tok_meta = self._decode_signed_token(sid)
-                        if tok_meta is not None and tok_meta.email:
-                            resolved_email = tok_meta.email
+                    if not resolved_email and tok_meta is not None and tok_meta.email:
+                        resolved_email = tok_meta.email
                     sess = UserSession(
                         session_id=row["session_id"],
                         user_id=resolved_uid,

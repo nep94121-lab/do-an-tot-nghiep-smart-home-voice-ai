@@ -46,7 +46,7 @@
           <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
           <a href="/automation"><svg class="icon"><use href="#i-clock"/></svg>Tự động hóa</a>
           <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
-          <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+          <a href="/wokwi" data-max-tier="2"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
           <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
         </div>
       </nav>
@@ -69,7 +69,7 @@
               <span id="connText">Đã kết nối</span>
               <span id="homeServerStatusBadge" class="transport-badge" hidden></span>
             </span>
-            <details class="menu">
+            <details class="menu" id="ownerOptionsMenu" data-owner-only="true">
               <summary>Tùy chọn <svg class="icon"><use href="#i-chevron"/></svg></summary>
               <div class="menu-panel">
                 <label for="selActiveSpeaker">Vai trò thử</label>
@@ -351,7 +351,7 @@
             </div>
           </section>
 
-          <section class="panel guest-qr" id="ownerGuestQrPanel" aria-labelledby="guest-qr-title">
+          <section class="panel guest-qr" id="ownerGuestQrPanel" data-owner-only="true" aria-labelledby="guest-qr-title">
             <div class="panel-head qr-panel-head">
               <div class="qr-head-copy">
                 <h2 id="guest-qr-title">Mời khách bằng mã QR</h2>
@@ -466,7 +466,7 @@
     <a class="active" href="/" aria-current="page"><svg class="icon"><use href="#i-home"/></svg>Nhà</a>
     <a href="/automation"><svg class="icon"><use href="#i-clock"/></svg>Tự động</a>
     <a href="/auth"><svg class="icon"><use href="#i-shield"/></svg>Xác thực</a>
-    <a href="/wokwi"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
+    <a href="/wokwi" data-max-tier="2"><svg class="icon"><use href="#i-cpu"/></svg>Phần cứng</a>
     <a href="/logs" data-owner-only="true"><svg class="icon"><use href="#i-log"/></svg>Nhật ký</a>
     <a href="/guest_guide"><svg class="icon"><use href="#i-qr"/></svg>Khách</a>
   </nav>

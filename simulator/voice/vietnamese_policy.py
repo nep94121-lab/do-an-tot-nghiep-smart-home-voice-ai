@@ -779,7 +779,11 @@ def normalize_vietnamese_utterance(text: str) -> str:
         s = re.sub(r"\bcho\s+(?:cai\s+)?(den\s+phong\s+(?:khach|ngu)|tat\s+ca\s+den)\s+sang(?:\s+len)?\b", r"bat \1", s)
 
     # Pump natural variants
-    s = re.sub(r"\b(?:ngừng|ngưng|dừng|tắt|ngắt|cúp|dập)\s+(?:chạy\s+)?(?:tưới\s+cây|tưới\s+vườn|tưới\s+nước)\b", "tắt máy bơm tưới cây", s)
+    s = re.sub(
+        r"\b(?:nghỉ|ngừng|ngưng|dừng|thôi|tắt|ngắt|cúp|dập)\s+(?:chạy\s+)?(?:tưới\s+cây|tưới\s+vườn|tưới\s+nước|bơm(?:\s+(?:nước|vườn|tưới\s+(?:cây|vườn)))?)\b",
+        "tắt máy bơm tưới cây",
+        s,
+    )
     s = re.sub(
         r"\b(?:hệ\s+thống\s+tưới(?:\s+(?:nước|cây|vườn))?(?:\s+ngoài\s+vườn)?|"
         r"tưới\s+nước(?:\s+ngoài\s+vườn)?|"
@@ -789,7 +793,11 @@ def normalize_vietnamese_utterance(text: str) -> str:
         s,
     )
     if not input_has_diac:
-        s = re.sub(r"\b(?:ngung|dung|tat|ngat|cup|dap)\s+(?:chay\s+)?(?:tuoi\s+cay|tuoi\s+vuon|tuoi\s+nuoc)\b", "tat may bom tuoi cay", s)
+        s = re.sub(
+            r"\b(?:nghi|ngung|dung|thoi|tat|ngat|cup|dap)\s+(?:chay\s+)?(?:tuoi\s+cay|tuoi\s+vuon|tuoi\s+nuoc|bom(?:\s+(?:nuoc|vuon|tuoi\s+(?:cay|vuon)))?)\b",
+            "tat may bom tuoi cay",
+            s,
+        )
         s = re.sub(
             r"\b(?:he\s+thong\s+tuoi(?:\s+(?:nuoc|cay|vuon))?(?:\s+ngoai\s+vuon)?|"
             r"tuoi\s+nuoc(?:\s+ngoai\s+vuon)?|"
@@ -1061,12 +1069,17 @@ def _strip_non_verb_phrases(
     padded = f" {' '.join(cleaned.split())} "
     for phrase in _NON_VERB_NOUN_PHRASES:
         padded = padded.replace(f" {phrase} ", " ")
-    # Collapse compound stop-phrases ("ngưng chạy", "dừng chạy", "ngừng hoạt động") -> single OFF verb "ngung"
+    # Collapse compound stop-phrases (cease verb + activity verb) -> single OFF verb "ngung"
+    _stop_act = r"(?:chay|hoat\s+dong|kich\s+hoat|bom|tuoi|keu|hu|phat|sang)"
     padded = re.sub(
-        r"\b(?:ngung|dung|tat|ngat|cup)\s+(?:chay|hoat\s+dong|kich\s+hoat|keu|sang|tuoi)\b",
+        rf"\b(?:ngung|dung|tat|ngat|cup)\s+{_stop_act}\b",
         "ngung",
         padded,
     )
+    if not has_diac or (raw_clause is not None and re.search(r"\bnghỉ\b", raw_clause.lower())):
+        padded = re.sub(rf"\bnghi\s+{_stop_act}\b", "ngung", padded)
+    if not has_diac or (raw_clause is not None and re.search(r"\bthôi\b", raw_clause.lower())):
+        padded = re.sub(rf"\bthoi\s+{_stop_act}\b", "ngung", padded)
     # Only strip "tất cả" (all), NEVER "tắt cả" (turn off both)!
     if raw_clause is not None and has_diac:
         if "tất cả" in raw_clause.lower():
@@ -1214,7 +1227,7 @@ _NON_DIRECT_INTENT_CUES: tuple[str, ...] = (
     " lenh custom ", " lenh tuy chinh ", " tao luat ", " dat luat ", " them luat ",
     " dat quy tac ", " tao quy tac ", " quy tac ", " lien ket ",
     " xoa lien ket ", " huy lien ket ", " phut nua ", " giay nua ", " gio nua ",
-    " reset ", " ri set ", " khoi phuc ", " hoi phuc ", " cai dat goc ", " thiet lap lai ",
+    " reset ", " ri set ", " ri xet ", " re set ", " rexit ", " ri xep ", " khoi phuc ", " hoi phuc ", " cai dat goc ", " thiet lap lai ",
     " dat lai ", " khoi dong lai ", " ve mac dinh ", " mac dinh goc ", " xuat xuong ", " tinh trang ",
     " cau hinh ", " moi cai dat ", " tat ca cai dat ", " toan he thong ",
     " khi ", " neu ", " bat cu luc nao ", " moi luc ", " dat kho ", " tieng dong lon ",
@@ -1398,7 +1411,7 @@ _CLAUSE_NEGATED_OR_KEEP_RE = re.compile(
     r"cứ\s+để\s+nguyên|để\s+nguyên|giữ\s+nguyên|cứ\s+giữ\s+nguyên|cu\s+de\s+nguyen|de\s+nguyen|giu\s+nguyen|cu\s+giu\s+nguyen|"
     r"đừng\s+đụng(?:\s+tới|\s+vào)?|không\s+cần\s+đụng|không\s+đụng(?:\s+tới|\s+vào)?|dung\s+dung(?:\s+toi|\s+vao)?|khong\s+can\s+dung|"
     r"đúng\s+(?:rồi|không|chưa|nhỉ|nhé|ạ)\b"
-    r")|^\s*(?:(?:ờ|à|ừ|thế|vậy|o|a|u|the|vay)\s+)?(?:thôi|thoi)\b)",
+    r")|^\s*(?:(?:ờ|à|ừ|thế|vậy|o|a|u|the|vay)\s+)?(?:thôi|thoi)\b(?!\s+(?:chạy|chay|hoạt\s+động|hoat\s+dong|bơm|bom|tưới|tuoi|kêu|keu|hú|hu|phát|phat|sáng|sang)\b))",
     re.IGNORECASE,
 )
 
@@ -2192,7 +2205,7 @@ def handle_sensor_or_status_query_vi(
                 " tao luat ", " dat luat ", " them luat ", " lien ket ", " khi ", " neu ",
                 " bat cu luc nao ", " moi luc ",
                 " hen gio ", " dat hen gio ", " dat lich ", " len lich ", " tao lich ", " lap lich ", " hen lich ",
-                " reset ", " ri set ", " dat lai ", " thiet lap lai ",
+                " reset ", " ri set ", " ri xet ", " re set ", " rexit ", " ri xep ", " dat lai ", " thiet lap lai ",
                 " khoi phuc ", " hoi phuc ", " khoi dong lai ", " cau hinh ",
                 " tao lenh ", " them lenh ", " luu lenh ", " dat lenh ", " dang ky lenh ", " cai lenh ",
                 " sua lenh ", " doi lenh ", " cap nhat lenh ", " cau lenh ", " phim tat ", " ghi nho ",
@@ -2502,7 +2515,23 @@ def handle_sensor_or_status_query_vi(
         )
     )
     single_dev_probe = _extract_clause_device(norm, raw_clause=raw)
-    if is_all_dev_status_cue or (single_dev_probe is None and any(k in padded for k in (" trang thai ", " tinh trang ", " thiet bi "))):
+    bare_status_fallthrough = False
+    if single_dev_probe is None and not is_all_dev_status_cue:
+        m_bare = re.search(r"\b(?:trang\s+thai|tinh\s+trang|thiet\s+bi)\b", norm)
+        if m_bare is not None:
+            prefix_tokens = norm[: m_bare.start()].split()
+            allowed_prefix = {
+                "xem", "kiem", "tra", "cho", "hoi", "doc", "bao", "cao", "thong",
+                "hien", "thi", "cap", "nhat", "liet", "ke", "biet", "giup", "ho",
+                "gium", "dum", "toi", "minh", "anh", "chi", "em", "ban", "nha",
+                "ta", "oi", "nay", "xin", "vui", "long", "hay", "thu", "lai",
+                "tai", "bay", "gio", "cac", "moi", "toan", "bo", "tat", "ca",
+                "may", "cua", "ve", "la", "gi", "the", "nao", "nhu", "co", "dang",
+                "con", "da", "he", "a", "o", "u", "um", "vang",
+            }
+            if all(tok in allowed_prefix for tok in prefix_tokens):
+                bare_status_fallthrough = True
+    if is_all_dev_status_cue or bare_status_fallthrough:
         if hasattr(engine, "list_accessible_devices"):
             devs = engine.list_accessible_devices(actor_tier=actor_tier, actor_user_id=actor_uid)
         else:

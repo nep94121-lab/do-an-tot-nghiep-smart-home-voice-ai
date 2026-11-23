@@ -571,8 +571,19 @@
         state.currentUserName = String(info.display_name || info.name || info.role || "");
         const tierLabel = state.tier === 1 ? "Chủ nhà" : state.tier === 2 ? "Gia đình" : "Khách";
         badge.textContent = `${tierLabel} · ${state.currentUserName || "Đã đăng nhập"}`;
+        if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === "function") {
+          window.SmartHomeNavGuard.applyNavAuthState(info);
+        }
+        const isGuestTier3 = state.tier >= 3;
+        ["#btnToggleHouseMode", "#btnAutoResetAll", "#btnAutoCreateTimer", "#btnAutoCreateSchedule", "#btnAutoCreateCommand", "#btnAutoCreateRule"].forEach((sel) => {
+          const el = q(sel);
+          if (el) el.hidden = isGuestTier3;
+        });
       } else {
         badge.textContent = "Chưa đăng nhập";
+        if (window.SmartHomeNavGuard && typeof window.SmartHomeNavGuard.applyNavAuthState === "function") {
+          window.SmartHomeNavGuard.applyNavAuthState({ authenticated: false });
+        }
       }
     } catch (_) {}
   }

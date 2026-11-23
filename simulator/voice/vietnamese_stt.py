@@ -171,11 +171,12 @@ _ENHANCER_MODEL: Any = None
 _ENHANCER_NAME: str = ""
 _ENHANCER_FAILED: bool = False
 
-_WARM_LOCK = threading.Lock()
+_PRELOAD_LOCK = threading.Lock()
+_WARM_LOCK = _PRELOAD_LOCK
 _STT_WARM_STATE: dict[str, Any] = {
     "ready": False,
     "cold_start_ms": 0.0,
-    "models": [],
+    "models": (),
 }
 
 _ZIPFORMER_REPOS: dict[str, str] = {
@@ -558,21 +559,22 @@ def enhance_white_noise_audio(audio_f32: np.ndarray, sr: int = 16000) -> tuple[n
 
 
 def get_local_stt_warm_state() -> dict[str, Any]:
-    with _WARM_LOCK:
-        return {
-            "ready": bool(_STT_WARM_STATE.get("ready")),
-            "cold_start_ms": float(_STT_WARM_STATE.get("cold_start_ms") or 0.0),
-            "models": list(_STT_WARM_STATE.get("models") or []),
-        }
+    snap = _STT_WARM_STATE
+    return {
+        "ready": bool(snap.get("ready")),
+        "cold_start_ms": float(snap.get("cold_start_ms") or 0.0),
+        "models": list(snap.get("models") or ()),
+    }
 
 
 def preload_local_stt_models() -> dict[str, Any]:
     """Load and warm Zipformer-30M, Zipformer-70M, ChunkFormer-CTC, and neural enhancer at server startup."""
+    global _STT_WARM_STATE
     if os.environ.get("SMARTHOME_DISABLE_LOCAL_STT", "0").strip() == "1":
         return get_local_stt_warm_state()
-    with _WARM_LOCK:
+    with _PRELOAD_LOCK:
         if _STT_WARM_STATE.get("ready"):
-            return dict(_STT_WARM_STATE)
+            return get_local_stt_warm_state()
         t0 = time.perf_counter()
         loaded: list[str] = []
         dummy_f32 = (np.sin(np.linspace(0.0, 240.0, 9600, dtype=np.float32)) * 0.15).astype(np.float32)
@@ -613,11 +615,13 @@ def preload_local_stt_models() -> dict[str, Any]:
                 pass
 
         cold_ms = round((time.perf_counter() - t0) * 1000.0, 1)
-        _STT_WARM_STATE["ready"] = True
-        _STT_WARM_STATE["cold_start_ms"] = cold_ms
-        _STT_WARM_STATE["models"] = loaded
+        _STT_WARM_STATE = {
+            "ready": True,
+            "cold_start_ms": cold_ms,
+            "models": tuple(loaded),
+        }
         LOG.info("Preloaded & warmed local STT models (%s) in %.1f ms", ", ".join(loaded), cold_ms)
-        return dict(_STT_WARM_STATE)
+        return get_local_stt_warm_state()
 
 
 def _get_phowhisper_model() -> Any:

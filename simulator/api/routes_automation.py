@@ -436,6 +436,18 @@ async def api_get_automation_overview(request: Request) -> JSONResponse:
 # TIMERS
 # =============================================================================
 
+@router.get("/api/timers")
+async def api_list_timers(request: Request) -> JSONResponse:
+    sess, err = _require_auth(request)
+    if err is not None:
+        return err
+    g_err = _deny_guest_tier3(sess, "GET /api/timers")
+    if g_err is not None:
+        return g_err
+    snap = _REST_ENGINE.get_snapshot(session=sess, sync=False)
+    return JSONResponse({"ok": True, "timers": snap.get("timers", [])})
+
+
 @router.post("/api/timers")
 async def api_create_timer(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     body = payload if isinstance(payload, dict) else {}

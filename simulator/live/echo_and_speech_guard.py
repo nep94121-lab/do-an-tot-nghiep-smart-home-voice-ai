@@ -190,9 +190,21 @@ def _is_bare_imperative_echo_false_positive(user_norm: str, ai_norm: str) -> boo
         return False
     is_ai_framed = (
         ai_norm in (f"da {user_norm}", f"da {user_norm} roi", f"da {user_norm} roi a")
-        or ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se ", "ban muon "))
+        or ai_norm.startswith(("da ", "minh da ", "minh se ", "em da ", "em se ", "ban muon ", "xin loi", "rat tiec", "he thong ", "thiet bi "))
         or ai_norm.endswith(("ban dong y khong", "dung khong a", "roi a", " roi"))
         or " dang " in f" {ai_norm} "
+        or any(
+            marker in f" {ai_norm} "
+            for marker in (
+                " xin loi ",
+                " khong ho tro ",
+                " chua ho tro ",
+                " chi ho tro ",
+                " khong co quyen ",
+                " khong duoc phep ",
+                " khong the ",
+            )
+        )
     )
     if not is_ai_framed:
         return False
@@ -235,7 +247,11 @@ def compute_echo_similarity(user_norm: str, ai_norm: str) -> tuple[float, str]:
         return 0.92, "ai_in_user_substring"
 
     if len(user_words) >= ECHO_MIN_SUBSTRING_WORDS and ai_words:
-        ai_set = set(ai_words)
+        ai_padded = f" {ai_norm} "
+        for phrase in _ECHO_NON_VERB_PHRASES:
+            if phrase not in user_norm:
+                ai_padded = ai_padded.replace(f" {phrase} ", " ")
+        ai_set = set(ai_padded.split())
         overlap = sum(1 for w in user_words if w in ai_set) / float(len(user_words))
         if overlap >= 0.85:
             return overlap, "token_overlap"

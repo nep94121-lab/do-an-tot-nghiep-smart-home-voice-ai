@@ -60,7 +60,7 @@
       if (box.style) box.style.display = 'block';
     }
 
-    function setLogsAdminUiState(isAdmin) {
+    function setLogsAdminUiState(isAdmin, isLoading = false) {
       isLogsAdminAuthorized = Boolean(isAdmin);
       const adminMenu = document.getElementById('logsAdminMenu');
       const adminSummary = document.getElementById('logsAdminSummary');
@@ -69,6 +69,12 @@
       const headerActions = document.getElementById('logsHeaderActions');
       const adminShell = document.getElementById('logsAdminShell');
       const accessGate = document.getElementById('logsAccessDeniedGate');
+      const loadingState = document.getElementById('logsLoadingState');
+
+      if (loadingState) {
+        loadingState.hidden = !isLoading;
+        if (loadingState.style) loadingState.style.display = isLoading ? '' : 'none';
+      }
 
       if (!isLogsAdminAuthorized) {
         if (headerActions) {
@@ -80,8 +86,8 @@
           if (adminShell.style) adminShell.style.display = 'none';
         }
         if (accessGate) {
-          accessGate.hidden = false;
-          if (accessGate.style) accessGate.style.display = '';
+          accessGate.hidden = Boolean(isLoading);
+          if (accessGate.style) accessGate.style.display = isLoading ? 'none' : '';
         }
         if (adminMenu) {
           adminMenu.open = false;
@@ -355,7 +361,7 @@
       if (kpiDevices) {
         const devs = data.hardware_database?.devices || {};
         const devList = Object.values(devs);
-        const totalDevs = devList.length || 7;
+        const totalDevs = devList.length || 6;
         const activeDevs = devList.filter(d => d.state === 'ON' || d.state === 'OPEN').length;
         kpiDevices.textContent = `${activeDevs}/${totalDevs} Bật`;
       }
@@ -619,7 +625,7 @@
         return;
       }
       _logsPageInitialized = true;
-      setLogsAdminUiState(false);
+      setLogsAdminUiState(false, true);
 
       const adminMenu = document.getElementById('logsAdminMenu');
       const adminSummary = document.getElementById('logsAdminSummary');

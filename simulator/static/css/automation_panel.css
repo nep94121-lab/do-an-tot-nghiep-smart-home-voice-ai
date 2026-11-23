@@ -591,11 +591,27 @@
 }
 
 /* ================= DASHBOARD (#secAutomation) COMPACT ENHANCEMENTS ================= */
+#secAutomation .panel-head-split {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+#secAutomation .panel-head-split h2 {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .dash-auto-head-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+#secAutomation .dash-auto-head-actions .btn-mini {
+  min-height: 30px;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .dash-auto-mode-row {
