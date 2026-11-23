@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from backend.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
 
 
 class ChallengerM3Dummy(AuthInviteGmailMixin):

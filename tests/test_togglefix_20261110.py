@@ -37,9 +37,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from simulator.engine.state_store import FileStateBackend, VercelBlobStateBackend
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app
+from backend.engine.state_store import FileStateBackend, VercelBlobStateBackend
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app
 
 
 def _create_admin_session_cookies(client: TestClient) -> dict[str, str]:
@@ -614,7 +614,7 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "simulator.server:app",
+                "backend.server:app",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -659,7 +659,7 @@ def live_server_info() -> Generator[dict[str, str], None, None]:
                 proc.wait(timeout=5)
             except Exception:
                 proc.kill()
-            user_sess_path = REPO_ROOT / "simulator" / "data" / "user_sessions.json"
+            user_sess_path = REPO_ROOT / "backend" / "data" / "user_sessions.json"
             if user_sess_path.exists():
                 try:
                     user_sess_path.unlink()

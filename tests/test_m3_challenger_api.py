@@ -3,10 +3,10 @@
 Author: challenger_m3_1 (Teamwork Role: M3 REST Endpoints Challenger)
 Scope:
 1. Complete validation of all endpoints across:
-   - simulator/api/routes_devices.py
-   - simulator/api/routes_auth.py
-   - simulator/api/routes_qr.py
-   - simulator/api/routes_logs.py
+   - backend/api/routes_devices.py
+   - backend/api/routes_auth.py
+   - backend/api/routes_qr.py
+   - backend/api/routes_logs.py
 2. Zero 404 verification across all route aliases on /auth and /logs.
 3. Dual-Key JSON Schema compliance for /api/logs/dashboard and /api/server_logs_and_db.
 4. Read-only SQL protection & SQL injection prevention on /api/logs/sql_query.
@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app
+from backend.server import app
 
 
 @pytest.fixture

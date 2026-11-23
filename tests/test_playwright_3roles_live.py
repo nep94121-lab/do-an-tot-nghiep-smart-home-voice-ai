@@ -23,10 +23,10 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from simulator.auth.constants_and_crypto import ACCOUNTS_FILE, hash_password
-from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import _ACTIVE_BRIDGES, _REST_ENGINE, app
+from backend.auth.constants_and_crypto import ACCOUNTS_FILE, hash_password
+from backend.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import _ACTIVE_BRIDGES, _REST_ENGINE, app
 
 
 def _get_free_port() -> int:

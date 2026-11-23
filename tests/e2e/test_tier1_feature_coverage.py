@@ -15,12 +15,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import (
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import (
     VoiceAuthManager,
     transform_pcm_by_pitch_factor,
 )
-from simulator.auth_3layer import get_auth_3layer_manager
+from backend.auth_3layer import get_auth_3layer_manager
 from tests.e2e.conftest import (
     validate_voice_quality_helper,
     add_family_email_helper,
@@ -109,8 +109,8 @@ class TestTier1FeatureCoverage:
 
     def test_feat05_06_gemini_live_vietnamese_vad_config(self) -> None:
         """FEAT-05 & FEAT-06: Cấu hình Gemini Live speech_config và VAD low-latency silence_duration_ms=350."""
-        prompt_builder_path = ROOT / "simulator" / "live" / "prompt_builder.py"
-        target_path = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "simulator" / "server.py")
+        prompt_builder_path = ROOT / "backend" / "live" / "prompt_builder.py"
+        target_path = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "backend" / "server.py")
         code = target_path.read_text(encoding="utf-8")
 
         has_speech_or_vi = (
@@ -118,18 +118,18 @@ class TestTier1FeatureCoverage:
             or "vi-VN" in code
             or "SpeechConfig" in code
         )
-        assert has_speech_or_vi, "Thiếu cấu hình ngôn ngữ tiếng Việt (vi-VN) trong simulator/live/prompt_builder.py!"
+        assert has_speech_or_vi, "Thiếu cấu hình ngôn ngữ tiếng Việt (vi-VN) trong backend/live/prompt_builder.py!"
 
         has_vad_tuning = (
             "silence_duration_ms" in code
             and ("350" in code or "silence_duration_ms=350" in code or "END_SENSITIVITY_HIGH" in code)
         )
-        assert has_vad_tuning, "Thiếu cấu hình VAD low-latency trong simulator/live/prompt_builder.py!"
+        assert has_vad_tuning, "Thiếu cấu hình VAD low-latency trong backend/live/prompt_builder.py!"
 
     def test_feat07_system_instruction_prompt_guard(self) -> None:
         """FEAT-07: Vietnamese & Filler Prompt Guard trong System Instruction."""
-        prompt_builder_path = ROOT / "simulator" / "live" / "prompt_builder.py"
-        target_path = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "simulator" / "server.py")
+        prompt_builder_path = ROOT / "backend" / "live" / "prompt_builder.py"
+        target_path = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "backend" / "server.py")
         code = target_path.read_text(encoding="utf-8")
 
         assert "build_system_instruction" in code
@@ -138,9 +138,9 @@ class TestTier1FeatureCoverage:
 
     def test_feat08_rag_6_devices_synchronized(self) -> None:
         """FEAT-08: RAG tri thức đồng bộ đủ 6 thiết bị nhà thông minh (bao gồm garden_pump và speaker_amp)."""
-        kb_path = ROOT / "simulator" / "data" / "knowledge_base.json"
+        kb_path = ROOT / "backend" / "data" / "knowledge_base.json"
         if not kb_path.exists():
-            from simulator.knowledge_rag import ensure_kb_file
+            from backend.knowledge_rag import ensure_kb_file
             ensure_kb_file()
 
         raw = json.loads(kb_path.read_text(encoding="utf-8"))
@@ -222,13 +222,13 @@ class TestTier1FeatureCoverage:
 
     def test_feat11_android_adb_and_properties(self) -> None:
         """FEAT-11: Cấu hình build Android tránh lỗi non-ASCII path & APK tồn tại."""
-        gradle_props = ROOT / "android_app" / "gradle.properties"
+        gradle_props = ROOT / "app" / "gradle.properties"
         if gradle_props.exists():
             content = gradle_props.read_text(encoding="utf-8")
             assert "android.overridePathCheck=true" in content
 
-        apk_primary = ROOT / "android_app" / "app" / "build" / "app-debug.apk"
-        apk_fallback = ROOT / "android_app" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+        apk_primary = ROOT / "app" / "app" / "build" / "app-debug.apk"
+        apk_fallback = ROOT / "app" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
         apk_path = apk_primary if apk_primary.exists() else apk_fallback
         assert apk_path.exists(), f"Không tìm thấy APK debug tại {apk_primary} hoặc {apk_fallback}"
         assert apk_path.stat().st_size > 1000000, "Dung lượng APK quá nhỏ!"

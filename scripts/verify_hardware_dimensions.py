@@ -1,7 +1,7 @@
 """Deterministic hardware dimension & GLB contract verifier for Smart Home Voice AI.
 
 Verifies:
-  1. simulator/static/models/smarthome_villa.glb exists, < 10 MB, contains all 16 required
+  1. web/models/smarthome_villa.glb exists, < 10 MB, contains all 16 required
      contract nodes, and contains zero forbidden nodes (fan, ac, vs1838, ir).
   2. hardware/kicad/smarthome_hub/3d/smarthome_hub.glb has exact 100.0 x 80.0 x 17.3 mm extents.
   3. Optional Blender live measurement (--check-blender) verifies every hardware component
@@ -17,7 +17,7 @@ import sys
 import trimesh
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-VILLA_GLB = REPO_ROOT / "simulator" / "static" / "models" / "smarthome_villa.glb"
+VILLA_GLB = REPO_ROOT / "web" / "models" / "smarthome_villa.glb"
 KICAD_GLB = REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "3d" / "smarthome_hub.glb"
 BLEND_FILE = REPO_ROOT / "hardware" / "blender" / "smarthome_open_house.blend"
 SCENE_SPEC = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"

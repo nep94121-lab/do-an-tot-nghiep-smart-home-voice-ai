@@ -26,8 +26,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import ThreeLayerAuthManager
-from simulator.server import app
+from backend.auth_3layer import ThreeLayerAuthManager
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -39,7 +39,7 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clean_pending_otps_state(monkeypatch: pytest.MonkeyPatch):
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     monkeypatch.delenv("VERCEL", raising=False)
     monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
@@ -54,7 +54,7 @@ def clean_pending_otps_state(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def auth_mgr() -> ThreeLayerAuthManager:
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     return get_auth_3layer_manager()
 
@@ -373,8 +373,8 @@ class TestPhase6R2FrontendStaticChecks:
     """Kiểm tra tĩnh cấu trúc frontend: loại bỏ kích hoạt kép và quản lý inFlight/disabled."""
 
     def test_r2_app_js_removes_form_submit_button_click_recursion(self):
-        """simulator/static/js/app.js không còn đoạn submit event listener gọi trực tiếp .click() của nút submit."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        """web/js/app.js không còn đoạn submit event listener gọi trực tiếp .click() của nút submit."""
+        app_js_path = ROOT / "web" / "js" / "app.js"
         assert app_js_path.exists()
         code = app_js_path.read_text(encoding="utf-8")
 
@@ -408,7 +408,7 @@ class TestPhase6R2FrontendStaticChecks:
 
     def test_r2_app_js_has_inflight_and_disabled_on_buttons(self):
         """app.js quản lý inFlight và disabled=true trong quá trình fetch cho các nút auth."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         code = app_js_path.read_text(encoding="utf-8")
 
         # Kiểm tra cờ inFlight
@@ -423,7 +423,7 @@ class TestPhase6R2FrontendStaticChecks:
 
     def test_r2_app_js_has_60s_countdown_timer_on_forgot_otp_button(self):
         """app.js có bộ đếm ngược 60 giây (setInterval) cho nút #btnSendForgotOtp."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         code = app_js_path.read_text(encoding="utf-8")
 
         # Tìm block btnSendForgotOtp
@@ -436,8 +436,8 @@ class TestPhase6R2FrontendStaticChecks:
         assert "Gửi lại" in otp_block, "Nút #btnSendForgotOtp thiếu văn bản đếm ngược 'Gửi lại sau' hoặc 'Gửi lại'"
 
     def test_r2_index_html_forms_and_lockdown_single_firing(self):
-        """simulator/static/index.html không có inline event handler trùng lặp gây gọi đúp."""
-        html_path = ROOT / "simulator" / "static" / "index.html"
+        """web/index.html không có inline event handler trùng lặp gây gọi đúp."""
+        html_path = ROOT / "web" / "index.html"
         assert html_path.exists()
         html = html_path.read_text(encoding="utf-8")
 

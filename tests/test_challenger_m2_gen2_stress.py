@@ -31,24 +31,24 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-PATH_INDEX_HTML = ROOT / "simulator" / "static" / "index.html"
-PATH_STYLE_CSS = ROOT / "simulator" / "static" / "css" / "style.css"
-PATH_HOUSE3D_JS = ROOT / "simulator" / "static" / "house3d.js"
-PATH_APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
-PATH_AUTH_HTML = ROOT / "simulator" / "static" / "auth.html"
-PATH_AUTH_JS = ROOT / "simulator" / "static" / "js" / "auth.js"
-PATH_MOBILE_HTML = ROOT / "mobile_app" / "index.html"
-PATH_MOBILE_JS = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+PATH_INDEX_HTML = ROOT / "web" / "index.html"
+PATH_STYLE_CSS = ROOT / "web" / "css" / "style.css"
+PATH_HOUSE3D_JS = ROOT / "web" / "house3d.js"
+PATH_APP_JS = ROOT / "web" / "js" / "app.js"
+PATH_AUTH_HTML = ROOT / "web" / "auth.html"
+PATH_AUTH_JS = ROOT / "web" / "js" / "auth.js"
+PATH_MOBILE_HTML = ROOT / "web" / "mobile" / "index.html"
+PATH_MOBILE_JS = ROOT / "web" / "js" / "mobile_app.js"
 
 ALL_TARGET_HTML_FILES = [
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
-    ROOT / "mobile_app" / "index.html",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
+    ROOT / "web" / "mobile" / "index.html",
 ]
 
 
@@ -539,14 +539,14 @@ class TestMilestone2Invariants:
     """Kiểm tra các bất biến bảo mật và cấu trúc mã nguồn."""
 
     def test_zero_crlf_in_all_static_and_mobile_files(self):
-        """0 byte CRLF (\\r\\n) trong toàn bộ tệp text của simulator/static và mobile_app."""
+        """0 byte CRLF (\\r\\n) trong toàn bộ tệp text của web và mobile_app."""
         binary_exts = {
             ".glb", ".gltf", ".bin", ".png", ".jpg", ".jpeg", ".gif", ".webp",
             ".ico", ".woff", ".woff2", ".ttf", ".otf", ".wav", ".mp3", ".ogg",
             ".pdf", ".zip", ".db", ".sqlite",
         }
         crlf_files = []
-        for base in [ROOT / "simulator" / "static", ROOT / "mobile_app"]:
+        for base in [ROOT / "web", ROOT / "web" / "mobile"]:
             for p in base.rglob("*"):
                 if p.is_file() and p.suffix.lower() not in binary_exts and b"\r\n" in p.read_bytes():
                     crlf_files.append(str(p.relative_to(ROOT)))
@@ -570,12 +570,12 @@ class TestMilestone2Invariants:
         assert len(inline_scripts) == 0, f"{html_file.name} chứa {len(inline_scripts)} inline <script>"
 
     def test_zero_voice_backend_modifications(self):
-        """Voice auth core (simulator/voice_auth.py) giữ nguyên trạng."""
+        """Voice auth core (backend/voice_auth.py) giữ nguyên trạng."""
         res = subprocess.run(
-            ["git", "status", "--porcelain", "simulator/voice_auth.py"],
+            ["git", "status", "--porcelain", "backend/voice_auth.py"],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
             check=True
         )
-        assert res.stdout.strip() == "", f"simulator/voice_auth.py đã bị chỉnh sửa trái phép:\n{res.stdout}"
+        assert res.stdout.strip() == "", f"backend/voice_auth.py đã bị chỉnh sửa trái phép:\n{res.stdout}"

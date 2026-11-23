@@ -17,7 +17,7 @@ import uvicorn
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF\u2300-\u23FF]|➔|⬅|\u200d|\ufe0f")
@@ -64,8 +64,8 @@ def uifix_live_server() -> Iterator[str]:
         else:
             os.environ["SIMULATOR_OFFLINE_SANDBOX"] = old_sandbox
         if not os.environ.get("SMARTHOME_DATA_DIR"):
-            subprocess.run(["git", "checkout", "--", "simulator/data/"], cwd=str(ROOT), check=False)
-            extra_sess = ROOT / "simulator" / "data" / "user_sessions.json"
+            subprocess.run(["git", "checkout", "--", "backend/data/"], cwd=str(ROOT), check=False)
+            extra_sess = ROOT / "backend" / "data" / "user_sessions.json"
             if extra_sess.exists():
                 try:
                     extra_sess.unlink()
@@ -76,17 +76,17 @@ def uifix_live_server() -> Iterator[str]:
 def test_u4_zero_decorative_emojis_and_pure_invariants() -> None:
     """U4 & Purity: zero decorative emojis, zero CRLF; 0 <style>/inline <script> in app HTML files."""
     app_html_rel = {
-        "simulator/static/index.html",
-        "simulator/static/auth.html",
-        "simulator/static/guest_enroll.html",
-        "simulator/static/guest_guide.html",
-        "simulator/static/wokwi.html",
-        "simulator/static/logs.html",
-        "simulator/static/login.html",
-        "simulator/static/register.html",
-        "mobile_app/index.html",
+        "web/index.html",
+        "web/auth.html",
+        "web/guest_enroll.html",
+        "web/guest_guide.html",
+        "web/wokwi.html",
+        "web/logs.html",
+        "web/login.html",
+        "web/register.html",
+        "web/mobile/index.html",
     }
-    scan_dirs = [ROOT / "simulator" / "static", ROOT / "mobile_app"]
+    scan_dirs = [ROOT / "web", ROOT / "web" / "mobile"]
     violations: list[str] = []
     for base in scan_dirs:
         for f in sorted(base.rglob("*")):
@@ -116,9 +116,9 @@ def test_u4_zero_decorative_emojis_and_pure_invariants() -> None:
 
 def test_u1_u2_u3_static_structure_contracts() -> None:
     """Verify U1a/U1b/U1c, U2a/U2b, U3a/U3b static DOM contracts without breaking preserved IDs."""
-    index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
-    auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
-    mobile_html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+    index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    auth_html = (ROOT / "web" / "auth.html").read_text(encoding="utf-8")
+    mobile_html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
 
     home_soup = BeautifulSoup(index_html, "html.parser")
     auth_soup = BeautifulSoup(auth_html, "html.parser")

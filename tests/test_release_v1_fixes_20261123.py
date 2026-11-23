@@ -9,12 +9,12 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.auth.session_store import UserSession, get_session_store
-from simulator.live.echo_and_speech_guard import ServerEchoGuard, compute_echo_similarity, normalize_for_echo_compare
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app
-from simulator.voice import vietnamese_stt
-from simulator.voice.vietnamese_policy import (
+from backend.auth.session_store import UserSession, get_session_store
+from backend.live.echo_and_speech_guard import ServerEchoGuard, compute_echo_similarity, normalize_for_echo_compare
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app
+from backend.voice import vietnamese_stt
+from backend.voice.vietnamese_policy import (
     handle_sensor_or_status_query_vi,
     parse_direct_device_intents_vi,
 )
@@ -48,7 +48,7 @@ def test_crit01_stt_warm_state_nonblocking_during_preload() -> None:
 
 def test_crit02_cap2_invite_registered_session_retains_user_id_and_link_permission() -> None:
     """Invite-registered Cap 2 account must retain user_id and link_permission after SQLite reload."""
-    from simulator.auth.guest_invites import create_invite
+    from backend.auth.guest_invites import create_invite
 
     store = get_session_store()
     inv = create_invite(owner_user_id="tuan_anh", tier=2, ttl_sec=3600)

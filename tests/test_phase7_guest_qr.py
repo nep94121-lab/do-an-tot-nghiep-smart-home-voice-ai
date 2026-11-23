@@ -30,11 +30,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.constants_and_crypto import ACCOUNTS_FILE, hash_password
-from simulator.auth.guest_invites import INVITE_DURATION_PRESETS
-from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
+from backend.auth.constants_and_crypto import ACCOUNTS_FILE, hash_password
+from backend.auth.guest_invites import INVITE_DURATION_PRESETS
+from backend.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
 
 
 @pytest.fixture(autouse=True)

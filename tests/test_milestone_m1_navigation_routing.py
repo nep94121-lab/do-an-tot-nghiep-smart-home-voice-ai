@@ -28,7 +28,7 @@ import pytest
 from bs4 import BeautifulSoup
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERCEL_JSON_PATH = ROOT / "vercel.json"
@@ -45,14 +45,14 @@ REQUIRED_ROUTES = [
 ]
 
 STATIC_PAGES = [
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
-    ROOT / "mobile_app" / "index.html",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
+    ROOT / "web" / "mobile" / "index.html",
 ]
 
 
@@ -98,8 +98,8 @@ class TestMilestone1RoutingAndPages:
             and r.get("destination") == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
             for r in redirects
         )
-        assert (ROOT / "simulator" / "static" / "login.html").exists()
-        assert (ROOT / "simulator" / "static" / "register.html").exists()
+        assert (ROOT / "web" / "login.html").exists()
+        assert (ROOT / "web" / "register.html").exists()
 
 
 class TestMilestone1PurityAndEncoding:

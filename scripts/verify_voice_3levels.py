@@ -206,7 +206,7 @@ def run_evaluation(base_url: str | None = None) -> list[dict[str, Any]]:
     client = None
     if not base_url:
         from fastapi.testclient import TestClient
-        from simulator.server import app
+        from backend.server import app
 
         client = TestClient(app)
 
@@ -250,7 +250,7 @@ def run_evaluation(base_url: str | None = None) -> list[dict[str, Any]]:
         if base_url:
             data = post_json_http(base_url, "/api/voice_command", payload)
         else:
-            from simulator.api.deps import _REST_ENGINE
+            from backend.api.deps import _REST_ENGINE
 
             _REST_ENGINE.devices["living_room_light"]["state"] = "OFF"
             _REST_ENGINE.devices["fan"]["state"] = "ON"

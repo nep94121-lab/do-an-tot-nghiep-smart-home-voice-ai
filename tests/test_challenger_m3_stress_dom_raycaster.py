@@ -21,10 +21,10 @@ from bs4 import BeautifulSoup
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-PATH_HOUSE3D = ROOT / "simulator" / "static" / "house3d.js"
-PATH_STYLE_CSS = ROOT / "simulator" / "static" / "css" / "style.css"
-PATH_INDEX_HTML = ROOT / "simulator" / "static" / "index.html"
-PATH_APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
+PATH_HOUSE3D = ROOT / "web" / "house3d.js"
+PATH_STYLE_CSS = ROOT / "web" / "css" / "style.css"
+PATH_INDEX_HTML = ROOT / "web" / "index.html"
+PATH_APP_JS = ROOT / "web" / "js" / "app.js"
 
 ALL_M3_FILES = [PATH_HOUSE3D, PATH_STYLE_CSS, PATH_INDEX_HTML, PATH_APP_JS]
 EXPECTED_6_DEVICES = {

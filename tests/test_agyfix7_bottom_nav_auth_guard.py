@@ -20,8 +20,8 @@ from bs4 import BeautifulSoup
 from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-STATIC_DIR = ROOT / "simulator" / "static"
-MOBILE_HTML = ROOT / "mobile_app" / "index.html"
+STATIC_DIR = ROOT / "web"
+MOBILE_HTML = ROOT / "web" / "mobile" / "index.html"
 
 
 def _find_chromium_executable() -> str | None:
@@ -94,7 +94,7 @@ class TestStaticHtmlCssDefaultHidden:
         assert nav is not None and nav.has_attr("hidden")
         assert main is not None and main.has_attr("hidden")
         logs_links = soup.select('#secNavigationLinks a[href="/logs"]')
-        assert logs_links, "mobile_app/index.html must keep /logs links inside #secNavigationLinks"
+        assert logs_links, "web/mobile/index.html must keep /logs links inside #secNavigationLinks"
         for a in logs_links:
             assert a.get("data-owner-only") == "true"
 
@@ -143,8 +143,8 @@ class TestServerSidePanelApiAuthEnforcement:
 
     @pytest.fixture(scope="class")
     def client_and_tokens(cls) -> dict[str, Any]:
-        from simulator.auth.session_store import get_session_store
-        from simulator.server import app
+        from backend.auth.session_store import get_session_store
+        from backend.server import app
 
         store = get_session_store()
         owner_sess = store.create_session(
@@ -272,8 +272,8 @@ class TestBrowserMobileAndDesktopNavGuardE2E:
     @pytest.fixture(scope="class")
     def live_url_and_tokens(self) -> dict[str, Any]:
         import uvicorn
-        from simulator.auth.session_store import get_session_store
-        from simulator.server import _ACTIVE_BRIDGES, app
+        from backend.auth.session_store import get_session_store
+        from backend.server import _ACTIVE_BRIDGES, app
 
         port = _get_free_port()
         config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")

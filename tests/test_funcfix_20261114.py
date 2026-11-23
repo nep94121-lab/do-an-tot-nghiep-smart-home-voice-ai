@@ -25,15 +25,15 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.session_store import (
+from backend.auth.session_store import (
     TRUSTED_DEVICE_COOKIE_NAME,
     TRUSTED_DEVICE_TTL_SECONDS,
     mint_trusted_device_token,
     verify_trusted_device_token,
 )
-from simulator.live import tts_rejection_vi as aoede_mod
-from simulator.server import app
-from simulator.voice_config import OWNER_EMAIL, OWNER_ID
+from backend.live import tts_rejection_vi as aoede_mod
+from backend.server import app
+from backend.voice_config import OWNER_EMAIL, OWNER_ID
 from tests.live_auth_helpers import login_live_owner, prepare_live_auth
 
 
@@ -85,7 +85,7 @@ def live_funcfix_server() -> Generator[dict[str, str], None, None]:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "simulator.server:app",
+                "backend.server:app",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -128,7 +128,7 @@ def live_funcfix_server() -> Generator[dict[str, str], None, None]:
                 proc.wait(timeout=5)
             except Exception:
                 proc.kill()
-            user_sess_path = ROOT / "simulator" / "data" / "user_sessions.json"
+            user_sess_path = ROOT / "backend" / "data" / "user_sessions.json"
             if user_sess_path.exists():
                 try:
                     user_sess_path.unlink()
@@ -184,8 +184,8 @@ def _http_post_json(
 
 class TestF1GeminiLiveAoedeAudio:
     def test_f1_html_and_source_invariants(self) -> None:
-        web_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
-        mob_html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+        web_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        mob_html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
         web_soup = BeautifulSoup(web_html, "html.parser")
         mob_soup = BeautifulSoup(mob_html, "html.parser")
 
@@ -195,9 +195,9 @@ class TestF1GeminiLiveAoedeAudio:
         assert chk_mob is not None and chk_mob.has_attr("checked"), "#ttsSpeakToggle phải bật mặc định"
 
         for js_rel in (
-            "simulator/static/js/app.js",
-            "simulator/static/js/mobile_app.js",
-            "simulator/static/js/guest_control.js",
+            "web/js/app.js",
+            "web/js/mobile_app.js",
+            "web/js/guest_control.js",
         ):
             src = (ROOT / js_rel).read_text(encoding="utf-8")
             assert "speechSynthesis.speak" not in src, f"{js_rel} không được dùng Web Speech API ngoài Aoede!"
@@ -552,7 +552,7 @@ class TestF4TrustedDevice30DayOtp:
             (pathlib.Path(env_tmp["SMARTHOME_DATA_DIR"]) / "accounts_3layer.json").read_bytes()
         )
 
-        from simulator.auth_3layer import get_auth_3layer_manager
+        from backend.auth_3layer import get_auth_3layer_manager
 
         mgr = get_auth_3layer_manager()
         saved_accounts = mgr.accounts

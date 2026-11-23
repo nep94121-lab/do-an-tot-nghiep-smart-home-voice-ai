@@ -1,8 +1,8 @@
 """BỘ KIỂM THỬ ĐỐI KHÁNG ĐỘC LẬP — EMAIL ALLOWLIST & MOBILE SYNC (MILESTONE M3)
 Tác giả: Teamwork Worker M3
 Phạm vi kiểm định:
-- simulator/auth_3layer.py (add_family_email, validate_and_enroll_voice, allowlist resolution)
-- simulator/server.py (/api/auth3/add_family_email, /api/auth3/family_emails, /api/auth3/enroll_voice_sample)
+- backend/auth_3layer.py (add_family_email, validate_and_enroll_voice, allowlist resolution)
+- backend/server.py (/api/auth3/add_family_email, /api/auth3/family_emails, /api/auth3/enroll_voice_sample)
 - Giao diện Web / PWA / Android Mobile Sync
 
 Ma trận phân quyền (RBAC) Cấp 1, Cấp 2, Cấp 3:
@@ -28,9 +28,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.auth_3layer as a3
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_manager
-from simulator.voice_auth import validate_voice_enrollment_quality
+import backend.auth_3layer as a3
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_manager
+from backend.voice_auth import validate_voice_enrollment_quality
 
 AUDIO_DIR = ROOT / "test_audio"
 
@@ -112,7 +112,7 @@ def test_allowlisted_account_requires_first_page_voice_enroll(
     """P0: Tài khoản Cấp 2 allowlist hoàn tất đăng nhập ngay ở Lớp 1 (không OTP, không ép thu âm trang đầu); API thu âm cũ trả 410."""
     import secrets
     from fastapi.testclient import TestClient
-    from simulator.server import app
+    from backend.server import app
 
     target_email = "tan_binh_gia_dinh@gmail.com"
     add_res = auth_mgr.add_family_email("tuan_anh", target_email, 2)
@@ -132,7 +132,7 @@ def test_allowlisted_account_requires_first_page_voice_enroll(
     assert acc_saved is not None and acc_saved.get("needs_first_page_voice_enroll") is False
 
     # Kiểm chứng HTTP routes trên TestClient gắn cùng auth_mgr
-    monkeypatch.setattr("simulator.api.routes_auth.get_auth_3layer_manager", lambda: auth_mgr)
+    monkeypatch.setattr("backend.api.routes_auth.get_auth_3layer_manager", lambda: auth_mgr)
     client = TestClient(app)
     retired = client.post("/api/auth3/enroll_voice_sample", json={"email": target_email, "audio_pcm_b64": ""})
     assert retired.status_code == 410, retired.text

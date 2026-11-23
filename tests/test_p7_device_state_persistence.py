@@ -30,10 +30,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-import simulator.api.deps as api_deps
-import simulator.api.routes_auth as routes_auth
-import simulator.api.routes_devices as routes_devices
-from simulator.engine.state_store import (
+import backend.api.deps as api_deps
+import backend.api.routes_auth as routes_auth
+import backend.api.routes_devices as routes_devices
+from backend.engine.state_store import (
     FileStateBackend,
     InMemoryStateBackend,
     TrackedDeviceDict,
@@ -43,11 +43,11 @@ from simulator.engine.state_store import (
     get_default_state_backend,
     set_default_state_backend,
 )
-from simulator.auth.session_store import UserSession, get_session_store
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app
-from simulator.voice.session_voice_command import process_session_voice_command, reset_session_echo_guards
-from simulator.voice.stt_pipeline import process_voice_command_pipeline
+from backend.auth.session_store import UserSession, get_session_store
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app
+from backend.voice.session_voice_command import process_session_voice_command, reset_session_echo_guards
+from backend.voice.stt_pipeline import process_voice_command_pipeline
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 AUDIO_DIR = ROOT / "test_audio"

@@ -16,7 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.db_migrations import resolve_sqlite_db_path, table_row_counts  # noqa: E402
+from backend.db_migrations import resolve_sqlite_db_path, table_row_counts  # noqa: E402
 
 DEFAULT_PROD_DB = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\data\smarthome.db")
 DEFAULT_BACKUP_DIR = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\backups")

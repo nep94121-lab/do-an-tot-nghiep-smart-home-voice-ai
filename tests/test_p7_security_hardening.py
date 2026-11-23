@@ -5,7 +5,7 @@ Covers all 6 security hardening requirements:
    missing password_hash requires OTP / forgot-password reset flow.
 2. Owner cannot skip voice verification or duplicate-voice check.
 3. Unknown / unrecognised speaker or role gets NO device control (rejected with 403 / ok=False).
-4. Central config simulator/config/voice_auth.json holds owner_id, owner_email,
+4. Central config backend/config/voice_auth.json holds owner_id, owner_email,
    role_map, threshold_mel (0.88), and threshold_deep (0.80).
 5. Voiceprints are stored only server-side and never returned in any API response;
    no sample-name shortcut (owner_voice_1, user_voice_thanh_vien_a, user_voice_khach_c)
@@ -33,11 +33,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.api import routes_devices
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
-from simulator.rule_engine import SmartHomeEngine as RuleEngine
-from simulator.server import app
+from backend.api import routes_devices
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
+from backend.rule_engine import SmartHomeEngine as RuleEngine
+from backend.server import app
 
 # Base64-encoded representations of removed fallback passwords so that
 # no plaintext password literal appears anywhere in the repository.
@@ -331,15 +331,15 @@ def test_unknown_or_unrecognised_speaker_and_role_rejected_no_device_control(cli
 
 
 # ============================================================================
-# 4. CENTRAL CONFIG simulator/config/voice_auth.json
+# 4. CENTRAL CONFIG backend/config/voice_auth.json
 # ============================================================================
 
 
 def test_central_voice_auth_config_exists_and_matches_spec() -> None:
-    """simulator/config/voice_auth.json must exist and define owner_id, owner_email,
+    """backend/config/voice_auth.json must exist and define owner_id, owner_email,
     role_map, threshold_mel (0.88), and threshold_deep (0.80)."""
-    cfg_path = ROOT / "simulator" / "config" / "voice_auth.json"
-    assert cfg_path.exists(), "Missing simulator/config/voice_auth.json"
+    cfg_path = ROOT / "backend" / "config" / "voice_auth.json"
+    assert cfg_path.exists(), "Missing backend/config/voice_auth.json"
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
 
     assert cfg.get("owner_id") == "tuan_anh"
@@ -351,7 +351,7 @@ def test_central_voice_auth_config_exists_and_matches_spec() -> None:
     assert float(cfg.get("threshold_mel")) == pytest.approx(0.88)
     assert float(cfg.get("threshold_deep")) == pytest.approx(0.80)
 
-    from simulator.voice_config import (
+    from backend.voice_config import (
         OWNER_EMAIL,
         OWNER_ID,
         ROLE_MAP,
@@ -476,10 +476,10 @@ def test_grep_scan_no_removed_fallback_password_literals_in_repo() -> None:
     removed fallback password literals."""
     forbidden_literals = _decoded_removed_fallbacks()
     scan_roots = [
-        ROOT / "simulator",
+        ROOT / "backend",
         ROOT / "api",
-        ROOT / "mobile_app",
-        ROOT / "android_app",
+        ROOT / "web" / "mobile",
+        ROOT / "app",
         ROOT / "docs",
     ]
     scan_exts = {".py", ".js", ".ts", ".tsx", ".kt", ".html", ".json", ".md"}
@@ -524,7 +524,7 @@ def test_grep_scan_no_removed_fallback_password_literals_in_repo() -> None:
 def test_unauthenticated_get_state_does_not_expose_users_or_identity(client: TestClient) -> None:
     """Unauthenticated GET /api/state must never expose users, current_user_*,
     role, role_name, accounts, voiceprints, embeddings, password hashes, or tokens."""
-    from simulator.api.deps import _REST_ENGINE
+    from backend.api.deps import _REST_ENGINE
 
     _REST_ENGINE.set_active_user("thanh_vien_a")
     resp = client.get("/api/state")
@@ -631,8 +631,8 @@ def test_two_sessions_see_own_identity_and_non_admin_has_no_users_list(client: T
     """Concurrent sessions calling GET /api/state must resolve their own identity
     from the request session (not process-global _REST_ENGINE.current_user_id),
     and non-admin state responses must never include the full users list."""
-    from simulator.api.deps import _REST_ENGINE
-    from simulator.voice_config import OWNER_ID
+    from backend.api.deps import _REST_ENGINE
+    from backend.voice_config import OWNER_ID
 
     # Mutate process-global engine state to Guest to prove GET /api/state ignores global current_user_id
     _REST_ENGINE.set_active_user("khach_d")
@@ -685,8 +685,8 @@ def test_two_sessions_see_own_identity_and_non_admin_has_no_users_list(client: T
 def test_throwaway_qa_account_purged_and_never_stuck_as_current_user(client: TestClient) -> None:
     """Throwaway QA account qa_app_1793876716 / qa.app.1793876716@example.com must be
     purged from accounts, users overlay, and sessions, and never stuck as current_user_id."""
-    from simulator.api.deps import _REST_ENGINE
-    from simulator.auth_3layer import get_auth_3layer_manager
+    from backend.api.deps import _REST_ENGINE
+    from backend.auth_3layer import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     _REST_ENGINE.users["qa_app_1793876716"] = {

@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.auth.guest_invites import (
+from backend.auth.guest_invites import (
     create_invite,
     inspect_token,
     redeem_token,
     reset_invite_store_for_tests,
     revoke_invite,
 )
-from simulator.auth.session_store import get_session_store
+from backend.auth.session_store import get_session_store
 
 
 OWNER_SESSION = "sess_owner_t1_nep94121"
@@ -46,7 +46,7 @@ REPEAT_MARKERS = (
 def client(monkeypatch):
     reset_invite_store_for_tests()
     monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
-    from simulator.server import app
+    from backend.server import app
 
     with TestClient(app) as test_client:
         yield test_client
@@ -298,10 +298,10 @@ def test_invite_token_validate_redeem_expiry_and_revocation(client):
     assert after_voice.status_code in (401, 403) or after_voice.json().get("ok") is False
 
     fresh = create_invite(owner_user_id="owner", tier=3, ttl_sec=600)
-    record = __import__("simulator.auth.guest_invites", fromlist=["get_invite"]).get_invite(fresh["invite_id"])
+    record = __import__("backend.auth.guest_invites", fromlist=["get_invite"]).get_invite(fresh["invite_id"])
     assert record is not None
     record["expires_at"] = time.time() - 10
-    from simulator.auth import guest_invites
+    from backend.auth import guest_invites
     records = guest_invites._load()
     records[fresh["invite_id"]] = record
     guest_invites._save(records)
@@ -343,14 +343,14 @@ def test_guest_page_with_valid_token_has_controls_and_no_navigation(client):
 
 def test_owner_dashboard_qr_markup_has_no_static_copyable_guest_link():
     root = Path(__file__).resolve().parents[1]
-    index_html = (root / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
     assert "Sao chép liên kết" not in index_html
     assert "copyOwnerGuestLink" not in index_html
     assert "Cấp 3 · Công khai" not in index_html
     # Ô QR vẫn còn, nhưng không in URL tĩnh /guest không có token.
     assert "ownerDashboardQrBox" in index_html or "ownerGuestQr" in index_html
     assert 'id="ownerGuestQrSvg"' in index_html or "ownerDashboardQrSvg" in index_html
-    app_js = (root / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    app_js = (root / "web" / "js" / "app.js").read_text(encoding="utf-8")
     assert "function copyOwnerGuestLink" not in app_js
     assert "function copyInviteLink" not in app_js
     # QR phải được gắn SVG, không chỉ để trống.
@@ -359,7 +359,7 @@ def test_owner_dashboard_qr_markup_has_no_static_copyable_guest_link():
 
 
 def test_app_js_has_no_reprompt_loop_hooks():
-    app_js = (Path(__file__).resolve().parents[1] / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    app_js = (Path(__file__).resolve().parents[1] / "web" / "js" / "app.js").read_text(encoding="utf-8")
     # Mic không bị phát ra loa (feedback TTS -> STT).
     assert "micProcessor.connect(micAudioCtx.destination)" not in app_js
     assert "TTS_HOLDOFF_SEC" in app_js

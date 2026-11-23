@@ -18,8 +18,8 @@ import sys
 import wave
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import VoiceAuthManager
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import VoiceAuthManager
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 AUDIO_DIR = ROOT / "test_audio"
@@ -206,7 +206,7 @@ async def test_unit_all_new_features() -> None:
     await eng_reset.factory_reset()
 
     # 11. Kiểm thử RAG với Google Embedding API (`gemini-embedding-001` - 3072 chiều)
-    from simulator.knowledge_rag import SmartHomeKnowledgeRAG
+    from backend.knowledge_rag import SmartHomeKnowledgeRAG
 
     rag = SmartHomeKnowledgeRAG()
     q1 = rag.retrieve("Bạn là ai?")
@@ -567,7 +567,7 @@ async def test_unit_all_new_features() -> None:
     print(f"  [PASS] 11.5 Kết nối lại Server Laptop (Online) -> Mở lại toàn bộ AI + Custom + Cửa chính: '{on_mode['exact_spoken_reply']}'")
 
     # 17. KIỂM THỬ CƠ SỞ DỮ LIỆU QUAN HỆ SQLITE 3 (8 BẢNG CHUẨN 3NF + WAL MODE + FOREIGN KEYS + CHỐNG SQL INJECTION)
-    from simulator.database_sqlite import execute_readonly_sql, get_sqlite_overview, sync_engine_state_to_sqlite
+    from backend.database_sqlite import execute_readonly_sql, get_sqlite_overview, sync_engine_state_to_sqlite
     sync_counts = sync_engine_state_to_sqlite(eng3)
     sq_ov = get_sqlite_overview()
     assert sq_ov["ok"] and sq_ov["table_count"] >= 8 and sq_ov["journal_mode"] == "WAL" and sq_ov["foreign_keys_enforced"] is True

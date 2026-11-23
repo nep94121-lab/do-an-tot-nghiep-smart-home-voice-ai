@@ -24,13 +24,13 @@ phase4_content = """---
 #### Bug 1: [BẢO MẬT] Xóa Thông Tin Đăng Nhập Điền Sẵn & Ẩn Mật Khẩu Mặc Định Khỏi UI và Nhật Ký
 - **Mô tả lỗi:** Modal đăng nhập trên `/` tự động mở với email và mật khẩu của Chủ nhà được điền sẵn trong các ô input, đồng thời hiển thị dòng chữ "Mật khẩu mặc định: ******". Trên `/app` và `/auth` cũng gặp hiện tượng tương tự. Trong phần hiển thị của `/logs`, mật khẩu gợi ý vẫn xuất hiện dưới dạng chuỗi chưa được che phủ.
 - **Nguyên nhân gốc rễ:**
-  - File [`simulator/static/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/index.html) và [`mobile_app/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/mobile_app/index.html) chứa thuộc tính `value="..."` trong các thẻ `<input type="email">` và `<input type="password">`.
+  - File [`web/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/index.html) và [`web/mobile/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/mobile/index.html) chứa thuộc tính `value="..."` trong các thẻ `<input type="email">` và `<input type="password">`.
   - Đoạn mã khởi tạo trong `app.js` tự động kích hoạt hiển thị modal khi phát hiện chưa đăng nhập kèm dòng gợi ý mật khẩu.
   - File `logs.js` xuất dữ liệu raw text từ endpoint `/api/logs` mà chưa qua bộ lọc làm sạch chuỗi nhạy cảm.
 - **Giải pháp khắc phục:**
-  - Xóa toàn bộ thuộc tính `value` có sẵn trong tất cả các thẻ input đăng nhập, đăng ký và quên mật khẩu tại `index.html` và `mobile_app/index.html` (`value=""`).
+  - Xóa toàn bộ thuộc tính `value` có sẵn trong tất cả các thẻ input đăng nhập, đăng ký và quên mật khẩu tại `index.html` và `web/mobile/index.html` (`value=""`).
   - Loại bỏ hoàn toàn dòng thông điệp gợi ý mật khẩu mặc định khỏi toàn bộ giao diện người dùng.
-  - Thêm cơ chế che mật khẩu tự động `maskSensitiveLogs(text)` trong [`simulator/static/js/logs.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/js/logs.js): Bất kỳ chuỗi gợi ý mật khẩu, mật khẩu mặc định hoặc mã nhạy cảm nào đều được thay thế bằng `[REDACTED]` hoặc `******` trước khi render vào bảng DOM.
+  - Thêm cơ chế che mật khẩu tự động `maskSensitiveLogs(text)` trong [`web/js/logs.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/js/logs.js): Bất kỳ chuỗi gợi ý mật khẩu, mật khẩu mặc định hoặc mã nhạy cảm nào đều được thay thế bằng `[REDACTED]` hoặc `******` trước khi render vào bảng DOM.
 - **Kiểm thử tự động TDD:**
   - File test: `tests/test_p4_survey1_security_auth.py::test_bug1_clean_login_credentials_and_no_hints` và `tests/test_adversarial_m1_challenger.py`.
   - Kết quả: PASS (100% không còn credential điền sẵn, không còn hint mật khẩu, logs được mask đầy đủ).
@@ -48,7 +48,7 @@ phase4_content = """---
 - **Nguyên nhân gốc rễ:**
   - Hàm logout chỉ thực hiện xóa session storage hoặc cookie nhưng không can thiệp đặt lại các phần tử DOM: không xóa trắng trường input mật khẩu, không ẩn nút `#btnLogoutHome`, không ẩn huy hiệu thời hạn `#homeSessionDurationBadge`, và không reset hộp trạng thái `#gateStatusBox`.
 - **Giải pháp khắc phục:**
-  - Hoàn thiện hàm `clearAuthState()` trong [`simulator/static/js/app.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/js/app.js) và [`simulator/static/js/mobile_app.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/js/mobile_app.js):
+  - Hoàn thiện hàm `clearAuthState()` trong [`web/js/app.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/js/app.js) và [`web/js/mobile_app.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/js/mobile_app.js):
     * Xóa sạch `localStorage`, `sessionStorage` và cookie phiên `smarthome_session`.
     * Xóa trắng toàn bộ các trường nhập: `emailEl.value = ""`, `pwEl.value = ""`, các form đăng ký và quên mật khẩu.
     * Ẩn hoàn toàn nút Đăng xuất: `btnLogoutHome.hidden = true; btnLogoutHome.style.display = "none"`.
@@ -66,13 +66,13 @@ phase4_content = """---
 - **Mô tả lỗi:** WebSocket trên Vercel production bị đóng ngay lập tức do cơ chế Serverless (`wss://.../ws` không hỗ trợ kết nối liên tục kéo dài); trang dashboard hiển thị banner vàng/đỏ "Mất kết nối thời gian thực" gây hoang mang trong khi header vẫn ghi "Đã kết nối". Ngoài ra, trình duyệt báo lỗi HTTP 404 cho `favicon.ico`.
 - **Nguyên nhân gốc rễ:**
   - Vercel Serverless Function chỉ xử lý request-response ngắn hạn, không duy trì stateful TCP WebSocket. Khi `ws.onclose` kích hoạt, frontend tự động gắn nhãn mất kết nối.
-  - File `vercel.json` chưa cấu hình route tĩnh cho `/favicon.ico` và thư mục `simulator/static/` thiếu file nhị phân `favicon.ico`.
+  - File `vercel.json` chưa cấu hình route tĩnh cho `/favicon.ico` và thư mục `web/` thiếu file nhị phân `favicon.ico`.
 - **Giải pháp khắc phục:**
   - Xây dựng cơ chế Polling Fallback thông minh `pollRestStateFallback()` trong `app.js` và `mobile_app.js`: Khi WebSocket không khả dụng hoặc bị đóng, hệ thống tự động chuyển sang gửi HTTP GET tới `/api/state` mỗi 2.5 giây để đồng bộ trạng thái 7 thiết bị và telemetry cảm biến.
   - Đồng bộ trạng thái giao diện: Khi Polling thành công, giao diện ghi nhận `window._serverConnected = true`, cập nhật header "Đã kết nối" và ẩn banner cảnh báo (`hideWsReconnectBanner()`). Chỉ khi cả WebSocket và Polling đều mất kết nối mới hiển thị banner lỗi.
-  - Tạo file nhị phân chuẩn `simulator/static/favicon.ico` (1,118 bytes) và thêm route tường minh trong [`vercel.json`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/vercel.json):
+  - Tạo file nhị phân chuẩn `web/favicon.ico` (1,118 bytes) và thêm route tường minh trong [`vercel.json`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/vercel.json):
     ```json
-    { "src": "/favicon.ico", "dest": "/simulator/static/favicon.ico" }
+    { "src": "/favicon.ico", "dest": "/web/favicon.ico" }
     ```
 - **Kiểm thử tự động TDD:**
   - File test: `tests/test_p4_survey2_realtime.py::test_bug3_websocket_fallback_and_reconnect_banner`.
@@ -86,10 +86,10 @@ phase4_content = """---
 #### Bug 4: [XÁC THỰC & KHÔI PHỤC] Quên Mật Khẩu Bằng OTP 3 Bước & Bổ Sung Seed Tài Khoản Kiểm Thử
 - **Mô tả lỗi:** Khi bấm "Gửi OTP" cho tài khoản `senat6031@gmail.com`, hệ thống báo lỗi "Không tìm thấy tài khoản". Tài khoản gia đình `senat6031@gmail.com` và tài khoản khách `kbanh376@gmail.com` bị thiếu trong seed. Quy trình quên mật khẩu cần tách 3 bước rõ ràng và gửi email OTP thật qua Gmail/SMTP.
 - **Nguyên nhân gốc rễ:**
-  - Bộ dữ liệu seed ban đầu trong `accounts_3layer.json` và hằng số `DEFAULT_ACCOUNTS` trong `simulator/auth/constants_and_crypto.py` chưa khai báo sẵn hai email kiểm thử này.
+  - Bộ dữ liệu seed ban đầu trong `accounts_3layer.json` và hằng số `DEFAULT_ACCOUNTS` trong `backend/auth/constants_and_crypto.py` chưa khai báo sẵn hai email kiểm thử này.
   - Form quên mật khẩu gộp các trường nhập lại với nhau, không theo tiến trình từng bước (email -> mã OTP -> mật khẩu mới).
 - **Giải pháp khắc phục:**
-  - Bổ sung `senat6031@gmail.com` (Tier 2 - Gia đình) và `kbanh376@gmail.com` (Tier 3 - Khách) vào `DEFAULT_ACCOUNTS` và `simulator/data/accounts_3layer.json` với mật khẩu được băm an toàn theo chuẩn PBKDF2/SHA-256.
+  - Bổ sung `senat6031@gmail.com` (Tier 2 - Gia đình) và `kbanh376@gmail.com` (Tier 3 - Khách) vào `DEFAULT_ACCOUNTS` và `backend/data/accounts_3layer.json` với mật khẩu được băm an toàn theo chuẩn PBKDF2/SHA-256.
   - Tách giao diện Quên mật khẩu thành 3 bước độc lập thông qua hàm `setForgotStep(stepNum)`:
     * **Bước 1:** Nhập email tài khoản và bấm "Gửi mã OTP".
     * **Bước 2:** Nhập mã OTP 6 chữ số đã gửi về hộp thư điện tử qua cấu hình SMTP thật của dự án.
@@ -123,7 +123,7 @@ phase4_content = """---
 #### Bug 6: [GIAO DIỆN /app] Render Mô Hình 3D Toàn Cảnh Thật Trên Mobile Thay Cho Placeholder Nét Đứt
 - **Mô tả lỗi:** Khung 3D thu gọn trên `/app` chỉ hiển thị một khung viền nét đứt với dòng chữ placeholder "Mô hình Toàn cảnh 3D" mà không render mô hình Three.js thật.
 - **Nguyên nhân gốc rễ:**
-  - File `mobile_app/index.html` chỉ để thẻ div giữ chỗ tạm thời; `mobile_app.js` chưa gọi hàm khởi tạo mô hình 3D `SmartHome3D.init()`.
+  - File `web/mobile/index.html` chỉ để thẻ div giữ chỗ tạm thời; `mobile_app.js` chưa gọi hàm khởi tạo mô hình 3D `SmartHome3D.init()`.
 - **Giải pháp khắc phục:**
   - Cập nhật `#mobileOverviewBox` thành container chuẩn tỉ lệ 16:9 (`preview-16-9`).
   - Trong `mobile_app.js`, gọi hàm khởi tạo `window.SmartHome3D.init("mobileOverviewBox", null, { cameraPos: [0, 16, 22], isMini: true })` khi chuyển sang Tab Nhà.
@@ -170,7 +170,7 @@ phase4_content = """---
     padding: max(16px, env(safe-area-inset-top)) 16px calc(88px + env(safe-area-inset-bottom));
     margin-bottom: calc(24px + env(safe-area-inset-bottom));
     ```
-  - Xóa bỏ triệt để dòng chữ "Mỗi tab mở một màn riêng..." khỏi `mobile_app/index.html`.
+  - Xóa bỏ triệt để dòng chữ "Mỗi tab mở một màn riêng..." khỏi `web/mobile/index.html`.
   - Tạo phần tử huy hiệu chuyên biệt `#mobileQrCountdown` hiển thị thông tin thời hạn rõ ràng (ví dụ: "Đang chờ" hoặc "Hết hạn sau 5m00s"), tách biệt khỏi tiêu đề thẻ.
 - **Kiểm thử tự động TDD:**
   - File test: `tests/test_p4_survey3_ui_layout.py::test_bug8_profile_safe_area_padding_and_countdown_format`.
@@ -185,7 +185,7 @@ phase4_content = """---
 - **Nguyên nhân gốc rễ:**
   - Giao diện desktop ban đầu chỉ hiển thị cảm biến trong thanh header thu nhỏ hoặc trang Wokwi riêng biệt.
 - **Giải pháp khắc phục:**
-  - Thêm panel `#secSensors` gọn gàng trên Desktop [`simulator/static/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/index.html) với 3 thẻ đo:
+  - Thêm panel `#secSensors` gọn gàng trên Desktop [`web/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/index.html) với 3 thẻ đo:
     * Nhiệt độ phòng khách (°C)
     * Độ ẩm không khí (%)
     * Độ ẩm đất sân vườn (%)
@@ -265,7 +265,7 @@ phase4_content = """---
 - **Nguyên nhân gốc rễ:**
   - Khoảng cách CSS giữa các nhãn chân cắm vi điều khiển quá hẹp; trang phụ thuộc vào kết nối MQTT thật từ Wokwi desktop app mà chưa có chế độ mô phỏng dữ liệu tại chỗ (simulated telemetry).
 - **Giải pháp khắc phục:**
-  - Tinh chỉnh CSS trong [`simulator/static/wokwi.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/wokwi.html) và [`simulator/static/js/wokwi.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/js/wokwi.js): Giãn cách tọa độ giữa nhãn DHT11 và Buzzer, đảm bảo khoảng cách hiển thị tối thiểu > 16px, loại bỏ 100% hiện tượng đè lấn chữ.
+  - Tinh chỉnh CSS trong [`web/wokwi.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/wokwi.html) và [`web/js/wokwi.js`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/js/wokwi.js): Giãn cách tọa độ giữa nhãn DHT11 và Buzzer, đảm bảo khoảng cách hiển thị tối thiểu > 16px, loại bỏ 100% hiện tượng đè lấn chữ.
   - Tích hợp bộ sinh dữ liệu đo đạc mô phỏng trực quan (Simulated Live Telemetry) hiển thị thông số vi khí hậu và trạng thái chân GPIO trong `#hoverHoleInfo`, xóa bỏ hoàn toàn dòng thông báo "Chưa có dữ liệu".
 - **Kiểm thử tự động TDD:**
   - File test: `tests/test_p4_survey2_realtime.py::test_bug14_wokwi_label_layout_and_telemetry`.
@@ -280,7 +280,7 @@ phase4_content = """---
 - **Nguyên nhân gốc rễ:**
   - Header desktop ban đầu chỉ có huy hiệu hiển thị vai trò `#homeCurrentAccountBadge` mà thiếu phần tử hiển thị thời hạn hiệu lực của phiên làm việc.
 - **Giải pháp khắc phục:**
-  - Thêm phần tử `#homeSessionDurationBadge` vào header desktop [`simulator/static/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/simulator/static/index.html).
+  - Thêm phần tử `#homeSessionDurationBadge` vào header desktop [`web/index.html`](file:///C:/Users/LENOVO/Desktop/đồ án tốt nghiệp/web/index.html).
   - Cập nhật logic trong `app.js`:
     * **Chủ nhà (Tier 1):** Hiển thị `"Không giới hạn"` với tông màu xanh lục an tâm.
     * **Thành viên gia đình (Tier 2):** Hiển thị `"Còn 30 ngày"`.
@@ -298,18 +298,18 @@ phase4_content = """---
 
 | Bug # | Hạng mục kiểm thử | Mô tả lỗi gốc | Tệp mã nguồn đã xử lý | Bộ test tự động TDD | Trạng thái Live Production |
 | :---: | :--- | :--- | :--- | :--- | :---: |
-| **1** | Bảo mật Đăng nhập | Prefilled email/pw & hint mật khẩu trên /, /app, /auth, logs | `index.html`, `mobile_app/index.html`, `logs.js` | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
+| **1** | Bảo mật Đăng nhập | Prefilled email/pw & hint mật khẩu trên /, /app, /auth, logs | `index.html`, `web/mobile/index.html`, `logs.js` | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
 | **2** | Phiên làm việc | Logout không reset form, thông báo cũ & hiện nút đăng xuất | `app.js`, `mobile_app.js` | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
 | **3** | Realtime Fallback | WS Vercel đóng, banner lỗi sai lệch, 404 favicon.ico | `app.js`, `vercel.json`, `favicon.ico` | `test_p4_survey2_realtime.py` | **ĐẠT 100%** |
 | **4** | Quên mật khẩu OTP | Thiếu seed senat6031/kbanh376, cần 3 bước & gửi SMTP thật | `constants_and_crypto.py`, `accounts_3layer.json` | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
 | **5** | Đăng ký giọng nói | Dữ liệu mẫu điền sẵn trong wizard /auth, lỗi check login | `auth.html`, `auth.js` | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
-| **6** | Mô hình 3D Mobile | /app hiện placeholder nét đứt, không render Three.js | `mobile_app/index.html`, `mobile_app.js` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
+| **6** | Mô hình 3D Mobile | /app hiện placeholder nét đứt, không render Three.js | `web/mobile/index.html`, `mobile_app.js` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
 | **7** | Thiết bị Mobile | /app chỉ có 4 thiết bị, thiếu điều hòa, còi, máy bơm | `mobile_app.js` (`showAllDevices=true`) | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
-| **8** | Hồ sơ Mobile | Safe-area padding nút đăng xuất, xóa text thừa, đếm ngược | `mobile_app.css`, `mobile_app/index.html` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
+| **8** | Hồ sơ Mobile | Safe-area padding nút đăng xuất, xóa text thừa, đếm ngược | `mobile_app.css`, `web/mobile/index.html` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
 | **9** | Cảm biến Desktop | Desktop / không có panel cảm biến & thuật toán clamp | `index.html`, `app.js`, `mqtt_bridge.py` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
 | **10**| Optimistic UI | Bật/tắt đèn trễ, nhãn trống, phụ đề cắt thành "Đã bột" | `app.js` (`toggleDeviceById`, `getDeviceRoomLabel`) | `test_p4_survey2_realtime.py` | **ĐẠT 100%** |
-| **11**| Quyền Microphone | Hiện "Đang thu âm" khi popup mic còn chờ, thiếu modal | `mobile_app.js`, `mobile_app/index.html` | `test_p4_survey2_realtime.py` | **ĐẠT 100%** |
-| **12**| Quét mã QR | Dòng hướng dẫn quét mã hiện 2 lần trùng nhau | `mobile_app/index.html`, `mobile_app.js` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
+| **11**| Quyền Microphone | Hiện "Đang thu âm" khi popup mic còn chờ, thiếu modal | `mobile_app.js`, `web/mobile/index.html` | `test_p4_survey2_realtime.py` | **ĐẠT 100%** |
+| **12**| Quét mã QR | Dòng hướng dẫn quét mã hiện 2 lần trùng nhau | `web/mobile/index.html`, `mobile_app.js` | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
 | **13**| Nhật ký hệ thống | /logs dồn 300 dòng dài, thiếu phân trang và bộ lọc | `logs.html`, `logs.js` (`pageSize=20`) | `test_p4_survey3_ui_layout.py` | **ĐẠT 100%** |
 | **14**| Mô phỏng Wokwi | Nhãn DHT11 đè lên Buzzer, thông báo "Chưa có dữ liệu" | `wokwi.html`, `wokwi.js` | `test_p4_survey2_realtime.py` | **ĐẠT 100%** |
 | **15**| Header Desktop | Chưa hiện thời gian truy cập còn lại của tài khoản | `index.html`, `app.js` (`#homeSessionDurationBadge`) | `test_p4_survey1_security_auth.py` | **ĐẠT 100%** |
@@ -340,11 +340,11 @@ Hệ thống đã trải qua quy trình kiểm thử toàn diện đa tầng tr�
 #### 3. Xác Thực Biên Dịch Android Native Compose Qua Gradle
 - **Lệnh thực thi:**
   ```powershell
-  Set-Location 'android_app\\.lightbuild\\gradle'
+  Set-Location 'app\\.lightbuild\\gradle'
   & 'C:\\Users\\LENOVO\\.gradle\\jdks\\eclipse_adoptium-17-amd64-windows.2\\bin\\java.exe' '-Dorg.gradle.appname=gradlew' -classpath 'gradle\\wrapper\\gradle-wrapper.jar' org.gradle.wrapper.GradleWrapperMain assembleDebug '-Pandroid.overridePathCheck=true'
   ```
 - **Kết quả build:** **`BUILD SUCCESSFUL in 10s (71 actionable tasks: 8 executed, 63 up-to-date) — Exit Code: 0`**.
-- **Tệp cài đặt APK sinh ra:** `android_app/app/build/outputs/apk/debug/app-debug.apk` (Dung lượng: 12,037,214 bytes, SHA-256: `23300f4d8fd4e44e30ecfa4e79cd8220c0683657db4c1f855f8b79394d2387c8`).
+- **Tệp cài đặt APK sinh ra:** `app/app/build/outputs/apk/debug/app-debug.apk` (Dung lượng: 12,037,214 bytes, SHA-256: `23300f4d8fd4e44e30ecfa4e79cd8220c0683657db4c1f855f8b79394d2387c8`).
 
 ---
 
@@ -384,7 +384,7 @@ Hệ thống đã trải qua quy trình kiểm thử toàn diện đa tầng tr�
    - **0 CRLF** trên toàn bộ 751 file được git theo dõi (`python assertion passed: ALL FILES 100% POSIX LF`).
 3. **Bảo toàn giao diện và mô hình 3D:**
    - Thư mục thiết kế gốc `ui_mockups/` được bảo toàn nguyên vẹn (`git diff ui_mockups/` rỗng 0 diff).
-   - Mô hình 3D Three.js `simulator/static/house3d.js` và toàn bộ 68 DOM ID phục vụ kiểm thử E2E được giữ trọn vẹn.
+   - Mô hình 3D Three.js `web/house3d.js` và toàn bộ 68 DOM ID phục vụ kiểm thử E2E được giữ trọn vẹn.
 
 ---
 

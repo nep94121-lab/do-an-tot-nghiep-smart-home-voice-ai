@@ -4,12 +4,12 @@ Tác giả: challenger_m2_2 (Role: Empirical Challenger & Critic)
 Mục tiêu kiểm định:
 1. Đảm bảo `#homeLoginGateModal` không thể bị ẩn bằng bất kỳ cách nào nếu `localStorage`
    chưa lưu `smarthome_auth_session` (Bypass prevention: click nút X, click backdrop, bấm Escape, gọi API).
-2. Kiểm tra mã nguồn `simulator/static/index.html` xem nút `#btnCloseLoginGateModal`
+2. Kiểm tra mã nguồn `web/index.html` xem nút `#btnCloseLoginGateModal`
    có thuộc tính `hidden` không và khi bấm vào có bị chặn không.
 3. Kiểm tra hành vi Enter key trên các form `<form id="gatePanelLogin">`,
    `<form id="gatePanelRegister">`, `<form id="gatePanelForgot">` (Web) và các form Mobile.
 4. Kiểm tra tính tương thích DOM của nút 👁️ (`btn-toggle-pw`) trên tất cả các trang (Web & Mobile).
-5. Thử nghiệm trên `mobile_app/index.html` về cấu trúc DOM và SVG symbols:
+5. Thử nghiệm trên `web/mobile/index.html` về cấu trúc DOM và SVG symbols:
    Đảm bảo `<symbol id="i-home">` nằm ở thẻ `<svg>` toàn cục ngoài `#mobileMainContent hidden`.
 6. Kiểm tra cơ chế 2 ô xác nhận mật khẩu (Double Password Confirmation) trên cả Web và Mobile.
 7. Kiểm tra tính toàn vẹn 0 CRLF và UTF-8 không BOM trên toàn bộ 5 tệp đã sửa.
@@ -28,11 +28,11 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 TARGET_FILES = [
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "js" / "app.js",
-    ROOT / "simulator" / "static" / "js" / "auth.js",
-    ROOT / "mobile_app" / "index.html",
-    ROOT / "simulator" / "static" / "js" / "mobile_app.js",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "js" / "app.js",
+    ROOT / "web" / "js" / "auth.js",
+    ROOT / "web" / "mobile" / "index.html",
+    ROOT / "web" / "js" / "mobile_app.js",
 ]
 
 
@@ -73,13 +73,13 @@ class TestFileFormatAndEncodingIntegrity:
 
 @pytest.fixture(scope="module")
 def web_html_soup() -> BeautifulSoup:
-    html_file = ROOT / "simulator" / "static" / "index.html"
+    html_file = ROOT / "web" / "index.html"
     return BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
 
 
 @pytest.fixture(scope="module")
 def mobile_soup() -> BeautifulSoup:
-    html_file = ROOT / "mobile_app" / "index.html"
+    html_file = ROOT / "web" / "mobile" / "index.html"
     return BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
 
 
@@ -337,7 +337,7 @@ const flushMicrotasks = async () => {
 process.stdout.write(JSON.stringify({ ok: tests.every(t => t.pass), tests }));
 })();
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,
@@ -386,13 +386,13 @@ class TestFormEnterKeyBehavior:
         """
         for form_id in ["mobileLoginForm", "mobileRegisterForm", "mobileChangePasswordForm"]:
             tag = mobile_soup.find(id=form_id)
-            assert tag is not None, f"Không tìm thấy #{form_id} trong mobile_app/index.html"
+            assert tag is not None, f"Không tìm thấy #{form_id} trong web/mobile/index.html"
             assert tag.name == "form", f"#{form_id} phải là thẻ <form>, hiện tại là <{tag.name}>"
             assert tag.has_attr("onsubmit"), f"#{form_id} thiếu thuộc tính onsubmit"
 
     def test_web_form_submit_event_listener_wires_to_submit_button(self):
-        """Kiểm tra trong simulator/static/js/app.js có addEventListener('submit') cho cả 3 form."""
-        js_code = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        """Kiểm tra trong web/js/app.js có addEventListener('submit') cho cả 3 form."""
+        js_code = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
         assert "gatePanelLogin.addEventListener(\"submit\"" in js_code
         assert "gatePanelRegister.addEventListener(\"submit\"" in js_code
         assert "gatePanelForgot.addEventListener(\"submit\"" in js_code
@@ -426,7 +426,7 @@ class TestPasswordVisibilityToggle:
 
     def test_web_all_password_fields_have_toggle_button(self):
         """Tất cả 5 ô mật khẩu trên Web phải có nút .btn-toggle-pw kế bên dùng SVG #i-eye."""
-        html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
         assert soup.find("symbol", id="i-eye") is not None
         assert soup.find("symbol", id="i-eye-off") is not None
@@ -445,7 +445,7 @@ class TestPasswordVisibilityToggle:
 
     def test_mobile_all_password_fields_have_toggle_button(self):
         """Tất cả 5 ô mật khẩu trên Mobile phải có nút .btn-toggle-pw kế bên dùng SVG #i-eye."""
-        html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+        html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
         assert soup.find("symbol", id="i-eye") is not None
         assert soup.find("symbol", id="i-eye-off") is not None
@@ -543,8 +543,8 @@ process.stdout.write(JSON.stringify({ web: rWeb, mobile: rMob }));
 """
         proc = subprocess.run(
             ["node", "-e", node_test,
-             str(ROOT / "simulator" / "static" / "js" / "app.js"),
-             str(ROOT / "simulator" / "static" / "js" / "mobile_app.js")],
+             str(ROOT / "web" / "js" / "app.js"),
+             str(ROOT / "web" / "js" / "mobile_app.js")],
             capture_output=True,
             text=True,
             encoding="utf-8"
@@ -560,14 +560,14 @@ process.stdout.write(JSON.stringify({ web: rWeb, mobile: rMob }));
 # =============================================================================
 
 class TestMobileSvgSpriteScope:
-    """Kiểm tra cấu trúc DOM SVG Symbols trên mobile_app/index.html."""
+    """Kiểm tra cấu trúc DOM SVG Symbols trên web/mobile/index.html."""
 
     def test_global_svg_sprite_placement(self, mobile_soup: BeautifulSoup):
         """Khối <svg> chứa <symbol id="i-home">... phải nằm trực tiếp dưới <body>,
         bên ngoài <div id="mobileMainContent" hidden>.
         """
         body = mobile_soup.find("body")
-        assert body is not None, "Không tìm thấy thẻ <body> trong mobile_app/index.html"
+        assert body is not None, "Không tìm thấy thẻ <body> trong web/mobile/index.html"
 
         # Tìm thẻ svg đầu tiên trong body
         svg_sprite = body.find("svg", recursive=False)
@@ -610,16 +610,16 @@ class TestPasswordConfirmationAndReadOnlyRemoval:
     """Kiểm tra cơ chế 2 ô mật khẩu và gỡ bỏ readOnly = true trong auth.js."""
 
     def test_auth_js_does_not_contain_readonly_true(self):
-        """Trong simulator/static/js/auth.js, nameInput.readOnly và emailInput.readOnly
+        """Trong web/js/auth.js, nameInput.readOnly và emailInput.readOnly
         không được gán bằng true.
         """
-        auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth_js = (ROOT / "web" / "js" / "auth.js").read_text(encoding="utf-8")
         assert "nameInput.readOnly = true" not in auth_js, "Vẫn còn tồn tại nameInput.readOnly = true!"
         assert "emailInput.readOnly = true" not in auth_js, "Vẫn còn tồn tại emailInput.readOnly = true!"
 
     def test_web_register_and_forgot_forms_have_confirm_password(self):
         """Trên Web, form đăng ký và form quên mật khẩu phải có 2 ô mật khẩu riêng biệt."""
-        html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
         # Form Đăng ký
@@ -632,7 +632,7 @@ class TestPasswordConfirmationAndReadOnlyRemoval:
 
     def test_mobile_register_and_change_forms_have_confirm_password(self):
         """Trên Mobile, form đăng ký và form đổi mật khẩu phải có 2 ô mật khẩu riêng biệt."""
-        html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+        html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
         # Form Đăng ký Mobile
@@ -645,13 +645,13 @@ class TestPasswordConfirmationAndReadOnlyRemoval:
 
     def test_mismatched_passwords_rejected_in_app_js(self):
         """Trong app.js, kiểm tra logic từ chối khi mật khẩu không khớp nhau."""
-        app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
         assert "password !== confirmPassword" in app_js
         assert "newPassword !== confirmPassword" in app_js
 
     def test_mismatched_passwords_rejected_in_mobile_app_js(self):
         """Trong mobile_app.js, kiểm tra logic từ chối khi mật khẩu không khớp nhau."""
-        mob_js = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        mob_js = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
         assert "password !== confirmPassword" in mob_js
         assert "pw1 !== pw2" in mob_js
 

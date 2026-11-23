@@ -42,7 +42,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.voice.vietnamese_policy import (  # noqa: E402
+from backend.voice.vietnamese_policy import (  # noqa: E402
     _FOREIGN_LATIN_DIACRITIC_RE,
     _NON_VI_SCRIPT_RE,
     _VI_DIACRITIC_RE,
@@ -149,10 +149,10 @@ def _seed_temp_db_and_sessions(data_dir: pathlib.Path, log_dir: pathlib.Path, en
 
     seed_script = r"""
 import json
-from simulator.database_sqlite import init_sqlite_database
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth.session_store import get_session_store
+from backend.database_sqlite import init_sqlite_database
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth.session_store import get_session_store
 
 init_sqlite_database()
 mgr = get_auth_3layer_manager()
@@ -217,7 +217,7 @@ def _start_temp_server(
             "utf8",
             "-m",
             "uvicorn",
-            "simulator.server:app",
+            "backend.server:app",
             "--host",
             "127.0.0.1",
             "--port",

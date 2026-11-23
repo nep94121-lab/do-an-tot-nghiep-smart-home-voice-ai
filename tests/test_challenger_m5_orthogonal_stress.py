@@ -36,7 +36,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.database_sqlite import (
+from backend.database_sqlite import (
     SQLITE_DB_PATH,
     _DB_LOCK,
     clear_audit_logs_sqlite,
@@ -46,7 +46,7 @@ from simulator.database_sqlite import (
     init_sqlite_database,
     insert_audit_log_sqlite,
 )
-from simulator.voice_auth import (
+from backend.voice_auth import (
     VoiceAuthManager,
     transform_pcm_by_pitch_factor,
 )
@@ -275,7 +275,7 @@ class TestSqliteWalConcurrencyAndIntegrity:
 
     def test_acid_atomicity_transaction_rollback(self) -> None:
         """Xác nhận tính toàn vẹn Transaction ACID: Rollback khi gặp lỗi vi phạm ràng buộc Foreign Key."""
-        from simulator.db_migrations import run_write_transaction
+        from backend.db_migrations import run_write_transaction
 
         init_sqlite_database()
         conn = get_connection()

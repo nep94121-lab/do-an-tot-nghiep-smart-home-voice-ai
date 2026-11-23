@@ -24,9 +24,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app
-from simulator.api.routes_logs import mask_sensitive_log_data
-from simulator.rule_engine import append_audit_log, clear_audit_logs
+from backend.server import app
+from backend.api.routes_logs import mask_sensitive_log_data
+from backend.rule_engine import append_audit_log, clear_audit_logs
 
 
 @pytest.fixture
@@ -43,17 +43,17 @@ class TestAdversarialBug1CredentialScan:
 
     def test_all_html_files_zero_hardcoded_passwords_or_credentials(self):
         html_files = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "simulator" / "static" / "logs.html",
-            ROOT / "simulator" / "static" / "wokwi.html",
-            ROOT / "simulator" / "static" / "guest_enroll.html",
-            ROOT / "simulator" / "static" / "403.html",
-            ROOT / "simulator" / "static" / "404.html",
-            ROOT / "simulator" / "static" / "500.html",
-            ROOT / "simulator" / "static" / "offline.html",
-            ROOT / "simulator" / "static" / "qr_expired.html",
-            ROOT / "mobile_app" / "index.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "logs.html",
+            ROOT / "web" / "wokwi.html",
+            ROOT / "web" / "guest_enroll.html",
+            ROOT / "web" / "403.html",
+            ROOT / "web" / "404.html",
+            ROOT / "web" / "500.html",
+            ROOT / "web" / "offline.html",
+            ROOT / "web" / "qr_expired.html",
+            ROOT / "web" / "mobile" / "index.html",
         ]
 
         suspicious_inputs = []
@@ -161,7 +161,7 @@ class TestAdversarialBug15SessionBadge:
     """Kiểm thử chuyên sâu vòng đời và logic hiển thị của #homeSessionDurationBadge."""
 
     def test_dom_existence_and_initial_hidden_state_in_index_html(self):
-        index_html = ROOT / "simulator" / "static" / "index.html"
+        index_html = ROOT / "web" / "index.html"
         assert index_html.exists()
         soup = BeautifulSoup(index_html.read_text(encoding="utf-8"), "html.parser")
 
@@ -284,7 +284,7 @@ results.afterLogout = {
 
 process.stdout.write(JSON.stringify(results));
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,

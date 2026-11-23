@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from simulator.auth import guest_invites, owner_pin, security_state
+from backend.auth import guest_invites, owner_pin, security_state
 
 
 class RemoteDocuments:

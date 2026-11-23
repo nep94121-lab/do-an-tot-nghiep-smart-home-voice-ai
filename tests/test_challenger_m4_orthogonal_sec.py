@@ -31,10 +31,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app, _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import (
+from backend.server import app, _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import (
     SEP_REAL_VOICE_COMMANDS_META,
     VoiceAuthManager,
     synthesize_noisy_fan_voice,
@@ -397,7 +397,7 @@ class TestOrthogonalWebSocketInteractions:
 
 AUDIO_DIR = ROOT / "test_audio"
 SLICED_DIR = AUDIO_DIR / "cac_cau_lenh_cua_sep"
-from simulator.db_migrations import resolve_sqlite_db_path
+from backend.db_migrations import resolve_sqlite_db_path
 
 DB_PATH = resolve_sqlite_db_path()
 

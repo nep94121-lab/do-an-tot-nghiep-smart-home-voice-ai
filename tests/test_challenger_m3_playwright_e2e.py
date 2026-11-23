@@ -11,7 +11,7 @@ import pytest
 from playwright.sync_api import sync_playwright
 import uvicorn
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 

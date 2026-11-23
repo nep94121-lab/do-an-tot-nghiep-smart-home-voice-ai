@@ -14,7 +14,7 @@ FAMILY_SEED = "sess_family_t2_member_a"
 GUEST_SEED = "sess_guest_t3_visitor_c"
 OWNER_EMAIL = "nep94121@gmail.com"
 
-# Fixed table (must match simulator.auth.tier_permissions.DEVICE_MIN_TIER).
+# Fixed table (must match backend.auth.tier_permissions.DEVICE_MIN_TIER).
 FAMILY_ALLOWED = {"living_room_light", "bedroom_light", "garden_pump", "speaker_amp"}
 FAMILY_DENIED = {"main_door", "alarm_siren"}
 GUEST_ALLOWED = {"living_room_light", "bedroom_light"}
@@ -30,12 +30,12 @@ def _env() -> None:
 
 def _client() -> TestClient:
     _env()
-    from simulator.auth.owner_pin import reset_owner_pin_store_for_tests
-    from simulator.auth.guest_invites import reset_invite_store_for_tests
+    from backend.auth.owner_pin import reset_owner_pin_store_for_tests
+    from backend.auth.guest_invites import reset_invite_store_for_tests
 
     reset_owner_pin_store_for_tests()
     reset_invite_store_for_tests()
-    from simulator.server import app
+    from backend.server import app
 
     return TestClient(app)
 
@@ -71,7 +71,7 @@ def test_cookieless_device_is_401_even_after_session_role_and_set_active_user() 
     client = _client()
     client.post("/api/session/role", json={"role": "MEMBER"})
     # Shared engine pollution must not authenticate a fresh client.
-    from simulator.api.deps import _REST_ENGINE
+    from backend.api.deps import _REST_ENGINE
 
     _REST_ENGINE.set_active_user("thanh_vien_a")
     other = TestClient(client.app)
@@ -92,7 +92,7 @@ def test_json_identity_and_unauthenticated_device_still_denied() -> None:
 
 
 def test_permissions_table_is_fixed() -> None:
-    from simulator.auth.tier_permissions import DEVICE_MIN_TIER, permission_table_payload
+    from backend.auth.tier_permissions import DEVICE_MIN_TIER, permission_table_payload
 
     client = _client()
     resp = client.get("/api/auth3/permissions")
@@ -365,7 +365,7 @@ def test_forgot_pin_mailer_receives_real_otp_outside_sandbox(monkeypatch) -> Non
         captured["otp"] = otp_code
         return {"ok": True, "method": "stub", "sent": True}
 
-    monkeypatch.setattr("simulator.auth.owner_pin.send_reset_email", fake_send)
+    monkeypatch.setattr("backend.auth.owner_pin.send_reset_email", fake_send)
     monkeypatch.delenv("SIMULATOR_OFFLINE_SANDBOX", raising=False)
     forgot = client.post("/api/auth3/owner_pin/forgot", json={}, headers=headers, cookies=cookies)
     assert forgot.status_code == 200, forgot.text

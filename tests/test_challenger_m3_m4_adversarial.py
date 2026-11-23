@@ -1,9 +1,9 @@
 """BỘ KIỂM THỬ ĐỐI KHÁNG THỰC NGHIỆM ĐỘC LẬP — CHALLENGER GATE M3 & M4
 Tác giả: challenger_gate_m3_m4 (teamwork_challenger)
 Phạm vi: Thử nghiệm đối kháng, phát hiện lỗ hổng và kiểm chứng thực nghiệm
-- simulator/auth_3layer.py
-- simulator/server.py
-- simulator/voice_auth.py
+- backend/auth_3layer.py
+- backend/server.py
+- backend/voice_auth.py
 
 Các chiều tấn công kiểm định:
 1. Tấn công leo thang đặc quyền qua giá trị mặc định của API add_family_email (Missing actor_id fallback to Admin).
@@ -26,10 +26,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.auth_3layer as a3
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_manager
-from simulator.server import app
-from simulator.voice_auth import validate_voice_enrollment_quality
+import backend.auth_3layer as a3
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_manager
+from backend.server import app
+from backend.voice_auth import validate_voice_enrollment_quality
 
 
 @pytest.fixture

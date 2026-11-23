@@ -35,9 +35,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.session_store import get_session_store
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
+from backend.auth.session_store import get_session_store
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
 
 
 @pytest.fixture(autouse=True)
@@ -284,8 +284,8 @@ def test_adv_guest_voice_owner_email_spoofing_forbidden(client: TestClient) -> N
 
 def test_adv_remaining_slot_sec_key_sanitization(client: TestClient) -> None:
     """Kiểm tra phản hồi của POST /api/auth3/guest_qr_current KHÔNG BAO GIỜ chứa remaining_Slot_sec."""
-    from simulator.auth.owner_pin import reset_owner_pin_store_for_tests
-    from simulator.auth.guest_invites import reset_invite_store_for_tests
+    from backend.auth.owner_pin import reset_owner_pin_store_for_tests
+    from backend.auth.guest_invites import reset_invite_store_for_tests
 
     reset_owner_pin_store_for_tests()
     reset_invite_store_for_tests()

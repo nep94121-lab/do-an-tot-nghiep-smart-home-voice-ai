@@ -28,7 +28,7 @@ from tests.voice_policy.run_voice_journeys import verify_vietnamese_only_output
 
 
 def _seed_sessions() -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
-    from simulator.auth.session_store import get_session_store
+    from backend.auth.session_store import get_session_store
 
     store = get_session_store()
     s1 = store.create_session(
@@ -72,14 +72,14 @@ def _seed_sessions() -> tuple[dict[str, str], dict[str, str], dict[str, str], di
 
 
 def _reset_engine_clean() -> Any:
-    from simulator.api import routes_devices
-    from simulator.automation_repo import (
+    from backend.api import routes_devices
+    from backend.automation_repo import (
         reset_custom_commands_scoped,
         reset_links_scoped,
         reset_timers_and_schedules_scoped,
     )
-    from simulator.database_sqlite import open_wal_connection, resolve_sqlite_db_path
-    from simulator.voice.session_voice_command import reset_session_echo_guards
+    from backend.database_sqlite import open_wal_connection, resolve_sqlite_db_path
+    from backend.voice.session_voice_command import reset_session_echo_guards
 
     reset_session_echo_guards()
     engine = routes_devices._REST_ENGINE
@@ -114,7 +114,7 @@ def _assert_vi_reply(data: dict[str, Any], allow_empty: bool = False) -> str:
 
 
 def test_cat1_cat10_greetings_small_talk_and_resume_never_403() -> None:
-    from simulator.server import app
+    from backend.server import app
 
     _reset_engine_clean()
     h1, h1_resume, h2, h3 = _seed_sessions()
@@ -148,7 +148,7 @@ def test_cat1_cat10_greetings_small_talk_and_resume_never_403() -> None:
 
 
 def test_cat2_all_6_devices_act_first_immediately_plus_all_lights_redundant_and_multi() -> None:
-    from simulator.server import app
+    from backend.server import app
 
     engine = _reset_engine_clean()
     h1, _, _, _ = _seed_sessions()
@@ -207,7 +207,7 @@ def test_cat2_all_6_devices_act_first_immediately_plus_all_lights_redundant_and_
 
 
 def test_cat3_sensor_and_device_status_queries_immediate() -> None:
-    from simulator.server import app
+    from backend.server import app
 
     engine = _reset_engine_clean()
     asyncio.run(engine.update_sensor_telemetry(temp_c=29.4, humidity_pct=68.0))
@@ -241,8 +241,8 @@ def test_cat3_sensor_and_device_status_queries_immediate() -> None:
 
 
 def test_cat4_custom_command_crud_with_confirmation() -> None:
-    from simulator.automation_repo import list_custom_commands
-    from simulator.server import app
+    from backend.automation_repo import list_custom_commands
+    from backend.server import app
 
     engine = _reset_engine_clean()
     asyncio.run(engine.execute_device_action("living_room_light", "turn_on", bypass_rbac=True))
@@ -287,8 +287,8 @@ def test_cat4_custom_command_crud_with_confirmation() -> None:
 
 
 def test_cat5_schedules_and_short_timer_actually_fires() -> None:
-    from simulator.automation_repo import list_schedules
-    from simulator.server import app
+    from backend.automation_repo import list_schedules
+    from backend.server import app
 
     engine = _reset_engine_clean()
     h1, _, _, _ = _seed_sessions()
@@ -331,8 +331,8 @@ def test_cat5_schedules_and_short_timer_actually_fires() -> None:
 
 
 def test_cat6_all_three_cross_connected_rules_actually_trigger() -> None:
-    from simulator.automation_repo import list_automation_rules
-    from simulator.server import app
+    from backend.automation_repo import list_automation_rules
+    from backend.server import app
 
     engine = _reset_engine_clean()
     h1, _, _, _ = _seed_sessions()
@@ -381,7 +381,7 @@ def test_cat6_all_three_cross_connected_rules_actually_trigger() -> None:
 
 
 def test_cat7_reset_devices_rules_and_factory_reset_with_confirmation() -> None:
-    from simulator.server import app
+    from backend.server import app
 
     engine = _reset_engine_clean()
     asyncio.run(engine.execute_device_action("main_door", "open", bypass_rbac=True))
@@ -414,9 +414,9 @@ def test_cat7_reset_devices_rules_and_factory_reset_with_confirmation() -> None:
 
 
 def test_cat8_confirmation_variants_timeout_unrelated_and_interruption() -> None:
-    from simulator.automation_repo import list_pending_timers
-    from simulator.database_sqlite import open_wal_connection, resolve_sqlite_db_path
-    from simulator.server import app
+    from backend.automation_repo import list_pending_timers
+    from backend.database_sqlite import open_wal_connection, resolve_sqlite_db_path
+    from backend.server import app
 
     engine = _reset_engine_clean()
     h1, _, _, _ = _seed_sessions()
@@ -466,7 +466,7 @@ def test_cat8_confirmation_variants_timeout_unrelated_and_interruption() -> None
 
 
 def test_cat9_unknown_ambiguous_foreign_zero_false_actions_and_rbac() -> None:
-    from simulator.server import app
+    from backend.server import app
 
     engine = _reset_engine_clean()
     h1, _, h2, h3 = _seed_sessions()
@@ -527,7 +527,7 @@ def test_cat9_unknown_ambiguous_foreign_zero_false_actions_and_rbac() -> None:
 
 def test_local_whisper_stt_rejects_pure_white_noise_fast() -> None:
     """Pure stationary white noise must be rejected by _analyze_and_preprocess_audio without false actions."""
-    from simulator.voice.vietnamese_stt import transcribe_vietnamese_pcm16k
+    from backend.voice.vietnamese_stt import transcribe_vietnamese_pcm16k
 
     noise = synth_pure_white_noise(duration_sec=1.8, seed=777)
     res = transcribe_vietnamese_pcm16k(noise, sr=16000)
@@ -538,13 +538,13 @@ def test_local_whisper_stt_rejects_pure_white_noise_fast() -> None:
 
 def test_round2_nlu_echo_guard_and_3d_pin_contrast_fixes() -> None:
     """Verify round-2 NLU normalizations, echo guard J03_07 fix, unsupported device guards, and 3D pin CSS."""
-    from simulator.automation_nlu import (
+    from backend.automation_nlu import (
         _normalize_vi_spoken_numbers,
         _parse_custom_command_create_or_edit,
         _parse_sensor_trigger,
     )
-    from simulator.live.echo_and_speech_guard import ServerEchoGuard
-    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from backend.live.echo_and_speech_guard import ServerEchoGuard
+    from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
 
     # 1. Echo guard J03_07: redundant command after 'đang bật rồi.' must NOT be echo-suppressed
     eg = ServerEchoGuard()
@@ -583,7 +583,7 @@ def test_round2_nlu_echo_guard_and_3d_pin_contrast_fixes() -> None:
     # 5. 3D pin high-contrast CSS rule prevents washout of 'Cửa chính (D1): OPEN'
     import pathlib as _pl
 
-    css_path = _pl.Path(__file__).resolve().parents[2] / "simulator" / "static" / "css" / "style.css"
+    css_path = _pl.Path(__file__).resolve().parents[2] / "web" / "css" / "style.css"
     css_txt = css_path.read_text(encoding="utf-8")
     assert ".pin-3d.on .pin-state" in css_txt
     assert "#075985" in css_txt
@@ -593,7 +593,7 @@ def test_round2_nlu_echo_guard_and_3d_pin_contrast_fixes() -> None:
 def test_round2_gemini_stt_cooldown_and_mock_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify Gemini STT 429 cooldown logic, garbage rejection, and noise gate without live API calls."""
     import numpy as np
-    from simulator.voice import gemini_stt
+    from backend.voice import gemini_stt
 
     # Reset cooldown state cleanly
     gemini_stt._MODEL_COOLDOWN_UNTIL.clear()
@@ -651,9 +651,9 @@ def test_round2_gemini_stt_cooldown_and_mock_pipeline(monkeypatch: pytest.Monkey
 
 def test_round3_offline_nlu_and_policy_regressions() -> None:
     """Round 3 regressions: zero false actions on bare/unsupported nouns, echo clarification, ASR NLU slips."""
-    from simulator.live.echo_and_speech_guard import ServerEchoGuard
-    from simulator.server import app
-    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+    from backend.live.echo_and_speech_guard import ServerEchoGuard
+    from backend.server import app
+    from backend.voice.vietnamese_stt import _classify_offline_transcript_kind
 
     engine = _reset_engine_clean()
     h1, _, h2, _ = _seed_sessions()
@@ -731,7 +731,7 @@ def test_round3_offline_nlu_and_policy_regressions() -> None:
         client.post("/api/voice_command", headers=h1, json={"transcript": "hủy"})
 
         # 10. Multi-clause without comma resolves all 3 devices cleanly
-        from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+        from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
 
         m3 = parse_direct_device_intents_vi("tắt đèn phòng khách tắt đèn phòng ngủ và tắt nguồn mạch loa")
         assert {it["device_id"] for it in m3} == {"living_room_light", "bedroom_light", "speaker_amp"}
@@ -745,7 +745,7 @@ def test_round3_offline_nlu_and_policy_regressions() -> None:
 def test_round3_quota_aware_cascade_local_vs_gemini_escalation(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify quota-aware cascade keeps high-confidence local clips off Gemini and escalates uncertain clips."""
     import numpy as np
-    from simulator.voice import gemini_stt
+    from backend.voice import gemini_stt
 
     t = np.linspace(0.0, 1.2, 19200, endpoint=False, dtype=np.float32)
     speech_like = 0.35 * np.sin(2.0 * np.pi * 180.0 * t) * (0.5 + 0.5 * np.sin(2.0 * np.pi * 4.0 * t))
@@ -788,9 +788,9 @@ def test_round3_quota_aware_cascade_local_vs_gemini_escalation(monkeypatch: pyte
 
 def test_round3_adversarial_role3_hardening() -> None:
     """Verify Role 3 adversarial findings: extra unsupported appliances, negated commands, đúng/đừng collision, bare normalization."""
-    from simulator.automation_nlu import parse_single_device_and_action
-    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
-    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+    from backend.automation_nlu import parse_single_device_and_action
+    from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from backend.voice.vietnamese_stt import _classify_offline_transcript_kind
 
     # 1. Unsupported appliances sharing cửa / đèn / loa / bơm tokens -> 0 direct actions AND (None, None) in automation NLU
     for bad in (
@@ -819,8 +819,8 @@ def test_round3_adversarial_role3_hardening() -> None:
 def test_round4_acoustic_length_and_cascade_disagreement_zero_false_actions(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify Round 4 cross-engine & acoustic-length safety guards eliminate all 7 false-action modes."""
     import numpy as np
-    from simulator.voice import gemini_stt
-    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from backend.voice import gemini_stt
+    from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
 
     pcm = np.zeros(16000, dtype=np.int16)
 
@@ -921,9 +921,9 @@ def test_round4_acoustic_length_and_cascade_disagreement_zero_false_actions(monk
 
 def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
     """Verify NLU prefix/clause integrity, dem/đêm fix, conditional escalation, expanded negations, and noisy small talk."""
-    from simulator.server import app
-    from simulator.voice.vietnamese_policy import classify_small_talk_vi, parse_direct_device_intents_vi
-    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+    from backend.server import app
+    from backend.voice.vietnamese_policy import classify_small_talk_vi, parse_direct_device_intents_vi
+    from backend.voice.vietnamese_stt import _classify_offline_transcript_kind
     from tests.voice_policy.journey_suite import JourneyStep
     from tests.voice_policy.run_voice_journeys import _evaluate_response
 
@@ -1008,7 +1008,7 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
     #    bare-noun expansion under SNR10 and 2-word uncorroborated hallucination must be blocked,
     #    and 'bật ngùng mặt loa' must resolve to speaker_amp:turn_on without 'ngừng' OFF collision.
     import numpy as np
-    from simulator.voice import gemini_stt
+    from backend.voice import gemini_stt
 
     assert not gemini_stt._local_corroborates_all_device_groups(
         "nguồn không là là",
@@ -1057,9 +1057,9 @@ def test_round4_nlu_prefix_integrity_negations_and_small_talk_safety() -> None:
 
 def test_round5_diacritic_near_miss_no_silent_timer_defaults_and_hard_utterances() -> None:
     """Round 5 safety regressions: wrong-diacritic near-misses clarify without acting, missing-device timers ask instead of defaulting, member link permission keeps confirmation, and hard utterances pass."""
-    from simulator.automation_repo import list_pending_timers, list_schedules
-    from simulator.server import app
-    from simulator.voice.vietnamese_policy import (
+    from backend.automation_repo import list_pending_timers, list_schedules
+    from backend.server import app
+    from backend.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
         parse_direct_device_intents_vi,
     )
@@ -1153,8 +1153,8 @@ def test_round5_diacritic_near_miss_no_silent_timer_defaults_and_hard_utterances
         assert len(list_pending_timers()) == 0
 
         # 3. KEEP: set_member_link_permission still requires confirmation
-        from simulator.auth_3layer import get_auth_3layer_manager
-        from simulator.automation_repo import can_user_create_links
+        from backend.auth_3layer import get_auth_3layer_manager
+        from backend.automation_repo import can_user_create_links
 
         mgr = get_auth_3layer_manager()
         added_qa_member = False
@@ -1240,11 +1240,11 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
     (c) T063 'đi à' ASR mishearing of 'đi ạ' without relaxing rhetorical questions.
     (d) T105 multi-device imperative echo guard without breaking real echo suppression.
     """
-    from simulator.automation_nlu import parse_multi_steps_from_text
-    from simulator.automation_repo import list_custom_commands
-    from simulator.live.echo_and_speech_guard import ServerEchoGuard
-    from simulator.server import app
-    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from backend.automation_nlu import parse_multi_steps_from_text
+    from backend.automation_repo import list_custom_commands
+    from backend.live.echo_and_speech_guard import ServerEchoGuard
+    from backend.server import app
+    from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
 
     # --- (b) T047 stutter without ellipsis ---
     assert parse_direct_device_intents_vi("tắt đèn phòng à phòng ngủ nhé") == [
@@ -1440,18 +1440,18 @@ def test_round7_sensor_custom_commands_stutter_di_a_and_echo_guard() -> None:
 
 def test_round7_ctc_bare_noun_tail_guard_and_den_tone_verification() -> None:
     """Round 7 STT safety regressions: bare noun with trailing CTC repetition never triggers an action (F77), and 'đen' vs 'đèn' CTC tone verification preserves 'đen' (T158)."""
-    from simulator.voice.chunkformer_ctc import rescore_closed_command_ctc
-    from simulator.voice.vietnamese_stt import _classify_offline_transcript_kind
+    from backend.voice.chunkformer_ctc import rescore_closed_command_ctc
+    from backend.voice.vietnamese_stt import _classify_offline_transcript_kind
 
     # Bare noun with trailing repetition ('đèn phòng khách phòng') must never trigger Case A spoken-verb override
     import torch
-    import simulator.voice.chunkformer_ctc as cf_mod
+    import backend.voice.chunkformer_ctc as cf_mod
 
     # Synthetic unit check of Case A leading-token invariant even without loading heavy model weights
     import numpy as np
 
     assert _classify_offline_transcript_kind("tắt đen phòng khách")[0] == "unrecognized"
-    from simulator.voice.gemini_stt import _should_escalate_offline_to_gemini
+    from backend.voice.gemini_stt import _should_escalate_offline_to_gemini
 
     need_esc, esc_reason = _should_escalate_offline_to_gemini(
         {"ok": True, "text": "tắt đen phòng khách", "stt_engine": "zipformer_70m+ctc_den_tone"},
@@ -1466,7 +1466,7 @@ def test_round7_ctc_bare_noun_tail_guard_and_den_tone_verification() -> None:
 
     # Severe-noise CTC polarity confirmation margin: reject coin-flip off/on claims when min_confirm_margin=1.0
     from unittest.mock import patch
-    from simulator.voice.chunkformer_ctc import verify_command_polarity_ctc
+    from backend.voice.chunkformer_ctc import verify_command_polarity_ctc
 
     fake_tok2id = {
         "\u2581bật": 1,
@@ -1521,9 +1521,9 @@ def test_round8_general_nlu_goals_1_to_7_and_thresholds() -> None:
     """Round 8 generic regressions: bare-light clarification (accented + unaccented), unlisted rooms,
     per-rule numeric thresholds (no hardcoded 35C/40%), clause decomposition, generic hesitation/deferral/exclusion,
     sound query without literal KY-037, conditional rule precedence over custom command, and reset phrasing."""
-    from simulator.automation_repo import list_automation_rules
-    from simulator.server import app
-    from simulator.voice.vietnamese_policy import (
+    from backend.automation_repo import list_automation_rules
+    from backend.server import app
+    from backend.voice.vietnamese_policy import (
         classify_ambiguous_or_unsupported_vi,
         classify_small_talk_vi,
         parse_direct_device_intents_vi,
@@ -1665,10 +1665,10 @@ def test_round8_remediation1_general_structural_safety_and_nlu() -> None:
     wrong-diacritic & imperative precedence over sensor_query, benign save/status vs reset,
     query_members & macro-creation guards, generalized direct/context/unaccented/unlisted-room parsing,
     broadened confirmation/cancellation, and weekday-range schedules + sound rules + all-device status."""
-    from simulator.automation_engine import parse_weekdays_vi
-    from simulator.automation_nlu import _classify_confirmation_utterance
-    from simulator.server import app
-    from simulator.voice.vietnamese_policy import parse_direct_device_intents_vi
+    from backend.automation_engine import parse_weekdays_vi
+    from backend.automation_nlu import _classify_confirmation_utterance
+    from backend.server import app
+    from backend.voice.vietnamese_policy import parse_direct_device_intents_vi
 
     # 1. Weekday ranges (digits & spoken Vietnamese)
     assert parse_weekdays_vi("lịch từ thứ 2 đến thứ 6") == [0, 1, 2, 3, 4]

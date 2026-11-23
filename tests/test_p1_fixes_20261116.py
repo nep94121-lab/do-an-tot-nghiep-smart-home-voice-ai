@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.api.deps import _BOOT_VOICE_AUTH, _REST_ENGINE
-from simulator.automation_repo import (
+from backend.api.deps import _BOOT_VOICE_AUTH, _REST_ENGINE
+from backend.automation_repo import (
     can_user_create_links,
     list_automation_rules,
     list_custom_commands,
@@ -21,8 +21,8 @@ from simulator.automation_repo import (
     reset_timers_and_schedules_scoped,
     set_user_can_create_links,
 )
-from simulator.db_migrations import open_wal_connection, resolve_sqlite_db_path
-from simulator.server import app
+from backend.db_migrations import open_wal_connection, resolve_sqlite_db_path
+from backend.server import app
 
 H_TIER1 = {"X-Session-Token": "sess_owner_t1_nep94121"}
 H_TIER2 = {"X-Session-Token": "sess_family_t2_member_a"}
@@ -246,11 +246,11 @@ class TestF02WsAndSsePoolIsolation:
     def test_ws_emit_and_broadcast_isolation_and_revocation(self) -> None:
         import asyncio
         import json as _json
-        from simulator.api import deps
-        from simulator.auth.session_store import UserSession
-        from simulator.auth.tier_permissions import restrict_guest_snapshot
-        from simulator.live.gemini_bridge import LiveBridgeSession
-        from simulator.realtime_hub import RealtimePushHub
+        from backend.api import deps
+        from backend.auth.session_store import UserSession
+        from backend.auth.tier_permissions import restrict_guest_snapshot
+        from backend.live.gemini_bridge import LiveBridgeSession
+        from backend.realtime_hub import RealtimePushHub
 
         class _Sink:
             def __init__(self) -> None:
@@ -364,12 +364,12 @@ class TestF02WsAndSsePoolIsolation:
 
     def test_scene_executed_owner_scope_executor_separation_and_deny_by_default(self) -> None:
         import json as _json
-        from simulator import automation_repo as repo
-        from simulator.api import deps
-        from simulator.auth.session_store import get_session_store
-        from simulator.auth.tier_permissions import filter_ws_event_for_session
-        from simulator.live.gemini_bridge import LiveBridgeSession
-        from simulator.realtime_hub import RealtimePushHub
+        from backend import automation_repo as repo
+        from backend.api import deps
+        from backend.auth.session_store import get_session_store
+        from backend.auth.tier_permissions import filter_ws_event_for_session
+        from backend.live.gemini_bridge import LiveBridgeSession
+        from backend.realtime_hub import RealtimePushHub
 
         class _Sink:
             def __init__(self) -> None:
@@ -516,10 +516,10 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import secrets
         import subprocess
         import sys
-        from simulator.auth.guest_invites import create_invite
-        from simulator.auth.owner_pin import issue_reset_otp, reset_pin_with_otp
-        from simulator.auth.session_store import get_session_store
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth.guest_invites import create_invite
+        from backend.auth.owner_pin import issue_reset_otp, reset_pin_with_otp
+        from backend.auth.session_store import get_session_store
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         repo_root = pathlib.Path(__file__).resolve().parent.parent
         data_dir = tmp_path / "f03_mp_data"
@@ -545,7 +545,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
             invite = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
             qr_script = (
                 "import os, sys; "
-                "from simulator.auth.guest_invites import redeem_token; "
+                "from backend.auth.guest_invites import redeem_token; "
                 "r = redeem_token(sys.argv[1]); "
                 "print('OK' if r.get('ok') else r.get('reason', 'FAIL'))"
             )
@@ -590,7 +590,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
 
             otp_script = (
                 "import sys; "
-                "from simulator.auth_3layer import ThreeLayerAuthManager; "
+                "from backend.auth_3layer import ThreeLayerAuthManager; "
                 "r = ThreeLayerAuthManager().layer2_verify_otp(sys.argv[1], sys.argv[2], expected_purpose='layer2_login'); "
                 "print('OK' if r.get('ok') else 'REJECT')"
             )
@@ -632,7 +632,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
 
             fp_script = (
                 "import sys; "
-                "from simulator.auth_3layer import ThreeLayerAuthManager; "
+                "from backend.auth_3layer import ThreeLayerAuthManager; "
                 "r = ThreeLayerAuthManager().reset_password_with_otp(email=sys.argv[1], otp_code=sys.argv[2], new_password='NewStrong#Pass2026', confirm_password='NewStrong#Pass2026'); "
                 "print('OK' if r.get('ok') else 'REJECT')"
             )
@@ -661,7 +661,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
             assert issued_meta.get("ok") is True and len(pin_otp) == 6
             pin_script = (
                 "import sys; "
-                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "from backend.auth.owner_pin import reset_pin_with_otp; "
                 "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
                 "print('OK' if r.get('ok') else 'REJECT')"
             )
@@ -700,15 +700,15 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import sys
         import time
         from unittest.mock import patch
-        from simulator.auth.guest_invites import _claim_invite_redemption, create_invite
-        from simulator.auth.session_store import get_session_store
-        from simulator.auth.sqlite_security_repo import (
+        from backend.auth.guest_invites import _claim_invite_redemption, create_invite
+        from backend.auth.session_store import get_session_store
+        from backend.auth.sqlite_security_repo import (
             load_accounts_sqlite,
             load_invites_sqlite,
             save_accounts_sqlite,
             save_invites_sqlite,
         )
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         repo_root = pathlib.Path(__file__).resolve().parent.parent
         data_dir = tmp_path / "f03_stale_data"
@@ -746,7 +746,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
             "            raise TimeoutError('barrier timeout')\n"
             "        time.sleep(0.01)\n"
             "if kind == 'qr':\n"
-            "    from simulator.auth import guest_invites as g\n"
+            "    from backend.auth import guest_invites as g\n"
             "    orig = g._save\n"
             "    def wrapped(d):\n"
             "        gate()\n"
@@ -754,7 +754,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
             "    with patch.object(g, '_save', side_effect=wrapped):\n"
             "        res = g.create_invite(owner_user_id='tuan_anh', tier=3, duration_code='1d')\n"
             "else:\n"
-            "    from simulator.auth_3layer import ThreeLayerAuthManager\n"
+            "    from backend.auth_3layer import ThreeLayerAuthManager\n"
             "    mgr = ThreeLayerAuthManager()\n"
             "    t2 = next(a for a in mgr.accounts if int(a.get('tier', 3)) == 2)\n"
             "    orig = mgr._save_accounts\n"
@@ -893,8 +893,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
     @pytest.fixture
     def sqlite_auth_manager(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
         import secrets
-        from simulator.auth.session_store import get_session_store
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth.session_store import get_session_store
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         data_dir = tmp_path / "f03_transition_data"
         data_dir.mkdir()
@@ -914,7 +914,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
 
     def test_multiple_account_saves_in_one_transition_preserve_both_updates(self, sqlite_auth_manager) -> None:
         import json
-        from simulator.auth.sqlite_security_repo import load_accounts_sqlite
+        from backend.auth.sqlite_security_repo import load_accounts_sqlite
 
         manager, data_dir = sqlite_auth_manager
         ids = [account["account_id"] for account in manager.accounts[:2]]
@@ -935,9 +935,9 @@ class TestF03AtomicQrAndOtpMultiprocess:
     def test_owner_pin_stale_snapshot_cannot_restore_old_otp_after_new_issue(self, sqlite_auth_manager) -> None:
         import time
         from unittest.mock import patch
-        from simulator.auth import owner_pin
-        from simulator.auth.security_state import StateConflict
-        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+        from backend.auth import owner_pin
+        from backend.auth.security_state import StateConflict
+        from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
 
         _, data_dir = sqlite_auth_manager
         issued, previous_code = owner_pin.issue_reset_otp()
@@ -946,8 +946,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         assert stale_payload is not None
         assert owner_pin.reset_pin_with_otp(previous_code, "4829", "4829").get("ok") is True
         later = time.time() + 61
-        with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
-            "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
+        with patch("backend.auth.owner_pin.time.time", return_value=later), patch(
+            "backend.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
         ):
             issued_again, next_code = owner_pin.issue_reset_otp()
             assert issued_again.get("ok") is True
@@ -960,7 +960,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import secrets
         import time
         from unittest.mock import patch
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         manager, _ = sqlite_auth_manager
         account = next(account for account in manager.accounts if int(account.get("tier", 3)) == 1)
@@ -986,7 +986,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
         assert manager._save_accounts() is True
         stale_writer = ThreeLayerAuthManager()
 
-        with patch("simulator.auth_3layer.random.randint", return_value=int(next_code)), patch.object(manager, "_log_event"):
+        with patch("backend.auth_3layer.random.randint", return_value=int(next_code)), patch.object(manager, "_log_event"):
             assert manager.request_password_reset_otp(email, send_gmail=False).get("ok") is True
             assert manager.layer2_verify_otp(
                 email, next_code, expected_purpose="forgot_password", consume_on_success=True
@@ -1006,8 +1006,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import sqlite3
         import time
         from unittest.mock import patch
-        from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         manager, data_dir = sqlite_auth_manager
         stale_payload = json.loads(load_accounts_sqlite(data_dir))
@@ -1055,7 +1055,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import secrets
         import time
         from unittest.mock import patch
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         manager, _ = sqlite_auth_manager
         account = next(account for account in manager.accounts if int(account.get("tier", 3)) == 1)
@@ -1081,7 +1081,7 @@ class TestF03AtomicQrAndOtpMultiprocess:
         assert manager._save_accounts() is True
         stale_writer = ThreeLayerAuthManager()
 
-        with patch("simulator.auth_3layer.random.randint", return_value=int(next_code)), patch.object(
+        with patch("backend.auth_3layer.random.randint", return_value=int(next_code)), patch.object(
             manager, "send_real_gmail_otp", return_value={"sent_real_gmail": True}
         ):
             assert manager.send_layer2_login_otp(email).get("ok") is True
@@ -1100,8 +1100,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import sqlite3
         import time
         from unittest.mock import patch
-        from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
-        from simulator.auth_3layer import ThreeLayerAuthManager
+        from backend.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+        from backend.auth_3layer import ThreeLayerAuthManager
 
         manager, data_dir = sqlite_auth_manager
         stale_payload = json.loads(load_accounts_sqlite(data_dir))
@@ -1145,8 +1145,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
             assert verify_res.get("ok") is False
 
     def test_qr_already_redeemed_stale_snapshot_lower_redeem_count_rejected(self, sqlite_auth_manager) -> None:
-        from simulator.auth.guest_invites import create_invite, redeem_token
-        from simulator.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
+        from backend.auth.guest_invites import create_invite, redeem_token
+        from backend.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
 
         _, data_dir = sqlite_auth_manager
         invite = create_invite(owner_user_id="tuan_anh", tier=3, duration_code="1d")
@@ -1168,8 +1168,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import json
         import time
         from unittest.mock import patch
-        from simulator.auth import owner_pin
-        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+        from backend.auth import owner_pin
+        from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
 
         _, data_dir = sqlite_auth_manager
         issued, previous_code = owner_pin.issue_reset_otp()
@@ -1183,8 +1183,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         assert first_consume.get("ok") is True
 
         later = time.time() + 61
-        with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
-            "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
+        with patch("backend.auth.owner_pin.time.time", return_value=later), patch(
+            "backend.auth.owner_pin.secrets.randbelow", return_value=(int(previous_code) + 1) % 1_000_000
         ):
             issued_again, next_code = owner_pin.issue_reset_otp()
             assert issued_again.get("ok") is True
@@ -1202,8 +1202,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
         self, sqlite_auth_manager
     ) -> None:
         import json
-        from simulator.auth import owner_pin
-        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+        from backend.auth import owner_pin
+        from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
 
         _, data_dir = sqlite_auth_manager
         issued, code = owner_pin.issue_reset_otp()
@@ -1233,9 +1233,9 @@ class TestF03AtomicQrAndOtpMultiprocess:
         import sys
         import time
         from unittest.mock import patch
-        from simulator.auth import owner_pin
-        from simulator.auth.session_store import get_session_store
-        from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+        from backend.auth import owner_pin
+        from backend.auth.session_store import get_session_store
+        from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
 
         repo_root = pathlib.Path(__file__).resolve().parent.parent
         data_dir = tmp_path / "f03_pin_race_data"
@@ -1272,8 +1272,8 @@ class TestF03AtomicQrAndOtpMultiprocess:
 
             # 4. 61s later, issue OTP B
             later = time.time() + 61
-            with patch("simulator.auth.owner_pin.time.time", return_value=later), patch(
-                "simulator.auth.owner_pin.secrets.randbelow", return_value=(int(code_a) + 1) % 1_000_000
+            with patch("backend.auth.owner_pin.time.time", return_value=later), patch(
+                "backend.auth.owner_pin.secrets.randbelow", return_value=(int(code_a) + 1) % 1_000_000
             ):
                 issued2, code_b = owner_pin.issue_reset_otp()
                 assert issued2.get("ok") is True
@@ -1281,19 +1281,19 @@ class TestF03AtomicQrAndOtpMultiprocess:
             # 5. Multiprocess: Process 1 tries to write legacy snapshot, while Process 2 and 3 race to consume OTP B
             writer_script = (
                 "import sys; "
-                "from simulator.auth.sqlite_security_repo import save_owner_pin_sqlite; "
+                "from backend.auth.sqlite_security_repo import save_owner_pin_sqlite; "
                 "save_owner_pin_sqlite(sys.argv[1].encode('utf-8'), None); "
                 "print('WROTE')"
             )
             consumer_script = (
                 "import sys; "
-                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "from backend.auth.owner_pin import reset_pin_with_otp; "
                 "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
                 "print('OK' if r.get('ok') else 'REJECT')"
             )
             replay_script = (
                 "import sys; "
-                "from simulator.auth.owner_pin import reset_pin_with_otp; "
+                "from backend.auth.owner_pin import reset_pin_with_otp; "
                 "r = reset_pin_with_otp(sys.argv[1], '4829', '4829'); "
                 "print('REPLAY_OK' if r.get('ok') else 'REPLAY_REJECT')"
             )
@@ -1342,7 +1342,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
 
     def test_patch_once_schedule_recomputed_date_conflict_returns_409(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import datetime
-        from simulator import automation_repo as repo
+        from backend import automation_repo as repo
 
         fixed_now = datetime.datetime(2026, 11, 16, 12, 0, tzinfo=repo.SAIGON_TZ)
         monkeypatch.setattr(repo, "now_saigon", lambda: fixed_now)
@@ -1392,7 +1392,7 @@ class TestF04PatchScheduleAndTimerTier1Conflict:
 
     def test_update_or_cancel_timer_conflict_preserves_existing_timer(self) -> None:
         import asyncio
-        from simulator.automation_repo import ScheduleConflictError
+        from backend.automation_repo import ScheduleConflictError
 
         async def _check() -> None:
             _REST_ENGINE.set_active_user("tuan_anh")
@@ -1422,9 +1422,9 @@ class TestF05LosslessMigrationAndFailLoudly:
     def test_lossless_automation_migration_idempotent_and_corrupt_source_raises(self, tmp_path: pathlib.Path) -> None:
         import sqlite3
         from scripts.migrate_to_sqlite import MigrationDataLossError, migrate_all
-        from simulator.automation_repo import create_automation_rule, create_schedule, set_user_can_create_links, upsert_custom_command, upsert_timer_row
-        from simulator.database_sqlite import init_sqlite_database
-        from simulator.db_migrations import _migrate_custom_commands_per_owner, apply_schema_migrations, open_wal_connection
+        from backend.automation_repo import create_automation_rule, create_schedule, set_user_can_create_links, upsert_custom_command, upsert_timer_row
+        from backend.database_sqlite import init_sqlite_database
+        from backend.db_migrations import _migrate_custom_commands_per_owner, apply_schema_migrations, open_wal_connection
 
         src_dir = tmp_path / "src"
         tgt_dir = tmp_path / "tgt"
@@ -1539,7 +1539,7 @@ class TestF06HttpAudioNoWeSpeaker:
         import array
         import base64
         import math
-        from simulator.voice import stt_pipeline as stt
+        from backend.voice import stt_pipeline as stt
 
         called = {"n": 0}
 

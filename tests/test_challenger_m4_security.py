@@ -30,8 +30,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, _REST_ENGINE, app
 
 
 @pytest.fixture(autouse=True)
@@ -197,7 +197,7 @@ class TestTargetWindowFuzzingAdversarial:
         assert gone_hs.status_code == 410
         assert gone_hs.json().get("gone") is True
 
-        from simulator.auth.guest_invites import create_invite
+        from backend.auth.guest_invites import create_invite
 
         inv = create_invite(owner_user_id="tuan_anh", tier=3, ttl_sec=600)
         real_tok = inv["token"]
@@ -417,12 +417,12 @@ class TestStaticResourceServingAndContentTypes:
         6 tệp HTML bắt buộc không chứa bất kỳ thẻ <style> hoặc inline <script> nào (100% bóc tách).
         """
         html_files = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "simulator" / "static" / "guest_enroll.html",
-            ROOT / "simulator" / "static" / "wokwi.html",
-            ROOT / "simulator" / "static" / "logs.html",
-            ROOT / "mobile_app" / "index.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "guest_enroll.html",
+            ROOT / "web" / "wokwi.html",
+            ROOT / "web" / "logs.html",
+            ROOT / "web" / "mobile" / "index.html",
         ]
 
         for file_path in html_files:

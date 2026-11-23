@@ -7,7 +7,7 @@ Verifies:
    - auth_pages.js calls real endpoints (/api/auth3/layer1_login, /api/auth3/register_or_set_password).
    - vercel.json routes /login and /register correctly.
 2. Boundary protection:
-   - Zero modifications to simulator/voice/**, simulator/voice_auth.py, simulator/live/**.
+   - Zero modifications to backend/voice/**, backend/voice_auth.py, backend/live/**.
 3. Secret scanning:
    - Zero hardcoded credentials or API keys.
    - Empty static value="" on password and credential inputs.
@@ -33,24 +33,24 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 CHECKED_FILES = [
-    ROOT / "simulator" / "server.py",
+    ROOT / "backend" / "server.py",
     ROOT / "vercel.json",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
-    ROOT / "simulator" / "static" / "js" / "auth_pages.js",
-    ROOT / "simulator" / "static" / "css" / "style.css",
-    ROOT / "simulator" / "static" / "css" / "guest_enroll.css",
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "mobile_app" / "index.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
+    ROOT / "web" / "js" / "auth_pages.js",
+    ROOT / "web" / "css" / "style.css",
+    ROOT / "web" / "css" / "guest_enroll.css",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "mobile" / "index.html",
 ]
 
 HTML_FILES = [p for p in CHECKED_FILES if p.suffix == ".html"]
@@ -87,21 +87,21 @@ class TestForensicIntegrityM1:
         import ast
 
         required = [
-            ROOT / "simulator" / "voice" / "stt_pipeline.py",
-            ROOT / "simulator" / "live" / "gemini_bridge.py",
-            ROOT / "simulator" / "live" / "tool_dispatcher_mixin.py",
+            ROOT / "backend" / "voice" / "stt_pipeline.py",
+            ROOT / "backend" / "live" / "gemini_bridge.py",
+            ROOT / "backend" / "live" / "tool_dispatcher_mixin.py",
         ]
         for fpath in required:
             assert fpath.exists(), f"Missing required voice/live file: {fpath}"
             src = fpath.read_text(encoding="utf-8")
             ast.parse(src, filename=str(fpath))
-        bridge_src = (ROOT / "simulator" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
+        bridge_src = (ROOT / "backend" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
         assert "verify_pcm16k_and_apply_strikes" not in bridge_src
 
     def test_zero_untracked_files_in_forbidden_paths(self) -> None:
         """Verify no untracked files were added to forbidden paths."""
         res = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard", "simulator/voice/", "simulator/voice_auth.py", "simulator/live/"],
+            ["git", "ls-files", "--others", "--exclude-standard", "backend/voice/", "backend/voice_auth.py", "backend/live/"],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
@@ -111,7 +111,7 @@ class TestForensicIntegrityM1:
 
     def test_no_hardcoded_credentials_in_inputs(self) -> None:
         """Credential input fields must not contain hardcoded values."""
-        for html_path in [ROOT / "simulator" / "static" / "login.html", ROOT / "simulator" / "static" / "register.html"]:
+        for html_path in [ROOT / "web" / "login.html", ROOT / "web" / "register.html"]:
             soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
             inputs = soup.find_all("input")
             for inp in inputs:
@@ -120,7 +120,7 @@ class TestForensicIntegrityM1:
 
     def test_genuine_auth_pages_js_implementation(self) -> None:
         """Verify auth_pages.js has genuine API integrations without mocking/cheating."""
-        js_path = ROOT / "simulator" / "static" / "js" / "auth_pages.js"
+        js_path = ROOT / "web" / "js" / "auth_pages.js"
         assert js_path.exists()
         js_code = js_path.read_text(encoding="utf-8")
 

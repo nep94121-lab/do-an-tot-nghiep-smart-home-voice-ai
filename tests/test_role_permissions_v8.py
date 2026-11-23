@@ -28,15 +28,15 @@ def _sandbox_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _reset_clean_state() -> Any:
-    from simulator.api import routes_devices
-    from simulator.automation_engine import clear_compound_rules_scoped
-    from simulator.automation_repo import (
+    from backend.api import routes_devices
+    from backend.automation_engine import clear_compound_rules_scoped
+    from backend.automation_repo import (
         reset_custom_commands_scoped,
         reset_links_scoped,
         reset_timers_and_schedules_scoped,
     )
-    from simulator.database_sqlite import open_wal_connection, resolve_sqlite_db_path
-    from simulator.voice.session_voice_command import reset_session_echo_guards
+    from backend.database_sqlite import open_wal_connection, resolve_sqlite_db_path
+    from backend.voice.session_voice_command import reset_session_echo_guards
 
     reset_session_echo_guards()
     engine = routes_devices._REST_ENGINE
@@ -74,7 +74,7 @@ def _assert_vi(data: dict[str, Any]) -> str:
 
 def _make_isolated_sessions() -> dict[str, Any]:
     """Create isolated throwaway cap 1 (lowercase, mixed-case, OWNER role), cap 2, and cap 3 sessions."""
-    from simulator.auth.session_store import get_session_store
+    from backend.auth.session_store import get_session_store
 
     store = get_session_store()
     tag = secrets.token_hex(4)
@@ -133,7 +133,7 @@ def _make_isolated_sessions() -> dict[str, Any]:
 
 def test_cap1_zero_wrong_denials_rest_text_voice_and_poisoned_singleton() -> None:
     """Any authenticated cap 1 account has full permission on all 7 flows even if singleton engine had a revoked user."""
-    from simulator.server import app
+    from backend.server import app
 
     engine = _reset_clean_state()
     sessions = _make_isolated_sessions()
@@ -244,8 +244,8 @@ def test_cap1_zero_wrong_denials_rest_text_voice_and_poisoned_singleton() -> Non
 
 def test_cap1_live_bridge_mixed_case_owner_role_and_expired_ws_ticket() -> None:
     """LiveBridgeSession must bind mixed-case & OWNER-role cap 1 cleanly and retain auth after 60s WS ticket expiry."""
-    from simulator.live.gemini_bridge import LiveBridgeSession
-    from simulator.realtime_hub import mint_realtime_ticket
+    from backend.live.gemini_bridge import LiveBridgeSession
+    from backend.realtime_hub import mint_realtime_ticket
 
     _reset_clean_state()
     sessions = _make_isolated_sessions()
@@ -317,8 +317,8 @@ def test_cap1_live_bridge_mixed_case_owner_role_and_expired_ws_ticket() -> None:
 
 def test_cap2_and_cap3_zero_wrong_grants_and_exact_vietnamese_policy() -> None:
     """Verify exact allow/deny matrix for cap 2 and cap 3 across REST, text, voice, and Live tools."""
-    from simulator.live.gemini_bridge import LiveBridgeSession
-    from simulator.server import app
+    from backend.live.gemini_bridge import LiveBridgeSession
+    from backend.server import app
 
     engine = _reset_clean_state()
     sessions = _make_isolated_sessions()

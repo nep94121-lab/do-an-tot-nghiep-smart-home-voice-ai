@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 import subprocess
 import pytest
 from httpx import AsyncClient, ASGITransport
-from simulator.server import app
+from backend.server import app
 
 SAMPLE_SQL_QUERIES = [
     ("audit_logs", "SELECT log_id, time_vn, category, event_type, user_name, summary FROM audit_logs ORDER BY log_id DESC LIMIT 12"),
@@ -56,7 +56,7 @@ def test_logs_filter_pills_and_debounce_node_vm():
 const fs = require('fs');
 const vm = require('vm');
 
-const jsCode = fs.readFileSync('simulator/static/js/logs.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/logs.js', 'utf8');
 
 class MockElement {
   constructor(tag, id = '', attrs = {}) {
@@ -241,7 +241,7 @@ def test_first_page_voice_modal_and_record_button_node_vm():
 const fs = require('fs');
 const vm = require('vm');
 
-const jsCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/app.js', 'utf8');
 
 class MockElement {
   constructor(tag, id = '') {

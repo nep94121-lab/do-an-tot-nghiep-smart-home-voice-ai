@@ -20,15 +20,15 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.auth_3layer as auth3_mod
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth.guest_invites import create_invite, get_invite
-from simulator.auth_3layer import (
+import backend.auth_3layer as auth3_mod
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth.guest_invites import create_invite, get_invite
+from backend.auth_3layer import (
     LEGACY_DEFAULT_PASSWORD_ERROR,
     _LEGACY_DEFAULT_HASHES,
     get_auth_3layer_manager,
 )
-from simulator.server import app
+from backend.server import app
 
 
 @pytest.fixture
@@ -147,7 +147,7 @@ class TestBug1SingleUseGuestInvite:
         node_script = """
 const fs = require('fs');
 const vm = require('vm');
-const qrJs = fs.readFileSync('simulator/static/js/qr_expired.js', 'utf8');
+const qrJs = fs.readFileSync('web/js/qr_expired.js', 'utf8');
 
 function runQrJs(searchStr) {
   const elems = {
@@ -176,7 +176,7 @@ if (expRes.h1 !== 'Mã QR đã hết hạn') {
   process.exit(1);
 }
 
-const guestJs = fs.readFileSync('simulator/static/js/guest_control.js', 'utf8');
+const guestJs = fs.readFileSync('web/js/guest_control.js', 'utf8');
 let replacedUrl = '';
 const stubEl = () => ({ textContent: '', innerHTML: '', hidden: false, style: {}, addEventListener() {}, dataset: {} });
 const gElems = {};
@@ -223,7 +223,7 @@ vm.runInContext(guestJs, gSandbox);
     def test_failed_redeem_session_creation_rolls_back_invite(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from simulator.auth.session_store import get_session_store
+        from backend.auth.session_store import get_session_store
 
         inv = create_invite(owner_user_id="tuan_anh", tier=3, ttl_sec=600)
         token = inv["token"]
@@ -402,7 +402,7 @@ class TestBug3And4OwnerOtpFirstSendAndForgotMessage:
         node_script = """
 const fs = require('fs');
 const vm = require('vm');
-const jsCode = fs.readFileSync('simulator/static/js/auth_pages.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/auth_pages.js', 'utf8');
 
 const elems = {
   loginForm: { style: {}, addEventListener(ev, fn) { if (ev === 'submit') this.onSubmit = fn; } },
@@ -480,8 +480,8 @@ domReadyCb();
         assert "AUTH_PAGES_OTP_FIRST_SEND_OK" in proc.stdout
 
     def test_mobile_and_app_js_no_unmasked_seed_email_or_forced_resend(self) -> None:
-        mobile_js = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
-        app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        mobile_js = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
         assert "if (data.otp_sent === true)" in mobile_js
         assert "if (!data.otp_sent && !data.sent_real_gmail)" in app_js
         assert "maskedEmail" in app_js

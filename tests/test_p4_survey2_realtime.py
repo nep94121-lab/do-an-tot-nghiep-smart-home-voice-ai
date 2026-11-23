@@ -6,7 +6,7 @@ Nhiệm vụ:
 - Bug 10: Toggle device: Optimistic UI trong app.js & mobile_app.js (flip tức thì, cập nhật badge/counter, rollback khi lỗi).
           renderDevices() cập nhật DOM in-place thay vì innerHTML = "".
           getDeviceRoomLabel() hiển thị đầy đủ "Đã bật" / "Đã tắt" không bị cắt/lỗi chính tả.
-- Bug 11: Recording sheet mic waiting state: trong mobile_app/index.html & mobile_app.js, đặt title ban đầu "Đang chờ quyền mic",
+- Bug 11: Recording sheet mic waiting state: trong web/mobile/index.html & mobile_app.js, đặt title ban đầu "Đang chờ quyền mic",
           timer giữ 00:00 và bars đứng yên cho tới khi getUserMedia resolve. Nếu denied/rejected, đóng sheet và hiện #mobileMicPermissionModal.
 - Bug 14: /wokwi label layout & telemetry: loại bỏ đè nhãn giữa DHT11 và Buzzer trong wokwi.html;
           thay thế "Chưa có dữ liệu" bằng live telemetry trong wokwi.html & wokwi.js.
@@ -35,8 +35,8 @@ class TestBug3WebSocketFallbackAndFavicon:
     def test_bug3_app_js_ws_fallback_and_banner_logic(self):
         """app.js phải gọi hideWsReconnectBanner() khi HTTP polling thành công,
         và chỉ gọi showWsReconnectBanner khi polling cũng thất bại."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
-        assert app_js_path.exists(), "Tệp simulator/static/js/app.js không tồn tại!"
+        app_js_path = ROOT / "web" / "js" / "app.js"
+        assert app_js_path.exists(), "Tệp web/js/app.js không tồn tại!"
         content = app_js_path.read_text(encoding="utf-8")
 
         # 1. Trong ws.onclose: khi fetch('/api/state') thành công -> phải gọi hideWsReconnectBanner()
@@ -73,8 +73,8 @@ class TestBug3WebSocketFallbackAndFavicon:
 
     def test_bug3_mobile_app_js_ws_fallback_sync(self):
         """mobile_app.js phải đồng bộ trạng thái kết nối khi fetch /api/state thành công trong ws.onclose."""
-        mobile_js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
-        assert mobile_js_path.exists(), "Tệp simulator/static/js/mobile_app.js không tồn tại!"
+        mobile_js_path = ROOT / "web" / "js" / "mobile_app.js"
+        assert mobile_js_path.exists(), "Tệp web/js/mobile_app.js không tồn tại!"
         content = mobile_js_path.read_text(encoding="utf-8")
 
         # Kiểm tra ws.onclose trong mobile_app.js
@@ -100,8 +100,8 @@ class TestBug3WebSocketFallbackAndFavicon:
         ), "vercel.json chưa cấu hình Edge 308 redirect tới máy chủ LENOVO"
 
     def test_bug3_favicon_ico_exists_on_disk_and_valid(self):
-        """Tệp simulator/static/favicon.ico phải tồn tại thực tế và có định dạng ICO hợp lệ."""
-        favicon_path = ROOT / "simulator" / "static" / "favicon.ico"
+        """Tệp web/favicon.ico phải tồn tại thực tế và có định dạng ICO hợp lệ."""
+        favicon_path = ROOT / "web" / "favicon.ico"
         assert favicon_path.exists(), f"Tệp {favicon_path} không tồn tại trên đĩa!"
         ico_bytes = favicon_path.read_bytes()
         assert len(ico_bytes) > 0, "Tệp favicon.ico rỗng (0 bytes)!"
@@ -119,7 +119,7 @@ class TestBug10OptimisticUIAndDeviceLabels:
     def test_bug10_app_js_optimistic_ui_in_toggleDeviceById(self):
         """toggleDeviceById() trong app.js phải cập nhật giao diện ngay lập tức (optimistic UI),
         sau đó rollback nếu API bị lỗi."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         func_match = re.search(r"function\s+toggleDeviceById\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}", content)
@@ -150,7 +150,7 @@ class TestBug10OptimisticUIAndDeviceLabels:
     def test_bug10_app_js_renderDevices_updates_in_place(self):
         """renderDevices() trong app.js không được dùng devicesGrid.innerHTML = '' vô điều kiện,
         phải cập nhật in-place các thẻ DOM đã có để chống chớp nháy và mất nhãn."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         func_match = re.search(r"function\s+renderDevices\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}", content)
@@ -165,7 +165,7 @@ class TestBug10OptimisticUIAndDeviceLabels:
 
     def test_bug10_app_js_getDeviceRoomLabel_full_text(self):
         """getDeviceRoomLabel() phải trả về phụ đề 'Đã bật' / 'Đã tắt' (thay vì 'Đang bật' dễ bị xén/typo)."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         func_match = re.search(r"function\s+getDeviceRoomLabel\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}", content)
@@ -178,7 +178,7 @@ class TestBug10OptimisticUIAndDeviceLabels:
 
     def test_bug10_mobile_app_js_optimistic_toggle(self):
         """mobile_app.js phải có optimistic UI khi người dùng tương tác với thiết bị."""
-        mobile_js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        mobile_js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = mobile_js_path.read_text(encoding="utf-8")
 
         # Kiểm tra trong hàm renderState hoặc device click handler có cập nhật optimistic class 'on'/'off'
@@ -198,34 +198,34 @@ class TestBug11MobileMicPermissionAndWaitingState:
     """Bug 11: Trạng thái chờ cấp quyền mic trên Mobile PWA, đóng sheet và hiện modal hướng dẫn khi bị từ chối."""
 
     def test_bug11_mobile_html_initial_recording_sheet_state(self):
-        """mobile_app/index.html phải có tiêu đề ban đầu 'Đang chờ quyền mic', timer 00:00."""
-        html_path = ROOT / "mobile_app" / "index.html"
-        assert html_path.exists(), "Tệp mobile_app/index.html không tồn tại!"
+        """web/mobile/index.html phải có tiêu đề ban đầu 'Đang chờ quyền mic', timer 00:00."""
+        html_path = ROOT / "web" / "mobile" / "index.html"
+        assert html_path.exists(), "Tệp web/mobile/index.html không tồn tại!"
         content = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
 
         # 1. Tiêu đề ban đầu của Sheet ghi âm
         title_el = soup.find(id="mobileVoiceSheetTitle")
-        assert title_el is not None, "Thiếu #mobileVoiceSheetTitle trong mobile_app/index.html"
+        assert title_el is not None, "Thiếu #mobileVoiceSheetTitle trong web/mobile/index.html"
         assert title_el.text.strip() == "Đang chờ quyền mic", (
             f"#mobileVoiceSheetTitle có nội dung '{title_el.text.strip()}', mong đợi 'Đang chờ quyền mic'"
         )
 
         # 2. Timer ban đầu
         timer_cur = soup.find(id="mobileVoiceTimerCur")
-        assert timer_cur is not None, "Thiếu #mobileVoiceTimerCur trong mobile_app/index.html"
+        assert timer_cur is not None, "Thiếu #mobileVoiceTimerCur trong web/mobile/index.html"
         assert timer_cur.text.strip() == "00:00", (
             f"#mobileVoiceTimerCur có nội dung '{timer_cur.text.strip()}', mong đợi '00:00'"
         )
 
     def test_bug11_mobile_html_has_mic_permission_modal(self):
-        """mobile_app/index.html phải có hộp thoại #mobileMicPermissionModal tương ứng với desktop."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        """web/mobile/index.html phải có hộp thoại #mobileMicPermissionModal tương ứng với desktop."""
+        html_path = ROOT / "web" / "mobile" / "index.html"
         content = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
 
         modal = soup.find(id="mobileMicPermissionModal")
-        assert modal is not None, "mobile_app/index.html thiếu phần tử #mobileMicPermissionModal!"
+        assert modal is not None, "web/mobile/index.html thiếu phần tử #mobileMicPermissionModal!"
 
         # Kiểm tra tiêu đề modal
         title_el = modal.find(id="mobileMictitle")
@@ -243,7 +243,7 @@ class TestBug11MobileMicPermissionAndWaitingState:
         """mobile_app.js: openVoiceBottomSheet đặt 'Đang chờ quyền mic',
         startVoiceSheetRecording giữ timer và waveform đứng yên cho đến khi getUserMedia resolve.
         Khi bị reject/deny thì đóng sheet và mở #mobileMicPermissionModal."""
-        mobile_js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        mobile_js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = mobile_js_path.read_text(encoding="utf-8")
 
         # 1. openVoiceBottomSheet gán 'Đang chờ quyền mic'
@@ -271,9 +271,9 @@ class TestBug14WokwiLayoutAndTelemetry:
     """Bug 14: Sửa layout nhãn mạch DHT11 vs Buzzer trong /wokwi và hiển thị live telemetry thay vì 'Chưa có dữ liệu'."""
 
     def test_bug14_wokwi_html_no_overlap_between_dht11_and_buzzer(self):
-        """Trong simulator/static/wokwi.html, nhãn DHT11 và Buzzer không được đè lên nhau."""
-        wokwi_html_path = ROOT / "simulator" / "static" / "wokwi.html"
-        assert wokwi_html_path.exists(), "Tệp simulator/static/wokwi.html không tồn tại!"
+        """Trong web/wokwi.html, nhãn DHT11 và Buzzer không được đè lên nhau."""
+        wokwi_html_path = ROOT / "web" / "wokwi.html"
+        assert wokwi_html_path.exists(), "Tệp web/wokwi.html không tồn tại!"
         content = wokwi_html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
 
@@ -314,7 +314,7 @@ class TestBug14WokwiLayoutAndTelemetry:
     def test_bug14_wokwi_html_hoverHoleInfo_has_live_telemetry(self):
         """#hoverHoleInfo trong wokwi.html không được chứa chuỗi 'Chưa có dữ liệu',
         phải hiển thị telemetry mô phỏng."""
-        wokwi_html_path = ROOT / "simulator" / "static" / "wokwi.html"
+        wokwi_html_path = ROOT / "web" / "wokwi.html"
         content = wokwi_html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
 
@@ -330,8 +330,8 @@ class TestBug14WokwiLayoutAndTelemetry:
 
     def test_bug14_wokwi_js_updates_telemetry_in_hoverHoleInfo(self):
         """wokwi.js phải cập nhật dữ liệu telemetry thời gian thực vào #hoverHoleInfo khi syncWokwiComponents chạy."""
-        wokwi_js_path = ROOT / "simulator" / "static" / "js" / "wokwi.js"
-        assert wokwi_js_path.exists(), "Tệp simulator/static/js/wokwi.js không tồn tại!"
+        wokwi_js_path = ROOT / "web" / "js" / "wokwi.js"
+        assert wokwi_js_path.exists(), "Tệp web/js/wokwi.js không tồn tại!"
         content = wokwi_js_path.read_text(encoding="utf-8")
 
         # Kiểm tra syncWokwiComponents có logic cập nhật hoverHoleInfo với telemetry

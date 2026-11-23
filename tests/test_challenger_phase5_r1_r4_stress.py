@@ -20,8 +20,8 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
-HOUSE3D_JS = ROOT / "simulator" / "static" / "house3d.js"
+APP_JS = ROOT / "web" / "js" / "app.js"
+HOUSE3D_JS = ROOT / "web" / "house3d.js"
 TEST_FILE = pathlib.Path(__file__).resolve()
 
 
@@ -72,7 +72,7 @@ class TestChallengerR1VercelWebSocketFallback:
         runner = f"""
         const fs = require('fs');
         const vm = require('vm');
-        const appCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+        const appCode = fs.readFileSync('web/js/app.js', 'utf8');
 
         class MockElement {{
             constructor(id = '') {{
@@ -192,7 +192,7 @@ class TestChallengerR1VercelWebSocketFallback:
         runner = """
         const fs = require('fs');
         const vm = require('vm');
-        const appCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+        const appCode = fs.readFileSync('web/js/app.js', 'utf8');
 
         class MockElement {
             constructor(id = '') {
@@ -317,7 +317,7 @@ class TestChallengerR1VercelWebSocketFallback:
         runner = """
         const fs = require('fs');
         const vm = require('vm');
-        const appCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+        const appCode = fs.readFileSync('web/js/app.js', 'utf8');
 
         class MockElement {
             constructor(id = '') {
@@ -596,7 +596,7 @@ class TestChallengerR4House3DChipOverlayPinState:
         sandbox.window = sandbox;
         sandbox.globalThis = sandbox;
 
-        const code = fs.readFileSync('simulator/static/house3d.js', 'utf8');
+        const code = fs.readFileSync('web/house3d.js', 'utf8');
         const ctx = vm.createContext(sandbox);
         vm.runInContext(code, ctx);
 
@@ -736,7 +736,7 @@ class TestChallengerR4House3DChipOverlayPinState:
         sandbox.window = sandbox;
         sandbox.globalThis = sandbox;
 
-        const code = fs.readFileSync('simulator/static/house3d.js', 'utf8');
+        const code = fs.readFileSync('web/house3d.js', 'utf8');
         const ctx = vm.createContext(sandbox);
         vm.runInContext(code, ctx);
 
@@ -906,7 +906,7 @@ class TestChallengerR4House3DChipOverlayPinState:
         sandbox.window = sandbox;
         sandbox.globalThis = sandbox;
 
-        const code = fs.readFileSync('simulator/static/house3d.js', 'utf8');
+        const code = fs.readFileSync('web/house3d.js', 'utf8');
         const ctx = vm.createContext(sandbox);
         vm.runInContext(code, ctx);
 
@@ -1060,7 +1060,7 @@ class TestChallengerR4House3DChipOverlayPinState:
         sandbox.window = sandbox;
         sandbox.globalThis = sandbox;
 
-        const code = fs.readFileSync('simulator/static/house3d.js', 'utf8');
+        const code = fs.readFileSync('web/house3d.js', 'utf8');
         const ctx = vm.createContext(sandbox);
         vm.runInContext(code, ctx);
 

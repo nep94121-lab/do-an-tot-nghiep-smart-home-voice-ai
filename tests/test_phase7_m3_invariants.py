@@ -3,7 +3,7 @@
 Checks:
 1. 0 CRLF across git repository (100% POSIX LF).
 2. HTML Purity: 0 <style> tags and 0 inline <script> tags without src in all 8 HTML files.
-3. Forbidden Files: git diff against HEAD for simulator/voice/, simulator/voice_auth.py, simulator/live/ is 100% empty.
+3. Forbidden Files: git diff against HEAD for backend/voice/, backend/voice_auth.py, backend/live/ is 100% empty.
 """
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 HTML_FILES = [
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "mobile_app" / "index.html",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "mobile" / "index.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
 ]
 
 
@@ -30,10 +30,10 @@ class TestPhase7InvariantsAndSafetyBoundaries:
     """Verifies critical safety constraints and purity invariants."""
 
     def test_forbidden_files_untouched(self):
-        """Voice auth core: simulator/voice_auth.py must remain untouched relative to HEAD."""
+        """Voice auth core: backend/voice_auth.py must remain untouched relative to HEAD."""
         cmd = [
             "git", "diff", "--stat", "HEAD", "--",
-            "simulator/voice_auth.py"
+            "backend/voice_auth.py"
         ]
         res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
         diff_output = res.stdout.strip()
@@ -65,14 +65,14 @@ class TestPhase7InvariantsAndSafetyBoundaries:
 
         # Direct binary check for all 8 HTML files, key CSS and JS files
         key_files = HTML_FILES + [
-            ROOT / "simulator" / "static" / "css" / "style.css",
-            ROOT / "simulator" / "static" / "css" / "auth.css",
-            ROOT / "simulator" / "static" / "js" / "app.js",
-            ROOT / "simulator" / "static" / "house3d.js",
-            ROOT / "simulator" / "static" / "js" / "auth.js",
-            ROOT / "simulator" / "static" / "js" / "mobile_app.js",
-            ROOT / "simulator" / "static" / "js" / "auth_pages.js",
-            ROOT / "simulator" / "server.py",
+            ROOT / "web" / "css" / "style.css",
+            ROOT / "web" / "css" / "auth.css",
+            ROOT / "web" / "js" / "app.js",
+            ROOT / "web" / "house3d.js",
+            ROOT / "web" / "js" / "auth.js",
+            ROOT / "web" / "js" / "mobile_app.js",
+            ROOT / "web" / "js" / "auth_pages.js",
+            ROOT / "backend" / "server.py",
             ROOT / "vercel.json",
             ROOT / "PROJECT.md",
         ]

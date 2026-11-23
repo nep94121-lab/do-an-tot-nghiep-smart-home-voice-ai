@@ -14,10 +14,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-INO_PATH = ROOT / "firmware_esp8266" / "esp8266_smarthome" / "esp8266_smarthome.ino"
-WOKWI_DIAGRAM_PATH = ROOT / "firmware_esp8266" / "wokwi" / "diagram.json"
-KB_PATH = ROOT / "simulator" / "data" / "knowledge_base.json"
-HOUSE3D_PATH = ROOT / "simulator" / "static" / "house3d.js"
+INO_PATH = ROOT / "firmware" / "esp8266_smarthome" / "esp8266_smarthome.ino"
+WOKWI_DIAGRAM_PATH = ROOT / "firmware" / "wokwi" / "diagram.json"
+KB_PATH = ROOT / "backend" / "data" / "knowledge_base.json"
+HOUSE3D_PATH = ROOT / "web" / "house3d.js"
 
 CANONICAL_6_DEVICES = (
     "main_door",
@@ -32,7 +32,7 @@ REMOVED_TOKENS = ("fan", "ac", "ir_learn", "vs1838b")
 
 
 def test_constants_and_time_6_devices_3_sensors_contract() -> None:
-    from simulator.engine.constants_and_time import (
+    from backend.engine.constants_and_time import (
         DEFAULT_DEVICES,
         DEVICE_CAPABILITIES,
         DEVICE_DEFAULT_SETTINGS,
@@ -63,7 +63,7 @@ def test_constants_and_time_6_devices_3_sensors_contract() -> None:
 
 
 def test_tier_permissions_exact_6_devices_and_tiers() -> None:
-    from simulator.auth.tier_permissions import (
+    from backend.auth.tier_permissions import (
         DEVICE_LABELS_VI,
         DEVICE_MIN_TIER,
         devices_visible_for_tier,
@@ -92,10 +92,10 @@ def test_tier_permissions_exact_6_devices_and_tiers() -> None:
 
 def test_mqtt_bridge_10_pin_contract_and_packet_generation(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SMARTHOME_DATA_DIR", str(tmp_path))
-    import simulator.mqtt_bridge as mb
+    import backend.mqtt_bridge as mb
 
     monkeypatch.setattr(mb, "EDGE_REPLICA_FILE", tmp_path / "esp8266_flash_replica.json")
-    from simulator.mqtt_bridge import ESP8266_PIN_MAP, ESP8266_SENSOR_PIN_MAP, SmartHomeMQTTBridge
+    from backend.mqtt_bridge import ESP8266_PIN_MAP, ESP8266_SENSOR_PIN_MAP, SmartHomeMQTTBridge
 
     assert ESP8266_PIN_MAP == {
         "main_door": {"pin": "D1", "gpio": 5, "mode": "PWM_SERVO"},
@@ -138,8 +138,8 @@ def test_mqtt_bridge_10_pin_contract_and_packet_generation(tmp_path: pathlib.Pat
 
 
 def test_prompt_builder_and_knowledge_base_contract() -> None:
-    from simulator.live.prompt_builder import ACTION_ENUM, DEVICE_ENUM, build_system_instruction, fn_set_device, make_live_config
-    from simulator.rule_engine import SmartHomeEngine
+    from backend.live.prompt_builder import ACTION_ENUM, DEVICE_ENUM, build_system_instruction, fn_set_device, make_live_config
+    from backend.rule_engine import SmartHomeEngine
 
     assert tuple(DEVICE_ENUM[:6]) == CANONICAL_6_DEVICES
     assert "fan" not in DEVICE_ENUM and "ac" not in DEVICE_ENUM
@@ -363,7 +363,7 @@ def test_wokwi_diagram_10pin_wiring_and_no_fan_ac_ir() -> None:
     assert ("soil_yl69:SIG", "c7:1") in conn_pairs
     assert ("soil_yl69:SIG", "mcu:34") not in conn_pairs
 
-    wokwi_sketch = (ROOT / "firmware_esp8266" / "wokwi" / "sketch.ino").read_text(encoding="utf-8")
+    wokwi_sketch = (ROOT / "firmware" / "wokwi" / "sketch.ino").read_text(encoding="utf-8")
     assert "#define BEDROOM_LED_ACTIVE_LOW true" in wokwi_sketch
     assert "#define PIN_SOIL_MOISTURE    A0" in wokwi_sketch
     assert "digitalWrite(PIN_BEDROOM_LIGHT, BEDROOM_LED_ACTIVE_LOW ? HIGH : LOW);" in wokwi_sketch
@@ -371,8 +371,8 @@ def test_wokwi_diagram_10pin_wiring_and_no_fan_ac_ir() -> None:
 
 def test_wokwi_page_and_wiring_table_match_100x80_diy_pcb() -> None:
     """Verify /wokwi UI, wokwi.js, and WIRING_TABLE.md match the 100x80mm KiCad Hub PCB."""
-    wokwi_html = (ROOT / "simulator" / "static" / "wokwi.html").read_text(encoding="utf-8")
-    wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
+    wokwi_html = (ROOT / "web" / "wokwi.html").read_text(encoding="utf-8")
+    wokwi_js = (ROOT / "web" / "js" / "wokwi.js").read_text(encoding="utf-8")
     wiring_md = (ROOT / "docs" / "phan_cung" / "WIRING_TABLE.md").read_text(encoding="utf-8")
 
     # (1) Buzzer NPN path on /wokwi, no direct D8->buzzer
@@ -403,7 +403,7 @@ def test_wokwi_page_and_wiring_table_match_100x80_diy_pcb() -> None:
 def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from simulator.db_migrations import apply_schema_migrations, open_wal_connection
+    from backend.db_migrations import apply_schema_migrations, open_wal_connection
 
     db_path = tmp_path / "smarthome.db"
     monkeypatch.setenv("SMARTHOME_DATA_DIR", str(tmp_path))
@@ -465,10 +465,10 @@ def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(
         assert dev_rows["speaker_amp"] == "OFF"
 
         # sync_engine_state_to_sqlite also cleans ir_remote_codes and keeps 6 devices
-        import simulator.database_sqlite as db_mod
-        from simulator.database_sqlite import sync_engine_state_to_sqlite
-        from simulator.engine import InMemoryStateBackend
-        from simulator.rule_engine import SmartHomeEngine
+        import backend.database_sqlite as db_mod
+        from backend.database_sqlite import sync_engine_state_to_sqlite
+        from backend.engine import InMemoryStateBackend
+        from backend.rule_engine import SmartHomeEngine
 
         db_mod._INITIALIZED_DB_PATHS.clear()
         eng = SmartHomeEngine(on_event=None, state_backend=InMemoryStateBackend())
@@ -486,9 +486,9 @@ def test_sqlite_7_to_6_migration_preserves_states_and_prunes_fan_ac(
 def test_soil_hysteresis_speaker_toggle_and_ky037_engine(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SMARTHOME_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SMARTHOME_SQLITE_PATH", str(tmp_path / "smarthome.db"))
-    import simulator.database_sqlite as db_mod
-    from simulator.engine import InMemoryStateBackend
-    from simulator.rule_engine import SmartHomeEngine
+    import backend.database_sqlite as db_mod
+    from backend.engine import InMemoryStateBackend
+    from backend.rule_engine import SmartHomeEngine
 
     db_mod._INITIALIZED_DB_PATHS.clear()
     engine = SmartHomeEngine(on_event=None, state_backend=InMemoryStateBackend())
@@ -528,10 +528,10 @@ def test_voice_ok_confirmation_gate_for_both_set_device_and_control_device(
 ) -> None:
     monkeypatch.setenv("SMARTHOME_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SMARTHOME_SQLITE_PATH", str(tmp_path / "smarthome.db"))
-    import simulator.database_sqlite as db_mod
-    from simulator.engine import InMemoryStateBackend
-    from simulator.live.tool_dispatcher_mixin import LiveToolDispatcherMixin
-    from simulator.rule_engine import SmartHomeEngine
+    import backend.database_sqlite as db_mod
+    from backend.engine import InMemoryStateBackend
+    from backend.live.tool_dispatcher_mixin import LiveToolDispatcherMixin
+    from backend.rule_engine import SmartHomeEngine
 
     db_mod._INITIALIZED_DB_PATHS.clear()
 
@@ -627,8 +627,8 @@ def test_house3d_16_glb_nodes_scene_spec_fallback_and_board_preset() -> None:
 
 
 def test_http_ir_learn_410_and_scene_spec_route() -> None:
-    from simulator.auth.session_store import get_session_store
-    from simulator.server import app
+    from backend.auth.session_store import get_session_store
+    from backend.server import app
 
     store = get_session_store()
     owner_sess = store.create_session(
@@ -680,7 +680,7 @@ def test_http_ir_learn_410_and_scene_spec_route() -> None:
 
 def test_archify_and_erd_locked_contract_and_hardware_doc_routes() -> None:
     """P1-1: /archify and /archify/erd match the locked 10-pin contract with 0 legacy IR/fan/MAX9814 claims."""
-    from simulator.server import app
+    from backend.server import app
 
     with TestClient(app) as client:
         r_arch = client.get("/archify")
@@ -756,11 +756,11 @@ def test_house3d_labels_toggle_and_preserve_drawing_buffer_and_wokwi_scale() -> 
     assert "toggleLabelsVisible" in house3d_js
     assert 'currentCameraPreset === "board"' in house3d_js
 
-    index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+    index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
     assert 'id="btnToggle3dLabels"' in index_html
 
-    wokwi_html = (ROOT / "simulator" / "static" / "wokwi.html").read_text(encoding="utf-8")
-    wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
+    wokwi_html = (ROOT / "web" / "wokwi.html").read_text(encoding="utf-8")
+    wokwi_js = (ROOT / "web" / "js" / "wokwi.js").read_text(encoding="utf-8")
     assert 'id="circuitStageWrap"' in wokwi_html
     assert "fitCircuitStageToWorkbench" in wokwi_js
 

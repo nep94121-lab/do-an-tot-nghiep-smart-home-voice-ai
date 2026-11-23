@@ -6,7 +6,7 @@ Prevent the 3D chip overlay from showing 'Đèn khách (D0):' with an empty valu
 during the initial update cycle; hide the label when no value is present.
 
 TDD Validation Cycle:
-1. Static inspection of simulator/static/house3d.js:
+1. Static inspection of web/house3d.js:
    - buildFloatingPins(): pins initialized with dataset.hasValue = "false", style.display = "none", empty .pin-state.
    - updateDevices(): checks stateVal, hides pin when empty (!stateVal -> display="none", dataset.hasValue="false"), sets hasValue="true" only on valid non-empty value.
    - updatePinPositions(): checks hasValue !== "false" and .pin-state non-empty before setting display = "inline-flex".
@@ -28,7 +28,7 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-HOUSE3D_PATH = ROOT / "simulator" / "static" / "house3d.js"
+HOUSE3D_PATH = ROOT / "web" / "house3d.js"
 TEST_FILE_PATH = pathlib.Path(__file__).resolve()
 
 
@@ -262,7 +262,7 @@ def node_vm_runner():
         mockWindow.window = mockWindow;
         mockWindow.globalThis = mockWindow;
 
-        const code = fs.readFileSync('simulator/static/house3d.js', 'utf8');
+        const code = fs.readFileSync('web/house3d.js', 'utf8');
         const ctx = vm.createContext(mockWindow);
         vm.runInContext(code, ctx);
 

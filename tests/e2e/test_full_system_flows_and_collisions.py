@@ -31,12 +31,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.auth_3layer as a3
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
-from simulator.database_sqlite import sync_engine_state_to_sqlite
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app
-from simulator.voice_auth import (
+import backend.auth_3layer as a3
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
+from backend.database_sqlite import sync_engine_state_to_sqlite
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app
+from backend.voice_auth import (
     VoiceAuthManager,
     extract_stage2_deep_features,
     extract_voice_features,

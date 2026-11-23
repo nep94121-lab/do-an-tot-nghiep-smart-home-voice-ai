@@ -3,7 +3,7 @@ tu bo du lieu Mozilla Common Voice vi / VIVOS / FOSD cho Phase 7 Voice Auth 3 Le
 
 Luu file WAV 16kHz mono PCM vao C:/Users/LENOVO/datn-wt/voices/ va trich xuat
 van giong sinh trac hoc (Stage 1 26D, Stage 2 64D, Neural 256D, SHA-256) vao
-simulator/voice/real_voices_signatures.json de Vercel Serverless nhan dien tuc thi.
+backend/voice/real_voices_signatures.json de Vercel Serverless nhan dien tuc thi.
 """
 
 from __future__ import annotations
@@ -24,16 +24,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.voice.biometrics_neural import extract_neural_embedding_256d
-from simulator.voice.dsp_features import (
+from backend.voice.biometrics_neural import extract_neural_embedding_256d
+from backend.voice.dsp_features import (
     denoise_and_isolate_human_voice,
     extract_stage2_deep_features,
     extract_voice_features,
 )
-from simulator.voice.enrollment_quality import validate_voice_enrollment_quality
+from backend.voice.enrollment_quality import validate_voice_enrollment_quality
 
 VOICES_DIR = pathlib.Path(r"C:\Users\LENOVO\datn-wt\voices")
-SIGNATURES_JSON_PATH = ROOT / "simulator" / "voice" / "real_voices_signatures.json"
+SIGNATURES_JSON_PATH = ROOT / "backend" / "voice" / "real_voices_signatures.json"
 
 DATASET_ID = "tuanmanh28/VIVOS_CommonVoice_FOSD_CleanControl_dataset"
 

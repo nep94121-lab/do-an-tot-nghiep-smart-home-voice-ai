@@ -29,14 +29,14 @@ from typing import Any
 import pytest
 import uvicorn
 
-from simulator.auth.session_store import get_session_store
-from simulator.database_sqlite import init_sqlite_database
-from simulator.live.echo_and_speech_guard import ServerEchoGuard
-from simulator.server import app
+from backend.auth.session_store import get_session_store
+from backend.database_sqlite import init_sqlite_database
+from backend.live.echo_and_speech_guard import ServerEchoGuard
+from backend.server import app
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-ECHO_GUARD_JS = REPO_ROOT / "simulator" / "static" / "js" / "voice_echo_guard.js"
-WAV_AOEDE_24K = REPO_ROOT / "simulator" / "data" / "aoede_repeat_24k.wav"
+ECHO_GUARD_JS = REPO_ROOT / "web" / "js" / "voice_echo_guard.js"
+WAV_AOEDE_24K = REPO_ROOT / "backend" / "data" / "aoede_repeat_24k.wav"
 
 TRACKED_HUMAN_WAVS: dict[str, pathlib.Path] = {
     "cau_4_bat_den_phong_khach": REPO_ROOT / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav",

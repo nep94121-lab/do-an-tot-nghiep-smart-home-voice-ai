@@ -20,11 +20,11 @@ from unittest.mock import patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-STATIC_DIR = ROOT / "simulator" / "static"
-MOBILE_APP_DIR = ROOT / "mobile_app"
+STATIC_DIR = ROOT / "web"
+MOBILE_APP_DIR = ROOT / "web" / "mobile"
 WOKWI_HTML_PATH = STATIC_DIR / "wokwi.html"
 
 

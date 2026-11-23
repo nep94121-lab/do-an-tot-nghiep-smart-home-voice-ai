@@ -22,9 +22,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import hash_password, verify_password_hash
+from backend.server import app
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.auth.constants_and_crypto import hash_password, verify_password_hash
 
 
 @pytest.fixture
@@ -324,7 +324,7 @@ const result = {
 process.stdout.write(JSON.stringify(result));
 process.exit(0);
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,
@@ -445,7 +445,7 @@ const result = {
 process.stdout.write(JSON.stringify(result));
 process.exit(0);
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_file = ROOT / "web" / "js" / "mobile_app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,
@@ -468,11 +468,11 @@ class TestAdversarialBug1Bug5Bug15:
     def test_bug1_html_contains_zero_prefilled_credentials(self):
         """Scan all HTML templates in simulator and mobile_app for hardcoded passwords or prefilled values."""
         html_files = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "mobile_app" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "simulator" / "static" / "logs.html",
-            ROOT / "simulator" / "static" / "wokwi.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "mobile" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "logs.html",
+            ROOT / "web" / "wokwi.html",
         ]
         forbidden_snippets = [
             'value="123456"',
@@ -655,7 +655,7 @@ const result = { t1Ok, t2Ok, t3Ok };
 process.stdout.write(JSON.stringify(result));
 process.exit(0);
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,

@@ -24,11 +24,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.api.deps as api_deps
-import simulator.api.routes_auth as routes_auth
-import simulator.api.routes_devices as routes_devices
-from simulator.auth.session_store import UserSession, get_session_store
-from simulator.server import app
+import backend.api.deps as api_deps
+import backend.api.routes_auth as routes_auth
+import backend.api.routes_devices as routes_devices
+from backend.auth.session_store import UserSession, get_session_store
+from backend.server import app
 
 
 @pytest.fixture
@@ -355,7 +355,7 @@ def test_login_generates_session_token_and_keeps_engine_clean(client: TestClient
 
     # Thiết lập mật khẩu mã hóa ngẫu nhiên tại runtime cho Chủ nhà trước khi kiểm thử đăng nhập Lớp 1
     import secrets
-    from simulator.auth_3layer import get_auth_3layer_manager
+    from backend.auth_3layer import get_auth_3layer_manager
 
     ephemeral_pw = "RuntimeOwner_" + secrets.token_urlsafe(12)
     mgr = get_auth_3layer_manager()

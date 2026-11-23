@@ -21,21 +21,21 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.ai_tool_registry import TOOL_REGISTRY, dispatch_tool
-from simulator.api.deps import _REST_ENGINE
-from simulator.api.routes_automation import run_scheduler_tick_once
-from simulator.automation_engine import (
+from backend.ai_tool_registry import TOOL_REGISTRY, dispatch_tool
+from backend.api.deps import _REST_ENGINE
+from backend.api.routes_automation import run_scheduler_tick_once
+from backend.automation_engine import (
     CANONICAL_6_DEVICES,
     create_compound_rule,
     evaluate_compound_rules,
     get_compound_rule,
     validate_compound_rule_input,
 )
-from simulator.automation_repo import create_schedule
-from simulator.live.prompt_builder import ALL_TOOLS
-from simulator.live.tool_dispatcher_mixin import LiveToolDispatcherMixin
-from simulator.server import app
-from simulator.ui_registry import get_ui_guidance, get_ui_registry
+from backend.automation_repo import create_schedule
+from backend.live.prompt_builder import ALL_TOOLS
+from backend.live.tool_dispatcher_mixin import LiveToolDispatcherMixin
+from backend.server import app
+from backend.ui_registry import get_ui_guidance, get_ui_registry
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SAIGON_TZ = ZoneInfo("Asia/Saigon")
@@ -68,8 +68,8 @@ def _guest_session() -> SimpleNamespace:
 
 
 def _login_owner_headers(client: TestClient) -> dict[str, str]:
-    from simulator.auth_3layer import get_auth_3layer_manager, hash_password
-    from simulator.voice_config import OWNER_EMAIL
+    from backend.auth_3layer import get_auth_3layer_manager, hash_password
+    from backend.voice_config import OWNER_EMAIL
 
     mgr = get_auth_3layer_manager()
     pw = "AutoToolTestPw!2026"
@@ -507,8 +507,8 @@ def test_9_single_source_of_truth_ui_registry_matches_tool_and_html() -> None:
     assert reg["ok"] is True
     assert reg == json.loads(json.dumps(get_ui_registry()))
 
-    auto_html = (ROOT / "simulator" / "static" / "automation.html").read_text(encoding="utf-8")
-    index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+    auto_html = (ROOT / "web" / "automation.html").read_text(encoding="utf-8")
+    index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
 
     # Verify nav routes & labels exist in automation.html and index.html
     for nav_item in reg["nav"]:

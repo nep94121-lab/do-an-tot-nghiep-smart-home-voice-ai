@@ -2,11 +2,11 @@
 
 Vercel WebSocket Fallback & Accurate Transport Header.
 Validates:
-1. simulator/static/index.html contains #homeServerStatusBadge inside #btnToggleServer.
-2. simulator/static/js/app.js detects Vercel serverless upfront and skips new WebSocket.
-3. simulator/static/js/app.js updateConnectionUI accurately updates #connText and #homeServerStatusBadge.
-4. simulator/static/js/app.js ws.onclose falls back cleanly without infinite reconnect spam.
-5. simulator/static/js/mobile_app.js avoids WebSocket connection loops on Vercel.
+1. web/index.html contains #homeServerStatusBadge inside #btnToggleServer.
+2. web/js/app.js detects Vercel serverless upfront and skips new WebSocket.
+3. web/js/app.js updateConnectionUI accurately updates #connText and #homeServerStatusBadge.
+4. web/js/app.js ws.onclose falls back cleanly without infinite reconnect spam.
+5. web/js/mobile_app.js avoids WebSocket connection loops on Vercel.
 6. Node.js VM execution verifies runtime behavior across Localhost, Vercel, and Disconnected scenarios.
 """
 
@@ -20,9 +20,9 @@ import pytest
 from bs4 import BeautifulSoup
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-INDEX_HTML = ROOT / "simulator" / "static" / "index.html"
-APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
-MOBILE_APP_JS = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+INDEX_HTML = ROOT / "web" / "index.html"
+APP_JS = ROOT / "web" / "js" / "app.js"
+MOBILE_APP_JS = ROOT / "web" / "js" / "mobile_app.js"
 
 
 class TestBugR1HtmlStructure:
@@ -30,7 +30,7 @@ class TestBugR1HtmlStructure:
 
     def test_home_server_status_badge_exists_inside_btn_toggle_server(self):
         """Phần tử #homeServerStatusBadge phải nằm bên trong #btnToggleServer."""
-        assert INDEX_HTML.exists(), "simulator/static/index.html không tồn tại!"
+        assert INDEX_HTML.exists(), "web/index.html không tồn tại!"
         content = INDEX_HTML.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
         btn = soup.find(id="btnToggleServer")
@@ -93,7 +93,7 @@ class TestBugR1NodeVmExecution:
         const vm = require('vm');
 
         // Đọc mã nguồn app.js
-        const appJsCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+        const appJsCode = fs.readFileSync('web/js/app.js', 'utf8');
 
         // Tạo Mock DOM
         class MockElement {
@@ -236,7 +236,7 @@ class TestBugR1NodeVmExecution:
         const fs = require('fs');
         const vm = require('vm');
 
-        const appJsCode = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+        const appJsCode = fs.readFileSync('web/js/app.js', 'utf8');
 
         class MockElement {
             constructor(id = '') {
@@ -362,7 +362,7 @@ class TestBugR1NodeVmExecution:
         const fs = require('fs');
         const vm = require('vm');
 
-        const mobileJsCode = fs.readFileSync('simulator/static/js/mobile_app.js', 'utf8');
+        const mobileJsCode = fs.readFileSync('web/js/mobile_app.js', 'utf8');
 
         let wsInstantiationCount = 0;
         class MockWebSocket {

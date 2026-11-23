@@ -36,9 +36,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.api.routes_devices as routes_devices
-from simulator.auth.session_store import get_session_store
-from simulator.server import app
+import backend.api.routes_devices as routes_devices
+from backend.auth.session_store import get_session_store
+from backend.server import app
 
 
 @pytest.fixture

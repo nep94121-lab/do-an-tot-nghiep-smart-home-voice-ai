@@ -8,10 +8,10 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.server import app
-from simulator.auth import guest_invites, owner_pin
-from simulator.auth.session_store import get_session_store, resolve_request_session
-from simulator.auth_3layer import get_auth_3layer_manager, hash_password
+from backend.server import app
+from backend.auth import guest_invites, owner_pin
+from backend.auth.session_store import get_session_store, resolve_request_session
+from backend.auth_3layer import get_auth_3layer_manager, hash_password
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def owner_login(client, monkeypatch):
 
 @pytest.mark.parametrize("path", ["/api/device", "/api/device_control", "/api/device/living_room_light", "/api/devices/living_room_light/control", "/api/session/role", "/api/text_command"])
 def test_cookieless_always_401(client, path):
-    from simulator.api.deps import _REST_ENGINE
+    from backend.api.deps import _REST_ENGINE
     _REST_ENGINE.set_active_user("tuan_anh")
     response = client.post(path, json={"device_id": "living_room_light", "action": "on", "text": "bật đèn", "role": "MEMBER", "user_id": "tuan_anh"})
     assert response.status_code == 401
@@ -159,7 +159,7 @@ def test_revoked_stateless_session_cannot_reappear(client):
 
 
 def test_pin_storage_failure_does_not_report_setup_success(client, monkeypatch):
-    from simulator.auth.security_state import SecurityStateUnavailable
+    from backend.auth.security_state import SecurityStateUnavailable
     owner_login(client, monkeypatch)
     def unavailable(*args):
         raise SecurityStateUnavailable("unavailable")
@@ -170,7 +170,7 @@ def test_pin_storage_failure_does_not_report_setup_success(client, monkeypatch):
 
 
 def test_offline_mode_still_enforces_guest_device_table(client):
-    from simulator.api.deps import _REST_ENGINE
+    from backend.api.deps import _REST_ENGINE
     old = _REST_ENGINE.server_connected
     _REST_ENGINE.server_connected = False
     try:
@@ -187,7 +187,7 @@ def test_guest_ui_reads_snapshot_and_can_toggle_both_directions():
     import subprocess
     from pathlib import Path
 
-    script = Path("simulator/static/js/guest_control.js").read_text(encoding="utf-8")
+    script = Path("web/js/guest_control.js").read_text(encoding="utf-8")
     harness = r'''
 const assert = require('node:assert/strict');
 const nodes = {};
@@ -259,8 +259,8 @@ def test_vercel_guest_routes_use_backend_token_validation():
 
 
 def test_security_cloud_load_failure_is_not_first_pin_setup(monkeypatch, tmp_path):
-    from simulator.auth.security_state import load_security_state, SecurityStateUnavailable
-    from simulator.durable_store import get_durable_store
+    from backend.auth.security_state import load_security_state, SecurityStateUnavailable
+    from backend.durable_store import get_durable_store
     monkeypatch.setenv("VERCEL", "1")
     store = get_durable_store()
     monkeypatch.setattr(store, "_load_bundle_from_upstash_kv", lambda: None)
@@ -377,7 +377,7 @@ function runWebCase(apiPayload) {
     json: async () => (String(url).includes('register_or_set_password') ? apiPayload : { ok: true, devices: [] })
   });
 
-  const code = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+  const code = fs.readFileSync('web/js/app.js', 'utf8');
   try { eval(code); } catch (_) {}
   return new Promise(r => setImmediate(r)).then(() => {
     scheduled.length = 0;
@@ -432,7 +432,7 @@ function runMobileCase(apiPayload) {
   global.clearTimeout = () => {};
   global.setTimeout = (fn) => { scheduled.push(fn); return 1; };
 
-  const code = fs.readFileSync('simulator/static/js/mobile_app.js', 'utf8');
+  const code = fs.readFileSync('web/js/mobile_app.js', 'utf8');
   try { eval(code); } catch (_) {}
   return global.window.submitMobileRegister({ preventDefault(){} }).then(() => {
     scheduled.forEach(fn => { try { fn(); } catch (_) {} });
@@ -487,8 +487,8 @@ def test_forgot_password_email_failure_rolls_back_otp_and_does_not_fake_200_cool
     monkeypatch.delenv("GMAIL_APP_PASSWORD", raising=False)
     monkeypatch.delenv("SMTP_PASSWORD", raising=False)
 
-    from simulator.auth_3layer import get_auth_3layer_manager
-    from simulator.voice_config import OWNER_EMAIL
+    from backend.auth_3layer import get_auth_3layer_manager
+    from backend.voice_config import OWNER_EMAIL
 
     mgr = get_auth_3layer_manager()
     mgr.pending_otps.clear()
@@ -512,9 +512,9 @@ def test_forgot_password_email_failure_rolls_back_otp_and_does_not_fake_200_cool
 
 
 def test_logout_endpoint_revokes_session_and_clears_httponly_cookie(monkeypatch, tmp_path):
-    from simulator import durable_store
-    from simulator.auth import session_store
-    from simulator.voice_config import OWNER_EMAIL, OWNER_ID
+    from backend import durable_store
+    from backend.auth import session_store
+    from backend.voice_config import OWNER_EMAIL, OWNER_ID
 
     monkeypatch.setenv("SMARTHOME_DURABLE_DIR", str(tmp_path / "durable"))
     monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")

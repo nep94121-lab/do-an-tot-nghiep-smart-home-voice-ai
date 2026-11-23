@@ -182,8 +182,8 @@ def record_unlimited_winmm(stop_event: threading.Event, on_progress=None) -> np.
 
 def enroll_and_save_owner_voice(pcm_arr: np.ndarray) -> dict:
     """Lưu file WAV 16kHz (không giới hạn độ dài) và đăng ký làm giọng mẫu Cấp 1 (Chủ nhà Nguyễn Tuấn Anh)."""
-    from simulator.voice_auth import VoiceAuthManager, validate_voice_enrollment_quality
-    from simulator.auth_3layer import get_auth_3layer_manager
+    from backend.voice_auth import VoiceAuthManager, validate_voice_enrollment_quality
+    from backend.auth_3layer import get_auth_3layer_manager
 
     OUT_WAV_PATH.parent.mkdir(parents=True, exist_ok=True)
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)

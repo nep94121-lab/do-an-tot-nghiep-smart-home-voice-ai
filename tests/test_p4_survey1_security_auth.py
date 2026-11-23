@@ -24,9 +24,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import app
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import DEFAULT_ACCOUNTS, hash_password
+from backend.server import app
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.auth.constants_and_crypto import DEFAULT_ACCOUNTS, hash_password
 
 
 @pytest.fixture
@@ -45,9 +45,9 @@ class TestBug1SecurityCredentialCleanup:
         """Tất cả các thẻ input mật khẩu và email trên /, /app, /auth không được có value điền sẵn,
         và HTML không chứa chuỗi gợi ý mật khẩu mặc định."""
         html_files = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "mobile_app" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "mobile" / "index.html",
+            ROOT / "web" / "auth.html",
         ]
 
         prohibited_hints = [
@@ -123,8 +123,8 @@ class TestBug1SecurityCredentialCleanup:
     def test_bug1_logs_api_masks_nested_dictionary_sensitive_keys(self, client: TestClient):
         """API /api/logs/dashboard và hàm mask_sensitive_log_data phải che toàn bộ khóa nhạy cảm
         khớp regex /(password|hint|secret|token|otp|mat_khau)/i trong từ điển đa tầng lồng nhau."""
-        from simulator.api.routes_logs import mask_sensitive_log_data
-        from simulator.rule_engine import append_audit_log
+        from backend.api.routes_logs import mask_sensitive_log_data
+        from backend.rule_engine import append_audit_log
 
         # 1. Unit check cấu trúc từ điển lồng sâu
         nested_sample = {
@@ -174,8 +174,8 @@ class TestBug1SecurityCredentialCleanup:
         assert target_details.get("sub", {}).get("safe") == "ok"
 
     def test_bug1_logs_js_contains_password_masking(self):
-        """File simulator/static/js/logs.js phải có hàm hoặc regex che mật khẩu trước khi render."""
-        logs_js = (ROOT / "simulator" / "static" / "js" / "logs.js").read_text(encoding="utf-8")
+        """File web/js/logs.js phải có hàm hoặc regex che mật khẩu trước khi render."""
+        logs_js = (ROOT / "web" / "js" / "logs.js").read_text(encoding="utf-8")
         assert "mask" in logs_js.lower() or "replace(" in logs_js, "logs.js thiếu logic masking mật khẩu trên giao diện"
 
 
@@ -291,7 +291,7 @@ const result = {
 process.stdout.write(JSON.stringify(result));
 process.exit(0);
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,
@@ -308,8 +308,8 @@ process.exit(0);
         assert res["logoutBtnHidden"], "Nút Đăng xuất chưa bị ẩn sau khi logout!"
 
     def test_bug2_mobile_logout_clears_credentials_and_state(self):
-        """Kiểm tra simulator/static/js/mobile_app.js: submitMobileLogout phải xóa input và reset form."""
-        content = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        """Kiểm tra web/js/mobile_app.js: submitMobileLogout phải xóa input và reset form."""
+        content = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
         assert "submitMobileLogout" in content
         # Kiểm tra logic submitMobileLogout có reset input hoặc reset form
         assert "mobileLoginEmail" in content and "mobileLoginPassword" in content, "submitMobileLogout thiếu logic dọn dẹp form"
@@ -337,7 +337,7 @@ class TestBug4ForgotPasswordOtpAndSeed:
         assert acc_kbanh["tier"] == 3
         assert len(acc_kbanh.get("password_hash", "")) == 64, "Mật khẩu kbanh376@gmail.com chưa được băm PBKDF2 SHA-256!"
 
-        json_path = ROOT / "simulator" / "data" / "accounts_3layer.json"
+        json_path = ROOT / "backend" / "data" / "accounts_3layer.json"
         assert json_path.exists()
         accounts_data = json.loads(json_path.read_text(encoding="utf-8"))
         emails_in_json = {acc["email"].lower(): acc for acc in accounts_data}
@@ -363,14 +363,14 @@ class TestBug4ForgotPasswordOtpAndSeed:
         assert data_kbanh.get("ok") is True, f"Không gửi được OTP cho kbanh376@gmail.com: {data_kbanh}"
 
     def test_bug4_app_js_sends_real_gmail_and_no_autofill(self):
-        """Trong simulator/static/js/app.js: btnSendForgotOtp phải gửi send_gmail: true và KHÔNG tự điền OTP vào ô nhập."""
-        app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        """Trong web/js/app.js: btnSendForgotOtp phải gửi send_gmail: true và KHÔNG tự điền OTP vào ô nhập."""
+        app_js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
         assert "send_gmail: true" in app_js, "app.js chưa bật send_gmail: true cho luồng gửi OTP thật!"
         assert "data.demo_otp_preview" not in app_js, "app.js vẫn tự động điền trước OTP từ demo_otp_preview!"
 
     def test_bug4_desktop_forgot_password_has_three_steps_ui(self):
         """Panel Quên mật khẩu #gatePanelForgot trên index.html phải chia thành 3 bước (Email -> OTP -> Mật khẩu mới)."""
-        index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(index_html, "html.parser")
         panel = soup.find(id="gatePanelForgot")
         assert panel is not None, "#gatePanelForgot không tồn tại!"
@@ -393,20 +393,20 @@ class TestBug5VoiceAuthWizardCleanAndCheckLogin:
 
     def test_bug5_auth_html_and_js_no_sample_member_data(self):
         """Trên auth.html và auth.js: không có 'Thành viên A' điền sẵn; form đăng nhập (#loginEmail) trống."""
-        auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
+        auth_html = (ROOT / "web" / "auth.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(auth_html, "html.parser")
 
         login_email = soup.find(id="loginEmail")
         assert login_email is not None
         assert login_email.get("value", "") == "", "loginEmail vẫn có value điền sẵn!"
 
-        auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth_js = (ROOT / "web" / "js" / "auth.js").read_text(encoding="utf-8")
         assert "let selectedSpeakerName = 'Thành viên A'" not in auth_js, "auth.js vẫn hardcode selectedSpeakerName = 'Thành viên A'!"
 
     def test_bug5_auth_submit_layer1_passes_login_method_and_handles_error(self):
         """auth.html/auth.js có cổng đăng nhập bảo vệ (#authUnauthGate) và endpoint layer1_login."""
-        auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
-        auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth_html = (ROOT / "web" / "auth.html").read_text(encoding="utf-8")
+        auth_js = (ROOT / "web" / "js" / "auth.js").read_text(encoding="utf-8")
         assert 'id="authUnauthGate"' in auth_html
         assert "/api/auth3/" in auth_js
 
@@ -420,7 +420,7 @@ class TestBug15DesktopHeaderDurationBadge:
 
     def test_bug15_home_session_duration_badge_exists_in_dom(self):
         """Phần tử #homeSessionDurationBadge phải tồn tại trong header top-actions của index.html."""
-        index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         soup = BeautifulSoup(index_html, "html.parser")
         header = soup.find("header", class_="top")
         assert header is not None, "Không tìm thấy header.top!"
@@ -518,7 +518,7 @@ process.stdout.write(JSON.stringify({
 }));
 process.exit(0);
 """
-        js_file = ROOT / "simulator" / "static" / "js" / "app.js"
+        js_file = ROOT / "web" / "js" / "app.js"
         proc = subprocess.run(
             ["node", "-e", node_script, str(js_file)],
             capture_output=True,
@@ -541,7 +541,7 @@ class TestLineEndingsAndDataIntegrity:
 
     def test_save_accounts_produces_zero_crlf_on_windows(self, tmp_path, monkeypatch):
         """Xác thực cơ chế lưu tài khoản _save_accounts() trên Windows đảm bảo 100% POSIX LF (0 CRLF)."""
-        import simulator.auth_3layer as a3
+        import backend.auth_3layer as a3
         mgr = get_auth_3layer_manager()
         temp_accounts = tmp_path / "accounts_test.json"
         monkeypatch.setattr(a3, "ACCOUNTS_FILE", temp_accounts)
@@ -557,28 +557,28 @@ class TestLineEndingsAndDataIntegrity:
         assert lf_count > 0, "Tệp phải có ít nhất 1 dòng kết thúc bằng LF (\\n)!"
 
     def test_all_simulator_data_and_modified_code_have_zero_crlf(self):
-        """Xác thực 100% tệp dữ liệu text/JSON trong simulator/data/ và mã nguồn liên quan có 0 CRLF."""
-        data_dir = ROOT / "simulator" / "data"
+        """Xác thực 100% tệp dữ liệu text/JSON trong backend/data/ và mã nguồn liên quan có 0 CRLF."""
+        data_dir = ROOT / "backend" / "data"
         text_extensions = {".json", ".jsonl", ".txt", ".csv"}
         data_files = [p for p in data_dir.iterdir() if p.is_file() and p.suffix.lower() in text_extensions]
 
         modified_code_files = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "mobile_app" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "simulator" / "static" / "js" / "app.js",
-            ROOT / "simulator" / "static" / "js" / "auth.js",
-            ROOT / "simulator" / "static" / "js" / "mobile_app.js",
-            ROOT / "simulator" / "static" / "js" / "logs.js",
-            ROOT / "simulator" / "api" / "routes_logs.py",
-            ROOT / "simulator" / "auth" / "constants_and_crypto.py",
-            ROOT / "simulator" / "auth_3layer.py",
-            ROOT / "simulator" / "engine" / "audit_logger.py",
-            ROOT / "simulator" / "engine" / "constants_and_time.py",
-            ROOT / "simulator" / "knowledge_rag.py",
-            ROOT / "simulator" / "mqtt_bridge.py",
-            ROOT / "simulator" / "rule_engine.py",
-            ROOT / "simulator" / "voice_auth.py",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "mobile" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "js" / "app.js",
+            ROOT / "web" / "js" / "auth.js",
+            ROOT / "web" / "js" / "mobile_app.js",
+            ROOT / "web" / "js" / "logs.js",
+            ROOT / "backend" / "api" / "routes_logs.py",
+            ROOT / "backend" / "auth" / "constants_and_crypto.py",
+            ROOT / "backend" / "auth_3layer.py",
+            ROOT / "backend" / "engine" / "audit_logger.py",
+            ROOT / "backend" / "engine" / "constants_and_time.py",
+            ROOT / "backend" / "knowledge_rag.py",
+            ROOT / "backend" / "mqtt_bridge.py",
+            ROOT / "backend" / "rule_engine.py",
+            ROOT / "backend" / "voice_auth.py",
             ROOT / "tests" / "test_p4_survey1_security_auth.py",
             ROOT / "tests" / "test_p3_session_rbac_concurrency.py",
             ROOT / "tests" / "e2e" / "conftest.py",

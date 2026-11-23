@@ -23,14 +23,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.voice.vad_vietnamese import is_vietnamese_speech, VietnameseVADStreamFilter
-from simulator.voice_auth import (
+from backend.voice.vad_vietnamese import is_vietnamese_speech, VietnameseVADStreamFilter
+from backend.voice_auth import (
     VoiceAuthManager,
     transform_pcm_by_pitch_factor,
 )
 
 AUDIO_DIR = ROOT / "test_audio"
-VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
+VOICEPRINT_FILE = ROOT / "backend" / "data" / "voiceprints.json"
 
 
 def load_wav(name: str) -> np.ndarray:

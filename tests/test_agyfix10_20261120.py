@@ -35,8 +35,8 @@ import requests
 from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ECHO_GUARD_JS = ROOT / "simulator" / "static" / "js" / "voice_echo_guard.js"
-WAV_AOEDE_24K = ROOT / "simulator" / "data" / "aoede_repeat_24k.wav"
+ECHO_GUARD_JS = ROOT / "web" / "js" / "voice_echo_guard.js"
+WAV_AOEDE_24K = ROOT / "backend" / "data" / "aoede_repeat_24k.wav"
 PROD_AUDIO_FALLBACK = pathlib.Path(r"C:\Users\LENOVO\Desktop\đồ án tốt nghiệp\test_audio")
 
 MOBILE_UA = (
@@ -187,7 +187,7 @@ def _simulate_nonlinear_agc(samples: list[float], target_rms: float = 0.28, max_
 
 class TestP1VoiceCommandConfirmationFlow:
     def _make_session(self, session_id: str, user_id: str, display_name: str, tier: int, role: str) -> Any:
-        from simulator.auth.session_store import UserSession
+        from backend.auth.session_store import UserSession
 
         return UserSession(
             session_id=session_id,
@@ -206,9 +206,9 @@ class TestP1VoiceCommandConfirmationFlow:
     def test_main_door_acts_immediately_and_automation_requires_natural_confirm(
         self, confirm_phrase: str
     ) -> None:
-        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
-        from simulator.rule_engine import SmartHomeEngine
-        from simulator.voice.session_voice_command import (
+        from backend.automation_repo import list_schedules, reset_timers_and_schedules_scoped
+        from backend.rule_engine import SmartHomeEngine
+        from backend.voice.session_voice_command import (
             process_session_voice_command,
             reset_session_echo_guards,
         )
@@ -282,14 +282,14 @@ class TestP1VoiceCommandConfirmationFlow:
         reset_timers_and_schedules_scoped(clear_all=True)
 
     def test_pending_ttl_60s_expiry_and_strict_user_session_isolation(self) -> None:
-        from simulator.automation_repo import (
+        from backend.automation_repo import (
             PENDING_CONFIRM_TTL_SEC,
             list_schedules,
             reset_timers_and_schedules_scoped,
         )
-        from simulator.database_sqlite import open_wal_connection, resolve_sqlite_db_path
-        from simulator.rule_engine import SmartHomeEngine
-        from simulator.voice.session_voice_command import (
+        from backend.database_sqlite import open_wal_connection, resolve_sqlite_db_path
+        from backend.rule_engine import SmartHomeEngine
+        from backend.voice.session_voice_command import (
             process_session_voice_command,
             reset_session_echo_guards,
         )
@@ -343,13 +343,13 @@ class TestP1VoiceCommandConfirmationFlow:
         assert len(list_schedules(include_disabled=False)) == 0
 
     def test_tier3_rbac_blocked_on_door_sensors_and_direct_ui_toggle_unchanged(self) -> None:
-        from simulator.api import deps as api_deps
-        from simulator.api import routes_devices
-        from simulator.auth.session_store import get_session_store
-        from simulator.automation_nlu import _resolve_session_key
-        from simulator.automation_repo import create_pending_confirmation, reset_timers_and_schedules_scoped
-        from simulator.server import app
-        from simulator.voice.session_voice_command import reset_session_echo_guards
+        from backend.api import deps as api_deps
+        from backend.api import routes_devices
+        from backend.auth.session_store import get_session_store
+        from backend.automation_nlu import _resolve_session_key
+        from backend.automation_repo import create_pending_confirmation, reset_timers_and_schedules_scoped
+        from backend.server import app
+        from backend.voice.session_voice_command import reset_session_echo_guards
 
         reset_session_echo_guards()
         reset_timers_and_schedules_scoped(clear_all=True)
@@ -456,11 +456,11 @@ class TestP2MobileTapTargetsAndLightMutedContrast:
 
         seed_code = r"""
 import json
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth.owner_pin import setup_or_replace_pin
-from simulator.auth.session_store import mint_trusted_device_token
-from simulator.database_sqlite import init_sqlite_database
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth.owner_pin import setup_or_replace_pin
+from backend.auth.session_store import mint_trusted_device_token
+from backend.database_sqlite import init_sqlite_database
 
 init_sqlite_database()
 mgr = get_auth_3layer_manager()
@@ -486,7 +486,7 @@ print(json.dumps({"td": td}))
         td_token = json.loads([ln for ln in seed_proc.stdout.splitlines() if ln.strip().startswith("{")][-1])["td"]
 
         proc = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "simulator.server:app", "--host", "127.0.0.1", "--port", str(port)],
+            [sys.executable, "-m", "uvicorn", "backend.server:app", "--host", "127.0.0.1", "--port", str(port)],
             cwd=str(ROOT),
             env=env,
             stdout=subprocess.DEVNULL,
@@ -607,7 +607,7 @@ print(json.dumps({"td": td}))
 
 class TestP2ColdStartAgcEchoGuard:
     def test_signed_lag_and_burst_jitter_echo_suppression_js_and_python_preserve_4_wavs(self) -> None:
-        from simulator.live.echo_and_speech_guard import ServerEchoGuard
+        from backend.live.echo_and_speech_guard import ServerEchoGuard
 
         aoede_16k = _read_wav_floats(WAV_AOEDE_24K, 16000)
         aoede_24k = _read_wav_floats(WAV_AOEDE_24K, 24000)
@@ -777,10 +777,10 @@ console.log(JSON.stringify(out));
 
         seed_code = r"""
 import json
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth.session_store import mint_trusted_device_token
-from simulator.database_sqlite import init_sqlite_database
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth.session_store import mint_trusted_device_token
+from backend.database_sqlite import init_sqlite_database
 
 init_sqlite_database()
 mgr = get_auth_3layer_manager()
@@ -805,7 +805,7 @@ print(json.dumps({"td": td}))
         td_desktop = json.loads([ln for ln in seed_proc.stdout.splitlines() if ln.strip().startswith("{")][-1])["td"]
 
         proc = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "simulator.server:app", "--host", "127.0.0.1", "--port", str(port)],
+            [sys.executable, "-m", "uvicorn", "backend.server:app", "--host", "127.0.0.1", "--port", str(port)],
             cwd=str(ROOT),
             env=env,
             stdout=subprocess.DEVNULL,

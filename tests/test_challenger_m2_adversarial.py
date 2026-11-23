@@ -26,12 +26,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import _BOOT_VOICE_AUTH, app
-from simulator.auth_3layer import (
+from backend.server import _BOOT_VOICE_AUTH, app
+from backend.auth_3layer import (
     DURATION_MAP_SECONDS,
     get_auth_3layer_manager,
 )
-from simulator.rule_engine import SmartHomeEngine
+from backend.rule_engine import SmartHomeEngine
 
 
 @pytest.fixture(autouse=True)

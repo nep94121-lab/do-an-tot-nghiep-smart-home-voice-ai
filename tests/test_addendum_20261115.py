@@ -14,16 +14,16 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.api.deps import _BOOT_VOICE_AUTH, _REST_ENGINE
-from simulator.api.routes_auth import set_dual_session_cookies
-from simulator.auth.guest_invites import create_invite, get_invite, inspect_token
-from simulator.auth.session_store import UserSession
-from simulator.automation_nlu import (
+from backend.api.deps import _BOOT_VOICE_AUTH, _REST_ENGINE
+from backend.api.routes_auth import set_dual_session_cookies
+from backend.auth.guest_invites import create_invite, get_invite, inspect_token
+from backend.auth.session_store import UserSession
+from backend.automation_nlu import (
     handle_confirmation_reply,
     prepare_pending_mutation,
     process_automation_nlu_command,
 )
-from simulator.automation_repo import (
+from backend.automation_repo import (
     GUEST_ONLY_TOGGLE_MSG_VI,
     TIER1_SCHEDULE_CONFLICT_MSG_VI,
     can_user_create_links,
@@ -39,15 +39,15 @@ from simulator.automation_repo import (
     set_user_can_create_links,
     upsert_custom_command,
 )
-from simulator.db_migrations import (
+from backend.db_migrations import (
     NORMALIZED_TABLE_ORDER,
     open_wal_connection,
     resolve_sqlite_db_path,
 )
-from simulator.engine.audit_logger import read_audit_logs
-from simulator.live.gemini_bridge import LiveBridgeSession
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app
+from backend.engine.audit_logger import read_audit_logs
+from backend.live.gemini_bridge import LiveBridgeSession
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 

@@ -31,9 +31,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.database_sqlite import DATA_DIR, SQLITE_DB_PATH, get_connection, init_sqlite_database
-from simulator.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, app
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.database_sqlite import DATA_DIR, SQLITE_DB_PATH, get_connection, init_sqlite_database
+from backend.server import _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH, app
 
 
 @pytest.fixture(autouse=True)

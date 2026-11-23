@@ -24,9 +24,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.session_store import get_session_store
-from simulator.rule_engine import append_audit_log
-from simulator.server import app
+from backend.auth.session_store import get_session_store
+from backend.rule_engine import append_audit_log
+from backend.server import app
 
 ADMIN_SESSION_ID = "sess_owner_t1_nep94121"
 MEMBER_SESSION_ID = "sess_family_t2_member_a"
@@ -196,7 +196,7 @@ class TestRequirement3AdminEmailAndSecretMasking:
     """Requirement 3: Admin view masks emails (e.g. n***@gmail.com) and never shows OTP codes, passwords or password hints."""
 
     def test_mask_email_helper_formats_emails_correctly(self) -> None:
-        from simulator.api.routes_logs import mask_sensitive_log_data
+        from backend.api.routes_logs import mask_sensitive_log_data
 
         sample = {
             "owner_email": "nep94121@gmail.com",
@@ -329,7 +329,7 @@ class TestRequirement4WebDashboardWorksForLoggedInAdmin:
 const fs = require('fs');
 const vm = require('vm');
 
-const jsCode = fs.readFileSync('simulator/static/js/logs.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/logs.js', 'utf8');
 let capturedHeaders = null;
 let capturedCredentials = null;
 

@@ -22,9 +22,9 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.api.routes_auth import get_auth_3layer_manager
-from simulator.auth_3layer import is_test_otp_fields_allowed
-from simulator.server import app
+from backend.api.routes_auth import get_auth_3layer_manager
+from backend.auth_3layer import is_test_otp_fields_allowed
+from backend.server import app
 
 
 @pytest.fixture(autouse=True)

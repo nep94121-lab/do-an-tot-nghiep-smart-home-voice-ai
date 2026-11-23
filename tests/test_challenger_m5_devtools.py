@@ -30,8 +30,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
-from simulator.server import _ACTIVE_BRIDGES, app
+from backend.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from backend.server import _ACTIVE_BRIDGES, app
 
 PAGES_TO_TEST = [
     ("/", "Trang chủ 3D"),

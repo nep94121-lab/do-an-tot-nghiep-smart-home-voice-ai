@@ -22,9 +22,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import VoiceAuthManager
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import VoiceAuthManager
 
 AUDIO_DIR = ROOT / "test_audio"
 
@@ -114,7 +114,7 @@ _CACHED_KHACH_C_BUNDLE: tuple[str | None, str] | None = None
 def voice_auth_mgr() -> Generator[VoiceAuthManager, None, None]:
     """Khởi tạo VoiceAuthManager và dọn dẹp strikes trước/sau mỗi test."""
     global _CACHED_KHACH_C_BUNDLE
-    from simulator.voice_auth import VOICEPRINT_FILE
+    from backend.voice_auth import VOICEPRINT_FILE
     orig_voiceprints = VOICEPRINT_FILE.read_text(encoding="utf-8") if VOICEPRINT_FILE.exists() else None
     if _CACHED_KHACH_C_BUNDLE is not None and _CACHED_KHACH_C_BUNDLE[0] == orig_voiceprints:
         VOICEPRINT_FILE.write_text(_CACHED_KHACH_C_BUNDLE[1], encoding="utf-8")
@@ -173,7 +173,7 @@ def validate_voice_quality_helper(pcm16_arr: np.ndarray, sr: int = 16000) -> dic
     Ưu tiên gọi trực tiếp `validate_voice_enrollment_quality` nếu có trong `voice_auth`.
     """
     try:
-        from simulator.voice_auth import validate_voice_enrollment_quality
+        from backend.voice_auth import validate_voice_enrollment_quality
         return validate_voice_enrollment_quality(pcm16_arr, sr)
     except Exception:
         pass
@@ -312,7 +312,7 @@ def check_duplicate_voice_gate_helper(
     if hasattr(vm, "check_duplicate_voice_gate"):
         return vm.check_duplicate_voice_gate(pcm_bytes, threshold_mel=threshold_mel, threshold_deep=threshold_deep)
 
-    import simulator.voice_auth as va
+    import backend.voice_auth as va
     if hasattr(va, "check_duplicate_voice_gate"):
         return va.check_duplicate_voice_gate(pcm_bytes, threshold_mel=threshold_mel, threshold_deep=threshold_deep)
 
@@ -453,7 +453,7 @@ def validate_dns_mx_record_helper(email: str) -> tuple[bool, str]:
     - Kiểm tra sự tồn tại bản ghi MX của tên miền thật (gmail.com, google.com, outlook.com...).
     - Chặn tên miền ảo không có MX record (fake-nonexistent-domain-123.xyz...).
     """
-    import simulator.auth_3layer as a3
+    import backend.auth_3layer as a3
     if hasattr(a3, "validate_dns_mx_record"):
         return a3.validate_dns_mx_record(email)
 

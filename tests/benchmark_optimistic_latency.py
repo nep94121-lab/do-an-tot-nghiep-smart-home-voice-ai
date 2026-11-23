@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from playwright.sync_api import sync_playwright
-from simulator.server import app
+from backend.server import app
 
 
 def run_benchmark(port: int = 8996) -> dict:

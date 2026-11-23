@@ -15,9 +15,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import VoiceAuthManager
-from simulator.auth_3layer import get_auth_3layer_manager
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import VoiceAuthManager
+from backend.auth_3layer import get_auth_3layer_manager
 from tests.e2e.conftest import (
     read_wav_pcm16,
     validate_voice_quality_helper,
@@ -52,8 +52,8 @@ class TestTier2BoundaryCornerCases:
 
     def test_long_hesitation_pause_vad_config(self) -> None:
         """ADV-01/ADV-04: Cấu hình VAD low-latency (350ms + END_SENSITIVITY_HIGH) phản hồi nhanh, tránh đơ lượt."""
-        prompt_builder_path = ROOT / "simulator" / "live" / "prompt_builder.py"
-        target_file = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "simulator" / "server.py")
+        prompt_builder_path = ROOT / "backend" / "live" / "prompt_builder.py"
+        target_file = prompt_builder_path if prompt_builder_path.exists() else (ROOT / "backend" / "server.py")
         server_code = target_file.read_text(encoding="utf-8")
         # Đảm bảo cấu hình silence_duration_ms 350ms low-latency (ADDENDUM E)
         assert "silence_duration_ms=350" in server_code or "silence_duration_ms = 350" in server_code or "350" in server_code

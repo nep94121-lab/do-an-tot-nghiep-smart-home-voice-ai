@@ -33,8 +33,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import ThreeLayerAuthManager
-from simulator.server import app
+from backend.auth_3layer import ThreeLayerAuthManager
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -47,7 +47,7 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def clean_otp_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("REAL_EMAIL_ALLOWLIST", "senat6031@gmail.com")
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
@@ -60,7 +60,7 @@ def clean_otp_state(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def auth_mgr() -> ThreeLayerAuthManager:
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     return get_auth_3layer_manager()
 
@@ -74,7 +74,7 @@ class TestFrontendDoubleFiringAndTriggers:
 
     def test_app_js_no_button_click_in_submit_handlers(self):
         """Đảm bảo không có bất kỳ submit handler nào gọi button.click() trong app.js."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         assert app_js_path.exists(), "app.js must exist"
         content = app_js_path.read_text(encoding="utf-8")
 
@@ -102,7 +102,7 @@ class TestFrontendDoubleFiringAndTriggers:
 
     def test_app_js_submit_handlers_call_prevent_default(self):
         """Các hàm xử lý submit form gate bắt buộc phải gọi preventDefault() để chặn reload trang."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         handlers = [
@@ -118,7 +118,7 @@ class TestFrontendDoubleFiringAndTriggers:
 
     def test_index_html_no_duplicate_inline_handlers(self):
         """Kiểm tra file index.html không chứa thuộc tính onclick trùng lặp với submit handler."""
-        html_path = ROOT / "simulator" / "static" / "index.html"
+        html_path = ROOT / "web" / "index.html"
         assert html_path.exists(), "index.html must exist"
         html = html_path.read_text(encoding="utf-8")
 
@@ -139,7 +139,7 @@ class TestInFlightAndDisabledState:
 
     def test_all_auth_buttons_have_inflight_and_disabled_guarantees(self):
         """Mọi nút submit và OTP đều được bảo vệ bởi inFlight flag và try...finally disable."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         button_checks = [
@@ -204,7 +204,7 @@ class TestVisualCountdownTimer:
 
     def test_countdown_timer_structure_and_recovery(self):
         """Kiểm tra chi tiết logic setInterval, đếm ngược giây, clearInterval và phục hồi nút."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         content = app_js_path.read_text(encoding="utf-8")
 
         idx = content.find("function startForgotOtpCooldown")

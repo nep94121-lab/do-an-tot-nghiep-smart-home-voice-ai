@@ -18,30 +18,30 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from simulator.auth.session_store import UserSession
-from simulator.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
-from simulator.live.echo_and_speech_guard import (
+from backend.auth.session_store import UserSession
+from backend.automation_repo import GUEST_ONLY_TOGGLE_MSG_VI
+from backend.live.echo_and_speech_guard import (
     ECHO_SIMILARITY_THRESHOLD,
     ECHO_WINDOW_SEC,
     SERVER_PLAYBACK_TAIL_SEC,
     ServerEchoGuard,
     sanitize_spoken_vietnamese_text,
 )
-from simulator.live.gemini_bridge import LiveBridgeSession, MODEL
-from simulator.live.prompt_builder import (
+from backend.live.gemini_bridge import LiveBridgeSession, MODEL
+from backend.live.prompt_builder import (
     ALL_TOOLS,
     FIXED_REJECTION_PHRASE_VI,
     build_system_instruction,
     make_live_config,
 )
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice.session_voice_command import (
+from backend.rule_engine import SmartHomeEngine
+from backend.voice.session_voice_command import (
     process_session_voice_command,
     reset_session_echo_guards,
 )
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-ECHO_GUARD_JS = REPO_ROOT / "simulator" / "static" / "js" / "voice_echo_guard.js"
+ECHO_GUARD_JS = REPO_ROOT / "web" / "js" / "voice_echo_guard.js"
 SAMPLE_USER_WAV = REPO_ROOT / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav"
 
 
@@ -215,11 +215,11 @@ console.log(JSON.stringify({
         assert data["triggeredAtMs"] >= 240
 
     def test_all_mic_capture_surfaces_enable_aec_and_fix_holdoff_sign(self) -> None:
-        app_js = (REPO_ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-        mobile_js = (REPO_ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
-        guest_enroll_js = (REPO_ROOT / "simulator" / "static" / "js" / "guest_enroll.js").read_text(encoding="utf-8")
+        app_js = (REPO_ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        mobile_js = (REPO_ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        guest_enroll_js = (REPO_ROOT / "web" / "js" / "guest_enroll.js").read_text(encoding="utf-8")
         android_kt = (
-            REPO_ROOT / "android_app" / "app-core" / "src" / "main" / "kotlin" /
+            REPO_ROOT / "app" / "app-core" / "src" / "main" / "kotlin" /
             "vn" / "edu" / "hust" / "seee" / "smarthome" / "ui" / "main" / "MainScreen.kt"
         ).read_text(encoding="utf-8")
 
@@ -602,10 +602,10 @@ class TestAiToolsRbacPoolsAndRealUserFlows:
 
 class TestGuestQrUiStructure:
     def test_desktop_and_mobile_qr_ui_controls_and_dark_mode(self) -> None:
-        index_html = (REPO_ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
-        style_css = (REPO_ROOT / "simulator" / "static" / "css" / "style.css").read_text(encoding="utf-8")
-        mobile_html = (REPO_ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
-        mobile_css = (REPO_ROOT / "simulator" / "static" / "css" / "mobile_app.css").read_text(encoding="utf-8")
+        index_html = (REPO_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        style_css = (REPO_ROOT / "web" / "css" / "style.css").read_text(encoding="utf-8")
+        mobile_html = (REPO_ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
+        mobile_css = (REPO_ROOT / "web" / "css" / "mobile_app.css").read_text(encoding="utf-8")
 
         for dom_id in (
             "ownerGuestQrPanel",

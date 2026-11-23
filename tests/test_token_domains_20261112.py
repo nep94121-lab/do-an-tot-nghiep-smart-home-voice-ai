@@ -8,9 +8,9 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.auth import guest_invites
-from simulator.auth.session_store import SessionStore, _get_session_hmac_key
-from simulator.server import app
+from backend.auth import guest_invites
+from backend.auth.session_store import SessionStore, _get_session_hmac_key
+from backend.server import app
 
 
 def test_revoked_invite_prefix_swap_does_not_authenticate():

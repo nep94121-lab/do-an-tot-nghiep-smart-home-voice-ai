@@ -2,7 +2,7 @@
 
 Author: challenger_m3_1 (teamwork_challenger)
 Roles: critic, specialist
-Target: simulator/auth/invite_and_gmail_mixin.py & smart_home email dispatches
+Target: backend/auth/invite_and_gmail_mixin.py & smart_home email dispatches
 
 Challenge Dimensions:
 1. RFC 5322 Header Fuzzing:
@@ -51,7 +51,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simulator.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
+from backend.auth.invite_and_gmail_mixin import AuthInviteGmailMixin
 
 
 # ==============================================================================

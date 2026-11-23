@@ -41,8 +41,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import ThreeLayerAuthManager, is_test_otp_fields_allowed
-from simulator.server import app
+from backend.auth_3layer import ThreeLayerAuthManager, is_test_otp_fields_allowed
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -55,7 +55,7 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def clean_otp_state_fixture():
     """Ensure clean account and OTP state before and after each test."""
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
@@ -82,7 +82,7 @@ def clean_otp_state_fixture():
 
 @pytest.fixture
 def auth_mgr() -> ThreeLayerAuthManager:
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     return get_auth_3layer_manager()
 
@@ -463,7 +463,7 @@ class TestChallengerM2R2CooldownAdversarial:
             assert r.get("ok") is True, f"Failed result: {r}"
 
         # Verify accounts_3layer.json file integrity
-        from simulator.auth import ACCOUNTS_FILE
+        from backend.auth import ACCOUNTS_FILE
         raw_data = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
         assert isinstance(raw_data, list), "Accounts file corrupted"
 

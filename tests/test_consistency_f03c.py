@@ -14,9 +14,9 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv('SMARTHOME_SECURITY_BACKEND', 'sqlite')
     monkeypatch.setenv('SIMULATOR_OFFLINE_SANDBOX', '1')
     monkeypatch.setenv('SMARTHOME_STATE_FILE', str(tmp_path / 'shared_device_state.json'))
-    from simulator.auth.session_store import get_session_store
-    from simulator.auth.sqlite_security_repo import invalidate_accounts_sqlite_cache
-    from simulator.engine.state_store import set_default_state_backend
+    from backend.auth.session_store import get_session_store
+    from backend.auth.sqlite_security_repo import invalidate_accounts_sqlite_cache
+    from backend.engine.state_store import set_default_state_backend
     set_default_state_backend(None)
     store = get_session_store()
     previous = store.db_path
@@ -33,7 +33,7 @@ def pack(doc):
 
 
 def issue_login():
-    from simulator.auth_3layer import ThreeLayerAuthManager
+    from backend.auth_3layer import ThreeLayerAuthManager
     mgr = ThreeLayerAuthManager()
     acc = next(a for a in mgr.accounts if a['tier'] == 1)
     code = ''.join(str(secrets.randbelow(10)) for _ in range(6))
@@ -52,9 +52,9 @@ def verify_login(mgr, acc, code):
 
 @pytest.mark.parametrize('legacy', [False, True])
 def test_owner_pin_used_snapshot_cannot_replay(isolated, legacy):
-    from simulator.auth import owner_pin as pin
-    from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
-    from simulator.auth.security_state import StateConflict
+    from backend.auth import owner_pin as pin
+    from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+    from backend.auth.security_state import StateConflict
     _, code = pin.issue_reset_otp()
     stale = json.loads(load_owner_pin_sqlite(isolated))
     if legacy:
@@ -71,9 +71,9 @@ def test_owner_pin_used_snapshot_cannot_replay(isolated, legacy):
 
 @pytest.mark.parametrize('legacy', [False, True])
 def test_owner_pin_new_code_survives_old_snapshot(isolated, legacy):
-    from simulator.auth import owner_pin as pin
-    from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
-    from simulator.auth.security_state import StateConflict
+    from backend.auth import owner_pin as pin
+    from backend.auth.sqlite_security_repo import load_owner_pin_sqlite, save_owner_pin_sqlite
+    from backend.auth.security_state import StateConflict
     now = time.time()
     with patch.object(pin.time, 'time', return_value=now):
         _, old = pin.issue_reset_otp()
@@ -93,7 +93,7 @@ def test_owner_pin_new_code_survives_old_snapshot(isolated, legacy):
 
 
 def test_login_consumed_snapshot_rejected_and_new_code_usable(isolated):
-    from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+    from backend.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
     mgr, acc, code = issue_login()
     stale = load_accounts_sqlite(isolated)
     assert verify_login(mgr, acc, code)['ok']
@@ -105,8 +105,8 @@ def test_login_consumed_snapshot_rejected_and_new_code_usable(isolated):
 
 
 def test_qr_used_snapshot_rejected_and_new_invite_usable(isolated):
-    from simulator.auth import guest_invites as guest
-    from simulator.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
+    from backend.auth import guest_invites as guest
+    from backend.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
     old = guest.create_invite(owner_user_id='tuan_anh', tier=3, duration_code='1d')
     stale = load_invites_sqlite(isolated)
     assert guest._claim_invite_redemption(old['token'])['ok']
@@ -117,8 +117,8 @@ def test_qr_used_snapshot_rejected_and_new_invite_usable(isolated):
 
 
 def test_qr_empty_snapshot_does_not_delete_consumption_history(isolated):
-    from simulator.auth import guest_invites as guest
-    from simulator.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
+    from backend.auth import guest_invites as guest
+    from backend.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
     old = guest.create_invite(owner_user_id='tuan_anh', tier=3, duration_code='1d')
     stale = load_invites_sqlite(isolated)
     assert guest.redeem_token(old['token'])['ok']
@@ -129,8 +129,8 @@ def test_qr_empty_snapshot_does_not_delete_consumption_history(isolated):
 
 
 def test_qr_empty_snapshot_between_non_empty_preserves_new_and_consumed(isolated):
-    from simulator.auth import guest_invites as guest
-    from simulator.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
+    from backend.auth import guest_invites as guest
+    from backend.auth.sqlite_security_repo import load_invites_sqlite, save_invites_sqlite
     qr1 = guest.create_invite(owner_user_id='tuan_anh', tier=3, duration_code='1d')
     stale_qr1_unconsumed = load_invites_sqlite(isolated)
     assert guest.redeem_token(qr1['token'])['ok']
@@ -152,7 +152,7 @@ def test_qr_empty_snapshot_between_non_empty_preserves_new_and_consumed(isolated
 
 
 def test_login_stale_clear_does_not_consume_new_challenge(isolated):
-    from simulator.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
+    from backend.auth.sqlite_security_repo import load_accounts_sqlite, save_accounts_sqlite
     mgr, acc, old = issue_login()
     snapshot = json.loads(load_accounts_sqlite(isolated))
     prior = next(a for a in snapshot['accounts'] if a['account_id'] == acc['account_id'])
@@ -175,7 +175,7 @@ def test_stale_manager_metadata_save_preserves_new_login(isolated):
 
 
 def test_clear_undelivered_pin_code_allows_immediate_retry(isolated):
-    from simulator.auth import owner_pin as pin
+    from backend.auth import owner_pin as pin
     _, code = pin.issue_reset_otp()
     assert pin.clear_undelivered_reset_otp(code)
     status, new = pin.issue_reset_otp()
@@ -221,8 +221,8 @@ def test_two_processes_stale_clear_preserves_fresh_login(isolated):
 
 @pytest.mark.parametrize('kind', ['verify_pin', 'issue_pin'])
 def test_two_processes_pin_transition_same_record(isolated, kind):
-    from simulator.auth import owner_pin as pin
-    from simulator.auth.sqlite_security_repo import load_owner_pin_sqlite
+    from backend.auth import owner_pin as pin
+    from backend.auth.sqlite_security_repo import load_owner_pin_sqlite
     value = ''.join(str(secrets.randbelow(10)) for _ in range(4))
     assert pin.setup_or_replace_pin(value, value)['ok']
     wrong = str((int(value)+1)%10000).zfill(4)
@@ -253,7 +253,7 @@ def test_two_processes_pin_transition_same_record(isolated, kind):
 @pytest.mark.parametrize('tier,device,action,allowed', [(1,'main_door','open',False),(1,'alarm_siren','turn_on',False),(2,'main_door','open',False),(3,'garden_pump','turn_on',False),(2,'speaker_amp','turn_on',True),(3,'speaker_amp','turn_on',False),(2,'living_room_light','turn_on',True),(3,'living_room_light','turn_on',True)])
 def test_rbac_and_offline_behavior(isolated, tier, device, action, allowed):
     import asyncio
-    from simulator.rule_engine import SmartHomeEngine
+    from backend.rule_engine import SmartHomeEngine
     engine = SmartHomeEngine()
     engine.server_connected = False
     before = engine.devices[device]['state']

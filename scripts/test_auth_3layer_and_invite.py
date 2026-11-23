@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth_3layer import get_auth_3layer_manager
+from backend.auth_3layer import get_auth_3layer_manager
 
 
 def _http_post_json(url: str, payload: dict) -> dict:

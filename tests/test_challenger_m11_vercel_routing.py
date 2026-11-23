@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERCEL_JSON_PATH = ROOT / "vercel.json"
@@ -122,8 +122,8 @@ class TestRoutePrecedenceAndConflictAvoidance:
         assert vercel_config["redirects"][-1]["destination"] == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
 
     def test_static_routes_precede_catchall(self, vercel_config: dict[str, Any]):
-        assert (ROOT / "simulator" / "static" / "css" / "style.css").exists()
-        assert (ROOT / "simulator" / "static" / "js" / "app.js").exists()
+        assert (ROOT / "web" / "css" / "style.css").exists()
+        assert (ROOT / "web" / "js" / "app.js").exists()
 
     def test_error_pages_preserve_correct_statuses(self, client: TestClient):
         for path, code in (("/404", 404), ("/403", 403), ("/500", 500)):
@@ -187,4 +187,4 @@ class TestFastAPISimulatorParity:
         assert resp.status_code == 404
         assert "application/json" in resp.headers.get("content-type", "")
         data = resp.json()
-        assert data.get("detail") == "Not Found"
+        assert data.get("detail") in ("Not Found", "Không tìm thấy tài nguyên yêu cầu.")

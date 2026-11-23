@@ -18,7 +18,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Kho tài liệu tham khảo clone về máy (System Design Primer, Serena, Repomix, Archify, Made-With-ML, SWE-agent)
+# Kho tài liệu tham khảo clone về máy
 docs/tai_lieu_tham_khao/system-design-primer/
 docs/tai_lieu_tham_khao/serena/
 docs/tai_lieu_tham_khao/repomix/
@@ -26,37 +26,21 @@ docs/tai_lieu_tham_khao/archify/
 docs/tai_lieu_tham_khao/Made-With-ML/
 docs/tai_lieu_tham_khao/SWE-agent/
 
-# Thư mục tạm khi biên dịch Archify & gói ZIP phát hành tạm
+# Thư mục tạm biên dịch & đóng gói
 .archify/
 dist/*.zip
-
-
-
-
 .vercel
-simulator/data/auth3_accounts_state.json
-simulator/data/login_rate_limit.json
+
+# Android build cache
+app/.lightbuild/
+app/build/
+app/app/build/
+app/app-core/build/
+
+# Runtime transient state
+backend/data/auth3_accounts_state.json
+backend/data/login_rate_limit.json
+backend/data/shared_device_state.json
+backend/data/user_sessions.json
 auth3_accounts_state.json
 login_rate_limit.json
-simulator/data/shared_device_state.json
-simulator/data/user_sessions.json
-
-
-.vercel
-simulator/data/auth3_accounts_state.json
-simulator/data/login_rate_limit.json
-auth3_accounts_state.json
-login_rate_limit.json
-simulator/data/shared_device_state.json
-simulator/data/user_sessions.json
-
-.env*
-
-.vercel
-simulator/data/auth3_accounts_state.json
-simulator/data/login_rate_limit.json
-auth3_accounts_state.json
-login_rate_limit.json
-simulator/data/shared_device_state.json
-simulator/data/user_sessions.json
-

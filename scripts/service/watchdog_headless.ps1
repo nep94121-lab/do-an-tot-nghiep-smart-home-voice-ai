@@ -48,7 +48,7 @@ if ($runners.Count -gt 1) {
 $healthy = Test-PortHealth -CheckPort $Port -TimeoutSec 5
 if (-not $healthy) {
     $startingPy = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -match 'uvicorn\s+simulator\.server:app' -and $_.CommandLine -match "--port\s+$Port\b" -and $_.CreationDate -gt (Get-Date).AddSeconds(-40)
+        $_.CommandLine -match 'uvicorn\s+backend\.server:app' -and $_.CommandLine -match "--port\s+$Port\b" -and $_.CreationDate -gt (Get-Date).AddSeconds(-40)
     })
     if ($startingPy.Count -gt 0) {
         for ($w = 0; $w -lt 15; $w++) {

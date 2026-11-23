@@ -385,7 +385,7 @@ def _setup_isolated_environment() -> tuple[tempfile.TemporaryDirectory[str], dic
     vault_dir.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    repo_data = ROOT / "simulator" / "data"
+    repo_data = ROOT / "backend" / "data"
     if repo_data.exists():
         for src in repo_data.iterdir():
             if not src.is_file():
@@ -417,8 +417,8 @@ def _setup_isolated_environment() -> tuple[tempfile.TemporaryDirectory[str], dic
     for unset_key in ("VERCEL", "PYTEST_CURRENT_TEST", "SMARTHOME_FORCE_CLOUD_DURABLE"):
         os.environ.pop(unset_key, None)
 
-    from simulator.auth_3layer import hash_password
-    from simulator.voice_config import OWNER_EMAIL
+    from backend.auth_3layer import hash_password
+    from backend.voice_config import OWNER_EMAIL
     from scripts.migrate_to_sqlite import migrate_all
 
     acct_file = data_dir / "accounts_3layer.json"
@@ -540,7 +540,7 @@ def run_e2e() -> dict[str, Any]:
     _assert_port_free(SERVER_HOST, SERVER_PORT)
     tmp_dir, server_env, owner_password, hw_key = _setup_isolated_environment()
 
-    from simulator.mqtt_bridge import SmartHomeMQTTBridge
+    from backend.mqtt_bridge import SmartHomeMQTTBridge
 
     broker = EmbeddedMQTTBroker(SERVER_HOST, 0)
     broker_thread = threading.Thread(target=broker.serve_forever, name="e2e-mqtt-broker", daemon=True)
@@ -559,7 +559,7 @@ def run_e2e() -> dict[str, Any]:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "simulator.server:app",
+                "backend.server:app",
                 "--host",
                 SERVER_HOST,
                 "--port",

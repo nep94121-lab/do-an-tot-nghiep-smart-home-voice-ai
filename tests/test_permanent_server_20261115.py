@@ -49,8 +49,8 @@ def test_s0_health_and_3nf_sqlite_migration(tmp_path: pathlib.Path, monkeypatch:
     """Verify idempotent 3NF SQLite WAL migration, online backup integrity, and /api/health."""
     from scripts.backup_sqlite import run_online_backup
     from scripts.migrate_to_sqlite import migrate_all
-    from simulator.db_migrations import NORMALIZED_TABLE_ORDER, open_wal_connection
-    from simulator.server import app
+    from backend.db_migrations import NORMALIZED_TABLE_ORDER, open_wal_connection
+    from backend.server import app
 
     data_dir = tmp_path / "data"
     backup_dir = tmp_path / "backups"
@@ -58,7 +58,7 @@ def test_s0_health_and_3nf_sqlite_migration(tmp_path: pathlib.Path, monkeypatch:
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy canonical legacy seed files into isolated tmp data dir
-    src_data = ROOT / "simulator" / "data"
+    src_data = ROOT / "backend" / "data"
     for fname in ("accounts_3layer.json", "user_profiles.json", "device_state.json", "timers_pool.json"):
         if (src_data / fname).exists():
             (data_dir / fname).write_bytes((src_data / fname).read_bytes())
@@ -122,9 +122,9 @@ def test_s0_health_and_3nf_sqlite_migration(tmp_path: pathlib.Path, monkeypatch:
 
 def test_p2_2_aoede_phrase_rate_limit_and_unknown_phrase_validation(monkeypatch: pytest.MonkeyPatch) -> None:
     """P2-2: Unknown/empty phrases return 400; exceeding per-IP unauth limit returns 429 + Retry-After."""
-    from simulator.api.routes_devices import AOEDE_UNAUTH_RATE_LIMIT, _reset_aoede_unauth_rate_limits
-    from simulator.live.tts_rejection_vi import FIXED_REJECTION_PHRASE_VI
-    from simulator.server import app
+    from backend.api.routes_devices import AOEDE_UNAUTH_RATE_LIMIT, _reset_aoede_unauth_rate_limits
+    from backend.live.tts_rejection_vi import FIXED_REJECTION_PHRASE_VI
+    from backend.server import app
 
     _reset_aoede_unauth_rate_limits()
     monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
@@ -195,15 +195,15 @@ def test_p2_3_https_cookies_httponly_and_secure_and_ws_ticket(
 ) -> None:
     """P2-3 + P1-A ticket: HTTPS auth sets HttpOnly+Secure on both session cookies & ws_ticket authenticates SSE."""
     from scripts.migrate_to_sqlite import migrate_all
-    from simulator import auth_3layer, durable_store
-    from simulator.auth import session_store
-    from simulator.auth_3layer import get_auth_3layer_manager, hash_password
-    from simulator.server import app
-    from simulator.voice_config import OWNER_EMAIL
+    from backend import auth_3layer, durable_store
+    from backend.auth import session_store
+    from backend.auth_3layer import get_auth_3layer_manager, hash_password
+    from backend.server import app
+    from backend.voice_config import OWNER_EMAIL
 
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    seed_accounts = ROOT / "simulator" / "data" / "accounts_3layer.json"
+    seed_accounts = ROOT / "backend" / "data" / "accounts_3layer.json"
     accounts = json.loads(seed_accounts.read_text(encoding="utf-8"))
     for acc in accounts:
         if str(acc.get("email") or "").lower() == OWNER_EMAIL.lower():
@@ -289,8 +289,8 @@ def test_p2_3_https_cookies_httponly_and_secure_and_ws_ticket(
 def test_s0c_vercel_proxy_app_preserves_cookies_and_streams_sse(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """S0c: api.index.create_vercel_proxy_app forwards REST, strips cookie Domain, and streams SSE."""
-    from api.index import create_vercel_proxy_app
+    """S0c: backend.vercel_proxy.create_vercel_proxy_app forwards REST, strips cookie Domain, and streams SSE."""
+    from backend.vercel_proxy import create_vercel_proxy_app
     from scripts.migrate_to_sqlite import migrate_all
 
     env = os.environ.copy()
@@ -319,7 +319,7 @@ def test_s0c_vercel_proxy_app_preserves_cookies_and_streams_sse(
             sys.executable,
             "-m",
             "uvicorn",
-            "simulator.server:app",
+            "backend.server:app",
             "--host",
             "127.0.0.1",
             "--port",
@@ -341,7 +341,7 @@ def test_s0c_vercel_proxy_app_preserves_cookies_and_streams_sse(
             sys.executable,
             "-m",
             "uvicorn",
-            "api.index:app",
+            "backend.vercel_proxy:app",
             "--host",
             "127.0.0.1",
             "--port",
@@ -443,9 +443,9 @@ def test_p1c_text_command_under_3s_and_aoede_sqlite_cache(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """P1-C: /api/text_command <= 3.0s with non-empty Aoede audio and SQLite aoede_audio_cache hit."""
-    from simulator.db_migrations import apply_schema_migrations, open_wal_connection
-    from simulator.live import tts_rejection_vi as tts
-    from simulator.server import app
+    from backend.db_migrations import apply_schema_migrations, open_wal_connection
+    from backend.live import tts_rejection_vi as tts
+    from backend.server import app
 
     db_path = tmp_path / "smarthome.db"
     conn = open_wal_connection(db_path)
@@ -555,7 +555,7 @@ def test_p1a_live_server_playwright_optimistic_ui_and_bidirectional_1s_sync(tmp_
         sys.executable,
         "-m",
         "uvicorn",
-        "simulator.server:app",
+        "backend.server:app",
         "--host",
         "127.0.0.1",
         "--port",

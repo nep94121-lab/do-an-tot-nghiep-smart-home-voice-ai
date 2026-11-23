@@ -18,10 +18,10 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 try:
-    from simulator.auth_3layer import is_test_otp_fields_allowed
+    from backend.auth_3layer import is_test_otp_fields_allowed
 except ImportError:
     is_test_otp_fields_allowed = None  # type: ignore[assignment]
 
@@ -33,7 +33,7 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clean_pending_otps_state():
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
@@ -164,7 +164,7 @@ class TestR1SecurityOtpResponseFields:
 
     def test_r1_is_test_otp_fields_allowed_unit_logic(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unit test for is_test_otp_fields_allowed truth table."""
-        assert is_test_otp_fields_allowed is not None, "is_test_otp_fields_allowed must be defined in simulator.auth_3layer"
+        assert is_test_otp_fields_allowed is not None, "is_test_otp_fields_allowed must be defined in backend.auth_3layer"
 
         class DummyApp:
             testing = False

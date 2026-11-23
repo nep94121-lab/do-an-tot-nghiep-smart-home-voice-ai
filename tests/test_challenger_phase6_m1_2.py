@@ -35,14 +35,14 @@ from unittest.mock import MagicMock
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth.invite_and_gmail_mixin import (
+from backend.auth.invite_and_gmail_mixin import (
     HARDCODED_REAL_EMAIL_ALLOWLIST,
     AuthInviteGmailMixin,
     is_email_allowlisted_for_real_send,
 )
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import app
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -55,7 +55,7 @@ class TestLoginGatePayloadAndBehavior:
 
     def test_index_html_loads_correct_app_js(self):
         """Index.html must load /static/js/app.js and contain gate login elements."""
-        index_path = ROOT / "simulator" / "static" / "index.html"
+        index_path = ROOT / "web" / "index.html"
         assert index_path.exists(), f"Missing {index_path}"
         content = index_path.read_text(encoding="utf-8")
 
@@ -69,15 +69,15 @@ class TestLoginGatePayloadAndBehavior:
         assert 'src="/static/js/app.js"' in content, "index.html must load /static/js/app.js"
 
     def test_legacy_app_js_forwards_to_static_js_app_js(self):
-        """Legacy simulator/static/app.js must forward to /static/js/app.js."""
-        legacy_path = ROOT / "simulator" / "static" / "app.js"
+        """Legacy web/app.js must forward to /static/js/app.js."""
+        legacy_path = ROOT / "web" / "app.js"
         assert legacy_path.exists(), f"Missing {legacy_path}"
         content = legacy_path.read_text(encoding="utf-8")
         assert "/static/js/app.js" in content, "Legacy forwarder must point to /static/js/app.js"
 
     def test_app_js_btnSubmitGateLogin_explicitly_sends_send_gmail_false(self):
-        """simulator/static/js/app.js must include `send_gmail: false` in layer1_login fetch."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        """web/js/app.js must include `send_gmail: false` in layer1_login fetch."""
+        app_js_path = ROOT / "web" / "js" / "app.js"
         assert app_js_path.exists(), f"Missing {app_js_path}"
         content = app_js_path.read_text(encoding="utf-8")
 
@@ -96,8 +96,8 @@ class TestLoginGatePayloadAndBehavior:
         )
 
     def test_mobile_app_js_login_explicitly_sends_send_gmail_false(self):
-        """simulator/static/js/mobile_app.js must also include `send_gmail: false`."""
-        mobile_js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        """web/js/mobile_app.js must also include `send_gmail: false`."""
+        mobile_js_path = ROOT / "web" / "js" / "mobile_app.js"
         assert mobile_js_path.exists(), f"Missing {mobile_js_path}"
         content = mobile_js_path.read_text(encoding="utf-8")
 
@@ -341,8 +341,8 @@ class TestDataIntegrityAndAllowlistCleanliness:
     """Empirical verification of family_email_allowlist.json and accounts_3layer.json."""
 
     def test_family_email_allowlist_json_is_strictly_empty_object(self):
-        """simulator/data/family_email_allowlist.json must exist and be strictly {}."""
-        allowlist_path = ROOT / "simulator" / "data" / "family_email_allowlist.json"
+        """backend/data/family_email_allowlist.json must exist and be strictly {}."""
+        allowlist_path = ROOT / "backend" / "data" / "family_email_allowlist.json"
         assert allowlist_path.exists(), f"Missing {allowlist_path}"
 
         raw_bytes = allowlist_path.read_bytes()
@@ -355,8 +355,8 @@ class TestDataIntegrityAndAllowlistCleanliness:
         assert parsed == {}, "family_email_allowlist.json must be empty dict {}"
 
     def test_accounts_3layer_json_contains_only_six_canonical_accounts(self):
-        """simulator/data/accounts_3layer.json must contain exactly 6 canonical accounts."""
-        accounts_path = ROOT / "simulator" / "data" / "accounts_3layer.json"
+        """backend/data/accounts_3layer.json must contain exactly 6 canonical accounts."""
+        accounts_path = ROOT / "backend" / "data" / "accounts_3layer.json"
         assert accounts_path.exists(), f"Missing {accounts_path}"
 
         raw_bytes = accounts_path.read_bytes()

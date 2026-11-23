@@ -29,11 +29,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.constants_and_crypto import hash_password
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
-from simulator.database_sqlite import SQLITE_DB_PATH
-from simulator.rule_engine import AUDIT_LOG_FILE, append_audit_log, read_audit_logs
-from simulator.server import app
+from backend.auth.constants_and_crypto import hash_password
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
+from backend.database_sqlite import SQLITE_DB_PATH
+from backend.rule_engine import AUDIT_LOG_FILE, append_audit_log, read_audit_logs
+from backend.server import app
 
 OWNER_HEADERS = {"X-Session-Token": "sess_owner_t1_nep94121"}
 
@@ -104,9 +104,9 @@ def _collect_forbidden_keys(obj: Any, path: str = "$") -> list[str]:
 @pytest.fixture(autouse=True)
 def _preserve_data_files():
     """Preserve and restore stored log files and SQLite audit_logs around each test."""
-    from simulator.auth import ACCOUNTS_FILE, AUTH_EVENTS_FILE
-    from simulator.database_sqlite import get_connection
-    from simulator.engine.constants_and_time import AUDIT_LOG_FILE
+    from backend.auth import ACCOUNTS_FILE, AUTH_EVENTS_FILE
+    from backend.database_sqlite import get_connection
+    from backend.engine.constants_and_time import AUDIT_LOG_FILE
 
     orig_events = AUTH_EVENTS_FILE.read_bytes() if AUTH_EVENTS_FILE.exists() else None
     orig_jsonl = AUDIT_LOG_FILE.read_bytes() if AUDIT_LOG_FILE.exists() else None
@@ -324,7 +324,7 @@ def test_stored_log_files_on_disk_and_startup_redaction_have_zero_plaintext_otps
     """Requirement 2: Existing stored log files (auth_3layer_events.json, system_audit_logs.jsonl,
     smarthome.db audit_logs) must have all old OTP codes removed, and startup redaction must
     clean any dirty stored log entries."""
-    from simulator.auth import AUTH_EVENTS_FILE
+    from backend.auth import AUTH_EVENTS_FILE
 
     # 1. Check auth_3layer_events.json on disk
     if AUTH_EVENTS_FILE.exists():
@@ -362,7 +362,7 @@ def test_stored_log_files_on_disk_and_startup_redaction_have_zero_plaintext_otps
 def test_recursive_response_sanitizer_strips_otp_code_password_voiceprint_keys(client: TestClient) -> None:
     """Requirement 3: Response sanitizer must recursively strip otp/code/password/voiceprint keys
     from overview and logs endpoints."""
-    from simulator.voice_config import sanitize_overview_and_logs_payload
+    from backend.voice_config import sanitize_overview_and_logs_payload
 
     dirty_payload = {
         "ok": True,

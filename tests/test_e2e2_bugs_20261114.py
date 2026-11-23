@@ -10,8 +10,8 @@ import subprocess
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import get_auth_3layer_manager, hash_password
-from simulator.server import app
+from backend.auth_3layer import get_auth_3layer_manager, hash_password
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -38,15 +38,15 @@ class TestGuestGuideAndGoneHtml:
 
     def test_all_nav_guest_links_point_to_guest_guide(self) -> None:
         nav_pages = [
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "simulator" / "static" / "login.html",
-            ROOT / "simulator" / "static" / "register.html",
-            ROOT / "simulator" / "static" / "logs.html",
-            ROOT / "simulator" / "static" / "wokwi.html",
-            ROOT / "simulator" / "static" / "guest_enroll.html",
-            ROOT / "simulator" / "static" / "guest_guide.html",
-            ROOT / "mobile_app" / "index.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "login.html",
+            ROOT / "web" / "register.html",
+            ROOT / "web" / "logs.html",
+            ROOT / "web" / "wokwi.html",
+            ROOT / "web" / "guest_enroll.html",
+            ROOT / "web" / "guest_guide.html",
+            ROOT / "web" / "mobile" / "index.html",
         ]
         for page in nav_pages:
             html = page.read_text(encoding="utf-8")
@@ -86,7 +86,7 @@ class TestLogsPageGateAndVietnameseFeedback:
     """Bug (a) /logs: hidden Quản trị menu for non-Tier-1, clear 401 messages, export CSV guard."""
 
     def test_logs_html_and_css_fail_closed_and_clean(self) -> None:
-        logs_html = (ROOT / "simulator" / "static" / "logs.html").read_text(encoding="utf-8")
+        logs_html = (ROOT / "web" / "logs.html").read_text(encoding="utf-8")
         assert 'id="logsAdminMenu"' in logs_html
         assert 'id="logsAdminPanel" hidden' in logs_html
         assert 'id="logsAdminHint"' in logs_html
@@ -98,7 +98,7 @@ class TestLogsPageGateAndVietnameseFeedback:
         node_script = """
 const fs = require('fs');
 const vm = require('vm');
-const jsCode = fs.readFileSync('simulator/static/js/logs.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/logs.js', 'utf8');
 
 const elems = {};
 function mkEl(id) {
@@ -194,15 +194,15 @@ class TestRegisterAndMobileForgotOtpAndResetMessages:
     """Bugs (c), (d), (e) + Alias identity privacy."""
 
     def test_register_and_auth_forms_have_novalidate_and_vietnamese_validation(self) -> None:
-        reg_html = (ROOT / "simulator" / "static" / "register.html").read_text(encoding="utf-8")
+        reg_html = (ROOT / "web" / "register.html").read_text(encoding="utf-8")
         assert '<form id="registerForm"' in reg_html and "novalidate" in reg_html
-        login_html = (ROOT / "simulator" / "static" / "login.html").read_text(encoding="utf-8")
+        login_html = (ROOT / "web" / "login.html").read_text(encoding="utf-8")
         assert '<form id="loginForm"' in login_html and "novalidate" in login_html
 
         node_script = """
 const fs = require('fs');
 const vm = require('vm');
-const jsCode = fs.readFileSync('simulator/static/js/auth_pages.js', 'utf8');
+const jsCode = fs.readFileSync('web/js/auth_pages.js', 'utf8');
 
 const elems = {
   registerForm: { addEventListener(ev, fn) { if (ev === 'submit') this.onSubmit = fn; } },
@@ -346,11 +346,11 @@ domReadyCb();
             mgr._save_accounts()
 
     def test_mobile_forgot_step2_stays_on_step2_on_wrong_otp(self) -> None:
-        js_text = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        js_text = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
         assert "async function submitForgotVerifyOtp()" in js_text
         assert "/api/auth3/layer2_verify_otp" in js_text
         assert "Mã OTP không chính xác" in js_text
         for fname in ("auth_pages.js", "mobile_app.js", "app.js", "auth.js"):
-            txt = (ROOT / "simulator" / "static" / "js" / fname).read_text(encoding="utf-8")
+            txt = (ROOT / "web" / "js" / fname).read_text(encoding="utf-8")
             # Confirm forgot reset fallback text is never "Đã tạo tài khoản"
             assert "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới" in txt

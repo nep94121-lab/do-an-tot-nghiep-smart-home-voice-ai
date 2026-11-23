@@ -27,8 +27,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import ThreeLayerAuthManager
-from simulator.server import app
+from backend.auth_3layer import ThreeLayerAuthManager
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -40,7 +40,7 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clean_otp_state_fixture():
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
@@ -67,7 +67,7 @@ def clean_otp_state_fixture():
 
 @pytest.fixture
 def auth_mgr() -> ThreeLayerAuthManager:
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     return get_auth_3layer_manager()
 
@@ -257,9 +257,9 @@ class TestR2PersistentCooldownAndRateLimitingTDD:
 
     def test_r2_frontend_countdown_uses_cooldown_remaining_seconds(self):
         """Frontend files must use cooldown_remaining_seconds instead of hardcoded 60s."""
-        mobile_js = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        mobile_js = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
         assert "cooldown_remaining_seconds" in mobile_js, "mobile_app.js must reference cooldown_remaining_seconds"
         assert not re.search(r"let\s+countdown\s*=\s*60\s*;", mobile_js), "mobile_app.js must not hardcode countdown to 60"
 
-        auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth_js = (ROOT / "web" / "js" / "auth.js").read_text(encoding="utf-8")
         assert "cooldown_remaining_seconds" in auth_js, "auth.js must reference cooldown_remaining_seconds"

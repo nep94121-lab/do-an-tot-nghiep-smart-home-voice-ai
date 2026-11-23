@@ -7,7 +7,7 @@ Yêu cầu 4:
 - Một câu yêu cầu nói lại cố định duy nhất cho Safe-Deny:
   "Âm thanh chưa rõ, vui lòng nói lại."
 - Duy nhất giọng đọc tích hợp `Aoede` của Gemini Live (gemini-3.8-live, voice_name='Aoede').
-- Lưu biên nhận chứng thực `simulator/data/AOEDE_AUDIO_RECEIPT.json` với chữ ký SHA-256,
+- Lưu biên nhận chứng thực `backend/data/AOEDE_AUDIO_RECEIPT.json` với chữ ký SHA-256,
   thời lượng, phổ năng lượng, và kết quả chép lời (transcription) kiểm chứng độc lập.
 """
 
@@ -37,7 +37,7 @@ if env_file.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-from simulator.live.tts_rejection_vi import (
+from backend.live.tts_rejection_vi import (
     AOEDE_LIVE_MODEL,
     AOEDE_VOICE_NAME,
     FIXED_REJECTION_PHRASE_VI,
@@ -47,7 +47,7 @@ from simulator.live.tts_rejection_vi import (
     _wrap_pcm24k_to_wav,
 )
 
-DATA_DIR = ROOT / "simulator" / "data"
+DATA_DIR = ROOT / "backend" / "data"
 REJECTION_WAV = DATA_DIR / "aoede_rejection_24k.wav"
 REPEAT_WAV = DATA_DIR / "aoede_repeat_24k.wav"
 RECEIPT_FILE = DATA_DIR / "AOEDE_AUDIO_RECEIPT.json"

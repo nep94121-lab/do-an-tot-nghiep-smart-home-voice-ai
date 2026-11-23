@@ -8,11 +8,11 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.auth_3layer import get_auth_3layer_manager, hash_password
-from simulator.auth.session_store import get_session_store
-from simulator.auth.guest_invites import create_invite
-from simulator.server import app
-from simulator.voice_config import OWNER_EMAIL, OWNER_ID
+from backend.auth_3layer import get_auth_3layer_manager, hash_password
+from backend.auth.session_store import get_session_store
+from backend.auth.guest_invites import create_invite
+from backend.server import app
+from backend.voice_config import OWNER_EMAIL, OWNER_ID
 
 
 @pytest.fixture
@@ -183,7 +183,7 @@ def test_alias_login_binds_session_to_canonical_account_email(client, monkeypatc
 
 
 def test_invited_registration_claims_invite_and_rejects_concurrent_revocation_with_403(client, monkeypatch):
-    from simulator.auth import guest_invites
+    from backend.auth import guest_invites
 
     invite = create_invite(owner_user_id=OWNER_ID, tier=2)
     ok_resp = client.post(

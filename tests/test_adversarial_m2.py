@@ -20,9 +20,9 @@ sys.path.insert(0, str(ROOT))
 
 from google import genai
 from google.genai import types
-from simulator.knowledge_rag import SmartHomeKnowledgeRAG
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import (
+from backend.knowledge_rag import SmartHomeKnowledgeRAG
+from backend.rule_engine import SmartHomeEngine
+from backend.server import (
     LiveBridgeSession,
     MODEL,
     build_system_instruction,
@@ -170,7 +170,7 @@ class TestAdversarialM2(unittest.TestCase):
 
     def test_05_session_rbac_mic_streaming_without_voice_strikes(self) -> None:
         """Kiểm tra luồng Mic qua WS dùng Session RBAC thuần (truyền thẳng PCM, không kiểm định giọng nói hay tính strike)."""
-        from simulator.auth.session_store import UserSession
+        from backend.auth.session_store import UserSession
         import time as _time
 
         # 1. Phiên chưa đăng nhập -> bị chặn RBAC khi kết thúc lượt nói, không tăng unauthorized_strikes

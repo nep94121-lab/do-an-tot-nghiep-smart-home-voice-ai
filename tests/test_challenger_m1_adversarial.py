@@ -2,9 +2,9 @@
 Tác giả: Teamwork Challenger 1 (Empirical Adversarial Verifier)
 Milestone: M1 (Biometrics 256D & Audio Security)
 Đối tượng thẩm định:
-- simulator/voice/biometrics_neural.py
-- simulator/voice_auth.py
-- simulator/rule_engine.py
+- backend/voice/biometrics_neural.py
+- backend/voice_auth.py
+- backend/rule_engine.py
 
 Mục tiêu kiểm định đối kháng thực nghiệm:
 1. Neural Speaker Embedding 256 chiều:
@@ -44,18 +44,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice.biometrics_neural import (
+from backend.rule_engine import SmartHomeEngine
+from backend.voice.biometrics_neural import (
     compute_neural_similarity,
     extract_neural_embedding_256d,
 )
-from simulator.voice_auth import (
+from backend.voice_auth import (
     VoiceAuthManager,
     transform_pcm_by_pitch_factor,
 )
 
 AUDIO_DIR = ROOT / "test_audio"
-VOICEPRINT_FILE = ROOT / "simulator" / "data" / "voiceprints.json"
+VOICEPRINT_FILE = ROOT / "backend" / "data" / "voiceprints.json"
 
 
 def load_wav_pcm(name: str) -> np.ndarray:

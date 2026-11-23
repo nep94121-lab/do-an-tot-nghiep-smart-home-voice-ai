@@ -500,7 +500,7 @@ def multi_instance_cluster(tmp_path: pathlib.Path) -> Any:
                     sys.executable,
                     "-m",
                     "uvicorn",
-                    "simulator.server:app",
+                    "backend.server:app",
                     "--host",
                     "127.0.0.1",
                     "--port",
@@ -674,7 +674,7 @@ def test_s1b_concurrent_cas_conflict_no_lost_update_and_stale_rejection(
         assert by_id["bedroom_light"] == "ON", f"Lost update on bedroom_light: {by_id}"
 
     # Direct CAS stale-revision rejection check on backend class
-    from simulator.engine.state_store import FileStateBackend, StateConflictError
+    from backend.engine.state_store import FileStateBackend, StateConflictError
 
     fb = FileStateBackend(multi_instance_cluster["tmp_path"] / "cas_stale_check.json")
     s1 = fb.save_state({"revision_seq": 1, "revision_ts_ns": 100, "devices": {"living_room_light": {"state": "ON", "version": 1}}})
@@ -750,7 +750,7 @@ def test_s1d_suspended_blob_bypassed_in_favor_of_github_cas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When SMARTHOME_SECURITY_REPO/TOKEN exist alongside 403 store_suspended BLOB_TOKEN, GitHub CAS wins."""
-    from simulator.engine.state_store import VercelBlobStateBackend, create_state_backend_from_env
+    from backend.engine.state_store import VercelBlobStateBackend, create_state_backend_from_env
 
     blob_srv = MockSuspendedBlobServer()
     cas_srv = MockGitHubCasServer()
@@ -788,9 +788,9 @@ def test_s2_gemini_live_aoede_audio_config_and_http_branches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """S2: Verify Aoede config locks vi-VN by default, supports fallback without language_code, multi-turn Live works, and all HTTP branches emit PCM/WAV."""
-    from simulator.live import prompt_builder, tts_rejection_vi
-    from simulator.rule_engine import SmartHomeEngine
-    from simulator.server import app
+    from backend.live import prompt_builder, tts_rejection_vi
+    from backend.rule_engine import SmartHomeEngine
+    from backend.server import app
 
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
@@ -987,8 +987,8 @@ def test_s4_audit_logs_zero_decorative_emojis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """S4: Both newly emitted audit logs and legacy emoji logs returned by API contain 0 decorative emojis."""
-    from simulator.api import routes_logs
-    from simulator.server import app
+    from backend.api import routes_logs
+    from backend.server import app
 
     monkeypatch.setenv("SIMULATOR_OFFLINE_SANDBOX", "1")
 

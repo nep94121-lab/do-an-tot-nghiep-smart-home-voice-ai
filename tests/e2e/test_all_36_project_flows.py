@@ -30,13 +30,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.auth_3layer as a3
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
-from simulator.database_sqlite import execute_readonly_sql, get_sqlite_overview, sync_engine_state_to_sqlite
-from simulator.knowledge_rag import SmartHomeKnowledgeRAG
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import app, get_knowledge_rag
-from simulator.voice_auth import (
+import backend.auth_3layer as a3
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager
+from backend.database_sqlite import execute_readonly_sql, get_sqlite_overview, sync_engine_state_to_sqlite
+from backend.knowledge_rag import SmartHomeKnowledgeRAG
+from backend.rule_engine import SmartHomeEngine
+from backend.server import app, get_knowledge_rag
+from backend.voice_auth import (
     VoiceAuthManager,
     denoise_and_isolate_human_voice,
     extract_stage2_deep_features,
@@ -171,7 +171,7 @@ class TestGroup1VoiceDspAndQuality:
     ) -> None:
         """Luồng 5: RBAC badge phiên thay cho thu âm topbar (API enroll_voice_sample trả 410)."""
         from fastapi.testclient import TestClient
-        from simulator.server import app
+        from backend.server import app
 
         vm = clean_voice_auth
         vm.reset_to_owner_only()
@@ -537,12 +537,12 @@ class TestGroup4DeviceActuationAndTelemetry:
 
     def test_flow_24_house_3d_model_interaction(self, test_client: TestClient) -> None:
         """Luồng 24: Tương tác Mô hình Biệt thự 3D (house3d.js và tài nguyên GLB)."""
-        glb_path = ROOT / "simulator" / "static" / "models" / "smarthome_villa.glb"
+        glb_path = ROOT / "web" / "models" / "smarthome_villa.glb"
         assert glb_path.exists(), "Tệp mô hình 3D smarthome_villa.glb phải tồn tại"
         assert glb_path.stat().st_size > 100000
 
         # Kiểm tra file house3d.js
-        h3d_file = ROOT / "simulator" / "static" / "house3d.js"
+        h3d_file = ROOT / "web" / "house3d.js"
         assert h3d_file.exists()
         assert "Camera" in h3d_file.read_text(encoding="utf-8")
 
@@ -550,7 +550,7 @@ class TestGroup4DeviceActuationAndTelemetry:
         """Luồng 25: Đồng bộ Mạch điện tử NodeMCU ESP8266 & Breadboard (/wokwi) có bảo vệ phiên."""
         unauth = test_client.get("/wokwi", follow_redirects=False)
         assert unauth.status_code in (302, 303, 307, 401, 403)
-        from simulator.auth.session_store import get_session_store
+        from backend.auth.session_store import get_session_store
 
         sess = get_session_store().create_session(
             user_id="flow25_owner",
@@ -735,7 +735,7 @@ class TestGroup6AdminRagOfflineAndPlatforms:
         assert resp_app.status_code == 200
 
         # Kiểm tra android build flags và layout
-        gradle_props = ROOT / "android_app" / "gradle.properties"
+        gradle_props = ROOT / "app" / "gradle.properties"
         if gradle_props.exists():
             content = gradle_props.read_text(encoding="utf-8")
             assert "android.overridePathCheck=true" in content

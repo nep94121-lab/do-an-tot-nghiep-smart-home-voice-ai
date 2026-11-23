@@ -1,7 +1,7 @@
 """Offline Evaluation Script for WeSpeaker ResNet34 ONNX Speaker Verification & 5-Sample Enrollment.
 
 Reproduces the FINAL_VOICE_BENCH.md leave-one-out multi-sample benchmark using the
-production `simulator.voice.wespeaker_onnx` engine (pure-NumPy Kaldi fbank80 + CMN,
+production `backend.voice.wespeaker_onnx` engine (pure-NumPy Kaldi fbank80 + CMN,
 energy VAD trim, onnxruntime CPU 4 threads) and verifies:
   - Mean of 5 distinct owner clips: FRR@FAR1% <= 5.0% (4.8% at threshold 0.435)
   - Clean EER = 0.0%
@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.voice.wespeaker_onnx import (
+from backend.voice.wespeaker_onnx import (
     _MODEL_PATH as MODEL_PATH,
     compute_wespeaker_cosine,
     extract_wespeaker_embedding,
@@ -126,7 +126,7 @@ def run_benchmark_evaluation() -> dict[str, Any]:
         var_dir = BENCH_DIR / "var"
     else:
         files = sorted(glob.glob(str(ROOT / "test_audio" / "**" / "*.wav"), recursive=True)) + sorted(
-            glob.glob(str(ROOT / "simulator" / "voice" / "real_voices" / "*.wav"))
+            glob.glob(str(ROOT / "backend" / "voice" / "real_voices" / "*.wav"))
         )
         var_dir = None
 
@@ -235,9 +235,9 @@ def run_benchmark_evaluation() -> dict[str, Any]:
         "test_audio/giong_2_nguoi_la_mo_cua.wav",
         "test_audio/giong_cap2_thanh_vien_a.wav",
         "test_audio/giong_cap3_khach_c.wav",
-        "simulator/voice/real_voices/level2_family.wav",
-        "simulator/voice/real_voices/level3_guest.wav",
-        "simulator/voice/real_voices/stranger.wav",
+        "backend/voice/real_voices/level2_family.wav",
+        "backend/voice/real_voices/level3_guest.wav",
+        "backend/voice/real_voices/stranger.wav",
     ):
         p = ROOT / rel
         if p.exists():

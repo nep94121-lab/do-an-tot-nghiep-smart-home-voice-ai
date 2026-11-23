@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-STATIC_DIR = ROOT / "simulator" / "static"
+STATIC_DIR = ROOT / "web"
 WOKWI_HTML_PATH = STATIC_DIR / "wokwi.html"
 WOKWI_CSS_PATH = STATIC_DIR / "css" / "wokwi.css"
 
@@ -241,7 +241,7 @@ class TestBugR2WokwiPlaywrightRendering:
     @pytest.fixture(scope="class")
     @classmethod
     def static_server(cls):
-        """Spin up a lightweight HTTP server serving simulator/static/ on an ephemeral port."""
+        """Spin up a lightweight HTTP server serving web/ on an ephemeral port."""
         class WokwiStaticServerHandler(http.server.SimpleHTTPRequestHandler):
             def translate_path(self, path):
                 clean = path.split("?")[0].split("#")[0].lstrip("/")

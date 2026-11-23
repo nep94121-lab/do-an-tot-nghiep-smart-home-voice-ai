@@ -23,11 +23,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import simulator.api.deps as api_deps
-import simulator.api.routes_auth as routes_auth
-import simulator.api.routes_devices as routes_devices
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.server import app
+import backend.api.deps as api_deps
+import backend.api.routes_auth as routes_auth
+import backend.api.routes_devices as routes_devices
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.server import app
 
 
 _OWNER_HDR = {"X-Session-Token": "sess_owner_t1_nep94121"}

@@ -15,16 +15,16 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from simulator.auth.constants_and_crypto import canonical_gmail_mailbox
-from simulator.auth.guest_invites import create_invite
-from simulator.auth.invite_and_gmail_mixin import (
+from backend.auth.constants_and_crypto import canonical_gmail_mailbox
+from backend.auth.guest_invites import create_invite
+from backend.auth.invite_and_gmail_mixin import (
     HARDCODED_REAL_EMAIL_ALLOWLIST,
     is_email_allowlisted_for_real_send,
 )
-from simulator.auth.security_state import GitHubSecurityState
-from simulator.auth.session_store import get_session_store
-from simulator.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager, hash_password
-from simulator.server import app
+from backend.auth.security_state import GitHubSecurityState
+from backend.auth.session_store import get_session_store
+from backend.auth_3layer import ThreeLayerAuthManager, get_auth_3layer_manager, hash_password
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -65,8 +65,8 @@ class TestP1_1AndP1_2LoggedOutAppAndSessionRole:
             assert body.get("active_user_id") == "thanh_vien_a"
 
     def test_mobile_app_static_has_no_hasFakeMic_and_no_owner_fallback_defaults(self):
-        mobile_js = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
-        mobile_html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+        mobile_js = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        mobile_html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
 
         assert "hasFakeMic" not in mobile_js
         assert "nep94121@gmail.com" not in mobile_js
@@ -76,7 +76,7 @@ class TestP1_1AndP1_2LoggedOutAppAndSessionRole:
         assert "Vui lòng đăng nhập" in mobile_js
 
     def test_mobile_app_js_logged_out_refuses_fake_voice_success(self):
-        js_file = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_file = ROOT / "web" / "js" / "mobile_app.js"
         node_script = r"""
 const fs = require('fs');
 const code = fs.readFileSync(process.argv[1], 'utf8');
@@ -401,15 +401,15 @@ class TestP1_3Owner2FAUniform401AndCasLockout:
     def test_public_html_and_js_expose_zero_seed_emails(self):
         forbidden = ("nep94121@gmail.com", "senat6031@gmail.com", "kbanh376@gmail.com")
         files = [
-            ROOT / "simulator" / "static" / "login.html",
-            ROOT / "simulator" / "static" / "register.html",
-            ROOT / "simulator" / "static" / "index.html",
-            ROOT / "simulator" / "static" / "auth.html",
-            ROOT / "mobile_app" / "index.html",
-            ROOT / "simulator" / "static" / "js" / "auth_pages.js",
-            ROOT / "simulator" / "static" / "js" / "app.js",
-            ROOT / "simulator" / "static" / "js" / "auth.js",
-            ROOT / "simulator" / "static" / "js" / "mobile_app.js",
+            ROOT / "web" / "login.html",
+            ROOT / "web" / "register.html",
+            ROOT / "web" / "index.html",
+            ROOT / "web" / "auth.html",
+            ROOT / "web" / "mobile" / "index.html",
+            ROOT / "web" / "js" / "auth_pages.js",
+            ROOT / "web" / "js" / "app.js",
+            ROOT / "web" / "js" / "auth.js",
+            ROOT / "web" / "js" / "mobile_app.js",
         ]
         for path in files:
             text = path.read_text(encoding="utf-8")
@@ -580,11 +580,11 @@ class TestP1_4CasSyncAllowlistAndForgotPassword:
         assert is_email_allowlisted_for_real_send("nep94121+e2e1114a@gmail.com") is True
 
     def test_forgot_password_ui_elements_present_on_all_auth_pages(self):
-        login_html = (ROOT / "simulator" / "static" / "login.html").read_text(encoding="utf-8")
-        auth_pages_js = (ROOT / "simulator" / "static" / "js" / "auth_pages.js").read_text(encoding="utf-8")
-        index_html = (ROOT / "simulator" / "static" / "index.html").read_text(encoding="utf-8")
-        auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
-        mobile_html = (ROOT / "mobile_app" / "index.html").read_text(encoding="utf-8")
+        login_html = (ROOT / "web" / "login.html").read_text(encoding="utf-8")
+        auth_pages_js = (ROOT / "web" / "js" / "auth_pages.js").read_text(encoding="utf-8")
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        auth_html = (ROOT / "web" / "auth.html").read_text(encoding="utf-8")
+        mobile_html = (ROOT / "web" / "mobile" / "index.html").read_text(encoding="utf-8")
 
         for marker in ("forgotEmailInput", "forgotOtpInput", "forgotNewPasswordInput", "forgotConfirmPasswordInput"):
             assert marker in login_html
@@ -785,10 +785,10 @@ class TestP2_7ToP2_10FrontendRoutesGateAndWokwiCloud:
     """Verify frontend links, /auth gate, no stale polling, and /wokwi HTTP cloud sync."""
 
     def test_zero_guest_enroll_nav_links_and_guest_route_behavior(self, client: TestClient):
-        for html_file in sorted((ROOT / "simulator" / "static").glob("*.html")) + [ROOT / "mobile_app" / "index.html"]:
+        for html_file in sorted((ROOT / "web").glob("*.html")) + [ROOT / "web" / "mobile" / "index.html"]:
             text = html_file.read_text(encoding="utf-8")
             assert not re.search(r'(?<!/css)(?<!/js)/guest_enroll(?![.\w])', text), f"Stale /guest_enroll link in {html_file}"
-        for js_file in sorted((ROOT / "simulator" / "static" / "js").glob("*.js")):
+        for js_file in sorted((ROOT / "web" / "js").glob("*.js")):
             text = js_file.read_text(encoding="utf-8")
             assert not re.search(r'(?<!/css)(?<!/js)/guest_enroll(?![.\w])', text), f"Stale /guest_enroll reference in {js_file}"
 
@@ -798,8 +798,8 @@ class TestP2_7ToP2_10FrontendRoutesGateAndWokwiCloud:
         assert client.get(f"/guest?token={inv['token']}").status_code == 200
 
     def test_auth_page_gated_and_zero_voice_enrollment_forms(self):
-        auth_html = (ROOT / "simulator" / "static" / "auth.html").read_text(encoding="utf-8")
-        auth_js = (ROOT / "simulator" / "static" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth_html = (ROOT / "web" / "auth.html").read_text(encoding="utf-8")
+        auth_js = (ROOT / "web" / "js" / "auth.js").read_text(encoding="utf-8")
 
         assert 'id="authUnauthGate"' in auth_html
         assert "/api/session/role" in auth_js
@@ -809,15 +809,15 @@ class TestP2_7ToP2_10FrontendRoutesGateAndWokwiCloud:
             assert gone not in auth_js
 
     def test_no_guest_qr_current_polling_anywhere_in_frontend(self):
-        for folder in (ROOT / "simulator" / "static", ROOT / "mobile_app"):
+        for folder in (ROOT / "web", ROOT / "web" / "mobile"):
             for path in folder.rglob("*"):
                 if path.is_file() and path.suffix in (".html", ".js"):
                     text = path.read_text(encoding="utf-8", errors="ignore")
                     assert "guest_qr_current" not in text, f"Found guest_qr_current in {path}"
 
     def test_wokwi_uses_http_cloud_polling_on_vercel_and_displays_login_banner_on_401(self):
-        wokwi_html = (ROOT / "simulator" / "static" / "wokwi.html").read_text(encoding="utf-8")
-        wokwi_js = (ROOT / "simulator" / "static" / "js" / "wokwi.js").read_text(encoding="utf-8")
+        wokwi_html = (ROOT / "web" / "wokwi.html").read_text(encoding="utf-8")
+        wokwi_js = (ROOT / "web" / "js" / "wokwi.js").read_text(encoding="utf-8")
 
         assert 'id="wokwiAuthBanner"' in wokwi_html
         assert "isLocalWokwiHost" in wokwi_js

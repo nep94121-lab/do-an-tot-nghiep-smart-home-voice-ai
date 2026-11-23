@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "model_file": "simulator/static/models/smarthome_villa.glb",
+  "model_file": "web/models/smarthome_villa.glb",
   "blend_file": "hardware/blender/smarthome_open_house.blend",
   "kicad_pcb_source": "hardware/kicad/smarthome_hub/3d/smarthome_hub.glb",
   "units": "glTF meters (uniformly scaled 25x from 1:1 physical tabletop millimeters to fit house3d.js camera bounds)",

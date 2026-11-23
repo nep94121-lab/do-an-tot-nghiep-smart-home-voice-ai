@@ -31,15 +31,15 @@ class TestChallengerBug6ThreeJsCanvas:
     """U3a: Gỡ #mobileOverviewBox và Three.js khỏi /app."""
 
     def test_mobile_overview_box_attributes_and_css(self):
-        """Kiểm tra #mobileOverviewBox đã được gỡ khỏi mobile_app/index.html."""
-        html_path = ROOT / "mobile_app" / "index.html"
-        assert html_path.exists(), "Tệp mobile_app/index.html không tồn tại!"
+        """Kiểm tra #mobileOverviewBox đã được gỡ khỏi web/mobile/index.html."""
+        html_path = ROOT / "web" / "mobile" / "index.html"
+        assert html_path.exists(), "Tệp web/mobile/index.html không tồn tại!"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
         assert soup.find(id="mobileOverviewBox") is None
 
     def test_script_order_for_threejs_and_house3d(self):
         """Không còn nạp 3 script 3D dư thừa trên /app, chỉ còn mobile_app.js."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        html_path = ROOT / "web" / "mobile" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
         scripts = [s.get("src", "") for s in soup.find_all("script") if s.get("src")]
         assert not any("three.min.js" in s for s in scripts)
@@ -49,7 +49,7 @@ class TestChallengerBug6ThreeJsCanvas:
 
     def test_mobile_app_js_graceful_handling_without_threejs(self):
         """mobile_app.js không còn phụ thuộc SmartHome3D."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         js = js_path.read_text(encoding="utf-8")
         assert "SmartHome3D" not in js
 
@@ -72,14 +72,14 @@ class TestChallengerBug7All6Devices:
 
     def test_show_all_devices_default_and_toggle(self):
         """Kiểm tra showAllDevices mặc định = true và hàm toggleShowAllDevices."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         js = js_path.read_text(encoding="utf-8")
 
         # showAllDevices = true
         assert re.search(r"let\s+showAllDevices\s*=\s*true;", js), "showAllDevices phải là true mặc định"
 
         # Nút thu gọn mặc định trong HTML
-        html_path = ROOT / "mobile_app" / "index.html"
+        html_path = ROOT / "web" / "mobile" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
         btn = soup.find(id="btnToggleShowAllDevices")
         assert btn is not None, "Thiếu nút #btnToggleShowAllDevices"
@@ -152,7 +152,7 @@ class TestChallengerBug8SafeAreaAndCountdown:
 
     def test_safe_area_padding_rules_exactness(self):
         """Kiểm tra cú pháp và độ chính xác của safe-area-inset-bottom trong CSS."""
-        css_path = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
+        css_path = ROOT / "web" / "css" / "mobile_app.css"
         css = css_path.read_text(encoding="utf-8")
 
         # #tabViewAccount
@@ -173,14 +173,14 @@ class TestChallengerBug8SafeAreaAndCountdown:
 
     def test_elimination_of_tab_instruction_redundancy(self):
         """Đảm bảo câu text gây hiểu lầm 'Mỗi tab mở một màn riêng...' đã biến mất hoàn toàn."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        html_path = ROOT / "web" / "mobile" / "index.html"
         html = html_path.read_text(encoding="utf-8")
         assert "Mỗi tab mở một màn riêng" not in html
         assert "không cuộn tới mục khác" not in html
 
     def test_qr_countdown_string_semantics(self):
         """Đảm bảo chuỗi đếm ngược QR chỉ rõ 'Đổi mã sau' thay vì 'Còn'."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         js = js_path.read_text(encoding="utf-8")
 
         # Tìm đoạn gán cdEl.textContent
@@ -199,7 +199,7 @@ class TestChallengerBug9SensorClampingStress:
 
     @staticmethod
     def clamp_temp(raw):
-        """Hàm oracle mô phỏng chính xác logic trong simulator/static/js/app.js:558."""
+        """Hàm oracle mô phỏng chính xác logic trong web/js/app.js:558."""
         try:
             val = float(raw)
             if not math.isfinite(val):
@@ -210,7 +210,7 @@ class TestChallengerBug9SensorClampingStress:
 
     @staticmethod
     def clamp_humidity(raw):
-        """Hàm oracle mô phỏng chính xác logic trong simulator/static/js/app.js:565."""
+        """Hàm oracle mô phỏng chính xác logic trong web/js/app.js:565."""
         try:
             val = float(raw)
             if not math.isfinite(val):
@@ -221,7 +221,7 @@ class TestChallengerBug9SensorClampingStress:
 
     @staticmethod
     def clamp_soil(raw):
-        """Hàm oracle mô phỏng chính xác logic trong simulator/static/js/app.js:572."""
+        """Hàm oracle mô phỏng chính xác logic trong web/js/app.js:572."""
         try:
             val = float(raw)
             if not math.isfinite(val):
@@ -232,7 +232,7 @@ class TestChallengerBug9SensorClampingStress:
 
     def test_sensor_panel_dom_presence(self):
         """Desktop index.html phải có #secSensors với 3 đồng hồ cảm biến."""
-        html_path = ROOT / "simulator" / "static" / "index.html"
+        html_path = ROOT / "web" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
         sec = soup.find(id="secSensors")
@@ -348,7 +348,7 @@ class TestChallengerBug12QrScannerDedup:
 
     def test_single_instruction_instance_in_modal(self):
         """#mobileQrScannerModal chỉ chứa đúng 1 câu 'Đưa mã QR vào trong khung để quét'."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        html_path = ROOT / "web" / "mobile" / "index.html"
         html = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
@@ -364,7 +364,7 @@ class TestChallengerBug12QrScannerDedup:
 
     def test_open_qr_scanner_does_not_overwrite_status(self):
         """Hàm openQrScanner() trong mobile_app.js không gán đè chuỗi hướng dẫn vào #mobileScannerStatus."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         js = js_path.read_text(encoding="utf-8")
 
         func_match = re.search(r"function\s+openQrScanner\s*\(\)\s*\{([\s\S]*?)\}", js)
@@ -388,7 +388,7 @@ class TestChallengerBug13LogsPagination:
 
     def test_logs_html_elements_contract(self):
         """Kiểm tra logs.html chứa đầy đủ các phần tử phân trang và bộ lọc ngày."""
-        html_path = ROOT / "simulator" / "static" / "logs.html"
+        html_path = ROOT / "web" / "logs.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
         # Bảng nhật ký

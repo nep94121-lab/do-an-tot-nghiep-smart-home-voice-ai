@@ -19,12 +19,12 @@ import subprocess
 from bs4 import BeautifulSoup
 import pytest
 from starlette.testclient import TestClient
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MOBILE_HTML_PATH = ROOT / "mobile_app" / "index.html"
-MOBILE_JS_PATH = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
-MOBILE_CSS_PATH = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
+MOBILE_HTML_PATH = ROOT / "web" / "mobile" / "index.html"
+MOBILE_JS_PATH = ROOT / "web" / "js" / "mobile_app.js"
+MOBILE_CSS_PATH = ROOT / "web" / "css" / "mobile_app.css"
 
 REQUIRED_DOM_IDS = [
     "aiReply", "btnMobileMicLabel", "btnMobileTabLogin",
@@ -102,7 +102,7 @@ class TestDomAndHookIntegrity:
         for dom_id in REQUIRED_DOM_IDS + M3_SENSOR_DOM_IDS:
             if not html_soup.find(id=dom_id):
                 missing_ids.append(dom_id)
-        assert not missing_ids, f"Bị thiếu {len(missing_ids)} DOM IDs trong mobile_app/index.html: {missing_ids}"
+        assert not missing_ids, f"Bị thiếu {len(missing_ids)} DOM IDs trong web/mobile/index.html: {missing_ids}"
         assert html_soup.find(id="btnLearnIr") is None, "btnLearnIr phải được gỡ theo hợp đồng phần cứng 6 thiết bị"
 
     def test_all_25_window_hooks_exported(self, js_content: str):
@@ -305,7 +305,7 @@ class TestM5QrScanner:
         assert res_legacy_qr.status_code in (405, 410)
 
         # Verify modern single-use invite creation (Owner cookie + PIN) and /guest redemption.
-        from simulator.auth import owner_pin
+        from backend.auth import owner_pin
 
         owner_pin.setup_or_replace_pin("1234", "1234", allow_replace=True)
         owner_cookies = {"sh_session_token": "sess_owner_t1_nep94121", "session_token": "sess_owner_t1_nep94121"}
@@ -332,7 +332,7 @@ class TestAndroidScopePolicy:
     """Kiểm tra chính sách Requirement R3: Mã nguồn Android Compose được giữ nguyên trạng."""
 
     def test_android_main_screen_frozen_and_valid(self):
-        main_screen_path = ROOT / "android_app" / "app-core" / "src" / "main" / "kotlin" / "vn" / "edu" / "hust" / "seee" / "smarthome" / "ui" / "main" / "MainScreen.kt"
+        main_screen_path = ROOT / "app" / "app-core" / "src" / "main" / "kotlin" / "vn" / "edu" / "hust" / "seee" / "smarthome" / "ui" / "main" / "MainScreen.kt"
         assert main_screen_path.exists(), f"Không tìm thấy file {main_screen_path}"
         content = main_screen_path.read_text(encoding="utf-8")
         assert "package vn.edu.hust.seee.smarthome.ui.main" in content

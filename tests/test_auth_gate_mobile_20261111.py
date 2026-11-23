@@ -28,7 +28,7 @@ def _app_client() -> TestClient:
     os.environ["SIMULATOR_OFFLINE_SANDBOX"] = "1"
     os.environ.pop("VERCEL", None)
     os.environ.pop("SMARTHOME_FORCE_CLOUD_DURABLE", None)
-    from simulator.server import app
+    from backend.server import app
 
     return TestClient(app)
 
@@ -112,7 +112,7 @@ def live_server() -> Generator[str, None, None]:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "simulator.server:app",
+                "backend.server:app",
                 "--host",
                 "127.0.0.1",
                 "--port",

@@ -20,10 +20,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.rule_engine import SmartHomeEngine
-from simulator.voice_auth import VoiceAuthManager
-from simulator.auth_3layer import get_auth_3layer_manager
-from simulator.database_sqlite import get_sqlite_overview
+from backend.rule_engine import SmartHomeEngine
+from backend.voice_auth import VoiceAuthManager
+from backend.auth_3layer import get_auth_3layer_manager
+from backend.database_sqlite import get_sqlite_overview
 from tests.e2e.conftest import (
     read_wav_pcm16,
     validate_voice_quality_helper,

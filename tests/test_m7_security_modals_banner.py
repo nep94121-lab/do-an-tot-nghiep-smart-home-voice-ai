@@ -26,9 +26,9 @@ from bs4 import BeautifulSoup
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-INDEX_HTML = ROOT / "simulator" / "static" / "index.html"
-STYLE_CSS = ROOT / "simulator" / "static" / "css" / "style.css"
-APP_JS = ROOT / "simulator" / "static" / "js" / "app.js"
+INDEX_HTML = ROOT / "web" / "index.html"
+STYLE_CSS = ROOT / "web" / "css" / "style.css"
+APP_JS = ROOT / "web" / "js" / "app.js"
 
 
 @pytest.fixture(scope="module")
@@ -310,7 +310,7 @@ const mockWindow = {
 mockWindow.window = mockWindow;
 mockWindow.globalThis = mockWindow;
 
-const code = fs.readFileSync('simulator/static/js/app.js', 'utf8');
+const code = fs.readFileSync('web/js/app.js', 'utf8');
 vm.runInNewContext(code, mockWindow);
 
 // Kiểm tra gọi các hàm M7 trên window

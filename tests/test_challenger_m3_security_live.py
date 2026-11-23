@@ -21,8 +21,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import _BOOT_VOICE_AUTH, _ACTIVE_BRIDGES, app
-from simulator.auth_3layer import get_auth_3layer_manager
+from backend.server import _BOOT_VOICE_AUTH, _ACTIVE_BRIDGES, app
+from backend.auth_3layer import get_auth_3layer_manager
 
 
 @pytest.fixture(autouse=True)

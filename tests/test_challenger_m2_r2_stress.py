@@ -40,8 +40,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth_3layer import ThreeLayerAuthManager
-from simulator.server import app
+from backend.auth_3layer import ThreeLayerAuthManager
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -54,7 +54,7 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def clean_otp_state_fixture():
     """Tự động dọn sạch pending_otps trước và sau mỗi test case."""
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     mgr = get_auth_3layer_manager()
     lock = getattr(mgr, "_otp_lock", threading.Lock())
@@ -67,7 +67,7 @@ def clean_otp_state_fixture():
 
 @pytest.fixture
 def auth_mgr() -> ThreeLayerAuthManager:
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     return get_auth_3layer_manager()
 

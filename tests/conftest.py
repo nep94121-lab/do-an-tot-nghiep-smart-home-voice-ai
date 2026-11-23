@@ -29,7 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DATA_DIR = pathlib.Path(os.environ.get("SMARTHOME_DATA_DIR") or ROOT / "simulator" / "data")
+DATA_DIR = pathlib.Path(os.environ.get("SMARTHOME_DATA_DIR") or ROOT / "backend" / "data")
 _TRACKED_DATA_FILES = (
     "accounts_3layer.json",
     "auth_3layer_events.json",
@@ -52,9 +52,9 @@ _INITIAL_MGR_ALLOWLIST: dict[str, Any] | None = None
 
 def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = False) -> None:
     """Restore smarthome.db without ever overwriting the main DB file underneath an active WAL."""
-    import simulator.database_sqlite as db_mod
-    from simulator.auth.session_store import get_session_store
-    from simulator.db_migrations import close_wal_anchors
+    import backend.database_sqlite as db_mod
+    from backend.auth.session_store import get_session_store
+    from backend.db_migrations import close_wal_anchors
 
     sqlite_env = os.environ.get("SMARTHOME_SQLITE_PATH", "").strip()
     db_path = pathlib.Path(sqlite_env) if sqlite_env else (DATA_DIR / "smarthome.db")
@@ -76,7 +76,7 @@ def _restore_sqlite_db_safely(raw_db_bytes: bytes, force_exact_bytes: bool = Fal
         close_wal_anchors()
         db_mod._INITIALIZED_DB_PATHS.clear()
         try:
-            from simulator.automation_repo import invalidate_automation_cache
+            from backend.automation_repo import invalidate_automation_cache
             invalidate_automation_cache()
         except Exception:
             pass
@@ -162,7 +162,7 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure legacy test suites receive test OTP fields during local pytest runs."""
     monkeypatch.setenv("PYTEST", "1")
     try:
-        from simulator.server import app
+        from backend.server import app
 
         monkeypatch.setattr(app, "testing", True, raising=False)
     except Exception:
@@ -173,7 +173,7 @@ def enable_test_otp_mode_in_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def isolate_invites_and_pin(monkeypatch: pytest.MonkeyPatch) -> None:
-    from simulator.auth import guest_invites, owner_pin
+    from backend.auth import guest_invites, owner_pin
 
     monkeypatch.setattr(guest_invites, "_CACHE", {})
     monkeypatch.setattr(owner_pin, "_CACHE", {})
@@ -193,7 +193,7 @@ def _reset_engine_runtime_timers_and_guards(engine: Any) -> None:
     except Exception:
         pass
     try:
-        from simulator.voice.session_voice_command import reset_session_echo_guards
+        from backend.voice.session_voice_command import reset_session_echo_guards
 
         reset_session_echo_guards()
     except Exception:
@@ -207,8 +207,8 @@ def _ensure_initial_data_snapshot() -> None:
     if "smarthome.db" not in _INITIAL_DATA_BYTES and not db_path.exists():
         try:
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            from simulator.database_sqlite import init_sqlite_db
-            from simulator.db_migrations import close_wal_anchors
+            from backend.database_sqlite import init_sqlite_db
+            from backend.db_migrations import close_wal_anchors
 
             init_sqlite_db()
             with contextlib.closing(sqlite3.connect(str(db_path), timeout=5.0)) as conn:
@@ -231,8 +231,8 @@ def _ensure_initial_data_snapshot() -> None:
 def clean_auth_pending_otps() -> None:
     """Ensure pending_otps, timers, and tracked data files do not leak state across tests."""
     global _INITIAL_MGR_ACCOUNTS, _INITIAL_MGR_ALLOWLIST
-    from simulator.api.deps import _REST_ENGINE
-    from simulator.api.routes_auth import get_auth_3layer_manager
+    from backend.api.deps import _REST_ENGINE
+    from backend.api.routes_auth import get_auth_3layer_manager
 
     _ensure_initial_data_snapshot()
     mgr = get_auth_3layer_manager()

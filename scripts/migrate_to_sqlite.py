@@ -23,13 +23,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.auth.sqlite_security_repo import (  # noqa: E402
+from backend.auth.sqlite_security_repo import (  # noqa: E402
     save_accounts_sqlite,
     save_invites_sqlite,
     save_owner_pin_sqlite,
     save_rate_limits_sqlite,
 )
-from simulator.db_migrations import (  # noqa: E402
+from backend.db_migrations import (  # noqa: E402
     apply_schema_migrations,
     bootstrap_device_state_from_devices,
     dump_meta_json,
@@ -39,7 +39,7 @@ from simulator.db_migrations import (  # noqa: E402
     run_write_transaction,
     table_row_counts,
 )
-from simulator.engine.constants_and_time import DEFAULT_DEVICES  # noqa: E402
+from backend.engine.constants_and_time import DEFAULT_DEVICES  # noqa: E402
 
 
 def build_default_devices() -> dict[str, dict[str, Any]]:
@@ -52,7 +52,7 @@ class MigrationDataLossError(RuntimeError):
 
 DEFAULT_ENV_PROD = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\.env.production")
 DEFAULT_TARGET_DB = pathlib.Path(r"C:\Users\LENOVO\.smarthome_server\data\smarthome.db")
-DEFAULT_SOURCE_DIR = ROOT / "simulator" / "data"
+DEFAULT_SOURCE_DIR = ROOT / "backend" / "data"
 GITHUB_REPO_DEFAULT = "nep94121-lab/smart-home-security-state"
 
 STATIC_ASSET_FILES: tuple[str, ...] = (
@@ -62,7 +62,6 @@ STATIC_ASSET_FILES: tuple[str, ...] = (
     "vietnamese_cohort_wespeaker.json",
     "knowledge_embeddings_cache.json",
     "knowledge_base.json",
-    "ir_devices_db.json",
     "factory_default_rules.json",
     "custom_rules_overlay.json",
     "voiceprints.json",
@@ -310,7 +309,7 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
                     cnt_ds += 1
                 stats["copied_device_state"] = cnt_ds
 
-            from simulator.db_migrations import _ensure_preserve_user_for_fk
+            from backend.db_migrations import _ensure_preserve_user_for_fk
 
             valid_users = {str(r[0]) for r in c.execute("SELECT user_id FROM users").fetchall()}
             valid_devices = {str(r[0]) for r in c.execute("SELECT device_id FROM devices").fetchall()}
@@ -722,7 +721,7 @@ def _copy_legacy_sqlite_data(source_db: pathlib.Path, target_conn: sqlite3.Conne
 
             # 6. user_sessions -> both user_sessions & sessions
             if "user_sessions" in src_tables:
-                from simulator.db_migrations import _ensure_preserve_user_for_fk, _is_guest_or_anon_user_id
+                from backend.db_migrations import _ensure_preserve_user_for_fk, _is_guest_or_anon_user_id
 
                 cnt = 0
                 for r in src_conn.execute("SELECT * FROM user_sessions").fetchall():

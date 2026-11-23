@@ -1,19 +1,19 @@
 """Bộ kiểm thử TDD cho Milestone 3: Giao diện, Bố cục, 3D Thu gọn & Phân trang Nhật ký (Bugs 6, 7, 8, 9, 12, 13).
 
 Nhiệm vụ:
-- Bug 6: /app 3D collapse render: Trong mobile_app/index.html nạp /static/vendor/three.min.js,
+- Bug 6: /app 3D collapse render: Trong web/mobile/index.html nạp /static/vendor/three.min.js,
          /static/vendor/GLTFLoader.js, /static/house3d.js. Trong mobile_app.js gọi SmartHome3D.init("mobileOverviewBox", null, ...)
          và cập nhật updateDevices, updateSensors trong renderState. Giữ DOM ID #mobileOverviewBox và class preview-16-9.
 - Bug 7: /app Devices tab show all 6 devices: Trong mobile_app.js khởi tạo showAllDevices = true (hoặc không slice 4 thiết bị),
          đảm bảo #devGrid hiển thị đủ 6 thiết bị: main_door, living_room_light, bedroom_light, garden_pump, alarm_siren, speaker_amp.
-- Bug 8: /app Profile tab safe-area & countdown: Trong mobile_app/index.html xóa câu thừa "Mỗi tab mở một màn riêng, không cuộn tới mục khác.".
+- Bug 8: /app Profile tab safe-area & countdown: Trong web/mobile/index.html xóa câu thừa "Mỗi tab mở một màn riêng, không cuộn tới mục khác.".
          Trong mobile_app.css thêm safe-area padding cho #tabViewAccount / #mobileBtnLogout không bị che lấp bởi thanh đáy Samsung Internet.
          Trong mobile_app.js định dạng #mobileQrCountdown thành "Đổi mã sau ${rem}s".
-- Bug 9: Desktop / sensor panel: Trong simulator/static/index.html bổ sung <section class="panel sensors" id="secSensors">
+- Bug 9: Desktop / sensor panel: Trong web/index.html bổ sung <section class="panel sensors" id="secSensors">
          chứa 3 ô Nhiệt độ, Độ ẩm, Độ ẩm đất. Trong app.js cập nhật các ô này kèm hàm clamp [0, 60]°C, [0, 100]%, [0, 100]%.
 - Bug 12: QR scanner duplicate text: Trong mobile_app.js hàm openQrScanner(), xóa dòng gán lặp lại
           status.textContent = 'Đưa mã QR vào trong khung để quét' tránh lặp với p.instruction.
-- Bug 13: /logs pagination and filter: Trong simulator/static/logs.html và logs.js cài đặt phân trang client-side (pageSize = 20),
+- Bug 13: /logs pagination and filter: Trong web/logs.html và logs.js cài đặt phân trang client-side (pageSize = 20),
           có nút load more / phân trang (#btnLogsLoadMore, #logsPaginationInfo), kết nối bộ lọc ngày #logDateRange,
           và che giấu toàn bộ gợi ý mật khẩu trong chi tiết log.
 """
@@ -38,9 +38,9 @@ class TestBug6MobileHouse3d:
     """U3a: /app đã gỡ bỏ khung 3D trống #mobileOverviewBox và các script 3D không sử dụng."""
 
     def test_bug6_mobile_html_includes_three_and_house3d(self):
-        """mobile_app/index.html chỉ nạp mobile_app.js, không nạp 3D script dư thừa."""
-        html_path = ROOT / "mobile_app" / "index.html"
-        assert html_path.exists(), "Tệp mobile_app/index.html không tồn tại!"
+        """web/mobile/index.html chỉ nạp mobile_app.js, không nạp 3D script dư thừa."""
+        html_path = ROOT / "web" / "mobile" / "index.html"
+        assert html_path.exists(), "Tệp web/mobile/index.html không tồn tại!"
         content = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(content, "html.parser")
         script_srcs = [s.get("src", "") for s in soup.find_all("script") if s.get("src")]
@@ -51,14 +51,14 @@ class TestBug6MobileHouse3d:
 
     def test_bug6_mobile_overview_box_structure(self):
         """Phần tử #mobileOverviewBox phải đã được gỡ theo U3a."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        html_path = ROOT / "web" / "mobile" / "index.html"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
         assert soup.find(id="mobileOverviewBox") is None
 
     def test_bug6_mobile_js_inits_and_updates_house3d(self):
         """mobile_app.js không còn gọi SmartHome3D hay tìm #mobileOverviewBox."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
-        assert js_path.exists(), "Tệp simulator/static/js/mobile_app.js không tồn tại!"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
+        assert js_path.exists(), "Tệp web/js/mobile_app.js không tồn tại!"
         content = js_path.read_text(encoding="utf-8")
         assert "SmartHome3D" not in content
         assert "mobileOverviewBox" not in content
@@ -73,7 +73,7 @@ class TestBug7MobileDevicesTabAll6Devices:
 
     def test_bug7_show_all_devices_flag_default_true(self):
         """showAllDevices phải có giá trị mặc định là true trong mobile_app.js."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = js_path.read_text(encoding="utf-8")
 
         # Kiểm tra biến showAllDevices được gán true mặc định
@@ -83,7 +83,7 @@ class TestBug7MobileDevicesTabAll6Devices:
 
     def test_bug7_no_default_4_devices_truncation(self):
         """Hàm renderState không được cắt cụt mảng thiết bị về 4 phần tử khi showAllDevices = true."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = js_path.read_text(encoding="utf-8")
 
         # Kiểm tra đoạn code xử lý visibleDevices
@@ -98,17 +98,17 @@ class TestBug8ProfileSafeAreaAndCountdown:
     """Bug 8: Xóa câu text thừa, bảo đảm safe-area cho nút logout và làm rõ đếm ngược Mời khách."""
 
     def test_bug8_removed_redundant_tab_text_in_html(self):
-        """Câu 'Mỗi tab mở một màn riêng, không cuộn tới mục khác.' phải bị xóa bỏ khỏi mobile_app/index.html."""
-        html_path = ROOT / "mobile_app" / "index.html"
+        """Câu 'Mỗi tab mở một màn riêng, không cuộn tới mục khác.' phải bị xóa bỏ khỏi web/mobile/index.html."""
+        html_path = ROOT / "web" / "mobile" / "index.html"
         content = html_path.read_text(encoding="utf-8")
         assert "Mỗi tab mở một màn riêng, không cuộn tới mục khác." not in content, (
-            "mobile_app/index.html vẫn còn chứa dòng text thừa: 'Mỗi tab mở một màn riêng, không cuộn tới mục khác.'"
+            "web/mobile/index.html vẫn còn chứa dòng text thừa: 'Mỗi tab mở một màn riêng, không cuộn tới mục khác.'"
         )
 
     def test_bug8_safe_area_padding_for_account_and_logout(self):
         """mobile_app.css phải có padding-bottom safe-area cho #tabViewAccount hoặc margin cho #mobileBtnLogout."""
-        css_path = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
-        assert css_path.exists(), "Tệp simulator/static/css/mobile_app.css không tồn tại!"
+        css_path = ROOT / "web" / "css" / "mobile_app.css"
+        assert css_path.exists(), "Tệp web/css/mobile_app.css không tồn tại!"
         content = css_path.read_text(encoding="utf-8")
 
         has_account_safe_area = ("#tabViewAccount" in content and "safe-area-inset-bottom" in content) or \
@@ -119,7 +119,7 @@ class TestBug8ProfileSafeAreaAndCountdown:
 
     def test_bug8_countdown_label_clarity(self):
         """mobile_app.js phải định dạng #mobileQrCountdown rõ ràng như 'Đổi mã sau ${rem}s', không dùng 'Còn ${rem}s' cộc lốc."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = js_path.read_text(encoding="utf-8")
 
         # Tìm chuỗi gán vào mobileQrCountdown trong refreshMobileQr10s
@@ -139,13 +139,13 @@ class TestBug9DesktopSensorPanelAndClamping:
     """Bug 9: Desktop / phải có panel #secSensors và kẹp giá trị an toàn [0, 60]°C, [0, 100]%, [0, 100]%."""
 
     def test_bug9_desktop_html_has_secSensors_panel(self):
-        """simulator/static/index.html phải có panel sensors với id='secSensors' và các ô nhiệt độ, độ ẩm, độ ẩm đất."""
-        html_path = ROOT / "simulator" / "static" / "index.html"
-        assert html_path.exists(), "Tệp simulator/static/index.html không tồn tại!"
+        """web/index.html phải có panel sensors với id='secSensors' và các ô nhiệt độ, độ ẩm, độ ẩm đất."""
+        html_path = ROOT / "web" / "index.html"
+        assert html_path.exists(), "Tệp web/index.html không tồn tại!"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
         sec_sensors = soup.find(id="secSensors")
-        assert sec_sensors is not None, "simulator/static/index.html thiếu <section id='secSensors'>"
+        assert sec_sensors is not None, "web/index.html thiếu <section id='secSensors'>"
 
         # Phải có các phần tử hiển thị giá trị cảm biến
         temp_el = soup.find(id=re.compile(r"sensor.*(?:Temp|Dht)", re.I))
@@ -158,9 +158,9 @@ class TestBug9DesktopSensorPanelAndClamping:
         assert soil_el is not None, "Panel sensors thiếu ô hiển thị Độ ẩm đất (vd: sensorSoilVal)"
 
     def test_bug9_app_js_updates_and_clamps_sensors(self):
-        """simulator/static/js/app.js phải cập nhật giá trị và clamp: nhiệt độ [0, 60], độ ẩm [0, 100], độ ẩm đất [0, 100]."""
-        js_path = ROOT / "simulator" / "static" / "js" / "app.js"
-        assert js_path.exists(), "Tệp simulator/static/js/app.js không tồn tại!"
+        """web/js/app.js phải cập nhật giá trị và clamp: nhiệt độ [0, 60], độ ẩm [0, 100], độ ẩm đất [0, 100]."""
+        js_path = ROOT / "web" / "js" / "app.js"
+        assert js_path.exists(), "Tệp web/js/app.js không tồn tại!"
         content = js_path.read_text(encoding="utf-8")
 
         # Kiểm tra logic cập nhật cảm biến trong app.js
@@ -183,7 +183,7 @@ class TestBug12QrScannerDuplicateText:
 
     def test_bug12_open_qr_scanner_does_not_duplicate_instruction(self):
         """openQrScanner() trong mobile_app.js không được gán status.textContent = 'Đưa mã QR vào trong khung để quét'."""
-        js_path = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_path = ROOT / "web" / "js" / "mobile_app.js"
         content = js_path.read_text(encoding="utf-8")
 
         # Tìm định nghĩa hàm openQrScanner
@@ -204,9 +204,9 @@ class TestBug13LogsPaginationAndFilter:
     """Bug 13: /logs phải có phân trang client-side (pageSize=20), kết nối #logDateRange và che mật khẩu trong log."""
 
     def test_bug13_logs_html_has_pagination_controls(self):
-        """simulator/static/logs.html phải có #btnLogsLoadMore và #logsPaginationInfo (hoặc controls phân trang)."""
-        html_path = ROOT / "simulator" / "static" / "logs.html"
-        assert html_path.exists(), "Tệp simulator/static/logs.html không tồn tại!"
+        """web/logs.html phải có #btnLogsLoadMore và #logsPaginationInfo (hoặc controls phân trang)."""
+        html_path = ROOT / "web" / "logs.html"
+        assert html_path.exists(), "Tệp web/logs.html không tồn tại!"
         soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
         # Phải có nút Xem thêm hoặc Phân trang và thông tin phân trang
@@ -216,9 +216,9 @@ class TestBug13LogsPaginationAndFilter:
         assert info_el is not None, "logs.html thiếu phần tử #logsPaginationInfo"
 
     def test_bug13_logs_js_implements_client_pagination_and_date_filter(self):
-        """simulator/static/js/logs.js phải có pageSize = 20, phân trang, kết nối #logDateRange và che gợi ý mật khẩu."""
-        js_path = ROOT / "simulator" / "static" / "js" / "logs.js"
-        assert js_path.exists(), "Tệp simulator/static/js/logs.js không tồn tại!"
+        """web/js/logs.js phải có pageSize = 20, phân trang, kết nối #logDateRange và che gợi ý mật khẩu."""
+        js_path = ROOT / "web" / "js" / "logs.js"
+        assert js_path.exists(), "Tệp web/js/logs.js không tồn tại!"
         content = js_path.read_text(encoding="utf-8")
 
         # Kiểm tra pageSize = 20

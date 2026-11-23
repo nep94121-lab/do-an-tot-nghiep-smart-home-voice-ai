@@ -7,7 +7,7 @@ directly importing the actual KiCad 10.0.6 3D PCB (`hardware/kicad/smarthome_hub
 Outputs:
   - hardware/blender/smarthome_open_house.blend
   - hardware/blender/SCENE_SPEC.json
-  - simulator/static/models/smarthome_villa.glb  (<10 MB optimized PBR GLB)
+  - web/models/smarthome_villa.glb  (<10 MB optimized PBR GLB)
   - Optional studio renders when invoked with `-- --render-dir <dir>`:
       05_blender_house_overview.png
       06_blender_pcb_closeup.png
@@ -27,7 +27,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 KICAD_PCB_GLB = REPO_ROOT / "hardware" / "kicad" / "smarthome_hub" / "3d" / "smarthome_hub.glb"
 OUT_BLEND = REPO_ROOT / "hardware" / "blender" / "smarthome_open_house.blend"
 OUT_SPEC = REPO_ROOT / "hardware" / "blender" / "SCENE_SPEC.json"
-OUT_GLB = REPO_ROOT / "simulator" / "static" / "models" / "smarthome_villa.glb"
+OUT_GLB = REPO_ROOT / "web" / "models" / "smarthome_villa.glb"
 
 # Uniform display scale: 1 physical mm = 0.025 glTF units (25x tabletop scale).
 # Preserves 100% exact 1:1 relative proportions between the 360x270mm open-cutaway house,
@@ -998,7 +998,7 @@ def write_scene_spec() -> None:
 
     spec = {
         "schema_version": "2.0",
-        "model_file": "simulator/static/models/smarthome_villa.glb",
+        "model_file": "web/models/smarthome_villa.glb",
         "blend_file": "hardware/blender/smarthome_open_house.blend",
         "kicad_pcb_source": "hardware/kicad/smarthome_hub/3d/smarthome_hub.glb",
         "units": "glTF meters (uniformly scaled 25x from 1:1 physical tabletop millimeters to fit house3d.js camera bounds)",

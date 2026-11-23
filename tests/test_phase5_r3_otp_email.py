@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -144,17 +144,17 @@ class TestPhase5R3PasswordResetOtpEmail:
 
     def test_r3_frontend_js_guards_against_fake_step_transition(self):
         """Kịch bản 3: Mã JS trên frontend phải kiểm tra sent_real_gmail trước khi chuyển bước 2."""
-        app_js = (ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-        mobile_app_js = (ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        mobile_app_js = (ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
 
         # app.js phải kiểm tra sent_real_gmail
         assert "sent_real_gmail" in app_js, (
-            "Lỗi R3 UI: simulator/static/js/app.js chưa kiểm tra sent_real_gmail trong forgot password / lockdown!"
+            "Lỗi R3 UI: web/js/app.js chưa kiểm tra sent_real_gmail trong forgot password / lockdown!"
         )
 
         # mobile_app.js phải kiểm tra sent_real_gmail
         assert "sent_real_gmail" in mobile_app_js, (
-            "Lỗi R3 UI: simulator/static/js/mobile_app.js chưa kiểm tra sent_real_gmail trước khi chuyển bước OTP!"
+            "Lỗi R3 UI: web/js/mobile_app.js chưa kiểm tra sent_real_gmail trước khi chuyển bước OTP!"
         )
 
     def test_r3_no_otp_leak_on_wrong_otp_verification(self, client: TestClient):

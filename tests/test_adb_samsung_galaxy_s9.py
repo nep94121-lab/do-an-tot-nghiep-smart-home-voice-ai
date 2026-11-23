@@ -27,7 +27,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 M4_DIR = ROOT / ".agents" / "teamwork" / "worker_m4"
 ADB_PATH = r"C:\Users\LENOVO\AppData\Local\Android\Sdk\platform-tools\adb.exe"
 SERIAL = "2223e8784b0c7ece"
-DB_PATH = ROOT / "simulator" / "data" / "smarthome.db"
+DB_PATH = ROOT / "backend" / "data" / "smarthome.db"
 
 def run_adb(args: list[str]) -> subprocess.CompletedProcess:
     env = dict(os.environ)

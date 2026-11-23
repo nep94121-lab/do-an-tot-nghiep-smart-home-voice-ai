@@ -21,9 +21,9 @@ Scope:
    - String vs list commands in `subprocess.run`
    - Pass-through for non-gws subprocess commands
 4. Fixture Integrity:
-   - Deep structural and cryptographic check of `simulator/data/accounts_3layer.json`
-   - Check `simulator/data/family_email_allowlist.json`
-   - Verify `simulator/static/js/app.js` login gate payload
+   - Deep structural and cryptographic check of `backend/data/accounts_3layer.json`
+   - Check `backend/data/family_email_allowlist.json`
+   - Verify `web/js/app.js` login gate payload
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simulator.auth.invite_and_gmail_mixin import (
+from backend.auth.invite_and_gmail_mixin import (
     HARDCODED_REAL_EMAIL_ALLOWLIST,
     AuthInviteGmailMixin,
     is_email_allowlisted_for_real_send,
@@ -469,11 +469,11 @@ def sys_python() -> str:
 # ==============================================================================
 
 class TestSeedAccountsAndFixturesAudit:
-    """Deep structural, cryptographic, and permission audit of simulator/data/accounts_3layer.json."""
+    """Deep structural, cryptographic, and permission audit of backend/data/accounts_3layer.json."""
 
     def test_accounts_3layer_deep_audit(self):
         """Verify exact length 6, correct schema, valid password hashes, and no leaked secrets."""
-        acc_path = ROOT / "simulator" / "data" / "accounts_3layer.json"
+        acc_path = ROOT / "backend" / "data" / "accounts_3layer.json"
         assert acc_path.exists(), f"Missing file: {acc_path}"
 
         raw_data = acc_path.read_text(encoding="utf-8")
@@ -542,7 +542,7 @@ class TestSeedAccountsAndFixturesAudit:
             # If password_plain_hint is present, verify hash match via verify_password_hash
             hint = acc.get("password_plain_hint")
             if hint:
-                from simulator.auth.constants_and_crypto import verify_password_hash
+                from backend.auth.constants_and_crypto import verify_password_hash
                 assert verify_password_hash(hint, pwd_hash), f"Hash mismatch with hint for {acc_id}"
 
             # Check voiceprint block structure
@@ -553,15 +553,15 @@ class TestSeedAccountsAndFixturesAudit:
         assert found_ids == set(expected_specs.keys()), f"Missing accounts: {set(expected_specs.keys()) - found_ids}"
 
     def test_family_email_allowlist_is_empty_json_object(self):
-        """Verify simulator/data/family_email_allowlist.json is exactly {}."""
-        fa_path = ROOT / "simulator" / "data" / "family_email_allowlist.json"
+        """Verify backend/data/family_email_allowlist.json is exactly {}."""
+        fa_path = ROOT / "backend" / "data" / "family_email_allowlist.json"
         assert fa_path.exists(), f"Missing file: {fa_path}"
         data = json.loads(fa_path.read_text(encoding="utf-8"))
         assert data == {}, f"Expected empty dict {{}}, got: {data}"
 
     def test_app_js_login_gate_send_gmail_false(self):
-        """Verify simulator/static/js/app.js sends send_gmail: false on layer1_login."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        """Verify web/js/app.js sends send_gmail: false on layer1_login."""
+        app_js_path = ROOT / "web" / "js" / "app.js"
         assert app_js_path.exists(), f"Missing file: {app_js_path}"
         content = app_js_path.read_text(encoding="utf-8")
         assert "btnSubmitGateLogin" in content

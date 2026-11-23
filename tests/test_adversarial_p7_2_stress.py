@@ -21,8 +21,8 @@ from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from simulator.server import app, _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH
-from simulator.auth_3layer import get_auth_3layer_manager
+from backend.server import app, _ACTIVE_BRIDGES, _BOOT_VOICE_AUTH
+from backend.auth_3layer import get_auth_3layer_manager
 
 
 @pytest.fixture(autouse=True)
@@ -155,7 +155,7 @@ def _create_qr_invite(base_url: str, duration_code: str = "1d", guest_name: str 
 def test_adversarial_audio_empty_file(live_server_url, sample_audio_files):
     """Tệp PCM rỗng 0B bị chất lượng âm học từ chối, /guest không token trả 403, endpoint cũ trả 410."""
     import httpx
-    from simulator.voice_auth import evaluate_audio_quality_gate
+    from backend.voice_auth import evaluate_audio_quality_gate
 
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     empty_bytes = sample_audio_files["empty"].read_bytes()
@@ -176,7 +176,7 @@ def test_adversarial_audio_empty_file(live_server_url, sample_audio_files):
 def test_adversarial_audio_fake_wav_file(live_server_url, sample_audio_files):
     """Tệp text giả .wav bị từ chối và token mời giả trên /api/guest/redeem bị chặn 403."""
     import httpx
-    from simulator.voice_auth import evaluate_audio_quality_gate
+    from backend.voice_auth import evaluate_audio_quality_gate
 
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     fake_bytes = sample_audio_files["fake"].read_bytes()
@@ -194,7 +194,7 @@ def test_adversarial_audio_fake_wav_file(live_server_url, sample_audio_files):
 def test_adversarial_audio_large_16mb_file(live_server_url, sample_audio_files):
     """Tệp > 15MB toàn byte 0 bị cổng chất lượng âm học từ chối và /guest_enroll đã gỡ trả 410."""
     import httpx
-    from simulator.voice_auth import evaluate_audio_quality_gate
+    from backend.voice_auth import evaluate_audio_quality_gate
 
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     large_bytes = sample_audio_files["large"].read_bytes()
@@ -209,7 +209,7 @@ def test_adversarial_audio_large_16mb_file(live_server_url, sample_audio_files):
 def test_adversarial_audio_valid_wav_file(live_server_url, sample_audio_files):
     """Tệp .wav harmonic chuẩn 16kHz đạt chất lượng âm học và tạo invite 1d hợp lệ."""
     import soundfile as sf_read
-    from simulator.voice_auth import evaluate_audio_quality_gate
+    from backend.voice_auth import evaluate_audio_quality_gate
 
     _BOOT_VOICE_AUTH.reset_to_owner_only()
     samples, sr = sf_read.read(str(sample_audio_files["valid"]), dtype="int16")

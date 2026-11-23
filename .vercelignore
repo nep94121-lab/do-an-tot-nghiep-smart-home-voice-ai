@@ -4,13 +4,12 @@
 .specify
 specs
 tests
-android_app
-kenh_do_an_thay_duyet
+app
 docs
 scripts
-api
-simulator
-mobile_app
+backend
+firmware
+hardware
 test_audio
 __pycache__
 *.pyc
@@ -19,5 +18,3 @@ __pycache__
 dist
 *.log
 *.ps1
-p8_wespk.txt
-fb3.py

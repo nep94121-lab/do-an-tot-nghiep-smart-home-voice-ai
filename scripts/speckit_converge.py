@@ -59,8 +59,8 @@ def run_converge_audit() -> int:
     print("\n[PHẦN 2] KIỂM TOÁN HỘI TỤ MÃ NGUỒN SO VỚI 6 ĐIỀU HIẾN PHÁP (/speckit.converge):")
     import wave
     import numpy as np
-    from simulator.voice_auth import VoiceAuthManager, transform_pcm_by_pitch_factor
-    from simulator.auth_3layer import get_auth_3layer_manager
+    from backend.voice_auth import VoiceAuthManager, transform_pcm_by_pitch_factor
+    from backend.auth_3layer import get_auth_3layer_manager
 
     audio_dir = ROOT / "test_audio"
     vm = VoiceAuthManager(audio_dir)
@@ -107,7 +107,7 @@ def run_converge_audit() -> int:
         print("  [CONVERGED] Điều 2 (Voice DSP & Sub-harmonic Guard): Nhận diện 100% giọng Chủ nhà Cấp 1 (F0 trầm 135.6Hz & chuẩn 173.9Hz).")
 
     # Điều 3: Zero-Drop Gemini Live Bridge + Session RBAC trong gemini_bridge.py
-    bridge_code = (ROOT / "simulator" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
+    bridge_code = (ROOT / "backend" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
     if (
         "def _bind_actor_to_engine" in bridge_code
         and "while not self._closed:" in bridge_code
@@ -115,7 +115,7 @@ def run_converge_audit() -> int:
     ):
         print("  [CONVERGED] Điều 3 (Zero-Drop Live Bridge): Truyền thẳng PCM & phân quyền theo phiên (đã gỡ speaker verification).")
     else:
-        gaps.append("Vi phạm Điều 3 Hiến pháp: Thiếu _bind_actor_to_engine hoặc còn dấu vết _ensure_current_mic_utterance_verified trong simulator/live/gemini_bridge.py")
+        gaps.append("Vi phạm Điều 3 Hiến pháp: Thiếu _bind_actor_to_engine hoặc còn dấu vết _ensure_current_mic_utterance_verified trong backend/live/gemini_bridge.py")
 
     # Điều 4: Owner-only Invite Links (Tier 1 -> [2, 3], Tier 2 -> [], Tier 3 -> [])
     auth_mgr = get_auth_3layer_manager()
@@ -137,8 +137,8 @@ def run_converge_audit() -> int:
 
     # Điều 5 & Điều 6: Rule Engine, Offline Door Lock & SQLite 3NF DB
     import asyncio
-    from simulator.rule_engine import SmartHomeEngine
-    from simulator.database_sqlite import get_sqlite_overview
+    from backend.rule_engine import SmartHomeEngine
+    from backend.database_sqlite import get_sqlite_overview
 
     async def _check_d5_d6() -> None:
         eng = SmartHomeEngine()
@@ -218,7 +218,7 @@ def run_converge_audit() -> int:
                 gaps.append(f"Lỗi kiểm tra {url}: {exc}")
     elif in_pytest:
         from fastapi.testclient import TestClient
-        from simulator.server import app as _srv_app
+        from backend.server import app as _srv_app
 
         _tc = TestClient(_srv_app)
         for route in public_html_routes:
@@ -262,9 +262,9 @@ def run_converge_audit() -> int:
             else:
                 gaps.append("WebSocket /ws không chặn rbac_blocked cho phiên chưa đăng nhập!")
 
-    app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+    app_js_path = ROOT / "web" / "js" / "app.js"
     if not app_js_path.exists():
-        app_js_path = ROOT / "simulator" / "static" / "app.js"
+        app_js_path = ROOT / "web" / "app.js"
     app_js_code = app_js_path.read_text(encoding="utf-8")
     if "playCtx" in app_js_code or "chkAiAudio" in app_js_code:
         gaps.append("Phát hiện biến chưa khai báo (playCtx / chkAiAudio) trong app.js làm treo onaudioprocess!")
@@ -278,7 +278,7 @@ def run_converge_audit() -> int:
             gaps.append(f"Lỗi kiểm thử WebSocket /ws trực tiếp: {exc}")
     elif in_pytest:
         from fastapi.testclient import TestClient
-        from simulator.server import app as _srv_app
+        from backend.server import app as _srv_app
 
         _tc = TestClient(_srv_app)
         with _tc.websocket_connect("/ws") as _ws:

@@ -4,7 +4,7 @@ Maps every hub PCB connector pin (J1..J15) and NodeMCU socket (U1, U2) on the
 Type-1 Central Hub PCB (`hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb`)
 to every off-board module pin, wire color, NodeMCU Dx/GPIO, KiCad net name,
 datasheet dimensions (`docs/phan_cung/DIMENSIONS_AUDIT.md`), and firmware line
-reference (`firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino`).
+reference (`firmware/esp8266_smarthome/esp8266_smarthome.ino`).
 
 Zero fan, zero AC, zero IR anywhere.
 """
@@ -174,7 +174,7 @@ class WireEntry:
     nodemcu_pin: str   # e.g. "D1", "A0", "VIN (+5V)", "3V3", "GND", "Switched +5V"
     gpio: str          # e.g. "GPIO5", "ADC0", "Power", "Ground", "BTL Audio"
     net: str           # Exact KiCad net name (or off-board net name)
-    fw_ref: str        # File:line in firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino
+    fw_ref: str        # File:line in firmware/esp8266_smarthome/esp8266_smarthome.ino
     wire_type: str     # "Dupont F-F", "Screw-to-Wire", "Dupont F-M", "Soldered Pair"
     notes: str
 

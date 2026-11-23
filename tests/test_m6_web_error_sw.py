@@ -11,10 +11,10 @@ import subprocess
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-STATIC_DIR = ROOT / "simulator" / "static"
+STATIC_DIR = ROOT / "web"
 VERCEL_JSON = ROOT / "vercel.json"
 
 
@@ -215,6 +215,6 @@ class TestVercelConfiguration:
         ), "Thiếu quy tắc Edge 308 redirect trong vercel.json"
         assert "routes" not in config
 
-        static_dir = ROOT / "simulator" / "static"
+        static_dir = ROOT / "web"
         for fname in ("sw.js", "offline.html", "404.html", "500.html", "qr_expired.html", "403.html"):
             assert (static_dir / fname).exists(), f"Thiếu file origin tĩnh: {fname}"

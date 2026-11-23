@@ -28,45 +28,45 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE_PAIRS = [
     {
         "name": "index",
-        "html_path": ROOT / "simulator" / "static" / "index.html",
+        "html_path": ROOT / "web" / "index.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "app.js",
-            ROOT / "simulator" / "static" / "house3d.js",
+            ROOT / "web" / "js" / "app.js",
+            ROOT / "web" / "house3d.js",
         ],
     },
     {
         "name": "auth",
-        "html_path": ROOT / "simulator" / "static" / "auth.html",
+        "html_path": ROOT / "web" / "auth.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "auth.js",
+            ROOT / "web" / "js" / "auth.js",
         ],
     },
     {
         "name": "guest_enroll",
-        "html_path": ROOT / "simulator" / "static" / "guest_enroll.html",
+        "html_path": ROOT / "web" / "guest_enroll.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "guest_enroll.js",
+            ROOT / "web" / "js" / "guest_enroll.js",
         ],
     },
     {
         "name": "wokwi",
-        "html_path": ROOT / "simulator" / "static" / "wokwi.html",
+        "html_path": ROOT / "web" / "wokwi.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "wokwi.js",
+            ROOT / "web" / "js" / "wokwi.js",
         ],
     },
     {
         "name": "logs",
-        "html_path": ROOT / "simulator" / "static" / "logs.html",
+        "html_path": ROOT / "web" / "logs.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "logs.js",
+            ROOT / "web" / "js" / "logs.js",
         ],
     },
     {
         "name": "mobile_app",
-        "html_path": ROOT / "mobile_app" / "index.html",
+        "html_path": ROOT / "web" / "mobile" / "index.html",
         "js_paths": [
-            ROOT / "simulator" / "static" / "js" / "mobile_app.js",
+            ROOT / "web" / "js" / "mobile_app.js",
         ],
     },
 ]
@@ -352,7 +352,7 @@ class TestMilestoneM4DomIntegrity:
         Bắt lỗi Uncaught ReferenceError khi file JS được nạp vào browser.
         """
         for js_p in page["js_paths"]:
-            # Chỉ chạy cho các file JS chính trong simulator/static/js/
+            # Chỉ chạy cho các file JS chính trong web/js/
             if "vendor" in str(js_p) or "house3d" in str(js_p):
                 continue
             proc = subprocess.run(

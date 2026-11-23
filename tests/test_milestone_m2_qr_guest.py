@@ -29,12 +29,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulator.server import _BOOT_VOICE_AUTH, app
-from simulator.auth_3layer import (
+from backend.server import _BOOT_VOICE_AUTH, app
+from backend.auth_3layer import (
     DURATION_MAP_SECONDS,
     get_auth_3layer_manager,
 )
-from simulator.voice_auth import (
+from backend.voice_auth import (
     VoiceAuthManager,
     transform_pcm_by_pitch_factor,
 )

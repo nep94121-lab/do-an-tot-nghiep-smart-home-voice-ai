@@ -3,7 +3,7 @@
 
 Single Source of Truth: `hardware/wiring_contract.py`
 Cross-checked against:
-  - `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino`
+  - `firmware/esp8266_smarthome/esp8266_smarthome.ino`
   - `docs/phan_cung/DIMENSIONS_AUDIT.md`
   - `hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb` (read-only verification)
 
@@ -109,7 +109,7 @@ def validate_contract() -> dict[str, object]:
             raise RuntimeError(f"Unknown wire color {w.color!r} on {w.wire_id}")
 
     # Verify firmware pin defines exist verbatim in esp8266_smarthome.ino
-    fw_path = REPO_ROOT / "firmware_esp8266" / "esp8266_smarthome" / "esp8266_smarthome.ino"
+    fw_path = REPO_ROOT / "firmware" / "esp8266_smarthome" / "esp8266_smarthome.ino"
     fw_lines = fw_path.read_text(encoding="utf-8").splitlines()
     fw_pin_lines: dict[str, int] = {}
     for macro, (dx, gpio, _hub_info) in FIRMWARE_PIN_CONTRACT.items():
@@ -138,7 +138,7 @@ def validate_contract() -> dict[str, object]:
         "hub_connectors": len(HUB_CONNECTORS),
         "hub_pins": len(hub_pins_expected),
         "fw_pin_lines": fw_pin_lines,
-        "fw_rel_path": "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
+        "fw_rel_path": "firmware/esp8266_smarthome/esp8266_smarthome.ino",
     }
 
 

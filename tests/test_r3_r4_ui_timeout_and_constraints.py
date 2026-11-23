@@ -17,12 +17,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth.invite_and_gmail_mixin import (
+from backend.auth.invite_and_gmail_mixin import (
     HARDCODED_REAL_EMAIL_ALLOWLIST,
     AuthInviteGmailMixin,
     is_email_allowlisted_for_real_send,
 )
-from simulator.server import app
+from backend.server import app
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -58,9 +58,9 @@ class TestR3SmtpTimeout:
 
     def test_smtp_timeout_constant_defaults_to_8_seconds(self):
         """Assert SMTP_TIMEOUT_SECONDS exists in invite_and_gmail_mixin and defaults to 8.0."""
-        import simulator.auth.invite_and_gmail_mixin as mixin_mod
+        import backend.auth.invite_and_gmail_mixin as mixin_mod
         assert hasattr(mixin_mod, "SMTP_TIMEOUT_SECONDS"), (
-            "simulator.auth.invite_and_gmail_mixin must define SMTP_TIMEOUT_SECONDS"
+            "backend.auth.invite_and_gmail_mixin must define SMTP_TIMEOUT_SECONDS"
         )
         assert mixin_mod.SMTP_TIMEOUT_SECONDS == 8.0, (
             f"SMTP_TIMEOUT_SECONDS should default to 8.0, got {mixin_mod.SMTP_TIMEOUT_SECONDS}"
@@ -112,7 +112,7 @@ class TestR3InstantUiFeedback:
 
     def test_mobile_app_js_has_instant_disable_and_spinner_before_fetch(self):
         """Verify mobile_app.js synchronously disables button and sets .btn-spinner prior to fetch."""
-        js_file = ROOT / "simulator" / "static" / "js" / "mobile_app.js"
+        js_file = ROOT / "web" / "js" / "mobile_app.js"
         assert js_file.exists(), f"Missing file: {js_file}"
         content = js_file.read_text(encoding="utf-8")
 
@@ -134,7 +134,7 @@ class TestR3InstantUiFeedback:
 
     def test_mobile_app_css_defines_btn_spinner_and_keyframes(self):
         """Verify mobile_app.css defines .btn-spinner and @keyframes btn-spin."""
-        css_file = ROOT / "simulator" / "static" / "css" / "mobile_app.css"
+        css_file = ROOT / "web" / "css" / "mobile_app.css"
         assert css_file.exists(), f"Missing file: {css_file}"
         content = css_file.read_text(encoding="utf-8")
 
@@ -143,7 +143,7 @@ class TestR3InstantUiFeedback:
 
     def test_auth_js_has_instant_disable_and_spinner_before_fetch(self):
         """Verify auth.js synchronously disables button and sets .btn-spinner prior to fetch."""
-        js_file = ROOT / "simulator" / "static" / "js" / "auth.js"
+        js_file = ROOT / "web" / "js" / "auth.js"
         assert js_file.exists(), f"Missing file: {js_file}"
         content = js_file.read_text(encoding="utf-8")
 
@@ -161,8 +161,8 @@ class TestR3InstantUiFeedback:
 
     def test_auth_html_defines_btn_spinner_and_keyframes(self):
         """Verify auth.html links /static/css/auth.css (no inline <style>) and auth.css defines .btn-spinner and btn-spin."""
-        html_file = ROOT / "simulator" / "static" / "auth.html"
-        css_file = ROOT / "simulator" / "static" / "css" / "auth.css"
+        html_file = ROOT / "web" / "auth.html"
+        css_file = ROOT / "web" / "css" / "auth.css"
         assert html_file.exists(), f"Missing file: {html_file}"
         assert css_file.exists(), f"Missing file: {css_file}"
 

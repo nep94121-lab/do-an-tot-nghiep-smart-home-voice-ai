@@ -10,10 +10,10 @@ Verifies:
    pass the allowlist check.
 3. Autouse pytest fixture mock_email_and_gws_network_isolation in tests/conftest.py successfully
    intercepts smtplib.SMTP, smtplib.SMTP_SSL, and subprocess.run(["gws", ...]).
-4. Login Gate in simulator/static/js/app.js explicitly specifies "send_gmail": false.
+4. Login Gate in web/js/app.js explicitly specifies "send_gmail": false.
 5. Fixture data files:
-   - simulator/data/accounts_3layer.json contains exactly 6 clean default accounts.
-   - simulator/data/family_email_allowlist.json contains {} (empty JSON object).
+   - backend/data/accounts_3layer.json contains exactly 6 clean default accounts.
+   - backend/data/family_email_allowlist.json contains {} (empty JSON object).
 """
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from simulator.auth.invite_and_gmail_mixin import (
+from backend.auth.invite_and_gmail_mixin import (
     HARDCODED_REAL_EMAIL_ALLOWLIST,
     AuthInviteGmailMixin,
     is_email_allowlisted_for_real_send,
 )
-from simulator.server import app
+from backend.server import app
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -330,11 +330,11 @@ class TestAutouseFixtureIsolation:
 # ==============================================================================
 
 class TestFrontendAppJsConfiguration:
-    """Kiểm tra simulator/static/js/app.js có cấu hình send_gmail: false tại cổng đăng nhập."""
+    """Kiểm tra web/js/app.js có cấu hình send_gmail: false tại cổng đăng nhập."""
 
     def test_app_js_btnSubmitGateLogin_sends_send_gmail_false(self):
         """Cổng đăng nhập (#btnSubmitGateLogin) phải truyền 'send_gmail: false' khi gọi layer1_login."""
-        app_js_path = ROOT / "simulator" / "static" / "js" / "app.js"
+        app_js_path = ROOT / "web" / "js" / "app.js"
         assert app_js_path.exists(), f"Không tìm thấy file: {app_js_path}"
         content = app_js_path.read_text(encoding="utf-8")
 
@@ -359,8 +359,8 @@ class TestCleanDataFixtures:
     """Kiểm tra tính trong sạch của hai file fixtures: accounts_3layer.json và family_email_allowlist.json."""
 
     def test_accounts_3layer_json_contains_only_clean_default_accounts(self):
-        """simulator/data/accounts_3layer.json chỉ được chứa 6 tài khoản mặc định chuẩn."""
-        acc_path = ROOT / "simulator" / "data" / "accounts_3layer.json"
+        """backend/data/accounts_3layer.json chỉ được chứa 6 tài khoản mặc định chuẩn."""
+        acc_path = ROOT / "backend" / "data" / "accounts_3layer.json"
         assert acc_path.exists(), f"Không tìm thấy {acc_path}"
 
         accounts = json.loads(acc_path.read_text(encoding="utf-8"))
@@ -382,8 +382,8 @@ class TestCleanDataFixtures:
                 )
 
     def test_family_email_allowlist_json_is_empty_object(self):
-        """simulator/data/family_email_allowlist.json phải là dictionary rỗng {}."""
-        fa_path = ROOT / "simulator" / "data" / "family_email_allowlist.json"
+        """backend/data/family_email_allowlist.json phải là dictionary rỗng {}."""
+        fa_path = ROOT / "backend" / "data" / "family_email_allowlist.json"
         assert fa_path.exists(), f"Không tìm thấy {fa_path}"
 
         data = json.loads(fa_path.read_text(encoding="utf-8"))

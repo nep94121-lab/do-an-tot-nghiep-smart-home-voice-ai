@@ -28,22 +28,22 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
-from simulator.auth.session_store import UserSession, get_session_store
-from simulator.automation_nlu import handle_confirmation_reply, process_automation_nlu_command
-from simulator.automation_repo import format_duration_vi
-from simulator.live.echo_and_speech_guard import ServerEchoGuard
-from simulator.live.gemini_bridge import LiveBridgeSession
-from simulator.live.prompt_builder import (
+from backend.auth.session_store import UserSession, get_session_store
+from backend.automation_nlu import handle_confirmation_reply, process_automation_nlu_command
+from backend.automation_repo import format_duration_vi
+from backend.live.echo_and_speech_guard import ServerEchoGuard
+from backend.live.gemini_bridge import LiveBridgeSession
+from backend.live.prompt_builder import (
     fn_confirm_factory_reset,
     fn_confirm_or_cancel_pending_action,
     fn_confirm_pending_action,
 )
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import _ACTIVE_BRIDGES, app
+from backend.rule_engine import SmartHomeEngine
+from backend.server import _ACTIVE_BRIDGES, app
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-ECHO_GUARD_JS = REPO_ROOT / "simulator" / "static" / "js" / "voice_echo_guard.js"
-WAV_AOEDE_24K = REPO_ROOT / "simulator" / "data" / "aoede_repeat_24k.wav"
+ECHO_GUARD_JS = REPO_ROOT / "web" / "js" / "voice_echo_guard.js"
+WAV_AOEDE_24K = REPO_ROOT / "backend" / "data" / "aoede_repeat_24k.wav"
 
 TRACKED_HUMAN_WAVS: dict[str, pathlib.Path] = {
     "cau_4_bat_den_phong_khach": REPO_ROOT / "test_audio" / "cac_cau_lenh_cua_sep" / "cau_4_bat_den_phong_khach.wav",
@@ -133,12 +133,12 @@ def _simulate_agc_floats(samples: list[float], target_rms: float = 0.14, max_gai
 class TestP1VoiceEchoAndBargeIn:
     def test_all_mic_surfaces_disable_auto_gain_control(self) -> None:
         voice_guard_js = ECHO_GUARD_JS.read_text(encoding="utf-8")
-        app_js = (REPO_ROOT / "simulator" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-        mobile_js = (REPO_ROOT / "simulator" / "static" / "js" / "mobile_app.js").read_text(encoding="utf-8")
-        guest_enroll_js = (REPO_ROOT / "simulator" / "static" / "js" / "guest_enroll.js").read_text(encoding="utf-8")
+        app_js = (REPO_ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        mobile_js = (REPO_ROOT / "web" / "js" / "mobile_app.js").read_text(encoding="utf-8")
+        guest_enroll_js = (REPO_ROOT / "web" / "js" / "guest_enroll.js").read_text(encoding="utf-8")
         android_kt = (
             REPO_ROOT
-            / "android_app"
+            / "app"
             / "app-core"
             / "src"
             / "main"
@@ -523,7 +523,7 @@ class TestP1ConfirmToolSafeDefault:
         ],
     )
     def test_missing_or_invalid_confirmed_never_executes_pending_door_open(self, bad_args: dict) -> None:
-        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
+        from backend.automation_repo import list_schedules, reset_timers_and_schedules_scoped
 
         reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()
@@ -544,7 +544,7 @@ class TestP1ConfirmToolSafeDefault:
         )
 
     def test_explicit_boolean_true_executes_pending_action(self) -> None:
-        from simulator.automation_repo import list_schedules, reset_timers_and_schedules_scoped
+        from backend.automation_repo import list_schedules, reset_timers_and_schedules_scoped
 
         reset_timers_and_schedules_scoped(clear_all=True)
         engine = SmartHomeEngine()

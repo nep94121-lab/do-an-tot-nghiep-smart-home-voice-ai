@@ -20,14 +20,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from google.genai import types
-from simulator.knowledge_rag import SmartHomeKnowledgeRAG
-from simulator.rule_engine import SmartHomeEngine
-from simulator.server import (
+from backend.knowledge_rag import SmartHomeKnowledgeRAG
+from backend.rule_engine import SmartHomeEngine
+from backend.server import (
     LiveBridgeSession,
     build_system_instruction,
     make_live_config,
 )
-from simulator.voice_auth import VoiceAuthManager
+from backend.voice_auth import VoiceAuthManager
 
 
 class TestM2VietnameseLiveAndRAG(unittest.TestCase):
@@ -109,7 +109,7 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
 
     def test_04_authenticated_mic_streams_pcm_without_speaker_verification(self) -> None:
         """Kiểm tra mic WS khi có phiên đăng nhập sẽ stream PCM thẳng không kiểm định giọng nói hay tăng strike."""
-        from simulator.auth.session_store import UserSession
+        from backend.auth.session_store import UserSession
         import time as _time
 
         mock_ws = AsyncMock()
@@ -140,7 +140,7 @@ class TestM2VietnameseLiveAndRAG(unittest.TestCase):
 
     def test_05_unauthenticated_mic_blocked_by_session_rbac(self) -> None:
         """Kiểm tra mic WS chưa đăng nhập bị chặn bởi Session RBAC (không dựa vào voice strikes)."""
-        from simulator.auth.session_store import UserSession
+        from backend.auth.session_store import UserSession
         import time as _time
 
         mock_ws = AsyncMock()

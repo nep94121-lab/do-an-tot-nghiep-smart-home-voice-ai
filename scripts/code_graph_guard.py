@@ -34,63 +34,63 @@ GRAPH_JSON_PATH = ARCH_DIR / "CODEBASE_GRAPH.json"
 REPO_MAP_MD_PATH = ARCH_DIR / "REPO_MAP.md"
 
 PYTHON_FILES = [
-    "simulator/server.py",
-    "simulator/rule_engine.py",
-    "simulator/engine/constants_and_time.py",
-    "simulator/engine/audit_logger.py",
-    "simulator/engine/voice_rbac_mixin.py",
-    "simulator/engine/timers_pool.py",
-    "simulator/engine/rules_pool.py",
-    "simulator/mqtt_bridge.py",
-    "simulator/voice_auth.py",
-    "simulator/knowledge_rag.py",
-    "simulator/auth_3layer.py",
-    "simulator/auth/constants_and_crypto.py",
-    "simulator/auth/invite_and_gmail_mixin.py",
-    "simulator/auth/qr_totp_mixin.py",
-    "simulator/auth/test_suite_mixin.py",
-    "simulator/database_sqlite.py",
-    "simulator/voice/biometrics_neural.py",
-    "simulator/voice/vad_vietnamese.py",
-    "simulator/voice/denoiser.py",
-    "simulator/live/gemini_bridge.py",
-    "simulator/live/tool_dispatcher_mixin.py",
-    "simulator/live/prompt_builder.py",
-    "simulator/live/tts_rejection_vi.py",
-    "simulator/api/deps.py",
-    "simulator/api/routes_devices.py",
-    "simulator/api/routes_auth.py",
-    "simulator/api/routes_qr.py",
-    "simulator/api/routes_logs.py",
+    "backend/server.py",
+    "backend/rule_engine.py",
+    "backend/engine/constants_and_time.py",
+    "backend/engine/audit_logger.py",
+    "backend/engine/voice_rbac_mixin.py",
+    "backend/engine/timers_pool.py",
+    "backend/engine/rules_pool.py",
+    "backend/mqtt_bridge.py",
+    "backend/voice_auth.py",
+    "backend/knowledge_rag.py",
+    "backend/auth_3layer.py",
+    "backend/auth/constants_and_crypto.py",
+    "backend/auth/invite_and_gmail_mixin.py",
+    "backend/auth/qr_totp_mixin.py",
+    "backend/auth/test_suite_mixin.py",
+    "backend/database_sqlite.py",
+    "backend/voice/biometrics_neural.py",
+    "backend/voice/vad_vietnamese.py",
+    "backend/voice/denoiser.py",
+    "backend/live/gemini_bridge.py",
+    "backend/live/tool_dispatcher_mixin.py",
+    "backend/live/prompt_builder.py",
+    "backend/live/tts_rejection_vi.py",
+    "backend/api/deps.py",
+    "backend/api/routes_devices.py",
+    "backend/api/routes_auth.py",
+    "backend/api/routes_qr.py",
+    "backend/api/routes_logs.py",
     "scripts/test_simulator_e2e.py",
 ]
 
 FRONTEND_FILES = [
-    "simulator/static/index.html",
-    "simulator/static/auth.html",
-    "simulator/static/guest_enroll.html",
-    "simulator/static/wokwi.html",
-    "simulator/static/logs.html",
-    "simulator/static/app.js",
-    "simulator/static/house3d.js",
-    "simulator/static/style.css",
-    "simulator/static/css/style.css",
-    "simulator/static/css/auth.css",
-    "simulator/static/css/guest_enroll.css",
-    "simulator/static/css/wokwi.css",
-    "simulator/static/css/logs.css",
-    "simulator/static/css/mobile_app.css",
-    "simulator/static/js/app.js",
-    "simulator/static/js/auth.js",
-    "simulator/static/js/guest_enroll.js",
-    "simulator/static/js/wokwi.js",
-    "simulator/static/js/logs.js",
-    "simulator/static/js/mobile_app.js",
-    "mobile_app/index.html",
+    "web/index.html",
+    "web/auth.html",
+    "web/guest_enroll.html",
+    "web/wokwi.html",
+    "web/logs.html",
+    "web/app.js",
+    "web/house3d.js",
+    "web/style.css",
+    "web/css/style.css",
+    "web/css/auth.css",
+    "web/css/guest_enroll.css",
+    "web/css/wokwi.css",
+    "web/css/logs.css",
+    "web/css/mobile_app.css",
+    "web/js/app.js",
+    "web/js/auth.js",
+    "web/js/guest_enroll.js",
+    "web/js/wokwi.js",
+    "web/js/logs.js",
+    "web/js/mobile_app.js",
+    "web/mobile/index.html",
 ]
 
 FIRMWARE_FILES = [
-    "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino",
+    "firmware/esp8266_smarthome/esp8266_smarthome.ino",
 ]
 
 
@@ -219,25 +219,25 @@ def _extract_python_ast_graph() -> dict[str, Any]:
 
 def _extract_cross_layer_contracts() -> dict[str, Any]:
     """Trích xuất các hợp đồng giao tiếp liên tầng (Gemini Tools, MQTT Topics, HTTP Endpoints, WS Events, GPIO Pins)."""
-    server_src = (ROOT / "simulator/server.py").read_text(encoding="utf-8")
-    engine_srcs = [(ROOT / "simulator/rule_engine.py").read_text(encoding="utf-8")]
-    engine_dir = ROOT / "simulator" / "engine"
+    server_src = (ROOT / "backend/server.py").read_text(encoding="utf-8")
+    engine_srcs = [(ROOT / "backend/rule_engine.py").read_text(encoding="utf-8")]
+    engine_dir = ROOT / "backend" / "engine"
     if engine_dir.exists():
         for e_file in sorted(engine_dir.glob("*.py")):
             engine_srcs.append(e_file.read_text(encoding="utf-8"))
     engine_src = "\n".join(engine_srcs)
 
-    mqtt_src = (ROOT / "simulator/mqtt_bridge.py").read_text(encoding="utf-8")
-    app_js_src = (ROOT / "simulator/static/app.js").read_text(encoding="utf-8")
-    mobile_src = (ROOT / "mobile_app/index.html").read_text(encoding="utf-8")
-    ino_src = (ROOT / "firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino").read_text(encoding="utf-8")
+    mqtt_src = (ROOT / "backend/mqtt_bridge.py").read_text(encoding="utf-8")
+    app_js_src = (ROOT / "web/app.js").read_text(encoding="utf-8")
+    mobile_src = (ROOT / "web/mobile/index.html").read_text(encoding="utf-8")
+    ino_src = (ROOT / "firmware/esp8266_smarthome/esp8266_smarthome.ino").read_text(encoding="utf-8")
 
-    prompt_builder_path = ROOT / "simulator/live/prompt_builder.py"
+    prompt_builder_path = ROOT / "backend/live/prompt_builder.py"
     prompt_builder_src = prompt_builder_path.read_text(encoding="utf-8") if prompt_builder_path.exists() else ""
 
     live_srcs = []
     for l_name in ("gemini_bridge.py", "tool_dispatcher_mixin.py"):
-        l_path = ROOT / "simulator" / "live" / l_name
+        l_path = ROOT / "backend" / "live" / l_name
         if l_path.exists():
             live_srcs.append(l_path.read_text(encoding="utf-8"))
     gemini_bridge_src = "\n".join(live_srcs)
@@ -255,9 +255,9 @@ def _extract_cross_layer_contracts() -> dict[str, Any]:
     mqtt_topics_py = sorted(set(re.findall(r'"(smarthome/[a-z0-9_/]+)"', mqtt_src)))
     mqtt_topics_ino = sorted(set(re.findall(r'"(smarthome/[a-z0-9_/]+)"', ino_src)))
 
-    # 3. REST API Endpoints giữa server.py + simulator/api/routes_*.py, mobile_app/index.html và simulator/static/app.js
+    # 3. REST API Endpoints giữa server.py + backend/api/routes_*.py, web/mobile/index.html và web/app.js
     api_srcs = [server_src]
-    api_dir = ROOT / "simulator" / "api"
+    api_dir = ROOT / "backend" / "api"
     if api_dir.exists():
         for r_file in api_dir.glob("routes_*.py"):
             api_srcs.append(r_file.read_text(encoding="utf-8"))
@@ -388,7 +388,7 @@ def build_and_save_graph() -> tuple[dict[str, Any], dict[str, Any]]:
         "### 2.2. 9 Chủ đề MQTT Chuẩn (`mqtt_bridge.py` <-> `rule_engine.py` <-> `esp8266_smarthome.ino`)",
         "- Danh sách: " + ", ".join(f"`{t}`" for t in contracts["mqtt_topics"]["python_bridge"]),
         "",
-        "### 2.3. Các cổng HTTP REST API (`server.py` <-> `mobile_app/index.html` & `app.js`)",
+        "### 2.3. Các cổng HTTP REST API (`server.py` <-> `web/mobile/index.html` & `app.js`)",
         "- Danh sách: " + ", ".join(f"`{r}`" for r in contracts["rest_endpoints"]["server_routes"]),
         "",
         "### 2.4. 6 Chân Phần cứng NodeMCU ESP8266 (`rule_engine.py` <-> `esp8266_smarthome.ino`)",
@@ -455,19 +455,19 @@ def run_impact_analysis(query: str, symbols: dict[str, Any], contracts: dict[str
     for topic in contracts["mqtt_topics"]["python_bridge"]:
         if q_low in topic.lower():
             print(f"\n📡 MQTT Topic liên quan: '{topic}'")
-            print("   - Tầng Python Bridge : simulator/mqtt_bridge.py")
-            print("   - Tầng Rule Engine   : simulator/rule_engine.py")
-            print("   - Tầng Mobile App    : mobile_app/index.html")
-            print("   - Tầng Firmware C++  : firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino")
+            print("   - Tầng Python Bridge : backend/mqtt_bridge.py")
+            print("   - Tầng Rule Engine   : backend/rule_engine.py")
+            print("   - Tầng Mobile App    : web/mobile/index.html")
+            print("   - Tầng Firmware C++  : firmware/esp8266_smarthome/esp8266_smarthome.ino")
 
     for route in contracts["rest_endpoints"]["server_routes"]:
         if q_low in route.lower():
             print(f"\n🌐 REST API Endpoint liên quan: '{route}'")
-            print("   - Khai báo tại       : simulator/server.py")
+            print("   - Khai báo tại       : backend/server.py")
             if route in contracts["rest_endpoints"]["mobile_app_calls"]:
-                print("   - Gọi bởi Mobile App : mobile_app/index.html")
+                print("   - Gọi bởi Mobile App : web/mobile/index.html")
             if route in contracts["rest_endpoints"]["web_app_calls"]:
-                print("   - Gọi bởi Web 3D UI  : simulator/static/app.js")
+                print("   - Gọi bởi Web 3D UI  : web/app.js")
     print("=" * 78)
 
 

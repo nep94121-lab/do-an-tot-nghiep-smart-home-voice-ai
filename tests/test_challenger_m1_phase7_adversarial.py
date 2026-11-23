@@ -14,7 +14,7 @@ Stress Dimensions:
   3. HTML Purity & Security: 0 <style> tags, 0 inline <script> tags across all repository HTML files
   4. Encoding & Formatting: 0 CRLF (\\r\\n), 0 UTF-8 BOM across all modified files
   5. Shared Navigation Completeness: Full 8-route coverage across all 8 static pages
-  6. Forbidden Boundaries: Zero modifications to simulator/voice/**, simulator/voice_auth.py, simulator/live/**
+  6. Forbidden Boundaries: Zero modifications to backend/voice/**, backend/voice_auth.py, backend/live/**
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ if str(ROOT) not in sys.path:
 
 from starlette.testclient import TestClient
 
-from simulator.server import app
+from backend.server import app
 
 VERCEL_JSON_PATH = ROOT / "vercel.json"
 
@@ -56,30 +56,30 @@ REQUIRED_ROUTES = [
 ]
 
 STATIC_PAGES = [
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
-    ROOT / "mobile_app" / "index.html",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
+    ROOT / "web" / "mobile" / "index.html",
 ]
 
 MODIFIED_FILES_M1 = [
-    ROOT / "simulator" / "server.py",
+    ROOT / "backend" / "server.py",
     ROOT / "vercel.json",
-    ROOT / "simulator" / "static" / "login.html",
-    ROOT / "simulator" / "static" / "register.html",
-    ROOT / "simulator" / "static" / "js" / "auth_pages.js",
-    ROOT / "simulator" / "static" / "css" / "style.css",
-    ROOT / "simulator" / "static" / "css" / "guest_enroll.css",
-    ROOT / "simulator" / "static" / "index.html",
-    ROOT / "simulator" / "static" / "auth.html",
-    ROOT / "simulator" / "static" / "wokwi.html",
-    ROOT / "simulator" / "static" / "logs.html",
-    ROOT / "simulator" / "static" / "guest_enroll.html",
-    ROOT / "mobile_app" / "index.html",
+    ROOT / "web" / "login.html",
+    ROOT / "web" / "register.html",
+    ROOT / "web" / "js" / "auth_pages.js",
+    ROOT / "web" / "css" / "style.css",
+    ROOT / "web" / "css" / "guest_enroll.css",
+    ROOT / "web" / "index.html",
+    ROOT / "web" / "auth.html",
+    ROOT / "web" / "wokwi.html",
+    ROOT / "web" / "logs.html",
+    ROOT / "web" / "guest_enroll.html",
+    ROOT / "web" / "mobile" / "index.html",
     ROOT / "tests" / "test_milestone_m1_navigation_routing.py",
 ]
 
@@ -212,8 +212,8 @@ class TestVercelRoutingStress:
         assert rule["destination"] == "https://laptop-6i654f8c.tail3020d6.ts.net/:path*"
 
     def test_vercel_register_route_matches(self, vercel_config: dict[str, Any]):
-        assert (ROOT / "simulator" / "static" / "login.html").exists()
-        assert (ROOT / "simulator" / "static" / "register.html").exists()
+        assert (ROOT / "web" / "login.html").exists()
+        assert (ROOT / "web" / "register.html").exists()
 
     def test_vercel_boundary_clamping_prevents_prefix_hijack(self, vercel_config: dict[str, Any]):
         assert "routes" not in vercel_config
@@ -253,7 +253,7 @@ class TestHTMLSecurityAndPurity:
 
     def test_dedicated_login_and_register_purity(self):
         """Dedicated login.html and register.html must be 100% pure (0 styles, 0 inline scripts)."""
-        for p in [ROOT / "simulator" / "static" / "login.html", ROOT / "simulator" / "static" / "register.html"]:
+        for p in [ROOT / "web" / "login.html", ROOT / "web" / "register.html"]:
             raw = p.read_text(encoding="utf-8")
             assert "<style" not in raw.lower(), f"{p.name} contains <style> tag"
             scripts = re.findall(r"<script\b([^>]*)>", raw, re.IGNORECASE)
@@ -261,7 +261,7 @@ class TestHTMLSecurityAndPurity:
 
     def test_login_and_register_credential_hygiene(self):
         """Ensure login.html and register.html do not leak static credential values (empty value='')."""
-        for p in [ROOT / "simulator" / "static" / "login.html", ROOT / "simulator" / "static" / "register.html"]:
+        for p in [ROOT / "web" / "login.html", ROOT / "web" / "register.html"]:
             soup = BeautifulSoup(p.read_text(encoding="utf-8"), "html.parser")
             for inp in soup.find_all("input", {"type": ["password", "email"]}):
                 val = inp.get("value", "")
@@ -316,14 +316,14 @@ class TestForbiddenBoundariesInvariant:
         import ast
 
         required = [
-            ROOT / "simulator" / "voice" / "stt_pipeline.py",
-            ROOT / "simulator" / "live" / "gemini_bridge.py",
-            ROOT / "simulator" / "live" / "tool_dispatcher_mixin.py",
+            ROOT / "backend" / "voice" / "stt_pipeline.py",
+            ROOT / "backend" / "live" / "gemini_bridge.py",
+            ROOT / "backend" / "live" / "tool_dispatcher_mixin.py",
         ]
         for fpath in required:
             assert fpath.exists(), f"Missing required voice/live file: {fpath}"
             ast.parse(fpath.read_text(encoding="utf-8"), filename=str(fpath))
-        bridge_src = (ROOT / "simulator" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
+        bridge_src = (ROOT / "backend" / "live" / "gemini_bridge.py").read_text(encoding="utf-8")
         assert "verify_pcm16k_and_apply_strikes" not in bridge_src
 
 

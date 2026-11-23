@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 def prepare_live_auth(env: dict[str, str], temp_dir: str) -> str:
-    from simulator.auth_3layer import get_auth_3layer_manager, hash_password
-    from simulator.voice_config import OWNER_EMAIL
+    from backend.auth_3layer import get_auth_3layer_manager, hash_password
+    from backend.voice_config import OWNER_EMAIL
 
     root = Path(temp_dir)
     data = root / "data"
