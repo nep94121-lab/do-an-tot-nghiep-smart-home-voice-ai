@@ -42,6 +42,7 @@ Hệ thống khóa cứng đúng 6 thiết bị chấp hành và 3 cảm biến 
 ├── hardware/
 │   ├── kicad/              # Thiết kế PCB Hub 1 lớp DIY (smarthome_hub/) & bản lắp ghép 3D (smarthome_assembly/)
 │   ├── mica/               # Mô hình vỏ nhà Mica 3mm tham số hóa trên FreeCAD (.FCStd + script kiểm định)
+│   ├── in 3 d/             # Bộ tệp In 3D vỏ nhà (khắc sẵn kích thước, chia mảnh 220x220mm) + 12 phụ kiện supot (STL/3MF/STEP)
 │   ├── blender/            # Cảnh lắp ghép 3D dây nối (system_wired_assembly.glb)
 │   └── wiring_contract.py  # Nguồn sự thật duy nhất (SSOT) cho 40 dây nối & 10 chân ESP8266
 ├── docs/
@@ -117,6 +118,7 @@ docker compose up --build -d
 
 - [Hướng dẫn sử dụng (Tiếng Việt)](USER_GUIDE.md) — Tài khoản 3 cấp, mời QR, Web 3D, Tự động hóa, lệnh giọng nói, Android & Wokwi.
 - [Hướng dẫn chế tạo & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md) — Chỉ mục KiCad PCB, cắt laser Mica, BOM linh kiện & sơ đồ 40 dây nối.
+- [Bộ tệp In 3D Vỏ Nhà & Phụ Kiện Supot (`hardware/in 3 d/`)](hardware/in%203%20d/README.md) — Toàn bộ 25 mảnh vỏ nhà khắc kích thước + 12 phụ kiện supot (`STL`/`3MF`/`STEP`, bản vẽ kỹ thuật, thông số in & thứ tự lắp ráp).
 - [Các vấn đề đã biết (`KNOWN_ISSUES.md`)](KNOWN_ISSUES.md) — Danh mục giới hạn nhỏ không ảnh hưởng vận hành lõi, hoãn sang sau `v1.0`.
 - [Nhật ký phát hành (`CHANGELOG.md`)](CHANGELOG.md) — Tổng hợp các nhánh tích hợp, bản vá và tái cấu trúc `v1.0`.
 
