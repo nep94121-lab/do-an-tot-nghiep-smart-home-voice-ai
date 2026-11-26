@@ -54,20 +54,20 @@ Every single physical plug-in wire is listed one row per wire (`W01`–`W40`), c
 
 ## 2. Locked 10-Pin ESP8266 NodeMCU v2 Amica Contract vs Firmware
 
-Cross-verified against `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino` (`#define PIN_*` lines 55–64 and `setup()` lines 389–416):
+Cross-verified against `firmware/esp8266_smarthome/esp8266_smarthome.ino` (`#define PIN_*` lines 55–64 and `setup()` lines 389–416):
 
 | Firmware Macro | NodeMCU Pin | ESP8266 GPIO | Hub Connector / Signal | Socket Pad | Firmware Line | Boot / Logic Polarity |
 |---|---|---|---|---|---|---|
-| `PIN_LIVING_LIGHT` | **D0** | `GPIO16` | `LED_LR_D0 / J4` | `U2.1` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:55` | Active-HIGH via R1 (220Ω); also `enroll_blink` |
-| `PIN_MAIN_DOOR_SERVO` | **D1** | `GPIO5` | `SERVO_D1 / J3` | `U2.2` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:56` | 50 Hz PWM (`0°` closed / `90°` open); failsafe close on offline |
-| `PIN_DHT11` | **D2** | `GPIO4` | `DHT11_D2 / J13` | `U2.3` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:57` | 1-Wire data bus with on-board R3 (10kΩ) pull-up to +3V3 |
-| `PIN_AUDIO_PWM` | **D3** | `GPIO0` | `AUDIO_D3 / J12` | `U2.4` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:58` | **Boot-strap HIGH:** `C4 10µF` DC-block + `R5/R6 2.2kΩ` + `C5 10nF` + `R4 10kΩ` pull-up; `IDLE = INPUT` |
-| `PIN_BEDROOM_LIGHT` | **D4** | `GPIO2` | `LED_BR_D4 / J5` | `U2.5` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:59` | **Boot-strap HIGH:** Active-LOW (`BEDROOM_LED_ACTIVE_LOW = true`, line 68) + `R2 220Ω` + `R7 10kΩ` pull-up |
-| `PIN_KY037_DO` | **D5** | `GPIO14` | `KY037_D5 / J15` | `U2.8` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:60` | 3.3V digital input (`RISING` interrupt, `debounce >= 400ms`, lines 73–74, 412) |
-| `PIN_GARDEN_PUMP` | **D6** | `GPIO12` | `RLY1_PUMP_D6 / J7` | `U2.9` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:61` | Active-HIGH (`PUMP_RELAY_ACTIVE_LOW = false`, line 70); soil hysteresis `<40% ON / >=70% OFF` |
-| `PIN_SPEAKER_AMP` | **D7** | `GPIO13` | `RLY2_AMP_D7 / J9` | `U2.10` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:62` | Active-HIGH (`SPEAKER_RELAY_ACTIVE_LOW = false`, line 71; Relay 2 Jumper=`H`); auto-off `1.5s` |
-| `PIN_ALARM_SIREN` | **D8** | `GPIO15` | `BUZZ_D8 / J6` | `U2.11` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:63` | **Boot-strap LOW:** Active-HIGH via `R10 1kΩ → Q1 S8050` (NPN low-side) + `R9 10kΩ` pull-down (silent at boot) + `D2 1N4007` flyback |
-| `PIN_SOIL_MOISTURE` | **A0** | `ADC0` | `SOIL_A0 / J14` | `U1.1` | `firmware_esp8266/esp8266_smarthome/esp8266_smarthome.ino:64` | 10-bit ADC0 (`0–3.3V` via NodeMCU divider) + `C7 100nF` filter; LM393 strictly powered by `+3V3` |
+| `PIN_LIVING_LIGHT` | **D0** | `GPIO16` | `LED_LR_D0 / J4` | `U2.1` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:55` | Active-HIGH via R1 (220Ω); also `enroll_blink` |
+| `PIN_MAIN_DOOR_SERVO` | **D1** | `GPIO5` | `SERVO_D1 / J3` | `U2.2` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:56` | 50 Hz PWM (`0°` closed / `90°` open); failsafe close on offline |
+| `PIN_DHT11` | **D2** | `GPIO4` | `DHT11_D2 / J13` | `U2.3` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:57` | 1-Wire data bus with on-board R3 (10kΩ) pull-up to +3V3 |
+| `PIN_AUDIO_PWM` | **D3** | `GPIO0` | `AUDIO_D3 / J12` | `U2.4` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:58` | **Boot-strap HIGH:** `C4 10µF` DC-block + `R5/R6 2.2kΩ` + `C5 10nF` + `R4 10kΩ` pull-up; `IDLE = INPUT` |
+| `PIN_BEDROOM_LIGHT` | **D4** | `GPIO2` | `LED_BR_D4 / J5` | `U2.5` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:59` | **Boot-strap HIGH:** Active-LOW (`BEDROOM_LED_ACTIVE_LOW = true`, line 68) + `R2 220Ω` + `R7 10kΩ` pull-up |
+| `PIN_KY037_DO` | **D5** | `GPIO14` | `KY037_D5 / J15` | `U2.8` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:60` | 3.3V digital input (`RISING` interrupt, `debounce >= 400ms`, lines 73–74, 412) |
+| `PIN_GARDEN_PUMP` | **D6** | `GPIO12` | `RLY1_PUMP_D6 / J7` | `U2.9` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:61` | Active-HIGH (`PUMP_RELAY_ACTIVE_LOW = false`, line 70); soil hysteresis `<40% ON / >=70% OFF` |
+| `PIN_SPEAKER_AMP` | **D7** | `GPIO13` | `RLY2_AMP_D7 / J9` | `U2.10` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:62` | Active-HIGH (`SPEAKER_RELAY_ACTIVE_LOW = false`, line 71; Relay 2 Jumper=`H`); auto-off `1.5s` |
+| `PIN_ALARM_SIREN` | **D8** | `GPIO15` | `BUZZ_D8 / J6` | `U2.11` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:63` | **Boot-strap LOW:** Active-HIGH via `R10 1kΩ → Q1 S8050` (NPN low-side) + `R9 10kΩ` pull-down (silent at boot) + `D2 1N4007` flyback |
+| `PIN_SOIL_MOISTURE` | **A0** | `ADC0` | `SOIL_A0 / J14` | `U1.1` | `firmware/esp8266_smarthome/esp8266_smarthome.ino:64` | 10-bit ADC0 (`0–3.3V` via NodeMCU divider) + `C7 100nF` filter; LM393 strictly powered by `+3V3` |
 
 ## 3. On-Board Type-1 Hub PCB Active, Passive & Indicator Components (`R1`–`R10`, `Q1`, `C1`–`C7`, `D1`–`D3`)
 

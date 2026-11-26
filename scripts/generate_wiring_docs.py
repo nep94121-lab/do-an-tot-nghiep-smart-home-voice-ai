@@ -341,6 +341,12 @@ class VectorScene:
             dict(x1=x1, y1=y1, x2=x2, y2=y2, stroke=stroke, stroke_width=stroke_width, dash=dash),
         ))
 
+    def group_start(self, attrs: dict[str, str]) -> None:
+        self.ops.append(("group_start", dict(attrs=dict(attrs))))
+
+    def group_end(self) -> None:
+        self.ops.append(("group_end", {}))
+
     def polyline(
         self,
         points: list[tuple[float, float]],
@@ -349,11 +355,21 @@ class VectorScene:
         stroke_width: float = 1.5,
         radius: float = 5.0,
         dash: tuple[float, ...] | None = None,
+        css_class: str | None = None,
+        svg_only: bool = False,
     ) -> None:
         """Draws a clean rounded-elbow orthogonal path."""
         self.ops.append((
             "polyline",
-            dict(points=list(points), stroke=stroke, stroke_width=stroke_width, radius=radius, dash=dash),
+            dict(
+                points=list(points),
+                stroke=stroke,
+                stroke_width=stroke_width,
+                radius=radius,
+                dash=dash,
+                css_class=css_class,
+                svg_only=svg_only,
+            ),
         ))
 
     def text(
@@ -422,7 +438,12 @@ class VectorScene:
             "</defs>",
         ]
         for kind, d in self.ops:
-            if kind == "rect":
+            if kind == "group_start":
+                attr_str = " ".join(f'{k}="{html.escape(str(v), quote=True)}"' for k, v in d["attrs"].items())
+                out.append(f"<g {attr_str}>")
+            elif kind == "group_end":
+                out.append("</g>")
+            elif kind == "rect":
                 fill = d["fill"] or "none"
                 stroke = d["stroke"] or "none"
                 sw = d["stroke_width"]
@@ -458,8 +479,9 @@ class VectorScene:
                     elif cmd == "Q":
                         parts.append(f"Q {vals[0]:.2f} {vals[1]:.2f} {vals[2]:.2f} {vals[3]:.2f}")
                 dash_attr = f' stroke-dasharray="{",".join(str(v) for v in d["dash"])}"' if d["dash"] else ""
+                cls_attr = f' class="{html.escape(str(d["css_class"]), quote=True)}"' if d.get("css_class") else ""
                 out.append(
-                    f'<path d="{" ".join(parts)}" fill="none" stroke="{d["stroke"]}" '
+                    f'<path{cls_attr} d="{" ".join(parts)}" fill="none" stroke="{d["stroke"]}" '
                     f'stroke-width="{d["stroke_width"]}" stroke-linecap="round" stroke-linejoin="round"{dash_attr}/>'
                 )
             elif kind == "text":
@@ -552,6 +574,9 @@ class VectorScene:
                     c.setDash(*d["dash"])
                 c.line(float(d["x1"]), H - float(d["y1"]), float(d["x2"]), H - float(d["y2"]))
             elif kind == "polyline":
+                if d.get("svg_only"):
+                    c.restoreState()
+                    continue
                 segs = self._rounded_path_segments(d["points"], float(d["radius"]))
                 if segs:
                     c.setStrokeColor(HexColor(str(d["stroke"])))
@@ -1406,7 +1431,20 @@ def build_clean_wiring_diagram() -> VectorScene:
         if mid_points:
             pts.extend(mid_points)
         pts.append((p2.x, p2.y))
+        s.group_start(
+            {
+                "class": "pcb-wire",
+                "data-wire-id": w.wire_id,
+                "data-module-id": w.module_id,
+                "data-hub-ref": w.hub_ref,
+                "data-hub-pin": w.hub_pin,
+                "data-net": w.net,
+                "data-color": w.color,
+            }
+        )
         draw_wire(s, pts, w.color, width=2.25)
+        s.polyline(pts, stroke="transparent", stroke_width=11.0, radius=6.0, css_class="pcb-wire-hit", svg_only=True)
+        s.group_end()
         routed_wires.add(wid)
 
     def route_m_to_m(
@@ -1425,7 +1463,20 @@ def build_clean_wiring_diagram() -> VectorScene:
         if mid_points:
             pts.extend(mid_points)
         pts.append((p2.x, p2.y))
+        s.group_start(
+            {
+                "class": "pcb-wire",
+                "data-wire-id": w.wire_id,
+                "data-module-id": w.module_id,
+                "data-hub-ref": w.hub_ref,
+                "data-hub-pin": w.hub_pin,
+                "data-net": w.net,
+                "data-color": w.color,
+            }
+        )
         draw_wire(s, pts, w.color, width=2.25)
+        s.polyline(pts, stroke="transparent", stroke_width=11.0, radius=6.0, css_class="pcb-wire-hit", svg_only=True)
+        s.group_end()
         routed_wires.add(wid)
 
     # --- LEFT WIRES: J1 -> PSU (W01, W02), J2 -> Pump (W15, W16) ---
@@ -1552,10 +1603,22 @@ def build_clean_wiring_diagram() -> VectorScene:
     # Re-draw all pin dots on top of wire endpoints so pin numbers stay razor sharp!
     for (ref, pnum), pt in hub_pins.items():
         w = wire_by_hub[(ref, pnum)]
+        s.group_start(
+            {
+                "class": "pcb-pin",
+                "data-wire-id": w.wire_id,
+                "data-module-id": w.module_id,
+                "data-endpoint": "hub",
+                "data-pin-label": w.hub_label,
+                "data-cx": f"{pt.x:.2f}",
+                "data-cy": f"{pt.y:.2f}",
+            }
+        )
         draw_pin_dot(s, pt.x, pt.y, color_name=w.color, pin_num=pnum, r=4.0)
+        s.group_end()
     for (mid, mpin), pt in mod_pins.items():
-        # Find matching wire color
-        matched_col = None
+        # Find matching wire entry from SSOT
+        matched_wire = None
         for w in WIRING_TABLE:
             if w.module_id == mid and (
                 w.module_pin == mpin
@@ -1573,17 +1636,33 @@ def build_clean_wiring_diagram() -> VectorScene:
                 or (mid == "sg90_servo" and mpin == w.module_pin)
                 or (mid == "buzzer_alarm" and mpin == w.module_pin)
             ):
-                matched_col = w.color
+                matched_wire = w
                 break
         if mid == "soil_lm393" and mpin == "P1":
-            matched_col = "Yellow"
+            matched_wire = wire_by_hub[("LM393", "P1")]
         elif mid == "soil_lm393" and mpin == "P2":
-            matched_col = "Orange"
+            matched_wire = wire_by_hub[("LM393", "P2")]
         elif mid == "pam8403_amp" and mpin == "L_OUT+":
-            matched_col = "Yellow"
+            matched_wire = wire_by_hub[("PAM8403", "L_OUT+")]
         elif mid == "pam8403_amp" and mpin == "L_OUT-":
-            matched_col = "Brown"
-        draw_pin_dot(s, pt.x, pt.y, color_name=matched_col, r=3.6)
+            matched_wire = wire_by_hub[("PAM8403", "L_OUT-")]
+        matched_col = matched_wire.color if matched_wire else None
+        if matched_wire is not None:
+            s.group_start(
+                {
+                    "class": "pcb-pin",
+                    "data-wire-id": matched_wire.wire_id,
+                    "data-module-id": matched_wire.module_id,
+                    "data-endpoint": "hub" if (mid in ("soil_lm393", "pam8403_amp") and mpin in ("P1", "P2", "L_OUT+", "L_OUT-")) else "module",
+                    "data-pin-label": f"{mid}:{mpin}",
+                    "data-cx": f"{pt.x:.2f}",
+                    "data-cy": f"{pt.y:.2f}",
+                }
+            )
+            draw_pin_dot(s, pt.x, pt.y, color_name=matched_col, r=3.6)
+            s.group_end()
+        else:
+            draw_pin_dot(s, pt.x, pt.y, color_name=matched_col, r=3.6)
 
     # Assert 100% of all 40 wires in WIRING_TABLE were routed!
     expected_ids = {w.wire_id for w in WIRING_TABLE}
