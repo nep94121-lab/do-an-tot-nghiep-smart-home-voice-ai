@@ -4,8 +4,8 @@ Renders crisp shaded PNG previews (with sharp edges + clear engraved dimension v
 without opening any GUI window (`FreeCADGui.setupWithoutGUI` + `pivy.coin.SoOffscreenRenderer`).
 
 Run via FreeCADCmd:
-    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe" "hardware/in 3 d/scripts/render_previews.py" -- --shard panels-std
-    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe" "hardware/in 3 d/scripts/render_previews.py" -- --assembly
+    freecadcmd "hardware/in 3 d/scripts/render_previews.py" -- --shard panels-std
+    freecadcmd "hardware/in 3 d/scripts/render_previews.py" -- --assembly
 """
 
 from __future__ import annotations

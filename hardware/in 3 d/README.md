@@ -64,31 +64,31 @@ Mọi mảnh đều có đủ 3 định dạng `STL` / `3MF` / `STEP`, bản v�
 
 | Mã tệp | Tên tiếng Việt | SL | Kích thước bao L×W×T (mm) | Chữ khắc trên vật | Thời gian in | Nhựa (g) | Bản vẽ & Ảnh |
 | :--- | :--- | :---: | :---: | :--- | :---: | :---: | :--- |
-| `P01A_BASE_TECH_piece1of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `204.9 × 181.9 × 3.0` | `P01A p1/2 | 205x182x3mm` | `8g 12p` | `74.8 g` | [PDF](drawings/P01A_BASE_TECH_piece1of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece1of2.png) |
-| `P01A_BASE_TECH_piece2of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `207.0 × 181.9 × 3.0` | `P01A p2/2 | 207x182x3mm` | `8g 11p` | `74.0 g` | [PDF](drawings/P01A_BASE_TECH_piece2of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece2of2.png) |
-| `P01B_BASE_HOUSE_piece1of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 90.5 × 3.0` | `P01B p1/4 | 209x90x3mm` | `4g 11p` | `38.9 g` | [PDF](drawings/P01B_BASE_HOUSE_piece1of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece1of4.png) |
-| `P01B_BASE_HOUSE_piece2of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 90.5 × 3.0` | `P01B p2/4 | 202x90x3mm` | `3g 59p` | `37.1 g` | [PDF](drawings/P01B_BASE_HOUSE_piece2of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece2of4.png) |
-| `P01B_BASE_HOUSE_piece3of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 131.4 × 3.0` | `P01B p3/4 | 209x131x3mm` | `5g 55p` | `55.0 g` | [PDF](drawings/P01B_BASE_HOUSE_piece3of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece3of4.png) |
-| `P01B_BASE_HOUSE_piece4of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 131.4 × 3.0` | `P01B p4/4 | 202x131x3mm` | `5g 38p` | `52.4 g` | [PDF](drawings/P01B_BASE_HOUSE_piece4of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece4of4.png) |
-| `P02_WALL_BACK_piece1of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `204.4 × 150.0 × 3.0` | `P02 p1/2 | 204x150x3mm` | `6g 43p` | `62.0 g` | [PDF](drawings/P02_WALL_BACK_piece1of2.pdf) · [PNG](previews/P02_WALL_BACK_piece1of2.png) |
-| `P02_WALL_BACK_piece2of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `187.5 × 150.0 × 3.0` | `P02 p2/2 | 188x150x3mm` | `4g 21p` | `40.9 g` | [PDF](drawings/P02_WALL_BACK_piece2of2.pdf) · [PNG](previews/P02_WALL_BACK_piece2of2.png) |
-| `P03_WALL_LEFT` | Vach hong trai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P03_WALL_LEFT | 190x150x3mm` | `4g 39p` | `43.2 g` | [PDF](drawings/P03_WALL_LEFT.pdf) · [PNG](previews/P03_WALL_LEFT.png) |
-| `P04_WALL_RIGHT` | Vach hong phai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P04_WALL_RIGHT | 190x150x3mm` | `4g 28p` | `41.6 g` | [PDF](drawings/P04_WALL_RIGHT.pdf) · [PNG](previews/P04_WALL_RIGHT.png) |
-| `P05_WALL_FRONT_piece1of2` | Tuong mat tien & Khung cua chinh | `1` | `209.4 × 150.0 × 3.0` | `P05 p1/2 | 209x150x3mm` | `3g 14p` | `30.7 g` | [PDF](drawings/P05_WALL_FRONT_piece1of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece1of2.png) |
-| `P05_WALL_FRONT_piece2of2` | Tuong mat tien & Khung cua chinh | `1` | `180.5 × 37.0 × 3.0` | `P05 p2/2 | 180x37x3mm` | `1g 26p` | `13.6 g` | [PDF](drawings/P05_WALL_FRONT_piece2of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece2of2.png) |
-| `P06_WALL_MID` | Vach ngan giua (Phong khach / Phong ngu) | `1` | `190.0 × 150.0 × 3.0` | `P06_WALL_MID | 190x150x3mm` | `4g 51p` | `45.4 g` | [PDF](drawings/P06_WALL_MID.pdf) · [PNG](previews/P06_WALL_MID.png) |
-| `P07_SERVO_SHELF` | Ke gan Servo SG90 cua chinh | `1` | `34.0 × 49.1 × 3.0` | `P07 | 34x49x3mm` | `20p 56s` | `3.4 g` | [PDF](drawings/P07_SERVO_SHELF.pdf) · [PNG](previews/P07_SERVO_SHELF.png) |
-| `P08_DOOR_LEAF` | Canh cua chinh | `1` | `56.0 × 100.0 × 3.0` | `P08 | 56x100x3mm` | `1g 11p` | `11.1 g` | [PDF](drawings/P08_DOOR_LEAF.pdf) · [PNG](previews/P08_DOOR_LEAF.png) |
-| `P09_GARDEN_LEFT` | Vach trai be nuoc | `1` | `126.0 × 57.0 × 3.0` | `P09 | 126x57x3mm` | `1g 32p` | `14.4 g` | [PDF](drawings/P09_GARDEN_LEFT.pdf) · [PNG](previews/P09_GARDEN_LEFT.png) |
-| `P10_WATER_DIVIDER` | Vach ngan be nuoc & chau cay | `1` | `126.0 × 57.0 × 3.0` | `P10 | 126x57x3mm` | `1g 33p` | `14.5 g` | [PDF](drawings/P10_WATER_DIVIDER.pdf) · [PNG](previews/P10_WATER_DIVIDER.png) |
-| `P11_GARDEN_RIGHT` | Vach phai chau cay | `1` | `126.0 × 51.0 × 3.0` | `P11 | 126x51x3mm` | `1g 23p` | `13.0 g` | [PDF](drawings/P11_GARDEN_RIGHT.pdf) · [PNG](previews/P11_GARDEN_RIGHT.png) |
-| `P12_GARDEN_FRONT` | Vach truoc be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P12 | 130x57x3mm` | `1g 34p` | `14.5 g` | [PDF](drawings/P12_GARDEN_FRONT.pdf) · [PNG](previews/P12_GARDEN_FRONT.png) |
-| `P13_GARDEN_BACK` | Vach sau be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P13 | 130x57x3mm` | `1g 33p` | `14.4 g` | [PDF](drawings/P13_GARDEN_BACK.pdf) · [PNG](previews/P13_GARDEN_BACK.png) |
-| `P14_SOIL_BRIDGE` | Cau giu dau do am dat YL-69 | `1` | `32.0 × 126.0 × 3.0` | `P14 | 32x126x3mm` | `56p 18s` | `8.9 g` | [PDF](drawings/P14_SOIL_BRIDGE.pdf) · [PNG](previews/P14_SOIL_BRIDGE.png) |
-| `P15_TECH_FASCIA_piece1of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `142.9 × 45.0 × 3.0` | `P15 p1/2 | 143x45x3mm` | `56p 00s` | `8.7 g` | [PDF](drawings/P15_TECH_FASCIA_piece1of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece1of2.png) |
-| `P15_TECH_FASCIA_piece2of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `107.0 × 51.0 × 3.0` | `P15 p2/2 | 107x51x3mm` | `1g 06p` | `8.9 g` | [PDF](drawings/P15_TECH_FASCIA_piece2of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece2of2.png) |
-| `P16_PCB_PLATE` | Tam ga bo mach Hub PCB 100x80 | `1` | `130.0 × 110.0 × 3.0` | `P16_PCB_PLATE | 130x110x3mm` | `3g 22p` | `30.6 g` | [PDF](drawings/P16_PCB_PLATE.pdf) · [PNG](previews/P16_PCB_PLATE.png) |
-| `P17_BASE_JOINER` | Thanh noi day (mat duoi) | `2` | `64.0 × 28.0 × 3.0` | `P17 | 64x28x3mm` | `29p 29s` | `4.3 g` | [PDF](drawings/P17_BASE_JOINER.pdf) · [PNG](previews/P17_BASE_JOINER.png) |
+| `P01A_BASE_TECH_piece1of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `204.9 × 181.9 × 3.0` | `P01A p1/2 \| 205x182x3mm` | `8g 12p` | `74.8 g` | [PDF](drawings/P01A_BASE_TECH_piece1of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece1of2.png) |
+| `P01A_BASE_TECH_piece2of2` | Tam day truoc (Khoang ky thuat & Vuon) | `1` | `207.0 × 181.9 × 3.0` | `P01A p2/2 \| 207x182x3mm` | `8g 11p` | `74.0 g` | [PDF](drawings/P01A_BASE_TECH_piece2of2.pdf) · [PNG](previews/P01A_BASE_TECH_piece2of2.png) |
+| `P01B_BASE_HOUSE_piece1of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 90.5 × 3.0` | `P01B p1/4 \| 209x90x3mm` | `4g 11p` | `38.9 g` | [PDF](drawings/P01B_BASE_HOUSE_piece1of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece1of4.png) |
+| `P01B_BASE_HOUSE_piece2of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 90.5 × 3.0` | `P01B p2/4 \| 202x90x3mm` | `3g 59p` | `37.1 g` | [PDF](drawings/P01B_BASE_HOUSE_piece2of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece2of4.png) |
+| `P01B_BASE_HOUSE_piece3of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `209.4 × 131.4 × 3.0` | `P01B p3/4 \| 209x131x3mm` | `5g 55p` | `55.0 g` | [PDF](drawings/P01B_BASE_HOUSE_piece3of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece3of4.png) |
+| `P01B_BASE_HOUSE_piece4of4` | Tam day sau (Phong khach & Phong ngu) | `1` | `202.5 × 131.4 × 3.0` | `P01B p4/4 \| 202x131x3mm` | `5g 38p` | `52.4 g` | [PDF](drawings/P01B_BASE_HOUSE_piece4of4.pdf) · [PNG](previews/P01B_BASE_HOUSE_piece4of4.png) |
+| `P02_WALL_BACK_piece1of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `204.4 × 150.0 × 3.0` | `P02 p1/2 \| 204x150x3mm` | `6g 43p` | `62.0 g` | [PDF](drawings/P02_WALL_BACK_piece1of2.pdf) · [PNG](previews/P02_WALL_BACK_piece1of2.png) |
+| `P02_WALL_BACK_piece2of2` | Tuong sau (Phong khach + Phong ngu) | `1` | `187.5 × 150.0 × 3.0` | `P02 p2/2 \| 188x150x3mm` | `4g 21p` | `40.9 g` | [PDF](drawings/P02_WALL_BACK_piece2of2.pdf) · [PNG](previews/P02_WALL_BACK_piece2of2.png) |
+| `P03_WALL_LEFT` | Vach hong trai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P03_WALL_LEFT \| 190x150x3mm` | `4g 39p` | `43.2 g` | [PDF](drawings/P03_WALL_LEFT.pdf) · [PNG](previews/P03_WALL_LEFT.png) |
+| `P04_WALL_RIGHT` | Vach hong phai cat mo | `1` | `190.0 × 150.0 × 3.0` | `P04_WALL_RIGHT \| 190x150x3mm` | `4g 28p` | `41.6 g` | [PDF](drawings/P04_WALL_RIGHT.pdf) · [PNG](previews/P04_WALL_RIGHT.png) |
+| `P05_WALL_FRONT_piece1of2` | Tuong mat tien & Khung cua chinh | `1` | `209.4 × 150.0 × 3.0` | `P05 p1/2 \| 209x150x3mm` | `3g 14p` | `30.7 g` | [PDF](drawings/P05_WALL_FRONT_piece1of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece1of2.png) |
+| `P05_WALL_FRONT_piece2of2` | Tuong mat tien & Khung cua chinh | `1` | `180.5 × 37.0 × 3.0` | `P05 p2/2 \| 180x37x3mm` | `1g 26p` | `13.6 g` | [PDF](drawings/P05_WALL_FRONT_piece2of2.pdf) · [PNG](previews/P05_WALL_FRONT_piece2of2.png) |
+| `P06_WALL_MID` | Vach ngan giua (Phong khach / Phong ngu) | `1` | `190.0 × 150.0 × 3.0` | `P06_WALL_MID \| 190x150x3mm` | `4g 51p` | `45.4 g` | [PDF](drawings/P06_WALL_MID.pdf) · [PNG](previews/P06_WALL_MID.png) |
+| `P07_SERVO_SHELF` | Ke gan Servo SG90 cua chinh | `1` | `34.0 × 49.1 × 3.0` | `P07 \| 34x49x3mm` | `20p 56s` | `3.4 g` | [PDF](drawings/P07_SERVO_SHELF.pdf) · [PNG](previews/P07_SERVO_SHELF.png) |
+| `P08_DOOR_LEAF` | Canh cua chinh | `1` | `56.0 × 100.0 × 3.0` | `P08 \| 56x100x3mm` | `1g 11p` | `11.1 g` | [PDF](drawings/P08_DOOR_LEAF.pdf) · [PNG](previews/P08_DOOR_LEAF.png) |
+| `P09_GARDEN_LEFT` | Vach trai be nuoc | `1` | `126.0 × 57.0 × 3.0` | `P09 \| 126x57x3mm` | `1g 32p` | `14.4 g` | [PDF](drawings/P09_GARDEN_LEFT.pdf) · [PNG](previews/P09_GARDEN_LEFT.png) |
+| `P10_WATER_DIVIDER` | Vach ngan be nuoc & chau cay | `1` | `126.0 × 57.0 × 3.0` | `P10 \| 126x57x3mm` | `1g 33p` | `14.5 g` | [PDF](drawings/P10_WATER_DIVIDER.pdf) · [PNG](previews/P10_WATER_DIVIDER.png) |
+| `P11_GARDEN_RIGHT` | Vach phai chau cay | `1` | `126.0 × 51.0 × 3.0` | `P11 \| 126x51x3mm` | `1g 23p` | `13.0 g` | [PDF](drawings/P11_GARDEN_RIGHT.pdf) · [PNG](previews/P11_GARDEN_RIGHT.png) |
+| `P12_GARDEN_FRONT` | Vach truoc be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P12 \| 130x57x3mm` | `1g 34p` | `14.5 g` | [PDF](drawings/P12_GARDEN_FRONT.pdf) · [PNG](previews/P12_GARDEN_FRONT.png) |
+| `P13_GARDEN_BACK` | Vach sau be nuoc & chau cay | `1` | `130.0 × 57.0 × 3.0` | `P13 \| 130x57x3mm` | `1g 33p` | `14.4 g` | [PDF](drawings/P13_GARDEN_BACK.pdf) · [PNG](previews/P13_GARDEN_BACK.png) |
+| `P14_SOIL_BRIDGE` | Cau giu dau do am dat YL-69 | `1` | `32.0 × 126.0 × 3.0` | `P14 \| 32x126x3mm` | `56p 18s` | `8.9 g` | [PDF](drawings/P14_SOIL_BRIDGE.pdf) · [PNG](previews/P14_SOIL_BRIDGE.png) |
+| `P15_TECH_FASCIA_piece1of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `142.9 × 45.0 × 3.0` | `P15 p1/2 \| 143x45x3mm` | `56p 00s` | `8.7 g` | [PDF](drawings/P15_TECH_FASCIA_piece1of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece1of2.png) |
+| `P15_TECH_FASCIA_piece2of2` | Mat na ky thuat (Nguon DC & Loa) | `1` | `107.0 × 51.0 × 3.0` | `P15 p2/2 \| 107x51x3mm` | `1g 06p` | `8.9 g` | [PDF](drawings/P15_TECH_FASCIA_piece2of2.pdf) · [PNG](previews/P15_TECH_FASCIA_piece2of2.png) |
+| `P16_PCB_PLATE` | Tam ga bo mach Hub PCB 100x80 | `1` | `130.0 × 110.0 × 3.0` | `P16_PCB_PLATE \| 130x110x3mm` | `3g 22p` | `30.6 g` | [PDF](drawings/P16_PCB_PLATE.pdf) · [PNG](previews/P16_PCB_PLATE.png) |
+| `P17_BASE_JOINER` | Thanh noi day (mat duoi) | `2` | `64.0 × 28.0 × 3.0` | `P17 \| 64x28x3mm` | `29p 29s` | `4.3 g` | [PDF](drawings/P17_BASE_JOINER.pdf) · [PNG](previews/P17_BASE_JOINER.png) |
 
 ---
 
@@ -177,19 +177,22 @@ Thực hiện theo đúng **9 bước** dưới đây để lắp ráp nhanh, ch
 Chạy tuần tự 5 lệnh sau từ thư mục gốc dự án để tái tạo sạch 100% toàn bộ `STL`, `3MF`, `STEP`, bản vẽ, ảnh 3D, kiểm định va chạm, báo cáo cắt lớp và tệp `README.md` này:
 
 ```powershell
+# Khai báo đường dẫn FreeCADCmd di động (hoặc dùng trực tiếp 'freecadcmd' nếu đã có trong PATH)
+$FREECAD = if (Get-Command freecadcmd -ErrorAction SilentlyContinue) { "freecadcmd" } else { "$env:LOCALAPPDATA\Programs\FreeCAD 1.1\bin\freecadcmd.exe" }
+
 # 1. Sinh 37 khối 3D (STEP + STL) kèm khớp đuôi én và khắc chữ kích thước bằng FreeCAD 1.1
-& "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/build_print_parts.py"
+& $FREECAD "hardware/in 3 d/scripts/build_print_parts.py"
 
 # 2. Chuyển đổi sang 3MF và xuất 37 bộ bản vẽ kỹ thuật PDF + PNG
 python "hardware/in 3 d/scripts/export_3mf_and_drawings.py"
 
 # 3. Kết xuất 37 ảnh 3D từng chi tiết + 4 ảnh tổng thể (lắp ráp, phân rã, chia mảnh, supot)
-& "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/render_previews.py"
-$env:PRINT3D_ASSEMBLY = "1"; & "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/render_previews.py"; Remove-Item Env:PRINT3D_ASSEMBLY
+& $FREECAD "hardware/in 3 d/scripts/render_previews.py"
+$env:PRINT3D_ASSEMBLY = "1"; & $FREECAD "hardware/in 3 d/scripts/render_previews.py"; Remove-Item Env:PRINT3D_ASSEMBLY
 
 # 4. Kiểm định 3D BRep (0 va chạm), cắt lớp PrusaSlicer CLI & xuất manifest.json + verification_report.json
 python "hardware/in 3 d/scripts/verify_and_slice.py"
-$env:PRINT3D_ASSEMBLY_CHECK = "1"; & "C:\Users\LENOVO\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe" "hardware/in 3 d/scripts/verify_and_slice.py"; Remove-Item Env:PRINT3D_ASSEMBLY_CHECK
+$env:PRINT3D_ASSEMBLY_CHECK = "1"; & $FREECAD "hardware/in 3 d/scripts/verify_and_slice.py"; Remove-Item Env:PRINT3D_ASSEMBLY_CHECK
 python "hardware/in 3 d/scripts/verify_and_slice.py" --merge
 
 # 5. Cập nhật README.md tiếng Việt từ manifest.json & verification_report.json

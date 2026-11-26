@@ -1,8 +1,8 @@
 """Headless FreeCAD 1.1 Builder for 3D-Printable House Panels, Splits, Engraved Dims & Supports.
 
 Run via FreeCADCmd:
-    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe" "hardware/in 3 d/scripts/build_print_parts.py"
-    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe" "hardware/in 3 d/scripts/build_print_parts.py" -- --parts P16_PCB_PLATE,P02_WALL_BACK_piece1of2,SUP07_PCB_CARRIER_FRAME_90X70
+    freecadcmd "hardware/in 3 d/scripts/build_print_parts.py"
+    freecadcmd "hardware/in 3 d/scripts/build_print_parts.py" -- --parts P16_PCB_PLATE,P02_WALL_BACK_piece1of2,SUP07_PCB_CARRIER_FRAME_90X70
 
 Outputs (under `hardware/in 3 d/`):
     - `STEP/<part_id>.step`   Exact BRep CAD solid (print-oriented, Z_min = 0)

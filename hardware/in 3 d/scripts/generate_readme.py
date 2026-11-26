@@ -124,9 +124,10 @@ def main() -> int:
     for p in panel_parts:
         pid = p["part_id"]
         bx, by, bz = p["print_bbox_mm"]
+        engrave_safe = str(p["engrave_text"]).replace("|", r"\|")
         lines.append(
             f"| `{pid}` | {p['vi_name']} | `{p['qty']}` | `{bx:.1f} × {by:.1f} × {bz:.1f}` "
-            f"| `{p['engrave_text']}` | `{_fmt_time(int(p['estimated_time_sec']))}` | `{p['filament_g']:.1f} g` "
+            f"| `{engrave_safe}` | `{_fmt_time(int(p['estimated_time_sec']))}` | `{p['filament_g']:.1f} g` "
             f"| [PDF](drawings/{pid}.pdf) · [PNG](previews/{pid}.png) |"
         )
 
@@ -147,9 +148,10 @@ def main() -> int:
     for s in support_parts:
         sid = s["part_id"]
         bx, by, bz = s["print_bbox_mm"]
+        engrave_safe = str(s["engrave_text"]).replace("|", r"\|")
         lines.append(
             f"| `{sid}` | {s['vi_name']} | `{s['qty']}` | `{bx:.1f} × {by:.1f} × {bz:.1f}` "
-            f"| `{s['engrave_text']}` | {s['notes']} | `{_fmt_time(int(s['estimated_time_sec']))}` | `{s['filament_g']:.1f} g` "
+            f"| `{engrave_safe}` | {s['notes']} | `{_fmt_time(int(s['estimated_time_sec']))}` | `{s['filament_g']:.1f} g` "
             f"| [PDF](drawings/{sid}.pdf) · [PNG](previews/{sid}.png) |"
         )
 
@@ -219,19 +221,22 @@ def main() -> int:
         "Chạy tuần tự 5 lệnh sau từ thư mục gốc dự án để tái tạo sạch 100% toàn bộ `STL`, `3MF`, `STEP`, bản vẽ, ảnh 3D, kiểm định va chạm, báo cáo cắt lớp và tệp `README.md` này:",
         "",
         "```powershell",
+        "# Khai báo đường dẫn FreeCADCmd di động (hoặc dùng trực tiếp 'freecadcmd' nếu đã có trong PATH)",
+        "$FREECAD = if (Get-Command freecadcmd -ErrorAction SilentlyContinue) { \"freecadcmd\" } else { \"$env:LOCALAPPDATA\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe\" }",
+        "",
         "# 1. Sinh 37 khối 3D (STEP + STL) kèm khớp đuôi én và khắc chữ kích thước bằng FreeCAD 1.1",
-        "& \"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe\" \"hardware/in 3 d/scripts/build_print_parts.py\"",
+        "& $FREECAD \"hardware/in 3 d/scripts/build_print_parts.py\"",
         "",
         "# 2. Chuyển đổi sang 3MF và xuất 37 bộ bản vẽ kỹ thuật PDF + PNG",
         "python \"hardware/in 3 d/scripts/export_3mf_and_drawings.py\"",
         "",
         "# 3. Kết xuất 37 ảnh 3D từng chi tiết + 4 ảnh tổng thể (lắp ráp, phân rã, chia mảnh, supot)",
-        "& \"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe\" \"hardware/in 3 d/scripts/render_previews.py\"",
-        "$env:PRINT3D_ASSEMBLY = \"1\"; & \"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe\" \"hardware/in 3 d/scripts/render_previews.py\"; Remove-Item Env:PRINT3D_ASSEMBLY",
+        "& $FREECAD \"hardware/in 3 d/scripts/render_previews.py\"",
+        "$env:PRINT3D_ASSEMBLY = \"1\"; & $FREECAD \"hardware/in 3 d/scripts/render_previews.py\"; Remove-Item Env:PRINT3D_ASSEMBLY",
         "",
         "# 4. Kiểm định 3D BRep (0 va chạm), cắt lớp PrusaSlicer CLI & xuất manifest.json + verification_report.json",
         "python \"hardware/in 3 d/scripts/verify_and_slice.py\"",
-        "$env:PRINT3D_ASSEMBLY_CHECK = \"1\"; & \"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe\" \"hardware/in 3 d/scripts/verify_and_slice.py\"; Remove-Item Env:PRINT3D_ASSEMBLY_CHECK",
+        "$env:PRINT3D_ASSEMBLY_CHECK = \"1\"; & $FREECAD \"hardware/in 3 d/scripts/verify_and_slice.py\"; Remove-Item Env:PRINT3D_ASSEMBLY_CHECK",
         "python \"hardware/in 3 d/scripts/verify_and_slice.py\" --merge",
         "",
         "# 5. Cập nhật README.md tiếng Việt từ manifest.json & verification_report.json",

@@ -4,7 +4,7 @@ Run modes:
     1. Per-part/shard verification + PrusaSlicer CLI slicing (System Python):
        python "hardware/in 3 d/scripts/verify_and_slice.py" --shard panels-std --out-shard <json>
     2. Full assembly BRep collision + split reconstruction check (FreeCADCmd):
-       "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\FreeCAD 1.1\\bin\\freecadcmd.exe" "hardware/in 3 d/scripts/verify_and_slice.py" -- --assembly-check
+       freecadcmd "hardware/in 3 d/scripts/verify_and_slice.py" -- --assembly-check
     3. Merge all metadata + generate manifest.json, verification_report.json, and slicer preview PNG:
        python "hardware/in 3 d/scripts/verify_and_slice.py" --merge
 """
@@ -17,6 +17,7 @@ import math
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,18 +44,38 @@ META_DIR = PRINT3D_ROOT / "build_meta"
 
 
 def find_prusaslicer_cli() -> pathlib.Path:
-    """Locate portable PrusaSlicer CLI installed in run dir or standard system locations."""
+    """Locate PrusaSlicer CLI via PRUSASLICER_CLI env, PATH, local .tools, or standard install locations."""
+    env_cli = str(os.environ.get("PRUSASLICER_CLI") or "").strip()
+    if env_cli:
+        p_env = pathlib.Path(env_cli)
+        if p_env.is_file():
+            return p_env
+        if p_env.is_dir():
+            for name in ("prusa-slicer-console.exe", "prusa-slicer-console", "prusa-slicer"):
+                hits = list(p_env.rglob(name))
+                if hits:
+                    return hits[0]
+
+    for exe_name in ("prusa-slicer-console", "prusa-slicer-console.exe", "prusa-slicer"):
+        which_hit = shutil.which(exe_name)
+        if which_hit:
+            return pathlib.Path(which_hit)
+
     search_roots = [
-        pathlib.Path(r"C:\Users\LENOVO\datn-wt\agyfeat3_20261126\tools\prusaslicer"),
-        pathlib.Path(r"C:\Program Files\Prusa3D\PrusaSlicer"),
         PRINT3D_ROOT / ".tools" / "prusaslicer",
+        pathlib.Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Prusa3D" / "PrusaSlicer",
+        pathlib.Path("/usr/bin"),
+        pathlib.Path("/usr/local/bin"),
     ]
     for root in search_roots:
         if root.exists():
-            hits = list(root.rglob("prusa-slicer-console.exe"))
-            if hits:
-                return hits[0]
-    raise FileNotFoundError("prusa-slicer-console.exe not found in expected tool directories")
+            for name in ("prusa-slicer-console.exe", "prusa-slicer-console"):
+                hits = list(root.rglob(name)) if root != pathlib.Path("/usr/bin") else ([root / name] if (root / name).is_file() else [])
+                if hits:
+                    return hits[0]
+    raise FileNotFoundError(
+        "PrusaSlicer CLI not found; set PRUSASLICER_CLI or add prusa-slicer-console to PATH"
+    )
 
 
 def parse_gcode_metrics(gcode_text: str) -> dict[str, Any]:
