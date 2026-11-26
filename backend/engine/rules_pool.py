@@ -7,6 +7,7 @@ import time
 from typing import Any, Callable
 
 from backend.engine.audit_logger import append_audit_log
+from backend.engine.board_health import enrich_device_with_board_health
 from backend.engine.constants_and_time import (
     ACTION_TO_STATE,
     ACTION_VI_LABEL,
@@ -299,6 +300,22 @@ class EngineRulesMixin:
         }
         sensors_data = self.read_all_sensors() if hasattr(self, "read_all_sensors") else {}
         rev_seq = int(getattr(self, "_last_synced_seq", 0))
+        bh = self.get_board_health() if hasattr(self, "get_board_health") else {
+            "node_id": "esp8266_node_01",
+            "online": True,
+            "status": "ONLINE",
+            "status_vi": "Đang kết nối",
+            "last_seen": time.time(),
+            "last_seen_vi": "",
+            "last_seen_age_sec": 0.0,
+            "heartbeat_timeout_sec": 30.0,
+            "offline_since": None,
+            "offline_resync_count": 0,
+            "last_resync_at": 0.0,
+            "last_resync_changed_devices": [],
+            "wifi_rssi_dbm": -52,
+        }
+        enriched_devices = [enrich_device_with_board_health(d, bh) for d in self.devices.values()]
         return sanitize_api_payload({
             "ok": True,
             "authenticated": False,
@@ -308,8 +325,9 @@ class EngineRulesMixin:
             "revision_ts_ns": int(getattr(self, "_last_synced_ts_ns", 0)),
             "vn_time_now": format_vn_time_ampm(),
             "server_connected": self.server_connected,
+            "board_health": bh,
             "offline_locked_devices": ["main_door", "alarm_siren"],
-            "devices": list(self.devices.values()),
+            "devices": enriched_devices,
             "sensors": sensors_data,
             "mqtt": public_mqtt,
         })
@@ -432,6 +450,22 @@ class EngineRulesMixin:
         cur_pool = self._get_user_pool(uid) if can_custom else {"word_mappings": {}, "aliases": {}, "if_else_rules": []}
         t1_pool = self._get_user_pool("tuan_anh")
         should_include_users = bool(include_users) if include_users is not None else (tier == 1 and role == "ADMIN")
+        bh = self.get_board_health() if hasattr(self, "get_board_health") else {
+            "node_id": "esp8266_node_01",
+            "online": True,
+            "status": "ONLINE",
+            "status_vi": "Đang kết nối",
+            "last_seen": time.time(),
+            "last_seen_vi": "",
+            "last_seen_age_sec": 0.0,
+            "heartbeat_timeout_sec": 30.0,
+            "offline_since": None,
+            "offline_resync_count": 0,
+            "last_resync_at": 0.0,
+            "last_resync_changed_devices": [],
+            "wifi_rssi_dbm": -52,
+        }
+        enriched_devices = [enrich_device_with_board_health(d, bh) for d in self.devices.values()]
         snap: dict[str, Any] = {
             "ok": True,
             "revision_seq": int(getattr(self, "_last_synced_seq", 0)),
@@ -439,6 +473,7 @@ class EngineRulesMixin:
             "revision_ts_ns": int(getattr(self, "_last_synced_ts_ns", 0)),
             "vn_time_now": format_vn_time_ampm(),
             "server_connected": self.server_connected,
+            "board_health": bh,
             "offline_locked_devices": ["main_door", "alarm_siren"],
             "current_user_id": uid,
             "current_user_name": uname,
@@ -450,7 +485,7 @@ class EngineRulesMixin:
             "pending_reset_confirmation": self.pending_reset_confirmation,
             "pending_rule": self.pending_rule,
             "pending_voice_enrollment": self.pending_voice_enrollment,
-            "devices": list(self.devices.values()),
+            "devices": enriched_devices,
             "word_mappings": dict(cur_pool.get("word_mappings", {})),
             "factory_aliases": self.factory_rules.get("aliases", {}),
             "custom_aliases": dict(cur_pool.get("aliases", {})),
@@ -872,6 +907,7 @@ class EngineRulesMixin:
             return {"ok": False, "error": f"Không tìm thấy khẩu lệnh '{phrase}' trong Bể lệnh của {self.get_current_user_name()}."}
 
         all_results: list[dict[str, Any]] = []
+        offline_err: dict[str, Any] | None = None
         for step in matched_steps:
             res = await self.execute_device_action(
                 device_id=step["device_id"],
@@ -880,6 +916,23 @@ class EngineRulesMixin:
                 trigger_chains=True,
             )
             all_results.extend(res.get("results", []))
+            if res.get("board_offline") and offline_err is None:
+                offline_err = res
+        if offline_err is not None:
+            off_reply = str(offline_err.get("exact_spoken_reply") or offline_err.get("error") or "")
+            return {
+                **offline_err,
+                "ok": False,
+                "executed": False,
+                "board_offline": True,
+                "delivery_status": "BOARD_OFFLINE",
+                "status_code": 503,
+                "results": all_results,
+                "error": off_reply,
+                "reply": off_reply,
+                "exact_spoken_reply": off_reply,
+                "message": off_reply,
+            }
         concise_reply = self._build_concise_spoken_reply(all_results)
         return {
             "ok": True,
@@ -1349,7 +1402,12 @@ class EngineRulesMixin:
                     target_root.server_connected = True
                     target_root.pump_manual_override_off = False
                     target_root.house_mode = "HOME"
-                    if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
+                    if hasattr(target_root, "board_health") and target_root.board_health is not None:
+                        bh_rst = target_root.board_health.reset_online(now=now_ts)
+                        if hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
+                            target_root.mqtt_bridge.sync_from_board_health(bh_rst)
+                            target_root.mqtt_bridge.esp8266_status["power_mode"] = "SERVER_ONLINE_FULL_AI"
+                    elif hasattr(target_root, "mqtt_bridge") and target_root.mqtt_bridge is not None:
                         target_root.mqtt_bridge.esp8266_status["online"] = True
                         target_root.mqtt_bridge.esp8266_status["power_mode"] = "SERVER_ONLINE_FULL_AI"
                 finally:
@@ -1503,6 +1561,20 @@ class EngineRulesMixin:
             if step_res.get("rbac_blocked"):
                 err_msg = str(step_res.get("error") or step_res.get("exact_spoken_reply") or "Từ chối quyền thiết bị.")
                 return {"ok": False, "rbac_blocked": True, "error": err_msg, "exact_spoken_reply": err_msg, "results": all_results}
+            if step_res.get("board_offline"):
+                off_msg = str(step_res.get("exact_spoken_reply") or step_res.get("error") or "")
+                return {
+                    **step_res,
+                    "ok": False,
+                    "executed": False,
+                    "board_offline": True,
+                    "delivery_status": "BOARD_OFFLINE",
+                    "status_code": 503,
+                    "error": off_msg,
+                    "reply": off_msg,
+                    "exact_spoken_reply": off_msg,
+                    "results": all_results,
+                }
 
         query_spoken = ""
         query_data: dict[str, Any] = {}

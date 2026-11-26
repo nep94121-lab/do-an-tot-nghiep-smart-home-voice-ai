@@ -350,10 +350,20 @@ class LiveToolDispatcherMixin:
         if name == "list_devices":
             devices = self.engine.list_accessible_devices(actor_tier=actor_tier)
             summary = ", ".join(f"{d['name']} {d['state_vi']}" for d in devices)
+            bh = self.engine.get_board_health() if hasattr(self.engine, "get_board_health") else None
+            if isinstance(bh, dict) and not bh.get("online", True):
+                ls_vi = str(bh.get("last_seen_vi") or "").strip()
+                st_vi = str(bh.get("status_vi") or "Mất kết nối").lower()
+                summary = (
+                    (summary + ". " if summary else "")
+                    + f"Mạch hiện đang {st_vi}"
+                    + (f" (lần cuối: {ls_vi})" if ls_vi else "")
+                )
             return {
                 "ok": True,
                 "count": len(devices),
                 "devices": devices,
+                **({"board_health": bh} if isinstance(bh, dict) else {}),
                 "summary_vi": summary,
             }
 
@@ -373,9 +383,11 @@ class LiveToolDispatcherMixin:
                         )
                     )
                 return rec
+            bh = self.engine.get_board_health() if hasattr(self.engine, "get_board_health") else None
             return {
                 "ok": True,
                 "device": rec,
+                **({"board_health": bh} if isinstance(bh, dict) else {}),
             }
 
         if name == "read_sensors":
@@ -450,6 +462,26 @@ class LiveToolDispatcherMixin:
                             target=cid,
                         )
                     )
+                if res_set.get("board_offline"):
+                    from backend.voice.vietnamese_policy import ensure_vietnamese_reply
+
+                    spoken_off = ensure_vietnamese_reply(
+                        str(res_set.get("exact_spoken_reply") or res_set.get("error") or "")
+                    )
+                    return {
+                        **res_set,
+                        "ok": False,
+                        "executed": False,
+                        "board_offline": True,
+                        "delivery_status": "BOARD_OFFLINE",
+                        "status_code": 503,
+                        "reply": spoken_off,
+                        "exact_spoken_reply": spoken_off,
+                        "instruction_for_ai": (
+                            f"Mạch đang mất kết nối. TUYỆT ĐỐI KHÔNG nói đã thực hiện. "
+                            f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu sau: '{spoken_off}'"
+                        ),
+                    }
                 return res_set
             from backend.voice.vietnamese_policy import ensure_vietnamese_reply
 
@@ -906,6 +938,24 @@ class LiveToolDispatcherMixin:
                                 target=td,
                             )
                         )
+                    if r_dev.get("board_offline"):
+                        spoken_off = ensure_vietnamese_reply(
+                            str(r_dev.get("exact_spoken_reply") or r_dev.get("error") or "")
+                        )
+                        return {
+                            **r_dev,
+                            "ok": False,
+                            "executed": False,
+                            "board_offline": True,
+                            "delivery_status": "BOARD_OFFLINE",
+                            "status_code": 503,
+                            "reply": spoken_off,
+                            "exact_spoken_reply": spoken_off,
+                            "instruction_for_ai": (
+                                f"Mạch đang mất kết nối. TUYỆT ĐỐI KHÔNG nói đã thực hiện. "
+                                f"BẮT BUỘC nói ngắn gọn đúng nguyên văn câu sau: '{spoken_off}'"
+                            ),
+                        }
                     return r_dev
                 exec_results.append(r_dev)
                 new_st = str((self.engine.devices.get(td) or {}).get("state") or "")

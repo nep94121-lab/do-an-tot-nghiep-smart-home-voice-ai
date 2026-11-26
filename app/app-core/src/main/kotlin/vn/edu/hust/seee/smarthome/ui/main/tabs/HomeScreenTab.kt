@@ -60,6 +60,8 @@ fun HomeScreenTab(
   automationRules: List<AutomationRuleItem> = emptyList(),
   customScenes: List<CustomSceneItem> = emptyList(),
   onRunScene: (CustomSceneItem) -> Unit = {},
+  boardOnline: Boolean = true,
+  boardLastSeenVi: String = "",
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -138,15 +140,33 @@ fun HomeScreenTab(
           fontWeight = FontWeight.SemiBold,
         )
         Text(
-          text = "$activeDevicesCount/$totalDevs đang bật",
-          color = accentCyan,
+          text = if (boardOnline) "$activeDevicesCount/$totalDevs đang bật" else "Mất kết nối",
+          color = if (boardOnline) accentCyan else Color(0xFFC83E3B),
           fontSize = 12.sp,
           fontWeight = FontWeight.Medium,
           modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(Color(0xFFE6F3F2))
+            .background(if (boardOnline) Color(0xFFE6F3F2) else Color(0xFFFDECEC))
             .padding(horizontal = 10.dp, vertical = 3.dp),
         )
+      }
+
+      if (!boardOnline) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFFEF5F5))
+            .border(1.dp, Color(0xFFEBC8C7), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        ) {
+          Text(
+            text = "Mạch ESP8266 đang mất kết nối · Lần cuối: ${boardLastSeenVi.ifBlank { "--" }}",
+            color = Color(0xFFC83E3B),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+          )
+        }
       }
 
       Column(

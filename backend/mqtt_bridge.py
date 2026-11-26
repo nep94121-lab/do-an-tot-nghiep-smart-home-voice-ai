@@ -20,7 +20,11 @@ import pathlib
 import time
 from typing import Any, Callable, Awaitable
 
-from backend.engine.constants_and_time import resolve_data_dir
+from backend.engine.constants_and_time import (
+    format_vn_timestamp_vi,
+    get_board_heartbeat_timeout_sec,
+    resolve_data_dir,
+)
 
 DATA_DIR = resolve_data_dir()
 EDGE_REPLICA_FILE = DATA_DIR / "esp8266_flash_replica.json"
@@ -62,15 +66,20 @@ class SmartHomeMQTTBridge:
         self.dropped_backpressure_count: int = 0
 
         # Trạng thái kết nối của NodeMCU ESP8266 & 3 Cảm biến (In-Memory Cache)
+        now_init = time.time()
         self.esp8266_status: dict[str, Any] = {
             "node_id": "esp8266_node_01",
             "chip": "NodeMCU ESP8266 (ESP-12E)",
             "online": True,
+            "lwt_online": True,
+            "status": "ONLINE",
+            "status_vi": "Đang kết nối",
             "ip": "192.168.1.88",
             "wifi_rssi_dbm": -52,
             "power_mode": "STANDALONE_5V",
             "flash_synced": True,
-            "last_seen": time.time(),
+            "last_seen": now_init,
+            "last_seen_vi": format_vn_timestamp_vi(now_init),
         }
         self.retained_topics["smarthome/status/esp8266"] = {
             "topic": "smarthome/status/esp8266",
@@ -146,6 +155,39 @@ class SmartHomeMQTTBridge:
             })
         return pkt
 
+    def is_board_online(self, now: float | None = None) -> bool:
+        """Kiểm tra mạch ESP8266 còn trực tuyến dựa trên LWT và ngưỡng heartbeat timeout."""
+        cur = float(time.time() if now is None else now)
+        if not bool(self.esp8266_status.get("lwt_online", True)):
+            return False
+        if not bool(self.esp8266_status.get("online", True)):
+            return False
+        last_seen = float(self.esp8266_status.get("last_seen", 0.0) or 0.0)
+        return (cur - last_seen) <= float(get_board_heartbeat_timeout_sec())
+
+    def sync_from_board_health(self, board_health: dict[str, Any]) -> None:
+        """Đồng bộ trạng thái `esp8266_status` theo kết quả đánh giá từ `BoardHealthTracker`."""
+        if not isinstance(board_health, dict):
+            return
+        online = bool(board_health.get("online", True))
+        self.esp8266_status["node_id"] = str(board_health.get("node_id") or self.esp8266_status.get("node_id") or "esp8266_node_01")
+        self.esp8266_status["online"] = online
+        self.esp8266_status["lwt_online"] = bool(board_health.get("lwt_online", online))
+        self.esp8266_status["status"] = str(board_health.get("status") or ("ONLINE" if online else "OFFLINE"))
+        self.esp8266_status["status_vi"] = str(board_health.get("status_vi") or ("Đang kết nối" if online else "Mất kết nối"))
+        if "last_seen" in board_health and board_health["last_seen"] is not None:
+            self.esp8266_status["last_seen"] = float(board_health["last_seen"])
+        self.esp8266_status["last_seen_vi"] = str(
+            board_health.get("last_seen_vi") or format_vn_timestamp_vi(self.esp8266_status.get("last_seen"))
+        )
+        if "wifi_rssi_dbm" in board_health and board_health["wifi_rssi_dbm"] is not None:
+            self.esp8266_status["wifi_rssi_dbm"] = int(board_health["wifi_rssi_dbm"])
+        self.esp8266_status["offline_since"] = board_health.get("offline_since")
+        self.esp8266_status["offline_resync_count"] = int(board_health.get("offline_resync_count", 0) or 0)
+        self.esp8266_status["heartbeat_timeout_sec"] = float(
+            board_health.get("heartbeat_timeout_sec") or get_board_heartbeat_timeout_sec()
+        )
+
     async def publish_actuate_command(
         self,
         device_id: str,
@@ -156,6 +198,17 @@ class SmartHomeMQTTBridge:
         tier: int,
     ) -> dict[str, Any]:
         """Xuất bản tin MQTT điều khiển phần cứng ESP8266 (`smarthome/cmd/actuate`)."""
+        if not self.is_board_online():
+            return {
+                "ok": False,
+                "board_offline": True,
+                "delivery_status": "BOARD_OFFLINE",
+                "ack": False,
+                "device_id": device_id,
+                "state": state,
+                "action": action,
+                "node_id": self.esp8266_status.get("node_id", "esp8266_node_01"),
+            }
         pin_info = ESP8266_PIN_MAP.get(device_id, {"pin": "D0", "gpio": 16, "mode": "DIGITAL_OUT"})
         target_entry: dict[str, Any] = {
             "device_id": device_id,
@@ -181,7 +234,7 @@ class SmartHomeMQTTBridge:
             direction="SERVER -> ESP8266",
         )
 
-        # Mô phỏng phản hồi xác nhận tức thì từ ESP8266 (`smarthome/state/report`)
+        # Chỉ phát xác nhận giả lập khi mạch đang trực tuyến (KHÔNG giả mạo ack khi mạch offline)
         await self.publish(
             topic="smarthome/state/report",
             payload={
@@ -258,7 +311,6 @@ class SmartHomeMQTTBridge:
         }
         EDGE_REPLICA_FILE.write_bytes((json.dumps(replica_payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         self.esp8266_status["flash_synced"] = True
-        self.esp8266_status["last_seen"] = time.time()
         return await self.publish(
             topic="smarthome/sync/pools",
             payload=replica_payload,
@@ -306,9 +358,14 @@ class SmartHomeMQTTBridge:
             "sensor_pin": "D2 (GPIO 4)",
             "updated_at": time.time(),
         }
+        now_dht = time.time()
         self.esp8266_status["wifi_rssi_dbm"] = rssi_int
-        self.esp8266_status["last_seen"] = time.time()
+        self.esp8266_status["last_seen"] = now_dht
+        self.esp8266_status["last_seen_vi"] = format_vn_timestamp_vi(now_dht)
         self.esp8266_status["online"] = True
+        self.esp8266_status["lwt_online"] = True
+        self.esp8266_status["status"] = "ONLINE"
+        self.esp8266_status["status_vi"] = "Đang kết nối"
         return await self.publish(
             topic="smarthome/telemetry/dht11",
             payload={
@@ -340,8 +397,13 @@ class SmartHomeMQTTBridge:
             "auto_stop_above_pct": 70.0,
             "updated_at": time.time(),
         }
-        self.esp8266_status["last_seen"] = time.time()
+        now_soil = time.time()
+        self.esp8266_status["last_seen"] = now_soil
+        self.esp8266_status["last_seen_vi"] = format_vn_timestamp_vi(now_soil)
         self.esp8266_status["online"] = True
+        self.esp8266_status["lwt_online"] = True
+        self.esp8266_status["status"] = "ONLINE"
+        self.esp8266_status["status_vi"] = "Đang kết nối"
         return await self.publish(
             topic="smarthome/telemetry/soil_moisture",
             payload={
@@ -393,7 +455,11 @@ class SmartHomeMQTTBridge:
             "updated_at": now,
         }
         self.esp8266_status["last_seen"] = now
+        self.esp8266_status["last_seen_vi"] = format_vn_timestamp_vi(now)
         self.esp8266_status["online"] = True
+        self.esp8266_status["lwt_online"] = True
+        self.esp8266_status["status"] = "ONLINE"
+        self.esp8266_status["status_vi"] = "Đang kết nối"
         return await self.publish(
             topic="smarthome/telemetry/sound",
             payload={
@@ -410,8 +476,15 @@ class SmartHomeMQTTBridge:
         )
 
     def get_summary(self) -> dict[str, Any]:
+        is_online = self.is_board_online()
+        status_copy = dict(self.esp8266_status)
+        status_copy["online"] = is_online
+        status_copy["status"] = "ONLINE" if is_online else "OFFLINE"
+        status_copy["status_vi"] = "Đang kết nối" if is_online else "Mất kết nối"
+        status_copy["last_seen_vi"] = format_vn_timestamp_vi(status_copy.get("last_seen"))
+        status_copy["heartbeat_timeout_sec"] = float(get_board_heartbeat_timeout_sec())
         return {
-            "esp8266_status": self.esp8266_status,
+            "esp8266_status": status_copy,
             "dht11_telemetry": self.dht11_telemetry,
             "soil_moisture_telemetry": self.soil_moisture_telemetry,
             "sound_telemetry": self.sound_telemetry,

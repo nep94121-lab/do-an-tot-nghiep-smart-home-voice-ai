@@ -44,3 +44,7 @@ backend/data/shared_device_state.json
 backend/data/user_sessions.json
 auth3_accounts_state.json
 login_rate_limit.json
+
+# PlatformIO build artifacts
+**/.pio/
+

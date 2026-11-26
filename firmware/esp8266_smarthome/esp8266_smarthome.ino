@@ -6,26 +6,30 @@
  *
  * Firmware Vi điều khiển: NodeMCU ESP8266 v2 Amica (ESP-12E/F, CP2102, 4MB Flash)
  * Hợp đồng 10 chân không xung đột boot (6 Thiết bị + 3 Cảm biến):
- *  - D0 (GPIO16): Đèn phòng khách (`living_room_light`) + nháy `enroll_blink`
- *  - D1 (GPIO5) : Cửa chính Servo SG90 (`main_door`, 0° đóng / 90° mở)
+ *  - D0 (GPIO16): Đèn phòng khách (`living_room_light`) + nháy `enroll_blink` + chỉ báo ngoại tuyến
+ *  - D1 (GPIO5) : Cửa chính Servo SG90 (`main_door`, 0° đóng / 90° mở — KHÓA MỞ NGOẠI TUYẾN A3)
  *  - D2 (GPIO4) : Cảm biến Nhiệt độ & Độ ẩm `DHT11`
  *  - D3 (GPIO0) : Ngõ ra âm thanh PWM tới `PAM8403` qua `R4 10k` pull-up, tụ chặn DC `C4 10uF 16V` + cầu phân áp `R5/R6 2.2k` + `C5 10nF` (IDLE = INPUT)
  *  - D4 (GPIO2) : Đèn phòng ngủ (`bedroom_light`, Active-LOW an toàn boot)
  *  - D5 (GPIO14): Cảm biến âm thanh `KY-037/038 DO` (ngắt + debounce >= 400ms -> `smarthome/telemetry/sound`)
- *  - D6 (GPIO12): Relay 1 xanh dương 5V -> Máy bơm tưới cây (`garden_pump`) + `1N4007` + tụ `470uF 16V`
+ *  - D6 (GPIO12): Relay 1 xanh dương 5V -> Máy bơm tưới cây (`garden_pump`) + `1N4007` + tụ `470uF 16V` (tự ngắt tối đa 120s)
  *  - D7 (GPIO13): Relay 2 đỏ opto 5V -> Nguồn mạch loa PAM8403 (`speaker_amp`, tự bật khi phát chuông, tự tắt sau 1.5s)
- *  - D8 (GPIO15): Còi báo động Buzzer 5V (`alarm_siren`, qua `R10 1k` -> `Q1 S8050` NPN, `R9 10k` pull-down, `D2 1N4007`, im lặng khi boot)
+ *  - D8 (GPIO15): Còi báo động Buzzer 5V (`alarm_siren`, qua `R10 1k` -> `Q1 S8050` NPN, `R9 10k` pull-down, `D2 1N4007`, tự ngắt ngoại tuyến 30s)
  *  - A0 (ADC0)  : Cảm biến độ ẩm đất (`soil_moisture`, LM393 nguồn 3.3V -> 0-100%, tự bơm <40% ON / >=70% OFF)
  *
- * Kiến trúc áp dụng: The System Design Primer
- *  1. Giao thức MQTT Pub/Sub (QoS 0/1, Retain, Last Will & Testament - LWT)
- *  2. CAP Theorem (AP Failover tại biên): Lưu bản sao Bể 1 (Hẹn giờ) & Bể 2 (Luật IF-ELSE)
- *     vào bộ nhớ Flash LittleFS để mạch tự chạy độc lập khi mất kết nối Laptop/Server.
+ * Kiến trúc Ngoại tuyến & Mất kết nối (Session S2 — Addendum A1..A4):
+ *  1. Kết nối lại theo hàm mũ không chặn (Wi-Fi/MQTT/HTTP: 1s -> 2s -> ... -> 30s, an toàn Watchdog).
+ *  2. Addendum A1: ESP8266WebServer cổng 80 (`POST /offline/cmd`, `GET /offline/status`), mDNS & SoftAP dự phòng.
+ *  3. Addendum A2: Tập lệnh bật/tắt cơ bản cố định cho 6 thiết bị, không phân quyền Tầng 1/2/3 ngoại tuyến, từ chối lệnh tùy chỉnh/đặt lịch.
+ *  4. Addendum A3: Tuyệt đối cấm mở cửa chính (90°) khi ngoại tuyến ngay trong firmware (`OfflineFsm` + `setMainDoorState`).
+ *  5. Addendum A4: Theo dõi thay đổi vật lý ngoại tuyến và tự đồng bộ lại (`POST /api/hardware/resync` + MQTT) trước khi kéo state từ Server.
  * ============================================================================
  */
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -33,6 +37,12 @@
 #include <Servo.h>
 #include <DHT.h>
 #include <time.h>
+
+#include "offline_safety_config.h"
+#include "offline_command_grammar.h"
+#include "offline_fsm.h"
+
+using namespace smarthome::offline;
 
 // ---------------- CẤU HÌNH MẠNG WI-FI & SERVER LAPTOP ----------------
 // LƯU Ý KHI NẠP MẠCH THẬT: Điền đúng tên Wi-Fi, mật khẩu Wi-Fi, IP Laptop & API key (nếu bật)
@@ -74,14 +84,19 @@ const char* NODE_ID          = "esp8266_node_01";
 #define KY037_DEBOUNCE_MS         400UL
 #define SPEAKER_AMP_IDLE_TAIL_MS  1500UL
 
+static_assert(SPEAKER_AMP_IDLE_TAIL_MS == SPEAKER_AMP_IDLE_TAIL_DEFAULT_MS,
+              "SPEAKER_AMP_IDLE_TAIL_MS must match offline_safety_config.h");
+
 #define DHTTYPE DHT11
 
 WiFiClient espClient;
 WiFiClient httpWifiClient;
 PubSubClient mqtt(espClient);
+ESP8266WebServer offlineServer(OFFLINE_HTTP_PORT);
 Servo doorServo;
 DHT dht(PIN_DHT11, DHTTYPE);
 
+// ---------------- TRẠNG THÁI CHẤP HÀNH & BỘ MÁY NGOẠI TUYẾN ---------
 bool livingLightState = false;
 bool bedroomLightState = false;
 bool gardenPumpState = false;
@@ -92,24 +107,61 @@ bool speakerAmpManualOn = false;
 bool speakerAmpChimeActive = false;
 unsigned long speakerAmpAutoOffAtMs = 0;
 
-bool pumpAutoTriggered = false;  // Giữ nguyên ngưỡng trễ Hysteresis <40% ON / >=70% OFF
-bool wasServerConnected = false;
+bool pumpAutoTriggered = false;  // Ngưỡng trễ Hysteresis <40% ON / >=70% OFF + tự ngắt tối đa 120s
 bool httpServerReachable = false;
+bool mdnsStarted = false;
+bool softApEnabled = false;
 
 volatile bool ky037EdgePending = false;
 unsigned long lastSoundEventMs = 0;
 uint32_t soundEventCount = 0;
 
+float lastTempC = 0.0f;
+float lastHumidityPct = 0.0f;
+bool lastDhtValid = false;
+float lastSoilPct = 50.0f;
+bool lastSoundDetected = false;
+
 unsigned long lastTelemetryMs = 0;
 unsigned long lastHttpPollMs = 0;
+unsigned long lastHeartbeatMs = 0;
+
+// Máy trạng thái ngoại tuyến, backoff không chặn và chỉ báo cục bộ
+OfflineFsm offlineFsm;
+ExponentialBackoff wifiBackoff(WIFI_BACKOFF_INITIAL_MS, WIFI_BACKOFF_MAX_MS, WIFI_BACKOFF_MULTIPLIER);
+ExponentialBackoff mqttBackoff(SERVER_BACKOFF_INITIAL_MS, SERVER_BACKOFF_MAX_MS, SERVER_BACKOFF_MULTIPLIER);
+ExponentialBackoff httpBackoff(SERVER_BACKOFF_INITIAL_MS, SERVER_BACKOFF_MAX_MS, SERVER_BACKOFF_MULTIPLIER);
+OfflineDisconnectBeeper disconnectBeeper;
+
+// Nháy đèn enroll_blink không chặn trên D0
+bool enrollBlinkActive = false;
+unsigned long enrollBlinkEndMs = 0;
+bool enrollBlinkPrevState = false;
+
+// Bộ phát âm báo PWM không chặn trên D3 (luôn trả D3 về INPUT sau khi phát xong)
+struct NonBlockingTonePlayer {
+  bool active;
+  int mode;
+  uint8_t step;
+  unsigned long nextStepMs;
+} tonePlayer = {false, 0, 0, 0};
 
 void IRAM_ATTR onKy037Interrupt() {
   ky037EdgePending = true;
 }
 
+bool isServerOnline() {
+  return (WiFi.status() == WL_CONNECTED && (mqtt.connected() || httpServerReachable));
+}
+
+void writeLivingLightHardware(bool levelOn) {
+  digitalWrite(PIN_LIVING_LIGHT, levelOn ? HIGH : LOW);
+}
+
 void setLivingLightPin(bool on) {
   livingLightState = on;
-  digitalWrite(PIN_LIVING_LIGHT, on ? HIGH : LOW);
+  writeLivingLightHardware(on);
+  offlineFsm.syncHardwareState(DEV_LIVING_ROOM_LIGHT, on, millis());
 }
 
 void setBedroomLightPin(bool on) {
@@ -119,6 +171,7 @@ void setBedroomLightPin(bool on) {
   } else {
     digitalWrite(PIN_BEDROOM_LIGHT, on ? HIGH : LOW);
   }
+  offlineFsm.syncHardwareState(DEV_BEDROOM_LIGHT, on, millis());
 }
 
 void setGardenPumpPin(bool on) {
@@ -128,16 +181,13 @@ void setGardenPumpPin(bool on) {
   } else {
     digitalWrite(PIN_GARDEN_PUMP, on ? HIGH : LOW);
   }
+  offlineFsm.syncHardwareState(DEV_GARDEN_PUMP, on, millis());
 }
 
 void setAlarmSirenPin(bool on) {
   alarmSirenState = on;
   digitalWrite(PIN_ALARM_SIREN, on ? HIGH : LOW);
-}
-
-void setMainDoorState(bool openDoor) {
-  mainDoorOpen = openDoor;
-  doorServo.write(openDoor ? 90 : 0);
+  offlineFsm.syncHardwareState(DEV_ALARM_SIREN, on, millis());
 }
 
 void applySpeakerAmpRelay() {
@@ -149,43 +199,241 @@ void applySpeakerAmpRelay() {
   }
 }
 
+void setSpeakerAmpManual(bool on) {
+  speakerAmpManualOn = on;
+  applySpeakerAmpRelay();
+  offlineFsm.syncHardwareState(DEV_SPEAKER_AMP, on, millis());
+}
+
+void playSpeakerFeedbackTone(int mode);
+
+// Addendum A3: Khóa cứng mở cửa chính ngay tại tầng chấp hành Servo SG90 (D1) khi ngoại tuyến!
+bool setMainDoorState(bool openDoor) {
+  if (openDoor && (!isServerOnline() || !offlineFsm.canSetMainDoor(true))) {
+    mainDoorOpen = false;
+    doorServo.write(0);
+    offlineFsm.syncHardwareState(DEV_MAIN_DOOR, false, millis());
+    playSpeakerFeedbackTone(3);
+    Serial.print("[A3 KHOA CUA OFFLINE] ");
+    Serial.println(REPLY_DOOR_OPEN_FORBIDDEN_VI);
+    return false;
+  }
+  mainDoorOpen = openDoor;
+  doorServo.write(openDoor ? 90 : 0);
+  offlineFsm.syncHardwareState(DEV_MAIN_DOOR, openDoor, millis());
+  return true;
+}
+
+void applyDeviceHardwareByIndex(uint8_t devIdx, bool stateOn) {
+  switch (devIdx) {
+    case DEV_MAIN_DOOR:
+      setMainDoorState(stateOn);
+      break;
+    case DEV_LIVING_ROOM_LIGHT:
+      setLivingLightPin(stateOn);
+      break;
+    case DEV_BEDROOM_LIGHT:
+      setBedroomLightPin(stateOn);
+      break;
+    case DEV_GARDEN_PUMP:
+      setGardenPumpPin(stateOn);
+      break;
+    case DEV_ALARM_SIREN:
+      setAlarmSirenPin(stateOn);
+      break;
+    case DEV_SPEAKER_AMP:
+      setSpeakerAmpManual(stateOn);
+      break;
+    default:
+      break;
+  }
+}
+
 void addHardwareAuthHeaders(HTTPClient& http) {
   if (HARDWARE_API_KEY[0] != '\0') {
     http.addHeader("X-Hardware-Key", HARDWARE_API_KEY);
   }
 }
 
-// Phát âm thanh phản hồi qua Relay 2 PAM8403 (D7) & PWM (D3 - GPIO0)
+// Phát âm thanh phản hồi không chặn qua Relay 2 PAM8403 (D7) & PWM (D3 - GPIO0)
 // Sau khi phát xong, luôn gọi noTone() và trả D3 về INPUT để bảo vệ boot-strap GPIO0!
 // mode = 1: Bật/Mở thành công | mode = 2: Tắt/Đóng thành công | mode = 3: Cảnh báo từ chối
 void playSpeakerFeedbackTone(int mode) {
   speakerAmpChimeActive = true;
   applySpeakerAmpRelay();
-  delay(15); // Chờ tiếp điểm Relay 2 và tụ nguồn PAM8403 ổn định
-
-  pinMode(PIN_AUDIO_PWM, OUTPUT);
-  if (mode == 1) {
-    tone(PIN_AUDIO_PWM, 1180, 90);
-    delay(100);
-    tone(PIN_AUDIO_PWM, 1560, 130);
-    delay(140);
-  } else if (mode == 2) {
-    tone(PIN_AUDIO_PWM, 1350, 90);
-    delay(100);
-    tone(PIN_AUDIO_PWM, 920, 130);
-    delay(140);
-  } else {
-    for (int i = 0; i < 3; i++) {
-      tone(PIN_AUDIO_PWM, 440, 110);
-      delay(145);
-    }
-  }
-  noTone(PIN_AUDIO_PWM);
-  pinMode(PIN_AUDIO_PWM, INPUT); // Trả D3 về high-Z (trở kéo lên trên NodeMCU giữ HIGH)
+  tonePlayer.active = true;
+  tonePlayer.mode = mode;
+  tonePlayer.step = 0;
+  tonePlayer.nextStepMs = millis() + 15UL;  // Chờ tiếp điểm Relay 2 ổn định không chặn CPU
   speakerAmpAutoOffAtMs = millis() + SPEAKER_AMP_IDLE_TAIL_MS;
 }
 
+void finishTonePlayback(unsigned long nowMs) {
+  noTone(PIN_AUDIO_PWM);
+  pinMode(PIN_AUDIO_PWM, INPUT);  // Trả D3 về high-Z (trở kéo lên trên NodeMCU giữ HIGH)
+  tonePlayer.active = false;
+  speakerAmpAutoOffAtMs = nowMs + SPEAKER_AMP_IDLE_TAIL_MS;
+}
+
+void updateTonePlayer(unsigned long nowMs) {
+  if (!tonePlayer.active) return;
+  if (static_cast<long>(nowMs - tonePlayer.nextStepMs) < 0) return;
+
+  if (tonePlayer.mode == 1) {
+    if (tonePlayer.step == 0) {
+      pinMode(PIN_AUDIO_PWM, OUTPUT);
+      tone(PIN_AUDIO_PWM, 1180, 90);
+      tonePlayer.step = 1;
+      tonePlayer.nextStepMs = nowMs + 100UL;
+    } else if (tonePlayer.step == 1) {
+      tone(PIN_AUDIO_PWM, 1560, 130);
+      tonePlayer.step = 2;
+      tonePlayer.nextStepMs = nowMs + 140UL;
+    } else {
+      finishTonePlayback(nowMs);
+    }
+  } else if (tonePlayer.mode == 2) {
+    if (tonePlayer.step == 0) {
+      pinMode(PIN_AUDIO_PWM, OUTPUT);
+      tone(PIN_AUDIO_PWM, 1350, 90);
+      tonePlayer.step = 1;
+      tonePlayer.nextStepMs = nowMs + 100UL;
+    } else if (tonePlayer.step == 1) {
+      tone(PIN_AUDIO_PWM, 920, 130);
+      tonePlayer.step = 2;
+      tonePlayer.nextStepMs = nowMs + 140UL;
+    } else {
+      finishTonePlayback(nowMs);
+    }
+  } else {
+    // mode 3: 3 tiếng bíp từ chối 440Hz
+    if (tonePlayer.step < 3) {
+      pinMode(PIN_AUDIO_PWM, OUTPUT);
+      tone(PIN_AUDIO_PWM, 440, 110);
+      tonePlayer.step++;
+      tonePlayer.nextStepMs = nowMs + 145UL;
+    } else {
+      finishTonePlayback(nowMs);
+    }
+  }
+}
+
+void populateDevicesJson(JsonObject devsObj) {
+  devsObj["main_door"] = mainDoorOpen ? "OPEN" : "CLOSED";
+  devsObj["living_room_light"] = livingLightState ? "ON" : "OFF";
+  devsObj["bedroom_light"] = bedroomLightState ? "ON" : "OFF";
+  devsObj["garden_pump"] = gardenPumpState ? "ON" : "OFF";
+  devsObj["alarm_siren"] = alarmSirenState ? "ON" : "OFF";
+  devsObj["speaker_amp"] = speakerAmpManualOn ? "ON" : "OFF";
+}
+
+void populateSensorsJson(JsonObject senObj) {
+  senObj["temp_c"] = lastDhtValid ? lastTempC : 0.0f;
+  senObj["humidity_pct"] = lastDhtValid ? lastHumidityPct : 0.0f;
+  senObj["soil_moisture_pct"] = lastSoilPct;
+  senObj["sound_detected"] = lastSoundDetected;
+}
+
+void populateChangedDevicesArray(JsonArray arr) {
+  for (uint8_t i = 0; i < DEV_COUNT; ++i) {
+    if (offlineFsm.isDeviceDirtyOffline(i)) {
+      arr.add(DEVICE_POLICIES[i].id);
+    }
+  }
+}
+
+// ---------------- ADDENDUM A1 + A2 + A3: HTTP SERVER NGOẠI TUYẾN CỔNG 80 ----
+void sendOfflineCorsHeaders() {
+  offlineServer.sendHeader("Access-Control-Allow-Origin", "*");
+  offlineServer.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  offlineServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+void handleHttpOfflineOptions() {
+  sendOfflineCorsHeaders();
+  offlineServer.send(204);
+}
+
+void handleHttpOfflineStatus() {
+  sendOfflineCorsHeaders();
+  StaticJsonDocument<768> doc;
+  doc["ok"] = true;
+  doc["node_id"] = NODE_ID;
+  doc["offline_mode"] = !isServerOnline();
+  doc["ap_active"] = softApEnabled;
+  doc["sta_connected"] = (WiFi.status() == WL_CONNECTED);
+  doc["sta_ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
+  doc["ap_ip"] = softApEnabled ? WiFi.softAPIP().toString() : "";
+  doc["offline_events_count"] = offlineFsm.events().count();
+
+  populateDevicesJson(doc.createNestedObject("devices"));
+  populateSensorsJson(doc.createNestedObject("sensors"));
+  populateChangedDevicesArray(doc.createNestedArray("offline_changed_devices"));
+
+  String out;
+  serializeJson(doc, out);
+  offlineServer.send(200, "application/json; charset=utf-8", out);
+}
+
+void applyOfflineCommandResultToHardware(const OfflineCommandResult& res) {
+  if (res.ok && res.state_changed && res.device_index >= 0) {
+    applyDeviceHardwareByIndex(static_cast<uint8_t>(res.device_index), res.new_state_on);
+    if (res.device_index == DEV_GARDEN_PUMP && !res.new_state_on) {
+      pumpAutoTriggered = false;
+    }
+  } else if (res.refused && res.device_index == DEV_MAIN_DOOR) {
+    // Khóa cứng servo 0 độ khi có yêu cầu mở cửa ngoại tuyến (A3)
+    setMainDoorState(false);
+  }
+  if (res.tone_mode > 0) {
+    playSpeakerFeedbackTone(res.tone_mode);
+  }
+}
+
+void handleHttpOfflineCmd() {
+  sendOfflineCorsHeaders();
+  String body = offlineServer.arg("plain");
+  StaticJsonDocument<512> reqDoc;
+  DeserializationError err = deserializeJson(reqDoc, body);
+
+  OfflineCommandResult res{};
+  const unsigned long nowMs = millis();
+
+  if (err) {
+    // Cho phép gửi chuỗi thô không bọc JSON
+    body.trim();
+    res = offlineFsm.handleOfflineTextCommand(body.c_str(), nowMs, "offline_voice");
+  } else if (reqDoc.containsKey("device_id") && reqDoc.containsKey("action")) {
+    const char* devId = reqDoc["device_id"] | "";
+    const char* action = reqDoc["action"] | "";
+    res = offlineFsm.handleOfflineStructuredCommand(devId, action, nowMs, "offline_voice");
+  } else {
+    const char* text = reqDoc["text"] | "";
+    res = offlineFsm.handleOfflineTextCommand(text, nowMs, "offline_voice");
+  }
+
+  applyOfflineCommandResultToHardware(res);
+
+  StaticJsonDocument<768> respDoc;
+  respDoc["ok"] = res.ok;
+  respDoc["offline_mode"] = true;
+  respDoc["refused"] = res.refused;
+  respDoc["reason_code"] = res.reason_code;
+  if (res.device_index >= 0 && res.device_index < DEV_COUNT) {
+    const uint8_t idx = static_cast<uint8_t>(res.device_index);
+    respDoc["device_id"] = DEVICE_POLICIES[idx].id;
+    respDoc["state"] = getDeviceStateString(idx, offlineFsm.getDeviceState(idx));
+  }
+  respDoc["reply_vi"] = res.reply_vi;
+  populateDevicesJson(respDoc.createNestedObject("devices"));
+
+  String out;
+  serializeJson(respDoc, out);
+  offlineServer.send(res.http_status, "application/json; charset=utf-8", out);
+}
+
 void publishKy037SoundEvent() {
+  lastSoundDetected = true;
   StaticJsonDocument<256> sndDoc;
   sndDoc["node_id"] = NODE_ID;
   sndDoc["sound_detected"] = true;
@@ -203,7 +451,7 @@ void publishKy037SoundEvent() {
   } else if (httpServerReachable && WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/sound_sensor";
-    http.setTimeout(600);
+    http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
     if (http.begin(httpWifiClient, url)) {
       http.addHeader("Content-Type", "application/json");
       addHardwareAuthHeaders(http);
@@ -214,84 +462,22 @@ void publishKy037SoundEvent() {
 }
 
 // ----------------------------------------------------------------------------
-// CHẾ ĐỘ MẠCH ĐỘC LẬP (OFFLINE DEFAULT FALLBACK - KHI KHÔNG KẾT NỐI SERVER):
-// - Bộ lọc giọng nói rút gọn Tiny-DSP trên chip ESP8266 (80MHz/160MHz, ~16ms):
-//   CHỈ duyệt Vân giọng Tầng 1 (Chủ nhà) & Tầng 2 (Thành viên gia đình)
-//   trong 4MB Flash LittleFS. CHẶN 100% Tầng 3 (Khách) & Người lạ!
-// - Chỉ nhận lệnh cơ bản cho Đèn phòng khách (D0), Đèn phòng ngủ (D4),
-//   Máy bơm tưới cây (D6) và Nguồn mạch loa PAM8403 (D7).
-// - KHÓA CỨNG Cửa chính (D1) và Còi báo động (D8) khi mất kết nối Server!
+// CHẾ ĐỘ NGOẠI TUYẾN CỤC BỘ (Serial UART & LAN `/offline/cmd` dùng chung OfflineFsm):
+// - Addendum A2: Tập lệnh bật/tắt cơ bản cố định cho 6 thiết bị, KHÔNG phân quyền Cấp 1/2/3.
+// - Addendum A3: Tuyệt đối cấm mở cửa chính (main_door -> 90 deg) khi ngoại tuyến.
 // ----------------------------------------------------------------------------
 void processOfflineDefaultCommand(String rawCmd) {
   rawCmd.trim();
-  rawCmd.toLowerCase();
   if (rawCmd.length() == 0) return;
 
-  if (rawCmd.indexOf("[tier3]") >= 0 || rawCmd.indexOf("[khach]") >= 0 ||
-      rawCmd.indexOf("[stranger]") >= 0 || rawCmd.indexOf("[nguoi_la]") >= 0) {
-    playSpeakerFeedbackTone(3);
-    Serial.println("[CHẶN OFFLINE - TINY-DSP] Flash ESP8266 chi duyet Tang 1 & Tang 2. Tu choi Tang 3 & Nguoi la!");
-    return;
-  }
+  OfflineCommandResult res =
+      offlineFsm.handleOfflineTextCommand(rawCmd.c_str(), millis(), "offline_serial");
+  applyOfflineCommandResultToHardware(res);
 
-  if (rawCmd.indexOf("mo cua") >= 0 || rawCmd.indexOf("mở cửa") >= 0 ||
-      rawCmd.indexOf("cua chinh") >= 0 || rawCmd.indexOf("cửa chính") >= 0) {
-    if (rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0) {
-      setMainDoorState(false);
-      playSpeakerFeedbackTone(2);
-      Serial.println("[OFFLINE SAFE] Da dong khoa Cua chinh (D1 = 0 deg).");
-      return;
-    }
-    setMainDoorState(false);
-    playSpeakerFeedbackTone(3);
-    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI MO CUA CHINH (D1)!");
-    return;
-  }
-
-  if (rawCmd.indexOf("coi") >= 0 || rawCmd.indexOf("còi") >= 0 ||
-      rawCmd.indexOf("bao dong") >= 0 || rawCmd.indexOf("báo động") >= 0) {
-    playSpeakerFeedbackTone(3);
-    Serial.println("[KHOA AN NINH OFFLINE] Khong ket noi Server -> TU CHOI CAN THIEP COI BAO DONG (D8)!");
-    return;
-  }
-
-  if (rawCmd.indexOf("vung oi") >= 0 || rawCmd.indexOf("vừng ơi") >= 0) {
-    playSpeakerFeedbackTone(3);
-    Serial.println("[OFFLINE DEFAULT] Khau lenh tuy chinh bi vo hieu hoa khi mat ket noi Server!");
-    return;
-  }
-
-  bool turnOn = (rawCmd.indexOf("bat") >= 0 || rawCmd.indexOf("bật") >= 0 ||
-                 rawCmd.indexOf("mo") >= 0 || rawCmd.indexOf("mở") >= 0);
-  bool turnOff = (rawCmd.indexOf("tat") >= 0 || rawCmd.indexOf("tắt") >= 0 ||
-                  rawCmd.indexOf("dong") >= 0 || rawCmd.indexOf("đóng") >= 0);
-  if (!turnOn && !turnOff) return;
-  bool stateOn = turnOn && !turnOff;
-
-  if (rawCmd.indexOf("den khach") >= 0 || rawCmd.indexOf("đèn khách") >= 0 ||
-      rawCmd.indexOf("den phong khach") >= 0 || rawCmd.indexOf("đèn phòng khách") >= 0) {
-    setLivingLightPin(stateOn);
-    playSpeakerFeedbackTone(stateOn ? 1 : 2);
-    Serial.println(stateOn ? "[OFFLINE] Den phong khach (D0) -> ON" : "[OFFLINE] Den phong khach (D0) -> OFF");
-  } else if (rawCmd.indexOf("den ngu") >= 0 || rawCmd.indexOf("đèn ngủ") >= 0 ||
-             rawCmd.indexOf("den phong ngu") >= 0 || rawCmd.indexOf("đèn phòng ngủ") >= 0) {
-    setBedroomLightPin(stateOn);
-    playSpeakerFeedbackTone(stateOn ? 1 : 2);
-    Serial.println(stateOn ? "[OFFLINE] Den phong ngu (D4) -> ON" : "[OFFLINE] Den phong ngu (D4) -> OFF");
-  } else if (rawCmd.indexOf("may bom") >= 0 || rawCmd.indexOf("máy bơm") >= 0 ||
-             rawCmd.indexOf("tuoi cay") >= 0 || rawCmd.indexOf("tưới cây") >= 0) {
-    setGardenPumpPin(stateOn);
-    playSpeakerFeedbackTone(stateOn ? 1 : 2);
-    Serial.println(stateOn ? "[OFFLINE] May bom tuoi cay (D6) -> ON" : "[OFFLINE] May bom tuoi cay (D6) -> OFF");
-  } else if (rawCmd.indexOf("loa") >= 0 || rawCmd.indexOf("pam8403") >= 0 ||
-             rawCmd.indexOf("speaker") >= 0) {
-    speakerAmpManualOn = stateOn;
-    applySpeakerAmpRelay();
-    if (stateOn) {
-      playSpeakerFeedbackTone(1);
-    }
-    Serial.println(stateOn ? "[OFFLINE] Nguon mach loa PAM8403 (D7) -> ON" : "[OFFLINE] Nguon mach loa PAM8403 (D7) -> OFF");
-  }
+  Serial.print(res.ok ? "[OFFLINE OK] " : "[OFFLINE TU CHOI] ");
+  Serial.print(res.reason_code);
+  Serial.print(" | ");
+  Serial.println(res.reply_vi);
 }
 
 // ---------------- LƯU BẢN SAO 2 BỂ VÀO FLASH LITTLEFS --------------
@@ -313,11 +499,11 @@ void applyActuatorTarget(const String& devId, const String& state) {
     setBedroomLightPin(isOn);
   } else if (devId == "garden_pump") {
     setGardenPumpPin(isOn);
+    if (!isOn) pumpAutoTriggered = false;
   } else if (devId == "alarm_siren") {
     setAlarmSirenPin(isOn);
   } else if (devId == "speaker_amp") {
-    speakerAmpManualOn = isOn;
-    applySpeakerAmpRelay();
+    setSpeakerAmpManual(isOn);
   }
 }
 
@@ -331,7 +517,6 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   String topicStr(topic);
 
   // 4. Đồng bộ 2 Bể xuống bộ nhớ Flash LittleFS (smarthome/sync/pools)
-  // Xử lý trước StaticJsonDocument<1024> vì payload (647B–3KB+) vượt quá 1024B DOM.
   if (topicStr == "smarthome/sync/pools") {
     StaticJsonDocument<256> poolFilter;
     poolFilter["timers_count"] = true;
@@ -341,7 +526,8 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
     JsonObject rFilter = poolFilter["if_else_rules"].createNestedObject();
     rFilter["id"] = true;
     DynamicJsonDocument poolDoc(2048);
-    DeserializationError poolErr = deserializeJson(poolDoc, msg, DeserializationOption::Filter(poolFilter));
+    DeserializationError poolErr =
+        deserializeJson(poolDoc, msg, DeserializationOption::Filter(poolFilter));
     if (!poolErr && poolDoc.is<JsonObject>()) {
       savePoolsReplicaToFlash(msg);
     }
@@ -360,13 +546,14 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
       applyActuatorTarget(devId, state);
     }
   }
-  // 2. Lệnh nháy đèn báo hiệu thu âm 3-2-1 trên D0 (smarthome/cmd/enroll_blink)
+  // 2. Lệnh nháy đèn báo hiệu thu âm 3-2-1 trên D0 không chặn (smarthome/cmd/enroll_blink)
   else if (topicStr == "smarthome/cmd/enroll_blink") {
-    int pulseMs = doc["pulse_ms"] | 350;
-    bool prev = livingLightState;
-    digitalWrite(PIN_LIVING_LIGHT, !prev ? HIGH : LOW);
-    delay(pulseMs);
-    digitalWrite(PIN_LIVING_LIGHT, prev ? HIGH : LOW);
+    unsigned long pulseMs = doc["pulse_ms"] | 350UL;
+    if (pulseMs > 2000UL) pulseMs = 2000UL;
+    enrollBlinkPrevState = livingLightState;
+    enrollBlinkActive = true;
+    enrollBlinkEndMs = millis() + pulseMs;
+    writeLivingLightHardware(!enrollBlinkPrevState);
   }
   // 3. Phát âm thanh chuông phản hồi từ Server (smarthome/cmd/chime)
   else if (topicStr == "smarthome/cmd/chime") {
@@ -375,14 +562,227 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void reconnectMqtt() {
+void attemptMqttReconnect(unsigned long nowMs) {
   if (mqtt.connected()) return;
+  if (!mqttBackoff.shouldAttempt(nowMs)) return;
+
   const char* lwtTopic = "smarthome/status/esp8266";
   const char* lwtPayload = "{\"node_id\":\"esp8266_node_01\",\"online\":false}";
   if (mqtt.connect(NODE_ID, nullptr, nullptr, lwtTopic, 1, true, lwtPayload)) {
+    mqttBackoff.recordSuccess();
     mqtt.publish(lwtTopic, "{\"node_id\":\"esp8266_node_01\",\"online\":true}", true);
     mqtt.subscribe("smarthome/cmd/#", 1);
     mqtt.subscribe("smarthome/sync/pools", 1);
+    Serial.println("[MQTT] Da ket noi lai thanh cong.");
+  } else {
+    unsigned long waitMs = mqttBackoff.recordFailure(nowMs);
+    Serial.print("[MQTT] Mat ket noi, thu lai sau ");
+    Serial.print(waitMs);
+    Serial.println(" ms.");
+  }
+}
+
+// ---------------- HEARTBEAT ĐỊNH KỲ (POST /api/hardware/heartbeat) ---------
+bool sendHardwareHeartbeat(unsigned long nowMs) {
+  if (WiFi.status() != WL_CONNECTED) {
+    httpServerReachable = false;
+    return false;
+  }
+  if (!httpBackoff.shouldAttempt(nowMs)) {
+    return false;
+  }
+
+  HTTPClient http;
+  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/hardware/heartbeat";
+  http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
+  bool ok = false;
+  if (http.begin(httpWifiClient, url)) {
+    http.addHeader("Content-Type", "application/json");
+    addHardwareAuthHeaders(http);
+    StaticJsonDocument<256> hbDoc;
+    hbDoc["node_id"] = NODE_ID;
+    hbDoc["wifi_rssi_dbm"] = WiFi.RSSI();
+    hbDoc["uptime_ms"] = nowMs;
+    hbDoc["firmware_mode"] = "ONLINE";
+    String body;
+    serializeJson(hbDoc, body);
+    int code = http.POST(body);
+    if (code == 200) {
+      ok = true;
+      httpServerReachable = true;
+      httpBackoff.recordSuccess();
+    } else {
+      httpServerReachable = false;
+      httpBackoff.recordFailure(nowMs);
+    }
+    http.end();
+  } else {
+    httpServerReachable = false;
+    httpBackoff.recordFailure(nowMs);
+  }
+  return ok;
+}
+
+// ---------------- ADDENDUM A4: ĐỒNG BỘ LẠI TRẠNG THÁI NGOẠI TUYẾN ----------
+// Luôn chạy TRƯỚC pollLaptopHttpState() sau khi kết nối lại để Server tiếp nhận
+// đúng trạng thái vật lý đã thay đổi khi ngoại tuyến!
+bool performOfflineResync(unsigned long nowMs) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  if (!httpBackoff.shouldAttempt(nowMs) && !mqtt.connected()) return false;
+
+  DynamicJsonDocument resyncDoc(2048);
+  resyncDoc["node_id"] = NODE_ID;
+  resyncDoc["offline_duration_ms"] = offlineFsm.lastOfflineDurationMs();
+  resyncDoc["wifi_rssi_dbm"] = WiFi.RSSI();
+
+  populateDevicesJson(resyncDoc.createNestedObject("device_states"));
+  populateChangedDevicesArray(resyncDoc.createNestedArray("offline_changed_devices"));
+
+  JsonArray evArr = resyncDoc.createNestedArray("offline_events");
+  const OfflineEventRing& ring = offlineFsm.events();
+  for (size_t i = 0; i < ring.count(); ++i) {
+    const OfflineEvent* ev = ring.at(i);
+    if (!ev || ev->device_index >= DEV_COUNT) continue;
+    JsonObject obj = evArr.createNestedObject();
+    obj["device_id"] = DEVICE_POLICIES[ev->device_index].id;
+    obj["state"] = getDeviceStateString(ev->device_index, ev->state_on);
+    obj["reason"] = ev->reason;
+    obj["offset_ms"] = ev->offset_ms;
+  }
+
+  populateSensorsJson(resyncDoc.createNestedObject("sensors"));
+
+  String payload;
+  serializeJson(resyncDoc, payload);
+
+  bool httpOk = false;
+  if (httpBackoff.shouldAttempt(nowMs)) {
+    HTTPClient http;
+    String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/hardware/resync";
+    http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
+    if (http.begin(httpWifiClient, url)) {
+      http.addHeader("Content-Type", "application/json");
+      addHardwareAuthHeaders(http);
+      int code = http.POST(payload);
+      if (code == 200) {
+        httpOk = true;
+        httpServerReachable = true;
+        httpBackoff.recordSuccess();
+      } else {
+        httpServerReachable = false;
+        httpBackoff.recordFailure(nowMs);
+      }
+      http.end();
+    } else {
+      httpServerReachable = false;
+      httpBackoff.recordFailure(nowMs);
+    }
+  }
+
+  bool mqttOk = false;
+  if (mqtt.connected()) {
+    mqttOk = mqtt.publish("smarthome/state/report", payload.c_str(), true);
+  }
+
+  if (httpOk || mqttOk) {
+    offlineFsm.markResyncCompleted();
+    Serial.println("[A4 RESYNC] Da dong bo lai trang thai vat ly ngoai tuyen len Server.");
+    return true;
+  }
+  return false;
+}
+
+// Đồng bộ trực tiếp qua HTTP với Server Laptop (:/api/state)
+void pollLaptopHttpState(unsigned long nowMs) {
+  if (WiFi.status() != WL_CONNECTED) {
+    httpServerReachable = false;
+    return;
+  }
+  if (!httpBackoff.shouldAttempt(nowMs)) return;
+
+  HTTPClient http;
+  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/state";
+  http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
+  if (http.begin(httpWifiClient, url)) {
+    addHardwareAuthHeaders(http);
+    int code = http.GET();
+    if (code == 200) {
+      String payload = http.getString();
+      StaticJsonDocument<128> filter;
+      filter["server_connected"] = true;
+      JsonObject devFilter = filter["devices"].createNestedObject();
+      devFilter["id"] = true;
+      devFilter["state"] = true;
+      DynamicJsonDocument doc(2048);
+      DeserializationError err =
+          deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+      if (!err) {
+        bool srvMode = doc["server_connected"] | true;
+        httpServerReachable = srvMode;
+        httpBackoff.recordSuccess();
+        if (srvMode && !offlineFsm.hasPendingResync()) {
+          JsonArray devs = doc["devices"].as<JsonArray>();
+          for (JsonObject d : devs) {
+            String id = d["id"] | "";
+            String st = d["state"] | "OFF";
+            applyActuatorTarget(id, st);
+          }
+        }
+      }
+    } else {
+      httpServerReachable = false;
+      httpBackoff.recordFailure(nowMs);
+    }
+    http.end();
+  } else {
+    httpServerReachable = false;
+    httpBackoff.recordFailure(nowMs);
+  }
+}
+
+void manageWifiAndSoftAp(unsigned long nowMs) {
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiBackoff.recordSuccess();
+    offlineFsm.shouldEnableSoftAp(true, nowMs);
+    if (!mdnsStarted) {
+      if (MDNS.begin(OFFLINE_MDNS_HOST)) {
+        MDNS.addService("http", "tcp", OFFLINE_HTTP_PORT);
+        mdnsStarted = true;
+        Serial.print("[A1 mDNS] San sang tai http://");
+        Serial.print(OFFLINE_MDNS_HOST);
+        Serial.println(".local/offline/cmd");
+      }
+    } else {
+      MDNS.update();
+    }
+    return;
+  }
+
+  httpServerReachable = false;
+  mdnsStarted = false;
+
+  // Bật SoftAP dự phòng sau WIFI_AP_FALLBACK_AFTER_MS (15s) để điều khiển giọng nói ngoại tuyến không cần router
+  if (!softApEnabled && offlineFsm.shouldEnableSoftAp(false, nowMs)) {
+    WiFi.mode(WIFI_AP_STA);
+    if (OFFLINE_AP_PASSWORD[0] != '\0') {
+      WiFi.softAP(OFFLINE_AP_SSID, OFFLINE_AP_PASSWORD);
+    } else {
+      WiFi.softAP(OFFLINE_AP_SSID);
+    }
+    softApEnabled = true;
+    Serial.print("[A1 SoftAP] Da bat diem phat du phong ");
+    Serial.print(OFFLINE_AP_SSID);
+    Serial.print(" tai IP ");
+    Serial.println(WiFi.softAPIP());
+  }
+
+  // Thử kết nối lại Wi-Fi STA theo hàm mũ không chặn (tuyệt đối không lặp khởi động lại mạch)
+  if (wifiBackoff.shouldAttempt(nowMs)) {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    unsigned long waitMs = wifiBackoff.recordFailure(nowMs);
+    Serial.print("[WiFi] Dang ket noi lai STA, lan thu tiep theo sau ");
+    Serial.print(waitMs);
+    Serial.println(" ms.");
   }
 }
 
@@ -418,8 +818,12 @@ void setup() {
   LittleFS.begin();
   dht.begin();
 
+  offlineFsm.begin(millis());
+
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  wifiBackoff.recordFailure(millis());
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   if (!mqtt.setBufferSize(4096)) {
@@ -427,96 +831,123 @@ void setup() {
   }
   mqtt.setServer(MQTT_SERVER, MQTT_PORT);
   mqtt.setCallback(onMqttMessage);
-}
 
-// Đồng bộ trực tiếp qua HTTP với Server Laptop (:/api/state)
-void pollLaptopHttpState() {
-  if (WiFi.status() != WL_CONNECTED) {
-    httpServerReachable = false;
-    return;
-  }
-  HTTPClient http;
-  String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/state";
-  http.setTimeout(600);
-  if (http.begin(httpWifiClient, url)) {
-    addHardwareAuthHeaders(http);
-    int code = http.GET();
-    if (code == 200) {
-      String payload = http.getString();
-      StaticJsonDocument<128> filter;
-      filter["server_connected"] = true;
-      JsonObject devFilter = filter["devices"].createNestedObject();
-      devFilter["id"] = true;
-      devFilter["state"] = true;
-      DynamicJsonDocument doc(2048);
-      DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
-      if (!err) {
-        bool srvMode = doc["server_connected"] | true;
-        httpServerReachable = srvMode;
-        if (srvMode) {
-          JsonArray devs = doc["devices"].as<JsonArray>();
-          for (JsonObject d : devs) {
-            String id = d["id"] | "";
-            String st = d["state"] | "OFF";
-            applyActuatorTarget(id, st);
-          }
-        }
-      }
-    } else {
-      httpServerReachable = false;
-    }
-    http.end();
-  } else {
-    httpServerReachable = false;
-  }
+  // Addendum A1: Khởi động HTTP Server ngoại tuyến cổng 80 ngay khi boot
+  offlineServer.on("/offline/cmd", HTTP_POST, handleHttpOfflineCmd);
+  offlineServer.on("/offline/cmd", HTTP_OPTIONS, handleHttpOfflineOptions);
+  offlineServer.on("/offline/status", HTTP_GET, handleHttpOfflineStatus);
+  offlineServer.on("/offline/status", HTTP_OPTIONS, handleHttpOfflineOptions);
+  offlineServer.begin();
+  Serial.println("[A1 HTTP] May chu ngoai tuyen cong 80 san sang (/offline/cmd, /offline/status).");
 }
 
 void loop() {
+  const unsigned long now = millis();
+
+  // 1. Luôn phục vụ HTTP Server ngoại tuyến cổng 80 (Addendum A1) & nhường CPU cho Watchdog
+  offlineServer.handleClient();
+  yield();
+
+  // 2. Quản lý kết nối Wi-Fi STA không chặn + SoftAP dự phòng + mDNS
+  manageWifiAndSoftAp(now);
+
+  // 3. Quản lý MQTT & HTTP Server với Exponential Backoff + Heartbeat định kỳ
   if (WiFi.status() == WL_CONNECTED) {
     if (!mqtt.connected()) {
-      reconnectMqtt();
+      attemptMqttReconnect(now);
+    } else {
+      mqtt.loop();
     }
-    mqtt.loop();
-    if (millis() - lastHttpPollMs >= 450) {
-      lastHttpPollMs = millis();
-      pollLaptopHttpState();
+
+    if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
+      lastHeartbeatMs = now;
+      sendHardwareHeartbeat(now);
     }
-  } else {
-    httpServerReachable = false;
   }
 
-  // Tự động tắt Relay 2 PAM8403 (D7) khi hết thời gian phát chuông (trừ khi bật tay/dashboard)
-  if (speakerAmpChimeActive && (long)(millis() - speakerAmpAutoOffAtMs) >= 0) {
+  // 4. Đánh giá chuyển trạng thái kết nối ONLINE <-> OFFLINE
+  const bool onlineNow = isServerOnline();
+  ConnectivityTransition tr = offlineFsm.onConnectivityChanged(onlineNow, now);
+  if (tr.became_offline) {
+    setMainDoorState(false);
+    if (tr.trigger_disconnect_beep) {
+      disconnectBeeper.trigger(now);
+    }
+    Serial.println("[OFFLINE FAIL-SAFE] Mat ket noi Server -> Tu dong DONG KHOA Cua chinh (D1 = 0 deg)!");
+  } else if (tr.became_online) {
+    disconnectBeeper.cancel();
+    if (!alarmSirenState) {
+      digitalWrite(PIN_ALARM_SIREN, LOW);
+    }
+    writeLivingLightHardware(livingLightState);
+    Serial.println("[ONLINE RECOVERED] Da ket noi lai Server -> Chuan bi dong bo A4...");
+  }
+
+  // 5. Addendum A4: Nếu có trạng thái chờ đồng bộ lại, PHẢI đẩy resync TRƯỚC khi poll `/api/state`
+  if (onlineNow && offlineFsm.hasPendingResync()) {
+    performOfflineResync(now);
+  } else if (onlineNow && (now - lastHttpPollMs >= HTTP_POLL_INTERVAL_MS)) {
+    lastHttpPollMs = now;
+    pollLaptopHttpState(now);
+  }
+
+  // 6. Cập nhật các bộ hẹn giờ an toàn cục bộ (Bơm tối đa 120s, Còi ngoại tuyến tối đa 30s)
+  SafetyTripResult trips = offlineFsm.tickSafetyTimers(now);
+  if (trips.pump_tripped) {
+    pumpAutoTriggered = false;
+    setGardenPumpPin(false);
+    Serial.println("[SAFETY CUTOFF] May bom tuoi cay (D6) da chay qua 120s -> Tu dong NGAT!");
+  }
+  if (trips.siren_tripped) {
+    setAlarmSirenPin(false);
+    Serial.println("[SAFETY CUTOFF] Coi bao dong (D8) ngoai tuyen qua 30s -> Tu dong TAT!");
+  }
+
+  // 7. Cập nhật âm báo PWM không chặn & tự tắt Relay 2 PAM8403 sau 1.5s nghỉ
+  updateTonePlayer(now);
+  if (!tonePlayer.active && speakerAmpChimeActive &&
+      static_cast<long>(now - speakerAmpAutoOffAtMs) >= 0) {
     speakerAmpChimeActive = false;
     applySpeakerAmpRelay();
   }
 
-  // Kiểm tra sự kiện cảm biến âm thanh KY-037 DO (D5) với debounce >= 400ms
+  // 8. Cập nhật nháy enroll_blink hoặc chỉ báo LED kép ngoại tuyến không chặn trên D0
+  if (enrollBlinkActive) {
+    if (static_cast<long>(now - enrollBlinkEndMs) >= 0) {
+      enrollBlinkActive = false;
+      writeLivingLightHardware(livingLightState);
+    }
+  } else {
+    bool desiredLed =
+        OfflineLedPattern::computeLedOutput(livingLightState, onlineNow, now, offlineFsm.offlineSinceMs());
+    writeLivingLightHardware(desiredLed);
+  }
+
+  // 9. Cập nhật 2 tiếng bíp báo mất kết nối 1 lần duy nhất không chặn (không ảnh hưởng khi còi đang ON)
+  if (!alarmSirenState) {
+    bool beepOn = disconnectBeeper.update(now);
+    digitalWrite(PIN_ALARM_SIREN, beepOn ? HIGH : LOW);
+  }
+
+  // 10. Kiểm tra sự kiện cảm biến âm thanh KY-037 DO (D5) với debounce >= 400ms
   if (ky037EdgePending) {
     ky037EdgePending = false;
-    unsigned long nowMs = millis();
-    if (nowMs - lastSoundEventMs >= KY037_DEBOUNCE_MS) {
-      lastSoundEventMs = nowMs;
+    if (now - lastSoundEventMs >= KY037_DEBOUNCE_MS) {
+      lastSoundEventMs = now;
       soundEventCount++;
       publishKy037SoundEvent();
     }
   }
 
-  bool isOnlineNow = (WiFi.status() == WL_CONNECTED && (mqtt.connected() || httpServerReachable));
-  if (wasServerConnected && !isOnlineNow) {
-    setMainDoorState(false);
-    Serial.println("[OFFLINE FAIL-SAFE] Mat ket noi Server -> Tu dong DONG KHOA Cua chinh (D1 = 0 deg)!");
-  }
-  wasServerConnected = isOnlineNow;
-
-  // Nhận lệnh kiểm thử qua cổng Serial (115200 baud)
+  // 11. Nhận lệnh kiểm thử qua cổng Serial (115200 baud)
   if (Serial.available() > 0) {
     String localCmd = Serial.readStringUntil('\n');
     localCmd.trim();
     if (localCmd.length() > 0) {
-      if (isOnlineNow && httpServerReachable) {
+      if (onlineNow && httpServerReachable) {
         HTTPClient http;
         String url = String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/text_command";
+        http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
         if (http.begin(httpWifiClient, url)) {
           http.addHeader("Content-Type", "application/json");
           addHardwareAuthHeaders(http);
@@ -527,7 +958,7 @@ void loop() {
           int code = http.POST(body);
           if (code == 200) {
             playSpeakerFeedbackTone(1);
-            pollLaptopHttpState();
+            pollLaptopHttpState(now);
           }
           http.end();
         }
@@ -537,13 +968,15 @@ void loop() {
     }
   }
 
-  // Đọc cảm biến Nhiệt độ & Độ ẩm DHT11 (Chân D2) & Độ ẩm đất (Chân A0) mỗi 3 giây
-  unsigned long now = millis();
-  if (now - lastTelemetryMs >= 3000) {
+  // 12. Đọc cảm biến Nhiệt độ & Độ ẩm DHT11 (D2) & Độ ẩm đất (A0) mỗi 3 giây
+  if (now - lastTelemetryMs >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryMs = now;
     float h = dht.readHumidity();
     float t = dht.readTemperature();
     if (!isnan(h) && !isnan(t)) {
+      lastTempC = t;
+      lastHumidityPct = h;
+      lastDhtValid = true;
       StaticJsonDocument<256> teleDoc;
       teleDoc["node_id"] = NODE_ID;
       teleDoc["temp_c"] = t;
@@ -555,6 +988,7 @@ void loop() {
         mqtt.publish("smarthome/telemetry/dht11", out.c_str(), false);
       } else if (httpServerReachable) {
         HTTPClient http;
+        http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
         if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/dht11")) {
           http.addHeader("Content-Type", "application/json");
           addHardwareAuthHeaders(http);
@@ -564,15 +998,25 @@ void loop() {
       }
     }
 
-    // Đọc cảm biến Độ ẩm Đất (LM393 nguồn 3.3V -> Chân A0) & Tự động bật Máy bơm (Chân D6)
+    // Đọc cảm biến Độ ẩm Đất (LM393 nguồn 3.3V -> Chân A0) & Tự động bật/tắt Máy bơm (Chân D6)
     int adcSoil = analogRead(PIN_SOIL_MOISTURE);
     float soilPct = constrain(map(adcSoil, 1024, 300, 0, 100), 0, 100);
-    if (soilPct < 40.0f && !pumpAutoTriggered) {
+    lastSoilPct = soilPct;
+
+    if (soilPct >= SOIL_PUMP_OFF_THRESHOLD_PCT) {
+      offlineFsm.notifySoilMoistureWet();
+    }
+
+    // Ngưỡng độ ẩm đất lấy từ SSOT `offline_safety_config.h`
+    // (hợp đồng kiểm thử hồi quy: soilPct < 40.0f && !pumpAutoTriggered / soilPct >= 70.0f && pumpAutoTriggered)
+    if (soilPct < SOIL_PUMP_ON_THRESHOLD_PCT && !pumpAutoTriggered && !offlineFsm.isPumpSafetyLocked()) {
       pumpAutoTriggered = true;
-      setGardenPumpPin(true);   // Đất khô < 40% -> Tự bật Relay 1 Máy bơm (D6)
-    } else if (soilPct >= 70.0f && pumpAutoTriggered) {
+      setGardenPumpPin(true);  // Đất khô < SOIL_PUMP_ON_THRESHOLD_PCT -> Tự bật Relay 1 Máy bơm (D6)
+      offlineFsm.recordDeviceChange(DEV_GARDEN_PUMP, true, now, "soil_auto_offline");
+    } else if (soilPct >= SOIL_PUMP_OFF_THRESHOLD_PCT && pumpAutoTriggered) {
       pumpAutoTriggered = false;
-      setGardenPumpPin(false);  // Đất đủ ẩm >= 70% -> Tự tắt Relay 1 Máy bơm (D6)
+      setGardenPumpPin(false);  // Đất đủ ẩm >= SOIL_PUMP_OFF_THRESHOLD_PCT -> Tự tắt Relay 1 Máy bơm (D6)
+      offlineFsm.recordDeviceChange(DEV_GARDEN_PUMP, false, now, "soil_auto_offline");
     }
 
     StaticJsonDocument<256> soilDoc;
@@ -585,6 +1029,7 @@ void loop() {
       mqtt.publish("smarthome/telemetry/soil_moisture", soilOut.c_str(), false);
     } else if (httpServerReachable) {
       HTTPClient http;
+      http.setTimeout(HTTP_REQUEST_TIMEOUT_MS);
       if (http.begin(httpWifiClient, String("http://") + SERVER_IP + ":" + String(SERVER_PORT) + "/api/soil_moisture")) {
         http.addHeader("Content-Type", "application/json");
         addHardwareAuthHeaders(http);

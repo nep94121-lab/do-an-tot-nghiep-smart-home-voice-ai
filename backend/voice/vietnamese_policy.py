@@ -8,6 +8,10 @@ import unicodedata
 from typing import Any
 
 from backend.engine.constants_and_time import DEFAULT_DEVICES
+from backend.engine.offline_contract import (
+    format_device_offline_reply_vi,
+    format_devices_offline_reply_vi,
+)
 
 try:
     from rapidfuzz import fuzz as _rapidfuzz_fuzz
@@ -123,6 +127,7 @@ _COMMON_VI_WORDS: frozenset[str] = frozenset({
     "de", "van", "hom", "mai", "khuya", "dien", "mat", "don", "ve", "di",
     "an", "viec", "hoc", "nhac", "luong", "khoan", "chut", "xiu", "lat",
     "tru", "troi", "sap", "phai", "hoac", "ben", "phia", "khu", "nhung", "lan",
+    "dieu", "khien", "ngoai", "tuyen", "luu", "y",
 })
 
 _PURE_FILLERS: frozenset[str] = frozenset({
@@ -2546,10 +2551,17 @@ def handle_sensor_or_status_query_vi(
             ]
         summary = ", ".join(f"{d['name']} {d['state_vi']}" for d in devs)
         spoken = f"Trạng thái hiện tại: {summary}." if summary else "Không có thiết bị nào để hiển thị."
+        bh = engine.get_board_health() if hasattr(engine, "get_board_health") else None
+        if isinstance(bh, dict) and not bh.get("online", True):
+            ls_vi = str(bh.get("last_seen_vi") or "").strip()
+            st_vi = str(bh.get("status_vi") or "Mất kết nối").lower()
+            note_off = f" Mạch hiện đang {st_vi}" + (f" (lần cuối: {ls_vi})." if ls_vi else ".")
+            spoken = spoken + note_off
         return {
             "ok": True,
             "kind": "device_status_query",
             "devices": devs,
+            **({"board_health": bh} if isinstance(bh, dict) else {}),
             "reply": spoken,
             "exact_spoken_reply": spoken,
         }
@@ -2596,10 +2608,16 @@ def handle_sensor_or_status_query_vi(
         return None
     joined = ", ".join(statuses)
     spoken = f"{joined[0].upper() + joined[1:]}."
+    bh = engine.get_board_health() if hasattr(engine, "get_board_health") else None
+    if isinstance(bh, dict) and not bh.get("online", True):
+        ls_vi = str(bh.get("last_seen_vi") or "").strip()
+        st_vi = str(bh.get("status_vi") or "Mất kết nối").lower()
+        spoken = spoken + f" Lưu ý: mạch hiện đang {st_vi}" + (f" (lần cuối: {ls_vi})." if ls_vi else ".")
     return {
         "ok": True,
         "kind": "device_status_query",
         "devices": recs,
+        **({"board_health": bh} if isinstance(bh, dict) else {}),
         "reply": spoken,
         "exact_spoken_reply": spoken,
     }
