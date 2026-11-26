@@ -326,6 +326,16 @@
         grid-template-columns: 1fr;
       }
     }
+    @media (max-width: 768px) {
+      .wokwi-stage-layout.has-guide-open .workbench-scroll {
+        max-height: 230px;
+        overflow: auto;
+      }
+      .wokwi-stage-layout.has-guide-open .pcb2d-scroll {
+        max-height: 230px;
+        overflow: auto;
+      }
+    }
 
     .workbench-scroll {
       width: 100%;
