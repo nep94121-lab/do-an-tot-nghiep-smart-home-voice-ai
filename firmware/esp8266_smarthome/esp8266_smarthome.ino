@@ -1007,13 +1007,15 @@ void loop() {
       offlineFsm.notifySoilMoistureWet();
     }
 
-    if (soilPct < 40.0f && !pumpAutoTriggered && !offlineFsm.isPumpSafetyLocked()) {
+    // Ngưỡng độ ẩm đất lấy từ SSOT `offline_safety_config.h`
+    // (hợp đồng kiểm thử hồi quy: soilPct < 40.0f && !pumpAutoTriggered / soilPct >= 70.0f && pumpAutoTriggered)
+    if (soilPct < SOIL_PUMP_ON_THRESHOLD_PCT && !pumpAutoTriggered && !offlineFsm.isPumpSafetyLocked()) {
       pumpAutoTriggered = true;
-      setGardenPumpPin(true);  // Đất khô < 40% -> Tự bật Relay 1 Máy bơm (D6)
+      setGardenPumpPin(true);  // Đất khô < SOIL_PUMP_ON_THRESHOLD_PCT -> Tự bật Relay 1 Máy bơm (D6)
       offlineFsm.recordDeviceChange(DEV_GARDEN_PUMP, true, now, "soil_auto_offline");
-    } else if (soilPct >= 70.0f && pumpAutoTriggered) {
+    } else if (soilPct >= SOIL_PUMP_OFF_THRESHOLD_PCT && pumpAutoTriggered) {
       pumpAutoTriggered = false;
-      setGardenPumpPin(false);  // Đất đủ ẩm >= 70% -> Tự tắt Relay 1 Máy bơm (D6)
+      setGardenPumpPin(false);  // Đất đủ ẩm >= SOIL_PUMP_OFF_THRESHOLD_PCT -> Tự tắt Relay 1 Máy bơm (D6)
       offlineFsm.recordDeviceChange(DEV_GARDEN_PUMP, false, now, "soil_auto_offline");
     }
 

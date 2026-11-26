@@ -29,21 +29,25 @@
 
 // Đồng bộ dự phòng khi chạy độc lập trên trình duyệt Wokwi không có thư mục cha
 #ifndef SMARTHOME_WOKWI_SHARED_OFFLINE_HEADERS
-#define WOKWI_PUMP_MAX_CONTINUOUS_RUN_MS 120000UL
-#define WOKWI_SIREN_MAX_OFFLINE_RUN_MS   30000UL
-#define WOKWI_OFFLINE_LED_CYCLE_MS       4000UL
-#define WOKWI_OFFLINE_LED_PULSE_MS       120UL
-#define WOKWI_OFFLINE_LED_GAP_MS         160UL
+#define WOKWI_PUMP_MAX_CONTINUOUS_RUN_MS  120000UL
+#define WOKWI_SIREN_MAX_OFFLINE_RUN_MS    30000UL
+#define WOKWI_SOIL_PUMP_ON_THRESHOLD_PCT  40.0f
+#define WOKWI_SOIL_PUMP_OFF_THRESHOLD_PCT 70.0f
+#define WOKWI_OFFLINE_LED_CYCLE_MS        4000UL
+#define WOKWI_OFFLINE_LED_PULSE_MS        120UL
+#define WOKWI_OFFLINE_LED_GAP_MS          160UL
 static const char* WOKWI_REPLY_DOOR_FORBIDDEN_VI =
     "Đang mất kết nối máy chủ, tuyệt đối không được phép mở cửa chính.";
 static const char* WOKWI_REPLY_CUSTOM_FORBIDDEN_VI =
     "Đang ngoại tuyến, chỉ hỗ trợ các lệnh bật tắt cơ bản cố định, không hỗ trợ lệnh tùy chỉnh hay đặt lịch.";
 #else
-#define WOKWI_PUMP_MAX_CONTINUOUS_RUN_MS smarthome::offline::PUMP_MAX_CONTINUOUS_RUN_MS
-#define WOKWI_SIREN_MAX_OFFLINE_RUN_MS   smarthome::offline::SIREN_MAX_OFFLINE_RUN_MS
-#define WOKWI_OFFLINE_LED_CYCLE_MS       smarthome::offline::OFFLINE_LED_CYCLE_MS
-#define WOKWI_OFFLINE_LED_PULSE_MS       smarthome::offline::OFFLINE_LED_PULSE_MS
-#define WOKWI_OFFLINE_LED_GAP_MS         smarthome::offline::OFFLINE_LED_GAP_MS
+#define WOKWI_PUMP_MAX_CONTINUOUS_RUN_MS  smarthome::offline::PUMP_MAX_CONTINUOUS_RUN_MS
+#define WOKWI_SIREN_MAX_OFFLINE_RUN_MS    smarthome::offline::SIREN_MAX_OFFLINE_RUN_MS
+#define WOKWI_SOIL_PUMP_ON_THRESHOLD_PCT  smarthome::offline::SOIL_PUMP_ON_THRESHOLD_PCT
+#define WOKWI_SOIL_PUMP_OFF_THRESHOLD_PCT smarthome::offline::SOIL_PUMP_OFF_THRESHOLD_PCT
+#define WOKWI_OFFLINE_LED_CYCLE_MS        smarthome::offline::OFFLINE_LED_CYCLE_MS
+#define WOKWI_OFFLINE_LED_PULSE_MS        smarthome::offline::OFFLINE_LED_PULSE_MS
+#define WOKWI_OFFLINE_LED_GAP_MS          smarthome::offline::OFFLINE_LED_GAP_MS
 static const char* WOKWI_REPLY_DOOR_FORBIDDEN_VI =
     smarthome::offline::REPLY_DOOR_OPEN_FORBIDDEN_VI;
 static const char* WOKWI_REPLY_CUSTOM_FORBIDDEN_VI =
@@ -325,19 +329,19 @@ void loop() {
     Serial.print(soilPct, 1);
     Serial.print("% | ");
 
-    if (soilPct >= 70.0f) {
+    if (soilPct >= WOKWI_SOIL_PUMP_OFF_THRESHOLD_PCT) {
       pumpSafetyLocked = false;
     }
 
-    // Tự động bật/tắt Relay 1 Máy bơm (D6/GPIO12) theo ngưỡng Hysteresis <40% ON / >=70% OFF
-    if (soilPct < 40.0f && !pumpAutoTriggered && !pumpSafetyLocked) {
+    // Tự động bật/tắt Relay 1 Máy bơm (D6/GPIO12) theo ngưỡng Hysteresis SSOT
+    if (soilPct < WOKWI_SOIL_PUMP_ON_THRESHOLD_PCT && !pumpAutoTriggered && !pumpSafetyLocked) {
       pumpAutoTriggered = true;
       setWokwiPump(true, now);
-      Serial.println("DAT KHO (<40%) -> TU DONG BAT RELAY 1 MAY BOM (D6=HIGH)!");
-    } else if (soilPct >= 70.0f && pumpAutoTriggered) {
+      Serial.println("DAT KHO (<SOIL_PUMP_ON_THRESHOLD_PCT) -> TU DONG BAT RELAY 1 MAY BOM (D6=HIGH)!");
+    } else if (soilPct >= WOKWI_SOIL_PUMP_OFF_THRESHOLD_PCT && pumpAutoTriggered) {
       pumpAutoTriggered = false;
       setWokwiPump(false, now);
-      Serial.println("DAT DU AM (>=70%) -> TU DONG TAT RELAY 1 MAY BOM (D6=LOW)!");
+      Serial.println("DAT DU AM (>=SOIL_PUMP_OFF_THRESHOLD_PCT) -> TU DONG TAT RELAY 1 MAY BOM (D6=LOW)!");
     } else {
       Serial.println(gardenPumpState ? "May bom dang CHAY (ON)" : "May bom dang TAT (OFF)");
     }
