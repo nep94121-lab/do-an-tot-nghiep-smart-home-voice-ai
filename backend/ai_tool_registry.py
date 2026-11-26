@@ -1259,7 +1259,10 @@ async def dispatch_tool(
             )
             res_set.setdefault("executed", bool(res_set.get("ok")))
             res_set.setdefault("requires_confirmation", False)
-            return _wrap_payload(res_set, status_code=403 if res_set.get("rbac_blocked") else (200 if res_set.get("ok") else 400))
+            return _wrap_payload(
+                res_set,
+                status_code=503 if res_set.get("board_offline") else (403 if res_set.get("rbac_blocked") else (200 if res_set.get("ok") else 400)),
+            )
         res_ctrl = await engine.execute_device_action(
             device_id=dev_id,
             action=act,
@@ -1271,7 +1274,10 @@ async def dispatch_tool(
         )
         res_ctrl.setdefault("executed", bool(res_ctrl.get("ok")))
         res_ctrl.setdefault("requires_confirmation", False)
-        return _wrap_payload(res_ctrl, status_code=403 if res_ctrl.get("rbac_blocked") else (200 if res_ctrl.get("ok") else 400))
+        return _wrap_payload(
+            res_ctrl,
+            status_code=503 if res_ctrl.get("board_offline") else (403 if res_ctrl.get("rbac_blocked") else (200 if res_ctrl.get("ok") else 400)),
+        )
 
     if name == "read_sensors":
         sensors = engine.read_all_sensors()

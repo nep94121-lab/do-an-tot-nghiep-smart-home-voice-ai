@@ -386,7 +386,7 @@ class _OfflineFsmModel:
             "hen gio", "dat lich", "tao lich", "lich trinh", "phut nua", "giay nua", "gio nua",
             "tu dong", "tao luat", "them luat", "luat moi", "luat tu dong", "dieu kien", "neu",
             "khi nao", "tao lenh", "them lenh", "lenh tuy chinh", "khau lenh", "tuy chinh",
-            "vung oi", "kich ban", "che do ngu", "che do ra ngoai", "che do ve nha", "che do chieu",
+            "kich ban", "che do ngu", "che do ra ngoai", "che do ve nha", "che do chieu",
             "schedule", "timer", "cron", "custom", "automation", "rule", "create_timer", "add_rule",
         )
         if any(_contains_phrase(norm, p) for p in forbidden_keywords) or (
@@ -929,7 +929,7 @@ def test_addendum_a2_fixed_basic_commands_zero_roles_and_custom_refusal() -> Non
     on_vi = ACTION_VI_LABEL["turn_on"].lower()
     off_vi = ACTION_VI_LABEL["turn_off"].lower()
     refused_cmds = (
-        "vừng ơi mở ra",
+        f"mật mã tự đặt {sample_toggle_id}",
         f"hẹn giờ {off_vi} {sample_name_vi}",
         f"{on_vi} {sample_name_vi} sau 5 phút",
         f"đặt lịch {on_vi} {sample_name_vi} lúc 6 giờ",

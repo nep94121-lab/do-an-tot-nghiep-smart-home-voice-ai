@@ -78,7 +78,6 @@ _SCHEDULE_OR_CUSTOM_PATTERNS = (
     r"\bđổi\s*từ\b",
     r"\blệnh\s*tùy\s*chỉnh\b",
     r"\btùy\s*chỉnh\b",
-    r"\bvừng\s*ơi\b",
     r"\bchế\s*độ\s*đi\s*ngủ\b",
     r"\bchế\s*độ\s*về\s*nhà\b",
     r"\bchế\s*độ\s*ra\s*ngoài\b",
@@ -86,7 +85,6 @@ _SCHEDULE_OR_CUSTOM_PATTERNS = (
     r"\bhen\s*gio\b",
     r"\bdat\s*lich\b",
     r"\blenh\s*tuy\s*chinh\b",
-    r"\bvung\s*oi\b",
 )
 
 

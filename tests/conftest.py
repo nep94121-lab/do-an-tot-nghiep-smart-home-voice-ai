@@ -185,8 +185,8 @@ def _reset_engine_board_health_online(engine: Any) -> None:
     now_ts = time.time()
     try:
         tracker = getattr(engine, "board_health", None)
-        if tracker is not None and hasattr(tracker, "reset_online"):
-            bh = tracker.reset_online(now=now_ts)
+        if tracker is not None and (hasattr(tracker, "detach") or hasattr(tracker, "reset_online")):
+            bh = tracker.detach(now=now_ts) if hasattr(tracker, "detach") else tracker.reset_online(now=now_ts)
             mb = getattr(engine, "mqtt_bridge", None)
             if mb is not None and hasattr(mb, "sync_from_board_health"):
                 mb.sync_from_board_health(bh)

@@ -483,7 +483,7 @@ def test_04_a1_a2_local_offline_voice_no_roles_and_custom_refusal(live_offline_s
 
     # Custom commands & schedules must be refused with HTTP 400 (Addendum A2)
     custom_phrases = [
-        "vừng ơi mở ra",
+        f"mật mã tự đặt {secrets.token_hex(3)}",
         f"hẹn giờ {_vi_cmd(primary_dev, 'turn_off')} sau 5 phút",
         "tạo lệnh tùy chỉnh chế độ đi ngủ",
     ]

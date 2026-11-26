@@ -182,7 +182,7 @@ def _reset_engine_devices_fast(eng: SmartHomeEngine) -> None:
         eng.server_connected = True
         eng.pump_manual_override_off = False
         eng.house_mode = "HOME"
-        bh = eng.board_health.reset_online(now=now_ts)
+        bh = eng.board_health.detach(now=now_ts)
         eng.mqtt_bridge.sync_from_board_health(bh)
     finally:
         eng._applying_shared_state_depth = max(0, eng._applying_shared_state_depth - 1)
@@ -361,7 +361,8 @@ def test_rest_device_control_returns_503_and_zero_mutation_when_board_offline(
     before_state = str(eng.devices[dev_id]["state"])
     before_version = int(eng.devices[dev_id].get("version", 1))
 
-    # Force board offline via timeout
+    # Force board offline via timeout (after hardware has attached)
+    eng.record_board_heartbeat(node_id="esp8266_node_01", persist=False)
     eng.board_health.last_seen = time.time() - (get_board_heartbeat_timeout_sec() + 5.0)
     eng.persist_to_shared_store()
 
@@ -715,7 +716,8 @@ def test_realtime_hub_receives_sse_push_on_timeout_and_resync(
         loop = asyncio.get_running_loop()
         sub = hub.register(sessions[1], loop=loop)
         try:
-            # 1. Timeout transition pushes OFFLINE snapshot
+            # 1. Timeout transition pushes OFFLINE snapshot (after hardware has attached)
+            eng.record_board_heartbeat(node_id="esp8266_node_01", persist=False)
             eng.board_health.last_seen = time.time() - (get_board_heartbeat_timeout_sec() + 5.0)
             transition, _bh = eng.check_board_heartbeat_transition()
             assert transition == "ONLINE_TO_OFFLINE"
@@ -833,3 +835,314 @@ def test_offline_contract_parity_with_registry_wiring_and_firmware_header() -> N
 
         for dev_id in DEFAULT_DEVICES:
             assert f'"{dev_id}"' in hdr_text, f"Missing device_id {dev_id!r} in {hdr_path}"
+
+
+# ==============================================================================
+# (g) S2 REVIEW MUST_FIX REGRESSION TESTS (COLD START, DETACH, 503 VOICE/NLU/WS)
+# ==============================================================================
+
+
+def test_boardless_cold_start_stays_online_past_timeout_and_strict_env_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S2-MF-1: Board-less cold start must stay ONLINE past heartbeat timeout unless opt-in env is set."""
+    monkeypatch.delenv("SMARTHOME_REQUIRE_BOARD_HEARTBEAT", raising=False)
+    monkeypatch.setenv("SMARTHOME_BOARD_HEARTBEAT_TIMEOUT_SEC", "5.0")
+
+    t0 = 1_700_000_000.0
+    tracker = BoardHealthTracker(now=t0)
+    assert tracker.hardware_attached is False
+
+    # 120s later (> 5s timeout), board-less prod stays ONLINE with zero transition
+    bh_later = tracker.evaluate_board_health(now=t0 + 120.0)
+    assert bh_later["online"] is True
+    assert bh_later["hardware_attached"] is False
+    assert bh_later["status"] == BOARD_STATUS_ONLINE
+    tr, _ = tracker.check_transition(now=t0 + 120.0)
+    assert tr is None
+
+    # Opt-in SMARTHOME_REQUIRE_BOARD_HEARTBEAT=1 enforces timeout even before hardware attaches
+    monkeypatch.setenv("SMARTHOME_REQUIRE_BOARD_HEARTBEAT", "1")
+    tr_strict, bh_strict = tracker.check_transition(now=t0 + 120.0)
+    assert tr_strict == "ONLINE_TO_OFFLINE"
+    assert bh_strict["online"] is False
+    assert bh_strict["status"] == BOARD_STATUS_OFFLINE
+
+
+def test_hardware_attach_timeout_and_detach_restores_clean_online_state(
+    isolated_offline_test_env: SmartHomeEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S2-MF-1: Mock/physical board attaches on heartbeat, times out cleanly, and POST /api/hardware/detach restores prod."""
+    monkeypatch.delenv("SMARTHOME_REQUIRE_BOARD_HEARTBEAT", raising=False)
+    monkeypatch.setenv("SMARTHOME_BOARD_HEARTBEAT_TIMEOUT_SEC", "5.0")
+    client = TestClient(app)
+    sessions = _make_tier_sessions()
+    eng = isolated_offline_test_env
+
+    # RBAC on POST /api/hardware/detach: unauth -> 401, Cap 2 / Cap 3 -> 403
+    assert client.post("/api/hardware/detach", json={}).status_code == 401
+    assert client.post(
+        "/api/hardware/detach",
+        headers={"X-Session-Token": sessions[2].session_id},
+        json={},
+    ).status_code == 403
+    assert client.post(
+        "/api/hardware/detach",
+        headers={"X-Session-Token": sessions[3].session_id},
+        json={},
+    ).status_code == 403
+
+    # 1. QA mock board sends heartbeat -> attaches hardware & overrides node_id
+    r_hb = client.post(
+        "/api/hardware/heartbeat",
+        headers={"X-Hardware-Key": HW_KEY_TEST},
+        json={"node_id": "qa-mock-board-s4-20261126", "wifi_rssi_dbm": -45},
+    )
+    assert r_hb.status_code == 200
+    assert r_hb.json()["board_health"]["hardware_attached"] is True
+    assert r_hb.json()["board_health"]["node_id"] == "qa-mock-board-s4-20261126"
+
+    # 2. Stopping mock board causes heartbeat timeout -> OFFLINE (HTTP 503)
+    eng.board_health.last_seen = time.time() - 20.0
+    tr, bh_off = eng.check_board_heartbeat_transition()
+    assert tr == "ONLINE_TO_OFFLINE"
+    assert bh_off["online"] is False
+
+    # 3. POST /api/hardware/detach (Cap 1 Owner) restores clean board-less ONLINE state & default node_id
+    r_det = client.post(
+        "/api/hardware/detach",
+        headers={"X-Session-Token": sessions[1].session_id},
+        json={},
+    )
+    assert r_det.status_code == 200
+    det_bh = r_det.json()["board_health"]
+    assert r_det.json()["detached"] is True
+    assert det_bh["online"] is True
+    assert det_bh["hardware_attached"] is False
+    assert det_bh["node_id"] == "esp8266_node_01"
+    assert det_bh["offline_since"] is None
+
+    # 4. Even 120s later with zero heartbeats, board stays ONLINE and device control succeeds (HTTP 200)
+    eng.board_health.last_seen = time.time() - 120.0
+    assert eng.check_board_heartbeat_transition()[0] is None
+    assert eng.is_board_online() is True
+    non_door_id = next(d for d, m in DEFAULT_DEVICES.items() if m["type"] != "door")
+    r_dev = client.post(
+        "/api/device",
+        headers={"X-Session-Token": sessions[1].session_id},
+        json={"device_id": non_door_id, "action": "turn_on", "source": "web_dashboard"},
+    )
+    assert r_dev.status_code == 200 and r_dev.json()["ok"] is True
+
+
+def test_owner_ui_sensor_simulation_does_not_attach_hardware_timeout(
+    isolated_offline_test_env: SmartHomeEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S2-MF-1: Owner simulating sensors from Web UI must not arm 30s hardware heartbeat lockout."""
+    monkeypatch.delenv("SMARTHOME_REQUIRE_BOARD_HEARTBEAT", raising=False)
+    monkeypatch.setenv("SMARTHOME_BOARD_HEARTBEAT_TIMEOUT_SEC", "5.0")
+    client = TestClient(app)
+    sessions = _make_tier_sessions()
+    eng = isolated_offline_test_env
+
+    assert eng.board_health.hardware_attached is False
+    r_dht = client.post(
+        "/api/dht11",
+        headers={"X-Session-Token": sessions[1].session_id},
+        json={"temp_c": 30.0, "humidity_pct": 62.0},
+    )
+    assert r_dht.status_code == 200
+    assert eng.board_health.hardware_attached is False
+    eng.board_health.last_seen = time.time() - 60.0
+    assert eng.is_board_online() is True
+
+
+def test_voice_command_endpoint_returns_503_and_offline_metadata(
+    isolated_offline_test_env: SmartHomeEngine,
+) -> None:
+    """S2-MF-2: POST /api/voice_command must return HTTP 503 with full board_offline metadata."""
+    client = TestClient(app)
+    sessions = _make_tier_sessions()
+    eng = isolated_offline_test_env
+
+    client.post(
+        "/api/hardware/lwt",
+        headers={"X-Hardware-Key": HW_KEY_TEST},
+        json={"node_id": "esp8266_node_01", "online": False},
+    )
+    assert eng.is_board_online() is False
+
+    non_door_id = next(d for d, m in DEFAULT_DEVICES.items() if m["type"] != "door")
+    cmd_vi = _build_vi_command_from_registry(non_door_id, "turn_on")
+    resp = client.post(
+        "/api/voice_command",
+        headers={"X-Session-Token": sessions[1].session_id},
+        json={"transcript": cmd_vi, "source": "web_voice"},
+    )
+    assert resp.status_code == 503, f"Expected 503 from /api/voice_command, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["executed"] is False
+    assert body["board_offline"] is True
+    assert body["delivery_status"] == "BOARD_OFFLINE"
+    assert body["rejection_speech"]
+    assert body["last_seen"]
+    assert body["last_seen_vi"]
+    assert body["board_health"]["online"] is False
+    _assert_no_false_success_vi(str(body.get("exact_spoken_reply") or ""), DEFAULT_DEVICES[non_door_id]["name"])
+
+
+def test_automation_nlu_custom_command_reset_devices_and_ai_tool_registry_return_503_offline(
+    isolated_offline_test_env: SmartHomeEngine,
+) -> None:
+    """S2-MF-3: Saved custom commands, reset_devices, and ai_tool_registry must return 503 offline (no false success)."""
+    from backend.ai_tool_registry import dispatch_tool
+    from backend.automation_nlu import execute_confirmed_mutation
+    from backend.automation_repo import upsert_custom_command
+
+    client = TestClient(app)
+    sessions = _make_tier_sessions()
+    eng = isolated_offline_test_env
+
+    non_door_id = next(d for d, m in DEFAULT_DEVICES.items() if m["type"] != "door")
+    custom_phrase = f"khởi chạy kiểm tra {uuid.uuid4().hex[:6]}"
+    upsert_custom_command(
+        owner_user_id=sessions[1].user_id,
+        owner_name=sessions[1].display_name,
+        owner_tier=1,
+        phrase=custom_phrase,
+        steps=[{"device_id": non_door_id, "action": "turn_on"}],
+    )
+
+    # Take board offline via LWT
+    client.post(
+        "/api/hardware/lwt",
+        headers={"X-Hardware-Key": HW_KEY_TEST},
+        json={"node_id": "esp8266_node_01", "online": False},
+    )
+    assert eng.is_board_online() is False
+
+    # 1. Saved custom command via /api/text_command (stage -> confirm) -> HTTP 503, ok=False, executed=False
+    r_stage = client.post(
+        "/api/text_command",
+        headers={"X-Session-Token": sessions[1].session_id},
+        json={"text": custom_phrase},
+    )
+    if r_stage.status_code == 200 and r_stage.json().get("requires_confirmation"):
+        r_cc = client.post(
+            "/api/text_command",
+            headers={"X-Session-Token": sessions[1].session_id},
+            json={"text": "đồng ý"},
+        )
+    else:
+        r_cc = r_stage
+    assert r_cc.status_code == 503, f"Expected 503 for custom command offline, got {r_cc.status_code}: {r_cc.text}"
+    cc_body = r_cc.json()
+    assert cc_body["ok"] is False
+    assert cc_body["executed"] is False
+    assert cc_body["board_offline"] is True
+    assert cc_body["delivery_status"] == "BOARD_OFFLINE"
+    _assert_no_false_success_vi(str(cc_body.get("exact_spoken_reply") or ""), DEFAULT_DEVICES[non_door_id]["name"])
+
+    # 2. reset_devices via automation_nlu -> status_code=503, ok=False, executed=False
+    rst_res = asyncio.run(
+        execute_confirmed_mutation(
+            action_kind="reset_devices",
+            payload={},
+            engine=eng,
+            session=sessions[1],
+            source="text_command",
+        )
+    )
+    assert rst_res["status_code"] == 503
+    rst_pl = rst_res["payload"]
+    assert rst_pl["ok"] is False
+    assert rst_pl["executed"] is False
+    assert rst_pl["board_offline"] is True
+    assert rst_pl["delivery_status"] == "BOARD_OFFLINE"
+    _assert_no_false_success_vi(str(rst_pl.get("exact_spoken_reply") or ""))
+
+    # 3. ai_tool_registry set_device & control_device -> status_code=503
+    for tool_name in ("set_device", "control_device"):
+        tool_res = asyncio.run(
+            dispatch_tool(
+                tool_name,
+                {"device_id": non_door_id, "action": "turn_on"},
+                engine=eng,
+                session=sessions[1],
+                source="text_command",
+                session_key="s2_mf3_test",
+            )
+        )
+        assert tool_res["status_code"] == 503, f"{tool_name} expected 503, got {tool_res}"
+        tool_body = tool_res.get("payload") if isinstance(tool_res.get("payload"), dict) else tool_res
+        assert tool_body.get("board_offline") is True
+
+
+def test_ws_manual_toggle_offline_emits_offline_ack_and_offline_speech_not_rbac(
+    isolated_offline_test_env: SmartHomeEngine,
+) -> None:
+    """S2-MF-4: WS manual_toggle when board is offline must include offline metadata and speak offline refusal (not RBAC)."""
+    import json
+    from fastapi import WebSocketDisconnect
+    from backend.live.gemini_bridge import LiveBridgeSession
+    from backend.live.tts_rejection_vi import FIXED_REJECTION_PHRASE_VI
+
+    eng = isolated_offline_test_env
+    sessions = _make_tier_sessions()
+    sess = sessions[1]
+    eng.record_board_lwt(online=False, node_id="esp8266_node_01")
+    non_door_id = next(d for d, m in DEFAULT_DEVICES.items() if m["type"] != "door")
+
+    async def _run_ws() -> list[dict[str, Any]]:
+        sent_frames: list[dict[str, Any]] = []
+        incoming = [
+            json.dumps({
+                "type": "manual_toggle",
+                "device_id": non_door_id,
+                "action": "turn_on",
+                "request_id": "req-s2-mf4",
+            })
+        ]
+        fake_ws = AsyncMock()
+        fake_ws.headers = {}
+        fake_ws.cookies = {}
+        fake_ws.query_params = {}
+
+        async def _recv_text() -> str:
+            if incoming:
+                return incoming.pop(0)
+            raise WebSocketDisconnect(code=1000)
+
+        async def _send_text(raw: str) -> None:
+            sent_frames.append(json.loads(raw))
+
+        fake_ws.receive_text = AsyncMock(side_effect=_recv_text)
+        fake_ws.send_text = AsyncMock(side_effect=_send_text)
+
+        bridge = LiveBridgeSession(
+            ws=fake_ws,
+            engine=eng.create_isolated_ws_view(),
+            ws_session=sess,
+        )
+        await bridge.run()
+        return sent_frames
+
+    frames = asyncio.run(_run_ws())
+    acks = [f for f in frames if f.get("type") == "manual_toggle_ack"]
+    assert acks, f"Expected manual_toggle_ack in frames: {frames}"
+    ack = acks[0]
+    assert ack["ok"] is False
+    assert ack["rbac_blocked"] is False
+    assert ack["board_offline"] is True
+    assert ack["delivery_status"] == "BOARD_OFFLINE"
+    assert ack["last_seen_vi"]
+    assert ack["board_health"]["online"] is False
+
+    aoede_reqs = [f for f in frames if f.get("type") == "aoede_voice_request"]
+    assert aoede_reqs, f"Expected aoede_voice_request for offline manual_toggle: {frames}"
+    spoken = str(aoede_reqs[0].get("spoken_phrase") or "")
+    assert spoken != FIXED_REJECTION_PHRASE_VI, "Offline manual_toggle must NOT play RBAC denial audio!"
+    _assert_no_false_success_vi(spoken, DEFAULT_DEVICES[non_door_id]["name"])

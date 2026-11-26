@@ -2508,6 +2508,37 @@ async def execute_confirmed_mutation(
                             target=td,
                             extra={"results": results},
                         )
+                    if not res.get("ok") and res.get("board_offline"):
+                        bh_off = res.get("board_health") or (
+                            engine.get_board_health() if hasattr(engine, "get_board_health") else {}
+                        )
+                        err_msg = str(
+                            res.get("exact_spoken_reply")
+                            or res.get("error")
+                            or "Mạch điều khiển hiện đang mất kết nối."
+                        )
+                        return {
+                            "handled": True,
+                            "status_code": 503,
+                            "payload": {
+                                "ok": False,
+                                "confirmed": False,
+                                "executed": False,
+                                "board_offline": True,
+                                "delivery_status": "BOARD_OFFLINE",
+                                "kind": "custom_command_board_offline",
+                                "command": matched_cmd,
+                                "results": results,
+                                "last_seen": res.get("last_seen", bh_off.get("last_seen")),
+                                "last_seen_vi": res.get("last_seen_vi", bh_off.get("last_seen_vi", "")),
+                                "board_health": bh_off,
+                                "error": err_msg,
+                                "reply": err_msg,
+                                "exact_spoken_reply": err_msg,
+                                "rejection_speech": err_msg,
+                                "snapshot": engine.get_snapshot(session=session, sync=False),
+                            },
+                        }
                     new_st = str((engine.devices.get(td) or {}).get("state") or "")
                     exec_items.append({
                         "device_id": td,
@@ -2602,6 +2633,36 @@ async def execute_confirmed_mutation(
                 trigger_chains=False,
             )
             reset_results.append(r_dev)
+            if not r_dev.get("ok") and r_dev.get("board_offline"):
+                bh_off = r_dev.get("board_health") or (
+                    engine.get_board_health() if hasattr(engine, "get_board_health") else {}
+                )
+                err_msg = str(
+                    r_dev.get("exact_spoken_reply")
+                    or r_dev.get("error")
+                    or "Mạch điều khiển hiện đang mất kết nối."
+                )
+                return {
+                    "handled": True,
+                    "status_code": 503,
+                    "payload": {
+                        "ok": False,
+                        "confirmed": False,
+                        "executed": False,
+                        "board_offline": True,
+                        "delivery_status": "BOARD_OFFLINE",
+                        "kind": "devices_reset_board_offline",
+                        "results": reset_results,
+                        "last_seen": r_dev.get("last_seen", bh_off.get("last_seen")),
+                        "last_seen_vi": r_dev.get("last_seen_vi", bh_off.get("last_seen_vi", "")),
+                        "board_health": bh_off,
+                        "error": err_msg,
+                        "reply": err_msg,
+                        "exact_spoken_reply": err_msg,
+                        "rejection_speech": err_msg,
+                        "snapshot": engine.get_snapshot(session=session, sync=False),
+                    },
+                }
         await engine.emit({"type": "state_snapshot", "snapshot": engine.get_snapshot()})
         snap = engine.get_snapshot(session=session, sync=False)
         spoken = "Đã đặt lại trạng thái các thiết bị về mặc định."

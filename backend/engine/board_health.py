@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import threading
 import time
 from typing import Any
@@ -17,6 +18,12 @@ BOARD_STATUS_ONLINE = "ONLINE"
 BOARD_STATUS_OFFLINE = "OFFLINE"
 BOARD_STATUS_VI_ONLINE = "Đang kết nối"
 BOARD_STATUS_VI_OFFLINE = "Mất kết nối"
+
+
+def is_board_heartbeat_required() -> bool:
+    """Opt-in strict mode requiring continuous board heartbeats even before any hardware attaches."""
+    raw = str(os.environ.get("SMARTHOME_REQUIRE_BOARD_HEARTBEAT", "") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
 
 
 def _clamp_rssi(val: Any, fallback: int = -52) -> int:
@@ -49,10 +56,12 @@ class BoardHealthTracker:
         node_id: str = DEFAULT_BOARD_NODE_ID,
         *,
         now: float | None = None,
+        hardware_attached: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         t0 = float(time.time() if now is None else now)
         self.node_id: str = str(node_id or DEFAULT_BOARD_NODE_ID)
+        self.hardware_attached: bool = bool(hardware_attached)
         self.last_seen: float = t0
         self.lwt_online: bool = True
         self.offline_since: float | None = None
@@ -71,7 +80,8 @@ class BoardHealthTracker:
             cur = float(time.time() if now is None else now)
             timeout_sec = float(get_board_heartbeat_timeout_sec())
             age_sec = max(0.0, cur - float(self.last_seen or 0.0))
-            timed_out = age_sec > timeout_sec
+            heartbeat_required = bool(self.hardware_attached or is_board_heartbeat_required())
+            timed_out = bool(heartbeat_required and age_sec > timeout_sec)
             online = bool(self.lwt_online and not timed_out)
             if not online:
                 if self.offline_since is None:
@@ -85,6 +95,7 @@ class BoardHealthTracker:
 
             return {
                 "node_id": self.node_id,
+                "hardware_attached": bool(self.hardware_attached),
                 "online": online,
                 "status": BOARD_STATUS_ONLINE if online else BOARD_STATUS_OFFLINE,
                 "status_vi": BOARD_STATUS_VI_ONLINE if online else BOARD_STATUS_VI_OFFLINE,
@@ -114,6 +125,7 @@ class BoardHealthTracker:
         uptime_ms: Any = None,
         firmware_mode: str | None = None,
         now: float | None = None,
+        mark_attached: bool = True,
     ) -> tuple[dict[str, Any], bool]:
         """Refresh `last_seen`, mark `lwt_online=True`, and return `(board_health, recovered)`."""
         with self._lock:
@@ -121,6 +133,8 @@ class BoardHealthTracker:
             was_online_live = bool(self.evaluate_board_health(now=cur)["online"])
             recovered = (not self._last_evaluated_online) or (not was_online_live)
 
+            if mark_attached:
+                self.hardware_attached = True
             if node_id:
                 self.node_id = str(node_id).strip()[:64] or self.node_id
             if wifi_rssi_dbm is not None:
@@ -149,6 +163,7 @@ class BoardHealthTracker:
         with self._lock:
             cur = float(time.time() if now is None else now)
             prev_online = bool(self.evaluate_board_health(now=cur)["online"]) and self._last_evaluated_online
+            self.hardware_attached = True
             if node_id:
                 self.node_id = str(node_id).strip()[:64] or self.node_id
             target_online = bool(online)
@@ -178,6 +193,7 @@ class BoardHealthTracker:
         """Record an Addendum A4 reconnect resync event and mark board online."""
         with self._lock:
             cur = float(time.time() if now is None else now)
+            self.hardware_attached = True
             if node_id:
                 self.node_id = str(node_id).strip()[:64] or self.node_id
             if wifi_rssi_dbm is not None:
@@ -219,11 +235,25 @@ class BoardHealthTracker:
             self._last_evaluated_online = True
             return self.evaluate_board_health(now=cur)
 
+    def detach(self, now: float | None = None) -> dict[str, Any]:
+        """Detach physical/mock hardware monitoring and restore clean board-less ONLINE state."""
+        with self._lock:
+            cur = float(time.time() if now is None else now)
+            self.hardware_attached = False
+            self.node_id = DEFAULT_BOARD_NODE_ID
+            self.last_seen = cur
+            self.lwt_online = True
+            self.offline_since = None
+            self.firmware_mode = "ONLINE"
+            self._last_evaluated_online = True
+            return self.evaluate_board_health(now=cur)
+
     def to_shared_dict(self) -> dict[str, Any]:
         """Serialize tracker state for shared state store persistence."""
         with self._lock:
             return {
                 "node_id": self.node_id,
+                "hardware_attached": bool(self.hardware_attached),
                 "last_seen": float(self.last_seen),
                 "lwt_online": bool(self.lwt_online),
                 "offline_since": float(self.offline_since) if self.offline_since is not None else None,
@@ -243,6 +273,8 @@ class BoardHealthTracker:
         with self._lock:
             if data.get("node_id"):
                 self.node_id = str(data["node_id"])
+            if "hardware_attached" in data:
+                self.hardware_attached = bool(data["hardware_attached"])
             if "last_seen" in data and data["last_seen"] is not None:
                 try:
                     ts = float(data["last_seen"])
@@ -312,6 +344,7 @@ __all__ = [
     "BOARD_STATUS_OFFLINE",
     "BOARD_STATUS_VI_ONLINE",
     "BOARD_STATUS_VI_OFFLINE",
+    "is_board_heartbeat_required",
     "BoardHealthTracker",
     "evaluate_board_health",
     "enrich_device_with_board_health",

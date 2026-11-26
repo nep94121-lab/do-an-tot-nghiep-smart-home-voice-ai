@@ -176,8 +176,7 @@ void handleWokwiOfflineCommand(String cmd, unsigned long nowMs) {
 #else
   String lower = cmd;
   lower.toLowerCase();
-  if (lower.indexOf("hen gio") >= 0 || lower.indexOf("hẹn giờ") >= 0 ||
-      lower.indexOf("vung oi") >= 0 || lower.indexOf("vừng ơi") >= 0) {
+  if (lower.indexOf("hen gio") >= 0 || lower.indexOf("hẹn giờ") >= 0) {
     Serial.print("[WOKWI OFFLINE TU CHOI] CUSTOM_OR_ADVANCED_FORBIDDEN_OFFLINE | ");
     Serial.println(WOKWI_REPLY_CUSTOM_FORBIDDEN_VI);
     return;

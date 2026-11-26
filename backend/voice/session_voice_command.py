@@ -556,7 +556,8 @@ async def execute_session_voice_intents(
         else:
             is_executed_comp = is_ok_comp and not is_pending_comp and not is_clarify_comp
         is_blocked_comp = bool(comp_payload.get("rbac_blocked"))
-        http_status_comp = int(comp_res.get("status_code") or (403 if is_blocked_comp else 200))
+        is_offline_comp = bool(comp_payload.get("board_offline"))
+        http_status_comp = 503 if is_offline_comp else int(comp_res.get("status_code") or (403 if is_blocked_comp else 200))
         return _strip_legacy_repeat_speech({
             **comp_payload,
             "ok": is_ok_comp,
@@ -576,7 +577,7 @@ async def execute_session_voice_intents(
             "user_name": session.display_name,
             "reply": spoken_comp,
             "exact_spoken_reply": spoken_comp,
-            "rejection_speech": spoken_comp if is_blocked_comp else "",
+            "rejection_speech": spoken_comp if (is_blocked_comp or is_offline_comp) else "",
             "reply_text": spoken_comp,
             **aoede_fields_comp,
         })
@@ -607,7 +608,8 @@ async def execute_session_voice_intents(
         else:
             is_executed_nlu = is_ok_nlu and not is_pending_nlu and not is_clarify_nlu
         is_blocked_nlu = bool(nlu_payload.get("rbac_blocked"))
-        http_status_nlu = int(nlu_res.get("status_code") or (403 if is_blocked_nlu else 200))
+        is_offline_nlu = bool(nlu_payload.get("board_offline"))
+        http_status_nlu = 503 if is_offline_nlu else int(nlu_res.get("status_code") or (403 if is_blocked_nlu else 200))
         return _strip_legacy_repeat_speech({
             **nlu_payload,
             "ok": is_ok_nlu,
@@ -627,7 +629,7 @@ async def execute_session_voice_intents(
             "user_name": session.display_name,
             "reply": spoken_nlu,
             "exact_spoken_reply": spoken_nlu,
-            "rejection_speech": spoken_nlu if is_blocked_nlu else "",
+            "rejection_speech": spoken_nlu if (is_blocked_nlu or is_offline_nlu) else "",
             "reply_text": spoken_nlu,
             **aoede_fields_nlu,
         })
@@ -702,16 +704,19 @@ async def execute_session_voice_intents(
             )
             if not res.get("ok"):
                 is_blk = bool(res.get("rbac_blocked"))
+                is_offline = bool(res.get("board_offline"))
                 err_txt = ensure_vietnamese_reply(
                     FIXED_REJECTION_PHRASE_VI if is_blk else str(res.get("exact_spoken_reply") or res.get("error") or "Không thực hiện được lệnh.")
                 )
                 aoede_err = await _synthesize_voice_reply_fields(err_txt, echo_guard)
-                return _strip_legacy_repeat_speech({
+                err_out: dict[str, Any] = {
                     "ok": False,
-                    "http_status": 403 if is_blk else 400,
+                    "http_status": 503 if is_offline else (403 if is_blk else 400),
                     "executed": False,
                     "requires_confirmation": False,
                     "rbac_blocked": is_blk,
+                    "board_offline": is_offline,
+                    "delivery_status": res.get("delivery_status") or ("BOARD_OFFLINE" if is_offline else "FAILED"),
                     "authorized": not is_blk,
                     "permission": "DENIED" if is_blk else "ALLOWED",
                     "silent": False,
@@ -729,11 +734,19 @@ async def execute_session_voice_intents(
                     "error": err_txt,
                     "reply": err_txt,
                     "exact_spoken_reply": err_txt,
-                    "rejection_speech": err_txt if is_blk else "",
+                    "rejection_speech": err_txt if (is_blk or is_offline) else "",
                     "reply_text": err_txt,
                     **aoede_err,
                     "snapshot": engine.get_snapshot(session=session) if hasattr(engine, "get_snapshot") else {},
-                })
+                }
+                if is_offline:
+                    bh_now = res.get("board_health") or (
+                        engine.get_board_health() if hasattr(engine, "get_board_health") else {}
+                    )
+                    err_out["last_seen"] = res.get("last_seen", bh_now.get("last_seen"))
+                    err_out["last_seen_vi"] = res.get("last_seen_vi", bh_now.get("last_seen_vi", ""))
+                    err_out["board_health"] = bh_now
+                return _strip_legacy_repeat_speech(err_out)
             exec_results.append(res)
             new_st = str((engine.devices.get(dev_id) or {}).get("state") or "")
             exec_summary_items.append({
@@ -947,6 +960,8 @@ async def process_session_voice_command(
         body["stt_engine"] = stt_engine
         body["stt_ms"] = round(stt_ms, 1)
     status = int(body.get("http_status") or 200)
-    if status == 200 and body.get("rbac_blocked") and not body.get("ok"):
+    if status == 200 and body.get("board_offline") and not body.get("ok"):
+        status = 503
+    elif status == 200 and body.get("rbac_blocked") and not body.get("ok"):
         status = 403
     return body, status

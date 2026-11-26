@@ -1358,10 +1358,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         )
                         await _broadcast_rest_state_to_bridges(exclude_bridge=self)
                         if isinstance(res_toggle, dict):
-                            await self.send_ws_json({
+                            is_offline = bool(res_toggle.get("board_offline", False))
+                            ack_payload: dict[str, Any] = {
                                 "type": "manual_toggle_ack",
                                 "ok": bool(res_toggle.get("ok", True)),
                                 "rbac_blocked": bool(res_toggle.get("rbac_blocked", False)),
+                                "board_offline": is_offline,
+                                "delivery_status": res_toggle.get("delivery_status")
+                                or ("BOARD_OFFLINE" if is_offline else ("OK" if res_toggle.get("ok", True) else "FAILED")),
                                 "device_id": res_toggle.get("device_id", dev_id),
                                 "state": res_toggle.get("state"),
                                 "device_version": res_toggle.get("device_version"),
@@ -1372,11 +1376,23 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                                 "stale_ignored": bool(res_toggle.get("stale_ignored", False)),
                                 "error": res_toggle.get("error"),
                                 "snapshot": res_toggle.get("snapshot"),
-                            })
-                        if isinstance(res_toggle, dict) and (
-                            not res_toggle.get("ok", True) or res_toggle.get("rbac_blocked")
-                        ):
-                            await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
+                            }
+                            if is_offline:
+                                bh_now = res_toggle.get("board_health") or self.engine.get_board_health()
+                                ack_payload["last_seen"] = res_toggle.get("last_seen", bh_now.get("last_seen"))
+                                ack_payload["last_seen_vi"] = res_toggle.get("last_seen_vi", bh_now.get("last_seen_vi", ""))
+                                ack_payload["board_health"] = bh_now
+                            await self.send_ws_json(ack_payload)
+                        if isinstance(res_toggle, dict):
+                            if res_toggle.get("board_offline"):
+                                offline_phrase = str(
+                                    res_toggle.get("exact_spoken_reply")
+                                    or res_toggle.get("error")
+                                    or "Mạch điều khiển hiện đang mất kết nối."
+                                )
+                                await self._trigger_aoede_fixed_denial(offline_phrase)
+                            elif res_toggle.get("rbac_blocked") or not res_toggle.get("ok", True):
+                                await self._trigger_aoede_fixed_denial(FIXED_REJECTION_PHRASE_VI)
                         if self.engine.on_event is None:
                             await self.send_ws_json({
                                 "type": "state_snapshot",

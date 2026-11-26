@@ -84,6 +84,7 @@ from backend.engine import (
 from backend.engine.board_health import (
     BoardHealthTracker,
     enrich_device_with_board_health,
+    is_board_heartbeat_required,
 )
 from backend.engine.constants_and_time import (
     BOARD_HEARTBEAT_TIMEOUT_SEC,
@@ -280,6 +281,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         firmware_mode: str | None = None,
         now: float | None = None,
         persist: bool = True,
+        mark_attached: bool = True,
     ) -> tuple[dict[str, Any], bool]:
         """Cập nhật heartbeat từ mạch ESP8266, trả về `(board_health, recovered)`."""
         root = getattr(self, "_root_engine", self)
@@ -289,6 +291,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             uptime_ms=uptime_ms,
             firmware_mode=firmware_mode,
             now=now,
+            mark_attached=mark_attached,
         )
         if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
             root.mqtt_bridge.sync_from_board_health(bh)
@@ -340,6 +343,31 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             details={"board_health": bh, "transitioned": transitioned},
         )
         return bh, transitioned
+
+    def detach_board_hardware(
+        self,
+        *,
+        actor_name: str = "Owner",
+        actor_tier: int = 1,
+    ) -> dict[str, Any]:
+        """Gỡ chế độ giám sát phần cứng gắn ngoài và khôi phục trạng thái trực tuyến mặc định."""
+        root = getattr(self, "_root_engine", self)
+        bh = root.board_health.detach()
+        if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+            root.mqtt_bridge.sync_from_board_health(bh)
+        if getattr(root, "_mutation_depth", 0) == 0:
+            root.persist_to_shared_store()
+        else:
+            root._state_dirty_in_tx = True
+        append_audit_log(
+            category="DEVICE_IO",
+            event_type="board_hardware_detached",
+            summary=f"Đã gỡ giám sát mạch phần cứng -> khôi phục trạng thái trực tuyến ({bh['node_id']}).",
+            user_name=actor_name,
+            tier=actor_tier,
+            details={"board_health": bh},
+        )
+        return bh
 
     def check_board_heartbeat_transition(self, now: float | None = None) -> tuple[str | None, dict[str, Any]]:
         """Watchdog 1s kiểm tra chuyển trạng thái ONLINE <-> OFFLINE của mạch ESP8266."""
@@ -738,10 +766,15 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
             if isinstance(shared.get("board_health"), dict) and hasattr(self, "board_health") and self.board_health is not None:
                 bh_in = dict(shared["board_health"])
-                if getattr(self, "_in_cold_init", False) and bool(bh_in.get("lwt_online", True)):
-                    # Cold-start grace window: do not backdate boot last_seen from stale disk state.
-                    bh_in["last_seen"] = max(float(self.board_health.last_seen), float(bh_in.get("last_seen") or 0.0))
-                    bh_in["offline_since"] = None
+                if getattr(self, "_in_cold_init", False):
+                    if not bool(bh_in.get("hardware_attached", False)) and not is_board_heartbeat_required():
+                        bh_in["lwt_online"] = True
+                        bh_in["offline_since"] = None
+                        bh_in["last_seen"] = max(float(self.board_health.last_seen), float(bh_in.get("last_seen") or 0.0))
+                    elif bool(bh_in.get("lwt_online", True)):
+                        # Cold-start grace window: do not backdate boot last_seen from stale disk state.
+                        bh_in["last_seen"] = max(float(self.board_health.last_seen), float(bh_in.get("last_seen") or 0.0))
+                        bh_in["offline_since"] = None
                 self.board_health.apply_shared_dict(bh_in)
                 if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
                     self.mqtt_bridge.sync_from_board_health(self.board_health.evaluate_board_health())
@@ -2407,20 +2440,48 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             system_policies=self.system_policies,
         )
 
-    async def update_sensor_telemetry(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
+    async def update_sensor_telemetry(
+        self,
+        temp_c: Any,
+        humidity_pct: Any,
+        wifi_rssi_dbm: Any = -52,
+        *,
+        from_hardware: bool = False,
+    ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         root = getattr(self, "_root_engine", self)
         if getattr(root.state_backend, "supports_cas", False) and not root._is_in_active_mutation():
             return await self._execute_with_cas_retry(
-                lambda: self._update_sensor_telemetry_once(temp_c, humidity_pct, wifi_rssi_dbm)
+                lambda: self._update_sensor_telemetry_once(
+                    temp_c,
+                    humidity_pct,
+                    wifi_rssi_dbm,
+                    from_hardware=from_hardware,
+                )
             )
-        return await self._update_sensor_telemetry_once(temp_c, humidity_pct, wifi_rssi_dbm)
+        return await self._update_sensor_telemetry_once(
+            temp_c,
+            humidity_pct,
+            wifi_rssi_dbm,
+            from_hardware=from_hardware,
+        )
 
-    async def _update_sensor_telemetry_once(self, temp_c: Any, humidity_pct: Any, wifi_rssi_dbm: Any = -52) -> dict[str, Any]:
+    async def _update_sensor_telemetry_once(
+        self,
+        temp_c: Any,
+        humidity_pct: Any,
+        wifi_rssi_dbm: Any = -52,
+        *,
+        from_hardware: bool = False,
+    ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
-            self.record_board_heartbeat(wifi_rssi_dbm=self.mqtt_bridge.dht11_telemetry.get("wifi_rssi_dbm"), persist=False)
+            self.record_board_heartbeat(
+                wifi_rssi_dbm=self.mqtt_bridge.dht11_telemetry.get("wifi_rssi_dbm"),
+                persist=False,
+                mark_attached=from_hardware,
+            )
             self._state_dirty_in_tx = True
             t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
             h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
@@ -2454,6 +2515,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         soil_moisture_pct: Any,
         auto_pump_below_pct: float = 40.0,
         auto_stop_above_pct: float = 70.0,
+        *,
+        from_hardware: bool = False,
     ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến Độ ẩm Đất (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D6)."""
         root = getattr(self, "_root_engine", self)
@@ -2463,12 +2526,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     soil_moisture_pct,
                     auto_pump_below_pct=auto_pump_below_pct,
                     auto_stop_above_pct=auto_stop_above_pct,
+                    from_hardware=from_hardware,
                 )
             )
         return await self._update_soil_moisture_telemetry_once(
             soil_moisture_pct,
             auto_pump_below_pct=auto_pump_below_pct,
             auto_stop_above_pct=auto_stop_above_pct,
+            from_hardware=from_hardware,
         )
 
     async def _update_soil_moisture_telemetry_once(
@@ -2476,11 +2541,13 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         soil_moisture_pct: Any,
         auto_pump_below_pct: float = 40.0,
         auto_stop_above_pct: float = 70.0,
+        *,
+        from_hardware: bool = False,
     ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến Độ ẩm Đất (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D6)."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
-            self.record_board_heartbeat(persist=False)
+            self.record_board_heartbeat(persist=False, mark_attached=from_hardware)
             self._state_dirty_in_tx = True
             pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
             triggered: list[dict[str, Any]] = []
@@ -2540,6 +2607,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         sound_detected: Any = False,
         do_state: Any = None,
         note: str = "",
+        *,
+        from_hardware: bool = False,
     ) -> dict[str, Any]:
         """Cập nhật thông số cảm biến Âm thanh KY-037/038 (Chân D5 / GPIO14 DO)."""
         root = getattr(self, "_root_engine", self)
@@ -2549,12 +2618,14 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     sound_detected=sound_detected,
                     do_state=do_state,
                     note=note,
+                    from_hardware=from_hardware,
                 )
             )
         return await self._update_sound_telemetry_once(
             sound_detected=sound_detected,
             do_state=do_state,
             note=note,
+            from_hardware=from_hardware,
         )
 
     async def _update_sound_telemetry_once(
@@ -2562,6 +2633,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         sound_detected: Any = False,
         do_state: Any = None,
         note: str = "",
+        *,
+        from_hardware: bool = False,
     ) -> dict[str, Any]:
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_sound_telemetry(
@@ -2569,7 +2642,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 do_state=do_state,
                 note=note,
             )
-            self.record_board_heartbeat(persist=False)
+            self.record_board_heartbeat(persist=False, mark_attached=from_hardware)
             self._state_dirty_in_tx = True
             snd = dict(self.mqtt_bridge.sound_telemetry)
             is_loud = bool(snd.get("sound_detected", False))

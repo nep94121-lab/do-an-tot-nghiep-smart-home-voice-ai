@@ -210,7 +210,7 @@ inline bool isCustomOrScheduleText(const char* norm) {
       "tao luat",      "them luat",      "luat moi",       "luat tu dong",
       "dieu kien",     "neu",            "khi nao",        "tao lenh",
       "them lenh",     "lenh tuy chinh", "khau lenh",      "tuy chinh",
-      "vung oi",       "kich ban",       "che do ngu",     "che do ra ngoai",
+      "kich ban",      "che do ngu",     "che do ra ngoai",
       "che do ve nha", "che do chieu",   "schedule",       "timer",
       "cron",          "custom",         "automation",     "rule",
       "create_timer",  "add_rule",

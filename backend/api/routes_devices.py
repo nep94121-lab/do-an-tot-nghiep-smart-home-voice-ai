@@ -583,14 +583,15 @@ async def api_ir_learn(request: Request, payload: dict[str, Any] = Body(default=
 async def api_update_dht11(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật thông số cảm biến nhiệt độ & độ ẩm không khí DHT11 (chân D2)."""
     body = payload if isinstance(payload, dict) else {}
-    if not _has_valid_hardware_key(request):
+    is_hw = _has_valid_hardware_key(request)
+    if not is_hw:
         error = _owner_error(request, body)
         if error is not None:
             return error
     temp_c = body.get("temp_c", 28.5)
     hum_pct = body.get("humidity_pct", 65.0)
     rssi = body.get("wifi_rssi_dbm", -52)
-    res = await _REST_ENGINE.update_sensor_telemetry(temp_c, hum_pct, rssi)
+    res = await _REST_ENGINE.update_sensor_telemetry(temp_c, hum_pct, rssi, from_hardware=is_hw)
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
@@ -599,12 +600,13 @@ async def api_update_dht11(request: Request, payload: dict[str, Any]) -> JSONRes
 async def api_update_soil_moisture(request: Request, payload: dict[str, Any]) -> JSONResponse:
     """Cập nhật cảm biến độ ẩm đất (A0) và tự động bật/tắt bơm vườn (D6)."""
     body = payload if isinstance(payload, dict) else {}
-    if not _has_valid_hardware_key(request):
+    is_hw = _has_valid_hardware_key(request)
+    if not is_hw:
         error = _owner_error(request, body)
         if error is not None:
             return error
     pct = body.get("soil_moisture_pct", 62.0)
-    res = await _REST_ENGINE.update_soil_moisture_telemetry(pct)
+    res = await _REST_ENGINE.update_soil_moisture_telemetry(pct, from_hardware=is_hw)
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
 
@@ -614,7 +616,8 @@ async def api_update_soil_moisture(request: Request, payload: dict[str, Any]) ->
 async def api_update_sound_sensor(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
     """Cập nhật trạng thái cảm biến âm thanh KY-037/038 DO (chân D5 / GPIO14)."""
     body = payload if isinstance(payload, dict) else {}
-    if not _has_valid_hardware_key(request):
+    is_hw = _has_valid_hardware_key(request)
+    if not is_hw:
         error = _owner_error(request, body)
         if error is not None:
             return error
@@ -629,6 +632,7 @@ async def api_update_sound_sensor(request: Request, payload: dict[str, Any] = Bo
         sound_detected=sound_detected,
         do_state=do_state,
         note=note,
+        from_hardware=is_hw,
     )
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
@@ -707,6 +711,35 @@ async def api_hardware_resync(request: Request, payload: dict[str, Any] = Body(d
         {
             **res,
             "snapshot": _REST_ENGINE.get_public_device_snapshot(sync=False),
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
+@router.post("/api/hardware/detach")
+async def api_hardware_detach(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Gỡ giám sát mạch phần cứng gắn ngoài (Cap 1 Owner hoặc hardware key) và khôi phục trạng thái ONLINE sạch."""
+    body = payload if isinstance(payload, dict) else {}
+    is_hw = _has_valid_hardware_key(request)
+    actor_name = "ESP8266 Hardware"
+    actor_tier = 1
+    if not is_hw:
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
+        sess = resolve_request_session(request, payload=body)
+        actor_name = str(sess.display_name or actor_name)
+        actor_tier = int(sess.tier or 1)
+    bh = _REST_ENGINE.detach_board_hardware(
+        actor_name=actor_name,
+        actor_tier=actor_tier,
+    )
+    await broadcast_rest_state_to_bridges(sync_engine=False)
+    return JSONResponse(
+        {
+            "ok": True,
+            "detached": True,
+            "board_health": bh,
         },
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
