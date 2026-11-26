@@ -160,7 +160,7 @@
         <div class="wg-toolbar" data-wg-instance="${escHtml(instanceId)}">
           <div class="wg-toolbar-group">
             <button type="button" class="wg-btn wg-btn-guide" data-wg-action="toggle-guide" aria-expanded="false">
-              <span class="wg-btn-icon" aria-hidden="true">⚡</span>
+              <span class="wg-btn-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M9.5 1 3 9h4.5L6.5 15 13 7H8.5L9.5 1z"/></svg></span>
               <span>Hướng dẫn nối dây</span>
             </button>
             <button type="button" class="wg-btn wg-btn-wires" data-wg-action="toggle-wires" aria-pressed="true">

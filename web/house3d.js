@@ -2319,13 +2319,19 @@ window.SmartHome3D = (() => {
       .filter((hit) => hit && isObjectAndAncestorsVisible(hit.object));
     if (intersects && intersects.length > 0) {
       let target = intersects[0].object;
-      while (target && (!target.userData || (!target.userData.deviceId && !target.userData.wireId)) && target !== scene) {
+      while (target && (!target.userData || !target.userData.deviceId) && target !== scene) {
         target = target.parent;
       }
       if (target && target.userData && target.userData.deviceId) {
         onDeviceClickCallback(target.userData.deviceId);
-      } else if (target && target.userData && target.userData.wireId && typeof onWireClickCallback === "function") {
-        onWireClickCallback(target.userData.wireId);
+      } else if (typeof onWireClickCallback === "function") {
+        let wireTarget = intersects[0].object;
+        while (wireTarget && (!wireTarget.userData || !wireTarget.userData.wireId) && wireTarget !== scene) {
+          wireTarget = wireTarget.parent;
+        }
+        if (wireTarget && wireTarget.userData && wireTarget.userData.wireId) {
+          onWireClickCallback(wireTarget.userData.wireId);
+        }
       }
     }
   }
