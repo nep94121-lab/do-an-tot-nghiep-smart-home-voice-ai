@@ -515,6 +515,84 @@ def test_text_command_and_gemini_live_offline_replies_across_tiers(
         assert r_forb.json()["rbac_blocked"] is True
 
 
+@pytest.mark.parametrize("tier", [2, 3])
+def test_ws_aoede_speak_denial_allowed_for_authenticated_cap2_cap3_and_blocked_for_unauth(
+    isolated_offline_test_env: SmartHomeEngine,
+    tier: int,
+) -> None:
+    """DEFECT-S2-01: Authenticated Cap 2/3 WS aoede_speak_denial must not emit rbac_blocked; unauth must stay blocked."""
+    import json
+    from fastapi import WebSocketDisconnect
+    from backend.live.gemini_bridge import LiveBridgeSession
+
+    eng = isolated_offline_test_env
+    sessions = _make_tier_sessions()
+    sess = sessions[tier]
+
+    dev_id = devices_visible_for_tier(tier)[0]
+    offline_bh = BoardHealthTracker()
+    offline_bh.record_lwt(online=False)
+    spoken_offline = format_device_offline_reply_vi(DEFAULT_DEVICES[dev_id], offline_bh.evaluate_board_health())
+
+    async def _run_ws(ws_session: UserSession) -> list[dict[str, Any]]:
+        sent_frames: list[dict[str, Any]] = []
+        incoming = [json.dumps({"type": "aoede_speak_denial", "text": spoken_offline})]
+
+        fake_ws = AsyncMock()
+        fake_ws.headers = {}
+        fake_ws.cookies = {}
+        fake_ws.query_params = {}
+
+        async def _recv_text() -> str:
+            if incoming:
+                return incoming.pop(0)
+            raise WebSocketDisconnect(code=1000)
+
+        async def _send_text(raw: str) -> None:
+            sent_frames.append(json.loads(raw))
+
+        fake_ws.receive_text = AsyncMock(side_effect=_recv_text)
+        fake_ws.send_text = AsyncMock(side_effect=_send_text)
+
+        bridge = LiveBridgeSession(
+            ws=fake_ws,
+            engine=eng.create_isolated_ws_view(),
+            ws_session=ws_session,
+        )
+        await bridge.run()
+        return sent_frames
+
+    # 1. Authenticated Cap 2 / Cap 3 session -> allowed, emits aoede_voice_request, ZERO rbac_blocked
+    auth_frames = asyncio.run(_run_ws(sess))
+    assert not any(
+        f.get("type") == "rbac_blocked" and f.get("action") == "aoede_speak_denial"
+        for f in auth_frames
+    ), f"Unexpected rbac_blocked for authenticated Cap {tier}: {auth_frames}"
+    aoede_reqs = [f for f in auth_frames if f.get("type") == "aoede_voice_request"]
+    assert aoede_reqs, f"Expected aoede_voice_request for authenticated Cap {tier}: {auth_frames}"
+    assert aoede_reqs[0].get("spoken_phrase") == spoken_offline
+
+    # 2. Unauthenticated / UNKNOWN session -> MUST remain strictly blocked with rbac_blocked
+    unauth_sess = UserSession(
+        session_id="ws_unauth_defect_s2_01",
+        user_id="unknown",
+        email="",
+        display_name="Người lạ",
+        tier=99,
+        role="UNKNOWN",
+        created_at=time.time(),
+        expires_at=time.time() + 3600,
+        source="unauthenticated",
+        is_authenticated=False,
+    )
+    unauth_frames = asyncio.run(_run_ws(unauth_sess))
+    assert any(
+        f.get("type") == "rbac_blocked" and f.get("action") == "aoede_speak_denial"
+        for f in unauth_frames
+    ), f"Expected rbac_blocked for unauthenticated session: {unauth_frames}"
+    assert not any(f.get("type") == "aoede_voice_request" for f in unauth_frames)
+
+
 # ==============================================================================
 # (e) ADDENDUM A4: BOARD-AUTHORITATIVE AUTOMATIC RECONNECT RESYNC + AUDIT LOG
 # ==============================================================================

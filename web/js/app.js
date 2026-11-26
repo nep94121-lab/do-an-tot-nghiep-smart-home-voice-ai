@@ -2308,6 +2308,9 @@
         }
 
         case "rbac_blocked":
+          if (msg.action === "aoede_speak_denial") {
+            break;
+          }
           setAiReplyText(msg.reason || "Xin lỗi, bạn không có quyền thực hiện lệnh này.");
           logEvent(msg.reason, "err");
           renderDevices(Object.values(latestDevicesMap));

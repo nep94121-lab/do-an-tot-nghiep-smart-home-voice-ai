@@ -1189,7 +1189,14 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                     msg = json.loads(raw)
                     mtype = msg.get("type")
                     actor = await self._bind_actor_to_engine_async(msg)
-                    guest_messages = {"manual_toggle", "send_text", "mic_chunk", "mic_speech_ended", "barge_in"}
+                    guest_messages = {
+                        "manual_toggle",
+                        "send_text",
+                        "mic_chunk",
+                        "mic_speech_ended",
+                        "barge_in",
+                        "aoede_speak_denial",
+                    }
                     if not actor.is_authenticated or (actor.tier > 1 and mtype not in guest_messages):
                         await self.send_ws_json({"type": "rbac_blocked", "ok": False, "action": mtype, "reason": FIXED_REJECTION_PHRASE_VI})
                         continue
@@ -1520,11 +1527,15 @@ class LiveBridgeSession(LiveToolDispatcherMixin):
                         )
 
                     elif mtype == "aoede_speak_denial":
-                        req_phrase = (
-                            FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-                            if str(msg.get("text", "")).strip() == FIXED_SAFE_DENY_REPEAT_PHRASE_VI
-                            else FIXED_REJECTION_PHRASE_VI
-                        )
+                        raw_req_text = str(msg.get("text", "")).strip()
+                        if raw_req_text == FIXED_SAFE_DENY_REPEAT_PHRASE_VI:
+                            req_phrase = FIXED_SAFE_DENY_REPEAT_PHRASE_VI
+                        elif raw_req_text and "mất kết nối" in raw_req_text.lower() and len(raw_req_text) <= 220:
+                            from backend.voice.vietnamese_policy import ensure_vietnamese_reply
+
+                            req_phrase = ensure_vietnamese_reply(raw_req_text, fallback=FIXED_REJECTION_PHRASE_VI)
+                        else:
+                            req_phrase = FIXED_REJECTION_PHRASE_VI
                         await self._trigger_aoede_fixed_denial(req_phrase)
 
                     elif mtype == "reset_voice_strikes":
