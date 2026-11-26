@@ -1,0 +1,98 @@
+{
+  "part_id": "SUP02_CORNER_L_BRACKET_LOW",
+  "kind": "support",
+  "category": "bracket",
+  "qty": 6,
+  "vi_name": "Ke goc vuong 90 do vach thap & vuon",
+  "mating_source": "P03/P04/P05 front cutaway & P09..P13 garden corners (T=3.0 mm)",
+  "print_bbox_mm": [
+    18.0,
+    18.0,
+    10.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 1017.061,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "SUP02 18x18x10",
+  "assembly_placements": [
+    {
+      "x": 13.0,
+      "y": 195.0,
+      "z": 1.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 393.0,
+      "y": 195.0,
+      "z": 1.0,
+      "rot_z": 90.0
+    },
+    {
+      "x": 269.0,
+      "y": 29.0,
+      "z": 1.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 269.0,
+      "y": 149.0,
+      "z": 1.0,
+      "rot_z": -90.0
+    },
+    {
+      "x": 393.0,
+      "y": 29.0,
+      "z": 1.0,
+      "rot_z": 90.0
+    },
+    {
+      "x": 393.0,
+      "y": 149.0,
+      "z": 1.0,
+      "rot_z": 180.0
+    }
+  ],
+  "exclude_from_default_assembly": false,
+  "color_rgb": [
+    0.93,
+    0.64,
+    0.22
+  ],
+  "notes": "Ke goc nho gon cho vach cat mo mat truoc (34mm) va cum be nuoc - chau cay (48-54mm).",
+  "step_file": "STEP/SUP02_CORNER_L_BRACKET_LOW.step",
+  "stl_file": "STL/SUP02_CORNER_L_BRACKET_LOW.stl",
+  "stl_facets": 2674,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    18.0,
+    18.0,
+    10.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 1017.183,
+  "threemf_file": "3MF/SUP02_CORNER_L_BRACKET_LOW.3mf",
+  "threemf_bytes": 40431,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP02_CORNER_L_BRACKET_LOW.pdf",
+  "drawing_png": "drawings/SUP02_CORNER_L_BRACKET_LOW.png",
+  "preview_png": "previews/SUP02_CORNER_L_BRACKET_LOW.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "8m 22s",
+  "estimated_time_sec": 502,
+  "filament_mm": 395.4,
+  "filament_g": 1.18,
+  "layer_count": 50,
+  "part_all_passed": true
+}

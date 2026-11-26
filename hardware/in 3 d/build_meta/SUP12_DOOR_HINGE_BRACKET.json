@@ -1,0 +1,76 @@
+{
+  "part_id": "SUP12_DOOR_HINGE_BRACKET",
+  "kind": "support",
+  "category": "hinge",
+  "qty": 2,
+  "vi_name": "Ban le cua chinh in 3D",
+  "mating_source": "P08_DOOR_LEAF Door_Hinge_Bot/Top (Dia 3.0 mm) to P05_WALL_FRONT jamb (2.0 mm clearance)",
+  "print_bbox_mm": [
+    22.0,
+    12.0,
+    6.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 891.578,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "SUP12 22x12x6",
+  "assembly_placements": [
+    {
+      "x": 70.0,
+      "y": 195.2,
+      "z": 12.0,
+      "rot_z": 0.0,
+      "rot_x": 90.0
+    },
+    {
+      "x": 70.0,
+      "y": 195.2,
+      "z": 80.0,
+      "rot_z": 0.0,
+      "rot_x": 90.0
+    }
+  ],
+  "exclude_from_default_assembly": false,
+  "color_rgb": [
+    0.82,
+    0.48,
+    0.32
+  ],
+  "notes": "Cap ban le in 3D noi canh cua P08_DOOR_LEAF vao khung cua P05_WALL_FRONT, giu khe ho 2.0mm.",
+  "step_file": "STEP/SUP12_DOOR_HINGE_BRACKET.step",
+  "stl_file": "STL/SUP12_DOOR_HINGE_BRACKET.stl",
+  "stl_facets": 2344,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    22.0,
+    12.0,
+    6.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 891.82,
+  "threemf_file": "3MF/SUP12_DOOR_HINGE_BRACKET.3mf",
+  "threemf_bytes": 34241,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP12_DOOR_HINGE_BRACKET.pdf",
+  "drawing_png": "drawings/SUP12_DOOR_HINGE_BRACKET.png",
+  "preview_png": "previews/SUP12_DOOR_HINGE_BRACKET.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "7m 54s",
+  "estimated_time_sec": 474,
+  "filament_mm": 315.4,
+  "filament_g": 0.94,
+  "layer_count": 30,
+  "part_all_passed": true
+}

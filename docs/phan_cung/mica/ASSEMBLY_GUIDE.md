@@ -13,6 +13,7 @@
   - Bảng thống kê 18 tấm & báo giá tham khảo: [`MICA_PANELS.md`](MICA_PANELS.md)
   - Bảng tọa độ 76 lỗ tròn (gốc `(0, 0)` góc dưới-trái): [`holes_table.csv`](holes_table.csv)
   - Bảng đấu dây chuẩn 40 dây & hợp đồng 10 chân ESP8266: [`../WIRING_TABLE.md`](../WIRING_TABLE.md)
+  - Phiên bản **In 3D FDM (`220 × 220 × 250 mm`)** có khắc sẵn kích thước, chia mảnh khớp đuôi én & 12 phụ kiện supot: [`../../../hardware/in 3 d/README.md`](../../../hardware/in%203%20d/README.md)
 
 ![Hình chiếu phân rã 3D mô hình nhà mica MICA2](assembly_exploded.png)
 

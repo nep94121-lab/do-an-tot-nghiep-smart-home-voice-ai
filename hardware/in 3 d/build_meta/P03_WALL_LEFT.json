@@ -1,0 +1,84 @@
+{
+  "part_id": "P03_WALL_LEFT",
+  "kind": "panel",
+  "source_panel_id": "P03_WALL_LEFT",
+  "piece_index": 1,
+  "piece_count": 1,
+  "qty": 1,
+  "vi_name": "Vach hong trai cat mo",
+  "plane": "YZ",
+  "origin_xyz": [
+    10.0,
+    192.0,
+    0.0
+  ],
+  "extra_origins_xyz": [],
+  "explode_xyz": [
+    -80.0,
+    0.0,
+    0.0
+  ],
+  "shift_u": -0.0,
+  "shift_v": 3.0,
+  "local_bbox_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "local_bbox_max": [
+    190.0,
+    150.0,
+    3.0
+  ],
+  "print_bbox_mm": [
+    190.0,
+    150.0,
+    3.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 60938.784,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "P03_WALL_LEFT | 190x150x3mm",
+  "dovetail_count": 0,
+  "color_rgb": [
+    0.78,
+    0.91,
+    0.98
+  ],
+  "step_file": "STEP/P03_WALL_LEFT.step",
+  "stl_file": "STL/P03_WALL_LEFT.stl",
+  "stl_facets": 6466,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    190.0,
+    150.0,
+    3.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 60940.037,
+  "threemf_file": "3MF/P03_WALL_LEFT.3mf",
+  "threemf_bytes": 88784,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/P03_WALL_LEFT.pdf",
+  "drawing_png": "drawings/P03_WALL_LEFT.png",
+  "preview_png": "previews/P03_WALL_LEFT.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "4h 39m 39s",
+  "estimated_time_sec": 16779,
+  "filament_mm": 14488.2,
+  "filament_g": 43.21,
+  "layer_count": 15,
+  "part_all_passed": true
+}

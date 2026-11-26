@@ -1,0 +1,68 @@
+{
+  "part_id": "SUP07_PCB_CARRIER_FRAME_90X70",
+  "kind": "support",
+  "category": "cradle",
+  "qty": 1,
+  "vi_name": "Khung de lien khoi Hub PCB 90x70",
+  "mating_source": "Exact P16_PCB_PLATE 90.0x70.0 mm M3 pattern for 100x80 mm Hub PCB",
+  "print_bbox_mm": [
+    100.0,
+    80.0,
+    10.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 13031.849,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "SUP07 90x70 100x80x10mm",
+  "assembly_placements": [
+    {
+      "x": 32.0,
+      "y": 59.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    }
+  ],
+  "exclude_from_default_assembly": true,
+  "color_rgb": [
+    0.2,
+    0.64,
+    0.42
+  ],
+  "notes": "Khung do lien khoi tich hop 4 tru 10mm dung chuan lo 90x70mm (thay the tuy chon cho 4 tru roi SUP05).",
+  "step_file": "STEP/SUP07_PCB_CARRIER_FRAME_90X70.step",
+  "stl_file": "STL/SUP07_PCB_CARRIER_FRAME_90X70.stl",
+  "stl_facets": 7168,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    100.0,
+    80.0,
+    10.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 13029.27,
+  "threemf_file": "3MF/SUP07_PCB_CARRIER_FRAME_90X70.3mf",
+  "threemf_bytes": 96126,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP07_PCB_CARRIER_FRAME_90X70.pdf",
+  "drawing_png": "drawings/SUP07_PCB_CARRIER_FRAME_90X70.png",
+  "preview_png": "previews/SUP07_PCB_CARRIER_FRAME_90X70.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "1h 19m 57s",
+  "estimated_time_sec": 4797,
+  "filament_mm": 3751.8,
+  "filament_g": 11.19,
+  "layer_count": 50,
+  "part_all_passed": true
+}

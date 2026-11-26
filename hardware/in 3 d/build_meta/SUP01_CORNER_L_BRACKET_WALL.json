@@ -1,0 +1,110 @@
+{
+  "part_id": "SUP01_CORNER_L_BRACKET_WALL",
+  "kind": "support",
+  "category": "bracket",
+  "qty": 8,
+  "vi_name": "Ke goc vuong 90 do tuong cao",
+  "mating_source": "P02/P03/P04/P06 vertical 90-deg corners (T=3.0 mm)",
+  "print_bbox_mm": [
+    24.0,
+    24.0,
+    16.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 2642.997,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "SUP01 24x24x16",
+  "assembly_placements": [
+    {
+      "x": 13.0,
+      "y": 379.0,
+      "z": 42.0,
+      "rot_z": -90.0
+    },
+    {
+      "x": 13.0,
+      "y": 379.0,
+      "z": 89.0,
+      "rot_z": -90.0
+    },
+    {
+      "x": 393.0,
+      "y": 379.0,
+      "z": 42.0,
+      "rot_z": 180.0
+    },
+    {
+      "x": 393.0,
+      "y": 379.0,
+      "z": 89.0,
+      "rot_z": 180.0
+    },
+    {
+      "x": 198.5,
+      "y": 379.0,
+      "z": 42.0,
+      "rot_z": 180.0
+    },
+    {
+      "x": 198.5,
+      "y": 379.0,
+      "z": 89.0,
+      "rot_z": 180.0
+    },
+    {
+      "x": 201.5,
+      "y": 379.0,
+      "z": 42.0,
+      "rot_z": -90.0
+    },
+    {
+      "x": 201.5,
+      "y": 379.0,
+      "z": 89.0,
+      "rot_z": -90.0
+    }
+  ],
+  "exclude_from_default_assembly": false,
+  "color_rgb": [
+    0.95,
+    0.56,
+    0.18
+  ],
+  "notes": "Gia co goc vuong 90 do giua cac tuong dung cao 147mm, thay keo dan dung moi; in nam phang khong can support.",
+  "step_file": "STEP/SUP01_CORNER_L_BRACKET_WALL.step",
+  "stl_file": "STL/SUP01_CORNER_L_BRACKET_WALL.stl",
+  "stl_facets": 2388,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    24.0,
+    24.0,
+    16.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 2643.144,
+  "threemf_file": "3MF/SUP01_CORNER_L_BRACKET_WALL.3mf",
+  "threemf_bytes": 35940,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP01_CORNER_L_BRACKET_WALL.pdf",
+  "drawing_png": "drawings/SUP01_CORNER_L_BRACKET_WALL.png",
+  "preview_png": "previews/SUP01_CORNER_L_BRACKET_WALL.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "18m 25s",
+  "estimated_time_sec": 1105,
+  "filament_mm": 1024.1,
+  "filament_g": 3.05,
+  "layer_count": 80,
+  "part_all_passed": true
+}

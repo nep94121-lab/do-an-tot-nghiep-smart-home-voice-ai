@@ -1,0 +1,84 @@
+{
+  "part_id": "P05_WALL_FRONT_piece2of2",
+  "kind": "panel",
+  "source_panel_id": "P05_WALL_FRONT",
+  "piece_index": 2,
+  "piece_count": 2,
+  "qty": 1,
+  "vi_name": "Tuong mat tien & Khung cua chinh",
+  "plane": "XZ",
+  "origin_xyz": [
+    10.0,
+    192.0,
+    0.0
+  ],
+  "extra_origins_xyz": [],
+  "explode_xyz": [
+    0.0,
+    -55.0,
+    0.0
+  ],
+  "shift_u": -0.0,
+  "shift_v": 3.0,
+  "local_bbox_min": [
+    205.5,
+    0.0,
+    0.0
+  ],
+  "local_bbox_max": [
+    386.0,
+    37.0,
+    3.0
+  ],
+  "print_bbox_mm": [
+    180.5,
+    37.0,
+    3.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 17717.443,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "P05 p2/2 | 180x37x3mm",
+  "dovetail_count": 1,
+  "color_rgb": [
+    0.76,
+    0.9,
+    0.98
+  ],
+  "step_file": "STEP/P05_WALL_FRONT_piece2of2.step",
+  "stl_file": "STL/P05_WALL_FRONT_piece2of2.stl",
+  "stl_facets": 6974,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    180.5,
+    37.0,
+    3.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 17718.705,
+  "threemf_file": "3MF/P05_WALL_FRONT_piece2of2.3mf",
+  "threemf_bytes": 98175,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/P05_WALL_FRONT_piece2of2.pdf",
+  "drawing_png": "drawings/P05_WALL_FRONT_piece2of2.png",
+  "preview_png": "previews/P05_WALL_FRONT_piece2of2.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "1h 26m 21s",
+  "estimated_time_sec": 5181,
+  "filament_mm": 4555.9,
+  "filament_g": 13.59,
+  "layer_count": 15,
+  "part_all_passed": true
+}

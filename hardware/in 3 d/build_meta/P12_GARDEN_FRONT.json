@@ -1,0 +1,84 @@
+{
+  "part_id": "P12_GARDEN_FRONT",
+  "kind": "panel",
+  "source_panel_id": "P12_GARDEN_FRONT",
+  "piece_index": 1,
+  "piece_count": 1,
+  "qty": 1,
+  "vi_name": "Vach truoc be nuoc & chau cay",
+  "plane": "XZ",
+  "origin_xyz": [
+    266.0,
+    26.0,
+    0.0
+  ],
+  "extra_origins_xyz": [],
+  "explode_xyz": [
+    35.0,
+    -90.0,
+    20.0
+  ],
+  "shift_u": -0.0,
+  "shift_v": 3.0,
+  "local_bbox_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "local_bbox_max": [
+    130.0,
+    57.0,
+    3.0
+  ],
+  "print_bbox_mm": [
+    130.0,
+    57.0,
+    3.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 19398.036,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "P12 | 130x57x3mm",
+  "dovetail_count": 0,
+  "color_rgb": [
+    0.68,
+    0.89,
+    0.9
+  ],
+  "step_file": "STEP/P12_GARDEN_FRONT.step",
+  "stl_file": "STL/P12_GARDEN_FRONT.stl",
+  "stl_facets": 4634,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    130.0,
+    57.0,
+    3.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 19398.165,
+  "threemf_file": "3MF/P12_GARDEN_FRONT.3mf",
+  "threemf_bytes": 65554,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/P12_GARDEN_FRONT.pdf",
+  "drawing_png": "drawings/P12_GARDEN_FRONT.png",
+  "preview_png": "previews/P12_GARDEN_FRONT.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "1h 34m 9s",
+  "estimated_time_sec": 5649,
+  "filament_mm": 4847.9,
+  "filament_g": 14.46,
+  "layer_count": 15,
+  "part_all_passed": true
+}

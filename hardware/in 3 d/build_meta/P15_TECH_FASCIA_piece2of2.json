@@ -1,0 +1,84 @@
+{
+  "part_id": "P15_TECH_FASCIA_piece2of2",
+  "kind": "panel",
+  "source_panel_id": "P15_TECH_FASCIA",
+  "piece_index": 2,
+  "piece_count": 2,
+  "qty": 1,
+  "vi_name": "Mat na ky thuat (Nguon DC & Loa)",
+  "plane": "XZ",
+  "origin_xyz": [
+    8.0,
+    10.0,
+    0.0
+  ],
+  "extra_origins_xyz": [],
+  "explode_xyz": [
+    -30.0,
+    -95.0,
+    15.0
+  ],
+  "shift_u": -0.0,
+  "shift_v": 3.0,
+  "local_bbox_min": [
+    139.0,
+    0.0,
+    0.0
+  ],
+  "local_bbox_max": [
+    246.0,
+    51.0,
+    3.0
+  ],
+  "print_bbox_mm": [
+    107.0,
+    51.0,
+    3.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 10634.329,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "P15 p2/2 | 107x51x3mm",
+  "dovetail_count": 1,
+  "color_rgb": [
+    0.7,
+    0.87,
+    0.98
+  ],
+  "step_file": "STEP/P15_TECH_FASCIA_piece2of2.step",
+  "stl_file": "STL/P15_TECH_FASCIA_piece2of2.stl",
+  "stl_facets": 9266,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    107.0,
+    51.0,
+    3.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 10635.538,
+  "threemf_file": "3MF/P15_TECH_FASCIA_piece2of2.3mf",
+  "threemf_bytes": 121994,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/P15_TECH_FASCIA_piece2of2.pdf",
+  "drawing_png": "drawings/P15_TECH_FASCIA_piece2of2.png",
+  "preview_png": "previews/P15_TECH_FASCIA_piece2of2.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "1h 6m 32s",
+  "estimated_time_sec": 3992,
+  "filament_mm": 2996.9,
+  "filament_g": 8.94,
+  "layer_count": 15,
+  "part_all_passed": true
+}
