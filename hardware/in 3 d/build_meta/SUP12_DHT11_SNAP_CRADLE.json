@@ -1,0 +1,53 @@
+{
+  "part_id": "SUP12_DHT11_SNAP_CRADLE",
+  "kind": "support",
+  "category": "wall_cradle",
+  "qty": 1,
+  "vi_name": "Gia mong kep cam bien DHT11 tren tuong P02",
+  "mating_source": "DHT11 breakout 14.0x28.0x7.1 mm + P02_WALL_BACK mortises (22.0 mm span)",
+  "params": {
+    "board_x": 14.0,
+    "board_y": 28.0,
+    "board_z": 7.1,
+    "cavity_x": 14.4,
+    "cavity_y": 28.4,
+    "tenon_span": 22.0,
+    "tenon_x": 3.0,
+    "tenon_y": 6.0,
+    "tenon_h": 3.0,
+    "depth_h": 8.0,
+    "window_x": 12.5,
+    "window_y": 16.0
+  },
+  "assembly_placements": [
+    {
+      "x": 158.0,
+      "y": 379.0,
+      "z": 88.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    28.0,
+    32.4,
+    11.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 4383.074,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.14,
+    0.62,
+    0.9
+  ],
+  "notes": "Gia ranh kep DHT11 gan tuong P02 bang 2 chot mong, mo cua thoang khop dung lo 12.5x16 mm.",
+  "engraved_ok": true,
+  "engrave_text": "SUP12",
+  "print_rotation_for_world": "rot_x_-90",
+  "step_file": "parts/SUP12_DHT11_SNAP_CRADLE.step",
+  "stl_file": "parts/SUP12_DHT11_SNAP_CRADLE.stl",
+  "stl_facets": 1784
+}

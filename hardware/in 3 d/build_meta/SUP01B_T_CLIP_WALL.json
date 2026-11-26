@@ -1,0 +1,46 @@
+{
+  "part_id": "SUP01B_T_CLIP_WALL",
+  "kind": "support",
+  "category": "t_clip",
+  "qty": 1,
+  "vi_name": "Kep mong chu T khoa vach giua P06 voi P02 (khong vit)",
+  "mating_source": "P02_WALL_BACK + P06_WALL_MID top T-junction (T=3.0 mm + 0.20 mm clearance)",
+  "params": {
+    "bar_len": 28.0,
+    "stem_len": 22.0,
+    "height": 14.0,
+    "wall_t": 2.6,
+    "slot_w": 3.2
+  },
+  "assembly_placements": [
+    {
+      "x": 200.0,
+      "y": 380.5,
+      "z": 135.6,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    28.0,
+    22.0,
+    14.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 3330.014,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.92,
+    0.48,
+    0.16
+  ],
+  "notes": "Kep mong chu T truot khoa dinh vach ngan giua P06 vao tuong sau P02, giu vuong goc 90 do tuyet doi.",
+  "engraved_ok": true,
+  "engrave_text": "SUP01B",
+  "print_rotation_for_world": "rot_x_180_centered_bar",
+  "step_file": "parts/SUP01B_T_CLIP_WALL.step",
+  "stl_file": "parts/SUP01B_T_CLIP_WALL.stl",
+  "stl_facets": 2608
+}

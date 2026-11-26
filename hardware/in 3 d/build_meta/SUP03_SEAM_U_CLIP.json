@@ -1,0 +1,69 @@
+{
+  "part_id": "SUP03_SEAM_U_CLIP",
+  "kind": "support",
+  "category": "seam_clip",
+  "qty": 8,
+  "vi_name": "Kep mong chu U khoa moi noi duoi en",
+  "mating_source": "Split seams of P01A/P01B/P02/P05/P15 (T=3.0 mm + 0.20 mm clearance)",
+  "params": {
+    "length": 34.0,
+    "slot_w": 3.2,
+    "wall_t": 3.0,
+    "height": 9.0
+  },
+  "assembly_placements": [
+    {
+      "x": 111.5,
+      "y": 375.9,
+      "z": 141.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 214.5,
+      "y": 375.9,
+      "z": 141.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 102.5,
+      "y": 188.9,
+      "z": 114.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 266.0,
+      "y": 188.9,
+      "z": 28.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 134.0,
+      "y": 6.9,
+      "z": 10.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    34.0,
+    9.2,
+    9.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 2160.249,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.24,
+    0.68,
+    0.86
+  ],
+  "notes": "Kep chu U ranh 3.20 mm truot khoa mep moi noi chia manh, chong cong venh khong can vit/keo.",
+  "engraved_ok": true,
+  "engrave_text": "SUP03",
+  "print_rotation_for_world": "rot_x_180",
+  "step_file": "parts/SUP03_SEAM_U_CLIP.step",
+  "stl_file": "parts/SUP03_SEAM_U_CLIP.stl",
+  "stl_facets": 2586
+}

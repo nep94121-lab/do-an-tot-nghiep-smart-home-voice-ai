@@ -1,0 +1,61 @@
+{
+  "part_id": "SUP07_RELAY_SNAP_CADDY",
+  "kind": "support",
+  "category": "relay_caddy",
+  "qty": 2,
+  "vi_name": "Khay mong cai dan hoi Relay 1 kenh 44.5x20.5",
+  "mating_source": "Relay 50x26 mm (44.5x20.5 mm holes Dia 3.1 mm) + P01A mortise slots (32 mm span)",
+  "params": {
+    "pcb_x": 50.0,
+    "pcb_y": 26.0,
+    "pcb_t": 1.6,
+    "cavity_x": 50.4,
+    "cavity_y": 26.4,
+    "pitch_x": 44.5,
+    "pitch_y": 20.5,
+    "peg_od": 2.9,
+    "standoff_h": 8.0,
+    "base_h": 2.4,
+    "tenon_span": 32.0,
+    "tenon_x": 6.0,
+    "tenon_y": 3.0,
+    "tenon_h": 3.0
+  },
+  "assembly_placements": [
+    {
+      "x": 196.0,
+      "y": 136.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 196.0,
+      "y": 92.0,
+      "z": 0.0,
+      "rot_z": 0.0
+    }
+  ],
+  "print_bbox_mm": [
+    54.4,
+    30.4,
+    11.4
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 6864.108,
+  "solids": 1,
+  "expected_solids": 1,
+  "valid": true,
+  "bed_fit": true,
+  "color_rgb": [
+    0.24,
+    0.48,
+    0.84
+  ],
+  "notes": "Khay cai mong cho Relay 1 & 2: 2 chot vuong gam xuong P01A va 4 chot dan hoi khoa mach Relay, khong vit.",
+  "engraved_ok": true,
+  "engrave_text": "SUP07 RLY",
+  "print_rotation_for_world": "identity",
+  "step_file": "parts/SUP07_RELAY_SNAP_CADDY.step",
+  "stl_file": "parts/SUP07_RELAY_SNAP_CADDY.stl",
+  "stl_facets": 6248
+}
