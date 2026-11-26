@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -179,6 +180,38 @@ def isolate_invites_and_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(owner_pin, "_CACHE", {})
 
 
+def _reset_engine_board_health_online(engine: Any) -> None:
+    """Refresh board_health to ONLINE before/after each test so >30s test suites never trip heartbeat timeout."""
+    now_ts = time.time()
+    try:
+        tracker = getattr(engine, "board_health", None)
+        if tracker is not None and hasattr(tracker, "reset_online"):
+            bh = tracker.reset_online(now=now_ts)
+            mb = getattr(engine, "mqtt_bridge", None)
+            if mb is not None and hasattr(mb, "sync_from_board_health"):
+                mb.sync_from_board_health(bh)
+            backend = getattr(engine, "state_backend", None)
+            if backend is not None and not getattr(backend, "is_remote", False):
+                cur_state = backend.load_state()
+                if isinstance(cur_state, dict) and isinstance(cur_state.get("board_health"), dict):
+                    cur_state["board_health"] = tracker.to_shared_dict()
+                    try:
+                        backend.save_state(cur_state, preserve_revision=True)
+                    except TypeError:
+                        backend.save_state(cur_state)
+        shared_json = DATA_DIR / "shared_device_state.json"
+        if shared_json.exists() and tracker is not None:
+            try:
+                raw_obj = json.loads(shared_json.read_text(encoding="utf-8"))
+                if isinstance(raw_obj, dict) and isinstance(raw_obj.get("board_health"), dict):
+                    raw_obj["board_health"] = tracker.to_shared_dict()
+                    shared_json.write_text(json.dumps(raw_obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def _reset_engine_runtime_timers_and_guards(engine: Any) -> None:
     """Cancel any lingering background timers and reset echo guards between tests."""
     try:
@@ -257,6 +290,13 @@ def clean_auth_pending_otps() -> None:
     _REST_ENGINE._current_user_id = "tuan_anh"
     _reset_engine_runtime_timers_and_guards(_REST_ENGINE)
     _restore_tracked_data_files()
+    try:
+        from backend.database_sqlite import init_sqlite_database
+
+        init_sqlite_database()
+    except Exception:
+        pass
+    _reset_engine_board_health_online(_REST_ENGINE)
     yield
     with lock:
         dict.clear(mgr.pending_otps)
@@ -274,6 +314,7 @@ def clean_auth_pending_otps() -> None:
     _REST_ENGINE._current_user_id = "tuan_anh"
     _reset_engine_runtime_timers_and_guards(_REST_ENGINE)
     _restore_tracked_data_files()
+    _reset_engine_board_health_online(_REST_ENGINE)
 
 
 def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
