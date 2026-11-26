@@ -303,23 +303,23 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_P16_R3", 24.0, 51.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 3"),
             m("MORT_P16_R4", 140.0, 51.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 4"),
             # 2x Relay 1 snap caddy tenons (SUP07 #1 centered at 196, 136)
-            m("MORT_RLY1_L", 180.0, 136.0, 8.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 left tenon"),
-            m("MORT_RLY1_R", 212.0, 136.0, 8.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 right tenon"),
+            m("MORT_RLY1_L", 180.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 left floating tenon"),
+            m("MORT_RLY1_R", 212.0, 136.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #1 right floating tenon"),
             # 2x Relay 2 snap caddy tenons (SUP07 #2 centered at 196, 92)
-            m("MORT_RLY2_L", 180.0, 92.0, 8.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 left tenon"),
-            m("MORT_RLY2_R", 212.0, 92.0, 8.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 right tenon"),
+            m("MORT_RLY2_L", 180.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 left floating tenon"),
+            m("MORT_RLY2_R", 212.0, 92.0, 6.0, 3.0, "SUP07_RELAY_SNAP_CADDY #2 right floating tenon"),
             # 2x PAM8403 snap tray tenons (SUP08 centered at 182, 52, 26mm span)
-            m("MORT_PAM_L", 169.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY left tenon"),
-            m("MORT_PAM_R", 195.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY right tenon"),
+            m("MORT_PAM_L", 169.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY left floating tenon"),
+            m("MORT_PAM_R", 195.0, 52.0, 6.0, 3.0, "SUP08_PAM8403_SNAP_TRAY right floating tenon"),
             # 4x P17_BASE_JOINER interlocking tenon mortises (left & right splice bars)
             m("MORT_JOIN_L1", 80.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER left bar front-L tenon"),
             m("MORT_JOIN_L2", 120.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER left bar front-R tenon"),
             m("MORT_JOIN_R1", 286.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER right bar front-L tenon"),
             m("MORT_JOIN_R2", 326.0, 166.0, 8.0, 4.0, "P17_BASE_JOINER right bar front-R tenon"),
-            # Outdoor plant pot floor pegs (clear of garden box X=266..396 Y=26..152 & LM393 X=342..374 Y=14..26)
+            # Outdoor plant pot floor pegs (standardized 6x4 mm floating tenon FUR09)
             m("MORT_FUR_POT1", 290.0, 13.0, 6.0, 4.0, "FUR06_PLANT_POT_LARGE #1 outdoor front patio"),
             m("MORT_FUR_POT2", 376.0, 163.0, 6.0, 4.0, "FUR06_PLANT_POT_LARGE #2 outdoor rear patio"),
-            m("MORT_FUR_SPOT1", 322.0, 13.0, 5.0, 4.0, "FUR08_PLANT_POT_SMALL outdoor front patio"),
+            m("MORT_FUR_SPOT1", 322.0, 13.0, 6.0, 4.0, "FUR08_PLANT_POT_SMALL outdoor front patio"),
         ],
         "P01B_BASE_HOUSE": [
             # 4x P17_BASE_JOINER mortises (world Y = 182.0 -> v_shifted = 7.875)
@@ -327,17 +327,17 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_JOIN_L4", 120.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER left bar rear-R tenon"),
             m("MORT_JOIN_R3", 286.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER right bar rear-L tenon"),
             m("MORT_JOIN_R4", 326.0, 182.0 + p01b_sv, 8.0, 4.0, "P17_BASE_JOINER right bar rear-R tenon"),
-            # Living room FUR01_SOFA (world center 78, 352)
-            m("MORT_FUR_SOFA_L", 56.0, 352.0 + p01b_sv, 8.0, 4.0, "FUR01_SOFA left floor peg"),
-            m("MORT_FUR_SOFA_R", 100.0, 352.0 + p01b_sv, 8.0, 4.0, "FUR01_SOFA right floor peg"),
+            # Living room FUR01_SOFA (standardized 6x4 mm floating tenon FUR09)
+            m("MORT_FUR_SOFA_L", 56.0, 352.0 + p01b_sv, 6.0, 4.0, "FUR01_SOFA left floor peg"),
+            m("MORT_FUR_SOFA_R", 100.0, 352.0 + p01b_sv, 6.0, 4.0, "FUR01_SOFA right floor peg"),
             # Living room FUR02_TV_STAND (world center 183, 304, oriented along Y facing -X)
-            m("MORT_FUR_TV_F", 183.0, 288.0 + p01b_sv, 4.0, 8.0, "FUR02_TV_STAND front floor peg"),
-            m("MORT_FUR_TV_B", 183.0, 320.0 + p01b_sv, 4.0, 8.0, "FUR02_TV_STAND rear floor peg"),
+            m("MORT_FUR_TV_F", 183.0, 288.0 + p01b_sv, 4.0, 6.0, "FUR02_TV_STAND front floor peg"),
+            m("MORT_FUR_TV_B", 183.0, 320.0 + p01b_sv, 4.0, 6.0, "FUR02_TV_STAND rear floor peg"),
             # Bedroom FUR04_BED (world center 326, 336)
-            m("MORT_FUR_BED_L", 298.0, 336.0 + p01b_sv, 8.0, 4.0, "FUR04_BED left floor peg"),
-            m("MORT_FUR_BED_R", 354.0, 336.0 + p01b_sv, 8.0, 4.0, "FUR04_BED right floor peg"),
+            m("MORT_FUR_BED_L", 298.0, 336.0 + p01b_sv, 6.0, 4.0, "FUR04_BED left floor peg"),
+            m("MORT_FUR_BED_R", 354.0, 336.0 + p01b_sv, 6.0, 4.0, "FUR04_BED right floor peg"),
             # Bedroom FUR05_BEDSIDE_TABLE (world center 256, 350)
-            m("MORT_FUR_BEDSIDE", 256.0, 350.0 + p01b_sv, 8.0, 4.0, "FUR05_BEDSIDE_TABLE floor peg"),
+            m("MORT_FUR_BEDSIDE", 256.0, 350.0 + p01b_sv, 6.0, 4.0, "FUR05_BEDSIDE_TABLE floor peg"),
         ],
         "P02_WALL_BACK": [
             # SUP12_DHT11_SNAP_CRADLE flanking DHT11_Airflow (u=141.75..154.25, v=83..99)
@@ -379,11 +379,11 @@ def build_panel_mortise_map(cfg: PrintConfig | None = None) -> dict[str, list[Mo
             m("MORT_PLT_C2", 123.0, 7.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 2"),
             m("MORT_PLT_C3", 7.0, 103.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 3"),
             m("MORT_PLT_C4", 123.0, 103.0, 8.0, 3.0, "SUP05_P16_TENON_RISER corner 4"),
-            # 4x SUP06_HUB_PCB_SNAP_CARRIER mortises (90x70 pitch)
-            m("MORT_PCB_C1", 20.0, 20.0, 8.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER tenon 1"),
-            m("MORT_PCB_C2", 110.0, 20.0, 8.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER tenon 2"),
-            m("MORT_PCB_C3", 20.0, 90.0, 8.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER tenon 3"),
-            m("MORT_PCB_C4", 110.0, 90.0, 8.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER tenon 4"),
+            # 4x SUP06_HUB_PCB_SNAP_CARRIER mortises (90x70 pitch, standardized 6x3 floating tenon SUP05B)
+            m("MORT_PCB_C1", 20.0, 20.0, 6.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER floating tenon 1"),
+            m("MORT_PCB_C2", 110.0, 20.0, 6.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER floating tenon 2"),
+            m("MORT_PCB_C3", 20.0, 90.0, 6.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER floating tenon 3"),
+            m("MORT_PCB_C4", 110.0, 90.0, 6.0, 3.0, "SUP06_HUB_PCB_SNAP_CARRIER floating tenon 4"),
         ],
         "P17_BASE_JOINER": [],
     }
@@ -1110,6 +1110,33 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
             color_rgb=(0.82, 0.66, 0.20),
         ),
         SupportSpec(
+            part_id="SUP05B_CARRIER_TENON_PEG",
+            vi_name="Chot mong roi 6x3x6mm khoa khung PCB/Relay/PAM",
+            category="tenon_peg",
+            qty=10,
+            size_xyz=(6.0, 6.0, 3.0),
+            engrave=EngraveSpec("S5B", "", 3.0, 3.0, 1.4, False),
+            params={"tenon_x": 6.0, "tenon_y": 3.0, "length_z": 6.0},
+            mating_source="Floating press-fit tenons locking SUP06 (4x), SUP07 (4x), SUP08 (2x) into P16/P01A mortises",
+            assembly_placements=(
+                # 4x SUP06 -> P16 (world Z=6..12)
+                {"x": 37.0, "y": 64.0, "z": 6.0, "rot_z": 0.0},
+                {"x": 127.0, "y": 64.0, "z": 6.0, "rot_z": 0.0},
+                {"x": 37.0, "y": 134.0, "z": 6.0, "rot_z": 0.0},
+                {"x": 127.0, "y": 134.0, "z": 6.0, "rot_z": 0.0},
+                # 4x SUP07 -> P01A (world Z=-3..3)
+                {"x": 180.0, "y": 136.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 212.0, "y": 136.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 180.0, "y": 92.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 212.0, "y": 92.0, "z": -3.0, "rot_z": 0.0},
+                # 2x SUP08 -> P01A (world Z=-3..3)
+                {"x": 169.0, "y": 52.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 195.0, "y": 52.0, "z": -3.0, "rot_z": 0.0},
+            ),
+            notes="Chot mong roi in nam phang khong support, ep khit khoa khung SUP06/SUP07/SUP08 vao ranh tam day.",
+            color_rgb=(0.86, 0.72, 0.24),
+        ),
+        SupportSpec(
             part_id="SUP06_HUB_PCB_SNAP_CARRIER",
             vi_name="Khung mong chot dan hoi giu Hub PCB 100x80",
             category="pcb_carrier",
@@ -1126,7 +1153,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "peg_od": round(pcb.hole_dia_mm - cfg.snap_peg_dia_clr, 2),  # 3.00 mm
                 "standoff_h": 10.0,
                 "base_h": 3.0,
-                "tenon_x": 8.0,
+                "tenon_x": 6.0,
                 "tenon_y": 3.0,
                 "tenon_h": 3.0,
             },
@@ -1154,7 +1181,7 @@ def build_support_specs(cfg: PrintConfig | None = None, pcb: pcb_ssot.PcbSpec | 
                 "standoff_h": 8.0,
                 "base_h": 2.4,
                 "tenon_span": 32.0,
-                "tenon_x": 8.0,
+                "tenon_x": 6.0,
                 "tenon_y": 3.0,
                 "tenon_h": 3.0,
             },
@@ -1393,9 +1420,9 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
                 "arm_w": 8.0,
                 "back_t": 8.0,
                 "peg_span_x": 44.0,  # world X=56 and X=100 (center 78)
-                "peg_x": 8.0,
+                "peg_x": 6.0,
                 "peg_y": 4.0,
-                "peg_h": 3.0,
+                "peg_h": 4.0,
             },
             attachment="2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=56, 100, Y=352",
             assembly_placements=({"x": 78.0, "y": 352.0, "z": 0.0, "rot_z": 0.0},),
@@ -1415,9 +1442,9 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
                 "depth_y": 22.0,
                 "height_z": 18.0,
                 "peg_span_x": 32.0,  # rotated 90 deg in world -> Y=288 and Y=320 (center 304)
-                "peg_x": 8.0,
+                "peg_x": 6.0,
                 "peg_y": 4.0,
-                "peg_h": 3.0,
+                "peg_h": 4.0,
                 "tv_slot_x": round(24.0 + 2.0 * cfg.mortise_clr_per_side, 2),
                 "tv_slot_y": round(4.0 + 2.0 * cfg.mortise_clr_per_side, 2),
                 "tv_slot_d": 5.0,
@@ -1466,9 +1493,9 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
                 "headboard_t": 6.0,
                 "pillow_h": 4.0,
                 "peg_span_x": 56.0,  # world X=298 and X=354 (center 326)
-                "peg_x": 8.0,
+                "peg_x": 6.0,
                 "peg_y": 4.0,
-                "peg_h": 3.0,
+                "peg_h": 4.0,
             },
             attachment="2x floor mortise pegs (8x4 mm) pressing into P01B_BASE_HOUSE at X=298, 354, Y=336",
             assembly_placements=({"x": 326.0, "y": 336.0, "z": 0.0, "rot_z": 0.0},),
@@ -1488,9 +1515,9 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
                 "depth_y": 22.0,
                 "table_h": 18.0,
                 "lamp_h": 10.0,
-                "peg_x": 8.0,
+                "peg_x": 6.0,
                 "peg_y": 4.0,
-                "peg_h": 3.0,
+                "peg_h": 4.0,
             },
             attachment="1x anti-rotation floor mortise peg (8x4 mm) pressing into P01B_BASE_HOUSE at X=256, Y=350",
             assembly_placements=({"x": 256.0, "y": 350.0, "z": 0.0, "rot_z": 0.0},),
@@ -1563,14 +1590,39 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
                 "top_w": 16.0,
                 "bot_w": 12.0,
                 "height_z": 14.0,
-                "peg_x": 5.0,
+                "peg_x": 6.0,
                 "peg_y": 4.0,
-                "peg_h": 3.0,
+                "peg_h": 4.0,
             },
             attachment="1x floor mortise peg (5x4 mm) pressing into P01A_BASE_TECH at (322, 13)",
             assembly_placements=({"x": 322.0, "y": 13.0, "z": 0.0, "rot_z": 0.0},),
             notes="Chau hoa trang tri nho ngoai san truoc vuon, cam mong xuong P01A.",
             color_rgb=(0.80, 0.50, 0.32),
+        ),
+        FurnitureSpec(
+            part_id="FUR09_FLOOR_TENON_PEG",
+            vi_name="Chot mong san noi that 6x4x7mm (cam san P01A/P01B)",
+            category="floor_peg",
+            room="Living Room / Bedroom / Outdoor",
+            qty=10,
+            size_xyz=(6.0, 7.0, 4.0),
+            engrave=EngraveSpec("F09", "", 3.0, 3.5, 1.5, False),
+            params={"peg_x": 6.0, "peg_y": 4.0, "length_z": 7.0},
+            attachment="Floating press-fit floor tenons locking FUR01/02/04/05/06/08 into P01A/P01B floor mortises (zero supports)",
+            assembly_placements=(
+                {"x": 56.0, "y": 352.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 100.0, "y": 352.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 183.0, "y": 288.0, "z": -3.0, "rot_z": 90.0},
+                {"x": 183.0, "y": 320.0, "z": -3.0, "rot_z": 90.0},
+                {"x": 298.0, "y": 336.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 354.0, "y": 336.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 256.0, "y": 350.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 290.0, "y": 13.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 376.0, "y": 163.0, "z": -3.0, "rot_z": 0.0},
+                {"x": 322.0, "y": 13.0, "z": -3.0, "rot_z": 0.0},
+            ),
+            notes="Chot mong san in nam phang khong can support, cam giu toan bo noi that FUR01-FUR08 co dinh tren san.",
+            color_rgb=(0.68, 0.56, 0.42),
         ),
     ]
 
