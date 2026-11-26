@@ -86,6 +86,11 @@ fun DevicesScreenTab(
   selectedTier: Int = 1,
   onNavigateToAuth: () -> Unit = {},
   onNavigateToQr: () -> Unit = {},
+  boardOnline: Boolean = true,
+  boardLastSeenVi: String = "",
+  deviceBoardOnline: Map<String, Boolean> = emptyMap(),
+  deviceLastSeenVi: Map<String, String> = emptyMap(),
+  onDeviceOfflineTap: (HardwareDevice) -> Unit = {},
 ) {
   var showCreateTimerDialog by remember { mutableStateOf(false) }
   var showCreateScheduleDialog by remember { mutableStateOf(false) }
@@ -175,6 +180,28 @@ fun DevicesScreenTab(
         }
       }
 
+      if (!boardOnline) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFFEF5F5))
+            .border(1.dp, Color(0xFFEBC8C7), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+          Text(
+            text = buildString {
+              append("Mạch ESP8266 đang mất kết nối")
+              if (boardLastSeenVi.isNotBlank()) append(" · Lần cuối: $boardLastSeenVi")
+              append(". Chuyển sang tab Giọng nói để điều khiển cơ bản ngoại tuyến qua mạng LAN.")
+            },
+            color = accentRed,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+          )
+        }
+      }
+
       val filteredDevices = if (selectedRoomFilter == "Tất cả") {
         devices
       } else {
@@ -183,6 +210,8 @@ fun DevicesScreenTab(
 
       filteredDevices.forEach { dev ->
         val isOn = deviceStates[dev.serverId] == true
+        val devOnline = boardOnline && (deviceBoardOnline[dev.serverId] != false)
+        val devLastSeen = deviceLastSeenVi[dev.serverId].orEmpty().ifBlank { boardLastSeenVi }
         DeviceRowCard(
           dev = dev,
           isOn = isOn,
@@ -191,6 +220,9 @@ fun DevicesScreenTab(
           textPrimary = textPrimary,
           textSecondary = textSecondary,
           onToggle = { newValue -> onToggleDevice(dev, newValue) },
+          boardOnline = devOnline,
+          lastSeenVi = devLastSeen,
+          onOfflineTap = { onDeviceOfflineTap(dev) },
         )
       }
     }

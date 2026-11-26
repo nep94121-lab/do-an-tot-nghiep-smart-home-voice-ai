@@ -115,7 +115,38 @@ Trang `/wokwi` (dành cho **Cấp 1 Chủ nhà** và **Cấp 2 Thành viên**) g
 
 ---
 
-## 8. Tài liệu Liên quan
+## 8. Hành vi Khi Mạch ESP8266 Mất Mạng / Mất Kết Nối Máy Chủ
+
+Hệ thống được thiết kế theo nguyên tắc **an toàn trước tiên (fail-safe)** khi mạch phần cứng `ESP8266` mất kết nối Wi-Fi, mất kết nối máy chủ trung tâm hoặc Internet bị gián đoạn:
+
+### 8.1. Dấu hiệu nhận biết cục bộ & trên giao diện
+- **Đèn LED báo mất kết nối (không chặn vòng lặp):** Mạch ESP8266 thực hiện nhịp **nháy đôi ngắn** (`2 xung 120 ms` cách nhau `160 ms`, lặp lại mỗi chu kỳ `4 giây`), sau đó tự trả về đúng trạng thái đèn mà người dùng đang bật/tắt.
+- **Tín hiệu còi / loa báo ngắt kết nối:** Khi chuyển trạng thái từ đang kết nối sang mất kết nối, mạch phát đúng **2 tiếng bíp ngắn (`80 ms`)** một lần duy nhất (không kêu kéo dài hay lặp lại vô hạn).
+- **Hiển thị trên Web (`/`), Mobile Web (`/app`) & Ứng dụng Android:**
+  - Nếu máy chủ không nhận được nhịp tim (`heartbeat`) từ mạch quá ngưỡng cấu hình (`30 giây` mặc định) hoặc nhận tín hiệu mất kết nối `MQTT LWT`, toàn bộ thẻ thiết bị tự động hiển thị nhãn **`Mất kết nối`** kèm mốc thời gian **`Lần cuối: HH:MM:SS dd/MM/yyyy`**.
+  - Các công tắc điều khiển qua máy chủ được khóa/cảnh báo để **tuyệt đối không báo thành công giả**.
+  - Trợ lý Giọng nói và API trả về HTTP `503` cùng câu phản hồi tiếng Việt nêu rõ thiết bị đang mất kết nối và thời điểm nhìn thấy gần nhất, thay vì nói *"Đã bật/tắt..."*.
+
+### 8.2. Trạng thái an toàn mặc định khi ngoại tuyến (Safe Defaults)
+1. **Cửa chính (`main_door`):** Tự động đóng/khóa ngay khi phát hiện mất kết nối máy chủ và **tuyệt đối cấm mở cửa ở chế độ ngoại tuyến** ở tầng firmware.
+2. **Bơm tưới cây (`garden_pump`):** Vẫn duy trì tự động bảo vệ độ ẩm đất cục bộ (`< 40%` bật, `≥ 70%` tắt), đồng thời áp dụng **giới hạn thời gian chạy liên tục tối đa `120 giây`** để tự ngắt an toàn (chống cháy bơm hoặc tràn nước nếu cảm biến lỗi).
+3. **Còi báo động (`alarm_siren`):** Áp dụng **giới hạn thời gian kêu tối đa `30 giây`** ở chế độ ngoại tuyến để tránh còi kêu kẹt vô hạn.
+4. **Loa phản hồi (`speaker_amp`):** Tự động ngắt nguồn khuếch đại sau thời gian trễ nhàn rỗi (`1,5 giây`).
+
+### 8.3. Điều khiển giọng nói ngoại tuyến qua mạng LAN (A1, A2, A3)
+- **Không cần máy chủ trung tâm hay Internet (A1):** Khi mất kết nối máy chủ, ứng dụng Android sử dụng bộ nhận dạng giọng nói tiếng Việt ngoại tuyến trên thiết bị (`vi-VN`, `EXTRA_PREFER_OFFLINE`) kết hợp bộ đọc giọng nói tiếng Việt cục bộ (`TextToSpeech`) và gửi lệnh trực tiếp tới mạch ESP8266 trong cùng mạng LAN qua `POST http://<địa-chỉ-LAN-mạch>/offline/cmd` (mặc định `smarthome-esp8266.local`, dự phòng SoftAP `192.168.4.1`).
+- **Tập lệnh cơ bản cố định, không phân biệt cấp (A2):**
+  - Chỉ hỗ trợ nhóm lệnh bật/tắt cơ bản cố định cho: `Đèn phòng khách`, `Đèn phòng ngủ`, `Bơm tưới cây`, `Còi báo động`, `Loa phản hồi`, `Đóng/khóa cửa chính` và hỏi trạng thái.
+  - Ở chế độ ngoại tuyến **không phân biệt Cấp 1 / Cấp 2 / Cấp 3** và **không hỗ trợ** lệnh tùy chỉnh (custom commands), ngữ cảnh nhiều bước, luật tự động hóa hay đặt lịch/hẹn giờ.
+- **Cấm mở cửa chính tuyệt đối (A3):** Mọi yêu cầu mở cửa chính khi đang mất kết nối đều bị chặn cứng ngay tại firmware lẫn ứng dụng và phản hồi ngắn gọn: *"Đang mất kết nối máy chủ, tuyệt đối không được phép mở cửa chính."*
+
+### 8.4. Tự động kết nối lại & đồng bộ ngược trạng thái thực tế (A4)
+- **Kết nối lại theo thời gian chờ tăng dần (Exponential Backoff):** Mạch ESP8266 tự động thử kết nối lại Wi-Fi và máy chủ theo chu kỳ tăng dần `1s → 2s → 4s → 8s → 16s → tối đa 30s`, hoàn toàn không làm treo cảm biến hay bộ hẹn giờ an toàn.
+- **Tự động đồng bộ trạng thái thực tế về máy chủ, Web & Android:** Khi kết nối khôi phục, mạch chủ động gửi trạng thái vật lý hiện tại của các thiết bị đã thay đổi trong thời gian ngoại tuyến lên `POST /api/hardware/resync`. Máy chủ tiếp nhận làm trạng thái chuẩn, ghi nhật ký `board_offline_resync` và phát sóng `SSE` / `WebSocket` tức thì để Web Dashboard (`/`), `/app` và Ứng dụng Android tự động bỏ nhãn **`Mất kết nối`** và hiển thị đúng trạng thái thực tế mà không cần tải lại trang thủ công.
+
+---
+
+## 9. Tài liệu Liên quan
 
 - [Tổng quan dự án & hướng dẫn cài đặt](README.md)
 - [Hướng dẫn chế tạo PCB, cắt Mica & đấu nối phần cứng](docs/HARDWARE_BUILD_GUIDE.md)

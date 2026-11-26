@@ -76,14 +76,31 @@ fun DeviceRowCard(
   textPrimary: Color,
   textSecondary: Color,
   onToggle: (Boolean) -> Unit,
+  boardOnline: Boolean = true,
+  lastSeenVi: String = "",
+  onOfflineTap: () -> Unit = {},
 ) {
+  val offlineRed = Color(0xFFC83E3B)
+  val offlineBg = Color(0xFFFEF5F5)
+  val offlineBorder = Color(0xFFEBC8C7)
+  val rowBg = when {
+    !boardOnline -> offlineBg
+    isOn -> Color(0xFFF8FCFC)
+    else -> Color(0xFFF5F7F7)
+  }
+  val rowBorder = when {
+    !boardOnline -> offlineBorder
+    isOn -> Color(0xFFB9DEDB)
+    else -> cardBorder
+  }
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(12.dp))
-      .background(if (isOn) Color(0xFFF8FCFC) else Color(0xFFF5F7F7))
-      .border(1.dp, if (isOn) Color(0xFFB9DEDB) else cardBorder, RoundedCornerShape(12.dp))
-      .padding(horizontal = 10.dp, vertical = 3.dp),
+      .background(rowBg)
+      .border(1.dp, rowBorder, RoundedCornerShape(12.dp))
+      .then(if (!boardOnline) Modifier.clickable { onOfflineTap() } else Modifier)
+      .padding(horizontal = 10.dp, vertical = 5.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -93,21 +110,41 @@ fun DeviceRowCard(
           .size(32.dp)
           .clip(RoundedCornerShape(8.dp))
           .background(Color.White)
-          .border(1.dp, cardBorder, RoundedCornerShape(8.dp)),
+          .border(1.dp, rowBorder, RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center,
       ) {
-        LineIcon(dev.icon, accentCyan, 16)
+        LineIcon(dev.icon, if (boardOnline) accentCyan else offlineRed, 16)
       }
       Spacer(modifier = Modifier.width(8.dp))
       Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = dev.name,
-          color = textPrimary,
-          fontSize = 13.sp,
-          fontWeight = FontWeight.Medium,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Text(
+            text = dev.name,
+            color = textPrimary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+          )
+          if (!boardOnline) {
+            Text(
+              text = "Mất kết nối",
+              color = offlineRed,
+              fontSize = 10.sp,
+              fontWeight = FontWeight.SemiBold,
+              maxLines = 1,
+              modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color(0xFFFDECEC))
+                .border(1.dp, offlineBorder, RoundedCornerShape(999.dp))
+                .padding(horizontal = 6.dp, vertical = 1.dp),
+            )
+          }
+        }
         Text(
           text = "${dev.pinInfo} · ${if (isOn) dev.onLabel else dev.offLabel}",
           color = textSecondary,
@@ -116,18 +153,35 @@ fun DeviceRowCard(
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
+        if (!boardOnline) {
+          Text(
+            text = "Lần cuối: ${lastSeenVi.ifBlank { "--" }}",
+            color = offlineRed,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
       }
     }
 
     Switch(
       checked = isOn,
-      onCheckedChange = onToggle,
+      onCheckedChange = { newVal ->
+        if (boardOnline) onToggle(newVal) else onOfflineTap()
+      },
+      enabled = boardOnline,
       modifier = Modifier.height(34.dp),
       colors = SwitchDefaults.colors(
         checkedThumbColor = Color.White,
         checkedTrackColor = accentCyan,
         uncheckedThumbColor = textSecondary,
         uncheckedTrackColor = cardBorder,
+        disabledCheckedThumbColor = Color.White.copy(alpha = 0.7f),
+        disabledCheckedTrackColor = accentCyan.copy(alpha = 0.35f),
+        disabledUncheckedThumbColor = textSecondary.copy(alpha = 0.55f),
+        disabledUncheckedTrackColor = cardBorder.copy(alpha = 0.6f),
       ),
     )
   }

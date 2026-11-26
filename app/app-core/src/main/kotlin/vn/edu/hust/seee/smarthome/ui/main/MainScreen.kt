@@ -231,6 +231,21 @@ fun MainScreen(
   var isOnlineMode by remember { mutableStateOf(true) }
   var serverSynced by remember { mutableStateOf(false) }
   var lastSyncTime by remember { mutableStateOf("--:--:--") }
+  var boardOnline by remember { mutableStateOf(true) }
+  var boardStatusVi by remember { mutableStateOf("Đang kết nối") }
+  var boardLastSeenVi by remember { mutableStateOf("") }
+  var boardOfflineResyncCount by remember { mutableIntStateOf(0) }
+  val deviceBoardOnline = remember { mutableStateMapOf<String, Boolean>() }
+  val deviceLastSeenVi = remember { mutableStateMapOf<String, String>() }
+  val offlinePrefs = remember { context.getSharedPreferences("smarthome_prefs", Context.MODE_PRIVATE) }
+  var boardLanHost by remember {
+    mutableStateOf(
+      offlinePrefs.getString("board_lan_host", "smarthome-esp8266.local")
+        ?.trim()
+        ?.ifBlank { "smarthome-esp8266.local" }
+        ?: "smarthome-esp8266.local"
+    )
+  }
 
   var micPermissionGranted by remember {
     mutableStateOf(
@@ -587,7 +602,7 @@ fun MainScreen(
             lastSyncTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             return@withContext response
           }
-          if (code in 400..499) {
+          if (code in 400..499 || code == 503) {
             val errBody = conn.errorStream?.let { stream ->
               BufferedReader(InputStreamReader(stream)).use { it.readText() }
             }?.takeIf { it.isNotBlank() } ?: "{\"ok\":false,\"error\":\"Yêu cầu bị từ chối (HTTP $code).\"}"
@@ -616,6 +631,28 @@ fun MainScreen(
         if (curTier in 1..3 && activeSessionToken.isNotBlank()) {
           selectedTier = curTier
         }
+        val boardHealthObj = root.optJSONObject("board_health")
+        if (boardHealthObj != null) {
+          val prevBoardOnline = boardOnline
+          val nextBoardOnline = boardHealthObj.optBoolean("online", true)
+          boardOnline = nextBoardOnline
+          boardStatusVi = boardHealthObj.optString("status_vi").ifBlank {
+            if (nextBoardOnline) "Đang kết nối" else "Mất kết nối"
+          }
+          val lsVi = boardHealthObj.optString("last_seen_vi", "").trim()
+          if (lsVi.isNotEmpty()) {
+            boardLastSeenVi = lsVi
+          }
+          val resyncCnt = boardHealthObj.optInt("offline_resync_count", boardOfflineResyncCount)
+          if ((!prevBoardOnline && nextBoardOnline) || resyncCnt > boardOfflineResyncCount) {
+            boardOfflineResyncCount = resyncCnt
+            if (automationStatusIsError && automationStatusMessage.contains("mất kết nối", ignoreCase = true)) {
+              automationStatusMessage = ""
+              automationStatusIsError = false
+            }
+            addHistoryLog("Mạch đã kết nối lại và tự động đồng bộ trạng thái thực tế.")
+          }
+        }
         val devArr = root.optJSONArray("devices")
         if (devArr != null && activeSessionToken.isNotBlank()) {
           val seenIds = mutableSetOf<String>()
@@ -626,6 +663,15 @@ fun MainScreen(
             if (id.isNotBlank() && deviceStates.containsKey(id)) {
               seenIds.add(id)
               deviceStates[id] = (st == "ON" || st == "OPEN")
+              if (obj.has("board_online")) {
+                deviceBoardOnline[id] = obj.optBoolean("board_online", boardOnline)
+              } else {
+                deviceBoardOnline[id] = boardOnline
+              }
+              val devLs = obj.optString("last_seen_vi", "").trim()
+              if (devLs.isNotEmpty()) {
+                deviceLastSeenVi[id] = devLs
+              }
             }
           }
           if (seenIds.isNotEmpty()) {
@@ -1392,12 +1438,143 @@ fun MainScreen(
     }
   }
 
+  fun isOfflineDoorOpenAttempt(cmdLower: String): Boolean {
+    val mentionsDoor = cmdLower.contains("cửa") || cmdLower.contains("cua") || cmdLower.contains("main_door")
+    if (!mentionsDoor) return false
+    val wantsClose = cmdLower.contains("đóng") ||
+      cmdLower.contains("dong") ||
+      cmdLower.contains("khóa") ||
+      cmdLower.contains("khoa") ||
+      cmdLower.contains("tắt") ||
+      cmdLower.contains("tat") ||
+      cmdLower.contains("close")
+    val wantsOpen = cmdLower.contains("mở") ||
+      cmdLower.contains("mo ") ||
+      cmdLower == "mo" ||
+      cmdLower.contains("bật") ||
+      cmdLower.contains("bat") ||
+      cmdLower.contains("open")
+    return wantsOpen && !wantsClose
+  }
+
+  fun sendDirectBoardOfflineCommand(cleanCmd: String) {
+    val lower = cleanCmd.lowercase(Locale.getDefault())
+    val doorOpenAttempt = isOfflineDoorOpenAttempt(lower)
+    val doorRefusal = "Đang mất kết nối máy chủ, tuyệt đối không được phép mở cửa chính."
+    val cleanHost = boardLanHost
+      .trim()
+      .removePrefix("http://")
+      .removePrefix("https://")
+      .trimEnd('/')
+      .ifBlank { "smarthome-esp8266.local" }
+    val lanUrls = buildList {
+      add("http://$cleanHost/offline/cmd")
+      if (cleanHost != "192.168.4.1") {
+        add("http://192.168.4.1/offline/cmd")
+      }
+    }
+    speakerReply = "Đang gửi lệnh ngoại tuyến tới mạch ($cleanHost)..."
+    scope.launch(Dispatchers.IO) {
+      val payload = JSONObject().apply {
+        put("text", cleanCmd)
+      }.toString()
+      var responseBody: String? = null
+      for (targetUrl in lanUrls) {
+        var conn: HttpURLConnection? = null
+        try {
+          val url = URL(targetUrl)
+          conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 2500
+            readTimeout = 2500
+            doOutput = true
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+          }
+          OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use {
+            it.write(payload)
+            it.flush()
+          }
+          val code = conn.responseCode
+          val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+          if (stream != null) {
+            responseBody = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
+          }
+          if (code in 200..299 || code == 400 || code == 403) {
+            break
+          }
+        } catch (_: Exception) {
+        } finally {
+          try { conn?.disconnect() } catch (_: Exception) {}
+        }
+      }
+      withContext(Dispatchers.Main) {
+        if (responseBody.isNullOrBlank()) {
+          if (doorOpenAttempt) {
+            deviceStates["main_door"] = false
+            speakerReply = doorRefusal
+            speakOutLoud(doorRefusal)
+            showAutomationFeedback(doorRefusal, isError = true)
+          } else {
+            val errMsg = "Không thể kết nối máy chủ hoặc mạch ESP8266 qua mạng LAN ($cleanHost)."
+            speakerReply = errMsg
+            speakOutLoud(errMsg)
+            showAutomationFeedback(errMsg, isError = true)
+          }
+          return@withContext
+        }
+        try {
+          val res = JSONObject(responseBody)
+          val devicesObj = res.optJSONObject("devices")
+          if (devicesObj != null) {
+            val keys = devicesObj.keys()
+            while (keys.hasNext()) {
+              val devKey = keys.next()
+              if (deviceStates.containsKey(devKey)) {
+                val st = devicesObj.optString(devKey, "OFF").uppercase(Locale.ROOT)
+                val isOnState = st == "ON" || st == "OPEN"
+                // Addendum A3: Tuyệt đối không mở cửa chính ở chế độ ngoại tuyến
+                deviceStates[devKey] = if (devKey == "main_door") false else isOnState
+              }
+            }
+          }
+          val ok = res.optBoolean("ok", false)
+          val refused = res.optBoolean("refused", !ok)
+          val replyVi = res.optString("reply_vi")
+            .ifBlank { extractServerSpokenReply(res) }
+            .ifBlank {
+              if (doorOpenAttempt) doorRefusal
+              else if (ok && !refused) "Đã thực hiện lệnh ở chế độ ngoại tuyến."
+              else "Lệnh không được hỗ trợ ở chế độ ngoại tuyến."
+            }
+          speakerReply = replyVi
+          speakOutLoud(replyVi)
+          addHistoryLog("Ngoại tuyến LAN: $cleanCmd -> $replyVi")
+          if (!ok || refused) {
+            showAutomationFeedback(replyVi, isError = true)
+          }
+        } catch (_: Exception) {
+          val fallbackErr = if (doorOpenAttempt) doorRefusal else "Phản hồi ngoại tuyến từ mạch không hợp lệ."
+          speakerReply = fallbackErr
+          speakOutLoud(fallbackErr)
+          showAutomationFeedback(fallbackErr, isError = true)
+        }
+      }
+    }
+  }
+
   fun executeVoiceCommand(rawText: String, fromLiveMic: Boolean = false) {
     val cleanCmd = rawText.trim()
     if (cleanCmd.isEmpty()) return
     lastSpokenText = cleanCmd
     hasVoiceCommandResult = true
     voiceInput = ""
+
+    val useDirectLanOffline = !isOnlineMode || !boardOnline || (isAuthenticated && !serverSynced)
+    if (useDirectLanOffline) {
+      sendDirectBoardOfflineCommand(cleanCmd)
+      return
+    }
 
     val lower = cleanCmd.lowercase(Locale.getDefault())
     val isAutomationOrMultiPhrase = lower.contains("giây") ||
@@ -1453,16 +1630,17 @@ fun MainScreen(
         if (newState) "bật" else "tắt"
       }
       val reply = "Đã $actionWord ${targetDevice.name} theo lệnh của $activeSpeakerName."
-      speakerReply = reply
-      if (!isOnlineMode) {
-        speakOutLoud(reply)
-      }
-      addHistoryLog("Lệnh: $cleanCmd -> $reply")
+      speakerReply = "Đang thực hiện..."
+      addHistoryLog("Lệnh: $cleanCmd")
 
       scope.launch(Dispatchers.IO) {
         val payload = JSONObject().apply {
           put("device_id", targetDevice.serverId)
-          put("action", if (newState) "turn_on" else "turn_off")
+          put("action", if (targetDevice.serverId == "main_door") {
+            if (newState) "open" else "close"
+          } else {
+            if (newState) "turn_on" else "turn_off"
+          })
           put("user_name", activeSpeakerName)
           put("tier", selectedTier)
           put("session_token", activeSessionToken)
@@ -1474,13 +1652,23 @@ fun MainScreen(
               val res = JSONObject(resStr)
               val serverSpeech = extractServerSpokenReply(res)
               val serverPcmB64 = res.optString("pcm24k_b64", "")
-              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+              val isBoardOfflineResp = res.optBoolean("board_offline", false)
+              if (isBoardOfflineResp) {
+                boardOnline = false
+                val ls = res.optString("last_seen_vi", "").trim()
+                if (ls.isNotEmpty()) boardLastSeenVi = ls
+                if (res.has("snapshot")) {
+                  scope.launch { applyServerSnapshotJson(resStr) }
+                }
+              }
+              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || isBoardOfflineResp) {
                 deviceStates[targetDevice.serverId] = prevState
                 val rejSpeech = serverSpeech.ifBlank {
-                  res.optString("error", "Bạn không có quyền thực hiện lệnh này.")
+                  res.optString("error", "Không thể thực hiện lệnh này.")
                 }
                 speakerReply = rejSpeech
                 speakOutLoud(rejSpeech, serverPcmB64)
+                showAutomationFeedback(rejSpeech, isError = true)
               } else {
                 val finalSpeech = serverSpeech.ifBlank { reply }
                 speakerReply = finalSpeech
@@ -1490,22 +1678,21 @@ fun MainScreen(
                 }
               }
             } catch (_: Exception) {
-              if (isOnlineMode) speakOutLoud(reply)
+              deviceStates[targetDevice.serverId] = prevState
+              val errMsg = "Không đọc được phản hồi từ máy chủ."
+              speakerReply = errMsg
+              showAutomationFeedback(errMsg, isError = true)
             }
-          } else if (isOnlineMode) {
+          } else {
             deviceStates[targetDevice.serverId] = prevState
-            val errMsg = "Không thể kết nối máy chủ."
-            speakerReply = errMsg
-            showAutomationFeedback(errMsg, isError = true)
+            serverSynced = false
+            sendDirectBoardOfflineCommand(cleanCmd)
           }
         }
       }
     } else {
       val reply = "Đã nhận lệnh: “$cleanCmd”."
-      speakerReply = reply
-      if (!isOnlineMode) {
-        speakOutLoud(reply)
-      }
+      speakerReply = "Đang xử lý..."
       scope.launch(Dispatchers.IO) {
         val payload = JSONObject().apply {
           put("text", cleanCmd)
@@ -1523,19 +1710,25 @@ fun MainScreen(
               val res = JSONObject(resStr)
               val serverSpeech = extractServerSpokenReply(res)
               val serverPcmB64 = res.optString("pcm24k_b64", "")
+              if (res.optBoolean("board_offline", false)) {
+                boardOnline = false
+                val ls = res.optString("last_seen_vi", "").trim()
+                if (ls.isNotEmpty()) boardLastSeenVi = ls
+              }
               val finalSpeech = serverSpeech.ifBlank { res.optString("error").ifBlank { reply } }
               speakerReply = finalSpeech
               speakOutLoud(finalSpeech, serverPcmB64)
-              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+              if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || res.optBoolean("board_offline", false)) {
                 showAutomationFeedback(finalSpeech, isError = true)
               }
             } catch (_: Exception) {
-              if (isOnlineMode) speakOutLoud(reply)
+              val errMsg = "Không đọc được phản hồi từ máy chủ."
+              speakerReply = errMsg
+              showAutomationFeedback(errMsg, isError = true)
             }
-          } else if (isOnlineMode) {
-            val errMsg = "Không thể kết nối máy chủ."
-            speakerReply = errMsg
-            showAutomationFeedback(errMsg, isError = true)
+          } else {
+            serverSynced = false
+            sendDirectBoardOfflineCommand(cleanCmd)
           }
         }
       }
@@ -1556,6 +1749,8 @@ fun MainScreen(
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
       }
       val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
@@ -1681,7 +1876,7 @@ fun MainScreen(
                   .background(
                     when {
                       !isAuthenticated -> accentAmber
-                      serverSynced && isOnlineMode -> Color(0xFF15803D)
+                      serverSynced && isOnlineMode && boardOnline -> Color(0xFF15803D)
                       else -> accentRed
                     }
                   ),
@@ -1689,7 +1884,7 @@ fun MainScreen(
               Text(
                 text = when {
                   !isAuthenticated -> "Chưa đăng nhập"
-                  serverSynced && isOnlineMode -> "Đã kết nối"
+                  serverSynced && isOnlineMode && boardOnline -> "Đã kết nối"
                   else -> "Mất kết nối"
                 },
                 color = textPrimary,
@@ -1746,6 +1941,8 @@ fun MainScreen(
             automationRules = automationRules,
             customScenes = customScenes,
             onRunScene = { runCustomScene(it) },
+            boardOnline = boardOnline && serverSynced && isOnlineMode,
+            boardLastSeenVi = boardLastSeenVi,
           )
           1 -> DevicesScreenTab(
             devices = visibleDevices,
@@ -1753,8 +1950,17 @@ fun MainScreen(
             selectedRoomFilter = selectedRoomFilter,
             onSelectRoomFilter = { selectedRoomFilter = it },
             onToggleDevice = { dev, newValue ->
+              val devOnlineNow = boardOnline && (deviceBoardOnline[dev.serverId] != false) && serverSynced && isOnlineMode
+              val devLastSeen = deviceLastSeenVi[dev.serverId].orEmpty().ifBlank { boardLastSeenVi }
               if (!isAuthenticated) {
                 showAutomationFeedback("Vui lòng đăng nhập để điều khiển thiết bị.", isError = true)
+              } else if (!devOnlineNow) {
+                val offMsg = if (devLastSeen.isNotBlank()) {
+                  "${dev.name} hiện đang mất kết nối (lần cuối: $devLastSeen), chưa thể điều khiển qua máy chủ."
+                } else {
+                  "${dev.name} hiện đang mất kết nối, chưa thể điều khiển qua máy chủ."
+                }
+                showAutomationFeedback(offMsg, isError = true)
               } else if (dev.tier1Only && selectedTier != 1) {
                 val denyMsg = "Chỉ chủ nhà mới được điều khiển ${dev.name}."
                 speakerReply = denyMsg
@@ -1787,10 +1993,16 @@ fun MainScreen(
                         val res = JSONObject(resStr)
                         val serverSpeech = extractServerSpokenReply(res)
                         val serverPcmB64 = res.optString("pcm24k_b64", "")
-                        if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false)) {
+                        val isBoardOfflineResp = res.optBoolean("board_offline", false)
+                        if (isBoardOfflineResp) {
+                          boardOnline = false
+                          val ls = res.optString("last_seen_vi", "").trim()
+                          if (ls.isNotEmpty()) boardLastSeenVi = ls
+                        }
+                        if (!res.optBoolean("ok", true) || res.optBoolean("rbac_blocked", false) || isBoardOfflineResp) {
                           deviceStates[dev.serverId] = prevVal
                           val rejSpeech = serverSpeech.ifBlank {
-                            res.optString("error", "Bạn không có quyền thực hiện lệnh này.")
+                            res.optString("error", "Không thể điều khiển thiết bị lúc này.")
                           }
                           speakerReply = rejSpeech
                           speakOutLoud(rejSpeech, serverPcmB64)
@@ -1798,11 +2010,15 @@ fun MainScreen(
                         } else if (serverSpeech.isNotBlank()) {
                           speakerReply = serverSpeech
                         }
-                      } catch (_: Exception) {}
+                      } catch (_: Exception) {
+                        deviceStates[dev.serverId] = prevVal
+                        showAutomationFeedback("Phản hồi máy chủ không hợp lệ.", isError = true)
+                      }
                     }
                   } else {
                     withContext(Dispatchers.Main) {
                       deviceStates[dev.serverId] = prevVal
+                      serverSynced = false
                       showAutomationFeedback("Không thể kết nối máy chủ.", isError = true)
                     }
                   }
@@ -1837,6 +2053,19 @@ fun MainScreen(
             selectedTier = selectedTier,
             onNavigateToAuth = { currentTab = 3; accountSubScreen = "auth" },
             onNavigateToQr = { currentTab = 3; accountSubScreen = "qr_scanner" },
+            boardOnline = boardOnline && serverSynced && isOnlineMode,
+            boardLastSeenVi = boardLastSeenVi,
+            deviceBoardOnline = deviceBoardOnline,
+            deviceLastSeenVi = deviceLastSeenVi,
+            onDeviceOfflineTap = { dev ->
+              val ls = deviceLastSeenVi[dev.serverId].orEmpty().ifBlank { boardLastSeenVi }
+              val msg = if (ls.isNotBlank()) {
+                "${dev.name} hiện đang mất kết nối (lần cuối: $ls), chưa thể điều khiển qua máy chủ."
+              } else {
+                "${dev.name} hiện đang mất kết nối, chưa thể điều khiển qua máy chủ."
+              }
+              showAutomationFeedback(msg, isError = true)
+            },
           )
           2 -> VoiceScreenTab(
             selectedTier = selectedTier,
@@ -1865,6 +2094,12 @@ fun MainScreen(
             bgDark = bgDark,
             textPrimary = textPrimary,
             textSecondary = textSecondary,
+            isOfflineLanMode = !isOnlineMode || !boardOnline || (isAuthenticated && !serverSynced),
+            boardLanHost = boardLanHost,
+            onBoardLanHostChange = { newHost ->
+              boardLanHost = newHost
+              offlinePrefs.edit().putString("board_lan_host", newHost.trim()).apply()
+            },
           )
           else -> AccountScreenTab(
             accountSubScreen = accountSubScreen,

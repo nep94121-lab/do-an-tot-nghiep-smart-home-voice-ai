@@ -51,6 +51,9 @@ fun VoiceScreenTab(
   textPrimary: Color,
   textSecondary: Color,
   modifier: Modifier = Modifier,
+  isOfflineLanMode: Boolean = false,
+  boardLanHost: String = "smarthome-esp8266.local",
+  onBoardLanHostChange: (String) -> Unit = {},
 ) {
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -66,13 +69,34 @@ fun VoiceScreenTab(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text(
-        text = "Nói để điều khiển thiết bị trong nhà.",
-        color = textSecondary,
+        text = if (isOfflineLanMode) {
+          "Chế độ giọng nói ngoại tuyến qua mạng LAN (chỉ lệnh cơ bản, không mở cửa chính)."
+        } else {
+          "Nói để điều khiển thiết bị trong nhà."
+        },
+        color = if (isOfflineLanMode) Color(0xFF9D6825) else textSecondary,
         fontSize = 13.sp,
-        fontWeight = FontWeight.Normal,
+        fontWeight = if (isOfflineLanMode) FontWeight.Medium else FontWeight.Normal,
       )
 
-      if (selectedTier <= 0 || selectedTier >= 99) {
+      if (isOfflineLanMode) {
+        OutlinedTextField(
+          value = boardLanHost,
+          onValueChange = onBoardLanHostChange,
+          label = { Text("Địa chỉ LAN mạch ESP8266", fontSize = 11.sp) },
+          placeholder = { Text("smarthome-esp8266.local hoặc IP LAN", fontSize = 12.sp, maxLines = 1) },
+          singleLine = true,
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = textPrimary,
+            unfocusedTextColor = textPrimary,
+            focusedBorderColor = accentCyan,
+            unfocusedBorderColor = cardBorder,
+          ),
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+
+      if (!isOfflineLanMode && (selectedTier <= 0 || selectedTier >= 99)) {
         Box(
           modifier = Modifier
             .fillMaxWidth()

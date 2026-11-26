@@ -140,3 +140,11 @@ data class CapturedVoiceSample(
   val f0Hz: Double,
   val pcm16kBase64: String,
 )
+
+data class BoardHealthState(
+  val nodeId: String = "esp8266_node_01",
+  val online: Boolean = true,
+  val statusVi: String = "Đang kết nối",
+  val lastSeenVi: String = "",
+  val offlineResyncCount: Int = 0,
+)

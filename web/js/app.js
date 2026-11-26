@@ -445,6 +445,91 @@
     } catch (_) {}
   }
 
+  let latestBoardHealth = null;
+  let lastOfflineResyncCount = 0;
+
+  function isDeviceBoardOffline(dev, boardHealth = latestBoardHealth) {
+    if (dev && dev.board_online === false) return true;
+    if (boardHealth && boardHealth.online === false) return true;
+    return false;
+  }
+
+  function getDeviceLastSeenVi(dev, boardHealth = latestBoardHealth) {
+    return String(
+      (dev && dev.last_seen_vi) ||
+      (boardHealth && boardHealth.last_seen_vi) ||
+      ""
+    ).trim();
+  }
+
+  function formatBoardOfflineWarning(dev, boardHealth = latestBoardHealth) {
+    const devName = (dev && dev.name) || "Thiết bị";
+    const lastSeen = getDeviceLastSeenVi(dev, boardHealth);
+    return lastSeen
+      ? `${devName} hiện đang mất kết nối (lần cuối: ${lastSeen}), chưa thể điều khiển lúc này.`
+      : `${devName} hiện đang mất kết nối, chưa thể điều khiển lúc này.`;
+  }
+
+  function updateBoardOfflineBanner(message = "") {
+    if (typeof document === "undefined" || !devicesGrid || devicesGrid === noopEl) return;
+    let banner = document.getElementById("boardOfflineNotice");
+    const cleanMsg = String(message || "").trim();
+    if (!cleanMsg) {
+      if (banner) {
+        banner.hidden = true;
+        banner.textContent = "";
+      }
+      return;
+    }
+    if (!banner && devicesGrid.parentNode && typeof document.createElement === "function") {
+      banner = document.createElement("div");
+      banner.id = "boardOfflineNotice";
+      banner.className = "board-offline-notice";
+      banner.setAttribute("role", "alert");
+      banner.setAttribute("aria-live", "polite");
+      devicesGrid.parentNode.insertBefore(banner, devicesGrid);
+    }
+    if (banner) {
+      banner.hidden = false;
+      banner.textContent = cleanMsg;
+    }
+  }
+
+  function showBoardOfflineWarning(dev, explicitMsg = "") {
+    const msg = String(explicitMsg || "").trim() || formatBoardOfflineWarning(dev);
+    updateBoardOfflineBanner(msg);
+    setAiReplyText(msg);
+  }
+
+  function syncDeviceCardConnectivityDOM(card, dev, isOfflineLocked) {
+    if (!card) return;
+    const boardOffline = isDeviceBoardOffline(dev);
+    const lastSeenVi = getDeviceLastSeenVi(dev);
+    const badgeLabel = String(
+      (dev && dev.connectivity_label_vi) ||
+      (latestBoardHealth && latestBoardHealth.status_vi) ||
+      "Mất kết nối"
+    );
+    if (card.classList) {
+      card.classList.toggle("board-offline", boardOffline);
+    }
+    card.setAttribute("data-board-online", boardOffline ? "false" : "true");
+    const swInput = card.querySelector(".switch input");
+    if (swInput) {
+      swInput.disabled = Boolean(isOfflineLocked || boardOffline);
+    }
+    const badgeEl = card.querySelector(".device-offline-badge");
+    if (badgeEl) {
+      badgeEl.textContent = badgeLabel;
+      badgeEl.hidden = !boardOffline;
+    }
+    const lastSeenEl = card.querySelector(".device-last-seen");
+    if (lastSeenEl) {
+      lastSeenEl.textContent = lastSeenVi ? `Lần cuối: ${lastSeenVi}` : (boardOffline ? "Lần cuối: --" : "");
+      lastSeenEl.hidden = !boardOffline;
+    }
+  }
+
   function updateDeviceCardUI(devId, dev, isOn) {
     const card = document.getElementById(`dev-card-${devId}`);
     if (!card) return;
@@ -462,12 +547,13 @@
     const swInput = card.querySelector(".switch input");
     if (swInput) {
       swInput.checked = isOn;
-      swInput.disabled = isOfflineLocked;
+      swInput.disabled = isOfflineLocked || isDeviceBoardOffline(dev);
     }
     const roomSpan = card.querySelector(".device-room");
     if (roomSpan) {
       roomSpan.textContent = getDeviceRoomLabel(dev, isOn, isOfflineLocked);
     }
+    syncDeviceCardConnectivityDOM(card, dev, isOfflineLocked);
   }
 
   function updateActiveDeviceSummaryCount() {
@@ -756,8 +842,20 @@
               if (typeof openLoginGateModal === "function") openLoginGateModal();
               if (typeof showGuestQrLoginPrompt === "function") showGuestQrLoginPrompt();
             }
-            const errSpoken = (data && (data.exact_spoken_reply || data.rejection_speech || data.error)) || "";
-            if (errSpoken) setAiReplyText(errSpoken);
+            const errSpoken = (data && (data.exact_spoken_reply || data.rejection_speech || data.reply || data.error)) || "";
+            if (httpStatus === 503 || (data && data.board_offline === true)) {
+              if (data && data.board_health) {
+                latestBoardHealth = data.board_health;
+                if (typeof window !== "undefined") window._boardHealth = latestBoardHealth;
+                updateConnectionUI(window._serverConnected, null, latestBoardHealth);
+              }
+              if (data && data.snapshot) {
+                applySnapshot(data.snapshot);
+              }
+              showBoardOfflineWarning(dev, errSpoken);
+            } else if (errSpoken) {
+              setAiReplyText(errSpoken);
+            }
             return;
           }
           const finalState = String((data && data.state) || targetState).toUpperCase();
@@ -805,6 +903,11 @@
     }
     const isOfflineLocked = window._serverConnected === false && (devId === "main_door" || devId === "alarm_siren");
     if (isOfflineLocked) return;
+    if (isDeviceBoardOffline(dev)) {
+      showBoardOfflineWarning(dev);
+      syncDeviceDOMToState(devId, dev.state);
+      return;
+    }
 
     const ctrl = getDeviceControlState(devId);
     const currentEffectiveState =
@@ -860,10 +963,11 @@
     return room ? `${room} · ${st}` : st;
   }
 
-  function reconcileDevicesWithPendingIntent(devices, snapRevisionSeq = 0) {
+  function reconcileDevicesWithPendingIntent(devices, snapRevisionSeq = 0, forceBoardResync = false) {
     if (!Array.isArray(devices)) return [];
     const nowMs = Date.now();
     const isStaleSnapshotRevision =
+      !forceBoardResync &&
       snapRevisionSeq > 0 && lastServerRevisionSeq > 0 && snapRevisionSeq < lastServerRevisionSeq;
     if (snapRevisionSeq > lastServerRevisionSeq) {
       lastServerRevisionSeq = snapRevisionSeq;
@@ -896,6 +1000,27 @@
           lastVersion: serverVer,
           lastUpdatedAt: Number(dev.updated_at || 0),
         };
+        return dev;
+      }
+
+      if (forceBoardResync) {
+        if (ctrl.debounceTimer !== null) {
+          clearTimeout(ctrl.debounceTimer);
+          ctrl.debounceTimer = null;
+        }
+        clearWsPendingUpTo(ctrl, 0);
+        ctrl.httpPendingCount = 0;
+        ctrl.pendingCount = 0;
+        ctrl.lastClickTs = 0;
+        ctrl.needsServerKnownSync = false;
+        ctrl.confirmedState = dev.state;
+        ctrl.desiredState = dev.state;
+        ctrl.serverKnownState = String(dev.state || "").toUpperCase();
+        ctrl.lastVersion = Math.max(Number(ctrl.lastVersion || 0), serverVer);
+        ctrl.serverKnownVersion = Math.max(Number(ctrl.serverKnownVersion || 0), serverVer);
+        if (snapRevisionSeq > 0) {
+          ctrl.serverKnownRevisionSeq = Math.max(Number(ctrl.serverKnownRevisionSeq || 0), snapRevisionSeq);
+        }
         return dev;
       }
 
@@ -1009,6 +1134,13 @@
       else if (dev.type === "siren") iconId = "i-bell";
       else if (dev.type === "pump") iconId = "i-drop";
 
+      const boardOffline = isDeviceBoardOffline(dev);
+      const lastSeenVi = getDeviceLastSeenVi(dev);
+      const badgeLabel = String(
+        (dev && dev.connectivity_label_vi) ||
+        (latestBoardHealth && latestBoardHealth.status_vi) ||
+        "Mất kết nối"
+      );
       const isOfflineLocked =
         window._serverConnected === false &&
         (dev.id === "main_door" || dev.id === "alarm_siren");
@@ -1033,7 +1165,7 @@
         const swInput = card.querySelector(".switch input");
         if (swInput) {
           swInput.checked = isOn;
-          swInput.disabled = isOfflineLocked;
+          swInput.disabled = isOfflineLocked || boardOffline;
         }
         if (card.classList) {
           card.classList.toggle("on", isOn);
@@ -1043,23 +1175,29 @@
         card.setAttribute("data-device", dev.id);
         card.setAttribute("data-state", isOn ? "on" : "off");
         card.setAttribute("aria-pressed", isOn ? "true" : "false");
+        syncDeviceCardConnectivityDOM(card, dev, isOfflineLocked);
       } else {
         card = document.createElement("div");
-        card.className = `device ${isOn ? "on active" : "off"}`;
+        card.className = `device ${isOn ? "on active" : "off"}${boardOffline ? " board-offline" : ""}`;
         card.id = `dev-card-${dev.id}`;
         card.setAttribute("data-device", dev.id);
         card.setAttribute("data-state", isOn ? "on" : "off");
+        card.setAttribute("data-board-online", boardOffline ? "false" : "true");
         card.setAttribute("aria-pressed", isOn ? "true" : "false");
         card.innerHTML = `
           <span class="device-icon ${isOn ? "" : "off"}">
             <svg class="icon"><use href="#${iconId}"/></svg>
           </span>
           <span class="device-copy">
-            <span class="device-name">${escapeHtml(dev.name)}</span><br>
+            <span class="device-name-row">
+              <span class="device-name">${escapeHtml(dev.name)}</span>
+              <span class="device-offline-badge"${boardOffline ? "" : " hidden"}>${escapeHtml(badgeLabel)}</span>
+            </span>
             <span class="device-room">${escapeHtml(roomText)}</span>
+            <span class="device-last-seen"${boardOffline ? "" : " hidden"}>${lastSeenVi ? `Lần cuối: ${escapeHtml(lastSeenVi)}` : (boardOffline ? "Lần cuối: --" : "")}</span>
           </span>
           <label class="switch" aria-label="${escapeHtml(dev.name)}">
-            <input type="checkbox" ${isOn ? "checked" : ""} ${isOfflineLocked ? "disabled" : ""}>
+            <input type="checkbox" ${isOn ? "checked" : ""} ${(isOfflineLocked || boardOffline) ? "disabled" : ""}>
             <span></span>
           </label>
         `;
@@ -1074,10 +1212,14 @@
             const locked =
               window._serverConnected === false &&
               (dev.id === "main_door" || dev.id === "alarm_siren");
-            if (locked) {
+            const isBoardOff = isDeviceBoardOffline(curDev);
+            if (locked || isBoardOff) {
               e.preventDefault();
               if (swInput) {
                 swInput.checked = curDev.state === "ON" || curDev.state === "OPEN";
+              }
+              if (isBoardOff) {
+                showBoardOfflineWarning(curDev);
               }
               return;
             }
@@ -1393,8 +1535,11 @@
     updateScheduleEmptyState();
   }
 
-  function updateConnectionUI(connected, transport = null) {
+  function updateConnectionUI(connected, transport = null, boardHealth = null) {
     window._serverConnected = connected !== false;
+    const effectiveBoardHealth = boardHealth || latestBoardHealth;
+    const isBoardOffline = Boolean(effectiveBoardHealth && effectiveBoardHealth.online === false);
+    const isVisualOffline = !window._serverConnected || isBoardOffline;
     let activeTransport = transport;
     if (!activeTransport) {
       if (!window._serverConnected) {
@@ -1409,14 +1554,18 @@
 
     if (connDot && connDot !== noopEl && connDot.classList) {
       if (typeof connDot.classList.toggle === "function") {
-        connDot.classList.toggle("offline", !window._serverConnected);
-      } else if (!window._serverConnected) {
+        connDot.classList.toggle("offline", isVisualOffline);
+      } else if (isVisualOffline) {
         if (typeof connDot.classList.add === "function") connDot.classList.add("offline");
       } else {
         if (typeof connDot.classList.remove === "function") connDot.classList.remove("offline");
       }
     }
-    const statusLabel = window._serverConnected ? "Đã kết nối" : "Mất kết nối";
+    const statusLabel = !window._serverConnected
+      ? "Mất kết nối"
+      : isBoardOffline
+      ? "Mạch mất kết nối"
+      : "Đã kết nối";
     if (geminiStatusText && geminiStatusText !== noopEl) {
       geminiStatusText.textContent = statusLabel;
     }
@@ -1454,10 +1603,36 @@
       }
     }
 
-    updateConnectionUI(snap.server_connected !== false);
+    const prevBoardOnline = latestBoardHealth ? latestBoardHealth.online !== false : true;
+    const prevResyncCount = Number(lastOfflineResyncCount || 0);
+    if (snap && snap.board_health && typeof snap.board_health === "object") {
+      latestBoardHealth = snap.board_health;
+      if (typeof window !== "undefined") window._boardHealth = latestBoardHealth;
+    }
+    const nextBoardOnline = latestBoardHealth ? latestBoardHealth.online !== false : true;
+    const nextResyncCount = Number((latestBoardHealth && latestBoardHealth.offline_resync_count) || 0);
+    const forceBoardResync =
+      (prevBoardOnline === false && nextBoardOnline === true) ||
+      (nextResyncCount > prevResyncCount);
+    if (nextResyncCount > prevResyncCount) {
+      lastOfflineResyncCount = nextResyncCount;
+    }
+
+    updateConnectionUI(snap.server_connected !== false, null, latestBoardHealth);
+    if (!nextBoardOnline) {
+      const lsVi = getDeviceLastSeenVi(null, latestBoardHealth);
+      updateBoardOfflineBanner(
+        lsVi
+          ? `Mạch ESP8266 hiện đang mất kết nối (lần cuối: ${lsVi}). Các nút điều khiển tạm thời bị vô hiệu hóa.`
+          : "Mạch ESP8266 hiện đang mất kết nối. Các nút điều khiển tạm thời bị vô hiệu hóa."
+      );
+    } else {
+      updateBoardOfflineBanner("");
+    }
     const reconciledDevices = reconcileDevicesWithPendingIntent(
       snap.devices || [],
-      Number(snap.revision_seq || 0)
+      Number(snap.revision_seq || 0),
+      forceBoardResync
     );
     renderDevices(reconciledDevices);
 
@@ -1645,6 +1820,14 @@
         setAiReplyText(spokenReply);
       }
       setVoiceConfirmActionsVisible(data.requires_confirmation === true);
+      if (res.status === 503 || data.board_offline === true) {
+        if (data.board_health) {
+          latestBoardHealth = data.board_health;
+          if (typeof window !== "undefined") window._boardHealth = latestBoardHealth;
+          updateConnectionUI(window._serverConnected, null, latestBoardHealth);
+        }
+        if (spokenReply) updateBoardOfflineBanner(spokenReply);
+      }
       if (data.snapshot) {
         applySnapshot(data.snapshot);
         publishRealtimeSync(data.snapshot);
@@ -3251,6 +3434,14 @@
       const spokenReply = data.exact_spoken_reply || data.reply || data.prompt_question || data.rejection_speech || data.error || "Đã xử lý lệnh.";
       setAiReplyText(spokenReply);
       setVoiceConfirmActionsVisible(data.requires_confirmation === true);
+      if (res.status === 503 || data.board_offline === true) {
+        if (data.board_health) {
+          latestBoardHealth = data.board_health;
+          if (typeof window !== "undefined") window._boardHealth = latestBoardHealth;
+          updateConnectionUI(window._serverConnected, null, latestBoardHealth);
+        }
+        updateBoardOfflineBanner(spokenReply);
+      }
       if (data.snapshot) {
         applySnapshot(data.snapshot);
         publishRealtimeSync(data.snapshot);
