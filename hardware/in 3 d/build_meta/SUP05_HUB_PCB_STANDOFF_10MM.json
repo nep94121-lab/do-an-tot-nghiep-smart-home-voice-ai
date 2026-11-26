@@ -1,0 +1,86 @@
+{
+  "part_id": "SUP05_HUB_PCB_STANDOFF_10MM",
+  "kind": "support",
+  "category": "standoff",
+  "qty": 4,
+  "vi_name": "Tru do Hub PCB M3x10 (in 3D)",
+  "mating_source": "P16_PCB_PLATE 90.0x70.0 mm M3 pattern (HW_PCB Z=9..19 mm)",
+  "print_bbox_mm": [
+    16.5,
+    10.0,
+    10.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 476.194,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "S05 10x10",
+  "assembly_placements": [
+    {
+      "x": 37.0,
+      "y": 64.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 37.0,
+      "y": 134.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 127.0,
+      "y": 64.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 127.0,
+      "y": 134.0,
+      "z": 9.0,
+      "rot_z": 0.0
+    }
+  ],
+  "exclude_from_default_assembly": false,
+  "color_rgb": [
+    0.88,
+    0.72,
+    0.22
+  ],
+  "notes": "Tru do M3 cao 10mm thay the tru dong gan Hub PCB 100x80mm len tam P16_PCB_PLATE (mau lo 90x70mm).",
+  "step_file": "STEP/SUP05_HUB_PCB_STANDOFF_10MM.step",
+  "stl_file": "STL/SUP05_HUB_PCB_STANDOFF_10MM.stl",
+  "stl_facets": 2188,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    16.5,
+    9.988,
+    10.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 475.326,
+  "threemf_file": "3MF/SUP05_HUB_PCB_STANDOFF_10MM.3mf",
+  "threemf_bytes": 33742,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP05_HUB_PCB_STANDOFF_10MM.pdf",
+  "drawing_png": "drawings/SUP05_HUB_PCB_STANDOFF_10MM.png",
+  "preview_png": "previews/SUP05_HUB_PCB_STANDOFF_10MM.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "6m 10s",
+  "estimated_time_sec": 370,
+  "filament_mm": 199.4,
+  "filament_g": 0.59,
+  "layer_count": 50,
+  "part_all_passed": true
+}

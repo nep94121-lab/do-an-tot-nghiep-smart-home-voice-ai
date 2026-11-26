@@ -1,0 +1,110 @@
+{
+  "part_id": "SUP08_MODULE_STANDOFF_8MM",
+  "kind": "support",
+  "category": "standoff",
+  "qty": 11,
+  "vi_name": "Tru do module ngoai vi M3x8 (in 3D)",
+  "mating_source": "Relay1 (4x), Relay2 (4x), DHT11 (1x), KY-037 (1x), LM393 (1x) M3x8 standoffs",
+  "print_bbox_mm": [
+    15.5,
+    9.0,
+    8.0
+  ],
+  "print_z_min": 0.0,
+  "volume_mm3": 321.975,
+  "solids": 1,
+  "valid": true,
+  "engraved_ok": true,
+  "engrave_text": "S08 9x8",
+  "assembly_placements": [
+    {
+      "x": 173.75,
+      "y": 125.75,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 173.75,
+      "y": 146.25,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 218.25,
+      "y": 125.75,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 218.25,
+      "y": 146.25,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 173.75,
+      "y": 81.75,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 173.75,
+      "y": 102.25,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 218.25,
+      "y": 81.75,
+      "z": 0.0,
+      "rot_z": 0.0
+    },
+    {
+      "x": 218.25,
+      "y": 102.25,
+      "z": 0.0,
+      "rot_z": 0.0
+    }
+  ],
+  "exclude_from_default_assembly": false,
+  "color_rgb": [
+    0.76,
+    0.78,
+    0.82
+  ],
+  "notes": "Tru do M3 cao 8mm thay tru nhua cho 2 module Relay (44.5x20.5mm), DHT11, KY-037 va LM393.",
+  "step_file": "STEP/SUP08_MODULE_STANDOFF_8MM.step",
+  "stl_file": "STL/SUP08_MODULE_STANDOFF_8MM.stl",
+  "stl_facets": 2890,
+  "bed_fit": true,
+  "stl_watertight": true,
+  "stl_is_volume": true,
+  "stl_winding_consistent": true,
+  "stl_bbox_mm": [
+    15.491,
+    8.999,
+    8.0
+  ],
+  "stl_z_min": 0.0,
+  "stl_volume_mm3": 321.371,
+  "threemf_file": "3MF/SUP08_MODULE_STANDOFF_8MM.3mf",
+  "threemf_bytes": 45009,
+  "threemf_watertight": true,
+  "drawing_pdf": "drawings/SUP08_MODULE_STANDOFF_8MM.pdf",
+  "drawing_png": "drawings/SUP08_MODULE_STANDOFF_8MM.png",
+  "preview_png": "previews/SUP08_MODULE_STANDOFF_8MM.png",
+  "verified_watertight": true,
+  "verified_is_volume": true,
+  "verified_bed_fit": true,
+  "verified_flat_z0": true,
+  "verified_files_complete": true,
+  "slice_ok": true,
+  "slicer_returncode": 0,
+  "slicer_stderr": "",
+  "estimated_time_str": "4m 49s",
+  "estimated_time_sec": 289,
+  "filament_mm": 134.1,
+  "filament_g": 0.4,
+  "layer_count": 40,
+  "part_all_passed": true
+}

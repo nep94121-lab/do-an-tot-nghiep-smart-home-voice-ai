@@ -805,10 +805,10 @@ def build_support_specs(cfg: PrintConfig | None = None) -> list[SupportSpec]:
 
     # U-channel local coords: X in [0..34], Y in [0..9.2] (channel Y in [3.0..6.2] centered at 4.6), Z in [0..9.0] (open down, solid cap at Z=6..9)
     seam_clip_placements = (
-        # Top of P02_WALL_BACK at Y=[379..382] (center 380.5), Z_top=147 -> clip Z=[141..150]
-        {"x": p02_cut - 17.0, "y": 380.5 - 4.6, "z": Z_WALL_TOP - 6.0, "rot_z": 0.0},
-        # Top of P05_WALL_FRONT low wall at Y=[192..195] (center 193.5), Z_top=34 -> clip Z=[28..37]
-        {"x": p05_cut - 17.0, "y": 193.5 - 4.6, "z": Z_CUT_H - 6.0, "rot_z": 0.0},
+        # Top of P02_WALL_BACK at Y=[379..382] (center 380.5), Z_top=147 -> offset clear of P06_WALL_MID (X=201.5)
+        {"x": p02_cut - 11.5, "y": 380.5 - 4.6, "z": Z_WALL_TOP - 6.0, "rot_z": 0.0},
+        # Top of P05_WALL_FRONT low wall at Y=[192..195] (center 193.5), Z_top=34 -> offset clear of CenterPillar (X=214.0)
+        {"x": p05_cut - 5.0, "y": 193.5 - 4.6, "z": Z_CUT_H - 6.0, "rot_z": 0.0},
         # Top of P15_TECH_FASCIA USB cutaway at Y=[10..13] (center 11.5), Z_top=16 -> clip Z=[10..19]
         {"x": p15_cut - 17.0, "y": 11.5 - 4.6, "z": 16.0 - 6.0, "rot_z": 0.0},
     )

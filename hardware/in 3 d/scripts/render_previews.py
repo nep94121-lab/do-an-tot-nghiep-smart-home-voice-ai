@@ -500,7 +500,7 @@ def main() -> int:
     return 0
 
 
-if __name__ in ("__main__", "render_previews"):
+if __name__ == "__main__" or any(pathlib.Path(a).stem == __name__ for a in sys.argv):
     rc = main()
     if rc != 0:
         raise SystemExit(rc)

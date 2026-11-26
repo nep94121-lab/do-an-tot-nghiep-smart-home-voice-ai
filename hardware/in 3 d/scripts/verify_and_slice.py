@@ -289,58 +289,131 @@ def verify_parts_and_slice(target_ids: list[str], out_shard: str = "") -> int:
     return 1 if failures else 0
 
 
+def _build_unengraved_piece_solid(piece: pd_mod.PanelPieceSpec, pspec: md.PanelSpec, cfg: pd_mod.PrintConfig, cache: dict[str, tuple[Any, dict[str, Any]]]) -> Any:
+    """Build exact un-engraved BRep solid (strict superset of engraved STEP) for fast exact OCCT collision checks."""
+    import FreeCAD
+    import Part
+    import build_print_parts as bpp
+
+    if piece.source_panel_id not in cache:
+        cache[piece.source_panel_id] = bpp.build_flat_panel_solid(pspec, cfg)
+    full_solid, ev = cache[piece.source_panel_id]
+
+    if piece.piece_count == 1:
+        shape = full_solid.copy()
+    else:
+        u_lo, u_hi = piece.u_range
+        v_lo, v_hi = piece.v_range
+        seam_half_gap = 0.05
+        m_u0 = (u_lo + seam_half_gap) if u_lo > 1e-3 else -2.0
+        m_u1 = (u_hi - seam_half_gap) if u_hi < ev["width"] - 1e-3 else (ev["width"] + 2.0)
+        m_v0 = (v_lo + seam_half_gap) if v_lo > 1e-3 else -2.0
+        m_v1 = (v_hi - seam_half_gap) if v_hi < ev["height"] - 1e-3 else (ev["height"] + 2.0)
+        mask = Part.makeBox(m_u1 - m_u0, m_v1 - m_v0, cfg.T_mm + 2.0, FreeCAD.Vector(m_u0, m_v0, -1.0))
+        for dt in piece.dovetails:
+            if dt.axis == "U":
+                piece_is_plus = abs(u_lo - dt.cut_pos) < 1e-3
+                piece_is_minus = abs(u_hi - dt.cut_pos) < 1e-3
+            else:
+                piece_is_plus = abs(v_lo - dt.cut_pos) < 1e-3
+                piece_is_minus = abs(v_hi - dt.cut_pos) < 1e-3
+            if not (piece_is_plus or piece_is_minus):
+                continue
+            owns_male = (piece_is_plus and dt.male_side == +1) or (piece_is_minus and dt.male_side == -1)
+            if owns_male:
+                mask = mask.fuse(bpp._make_dovetail_prism(dt, is_female=False, T_mm=cfg.T_mm))
+            else:
+                mask = mask.cut(bpp._make_dovetail_prism(dt, is_female=True, T_mm=cfg.T_mm))
+        shape = full_solid.common(mask).removeSplitter()
+
+    bb = shape.BoundBox
+    shape.translate(FreeCAD.Vector(-bb.XMin, -bb.YMin, -bb.ZMin))
+    return shape
+
+
+def _build_unengraved_support_solid(sup: pd_mod.SupportSpec, cfg: pd_mod.PrintConfig) -> Any:
+    """Build exact un-engraved support BRep solid (strict superset of engraved STEP) for fast OCCT collision checks."""
+    import FreeCAD
+    import Part
+    import build_print_parts as bpp
+
+    # Temporarily bypass engraving inside build_support_solid by monkeypatching safe_engrave_top_face
+    orig_eng = bpp.safe_engrave_top_face
+    try:
+        bpp.safe_engrave_top_face = lambda shape, *a, **kw: (shape, True)
+        shape, _meta = bpp.build_support_solid(sup, cfg)
+        return shape
+    finally:
+        bpp.safe_engrave_top_face = orig_eng
+
+
 def run_freecad_assembly_check() -> int:
     """Run exact 3D OCCT BRep collision & split-panel dimensional reconstruction check inside FreeCADCmd."""
     import FreeCAD
     import Part
     import render_previews as rp
 
+    t0 = time.time()
     cfg = pd_mod.PrintConfig()
     ref_geom = pd_mod.load_freecad_reference_geometry()["panels"]
-    pieces, split_summary = pd_mod.build_panel_piece_specs(cfg)
+    pieces, _split_summary = pd_mod.build_panel_piece_specs(cfg)
     supports = pd_mod.build_support_specs(cfg)
+    panels_raw, _ = md.build_design()
+    panel_map = {ps.panel_id: ps for ps in panels_raw}
 
-    world_panel_solids: list[tuple[str, str, Any]] = []  # (inst_id, source_panel_id, shape)
-    grouped_by_source: dict[str, list[Any]] = {}
-
+    # 1. Verify exact dimensional reconstruction from the actual exported STEP files
+    print("  [1/3] Checking exported STEP bounding-box reconstruction...", flush=True)
+    grouped_step_bbs: dict[str, list[Any]] = {}
     for piece in pieces:
         meta = json.loads((META_DIR / f"{piece.part_id}.json").read_text(encoding="utf-8"))
         sh = Part.Shape()
         sh.read(str(STEP_DIR / f"{piece.part_id}.step"))
         wsh = rp.place_piece_in_world(sh, meta)
-        world_panel_solids.append((piece.part_id, piece.source_panel_id, wsh))
-        grouped_by_source.setdefault(piece.source_panel_id, []).append(wsh)
-        for idx, eo in enumerate(meta.get("extra_origins_xyz", []), 2):
-            wsh2 = rp.place_piece_in_world(sh, meta, origin_override=eo)
-            world_panel_solids.append((f"{piece.part_id}_inst{idx}", piece.source_panel_id, wsh2))
+        grouped_step_bbs.setdefault(piece.source_panel_id, []).append(wsh.BoundBox)
 
-    # 1. Check split-panel bounding box reconstruction against panel_geometry_from_freecad.json
     recon_checks: list[dict[str, Any]] = []
     recon_failures: list[str] = []
-    for src_id, shapes in grouped_by_source.items():
-        comp = Part.makeCompound(shapes)
-        bb = comp.BoundBox
+    for src_id, bbs in grouped_step_bbs.items():
+        xmin = min(b.XMin for b in bbs)
+        ymin = min(b.YMin for b in bbs)
+        zmin = min(b.ZMin for b in bbs)
+        xmax = max(b.XMax for b in bbs)
+        ymax = max(b.YMax for b in bbs)
+        zmax = max(b.ZMax for b in bbs)
         ref = ref_geom[src_id]
         rmin = ref["bbox_min"]
         rmax = ref["bbox_max"]
-        err_min = max(abs(bb.XMin - rmin[0]), abs(bb.YMin - rmin[1]), abs(bb.ZMin - rmin[2]))
-        err_max = max(abs(bb.XMax - rmax[0]), abs(bb.YMax - rmax[1]), abs(bb.ZMax - rmax[2]))
+        err_min = max(abs(xmin - rmin[0]), abs(ymin - rmin[1]), abs(zmin - rmin[2]))
+        err_max = max(abs(xmax - rmax[0]), abs(ymax - rmax[1]), abs(zmax - rmax[2]))
         max_err = round(max(err_min, err_max), 4)
         ok = max_err <= 0.05
         recon_checks.append({
             "source_panel_id": src_id,
-            "piece_count": len(shapes),
+            "piece_count": len(bbs),
             "ref_bbox_min": rmin,
             "ref_bbox_max": rmax,
-            "actual_bbox_min": [round(bb.XMin, 4), round(bb.YMin, 4), round(bb.ZMin, 4)],
-            "actual_bbox_max": [round(bb.XMax, 4), round(bb.YMax, 4), round(bb.ZMax, 4)],
+            "actual_bbox_min": [round(xmin, 4), round(ymin, 4), round(zmin, 4)],
+            "actual_bbox_max": [round(xmax, 4), round(ymax, 4), round(zmax, 4)],
             "max_err_mm": max_err,
             "passed": ok,
         })
         if not ok:
             recon_failures.append(src_id)
+    print(f"  [1/3] STEP reconstruction done in {round(time.time() - t0, 1)}s (failures={len(recon_failures)})", flush=True)
 
-    # 2. Pairwise 3D BRep collision check across all panel pieces
+    # 2. Pairwise 3D BRep collision check using exact un-engraved superset solids (fast, zero spline-font bottleneck)
+    print("  [2/3] Checking pairwise 3D BRep panel-vs-panel collisions...", flush=True)
+    base_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
+    world_panel_solids: list[tuple[str, str, Any]] = []
+    for piece in pieces:
+        meta = json.loads((META_DIR / f"{piece.part_id}.json").read_text(encoding="utf-8"))
+        sh = _build_unengraved_piece_solid(piece, panel_map[piece.source_panel_id], cfg, base_cache)
+        wsh = rp.place_piece_in_world(sh, meta)
+        world_panel_solids.append((piece.part_id, piece.source_panel_id, wsh))
+        for idx, eo in enumerate(meta.get("extra_origins_xyz", []), 2):
+            wsh2 = rp.place_piece_in_world(sh, meta, origin_override=eo)
+            world_panel_solids.append((f"{piece.part_id}_inst{idx}", piece.source_panel_id, wsh2))
+
     panel_collisions: list[dict[str, Any]] = []
     max_panel_inter = 0.0
     n_p = len(world_panel_solids)
@@ -356,21 +429,21 @@ def run_freecad_assembly_check() -> int:
                 or bba.ZMax <= bbb.ZMin + 1e-4 or bbb.ZMax <= bba.ZMin + 1e-4
             ):
                 continue
-            inter = sa.common(sb)
-            vol = round(float(inter.Volume), 4)
+            vol = round(float(sa.common(sb).Volume), 4)
             if vol > max_panel_inter:
                 max_panel_inter = vol
             if vol > 0.05:
                 panel_collisions.append({"a": id_a, "b": id_b, "volume_mm3": vol})
+    print(f"  [2/3] Panel collisions done in {round(time.time() - t0, 1)}s (coll={len(panel_collisions)}, max={max_panel_inter}mm3)", flush=True)
 
-    # 3. Support vs panel & support vs support 3D collision check (default assembly supports)
+    # 3. Support vs panel & support vs support 3D collision check
+    print("  [3/3] Checking 3D BRep support-vs-panel and support-vs-support collisions...", flush=True)
     world_support_solids: list[tuple[str, Any]] = []
     for sup in supports:
         meta = json.loads((META_DIR / f"{sup.part_id}.json").read_text(encoding="utf-8"))
         if meta.get("exclude_from_default_assembly"):
             continue
-        sh = Part.Shape()
-        sh.read(str(STEP_DIR / f"{sup.part_id}.step"))
+        sh = _build_unengraved_support_solid(sup, cfg)
         for idx, pl in enumerate(meta["assembly_placements"], 1):
             wsh = rp.place_support_in_world(sh, meta, pl)
             world_support_solids.append((f"{sup.part_id}_{idx}", wsh))
@@ -412,10 +485,10 @@ def run_freecad_assembly_check() -> int:
                 support_collisions.append({"support_a": id_a, "support_b": id_b, "volume_mm3": vol})
 
     # 4. Also check optional 1-piece cradles (SUP07 & SUP09) against all panels
+    sup_by_id = {s.part_id: s for s in supports}
     for opt_id in ("SUP07_PCB_CARRIER_FRAME_90X70", "SUP09_RELAY_CADDY_44P5X20P5"):
         meta = json.loads((META_DIR / f"{opt_id}.json").read_text(encoding="utf-8"))
-        sh = Part.Shape()
-        sh.read(str(STEP_DIR / f"{opt_id}.step"))
+        sh = _build_unengraved_support_solid(sup_by_id[opt_id], cfg)
         for idx, pl in enumerate(meta["assembly_placements"], 1):
             wsh = rp.place_support_in_world(sh, meta, pl)
             bbs = wsh.BoundBox
@@ -434,6 +507,7 @@ def run_freecad_assembly_check() -> int:
     asm_report = {
         "panel_instances_checked": len(world_panel_solids),
         "support_instances_checked": len(world_support_solids),
+        "elapsed_sec": round(time.time() - t0, 2),
         "reconstruction_checks": recon_checks,
         "reconstruction_failures": recon_failures,
         "panel_collisions": panel_collisions,
@@ -444,16 +518,17 @@ def run_freecad_assembly_check() -> int:
     }
     (META_DIR / "_assembly_check.json").write_text(json.dumps(asm_report, indent=2), encoding="utf-8")
     print(
-        f"ASSEMBLY_CHECK: passed={asm_report['assembly_passed']} "
+        f"ASSEMBLY_CHECK: passed={asm_report['assembly_passed']} elapsed={asm_report['elapsed_sec']}s "
         f"recon_fail={len(recon_failures)} panel_coll={len(panel_collisions)} (max={max_panel_inter}mm3) "
-        f"sup_coll={len(support_collisions)} (max={max_sup_inter}mm3)"
+        f"sup_coll={len(support_collisions)} (max={max_sup_inter}mm3)",
+        flush=True,
     )
     if panel_collisions:
-        print("  PANEL COLLISIONS:", panel_collisions[:5])
+        print("  PANEL COLLISIONS:", panel_collisions[:5], flush=True)
     if support_collisions:
-        print("  SUPPORT COLLISIONS:", support_collisions[:5])
+        print("  SUPPORT COLLISIONS:", support_collisions[:5], flush=True)
     if recon_failures:
-        print("  RECON FAILURES:", recon_failures)
+        print("  RECON FAILURES:", recon_failures, flush=True)
     return 0 if asm_report["assembly_passed"] else 1
 
 
@@ -567,7 +642,7 @@ def main() -> int:
     return verify_parts_and_slice(target_ids, out_shard=args.out_shard)
 
 
-if __name__ in ("__main__", "verify_and_slice"):
+if __name__ == "__main__" or any(pathlib.Path(a).stem == __name__ for a in sys.argv):
     rc = main()
     if rc != 0:
         raise SystemExit(rc)
