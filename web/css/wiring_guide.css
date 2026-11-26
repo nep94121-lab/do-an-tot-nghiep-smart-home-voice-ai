@@ -1,0 +1,539 @@
+/* Shared Wiring Guide, Wire Visibility Toggle & Module Filter Styles */
+.wg-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--bg, #f5f7f7);
+  border: 1px solid var(--line, #e5ebec);
+  border-radius: 12px;
+}
+
+.wg-toolbar-group,
+.wg-toolbar-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #e5ebec);
+  background: var(--card, #ffffff);
+  color: var(--text, #172b31);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.wg-btn:hover:not(:disabled) {
+  border-color: #9cd0cd;
+  background: #ffffff;
+}
+
+.wg-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.wg-btn-guide {
+  background: var(--accent, #087d85);
+  border-color: var(--accent, #087d85);
+  color: #ffffff;
+}
+
+.wg-btn-guide:hover:not(:disabled),
+.wg-btn-guide.is-active {
+  background: var(--accent-hover, #06666d);
+  border-color: var(--accent-hover, #06666d);
+  color: #ffffff;
+}
+
+.wg-btn-wires.is-hidden-state {
+  background: var(--warn-soft, #fef3c7);
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.wg-btn-primary {
+  background: var(--accent, #087d85);
+  border-color: var(--accent, #087d85);
+  color: #ffffff;
+}
+
+.wg-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, #06666d);
+  border-color: var(--accent-hover, #06666d);
+  color: #ffffff;
+}
+
+.wg-filter-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted, #55676d);
+}
+
+.wg-filter-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.wg-module-select,
+.wg-step-jump {
+  min-height: 36px;
+  padding: 5px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #e5ebec);
+  background: var(--card, #ffffff);
+  color: var(--text, #172b31);
+  font: inherit;
+  font-size: 12.5px;
+  max-width: 240px;
+}
+
+/* Guide Step Panel */
+.wg-panel {
+  background: var(--card, #ffffff);
+  border: 1px solid #b8dedc;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 34, 38, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wg-panel[hidden] {
+  display: none !important;
+}
+
+.wg-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 14px;
+  background: var(--accent-soft, #e6f3f2);
+  border-bottom: 1px solid #cce5e3;
+}
+
+.wg-panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wg-panel-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text, #172b31);
+  margin: 0;
+}
+
+.wg-step-counter {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent, #087d85);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wg-close-btn {
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #b8dedc;
+  background: #ffffff;
+  color: var(--text, #172b31);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wg-close-btn:hover {
+  background: #f1f5f9;
+}
+
+.wg-panel-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wg-hidden-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--warn-soft, #fef3c7);
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 12px;
+}
+
+.wg-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+
+.wg-wire-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #38bdf8;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wg-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg, #f5f7f7);
+  border: 1px solid var(--line, #e5ebec);
+  font-size: 12px;
+}
+
+.wg-color-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.wg-type-chip {
+  font-size: 11.5px;
+  color: var(--muted, #55676d);
+}
+
+.wg-endpoint-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.wg-endpoint-box {
+  background: var(--bg, #f5f7f7);
+  border: 1px solid var(--line, #e5ebec);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wg-endpoint-tag {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted, #55676d);
+  font-weight: 600;
+}
+
+.wg-endpoint-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #172b31);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.wg-pin-code {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--accent-soft, #e6f3f2);
+  border: 1px solid #cce5e3;
+  color: var(--accent, #087d85);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.wg-endpoint-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent, #087d85);
+}
+
+.wg-instruction {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, #172b31);
+  margin: 0;
+}
+
+.wg-note-box {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0c4a6e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wg-note-box.wg-note-warn {
+  background: var(--warn-soft, #fef3c7);
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.wg-tech-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--muted, #55676d);
+}
+
+.wg-tech-meta code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--text, #172b31);
+}
+
+.wg-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line, #e5ebec);
+  background: var(--bg, #f5f7f7);
+}
+
+.wg-panel-foot .wg-step-jump {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.wg-btn-nav {
+  min-width: 82px;
+}
+
+/* Click-to-Inspect Compact Info Card */
+.wg-inspect-card {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #9cd0cd;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.wg-inspect-card[hidden] {
+  display: none !important;
+}
+
+.wg-inspect-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wg-inspect-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #172b31);
+  flex: 1 1 200px;
+}
+
+.wg-inspect-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wg-mini-link {
+  padding: 4px 8px;
+  border-radius: 7px;
+  border: 1px solid #b8dedc;
+  background: var(--accent-soft, #e6f3f2);
+  color: var(--accent, #087d85);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wg-close-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--line, #e5ebec);
+  background: #ffffff;
+  color: var(--text, #172b31);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wg-inspect-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted, #55676d);
+  font-size: 12px;
+}
+
+/* Interactive SVG Wire & Endpoint States (Shared by /wokwi Breadboard & 2D PCB SVG) */
+.wg-wires-hidden .wg-wire-item,
+.wg-wires-hidden .pcb-wire,
+.wg-wires-hidden #wgEndpointOverlay {
+  display: none !important;
+}
+
+.wg-wire-filtered-out {
+  display: none !important;
+}
+
+.wg-wire-item,
+.pcb-wire {
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.wg-wire-item .wg-wire-hit,
+.pcb-wire .pcb-wire-hit {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.pcb-pin {
+  cursor: pointer;
+}
+
+.wg-wire-dimmed {
+  opacity: 0.12 !important;
+}
+
+.wg-wire-highlighted {
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.95));
+}
+
+.wg-pin-highlighted circle {
+  stroke: #0284c7 !important;
+  stroke-width: 2.2px !important;
+}
+
+@keyframes wgPulseRing {
+  0% {
+    r: 6;
+    opacity: 0.95;
+  }
+  70% {
+    r: 13;
+    opacity: 0.22;
+  }
+  100% {
+    r: 6;
+    opacity: 0.95;
+  }
+}
+
+.wg-endpoint-pulse {
+  fill: rgba(56, 189, 248, 0.24);
+  stroke: #38bdf8;
+  stroke-width: 2.4;
+  animation: wgPulseRing 1.3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.wg-endpoint-core {
+  fill: #facc15;
+  stroke: #0f172a;
+  stroke-width: 1.6;
+  pointer-events: none;
+}
+
+/* Responsive Mobile (390x844) & Narrow Laptop */
+@media (max-width: 768px) {
+  .wg-toolbar {
+    padding: 8px;
+    gap: 6px;
+  }
+  .wg-toolbar-group,
+  .wg-toolbar-extra {
+    width: 100%;
+  }
+  .wg-btn {
+    min-height: 40px;
+    font-size: 12.5px;
+    padding: 7px 10px;
+    flex: 1 1 auto;
+  }
+  .wg-filter-wrap {
+    width: 100%;
+  }
+  .wg-module-select {
+    flex: 1 1 auto;
+    max-width: none;
+    min-height: 40px;
+  }
+  .wg-endpoint-flow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .wg-endpoint-arrow {
+    transform: rotate(90deg);
+    font-size: 15px;
+    line-height: 1;
+  }
+  .wg-panel-foot {
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+  .wg-panel-foot .wg-step-jump {
+    order: 3;
+    width: 100%;
+    min-height: 38px;
+  }
+  .wg-btn-nav {
+    min-height: 40px;
+    flex: 1 1 44%;
+  }
+}
