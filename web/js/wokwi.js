@@ -526,6 +526,17 @@
         .join('');
     }
 
+    function clearLegacyWireGroupFilter() {
+      document.querySelectorAll('#wireLayer .w-group').forEach((g) => {
+        g.classList.remove('dimmed', 'active-step');
+      });
+      document.querySelectorAll('.step-btn').forEach((b) => {
+        const onclickAttr = b.getAttribute('onclick') || '';
+        const isAll = onclickAttr.includes("'all'") || onclickAttr.includes('"all"');
+        b.classList.toggle('active', isAll);
+      });
+    }
+
     function initWokwiWiringGuide() {
       if (!window.SmartHomeWiringGuide || wokwiWiringController) return;
       const modeSwitchHtml = `
@@ -568,6 +579,9 @@
             if (pcbHost) pcbHost.classList.toggle('wg-wires-hidden', !visible);
           },
           applyModuleFilter(moduleId, visibleWireIds) {
+            if (moduleId !== 'all') {
+              clearLegacyWireGroupFilter();
+            }
             const wireSvg = document.getElementById('wireLayer');
             if (wireSvg) {
               wireSvg.querySelectorAll('.wg-wire-item').forEach((item) => {
@@ -586,6 +600,9 @@
             }
           },
           highlightStep(activeWire, visibleWireIds, meta) {
+            if (activeWire) {
+              clearLegacyWireGroupFilter();
+            }
             const layoutEl = document.getElementById('wokwiStageLayout');
             if (layoutEl) {
               layoutEl.classList.toggle('has-guide-open', Boolean(meta && meta.guideOpen));
