@@ -144,7 +144,10 @@ def is_ui_guidance_question(text: str) -> bool:
 
 
 def _to_handled_result(tool_res: dict[str, Any]) -> dict[str, Any]:
-    st = int(tool_res.get("status_code") or (403 if tool_res.get("rbac_blocked") else (200 if tool_res.get("ok", True) else 400)))
+    if tool_res.get("board_offline"):
+        st = 503
+    else:
+        st = int(tool_res.get("status_code") or (403 if tool_res.get("rbac_blocked") else (200 if tool_res.get("ok", True) else 400)))
     return {
         "handled": True,
         "status_code": st,

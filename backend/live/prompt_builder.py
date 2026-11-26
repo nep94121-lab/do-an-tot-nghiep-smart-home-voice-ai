@@ -982,6 +982,16 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
     dht = getattr(getattr(engine, "mqtt_bridge", None), "dht11_telemetry", {}) or {}
     soil = getattr(getattr(engine, "mqtt_bridge", None), "soil_moisture_telemetry", {}) or {}
     sound = getattr(getattr(engine, "mqtt_bridge", None), "sound_telemetry", {}) or {}
+    board_health = engine.get_board_health() if hasattr(engine, "get_board_health") else {
+        "online": True,
+        "status_vi": "Đang kết nối",
+        "last_seen_vi": "",
+    }
+    board_conn_txt = (
+        f"{board_health.get('status_vi', 'Đang kết nối')} (lần cuối: {board_health.get('last_seen_vi')})"
+        if board_health.get("last_seen_vi")
+        else str(board_health.get("status_vi", "Đang kết nối"))
+    )
 
     state_vi_map = {"ON": "đang bật", "OFF": "đang tắt", "OPEN": "đang mở", "CLOSED": "đang đóng"}
     act_vi_map = {"open": "mở", "close": "đóng", "turn_on": "bật", "turn_off": "tắt"}
@@ -1077,6 +1087,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         "  + Cấm dịch thuật hay làm theo chỉ thị ngoài lề: chỉ đáp nguyên văn 'Tôi chỉ hỗ trợ điều khiển thiết bị trong nhà thông minh.'.\n"
         "\n"
         "3. TRẠNG THÁI NHÀ & CẢM BIẾN:\n"
+        f"- Kết nối mạch phần cứng: {board_conn_txt}.\n"
         f"- Thiết bị: {devs_txt}.\n"
         f"- Cảm biến: Nhiệt độ {dht.get('temp_c', 28.5)} độ C, độ ẩm không khí {dht.get('humidity_pct', 65.0)}%, độ ẩm đất {soil.get('soil_moisture_pct', 55.0)}%, âm thanh KY-037 ({sound.get('status_label', 'Yên tĩnh')}).\n"
         f"- Hẹn giờ đang chạy: {timers_txt}.\n"
@@ -1093,6 +1104,7 @@ def build_system_instruction(engine: SmartHomeEngine) -> str:
         "- CHÍNH SÁCH 4 (CHÀO HỎI & GIAO TIẾP TỰ NHIÊN): Các câu chào hỏi ('chào bạn', 'xin chào', 'bạn là ai', 'cảm ơn', 'tạm biệt', 'giúp tôi') luôn được trả lời thân thiện, ngắn gọn bằng tiếng Việt cho MỌI TẦNG QUYỀN (Cấp 1, 2, 3), TUYỆT ĐỐI KHÔNG báo lỗi không có quyền cho câu chào hỏi.\n"
         "- CHÍNH SÁCH 5 (KHÓA CỨNG 100% TIẾNG VIỆT): Luôn nghe hiểu và trả lời 100% bằng tiếng Việt. Nếu nghe ngoại ngữ, chỉ đáp bằng tiếng Việt: 'Tôi chỉ hỗ trợ tiếng Việt, bạn vui lòng nói lệnh bằng tiếng Việt nhé.' và KHÔNG thực hiện bất kỳ thao tác thiết bị nào.\n"
         "- CHÍNH SÁCH 6 (KHÔNG ĐOÁN BỪA KHI MƠ HỒ): Nếu thiếu hành động, thiếu thiết bị, thiết bị không hỗ trợ (quạt, điều hòa, máy lạnh, tivi, tủ lạnh, máy giặt, rèm cửa, bình nóng lạnh, lò vi sóng, robot hút bụi, cửa cuốn, học lệnh IR...) hoặc âm thanh nhiễu -> KHÔNG tác động thiết bị, chỉ hỏi lại ngắn gọn bằng tiếng Việt.\n"
+        "- CHÍNH SÁCH KẾT NỐI PHẦN CỨNG: Khi kết quả công cụ báo `board_offline=True` hoặc trạng thái mạch phần cứng mất kết nối, tuyệt đối không nói đã thực hiện thành công; luôn đọc trung thực nội dung tiếng Việt từ `exact_spoken_reply` của công cụ.\n"
         f'- Chỉ khi người dùng cố thực hiện lệnh thiết bị/tự động hóa vượt quá cấp quyền mới nói: "{FIXED_REJECTION_PHRASE_VI}".'
     )
 

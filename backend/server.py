@@ -696,6 +696,7 @@ async def api_health() -> JSONResponse:
         "table_count": table_count,
         "realtime_subscribers": hub.subscriber_count(),
         "active_ws_bridges": len(_ACTIVE_BRIDGES),
+        "board_health": _REST_ENGINE.get_board_health(),
         "stt_warm": bool(stt_warm.get("ready")),
         "stt_cold_start_ms": float(stt_warm.get("cold_start_ms") or 0.0),
         "stt_models": list(stt_warm.get("models") or []),
@@ -715,6 +716,9 @@ async def _automation_scheduler_loop() -> None:
     while True:
         try:
             await run_scheduler_tick_once()
+            transition, _bh = _REST_ENGINE.check_board_heartbeat_transition()
+            if transition is not None:
+                await broadcast_rest_state_to_bridges(sync_engine=False)
             tick_count += 1
             if tick_count % 5 == 0:
                 hits = await evaluate_compound_rules(_REST_ENGINE, trigger_source="time_tick")

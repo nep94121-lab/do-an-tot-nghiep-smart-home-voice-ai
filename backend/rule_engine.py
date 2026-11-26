@@ -81,10 +81,21 @@ from backend.engine import (
     read_audit_logs,
     set_default_state_backend,
 )
+from backend.engine.board_health import (
+    BoardHealthTracker,
+    enrich_device_with_board_health,
+)
 from backend.engine.constants_and_time import (
+    BOARD_HEARTBEAT_TIMEOUT_SEC,
     DEVICE_CAPABILITIES,
     DEVICE_DEFAULT_SETTINGS,
     DEVICE_ID_ALIASES,
+    format_vn_timestamp_vi,
+    get_board_heartbeat_timeout_sec,
+)
+from backend.engine.offline_contract import (
+    format_device_offline_reply_vi,
+    format_devices_offline_reply_vi,
 )
 from backend.engine.voice_rbac_mixin import (
     PermissionCheckResult,
@@ -147,15 +158,20 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         self.house_mode: str = "HOME"
         self._compound_eval_depth: int = 0
         self._explicit_test_user_set: bool = False
+        self.board_health: BoardHealthTracker = BoardHealthTracker(node_id="esp8266_node_01")
         self.mqtt_bridge = SmartHomeMQTTBridge(on_event=self.emit)
+        self.mqtt_bridge.sync_from_board_health(self.board_health.evaluate_board_health())
         self._applying_shared_state_depth = 0
         self._applying_shared_state = False
         self._initialized_devices = True
+        self._in_cold_init: bool = True
         try:
             if state_backend is not None or not getattr(self.state_backend, "is_remote", False):
                 self.sync_from_shared_store(force=True)
         except Exception:
             pass
+        finally:
+            self._in_cold_init = False
         try:
             init_sqlite_database()
             sync_engine_state_to_sqlite(self)
@@ -207,6 +223,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         object.__setattr__(view, "pump_manual_override_off", root.pump_manual_override_off)
         object.__setattr__(view, "house_mode", getattr(root, "house_mode", "HOME"))
         object.__setattr__(view, "_compound_eval_depth", 0)
+        object.__setattr__(view, "board_health", root.board_health)
         object.__setattr__(view, "mqtt_bridge", root.mqtt_bridge)
         object.__setattr__(view, "_applying_shared_state", False)
         object.__setattr__(view, "_initialized_devices", True)
@@ -234,6 +251,291 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
 
     def set_state_backend(self, backend: StateBackend | None) -> None:
         self._state_backend = backend
+
+    def get_board_health(self, now: float | None = None) -> dict[str, Any]:
+        """Đánh giá trạng thái kết nối thực của mạch ESP8266 (ONLINE/OFFLINE, last_seen_vi)."""
+        root = getattr(self, "_root_engine", self)
+        tracker = getattr(root, "board_health", None)
+        if tracker is None:
+            tracker = BoardHealthTracker(node_id="esp8266_node_01")
+            root.board_health = tracker
+            self.board_health = tracker
+        bh = tracker.evaluate_board_health(now=now)
+        if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+            root.mqtt_bridge.sync_from_board_health(bh)
+            if not root.server_connected:
+                root.mqtt_bridge.esp8266_status["power_mode"] = "OFFLINE_DEFAULT_DOOR_LOCKED"
+        return bh
+
+    def is_board_online(self, now: float | None = None) -> bool:
+        """Trả về True khi mạch ESP8266 còn trực tuyến (chưa quá timeout heartbeat và chưa bị LWT offline)."""
+        return bool(self.get_board_health(now=now)["online"])
+
+    def record_board_heartbeat(
+        self,
+        *,
+        node_id: str | None = None,
+        wifi_rssi_dbm: Any = None,
+        uptime_ms: Any = None,
+        firmware_mode: str | None = None,
+        now: float | None = None,
+        persist: bool = True,
+    ) -> tuple[dict[str, Any], bool]:
+        """Cập nhật heartbeat từ mạch ESP8266, trả về `(board_health, recovered)`."""
+        root = getattr(self, "_root_engine", self)
+        bh, recovered = root.board_health.record_heartbeat(
+            node_id=node_id,
+            wifi_rssi_dbm=wifi_rssi_dbm,
+            uptime_ms=uptime_ms,
+            firmware_mode=firmware_mode,
+            now=now,
+        )
+        if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+            root.mqtt_bridge.sync_from_board_health(bh)
+        if persist or recovered:
+            if getattr(root, "_mutation_depth", 0) == 0:
+                root.persist_to_shared_store()
+            else:
+                root._state_dirty_in_tx = True
+        if recovered:
+            append_audit_log(
+                category="DEVICE_IO",
+                event_type="board_heartbeat_recovered",
+                summary=f"Mạch {bh['node_id']} đã kết nối lại ({bh['last_seen_vi']}).",
+                user_name="ESP8266 Hardware",
+                tier=1,
+                details={"board_health": bh},
+            )
+        return bh, recovered
+
+    def record_board_lwt(
+        self,
+        *,
+        online: bool,
+        node_id: str | None = None,
+        now: float | None = None,
+    ) -> tuple[dict[str, Any], bool]:
+        """Ghi nhận bản tin LWT (ngắt kết nối / kết nối lại) tức thời của mạch ESP8266."""
+        root = getattr(self, "_root_engine", self)
+        bh, transitioned = root.board_health.record_lwt(
+            online=bool(online),
+            node_id=node_id,
+            now=now,
+        )
+        if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+            root.mqtt_bridge.sync_from_board_health(bh)
+        if getattr(root, "_mutation_depth", 0) == 0:
+            root.persist_to_shared_store()
+        else:
+            root._state_dirty_in_tx = True
+        append_audit_log(
+            category="DEVICE_IO",
+            event_type="board_lwt_online" if bh["online"] else "board_lwt_offline",
+            summary=(
+                f"Mạch {bh['node_id']} báo trạng thái LWT: {bh['status_vi']} "
+                f"(lần cuối: {bh['last_seen_vi']})."
+            ),
+            user_name="ESP8266 Hardware",
+            tier=1,
+            details={"board_health": bh, "transitioned": transitioned},
+        )
+        return bh, transitioned
+
+    def check_board_heartbeat_transition(self, now: float | None = None) -> tuple[str | None, dict[str, Any]]:
+        """Watchdog 1s kiểm tra chuyển trạng thái ONLINE <-> OFFLINE của mạch ESP8266."""
+        root = getattr(self, "_root_engine", self)
+        transition, bh = root.board_health.check_transition(now=now)
+        if transition is not None:
+            if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+                root.mqtt_bridge.sync_from_board_health(bh)
+            if getattr(root, "_mutation_depth", 0) == 0:
+                root.persist_to_shared_store()
+            else:
+                root._state_dirty_in_tx = True
+            if transition == "ONLINE_TO_OFFLINE":
+                append_audit_log(
+                    category="DEVICE_IO",
+                    event_type="board_heartbeat_timeout",
+                    summary=(
+                        f"Mạch {bh['node_id']} quá ngưỡng heartbeat ({bh['heartbeat_timeout_sec']}s) -> "
+                        f"Mất kết nối (lần cuối: {bh['last_seen_vi']})."
+                    ),
+                    user_name="System Watchdog",
+                    tier=1,
+                    details={"board_health": bh},
+                )
+            elif transition == "OFFLINE_TO_ONLINE":
+                append_audit_log(
+                    category="DEVICE_IO",
+                    event_type="board_heartbeat_recovered",
+                    summary=f"Mạch {bh['node_id']} đã kết nối lại ({bh['last_seen_vi']}).",
+                    user_name="System Watchdog",
+                    tier=1,
+                    details={"board_health": bh},
+                )
+        return transition, bh
+
+    @staticmethod
+    def _normalize_resync_device_state(dev_type: str, raw_val: Any) -> str | None:
+        if raw_val is None:
+            return None
+        is_door = str(dev_type or "").strip().lower() == "door"
+        if isinstance(raw_val, bool):
+            return ("OPEN" if raw_val else "CLOSED") if is_door else ("ON" if raw_val else "OFF")
+        s = str(raw_val).strip().upper()
+        if s in ("OPEN", "ON", "1", "TRUE"):
+            return "OPEN" if is_door else "ON"
+        if s in ("CLOSED", "CLOSE", "OFF", "0", "FALSE"):
+            return "CLOSED" if is_door else "OFF"
+        return None
+
+    def apply_hardware_resync(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_name: str = "ESP8266 Hardware",
+        actor_tier: int = 1,
+    ) -> dict[str, Any]:
+        """Addendum A4: Đồng bộ trạng thái vật lý thực tế do mạch thay đổi khi ngoại tuyến."""
+        root = getattr(self, "_root_engine", self)
+        body = payload if isinstance(payload, dict) else {}
+        node_id = str(body.get("node_id") or root.board_health.node_id or "esp8266_node_01").strip()
+        wifi_rssi = body.get("wifi_rssi_dbm")
+        try:
+            offline_duration_ms = max(0, int(float(body.get("offline_duration_ms") or 0)))
+        except (TypeError, ValueError):
+            offline_duration_ms = 0
+
+        raw_states = body.get("device_states")
+        device_states = raw_states if isinstance(raw_states, dict) else {}
+        raw_changed = body.get("offline_changed_devices")
+        reported_changed = (
+            [str(d).strip() for d in raw_changed if str(d).strip() in DEFAULT_DEVICES]
+            if isinstance(raw_changed, list)
+            else []
+        )
+        raw_events = body.get("offline_events")
+        offline_events = (
+            [dict(ev) for ev in raw_events if isinstance(ev, dict)]
+            if isinstance(raw_events, list)
+            else []
+        )
+        sensors = body.get("sensors") if isinstance(body.get("sensors"), dict) else None
+
+        adopted_changes: list[dict[str, Any]] = []
+        now_ts = time.time()
+
+        with root._state_sync_lock:
+            root._applying_shared_state_depth += 1
+            root._applying_shared_state = True
+            try:
+                # Ưu tiên duyệt các thiết bị nằm trong offline_changed_devices trước, rồi phần còn lại của DEFAULT_DEVICES
+                ordered_ids = list(dict.fromkeys(reported_changed + list(DEFAULT_DEVICES.keys())))
+                for dev_id in ordered_ids:
+                    if dev_id not in DEFAULT_DEVICES or dev_id not in root.devices:
+                        continue
+                    if dev_id not in device_states:
+                        continue
+                    dev = root.devices[dev_id]
+                    norm_state = self._normalize_resync_device_state(str(dev.get("type") or ""), device_states[dev_id])
+                    if norm_state is None:
+                        continue
+                    old_state = str(dev.get("state") or "")
+                    if norm_state != old_state:
+                        prev_ver = int(dev.get("version", 1) or 1)
+                        prev_upd = float(dev.get("updated_at", 0.0) or 0.0)
+                        dev["state"] = norm_state
+                        dev["version"] = prev_ver + 1
+                        dev["updated_at"] = max(now_ts, prev_upd + 1e-6)
+                        adopted_changes.append({
+                            "device_id": dev_id,
+                            "device_name": str(dev.get("name") or dev_id),
+                            "old_state": old_state,
+                            "new_state": norm_state,
+                        })
+
+                if sensors is not None and hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+                    mb = root.mqtt_bridge
+                    if "temp_c" in sensors or "humidity_pct" in sensors:
+                        t_prev = float(mb.dht11_telemetry.get("temp_c", 28.5))
+                        h_prev = float(mb.dht11_telemetry.get("humidity_pct", 65.0))
+                        t_val = mb._clamp_sensor_float(sensors.get("temp_c"), 0.0, 60.0, t_prev)
+                        h_val = mb._clamp_sensor_float(sensors.get("humidity_pct"), 0.0, 100.0, h_prev)
+                        mb.dht11_telemetry.update({
+                            "temp_c": t_val,
+                            "humidity_pct": h_val,
+                            "heat_index_c": round(t_val + 0.05 * h_val, 1),
+                            "updated_at": now_ts,
+                        })
+                    if "soil_moisture_pct" in sensors:
+                        s_prev = float(mb.soil_moisture_telemetry.get("soil_moisture_pct", 62.0))
+                        s_val = mb._clamp_sensor_float(sensors.get("soil_moisture_pct"), 0.0, 100.0, s_prev)
+                        mb.soil_moisture_telemetry.update({
+                            "soil_moisture_pct": s_val,
+                            "status_label": "Khô - Cần tưới" if s_val < 40.0 else ("Đủ ẩm" if s_val < 70.0 else "Ẩm ướt"),
+                            "updated_at": now_ts,
+                        })
+                    if "sound_detected" in sensors:
+                        is_loud = bool(sensors.get("sound_detected"))
+                        mb.sound_telemetry.update({
+                            "sound_detected": is_loud,
+                            "detected": is_loud,
+                            "loud_sound": is_loud,
+                            "do_state": 1 if is_loud else 0,
+                            "status_label": "Phát hiện tiếng động lớn / vỗ tay" if is_loud else "Yên tĩnh",
+                            "updated_at": now_ts,
+                        })
+
+                changed_ids = list(
+                    dict.fromkeys(reported_changed + [c["device_id"] for c in adopted_changes])
+                )
+                bh = root.board_health.record_resync(
+                    node_id=node_id,
+                    wifi_rssi_dbm=wifi_rssi,
+                    changed_devices=changed_ids,
+                    offline_events=offline_events,
+                    now=now_ts,
+                )
+                if hasattr(root, "mqtt_bridge") and root.mqtt_bridge is not None:
+                    root.mqtt_bridge.sync_from_board_health(bh)
+            finally:
+                root._applying_shared_state_depth = max(0, root._applying_shared_state_depth - 1)
+                root._applying_shared_state = root._applying_shared_state_depth > 0
+
+            root.persist_to_shared_store()
+
+        changed_summary = (
+            ", ".join(f"{c['device_id']}: {c['old_state']}->{c['new_state']}" for c in adopted_changes)
+            if adopted_changes
+            else "không có thay đổi trạng thái"
+        )
+        append_audit_log(
+            category="DEVICE_IO",
+            event_type="board_offline_resync",
+            summary=(
+                f"Đồng bộ lại trạng thái sau ngoại tuyến từ {bh['node_id']} "
+                f"({len(adopted_changes)} thiết bị cập nhật: {changed_summary})."
+            ),
+            user_name=actor_name,
+            tier=int(actor_tier or 1),
+            details={
+                "node_id": bh["node_id"],
+                "offline_duration_ms": offline_duration_ms,
+                "offline_changed_devices": changed_ids,
+                "adopted_changes": adopted_changes,
+                "offline_events": offline_events,
+                "board_health": bh,
+            },
+        )
+        return {
+            "ok": True,
+            "resynced": True,
+            "adopted_changes": adopted_changes,
+            "offline_changed_devices": changed_ids,
+            "offline_duration_ms": offline_duration_ms,
+            "board_health": bh,
+            "devices": {k: str(v.get("state") or "") for k, v in root.devices.items()},
+        }
 
     def _build_shared_state_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -263,6 +565,8 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 for k, v in self.devices.items()
             },
         }
+        if hasattr(self, "board_health") and self.board_health is not None:
+            payload["board_health"] = self.board_health.to_shared_dict()
         if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
             if hasattr(self.mqtt_bridge, "dht11_telemetry"):
                 payload["dht11_telemetry"] = dict(self.mqtt_bridge.dht11_telemetry)
@@ -431,6 +735,18 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                     merged_dev = dict(DEFAULT_DEVICES[dev_id])
                     merged_dev.update(dev_data)
                     self.devices[dev_id] = TrackedDeviceDict(merged_dev, _engine=self)
+
+            if isinstance(shared.get("board_health"), dict) and hasattr(self, "board_health") and self.board_health is not None:
+                bh_in = dict(shared["board_health"])
+                if getattr(self, "_in_cold_init", False) and bool(bh_in.get("lwt_online", True)):
+                    # Cold-start grace window: do not backdate boot last_seen from stale disk state.
+                    bh_in["last_seen"] = max(float(self.board_health.last_seen), float(bh_in.get("last_seen") or 0.0))
+                    bh_in["offline_since"] = None
+                self.board_health.apply_shared_dict(bh_in)
+                if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
+                    self.mqtt_bridge.sync_from_board_health(self.board_health.evaluate_board_health())
+                    if not self.server_connected:
+                        self.mqtt_bridge.esp8266_status["power_mode"] = "OFFLINE_DEFAULT_DOOR_LOCKED"
 
             if hasattr(self, "mqtt_bridge") and self.mqtt_bridge is not None:
                 if isinstance(shared.get("dht11_telemetry"), dict):
@@ -679,6 +995,9 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 "server_mode_changed": "SECURITY_MODE",
                 "offline_command_blocked": "SECURITY_MODE",
                 "offline_default_executed": "SECURITY_MODE",
+                "board_offline_rejected": "DEVICE_IO",
+                "board_heartbeat_timeout": "DEVICE_IO",
+                "board_offline_resync": "DEVICE_IO",
                 "user_permission_granted": "VOICE_AUTH",
                 "user_permission_revoked": "VOICE_AUTH",
                 "voice_enrollment_started": "VOICE_AUTH",
@@ -1342,6 +1661,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "OPEN": "đang mở",
             "CLOSED": "đang đóng",
         }.get(state_str, state_str.lower())
+        bh = self.get_board_health()
         return {
             "ok": True,
             "device_id": cid,
@@ -1349,6 +1669,11 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "type": str(dev.get("type") or ""),
             "state": state_str,
             "state_vi": state_vi,
+            "board_online": bool(bh.get("online", True)),
+            "connectivity_status": str(bh.get("status", "ONLINE")),
+            "connectivity_label_vi": str(bh.get("status_vi", "Đang kết nối")),
+            "last_seen": float(bh.get("last_seen", 0.0)),
+            "last_seen_vi": str(bh.get("last_seen_vi", "")),
             "settings": settings,
             "capabilities": {
                 "actions": list(caps.get("actions", ())),
@@ -1730,6 +2055,36 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                         results.append({"ok": False, "rbac_blocked": True, "device_id": dev_id, "error": reason})
                         continue
 
+                if source != "offline_default" and not self.is_board_online():
+                    bh_now = self.get_board_health()
+                    offline_msg = format_device_offline_reply_vi(dev, bh_now)
+                    await self.emit({
+                        "type": "board_offline_rejected",
+                        "device_id": dev_id,
+                        "device_name": dev["name"],
+                        "action": act,
+                        "role": effective_role,
+                        "reason": offline_msg,
+                        "last_seen": bh_now["last_seen"],
+                        "last_seen_vi": bh_now["last_seen_vi"],
+                    })
+                    results.append({
+                        "ok": False,
+                        "executed": False,
+                        "board_offline": True,
+                        "delivery_status": "BOARD_OFFLINE",
+                        "status_code": 503,
+                        "device_id": dev_id,
+                        "device_name": dev["name"],
+                        "state": dev["state"],
+                        "last_seen": bh_now["last_seen"],
+                        "last_seen_vi": bh_now["last_seen_vi"],
+                        "error": offline_msg,
+                        "reply": offline_msg,
+                        "exact_spoken_reply": offline_msg,
+                    })
+                    continue
+
                 if not self.server_connected:
                     if dev_id == "main_door" and act in ("open", "turn_on"):
                         lock_reason = (
@@ -1986,15 +2341,26 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             await self.emit({"type": "state_snapshot", "snapshot": snap})
         all_ok = all(r["ok"] for r in results) if results else False
         any_rbac_blocked = any(bool(r.get("rbac_blocked")) for r in results)
-        concise_reply = (
-            "Xin lỗi, bạn không có quyền thực hiện lệnh này."
-            if any_rbac_blocked and not all_ok
-            else self._build_concise_spoken_reply(results)
-        )
+        any_board_offline = any(bool(r.get("board_offline")) for r in results)
+        bh_final = self.get_board_health() if any_board_offline else None
+        if any_rbac_blocked and not all_ok:
+            concise_reply = "Xin lỗi, bạn không có quyền thực hiện lệnh này."
+        elif any_board_offline and not all_ok:
+            offline_dev_recs = [
+                self.devices[r["device_id"]]
+                for r in results
+                if r.get("board_offline") and r.get("device_id") in self.devices
+            ]
+            concise_reply = format_devices_offline_reply_vi(offline_dev_recs, bh_final)
+        else:
+            concise_reply = self._build_concise_spoken_reply(results)
         primary_res = results[0] if results else {}
         out_res: dict[str, Any] = {
             "ok": all_ok,
+            "executed": bool(all_ok),
             "rbac_blocked": any_rbac_blocked and not all_ok,
+            "board_offline": any_board_offline and not all_ok,
+            "delivery_status": "BOARD_OFFLINE" if (any_board_offline and not all_ok) else ("OK" if all_ok else "FAILED"),
             "device_id": primary_res.get("device_id", DEVICE_ID_ALIASES.get(device_id, device_id)),
             "state": primary_res.get("state"),
             "device_version": primary_res.get("version"),
@@ -2006,13 +2372,25 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
             "revision_ts_ns": int(self._last_synced_ts_ns),
             "results": results,
             "message": concise_reply,
+            "reply": concise_reply,
             "exact_spoken_reply": concise_reply,
-            "instruction_for_ai": f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'",
+            "instruction_for_ai": (
+                f"Mạch đang mất kết nối. TUYỆT ĐỐI KHÔNG nói đã thực hiện. BẮT BUỘC trả lời đúng câu này: '{concise_reply}'"
+                if (any_board_offline and not all_ok)
+                else f"BẮT BUỘC trả lời CỰC NGẮN GỌN đúng nguyên văn câu này: '{concise_reply}'"
+            ),
             "summary": concise_reply,
         }
         if not defer_voice_snap:
             out_res["snapshot"] = snap
         if any_rbac_blocked and not all_ok:
+            out_res["error"] = concise_reply
+            out_res["rejection_speech"] = concise_reply
+        elif any_board_offline and not all_ok and bh_final is not None:
+            out_res["status_code"] = 503
+            out_res["last_seen"] = bh_final["last_seen"]
+            out_res["last_seen_vi"] = bh_final["last_seen_vi"]
+            out_res["board_health"] = bh_final
             out_res["error"] = concise_reply
             out_res["rejection_speech"] = concise_reply
         return out_res
@@ -2042,6 +2420,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         """Cập nhật thông số cảm biến DHT11 từ mạch ESP8266 và tự động kiểm tra luật ngưỡng nhiệt độ/độ ẩm."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_dht11_telemetry(temp_c, humidity_pct, wifi_rssi_dbm)
+            self.record_board_heartbeat(wifi_rssi_dbm=self.mqtt_bridge.dht11_telemetry.get("wifi_rssi_dbm"), persist=False)
             self._state_dirty_in_tx = True
             t_clamped = float(self.mqtt_bridge.dht11_telemetry["temp_c"])
             h_clamped = float(self.mqtt_bridge.dht11_telemetry["humidity_pct"])
@@ -2101,6 +2480,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
         """Cập nhật thông số cảm biến Độ ẩm Đất (Chân A0) và tự động điều khiển Máy bơm tưới cây (Chân D6)."""
         with self.state_transaction():
             pkt = await self.mqtt_bridge.update_soil_moisture_telemetry(soil_moisture_pct)
+            self.record_board_heartbeat(persist=False)
             self._state_dirty_in_tx = True
             pct = float(self.mqtt_bridge.soil_moisture_telemetry["soil_moisture_pct"])
             triggered: list[dict[str, Any]] = []
@@ -2189,6 +2569,7 @@ class SmartHomeEngine(EngineVoiceRbacMixin, EngineTimersMixin, EngineRulesMixin)
                 do_state=do_state,
                 note=note,
             )
+            self.record_board_heartbeat(persist=False)
             self._state_dirty_in_tx = True
             snd = dict(self.mqtt_bridge.sound_telemetry)
             is_loud = bool(snd.get("sound_detected", False))

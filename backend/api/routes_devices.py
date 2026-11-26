@@ -177,6 +177,9 @@ async def api_get_state(request: Request) -> JSONResponse:
     )
     if not sess.is_authenticated and is_hw:
         await asyncio.to_thread(_REST_ENGINE.sync_from_shared_store, True)
+        _bh_hw, recovered_hw = _REST_ENGINE.record_board_heartbeat(persist=False)
+        if recovered_hw:
+            await broadcast_rest_state_to_bridges(sync_engine=False)
         return JSONResponse(
             _REST_ENGINE.get_public_device_snapshot(sync=False),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
@@ -397,7 +400,9 @@ async def api_control_device(request: Request, payload: dict[str, Any] = Body(de
             or res.get("error")
             or ""
         )
-        if rbac_blocked or first_err.startswith("🔒"):
+        if res.get("board_offline"):
+            status_code = 503
+        elif rbac_blocked or first_err.startswith("🔒"):
             status_code = 403
         elif "không tồn tại" in first_err or "Không tìm thấy thiết bị" in first_err:
             status_code = 404
@@ -627,6 +632,84 @@ async def api_update_sound_sensor(request: Request, payload: dict[str, Any] = Bo
     )
     await broadcast_rest_state_to_bridges()
     return JSONResponse(res)
+
+
+@router.post("/api/hardware/heartbeat")
+async def api_hardware_heartbeat(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Nhận nhịp tim (heartbeat) từ mạch ESP8266, làm mới last_seen và phát SSE ngay khi khôi phục kết nối."""
+    body = payload if isinstance(payload, dict) else {}
+    if not _has_valid_hardware_key(request):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
+    bh, recovered = _REST_ENGINE.record_board_heartbeat(
+        node_id=str(body.get("node_id") or "").strip() or None,
+        wifi_rssi_dbm=body.get("wifi_rssi_dbm"),
+        uptime_ms=body.get("uptime_ms"),
+        firmware_mode=str(body.get("firmware_mode") or "").strip() or None,
+        persist=True,
+    )
+    if recovered:
+        await broadcast_rest_state_to_bridges(sync_engine=False)
+    return JSONResponse(
+        {
+            "ok": True,
+            "board_health": bh,
+            "recovered": recovered,
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
+@router.post("/api/hardware/lwt")
+async def api_hardware_lwt(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Nhận thông báo LWT / ngắt kết nối tức thời của mạch ESP8266 và phát SSE ngay lập tức."""
+    body = payload if isinstance(payload, dict) else {}
+    if not _has_valid_hardware_key(request):
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
+    online = bool(body.get("online", False))
+    node_id = str(body.get("node_id") or "").strip() or None
+    bh, transitioned = _REST_ENGINE.record_board_lwt(online=online, node_id=node_id)
+    await broadcast_rest_state_to_bridges(sync_engine=False)
+    return JSONResponse(
+        {
+            "ok": True,
+            "board_health": bh,
+            "transitioned": transitioned,
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
+@router.post("/api/hardware/resync")
+async def api_hardware_resync(request: Request, payload: dict[str, Any] = Body(default={})) -> JSONResponse:
+    """Addendum A4: Mạch ESP8266 đồng bộ lại trạng thái vật lý đã thay đổi khi ngoại tuyến về máy chủ."""
+    body = payload if isinstance(payload, dict) else {}
+    is_hw = _has_valid_hardware_key(request)
+    actor_name = "ESP8266 Hardware"
+    actor_tier = 1
+    if not is_hw:
+        error = _owner_error(request, body)
+        if error is not None:
+            return error
+        sess = resolve_request_session(request, payload=body)
+        actor_name = str(sess.display_name or actor_name)
+        actor_tier = int(sess.tier or 1)
+    res = _REST_ENGINE.apply_hardware_resync(
+        body,
+        actor_name=actor_name,
+        actor_tier=actor_tier,
+    )
+    await broadcast_rest_state_to_bridges(sync_engine=False)
+    return JSONResponse(
+        {
+            **res,
+            "snapshot": _REST_ENGINE.get_public_device_snapshot(sync=False),
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 @router.post("/api/server_mode")
@@ -931,7 +1014,10 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             comp_pl["exact_spoken_reply"] = sp_c
             comp_pl["reply"] = sp_c
         comp_pl.setdefault("snapshot", _REST_ENGINE.get_snapshot(session=session, sync=False))
-        return JSONResponse(comp_pl, status_code=int(comp_res.get("status_code") or 200))
+        comp_status = int(comp_res.get("status_code") or 200)
+        if comp_pl.get("board_offline"):
+            comp_status = 200 if session.source == "legacy_test" else 503
+        return JSONResponse(comp_pl, status_code=comp_status)
 
     # 3. Automation NLU (custom commands create/use/edit/delete, schedules/timers, cross-rules, resets, pool queries)
     nlu_res = await process_automation_nlu_command(
@@ -978,13 +1064,24 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
                 _REST_ENGINE._current_role = prev_role
             await broadcast_rest_state_to_bridges()
             sp_al = ensure_vietnamese_reply(str(res.get("exact_spoken_reply") or "Đã thực hiện."))
-            return JSONResponse({
+            is_al_off = bool(res.get("board_offline"))
+            al_status = (200 if session.source == "legacy_test" else 503) if is_al_off else 200
+            al_out = {
                 "ok": bool(res.get("ok", True)),
                 "executed": bool(res.get("ok", True)),
+                "board_offline": is_al_off,
+                "delivery_status": res.get("delivery_status") or ("BOARD_OFFLINE" if is_al_off else "OK"),
                 "reply": sp_al,
                 "exact_spoken_reply": sp_al,
                 "results": res.get("results", []),
-            })
+            }
+            if is_al_off:
+                al_out["error"] = sp_al
+                al_out["last_seen"] = res.get("last_seen")
+                al_out["last_seen_vi"] = res.get("last_seen_vi", "")
+                al_out["board_health"] = res.get("board_health") or _REST_ENGINE.get_board_health()
+                al_out["snapshot"] = _REST_ENGINE.get_snapshot(session=session, sync=False)
+            return JSONResponse(al_out, status_code=al_status)
 
     # 4. Direct simple device commands -> RBAC check -> EXECUTE IMMEDIATELY -> concise Vietnamese reply
     direct_intents = parse_direct_device_intents_vi(text, word_mappings=_REST_ENGINE.get_word_mappings())
@@ -1041,25 +1138,36 @@ async def _api_text_command_impl(request: Request, payload: dict[str, Any] = Bod
             )
             if not res.get("ok"):
                 is_blk = bool(res.get("rbac_blocked"))
+                is_offline = bool(res.get("board_offline"))
                 err_txt = ensure_vietnamese_reply(
                     FIXED_REJECTION_PHRASE_VI if is_blk else str(res.get("exact_spoken_reply") or res.get("error") or "Không thực hiện được lệnh.")
                 )
-                st_code = 200 if (is_blk and session.source == "legacy_test") else (403 if is_blk else 400)
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "executed": False,
-                        "requires_confirmation": False,
-                        "rbac_blocked": is_blk,
-                        "tier": effective_tier,
-                        "error": err_txt,
-                        "reply": err_txt,
-                        "exact_spoken_reply": err_txt,
-                        "rejection_speech": err_txt if is_blk else "",
-                        "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
-                    },
-                    status_code=st_code,
-                )
+                if is_offline:
+                    st_code = 200 if session.source == "legacy_test" else 503
+                elif is_blk:
+                    st_code = 200 if session.source == "legacy_test" else 403
+                else:
+                    st_code = 400
+                err_payload: dict[str, Any] = {
+                    "ok": False,
+                    "executed": False,
+                    "requires_confirmation": False,
+                    "rbac_blocked": is_blk,
+                    "board_offline": is_offline,
+                    "delivery_status": res.get("delivery_status") or ("BOARD_OFFLINE" if is_offline else "FAILED"),
+                    "device_id": res.get("device_id", dev_id),
+                    "tier": effective_tier,
+                    "error": err_txt,
+                    "reply": err_txt,
+                    "exact_spoken_reply": err_txt,
+                    "rejection_speech": err_txt if (is_blk or is_offline) else "",
+                    "snapshot": _REST_ENGINE.get_snapshot(session=session, sync=False),
+                }
+                if is_offline:
+                    err_payload["last_seen"] = res.get("last_seen")
+                    err_payload["last_seen_vi"] = res.get("last_seen_vi", "")
+                    err_payload["board_health"] = res.get("board_health") or _REST_ENGINE.get_board_health()
+                return JSONResponse(err_payload, status_code=st_code)
             exec_results.append(res)
             new_st = str((_REST_ENGINE.devices.get(dev_id) or {}).get("state") or "")
             exec_summary_items.append({

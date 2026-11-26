@@ -69,6 +69,34 @@ def format_vn_time_ampm(dt: datetime.datetime | None = None) -> str:
     return dt.strftime("%I:%M:%S %p (GMT+7)")
 
 
+def format_vn_timestamp_vi(epoch_sec: float | None = None) -> str:
+    """Định dạng thời điểm theo giờ Việt Nam (GMT+7): HH:MM:SS dd/MM/yyyy."""
+    if epoch_sec is None:
+        return get_vn_now().strftime("%H:%M:%S %d/%m/%Y")
+    try:
+        ts = float(epoch_sec)
+    except (TypeError, ValueError):
+        return ""
+    if ts <= 0:
+        return ""
+    return datetime.datetime.fromtimestamp(ts, tz=VN_TZ).strftime("%H:%M:%S %d/%m/%Y")
+
+
+def get_board_heartbeat_timeout_sec() -> float:
+    """Đọc cấu hình duy nhất cho ngưỡng timeout heartbeat của mạch ESP8266 (tối thiểu 1.0s, mặc định 30.0s)."""
+    raw = str(os.environ.get("SMARTHOME_BOARD_HEARTBEAT_TIMEOUT_SEC", "30.0") or "30.0").strip()
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        val = 30.0
+    if val != val:  # NaN guard
+        val = 30.0
+    return max(1.0, val)
+
+
+BOARD_HEARTBEAT_TIMEOUT_SEC: float = get_board_heartbeat_timeout_sec()
+
+
 HARDWARE_AUDIO_PINS: dict[str, str] = {
     "speaker_amp_relay": "D7 / GPIO13 (Relay 2 5V Nguồn mạch loa PAM8403)",
     "speaker_pwm_audio": "D3 / GPIO0 (Audio PWM Out -> PAM8403 -> Loa mini, boot-safe RC)",
