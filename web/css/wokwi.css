@@ -257,6 +257,76 @@
       font-weight: 600;
     }
 
+    .wokwi-stage-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      min-width: 0;
+    }
+    .wokwi-stage-layout.has-guide-open {
+      grid-template-columns: minmax(0, 1fr) 336px;
+    }
+    .wokwi-diagram-col {
+      min-width: 0;
+    }
+    .wokwi-guide-mount {
+      display: none;
+      min-width: 0;
+    }
+    .wokwi-guide-mount.wg-panel-open {
+      display: block;
+    }
+    .pcb2d-scroll {
+      width: 100%;
+      overflow: auto;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 8px;
+    }
+    .pcb2d-svg-host svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .pcb2d-loading {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .wg-mode-switch {
+      display: inline-flex;
+      gap: 4px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 2px;
+    }
+    .wg-mode-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .wg-mode-btn.is-active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    @media (max-width: 1180px) {
+      .wokwi-stage-layout.has-guide-open {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .workbench-scroll {
       width: 100%;
       overflow-x: auto;
