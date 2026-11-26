@@ -1558,10 +1558,10 @@ def build_furniture_specs(cfg: PrintConfig | None = None) -> list[FurnitureSpec]
             category="mini_tree",
             room="Outdoor / Garden",
             qty=4,  # 2 interlocking halves per tree x 2 trees
-            size_xyz=(26.0, 38.0, 3.0),
-            engrave=EngraveSpec("FUR07", "TREE", 13.0, 15.0, 2.2, False),
+            size_xyz=(20.0, 38.0, 3.0),
+            engrave=EngraveSpec("FUR07", "TREE", 10.0, 15.0, 2.0, False),
             params={
-                "canopy_w": 26.0,
+                "canopy_w": 20.0,
                 "total_h": 38.0,
                 "trunk_w": 7.6,
                 "trunk_h": 14.0,

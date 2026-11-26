@@ -627,13 +627,13 @@ def _build_door_hinge(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     pin_h = 6.2
     plate_w = 7.0
 
-    # --- Leaf A: Jamb leaf (world X=69.5..76.5, tenon center X=72.5, pivot X=77.0, Y=198.5) ---
-    # Local Leaf A coords: origin shifted so plate X=[0..7.0], tenon X=[1.0..5.0], pivot X=7.5, Y=6.5
+    # --- Leaf A: Jamb leaf (world X=69.5..76.5, tenon center X=72.5, pivot X=77.0, Y=201.5) ---
+    # Pivot sits at Y = th + pt + kod/2 + 0.3 = 9.5 so cylindrical barrel (Y=6.3..12.7) strictly clears both plates (Y=3..6)!
     plate_a = Part.makeBox(plate_w, pt, ty, FreeCAD.Vector(0.0, th, 0.0))
     tenon_a = Part.makeBox(tx, th + 0.5, ty, FreeCAD.Vector(1.0, 0.0, 0.0))
-    pivot_ax, pivot_ay = 7.5, th + pt + 0.5  # (7.5, 6.5) -> pivot behind Y=195+3=198 face
+    pivot_ax, pivot_ay = 7.5, th + pt + kod / 2.0 + 0.3  # (7.5, 9.5) -> 0.3 mm clear behind plate Y=6.0
     knuckle_a = Part.makeCylinder(kod / 2.0, knuckle_h, FreeCAD.Vector(pivot_ax, pivot_ay, 0.0))
-    bridge_a = Part.makeBox(3.5, pt + 1.0, knuckle_h, FreeCAD.Vector(4.5, th, 0.0))
+    bridge_a = Part.makeBox(3.5, pivot_ay - th, knuckle_h, FreeCAD.Vector(4.0, th, 0.0))
     pin_shaft = Part.makeCylinder(pin_d / 2.0, pin_h - 0.3, FreeCAD.Vector(pivot_ax, pivot_ay, 0.0))
     pin_tip = Part.makeCone(pin_d / 2.0, pin_d / 2.0 - 0.3, 0.35, FreeCAD.Vector(pivot_ax, pivot_ay, pin_h - 0.35))
     leaf_a = plate_a.fuse(tenon_a).fuse(knuckle_a).fuse(bridge_a).fuse(pin_shaft).fuse(pin_tip).removeSplitter()
@@ -641,21 +641,13 @@ def _build_door_hinge(sup: pd_mod.SupportSpec) -> tuple[Any, dict[str, Any]]:
     eng_a = pd_mod.EngraveSpec("10A", "", 3.5, th + pt / 2.0, 1.6, False)
     leaf_a, ok_a = cc.safe_engrave_top_face(leaf_a, eng_a, ty, 0.35)
 
-    # --- Leaf B: Door leaf (world X=79.5..86.5, tenon center X=83.5, pivot X=77.0, Y=198.5) ---
-    # Built in upside-down print orientation (Z=0..2.9 barrel -> flips to Z=3.1..6.0 in world)
-    # Local Leaf B coords before bed offset: pivot at X=0.0, Y=6.5; plate X=[2.5..9.5]; tenon X=[4.5..8.5]
-    # Note: mirroring X or flipping around X keeps tenon pointing -Y (into P08) after rot_x=180?
-    # Check: if Leaf B is rotated 180 deg around Y-axis? Wait:
-    # Under rot_y=180: (x, y, z) -> (-x, y, -z)! Tenon stays pointing -Y, barrel moves from Z=0..2.9 to Z=3.1..6.0,
-    # and plate moves from X=[-9.5..-2.5] to X=[+2.5..+9.5] relative to pivot!
-    # So build Leaf B in print coords as the rot_y=180 pre-image of assembled Leaf B:
-    # Pivot at (bx_piv, 6.5), plate at [bx_piv - 9.5 .. bx_piv - 2.5], tenon at [bx_piv - 8.5 .. bx_piv - 4.5]!
-    bx_off = 14.5  # clear bed spacing between Leaf A (X_max=10.7) and Leaf B
+    # --- Leaf B: Door leaf (world X=79.5..86.5, tenon center X=83.5, pivot X=77.0, Y=201.5) ---
+    bx_off = 14.5  # clear bed spacing between Leaf A and Leaf B
     bx_piv = bx_off + 9.5
     plate_b = Part.makeBox(plate_w, pt, ty, FreeCAD.Vector(bx_piv - 9.5, th, 0.0))
     tenon_b = Part.makeBox(tx, th + 0.5, ty, FreeCAD.Vector(bx_piv - 8.5, 0.0, 0.0))
     knuckle_b = Part.makeCylinder(kod / 2.0, knuckle_h, FreeCAD.Vector(bx_piv, pivot_ay, 0.0))
-    bridge_b = Part.makeBox(4.0, pt + 1.0, knuckle_h, FreeCAD.Vector(bx_piv - 3.5, th, 0.0))
+    bridge_b = Part.makeBox(4.0, pivot_ay - th, knuckle_h, FreeCAD.Vector(bx_piv - 4.0, th, 0.0))
     bore_b = Part.makeCylinder(bore_d / 2.0, knuckle_h + 2.0, FreeCAD.Vector(bx_piv, pivot_ay, -1.0))
     leaf_b = plate_b.fuse(tenon_b).fuse(knuckle_b).fuse(bridge_b).cut(bore_b).removeSplitter()
 

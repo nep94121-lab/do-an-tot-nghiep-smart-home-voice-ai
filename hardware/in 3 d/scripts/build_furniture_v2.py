@@ -521,32 +521,31 @@ def _make_tree_silhouette(
 ) -> Any:
     """Build one symmetric 3-tier stylized pine/cypress silhouette in XY (Z=0..thickness)."""
     cx = canopy_w / 2.0
+    hw = canopy_w / 2.0
     tw2 = trunk_w / 2.0
 
-    # Right half profile from bottom-center up to crown-center
+    # Right half profile scaled proportionally to canopy_w (zero hardcoded width)
     if not broad_top:
-        # Half A (bottom-slotted): pointed stylized top crown up to Y = 38.0
         right_pts = [
             (cx + tw2, 0.0),
             (cx + tw2, trunk_h),
-            (cx + 13.0, trunk_h),       # Tier 1 bottom (W=26)
-            (cx + 7.2, 22.8),           # Tier 1 top
-            (cx + 11.0, 21.8),          # Tier 2 bottom (W=22)
-            (cx + 5.2, 30.2),           # Tier 2 top
-            (cx + 8.0, 29.2),           # Tier 3 bottom (W=16)
-            (cx + 1.5, total_h),        # Blunt peak (W=3.0, crisp FDM tip)
+            (cx + hw, trunk_h),
+            (cx + max(tw2 + 1.2, hw * 0.55), 22.8),
+            (cx + hw * 0.85, 21.8),
+            (cx + max(tw2 + 0.6, hw * 0.44), 30.2),
+            (cx + hw * 0.66, 29.2),
+            (cx + 1.5, total_h),
         ]
     else:
-        # Half B (top-slotted): broad 8.4 mm upper crown (Y=36.0) so 3.30 mm slot leaves 2.55 mm cheeks
         right_pts = [
             (cx + tw2, 0.0),
             (cx + tw2, trunk_h),
-            (cx + 13.0, trunk_h),       # Tier 1 bottom (W=26)
-            (cx + 7.2, 22.8),           # Tier 1 top
-            (cx + 11.0, 21.8),          # Tier 2 bottom (W=22)
-            (cx + 5.2, 30.2),           # Tier 2 top
-            (cx + 8.0, 29.2),           # Tier 3 bottom (W=16)
-            (cx + 4.2, total_h - 2.0),  # Broad crown shoulder (W=8.4 => 2.55 mm cheeks around 3.3 slot)
+            (cx + hw, trunk_h),
+            (cx + max(tw2 + 1.2, hw * 0.55), 22.8),
+            (cx + hw * 0.85, 21.8),
+            (cx + max(tw2 + 0.6, hw * 0.44), 30.2),
+            (cx + hw * 0.66, 29.2),
+            (cx + 4.2, total_h - 2.0),
         ]
 
     left_pts = [(2.0 * cx - x, y) for x, y in reversed(right_pts)]

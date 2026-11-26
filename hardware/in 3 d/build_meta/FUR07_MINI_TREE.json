@@ -33,12 +33,12 @@
     }
   ],
   "print_bbox_mm": [
-    55.0,
+    43.0,
     38.0,
     3.0
   ],
   "print_z_min": 0.0,
-  "volume_mm3": 2469.233,
+  "volume_mm3": 2027.633,
   "solids": 2,
   "valid": true,
   "engraved_ok": true,
@@ -52,14 +52,14 @@
   "notes": "Cay canh ngoai troi in nam phang 3 mm khong support, ghep 2 nua kieu mong chu thap cam vao chau FUR06.",
   "is_cross_pair": true,
   "pair_gap_mm": 3.0,
-  "pair_half_offset_x_mm": 29.0,
+  "pair_half_offset_x_mm": 23.0,
   "half_a_local_x_range": [
     0.0,
-    26.0
+    20.0
   ],
   "half_b_local_x_range": [
-    29.0,
-    55.0
+    23.0,
+    43.0
   ],
   "print_rotation_for_world": "rot_x_90_cross_pair",
   "step_file": "parts/FUR07_MINI_TREE.step",

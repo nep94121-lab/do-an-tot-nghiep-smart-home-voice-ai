@@ -1,0 +1,487 @@
+{
+  "assembly_passed": true,
+  "elapsed_sec": 41.82,
+  "panel_instances_checked": 31,
+  "support_instances_checked": 47,
+  "furniture_instances_checked": 22,
+  "hardware_bodies_checked": 17,
+  "reconstruction_checks": [
+    {
+      "source_panel_id": "P01A_BASE_TECH",
+      "piece_count": 3,
+      "ref_bbox_min": [
+        0.0,
+        0.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        406.0,
+        181.875,
+        0.0
+      ],
+      "actual_bbox_min": [
+        0.0,
+        0.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        406.0,
+        181.875,
+        0.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P01B_BASE_HOUSE",
+      "piece_count": 6,
+      "ref_bbox_min": [
+        0.0,
+        174.125,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        406.0,
+        390.0,
+        0.0
+      ],
+      "actual_bbox_min": [
+        0.0,
+        174.125,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        406.0,
+        390.0,
+        0.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P02_WALL_BACK",
+      "piece_count": 3,
+      "ref_bbox_min": [
+        10.0,
+        379.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        382.0,
+        147.0
+      ],
+      "actual_bbox_min": [
+        10.0,
+        379.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        382.0,
+        147.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P03_WALL_LEFT",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        10.0,
+        192.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        13.0,
+        382.0,
+        147.0
+      ],
+      "actual_bbox_min": [
+        10.0,
+        192.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        13.0,
+        382.0,
+        147.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P04_WALL_RIGHT",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        393.0,
+        192.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        382.0,
+        147.0
+      ],
+      "actual_bbox_min": [
+        393.0,
+        192.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        382.0,
+        147.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P05_WALL_FRONT",
+      "piece_count": 3,
+      "ref_bbox_min": [
+        10.0,
+        192.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        195.0,
+        147.0
+      ],
+      "actual_bbox_min": [
+        10.0,
+        192.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        195.0,
+        147.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P06_WALL_MID",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        198.5,
+        192.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        201.5,
+        382.0,
+        147.0
+      ],
+      "actual_bbox_min": [
+        198.5,
+        192.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        201.5,
+        382.0,
+        147.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P07_SERVO_SHELF",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        34.0,
+        192.0,
+        26.5
+      ],
+      "ref_bbox_max": [
+        68.0,
+        241.125,
+        29.5
+      ],
+      "actual_bbox_min": [
+        34.0,
+        192.0,
+        26.5
+      ],
+      "actual_bbox_max": [
+        68.0,
+        241.125,
+        29.5
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P08_DOOR_LEAF",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        78.0,
+        192.0,
+        2.0
+      ],
+      "ref_bbox_max": [
+        134.0,
+        195.0,
+        102.0
+      ],
+      "actual_bbox_min": [
+        78.0,
+        192.0,
+        2.0
+      ],
+      "actual_bbox_max": [
+        134.0,
+        195.0,
+        102.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P09_GARDEN_LEFT",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        266.0,
+        26.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        269.0,
+        152.0,
+        54.0
+      ],
+      "actual_bbox_min": [
+        266.0,
+        26.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        269.0,
+        152.0,
+        54.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P10_WATER_DIVIDER",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        316.5,
+        26.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        319.5,
+        152.0,
+        54.0
+      ],
+      "actual_bbox_min": [
+        316.5,
+        26.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        319.5,
+        152.0,
+        54.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P11_GARDEN_RIGHT",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        393.0,
+        26.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        152.0,
+        48.0
+      ],
+      "actual_bbox_min": [
+        393.0,
+        26.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        152.0,
+        48.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P12_GARDEN_FRONT",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        266.0,
+        26.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        29.0,
+        54.0
+      ],
+      "actual_bbox_min": [
+        266.0,
+        26.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        29.0,
+        54.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P13_GARDEN_BACK",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        266.0,
+        149.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        396.0,
+        152.0,
+        54.0
+      ],
+      "actual_bbox_min": [
+        266.0,
+        149.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        396.0,
+        152.0,
+        54.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P14_SOIL_BRIDGE",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        342.0,
+        26.0,
+        45.0
+      ],
+      "ref_bbox_max": [
+        374.0,
+        152.0,
+        48.0
+      ],
+      "actual_bbox_min": [
+        342.0,
+        26.0,
+        45.0
+      ],
+      "actual_bbox_max": [
+        374.0,
+        152.0,
+        48.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P15_TECH_FASCIA",
+      "piece_count": 2,
+      "ref_bbox_min": [
+        8.0,
+        10.0,
+        -3.0
+      ],
+      "ref_bbox_max": [
+        254.0,
+        13.0,
+        48.0
+      ],
+      "actual_bbox_min": [
+        8.0,
+        10.0,
+        -3.0
+      ],
+      "actual_bbox_max": [
+        254.0,
+        13.0,
+        48.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P16_PCB_PLATE",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        17.0,
+        44.0,
+        6.0
+      ],
+      "ref_bbox_max": [
+        147.0,
+        154.0,
+        9.0
+      ],
+      "actual_bbox_min": [
+        17.0,
+        44.0,
+        6.0
+      ],
+      "actual_bbox_max": [
+        147.0,
+        154.0,
+        9.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    },
+    {
+      "source_panel_id": "P17_BASE_JOINER",
+      "piece_count": 1,
+      "ref_bbox_min": [
+        68.0,
+        160.0,
+        -6.0
+      ],
+      "ref_bbox_max": [
+        132.0,
+        188.0,
+        0.0
+      ],
+      "actual_bbox_min": [
+        68.0,
+        160.0,
+        -6.0
+      ],
+      "actual_bbox_max": [
+        132.0,
+        188.0,
+        0.0
+      ],
+      "max_err_mm": 0.0,
+      "passed": true
+    }
+  ],
+  "reconstruction_failures": [],
+  "panel_collisions": [],
+  "max_panel_intersection_mm3": 0.0,
+  "support_collisions": [],
+  "max_support_intersection_mm3": 0.0,
+  "furniture_collisions": [],
+  "max_furniture_intersection_mm3": 0.0,
+  "hardware_collisions": [],
+  "max_hardware_intersection_mm3": 0.0
+}
