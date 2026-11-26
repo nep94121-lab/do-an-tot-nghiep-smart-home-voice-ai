@@ -1,24 +1,52 @@
 {
+  "version": "2.0",
   "all_passed": true,
-  "slicer_cli": "prusa-slicer-console.exe",
-  "total_expected_files": 37,
-  "verified_files": 37,
-  "missing_files": [],
-  "failed_parts": [],
-  "all_watertight": true,
-  "all_bed_fit": true,
-  "all_flat_z0": true,
-  "all_sliced_ok": true,
-  "all_engraved_ok": true,
-  "slicer_preview_png": "previews/_slicer_preview.png",
+  "bed_mm": [
+    180.0,
+    200.0,
+    250.0
+  ],
+  "usable_mm": [
+    170.0,
+    190.0,
+    245.0
+  ],
+  "slicer_cli": "C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe",
+  "parts_verified": 57,
+  "plates_verified": 17,
+  "total_instances": 99,
+  "totals": {
+    "total_plates": 17,
+    "plates_passed": 17,
+    "total_part_instances": 99,
+    "total_print_time_sec": 394252,
+    "total_print_time_str": "109h 30m 52s",
+    "total_print_time_hours": 109.51,
+    "total_filament_mm": 347313.58,
+    "total_filament_m": 347.31,
+    "total_filament_cm3": 835.39,
+    "total_filament_g": 1035.87,
+    "any_plate_needs_supports": false
+  },
+  "needs_slicer_supports": false,
+  "screw_glue_audit": {
+    "passed": true,
+    "geometry_fastener_hole_count": 0,
+    "geometry_fastener_leaks": [],
+    "readme_forbidden_instruction_count": 0,
+    "readme_forbidden_hits": []
+  },
   "assembly": {
-    "panel_instances_checked": 26,
-    "support_instances_checked": 41,
-    "elapsed_sec": 68.35,
+    "assembly_passed": true,
+    "elapsed_sec": 41.82,
+    "panel_instances_checked": 31,
+    "support_instances_checked": 47,
+    "furniture_instances_checked": 22,
+    "hardware_bodies_checked": 17,
     "reconstruction_checks": [
       {
         "source_panel_id": "P01A_BASE_TECH",
-        "piece_count": 2,
+        "piece_count": 3,
         "ref_bbox_min": [
           0.0,
           0.0,
@@ -44,7 +72,7 @@
       },
       {
         "source_panel_id": "P01B_BASE_HOUSE",
-        "piece_count": 4,
+        "piece_count": 6,
         "ref_bbox_min": [
           0.0,
           174.125,
@@ -70,7 +98,7 @@
       },
       {
         "source_panel_id": "P02_WALL_BACK",
-        "piece_count": 2,
+        "piece_count": 3,
         "ref_bbox_min": [
           10.0,
           379.0,
@@ -148,7 +176,7 @@
       },
       {
         "source_panel_id": "P05_WALL_FRONT",
-        "piece_count": 2,
+        "piece_count": 3,
         "ref_bbox_min": [
           10.0,
           192.0,
@@ -469,7 +497,7 @@
         "ref_bbox_max": [
           132.0,
           188.0,
-          -3.0
+          0.0
         ],
         "actual_bbox_min": [
           68.0,
@@ -479,7 +507,7 @@
         "actual_bbox_max": [
           132.0,
           188.0,
-          -3.0
+          0.0
         ],
         "max_err_mm": 0.0,
         "passed": true
@@ -490,6 +518,308 @@
     "max_panel_intersection_mm3": 0.0,
     "support_collisions": [],
     "max_support_intersection_mm3": 0.0,
-    "assembly_passed": true
+    "furniture_collisions": [],
+    "max_furniture_intersection_mm3": 0.0,
+    "hardware_collisions": [],
+    "max_hardware_intersection_mm3": 0.0
+  },
+  "pcb_module_fit": {
+    "pcb_source": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb",
+    "pcb_size_mm": [
+      100.0,
+      80.0,
+      1.6
+    ],
+    "pcb_hole_pitch_mm": [
+      90.0,
+      70.0
+    ],
+    "pcb_hole_dia_mm": 3.2,
+    "all_fit_passed": true,
+    "rows": [
+      {
+        "part": "Hub PCB (Type 1)",
+        "source_of_dimension": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (Edge.Cuts + 4x MountingHole_3.2mm)",
+        "board_size_mm": "100.0 x 80.0 x 1.6 (holes 90.0x70.0, Dia 3.2)",
+        "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER",
+        "mount_inner_size_mm": "Frame 104.0x84.0, 4x split pegs OD 3.00 @ 90.0x70.0",
+        "clearance_mm": "0.20 mm dia (nearest component 7.9 mm)",
+        "holding_method": "4x split snap-fit pegs (0.25mm barb) + 4x SUP05B floor mortise tenons into P16",
+        "status": "PASS"
+      },
+      {
+        "part": "ESP8266 NodeMCU v2",
+        "source_of_dimension": "hardware/kicad/smarthome_hub/smarthome_hub.kicad_pcb (PinSocket_1x15 22.86mm) + Components101 datasheet",
+        "board_size_mm": "48.3 x 25.4 x 7.1 (22.86 mm pin row spacing)",
+        "mount_part": "SUP06_HUB_PCB_SNAP_CARRIER + P15 USB cutaway",
+        "mount_inner_size_mm": "Center pin cutout 72.0 x 52.0 mm below PCB; open top above Z=20.6 mm",
+        "clearance_mm": ">= 10.0 mm underside pin clearance, full open USB access",
+        "holding_method": "Plugged into Hub PCB U1/U2 female headers (zero extra fasteners)",
+        "status": "PASS"
+      },
+      {
+        "part": "Relay 1 & Relay 2 (SRD-05VDC)",
+        "source_of_dimension": "mica_design.py + Reichelt/HandsOnTech 1-Ch Relay datasheet",
+        "board_size_mm": "50.0 x 26.0 x 18.5 (holes 44.5x20.5, Dia 3.1)",
+        "mount_part": "SUP07_RELAY_SNAP_CADDY (2x)",
+        "mount_inner_size_mm": "Cavity 50.4x26.4, 4x split pegs OD 2.90 @ 44.5x20.5",
+        "clearance_mm": "0.20 mm/side edge, 0.20 mm peg dia",
+        "holding_method": "4x split snap-fit pegs + edge rim + 2x SUP05B mortise tenons into P01A",
+        "status": "PASS"
+      },
+      {
+        "part": "PAM8403 3W Audio Amp",
+        "source_of_dimension": "mica_design.py + Elecrow PAM8403 datasheet",
+        "board_size_mm": "21.0 x 18.0 x 3.4 (bare stamp PCB)",
+        "mount_part": "SUP08_PAM8403_SNAP_TRAY",
+        "mount_inner_size_mm": "Cavity 21.4 x 18.4 x 4.0 + 0.4 mm snap ribs",
+        "clearance_mm": "0.20 mm/side X, 0.20 mm/side Y",
+        "holding_method": "Edge rails + 45-deg side snap ribs + 2x SUP05B mortise tenons into P01A",
+        "status": "PASS"
+      },
+      {
+        "part": "Mini Speaker 28mm (PUI AS02808MR-R)",
+        "source_of_dimension": "mica_design.py + PUI Audio AS02808MR-R datasheet",
+        "board_size_mm": "Dia 28.0 x 5.2 mm",
+        "mount_part": "SUP09_SPEAKER_SNAP_RETAINER + P15_TECH_FASCIA",
+        "mount_inner_size_mm": "Bridge span 28.4 mm, depth 5.4 mm",
+        "clearance_mm": "0.20 mm radial, 0.20 mm axial",
+        "holding_method": "Rear pressure bridge locked via 2x integral 4x6x3 tenons into P15 mortises",
+        "status": "PASS"
+      },
+      {
+        "part": "SG90 9g Micro Servo",
+        "source_of_dimension": "mica_design.py + HandsOnTech SG90 datasheet",
+        "board_size_mm": "Body 22.8 x 12.2 x 22.5, ear span 32.2, ear t 2.5",
+        "mount_part": "P07_SERVO_SHELF + SUP11_SG90_SNAP_SADDLE",
+        "mount_inner_size_mm": "Cutout 23.3x12.7, saddle ear span 32.5, ear gap 2.6",
+        "clearance_mm": "0.25 mm/side body cutout, 0.15 mm/side ear span, 0.10 mm ear Z",
+        "holding_method": "Drop-in P07 cutout clamped by SUP11 saddle locking into 2x P07 mortises (0 M2 screws)",
+        "status": "PASS"
+      },
+      {
+        "part": "DHT11 Temp/Humidity Breakout",
+        "source_of_dimension": "mica_design.py + Aosong/DFRobot DHT11 datasheet",
+        "board_size_mm": "28.0 x 14.0 x 7.1 (sensor 15.5 x 12.0)",
+        "mount_part": "SUP12_DHT11_SNAP_CRADLE + P02_WALL_BACK",
+        "mount_inner_size_mm": "Cavity 14.4 x 28.4, vent window 12.5x16.0",
+        "clearance_mm": "0.20 mm/side X, 0.20 mm/side Z",
+        "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P02 mortises",
+        "status": "PASS"
+      },
+      {
+        "part": "KY-037 Sound Sensor",
+        "source_of_dimension": "mica_design.py + Joy-IT KY-038/KY-037 datasheet",
+        "board_size_mm": "35.0 x 15.0 x 13.1 (mic Dia 9.7)",
+        "mount_part": "SUP13_KY037_SNAP_CRADLE + P05_WALL_FRONT",
+        "mount_inner_size_mm": "Cavity 35.4 x 15.4, P05 mic hole Dia 10.5",
+        "clearance_mm": "0.20 mm/side X, 0.20 mm/side Z, 0.40 mm mic radial",
+        "holding_method": "Edge-rail slide-in cradle locked via 2x integral 3x6x3 tenons into P05 mortises",
+        "status": "PASS"
+      },
+      {
+        "part": "YL-69 Soil Moisture Probe",
+        "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
+        "board_size_mm": "60.0 x 20.0 x 1.6 (2-prong PCB)",
+        "mount_part": "P14_SOIL_BRIDGE",
+        "mount_inner_size_mm": "Slot 22.0 x 3.5 mm",
+        "clearance_mm": "1.00 mm/side width, 0.95 mm/side thickness",
+        "holding_method": "Direct vertical drop-in bridge slot (zero fasteners)",
+        "status": "PASS"
+      },
+      {
+        "part": "LM393 Soil Comparator (YL-38)",
+        "source_of_dimension": "mica_design.py + HandsOnTech Soil Sensor datasheet",
+        "board_size_mm": "32.0 x 14.0 x 12.0",
+        "mount_part": "SUP14_LM393_SNAP_CRADLE + P12_GARDEN_FRONT",
+        "mount_inner_size_mm": "Cavity 32.4 x 14.4",
+        "clearance_mm": "0.20 mm/side X, 0.20 mm/side Z",
+        "holding_method": "Exterior edge-rail cradle locked via 2x integral 3x6x3 tenons into P12 mortises",
+        "status": "PASS"
+      },
+      {
+        "part": "Door Leaf & Hinge / Linkage",
+        "source_of_dimension": "mica_design.py (P08 56x100 in 60x104 frame)",
+        "board_size_mm": "Door 56.0 x 100.0 x 3.0; jamb gap 2.0 mm",
+        "mount_part": "SUP10_DOOR_MORTISE_HINGE (2x) + SUP10B_SERVO_LINK_CLIP",
+        "mount_inner_size_mm": "Pin OD 2.7 in bore ID 3.0; 4x6x3 mortise tenons",
+        "clearance_mm": "0.30 mm pivot dia, 0.20 mm axial knuckle gap, 2.0 mm door perimeter",
+        "holding_method": "2-leaf lift-off mortise pin-and-knuckle hinge + mortise pushrod clip (0 screws)",
+        "status": "PASS"
+      },
+      {
+        "part": "5V Mini Submersible Pump",
+        "source_of_dimension": "mica_design.py + Soldered/Mouser 101844 datasheet",
+        "board_size_mm": "45.0 x 24.0 x 33.0 (tube OD 8.0)",
+        "mount_part": "SUP15_WATER_TANK_LINER + P10_WATER_DIVIDER",
+        "mount_inner_size_mm": "Liner inner 42.5x115.0x42.6, notch 11.0",
+        "clearance_mm": "9.25 mm/side X, 35.0 mm/side Y, 1.50 mm/side tube notch",
+        "holding_method": "Free-standing inside 1-piece watertight drop-in liner (zero glue/silicone)",
+        "status": "PASS"
+      }
+    ]
+  },
+  "r9_user_like_tests": {
+    "schema": "R9 (Buoc | Thao tac | Ket qua | DUNG/SAI | Le ra)",
+    "all_passed": true,
+    "total_steps": 22,
+    "dung_count": 22,
+    "sai_count": 0,
+    "rows": [
+      {
+        "Buoc": 1,
+        "Thao tac": "Kiem tra PrusaSlicer --info cho toan bo 57 file chi tiet rieng le (parts/*.stl)",
+        "Ket qua": "57/57 dat: manifold=57/57, min_z==0.0=57/57, lot ban 170x190x245 (co xoay 90)=57/57; max bbox=190.0x181.9x45.0 mm",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "57/57 STL manifold=yes, min_z==0.0 mm, lot vung an toan 170x190x245 mm (cho phep xoay 90 deg)"
+      },
+      {
+        "Buoc": 2,
+        "Thao tac": "Kiem tra lap rap 3D BRep (assembly_report.json): ghep manh duoi en + va cham toan nha + noi that + phan cung",
+        "Ket qua": "assembly_passed=True, tai tao 18/18 tam (sai so 0.0 mm), va cham=0 (max giao=0.0000 mm3) tren 31 tam, 47 gia do, 22 noi that, 17 bo phan cung",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "100% tam ghep khop bbox goc (sai so <= 0.05 mm) va 0 va cham giua tam/gia do/noi that/phan cung"
+      },
+      {
+        "Buoc": 3,
+        "Thao tac": "Kiem tra do khop phan cung thuc te (fit_table.json): Hub PCB KiCad 100x80 + NodeMCU + Relay + PAM8403 + Loa + SG90 + cam bien + bom",
+        "Ket qua": "12/12 cum phan cung PASS (Hub PCB [100.0, 80.0, 1.6] lo [90.0, 70.0] D=3.2mm khop SUP06 chot dan hoi)",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Tat ca 12/12 cum bo mach/cam bien/dong co co khe ho lap rap chuan va PASS"
+      },
+      {
+        "Buoc": 4,
+        "Thao tac": "Kiem toan hinh hoc khong oc vit & khong keo dan (57 chi tiet: panel + mount + furniture)",
+        "Ket qua": "Da loai bo 106 lo oc vit/clamp goc, giu 69 lo chuc nang (LED/loa/mic/day/ong), bo sung 51 lo mong chu nhat; ro ri vit=0, keo=0",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "0 lo oc vit M2/M2.5/M3/clamp sot lai, 0 chi tiet yeu cau keo dan, toan bo lien ket bang mong/chot/kep dan hoi"
+      },
+      {
+        "Buoc": 5,
+        "Thao tac": "Nap & cat lop PLATE01_base_walls (plates/PLATE01_base_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=6/6 obj manifold=True, STL manifold=True; slice_ok=True, X=[4.63, 175.37], Y=[2.85, 197.15], Z_max=11.40 mm; thoi gian=7h 22m 38s, nhua=67.18g (22.53m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 6 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 6,
+        "Thao tac": "Nap & cat lop PLATE02_base_tech (plates/PLATE02_base_tech.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=12/12 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.85, 176.15], Y=[3.10, 196.70], Z_max=45.00 mm; thoi gian=11h 9m 13s, nhua=117.13g (39.27m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 12 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 7,
+        "Thao tac": "Nap & cat lop PLATE03_base (plates/PLATE03_base.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[7.35, 172.65], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=6h 17m 26s, nhua=57.13g (19.15m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 8,
+        "Thao tac": "Nap & cat lop PLATE04_base_mounts (plates/PLATE04_base_mounts.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=9/9 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.60, 176.40], Y=[4.60, 195.40], Z_max=28.00 mm; thoi gian=7h 18m 56s, nhua=67.23g (22.54m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 9 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 9,
+        "Thao tac": "Nap & cat lop PLATE05_base_mounts (plates/PLATE05_base_mounts.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=10/10 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.07, 176.93], Y=[2.82, 197.18], Z_max=14.00 mm; thoi gian=7h 48m 54s, nhua=71.17g (23.86m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 10 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 10,
+        "Thao tac": "Nap & cat lop PLATE06_base_garden (plates/PLATE06_base_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=9/9 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.85, 177.15], Y=[4.26, 195.74], Z_max=14.00 mm; thoi gian=6h 52m 24s, nhua=65.11g (21.83m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 9 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 11,
+        "Thao tac": "Nap & cat lop PLATE07_base (plates/PLATE07_base.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[9.32, 170.68], Y=[6.88, 193.12], Z_max=3.00 mm; thoi gian=6h 13m 27s, nhua=55.95g (18.76m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 12,
+        "Thao tac": "Nap & cat lop PLATE08_base_garden (plates/PLATE08_base_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=4/4 obj manifold=True, STL manifold=True; slice_ok=True, X=[4.32, 175.68], Y=[3.03, 196.97], Z_max=9.00 mm; thoi gian=6h 2m 35s, nhua=56.23g (18.85m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 4 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 13,
+        "Thao tac": "Nap & cat lop PLATE09_walls_furniture (plates/PLATE09_walls_furniture.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=3/3 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.82, 176.18], Y=[2.82, 197.18], Z_max=5.00 mm; thoi gian=3h 43m 52s, nhua=35.28g (11.83m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 3 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 14,
+        "Thao tac": "Nap & cat lop PLATE10_walls_mounts (plates/PLATE10_walls_mounts.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=8/8 obj manifold=True, STL manifold=True; slice_ok=True, X=[3.32, 176.68], Y=[2.85, 197.15], Z_max=28.00 mm; thoi gian=8h 50m 37s, nhua=89.47g (30.00m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 8 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 15,
+        "Thao tac": "Nap & cat lop PLATE11_walls (plates/PLATE11_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 51m 43s, nhua=45.49g (15.25m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 16,
+        "Thao tac": "Nap & cat lop PLATE12_walls (plates/PLATE12_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 39m 44s, nhua=43.31g (14.52m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 17,
+        "Thao tac": "Nap & cat lop PLATE13_walls (plates/PLATE13_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[2.82, 197.18], Z_max=3.00 mm; thoi gian=4h 29m 5s, nhua=41.68g (13.98m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 18,
+        "Thao tac": "Nap & cat lop PLATE14_walls (plates/PLATE14_walls.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=1/1 obj manifold=True, STL manifold=True; slice_ok=True, X=[12.82, 167.18], Y=[6.57, 193.43], Z_max=3.00 mm; thoi gian=4h 11m 28s, nhua=39.46g (13.23m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 1 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 19,
+        "Thao tac": "Nap & cat lop PLATE15_walls_garden (plates/PLATE15_walls_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=3/3 obj manifold=True, STL manifold=True; slice_ok=True, X=[9.32, 170.68], Y=[5.10, 194.90], Z_max=6.00 mm; thoi gian=5h 59m 47s, nhua=55.22g (18.51m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 3 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 20,
+        "Thao tac": "Nap & cat lop PLATE16_walls_garden (plates/PLATE16_walls_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=16/16 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.82, 177.18], Y=[7.52, 192.48], Z_max=14.00 mm; thoi gian=6h 26m 37s, nhua=62.61g (20.99m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 16 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 21,
+        "Thao tac": "Nap & cat lop PLATE17_tech_garden (plates/PLATE17_tech_garden.3mf + .stl) trong PrusaSlicer CLI voi --dont-arrange (khong --center), ban 180x200x250, 0.2mm PLA, support=0",
+        "Ket qua": "3MF=13/13 obj manifold=True, STL manifold=True; slice_ok=True, X=[2.82, 177.18], Y=[12.82, 187.18], Z_max=18.00 mm; thoi gian=7h 12m 26s, nhua=66.22g (22.20m), canh bao tran ban=False, can support=False",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "Du 13 obj manifold=yes, slice exit=0 khong can arrange lai, G-code X trong [0,180], Y trong [0,200], Z<=250, 0 canh bao tran ban/overhang"
+      },
+      {
+        "Buoc": 22,
+        "Thao tac": "Tong hop toan bo 17 ban in (plates/PLATE01..PLATE17) san sang giao ban in 180x200x250 mm",
+        "Ket qua": "17/17 ban in DAT (99 ban the chi tiet), tong thoi gian in=109h 30m 52s (109.51 gio), tong nhua PLA=1035.87 g (347.31 m), 0 ban can support",
+        "DUNG/SAI": "DUNG",
+        "Le ra": "17/17 ban in dat 100%, phu du 99 ban the tu 57 chi tiet rieng le, co thong so thoi gian & nhua chinh xac tu G-code that"
+      }
+    ]
   }
 }
