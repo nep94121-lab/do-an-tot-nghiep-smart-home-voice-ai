@@ -4643,6 +4643,60 @@
         }
       });
     }
+
+    if (
+      window.SmartHomeWiringGuide &&
+      !window.dashWiringController &&
+      document.getElementById("dashWiringToolbar")
+    ) {
+      let dashContract = null;
+      let prevGuideOpen = false;
+      window.dashWiringController = window.SmartHomeWiringGuide.createController({
+        instanceId: "dashboard3d",
+        toolbarMount: "dashWiringToolbar",
+        panelMount: "dashWiringPanelMount",
+        inspectMount: "dashWireInspect",
+        adapter: {
+          onContractReady(contract) {
+            dashContract = contract;
+          },
+          bindInteractions(onSelectWire) {
+            if (window.SmartHome3D && typeof window.SmartHome3D.setWireClickCallback === "function") {
+              window.SmartHome3D.setWireClickCallback((wireId) => onSelectWire(wireId));
+            }
+          },
+          setWiresVisible(visible) {
+            if (window.SmartHome3D && typeof window.SmartHome3D.setWiresVisible === "function") {
+              window.SmartHome3D.setWiresVisible(visible);
+            }
+          },
+          applyModuleFilter(moduleId) {
+            if (!window.SmartHome3D || typeof window.SmartHome3D.applyWiringFilter !== "function") return;
+            if (moduleId === "all" || !dashContract) {
+              window.SmartHome3D.applyWiringFilter("all", null);
+              return;
+            }
+            const keys = new Set(
+              (dashContract.wires || [])
+                .filter((w) => w.module_id === moduleId)
+                .map((w) => w.house3d_wire_key)
+                .filter(Boolean)
+            );
+            window.SmartHome3D.applyWiringFilter(moduleId, keys);
+          },
+          highlightStep(activeWire, _visibleIds, meta) {
+            const isOpen = Boolean(meta && meta.guideOpen);
+            if (isOpen && !prevGuideOpen && window.SmartHome3D && typeof window.SmartHome3D.setCameraView === "function") {
+              window.SmartHome3D.setCameraView("board");
+            }
+            prevGuideOpen = isOpen;
+            if (window.SmartHome3D && typeof window.SmartHome3D.highlightWiringStep === "function") {
+              window.SmartHome3D.highlightWiringStep(activeWire || null);
+            }
+          },
+        },
+      });
+    }
   }
   initCameraToolbar();
 

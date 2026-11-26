@@ -150,6 +150,15 @@ window.SmartHome3D = (() => {
 
   // Hệ thống Đường Dây Điện 3D nối từ Hộp Mạch Trung Tâm
   let wireConduitGroup = null;
+  let onWireClickCallback = null;
+  const wireConduitMeshes = {};
+  const glbWireEntries = [];
+  const wiringDisplayState = {
+    visible: true,
+    selectedModuleId: "all",
+    allowedKeys: null,
+    activeWire: null,
+  };
   const wireMats = {
     d1_door: null,
     d0_living: null,
@@ -208,6 +217,99 @@ window.SmartHome3D = (() => {
     glbHandles.pamMats = [];
     glbHandles.ky037Mats = [];
     glbHandles.pinBindings = [];
+    glbWireEntries.length = 0;
+  }
+
+  function inferGlbWireMeta(nodeName) {
+    const n = String(nodeName || "");
+    if (/J3_SERVO/i.test(n)) return { moduleId: "sg90_servo", hubRef: "J3", wireKey: "d1_door", defaultWireId: "W03" };
+    if (/J4_LR_LED/i.test(n)) return { moduleId: "led_living", hubRef: "J4", wireKey: "d0_living", defaultWireId: "W06" };
+    if (/J5_BR_LED/i.test(n)) return { moduleId: "led_bedroom", hubRef: "J5", wireKey: "d4_bedroom", defaultWireId: "W08" };
+    if (/J13_DHT11/i.test(n)) return { moduleId: "dht11_sensor", hubRef: "J13", wireKey: "d2_dht11", defaultWireId: "W31" };
+    if (/J15_KY037/i.test(n)) return { moduleId: "ky037_sound", hubRef: "J15", wireKey: "d5_ky037", defaultWireId: "W40" };
+    if (/J6_BUZZ/i.test(n)) return { moduleId: "buzzer_alarm", hubRef: "J6", wireKey: "d8_siren", defaultWireId: "W18" };
+    if (/J7_RLY1/i.test(n)) return { moduleId: "relay1_pump", hubRef: "J7", wireKey: "d6_pump", defaultWireId: "W12" };
+    if (/J8_RLY1/i.test(n)) return { moduleId: "relay1_pump", hubRef: "J8", wireKey: "d6_pump", defaultWireId: "W13" };
+    if (/J2_PUMP/i.test(n)) return { moduleId: "pump_unit", hubRef: "J2", wireKey: "d6_pump", defaultWireId: "W15" };
+    if (/J9_RLY2/i.test(n)) return { moduleId: "relay2_speaker", hubRef: "J9", wireKey: "d7_d3_speaker", defaultWireId: "W21" };
+    if (/J10_RLY2/i.test(n)) return { moduleId: "relay2_speaker", hubRef: "J10", wireKey: "d7_d3_speaker", defaultWireId: "W22" };
+    if (/J11_AMP_PWR/i.test(n)) return { moduleId: "pam8403_amp", hubRef: "J11", wireKey: "d7_d3_speaker", defaultWireId: "W24" };
+    if (/J12_AUDIO/i.test(n)) return { moduleId: "pam8403_amp", hubRef: "J12", wireKey: "d7_d3_speaker", defaultWireId: "W26" };
+    if (/PAM_Spk_Pos/i.test(n)) return { moduleId: "speaker_mini", hubRef: "PAM8403", wireKey: "d7_d3_speaker", defaultWireId: "W28" };
+    if (/PAM_Spk_Neg/i.test(n)) return { moduleId: "speaker_mini", hubRef: "PAM8403", wireKey: "d7_d3_speaker", defaultWireId: "W29" };
+    if (/J14_SOIL/i.test(n)) return { moduleId: "soil_lm393", hubRef: "J14", wireKey: "a0_soil", defaultWireId: "W35" };
+    if (/J1_PWR/i.test(n)) return { moduleId: "psu_5v", hubRef: "J1", wireKey: "power", defaultWireId: "W01" };
+    return null;
+  }
+
+  function applyWiringDisplayState() {
+    const visible = Boolean(wiringDisplayState.visible);
+    const selMod = wiringDisplayState.selectedModuleId || "all";
+    const allowedKeys = wiringDisplayState.allowedKeys;
+    const active = wiringDisplayState.activeWire;
+
+    if (wireConduitGroup) {
+      wireConduitGroup.visible = visible;
+    }
+
+    Object.entries(wireConduitMeshes).forEach(([key, mesh]) => {
+      if (!mesh) return;
+      const inFilter =
+        selMod === "all" ||
+        !allowedKeys ||
+        allowedKeys.has(key);
+      mesh.visible = visible && inFilter;
+      const mat = wireMats[key];
+      if (!mat) return;
+      if (!active) {
+        mat.transparent = false;
+        mat.opacity = 1.0;
+        mat.emissiveIntensity = 0.28;
+      } else {
+        const isMatch = active.house3d_wire_key === key;
+        mat.transparent = !isMatch;
+        mat.opacity = isMatch ? 1.0 : 0.14;
+        mat.emissiveIntensity = isMatch ? 2.1 : 0.05;
+      }
+      mat.needsUpdate = true;
+    });
+
+    glbWireEntries.forEach((entry) => {
+      if (!entry || !entry.mesh) return;
+      const inFilter =
+        selMod === "all" ||
+        entry.moduleId === selMod ||
+        (selMod === "soil_probe" && entry.moduleId === "soil_lm393") ||
+        (allowedKeys && allowedKeys.has(entry.wireKey));
+      entry.mesh.visible = visible && inFilter;
+
+      const isMatch = Boolean(
+        active &&
+          (entry.hubRef === active.hub_ref ||
+            entry.moduleId === active.module_id ||
+            (active.module_id === "soil_probe" && entry.moduleId === "soil_lm393"))
+      );
+      (entry.materials || []).forEach((m) => {
+        if (!m) return;
+        if (!active) {
+          m.transparent = false;
+          m.opacity = 1.0;
+          if (m.emissive && typeof m.emissive.setHex === "function") m.emissive.setHex(0x000000);
+          if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0;
+        } else if (isMatch) {
+          m.transparent = false;
+          m.opacity = 1.0;
+          if (m.emissive && typeof m.emissive.setHex === "function") m.emissive.setHex(0x38bdf8);
+          if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 1.35;
+        } else {
+          m.transparent = true;
+          m.opacity = 0.14;
+          if (m.emissive && typeof m.emissive.setHex === "function") m.emissive.setHex(0x000000);
+          if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0;
+        }
+        m.needsUpdate = true;
+      });
+    });
   }
 
   function init(canvasContainerId, overlayLabelsId, onToggleDevice) {
@@ -909,6 +1011,42 @@ window.SmartHome3D = (() => {
         bindPinAnchor("board_esp8266", glbNodEmcu, 0.35);
       }
     }
+
+    if (typeof villaRoot.traverse === "function") {
+      villaRoot.traverse((node) => {
+        if (!node || !node.name) return;
+        const isWireNode = /^Wire_|^DupontPlug_/i.test(node.name);
+        if (!isWireNode) return;
+        const meta = inferGlbWireMeta(node.name);
+        if (!meta) return;
+        const mats = cloneNodeMaterials(node);
+        glbWireEntries.push({
+          mesh: node,
+          moduleId: meta.moduleId,
+          hubRef: meta.hubRef,
+          wireKey: meta.wireKey,
+          defaultWireId: meta.defaultWireId,
+          materials: mats,
+        });
+        if (/^Wire_/i.test(node.name)) {
+          node.userData = node.userData || {};
+          node.userData.wireId = meta.defaultWireId;
+          if (node.isMesh && !clickableMeshes.includes(node)) {
+            clickableMeshes.push(node);
+          }
+          if (typeof node.traverse === "function") {
+            node.traverse((ch) => {
+              if (ch && ch.isMesh) {
+                ch.userData = ch.userData || {};
+                ch.userData.wireId = meta.defaultWireId;
+                if (!clickableMeshes.includes(ch)) clickableMeshes.push(ch);
+              }
+            });
+          }
+        }
+      });
+    }
+    applyWiringDisplayState();
 
     refreshBoardCameraIfActive();
 
@@ -1856,6 +1994,24 @@ window.SmartHome3D = (() => {
       wireMats[key] = mat;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = false;
+      mesh.userData = mesh.userData || {};
+      mesh.userData.wireKey = key;
+      const conduitWireIds = {
+        d1_door: "W03",
+        d0_living: "W06",
+        d4_bedroom: "W09",
+        d6_pump: "W12",
+        d8_siren: "W18",
+        d7_d3_speaker: "W21",
+        d2_dht11: "W31",
+        a0_soil: "W35",
+        d5_ky037: "W40",
+      };
+      if (conduitWireIds[key]) {
+        mesh.userData.wireId = conduitWireIds[key];
+        clickableMeshes.push(mesh);
+      }
+      wireConduitMeshes[key] = mesh;
       wireConduitGroup.add(mesh);
     }
 
@@ -2163,11 +2319,13 @@ window.SmartHome3D = (() => {
       .filter((hit) => hit && isObjectAndAncestorsVisible(hit.object));
     if (intersects && intersects.length > 0) {
       let target = intersects[0].object;
-      while (target && (!target.userData || !target.userData.deviceId) && target !== scene) {
+      while (target && (!target.userData || (!target.userData.deviceId && !target.userData.wireId)) && target !== scene) {
         target = target.parent;
       }
       if (target && target.userData && target.userData.deviceId) {
         onDeviceClickCallback(target.userData.deviceId);
+      } else if (target && target.userData && target.userData.wireId && typeof onWireClickCallback === "function") {
+        onWireClickCallback(target.userData.wireId);
       }
     }
   }
@@ -2331,9 +2489,40 @@ window.SmartHome3D = (() => {
   }
 
   function toggleWiringConduits() {
-    if (!wireConduitGroup) return true;
-    wireConduitGroup.visible = !wireConduitGroup.visible;
-    return wireConduitGroup.visible;
+    wiringDisplayState.visible = !wiringDisplayState.visible;
+    applyWiringDisplayState();
+    return wiringDisplayState.visible;
+  }
+
+  function setWiresVisible(visible) {
+    wiringDisplayState.visible = Boolean(visible);
+    applyWiringDisplayState();
+    return wiringDisplayState.visible;
+  }
+
+  function applyWiringFilter(moduleId, allowedHouse3dKeys) {
+    wiringDisplayState.selectedModuleId = moduleId || "all";
+    wiringDisplayState.allowedKeys = allowedHouse3dKeys instanceof Set ? allowedHouse3dKeys : null;
+    applyWiringDisplayState();
+  }
+
+  function highlightWiringStep(wireEntry) {
+    wiringDisplayState.activeWire = wireEntry || null;
+    applyWiringDisplayState();
+  }
+
+  function setWireClickCallback(cb) {
+    onWireClickCallback = typeof cb === "function" ? cb : null;
+  }
+
+  function getWiringDisplayState() {
+    return {
+      visible: Boolean(wiringDisplayState.visible),
+      selectedModuleId: wiringDisplayState.selectedModuleId,
+      activeWireId: wiringDisplayState.activeWire ? wiringDisplayState.activeWire.wire_id : null,
+      glbWireCount: glbWireEntries.length,
+      conduitCount: Object.keys(wireConduitMeshes).length,
+    };
   }
 
   function triggerHardwareVoiceWave(frames = 70) {
@@ -2595,13 +2784,15 @@ window.SmartHome3D = (() => {
       applyGlbEmissive(glbHandles.speakerMats, 0x000000, 0);
     }
 
-    // 7. Làm sáng Đường Dây Điện 3D tương ứng khi thiết bị đang BẬT / MỞ
-    if (wireMats.d1_door) wireMats.d1_door.emissiveIntensity = deviceStates.main_door ? 1.45 : 0.28;
-    if (wireMats.d0_living) wireMats.d0_living.emissiveIntensity = deviceStates.living_room_light ? 1.45 : 0.28;
-    if (wireMats.d4_bedroom) wireMats.d4_bedroom.emissiveIntensity = deviceStates.bedroom_light ? 1.45 : 0.28;
-    if (wireMats.d6_pump) wireMats.d6_pump.emissiveIntensity = deviceStates.garden_pump ? 1.55 : 0.28;
-    if (wireMats.d8_siren) wireMats.d8_siren.emissiveIntensity = deviceStates.alarm_siren ? 1.65 : 0.28;
-    if (wireMats.d7_d3_speaker) wireMats.d7_d3_speaker.emissiveIntensity = deviceStates.speaker_amp ? 1.55 : 0.28;
+    // 7. Làm sáng Đường Dây Điện 3D tương ứng khi thiết bị đang BẬT / MỞ (trừ khi đang highlight hướng dẫn nối dây)
+    if (!wiringDisplayState.activeWire) {
+      if (wireMats.d1_door) wireMats.d1_door.emissiveIntensity = deviceStates.main_door ? 1.45 : 0.28;
+      if (wireMats.d0_living) wireMats.d0_living.emissiveIntensity = deviceStates.living_room_light ? 1.45 : 0.28;
+      if (wireMats.d4_bedroom) wireMats.d4_bedroom.emissiveIntensity = deviceStates.bedroom_light ? 1.45 : 0.28;
+      if (wireMats.d6_pump) wireMats.d6_pump.emissiveIntensity = deviceStates.garden_pump ? 1.55 : 0.28;
+      if (wireMats.d8_siren) wireMats.d8_siren.emissiveIntensity = deviceStates.alarm_siren ? 1.65 : 0.28;
+      if (wireMats.d7_d3_speaker) wireMats.d7_d3_speaker.emissiveIntensity = deviceStates.speaker_amp ? 1.55 : 0.28;
+    }
 
     if (deviceStates.speaker_amp || anyStateChanged) {
       triggerHardwareVoiceWave(45);
@@ -2766,6 +2957,11 @@ window.SmartHome3D = (() => {
     updateSensors,
     triggerHardwareVoiceWave,
     toggleWiringConduits,
+    setWiresVisible,
+    applyWiringFilter,
+    highlightWiringStep,
+    setWireClickCallback,
+    getWiringDisplayState,
     setCameraView,
     setLabelsVisible,
     toggleLabelsVisible,

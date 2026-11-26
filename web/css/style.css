@@ -138,6 +138,24 @@ a {
   text-decoration: none;
 }
 
+.dash-wiring-toolbar-slot {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.dash-wire-inspect-slot {
+  margin-bottom: 8px;
+}
+
+.dash-wiring-panel-mount {
+  margin-top: 10px;
+  display: none;
+}
+
+.dash-wiring-panel-mount.wg-panel-open {
+  display: block;
+}
+
 .icon,
 svg.icon,
 .ico {
