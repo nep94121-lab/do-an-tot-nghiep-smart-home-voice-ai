@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/wokwi.css" />
+  <link rel="stylesheet" href="/static/css/wiring_guide.css" />
   <link rel="prefetch" href="/" as="document" />
   <link rel="prefetch" href="/automation" as="document" />
   <link rel="prefetch" href="/auth" as="document" />
@@ -77,9 +78,14 @@
             <strong>Lưu ý đấu nối thực tế theo PCB Hub (100×80 mm):</strong> Cắm dây trên breadboard phải tuân thủ đúng sơ đồ mạch PCB thực tế (đèn ngủ <strong>D4</strong> đấu Active-LOW từ 3.3V qua R2 220Ω + R7 10kΩ; đường âm thanh <strong>D3</strong> dùng R4 10kΩ kéo lên 3.3V, tụ <strong>C4 10µF 16V</strong>, cầu R5/R6 2.2kΩ và C5 10nF). Riêng chân <strong>D8 (GPIO15)</strong> bắt buộc có điện trở kéo xuống <strong>R9 (10kΩ → GND)</strong> để an toàn khi khởi động, và lái còi 5V qua <strong>R10 (1kΩ) → Q1 (S8050 NPN)</strong> kèm diode dập xung <strong>D2 (1N4007)</strong> (không nối trực tiếp còi vào D8).
           </div>
 
-          <div class="workbench-scroll" id="workbenchScroll">
-            <div class="circuit-stage-wrap" id="circuitStageWrap">
-            <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
+          <div id="wokwiWiringToolbar" class="wokwi-wiring-toolbar-slot"></div>
+          <div id="wokwiWireInspect" class="wokwi-wire-inspect-slot"></div>
+
+          <div class="wokwi-stage-layout" id="wokwiStageLayout">
+            <div class="wokwi-diagram-col">
+              <div class="workbench-scroll" id="workbenchScroll">
+                <div class="circuit-stage-wrap" id="circuitStageWrap">
+                <div class="circuit-stage" id="circuitStage" onmouseleave="clearHoleHover()">
 
           <!-- 1. MẠCH NODEMCU ESP8266 (ESP-12E, CP2102) THỰC TẾ GIỐNG HỆT TRÊN BÀN CỦA BẠN (ĐỦ 30 CHÂN CHUẨN THỨ TỰ) -->
           <div class="comp-tag" style="left: 18px; top: 12px; border-color:#38bdf8; color:#7dd3fc;">
@@ -487,8 +493,16 @@
           <!-- 5. LỚP VẼ DÂY JUMPER WOKWI TỌA ĐỘ THẬT (TỰ ĐỘNG NỐI TỪ CHÂN VÀNG ESP -> LỖ BREADBOARD -> LINH KIỆN) -->
           <svg id="wireLayer" viewBox="0 0 1220 710"></svg>
 
+                </div>
+                </div>
+              </div>
+              <div class="pcb2d-scroll" id="pcb2dScroll" hidden>
+                <div class="pcb2d-svg-host" id="pcb2dSvgHost" aria-label="Sơ đồ nối dây PCB Hub 2D">
+                  <p class="pcb2d-loading">Đang tải sơ đồ nối dây PCB Hub 2D…</p>
+                </div>
+              </div>
             </div>
-            </div>
+            <div id="wokwiWiringPanelMount" class="wokwi-guide-mount"></div>
           </div>
         </div>
 
@@ -604,109 +618,19 @@
 
         <section id="pinoutAndCodeSection" style="display: grid; grid-template-columns: 1.05fr 1fr; gap: 14px;">
           <div class="card" style="overflow-x:auto;">
-            <h3>Sơ đồ 10 chân kết nối khóa cứng</h3>
+            <h3>Bảng nối dây đồng bộ từ hợp đồng phần cứng</h3>
             <table style="width:100%; border-collapse:collapse; font-size:12.5px; line-height:1.45;">
               <thead>
                 <tr style="background:var(--bg); color:var(--muted); text-align:left; border-bottom:1px solid var(--line);">
-                  <th style="padding:7px 8px; font-weight:500;">Chân</th>
-                  <th style="padding:7px 8px; font-weight:500;">Dây</th>
-                  <th style="padding:7px 8px; font-weight:500;">Vị trí cắm</th>
-                  <th style="padding:7px 8px; font-weight:500;">Linh kiện</th>
-                  <th style="padding:7px 8px; font-weight:500;">Thiết bị</th>
+                  <th style="padding:7px 8px; font-weight:500;">Mã dây</th>
+                  <th style="padding:7px 8px; font-weight:500;">Màu</th>
+                  <th style="padding:7px 8px; font-weight:500;">Mô-đun &amp; Chân</th>
+                  <th style="padding:7px 8px; font-weight:500;">Header Hub</th>
+                  <th style="padding:7px 8px; font-weight:500;">Chân ESP8266</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">3V3</span></td>
-                  <td style="padding:6px 8px;">Cam</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">TP1</span></td>
-                  <td style="padding:6px 8px;">Nguồn +3.3V</td>
-                  <td style="padding:6px 8px;">DHT11, LM393 (đất), KY-037, LED ngủ (Active-LOW)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">VIN</span></td>
-                  <td style="padding:6px 8px;">Đỏ</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">BP1</span></td>
-                  <td style="padding:6px 8px;">Nguồn +5V</td>
-                  <td style="padding:6px 8px;">Servo SG90, Relay 1 (Bơm), Relay 2 (PAM8403), Còi 5V (qua Q1)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">GND</span></td>
-                  <td style="padding:6px 8px;">Đen</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">TN1</span>, <span class="hole-badge">BN25</span></td>
-                  <td style="padding:6px 8px;">Mass chung</td>
-                  <td style="padding:6px 8px;">Rãnh âm trên và dưới</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D0 (GPIO16)</span></td>
-                  <td style="padding:6px 8px;">Xanh lá</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">C4</span> → <span class="hole-badge">C9</span></td>
-                  <td style="padding:6px 8px;">R1 220Ω + LED Đỏ</td>
-                  <td style="padding:6px 8px;">Đèn phòng khách &amp; nháy enroll_blink</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D1 (GPIO5)</span></td>
-                  <td style="padding:6px 8px;">Vàng</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">BP24</span>, <span class="hole-badge">BN24</span></td>
-                  <td style="padding:6px 8px;">Servo SG90</td>
-                  <td style="padding:6px 8px;">Cửa chính (0° đóng / 90° mở)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D2 (GPIO4)</span></td>
-                  <td style="padding:6px 8px;">Xanh lơ</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">F14–F17</span></td>
-                  <td style="padding:6px 8px;">Module DHT11 (3.3V) + R3 10kΩ</td>
-                  <td style="padding:6px 8px;">Cảm biến Nhiệt độ &amp; Độ ẩm</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D3 (GPIO0)</span></td>
-                  <td style="padding:6px 8px;">Tím</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">C11–C20</span></td>
-                  <td style="padding:6px 8px;">R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF</td>
-                  <td style="padding:6px 8px;">Âm thanh PWM tới PAM8403 (nghỉ = INPUT)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D4 (GPIO2)</span></td>
-                  <td style="padding:6px 8px;">Vàng nhạt</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">C22</span> → <span class="hole-badge">C26</span></td>
-                  <td style="padding:6px 8px;">R2 220Ω + R7 10kΩ + LED Vàng</td>
-                  <td style="padding:6px 8px;">Đèn phòng ngủ (Active-LOW từ 3.3V, an toàn boot)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D5 (GPIO14)</span></td>
-                  <td style="padding:6px 8px;">Đỏ cam</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">F6–F9</span></td>
-                  <td style="padding:6px 8px;">KY-037 DO (3.3V)</td>
-                  <td style="padding:6px 8px;">Cảm biến âm thanh vỗ tay (DO)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D6 (GPIO12)</span></td>
-                  <td style="padding:6px 8px;">Xanh dương</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">BP22</span>, <span class="hole-badge">BN22</span></td>
-                  <td style="padding:6px 8px;">Relay 1 Xanh + D1 1N4007 + C2 470µF</td>
-                  <td style="padding:6px 8px;">Máy bơm tưới cây (tự bật &lt;40% / tắt ≥70%)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D7 (GPIO13)</span></td>
-                  <td style="padding:6px 8px;">Tím hồng</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">BP4</span>, <span class="hole-badge">BN4</span></td>
-                  <td style="padding:6px 8px;">Relay 2 Đỏ Opto (Jumper H) + C6 100nF</td>
-                  <td style="padding:6px 8px;">Nguồn 5V mạch loa PAM8403 (COM/NO → 5V)</td>
-                </tr>
-                <tr style="border-bottom:1px solid var(--line);">
-                  <td style="padding:6px 8px;"><span class="hole-badge">D8 (GPIO15)</span></td>
-                  <td style="padding:6px 8px;">Đỏ hồng</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">F19–J29</span></td>
-                  <td style="padding:6px 8px;">R9 10kΩ kéo GND + R10 1kΩ → Q1 S8050 (NPN) + D2 1N4007 + Buzzer 5V</td>
-                  <td style="padding:6px 8px;">Còi báo động (Còi + → 5V, Còi - → Q1.C, im lặng khi boot)</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 8px;"><span class="hole-badge">A0 (ADC0)</span></td>
-                  <td style="padding:6px 8px;">Vàng</td>
-                  <td style="padding:6px 8px;"><span class="hole-badge">TP24</span>, <span class="hole-badge">BN20</span></td>
-                  <td style="padding:6px 8px;">LM393 (nguồn 3.3V) + C7 100nF + Đầu dò</td>
-                  <td style="padding:6px 8px;">Cảm biến độ ẩm đất (0–100%)</td>
-                </tr>
+              <tbody id="ssotPinoutTableBody">
+                <tr><td colspan="5" style="padding:8px; color:var(--muted);">Đang tải bảng nối dây từ hợp đồng phần cứng…</td></tr>
               </tbody>
             </table>
           </div>
@@ -750,6 +674,7 @@
   </nav>
 
   <script src="/static/js/nav_auth_guard.js"></script>
+  <script src="/static/js/wiring_guide.js"></script>
   <script src="/static/js/wokwi.js"></script>
   <script src="/static/js/spa_nav.js" defer></script>
 </body>

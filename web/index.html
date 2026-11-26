@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="stylesheet" href="/static/css/automation_panel.css">
+  <link rel="stylesheet" href="/static/css/wiring_guide.css">
   <link rel="prefetch" href="/automation" as="document">
   <link rel="prefetch" href="/auth" as="document">
   <link rel="prefetch" href="/wokwi" as="document">
@@ -131,6 +132,8 @@
                 <button type="button" class="btn-cam-toggle active" id="btnToggle3dLabels" aria-pressed="true" title="Ẩn hoặc hiện nhãn nổi trên mô hình 3D">Ẩn nhãn</button>
               </div>
             </div>
+            <div id="dashWiringToolbar" class="dash-wiring-toolbar-slot"></div>
+            <div id="dashWireInspect" class="dash-wire-inspect-slot"></div>
             <div id="house3dViewport" class="viewport" role="img" aria-label="Vị trí mô hình 3D Toàn cảnh">
               <div id="house3dLabels" class="house3d-labels"></div>
               <span class="viewport-note">
@@ -138,6 +141,7 @@
                 <span class="note-mobile">Kéo để xoay</span>
               </span>
             </div>
+            <div id="dashWiringPanelMount" class="dash-wiring-panel-mount"></div>
           </section>
 
           <section class="panel devices" id="secDevices" aria-labelledby="device-title">
@@ -708,6 +712,7 @@
   <script src="/static/vendor/three.min.js"></script>
   <script src="/static/vendor/GLTFLoader.js"></script>
   <script src="/static/house3d.js"></script>
+  <script src="/static/js/wiring_guide.js"></script>
   <script src="/static/js/voice_echo_guard.js"></script>
   <script src="/static/js/app.js"></script>
   <script src="/static/js/automation_panel.js" defer></script>

@@ -219,7 +219,7 @@
         NODEMCU_PIN_MAP[pL.key] = { x: NODEMCU_ORIGIN.x + 36, y: NODEMCU_ORIGIN.y + y };
         const fillL = pL.active || '#eab308';
         const txtFillL = pL.active || '#94a3b8';
-        html += `<g style="cursor:pointer" onmouseenter="showHole('ESP8266:${pL.label}', '${pL.desc}')">
+        html += `<g style="cursor:pointer" data-nodemcu-pin="${pL.key}" onmouseenter="showHole('ESP8266:${pL.label}', '${pL.desc}')" onclick="onNodeMcuPinClick('${pL.key}')">
           <rect x="31" y="${y - 4}" width="10" height="8" rx="1.5" fill="#0f172a" stroke="#475569" stroke-width="0.8"/>
           <circle cx="36" cy="${y}" r="${pL.active ? 3.6 : 2.5}" fill="${fillL}"/>
           <text x="45" y="${y + 3.2}" font-family="Consolas,monospace" font-size="${pL.active ? 9.5 : 8}" font-weight="${pL.active ? '900' : '600'}" fill="${txtFillL}">${pL.label}</text>
@@ -231,7 +231,7 @@
         NODEMCU_PIN_MAP[pR.key] = { x: NODEMCU_ORIGIN.x + 174, y: NODEMCU_ORIGIN.y + y };
         const fillR = pR.active || '#eab308';
         const txtFillR = pR.active || '#94a3b8';
-        html += `<g style="cursor:pointer" onmouseenter="showHole('ESP8266:${pR.label}', '${pR.desc}')">
+        html += `<g style="cursor:pointer" data-nodemcu-pin="${pR.key}" onmouseenter="showHole('ESP8266:${pR.label}', '${pR.desc}')" onclick="onNodeMcuPinClick('${pR.key}')">
           <rect x="169" y="${y - 4}" width="10" height="8" rx="1.5" fill="#0f172a" stroke="#475569" stroke-width="0.8"/>
           <circle cx="174" cy="${y}" r="${pR.active ? 3.6 : 2.5}" fill="${fillR}"/>
           <text x="165" y="${y + 3.2}" font-family="Consolas,monospace" font-size="${pR.active ? 9.5 : 8}" text-anchor="end" font-weight="${pR.active ? '900' : '600'}" fill="${txtFillR}">${pR.label}</text>
@@ -258,8 +258,14 @@
       return { x: fallbackX, y: fallbackY };
     }
 
+    let wokwiWiringController = null;
+    let wokwiActiveDiagramMode = 'breadboard';
+    let pcb2dSvgLoaded = false;
+    let pcb2dSvgLoadingPromise = null;
+
     function drawWires() {
       const svg = document.getElementById('wireLayer');
+      if (!svg) return;
       const H = (holeId) => HOLE_MAP[holeId] || { x: 300, y: 100 };
       const P = (pinKey) => NODEMCU_PIN_MAP[pinKey] || { x: 200, y: 100 };
 
@@ -269,151 +275,151 @@
         PWM: getElementPinXY('w_servo', 'PWM', 880, 111.0)
       };
 
-      function wirePath(points, color, dashed = false) {
+      function wirePath(points, color, wireIds, moduleIds, dashed = false) {
         const d = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
         const p0 = points[0];
         const pN = points[points.length - 1];
         const dashAttr = dashed ? `stroke-dasharray="6 4"` : '';
-        return `
+        const wList = Array.isArray(wireIds) ? wireIds : [wireIds];
+        const mList = Array.isArray(moduleIds) ? moduleIds : [moduleIds];
+        const primaryWire = wList[0] || '';
+        return `<g class="wg-wire-item" data-wire-ids="${wList.join(',')}" data-primary-wire-id="${primaryWire}" data-module-ids="${mList.join(',')}" data-start-x="${p0.x.toFixed(1)}" data-start-y="${p0.y.toFixed(1)}" data-end-x="${pN.x.toFixed(1)}" data-end-y="${pN.y.toFixed(1)}">
           <path d="${d}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="${d}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" ${dashAttr}/>
-          <circle cx="${p0.x}" cy="${p0.y}" r="3.8" fill="#0f172a" stroke="${color}" stroke-width="1.8"/>
-          <circle cx="${pN.x}" cy="${pN.y}" r="3.8" fill="#0f172a" stroke="${color}" stroke-width="1.8"/>
-        `;
+          <circle cx="${p0.x.toFixed(1)}" cy="${p0.y.toFixed(1)}" r="3.8" fill="#0f172a" stroke="${color}" stroke-width="1.8"/>
+          <circle cx="${pN.x.toFixed(1)}" cy="${pN.y.toFixed(1)}" r="3.8" fill="#0f172a" stroke="${color}" stroke-width="1.8"/>
+          <path class="wg-wire-hit" d="${d}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>`;
       }
 
       const groups = {
-        // BƯỚC 0: CẤP NGUỒN 3.3V (Rãnh trên), 5V (Rãnh dưới) & GND CHUNG
         power: [
-          wirePath([P('V33'), { x: 246, y: P('V33').y }, { x: 246, y: H('tp1').y }, H('tp1')], '#fb923c'),
-          wirePath([P('VIN'), { x: 18, y: P('VIN').y }, { x: 18, y: 390 }, { x: H('bp1').x, y: 390 }, H('bp1')], '#ef4444'),
-          wirePath([P('GND_R'), { x: 254, y: P('GND_R').y }, { x: 254, y: H('tn1').y }, H('tn1')], '#64748b'),
-          wirePath([H('tn25'), { x: 775, y: H('tn25').y }, { x: 775, y: H('bn25').y }, H('bn25')], '#64748b')
+          wirePath([P('V33'), { x: 246, y: P('V33').y }, { x: 246, y: H('tp1').y }, H('tp1')], '#fb923c', ['W01', 'W08', 'W30', 'W33', 'W38'], ['psu_5v', 'led_bedroom', 'dht11_sensor', 'soil_lm393', 'ky037_sound']),
+          wirePath([P('VIN'), { x: 18, y: P('VIN').y }, { x: 18, y: 390 }, { x: H('bp1').x, y: 390 }, H('bp1')], '#ef4444', ['W01'], ['psu_5v']),
+          wirePath([P('GND_R'), { x: 254, y: P('GND_R').y }, { x: 254, y: H('tn1').y }, H('tn1')], '#64748b', ['W02'], ['psu_5v']),
+          wirePath([H('tn25'), { x: 775, y: H('tn25').y }, { x: 775, y: H('bn25').y }, H('bn25')], '#64748b', ['W02'], ['psu_5v'])
         ],
-
-        // BƯỚC 1: ĐÈN PHÒNG KHÁCH LED ĐỎ (Chân D0 / GPIO16)
         d0_living: [
-          wirePath([P('D0'), { x: 258, y: P('D0').y }, { x: 258, y: H('c4').y }, H('c4')], '#22c55e'),
-          wirePath([H('a9'), H('tn6')], '#64748b')
+          wirePath([P('D0'), { x: 258, y: P('D0').y }, { x: 258, y: H('c4').y }, H('c4')], '#22c55e', ['W06'], ['led_living']),
+          wirePath([H('a9'), H('tn6')], '#64748b', ['W07'], ['led_living'])
         ],
-
-        // BƯỚC 2: CỬA CHÍNH SERVO SG90 (Chân D1 / GPIO5)
         d1_servo: [
-          wirePath([P('D1'), { x: 238, y: P('D1').y }, { x: 238, y: 34 }, { x: 845, y: 34 }, { x: 845, y: SERVO_PINS.PWM.y }, SERVO_PINS.PWM], '#facc15'),
-          wirePath([H('bp24'), { x: H('bp24').x, y: 348 }, { x: 798, y: 348 }, { x: 798, y: SERVO_PINS.VCC.y }, SERVO_PINS.VCC], '#ef4444'),
-          wirePath([H('bn24'), { x: H('bn24').x, y: 356 }, { x: 808, y: 356 }, { x: 808, y: SERVO_PINS.GND.y }, SERVO_PINS.GND], '#78350f')
+          wirePath([P('D1'), { x: 238, y: P('D1').y }, { x: 238, y: 34 }, { x: 845, y: 34 }, { x: 845, y: SERVO_PINS.PWM.y }, SERVO_PINS.PWM], '#facc15', ['W03'], ['sg90_servo']),
+          wirePath([H('bp24'), { x: H('bp24').x, y: 348 }, { x: 798, y: 348 }, { x: 798, y: SERVO_PINS.VCC.y }, SERVO_PINS.VCC], '#ef4444', ['W04'], ['sg90_servo']),
+          wirePath([H('bn24'), { x: H('bn24').x, y: 356 }, { x: 808, y: 356 }, { x: 808, y: SERVO_PINS.GND.y }, SERVO_PINS.GND], '#78350f', ['W05'], ['sg90_servo'])
         ],
-
-        // BƯỚC 3: CẢM BIẾN NHIỆT ĐỘ & ĐỘ ẨM DHT11 (Chân D2 / GPIO4)
         d2_dht11: [
-          wirePath([P('D2'), { x: 264, y: P('D2').y }, { x: 264, y: H('j15').y }, H('j15')], '#06b6d4'),
-          wirePath([H('f14'), { x: 468, y: H('f14').y }, { x: 468, y: H('tp9').y }, H('tp9')], '#fb923c'),
-          wirePath([H('j17'), H('bn12')], '#64748b')
+          wirePath([P('D2'), { x: 264, y: P('D2').y }, { x: 264, y: H('j15').y }, H('j15')], '#06b6d4', ['W31'], ['dht11_sensor']),
+          wirePath([H('f14'), { x: 468, y: H('f14').y }, { x: 468, y: H('tp9').y }, H('tp9')], '#fb923c', ['W30'], ['dht11_sensor']),
+          wirePath([H('j17'), H('bn12')], '#64748b', ['W32'], ['dht11_sensor'])
         ],
-
-        // BƯỚC 4: RELAY 2 ĐỎ OPTO (D7) + MẠCH ÂM THANH D3 (R4 10k, C4 10µF 16V, R5/R6 2.2k, C5 10nF) + PAM8403 + LOA BẠC
         d3_d7_speaker: [
-          wirePath([P('D3'), { x: 232, y: P('D3').y }, { x: 232, y: 196 }, { x: 464, y: 196 }, { x: 464, y: 128 }, { x: 482, y: 128 }], '#a855f7'),
-          wirePath([H('tp10'), { x: 496, y: H('tp10').y }, { x: 496, y: 90 }], '#fb923c'),
-          wirePath([{ x: 590, y: 172 }, { x: 590, y: 190 }, { x: 632, y: 190 }, { x: 632, y: H('tn18').y }, H('tn18')], '#64748b'),
-          wirePath([{ x: 618, y: 128 }, { x: 626, y: 128 }, { x: 626, y: 196 }, { x: 240, y: 196 }, { x: 240, y: 404 }, { x: 180, y: 404 }, { x: 180, y: 486 }], '#c084fc'),
-          wirePath([P('D7'), { x: 224, y: P('D7').y }, { x: 224, y: 396 }, { x: 46, y: 396 }, { x: 46, y: 486 }], '#c084fc'),
-          wirePath([H('bp4'), { x: H('bp4').x, y: 372 }, { x: 78, y: 372 }, { x: 78, y: 486 }], '#ef4444'),
-          wirePath([H('bn4'), { x: H('bn4').x, y: 380 }, { x: 102, y: 380 }, { x: 102, y: 486 }], '#64748b')
+          wirePath([P('D3'), { x: 232, y: P('D3').y }, { x: 232, y: 196 }, { x: 464, y: 196 }, { x: 464, y: 128 }, { x: 482, y: 128 }], '#a855f7', ['W26'], ['pam8403_amp']),
+          wirePath([H('tp10'), { x: 496, y: H('tp10').y }, { x: 496, y: 90 }], '#fb923c', ['W26'], ['pam8403_amp']),
+          wirePath([{ x: 590, y: 172 }, { x: 590, y: 190 }, { x: 632, y: 190 }, { x: 632, y: H('tn18').y }, H('tn18')], '#64748b', ['W27'], ['pam8403_amp']),
+          wirePath([{ x: 618, y: 128 }, { x: 626, y: 128 }, { x: 626, y: 196 }, { x: 240, y: 196 }, { x: 240, y: 404 }, { x: 180, y: 404 }, { x: 180, y: 486 }], '#c084fc', ['W26'], ['pam8403_amp']),
+          wirePath([P('D7'), { x: 224, y: P('D7').y }, { x: 224, y: 396 }, { x: 46, y: 396 }, { x: 46, y: 486 }], '#c084fc', ['W21'], ['relay2_speaker']),
+          wirePath([H('bp4'), { x: H('bp4').x, y: 372 }, { x: 78, y: 372 }, { x: 78, y: 486 }], '#ef4444', ['W19', 'W22'], ['relay2_speaker']),
+          wirePath([H('bn4'), { x: H('bn4').x, y: 380 }, { x: 102, y: 380 }, { x: 102, y: 486 }], '#64748b', ['W20', 'W25'], ['relay2_speaker', 'pam8403_amp']),
+          wirePath([{ x: 126, y: 508 }, { x: 140, y: 508 }], '#ea580c', ['W23', 'W24'], ['relay2_speaker', 'pam8403_amp']),
+          wirePath([{ x: 222, y: 500 }, { x: 242, y: 500 }], '#eab308', ['W28'], ['speaker_mini']),
+          wirePath([{ x: 222, y: 510 }, { x: 242, y: 510 }], '#78350f', ['W29'], ['speaker_mini'])
         ],
-
-        // BƯỚC 5: ĐÈN PHÒNG NGỦ LED VÀNG ACTIVE-LOW TỪ 3.3V (Chân D4 / GPIO2, an toàn boot)
         d4_bedroom: [
-          wirePath([H('tp20'), { x: H('tp20').x, y: H('a22').y }, H('a22')], '#fb923c'),
-          wirePath([P('D4'), { x: 274, y: P('D4').y }, { x: 274, y: H('c26').y }, H('c26')], '#fde047')
+          wirePath([H('tp20'), { x: H('tp20').x, y: H('a22').y }, H('a22')], '#fb923c', ['W08'], ['led_bedroom']),
+          wirePath([P('D4'), { x: 274, y: P('D4').y }, { x: 274, y: H('c26').y }, H('c26')], '#fde047', ['W09'], ['led_bedroom'])
         ],
-
-        // BƯỚC 6: CẢM BIẾN ÂM THANH KY-037 DO (Chân D5 / GPIO14)
         d5_ky037: [
-          wirePath([P('D5'), { x: 260, y: P('D5').y }, { x: 260, y: H('j6').y }, H('j6')], '#f87171'),
-          wirePath([H('j7'), H('bn5')], '#64748b'),
-          wirePath([H('f8'), H('tp6')], '#fb923c')
+          wirePath([P('D5'), { x: 260, y: P('D5').y }, { x: 260, y: H('j6').y }, H('j6')], '#f87171', ['W40'], ['ky037_sound']),
+          wirePath([H('j7'), H('bn5')], '#64748b', ['W39'], ['ky037_sound']),
+          wirePath([H('f8'), H('tp6')], '#fb923c', ['W38'], ['ky037_sound'])
         ],
-
-        // BƯỚC 7: RELAY 1 XANH + DIODE 1N4007 + TỤ 470µF + MÁY BƠM MINI (Chân D6 / GPIO12)
         d6_pump: [
-          wirePath([P('D6'), { x: 270, y: P('D6').y }, { x: 270, y: 384 }, { x: 815, y: 384 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8'),
-          wirePath([H('bp22'), { x: H('bp22').x, y: 392 }, { x: 825, y: 392 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444'),
-          wirePath([H('bn22'), { x: H('bn22').x, y: 402 }, { x: 832, y: 402 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b')
+          wirePath([P('D6'), { x: 270, y: P('D6').y }, { x: 270, y: 384 }, { x: 815, y: 384 }, { x: 815, y: 290 }, { x: 858, y: 290 }], '#38bdf8', ['W12'], ['relay1_pump']),
+          wirePath([H('bp22'), { x: H('bp22').x, y: 392 }, { x: 825, y: 392 }, { x: 825, y: 314 }, { x: 858, y: 314 }], '#ef4444', ['W10', 'W13'], ['relay1_pump']),
+          wirePath([H('bn22'), { x: H('bn22').x, y: 402 }, { x: 832, y: 402 }, { x: 832, y: 302 }, { x: 858, y: 302 }], '#64748b', ['W11'], ['relay1_pump']),
+          wirePath([{ x: 983, y: 280 }, { x: 1093, y: 280 }, { x: 1093, y: 316 }], '#ef4444', ['W14', 'W15'], ['relay1_pump', 'pump_unit']),
+          wirePath([{ x: 1007, y: 270 }, { x: 1007, y: 338 }, { x: 1020, y: 338 }], '#18181b', ['W16'], ['pump_unit'])
         ],
-
-        // BƯỚC 8: CÒI BÁO ĐỘNG BUZZER 5V QUA MẠCH LÁI NPN Q1 S8050 + R10 1k + R9 10k KÉO GND + D2 1N4007 (KHÔNG NỐI TRỰC TIẾP D8 → CÒI)
         d8_buzzer: [
-          wirePath([P('D8'), { x: 284, y: P('D8').y }, { x: 284, y: 344 }, { x: 564, y: 344 }, { x: 564, y: 250 }, { x: 582, y: 250 }], '#f43f5e'),
-          wirePath([{ x: 632, y: 316 }, { x: 632, y: H('bn18').y }, H('bn18')], '#64748b'),
-          wirePath([{ x: 706, y: 242 }, { x: 722, y: 242 }, { x: 722, y: 278 }, { x: 732.7, y: 278 }, { x: 732.7, y: 270.1 }], '#f97316'),
-          wirePath([H('bp23'), { x: 754, y: H('bp23').y }, { x: 754, y: 278 }, { x: 738.9, y: 278 }, { x: 738.9, y: 270.1 }], '#ef4444'),
-          wirePath([{ x: 754, y: 278 }, { x: 754, y: 226 }, { x: 706, y: 226 }], '#ef4444')
+          wirePath([P('D8'), { x: 284, y: P('D8').y }, { x: 284, y: 344 }, { x: 564, y: 344 }, { x: 564, y: 250 }, { x: 582, y: 250 }], '#f43f5e', ['W18'], ['buzzer_alarm']),
+          wirePath([{ x: 632, y: 316 }, { x: 632, y: H('bn18').y }, H('bn18')], '#64748b', ['W18'], ['buzzer_alarm']),
+          wirePath([{ x: 706, y: 242 }, { x: 722, y: 242 }, { x: 722, y: 278 }, { x: 732.7, y: 278 }, { x: 732.7, y: 270.1 }], '#f97316', ['W18'], ['buzzer_alarm']),
+          wirePath([H('bp23'), { x: 754, y: H('bp23').y }, { x: 754, y: 278 }, { x: 738.9, y: 278 }, { x: 738.9, y: 270.1 }], '#ef4444', ['W17'], ['buzzer_alarm']),
+          wirePath([{ x: 754, y: 278 }, { x: 754, y: 226 }, { x: 706, y: 226 }], '#ef4444', ['W17'], ['buzzer_alarm'])
         ],
-
-        // BƯỚC 9: CẢM BIẾN ĐỘ ẨM ĐẤT + MẠCH LM393 NGUỒN 3.3V (Chân A0 / ADC0)
         a0_soil: [
-          wirePath([P('A0'), { x: 10, y: P('A0').y }, { x: 10, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308'),
-          wirePath([H('tp24'), { x: 785, y: H('tp24').y }, { x: 785, y: 595 }, { x: 922, y: 595 }, { x: 922, y: 575 }], '#fb923c'),
-          wirePath([H('bn20'), { x: H('bn20').x, y: 645 }, { x: 906, y: 645 }, { x: 906, y: 575 }], '#64748b')
+          wirePath([P('A0'), { x: 10, y: P('A0').y }, { x: 10, y: 665 }, { x: 872, y: 665 }, { x: 872, y: 575 }], '#eab308', ['W35'], ['soil_lm393']),
+          wirePath([H('tp24'), { x: 785, y: H('tp24').y }, { x: 785, y: 595 }, { x: 922, y: 595 }, { x: 922, y: 575 }], '#fb923c', ['W33'], ['soil_lm393']),
+          wirePath([H('bn20'), { x: H('bn20').x, y: 645 }, { x: 906, y: 645 }, { x: 906, y: 575 }], '#64748b', ['W34'], ['soil_lm393']),
+          wirePath([{ x: 947, y: 530 }, { x: 1005, y: 505 }, { x: 1050, y: 523 }], '#eab308', ['W36'], ['soil_probe']),
+          wirePath([{ x: 947, y: 550 }, { x: 1005, y: 525 }, { x: 1080, y: 523 }], '#ea580c', ['W37'], ['soil_probe'])
         ]
       };
 
-      svg.innerHTML = Object.entries(groups)
-        .map(([k, arr]) => `<g id="wg_${k}" class="w-group">${arr.join('')}</g>`)
-        .join('');
+      svg.innerHTML =
+        Object.entries(groups)
+          .map(([k, arr]) => `<g id="wg_${k}" class="w-group">${arr.join('')}</g>`)
+          .join('') + '<g id="wgEndpointOverlay"></g>';
+
+      if (wokwiWiringController) {
+        wokwiWiringController.refresh();
+      }
     }
 
     // =========================================================================
-    // 3. BỘ LỌC HƯỚNG DẪN TỪNG BƯỚC CẮM DÂY VẬT LÝ (10 CHÂN KHÓA CỨNG)
+    // 3. HƯỚNG DẪN & BẢNG NỐI DÂY ĐỒNG BỘ TỪ HỢP ĐỒNG PHẦN CỨNG (SSOT JSON)
     // =========================================================================
-    const GUIDES = {
-      all: [
-        "<strong>Bước 0 (Cấp nguồn trước tiên):</strong> Cắm dây Cam từ chân <span class='hole-badge'>3V3</span> vào lỗ <span class='hole-badge'>TP1 (Rãnh + Trên)</span>; dây Đỏ từ <span class='hole-badge'>VIN (5V)</span> vào <span class='hole-badge'>BP1 (Rãnh + Dưới)</span>; dây Đen từ <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN1 &amp; TN25</span>.",
-        "<strong>Cắm linh kiện đúng mạch PCB Hub 100×80 mm:</strong> Đèn Khách (<span class='hole-badge'>D0</span> qua R1 220Ω), âm thanh (<span class='hole-badge'>D3</span> qua R4 10kΩ + C4 10µF 16V + R5/R6 2.2kΩ + C5 10nF), Đèn Ngủ Active-LOW (<span class='hole-badge'>D4</span> qua R2 220Ω + R7 10kΩ), KY-037 (<span class='hole-badge'>D5</span>), DHT11 (<span class='hole-badge'>D2</span> + R3 10kΩ) và Còi 5V (<span class='hole-badge'>D8</span> qua R9 10kΩ kéo GND + R10 1kΩ → Q1 S8050 + D2 1N4007)."
-      ],
-      power: [
-        "<strong>Dây Cam (+3.3V nuôi Cảm biến &amp; LED ngủ):</strong> Từ chân <span class='hole-badge'>3V3</span> cắm vào lỗ <span class='hole-badge'>TP1</span> (nuôi DHT11, KY-037, LM393 đất &amp; cực dương LED D4).",
-        "<strong>Dây Đỏ (+5V nuôi Servo, Relay 1, Relay 2 &amp; Còi 5V):</strong> Từ chân <span class='hole-badge'>VIN</span> cắm vào lỗ <span class='hole-badge'>BP1</span> (kèm tụ lọc C1/C2 470µF 16V, C3 100nF và LED nguồn D3 qua R8 1kΩ).",
-        "<strong>2 Dây Đen (Mass chung GND):</strong> Nối từ <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN1</span> và nối thông <span class='hole-badge'>BN25</span> lên <span class='hole-badge'>TN25</span>."
-      ],
-      d0_living: [
-        "<strong>Đèn Phòng Khách (Chân D0 / GPIO16):</strong> Từ chân <span class='hole-badge'>D0</span> cắm dây Xanh lá vào lỗ <span class='hole-badge'>C4</span> → qua trở <span class='hole-badge'>R1 220Ω</span> sang LED Đỏ (+) tại <span class='hole-badge'>C8</span>, chân (-) ở <span class='hole-badge'>C9</span>.",
-        "<strong>Nối Mass &amp; nháy báo thu âm:</strong> Nối <span class='hole-badge'>A9</span> lên rãnh âm <span class='hole-badge'>TN6</span>. Chân D0 cũng dùng để nháy báo hiệu 3-2-1 khi thu âm cấp quyền."
-      ],
-      d1_servo: [
-        "<strong>Dây Vàng/Cam của Servo SG90 (PWM):</strong> Cắm thẳng vào chân <span class='hole-badge'>D1 (GPIO5)</span> của ESP8266 (0° đóng / 90° mở).",
-        "<strong>Dây Đỏ (+5V) &amp; Nâu (GND):</strong> Cắm lần lượt vào <span class='hole-badge'>BP24</span> (kèm tụ lọc C1 470µF 16V) và <span class='hole-badge'>BN24</span>."
-      ],
-      d2_dht11: [
-        "<strong>Cắm cảm biến DHT11 vào hàng F (Cột 14 → 17):</strong> Chân VCC ở <span class='hole-badge'>F14</span>, chân DATA ở <span class='hole-badge'>F15</span> (kèm điện trở kéo lên <span class='hole-badge'>R3 10kΩ</span> lên +3.3V như trên PCB), chân GND ở <span class='hole-badge'>F17</span>.",
-        "<strong>Đi dây:</strong> Lỗ <span class='hole-badge'>J15</span> nối về chân <span class='hole-badge'>D2 (GPIO4)</span>; lỗ <span class='hole-badge'>F14</span> nối lên <span class='hole-badge'>TP12 (+3.3V)</span>; lỗ <span class='hole-badge'>J17</span> nối xuống <span class='hole-badge'>BN12 (GND)</span>."
-      ],
-      d3_d7_speaker: [
-        "<strong>Relay 2 Đỏ Opto (Chân D7 / GPIO13):</strong> Đặt jumper vàng về mức <span class='hole-badge'>H</span>; chân <span class='hole-badge'>IN</span> nối <span class='hole-badge'>D7</span>, <span class='hole-badge'>COM</span> nối <span class='hole-badge'>+5V</span> và <span class='hole-badge'>NO</span> cấp nguồn +5V (lọc bởi <span class='hole-badge'>C6 100nF</span>) cho mạch xanh <span class='hole-badge'>PAM8403</span>.",
-        "<strong>Ngõ ra âm thanh PWM (Chân D3 / GPIO0):</strong> Gắn <span class='hole-badge'>R4 10kΩ</span> kéo lên <span class='hole-badge'>+3.3V</span> (an toàn boot), nối <span class='hole-badge'>D3</span> qua tụ chặn DC <span class='hole-badge'>C4 10µF 16V</span> → cầu phân áp <span class='hole-badge'>R5/R6 2.2kΩ</span> + tụ lọc <span class='hole-badge'>C5 10nF</span> xuống GND tới chân <span class='hole-badge'>L</span> của PAM8403; 2 dây loa bạc nối vào <span class='hole-badge'>L OUT + / -</span>."
-      ],
-      d4_bedroom: [
-        "<strong>Đấu Active-LOW an toàn boot trên D4 (GPIO2):</strong> Nối từ <span class='hole-badge'>TP20 (+3.3V)</span> qua trở <span class='hole-badge'>R2 220Ω</span> tại <span class='hole-badge'>A22</span> vào cực dương (+) LED Vàng, cực âm (-) ở <span class='hole-badge'>C26</span> nối về <span class='hole-badge'>D4 (GPIO2)</span> kèm trở kéo lên <span class='hole-badge'>R7 10kΩ</span> lên +3.3V.",
-        "<strong>Nguyên tắc boot:</strong> Cách đấu này đảm bảo chân <span class='hole-badge'>GPIO2</span> luôn ở mức HIGH khi reset (khớp <code>BEDROOM_LED_ACTIVE_LOW = true</code>)."
-      ],
-      d5_ky037: [
-        "<strong>Cảm biến Âm thanh KY-037 (Chân D5 / GPIO14):</strong> Theo thứ tự chân trên PCB đỏ (<span class='hole-badge'>DO | G | + | AO</span>), cắm nguồn <span class='hole-badge'>+</span> vào <span class='hole-badge'>TP6 (+3.3V)</span> và <span class='hole-badge'>G</span> vào <span class='hole-badge'>BN5 (GND)</span>.",
-        "<strong>Tín hiệu số DO:</strong> Nối chân <span class='hole-badge'>DO</span> về <span class='hole-badge'>D5 (GPIO14)</span> để bắt xung vỗ tay (chống dội ≥400ms). Voice AI Gemini dùng micro/loa trên Web/App."
-      ],
-      d6_pump: [
-        "<strong>Relay 1 Xanh dương (Chân D6 / GPIO12):</strong> Nối chân <span class='hole-badge'>IN</span> về <span class='hole-badge'>D6</span>; <span class='hole-badge'>VCC</span> &amp; <span class='hole-badge'>COM</span> vào <span class='hole-badge'>BP22 (+5V)</span>; <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN22</span>.",
-        "<strong>Bảo vệ Máy bơm trắng:</strong> Kẹp song song ngược cực con <strong>Diode D1 1N4007</strong> (vạch bạc quay về phía dây + bơm) và đặt tụ <strong>C2 470µF 16V</strong> sát đường 5V cấp bơm."
-      ],
-      d8_buzzer: [
-        "<strong>Còi báo động Buzzer 5V (Chân D8 / GPIO15 — đúng PCB):</strong> Tuyệt đối KHÔNG nối trực tiếp còi vào D8. Đi theo đúng đường lái NPN low-side: <span class='hole-badge'>D8</span> → <span class='hole-badge'>R10 (1kΩ)</span> → cực Base (B) transistor <span class='hole-badge'>Q1 (S8050 NPN)</span>, cực Emitter (E) nối <span class='hole-badge'>GND</span>, cực dương còi <span class='hole-badge'>Buzzer(+)</span> nối <span class='hole-badge'>+5V</span>, cực âm <span class='hole-badge'>Buzzer(-)</span> nối cực Collector (C) của Q1, kẹp diode dập xung <span class='hole-badge'>D2 (1N4007)</span> song song 2 cực còi (Cathode về +5V, Anode về Q1.C).",
-        "<strong>An toàn boot bắt buộc trên D8:</strong> Luôn gắn điện trở kéo xuống <span class='hole-badge'>R9 (10kΩ)</span> từ <span class='hole-badge'>D8 → GND</span> để GPIO15 giữ mức LOW khi khởi động và còi im lặng tuyệt đối (không gắn kéo lên 3.3V)."
-      ],
-      a0_soil: [
-        "<strong>Cảm biến Độ ẩm Đất (Chân A0 / ADC0):</strong> Cấp nguồn <span class='hole-badge'>VCC</span> của mạch xanh <code>LM393</code> vào <span class='hole-badge'>TP24 (+3.3V)</span> để bảo vệ ngõ vào A0 (≤3.3V), lọc nhiễu bằng tụ <span class='hole-badge'>C7 100nF</span> xuống GND và nối <span class='hole-badge'>GND</span> vào <span class='hole-badge'>BN20</span>.",
-        "<strong>Đọc Analog &amp; Tự tưới:</strong> Nối <span class='hole-badge'>AO</span> về <span class='hole-badge'>A0</span>. Tự động bật Relay 1 bơm (<span class='hole-badge'>D6</span>) khi độ ẩm &lt;40% và tắt khi ≥70%."
-      ]
-    };
+    function renderSsotTechGuides(stepKey, contract) {
+      const guideEl = document.getElementById('guideItems');
+      if (!guideEl || !contract || !Array.isArray(contract.wires)) return;
+      const matched =
+        !stepKey || stepKey === 'all'
+          ? contract.wires
+          : contract.wires.filter((w) => w.wokwi_group === stepKey);
+      const esc = (s) =>
+        String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      guideEl.innerHTML = matched
+        .map(
+          (w) =>
+            `<li><strong>${esc(w.wire_id)} (${esc(w.module_label_vi)}):</strong> ${esc(w.instruction_vi)} <em>${esc(
+              w.power_gnd_note_vi
+            )}</em></li>`
+        )
+        .join('');
+    }
+
+    function renderSsotPinoutTable(contract) {
+      const tbody = document.getElementById('ssotPinoutTableBody');
+      if (!tbody || !contract || !Array.isArray(contract.wires)) return;
+      const esc = (s) =>
+        String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      tbody.innerHTML = contract.wires
+        .map(
+          (w) => `<tr style="border-bottom:1px solid var(--line); cursor:pointer;" data-wire-row="${esc(w.wire_id)}">
+            <td style="padding:6px 8px;"><span class="hole-badge">${esc(w.wire_id)}</span></td>
+            <td style="padding:6px 8px;">${esc(w.color_vi)}</td>
+            <td style="padding:6px 8px;">${esc(w.module_label_vi)} · <code>${esc(w.module_pin)}</code></td>
+            <td style="padding:6px 8px;"><span class="hole-badge">${esc(w.hub_label)}</span></td>
+            <td style="padding:6px 8px;"><code>${esc(w.nodemcu_pin)}</code> (${esc(w.gpio)})</td>
+          </tr>`
+        )
+        .join('');
+      tbody.querySelectorAll('tr[data-wire-row]').forEach((row) => {
+        row.addEventListener('click', () => {
+          const wid = row.getAttribute('data-wire-row');
+          if (wid && wokwiWiringController) {
+            wokwiWiringController.jumpToWireId(wid, true);
+          }
+        });
+      });
+    }
 
     function filterStep(stepKey, btnEl) {
       document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
@@ -431,8 +437,215 @@
         }
       });
 
-      const items = GUIDES[stepKey] || GUIDES.all;
-      document.getElementById('guideItems').innerHTML = items.map(i => `<li>${i}</li>`).join('');
+      const contract = wokwiWiringController && wokwiWiringController.getContract();
+      if (contract) {
+        renderSsotTechGuides(stepKey, contract);
+      }
+    }
+
+    function onNodeMcuPinClick(pinKey) {
+      if (!wokwiWiringController) return;
+      const contract = wokwiWiringController.getContract();
+      if (!contract || !Array.isArray(contract.wires)) return;
+      const token = String(pinKey || '').replace(/_[LR]\d?$/, '');
+      const match = contract.wires.find((w) => {
+        const np = String(w.nodemcu_pin || '').toUpperCase();
+        if (token === 'V33') return np.includes('3V3');
+        if (token === 'GND') return np.includes('GND');
+        return np.startsWith(token.toUpperCase());
+      });
+      if (match) {
+        wokwiWiringController.inspectWire(match.wire_id);
+      }
+    }
+
+    function loadPcb2dSvgOnce() {
+      if (pcb2dSvgLoaded) return Promise.resolve();
+      if (pcb2dSvgLoadingPromise) return pcb2dSvgLoadingPromise;
+      const host = document.getElementById('pcb2dSvgHost');
+      if (!host) return Promise.resolve();
+      pcb2dSvgLoadingPromise = fetch('/docs/phan_cung/wiring_diagram_2d.svg', { cache: 'no-cache' })
+        .then((res) => {
+          if (!res || !res.ok) throw new Error('Không tải được sơ đồ PCB 2D.');
+          return res.text();
+        })
+        .then((svgText) => {
+          host.innerHTML = svgText;
+          const svgEl = host.querySelector('svg');
+          if (svgEl) {
+            svgEl.setAttribute('id', 'pcb2dInteractiveSvg');
+            const ns = 'http://www.w3.org/2000/svg';
+            const ov = document.createElementNS(ns, 'g');
+            ov.setAttribute('id', 'pcb2dEndpointOverlay');
+            svgEl.appendChild(ov);
+            svgEl.addEventListener('click', (ev) => {
+              const target = ev.target && ev.target.closest ? ev.target.closest('[data-wire-id]') : null;
+              if (target && wokwiWiringController) {
+                const wid = target.getAttribute('data-wire-id');
+                if (wid) wokwiWiringController.inspectWire(wid);
+              }
+            });
+          }
+          pcb2dSvgLoaded = true;
+          if (wokwiWiringController) wokwiWiringController.refresh();
+        })
+        .catch(() => {
+          pcb2dSvgLoadingPromise = null;
+          host.innerHTML = '<p class="pcb2d-loading">Không thể tải sơ đồ PCB 2D lúc này.</p>';
+        });
+      return pcb2dSvgLoadingPromise;
+    }
+
+    function setWokwiDiagramMode(mode) {
+      wokwiActiveDiagramMode = mode === 'pcb2d' ? 'pcb2d' : 'breadboard';
+      const bbScroll = document.getElementById('workbenchScroll');
+      const pcbScroll = document.getElementById('pcb2dScroll');
+      if (bbScroll) bbScroll.hidden = wokwiActiveDiagramMode !== 'breadboard';
+      if (pcbScroll) pcbScroll.hidden = wokwiActiveDiagramMode !== 'pcb2d';
+      document.querySelectorAll('[data-wokwi-mode]').forEach((btn) => {
+        const active = btn.getAttribute('data-wokwi-mode') === wokwiActiveDiagramMode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      if (wokwiActiveDiagramMode === 'pcb2d') {
+        loadPcb2dSvgOnce();
+      } else {
+        requestAnimationFrame(fitCircuitStageToWorkbench);
+      }
+      if (wokwiWiringController) wokwiWiringController.refresh();
+    }
+
+    function renderEndpointRings(overlayEl, coords) {
+      if (!overlayEl) return;
+      overlayEl.innerHTML = (coords || [])
+        .map(
+          ([x, y]) =>
+            `<circle class="wg-endpoint-pulse" cx="${Number(x).toFixed(1)}" cy="${Number(y).toFixed(1)}" r="9"/>` +
+            `<circle class="wg-endpoint-core" cx="${Number(x).toFixed(1)}" cy="${Number(y).toFixed(1)}" r="4.2"/>`
+        )
+        .join('');
+    }
+
+    function initWokwiWiringGuide() {
+      if (!window.SmartHomeWiringGuide || wokwiWiringController) return;
+      const modeSwitchHtml = `
+        <div class="wg-mode-switch" role="group" aria-label="Chế độ xem sơ đồ">
+          <button type="button" class="wg-mode-btn is-active" data-wokwi-mode="breadboard" aria-pressed="true">Mạch Breadboard</button>
+          <button type="button" class="wg-mode-btn" data-wokwi-mode="pcb2d" aria-pressed="false">Sơ đồ PCB 2D</button>
+        </div>
+      `;
+
+      wokwiWiringController = window.SmartHomeWiringGuide.createController({
+        instanceId: 'wokwi',
+        toolbarMount: 'wokwiWiringToolbar',
+        panelMount: 'wokwiWiringPanelMount',
+        inspectMount: 'wokwiWireInspect',
+        extraToolbarHtml: modeSwitchHtml,
+        adapter: {
+          onContractReady(contract) {
+            renderSsotPinoutTable(contract);
+            renderSsotTechGuides('all', contract);
+            document.querySelectorAll('[data-wokwi-mode]').forEach((btn) => {
+              btn.addEventListener('click', () => setWokwiDiagramMode(btn.getAttribute('data-wokwi-mode')));
+            });
+          },
+          bindInteractions(onSelectWire) {
+            const wireSvg = document.getElementById('wireLayer');
+            if (wireSvg && !wireSvg.dataset.wgClickBound) {
+              wireSvg.dataset.wgClickBound = '1';
+              wireSvg.addEventListener('click', (ev) => {
+                const item = ev.target && ev.target.closest ? ev.target.closest('.wg-wire-item') : null;
+                if (!item) return;
+                const wid = item.getAttribute('data-primary-wire-id');
+                if (wid) onSelectWire(wid);
+              });
+            }
+          },
+          setWiresVisible(visible) {
+            const wireSvg = document.getElementById('wireLayer');
+            const pcbHost = document.getElementById('pcb2dSvgHost');
+            if (wireSvg) wireSvg.classList.toggle('wg-wires-hidden', !visible);
+            if (pcbHost) pcbHost.classList.toggle('wg-wires-hidden', !visible);
+          },
+          applyModuleFilter(moduleId, visibleWireIds) {
+            const wireSvg = document.getElementById('wireLayer');
+            if (wireSvg) {
+              wireSvg.querySelectorAll('.wg-wire-item').forEach((item) => {
+                const ids = (item.getAttribute('data-wire-ids') || '').split(',').filter(Boolean);
+                const match = moduleId === 'all' || ids.some((id) => visibleWireIds.has(id));
+                item.classList.toggle('wg-wire-filtered-out', !match);
+              });
+            }
+            const pcbHost = document.getElementById('pcb2dSvgHost');
+            if (pcbHost) {
+              pcbHost.querySelectorAll('.pcb-wire').forEach((item) => {
+                const wid = item.getAttribute('data-wire-id') || '';
+                const match = moduleId === 'all' || visibleWireIds.has(wid);
+                item.classList.toggle('wg-wire-filtered-out', !match);
+              });
+            }
+          },
+          highlightStep(activeWire, visibleWireIds, meta) {
+            const layoutEl = document.getElementById('wokwiStageLayout');
+            if (layoutEl) {
+              layoutEl.classList.toggle('has-guide-open', Boolean(meta && meta.guideOpen));
+              requestAnimationFrame(fitCircuitStageToWorkbench);
+            }
+
+            const wireSvg = document.getElementById('wireLayer');
+            const bbOverlay = document.getElementById('wgEndpointOverlay');
+            if (wireSvg) {
+              const items = Array.from(wireSvg.querySelectorAll('.wg-wire-item'));
+              const ringCoords = [];
+              items.forEach((item) => {
+                if (!activeWire) {
+                  item.classList.remove('wg-wire-highlighted', 'wg-wire-dimmed');
+                  return;
+                }
+                const ids = (item.getAttribute('data-wire-ids') || '').split(',').filter(Boolean);
+                const isMatch = ids.includes(activeWire.wire_id);
+                item.classList.toggle('wg-wire-highlighted', isMatch);
+                item.classList.toggle('wg-wire-dimmed', !isMatch);
+                if (isMatch && ringCoords.length < 4) {
+                  const sx = Number(item.getAttribute('data-start-x'));
+                  const sy = Number(item.getAttribute('data-start-y'));
+                  const ex = Number(item.getAttribute('data-end-x'));
+                  const ey = Number(item.getAttribute('data-end-y'));
+                  if (Number.isFinite(sx) && Number.isFinite(sy)) ringCoords.push([sx, sy]);
+                  if (Number.isFinite(ex) && Number.isFinite(ey)) ringCoords.push([ex, ey]);
+                }
+              });
+              renderEndpointRings(bbOverlay, activeWire ? ringCoords : []);
+            }
+
+            const pcbHost = document.getElementById('pcb2dSvgHost');
+            const pcbOverlay = document.getElementById('pcb2dEndpointOverlay');
+            if (pcbHost) {
+              pcbHost.querySelectorAll('.pcb-wire').forEach((item) => {
+                if (!activeWire) {
+                  item.classList.remove('wg-wire-highlighted', 'wg-wire-dimmed');
+                  return;
+                }
+                const isMatch = item.getAttribute('data-wire-id') === activeWire.wire_id;
+                item.classList.toggle('wg-wire-highlighted', isMatch);
+                item.classList.toggle('wg-wire-dimmed', !isMatch);
+              });
+              const pinCoords = [];
+              pcbHost.querySelectorAll('.pcb-pin').forEach((pinEl) => {
+                const isMatch = Boolean(activeWire && pinEl.getAttribute('data-wire-id') === activeWire.wire_id);
+                pinEl.classList.toggle('wg-pin-highlighted', isMatch);
+                if (isMatch) {
+                  const cx = Number(pinEl.getAttribute('data-cx'));
+                  const cy = Number(pinEl.getAttribute('data-cy'));
+                  if (Number.isFinite(cx) && Number.isFinite(cy)) pinCoords.push([cx, cy]);
+                }
+              });
+              renderEndpointRings(pcbOverlay, activeWire ? pinCoords : []);
+            }
+          }
+        }
+      });
+      window.wokwiWiringController = wokwiWiringController;
     }
 
     // =========================================================================
@@ -1297,6 +1510,7 @@
       buildNodeMCUPins();
       buildBreadboard400();
       drawWires();
+      initWokwiWiringGuide();
       fitCircuitStageToWorkbench();
       setTimeout(() => {
         drawWires();
@@ -1454,3 +1668,6 @@ window.getConfiguredInoText = getConfiguredInoText;
 window.refreshInoCodePreview = refreshInoCodePreview;
 window.copyConfiguredInoCode = copyConfiguredInoCode;
 window.copyWokwiFile = copyWokwiFile;
+window.setWokwiDiagramMode = setWokwiDiagramMode;
+window.onNodeMcuPinClick = onNodeMcuPinClick;
+window.initWokwiWiringGuide = initWokwiWiringGuide;
